@@ -1,0 +1,27 @@
+PI=3.141592653589793
+HALF_PI=1.5707963267948966
+answer=42
+greeting=Titrate
+Circle area=78.53981633974483
+Circle: Circle area=78.53981633974483
+Option value=10
+Option is None
+Parsed positive: 42
+Error: Not positive
+Owned array after process:
+  element 0=2
+  element 1=4
+  element 2=6
+Region sum=300
+Unsafe raw value=65261
+ArrayList sorted:
+  Alpha
+  Test
+  Titrate
+HashMap value for key1=100
+byte=127
+short=32767
+half=1.5
+quad=1.0
+vast=12345678901234567890
+uvast=12345

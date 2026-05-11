@@ -1,0 +1,156 @@
+// mega_test.tr – Alpha 0.1 Comprehensive Validation
+import tt.lang.*;
+import tt.util.*;
+
+const PI: double = 3.141592653589793;
+const HALF_PI = PI / 2.0;
+let answer: int = 42;
+let greeting = "Titrate";
+
+public interface Displayable {
+    public fn display(): void;
+}
+
+public class Shape {
+    protected name: string;
+
+    public fn new(name: string): Shape {
+        this.name = name;
+        return this;
+    }
+
+    public fn getName(): string {
+        return this.name;
+    }
+}
+
+public class Circle extends Shape implements Displayable {
+    private radius: double;
+
+    public Circle(double r) {
+        super("Circle");
+        this.radius = r;
+    }
+
+    public fn area(): double {
+        return PI * this.radius * this.radius;
+    }
+
+    public void display() {
+        io::println("Circle: " + this.name + " area=" + this.area().toString());
+    }
+}
+
+public enum Option {
+    Some(value: int);
+    None;
+}
+
+public fn parsePositive(s: string): Result<int, string> {
+    let val = Integer.parseInt(s)?;
+    if (val <= 0) {
+        return Err("Not positive");
+    }
+    return Ok(val);
+}
+
+public fn processData(data: &mut array<int>): void {
+    for (let i = 0; i < data.length(); i = i + 1) {
+        data[i] = data[i] * 2;
+    }
+}
+
+public fn createOwnedArray(): Owned<array<int>> {
+    let arr: Owned<array<int>> = new array<int>(3);
+    arr[0] = 1; arr[1] = 2; arr[2] = 3;
+    return arr;
+}
+
+public void main() {
+    io::println("PI=" + Double.toString(PI));
+    io::println("HALF_PI=" + Double.toString(HALF_PI));
+    io::println("answer=" + Integer.toString(answer));
+    io::println("greeting=" + greeting);
+
+    let c: Circle = new Circle(5.0);
+    io::println("Circle area=" + Double.toString(c.area()));
+    c.display();
+
+    let opt1 = Option.Some(10);
+    switch (opt1) {
+        case Option.Some(v) => io::println("Option value=" + Integer.toString(v));
+        case Option.None => io::println("Option is None");
+        default => io::println("impossible");
+    }
+
+    let opt2 = Option.None;
+    switch (opt2) {
+        case Option.Some(v) => io::println("Should not print");
+        case Option.None => io::println("Option is None");
+        default => io::println("impossible");
+    }
+
+    let res1 = parsePositive("42");
+    switch (res1) {
+        case Ok(num) => io::println("Parsed positive: " + Integer.toString(num));
+        case Err(msg) => io::println("Error: " + msg);
+        default => io::println("impossible");
+    }
+
+    let res2 = parsePositive("-5");
+    switch (res2) {
+        case Ok(num) => io::println("Should not print");
+        case Err(msg) => io::println("Error: " + msg);
+        default => io::println("impossible");
+    }
+
+    let arr_owned = createOwnedArray();
+    processData(&mut *arr_owned);
+    io::println("Owned array after process:");
+    for (let idx = 0; idx < 3; idx = idx + 1) {
+        io::println("  element " + Integer.toString(idx) + "=" + Integer.toString((*arr_owned)[idx]));
+    }
+
+    region {
+        let tempArr = region.alloc<array<int>>(2);
+        tempArr[0] = 100;
+        tempArr[1] = 200;
+        let sum = tempArr[0] + tempArr[1];
+        io::println("Region sum=" + Integer.toString(sum));
+    }
+
+    unsafe {
+        let rawPtr: *int = malloc(8 as size);
+        *rawPtr = 0xFEED;
+        io::println("Unsafe raw value=" + Integer.toString(*rawPtr));
+        free(rawPtr);
+    }
+
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("Titrate");
+    list.add("Alpha");
+    list.add("Test");
+    list.sort();
+    io::println("ArrayList sorted:");
+    for (let i = 0; i < list.size(); i = i + 1) {
+        io::println("  " + list.get(i));
+    }
+
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("key1", 100);
+    map.put("key2", 200);
+    io::println("HashMap value for key1=" + Integer.toString(map.get("key1")));
+
+    let b: byte = 127;
+    let s: short = 32767;
+    let h: half = 1.5h;
+    let q: quad = 1.0q;
+    let v: vast = 12345678901234567890;
+    let uv: uvast = 12345;
+    io::println("byte=" + Byte.toString(b));
+    io::println("short=" + Short.toString(s));
+    io::println("half=" + Half.toString(h));
+    io::println("quad=" + Quad.toString(q));
+    io::println("vast=" + Vast.toString(v));
+    io::println("uvast=" + Uvast.toString(uv));
+}
