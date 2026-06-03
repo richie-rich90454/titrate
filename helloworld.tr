@@ -1,5 +1,0 @@
-import tt.lang.*;
-import tt.util.*;
-public void main(){
-    io::println("Hello World");
-}
