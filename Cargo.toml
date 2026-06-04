@@ -1,0 +1,3 @@
+[workspace]
+members = ["trc", "pipette"]
+resolver = "2"
