@@ -1,0 +1,66 @@
+=== Variables ===
+42
+3.14159
+Hello, Titrate!
+true
+A
+=== Arithmetic ===
+15
+12
+42
+33
+2
+=== Strings ===
+The answer is 42
+Pi is 3.14159
+=== Control Flow ===
+answer is greater than 40
+flag is true
+counter: 0
+counter: 1
+counter: 2
+=== Functions ===
+7
+120
+Hello, World!
+=== Classes ===
+Circle with radius 5
+Area: 78.53975
+=== Enums ===
+Circle
+Rectangle
+=== Results ===
+10/3 = 3
+Error: division by zero
+=== ArrayList ===
+3
+banana
+apple
+cherry
+=== HashMap ===
+Titrate
+0.1
+=== Casting ===
+99999
+42
+=== For Loop ===
+item: banana
+item: apple
+item: cherry
+=== Bitwise ===
+1
+7
+6
+16
+=== Logic ===
+false
+true
+false
+=== Comparison ===
+true
+true
+false
+true
+true
+true
+=== Mega Test Complete ===
