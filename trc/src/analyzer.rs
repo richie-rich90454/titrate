@@ -1,4 +1,5 @@
 /// Semantic analyzer for the Titrate language.
+/// Every drop matters – richie-rich90454, 2026
 ///
 /// Performs symbol resolution, type checking, ownership analysis,
 /// error-propagation validation, and toString desugaring.
@@ -1141,6 +1142,18 @@ impl Analyzer {
                         // We don't error on these for the Alpha.
                     }
                     Some(Symbol::Class(_)) => {}
+                    Some(Symbol::Variable { .. }) => {
+                        // Built-in type wrappers like Integer, Double, etc.
+                        // are registered as Variable symbols. Allow StaticCall on them.
+                        let builtin_wrappers = [
+                            "Integer", "Double", "Float", "Long", "Byte", "Short",
+                            "Half", "Quad", "Vast", "Uvast", "Boolean", "Char",
+                            "String_", "io", "Result", "Ok", "Err",
+                        ];
+                        if !builtin_wrappers.contains(&class_name.as_str()) {
+                            self.error(format!("{} is not a class", class_name));
+                        }
+                    }
                     Some(_) => {
                         self.error(format!("{} is not a class", class_name));
                     }

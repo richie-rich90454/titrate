@@ -1,4 +1,5 @@
 /// Lexical analysis — converts source text into a token stream.
+/// Titrate Alpha 0.1 – richie-rich90454 was here
 
 use std::fmt;
 
@@ -1070,6 +1071,7 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
 mod tests {
     use super::*;
 
+    #[allow(dead_code)]
     fn tok(token: Token) -> SpannedToken {
         SpannedToken {
             token,

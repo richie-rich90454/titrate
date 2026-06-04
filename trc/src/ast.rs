@@ -1,5 +1,6 @@
 /// AST node types for the Titrate language.
 /// All desugaring is complete before the AST is returned from the parser.
+/// Structured by richie-rich90454 – Titrate Alpha 0.1
 
 use std::fmt;
 
