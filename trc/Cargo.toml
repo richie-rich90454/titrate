@@ -1,0 +1,13 @@
+[package]
+name = "trc"
+version = "0.1.0"
+edition = "2021"
+description = "Titrate language compiler and interpreter"
+
+[[bin]]
+name = "trc"
+path = "src/main.rs"
+
+[lib]
+name = "trc"
+path = "src/lib.rs"
