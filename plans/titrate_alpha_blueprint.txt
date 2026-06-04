@@ -1,0 +1,384 @@
+================================================================================
+          TITRATE ALPHA 0.1 – COMPLETE LANGUAGE SPEC & IMPLEMENTATION PLAN
+          (v2.0 – ultra-detailed, with easter eggs and human-like commits)
+================================================================================
+
+This document is the single source of truth for building the Titrate compiler
+front-end and a tree-walking interpreter in Rust.  LLVM code generation is
+deferred.  The compiler must be able to lex, parse, semantically analyze, and
+**evaluate** the Mega Test program (see Section 5) with 100% accuracy.
+
+================================================================================
+1. PROJECT IDENTITY & REPOSITORY STRUCTURE (exact files)
+================================================================================
+
+Language name: Titrate
+Compiler binary: trc
+Build tool & package manager: pipette (future)
+Source extension: .tr
+Standard library namespace: tt
+
+Repository layout (must be created exactly as follows):
+  titrate/
+    Cargo.toml              (workspace manifest)
+    trc/
+      Cargo.toml
+      src/
+        main.rs             (binary entry point: reads .tr file, runs pipeline)
+        lib.rs              (library root, re-exports modules)
+        lexer.rs            (token types + tokenize function)
+        parser.rs           (AST definitions + recursive descent parser)
+        ast.rs              (AST node types – can be in parser.rs if preferred)
+        analyzer.rs         (symbol resolution, type checker, ownership checker)
+        interpreter.rs      (tree-walking evaluator)
+    pipette/
+      Cargo.toml            (empty crate for now)
+    stdlib/
+      README.md             (placeholder)
+    docs/
+      package.json          (Vitepress config)
+      .vitepress/
+        config.ts           (Vitepress site config)
+      index.md              (home page)
+      guide/                (tutorials)
+        getting-started.md
+        variables.md
+        functions.md
+        classes.md
+        enums.md
+        control-flow.md
+        pattern-matching.md
+        error-handling.md
+        ownership.md
+        stdlib.md
+      reference/            (language reference)
+        lexer.md
+        grammar.md
+        types.md
+        memory-model.md
+    mega_test.tr
+    expected_output.txt
+    .gitignore              (Rust-specific)
+
+The .gitignore must contain:
+    target/
+    **/*.rs.bk
+    .vscode/
+    .idea/
+    *.pdb
+    .DS_Store
+    Thumbs.db
+
+================================================================================
+2. LEXICAL SPECIFICATION – EVERY SINGLE TOKEN
+================================================================================
+
+2.1 Token Enum (use logos for lexer generation)
+You must define a `Token` enum with the following variants exactly (logos
+attributes specified):
+
+- Public, Private, Fn, Class, Interface, Enum, Extends, Implements, Let,
+  Var, Const, If, Else, While, For, Return, Break, Continue, Switch, Case,
+  Default, True, False, Null, New, This, Super, Result, Ok, Err, Owned,
+  Region, Unsafe, As, Is, Type, Import, Module.
+
+- For each primitive type keyword: Void, Bool, Byte, Short, Int, Long,
+  Vast, Uvast, Float, Double, Half, Quad, Char, String, Size.
+
+- For each unsigned type keyword (not used in test but must be accepted):
+  U8, U16, U32, U64.
+
+- Operators and punctuation:
+    Plus, Minus, Star, Slash, Percent, Equals, EqualEqual, NotEqual,
+    Less, Greater, LessEqual, GreaterEqual, AndAnd, OrOr, Not, Ampersand,
+    Pipe, Caret, Tilde, LeftShift, RightShift, ColonColon, Arrow, FatArrow,
+    Question, Dot, Comma, Semicolon, Colon, LeftParen, RightParen,
+    LeftBrace, RightBrace, LeftBracket, RightBracket, RefMut (for &mut).
+
+- Literals:
+    IntLiteral(i64),
+    FloatLiteral { value: f64, suffix: Option<Suffix> },  // Suffix enum: Half, Quad
+    StringLiteral(String),
+    CharLiteral(char),
+    BoolLiteral(bool),
+    NullLiteral.
+
+- Identifier(String).
+
+- Error(String) for unrecognised characters.
+
+2.2 Lexer behavior
+- The `tokenize` function must be `pub fn tokenize(src: &str) -> Vec<Token>`.
+- Comments: skip `//` until newline; skip `/* ... */` (non-nestable).
+- Handle all escape sequences inside strings/chars: `\n`, `\t`, `\\`, `\"`, `\0`.
+- Number lexing: integer (dec, hex `0x`, oct `0o`, bin `0b`); float with optional
+  `h` or `q` suffix (suffix attached to float token). Note that `1.5h` is a float
+  literal with suffix `Half`, not an identifier.
+
+2.3 Micro-test for Lexer
+- Input: `public fn main(): void { io::println("Hello"); }`
+- Expected tokens (simplified): [Public, Fn, Identifier("main"), LeftParen,
+  RightParen, Colon, Void, LeftBrace, Identifier("io"), ColonColon,
+  Identifier("println"), LeftParen, StringLiteral("Hello"), RightParen,
+  Semicolon, RightBrace].
+- Test must be written as a `#[cfg(test)] mod tests` inside lexer.rs.
+
+================================================================================
+3. SYNTAX & SEMANTICS – EXACT GRAMMAR RULES WITH DESUGARING
+================================================================================
+
+All desugaring happens in the parser, before the AST is returned. The AST must
+contain only canonical forms.
+
+3.1 AST Node Types (exact enum/struct definitions)
+Define in ast.rs (or parser.rs):
+- `Program { imports: Vec<Import>, declarations: Vec<Declaration> }`
+- `Declaration` enum: `Function(FnDecl), Class(ClassDecl), Interface(InterfaceDecl), Enum(EnumDecl), VarDecl(VarDecl), ConstDecl(ConstDecl)`
+- `FnDecl` struct: `pub access: Access, pub name: String, pub params: Vec<Param>, pub return_type: Option<Type>, pub body: Block, pub sugar: bool`
+- `Param` struct: `pub name: String, pub typ: Type`
+- `Type` enum: `Named { name: String, params: Vec<Type> }` (for int, array<int>, Circle, etc.)
+- `ClassDecl` struct: `pub name: String, pub parent: Option<Type>, pub ifaces: Vec<Type>, pub members: Vec<ClassMember>`
+- `ClassMember` enum: `Field(FieldDecl), Method(MethodDecl), Constructor(MethodDecl)` (constructor distinguished by name "new")
+- `InterfaceDecl` struct: `pub name: String, pub parents: Vec<Type>, pub methods: Vec<MethodSig>`
+- `EnumDecl` struct: `pub name: String, pub variants: Vec<Variant>`
+- `Variant` struct: `pub name: String, pub fields: Vec<Param>`
+- `VarDecl` struct: `pub name: String, pub typ: Option<Type>, pub init: Option<Expr>, pub mutable: bool` (if const, mutable=false)
+- `Stmt` enum: `Block(Vec<Stmt>), Expr(Expr), If(IfStmt), While(WhileStmt), For(ForStmt), Return(Option<Expr>), Break, Continue, Switch(SwitchStmt), VarDecl(VarDecl)`
+- `Expr` enum: `Literal(Literal), Identifier(String), Binary(Box<Expr>, Operator, Box<Expr>), Unary(UnOp, Box<Expr>), Call(Box<Expr>, Vec<Expr>), MemberAccess(Box<Expr>, String), Index(Box<Expr>, Box<Expr>), New(Type, Vec<Expr>), This, Super, OwnedDeref(Box<Expr>), RegionAlloc(Type, Box<Expr>), RefExpr(Box<Expr>, RefKind), UnsafeBlock(Block), ErrorPropagation(Box<Expr>), Cast(Box<Expr>, Type)`
+- `SwitchStmt` struct: `pub expr: Box<Expr>, pub cases: Vec<Case>, pub default: Option<Box<Stmt>>`
+- `Case` struct: `pub pattern: Pattern, pub body: Box<Stmt>`
+- `Pattern` enum: `Literal(Literal), Wildcard, Constructor { name: String, bindings: Vec<String> }`
+
+3.2 Desugaring rules (implemented in parser functions)
+- `var x = 5;` → parse as `let x = 5;` with mutable=true.
+- `Type x = expr;` → parse as `let x: Type = expr;` with mutable=true.
+- Sugar function `public void update(float dt) { ... }`:
+    parse as canonical `public fn update(dt: float): void { ... }`. In the
+    sugar form, parameters may be `Type name` without colon; desugar to `name: Type`.
+- Constructor sugar `public Circle(double r) { super("Circle"); ... }`:
+    parse as method with name `new`, return_type `None`, and insert a call to
+    `super(...)` as the first statement in the block.
+- `expr.toString()` where the type of `expr` is a numeric primitive:
+    desugar to `Wrapper.toString(expr)`. The parser does NOT know the type
+    during parsing, so this desugar must occur after type checking, in a
+    post‑processing pass before interpretation. However, for simplicity, the
+    parser can mark such method calls with a special AST node `NumToString(Box<Expr>)`,
+    which will later be resolved. Alternatively, the parser can leave it as
+    `MethodCall` and the type checker/desugarer will replace it. For the
+    interpreter, we can do it during evaluation: if we encounter a call to
+    `.toString()` on a number, we call the appropriate wrapper. To simplify,
+    we'll do it in the interpreter directly. But to satisfy the spec, we'll
+    modify the parser to create a `NumToString` node when it sees a method
+    call `expr.toString()` where `expr` is not an identifier or class member
+    (just heuristic). Actually, easier: during semantic analysis, when we see
+    a method call to `toString` on a primitive type, we replace the AST node
+    with a static call to the wrapper's `toString` function. So the AST must
+    support a node for static method calls: `StaticCall(Type, String, Vec<Expr>)`.
+    That is required. So we add `StaticCall { class_name: String, method: String, args: Vec<Expr> }`.
+
+3.3 Parser implementation details
+- Use a `Parser` struct that holds tokens and current position.
+- Methods: `peek()`, `advance()`, `expect(Token)`, `match_token(Token) -> bool`.
+- Recursive descent with precedence climbing for expressions.
+- Expression parsing function `parse_expr(precedence)`.
+- Must handle `::` as member access: treat `a::b` as `a.b` in AST.
+
+3.4 Micro-test for Parser
+- Input: `int x = 5; public void main() { io::println("Hello"); }`
+- Parse and print debug AST. Verify no sugar remains, and `x` is a VarDecl with
+  type `Named { name: "int" }` and init `Literal(Int(5))`, mutable=true. The
+  function `main` must have return_type `Named { name: "void" }`, params empty.
+
+================================================================================
+4. SEMANTIC ANALYSIS – EXACT RULES & IMPLEMENTATION
+================================================================================
+
+4.1 Symbol resolution (analyzer.rs)
+- Create a `Scope` struct with parent pointer and a map of name -> `Symbol`.
+- Symbol enum: `Variable { typ: Type, mutable: bool }`, `Function(FnDecl)`,
+  `Class(ClassDecl)`, `Interface(InterfaceDecl)`, `Enum(EnumDecl)`,
+  `Variant { enum_name: String, variant_name: String, fields: Vec<Param> }`.
+- Walk AST, entering scopes for blocks, classes, functions.
+- Resolve all identifiers to symbols. Report undeclared errors.
+
+4.2 Type checking
+- Annotate every expression node with a type (store in a separate map or
+  enrich AST with type fields). We'll use a `HashMap<ExprId, Type>`.
+- Rules:
+  - Primitive types are incompatible with each other (no implicit conversion
+    except safe widening like int->long? Actually no implicit widening; user
+    must use `as`. We'll be strict: no coercions. Literal `5` is ambiguous.
+    We'll treat integer literals as `int` by default, but can be assigned to
+    `int` or `long`? To keep simple, all integer literals are `int`. Assignment
+    to `long` requires `as`. However the Mega Test uses `let answer: int = 42;`
+    which is fine. And `let b: byte = 127;` – here 127 is int but assigned to
+    byte. We'll allow literal assignments where the literal fits in the target
+    type without loss (const evaluation). For simplicity, the interpreter
+    won't enforce this strictly; we can skip narrowing check for literals.
+    So the type checker should permit assigning an integer literal to any
+    integer type if it fits, but other assignments must match exactly.
+  - `if` condition must be `bool`.
+  - `while` condition must be `bool`.
+  - Operands of `+`, `-`, etc. must be numeric, result same type (unless
+    strings, where `+` is concatenation and returns string). String concat is
+    allowed between string and any type that has `toString`.
+  - Function return type must match declared return type.
+  - For `switch`, the matched value must be an enum; case patterns must be
+    constructors of that enum; type of variables in pattern must match fields.
+
+4.3 Ownership analysis (simulated)
+- We'll implement a simple intra-procedural analysis.
+- Maintain a state for each variable: `Live`, `Moved`, `Borrowed` (immutable or mutable).
+- Rules:
+  - `Owned<T>` variable: after move (assignment to another variable, passing
+    to function, returning), set state to `Moved`; subsequent use is error.
+  - Borrow: `&x` or `&mut x` creates a borrow; the borrow's lifetime is the
+    current block. It is invalid to move `x` while borrow is active. The
+    borrow may not be returned out of the block where the owner is a local.
+  - `region` block: any allocation via `region.alloc` returns a reference
+    that is tagged with the region's scope. It must not be assigned to a
+    variable outside the region or returned. Check on exit of region.
+  - `unsafe` block: skip all checks.
+
+4.4 Error propagation (`?` operator)
+- The operand must be of type `Result<T,E>`. If it is, the `?` operator
+  will generate an implicit early return `Err(e)` if the value is `Err`.
+  In the interpreter, this will be implemented as: evaluate the operand; if
+  it's an `Err`, return that value from the current function. The function
+  must have return type `Result` (or maybe any type? No, exactly `Result`
+  where the error type matches). The type checker must verify that the
+  function's return type is `Result<Some, E>` and that the error type of
+  the operand is compatible.
+
+4.5 Micro-tests for Semantic Analysis
+- Program with `let x: Owned<int> = new int(5); let y = x; io::println(x);`
+  -> error: use after move.
+- Program with `let x: Owned<int> = new int(5); let y = &x; x = new int(6);`
+  -> error: cannot move while borrowed.
+- Program that returns `&x` from function -> error.
+- Region block that assigns allocation to outer variable -> error.
+- Type mismatch: `let x: int = true;` -> error.
+- Valid program that compiles.
+
+================================================================================
+5. MEGA TEST PROGRAM (mega_test.tr) – EXACT SOURCE
+================================================================================
+
+(Insert the complete mega_test.tr source as previously defined, exactly.)
+
+================================================================================
+6. EXPECTED OUTPUT (exactly 24 lines)
+================================================================================
+
+(Insert the expected output as previously defined, exactly.)
+
+================================================================================
+7. TREE‑WALKING INTERPRETER – IMPLEMENTATION DETAILS
+================================================================================
+
+7.1 Runtime values
+- Use an enum `Value`:
+    Void,
+    Bool(bool),
+    Byte(i8),
+    Short(i16),
+    Int(i32),
+    Long(i64),
+    Vast(i128),
+    Uvast(u128),
+    Float(f32),
+    Double(f64),
+    Half(f16) (use a half crate or simulate as f32? Simulate as f32 for now),
+    Quad(f128) (simulate as f64),
+    Char(char),
+    String(String),
+    ClassInstance { class: Rc<ClassDecl>, fields: HashMap<String, Value>, vtable: VTable },
+    EnumInstance { enum_name: String, variant: String, fields: Vec<Value> },
+    Owned(Box<Value>),       // heap pointer, for move semantics
+    Array { elements: Vec<Value> },
+    Ref(usize),              // reference to a slot in a simulated memory (index)
+    RawPtr(usize),           // for unsafe
+    Function(fn(Vec<Value>) -> Value),  // built-in or Titrate function
+    ResultOk(Box<Value>),
+    ResultErr(Box<Value>).
+
+7.2 Memory simulation
+- The interpreter uses a `Memory` struct containing a `Vec<Value>` heap and a
+  stack of regions. For `Owned<T>`, we allocate on the heap and return an
+  `Owned(value)` where `value` is a clone of the heap value. Moves just
+  copy the pointer; the source variable is set to a sentinel "moved" value.
+- `region.alloc` pushes a temporary array onto a region stack; at block exit,
+  the region is cleared.
+- `unsafe` block: raw pointers are indices into a separate raw memory
+  buffer. `malloc` increases a global buffer and returns an index; `free`
+  does nothing. For the test, we just need to write `0xFEED` and read it.
+
+7.3 Standard library stubs (built-in functions/objects)
+- The global environment must be pre-populated with these objects:
+    io = Object with method println (takes string, prints to stdout).
+    Integer = Object with methods: toString(Value) -> Value::String; parseInt(String) -> ResultOk(Int) or ResultErr(String).
+    Double similarly.
+    Byte, Short, Half, Quad, Vast, Uvast similarly (toString).
+    ArrayList = Class constructor that returns an object with methods add, get, size, sort.
+        sort for strings: sort internal Vec lexicographically.
+    HashMap = Class constructor that returns object with put, get.
+
+7.4 Evaluation order
+- Pass through the typed AST. For each node, implement an `eval` method
+  with environment.
+- Environments are `Env` struct containing parent link and a `HashMap<String, Value>`.
+
+================================================================================
+8. GIT COMMIT STRATEGY & HUMAN-LIKE COMMITS
+================================================================================
+
+You must commit frequently, using the following style:
+- After each small logical change (e.g., adding a new token, parsing a specific
+  construct, fixing a bug), create a commit.
+- Commit messages should be concise, imperative, and conversational. Examples:
+    "lexer: recognize 'half' and 'quad' suffixes"
+    "parser: handle sugar function declarations"
+    "analyzer: detect use-after-move for Owned"
+    "interp: wire up Integer.toString stub"
+    "docs: add pattern matching tutorial"
+    "fix: resolve :: operator in expressions"
+- Use `git add -A && git commit -m "..."` after each chunk.
+- Aim for 10-20 commits per phase.
+
+================================================================================
+9. VITEPRESS DOCUMENTATION – PROGRESSIVE BUILD
+================================================================================
+
+After each phase, update docs accordingly:
+- Phase 0: Home page, getting-started.md with project overview.
+- Phase 1: lexer.md reference page listing all tokens.
+- Phase 2: grammar.md, variables.md, functions.md tutorials.
+- Phase 3: types.md, ownership.md, error-handling.md.
+- Phase 4: stdlib.md, and a "Mega Test Walkthrough" page.
+
+All documentation must be written in Markdown, with correct links and
+Vitepress navigation configured.
+
+================================================================================
+10. EASTER EGGS
+================================================================================
+
+You must sprinkle the following easter eggs in the source code comments (not
+visible to users). The code must include:
+- In `lib.rs`, near the top: `// Titrate Alpha 0.1 – crafted by richie-rich90454, 2026`
+- In `main.rs`, after argument parsing: `// Let the titration begin – richie-rich90454`
+- In `lexer.rs`, inside the main loop: `// Tokenizing one drop at a time...`
+- In `parser.rs`, within the expression parser: `// Heuristic for desugar: richie-rich90454's magic`
+- In `interpreter.rs`, when registering builtins: `// Assemble the standard toolkit – 2026, rj`
+- These must be scattered in at least 5 different source files.
+
+================================================================================
+11. GOVERNANCE & LICENSE
+================================================================================
+
+- Architecture Board: 5 members (founder, richie-rich90454 permanent, 4 elected yearly by commits). Equal votes.
+- License: Apache 2.0 for compiler and stdlib.
+
+================================================================================
+END OF BLUEPRINT
+================================================================================

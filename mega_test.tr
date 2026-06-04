@@ -1,0 +1,199 @@
+// Titrate Alpha 0.1 — Mega Test
+// Exercises every language feature in Phases 0–4.
+
+public fn main(): void {
+    // === Section 1: Variables and Primitives ===
+    let answer: int = 42;
+    let pi: double = 3.14159;
+    let greeting: string = "Hello, Titrate!";
+    let flag: bool = true;
+    let letter: char = 'A';
+
+    io::println("=== Variables ===");
+    io::println(Integer.toString(answer));
+    io::println(Double.toString(pi));
+    io::println(greeting);
+    io::println(Boolean.toString(flag));
+    io::println(Char.toString(letter));
+
+    // === Section 2: Arithmetic ===
+    io::println("=== Arithmetic ===");
+    io::println(Integer.toString(10 + 5));
+    io::println(Integer.toString(20 - 8));
+    io::println(Integer.toString(6 * 7));
+    io::println(Integer.toString(100 / 3));
+    io::println(Integer.toString(17 % 5));
+
+    // === Section 3: String Concatenation ===
+    io::println("=== Strings ===");
+    io::println("The answer is " + Integer.toString(answer));
+    io::println("Pi is " + Double.toString(pi));
+
+    // === Section 4: Control Flow ===
+    io::println("=== Control Flow ===");
+    if answer > 40 {
+        io::println("answer is greater than 40");
+    }
+    if flag {
+        io::println("flag is true");
+    } else {
+        io::println("flag is false");
+    }
+
+    var counter: int = 0;
+    while counter < 3 {
+        io::println("counter: " + Integer.toString(counter));
+        counter = counter + 1;
+    }
+
+    // === Section 5: Functions ===
+    io::println("=== Functions ===");
+    io::println(Integer.toString(add(3, 4)));
+    io::println(Integer.toString(factorial(5)));
+
+    // === Section 6: Sugar Function Desugaring ===
+    greet("World");
+
+    // === Section 7: Classes ===
+    io::println("=== Classes ===");
+    let c: Circle = new Circle(5.0);
+    c.describe();
+    io::println("Area: " + Double.toString(c.area()));
+
+    // === Section 8: Enums and Pattern Matching ===
+    io::println("=== Enums ===");
+    let s1: Shape = SCircle(3.0);
+    let s2: Shape = SRectangle(4.0, 5.0);
+    io::println(shape_name(s1));
+    io::println(shape_name(s2));
+
+    // === Section 9: Result Type ===
+    io::println("=== Results ===");
+    let r1: Result<int, string> = safe_divide(10, 3);
+    let r2: Result<int, string> = safe_divide(10, 0);
+
+    switch r1 {
+        case Ok(v) => io::println("10/3 = " + Integer.toString(v));
+        case Err(e) => io::println("Error: " + e);
+    }
+    switch r2 {
+        case Ok(v) => io::println("10/0 = " + Integer.toString(v));
+        case Err(e) => io::println("Error: " + e);
+    }
+
+    // === Section 10: ArrayList ===
+    io::println("=== ArrayList ===");
+    let list: ArrayList = new ArrayList();
+    list.add("banana");
+    list.add("apple");
+    list.add("cherry");
+    io::println(Integer.toString(list.size()));
+    list.sort();
+    io::println(list.get(0));
+    io::println(list.get(1));
+    io::println(list.get(2));
+
+    // === Section 11: HashMap ===
+    io::println("=== HashMap ===");
+    let map: HashMap = new HashMap();
+    map.put("name", "Titrate");
+    map.put("version", "0.1");
+    io::println(map.get("name"));
+    io::println(map.get("version"));
+
+    // === Section 12: Type Casting ===
+    io::println("=== Casting ===");
+    let big: long = 99999 as long;
+    io::println(Long.toString(big));
+    let d: double = 42 as double;
+    io::println(Double.toString(d));
+
+    // === Section 13: For Loop ===
+    io::println("=== For Loop ===");
+    for item in list {
+        io::println("item: " + item);
+    }
+
+    // === Section 14: Bitwise ===
+    io::println("=== Bitwise ===");
+    io::println(Integer.toString(5 & 3));
+    io::println(Integer.toString(5 | 3));
+    io::println(Integer.toString(5 ^ 3));
+    io::println(Integer.toString(1 << 4));
+
+    // === Section 15: Boolean Logic ===
+    io::println("=== Logic ===");
+    io::println(Boolean.toString(true && false));
+    io::println(Boolean.toString(true || false));
+    io::println(Boolean.toString(!true));
+
+    // === Section 16: Comparison ===
+    io::println("=== Comparison ===");
+    io::println(Boolean.toString(5 > 3));
+    io::println(Boolean.toString(3 >= 3));
+    io::println(Boolean.toString(2 < 1));
+    io::println(Boolean.toString(1 <= 1));
+    io::println(Boolean.toString(5 == 5));
+    io::println(Boolean.toString(4 != 5));
+
+    // === Done ===
+    io::println("=== Mega Test Complete ===");
+}
+
+// Helper functions
+fn add(a: int, b: int): int {
+    return a + b;
+}
+
+fn factorial(n: int): int {
+    if n <= 1 {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+
+public void greet(string name) {
+    io::println("Hello, " + name + "!");
+}
+
+// Class
+class Circle {
+    double radius;
+
+    public Circle(double r) {
+        super("Circle");
+        this.radius = r;
+    }
+
+    public fn area(): double {
+        return 3.14159 * this.radius * this.radius;
+    }
+
+    public fn describe(): void {
+        io::println("Circle with radius " + Double.toString(this.radius));
+    }
+}
+
+// Enum
+enum Shape {
+    SCircle(double),
+    SRectangle(double, double),
+    STriangle(double, double, double),
+}
+
+fn shape_name(s: Shape): string {
+    switch s {
+        case SCircle(_) => return "Circle";
+        case SRectangle(_, _) => return "Rectangle";
+        case STriangle(_, _, _) => return "Triangle";
+    }
+    return "Unknown";
+}
+
+// Result type functions
+fn safe_divide(a: int, b: int): Result<int, string> {
+    if b == 0 {
+        return Err("division by zero");
+    }
+    return Ok(a / b);
+}
