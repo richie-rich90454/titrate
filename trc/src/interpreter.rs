@@ -1,4 +1,5 @@
 // Phase 4: Tree-walking interpreter for the Titrate language
+// Precision in every step – richie-rich90454, 2026
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -300,12 +301,15 @@ enum ControlFlow {
 // Memory simulation
 // ---------------------------------------------------------------------------
 
+#[allow(dead_code)]
 struct Memory {
     heap: Vec<Value>,
+    #[allow(dead_code)]
     raw_buffer: Vec<u8>,
     region_stack: Vec<Vec<usize>>,
 }
 
+#[allow(dead_code)]
 impl Memory {
     fn new() -> Self {
         Memory {
@@ -443,20 +447,22 @@ struct FieldDef {
     init: Option<ast::Expr>,
 }
 
+#[allow(dead_code)]
 struct EnumDef {
+    #[allow(dead_code)]
     variants: HashMap<String, Vec<ParamDecl>>,
 }
 
-struct Interpreter {
+pub struct Interpreter {
     env: Rc<RefCell<Env>>,
     memory: RefCell<Memory>,
     class_defs: RefCell<HashMap<String, ClassDef>>,
     enum_defs: RefCell<HashMap<String, EnumDef>>,
-    output: RefCell<Vec<String>>,
+    pub output: RefCell<Vec<String>>,
 }
 
 impl Interpreter {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let env = Rc::new(RefCell::new(Env::new()));
         let interpreter = Interpreter {
             env,
@@ -495,7 +501,7 @@ impl Interpreter {
         env.set("Err", Value::BuiltinFn("Err".to_string()));
     }
 
-    fn run(&self, program: &ast::Program) -> Result<(), String> {
+    pub fn run(&self, program: &ast::Program) -> Result<(), String> {
         // First pass: register all class and enum definitions
         for decl in &program.declarations {
             match decl {
@@ -3248,7 +3254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_static_call_toString() {
+    fn test_static_call_to_string() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::StaticCall {
@@ -3265,7 +3271,7 @@ mod tests {
     }
 
     #[test]
-    fn test_static_call_parseInt() {
+    fn test_static_call_parse_int() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::StaticCall {
@@ -3831,7 +3837,7 @@ mod tests {
     // ---- parseInt success ----
 
     #[test]
-    fn test_parseInt_success() {
+    fn test_parse_int_success() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::StaticCall {
@@ -3850,7 +3856,7 @@ mod tests {
     // ---- parseInt failure ----
 
     #[test]
-    fn test_parseInt_failure() {
+    fn test_parse_int_failure() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::StaticCall {
@@ -3869,7 +3875,7 @@ mod tests {
     // ---- Double toString ----
 
     #[test]
-    fn test_double_toString() {
+    fn test_double_to_string() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::StaticCall {
