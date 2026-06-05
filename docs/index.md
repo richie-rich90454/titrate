@@ -12,4 +12,12 @@ hero:
     - theme: alt
       text: Language Reference
       link: /reference/lexer
+
+features:
+  - title: Precise Types
+    details: From byte to quad, unsigned fixed-width to arbitrary-precision integers. Every bit counts.
+  - title: Ownership Semantics
+    details: Move semantics, borrowing, and region-based allocation — memory safety without garbage collection.
+  - title: Pattern Matching
+    details: Destructure enums, propagate errors with ?, and match with confidence.
 ---

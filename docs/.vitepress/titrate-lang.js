@@ -75,7 +75,7 @@ export default {
           begin: "'",
           end: "'",
           patterns: [
-            { name: 'constant.character.escape.titrate', match: '\\\\[nt\\\\'\'0]' },
+            { name: 'constant.character.escape.titrate', match: "\\\\[nt\\\\'0]" },
           ],
         },
         {

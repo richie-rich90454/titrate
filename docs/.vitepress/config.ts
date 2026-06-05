@@ -3,11 +3,16 @@ import titrateLang from './titrate-lang.js';
 
 export default defineConfig({
   title: 'Titrate',
-  description: 'The Titrate Programming Language',
+  description: 'A systems programming language',
+  base: '/titrate/',
+  cleanUrls: true,
   markdown: {
     theme: 'github-dark',
     languages: [titrateLang],
   },
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/titrate/favicon.svg' }],
+  ],
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
@@ -42,6 +47,15 @@ export default defineConfig({
           ],
         },
       ],
+    },
+    socialLinks: [
+      { icon: 'github', link: 'https://github.com/richie-rich90454/titrate' },
+    ],
+    search: {
+      provider: 'local',
+    },
+    footer: {
+      message: 'Released under the Apache-2.0 License.',
     },
   },
 });
