@@ -1,8 +1,13 @@
 import { defineConfig } from 'vitepress';
+import titrateLang from './titrate-lang.js';
 
 export default defineConfig({
   title: 'Titrate',
   description: 'The Titrate Programming Language',
+  markdown: {
+    theme: 'github-dark',
+    languages: [titrateLang],
+  },
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
