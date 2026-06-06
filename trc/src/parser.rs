@@ -76,6 +76,35 @@ impl Parser {
             None => (0, 0),
         }
     }
+
+    /// Create an ast::Span from the current position.
+    fn make_span(&self) -> ast::Span {
+        let (line, col) = self.span_here();
+        ast::Span::new(line as u32, col as u32)
+    }
+
+    /// Parse optional type parameters: `<T, U, ...>`
+    /// If the next token is `<`, parse a comma-separated list of identifiers until `>`.
+    /// Otherwise return an empty vec.
+    fn parse_type_params(&mut self) -> Result<Vec<String>, String> {
+        if self.match_token(&lexer::Token::Less) {
+            let mut params = Vec::new();
+            loop {
+                let tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+                match tok {
+                    lexer::Token::Identifier(s) => params.push(s),
+                    _ => return Err(format!("Expected type parameter name, found {}", tok)),
+                }
+                if !self.match_token(&lexer::Token::Comma) {
+                    break;
+                }
+            }
+            self.expect(&lexer::Token::Greater)?;
+            Ok(params)
+        } else {
+            Ok(vec![])
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -212,6 +241,7 @@ impl Parser {
 
 impl Parser {
     fn parse_import(&mut self) -> Result<ast::Import, String> {
+        let span = self.make_span();
         self.expect(&lexer::Token::Import)?;
         let mut path = Vec::new();
 
@@ -232,7 +262,7 @@ impl Parser {
         }
 
         self.expect(&lexer::Token::Semicolon)?;
-        Ok(ast::Import { path })
+        Ok(ast::Import { path, span })
     }
 }
 
@@ -304,6 +334,7 @@ impl Parser {
     /// `public void main() { ... }` → sugar fn
     /// `int x = 5;` → typed var decl
     fn parse_sugar_decl(&mut self, access: ast::Access) -> Result<ast::Declaration, String> {
+        let span = self.make_span();
         let type_tok = self.advance();
         let type_name = type_keyword_name(&type_tok)
             .ok_or_else(|| format!("Expected type keyword, found {}", type_tok))?;
@@ -326,10 +357,12 @@ impl Parser {
             Ok(ast::Declaration::Function(ast::FnDecl {
                 access,
                 name,
+                type_params: vec![],
                 params,
                 return_type: Some(return_type),
                 body,
                 sugar: true,
+                span,
             }))
         } else {
             // Typed variable declaration: Type name = expr;
@@ -345,6 +378,7 @@ impl Parser {
                 typ: Some(return_type),
                 init,
                 mutable,
+                span,
             }))
         }
     }
@@ -360,11 +394,14 @@ impl Parser {
         access: ast::Access,
         sugar: bool,
     ) -> Result<ast::Declaration, String> {
+        let span = self.make_span();
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
             _ => return Err(format!("Expected function name, found {}", name_tok)),
         };
+
+        let type_params = self.parse_type_params()?;
 
         self.expect(&lexer::Token::LeftParen)?;
         let params = self.parse_params()?;
@@ -381,10 +418,12 @@ impl Parser {
         Ok(ast::Declaration::Function(ast::FnDecl {
             access,
             name,
+            type_params,
             params,
             return_type,
             body,
             sugar,
+            span,
         }))
     }
 
@@ -438,11 +477,14 @@ impl Parser {
 
 impl Parser {
     fn parse_class_decl(&mut self, _access: ast::Access) -> Result<ast::Declaration, String> {
+        let span = self.make_span();
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
             _ => return Err(format!("Expected class name, found {}", name_tok)),
         };
+
+        let type_params = self.parse_type_params()?;
 
         let parent = if self.match_token(&lexer::Token::Extends) {
             Some(self.parse_type()?)
@@ -466,9 +508,11 @@ impl Parser {
 
         Ok(ast::Declaration::Class(ast::ClassDecl {
             name,
+            type_params,
             parent,
             ifaces,
             members,
+            span,
         }))
     }
 
@@ -496,6 +540,7 @@ impl Parser {
                 let saved = self.pos;
                 let _tok = self.advance();
                 if self.is_at(&lexer::Token::LeftParen) {
+                    let span = self.make_span();
                     self.advance(); // consume '('
                     let params = self.parse_sugar_params()?;
                     self.expect(&lexer::Token::RightParen)?;
@@ -503,9 +548,11 @@ impl Parser {
                     return Ok(ast::ClassMember::Constructor(ast::MethodDecl {
                         access,
                         name: "new".to_string(),
+                        type_params: vec![],
                         params,
                         return_type: None,
                         body,
+                        span,
                     }));
                 } else {
                     // Not a constructor, backtrack
@@ -517,11 +564,13 @@ impl Parser {
         // fn method(params): type { body }
         if self.is_at(&lexer::Token::Fn) {
             self.advance();
+            let span = self.make_span();
             let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
             let name = match name_tok {
                 lexer::Token::Identifier(s) => s,
                 _ => return Err(format!("Expected method name, found {}", name_tok)),
             };
+            let type_params = self.parse_type_params()?;
             self.expect(&lexer::Token::LeftParen)?;
             let params = self.parse_params()?;
             self.expect(&lexer::Token::RightParen)?;
@@ -534,9 +583,11 @@ impl Parser {
             return Ok(ast::ClassMember::Method(ast::MethodDecl {
                 access,
                 name,
+                type_params,
                 params,
                 return_type,
                 body,
+                span,
             }));
         }
 
@@ -560,6 +611,7 @@ impl Parser {
 
                 if self.is_at(&lexer::Token::LeftParen) {
                     // Sugar method: Type name(params) { body }
+                    let span = self.make_span();
                     self.advance(); // consume '('
                     let params = self.parse_sugar_params()?;
                     self.expect(&lexer::Token::RightParen)?;
@@ -567,12 +619,15 @@ impl Parser {
                     return Ok(ast::ClassMember::Method(ast::MethodDecl {
                         access,
                         name,
+                        type_params: vec![],
                         params,
                         return_type: Some(return_type),
                         body,
+                        span,
                     }));
                 } else {
                     // Typed field: Type name [= expr];
+                    let span = self.make_span();
                     let init = if self.match_token(&lexer::Token::Equals) {
                         Some(self.parse_expression()?)
                     } else {
@@ -584,6 +639,7 @@ impl Parser {
                         name,
                         typ: return_type,
                         init,
+                        span,
                     }));
                 }
             } else {
@@ -593,6 +649,7 @@ impl Parser {
         }
 
         // Field: name: Type or name: Type = expr
+        let span = self.make_span();
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
@@ -612,6 +669,7 @@ impl Parser {
             name,
             typ,
             init,
+            span,
         }))
     }
 }
@@ -622,11 +680,14 @@ impl Parser {
 
 impl Parser {
     fn parse_interface_decl(&mut self, _access: ast::Access) -> Result<ast::Declaration, String> {
+        let span = self.make_span();
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
             _ => return Err(format!("Expected interface name, found {}", name_tok)),
         };
+
+        let type_params = self.parse_type_params()?;
 
         let mut parents = Vec::new();
         if self.match_token(&lexer::Token::Extends) {
@@ -647,8 +708,10 @@ impl Parser {
 
         Ok(ast::Declaration::Interface(ast::InterfaceDecl {
             name,
+            type_params,
             parents,
             methods,
+            span,
         }))
     }
 
@@ -683,11 +746,14 @@ impl Parser {
 
 impl Parser {
     fn parse_enum_decl(&mut self, _access: ast::Access) -> Result<ast::Declaration, String> {
+        let span = self.make_span();
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
             _ => return Err(format!("Expected enum name, found {}", name_tok)),
         };
+
+        let type_params = self.parse_type_params()?;
 
         self.expect(&lexer::Token::LeftBrace)?;
         let mut variants = Vec::new();
@@ -697,7 +763,12 @@ impl Parser {
         }
         self.expect(&lexer::Token::RightBrace)?;
 
-        Ok(ast::Declaration::Enum(ast::EnumDecl { name, variants }))
+        Ok(ast::Declaration::Enum(ast::EnumDecl {
+            name,
+            type_params,
+            variants,
+            span,
+        }))
     }
 
     fn parse_variant(&mut self) -> Result<ast::Variant, String> {
@@ -779,6 +850,7 @@ impl Parser {
 impl Parser {
     /// Parse `let x: type = expr;` or `let x = expr;`
     fn parse_let_decl(&mut self, mutable: bool) -> Result<ast::VarDecl, String> {
+        let span = self.make_span();
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
@@ -803,11 +875,13 @@ impl Parser {
             typ,
             init,
             mutable,
+            span,
         })
     }
 
     /// Parse `var x = expr;` — desugar to let with mutable=true
     fn parse_var_decl(&mut self) -> Result<ast::VarDecl, String> {
+        let span = self.make_span();
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
@@ -832,11 +906,13 @@ impl Parser {
             typ,
             init,
             mutable: true,
+            span,
         })
     }
 
     /// Parse `const X: type = expr;`
     fn parse_const_decl(&mut self) -> Result<ast::VarDecl, String> {
+        let span = self.make_span();
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
@@ -857,6 +933,7 @@ impl Parser {
             typ,
             init: Some(init),
             mutable: false,
+            span,
         })
     }
 }
@@ -920,18 +997,21 @@ impl Parser {
             // unsafe { ... } as a statement — no semicolon needed
             lexer::Token::Unsafe => {
                 self.advance();
+                let span = self.make_span();
                 let block = self.parse_block()?;
-                Ok(ast::Stmt::Expr(ast::Expr::UnsafeBlock(block)))
+                Ok(ast::Stmt::Expr(ast::Expr::UnsafeBlock(block, span)))
             }
             // region name { ... } as a statement — no semicolon needed
             lexer::Token::Region => {
                 self.advance();
+                let span = self.make_span();
                 let _name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
                 let block = self.parse_block()?;
-                Ok(ast::Stmt::Expr(ast::Expr::UnsafeBlock(block)))
+                Ok(ast::Stmt::Expr(ast::Expr::UnsafeBlock(block, span)))
             }
             // Type name = expr; → desugar to let with type and mutable=true
             tok if is_type_keyword(&tok) => {
+                let span = self.make_span();
                 let type_tok = self.advance();
                 let type_name = type_keyword_name(&type_tok)
                     .ok_or_else(|| format!("Expected type keyword, found {}", type_tok))?;
@@ -954,6 +1034,7 @@ impl Parser {
                     typ: Some(typ),
                     init,
                     mutable: true,
+                    span,
                 }))
             }
             _ => {
@@ -976,6 +1057,7 @@ impl Parser {
     }
 
     fn parse_if_stmt(&mut self) -> Result<ast::Stmt, String> {
+        let span = self.make_span();
         // Condition may or may not be in parens
         let condition = if self.match_token(&lexer::Token::LeftParen) {
             let expr = self.parse_expression()?;
@@ -1004,10 +1086,12 @@ impl Parser {
             condition,
             then_branch,
             else_branch,
+            span,
         }))
     }
 
     fn parse_while_stmt(&mut self) -> Result<ast::Stmt, String> {
+        let span = self.make_span();
         let condition = if self.match_token(&lexer::Token::LeftParen) {
             let expr = self.parse_expression()?;
             self.expect(&lexer::Token::RightParen)?;
@@ -1017,10 +1101,11 @@ impl Parser {
         };
 
         let body = self.parse_block()?;
-        Ok(ast::Stmt::While(ast::WhileStmt { condition, body }))
+        Ok(ast::Stmt::While(ast::WhileStmt { condition, body, span }))
     }
 
     fn parse_for_stmt(&mut self) -> Result<ast::Stmt, String> {
+        let span = self.make_span();
         // for [var] in expr { body }
         let _var_kw = self.match_token(&lexer::Token::Var); // optional 'var'
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
@@ -1040,6 +1125,7 @@ impl Parser {
             var,
             iterable,
             body,
+            span,
         }))
     }
 
@@ -1054,6 +1140,7 @@ impl Parser {
     }
 
     fn parse_switch_stmt(&mut self) -> Result<ast::Stmt, String> {
+        let span = self.make_span();
         let expr = self.parse_expression()?;
         self.expect(&lexer::Token::LeftBrace)?;
 
@@ -1084,6 +1171,7 @@ impl Parser {
             expr,
             cases,
             default,
+            span,
         }))
     }
 
@@ -1284,9 +1372,10 @@ impl Parser {
         let expr = self.parse_or()?;
 
         if self.match_token(&lexer::Token::Equals) {
+            let span = self.make_span();
             let value = self.parse_assignment()?; // right-associative
             // The left side must be an lvalue — we check at the AST level
-            Ok(ast::Expr::Assign(Box::new(expr), Box::new(value)))
+            Ok(ast::Expr::Assign(Box::new(expr), Box::new(value), span))
         } else {
             Ok(expr)
         }
@@ -1295,8 +1384,9 @@ impl Parser {
     fn parse_or(&mut self) -> Result<ast::Expr, String> {
         let mut left = self.parse_and()?;
         while self.match_token(&lexer::Token::OrOr) {
+            let span = self.make_span();
             let right = self.parse_and()?;
-            left = ast::Expr::Binary(Box::new(left), ast::Operator::Or, Box::new(right));
+            left = ast::Expr::Binary(Box::new(left), ast::Operator::Or, Box::new(right), span);
         }
         Ok(left)
     }
@@ -1304,8 +1394,9 @@ impl Parser {
     fn parse_and(&mut self) -> Result<ast::Expr, String> {
         let mut left = self.parse_equality()?;
         while self.match_token(&lexer::Token::AndAnd) {
+            let span = self.make_span();
             let right = self.parse_equality()?;
-            left = ast::Expr::Binary(Box::new(left), ast::Operator::And, Box::new(right));
+            left = ast::Expr::Binary(Box::new(left), ast::Operator::And, Box::new(right), span);
         }
         Ok(left)
     }
@@ -1320,8 +1411,9 @@ impl Parser {
             } else {
                 break;
             };
+            let span = self.make_span();
             let right = self.parse_comparison()?;
-            left = ast::Expr::Binary(Box::new(left), op, Box::new(right));
+            left = ast::Expr::Binary(Box::new(left), op, Box::new(right), span);
         }
         Ok(left)
     }
@@ -1340,8 +1432,9 @@ impl Parser {
             } else {
                 break;
             };
+            let span = self.make_span();
             let right = self.parse_bitwise()?;
-            left = ast::Expr::Binary(Box::new(left), op, Box::new(right));
+            left = ast::Expr::Binary(Box::new(left), op, Box::new(right), span);
         }
         Ok(left)
     }
@@ -1362,8 +1455,9 @@ impl Parser {
             } else {
                 break;
             };
+            let span = self.make_span();
             let right = self.parse_addition()?;
-            left = ast::Expr::Binary(Box::new(left), op, Box::new(right));
+            left = ast::Expr::Binary(Box::new(left), op, Box::new(right), span);
         }
         Ok(left)
     }
@@ -1378,8 +1472,9 @@ impl Parser {
             } else {
                 break;
             };
+            let span = self.make_span();
             let right = self.parse_multiplication()?;
-            left = ast::Expr::Binary(Box::new(left), op, Box::new(right));
+            left = ast::Expr::Binary(Box::new(left), op, Box::new(right), span);
         }
         Ok(left)
     }
@@ -1396,44 +1491,51 @@ impl Parser {
             } else {
                 break;
             };
+            let span = self.make_span();
             let right = self.parse_unary()?;
-            left = ast::Expr::Binary(Box::new(left), op, Box::new(right));
+            left = ast::Expr::Binary(Box::new(left), op, Box::new(right), span);
         }
         Ok(left)
     }
 
     fn parse_unary(&mut self) -> Result<ast::Expr, String> {
         if self.match_token(&lexer::Token::Not) {
+            let span = self.make_span();
             let expr = self.parse_unary()?;
-            return Ok(ast::Expr::Unary(ast::UnOp::Not, Box::new(expr)));
+            return Ok(ast::Expr::Unary(ast::UnOp::Not, Box::new(expr), span));
         }
         if self.match_token(&lexer::Token::Minus) {
+            let span = self.make_span();
             let expr = self.parse_unary()?;
-            return Ok(ast::Expr::Unary(ast::UnOp::Neg, Box::new(expr)));
+            return Ok(ast::Expr::Unary(ast::UnOp::Neg, Box::new(expr), span));
         }
         if self.match_token(&lexer::Token::Tilde) {
+            let span = self.make_span();
             let expr = self.parse_unary()?;
-            return Ok(ast::Expr::Unary(ast::UnOp::BitNot, Box::new(expr)));
+            return Ok(ast::Expr::Unary(ast::UnOp::BitNot, Box::new(expr), span));
         }
         if self.match_token(&lexer::Token::Star) {
             // *expr — dereference (OwnedDeref or raw pointer deref)
+            let span = self.make_span();
             let expr = self.parse_unary()?;
-            return Ok(ast::Expr::OwnedDeref(Box::new(expr)));
+            return Ok(ast::Expr::OwnedDeref(Box::new(expr), span));
         }
         if self.match_token(&lexer::Token::Ampersand) {
             // &expr or &mut expr
+            let span = self.make_span();
             if self.match_token(&lexer::Token::RefMut) {
                 // This shouldn't happen since &mut is lexed as RefMut, but handle just in case
                 let expr = self.parse_unary()?;
-                return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Mutable));
+                return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Mutable, span));
             }
             let expr = self.parse_unary()?;
-            return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Immutable));
+            return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Immutable, span));
         }
         if self.match_token(&lexer::Token::RefMut) {
             // &mut expr
+            let span = self.make_span();
             let expr = self.parse_unary()?;
-            return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Mutable));
+            return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Mutable, span));
         }
         self.parse_postfix()
     }
@@ -1444,33 +1546,39 @@ impl Parser {
         loop {
             if self.match_token(&lexer::Token::LeftParen) {
                 // Function call
+                let span = self.make_span();
                 let args = self.parse_args()?;
                 self.expect(&lexer::Token::RightParen)?;
-                expr = ast::Expr::Call(Box::new(expr), args);
+                expr = ast::Expr::Call(Box::new(expr), args, span);
             } else if self.match_token(&lexer::Token::Dot) {
                 // Member access — field name can be an identifier or a keyword used as a name
+                let span = self.make_span();
                 let name_tok = self.advance();
                 let name = token_as_name(&name_tok)
                     .ok_or_else(|| format!("Expected member name, found {}", name_tok))?;
-                expr = ast::Expr::MemberAccess(Box::new(expr), name);
+                expr = ast::Expr::MemberAccess(Box::new(expr), name, span);
             } else if self.match_token(&lexer::Token::ColonColon) {
                 // :: namespace access → treat as member access
+                let span = self.make_span();
                 let name_tok = self.advance();
                 let name = token_as_name(&name_tok)
                     .ok_or_else(|| format!("Expected namespace member, found {}", name_tok))?;
-                expr = ast::Expr::MemberAccess(Box::new(expr), name);
+                expr = ast::Expr::MemberAccess(Box::new(expr), name, span);
             } else if self.match_token(&lexer::Token::LeftBracket) {
                 // Index access
+                let span = self.make_span();
                 let index = self.parse_expression()?;
                 self.expect(&lexer::Token::RightBracket)?;
-                expr = ast::Expr::Index(Box::new(expr), Box::new(index));
+                expr = ast::Expr::Index(Box::new(expr), Box::new(index), span);
             } else if self.match_token(&lexer::Token::Question) {
                 // Error propagation
-                expr = ast::Expr::ErrorPropagation(Box::new(expr));
+                let span = self.make_span();
+                expr = ast::Expr::ErrorPropagation(Box::new(expr), span);
             } else if self.match_token(&lexer::Token::As) {
                 // Cast
+                let span = self.make_span();
                 let typ = self.parse_type()?;
-                expr = ast::Expr::Cast(Box::new(expr), typ);
+                expr = ast::Expr::Cast(Box::new(expr), typ, span);
             } else {
                 break;
             }
@@ -1497,70 +1605,79 @@ impl Parser {
 
         match tok {
             lexer::Token::IntLiteral(_) => {
+                let span = self.make_span();
                 let t = self.advance();
                 match t {
                     lexer::Token::IntLiteral(v) => {
-                        Ok(ast::Expr::Literal(ast::Literal::Int(v)))
+                        Ok(ast::Expr::Literal(ast::Literal::Int(v), span))
                     }
                     _ => Err("Expected int literal".to_string()),
                 }
             }
             lexer::Token::FloatLiteral { .. } => {
+                let span = self.make_span();
                 let t = self.advance();
                 match t {
                     lexer::Token::FloatLiteral { value, .. } => {
-                        Ok(ast::Expr::Literal(ast::Literal::Float(value)))
+                        Ok(ast::Expr::Literal(ast::Literal::Float(value), span))
                     }
                     _ => Err("Expected float literal".to_string()),
                 }
             }
             lexer::Token::StringLiteral(_) => {
+                let span = self.make_span();
                 let t = self.advance();
                 match t {
                     lexer::Token::StringLiteral(s) => {
-                        Ok(ast::Expr::Literal(ast::Literal::String(s)))
+                        Ok(ast::Expr::Literal(ast::Literal::String(s), span))
                     }
                     _ => Err("Expected string literal".to_string()),
                 }
             }
             lexer::Token::CharLiteral(_) => {
+                let span = self.make_span();
                 let t = self.advance();
                 match t {
                     lexer::Token::CharLiteral(c) => {
-                        Ok(ast::Expr::Literal(ast::Literal::Char(c)))
+                        Ok(ast::Expr::Literal(ast::Literal::Char(c), span))
                     }
                     _ => Err("Expected char literal".to_string()),
                 }
             }
             lexer::Token::BoolLiteral(_) => {
+                let span = self.make_span();
                 let t = self.advance();
                 match t {
                     lexer::Token::BoolLiteral(b) => {
-                        Ok(ast::Expr::Literal(ast::Literal::Bool(b)))
+                        Ok(ast::Expr::Literal(ast::Literal::Bool(b), span))
                     }
                     _ => Err("Expected bool literal".to_string()),
                 }
             }
             lexer::Token::NullLiteral => {
+                let span = self.make_span();
                 self.advance();
-                Ok(ast::Expr::Literal(ast::Literal::Null))
+                Ok(ast::Expr::Literal(ast::Literal::Null, span))
             }
             lexer::Token::Identifier(_) => {
+                let span = self.make_span();
                 let t = self.advance();
                 match t {
                     lexer::Token::Identifier(s) => {
-                        Ok(ast::Expr::Identifier(s))
+                        Ok(ast::Expr::Identifier(s, span))
                     }
                     _ => Err("Expected identifier".to_string()),
                 }
             }
             lexer::Token::This => {
+                let span = self.make_span();
                 self.advance();
-                Ok(ast::Expr::This)
+                Ok(ast::Expr::This(span))
             }
             lexer::Token::Super => {
+                let span = self.make_span();
                 self.advance();
-                Ok(ast::Expr::Super)
+                Ok(ast::Expr::Super(span))
             }
             lexer::Token::LeftParen => {
                 self.advance();
@@ -1569,54 +1686,62 @@ impl Parser {
                 Ok(expr)
             }
             lexer::Token::New => {
+                let span = self.make_span();
                 self.advance();
                 let typ = self.parse_type()?;
                 self.expect(&lexer::Token::LeftParen)?;
                 let args = self.parse_args()?;
                 self.expect(&lexer::Token::RightParen)?;
-                Ok(ast::Expr::New(typ, args))
+                Ok(ast::Expr::New(typ, args, span))
             }
             lexer::Token::Ok => {
+                let span = self.make_span();
                 self.advance();
                 self.expect(&lexer::Token::LeftParen)?;
                 let expr = self.parse_expression()?;
                 self.expect(&lexer::Token::RightParen)?;
                 Ok(ast::Expr::Call(
-                    Box::new(ast::Expr::Identifier("Ok".to_string())),
+                    Box::new(ast::Expr::Identifier("Ok".to_string(), span)),
                     vec![expr],
+                    span,
                 ))
             }
             lexer::Token::Err => {
+                let span = self.make_span();
                 self.advance();
                 self.expect(&lexer::Token::LeftParen)?;
                 let expr = self.parse_expression()?;
                 self.expect(&lexer::Token::RightParen)?;
                 Ok(ast::Expr::Call(
-                    Box::new(ast::Expr::Identifier("Err".to_string())),
+                    Box::new(ast::Expr::Identifier("Err".to_string(), span)),
                     vec![expr],
+                    span,
                 ))
             }
             lexer::Token::Unsafe => {
+                let span = self.make_span();
                 self.advance();
                 let block = self.parse_block()?;
-                Ok(ast::Expr::UnsafeBlock(block))
+                Ok(ast::Expr::UnsafeBlock(block, span))
             }
             lexer::Token::Region => {
+                let span = self.make_span();
                 self.advance();
                 // region name { block }
                 let _name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
                 let block = self.parse_block()?;
                 // Represent region as an unsafe block for now; the interpreter
                 // handles region.alloc calls specially.
-                Ok(ast::Expr::UnsafeBlock(block))
+                Ok(ast::Expr::UnsafeBlock(block, span))
             }
             lexer::Token::Owned => {
                 // Owned<type>(expr) — let parse_type() consume Owned<int>
+                let span = self.make_span();
                 let _typ = self.parse_type()?;
                 self.expect(&lexer::Token::LeftParen)?;
                 let expr = self.parse_expression()?;
                 self.expect(&lexer::Token::RightParen)?;
-                Ok(ast::Expr::OwnedDeref(Box::new(expr)))
+                Ok(ast::Expr::OwnedDeref(Box::new(expr), span))
             }
             _ => {
                 let (line, col) = self.span_here();
@@ -1658,7 +1783,7 @@ mod tests {
             ast::Declaration::VarDecl(vd) => {
                 assert_eq!(vd.name, "x");
                 assert_eq!(vd.typ, Some(ast::Type::simple("int")));
-                assert_eq!(vd.init, Some(ast::Expr::Literal(ast::Literal::Int(5))));
+                assert_eq!(vd.init, Some(ast::Expr::Literal(ast::Literal::Int(5), ast::Span::new(1, 9))));
                 assert!(vd.mutable);
             }
             other => panic!("Expected VarDecl, got {:?}", other),
@@ -1706,7 +1831,7 @@ mod tests {
                 assert_eq!(fd.body.len(), 1);
                 match &fd.body[0] {
                     ast::Stmt::If(if_stmt) => {
-                        assert!(matches!(if_stmt.condition, ast::Expr::Literal(ast::Literal::Bool(true))));
+                        assert!(matches!(if_stmt.condition, ast::Expr::Literal(ast::Literal::Bool(true), _)));
                         assert_eq!(if_stmt.then_branch.len(), 1);
                         assert!(if_stmt.else_branch.is_some());
                     }
@@ -1737,7 +1862,7 @@ mod tests {
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
                 ast::Stmt::While(ws) => {
-                    assert!(matches!(ws.condition, ast::Expr::Literal(ast::Literal::Bool(true))));
+                    assert!(matches!(ws.condition, ast::Expr::Literal(ast::Literal::Bool(true), _)));
                     assert_eq!(ws.body.len(), 1);
                     assert!(matches!(&ws.body[0], ast::Stmt::Break));
                 }
@@ -1755,7 +1880,7 @@ mod tests {
             ast::Declaration::Function(fd) => match &fd.body[0] {
                 ast::Stmt::For(fs) => {
                     assert_eq!(fs.var, "i");
-                    assert!(matches!(fs.iterable, ast::Expr::Identifier(_)));
+                    assert!(matches!(fs.iterable, ast::Expr::Identifier(_, _)));
                     assert_eq!(fs.body.len(), 1);
                     assert!(matches!(&fs.body[0], ast::Stmt::Continue));
                 }
@@ -1771,7 +1896,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(42)))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(42), _))) => {}
                 other => panic!("Expected Return(Some(42)), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -1879,7 +2004,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Call(_, args)) => {
+                ast::Stmt::Expr(ast::Expr::Call(_, args, _)) => {
                     assert!(args.is_empty());
                 }
                 other => panic!("Expected Expr(Call), got {:?}", other),
@@ -1897,7 +2022,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(42)))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(42), _))) => {}
                 other => panic!("Expected Return(Int(42)), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -1910,7 +2035,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Float(_)))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Float(_), _))) => {}
                 other => panic!("Expected Return(Float), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -1923,7 +2048,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::String(s)))) => {
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::String(s), _))) => {
                     assert_eq!(s, "hello");
                 }
                 other => panic!("Expected Return(String), got {:?}", other),
@@ -1938,7 +2063,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Bool(true)))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Bool(true), _))) => {}
                 other => panic!("Expected Return(Bool(true)), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -1951,7 +2076,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Null))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Null, _))) => {}
                 other => panic!("Expected Return(Null), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -1964,7 +2089,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Identifier(s))) => {
+                ast::Stmt::Return(Some(ast::Expr::Identifier(s, _))) => {
                     assert_eq!(s, "x");
                 }
                 other => panic!("Expected Return(Identifier), got {:?}", other),
@@ -1979,7 +2104,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::This)) => {}
+                ast::Stmt::Return(Some(ast::Expr::This(_))) => {}
                 other => panic!("Expected Return(This), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -1992,7 +2117,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Super)) => {}
+                ast::Stmt::Return(Some(ast::Expr::Super(_))) => {}
                 other => panic!("Expected Return(Super), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2005,7 +2130,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Add, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Add, _, _))) => {}
                 other => panic!("Expected Return(Binary Add), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2018,7 +2143,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::New(typ, args)) => {
+                ast::Stmt::Expr(ast::Expr::New(typ, args, _)) => {
                     assert_eq!(typ, &ast::Type::simple("Foo"));
                     assert_eq!(args.len(), 2);
                 }
@@ -2034,8 +2159,8 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Call(callee, args))) => {
-                    assert!(matches!(callee.as_ref(), ast::Expr::Identifier(s) if s == "Ok"));
+                ast::Stmt::Return(Some(ast::Expr::Call(callee, args, _))) => {
+                    assert!(matches!(callee.as_ref(), ast::Expr::Identifier(s, _) if s == "Ok"));
                     assert_eq!(args.len(), 1);
                 }
                 other => panic!("Expected Return(Call(Ok, ...)), got {:?}", other),
@@ -2050,8 +2175,8 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Call(callee, args))) => {
-                    assert!(matches!(callee.as_ref(), ast::Expr::Identifier(s) if s == "Err"));
+                ast::Stmt::Return(Some(ast::Expr::Call(callee, args, _))) => {
+                    assert!(matches!(callee.as_ref(), ast::Expr::Identifier(s, _) if s == "Err"));
                     assert_eq!(args.len(), 1);
                 }
                 other => panic!("Expected Return(Call(Err, ...)), got {:?}", other),
@@ -2066,7 +2191,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::UnsafeBlock(block)) => {
+                ast::Stmt::Expr(ast::Expr::UnsafeBlock(block, _)) => {
                     assert_eq!(block.len(), 1);
                 }
                 other => panic!("Expected UnsafeBlock, got {:?}", other),
@@ -2081,7 +2206,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::UnsafeBlock(block)) => {
+                ast::Stmt::Expr(ast::Expr::UnsafeBlock(block, _)) => {
                     assert_eq!(block.len(), 1);
                 }
                 other => panic!("Expected UnsafeBlock (region), got {:?}", other),
@@ -2099,7 +2224,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Call(_, args)) => {
+                ast::Stmt::Expr(ast::Expr::Call(_, args, _)) => {
                     assert_eq!(args.len(), 2);
                 }
                 other => panic!("Expected Call, got {:?}", other),
@@ -2114,7 +2239,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::MemberAccess(_, name)) => {
+                ast::Stmt::Expr(ast::Expr::MemberAccess(_, name, _)) => {
                     assert_eq!(name, "field");
                 }
                 other => panic!("Expected MemberAccess, got {:?}", other),
@@ -2129,8 +2254,8 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Call(callee, _)) => {
-                    assert!(matches!(callee.as_ref(), ast::Expr::MemberAccess(_, name) if name == "println"));
+                ast::Stmt::Expr(ast::Expr::Call(callee, _, _)) => {
+                    assert!(matches!(callee.as_ref(), ast::Expr::MemberAccess(_, name, _) if name == "println"));
                 }
                 other => panic!("Expected Call(MemberAccess), got {:?}", other),
             },
@@ -2144,7 +2269,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Index(_, _)) => {}
+                ast::Stmt::Expr(ast::Expr::Index(_, _, _)) => {}
                 other => panic!("Expected Index, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2157,7 +2282,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::ErrorPropagation(_)) => {}
+                ast::Stmt::Expr(ast::Expr::ErrorPropagation(_, _)) => {}
                 other => panic!("Expected ErrorPropagation, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2170,7 +2295,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Cast(_, typ)) => {
+                ast::Stmt::Expr(ast::Expr::Cast(_, typ, _)) => {
                     assert_eq!(typ, &ast::Type::simple("int"));
                 }
                 other => panic!("Expected Cast, got {:?}", other),
@@ -2188,9 +2313,9 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Add, right))) => {
+                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Add, right, _))) => {
                     // Right side should be 2 * 3
-                    assert!(matches!(right.as_ref(), ast::Expr::Binary(_, ast::Operator::Mul, _)));
+                    assert!(matches!(right.as_ref(), ast::Expr::Binary(_, ast::Operator::Mul, _, _)));
                 }
                 other => panic!("Expected Add with Mul on right, got {:?}", other),
             },
@@ -2204,9 +2329,9 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Assign(_, right)) => {
+                ast::Stmt::Expr(ast::Expr::Assign(_, right, _)) => {
                     // Right side should be y = 5
-                    assert!(matches!(right.as_ref(), ast::Expr::Assign(_, _)));
+                    assert!(matches!(right.as_ref(), ast::Expr::Assign(_, _, _)));
                 }
                 other => panic!("Expected Assign with Assign on right, got {:?}", other),
             },
@@ -2220,7 +2345,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Unary(ast::UnOp::Neg, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Unary(ast::UnOp::Neg, _, _))) => {}
                 other => panic!("Expected Unary Neg, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2233,7 +2358,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Unary(ast::UnOp::Not, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Unary(ast::UnOp::Not, _, _))) => {}
                 other => panic!("Expected Unary Not, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2246,7 +2371,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Unary(ast::UnOp::BitNot, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Unary(ast::UnOp::BitNot, _, _))) => {}
                 other => panic!("Expected Unary BitNot, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2260,7 +2385,7 @@ mod tests {
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
                 ast::Stmt::VarDecl(vd) => match &vd.init {
-                    Some(ast::Expr::RefExpr(_, ast::RefKind::Immutable)) => {}
+                    Some(ast::Expr::RefExpr(_, ast::RefKind::Immutable, _)) => {}
                     other => panic!("Expected RefExpr Immutable, got {:?}", other),
                 },
                 other => panic!("Expected VarDecl, got {:?}", other),
@@ -2276,7 +2401,7 @@ mod tests {
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
                 ast::Stmt::VarDecl(vd) => match &vd.init {
-                    Some(ast::Expr::RefExpr(_, ast::RefKind::Mutable)) => {}
+                    Some(ast::Expr::RefExpr(_, ast::RefKind::Mutable, _)) => {}
                     other => panic!("Expected RefExpr Mutable, got {:?}", other),
                 },
                 other => panic!("Expected VarDecl, got {:?}", other),
@@ -2316,7 +2441,7 @@ mod tests {
             ast::Declaration::VarDecl(vd) => {
                 assert_eq!(vd.name, "x");
                 assert!(vd.mutable);
-                assert_eq!(vd.init, Some(ast::Expr::Literal(ast::Literal::Int(5))));
+                assert_eq!(vd.init, Some(ast::Expr::Literal(ast::Literal::Int(5), ast::Span::new(1, 9))));
             }
             other => panic!("Expected VarDecl, got {:?}", other),
         }
@@ -2522,7 +2647,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Add, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Add, _, _))) => {}
                 other => panic!("Expected Binary Add, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2609,8 +2734,8 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::OwnedDeref(inner)) => {
-                    assert!(matches!(inner.as_ref(), ast::Expr::Identifier(s) if s == "x"));
+                ast::Stmt::Expr(ast::Expr::OwnedDeref(inner, _)) => {
+                    assert!(matches!(inner.as_ref(), ast::Expr::Identifier(s, _) if s == "x"));
                 }
                 other => panic!("Expected OwnedDeref, got {:?}", other),
             },
@@ -2627,7 +2752,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Index(_, _)) => {}
+                ast::Stmt::Expr(ast::Expr::Index(_, _, _)) => {}
                 other => panic!("Expected Index, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2644,7 +2769,7 @@ mod tests {
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
                 // Left-to-right association: the outermost is the last operator applied
-                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::BitShr, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::BitShr, _, _))) => {}
                 other => panic!("Expected BitShr (outermost with left-to-right), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2660,7 +2785,7 @@ mod tests {
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Or, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Or, _, _))) => {}
                 other => panic!("Expected Or, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2747,7 +2872,7 @@ import math::sqrt;"#;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Char('a')))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Char('a'), _))) => {}
                 other => panic!("Expected Return(Char('a')), got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2795,7 +2920,7 @@ import math::sqrt;"#;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Ne, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Ne, _, _))) => {}
                 other => panic!("Expected Ne, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2811,7 +2936,7 @@ import math::sqrt;"#;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Ge, _))) => {}
+                ast::Stmt::Return(Some(ast::Expr::Binary(_, ast::Operator::Ge, _, _))) => {}
                 other => panic!("Expected Ge, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
@@ -2827,9 +2952,9 @@ import math::sqrt;"#;
         let prog = parse_src(src).expect("parse should succeed");
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => match &fd.body[0] {
-                ast::Stmt::Expr(ast::Expr::Call(callee, _)) => {
+                ast::Stmt::Expr(ast::Expr::Call(callee, _, _)) => {
                     // Math::sqrt becomes MemberAccess(Identifier("Math"), "sqrt")
-                    assert!(matches!(callee.as_ref(), ast::Expr::MemberAccess(_, name) if name == "sqrt"));
+                    assert!(matches!(callee.as_ref(), ast::Expr::MemberAccess(_, name, _) if name == "sqrt"));
                 }
                 other => panic!("Expected Call, got {:?}", other),
             },
@@ -2983,6 +3108,93 @@ import math::sqrt;"#;
                 assert_eq!(id.parents[0], ast::Type::simple("Base"));
             }
             other => panic!("Expected Interface, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Type parameters on declarations
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_fn_type_params() {
+        let src = r#"fn identity<T>(x: T): T { return x; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.name, "identity");
+                assert_eq!(fd.type_params, vec!["T".to_string()]);
+            }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_class_type_params() {
+        let src = r#"class Container<T> { T value; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Class(cd) => {
+                assert_eq!(cd.name, "Container");
+                assert_eq!(cd.type_params, vec!["T".to_string()]);
+            }
+            other => panic!("Expected Class, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_interface_type_params() {
+        let src = r#"interface Comparable<T> { fn compare(other: T): int; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Interface(id) => {
+                assert_eq!(id.name, "Comparable");
+                assert_eq!(id.type_params, vec!["T".to_string()]);
+            }
+            other => panic!("Expected Interface, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_enum_type_params() {
+        let src = r#"enum Option<T> { Some(T), None }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Enum(ed) => {
+                assert_eq!(ed.name, "Option");
+                assert_eq!(ed.type_params, vec!["T".to_string()]);
+            }
+            other => panic!("Expected Enum, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_method_type_params() {
+        let src = r#"class Foo { fn bar<U>(x: U): void { return; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Class(cd) => {
+                assert_eq!(cd.members.len(), 1);
+                match &cd.members[0] {
+                    ast::ClassMember::Method(m) => {
+                        assert_eq!(m.name, "bar");
+                        assert_eq!(m.type_params, vec!["U".to_string()]);
+                    }
+                    other => panic!("Expected Method, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Class, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_multi_type_params() {
+        let src = r#"class Map<K, V> { }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Class(cd) => {
+                assert_eq!(cd.name, "Map");
+                assert_eq!(cd.type_params, vec!["K".to_string(), "V".to_string()]);
+            }
+            other => panic!("Expected Class, got {:?}", other),
         }
     }
 }
