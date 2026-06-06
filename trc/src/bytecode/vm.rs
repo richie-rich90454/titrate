@@ -359,6 +359,13 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_add(*y))),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_add(*y))),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x + y)),
+                    (Value::Double(x), Value::Long(y)) => self.push(Value::Double(x + (*y as f64))),
+                    (Value::Long(x), Value::Double(y)) => self.push(Value::Double((*x as f64) + y)),
+                    (Value::Double(x), Value::Int(y)) => self.push(Value::Double(x + (*y as f64))),
+                    (Value::Int(x), Value::Double(y)) => self.push(Value::Double((*x as f64) + y)),
+                    (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x + y)),
                     _ => return Err(format!("ADD_I64: type mismatch {:?} + {:?}", a, b)),
                 }
             }
@@ -391,6 +398,13 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_sub(*y))),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_sub(*y))),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x - y)),
+                    (Value::Double(x), Value::Long(y)) => self.push(Value::Double(x - (*y as f64))),
+                    (Value::Long(x), Value::Double(y)) => self.push(Value::Double((*x as f64) - y)),
+                    (Value::Double(x), Value::Int(y)) => self.push(Value::Double(x - (*y as f64))),
+                    (Value::Int(x), Value::Double(y)) => self.push(Value::Double((*x as f64) - y)),
+                    (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x - y)),
                     _ => return Err(format!("SUB_I64: type mismatch {:?} - {:?}", a, b)),
                 }
             }
@@ -423,6 +437,11 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_mul(*y))),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x * y)),
+                    (Value::Double(x), Value::Long(y)) => self.push(Value::Double(x * (*y as f64))),
+                    (Value::Long(x), Value::Double(y)) => self.push(Value::Double((*x as f64) * y)),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_mul(*y))),
+                    (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x * y)),
                     _ => return Err(format!("MUL_I64: type mismatch {:?} * {:?}", a, b)),
                 }
             }
@@ -465,6 +484,17 @@ impl Vm {
                     (Value::Long(x), Value::Long(y)) => {
                         self.push(Value::Long(x.wrapping_div(*y)));
                     }
+                    (Value::Int(_), Value::Int(0)) => {
+                        return Err("Division by zero (int)".to_string());
+                    }
+                    (Value::Int(x), Value::Int(y)) => {
+                        self.push(Value::Int(x.wrapping_div(*y)));
+                    }
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x / y)),
+                    (Value::Double(x), Value::Long(y)) => self.push(Value::Double(x / (*y as f64))),
+                    (Value::Long(x), Value::Double(y)) => self.push(Value::Double((*x as f64) / y)),
+                    (Value::Double(x), Value::Int(y)) => self.push(Value::Double(x / (*y as f64))),
+                    (Value::Int(x), Value::Double(y)) => self.push(Value::Double((*x as f64) / y)),
                     _ => return Err(format!("DIV_I64: type mismatch {:?} / {:?}", a, b)),
                 }
             }
@@ -665,6 +695,8 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x == y)),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x == y)),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x == y)),
                     _ => return Err(format!("EQ_I64: type mismatch {:?}", a)),
                 }
             }
@@ -725,6 +757,8 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x != y)),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x != y)),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x != y)),
                     _ => return Err(format!("NE_I64: type mismatch {:?}", a)),
                 }
             }
@@ -761,6 +795,12 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x < y)),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x < y)),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x < y)),
+                    (Value::Double(x), Value::Long(y)) => self.push(Value::Bool(x < &(*y as f64))),
+                    (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) < y)),
+                    (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x < &(*y as f64))),
+                    (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) < y)),
                     _ => return Err(format!("LT_I64: type mismatch {:?}", a)),
                 }
             }
@@ -793,6 +833,12 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x <= y)),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x <= y)),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x <= y)),
+                    (Value::Double(x), Value::Long(y)) => self.push(Value::Bool(x <= &(*y as f64))),
+                    (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) <= y)),
+                    (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x <= &(*y as f64))),
+                    (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) <= y)),
                     _ => return Err(format!("LE_I64: type mismatch {:?}", a)),
                 }
             }
@@ -825,6 +871,12 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x > y)),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x > y)),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x > y)),
+                    (Value::Double(x), Value::Long(y)) => self.push(Value::Bool(x > &(*y as f64))),
+                    (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) > y)),
+                    (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x > &(*y as f64))),
+                    (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) > y)),
                     _ => return Err(format!("GT_I64: type mismatch {:?}", a)),
                 }
             }
@@ -857,6 +909,12 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x >= y)),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x >= y)),
+                    (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x >= y)),
+                    (Value::Double(x), Value::Long(y)) => self.push(Value::Bool(x >= &(*y as f64))),
+                    (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) >= y)),
+                    (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x >= &(*y as f64))),
+                    (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) >= y)),
                     _ => return Err(format!("GE_I64: type mismatch {:?}", a)),
                 }
             }
@@ -986,33 +1044,27 @@ impl Vm {
                 let slot = self.read_u8();
                 let base = self.current_frame().base;
                 let idx = base + slot as usize;
-                if idx >= self.stack.len() {
-                    let fi = self.current_frame().function_index as usize;
-                    let fname = &self.functions[fi].name;
-                    return Err(format!(
-                        "LOAD_LOCAL: index out of bounds: slot={}, base={}, idx={}, stack_len={}, func={}",
-                        slot, base, idx, self.stack.len(), fname
-                    ));
+                if idx < self.stack.len() {
+                    let val = self.stack[idx].clone();
+                    self.push(val);
+                } else {
+                    // Slot was pre-allocated but popped by end_scope or similar.
+                    // Push Null as the default value.
+                    self.push(Value::Null);
                 }
-                let val = self.stack[idx].clone();
-                self.push(val);
             }
             OpCode::STORE_LOCAL => {
                 let slot = self.read_u8();
-                let val = self.pop();
+                let val = self.stack.pop().unwrap_or(Value::Null);
                 let base = self.current_frame().base;
                 let idx = base + slot as usize;
-                if idx < self.stack.len() {
-                    self.stack[idx] = val;
-                } else if idx == self.stack.len() {
-                    self.stack.push(val);
-                } else {
-                    // Fill gaps with Null
-                    while self.stack.len() < idx {
-                        self.stack.push(Value::Null);
-                    }
-                    self.stack.push(val);
+                // Ensure the stack is large enough to hold this slot.
+                // This handles the case where pre-allocated slots were popped
+                // by end_scope or other operations.
+                while self.stack.len() <= idx {
+                    self.stack.push(Value::Null);
                 }
+                self.stack[idx] = val;
             }
             OpCode::LOAD_UPVALUE => {
                 let _slot = self.read_u8();
@@ -1432,6 +1484,30 @@ impl Vm {
                 let matches = self.check_type_tag(&val, tag);
                 self.push(Value::Bool(matches));
             }
+
+            // -- Super constructor call -----------------------------------------
+            OpCode::CALL_SUPER => {
+                // Operands: func_idx (u16), user_arg_count (u8)
+                // Stack: [this, user_arg0, user_arg1, ...]
+                // This is like CALL but the base is set to `this` position
+                // and arity check uses user_arg_count (not including `this`).
+                let func_idx = self.read_u16();
+                let user_arg_count = self.read_u8() as usize;
+                let fi = func_idx as usize;
+                if fi >= self.functions.len() {
+                    return Err(format!("CALL_SUPER: function index {} out of range", func_idx));
+                }
+                // The total items on stack for this call: 1 (this) + user_arg_count
+                // Base points to `this`
+                let base = self.stack.len() - 1 - user_arg_count;
+                self.frames.push(Frame::new(func_idx, base));
+                // Pre-allocate local slots
+                let local_count = self.functions[fi].local_count;
+                let needed = base + local_count;
+                while self.stack.len() < needed {
+                    self.stack.push(Value::Null);
+                }
+            }
         }
 
         Ok(())
@@ -1543,25 +1619,35 @@ impl Vm {
                 let func_idx = if let Some(idx) = vtable.get(&method_name) {
                     *idx
                 } else {
-                    // Fall back to class definition
-                    let class_defs = &self.classes;
-                    let found = class_defs.iter().find(|c| c.name == *class_name);
-                    match found {
-                        Some(cd) => {
-                            if let Some(idx) = cd.methods.get(&method_name) {
-                                *idx
-                            } else {
-                                return Err(format!(
-                                    "No method '{}' on class '{}'",
-                                    method_name, class_name
-                                ));
+                    // Walk up the class hierarchy to find the method
+                    let mut search_class = class_name.clone();
+                    let mut found_idx = None;
+                    loop {
+                        let class_defs = &self.classes;
+                        let found = class_defs.iter().find(|c| c.name == search_class);
+                        match found {
+                            Some(cd) => {
+                                if let Some(idx) = cd.methods.get(&method_name) {
+                                    found_idx = Some(*idx);
+                                    break;
+                                }
+                                // Check parent class
+                                if let Some(parent_idx) = cd.parent {
+                                    search_class = self.classes[parent_idx as usize].name.clone();
+                                } else {
+                                    break;
+                                }
                             }
+                            None => break,
                         }
+                    }
+                    match found_idx {
+                        Some(idx) => idx,
                         None => {
                             return Err(format!(
                                 "No method '{}' on class '{}'",
                                 method_name, class_name
-                            ))
+                            ));
                         }
                     }
                 };
