@@ -1,0 +1,9 @@
+public class Long {
+    public static long parse(String s) {
+        return Long::parseLong(s);
+    }
+
+    public static String toString(long value) {
+        return value.toString();
+    }
+}

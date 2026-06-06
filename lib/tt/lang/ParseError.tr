@@ -1,0 +1,5 @@
+public enum ParseError {
+    InvalidFormat(String),
+    Overflow(String),
+    EmptyInput,
+}

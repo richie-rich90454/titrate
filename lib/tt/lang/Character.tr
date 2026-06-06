@@ -1,0 +1,5 @@
+public class Character {
+    public static String toString(char value) {
+        return value.toString();
+    }
+}

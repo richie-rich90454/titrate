@@ -1,0 +1,9 @@
+public class Byte {
+    public static byte parse(String s) {
+        return Byte::parseByte(s);
+    }
+
+    public static String toString(byte value) {
+        return value.toString();
+    }
+}

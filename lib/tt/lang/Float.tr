@@ -1,0 +1,9 @@
+public class Float {
+    public static float parse(String s) {
+        return Float::parseFloat(s);
+    }
+
+    public static String toString(float value) {
+        return value.toString();
+    }
+}

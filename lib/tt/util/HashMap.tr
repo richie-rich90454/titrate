@@ -1,0 +1,16 @@
+// Generic HashMap backed by the VM's built-in hash map support.
+public class HashMap<K, V> {
+    private HashMap<K, V> map;
+
+    public HashMap() {
+        this.map = new HashMap<K, V>();
+    }
+
+    public void put(K key, V value) {
+        this.map.put(key, value);
+    }
+
+    public V get(K key) {
+        return this.map.get(key);
+    }
+}

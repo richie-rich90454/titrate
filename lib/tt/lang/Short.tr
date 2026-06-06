@@ -1,0 +1,9 @@
+public class Short {
+    public static short parse(String s) {
+        return Short::parseShort(s);
+    }
+
+    public static String toString(short value) {
+        return value.toString();
+    }
+}

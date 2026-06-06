@@ -1,0 +1,20 @@
+// Efficient string builder using ArrayList<String> internally.
+public class StringBuilder {
+    private ArrayList<String> parts;
+
+    public StringBuilder() {
+        this.parts = new ArrayList<String>();
+    }
+
+    public void append(String s) {
+        this.parts.add(s);
+    }
+
+    public String build() {
+        String result = "";
+        for String part in this.parts {
+            result = result + part;
+        }
+        return result;
+    }
+}

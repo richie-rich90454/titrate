@@ -1,0 +1,9 @@
+public class Double {
+    public static double parse(String s) {
+        return Double::parseDouble(s);
+    }
+
+    public static String toString(double value) {
+        return value.toString();
+    }
+}

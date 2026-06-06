@@ -1,0 +1,24 @@
+// Generic ArrayList backed by the VM's built-in array support.
+public class ArrayList<T> {
+    private ArrayList<T> list;
+
+    public ArrayList() {
+        this.list = new ArrayList<T>();
+    }
+
+    public void add(T element) {
+        this.list.add(element);
+    }
+
+    public T get(int index) {
+        return this.list.get(index);
+    }
+
+    public int size() {
+        return this.list.size();
+    }
+
+    public void sort() {
+        this.list.sort();
+    }
+}

@@ -1,0 +1,10 @@
+// Static utility methods for the Integer type.
+public class Integer {
+    public static int parse(String s) {
+        return Integer::parseInt(s);
+    }
+
+    public static String toString(int value) {
+        return value.toString();
+    }
+}

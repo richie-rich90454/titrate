@@ -1,0 +1,10 @@
+// Standard I/O operations.
+public class IO {
+    public static void println(String message) {
+        io::println(message);
+    }
+
+    public static void print(String message) {
+        io::print(message);
+    }
+}

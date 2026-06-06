@@ -1,0 +1,13 @@
+public class String {
+    public static int length(String s) {
+        return s.length();
+    }
+
+    public static String concat(String a, String b) {
+        return a + b;
+    }
+
+    public static String toString(String value) {
+        return value;
+    }
+}

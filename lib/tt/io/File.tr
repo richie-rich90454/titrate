@@ -1,0 +1,24 @@
+// File I/O operations. These are backed by VM built-ins.
+public class File {
+    private String path;
+
+    public File(String path) {
+        this.path = path;
+    }
+
+    public String getPath() {
+        return this.path;
+    }
+
+    public String readLine() {
+        return File::readLine(this.path);
+    }
+
+    public void write(String content) {
+        File::write(this.path, content);
+    }
+
+    public void close() {
+        File::close(this.path);
+    }
+}
