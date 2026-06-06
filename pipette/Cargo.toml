@@ -1,5 +1,8 @@
 [package]
 name = "pipette"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Titrate package manager (placeholder)"
+description = "Titrate build tool and package manager"
+
+[dependencies]
+trc = { path = "../trc" }
