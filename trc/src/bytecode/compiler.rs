@@ -154,10 +154,10 @@ impl Compiler {
         for decl in &program.declarations {
             match decl {
                 ast::Declaration::VarDecl(var_decl) => {
-                    self.compile_var_decl(var_decl, 0)?;
+                    self.compile_var_decl(var_decl)?;
                 }
                 ast::Declaration::ConstDecl(const_decl) => {
-                    self.compile_var_decl(const_decl, 0)?;
+                    self.compile_var_decl(const_decl)?;
                 }
                 ast::Declaration::Function(fn_decl) => {
                     self.compile_function(fn_decl)?;
@@ -579,10 +579,10 @@ impl Compiler {
     fn compile_stmt(&mut self, stmt: &ast::Stmt) -> Result<(), String> {
         match stmt {
             ast::Stmt::VarDecl(var_decl) => {
-                self.compile_var_decl(var_decl, 0)?;
+                self.compile_var_decl(var_decl)?;
             }
             ast::Stmt::ConstDecl(const_decl) => {
-                self.compile_var_decl(const_decl, 0)?;
+                self.compile_var_decl(const_decl)?;
             }
             ast::Stmt::Expr(expr) => {
                 self.compile_expr(expr)?;
@@ -625,7 +625,8 @@ impl Compiler {
         Ok(())
     }
 
-    fn compile_var_decl(&mut self, var_decl: &ast::VarDecl, line: u32) -> Result<(), String> {
+    fn compile_var_decl(&mut self, var_decl: &ast::VarDecl) -> Result<(), String> {
+        let line = var_decl.span.line;
         if let Some(ref init) = var_decl.init {
             self.compile_expr(init)?;
         } else {
@@ -638,20 +639,21 @@ impl Compiler {
     }
 
     fn compile_if(&mut self, if_stmt: &ast::IfStmt) -> Result<(), String> {
+        let line = if_stmt.span.line;
         // compile condition
         self.compile_expr(&if_stmt.condition)?;
-        self.emit_opcode(OpCode::JMP_IF_FALSE, 0);
+        self.emit_opcode(OpCode::JMP_IF_FALSE, line);
         let else_jump_offset = self.current_ip();
-        self.emit_i16(0, 0); // placeholder
+        self.emit_i16(0, line); // placeholder
 
         // compile then_branch
         self.compile_block(&if_stmt.then_branch)?;
 
         if let Some(ref else_branch) = if_stmt.else_branch {
             // Jump over else branch after then.
-            self.emit_opcode(OpCode::JMP, 0);
+            self.emit_opcode(OpCode::JMP, line);
             let end_jump_offset = self.current_ip();
-            self.emit_i16(0, 0); // placeholder
+            self.emit_i16(0, line); // placeholder
 
             // Patch else jump to land here.
             let else_start = self.current_ip();
@@ -679,6 +681,7 @@ impl Compiler {
     }
 
     fn compile_while(&mut self, while_stmt: &ast::WhileStmt) -> Result<(), String> {
+        let line = while_stmt.span.line;
         let loop_start = self.current_ip();
 
         self.loop_stack.push(LoopInfo {
@@ -688,18 +691,18 @@ impl Compiler {
 
         // compile condition
         self.compile_expr(&while_stmt.condition)?;
-        self.emit_opcode(OpCode::JMP_IF_FALSE, 0);
+        self.emit_opcode(OpCode::JMP_IF_FALSE, line);
         let exit_jump_offset = self.current_ip();
-        self.emit_i16(0, 0); // placeholder
+        self.emit_i16(0, line); // placeholder
 
         // compile body
         self.compile_block(&while_stmt.body)?;
 
         // Jump back to loop start.
-        self.emit_opcode(OpCode::JMP, 0);
+        self.emit_opcode(OpCode::JMP, line);
         let current = self.current_ip() + 2; // after the i16 operand
         let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, 0);
+        self.emit_i16(offset, line);
 
         // Patch the exit jump.
         let end_ip = self.current_ip();
@@ -719,31 +722,32 @@ impl Compiler {
     }
 
     fn compile_for(&mut self, for_stmt: &ast::ForStmt) -> Result<(), String> {
+        let line = for_stmt.span.line;
         self.begin_scope();
 
         // Compile the iterable expression and store it in a local.
         self.compile_expr(&for_stmt.iterable)?;
         let iter_slot = self.declare_local("__iter");
-        self.emit_opcode(OpCode::STORE_LOCAL, 0);
-        self.emit_u8(iter_slot, 0);
+        self.emit_opcode(OpCode::STORE_LOCAL, line);
+        self.emit_u8(iter_slot, line);
 
         // Initialize the index counter to 0.
-        self.emit_opcode(OpCode::PUSH_I64, 0);
+        self.emit_opcode(OpCode::PUSH_I64, line);
         let bytes = 0i64.to_be_bytes();
         for &b in &bytes {
-            self.emit_u8(b, 0);
+            self.emit_u8(b, line);
         }
         let idx_slot = self.declare_local("__iter_idx");
-        self.emit_opcode(OpCode::STORE_LOCAL, 0);
-        self.emit_u8(idx_slot, 0);
+        self.emit_opcode(OpCode::STORE_LOCAL, line);
+        self.emit_u8(idx_slot, line);
 
         // Get the length of the iterable and store it.
-        self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-        self.emit_u8(iter_slot, 0);
-        self.emit_opcode(OpCode::ARRAY_LEN, 0);
+        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+        self.emit_u8(iter_slot, line);
+        self.emit_opcode(OpCode::ARRAY_LEN, line);
         let len_slot = self.declare_local("__iter_len");
-        self.emit_opcode(OpCode::STORE_LOCAL, 0);
-        self.emit_u8(len_slot, 0);
+        self.emit_opcode(OpCode::STORE_LOCAL, line);
+        self.emit_u8(len_slot, line);
 
         let loop_start = self.current_ip();
 
@@ -753,47 +757,47 @@ impl Compiler {
         });
 
         // Check: idx < len
-        self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-        self.emit_u8(idx_slot, 0);
-        self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-        self.emit_u8(len_slot, 0);
-        self.emit_opcode(OpCode::LT_I64, 0);
-        self.emit_opcode(OpCode::JMP_IF_FALSE, 0);
+        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+        self.emit_u8(idx_slot, line);
+        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+        self.emit_u8(len_slot, line);
+        self.emit_opcode(OpCode::LT_I64, line);
+        self.emit_opcode(OpCode::JMP_IF_FALSE, line);
         let exit_jump_offset = self.current_ip();
-        self.emit_i16(0, 0); // placeholder
+        self.emit_i16(0, line); // placeholder
 
         // Load the element: __iter[__iter_idx]
-        self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-        self.emit_u8(iter_slot, 0);
-        self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-        self.emit_u8(idx_slot, 0);
-        self.emit_opcode(OpCode::ARRAY_GET, 0);
+        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+        self.emit_u8(iter_slot, line);
+        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+        self.emit_u8(idx_slot, line);
+        self.emit_opcode(OpCode::ARRAY_GET, line);
 
         // Store the element in the loop variable.
         let loop_var_slot = self.declare_local(&for_stmt.var);
-        self.emit_opcode(OpCode::STORE_LOCAL, 0);
-        self.emit_u8(loop_var_slot, 0);
+        self.emit_opcode(OpCode::STORE_LOCAL, line);
+        self.emit_u8(loop_var_slot, line);
 
         // compile body
         self.compile_block(&for_stmt.body)?;
 
         // Increment the index: __iter_idx = __iter_idx + 1
-        self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-        self.emit_u8(idx_slot, 0);
-        self.emit_opcode(OpCode::PUSH_I64, 0);
+        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+        self.emit_u8(idx_slot, line);
+        self.emit_opcode(OpCode::PUSH_I64, line);
         let one_bytes = 1i64.to_be_bytes();
         for &b in &one_bytes {
-            self.emit_u8(b, 0);
+            self.emit_u8(b, line);
         }
-        self.emit_opcode(OpCode::ADD_I64, 0);
-        self.emit_opcode(OpCode::STORE_LOCAL, 0);
-        self.emit_u8(idx_slot, 0);
+        self.emit_opcode(OpCode::ADD_I64, line);
+        self.emit_opcode(OpCode::STORE_LOCAL, line);
+        self.emit_u8(idx_slot, line);
 
         // Jump back to loop start.
-        self.emit_opcode(OpCode::JMP, 0);
+        self.emit_opcode(OpCode::JMP, line);
         let current = self.current_ip() + 2;
         let offset = (loop_start as isize - current as isize) as i16;
-        self.emit_i16(offset, 0);
+        self.emit_i16(offset, line);
 
         // Patch the exit jump.
         let end_ip = self.current_ip();
@@ -841,6 +845,7 @@ impl Compiler {
     }
 
     fn compile_switch(&mut self, switch_stmt: &ast::SwitchStmt) -> Result<(), String> {
+        let line = switch_stmt.span.line;
         // Compile the subject expression.
         self.compile_expr(&switch_stmt.expr)?;
 
@@ -848,15 +853,15 @@ impl Compiler {
 
         for case in &switch_stmt.cases {
             // DUP the subject for matching.
-            self.emit_opcode(OpCode::DUP, 0);
+            self.emit_opcode(OpCode::DUP, line);
 
             // Compile the pattern match.
             self.compile_pattern_match(&case.pattern)?;
 
             // If pattern doesn't match, jump to next case.
-            self.emit_opcode(OpCode::JMP_IF_FALSE, 0);
+            self.emit_opcode(OpCode::JMP_IF_FALSE, line);
             let next_case_offset = self.current_ip();
-            self.emit_i16(0, 0); // placeholder
+            self.emit_i16(0, line); // placeholder
 
             // Pattern matched: store extracted fields into local variables.
             if let ast::Pattern::Constructor { bindings, .. } = &case.pattern {
@@ -866,26 +871,26 @@ impl Compiler {
                     for binding in bindings.iter().rev() {
                         if binding != "_" {
                             let slot = self.declare_local(binding);
-                            self.emit_opcode(OpCode::STORE_LOCAL, 0);
-                            self.emit_u8(slot, 0);
+                            self.emit_opcode(OpCode::STORE_LOCAL, line);
+                            self.emit_u8(slot, line);
                         } else {
                             // Wildcard: just pop the field.
-                            self.emit_opcode(OpCode::POP, 0);
+                            self.emit_opcode(OpCode::POP, line);
                         }
                     }
                 }
             }
 
             // POP the subject.
-            self.emit_opcode(OpCode::POP, 0);
+            self.emit_opcode(OpCode::POP, line);
 
             // Compile case body.
             self.compile_block(&case.body)?;
 
             // Jump to end of switch (so we don't fall through).
-            self.emit_opcode(OpCode::JMP, 0);
+            self.emit_opcode(OpCode::JMP, line);
             let end_jump_offset = self.current_ip();
-            self.emit_i16(0, 0); // placeholder
+            self.emit_i16(0, line); // placeholder
             end_jumps.push(end_jump_offset);
 
             // Patch the next-case jump to land here.
@@ -898,11 +903,11 @@ impl Compiler {
         // Default case (if any).
         if let Some(ref default_body) = switch_stmt.default {
             // POP the subject (no case matched).
-            self.emit_opcode(OpCode::POP, 0);
+            self.emit_opcode(OpCode::POP, line);
             self.compile_block(default_body)?;
         } else {
             // No default: just pop the subject.
-            self.emit_opcode(OpCode::POP, 0);
+            self.emit_opcode(OpCode::POP, line);
         }
 
         // Patch all end jumps.
@@ -920,9 +925,9 @@ impl Compiler {
         match pattern {
             ast::Pattern::Literal(lit) => {
                 // Compile the literal, then emit equality comparison.
-                self.compile_literal(lit)?;
+                self.compile_literal(lit, 0)?;
                 let ty = self.infer_literal_type(lit);
-                self.emit_eq_opcode(ty);
+                self.emit_eq_opcode(ty, 0);
             }
             ast::Pattern::Wildcard => {
                 // Always matches. Replace the DUP'd subject with true.
@@ -964,137 +969,138 @@ impl Compiler {
 
     fn compile_expr(&mut self, expr: &ast::Expr) -> Result<(), String> {
         match expr {
-            ast::Expr::Literal(lit) => {
-                self.compile_literal(lit)?;
+            ast::Expr::Literal(lit, span) => {
+                self.compile_literal(lit, span.line)?;
             }
-            ast::Expr::Identifier(name) => {
-                self.compile_identifier(name)?;
+            ast::Expr::Identifier(name, span) => {
+                self.compile_identifier(name, span.line)?;
             }
-            ast::Expr::Binary(left, op, right) => {
-                self.compile_binary(left, op, right)?;
+            ast::Expr::Binary(left, op, right, span) => {
+                self.compile_binary(left, op, right, span.line)?;
             }
-            ast::Expr::Unary(op, operand) => {
-                self.compile_unary(op, operand)?;
+            ast::Expr::Unary(op, operand, span) => {
+                self.compile_unary(op, operand, span.line)?;
             }
-            ast::Expr::Call(callee, args) => {
-                self.compile_call(callee, args)?;
+            ast::Expr::Call(callee, args, span) => {
+                self.compile_call(callee, args, span.line)?;
             }
-            ast::Expr::MemberAccess(obj, member) => {
-                self.compile_member_access(obj, member)?;
+            ast::Expr::MemberAccess(obj, member, span) => {
+                self.compile_member_access(obj, member, span.line)?;
             }
-            ast::Expr::Index(obj, index) => {
+            ast::Expr::Index(obj, index, span) => {
                 self.compile_expr(obj)?;
                 self.compile_expr(index)?;
-                self.emit_opcode(OpCode::ARRAY_GET, 0);
+                self.emit_opcode(OpCode::ARRAY_GET, span.line);
             }
-            ast::Expr::New(typ, args) => {
-                self.compile_new(typ, args)?;
+            ast::Expr::New(typ, args, span) => {
+                self.compile_new(typ, args, span.line)?;
             }
-            ast::Expr::This => {
+            ast::Expr::This(span) => {
                 // In methods, "this" is always slot 0.
-                self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-                self.emit_u8(0, 0);
+                self.emit_opcode(OpCode::LOAD_LOCAL, span.line);
+                self.emit_u8(0, span.line);
             }
-            ast::Expr::Super => {
+            ast::Expr::Super(span) => {
                 // "super" resolves to "this" for method dispatch.
-                self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-                self.emit_u8(0, 0);
+                self.emit_opcode(OpCode::LOAD_LOCAL, span.line);
+                self.emit_u8(0, span.line);
             }
-            ast::Expr::OwnedDeref(inner) => {
+            ast::Expr::OwnedDeref(inner, span) => {
                 self.compile_expr(inner)?;
-                self.emit_opcode(OpCode::UNBOX_VALUE, 0);
+                self.emit_opcode(OpCode::UNBOX_VALUE, span.line);
             }
-            ast::Expr::RegionAlloc(_typ, init) => {
+            ast::Expr::RegionAlloc(_typ, init, span) => {
                 self.compile_expr(init)?;
-                self.emit_opcode(OpCode::REGION_ALLOC, 0);
+                self.emit_opcode(OpCode::REGION_ALLOC, span.line);
             }
-            ast::Expr::RefExpr(inner, kind) => {
+            ast::Expr::RefExpr(inner, kind, span) => {
                 self.compile_expr(inner)?;
                 match kind {
-                    ast::RefKind::Immutable => self.emit_opcode(OpCode::REF_IMMUTABLE, 0),
-                    ast::RefKind::Mutable => self.emit_opcode(OpCode::REF_MUTABLE, 0),
+                    ast::RefKind::Immutable => self.emit_opcode(OpCode::REF_IMMUTABLE, span.line),
+                    ast::RefKind::Mutable => self.emit_opcode(OpCode::REF_MUTABLE, span.line),
                 }
             }
-            ast::Expr::UnsafeBlock(block) => {
+            ast::Expr::UnsafeBlock(block, _span) => {
                 // Compile as a regular block.
                 self.begin_scope();
                 self.compile_block(block)?;
                 self.end_scope();
             }
-            ast::Expr::ErrorPropagation(inner) => {
+            ast::Expr::ErrorPropagation(inner, span) => {
                 self.compile_expr(inner)?;
-                self.emit_opcode(OpCode::UNWRAP_OR_PROPAGATE, 0);
+                self.emit_opcode(OpCode::UNWRAP_OR_PROPAGATE, span.line);
             }
-            ast::Expr::Cast(inner, target_type) => {
+            ast::Expr::Cast(inner, target_type, span) => {
                 self.compile_expr(inner)?;
                 let cast_target = self.type_to_cast_target(target_type);
-                self.emit_opcode(OpCode::CAST, 0);
-                self.emit_u8(cast_target as u8, 0);
+                self.emit_opcode(OpCode::CAST, span.line);
+                self.emit_u8(cast_target as u8, span.line);
             }
             ast::Expr::StaticCall {
                 class_name,
                 method,
                 args,
+                span,
             } => {
-                self.compile_static_call(class_name, method, args)?;
+                self.compile_static_call(class_name, method, args, span.line)?;
             }
-            ast::Expr::Assign(target, value) => {
-                self.compile_assign(target, value)?;
+            ast::Expr::Assign(target, value, span) => {
+                self.compile_assign(target, value, span.line)?;
             }
         }
         Ok(())
     }
 
-    fn compile_literal(&mut self, lit: &ast::Literal) -> Result<(), String> {
+    fn compile_literal(&mut self, lit: &ast::Literal, line: u32) -> Result<(), String> {
         match lit {
             ast::Literal::Int(v) => {
-                self.emit_opcode(OpCode::PUSH_I64, 0);
+                self.emit_opcode(OpCode::PUSH_I64, line);
                 let bytes = (*v as i64).to_be_bytes();
                 for &b in &bytes {
-                    self.emit_u8(b, 0);
+                    self.emit_u8(b, line);
                 }
             }
             ast::Literal::Float(v) => {
-                self.emit_opcode(OpCode::PUSH_F64, 0);
+                self.emit_opcode(OpCode::PUSH_F64, line);
                 let bytes = (*v as f64).to_be_bytes();
                 for &b in &bytes {
-                    self.emit_u8(b, 0);
+                    self.emit_u8(b, line);
                 }
             }
             ast::Literal::Bool(b) => {
-                self.emit_opcode(OpCode::PUSH_BOOL, 0);
-                self.emit_u8(if *b { 1 } else { 0 }, 0);
+                self.emit_opcode(OpCode::PUSH_BOOL, line);
+                self.emit_u8(if *b { 1 } else { 0 }, line);
             }
             ast::Literal::Char(c) => {
-                self.emit_opcode(OpCode::PUSH_CHAR, 0);
+                self.emit_opcode(OpCode::PUSH_CHAR, line);
                 let bytes = (*c as u32).to_be_bytes();
                 for &b in &bytes {
-                    self.emit_u8(b, 0);
+                    self.emit_u8(b, line);
                 }
             }
             ast::Literal::String(s) => {
                 let idx = self.intern_string(s);
-                self.emit_opcode(OpCode::PUSH_STRING, 0);
-                self.emit_u16(idx, 0);
+                self.emit_opcode(OpCode::PUSH_STRING, line);
+                self.emit_u16(idx, line);
             }
             ast::Literal::Null => {
-                self.emit_opcode(OpCode::PUSH_NULL, 0);
+                self.emit_opcode(OpCode::PUSH_NULL, line);
             }
         }
         Ok(())
     }
 
-    fn compile_identifier(&mut self, name: &str) -> Result<(), String> {
+    fn compile_identifier(&mut self, name: &str, line: u32) -> Result<(), String> {
         // Check locals first.
         if let Some(slot) = self.resolve_local(name) {
-            self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-            self.emit_u8(slot, 0);
+            self.emit_opcode(OpCode::LOAD_LOCAL, line);
+            self.emit_u8(slot, line);
             return Ok(());
         }
 
         // Check if it's a known function.
         if let Some(&fn_idx) = self.function_map.get(name) {
-            self.emit_opcode(OpCode::PUSH_VOID, 0); // placeholder – function refs not yet in value
+            self.emit_opcode(OpCode::PUSH_VOID, line); // placeholder – function refs not yet in value
             let _ = fn_idx;
             // For now, function calls are handled directly in compile_call.
             // If we reach here, it's a bare function reference.
@@ -1105,15 +1111,15 @@ impl Compiler {
         if self.variant_map.contains_key(name) {
             // This is a partial application – the variant will be called later.
             // For now, emit a placeholder.
-            self.emit_opcode(OpCode::PUSH_NULL, 0);
+            self.emit_opcode(OpCode::PUSH_NULL, line);
             return Ok(());
         }
 
         // Unknown identifier – could be a global or builtin.
         // Emit a LOAD_LOCAL with slot 0 as a fallback; the VM should handle this.
         // In practice, the analyzer should catch undefined variables.
-        self.emit_opcode(OpCode::LOAD_LOCAL, 0);
-        self.emit_u8(0, 0);
+        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+        self.emit_u8(0, line);
         Ok(())
     }
 
@@ -1122,6 +1128,7 @@ impl Compiler {
         left: &ast::Expr,
         op: &ast::Operator,
         right: &ast::Expr,
+        line: u32,
     ) -> Result<(), String> {
         // Short-circuit for And/Or.
         match op {
@@ -1129,20 +1136,20 @@ impl Compiler {
                 // And: compile left, JMP_IF_FALSE(skip), compile right, JMP(end),
                 //      (skip:) PUSH_BOOL(false), (end:)
                 self.compile_expr(left)?;
-                self.emit_opcode(OpCode::JMP_IF_FALSE, 0);
+                self.emit_opcode(OpCode::JMP_IF_FALSE, line);
                 let skip_offset = self.current_ip();
-                self.emit_i16(0, 0); // placeholder
+                self.emit_i16(0, line); // placeholder
 
                 self.compile_expr(right)?;
-                self.emit_opcode(OpCode::JMP, 0);
+                self.emit_opcode(OpCode::JMP, line);
                 let end_offset = self.current_ip();
-                self.emit_i16(0, 0); // placeholder
+                self.emit_i16(0, line); // placeholder
 
                 // skip: PUSH_BOOL(false)
                 let skip_ip = self.current_ip();
                 self.patch_i16_at(skip_offset, (skip_ip - (skip_offset + 2)) as i16);
-                self.emit_opcode(OpCode::PUSH_BOOL, 0);
-                self.emit_u8(0, 0);
+                self.emit_opcode(OpCode::PUSH_BOOL, line);
+                self.emit_u8(0, line);
 
                 // end:
                 let end_ip = self.current_ip();
@@ -1153,20 +1160,20 @@ impl Compiler {
                 // Or: compile left, JMP_IF_TRUE(skip), compile right, JMP(end),
                 //     (skip:) PUSH_BOOL(true), (end:)
                 self.compile_expr(left)?;
-                self.emit_opcode(OpCode::JMP_IF_TRUE, 0);
+                self.emit_opcode(OpCode::JMP_IF_TRUE, line);
                 let skip_offset = self.current_ip();
-                self.emit_i16(0, 0); // placeholder
+                self.emit_i16(0, line); // placeholder
 
                 self.compile_expr(right)?;
-                self.emit_opcode(OpCode::JMP, 0);
+                self.emit_opcode(OpCode::JMP, line);
                 let end_offset = self.current_ip();
-                self.emit_i16(0, 0); // placeholder
+                self.emit_i16(0, line); // placeholder
 
                 // skip: PUSH_BOOL(true)
                 let skip_ip = self.current_ip();
                 self.patch_i16_at(skip_offset, (skip_ip - (skip_offset + 2)) as i16);
-                self.emit_opcode(OpCode::PUSH_BOOL, 0);
-                self.emit_u8(1, 0);
+                self.emit_opcode(OpCode::PUSH_BOOL, line);
+                self.emit_u8(1, line);
 
                 // end:
                 let end_ip = self.current_ip();
@@ -1189,36 +1196,36 @@ impl Compiler {
                 if result_type == InferredType::String {
                     // Pick the right string concatenation opcode based on operand types.
                     if left_type == InferredType::String && right_type == InferredType::String {
-                        self.emit_opcode(OpCode::STR_CONCAT, 0);
+                        self.emit_opcode(OpCode::STR_CONCAT, line);
                     } else if left_type == InferredType::String {
                         // String + non-String
-                        self.emit_opcode(OpCode::STR_CONCAT_RIGHT, 0);
+                        self.emit_opcode(OpCode::STR_CONCAT_RIGHT, line);
                     } else if right_type == InferredType::String {
                         // non-String + String
-                        self.emit_opcode(OpCode::STR_CONCAT_LEFT, 0);
+                        self.emit_opcode(OpCode::STR_CONCAT_LEFT, line);
                     } else {
                         // Both non-String but result is String (e.g., toString calls)
-                        self.emit_opcode(OpCode::STR_CONCAT, 0);
+                        self.emit_opcode(OpCode::STR_CONCAT, line);
                     }
                 } else {
-                    self.emit_add_opcode(result_type);
+                    self.emit_add_opcode(result_type, line);
                 }
             }
-            ast::Operator::Sub => self.emit_sub_opcode(result_type),
-            ast::Operator::Mul => self.emit_mul_opcode(result_type),
-            ast::Operator::Div => self.emit_div_opcode(result_type),
-            ast::Operator::Mod => self.emit_mod_opcode(result_type),
-            ast::Operator::Eq => self.emit_eq_opcode(result_type),
-            ast::Operator::Ne => self.emit_ne_opcode(result_type),
-            ast::Operator::Lt => self.emit_lt_opcode(result_type),
-            ast::Operator::Gt => self.emit_gt_opcode(result_type),
-            ast::Operator::Le => self.emit_le_opcode(result_type),
-            ast::Operator::Ge => self.emit_ge_opcode(result_type),
-            ast::Operator::BitAnd => self.emit_bitand_opcode(result_type),
-            ast::Operator::BitOr => self.emit_bitor_opcode(result_type),
-            ast::Operator::BitXor => self.emit_bitxor_opcode(result_type),
-            ast::Operator::BitShl => self.emit_shl_opcode(result_type),
-            ast::Operator::BitShr => self.emit_shr_opcode(result_type),
+            ast::Operator::Sub => self.emit_sub_opcode(result_type, line),
+            ast::Operator::Mul => self.emit_mul_opcode(result_type, line),
+            ast::Operator::Div => self.emit_div_opcode(result_type, line),
+            ast::Operator::Mod => self.emit_mod_opcode(result_type, line),
+            ast::Operator::Eq => self.emit_eq_opcode(result_type, line),
+            ast::Operator::Ne => self.emit_ne_opcode(result_type, line),
+            ast::Operator::Lt => self.emit_lt_opcode(result_type, line),
+            ast::Operator::Gt => self.emit_gt_opcode(result_type, line),
+            ast::Operator::Le => self.emit_le_opcode(result_type, line),
+            ast::Operator::Ge => self.emit_ge_opcode(result_type, line),
+            ast::Operator::BitAnd => self.emit_bitand_opcode(result_type, line),
+            ast::Operator::BitOr => self.emit_bitor_opcode(result_type, line),
+            ast::Operator::BitXor => self.emit_bitxor_opcode(result_type, line),
+            ast::Operator::BitShl => self.emit_shl_opcode(result_type, line),
+            ast::Operator::BitShr => self.emit_shr_opcode(result_type, line),
             ast::Operator::And | ast::Operator::Or => {
                 unreachable!("And/Or handled above")
             }
@@ -1227,22 +1234,22 @@ impl Compiler {
         Ok(())
     }
 
-    fn compile_unary(&mut self, op: &ast::UnOp, operand: &ast::Expr) -> Result<(), String> {
+    fn compile_unary(&mut self, op: &ast::UnOp, operand: &ast::Expr, line: u32) -> Result<(), String> {
         self.compile_expr(operand)?;
         let ty = self.infer_expr_type(operand);
         match op {
-            ast::UnOp::Neg => self.emit_neg_opcode(ty),
+            ast::UnOp::Neg => self.emit_neg_opcode(ty, line),
             ast::UnOp::Not => {
-                self.emit_opcode(OpCode::NOT, 0);
+                self.emit_opcode(OpCode::NOT, line);
             }
-            ast::UnOp::BitNot => self.emit_bitnot_opcode(ty),
+            ast::UnOp::BitNot => self.emit_bitnot_opcode(ty, line),
         }
         Ok(())
     }
 
-    fn compile_call(&mut self, callee: &ast::Expr, args: &[ast::Expr]) -> Result<(), String> {
+    fn compile_call(&mut self, callee: &ast::Expr, args: &[ast::Expr], line: u32) -> Result<(), String> {
         // Special case: super(...) call in a constructor.
-        if let ast::Expr::Super = callee {
+        if let ast::Expr::Super(_) = callee {
             // Compile arguments so they're consumed, then emit POPs.
             // super() calls are handled by the VM during NEW if there's a
             // parent class. For now, just discard the arguments.
@@ -1250,20 +1257,20 @@ impl Compiler {
                 self.compile_expr(arg)?;
             }
             for _ in args {
-                self.emit_opcode(OpCode::POP, 0);
+                self.emit_opcode(OpCode::POP, line);
             }
-            self.emit_opcode(OpCode::PUSH_VOID, 0);
+            self.emit_opcode(OpCode::PUSH_VOID, line);
             return Ok(());
         }
 
         // Special case: Identifier("Ok") → RESULT_OK
-        if let ast::Expr::Identifier(name) = callee {
+        if let ast::Expr::Identifier(name, _) = callee {
             if name == "Ok" {
                 if args.len() != 1 {
                     return Err("Ok() expects exactly 1 argument".to_string());
                 }
                 self.compile_expr(&args[0])?;
-                self.emit_opcode(OpCode::RESULT_OK, 0);
+                self.emit_opcode(OpCode::RESULT_OK, line);
                 return Ok(());
             }
             if name == "Err" {
@@ -1271,7 +1278,7 @@ impl Compiler {
                     return Err("Err() expects exactly 1 argument".to_string());
                 }
                 self.compile_expr(&args[0])?;
-                self.emit_opcode(OpCode::RESULT_ERR, 0);
+                self.emit_opcode(OpCode::RESULT_ERR, line);
                 return Ok(());
             }
 
@@ -1282,10 +1289,10 @@ impl Compiler {
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                self.emit_opcode(OpCode::ENUM_NEW, 0);
-                self.emit_u16(enum_idx, 0);
-                self.emit_u16(variant_name_idx, 0);
-                self.emit_u8(args.len() as u8, 0);
+                self.emit_opcode(OpCode::ENUM_NEW, line);
+                self.emit_u16(enum_idx, line);
+                self.emit_u16(variant_name_idx, line);
+                self.emit_u8(args.len() as u8, line);
                 return Ok(());
             }
 
@@ -1294,24 +1301,24 @@ impl Compiler {
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                self.emit_opcode(OpCode::CALL, 0);
-                self.emit_u16(fn_idx, 0);
-                self.emit_u8(args.len() as u8, 0);
+                self.emit_opcode(OpCode::CALL, line);
+                self.emit_u16(fn_idx, line);
+                self.emit_u8(args.len() as u8, line);
                 return Ok(());
             }
         }
 
         // Special case: MemberAccess callee → method call.
-        if let ast::Expr::MemberAccess(ref obj, ref method) = *callee {
+        if let ast::Expr::MemberAccess(ref obj, ref method, _) = *callee {
             // Check for static calls like io.println, Integer.toString, etc.
-            if let ast::Expr::Identifier(ref obj_name) = **obj {
+            if let ast::Expr::Identifier(ref obj_name, _) = **obj {
                 if self.is_builtin_object(obj_name) {
-                    self.compile_static_call(obj_name, method, args)?;
+                    self.compile_static_call(obj_name, method, args, line)?;
                     return Ok(());
                 }
                 // Check if obj_name is a class name.
                 if self.class_map.contains_key(obj_name) {
-                    self.compile_static_call(obj_name, method, args)?;
+                    self.compile_static_call(obj_name, method, args, line)?;
                     return Ok(());
                 }
             }
@@ -1322,9 +1329,9 @@ impl Compiler {
                 self.compile_expr(arg)?;
             }
             let method_idx = self.intern_string(method);
-            self.emit_opcode(OpCode::INVOKE_VIRTUAL, 0);
-            self.emit_u16(method_idx, 0);
-            self.emit_u8(args.len() as u8, 0);
+            self.emit_opcode(OpCode::INVOKE_VIRTUAL, line);
+            self.emit_u16(method_idx, line);
+            self.emit_u8(args.len() as u8, line);
             return Ok(());
         }
 
@@ -1333,23 +1340,23 @@ impl Compiler {
         for arg in args {
             self.compile_expr(arg)?;
         }
-        self.emit_opcode(OpCode::CALL, 0);
+        self.emit_opcode(OpCode::CALL, line);
         // Use function index 0 as placeholder; the VM will use the callee on the stack.
-        self.emit_u16(0, 0);
-        self.emit_u8(args.len() as u8, 0);
+        self.emit_u16(0, line);
+        self.emit_u8(args.len() as u8, line);
 
         Ok(())
     }
 
-    fn compile_member_access(&mut self, obj: &ast::Expr, member: &str) -> Result<(), String> {
+    fn compile_member_access(&mut self, obj: &ast::Expr, member: &str, line: u32) -> Result<(), String> {
         // Check for static member access patterns.
-        if let ast::Expr::Identifier(ref obj_name) = *obj {
+        if let ast::Expr::Identifier(ref obj_name, _) = *obj {
             // io.println etc. are handled in compile_call via MemberAccess callee.
             // Here we handle bare member access (not a call).
             if self.is_builtin_object(obj_name) {
                 // This is a reference to a builtin object's member.
                 // It will typically be used in a call context, which is handled above.
-                self.emit_opcode(OpCode::PUSH_NULL, 0);
+                self.emit_opcode(OpCode::PUSH_NULL, line);
                 return Ok(());
             }
         }
@@ -1357,13 +1364,13 @@ impl Compiler {
         // Regular field access: compile obj, then GET_FIELD.
         self.compile_expr(obj)?;
         let field_idx = self.intern_string(member);
-        self.emit_opcode(OpCode::GET_FIELD, 0);
-        self.emit_u16(field_idx, 0);
+        self.emit_opcode(OpCode::GET_FIELD, line);
+        self.emit_u16(field_idx, line);
 
         Ok(())
     }
 
-    fn compile_new(&mut self, typ: &ast::Type, args: &[ast::Expr]) -> Result<(), String> {
+    fn compile_new(&mut self, typ: &ast::Type, args: &[ast::Expr], line: u32) -> Result<(), String> {
         let class_name = typ.name();
 
         // Handle built-in types that aren't user-defined classes
@@ -1382,8 +1389,8 @@ impl Compiler {
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                self.emit_opcode(OpCode::NEW, 0);
-                self.emit_u16(class_idx, 0);
+                self.emit_opcode(OpCode::NEW, line);
+                self.emit_u16(class_idx, line);
                 return Ok(());
             }
             "HashMap" => {
@@ -1391,8 +1398,8 @@ impl Compiler {
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
-                self.emit_opcode(OpCode::NEW, 0);
-                self.emit_u16(class_idx, 0);
+                self.emit_opcode(OpCode::NEW, line);
+                self.emit_u16(class_idx, line);
                 return Ok(());
             }
             _ => {}
@@ -1408,8 +1415,8 @@ impl Compiler {
             self.compile_expr(arg)?;
         }
 
-        self.emit_opcode(OpCode::NEW, 0);
-        self.emit_u16(class_idx, 0);
+        self.emit_opcode(OpCode::NEW, line);
+        self.emit_u16(class_idx, line);
 
         // If the class has a constructor, the VM will call it after allocation.
         // The constructor call is implicit in the NEW opcode.
@@ -1441,6 +1448,7 @@ impl Compiler {
         class_name: &str,
         method: &str,
         args: &[ast::Expr],
+        line: u32,
     ) -> Result<(), String> {
         // Compile arguments.
         for arg in args {
@@ -1450,36 +1458,36 @@ impl Compiler {
         let class_idx = self.intern_string(class_name);
         let method_idx = self.intern_string(method);
 
-        self.emit_opcode(OpCode::STATIC_CALL, 0);
-        self.emit_u16(class_idx, 0);
-        self.emit_u16(method_idx, 0);
-        self.emit_u8(args.len() as u8, 0);
+        self.emit_opcode(OpCode::STATIC_CALL, line);
+        self.emit_u16(class_idx, line);
+        self.emit_u16(method_idx, line);
+        self.emit_u8(args.len() as u8, line);
 
         Ok(())
     }
 
-    fn compile_assign(&mut self, target: &ast::Expr, value: &ast::Expr) -> Result<(), String> {
+    fn compile_assign(&mut self, target: &ast::Expr, value: &ast::Expr, line: u32) -> Result<(), String> {
         self.compile_expr(value)?;
 
         match target {
-            ast::Expr::Identifier(name) => {
+            ast::Expr::Identifier(name, _) => {
                 if let Some(slot) = self.resolve_local(name) {
-                    self.emit_opcode(OpCode::STORE_LOCAL, 0);
-                    self.emit_u8(slot, 0);
+                    self.emit_opcode(OpCode::STORE_LOCAL, line);
+                    self.emit_u8(slot, line);
                 } else {
                     return Err(format!("Cannot assign to undefined variable '{}'", name));
                 }
             }
-            ast::Expr::MemberAccess(obj, member) => {
+            ast::Expr::MemberAccess(obj, member, _) => {
                 self.compile_expr(obj)?;
                 let field_idx = self.intern_string(member);
-                self.emit_opcode(OpCode::SET_FIELD, 0);
-                self.emit_u16(field_idx, 0);
+                self.emit_opcode(OpCode::SET_FIELD, line);
+                self.emit_u16(field_idx, line);
             }
-            ast::Expr::Index(obj, index) => {
+            ast::Expr::Index(obj, index, _) => {
                 self.compile_expr(obj)?;
                 self.compile_expr(index)?;
-                self.emit_opcode(OpCode::ARRAY_SET, 0);
+                self.emit_opcode(OpCode::ARRAY_SET, line);
             }
             _ => {
                 return Err("Invalid assignment target".to_string());
@@ -1495,9 +1503,9 @@ impl Compiler {
 
     fn infer_expr_type(&self, expr: &ast::Expr) -> InferredType {
         match expr {
-            ast::Expr::Literal(lit) => self.infer_literal_type(lit),
-            ast::Expr::Identifier(name) => self.infer_identifier_type(name),
-            ast::Expr::Binary(left, op, right) => {
+            ast::Expr::Literal(lit, _) => self.infer_literal_type(lit),
+            ast::Expr::Identifier(name, _) => self.infer_identifier_type(name),
+            ast::Expr::Binary(left, op, right, _) => {
                 let lt = self.infer_expr_type(left);
                 let rt = self.infer_expr_type(right);
                 match op {
@@ -1527,7 +1535,7 @@ impl Compiler {
                     | ast::Operator::BitShr => self.wider_type(lt, rt),
                 }
             }
-            ast::Expr::Unary(op, operand) => {
+            ast::Expr::Unary(op, operand, _) => {
                 let ot = self.infer_expr_type(operand);
                 match op {
                     ast::UnOp::Neg => ot,
@@ -1535,31 +1543,31 @@ impl Compiler {
                     ast::UnOp::BitNot => ot,
                 }
             }
-            ast::Expr::Call(callee, _args) => {
+            ast::Expr::Call(callee, _args, _) => {
                 // Check for toString calls on builtin objects
-                if let ast::Expr::MemberAccess(_, method) = callee.as_ref() {
+                if let ast::Expr::MemberAccess(_, method, _) = callee.as_ref() {
                     if method == "toString" {
                         return InferredType::String;
                     }
                 }
-                if let ast::Expr::Identifier(name) = callee.as_ref() {
+                if let ast::Expr::Identifier(name, _) = callee.as_ref() {
                     if name == "Ok" || name == "Err" {
                         return InferredType::Unknown; // Result type
                     }
                 }
                 InferredType::Unknown
             }
-            ast::Expr::MemberAccess(_, _) => InferredType::Unknown,
-            ast::Expr::Index(_, _) => InferredType::Unknown,
-            ast::Expr::New(_, _) => InferredType::Unknown,
-            ast::Expr::This => InferredType::Unknown,
-            ast::Expr::Super => InferredType::Unknown,
-            ast::Expr::OwnedDeref(inner) => self.infer_expr_type(inner),
-            ast::Expr::RegionAlloc(_, _) => InferredType::Unknown,
-            ast::Expr::RefExpr(_, _) => InferredType::Unknown,
-            ast::Expr::UnsafeBlock(_) => InferredType::Unknown,
-            ast::Expr::ErrorPropagation(_) => InferredType::Unknown,
-            ast::Expr::Cast(_, target_type) => self.type_to_inferred(target_type),
+            ast::Expr::MemberAccess(_, _, _) => InferredType::Unknown,
+            ast::Expr::Index(_, _, _) => InferredType::Unknown,
+            ast::Expr::New(_, _, _) => InferredType::Unknown,
+            ast::Expr::This(_) => InferredType::Unknown,
+            ast::Expr::Super(_) => InferredType::Unknown,
+            ast::Expr::OwnedDeref(inner, _) => self.infer_expr_type(inner),
+            ast::Expr::RegionAlloc(_, _, _) => InferredType::Unknown,
+            ast::Expr::RefExpr(_, _, _) => InferredType::Unknown,
+            ast::Expr::UnsafeBlock(_, _) => InferredType::Unknown,
+            ast::Expr::ErrorPropagation(_, _) => InferredType::Unknown,
+            ast::Expr::Cast(_, target_type, _) => self.type_to_inferred(target_type),
             ast::Expr::StaticCall { method, .. } => {
                 // toString always returns String
                 if method == "toString" {
@@ -1570,7 +1578,7 @@ impl Compiler {
                     InferredType::Unknown
                 }
             }
-            ast::Expr::Assign(_, _) => InferredType::Unknown,
+            ast::Expr::Assign(_, _, _) => InferredType::Unknown,
         }
     }
 
@@ -1679,7 +1687,7 @@ impl Compiler {
     // Typed opcode emission helpers
     // -----------------------------------------------------------------------
 
-    fn emit_add_opcode(&mut self, ty: InferredType) {
+    fn emit_add_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::ADD_I32,
@@ -1687,11 +1695,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::ADD_F64,
                 _ => OpCode::ADD_I64, // default for I64, I128, U128, Unknown
             },
-            0,
+            line,
         );
     }
 
-    fn emit_sub_opcode(&mut self, ty: InferredType) {
+    fn emit_sub_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::SUB_I32,
@@ -1699,11 +1707,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::SUB_F64,
                 _ => OpCode::SUB_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_mul_opcode(&mut self, ty: InferredType) {
+    fn emit_mul_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::MUL_I32,
@@ -1711,11 +1719,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::MUL_F64,
                 _ => OpCode::MUL_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_div_opcode(&mut self, ty: InferredType) {
+    fn emit_div_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::DIV_I32,
@@ -1723,11 +1731,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::DIV_F64,
                 _ => OpCode::DIV_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_mod_opcode(&mut self, ty: InferredType) {
+    fn emit_mod_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::MOD_I32,
@@ -1735,11 +1743,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::MOD_F64,
                 _ => OpCode::MOD_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_neg_opcode(&mut self, ty: InferredType) {
+    fn emit_neg_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::NEG_I32,
@@ -1747,71 +1755,71 @@ impl Compiler {
                 InferredType::F64 => OpCode::NEG_F64,
                 _ => OpCode::NEG_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_bitand_opcode(&mut self, ty: InferredType) {
+    fn emit_bitand_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::BITAND_I32,
                 _ => OpCode::BITAND_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_bitor_opcode(&mut self, ty: InferredType) {
+    fn emit_bitor_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::BITOR_I32,
                 _ => OpCode::BITOR_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_bitxor_opcode(&mut self, ty: InferredType) {
+    fn emit_bitxor_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::BITXOR_I32,
                 _ => OpCode::BITXOR_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_shl_opcode(&mut self, ty: InferredType) {
+    fn emit_shl_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::SHL_I32,
                 _ => OpCode::SHL_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_shr_opcode(&mut self, ty: InferredType) {
+    fn emit_shr_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::SHR_I32,
                 _ => OpCode::SHR_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_bitnot_opcode(&mut self, ty: InferredType) {
+    fn emit_bitnot_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::BITNOT_I32,
                 _ => OpCode::BITNOT_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_eq_opcode(&mut self, ty: InferredType) {
+    fn emit_eq_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::EQ_I32,
@@ -1822,11 +1830,11 @@ impl Compiler {
                 InferredType::String => OpCode::EQ_STRING,
                 _ => OpCode::EQ_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_ne_opcode(&mut self, ty: InferredType) {
+    fn emit_ne_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::NE_I32,
@@ -1834,11 +1842,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::NE_F64,
                 _ => OpCode::NE_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_lt_opcode(&mut self, ty: InferredType) {
+    fn emit_lt_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::LT_I32,
@@ -1846,11 +1854,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::LT_F64,
                 _ => OpCode::LT_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_gt_opcode(&mut self, ty: InferredType) {
+    fn emit_gt_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::GT_I32,
@@ -1858,11 +1866,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::GT_F64,
                 _ => OpCode::GT_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_le_opcode(&mut self, ty: InferredType) {
+    fn emit_le_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::LE_I32,
@@ -1870,11 +1878,11 @@ impl Compiler {
                 InferredType::F64 => OpCode::LE_F64,
                 _ => OpCode::LE_I64,
             },
-            0,
+            line,
         );
     }
 
-    fn emit_ge_opcode(&mut self, ty: InferredType) {
+    fn emit_ge_opcode(&mut self, ty: InferredType, line: u32) {
         self.emit_opcode(
             match ty {
                 InferredType::I32 => OpCode::GE_I32,
@@ -1882,7 +1890,7 @@ impl Compiler {
                 InferredType::F64 => OpCode::GE_F64,
                 _ => OpCode::GE_I64,
             },
-            0,
+            line,
         );
     }
 }
@@ -1912,6 +1920,10 @@ mod tests {
         compiler.compile(&program).expect("compilation should succeed")
     }
 
+    fn su() -> ast::Span {
+        ast::Span::unknown()
+    }
+
     // -- test_compile_literal_int ------------------------------------------------
 
     #[test]
@@ -1919,8 +1931,9 @@ mod tests {
         let compiled = compile_program(vec![ast::Declaration::VarDecl(ast::VarDecl {
             name: "x".to_string(),
             typ: None,
-            init: Some(ast::Expr::Literal(ast::Literal::Int(42))),
+            init: Some(ast::Expr::Literal(ast::Literal::Int(42), su())),
             mutable: false,
+            span: su(),
         })]);
 
         let main_chunk = &compiled.functions[0].chunk;
@@ -1938,8 +1951,9 @@ mod tests {
         let compiled = compile_program(vec![ast::Declaration::VarDecl(ast::VarDecl {
             name: "s".to_string(),
             typ: None,
-            init: Some(ast::Expr::Literal(ast::Literal::String("hello".to_string()))),
+            init: Some(ast::Expr::Literal(ast::Literal::String("hello".to_string()), su())),
             mutable: false,
+            span: su(),
         })]);
 
         let main_chunk = &compiled.functions[0].chunk;
@@ -1961,11 +1975,13 @@ mod tests {
             name: "x".to_string(),
             typ: None,
             init: Some(ast::Expr::Binary(
-                Box::new(ast::Expr::Literal(ast::Literal::Int(1))),
+                Box::new(ast::Expr::Literal(ast::Literal::Int(1), su())),
                 ast::Operator::Add,
-                Box::new(ast::Expr::Literal(ast::Literal::Int(2))),
+                Box::new(ast::Expr::Literal(ast::Literal::Int(2), su())),
+                su(),
             )),
             mutable: false,
+            span: su(),
         })]);
 
         let main_chunk = &compiled.functions[0].chunk;
@@ -1983,14 +1999,16 @@ mod tests {
             ast::Declaration::VarDecl(ast::VarDecl {
                 name: "x".to_string(),
                 typ: None,
-                init: Some(ast::Expr::Literal(ast::Literal::Int(10))),
+                init: Some(ast::Expr::Literal(ast::Literal::Int(10), su())),
                 mutable: false,
+                span: su(),
             }),
             ast::Declaration::VarDecl(ast::VarDecl {
                 name: "y".to_string(),
                 typ: None,
-                init: Some(ast::Expr::Identifier("x".to_string())),
+                init: Some(ast::Expr::Identifier("x".to_string(), su())),
                 mutable: false,
+                span: su(),
             }),
         ]);
 
@@ -2012,8 +2030,9 @@ mod tests {
         let _compiled = compile_program(vec![ast::Declaration::VarDecl(ast::VarDecl {
             name: "x".to_string(),
             typ: None,
-            init: Some(ast::Expr::Literal(ast::Literal::Int(0))),
+            init: Some(ast::Expr::Literal(ast::Literal::Int(0), su())),
             mutable: false,
+            span: su(),
         })]);
 
         // Build an if-else as a statement in the main chunk.
@@ -2024,16 +2043,19 @@ mod tests {
                 typ: None,
                 init: None,
                 mutable: true,
+                span: su(),
             })],
         };
 
         // We need to compile an if statement. Let's build it manually.
         let if_stmt = ast::Stmt::If(ast::IfStmt {
-            condition: ast::Expr::Literal(ast::Literal::Bool(true)),
-            then_branch: vec![ast::Stmt::Expr(ast::Expr::Literal(ast::Literal::Int(1)))],
+            condition: ast::Expr::Literal(ast::Literal::Bool(true), su()),
+            then_branch: vec![ast::Stmt::Expr(ast::Expr::Literal(ast::Literal::Int(1), su()))],
             else_branch: Some(vec![ast::Stmt::Expr(ast::Expr::Literal(
                 ast::Literal::Int(2),
+                su(),
             ))]),
+            span: su(),
         });
 
         let _program = ast::Program {
@@ -2047,10 +2069,12 @@ mod tests {
         let fn_decl = ast::FnDecl {
             access: ast::Access::Public,
             name: "test_if".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: None,
             body: vec![if_stmt],
             sugar: false,
+            span: su(),
         };
 
         let program = ast::Program {
@@ -2077,17 +2101,20 @@ mod tests {
     #[test]
     fn test_compile_while_loop() {
         let while_stmt = ast::Stmt::While(ast::WhileStmt {
-            condition: ast::Expr::Literal(ast::Literal::Bool(true)),
+            condition: ast::Expr::Literal(ast::Literal::Bool(true), su()),
             body: vec![ast::Stmt::Break],
+            span: su(),
         });
 
         let fn_decl = ast::FnDecl {
             access: ast::Access::Public,
             name: "test_while".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: None,
             body: vec![while_stmt],
             sugar: false,
+            span: su(),
         };
 
         let program = ast::Program {
@@ -2116,6 +2143,7 @@ mod tests {
         let callee_fn = ast::FnDecl {
             access: ast::Access::Public,
             name: "add".to_string(),
+            type_params: vec![],
             params: vec![
                 ast::Param {
                     name: "a".to_string(),
@@ -2128,26 +2156,31 @@ mod tests {
             ],
             return_type: Some(ast::Type::simple("long")),
             body: vec![ast::Stmt::Return(Some(ast::Expr::Binary(
-                Box::new(ast::Expr::Identifier("a".to_string())),
+                Box::new(ast::Expr::Identifier("a".to_string(), su())),
                 ast::Operator::Add,
-                Box::new(ast::Expr::Identifier("b".to_string())),
+                Box::new(ast::Expr::Identifier("b".to_string(), su())),
+                su(),
             )))],
             sugar: false,
+            span: su(),
         };
 
         let caller_fn = ast::FnDecl {
             access: ast::Access::Public,
             name: "main_fn".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: None,
             body: vec![ast::Stmt::Expr(ast::Expr::Call(
-                Box::new(ast::Expr::Identifier("add".to_string())),
+                Box::new(ast::Expr::Identifier("add".to_string(), su())),
                 vec![
-                    ast::Expr::Literal(ast::Literal::Int(1)),
-                    ast::Expr::Literal(ast::Literal::Int(2)),
+                    ast::Expr::Literal(ast::Literal::Int(1), su()),
+                    ast::Expr::Literal(ast::Literal::Int(2), su()),
                 ],
+                su(),
             ))],
             sugar: false,
+            span: su(),
         };
 
         let program = ast::Program {
@@ -2174,6 +2207,7 @@ mod tests {
     fn test_compile_class_new() {
         let class_decl = ast::ClassDecl {
             name: "Point".to_string(),
+            type_params: vec![],
             parent: None,
             ifaces: vec![],
             members: vec![
@@ -2181,27 +2215,33 @@ mod tests {
                     access: ast::Access::Public,
                     name: "x".to_string(),
                     typ: ast::Type::simple("long"),
-                    init: Some(ast::Expr::Literal(ast::Literal::Int(0))),
+                    init: Some(ast::Expr::Literal(ast::Literal::Int(0), su())),
+                    span: su(),
                 }),
                 ast::ClassMember::Field(ast::FieldDecl {
                     access: ast::Access::Public,
                     name: "y".to_string(),
                     typ: ast::Type::simple("long"),
-                    init: Some(ast::Expr::Literal(ast::Literal::Int(0))),
+                    init: Some(ast::Expr::Literal(ast::Literal::Int(0), su())),
+                    span: su(),
                 }),
             ],
+            span: su(),
         };
 
         let fn_decl = ast::FnDecl {
             access: ast::Access::Public,
             name: "make_point".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: None,
             body: vec![ast::Stmt::Expr(ast::Expr::New(
                 ast::Type::simple("Point"),
                 vec![],
+                su(),
             ))],
             sugar: false,
+            span: su(),
         };
 
         let program = ast::Program {
@@ -2231,6 +2271,7 @@ mod tests {
     fn test_compile_enum() {
         let enum_decl = ast::EnumDecl {
             name: "Shape".to_string(),
+            type_params: vec![],
             variants: vec![
                 ast::Variant {
                     name: "SCircle".to_string(),
@@ -2253,23 +2294,28 @@ mod tests {
                     ],
                 },
             ],
+            span: su(),
         };
 
         let fn_decl = ast::FnDecl {
             access: ast::Access::Public,
             name: "make_circle".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: None,
             body: vec![ast::Stmt::VarDecl(ast::VarDecl {
                 name: "c".to_string(),
                 typ: None,
                 init: Some(ast::Expr::Call(
-                    Box::new(ast::Expr::Identifier("SCircle".to_string())),
-                    vec![ast::Expr::Literal(ast::Literal::Float(3.0))],
+                    Box::new(ast::Expr::Identifier("SCircle".to_string(), su())),
+                    vec![ast::Expr::Literal(ast::Literal::Float(3.0), su())],
+                    su(),
                 )),
                 mutable: false,
+                span: su(),
             })],
             sugar: false,
+            span: su(),
         };
 
         let program = ast::Program {
@@ -2303,29 +2349,32 @@ mod tests {
     #[test]
     fn test_compile_switch() {
         let switch_stmt = ast::Stmt::Switch(ast::SwitchStmt {
-            expr: ast::Expr::Identifier("x".to_string()),
+            expr: ast::Expr::Identifier("x".to_string(), su()),
             cases: vec![
                 ast::Case {
                     pattern: ast::Pattern::Literal(ast::Literal::Int(1)),
                     body: vec![ast::Stmt::Expr(ast::Expr::Literal(ast::Literal::Int(
                         10,
-                    )))],
+                    ), su()))],
                 },
                 ast::Case {
                     pattern: ast::Pattern::Literal(ast::Literal::Int(2)),
                     body: vec![ast::Stmt::Expr(ast::Expr::Literal(ast::Literal::Int(
                         20,
-                    )))],
+                    ), su()))],
                 },
             ],
             default: Some(vec![ast::Stmt::Expr(ast::Expr::Literal(
                 ast::Literal::Int(0),
+                su(),
             ))]),
+            span: su(),
         });
 
         let fn_decl = ast::FnDecl {
             access: ast::Access::Public,
             name: "test_switch".to_string(),
+            type_params: vec![],
             params: vec![ast::Param {
                 name: "x".to_string(),
                 typ: ast::Type::simple("long"),
@@ -2333,6 +2382,7 @@ mod tests {
             return_type: None,
             body: vec![switch_stmt],
             sugar: false,
+            span: su(),
         };
 
         let program = ast::Program {
