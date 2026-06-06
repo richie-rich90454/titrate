@@ -5,7 +5,7 @@ use std::process;
 use trc::lexer;
 use trc::parser;
 use trc::analyzer;
-use trc::interpreter;
+use trc::bytecode;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -48,8 +48,15 @@ fn main() {
         }
     };
 
-    if let Err(e) = interpreter::interpret(&typed_ast) {
-        eprintln!("Runtime error: {}", e);
-        process::exit(1);
+    match bytecode::execute(&typed_ast) {
+        Ok(output) => {
+            for line in &output {
+                println!("{}", line);
+            }
+        }
+        Err(e) => {
+            eprintln!("Runtime error: {}", e);
+            process::exit(1);
+        }
     }
 }

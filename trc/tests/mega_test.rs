@@ -2,7 +2,7 @@ use std::fs;
 use trc::lexer;
 use trc::parser;
 use trc::analyzer;
-use trc::interpreter;
+use trc::bytecode;
 
 #[test]
 fn mega_test_output_matches_expected() {
@@ -15,14 +15,9 @@ fn mega_test_output_matches_expected() {
     let ast = parser::parse(tokens).expect("parsing should succeed");
     let typed_ast = analyzer::analyze(&ast).expect("semantic analysis should succeed");
 
-    let interp = interpreter::Interpreter::new();
-    interp.run(&typed_ast).expect("interpretation should succeed");
+    let output = bytecode::execute(&typed_ast).expect("bytecode execution should succeed");
 
-    let output = interp.output.borrow();
-    let actual: String = output.iter()
-        .map(|s| s.as_str())
-        .collect::<Vec<&str>>()
-        .join("\n");
+    let actual: String = output.join("\n");
     let expected_trimmed = expected.trim_end().replace("\r\n", "\n");
 
     assert_eq!(actual, expected_trimmed, "mega test output must match byte-for-byte");
