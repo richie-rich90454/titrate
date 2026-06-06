@@ -210,6 +210,8 @@ pub struct Compiler {
     scope_depth: usize,
     /// Current function index being compiled.
     current_function: usize,
+    /// Current class index being compiled (for super() resolution).
+    current_class: Option<u16>,
     /// Function name → index mapping.
     function_map: HashMap<String, u16>,
     /// Class name → index mapping.
@@ -271,6 +273,7 @@ impl Compiler {
             locals: Vec::new(),
             scope_depth: 0,
             current_function: 0,
+            current_class: None,
             function_map: HashMap::new(),
             class_map: HashMap::new(),
             enum_map: HashMap::new(),
@@ -1569,13 +1572,13 @@ impl Compiler {
 
     fn end_scope(&mut self) {
         self.scope_depth -= 1;
-        // Pop locals that belong to the exited scope.
+        // Remove locals that belong to the exited scope from the compile-time list.
+        // We do NOT emit POP here because the VM pre-allocates all local slots
+        // when a function is called, and the RET instruction cleans up the
+        // entire frame. Emitting POP would shrink the runtime stack below
+        // the pre-allocated area, causing LOAD_LOCAL to fail.
         while self.locals.last().map_or(false, |l| l.depth > self.scope_depth) {
             let _local = self.locals.pop().unwrap();
-            // Emit POP to clean up the stack slot at runtime.
-            self.emit_opcode(OpCode::POP, 0);
-            // Note: we do NOT decrement local_count here. Slot numbers are
-            // fixed at compile time and must remain stable.
         }
     }
 
@@ -1667,7 +1670,10 @@ impl Compiler {
             .class_map
             .get(&class_decl.name)
             .ok_or_else(|| format!("Class '{}' not registered", class_decl.name))?
-            as usize;
+            as u16;
+
+        let saved_class = self.current_class;
+        self.current_class = Some(class_idx);
 
         // Compile field initialisers.
         for member in &class_decl.members {
@@ -1691,7 +1697,7 @@ impl Compiler {
                 ast::ClassMember::Method(method_decl) => {
                     let method_fn_idx = self
                         .classes
-                        .get(class_idx)
+                        .get(class_idx as usize)
                         .and_then(|c| c.methods.get(&method_decl.name))
                         .copied()
                         .ok_or_else(|| {
@@ -1710,7 +1716,7 @@ impl Compiler {
                 ast::ClassMember::Constructor(ctor_decl) => {
                     let ctor_fn_idx = self
                         .classes
-                        .get(class_idx)
+                        .get(class_idx as usize)
                         .and_then(|c| c.constructor)
                         .ok_or_else(|| {
                             format!("Constructor not found in class '{}'", class_decl.name)
@@ -1726,6 +1732,7 @@ impl Compiler {
             }
         }
 
+        self.current_class = saved_class;
         Ok(())
     }
 
@@ -2483,16 +2490,49 @@ impl Compiler {
     fn compile_call(&mut self, callee: &ast::Expr, args: &[ast::Expr], line: u32) -> Result<(), String> {
         // Special case: super(...) call in a constructor.
         if let ast::Expr::Super(_) = callee {
-            // Compile arguments so they're consumed, then emit POPs.
-            // super() calls are handled by the VM during NEW if there's a
-            // parent class. For now, just discard the arguments.
-            for arg in args {
-                self.compile_expr(arg)?;
+            // super(args) calls the parent class's constructor.
+            // We look up the parent class's constructor function index and
+            // call it directly with `this` as the first argument.
+            let parent_ctor_idx = if let Some(class_idx) = self.current_class {
+                let parent_idx = self.classes[class_idx as usize].parent;
+                if let Some(pidx) = parent_idx {
+                    self.classes[pidx as usize].constructor
+                } else {
+                    return Err("super() call but class has no parent".to_string());
+                }
+            } else {
+                return Err("super() call outside of class constructor".to_string());
+            };
+
+            match parent_ctor_idx {
+                Some(ctor_fn_idx) => {
+                    // Stack: [this, arg0, arg1, ...]
+                    // Load `this` (slot 0 in method body)
+                    self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                    self.emit_u8(0, line);
+                    // Compile arguments
+                    for arg in args {
+                        self.compile_expr(arg)?;
+                    }
+                    // Use CALL_SUPER which sets base to `this` position
+                    self.emit_opcode(OpCode::CALL_SUPER, line);
+                    self.emit_u16(ctor_fn_idx, line);
+                    self.emit_u8(args.len() as u8, line);
+                    // The constructor returns the instance; pop it.
+                    self.emit_opcode(OpCode::POP, line);
+                    self.emit_opcode(OpCode::PUSH_VOID, line);
+                }
+                None => {
+                    // Parent has no explicit constructor; just discard args.
+                    for arg in args {
+                        self.compile_expr(arg)?;
+                    }
+                    for _ in args {
+                        self.emit_opcode(OpCode::POP, line);
+                    }
+                    self.emit_opcode(OpCode::PUSH_VOID, line);
+                }
             }
-            for _ in args {
-                self.emit_opcode(OpCode::POP, line);
-            }
-            self.emit_opcode(OpCode::PUSH_VOID, line);
             return Ok(());
         }
 
@@ -2728,6 +2768,10 @@ impl Compiler {
         match target {
             ast::Expr::Identifier(name, _) => {
                 if let Some(slot) = self.resolve_local(name) {
+                    // DUP the value so it remains on the stack after STORE_LOCAL
+                    // consumes the copy. The caller (compile_stmt) will emit POP
+                    // for expression statements, which pops this DUP'd value.
+                    self.emit_opcode(OpCode::DUP, line);
                     self.emit_opcode(OpCode::STORE_LOCAL, line);
                     self.emit_u8(slot, line);
                 } else {
