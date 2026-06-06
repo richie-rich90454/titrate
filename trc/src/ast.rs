@@ -1,8 +1,30 @@
 /// AST node types for the Titrate language.
 /// All desugaring is complete before the AST is returned from the parser.
-/// Structured by richie-rich90454 – Titrate Alpha 0.1
 
 use std::fmt;
+
+/// Source location attached to every AST node.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Span {
+    pub line: u32,
+    pub column: u32,
+}
+
+impl Span {
+    pub fn new(line: u32, column: u32) -> Self {
+        Span { line, column }
+    }
+
+    pub fn unknown() -> Self {
+        Span { line: 0, column: 0 }
+    }
+}
+
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.column)
+    }
+}
 
 /// Access level for declarations.
 #[derive(Debug, Clone, PartialEq)]
@@ -124,12 +146,14 @@ pub struct VarDecl {
     pub typ: Option<Type>,
     pub init: Option<Expr>,
     pub mutable: bool,
+    pub span: Span,
 }
 
 /// Import declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Import {
     pub path: Vec<String>,
+    pub span: Span,
 }
 
 /// Function declaration.
@@ -137,10 +161,12 @@ pub struct Import {
 pub struct FnDecl {
     pub access: Access,
     pub name: String,
+    pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub return_type: Option<Type>,
     pub body: Block,
     pub sugar: bool,
+    pub span: Span,
 }
 
 /// Method signature (for interfaces).
@@ -156,9 +182,11 @@ pub struct MethodSig {
 pub struct MethodDecl {
     pub access: Access,
     pub name: String,
+    pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub return_type: Option<Type>,
     pub body: Block,
+    pub span: Span,
 }
 
 /// Field declaration (for classes).
@@ -168,6 +196,7 @@ pub struct FieldDecl {
     pub name: String,
     pub typ: Type,
     pub init: Option<Expr>,
+    pub span: Span,
 }
 
 /// Class member.
@@ -182,17 +211,21 @@ pub enum ClassMember {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClassDecl {
     pub name: String,
+    pub type_params: Vec<String>,
     pub parent: Option<Type>,
     pub ifaces: Vec<Type>,
     pub members: Vec<ClassMember>,
+    pub span: Span,
 }
 
 /// Interface declaration.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InterfaceDecl {
     pub name: String,
+    pub type_params: Vec<String>,
     pub parents: Vec<Type>,
     pub methods: Vec<MethodSig>,
+    pub span: Span,
 }
 
 /// Enum variant.
@@ -206,7 +239,9 @@ pub struct Variant {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumDecl {
     pub name: String,
+    pub type_params: Vec<String>,
     pub variants: Vec<Variant>,
+    pub span: Span,
 }
 
 /// Top-level declaration.
@@ -229,6 +264,7 @@ pub struct IfStmt {
     pub condition: Expr,
     pub then_branch: Block,
     pub else_branch: Option<Block>,
+    pub span: Span,
 }
 
 /// While statement.
@@ -236,6 +272,7 @@ pub struct IfStmt {
 pub struct WhileStmt {
     pub condition: Expr,
     pub body: Block,
+    pub span: Span,
 }
 
 /// For statement.
@@ -244,6 +281,7 @@ pub struct ForStmt {
     pub var: String,
     pub iterable: Expr,
     pub body: Block,
+    pub span: Span,
 }
 
 /// Switch case.
@@ -259,6 +297,7 @@ pub struct SwitchStmt {
     pub expr: Expr,
     pub cases: Vec<Case>,
     pub default: Option<Block>,
+    pub span: Span,
 }
 
 /// Statement.
@@ -280,24 +319,24 @@ pub enum Stmt {
 /// Expression.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Literal(Literal),
-    Identifier(String),
-    Binary(Box<Expr>, Operator, Box<Expr>),
-    Unary(UnOp, Box<Expr>),
-    Call(Box<Expr>, Vec<Expr>),
-    MemberAccess(Box<Expr>, String),
-    Index(Box<Expr>, Box<Expr>),
-    New(Type, Vec<Expr>),
-    This,
-    Super,
-    OwnedDeref(Box<Expr>),
-    RegionAlloc(Type, Box<Expr>),
-    RefExpr(Box<Expr>, RefKind),
-    UnsafeBlock(Block),
-    ErrorPropagation(Box<Expr>),
-    Cast(Box<Expr>, Type),
-    StaticCall { class_name: String, method: String, args: Vec<Expr> },
-    Assign(Box<Expr>, Box<Expr>),
+    Literal(Literal, Span),
+    Identifier(String, Span),
+    Binary(Box<Expr>, Operator, Box<Expr>, Span),
+    Unary(UnOp, Box<Expr>, Span),
+    Call(Box<Expr>, Vec<Expr>, Span),
+    MemberAccess(Box<Expr>, String, Span),
+    Index(Box<Expr>, Box<Expr>, Span),
+    New(Type, Vec<Expr>, Span),
+    This(Span),
+    Super(Span),
+    OwnedDeref(Box<Expr>, Span),
+    RegionAlloc(Type, Box<Expr>, Span),
+    RefExpr(Box<Expr>, RefKind, Span),
+    UnsafeBlock(Block, Span),
+    ErrorPropagation(Box<Expr>, Span),
+    Cast(Box<Expr>, Type, Span),
+    StaticCall { class_name: String, method: String, args: Vec<Expr>, span: Span },
+    Assign(Box<Expr>, Box<Expr>, Span),
 }
 
 /// Complete program.
