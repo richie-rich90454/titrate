@@ -2,7 +2,8 @@
 // Lowers the AST to bytecode chunks for the VM.
 // Precision in every step – richie-rich90454, 2026
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 
 use crate::ast;
 use super::frame::{ClassDef, EnumDef, FieldDef, FunctionDef, VariantDef};
@@ -19,6 +20,132 @@ pub struct CompiledProgram {
     pub enums: Vec<EnumDef>,
     /// Ordered list of native function names the VM must resolve at startup.
     pub native_names: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Module – represents a single source file in the module graph
+// ---------------------------------------------------------------------------
+
+struct Module {
+    /// Dotted module name, e.g. "tt.lang.Integer"
+    name: String,
+    /// Absolute path to the source file.
+    file_path: PathBuf,
+    /// Parsed AST; `None` if not yet loaded.
+    program: Option<ast::Program>,
+    /// Whether this module has been compiled into bytecode.
+    compiled: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Symbol – an imported declaration tracked in the symbol table
+// ---------------------------------------------------------------------------
+
+#[derive(Clone)]
+enum Symbol {
+    Function(u16),
+    Class(u16),
+    Enum(u16),
+}
+
+// ---------------------------------------------------------------------------
+// ModuleResolver – resolves import paths to file paths and caches results
+// ---------------------------------------------------------------------------
+
+struct ModuleResolver {
+    /// Cache: dotted module name → resolved file path.
+    cache: HashMap<String, PathBuf>,
+}
+
+impl ModuleResolver {
+    fn new() -> Self {
+        ModuleResolver {
+            cache: HashMap::new(),
+        }
+    }
+
+    /// Resolve an import path like `["tt", "lang", "Integer"]` to a file path.
+    /// Searches in `root_dir` and `root_dir/lib/`.
+    fn resolve(
+        &mut self,
+        import_path: &[String],
+        root_dir: &Path,
+    ) -> Result<PathBuf, String> {
+        let dotted = import_path.join(".");
+
+        // Check cache first.
+        if let Some(path) = self.cache.get(&dotted) {
+            return Ok(path.clone());
+        }
+
+        // Convert import path segments to a relative file path: tt/lang/Integer.tr
+        let mut relative = PathBuf::new();
+        for seg in &import_path[..import_path.len().saturating_sub(1)] {
+            relative.push(seg);
+        }
+        // The last segment is the file name.
+        if let Some(last) = import_path.last() {
+            relative.push(format!("{}.tr", last));
+        }
+
+        // Search directories: root_dir first, then root_dir/lib/
+        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+
+        for dir in &search_dirs {
+            let candidate = dir.join(&relative);
+            if candidate.exists() {
+                self.cache.insert(dotted, candidate.clone());
+                return Ok(candidate);
+            }
+        }
+
+        Err(format!(
+            "Cannot resolve module '{}' – searched in {}",
+            dotted,
+            search_dirs.iter().map(|d| d.display().to_string()).collect::<Vec<_>>().join(", ")
+        ))
+    }
+
+    /// Resolve a glob import like `import tt::io::*` to all .tr files in the
+    /// directory corresponding to the import path.
+    fn resolve_glob(
+        &mut self,
+        import_path: &[String],
+        root_dir: &Path,
+    ) -> Result<Vec<PathBuf>, String> {
+        // The directory is the full import path converted to a path.
+        let mut dir_relative = PathBuf::new();
+        for seg in import_path {
+            dir_relative.push(seg);
+        }
+
+        let search_dirs = vec![root_dir.to_path_buf(), root_dir.join("lib")];
+
+        for dir in &search_dirs {
+            let candidate = dir.join(&dir_relative);
+            if candidate.is_dir() {
+                let mut files = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(&candidate) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().and_then(|e| e.to_str()) == Some("tr") {
+                            files.push(path);
+                        }
+                    }
+                }
+                if !files.is_empty() {
+                    files.sort();
+                    return Ok(files);
+                }
+            }
+        }
+
+        Err(format!(
+            "Cannot resolve glob import '{}' – no .tr files found in {}",
+            import_path.join("."),
+            search_dirs.iter().map(|d| d.join(&dir_relative).display().to_string()).collect::<Vec<_>>().join(", ")
+        ))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -109,6 +236,16 @@ pub struct Compiler {
     generic_function_map: HashMap<String, usize>,
     /// Map from generic class base name → index in generic_classes.
     generic_class_map: HashMap<String, usize>,
+    /// Loaded modules (indexed by position).
+    modules: Vec<Module>,
+    /// Map from dotted module name → index in modules.
+    module_map: HashMap<String, usize>,
+    /// Symbol table for the current module: name → Symbol.
+    symbol_table: HashMap<String, Symbol>,
+    /// Module resolver for resolving import paths to file paths.
+    resolver: ModuleResolver,
+    /// Set of module names currently being processed (for circular import detection).
+    processing: HashSet<String>,
 }
 
 impl Compiler {
@@ -147,6 +284,11 @@ impl Compiler {
             generic_classes: Vec::new(),
             generic_function_map: HashMap::new(),
             generic_class_map: HashMap::new(),
+            modules: Vec::new(),
+            module_map: HashMap::new(),
+            symbol_table: HashMap::new(),
+            resolver: ModuleResolver::new(),
+            processing: HashSet::new(),
         }
     }
 
@@ -215,6 +357,656 @@ impl Compiler {
             enums: std::mem::take(&mut self.enums),
             native_names: std::mem::take(&mut self.native_names),
         })
+    }
+
+    // -----------------------------------------------------------------------
+    // Module system
+    // -----------------------------------------------------------------------
+
+    /// Resolve an import path to a file path.
+    pub fn resolve_module(&mut self, import_path: &[String], root_dir: &Path) -> Result<PathBuf, String> {
+        // Check if the last segment is "*" for glob imports.
+        if import_path.last().map(|s| s.as_str()) == Some("*") {
+            // Glob import: resolve to the directory and return a sentinel path.
+            let dir_path = &import_path[..import_path.len() - 1];
+            let files = self.resolver.resolve_glob(dir_path, root_dir)?;
+            // Return the first file as a representative; the caller should use
+            // resolve_glob directly for glob imports.
+            files.into_iter().next().ok_or_else(|| "No files found for glob import".to_string())
+        } else {
+            self.resolver.resolve(import_path, root_dir)
+        }
+    }
+
+    /// Load a module from the given file path, parse it, and add it to the
+    /// module list. The `dotted_name` is the module's fully-qualified name
+    /// (e.g., "circular_test.A"). Returns the module index.
+    pub fn load_module(&mut self, path: &Path, dotted_name: &str) -> Result<usize, String> {
+        // Check if already loaded.
+        if let Some(&idx) = self.module_map.get(dotted_name) {
+            return Ok(idx);
+        }
+
+        // Read and parse the source file.
+        let source = std::fs::read_to_string(path)
+            .map_err(|e| format!("Cannot read module '{}': {}", path.display(), e))?;
+
+        let tokens = crate::lexer::tokenize(&source)
+            .map_err(|e| format!("Lexer error in module '{}': {}", path.display(), e))?;
+
+        let program = crate::parser::parse(tokens)
+            .map_err(|e| format!("Parser error in module '{}': {}", path.display(), e))?;
+
+        let idx = self.modules.len();
+        self.module_map.insert(dotted_name.to_string(), idx);
+        self.modules.push(Module {
+            name: dotted_name.to_string(),
+            file_path: path.to_path_buf(),
+            program: Some(program),
+            compiled: false,
+        });
+
+        Ok(idx)
+    }
+
+    /// Compile a program with its module dependencies.
+    /// This is the entry point for multi-file compilation.
+    pub fn compile_with_modules(&mut self, program: &ast::Program, root_dir: &Path) -> Result<CompiledProgram, String> {
+        // Step 1: Process imports from the root program and load all modules.
+        self.process_imports(program, root_dir)?;
+
+        // Step 2: Recursively process imports from all loaded modules.
+        // We iterate until no new modules are discovered.
+        let mut processed = 0;
+        loop {
+            let current_len = self.modules.len();
+            if processed >= current_len {
+                break;
+            }
+            // Clone programs to avoid borrow conflicts.
+            let programs: Vec<Option<ast::Program>> = self.modules[processed..current_len]
+                .iter()
+                .map(|m| m.program.clone())
+                .collect();
+            for prog in programs.into_iter().flatten() {
+                self.process_imports(&prog, root_dir)?;
+            }
+            processed = current_len;
+        }
+
+        // Step 3: Compute dependency order (topological sort).
+        let order = self.topological_sort()?;
+
+        // Step 4: Compile all modules in dependency order.
+        for &module_idx in &order {
+            if self.modules[module_idx].compiled {
+                continue;
+            }
+            // Clone to avoid borrow conflicts.
+            let (prog_opt, module_name) = {
+                let m = &self.modules[module_idx];
+                (m.program.clone(), m.name.clone())
+            };
+            if let Some(ref prog) = prog_opt {
+                // Register public declarations from this module with mangled names.
+                self.register_module_declarations(prog, &module_name)?;
+                // Compile the module's declarations.
+                self.compile_module_program(prog)?;
+            }
+            self.modules[module_idx].compiled = true;
+        }
+
+        // Step 5: Now compile the root program.
+        // First pass: register all classes, enums, and functions.
+        for decl in &program.declarations {
+            match decl {
+                ast::Declaration::Class(class_decl) => self.register_class(class_decl)?,
+                ast::Declaration::Enum(enum_decl) => self.register_enum(enum_decl),
+                ast::Declaration::Function(fn_decl) => self.register_function(fn_decl),
+                _ => {}
+            }
+        }
+
+        // Register imported symbols into the symbol table.
+        self.register_imported_symbols(program)?;
+
+        // Second pass: compile all function bodies and class methods.
+        for decl in &program.declarations {
+            match decl {
+                ast::Declaration::VarDecl(var_decl) => {
+                    self.compile_var_decl(var_decl)?;
+                }
+                ast::Declaration::ConstDecl(const_decl) => {
+                    self.compile_var_decl(const_decl)?;
+                }
+                ast::Declaration::Function(fn_decl) => {
+                    if fn_decl.type_params.is_empty() {
+                        self.compile_function(fn_decl)?;
+                    }
+                }
+                ast::Declaration::Class(class_decl) => {
+                    if class_decl.type_params.is_empty() {
+                        self.compile_class_methods(class_decl)?;
+                    }
+                }
+                ast::Declaration::Enum(_) => {}
+                ast::Declaration::Interface(_) => {}
+            }
+        }
+
+        // If there's a `main` function, emit a CALL to it from the top-level chunk.
+        self.current_function = 0;
+        if let Some(&main_idx) = self.function_map.get("main") {
+            self.emit_opcode(OpCode::CALL, 0);
+            self.emit_u16(main_idx, 0);
+            self.emit_u8(0, 0);
+        }
+
+        self.emit_opcode(OpCode::RET, 0);
+        self.functions[0].local_count = self.local_count;
+
+        Ok(CompiledProgram {
+            functions: std::mem::take(&mut self.functions),
+            classes: std::mem::take(&mut self.classes),
+            enums: std::mem::take(&mut self.enums),
+            native_names: std::mem::take(&mut self.native_names),
+        })
+    }
+
+    /// Process imports from a program: resolve paths and load modules.
+    fn process_imports(&mut self, program: &ast::Program, root_dir: &Path) -> Result<(), String> {
+        for import in &program.imports {
+            let path = &import.path;
+
+            // Check for glob import (last segment is "*").
+            if path.last().map(|s| s.as_str()) == Some("*") {
+                let dir_path = &path[..path.len() - 1];
+                let files = self.resolver.resolve_glob(dir_path, root_dir)?;
+                for file in files {
+                    // Compute the dotted name from the file path relative to root_dir.
+                    let dotted = Self::path_to_dotted_name(&file, root_dir);
+                    self.load_module(&file, &dotted)?;
+                }
+            } else {
+                let file_path = self.resolver.resolve(path, root_dir)?;
+                let dotted = path.join(".");
+                self.load_module(&file_path, &dotted)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Convert a file path to a dotted module name by making it relative to
+    /// the root directory and replacing separators with ".".
+    fn path_to_dotted_name(file_path: &Path, root_dir: &Path) -> String {
+        file_path
+            .strip_prefix(root_dir)
+            .unwrap_or(file_path)
+            .with_extension("")
+            .iter()
+            .filter_map(|c| c.to_str())
+            .collect::<Vec<_>>()
+            .join(".")
+    }
+
+    /// Register declarations from a module with mangled names.
+    fn register_module_declarations(&mut self, program: &ast::Program, module_name: &str) -> Result<(), String> {
+        for decl in &program.declarations {
+            match decl {
+                ast::Declaration::Function(fn_decl) => {
+                    // Only register public functions.
+                    if fn_decl.access != ast::Access::Public {
+                        continue;
+                    }
+                    if !fn_decl.type_params.is_empty() {
+                        // Generic function: store for later instantiation with mangled base name.
+                        let mangled_base = format!("{}.{}", module_name, fn_decl.name);
+                        let idx = self.generic_functions.len();
+                        let mut mangled_fn = fn_decl.clone();
+                        mangled_fn.name = mangled_base.clone();
+                        self.generic_function_map.insert(mangled_base, idx);
+                        self.generic_functions.push(mangled_fn);
+                        continue;
+                    }
+                    let mangled = format!("{}.{}", module_name, fn_decl.name);
+                    let idx = self.functions.len() as u16;
+                    self.function_map.insert(mangled.clone(), idx);
+                    self.functions.push(FunctionDef {
+                        name: mangled,
+                        arity: fn_decl.params.len(),
+                        chunk: Chunk::new(),
+                        is_method: false,
+                        is_constructor: false,
+                        local_count: 0,
+                    });
+                }
+                ast::Declaration::Class(class_decl) => {
+                    // Only register public classes.
+                    if class_decl.name.starts_with('_') {
+                        // Convention: classes starting with _ are private.
+                        // But we use the access field instead.
+                    }
+                    // We register all classes from imported modules; visibility
+                    // filtering happens at the symbol table level.
+                    if !class_decl.type_params.is_empty() {
+                        let mangled_base = format!("{}.{}", module_name, class_decl.name);
+                        let idx = self.generic_classes.len();
+                        let mut mangled_class = class_decl.clone();
+                        mangled_class.name = mangled_base.clone();
+                        self.generic_class_map.insert(mangled_base, idx);
+                        self.generic_classes.push(mangled_class);
+                        continue;
+                    }
+                    let mangled = format!("{}.{}", module_name, class_decl.name);
+                    // Avoid duplicate registration.
+                    if self.class_map.contains_key(&mangled) {
+                        continue;
+                    }
+                    let class_idx = self.classes.len() as u16;
+                    self.class_map.insert(mangled.clone(), class_idx);
+
+                    let parent_idx = class_decl.parent.as_ref().and_then(|p| {
+                        self.class_map.get(p.name()).copied()
+                    });
+
+                    let mut fields = Vec::new();
+                    let mut field_inits = Vec::new();
+                    let mut methods = HashMap::new();
+                    let mut constructor = None;
+
+                    for member in &class_decl.members {
+                        match member {
+                            ast::ClassMember::Field(field_decl) => {
+                                let has_init = field_decl.init.is_some();
+                                if field_decl.init.is_some() {
+                                    let init_chunk = Chunk::new();
+                                    field_inits.push((field_decl.name.clone(), init_chunk));
+                                }
+                                fields.push(FieldDef {
+                                    name: field_decl.name.clone(),
+                                    has_init,
+                                });
+                            }
+                            ast::ClassMember::Method(method_decl) => {
+                                let method_mangled = format!("{}.{}", mangled, method_decl.name);
+                                let fn_idx = self.functions.len() as u16;
+                                self.functions.push(FunctionDef {
+                                    name: method_mangled,
+                                    arity: method_decl.params.len(),
+                                    chunk: Chunk::new(),
+                                    is_method: true,
+                                    is_constructor: false,
+                                    local_count: 0,
+                                });
+                                methods.insert(method_decl.name.clone(), fn_idx);
+                            }
+                            ast::ClassMember::Constructor(ctor_decl) => {
+                                let ctor_mangled = format!("{}.<init>", mangled);
+                                let fn_idx = self.functions.len() as u16;
+                                self.functions.push(FunctionDef {
+                                    name: ctor_mangled,
+                                    arity: ctor_decl.params.len(),
+                                    chunk: Chunk::new(),
+                                    is_method: true,
+                                    is_constructor: true,
+                                    local_count: 0,
+                                });
+                                methods.insert("init".to_string(), fn_idx);
+                                constructor = Some(fn_idx);
+                            }
+                        }
+                    }
+
+                    self.classes.push(ClassDef {
+                        name: mangled,
+                        parent: parent_idx,
+                        fields,
+                        methods,
+                        constructor,
+                        field_inits,
+                    });
+                }
+                ast::Declaration::Enum(enum_decl) => {
+                    // Only register public enums.
+                    let mangled = format!("{}.{}", module_name, enum_decl.name);
+                    if self.enum_map.contains_key(&mangled) {
+                        continue;
+                    }
+                    let enum_idx = self.enums.len() as u16;
+                    self.enum_map.insert(mangled.clone(), enum_idx);
+
+                    let variants: Vec<VariantDef> = enum_decl
+                        .variants
+                        .iter()
+                        .enumerate()
+                        .map(|(i, v)| {
+                            self.variant_map
+                                .insert(v.name.clone(), (mangled.clone(), i));
+                            VariantDef {
+                                name: v.name.clone(),
+                                field_count: v.fields.len(),
+                            }
+                        })
+                        .collect();
+
+                    self.enums.push(EnumDef {
+                        name: mangled,
+                        variants,
+                    });
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Compile a module's program (second pass: function bodies and methods).
+    fn compile_module_program(&mut self, program: &ast::Program) -> Result<(), String> {
+        for decl in &program.declarations {
+            match decl {
+                ast::Declaration::Function(fn_decl) => {
+                    if fn_decl.access != ast::Access::Public {
+                        continue;
+                    }
+                    if fn_decl.type_params.is_empty() {
+                        // Find the mangled name in function_map.
+                        // The module name prefix was added during registration.
+                        // We look it up by the mangled name.
+                        // Since we don't have the module name here, we search
+                        // by the function name suffix.
+                        if let Some(fn_idx) = self.function_map.iter()
+                            .find(|(k, _)| k.ends_with(&format!(".{}", fn_decl.name)))
+                            .map(|(_, &v)| v)
+                        {
+                            let saved_function = self.current_function;
+                            let saved_locals = std::mem::take(&mut self.locals);
+                            let saved_local_count = self.local_count;
+                            let saved_scope_depth = self.scope_depth;
+
+                            self.current_function = fn_idx as usize;
+                            self.locals.clear();
+                            self.local_count = 0;
+                            self.scope_depth = 0;
+
+                            self.begin_scope();
+                            for param in &fn_decl.params {
+                                self.declare_local(&param.name);
+                            }
+                            self.compile_block(&fn_decl.body)?;
+                            self.emit_opcode(OpCode::PUSH_VOID, 0);
+                            self.emit_opcode(OpCode::RET, 0);
+                            self.end_scope();
+
+                            self.functions[fn_idx as usize].local_count = self.local_count;
+
+                            self.current_function = saved_function;
+                            self.locals = saved_locals;
+                            self.local_count = saved_local_count;
+                            self.scope_depth = saved_scope_depth;
+                        }
+                    }
+                }
+                ast::Declaration::Class(class_decl) => {
+                    if class_decl.type_params.is_empty() {
+                        // Find the mangled class name.
+                        if let Some((_mangled, class_idx)) = self.class_map.iter()
+                            .find(|(k, _)| k.ends_with(&format!(".{}", class_decl.name)))
+                            .map(|(k, &v)| (k.clone(), v))
+                        {
+                            let class_idx_usize = class_idx as usize;
+
+                            // Compile field initialisers.
+                            for member in &class_decl.members {
+                                if let ast::ClassMember::Field(field_decl) = member {
+                                    if let Some(ref init_expr) = field_decl.init {
+                                        let saved_fn = self.current_function;
+                                        self.current_function = 0;
+                                        self.compile_expr(init_expr)?;
+                                        self.emit_opcode(OpCode::POP, 0);
+                                        self.current_function = saved_fn;
+                                    }
+                                }
+                            }
+
+                            // Compile methods.
+                            for member in &class_decl.members {
+                                match member {
+                                    ast::ClassMember::Method(method_decl) => {
+                                        let method_fn_idx = self
+                                            .classes
+                                            .get(class_idx_usize)
+                                            .and_then(|c| c.methods.get(&method_decl.name))
+                                            .copied();
+                                        if let Some(fn_idx) = method_fn_idx {
+                                            self.compile_method_body(
+                                                fn_idx as usize,
+                                                &method_decl.params,
+                                                &method_decl.body,
+                                            )?;
+                                        }
+                                    }
+                                    ast::ClassMember::Constructor(ctor_decl) => {
+                                        let ctor_fn_idx = self
+                                            .classes
+                                            .get(class_idx_usize)
+                                            .and_then(|c| c.constructor);
+                                        if let Some(fn_idx) = ctor_fn_idx {
+                                            self.compile_method_body(
+                                                fn_idx as usize,
+                                                &ctor_decl.params,
+                                                &ctor_decl.body,
+                                            )?;
+                                        }
+                                    }
+                                    ast::ClassMember::Field(_) => {}
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// Register imported symbols from a program's imports into the symbol table.
+    /// Only public declarations from imported modules are registered.
+    fn register_imported_symbols(&mut self, program: &ast::Program) -> Result<(), String> {
+        for import in &program.imports {
+            let path = &import.path;
+
+            // Determine which modules and which names to import.
+            if path.last().map(|s| s.as_str()) == Some("*") {
+                // Glob import: import all public symbols from the module.
+                let dir_path = &path[..path.len() - 1];
+                let dotted_dir = dir_path.join(".");
+
+                // Collect module indices that match the glob.
+                let matching_indices: Vec<usize> = self.modules.iter().enumerate()
+                    .filter(|(_, m)| m.program.is_some() && (m.name.starts_with(&dotted_dir) || m.name == dotted_dir))
+                    .map(|(i, _)| i)
+                    .collect();
+
+                for idx in matching_indices {
+                    self.register_public_symbols_from_module_index(idx);
+                }
+            } else {
+                // Specific import: import tt::lang::Integer
+                // The last segment is the symbol name; the rest is the module path.
+                if path.len() < 2 {
+                    // Single-segment import: treat as a module name.
+                    let dotted = path.join(".");
+                    if let Some(idx) = self.module_map.get(&dotted).copied() {
+                        self.register_public_symbols_from_module_index(idx);
+                    }
+                } else {
+                    // Multi-segment import: the last segment could be a specific
+                    // symbol or the module name itself.
+                    let symbol_name = path.last().unwrap().clone();
+                    let module_path = &path[..path.len() - 1];
+                    let dotted_module = module_path.join(".");
+
+                    // Try to find the module.
+                    if let Some(&idx) = self.module_map.get(&dotted_module) {
+                        // Extract the program data to avoid borrow conflicts.
+                        let prog_data = self.modules[idx].program.clone();
+                        if let Some(ref prog) = prog_data {
+                            // Register only the specific symbol.
+                            for decl in &prog.declarations {
+                                let (decl_name, is_public) = match decl {
+                                    ast::Declaration::Function(f) => (&f.name, f.access == ast::Access::Public),
+                                    ast::Declaration::Class(c) => (&c.name, true),
+                                    ast::Declaration::Enum(e) => (&e.name, true),
+                                    _ => continue,
+                                };
+                                if decl_name == &symbol_name && is_public {
+                                    let mangled = format!("{}.{}", dotted_module, decl_name);
+                                    match decl {
+                                        ast::Declaration::Function(_) => {
+                                            if let Some(&fn_idx) = self.function_map.get(&mangled) {
+                                                self.symbol_table.insert(symbol_name.clone(), Symbol::Function(fn_idx));
+                                            }
+                                        }
+                                        ast::Declaration::Class(_) => {
+                                            if let Some(&class_idx) = self.class_map.get(&mangled) {
+                                                self.symbol_table.insert(symbol_name.clone(), Symbol::Class(class_idx));
+                                            }
+                                        }
+                                        ast::Declaration::Enum(_) => {
+                                            if let Some(&enum_idx) = self.enum_map.get(&mangled) {
+                                                self.symbol_table.insert(symbol_name.clone(), Symbol::Enum(enum_idx));
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Maybe the full path is the module name (e.g., import tt::lang::Integer
+                        // where Integer.tr is a file in tt/lang/).
+                        let dotted = path.join(".");
+                        if let Some(&idx) = self.module_map.get(&dotted) {
+                            self.register_public_symbols_from_module_index(idx);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Register all public symbols from a module (by index) into the symbol table.
+    fn register_public_symbols_from_module_index(&mut self, module_idx: usize) {
+        let (prog_data, module_name) = {
+            let m = &self.modules[module_idx];
+            (m.program.clone(), m.name.clone())
+        };
+        if let Some(ref prog) = prog_data {
+            for decl in &prog.declarations {
+                let (decl_name, is_public) = match decl {
+                    ast::Declaration::Function(f) => (&f.name, f.access == ast::Access::Public),
+                    ast::Declaration::Class(c) => (&c.name, true),
+                    ast::Declaration::Enum(e) => (&e.name, true),
+                    _ => continue,
+                };
+                if !is_public {
+                    continue;
+                }
+                let mangled = format!("{}.{}", module_name, decl_name);
+                match decl {
+                    ast::Declaration::Function(_) => {
+                        if let Some(&fn_idx) = self.function_map.get(&mangled) {
+                            self.symbol_table.insert(decl_name.clone(), Symbol::Function(fn_idx));
+                        }
+                    }
+                    ast::Declaration::Class(_) => {
+                        if let Some(&class_idx) = self.class_map.get(&mangled) {
+                            self.symbol_table.insert(decl_name.clone(), Symbol::Class(class_idx));
+                        }
+                    }
+                    ast::Declaration::Enum(_) => {
+                        if let Some(&enum_idx) = self.enum_map.get(&mangled) {
+                            self.symbol_table.insert(decl_name.clone(), Symbol::Enum(enum_idx));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    /// Topological sort of modules based on import dependencies.
+    /// Returns module indices in dependency order (dependencies first).
+    fn topological_sort(&self) -> Result<Vec<usize>, String> {
+        let n = self.modules.len();
+        let mut visited = vec![false; n];
+        let mut in_stack = vec![false; n];
+        let mut order = Vec::new();
+
+        for i in 0..n {
+            self.topo_visit(i, &mut visited, &mut in_stack, &mut order)?;
+        }
+
+        Ok(order)
+    }
+
+    fn topo_visit(
+        &self,
+        node: usize,
+        visited: &mut Vec<bool>,
+        in_stack: &mut Vec<bool>,
+        order: &mut Vec<usize>,
+    ) -> Result<(), String> {
+        if in_stack[node] {
+            return Err(format!(
+                "Circular import detected involving module '{}'",
+                self.modules[node].name
+            ));
+        }
+        if visited[node] {
+            return Ok(());
+        }
+
+        in_stack[node] = true;
+
+        // Visit dependencies (imports).
+        if let Some(ref prog) = self.modules[node].program {
+            for import in &prog.imports {
+                let path = &import.path;
+                // Find the module this import refers to.
+                if path.last().map(|s| s.as_str()) == Some("*") {
+                    // Glob import: find all modules in the directory.
+                    let dir_path = &path[..path.len() - 1];
+                    let dotted_dir = dir_path.join(".");
+                    for (idx, module) in self.modules.iter().enumerate() {
+                        if module.name.starts_with(&dotted_dir) || module.name == dotted_dir {
+                            self.topo_visit(idx, visited, in_stack, order)?;
+                        }
+                    }
+                } else {
+                    // Try the full path as a module name.
+                    let dotted = path.join(".");
+                    if let Some(&dep_idx) = self.module_map.get(&dotted) {
+                        self.topo_visit(dep_idx, visited, in_stack, order)?;
+                    } else {
+                        // Try the parent path as a module.
+                        if path.len() > 1 {
+                            let parent_dotted = path[..path.len() - 1].join(".");
+                            if let Some(&dep_idx) = self.module_map.get(&parent_dotted) {
+                                self.topo_visit(dep_idx, visited, in_stack, order)?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        in_stack[node] = false;
+        visited[node] = true;
+        order.push(node);
+        Ok(())
     }
 
     // -----------------------------------------------------------------------
@@ -1524,6 +2316,30 @@ impl Compiler {
             return Ok(());
         }
 
+        // Check the imported symbol table.
+        if let Some(symbol) = self.symbol_table.get(name).cloned() {
+            match symbol {
+                Symbol::Function(fn_idx) => {
+                    // Imported function reference – handled in compile_call.
+                    self.emit_opcode(OpCode::PUSH_VOID, line);
+                    let _ = fn_idx;
+                    return Ok(());
+                }
+                Symbol::Class(class_idx) => {
+                    // Imported class reference – handled in compile_new.
+                    let _ = class_idx;
+                    self.emit_opcode(OpCode::PUSH_NULL, line);
+                    return Ok(());
+                }
+                Symbol::Enum(enum_idx) => {
+                    // Imported enum reference.
+                    let _ = enum_idx;
+                    self.emit_opcode(OpCode::PUSH_NULL, line);
+                    return Ok(());
+                }
+            }
+        }
+
         // Check if it's an enum variant (bare reference without call).
         if self.variant_map.contains_key(name) {
             // This is a partial application – the variant will be called later.
@@ -1724,6 +2540,17 @@ impl Compiler {
                 return Ok(());
             }
 
+            // Check the imported symbol table for functions.
+            if let Some(Symbol::Function(fn_idx)) = self.symbol_table.get(name).cloned() {
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                self.emit_opcode(OpCode::CALL, line);
+                self.emit_u16(fn_idx, line);
+                self.emit_u8(args.len() as u8, line);
+                return Ok(());
+            }
+
             // Check if it's a generic function (needs type arguments).
             if self.generic_function_map.contains_key(name) {
                 return Err(format!(
@@ -1824,10 +2651,13 @@ impl Compiler {
             return Ok(());
         }
 
-        let class_idx = *self
-            .class_map
-            .get(class_name)
-            .ok_or_else(|| format!("Unknown class '{}' in new expression", class_name))?;
+        let class_idx = if let Some(&idx) = self.class_map.get(class_name) {
+            idx
+        } else if let Some(Symbol::Class(idx)) = self.symbol_table.get(class_name) {
+            *idx
+        } else {
+            return Err(format!("Unknown class '{}' in new expression", class_name));
+        };
 
         // Compile arguments.
         for arg in args {
@@ -3120,5 +3950,327 @@ mod tests {
         assert!(result.is_err(), "calling generic function without type args should fail");
         let err = result.err().unwrap();
         assert!(err.contains("generic function"), "error should mention generic function");
+    }
+
+    // -- Module system tests -----------------------------------------------------
+
+    // -- test_module_resolve_path ------------------------------------------------
+
+    #[test]
+    fn test_module_resolve_path() {
+        let mut resolver = ModuleResolver::new();
+        let root = std::env::temp_dir();
+
+        // Create a temporary directory structure: root/tt/lang/Integer.tr
+        let dir = root.join("tt").join("lang");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("Integer.tr");
+        std::fs::write(&file_path, "fn main() {}").unwrap();
+
+        let import_path: Vec<String> = vec!["tt".to_string(), "lang".to_string(), "Integer".to_string()];
+        let resolved = resolver.resolve(&import_path, &root).expect("should resolve");
+        assert_eq!(resolved, file_path);
+
+        // Cleanup
+        std::fs::remove_dir_all(root.join("tt")).ok();
+    }
+
+    // -- test_module_resolve_cached ----------------------------------------------
+
+    #[test]
+    fn test_module_resolve_cached() {
+        let mut resolver = ModuleResolver::new();
+        let root = std::env::temp_dir();
+
+        let dir = root.join("cache_test").join("sub");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file_path = dir.join("Module.tr");
+        std::fs::write(&file_path, "fn main() {}").unwrap();
+
+        let import_path: Vec<String> = vec!["cache_test".to_string(), "sub".to_string(), "Module".to_string()];
+
+        // First resolve: file system lookup.
+        let resolved1 = resolver.resolve(&import_path, &root).expect("should resolve");
+        // Second resolve: should come from cache even if file is deleted.
+        std::fs::remove_file(&file_path).unwrap();
+        let resolved2 = resolver.resolve(&import_path, &root).expect("should resolve from cache");
+        assert_eq!(resolved1, resolved2);
+
+        // Cleanup
+        std::fs::remove_dir_all(root.join("cache_test")).ok();
+    }
+
+    // -- test_module_resolve_not_found -------------------------------------------
+
+    #[test]
+    fn test_module_resolve_not_found() {
+        let mut resolver = ModuleResolver::new();
+        let root = std::env::temp_dir();
+
+        let import_path: Vec<String> = vec!["nonexistent".to_string(), "Module".to_string()];
+        let result = resolver.resolve(&import_path, &root);
+        assert!(result.is_err(), "should fail for nonexistent module");
+        let err = result.err().unwrap();
+        assert!(err.contains("Cannot resolve module"), "error should mention resolution failure");
+    }
+
+    // -- test_module_resolve_glob ------------------------------------------------
+
+    #[test]
+    fn test_module_resolve_glob() {
+        let mut resolver = ModuleResolver::new();
+        let root = std::env::temp_dir();
+
+        let dir = root.join("glob_test").join("io");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("Reader.tr"), "fn main() {}").unwrap();
+        std::fs::write(dir.join("Writer.tr"), "fn main() {}").unwrap();
+
+        let import_path: Vec<String> = vec!["glob_test".to_string(), "io".to_string()];
+        let files = resolver.resolve_glob(&import_path, &root).expect("should resolve glob");
+        assert_eq!(files.len(), 2);
+        assert!(files[0].file_name().unwrap().to_str().unwrap().contains("Reader"));
+        assert!(files[1].file_name().unwrap().to_str().unwrap().contains("Writer"));
+
+        // Cleanup
+        std::fs::remove_dir_all(root.join("glob_test")).ok();
+    }
+
+    // -- test_symbol_table -------------------------------------------------------
+
+    #[test]
+    fn test_symbol_table() {
+        let mut compiler = Compiler::new();
+
+        // Manually insert symbols into the symbol table.
+        compiler.symbol_table.insert("imported_fn".to_string(), Symbol::Function(5));
+        compiler.symbol_table.insert("MyClass".to_string(), Symbol::Class(2));
+        compiler.symbol_table.insert("Color".to_string(), Symbol::Enum(0));
+
+        assert!(matches!(compiler.symbol_table.get("imported_fn"), Some(Symbol::Function(5))));
+        assert!(matches!(compiler.symbol_table.get("MyClass"), Some(Symbol::Class(2))));
+        assert!(matches!(compiler.symbol_table.get("Color"), Some(Symbol::Enum(0))));
+        assert!(compiler.symbol_table.get("nonexistent").is_none());
+    }
+
+    // -- test_module_load --------------------------------------------------------
+
+    #[test]
+    fn test_module_load() {
+        let root = std::env::temp_dir();
+        let dir = root.join("load_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let source = r#"fn greet() { 1 + 2; }"#;
+        let file_path = dir.join("Greeter.tr");
+        std::fs::write(&file_path, source).unwrap();
+
+        let mut compiler = Compiler::new();
+        let idx = compiler.load_module(&file_path, "load_test.Greeter").expect("should load module");
+        assert_eq!(idx, 0);
+        assert_eq!(compiler.modules.len(), 1);
+        assert_eq!(compiler.modules[0].name, "load_test.Greeter");
+        assert!(compiler.modules[0].program.is_some());
+        assert!(!compiler.modules[0].compiled);
+
+        // Loading again should return the same index (cached).
+        let idx2 = compiler.load_module(&file_path, "load_test.Greeter").expect("should load cached module");
+        assert_eq!(idx, idx2);
+        assert_eq!(compiler.modules.len(), 1);
+
+        // Cleanup
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // -- test_module_compile_with_modules ----------------------------------------
+
+    #[test]
+    fn test_module_compile_with_modules() {
+        let root = std::env::temp_dir();
+        let dir = root.join("compile_mod_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Create a library module: Helper.tr with a public function.
+        let helper_source = r#"public fn add(a: long, b: long): long { return a + b; }"#;
+        std::fs::write(dir.join("Helper.tr"), helper_source).unwrap();
+
+        // Create a main program that imports Helper.
+        let main_program = ast::Program {
+            imports: vec![ast::Import {
+                path: vec!["compile_mod_test".to_string(), "Helper".to_string()],
+                span: su(),
+            }],
+            declarations: vec![ast::Declaration::Function(ast::FnDecl {
+                access: ast::Access::Public,
+                name: "main".to_string(),
+                type_params: vec![],
+                params: vec![],
+                return_type: None,
+                body: vec![ast::Stmt::Expr(ast::Expr::Call(
+                    Box::new(ast::Expr::Identifier("add".to_string(), su())),
+                    vec![
+                        ast::Expr::Literal(ast::Literal::Int(1), su()),
+                        ast::Expr::Literal(ast::Literal::Int(2), su()),
+                    ],
+                    su(),
+                ))],
+                sugar: false,
+                span: su(),
+            })],
+        };
+
+        let mut compiler = Compiler::new();
+        let result = compiler.compile_with_modules(&main_program, &root);
+        assert!(result.is_ok(), "compile_with_modules should succeed: {:?}", result.err());
+
+        let compiled = result.unwrap();
+        // Should have the Helper.add function (mangled as "compile_mod_test.Helper.add") and the main function.
+        let has_helper_add = compiled.functions.iter().any(|f| f.name == "compile_mod_test.Helper.add");
+        assert!(has_helper_add, "compiled program should contain 'compile_mod_test.Helper.add' function");
+
+        // Cleanup
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // -- test_module_visibility --------------------------------------------------
+
+    #[test]
+    fn test_module_visibility() {
+        let mut compiler = Compiler::new();
+
+        // Create a module with a public and a private function.
+        let module_program = ast::Program {
+            imports: vec![],
+            declarations: vec![
+                ast::Declaration::Function(ast::FnDecl {
+                    access: ast::Access::Public,
+                    name: "visible_fn".to_string(),
+                    type_params: vec![],
+                    params: vec![],
+                    return_type: None,
+                    body: vec![],
+                    sugar: false,
+                    span: su(),
+                }),
+                ast::Declaration::Function(ast::FnDecl {
+                    access: ast::Access::Private,
+                    name: "hidden_fn".to_string(),
+                    type_params: vec![],
+                    params: vec![],
+                    return_type: None,
+                    body: vec![],
+                    sugar: false,
+                    span: su(),
+                }),
+            ],
+        };
+
+        // Register the module's declarations.
+        compiler.register_module_declarations(&module_program, "mymod").unwrap();
+
+        // The public function should be in function_map with mangled name.
+        assert!(compiler.function_map.contains_key("mymod.visible_fn"),
+            "public function should be registered with mangled name");
+
+        // The private function should NOT be in function_map.
+        assert!(!compiler.function_map.contains_key("mymod.hidden_fn"),
+            "private function should NOT be registered with mangled name");
+    }
+
+    // -- test_module_circular_import ---------------------------------------------
+
+    #[test]
+    fn test_module_circular_import_detection() {
+        let root = std::env::temp_dir();
+        let dir = root.join("circular_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Create two modules that import each other.
+        let a_source = r#"import circular_test::B; fn a() {}"#;
+        let b_source = r#"import circular_test::A; fn b() {}"#;
+
+        std::fs::write(dir.join("A.tr"), a_source).unwrap();
+        std::fs::write(dir.join("B.tr"), b_source).unwrap();
+
+        let main_program = ast::Program {
+            imports: vec![ast::Import {
+                path: vec!["circular_test".to_string(), "A".to_string()],
+                span: su(),
+            }],
+            declarations: vec![],
+        };
+
+        let mut compiler = Compiler::new();
+        let result = compiler.compile_with_modules(&main_program, &root);
+        // Circular imports should be detected and reported as an error.
+        assert!(result.is_err(), "circular import should be detected");
+        let err = result.err().unwrap();
+        assert!(err.contains("Circular import"), "error should mention circular import: {}", err);
+
+        // Cleanup
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // -- test_module_glob_import -------------------------------------------------
+
+    #[test]
+    fn test_module_glob_import() {
+        let root = std::env::temp_dir();
+        let dir = root.join("glob_import_test").join("utils");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Create two utility modules.
+        std::fs::write(dir.join("Math.tr"), "public fn sqrt(x: double): double { return x; }").unwrap();
+        std::fs::write(dir.join("Str.tr"), "public fn trim(s: string): string { return s; }").unwrap();
+
+        let main_program = ast::Program {
+            imports: vec![ast::Import {
+                path: vec!["glob_import_test".to_string(), "utils".to_string(), "*".to_string()],
+                span: su(),
+            }],
+            declarations: vec![],
+        };
+
+        let mut compiler = Compiler::new();
+        let result = compiler.compile_with_modules(&main_program, &root);
+        assert!(result.is_ok(), "glob import should succeed: {:?}", result.err());
+
+        // Both modules should be loaded.
+        assert!(compiler.modules.len() >= 2, "should have loaded at least 2 modules from glob");
+
+        // Cleanup
+        std::fs::remove_dir_all(root.join("glob_import_test")).ok();
+    }
+
+    // -- test_module_resolve_public_method ----------------------------------------
+
+    #[test]
+    fn test_module_compile_imported_class() {
+        let root = std::env::temp_dir();
+        let dir = root.join("class_import_test");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Create a module with a public class.
+        let helper_source = r#"public class Point { public long x; public long y; public fn getX(): long { return this.x; } }"#;
+        std::fs::write(dir.join("Geometry.tr"), helper_source).unwrap();
+
+        let main_program = ast::Program {
+            imports: vec![ast::Import {
+                path: vec!["class_import_test".to_string(), "Geometry".to_string()],
+                span: su(),
+            }],
+            declarations: vec![],
+        };
+
+        let mut compiler = Compiler::new();
+        let result = compiler.compile_with_modules(&main_program, &root);
+        assert!(result.is_ok(), "importing a class module should succeed: {:?}", result.err());
+
+        let compiled = result.unwrap();
+        let has_point = compiled.classes.iter().any(|c| c.name == "class_import_test.Geometry.Point");
+        assert!(has_point, "compiled program should contain 'class_import_test.Geometry.Point' class");
+
+        // Cleanup
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
