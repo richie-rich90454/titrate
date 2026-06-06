@@ -1117,7 +1117,7 @@ impl Vm {
                     }
                     // ArrayList support: get from _elements field
                     (Value::ClassInstance { class_name, fields, .. }, Value::Int(i))
-                        if class_name == "ArrayList" =>
+                        if class_name.starts_with("ArrayList") =>
                     {
                         let idx = *i as usize;
                         match fields.borrow().get("_elements") {
@@ -1132,7 +1132,7 @@ impl Vm {
                         }
                     }
                     (Value::ClassInstance { class_name, fields, .. }, Value::Long(i))
-                        if class_name == "ArrayList" =>
+                        if class_name.starts_with("ArrayList") =>
                     {
                         let idx = *i as usize;
                         match fields.borrow().get("_elements") {
@@ -1199,7 +1199,7 @@ impl Vm {
                     Value::Array { elements } => {
                         self.push(Value::Long(elements.len() as i64));
                     }
-                    Value::ClassInstance { class_name, fields, .. } if class_name == "ArrayList" => {
+                    Value::ClassInstance { class_name, fields, .. } if class_name.starts_with("ArrayList") => {
                         match fields.borrow().get("_elements") {
                             Some(Value::Array { elements }) => {
                                 self.push(Value::Long(elements.len() as i64));
@@ -1521,7 +1521,7 @@ impl Vm {
             } => {
                 // Handle built-in ArrayList/HashMap methods
                 match class_name.as_str() {
-                    "ArrayList" => {
+                    n if n.starts_with("ArrayList") => {
                         let result = self.call_arraylist_method(fields, &method_name, arg_count)?;
                         // Pop receiver + args, push result
                         let drain_start = receiver_idx;
@@ -1529,7 +1529,7 @@ impl Vm {
                         self.push(result);
                         return Ok(());
                     }
-                    "HashMap" => {
+                    n if n.starts_with("HashMap") => {
                         let result = self.call_hashmap_method(fields, &method_name, arg_count)?;
                         let drain_start = receiver_idx;
                         self.stack.drain(drain_start..);
@@ -1738,23 +1738,23 @@ impl Vm {
 
         // Handle built-in pseudo-classes
         match class_name.as_str() {
-            "ArrayList" => {
+            n if n.starts_with("ArrayList") => {
                 let mut fields = HashMap::new();
                 fields.insert("_elements".to_string(), Value::Array { elements: vec![] });
                 let instance = Value::ClassInstance {
-                    class_name: "ArrayList".to_string(),
+                    class_name: class_name.clone(),
                     fields: Rc::new(std::cell::RefCell::new(fields)),
                     vtable: HashMap::new(),
                 };
                 self.push(instance);
                 return Ok(());
             }
-            "HashMap" => {
+            n if n.starts_with("HashMap") => {
                 let mut fields = HashMap::new();
                 fields.insert("_keys".to_string(), Value::Array { elements: vec![] });
                 fields.insert("_values".to_string(), Value::Array { elements: vec![] });
                 let instance = Value::ClassInstance {
-                    class_name: "HashMap".to_string(),
+                    class_name: class_name.clone(),
                     fields: Rc::new(std::cell::RefCell::new(fields)),
                     vtable: HashMap::new(),
                 };
