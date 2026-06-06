@@ -99,6 +99,16 @@ pub struct Compiler {
     native_names: Vec<String>,
     /// Mapping from native name → index.
     native_map: HashMap<String, u16>,
+    /// Monomorphization cache: mangled name → index.
+    mono_cache: HashMap<String, u16>,
+    /// Generic function declarations (not registered in function_map).
+    generic_functions: Vec<ast::FnDecl>,
+    /// Generic class declarations (not registered in class_map).
+    generic_classes: Vec<ast::ClassDecl>,
+    /// Map from generic function base name → index in generic_functions.
+    generic_function_map: HashMap<String, usize>,
+    /// Map from generic class base name → index in generic_classes.
+    generic_class_map: HashMap<String, usize>,
 }
 
 impl Compiler {
@@ -132,6 +142,11 @@ impl Compiler {
             variant_map: HashMap::new(),
             native_names: Vec::new(),
             native_map: HashMap::new(),
+            mono_cache: HashMap::new(),
+            generic_functions: Vec::new(),
+            generic_classes: Vec::new(),
+            generic_function_map: HashMap::new(),
+            generic_class_map: HashMap::new(),
         }
     }
 
@@ -160,10 +175,16 @@ impl Compiler {
                     self.compile_var_decl(const_decl)?;
                 }
                 ast::Declaration::Function(fn_decl) => {
-                    self.compile_function(fn_decl)?;
+                    // Skip generic functions; they are instantiated on demand.
+                    if fn_decl.type_params.is_empty() {
+                        self.compile_function(fn_decl)?;
+                    }
                 }
                 ast::Declaration::Class(class_decl) => {
-                    self.compile_class_methods(class_decl)?;
+                    // Skip generic classes; they are instantiated on demand.
+                    if class_decl.type_params.is_empty() {
+                        self.compile_class_methods(class_decl)?;
+                    }
                 }
                 ast::Declaration::Enum(_) => {
                     // Already registered; no bodies to compile.
@@ -201,6 +222,14 @@ impl Compiler {
     // -----------------------------------------------------------------------
 
     fn register_function(&mut self, fn_decl: &ast::FnDecl) {
+        if !fn_decl.type_params.is_empty() {
+            // Generic function: store for later instantiation.
+            let idx = self.generic_functions.len();
+            self.generic_function_map.insert(fn_decl.name.clone(), idx);
+            self.generic_functions.push(fn_decl.clone());
+            return;
+        }
+
         let idx = self.functions.len() as u16;
         self.function_map.insert(fn_decl.name.clone(), idx);
         self.functions.push(FunctionDef {
@@ -214,6 +243,14 @@ impl Compiler {
     }
 
     fn register_class(&mut self, class_decl: &ast::ClassDecl) -> Result<(), String> {
+        if !class_decl.type_params.is_empty() {
+            // Generic class: store for later instantiation.
+            let idx = self.generic_classes.len();
+            self.generic_class_map.insert(class_decl.name.clone(), idx);
+            self.generic_classes.push(class_decl.clone());
+            return Ok(());
+        }
+
         let class_idx = self.classes.len() as u16;
 
         if self.class_map.contains_key(&class_decl.name) {
@@ -309,6 +346,386 @@ impl Compiler {
             name: enum_decl.name.clone(),
             variants,
         });
+    }
+
+    // -----------------------------------------------------------------------
+    // Monomorphization: name mangling, type substitution, instantiation
+    // -----------------------------------------------------------------------
+
+    /// Generate a mangled name for a generic specialization.
+    /// E.g. mangle_name("Box", [int]) → "Box__int"
+    fn mangle_name(base: &str, type_args: &[ast::Type]) -> String {
+        if type_args.is_empty() {
+            return base.to_string();
+        }
+        let mut name = base.to_string();
+        for arg in type_args {
+            name.push_str("__");
+            name.push_str(&Self::type_to_mangle_string(arg));
+        }
+        name
+    }
+
+    fn type_to_mangle_string(ty: &ast::Type) -> String {
+        match ty {
+            ast::Type::Named { name, params } => {
+                if params.is_empty() {
+                    name.clone()
+                } else {
+                    let mut s = name.clone();
+                    for p in params {
+                        s.push_str("__");
+                        s.push_str(&Self::type_to_mangle_string(p));
+                    }
+                    s
+                }
+            }
+        }
+    }
+
+    /// Substitute type parameters with concrete types.
+    /// E.g. if type_args = {"T": int}, then T → int, Owned<T> → Owned<int>.
+    fn substitute_type(ty: &ast::Type, type_args: &HashMap<String, ast::Type>) -> ast::Type {
+        match ty {
+            ast::Type::Named { name, params } => {
+                // If this is a simple type parameter reference, substitute it.
+                if params.is_empty() {
+                    if let Some(concrete) = type_args.get(name) {
+                        return concrete.clone();
+                    }
+                }
+                // Otherwise, recursively substitute in params.
+                let new_params: Vec<ast::Type> = params
+                    .iter()
+                    .map(|p| Self::substitute_type(p, type_args))
+                    .collect();
+                ast::Type::Named {
+                    name: name.clone(),
+                    params: new_params,
+                }
+            }
+        }
+    }
+
+    fn substitute_expr(expr: &ast::Expr, type_args: &HashMap<String, ast::Type>) -> ast::Expr {
+        match expr {
+            ast::Expr::Literal(lit, span) => ast::Expr::Literal(lit.clone(), *span),
+            ast::Expr::Identifier(name, span) => ast::Expr::Identifier(name.clone(), *span),
+            ast::Expr::Binary(left, op, right, span) => ast::Expr::Binary(
+                Box::new(Self::substitute_expr(left, type_args)),
+                op.clone(),
+                Box::new(Self::substitute_expr(right, type_args)),
+                *span,
+            ),
+            ast::Expr::Unary(op, operand, span) => ast::Expr::Unary(
+                op.clone(),
+                Box::new(Self::substitute_expr(operand, type_args)),
+                *span,
+            ),
+            ast::Expr::Call(callee, args, span) => ast::Expr::Call(
+                Box::new(Self::substitute_expr(callee, type_args)),
+                args.iter().map(|a| Self::substitute_expr(a, type_args)).collect(),
+                *span,
+            ),
+            ast::Expr::MemberAccess(obj, member, span) => ast::Expr::MemberAccess(
+                Box::new(Self::substitute_expr(obj, type_args)),
+                member.clone(),
+                *span,
+            ),
+            ast::Expr::Index(obj, index, span) => ast::Expr::Index(
+                Box::new(Self::substitute_expr(obj, type_args)),
+                Box::new(Self::substitute_expr(index, type_args)),
+                *span,
+            ),
+            ast::Expr::New(typ, args, span) => ast::Expr::New(
+                Self::substitute_type(typ, type_args),
+                args.iter().map(|a| Self::substitute_expr(a, type_args)).collect(),
+                *span,
+            ),
+            ast::Expr::This(span) => ast::Expr::This(*span),
+            ast::Expr::Super(span) => ast::Expr::Super(*span),
+            ast::Expr::OwnedDeref(inner, span) => ast::Expr::OwnedDeref(
+                Box::new(Self::substitute_expr(inner, type_args)),
+                *span,
+            ),
+            ast::Expr::RegionAlloc(typ, init, span) => ast::Expr::RegionAlloc(
+                Self::substitute_type(typ, type_args),
+                Box::new(Self::substitute_expr(init, type_args)),
+                *span,
+            ),
+            ast::Expr::RefExpr(inner, kind, span) => ast::Expr::RefExpr(
+                Box::new(Self::substitute_expr(inner, type_args)),
+                kind.clone(),
+                *span,
+            ),
+            ast::Expr::UnsafeBlock(block, span) => ast::Expr::UnsafeBlock(
+                block.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                *span,
+            ),
+            ast::Expr::ErrorPropagation(inner, span) => ast::Expr::ErrorPropagation(
+                Box::new(Self::substitute_expr(inner, type_args)),
+                *span,
+            ),
+            ast::Expr::Cast(inner, target_type, span) => ast::Expr::Cast(
+                Box::new(Self::substitute_expr(inner, type_args)),
+                Self::substitute_type(target_type, type_args),
+                *span,
+            ),
+            ast::Expr::StaticCall { class_name, method, args, span } => ast::Expr::StaticCall {
+                class_name: class_name.clone(),
+                method: method.clone(),
+                args: args.iter().map(|a| Self::substitute_expr(a, type_args)).collect(),
+                span: *span,
+            },
+            ast::Expr::Assign(target, value, span) => ast::Expr::Assign(
+                Box::new(Self::substitute_expr(target, type_args)),
+                Box::new(Self::substitute_expr(value, type_args)),
+                *span,
+            ),
+        }
+    }
+
+    fn substitute_stmt(stmt: &ast::Stmt, type_args: &HashMap<String, ast::Type>) -> ast::Stmt {
+        match stmt {
+            ast::Stmt::VarDecl(var_decl) => {
+                ast::Stmt::VarDecl(Self::substitute_var_decl(var_decl, type_args))
+            }
+            ast::Stmt::ConstDecl(var_decl) => {
+                ast::Stmt::ConstDecl(Self::substitute_var_decl(var_decl, type_args))
+            }
+            ast::Stmt::Expr(expr) => {
+                ast::Stmt::Expr(Self::substitute_expr(expr, type_args))
+            }
+            ast::Stmt::If(if_stmt) => ast::Stmt::If(ast::IfStmt {
+                condition: Self::substitute_expr(&if_stmt.condition, type_args),
+                then_branch: if_stmt.then_branch.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                else_branch: if_stmt.else_branch.as_ref().map(|b| b.iter().map(|s| Self::substitute_stmt(s, type_args)).collect()),
+                span: if_stmt.span,
+            }),
+            ast::Stmt::While(while_stmt) => ast::Stmt::While(ast::WhileStmt {
+                condition: Self::substitute_expr(&while_stmt.condition, type_args),
+                body: while_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                span: while_stmt.span,
+            }),
+            ast::Stmt::For(for_stmt) => ast::Stmt::For(ast::ForStmt {
+                var: for_stmt.var.clone(),
+                iterable: Self::substitute_expr(&for_stmt.iterable, type_args),
+                body: for_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                span: for_stmt.span,
+            }),
+            ast::Stmt::Return(expr) => {
+                ast::Stmt::Return(expr.as_ref().map(|e| Self::substitute_expr(e, type_args)))
+            }
+            ast::Stmt::Break => ast::Stmt::Break,
+            ast::Stmt::Continue => ast::Stmt::Continue,
+            ast::Stmt::Switch(switch_stmt) => ast::Stmt::Switch(ast::SwitchStmt {
+                expr: Self::substitute_expr(&switch_stmt.expr, type_args),
+                cases: switch_stmt.cases.iter().map(|c| ast::Case {
+                    pattern: c.pattern.clone(),
+                    body: c.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                }).collect(),
+                default: switch_stmt.default.as_ref().map(|b| b.iter().map(|s| Self::substitute_stmt(s, type_args)).collect()),
+                span: switch_stmt.span,
+            }),
+            ast::Stmt::Block(block) => {
+                ast::Stmt::Block(block.iter().map(|s| Self::substitute_stmt(s, type_args)).collect())
+            }
+        }
+    }
+
+    fn substitute_var_decl(var_decl: &ast::VarDecl, type_args: &HashMap<String, ast::Type>) -> ast::VarDecl {
+        ast::VarDecl {
+            name: var_decl.name.clone(),
+            typ: var_decl.typ.as_ref().map(|t| Self::substitute_type(t, type_args)),
+            init: var_decl.init.as_ref().map(|e| Self::substitute_expr(e, type_args)),
+            mutable: var_decl.mutable,
+            span: var_decl.span,
+        }
+    }
+
+    fn substitute_class_member(member: &ast::ClassMember, type_args: &HashMap<String, ast::Type>) -> ast::ClassMember {
+        match member {
+            ast::ClassMember::Field(field_decl) => {
+                ast::ClassMember::Field(ast::FieldDecl {
+                    access: field_decl.access.clone(),
+                    name: field_decl.name.clone(),
+                    typ: Self::substitute_type(&field_decl.typ, type_args),
+                    init: field_decl.init.as_ref().map(|e| Self::substitute_expr(e, type_args)),
+                    span: field_decl.span,
+                })
+            }
+            ast::ClassMember::Method(method_decl) => {
+                ast::ClassMember::Method(Self::substitute_method_decl(method_decl, type_args))
+            }
+            ast::ClassMember::Constructor(ctor_decl) => {
+                ast::ClassMember::Constructor(Self::substitute_method_decl(ctor_decl, type_args))
+            }
+        }
+    }
+
+    fn substitute_method_decl(method_decl: &ast::MethodDecl, type_args: &HashMap<String, ast::Type>) -> ast::MethodDecl {
+        let specialized_params: Vec<ast::Param> = method_decl.params.iter()
+            .map(|p| ast::Param {
+                name: p.name.clone(),
+                typ: Self::substitute_type(&p.typ, type_args),
+            })
+            .collect();
+
+        let specialized_return_type = method_decl.return_type.as_ref()
+            .map(|t| Self::substitute_type(t, type_args));
+
+        let specialized_body: Vec<ast::Stmt> = method_decl.body.iter()
+            .map(|s| Self::substitute_stmt(s, type_args))
+            .collect();
+
+        ast::MethodDecl {
+            access: method_decl.access.clone(),
+            name: method_decl.name.clone(),
+            type_params: method_decl.type_params.clone(),
+            params: specialized_params,
+            return_type: specialized_return_type,
+            body: specialized_body,
+            span: method_decl.span,
+        }
+    }
+
+    /// Instantiate a generic function with concrete type arguments.
+    /// Returns the function index of the specialized function.
+    fn instantiate_generic_function(&mut self, base_name: &str, type_args: &[ast::Type]) -> Result<u16, String> {
+        let mangled = Self::mangle_name(base_name, type_args);
+
+        // Check cache.
+        if let Some(&idx) = self.mono_cache.get(&mangled) {
+            return Ok(idx);
+        }
+
+        // Find the generic function declaration.
+        let generic_idx = *self.generic_function_map.get(base_name)
+            .ok_or_else(|| format!("Generic function '{}' not found", base_name))?;
+        let generic_fn = self.generic_functions[generic_idx].clone();
+
+        if type_args.len() != generic_fn.type_params.len() {
+            return Err(format!(
+                "Generic function '{}' expects {} type argument(s), got {}",
+                base_name, generic_fn.type_params.len(), type_args.len()
+            ));
+        }
+
+        // Build type_args map.
+        let type_args_map: HashMap<String, ast::Type> = generic_fn.type_params.iter()
+            .zip(type_args.iter())
+            .map(|(param, arg)| (param.clone(), arg.clone()))
+            .collect();
+
+        // Substitute types in the function declaration.
+        let specialized_params: Vec<ast::Param> = generic_fn.params.iter()
+            .map(|p| ast::Param {
+                name: p.name.clone(),
+                typ: Self::substitute_type(&p.typ, &type_args_map),
+            })
+            .collect();
+
+        let specialized_return_type = generic_fn.return_type.as_ref()
+            .map(|t| Self::substitute_type(t, &type_args_map));
+
+        let specialized_body: Vec<ast::Stmt> = generic_fn.body.iter()
+            .map(|s| Self::substitute_stmt(s, &type_args_map))
+            .collect();
+
+        let specialized_fn = ast::FnDecl {
+            access: generic_fn.access.clone(),
+            name: mangled.clone(),
+            type_params: vec![],
+            params: specialized_params,
+            return_type: specialized_return_type,
+            body: specialized_body,
+            sugar: generic_fn.sugar,
+            span: generic_fn.span,
+        };
+
+        // Register the specialized function.
+        let fn_idx = self.functions.len() as u16;
+        self.function_map.insert(mangled.clone(), fn_idx);
+        self.functions.push(FunctionDef {
+            name: mangled.clone(),
+            arity: specialized_fn.params.len(),
+            chunk: Chunk::new(),
+            is_method: false,
+            is_constructor: false,
+            local_count: 0,
+        });
+
+        // Compile the specialized function body.
+        self.compile_function(&specialized_fn)?;
+
+        // Cache the result.
+        self.mono_cache.insert(mangled, fn_idx);
+
+        Ok(fn_idx)
+    }
+
+    /// Instantiate a generic class with concrete type arguments.
+    /// Returns the class index of the specialized class.
+    fn instantiate_generic_class(&mut self, base_name: &str, type_args: &[ast::Type]) -> Result<u16, String> {
+        let mangled = Self::mangle_name(base_name, type_args);
+
+        // Check cache.
+        if let Some(&idx) = self.mono_cache.get(&mangled) {
+            return Ok(idx);
+        }
+
+        // Find the generic class declaration.
+        let generic_idx = *self.generic_class_map.get(base_name)
+            .ok_or_else(|| format!("Generic class '{}' not found", base_name))?;
+        let generic_class = self.generic_classes[generic_idx].clone();
+
+        if type_args.len() != generic_class.type_params.len() {
+            return Err(format!(
+                "Generic class '{}' expects {} type argument(s), got {}",
+                base_name, generic_class.type_params.len(), type_args.len()
+            ));
+        }
+
+        // Build type_args map.
+        let type_args_map: HashMap<String, ast::Type> = generic_class.type_params.iter()
+            .zip(type_args.iter())
+            .map(|(param, arg)| (param.clone(), arg.clone()))
+            .collect();
+
+        // Substitute types in class members.
+        let specialized_members: Vec<ast::ClassMember> = generic_class.members.iter()
+            .map(|m| Self::substitute_class_member(m, &type_args_map))
+            .collect();
+
+        let specialized_parent = generic_class.parent.as_ref()
+            .map(|t| Self::substitute_type(t, &type_args_map));
+
+        let specialized_ifaces: Vec<ast::Type> = generic_class.ifaces.iter()
+            .map(|t| Self::substitute_type(t, &type_args_map))
+            .collect();
+
+        let specialized_class = ast::ClassDecl {
+            name: mangled.clone(),
+            type_params: vec![],
+            parent: specialized_parent,
+            ifaces: specialized_ifaces,
+            members: specialized_members,
+            span: generic_class.span,
+        };
+
+        // Register the specialized class.
+        self.register_class(&specialized_class)?;
+
+        // Compile the specialized class methods.
+        self.compile_class_methods(&specialized_class)?;
+
+        // Get the class index.
+        let class_idx = *self.class_map.get(&mangled).unwrap();
+
+        // Cache the result.
+        self.mono_cache.insert(mangled, class_idx);
+
+        Ok(class_idx)
     }
 
     // -----------------------------------------------------------------------
@@ -1306,6 +1723,14 @@ impl Compiler {
                 self.emit_u8(args.len() as u8, line);
                 return Ok(());
             }
+
+            // Check if it's a generic function (needs type arguments).
+            if self.generic_function_map.contains_key(name) {
+                return Err(format!(
+                    "Cannot call generic function '{}' without type arguments",
+                    name
+                ));
+            }
         }
 
         // Special case: MemberAccess callee → method call.
@@ -1372,29 +1797,12 @@ impl Compiler {
 
     fn compile_new(&mut self, typ: &ast::Type, args: &[ast::Expr], line: u32) -> Result<(), String> {
         let class_name = typ.name();
+        let type_params = typ.params();
 
         // Handle built-in types that aren't user-defined classes
         match class_name {
-            "ArrayList" => {
-                // Compile arguments (none expected, but handle gracefully)
-                for arg in args {
-                    self.compile_expr(arg)?;
-                }
-                // Emit ARRAY_NEW with size 0, then wrap as ArrayList ClassInstance
-                // We use a special approach: emit PUSH_NULL as marker, then ARRAY_NEW(0)
-                // Actually, let's just emit NEW with a special high class index
-                // that the VM recognizes as built-in.
-                // Simpler: register ArrayList and HashMap as pseudo-classes.
-                let class_idx = self.get_or_create_builtin_class("ArrayList");
-                for arg in args {
-                    self.compile_expr(arg)?;
-                }
-                self.emit_opcode(OpCode::NEW, line);
-                self.emit_u16(class_idx, line);
-                return Ok(());
-            }
-            "HashMap" => {
-                let class_idx = self.get_or_create_builtin_class("HashMap");
+            "ArrayList" | "HashMap" => {
+                let class_idx = self.get_or_create_builtin_class(class_name, type_params);
                 for arg in args {
                     self.compile_expr(arg)?;
                 }
@@ -1403,6 +1811,17 @@ impl Compiler {
                 return Ok(());
             }
             _ => {}
+        }
+
+        // Check if it's a generic class instantiation.
+        if !type_params.is_empty() && self.generic_class_map.contains_key(class_name) {
+            let class_idx = self.instantiate_generic_class(class_name, type_params)?;
+            for arg in args {
+                self.compile_expr(arg)?;
+            }
+            self.emit_opcode(OpCode::NEW, line);
+            self.emit_u16(class_idx, line);
+            return Ok(());
         }
 
         let class_idx = *self
@@ -1425,13 +1844,16 @@ impl Compiler {
     }
 
     /// Get or create a built-in pseudo-class (ArrayList, HashMap, etc.)
-    fn get_or_create_builtin_class(&mut self, name: &str) -> u16 {
-        if let Some(&idx) = self.class_map.get(name) {
+    /// Uses monomorphization naming: ArrayList<int> → ArrayList__int
+    fn get_or_create_builtin_class(&mut self, name: &str, type_args: &[ast::Type]) -> u16 {
+        let mangled = Self::mangle_name(name, type_args);
+
+        if let Some(&idx) = self.class_map.get(&mangled) {
             return idx;
         }
         let idx = self.classes.len() as u16;
         let class_def = ClassDef {
-            name: name.to_string(),
+            name: mangled.clone(),
             parent: None,
             fields: Vec::new(),
             methods: HashMap::new(),
@@ -1439,7 +1861,11 @@ impl Compiler {
             field_inits: Vec::new(),
         };
         self.classes.push(class_def);
-        self.class_map.insert(name.to_string(), idx);
+        self.class_map.insert(mangled.clone(), idx);
+
+        // Also cache in mono_cache.
+        self.mono_cache.insert(mangled, idx);
+
         idx
     }
 
@@ -2402,5 +2828,297 @@ mod tests {
             fn_chunk.code.contains(&(OpCode::JMP_IF_FALSE as u8)),
             "switch cases should use JMP_IF_FALSE"
         );
+    }
+
+    // -- test_mangle_name --------------------------------------------------------
+
+    #[test]
+    fn test_mangle_name() {
+        assert_eq!(Compiler::mangle_name("Box", &[]), "Box");
+        assert_eq!(
+            Compiler::mangle_name("Box", &[ast::Type::simple("int")]),
+            "Box__int"
+        );
+        assert_eq!(
+            Compiler::mangle_name("HashMap", &[ast::Type::simple("string"), ast::Type::simple("int")]),
+            "HashMap__string__int"
+        );
+        assert_eq!(
+            Compiler::mangle_name("Box", &[ast::Type::generic("Owned", vec![ast::Type::simple("int")])]),
+            "Box__Owned__int"
+        );
+    }
+
+    // -- test_substitute_type ----------------------------------------------------
+
+    #[test]
+    fn test_substitute_type() {
+        let mut type_args = HashMap::new();
+        type_args.insert("T".to_string(), ast::Type::simple("int"));
+
+        // Simple type parameter substitution: T → int
+        let ty = ast::Type::simple("T");
+        let result = Compiler::substitute_type(&ty, &type_args);
+        assert_eq!(result, ast::Type::simple("int"));
+
+        // Non-parameterized type is unchanged: string → string
+        let ty = ast::Type::simple("string");
+        let result = Compiler::substitute_type(&ty, &type_args);
+        assert_eq!(result, ast::Type::simple("string"));
+
+        // Nested type parameter substitution: Owned<T> → Owned<int>
+        let ty = ast::Type::generic("Owned", vec![ast::Type::simple("T")]);
+        let result = Compiler::substitute_type(&ty, &type_args);
+        assert_eq!(result, ast::Type::generic("Owned", vec![ast::Type::simple("int")]));
+
+        // Multiple type parameters
+        let mut type_args2 = HashMap::new();
+        type_args2.insert("K".to_string(), ast::Type::simple("string"));
+        type_args2.insert("V".to_string(), ast::Type::simple("int"));
+
+        let ty = ast::Type::generic("Map", vec![ast::Type::simple("K"), ast::Type::simple("V")]);
+        let result = Compiler::substitute_type(&ty, &type_args2);
+        assert_eq!(result, ast::Type::generic("Map", vec![ast::Type::simple("string"), ast::Type::simple("int")]));
+    }
+
+    // -- test_instantiate_generic_function ----------------------------------------
+
+    #[test]
+    fn test_instantiate_generic_function() {
+        let generic_fn = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "id".to_string(),
+            type_params: vec!["T".to_string()],
+            params: vec![ast::Param {
+                name: "x".to_string(),
+                typ: ast::Type::simple("T"),
+            }],
+            return_type: Some(ast::Type::simple("T")),
+            body: vec![ast::Stmt::Return(Some(ast::Expr::Identifier("x".to_string(), su())))],
+            sugar: false,
+            span: su(),
+        };
+
+        let caller_fn = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "caller".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![ast::Stmt::Expr(ast::Expr::Call(
+                Box::new(ast::Expr::Identifier("id__int".to_string(), su())),
+                vec![ast::Expr::Literal(ast::Literal::Int(42), su())],
+                su(),
+            ))],
+            sugar: false,
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![
+                ast::Declaration::Function(generic_fn),
+                ast::Declaration::Function(caller_fn),
+            ],
+        };
+
+        let mut compiler = Compiler::new();
+
+        // Register declarations first (first pass).
+        for decl in &program.declarations {
+            if let ast::Declaration::Function(fn_decl) = decl {
+                compiler.register_function(fn_decl);
+            }
+        }
+
+        // Now instantiate the generic function.
+        let fn_idx = compiler.instantiate_generic_function("id", &[ast::Type::simple("int")])
+            .expect("instantiation should succeed");
+        assert!(fn_idx > 0, "instantiated function should have a valid index");
+
+        // Verify the mangled name is in function_map.
+        assert!(
+            compiler.function_map.contains_key("id__int"),
+            "function_map should contain mangled name 'id__int'"
+        );
+
+        // Verify mono_cache.
+        assert!(
+            compiler.mono_cache.contains_key("id__int"),
+            "mono_cache should contain 'id__int'"
+        );
+
+        // Second instantiation should return the same index (cache hit).
+        let fn_idx2 = compiler.instantiate_generic_function("id", &[ast::Type::simple("int")])
+            .expect("second instantiation should succeed");
+        assert_eq!(fn_idx, fn_idx2, "cached instantiation should return same index");
+
+        // Now compile the full program.
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        // The specialized function should exist.
+        let found = compiled.functions.iter().any(|f| f.name == "id__int");
+        assert!(found, "compiled program should contain function 'id__int'");
+    }
+
+    // -- test_instantiate_generic_class -------------------------------------------
+
+    #[test]
+    fn test_instantiate_generic_class() {
+        let generic_class = ast::ClassDecl {
+            name: "Box".to_string(),
+            type_params: vec!["T".to_string()],
+            parent: None,
+            ifaces: vec![],
+            members: vec![
+                ast::ClassMember::Field(ast::FieldDecl {
+                    access: ast::Access::Public,
+                    name: "value".to_string(),
+                    typ: ast::Type::simple("T"),
+                    init: None,
+                    span: su(),
+                }),
+                ast::ClassMember::Method(ast::MethodDecl {
+                    access: ast::Access::Public,
+                    name: "getValue".to_string(),
+                    type_params: vec![],
+                    params: vec![],
+                    return_type: Some(ast::Type::simple("T")),
+                    body: vec![ast::Stmt::Return(Some(ast::Expr::MemberAccess(
+                        Box::new(ast::Expr::This(su())),
+                        "value".to_string(),
+                        su(),
+                    )))],
+                    span: su(),
+                }),
+            ],
+            span: su(),
+        };
+
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "make_box".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![ast::Stmt::Expr(ast::Expr::New(
+                ast::Type::generic("Box", vec![ast::Type::simple("int")]),
+                vec![],
+                su(),
+            ))],
+            sugar: false,
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![
+                ast::Declaration::Class(generic_class),
+                ast::Declaration::Function(fn_decl),
+            ],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        // The specialized class should exist with mangled name.
+        let found_class = compiled.classes.iter().any(|c| c.name == "Box__int");
+        assert!(found_class, "compiled program should contain class 'Box__int'");
+
+        // The specialized method should exist.
+        let found_method = compiled.functions.iter().any(|f| f.name == "Box__int.getValue");
+        assert!(found_method, "compiled program should contain method 'Box__int.getValue'");
+    }
+
+    // -- test_generic_builtin_class ----------------------------------------------
+
+    #[test]
+    fn test_generic_builtin_class() {
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "test_builtin".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![
+                ast::Stmt::Expr(ast::Expr::New(
+                    ast::Type::generic("ArrayList", vec![ast::Type::simple("int")]),
+                    vec![],
+                    su(),
+                )),
+                ast::Stmt::Expr(ast::Expr::New(
+                    ast::Type::generic("HashMap", vec![ast::Type::simple("string"), ast::Type::simple("int")]),
+                    vec![],
+                    su(),
+                )),
+            ],
+            sugar: false,
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Function(fn_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        // ArrayList<int> should create class "ArrayList__int"
+        let found_al = compiled.classes.iter().any(|c| c.name == "ArrayList__int");
+        assert!(found_al, "compiled program should contain class 'ArrayList__int'");
+
+        // HashMap<string, int> should create class "HashMap__string__int"
+        let found_hm = compiled.classes.iter().any(|c| c.name == "HashMap__string__int");
+        assert!(found_hm, "compiled program should contain class 'HashMap__string__int'");
+    }
+
+    // -- test_generic_function_error_without_type_args ----------------------------
+
+    #[test]
+    fn test_generic_function_error_without_type_args() {
+        let generic_fn = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "id".to_string(),
+            type_params: vec!["T".to_string()],
+            params: vec![ast::Param {
+                name: "x".to_string(),
+                typ: ast::Type::simple("T"),
+            }],
+            return_type: Some(ast::Type::simple("T")),
+            body: vec![ast::Stmt::Return(Some(ast::Expr::Identifier("x".to_string(), su())))],
+            sugar: false,
+            span: su(),
+        };
+
+        // Calling id(42) without type arguments should fail.
+        let caller_fn = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "caller".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![ast::Stmt::Expr(ast::Expr::Call(
+                Box::new(ast::Expr::Identifier("id".to_string(), su())),
+                vec![ast::Expr::Literal(ast::Literal::Int(42), su())],
+                su(),
+            ))],
+            sugar: false,
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![
+                ast::Declaration::Function(generic_fn),
+                ast::Declaration::Function(caller_fn),
+            ],
+        };
+
+        let mut compiler = Compiler::new();
+        let result = compiler.compile(&program);
+        assert!(result.is_err(), "calling generic function without type args should fail");
+        let err = result.err().unwrap();
+        assert!(err.contains("generic function"), "error should mention generic function");
     }
 }
