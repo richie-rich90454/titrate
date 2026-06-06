@@ -277,9 +277,11 @@ impl Analyzer {
                 name.to_string(),
                 Symbol::Class(ast::ClassDecl {
                     name: name.to_string(),
+                    type_params: vec![],
                     parent: None,
                     ifaces: vec![],
                     members: vec![],
+                    span: ast::Span::unknown(),
                 }),
             );
         }
@@ -290,6 +292,7 @@ impl Analyzer {
                 Symbol::Function(ast::FnDecl {
                     access: ast::Access::Public,
                     name: name.to_string(),
+                    type_params: vec![],
                     params: vec![ast::Param {
                         name: "value".to_string(),
                         typ: ast::Type::simple("any"),
@@ -300,6 +303,7 @@ impl Analyzer {
                     ])),
                     body: vec![],
                     sugar: false,
+                    span: ast::Span::unknown(),
                 }),
             );
         }
@@ -320,10 +324,12 @@ impl Analyzer {
                             let fn_decl = ast::FnDecl {
                                 access: m.access.clone(),
                                 name: m.name.clone(),
+                                type_params: m.type_params.clone(),
                                 params: m.params.clone(),
                                 return_type: m.return_type.clone(),
                                 body: m.body.clone(),
                                 sugar: false,
+                                span: m.span,
                             };
                             class_scope.borrow_mut().define(m.name.clone(), Symbol::Function(fn_decl));
                         }
@@ -331,10 +337,12 @@ impl Analyzer {
                             let fn_decl = ast::FnDecl {
                                 access: m.access.clone(),
                                 name: m.name.clone(),
+                                type_params: m.type_params.clone(),
                                 params: m.params.clone(),
                                 return_type: m.return_type.clone(),
                                 body: m.body.clone(),
                                 sugar: false,
+                                span: m.span,
                             };
                             class_scope.borrow_mut().define(m.name.clone(), Symbol::Function(fn_decl));
                         }
@@ -634,7 +642,7 @@ impl Analyzer {
 
             // Move tracking: if the initializer is an Owned variable, mark it as moved.
             if !self.in_unsafe {
-                if let ast::Expr::Identifier(src_name) = init {
+                if let ast::Expr::Identifier(src_name, _) = init {
                     let src_sym = scope.borrow().lookup(src_name);
                     if let Some(Symbol::Variable { typ, .. }) = src_sym {
                         if is_owned_type(&typ) {
@@ -736,8 +744,8 @@ impl Analyzer {
 
     fn analyze_expr(&mut self, expr: &mut ast::Expr, scope: &Rc<RefCell<Scope>>) {
         match expr {
-            ast::Expr::Literal(_) => {}
-            ast::Expr::Identifier(name) => {
+            ast::Expr::Literal(_, _) => {}
+            ast::Expr::Identifier(name, _) => {
                 // Symbol resolution.
                 let sym = scope.borrow().lookup(name);
                 match sym {
@@ -784,7 +792,7 @@ impl Analyzer {
                     }
                 }
             }
-            ast::Expr::Binary(left, op, right) => {
+            ast::Expr::Binary(left, op, right, _) => {
                 self.analyze_expr(left, scope);
                 self.analyze_expr(right, scope);
 
@@ -851,7 +859,7 @@ impl Analyzer {
                 }
                 }
             }
-            ast::Expr::Unary(unop, operand) => {
+            ast::Expr::Unary(unop, operand, _) => {
                 self.analyze_expr(operand, scope);
                 let operand_type = self.infer_expr_type(operand, scope);
                 match unop {
@@ -881,11 +889,11 @@ impl Analyzer {
                     }
                 }
             }
-            ast::Expr::Call(callee, args) => {
+            ast::Expr::Call(callee, args, _) => {
                 // Check for toString desugaring BEFORE analyzing (which borrows immutably).
                 // We need to detect: Call(MemberAccess(obj, "toString"), [])
                 let desugar_info: Option<(String, ast::Expr)> = match callee.as_ref() {
-                    ast::Expr::MemberAccess(obj, method) if method == "toString" => {
+                    ast::Expr::MemberAccess(obj, method, _) if method == "toString" => {
                         let obj_type = self.infer_expr_type(obj, scope);
                         static_class_for_primitive(&obj_type).map(|class_name| {
                             // We'll replace the whole expression after this match.
@@ -900,6 +908,7 @@ impl Analyzer {
                         class_name,
                         method: "toString".to_string(),
                         args: vec![obj_expr],
+                        span: ast::Span::unknown(),
                     };
                     // Re-analyze the desugared form.
                     self.analyze_expr(expr, scope);
@@ -913,7 +922,7 @@ impl Analyzer {
 
                 // Check if callee is a function and validate argument count.
                 match callee.as_ref() {
-                    ast::Expr::Identifier(name) => {
+                    ast::Expr::Identifier(name, _) => {
                         if let Some(Symbol::Function(f)) = scope.borrow().lookup(name) {
                             if args.len() != f.params.len() {
                                 self.error(format!(
@@ -925,7 +934,7 @@ impl Analyzer {
                             }
                         }
                     }
-                    ast::Expr::MemberAccess(obj, method) => {
+                    ast::Expr::MemberAccess(obj, method, _) => {
                         // Check method calls on known types.
                         let obj_type = self.infer_expr_type(obj, scope);
                         if let Some(Symbol::Class(class_decl)) = scope.borrow().lookup(obj_type.name()) {
@@ -962,17 +971,17 @@ impl Analyzer {
                     _ => {}
                 }
             }
-            ast::Expr::MemberAccess(obj, field) => {
+            ast::Expr::MemberAccess(obj, field, _) => {
                 self.analyze_expr(obj.as_mut(), scope);
                 // If it's a method call, it will be handled in the Call branch above.
                 // For field access, we just validate the object is not moved.
                 let _ = field;
             }
-            ast::Expr::Index(obj, idx) => {
+            ast::Expr::Index(obj, idx, _) => {
                 self.analyze_expr(obj.as_mut(), scope);
                 self.analyze_expr(idx.as_mut(), scope);
             }
-            ast::Expr::New(typ, args) => {
+            ast::Expr::New(typ, args, _) => {
                 for arg in args.iter_mut() {
                     self.analyze_expr(arg, scope);
                 }
@@ -1005,9 +1014,9 @@ impl Analyzer {
                     }
                 }
             }
-            ast::Expr::This => {}
-            ast::Expr::Super => {}
-            ast::Expr::OwnedDeref(inner) => {
+            ast::Expr::This(_) => {}
+            ast::Expr::Super(_) => {}
+            ast::Expr::OwnedDeref(inner, _) => {
                 self.analyze_expr(inner, scope);
                 let inner_type = self.infer_expr_type(inner, scope);
                 if !is_owned_type(&inner_type) && !is_unknown_type(&inner_type) {
@@ -1017,12 +1026,12 @@ impl Analyzer {
                     ));
                 }
             }
-            ast::Expr::RegionAlloc(_typ, region_expr) => {
+            ast::Expr::RegionAlloc(_typ, region_expr, _) => {
                 self.analyze_expr(region_expr, scope);
                 // Track that this allocation belongs to the current region.
                 // We'll check that region-allocated values don't escape.
             }
-            ast::Expr::RefExpr(inner, ref_kind) => {
+            ast::Expr::RefExpr(inner, ref_kind, _) => {
                 self.analyze_expr(inner, scope);
 
                 if self.in_unsafe {
@@ -1031,7 +1040,7 @@ impl Analyzer {
 
                 // Borrow checking.
                 match inner.as_ref() {
-                    ast::Expr::Identifier(name) => {
+                    ast::Expr::Identifier(name, _) => {
                         match ref_kind {
                             ast::RefKind::Immutable => {
                                 if let Some(state) = self.var_states.get(name) {
@@ -1088,13 +1097,13 @@ impl Analyzer {
                     }
                 }
             }
-            ast::Expr::UnsafeBlock(block) => {
+            ast::Expr::UnsafeBlock(block, _) => {
                 let prev_unsafe = self.in_unsafe;
                 self.in_unsafe = true;
                 self.analyze_block(block, scope);
                 self.in_unsafe = prev_unsafe;
             }
-            ast::Expr::ErrorPropagation(inner) => {
+            ast::Expr::ErrorPropagation(inner, _) => {
                 self.analyze_expr(inner, scope);
                 let inner_type = self.infer_expr_type(inner, scope);
                 // The operand must be a Result type.
@@ -1113,7 +1122,7 @@ impl Analyzer {
                     self.error("? operator used in function with no return type".to_string());
                 }
             }
-            ast::Expr::Cast(inner, target_type) => {
+            ast::Expr::Cast(inner, target_type, _) => {
                 self.analyze_expr(inner, scope);
                 let inner_type = self.infer_expr_type(inner, scope);
                 // Casts between numeric types are fine.
@@ -1130,7 +1139,7 @@ impl Analyzer {
                     ));
                 }
             }
-            ast::Expr::StaticCall { class_name, method, args } => {
+            ast::Expr::StaticCall { class_name, method, args, span: _ } => {
                 for arg in args.iter_mut() {
                     self.analyze_expr(arg, scope);
                 }
@@ -1160,7 +1169,7 @@ impl Analyzer {
                 }
                 let _ = method;
             }
-            ast::Expr::Assign(target, value) => {
+            ast::Expr::Assign(target, value, _) => {
                 self.analyze_expr(value, scope);
                 let value_type = self.infer_expr_type(value, scope);
 
@@ -1169,7 +1178,7 @@ impl Analyzer {
 
                 // Check the target is assignable.
                 match target.as_ref() {
-                    ast::Expr::Identifier(name) => {
+                    ast::Expr::Identifier(name, _) => {
                         let sym = scope.borrow().lookup(name);
                         match sym {
                             None => {
@@ -1218,7 +1227,7 @@ impl Analyzer {
                             }
                         }
                     }
-                    ast::Expr::MemberAccess(_, _) | ast::Expr::Index(_, _) => {
+                    ast::Expr::MemberAccess(_, _, _) | ast::Expr::Index(_, _, _) => {
                         // Already analyzed above.
                     }
                     _ => {
@@ -1228,7 +1237,7 @@ impl Analyzer {
 
                 // Check if the value being assigned is a move of an Owned variable.
                 if !self.in_unsafe {
-                    if let ast::Expr::Identifier(src_name) = value.as_ref() {
+                    if let ast::Expr::Identifier(src_name, _) = value.as_ref() {
                         let src_sym = scope.borrow().lookup(src_name);
                         if let Some(Symbol::Variable { typ, .. }) = src_sym {
                             if is_owned_type(&typ) {
@@ -1247,8 +1256,8 @@ impl Analyzer {
 
     fn infer_expr_type(&self, expr: &ast::Expr, scope: &Rc<RefCell<Scope>>) -> ast::Type {
         match expr {
-            ast::Expr::Literal(lit) => literal_type(lit),
-            ast::Expr::Identifier(name) => {
+            ast::Expr::Literal(lit, _) => literal_type(lit),
+            ast::Expr::Identifier(name, _) => {
                 match scope.borrow().lookup(name) {
                     Some(Symbol::Variable { typ, .. }) => typ,
                     Some(Symbol::Function(f)) => {
@@ -1265,7 +1274,7 @@ impl Analyzer {
                     None => ast::Type::simple("unknown"),
                 }
             }
-            ast::Expr::Binary(left, op, _right) => {
+            ast::Expr::Binary(left, op, _right, _) => {
                 let left_type = self.infer_expr_type(left, scope);
                 match op {
                     ast::Operator::Add => {
@@ -1292,7 +1301,7 @@ impl Analyzer {
                     | ast::Operator::BitShr => left_type,
                 }
             }
-            ast::Expr::Unary(unop, operand) => {
+            ast::Expr::Unary(unop, operand, _) => {
                 let operand_type = self.infer_expr_type(operand, scope);
                 match unop {
                     ast::UnOp::Neg => operand_type,
@@ -1300,9 +1309,9 @@ impl Analyzer {
                     ast::UnOp::BitNot => operand_type,
                 }
             }
-            ast::Expr::Call(callee, _args) => {
+            ast::Expr::Call(callee, _args, _) => {
                 match callee.as_ref() {
-                    ast::Expr::Identifier(name) => {
+                    ast::Expr::Identifier(name, _) => {
                         if let Some(Symbol::Function(f)) = scope.borrow().lookup(name) {
                             f.return_type.clone().unwrap_or(ast::Type::simple("void"))
                         } else if let Some(Symbol::Variant { enum_name, .. }) = scope.borrow().lookup(name) {
@@ -1311,7 +1320,7 @@ impl Analyzer {
                             ast::Type::simple("unknown")
                         }
                     }
-                    ast::Expr::MemberAccess(obj, method) => {
+                    ast::Expr::MemberAccess(obj, method, _) => {
                         let obj_type = self.infer_expr_type(obj, scope);
                         if let Some(Symbol::Class(class_decl)) = scope.borrow().lookup(obj_type.name()) {
                             for member in &class_decl.members {
@@ -1335,17 +1344,17 @@ impl Analyzer {
                     _ => ast::Type::simple("unknown"),
                 }
             }
-            ast::Expr::MemberAccess(obj, _field) => {
+            ast::Expr::MemberAccess(obj, _field, _) => {
                 let _obj_type = self.infer_expr_type(obj, scope);
                 // Without class field info, return unknown.
                 ast::Type::simple("unknown")
             }
-            ast::Expr::Index(_obj, _idx) => {
+            ast::Expr::Index(_obj, _idx, _) => {
                 // Without array element type info, return unknown.
                 ast::Type::simple("unknown")
             }
-            ast::Expr::New(typ, _args) => typ.clone(),
-            ast::Expr::This => {
+            ast::Expr::New(typ, _args, _) => typ.clone(),
+            ast::Expr::This(_) => {
                 // Look up "this" in scope.
                 if let Some(Symbol::Variable { typ, .. }) = scope.borrow().lookup("this") {
                     typ
@@ -1353,14 +1362,14 @@ impl Analyzer {
                     ast::Type::simple("unknown")
                 }
             }
-            ast::Expr::Super => {
+            ast::Expr::Super(_) => {
                 if let Some(Symbol::Variable { typ, .. }) = scope.borrow().lookup("this") {
                     typ
                 } else {
                     ast::Type::simple("unknown")
                 }
             }
-            ast::Expr::OwnedDeref(inner) => {
+            ast::Expr::OwnedDeref(inner, _) => {
                 let inner_type = self.infer_expr_type(inner, scope);
                 if is_owned_type(&inner_type) {
                     if let Some(inner_param) = inner_type.params().first() {
@@ -1369,8 +1378,8 @@ impl Analyzer {
                 }
                 inner_type
             }
-            ast::Expr::RegionAlloc(typ, _region) => typ.clone(),
-            ast::Expr::RefExpr(inner, ref_kind) => {
+            ast::Expr::RegionAlloc(typ, _region, _) => typ.clone(),
+            ast::Expr::RefExpr(inner, ref_kind, _) => {
                 let inner_type = self.infer_expr_type(inner, scope);
                 match ref_kind {
                     ast::RefKind::Immutable => {
@@ -1381,7 +1390,7 @@ impl Analyzer {
                     }
                 }
             }
-            ast::Expr::UnsafeBlock(block) => {
+            ast::Expr::UnsafeBlock(block, _) => {
                 // Type of an unsafe block is the type of its last expression.
                 if let Some(last_stmt) = block.last() {
                     match last_stmt {
@@ -1392,7 +1401,7 @@ impl Analyzer {
                     ast::Type::simple("void")
                 }
             }
-            ast::Expr::ErrorPropagation(inner) => {
+            ast::Expr::ErrorPropagation(inner, _) => {
                 let inner_type = self.infer_expr_type(inner, scope);
                 if is_result_type(&inner_type) {
                     if let Some(ok_type) = inner_type.params().first() {
@@ -1401,12 +1410,12 @@ impl Analyzer {
                 }
                 inner_type
             }
-            ast::Expr::Cast(_inner, target_type) => target_type.clone(),
+            ast::Expr::Cast(_inner, target_type, _) => target_type.clone(),
             ast::Expr::StaticCall { .. } => {
                 // For toString, returns string.
                 ast::Type::simple("string")
             }
-            ast::Expr::Assign(_target, value) => {
+            ast::Expr::Assign(_target, value, _) => {
                 self.infer_expr_type(value, scope)
             }
         }
@@ -1419,15 +1428,15 @@ impl Analyzer {
     /// Check if an expression is a borrow of a local variable.
     fn expr_borrows_local(&self, expr: &ast::Expr) -> bool {
         match expr {
-            ast::Expr::RefExpr(inner, _) => {
-                if let ast::Expr::Identifier(name) = inner.as_ref() {
+            ast::Expr::RefExpr(inner, _, _) => {
+                if let ast::Expr::Identifier(name, _) = inner.as_ref() {
                     if self.local_vars.contains(name) {
                         return true;
                     }
                 }
                 false
             }
-            ast::Expr::Call(callee, args) => {
+            ast::Expr::Call(callee, args, _) => {
                 // A function call might return a borrow.
                 // For Alpha, we check if any argument is a borrow of a local.
                 if self.expr_borrows_local(callee) {
@@ -1452,17 +1461,16 @@ impl Analyzer {
 /// Analyze a Titrate program, performing symbol resolution, type checking,
 /// ownership analysis, and toString desugaring.
 ///
-/// Returns the (possibly modified) program on success, or an error string
-/// describing the first semantic error found.
-pub fn analyze(program: &ast::Program) -> Result<ast::Program, String> {
+/// Returns the (possibly modified) program on success, or a vector of
+/// error strings describing all semantic errors found.
+pub fn analyze(program: &ast::Program) -> Result<ast::Program, Vec<String>> {
     let mut program = program.clone();
     let mut analyzer = Analyzer::new();
     analyzer.analyze_program(&mut program);
     if analyzer.errors.is_empty() {
         Ok(program)
     } else {
-        // Return the first error.
-        Err(analyzer.errors.into_iter().next().unwrap_or_else(|| "unknown error".to_string()))
+        Err(analyzer.errors)
     }
 }
 
@@ -1500,8 +1508,9 @@ mod tests {
         let prog = program_with(Declaration::VarDecl(VarDecl {
             name: "x".to_string(),
             typ: Some(Type::simple("int")),
-            init: Some(Expr::Literal(Literal::Int(42))),
+            init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
             mutable: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1511,10 +1520,12 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("int")),
-            body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(1))))],
+            body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(1), Span::unknown())))],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1523,6 +1534,7 @@ mod tests {
     fn test_resolve_class() {
         let prog = program_with(Declaration::Class(ClassDecl {
             name: "MyClass".to_string(),
+            type_params: vec![],
             parent: None,
             ifaces: vec![],
             members: vec![ClassMember::Field(FieldDecl {
@@ -1530,7 +1542,9 @@ mod tests {
                 name: "val".to_string(),
                 typ: Type::simple("int"),
                 init: None,
+                span: Span::unknown(),
             })],
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1539,6 +1553,7 @@ mod tests {
     fn test_resolve_enum() {
         let prog = program_with(Declaration::Enum(EnumDecl {
             name: "Color".to_string(),
+            type_params: vec![],
             variants: vec![
                 Variant {
                     name: "Red".to_string(),
@@ -1549,6 +1564,7 @@ mod tests {
                     fields: vec![],
                 },
             ],
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1558,14 +1574,16 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
-            body: vec![Stmt::Expr(Expr::Identifier("unknown_var".to_string()))],
+            body: vec![Stmt::Expr(Expr::Identifier("unknown_var".to_string(), Span::unknown()))],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("undeclared"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("undeclared")));
     }
 
     #[test]
@@ -1573,18 +1591,21 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(5))),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                Stmt::Expr(Expr::Identifier("x".to_string())),
+                Stmt::Expr(Expr::Identifier("x".to_string(), Span::unknown())),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1598,12 +1619,13 @@ mod tests {
         let prog = program_with(Declaration::VarDecl(VarDecl {
             name: "x".to_string(),
             typ: Some(Type::simple("int")),
-            init: Some(Expr::Literal(Literal::Bool(true))),
+            init: Some(Expr::Literal(Literal::Bool(true), Span::unknown())),
             mutable: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("type mismatch"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("type mismatch")));
     }
 
     #[test]
@@ -1611,8 +1633,9 @@ mod tests {
         let prog = program_with(Declaration::VarDecl(VarDecl {
             name: "x".to_string(),
             typ: Some(Type::simple("long")),
-            init: Some(Expr::Literal(Literal::Int(42))),
+            init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
             mutable: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1622,18 +1645,21 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::If(IfStmt {
-                condition: Expr::Literal(Literal::Int(1)),
+                condition: Expr::Literal(Literal::Int(1), Span::unknown()),
                 then_branch: vec![],
                 else_branch: None,
+                span: Span::unknown(),
             })],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("if condition must be bool"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("if condition must be bool")));
     }
 
     #[test]
@@ -1641,17 +1667,20 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::While(WhileStmt {
-                condition: Expr::Literal(Literal::Int(1)),
+                condition: Expr::Literal(Literal::Int(1), Span::unknown()),
                 body: vec![],
+                span: Span::unknown(),
             })],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("while condition must be bool"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("while condition must be bool")));
     }
 
     #[test]
@@ -1659,14 +1688,16 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("int")),
-            body: vec![Stmt::Return(Some(Expr::Literal(Literal::Bool(true))))],
+            body: vec![Stmt::Return(Some(Expr::Literal(Literal::Bool(true), Span::unknown())))],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("return type mismatch"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("return type mismatch")));
     }
 
     #[test]
@@ -1674,10 +1705,12 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("int")),
-            body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(42))))],
+            body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(42), Span::unknown())))],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1687,14 +1720,17 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Binary(
-                Box::new(Expr::Literal(Literal::Bool(true))),
+                Box::new(Expr::Literal(Literal::Bool(true), Span::unknown())),
                 Operator::Add,
-                Box::new(Expr::Literal(Literal::Int(1))),
+                Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
@@ -1705,14 +1741,17 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Binary(
-                Box::new(Expr::Literal(Literal::Int(1))),
+                Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
                 Operator::And,
-                Box::new(Expr::Literal(Literal::Bool(true))),
+                Box::new(Expr::Literal(Literal::Bool(true), Span::unknown())),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
@@ -1728,28 +1767,32 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::generic("Owned", vec![Type::simple("int")])),
-                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5))])),
+                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5), Span::unknown())], Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "y".to_string(),
                     typ: Some(Type::generic("Owned", vec![Type::simple("int")])),
-                    init: Some(Expr::Identifier("x".to_string())),
+                    init: Some(Expr::Identifier("x".to_string(), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                Stmt::Expr(Expr::Identifier("x".to_string())),
+                Stmt::Expr(Expr::Identifier("x".to_string(), Span::unknown())),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("use of moved variable"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("use of moved variable")));
     }
 
     #[test]
@@ -1758,35 +1801,41 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::generic("Owned", vec![Type::simple("int")])),
-                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5))])),
+                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5), Span::unknown())], Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "y".to_string(),
                     typ: Some(Type::generic("Ref", vec![Type::generic("Owned", vec![Type::simple("int")])])),
                     init: Some(Expr::RefExpr(
-                        Box::new(Expr::Identifier("x".to_string())),
+                        Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                         RefKind::Immutable,
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Assign(
-                    Box::new(Expr::Identifier("x".to_string())),
-                    Box::new(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(6))])),
+                    Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+                    Box::new(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(6), Span::unknown())], Span::unknown())),
+                    Span::unknown(),
                 )),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.contains("borrowed") || err.contains("Borrowed"), "expected borrow error, got: {}", err);
+        let errs = result.unwrap_err();
+        assert!(errs.iter().any(|e| e.contains("borrowed") || e.contains("Borrowed")), "expected borrow error, got: {:?}", errs);
     }
 
     #[test]
@@ -1795,25 +1844,29 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::generic("Ref", vec![Type::simple("int")])),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(5))),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::Return(Some(Expr::RefExpr(
-                    Box::new(Expr::Identifier("x".to_string())),
+                    Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                     RefKind::Immutable,
+                    Span::unknown(),
                 ))),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("cannot return a borrow"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("cannot return a borrow")));
     }
 
     #[test]
@@ -1821,35 +1874,42 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(5))),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "y".to_string(),
                     typ: Some(Type::generic("Ref", vec![Type::simple("int")])),
                     init: Some(Expr::RefExpr(
-                        Box::new(Expr::Identifier("x".to_string())),
+                        Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                         RefKind::Immutable,
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "z".to_string(),
                     typ: Some(Type::generic("RefMut", vec![Type::simple("int")])),
                     init: Some(Expr::RefExpr(
-                        Box::new(Expr::Identifier("x".to_string())),
+                        Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                         RefKind::Mutable,
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
@@ -1861,24 +1921,28 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::UnsafeBlock(vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::generic("Owned", vec![Type::simple("int")])),
-                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5))])),
+                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5), Span::unknown())], Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "y".to_string(),
                     typ: Some(Type::generic("Owned", vec![Type::simple("int")])),
-                    init: Some(Expr::Identifier("x".to_string())),
+                    init: Some(Expr::Identifier("x".to_string(), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                Stmt::Expr(Expr::Identifier("x".to_string())),
-            ]))],
+                Stmt::Expr(Expr::Identifier("x".to_string(), Span::unknown())),
+            ], Span::unknown()))],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1898,17 +1962,20 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "add".to_string(),
+            type_params: vec![],
             params: vec![
                 Param { name: "a".to_string(), typ: Type::simple("int") },
                 Param { name: "b".to_string(), typ: Type::simple("int") },
             ],
             return_type: Some(Type::simple("int")),
             body: vec![Stmt::Return(Some(Expr::Binary(
-                Box::new(Expr::Identifier("a".to_string())),
+                Box::new(Expr::Identifier("a".to_string(), Span::unknown())),
                 Operator::Add,
-                Box::new(Expr::Identifier("b".to_string())),
+                Box::new(Expr::Identifier("b".to_string(), Span::unknown())),
+                Span::unknown(),
             )))],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1918,14 +1985,17 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::If(IfStmt {
-                condition: Expr::Literal(Literal::Bool(true)),
+                condition: Expr::Literal(Literal::Bool(true), Span::unknown()),
                 then_branch: vec![],
                 else_branch: Some(vec![]),
+                span: Span::unknown(),
             })],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1935,13 +2005,16 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::While(WhileStmt {
-                condition: Expr::Literal(Literal::Bool(false)),
+                condition: Expr::Literal(Literal::Bool(false), Span::unknown()),
                 body: vec![Stmt::Break],
+                span: Span::unknown(),
             })],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1951,19 +2024,23 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::VarDecl(VarDecl {
                 name: "s".to_string(),
                 typ: Some(Type::simple("string")),
                 init: Some(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::String("hello".to_string()))),
+                    Box::new(Expr::Literal(Literal::String("hello".to_string()), Span::unknown())),
                     Operator::Add,
-                    Box::new(Expr::Literal(Literal::String(" world".to_string()))),
+                    Box::new(Expr::Literal(Literal::String(" world".to_string()), Span::unknown())),
+                    Span::unknown(),
                 )),
                 mutable: false,
+                span: Span::unknown(),
             })],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -1977,24 +2054,29 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(42))),
+                    init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("x".to_string())),
+                        Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                         "toString".to_string(),
+                        Span::unknown(),
                     )),
                     vec![],
+                    Span::unknown(),
                 )),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_ok());
@@ -2006,7 +2088,7 @@ mod tests {
             _ => panic!("expected function"),
         };
         match &body[1] {
-            Stmt::Expr(Expr::StaticCall { class_name, method, args }) => {
+            Stmt::Expr(Expr::StaticCall { class_name, method, args, span: _ }) => {
                 assert_eq!(class_name, "Integer");
                 assert_eq!(method, "toString");
                 assert_eq!(args.len(), 1);
@@ -2020,24 +2102,29 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "b".to_string(),
                     typ: Some(Type::simple("bool")),
-                    init: Some(Expr::Literal(Literal::Bool(true))),
+                    init: Some(Expr::Literal(Literal::Bool(true), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("b".to_string())),
+                        Box::new(Expr::Identifier("b".to_string(), Span::unknown())),
                         "toString".to_string(),
+                        Span::unknown(),
                     )),
                     vec![],
+                    Span::unknown(),
                 )),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_ok());
@@ -2048,7 +2135,7 @@ mod tests {
             _ => panic!("expected function"),
         };
         match &body[1] {
-            Stmt::Expr(Expr::StaticCall { class_name, method, .. }) => {
+            Stmt::Expr(Expr::StaticCall { class_name, method, span: _, .. }) => {
                 assert_eq!(class_name, "Boolean");
                 assert_eq!(method, "toString");
             }
@@ -2067,18 +2154,21 @@ mod tests {
             declarations: vec![
                 Declaration::Enum(EnumDecl {
                     name: "Color".to_string(),
+                    type_params: vec![],
                     variants: vec![
                         Variant { name: "Red".to_string(), fields: vec![] },
                         Variant { name: "Blue".to_string(), fields: vec![] },
                     ],
+                    span: Span::unknown(),
                 }),
                 Declaration::Function(FnDecl {
                     access: Access::Public,
                     name: "test".to_string(),
+                    type_params: vec![],
                     params: vec![Param { name: "c".to_string(), typ: Type::simple("Color") }],
                     return_type: Some(Type::simple("void")),
                     body: vec![Stmt::Switch(SwitchStmt {
-                        expr: Expr::Identifier("c".to_string()),
+                        expr: Expr::Identifier("c".to_string(), Span::unknown()),
                         cases: vec![
                             Case {
                                 pattern: Pattern::Constructor {
@@ -2089,8 +2179,10 @@ mod tests {
                             },
                         ],
                         default: None,
+                        span: Span::unknown(),
                     })],
                     sugar: false,
+                    span: Span::unknown(),
                 }),
             ],
         };
@@ -2104,23 +2196,28 @@ mod tests {
             declarations: vec![
                 Declaration::Enum(EnumDecl {
                     name: "Color".to_string(),
+                    type_params: vec![],
                     variants: vec![
                         Variant { name: "Red".to_string(), fields: vec![] },
                     ],
+                    span: Span::unknown(),
                 }),
                 Declaration::Enum(EnumDecl {
                     name: "Shape".to_string(),
+                    type_params: vec![],
                     variants: vec![
                         Variant { name: "Circle".to_string(), fields: vec![] },
                     ],
+                    span: Span::unknown(),
                 }),
                 Declaration::Function(FnDecl {
                     access: Access::Public,
                     name: "test".to_string(),
+                    type_params: vec![],
                     params: vec![Param { name: "c".to_string(), typ: Type::simple("Color") }],
                     return_type: Some(Type::simple("void")),
                     body: vec![Stmt::Switch(SwitchStmt {
-                        expr: Expr::Identifier("c".to_string()),
+                        expr: Expr::Identifier("c".to_string(), Span::unknown()),
                         cases: vec![
                             Case {
                                 pattern: Pattern::Constructor {
@@ -2131,8 +2228,10 @@ mod tests {
                             },
                         ],
                         default: None,
+                        span: Span::unknown(),
                     })],
                     sugar: false,
+                    span: Span::unknown(),
                 }),
             ],
         };
@@ -2151,17 +2250,20 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("int")),
             body: vec![Stmt::Expr(Expr::ErrorPropagation(
-                Box::new(Expr::Literal(Literal::Int(42))),
+                Box::new(Expr::Literal(Literal::Int(42), Span::unknown())),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.contains("? operator"), "expected '? operator' error, got: {}", err);
+        let errs = result.unwrap_err();
+        assert!(errs.iter().any(|e| e.contains("? operator")), "expected '? operator' error, got: {:?}", errs);
     }
 
     #[test]
@@ -2169,23 +2271,27 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "foo".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::generic("Result", vec![Type::simple("int"), Type::simple("string")])),
             body: vec![Stmt::Return(Some(Expr::ErrorPropagation(
                 Box::new(Expr::Call(
-                    Box::new(Expr::Identifier("bar".to_string())),
+                    Box::new(Expr::Identifier("bar".to_string(), Span::unknown())),
                     vec![],
+                    Span::unknown(),
                 )),
+                Span::unknown(),
             )))],
             sugar: false,
+            span: Span::unknown(),
         }));
         // This should pass because the function returns Result.
         // The function "bar" is undeclared, but that's a separate concern.
         // The ? operator check should pass.
         let result = analyze(&prog);
         // May error on undeclared "bar" but not on ? operator.
-        if let Err(e) = &result {
-            assert!(!e.contains("? operator"), "unexpected ? operator error: {}", e);
+        if let Err(errs) = &result {
+            assert!(!errs.iter().any(|e| e.contains("? operator")), "unexpected ? operator error: {:?}", errs);
         }
     }
 
@@ -2198,18 +2304,22 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::VarDecl(VarDecl {
                 name: "x".to_string(),
                 typ: Some(Type::simple("long")),
                 init: Some(Expr::Cast(
-                    Box::new(Expr::Literal(Literal::Int(42))),
+                    Box::new(Expr::Literal(Literal::Int(42), Span::unknown())),
                     Type::simple("long"),
+                    Span::unknown(),
                 )),
                 mutable: false,
+                span: Span::unknown(),
             })],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -2219,13 +2329,16 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Cast(
-                Box::new(Expr::Literal(Literal::String("hello".to_string()))),
+                Box::new(Expr::Literal(Literal::String("hello".to_string()), Span::unknown())),
                 Type::simple("int"),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
@@ -2240,25 +2353,29 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(5))),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Assign(
-                    Box::new(Expr::Identifier("x".to_string())),
-                    Box::new(Expr::Literal(Literal::Int(10))),
+                    Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+                    Box::new(Expr::Literal(Literal::Int(10), Span::unknown())),
+                    Span::unknown(),
                 )),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("immutable"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("immutable")));
     }
 
     #[test]
@@ -2266,21 +2383,25 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(5))),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Assign(
-                    Box::new(Expr::Identifier("x".to_string())),
-                    Box::new(Expr::Literal(Literal::Int(10))),
+                    Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+                    Box::new(Expr::Literal(Literal::Int(10), Span::unknown())),
+                    Span::unknown(),
                 )),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -2294,14 +2415,17 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Binary(
-                Box::new(Expr::Literal(Literal::Int(1))),
+                Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
                 Operator::BitAnd,
-                Box::new(Expr::Literal(Literal::Int(2))),
+                Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -2311,14 +2435,17 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Binary(
-                Box::new(Expr::Literal(Literal::Bool(true))),
+                Box::new(Expr::Literal(Literal::Bool(true), Span::unknown())),
                 Operator::BitAnd,
-                Box::new(Expr::Literal(Literal::Int(2))),
+                Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
@@ -2333,13 +2460,16 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Unary(
                 UnOp::Neg,
-                Box::new(Expr::Literal(Literal::Int(5))),
+                Box::new(Expr::Literal(Literal::Int(5), Span::unknown())),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -2349,13 +2479,16 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Unary(
                 UnOp::Not,
-                Box::new(Expr::Literal(Literal::Bool(true))),
+                Box::new(Expr::Literal(Literal::Bool(true), Span::unknown())),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -2365,13 +2498,16 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Unary(
                 UnOp::Not,
-                Box::new(Expr::Literal(Literal::Int(5))),
+                Box::new(Expr::Literal(Literal::Int(5), Span::unknown())),
+                Span::unknown(),
             ))],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
@@ -2385,12 +2521,14 @@ mod tests {
     fn test_interface_declaration() {
         let prog = program_with(Declaration::Interface(InterfaceDecl {
             name: "Printable".to_string(),
+            type_params: vec![],
             parents: vec![],
             methods: vec![MethodSig {
                 name: "toString".to_string(),
                 params: vec![],
                 return_type: Some(Type::simple("string")),
             }],
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -2407,21 +2545,26 @@ mod tests {
                 Declaration::Function(FnDecl {
                     access: Access::Public,
                     name: "helper".to_string(),
+                    type_params: vec![],
                     params: vec![],
                     return_type: Some(Type::simple("int")),
-                    body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(1))))],
+                    body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(1), Span::unknown())))],
                     sugar: false,
+                    span: Span::unknown(),
                 }),
                 Declaration::Function(FnDecl {
                     access: Access::Public,
                     name: "main".to_string(),
+                    type_params: vec![],
                     params: vec![],
                     return_type: Some(Type::simple("void")),
                     body: vec![Stmt::Expr(Expr::Call(
-                        Box::new(Expr::Identifier("helper".to_string())),
+                        Box::new(Expr::Identifier("helper".to_string(), Span::unknown())),
                         vec![],
+                        Span::unknown(),
                     ))],
                     sugar: false,
+                    span: Span::unknown(),
                 }),
             ],
         };
@@ -2436,34 +2579,40 @@ mod tests {
                 Declaration::Function(FnDecl {
                     access: Access::Public,
                     name: "add".to_string(),
+                    type_params: vec![],
                     params: vec![
                         Param { name: "a".to_string(), typ: Type::simple("int") },
                         Param { name: "b".to_string(), typ: Type::simple("int") },
                     ],
                     return_type: Some(Type::simple("int")),
                     body: vec![Stmt::Return(Some(Expr::Binary(
-                        Box::new(Expr::Identifier("a".to_string())),
+                        Box::new(Expr::Identifier("a".to_string(), Span::unknown())),
                         Operator::Add,
-                        Box::new(Expr::Identifier("b".to_string())),
+                        Box::new(Expr::Identifier("b".to_string(), Span::unknown())),
+                        Span::unknown(),
                     )))],
                     sugar: false,
+                    span: Span::unknown(),
                 }),
                 Declaration::Function(FnDecl {
                     access: Access::Public,
                     name: "main".to_string(),
+                    type_params: vec![],
                     params: vec![],
                     return_type: Some(Type::simple("void")),
                     body: vec![Stmt::Expr(Expr::Call(
-                        Box::new(Expr::Identifier("add".to_string())),
-                        vec![Expr::Literal(Literal::Int(1))],
+                        Box::new(Expr::Identifier("add".to_string(), Span::unknown())),
+                        vec![Expr::Literal(Literal::Int(1), Span::unknown())],
+                        Span::unknown(),
                     ))],
                     sugar: false,
+                    span: Span::unknown(),
                 }),
             ],
         };
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("arguments"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("arguments")));
     }
 
     // -----------------------------------------------------------------------
@@ -2475,23 +2624,27 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::generic("Owned", vec![Type::simple("int")])),
-                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5))])),
+                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5), Span::unknown())], Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "y".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::OwnedDeref(Box::new(Expr::Identifier("x".to_string())))),
+                    init: Some(Expr::OwnedDeref(Box::new(Expr::Identifier("x".to_string(), Span::unknown())), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -2501,22 +2654,25 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(5))),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                Stmt::Expr(Expr::OwnedDeref(Box::new(Expr::Identifier("x".to_string())))),
+                Stmt::Expr(Expr::OwnedDeref(Box::new(Expr::Identifier("x".to_string(), Span::unknown())), Span::unknown())),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Owned"));
+        assert!(result.unwrap_err().iter().any(|e| e.contains("Owned")));
     }
 
     // -----------------------------------------------------------------------
@@ -2528,8 +2684,9 @@ mod tests {
         let prog = program_with(Declaration::ConstDecl(VarDecl {
             name: "PI".to_string(),
             typ: Some(Type::simple("double")),
-            init: Some(Expr::Literal(Literal::Float(3.14159))),
+            init: Some(Expr::Literal(Literal::Float(3.14159), Span::unknown())),
             mutable: false,
+            span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
     }
@@ -2543,14 +2700,17 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::For(ForStmt {
                 var: "i".to_string(),
-                iterable: Expr::Identifier("range".to_string()),
-                body: vec![Stmt::Expr(Expr::Identifier("i".to_string()))],
+                iterable: Expr::Identifier("range".to_string(), Span::unknown()),
+                body: vec![Stmt::Expr(Expr::Identifier("i".to_string(), Span::unknown()))],
+                span: Span::unknown(),
             })],
             sugar: false,
+            span: Span::unknown(),
         }));
         // Will error on undeclared "range" but "i" should be in scope.
         let result = analyze(&prog);
@@ -2567,19 +2727,22 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: None,
-                    init: Some(Expr::Literal(Literal::Int(42))),
+                    init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 // x should be inferred as int.
-                Stmt::Expr(Expr::Identifier("x".to_string())),
+                Stmt::Expr(Expr::Identifier("x".to_string(), Span::unknown())),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_ok());
@@ -2607,35 +2770,42 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(5))),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "y".to_string(),
                     typ: Some(Type::generic("RefMut", vec![Type::simple("int")])),
                     init: Some(Expr::RefExpr(
-                        Box::new(Expr::Identifier("x".to_string())),
+                        Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                         RefKind::Mutable,
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "z".to_string(),
                     typ: Some(Type::generic("RefMut", vec![Type::simple("int")])),
                     init: Some(Expr::RefExpr(
-                        Box::new(Expr::Identifier("x".to_string())),
+                        Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                         RefKind::Mutable,
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
@@ -2650,32 +2820,38 @@ mod tests {
         let prog = program_with(Declaration::Function(FnDecl {
             access: Access::Public,
             name: "test".to_string(),
+            type_params: vec![],
             params: vec![],
             return_type: Some(Type::simple("void")),
             body: vec![
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::generic("Owned", vec![Type::simple("int")])),
-                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5))])),
+                    init: Some(Expr::New(Type::simple("int"), vec![Expr::Literal(Literal::Int(5), Span::unknown())], Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "y".to_string(),
                     typ: Some(Type::generic("Owned", vec![Type::simple("int")])),
-                    init: Some(Expr::Identifier("x".to_string())),
+                    init: Some(Expr::Identifier("x".to_string(), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "z".to_string(),
                     typ: Some(Type::generic("Ref", vec![Type::generic("Owned", vec![Type::simple("int")])])),
                     init: Some(Expr::RefExpr(
-                        Box::new(Expr::Identifier("x".to_string())),
+                        Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                         RefKind::Immutable,
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
             ],
             sugar: false,
+            span: Span::unknown(),
         }));
         let result = analyze(&prog);
         assert!(result.is_err());

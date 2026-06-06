@@ -42,8 +42,10 @@ fn main() {
 
     let typed_ast = match analyzer::analyze(&ast) {
         Ok(ast) => ast,
-        Err(e) => {
-            eprintln!("Semantic error: {}", e);
+        Err(errs) => {
+            for e in &errs {
+                eprintln!("Semantic error: {}", e);
+            }
             process::exit(1);
         }
     };
