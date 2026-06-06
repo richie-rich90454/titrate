@@ -214,6 +214,9 @@ pub enum OpCode {
 
     // -- Type narrowing ------------------------------------------------------
     TYPE_CHECK = 117,
+
+    // -- Super constructor call -----------------------------------------------
+    CALL_SUPER = 118,
 }
 
 impl OpCode {
@@ -274,6 +277,9 @@ impl OpCode {
             // Type narrowing
             Self::TYPE_CHECK => 1, // u8 type tag
 
+            // Super constructor call
+            Self::CALL_SUPER => 3, // u16 function index + u8 arg count
+
             // Everything else: no operands
             _ => 0,
         }
@@ -297,7 +303,7 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Validate that the value falls within the defined opcode range.
         match value {
-            0..=117 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
+            0..=118 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
             _ => Err(value),
         }
     }
@@ -486,7 +492,7 @@ mod tests {
         fn variants() -> &'static [OpCode] {
             // Since OpCode is repr(u8) and contiguous 0..=117, we can build
             // the list at test time via try_from.
-            (0u8..=117)
+            (0u8..=118)
                 .map(|v| OpCode::try_from(v).expect("valid opcode"))
                 .collect::<Vec<_>>()
                 .leak()

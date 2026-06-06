@@ -4,7 +4,10 @@ version = 4
 
 [[package]]
 name = "pipette"
-version = "0.1.0"
+version = "0.2.0"
+dependencies = [
+ "trc",
+]
 
 [[package]]
 name = "trc"
