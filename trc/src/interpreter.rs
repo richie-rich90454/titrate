@@ -841,29 +841,29 @@ impl Interpreter {
 
     fn eval_expr_with_env(&self, expr: &ast::Expr, env: &Rc<RefCell<Env>>) -> Result<Value, String> {
         match expr {
-            ast::Expr::Literal(lit) => self.eval_literal(lit),
+            ast::Expr::Literal(lit, _) => self.eval_literal(lit),
 
-            ast::Expr::Identifier(name) => {
+            ast::Expr::Identifier(name, _) => {
                 env.borrow().get(name).ok_or_else(|| format!("Undefined variable '{}'", name))
             }
 
-            ast::Expr::Binary(left, op, right) => {
+            ast::Expr::Binary(left, op, right, _) => {
                 self.eval_binary(left, op, right, env)
             }
 
-            ast::Expr::Unary(op, operand) => {
+            ast::Expr::Unary(op, operand, _) => {
                 self.eval_unary(op, operand, env)
             }
 
-            ast::Expr::Call(callee, args) => {
+            ast::Expr::Call(callee, args, _) => {
                 self.eval_call(callee, args, env)
             }
 
-            ast::Expr::MemberAccess(obj, member) => {
+            ast::Expr::MemberAccess(obj, member, _) => {
                 self.eval_member_access(obj, member, env)
             }
 
-            ast::Expr::Index(obj, index) => {
+            ast::Expr::Index(obj, index, _) => {
                 let obj_val = self.eval_expr_with_env(obj, env)?;
                 let idx_val = self.eval_expr_with_env(index, env)?;
                 match (&obj_val, &idx_val) {
@@ -901,19 +901,19 @@ impl Interpreter {
                 }
             }
 
-            ast::Expr::New(type_expr, args) => {
+            ast::Expr::New(type_expr, args, _) => {
                 self.eval_new(type_expr, args, env)
             }
 
-            ast::Expr::This => {
+            ast::Expr::This(_) => {
                 env.borrow().get("this").ok_or_else(|| "'this' is not defined".to_string())
             }
 
-            ast::Expr::Super => {
+            ast::Expr::Super(_) => {
                 env.borrow().get("super").ok_or_else(|| "'super' is not defined".to_string())
             }
 
-            ast::Expr::OwnedDeref(inner) => {
+            ast::Expr::OwnedDeref(inner, _) => {
                 let val = self.eval_expr_with_env(inner, env)?;
                 match val {
                     Value::Owned(inner_val) => Ok(*inner_val),
@@ -922,13 +922,13 @@ impl Interpreter {
                 }
             }
 
-            ast::Expr::RegionAlloc(_type_expr, init_expr) => {
+            ast::Expr::RegionAlloc(_type_expr, init_expr, _) => {
                 let val = self.eval_expr_with_env(init_expr, env)?;
                 let idx = self.memory.borrow_mut().region_alloc(val);
                 Ok(Value::Ref(idx))
             }
 
-            ast::Expr::RefExpr(inner, ref_kind) => {
+            ast::Expr::RefExpr(inner, ref_kind, _) => {
                 let val = self.eval_expr_with_env(inner, env)?;
                 let idx = self.memory.borrow_mut().alloc(val);
                 match ref_kind {
@@ -937,7 +937,7 @@ impl Interpreter {
                 }
             }
 
-            ast::Expr::UnsafeBlock(block) => {
+            ast::Expr::UnsafeBlock(block, _) => {
                 let block_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));
                 let cf = self.exec_block(block, block_env)?;
                 match cf {
@@ -948,7 +948,7 @@ impl Interpreter {
                 }
             }
 
-            ast::Expr::ErrorPropagation(inner) => {
+            ast::Expr::ErrorPropagation(inner, _) => {
                 let val = self.eval_expr_with_env(inner, env)?;
                 match val {
                     Value::ResultErr(e) => Ok(Value::ResultErr(e)),
@@ -957,16 +957,16 @@ impl Interpreter {
                 }
             }
 
-            ast::Expr::Cast(inner, target_type) => {
+            ast::Expr::Cast(inner, target_type, _) => {
                 let val = self.eval_expr_with_env(inner, env)?;
                 self.eval_cast(&val, target_type.name())
             }
 
-            ast::Expr::StaticCall { class_name, method, args } => {
+            ast::Expr::StaticCall { class_name, method, args, .. } => {
                 self.eval_static_call(class_name, method, args, env)
             }
 
-            ast::Expr::Assign(target, value) => {
+            ast::Expr::Assign(target, value, _) => {
                 let val = self.eval_expr_with_env(value, env)?;
                 self.eval_assign(target, val, env)
             }
@@ -1268,7 +1268,7 @@ impl Interpreter {
             .collect::<Result<Vec<Value>, String>>()?;
 
         // Check for enum variant constructor or simple function call by name
-        if let ast::Expr::Identifier(name) = callee {
+        if let ast::Expr::Identifier(name, _) = callee {
             let callee_val = env.borrow().get(name);
             match callee_val {
                 Some(Value::EnumVariant { enum_name, variant, field_count }) => {
@@ -1307,7 +1307,7 @@ impl Interpreter {
         }
 
         // Check for method call: obj.method(args)
-        if let ast::Expr::MemberAccess(obj_expr, method_name) = callee {
+        if let ast::Expr::MemberAccess(obj_expr, method_name, _) = callee {
             let obj_val = self.eval_expr_with_env(obj_expr, env)?;
             return self.call_method(&obj_val, method_name, &arg_vals);
         }
@@ -1738,11 +1738,11 @@ impl Interpreter {
         env: &Rc<RefCell<Env>>,
     ) -> Result<Value, String> {
         match target {
-            ast::Expr::Identifier(name) => {
+            ast::Expr::Identifier(name, _) => {
                 env.borrow_mut().update(name, value.clone())?;
                 Ok(value)
             }
-            ast::Expr::MemberAccess(obj, member) => {
+            ast::Expr::MemberAccess(obj, member, _) => {
                 let obj_val = self.eval_expr_with_env(obj, env)?;
                 match &obj_val {
                     Value::ClassInstance { fields, .. } => {
@@ -1752,9 +1752,9 @@ impl Interpreter {
                     _ => Err(format!("Cannot assign to member '{}' on {:?}", member, obj_val)),
                 }
             }
-            ast::Expr::Index(obj, index) => {
+            ast::Expr::Index(obj, index, _) => {
                 let idx_val = self.eval_expr_with_env(index, env)?;
-                if let ast::Expr::Identifier(obj_name) = obj.as_ref() {
+                if let ast::Expr::Identifier(obj_name, _) = obj.as_ref() {
                     let current = env.borrow().get(obj_name).ok_or_else(|| {
                         format!("Undefined variable '{}'", obj_name)
                     })?;
@@ -2053,10 +2053,12 @@ mod tests {
         FnDecl {
             access: Access::Public,
             name: name.to_string(),
+            type_params: vec![],
             params,
             return_type: None,
             body,
             sugar: false,
+            span: Span::unknown(),
         }
     }
 
@@ -2070,10 +2072,12 @@ mod tests {
     fn println_call(arg: Expr) -> Stmt {
         Stmt::Expr(Expr::Call(
             Box::new(Expr::MemberAccess(
-                Box::new(Expr::Identifier("io".to_string())),
+                Box::new(Expr::Identifier("io".to_string(), Span::unknown())),
                 "println".to_string(),
+                Span::unknown(),
             )),
             vec![arg],
+            Span::unknown(),
         ))
     }
 
@@ -2086,10 +2090,11 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(42))),
+                    init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("x".to_string())),
+                println_call(Expr::Identifier("x".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2105,10 +2110,11 @@ mod tests {
                 Stmt::ConstDecl(VarDecl {
                     name: "PI".to_string(),
                     typ: Some(Type::simple("double")),
-                    init: Some(Expr::Literal(Literal::Float(3.14159))),
+                    init: Some(Expr::Literal(Literal::Float(3.14159), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("PI".to_string())),
+                println_call(Expr::Identifier("PI".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2124,14 +2130,16 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("int")),
-                    init: Some(Expr::Literal(Literal::Int(1))),
+                    init: Some(Expr::Literal(Literal::Int(1), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Assign(
-                    Box::new(Expr::Identifier("x".to_string())),
-                    Box::new(Expr::Literal(Literal::Int(2))),
+                    Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+                    Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
+                    Span::unknown(),
                 )),
-                println_call(Expr::Identifier("x".to_string())),
+                println_call(Expr::Identifier("x".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2151,16 +2159,19 @@ mod tests {
                     typ: Some(Type::simple("long")),
                     init: Some(Expr::Binary(
                         Box::new(Expr::Binary(
-                            Box::new(Expr::Literal(Literal::Int(2))),
+                            Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
                             Operator::Add,
-                            Box::new(Expr::Literal(Literal::Int(3))),
+                            Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                            Span::unknown(),
                         )),
                         Operator::Mul,
-                        Box::new(Expr::Literal(Literal::Int(4))),
+                        Box::new(Expr::Literal(Literal::Int(4), Span::unknown())),
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("result".to_string())),
+                println_call(Expr::Identifier("result".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2174,9 +2185,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(10))),
+                    Box::new(Expr::Literal(Literal::Int(10), Span::unknown())),
                     Operator::Div,
-                    Box::new(Expr::Literal(Literal::Int(3))),
+                    Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2191,9 +2203,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(10))),
+                    Box::new(Expr::Literal(Literal::Int(10), Span::unknown())),
                     Operator::Mod,
-                    Box::new(Expr::Literal(Literal::Int(3))),
+                    Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2210,14 +2223,16 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(5))),
+                    Box::new(Expr::Literal(Literal::Int(5), Span::unknown())),
                     Operator::Gt,
-                    Box::new(Expr::Literal(Literal::Int(3))),
+                    Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                    Span::unknown(),
                 )),
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(3))),
+                    Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
                     Operator::Eq,
-                    Box::new(Expr::Literal(Literal::Int(3))),
+                    Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2235,9 +2250,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::String("Hello".to_string()))),
+                    Box::new(Expr::Literal(Literal::String("Hello".to_string()), Span::unknown())),
                     Operator::Add,
-                    Box::new(Expr::Literal(Literal::String(" World".to_string()))),
+                    Box::new(Expr::Literal(Literal::String(" World".to_string()), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2252,9 +2268,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::String("Value: ".to_string()))),
+                    Box::new(Expr::Literal(Literal::String("Value: ".to_string()), Span::unknown())),
                     Operator::Add,
-                    Box::new(Expr::Literal(Literal::Int(42))),
+                    Box::new(Expr::Literal(Literal::Int(42), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2273,21 +2290,24 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("long")),
-                    init: Some(Expr::Literal(Literal::Int(10))),
+                    init: Some(Expr::Literal(Literal::Int(10), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::If(IfStmt {
                     condition: Expr::Binary(
-                        Box::new(Expr::Identifier("x".to_string())),
+                        Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
                         Operator::Gt,
-                        Box::new(Expr::Literal(Literal::Int(5))),
+                        Box::new(Expr::Literal(Literal::Int(5), Span::unknown())),
+                        Span::unknown(),
                     ),
                     then_branch: vec![
-                        println_call(Expr::Literal(Literal::String("big".to_string()))),
+                        println_call(Expr::Literal(Literal::String("big".to_string()), Span::unknown())),
                     ],
                     else_branch: Some(vec![
-                        println_call(Expr::Literal(Literal::String("small".to_string()))),
+                        println_call(Expr::Literal(Literal::String("small".to_string()), Span::unknown())),
                     ]),
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -2302,13 +2322,14 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::If(IfStmt {
-                    condition: Expr::Literal(Literal::Bool(false)),
+                    condition: Expr::Literal(Literal::Bool(false), Span::unknown()),
                     then_branch: vec![
-                        println_call(Expr::Literal(Literal::String("yes".to_string()))),
+                        println_call(Expr::Literal(Literal::String("yes".to_string()), Span::unknown())),
                     ],
                     else_branch: Some(vec![
-                        println_call(Expr::Literal(Literal::String("no".to_string()))),
+                        println_call(Expr::Literal(Literal::String("no".to_string()), Span::unknown())),
                     ]),
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -2327,27 +2348,32 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "i".to_string(),
                     typ: Some(Type::simple("long")),
-                    init: Some(Expr::Literal(Literal::Int(0))),
+                    init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::While(WhileStmt {
                     condition: Expr::Binary(
-                        Box::new(Expr::Identifier("i".to_string())),
+                        Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                         Operator::Lt,
-                        Box::new(Expr::Literal(Literal::Int(3))),
+                        Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                        Span::unknown(),
                     ),
                     body: vec![
                         Stmt::Expr(Expr::Assign(
-                            Box::new(Expr::Identifier("i".to_string())),
+                            Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                             Box::new(Expr::Binary(
-                                Box::new(Expr::Identifier("i".to_string())),
+                                Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                                 Operator::Add,
-                                Box::new(Expr::Literal(Literal::Int(1))),
+                                Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                                Span::unknown(),
                             )),
+                            Span::unknown(),
                         )),
                     ],
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("i".to_string())),
+                println_call(Expr::Identifier("i".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2363,32 +2389,38 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "i".to_string(),
                     typ: Some(Type::simple("long")),
-                    init: Some(Expr::Literal(Literal::Int(0))),
+                    init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::While(WhileStmt {
-                    condition: Expr::Literal(Literal::Bool(true)),
+                    condition: Expr::Literal(Literal::Bool(true), Span::unknown()),
                     body: vec![
                         Stmt::Expr(Expr::Assign(
-                            Box::new(Expr::Identifier("i".to_string())),
+                            Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                             Box::new(Expr::Binary(
-                                Box::new(Expr::Identifier("i".to_string())),
+                                Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                                 Operator::Add,
-                                Box::new(Expr::Literal(Literal::Int(1))),
+                                Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                                Span::unknown(),
                             )),
+                            Span::unknown(),
                         )),
                         Stmt::If(IfStmt {
                             condition: Expr::Binary(
-                                Box::new(Expr::Identifier("i".to_string())),
+                                Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                                 Operator::Eq,
-                                Box::new(Expr::Literal(Literal::Int(3))),
+                                Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                                Span::unknown(),
                             ),
                             then_branch: vec![Stmt::Break],
                             else_branch: None,
+                            span: Span::unknown(),
                         }),
                     ],
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("i".to_string())),
+                println_call(Expr::Identifier("i".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2404,50 +2436,60 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "i".to_string(),
                     typ: Some(Type::simple("long")),
-                    init: Some(Expr::Literal(Literal::Int(0))),
+                    init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "sum".to_string(),
                     typ: Some(Type::simple("long")),
-                    init: Some(Expr::Literal(Literal::Int(0))),
+                    init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::While(WhileStmt {
                     condition: Expr::Binary(
-                        Box::new(Expr::Identifier("i".to_string())),
+                        Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                         Operator::Lt,
-                        Box::new(Expr::Literal(Literal::Int(5))),
+                        Box::new(Expr::Literal(Literal::Int(5), Span::unknown())),
+                        Span::unknown(),
                     ),
                     body: vec![
                         Stmt::Expr(Expr::Assign(
-                            Box::new(Expr::Identifier("i".to_string())),
+                            Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                             Box::new(Expr::Binary(
-                                Box::new(Expr::Identifier("i".to_string())),
+                                Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                                 Operator::Add,
-                                Box::new(Expr::Literal(Literal::Int(1))),
+                                Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                                Span::unknown(),
                             )),
+                            Span::unknown(),
                         )),
                         Stmt::If(IfStmt {
                             condition: Expr::Binary(
-                                Box::new(Expr::Identifier("i".to_string())),
+                                Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
                                 Operator::Mod,
-                                Box::new(Expr::Literal(Literal::Int(2))),
+                                Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
+                                Span::unknown(),
                             ),
                             then_branch: vec![Stmt::Continue],
                             else_branch: None,
+                            span: Span::unknown(),
                         }),
                         Stmt::Expr(Expr::Assign(
-                            Box::new(Expr::Identifier("sum".to_string())),
+                            Box::new(Expr::Identifier("sum".to_string(), Span::unknown())),
                             Box::new(Expr::Binary(
-                                Box::new(Expr::Identifier("sum".to_string())),
+                                Box::new(Expr::Identifier("sum".to_string(), Span::unknown())),
                                 Operator::Add,
-                                Box::new(Expr::Identifier("i".to_string())),
+                                Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
+                                Span::unknown(),
                             )),
+                            Span::unknown(),
                         )),
                     ],
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("sum".to_string())),
+                println_call(Expr::Identifier("sum".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2467,18 +2509,20 @@ mod tests {
                 make_param("b", "long"),
             ], vec![
                 Stmt::Return(Some(Expr::Binary(
-                    Box::new(Expr::Identifier("a".to_string())),
+                    Box::new(Expr::Identifier("a".to_string(), Span::unknown())),
                     Operator::Add,
-                    Box::new(Expr::Identifier("b".to_string())),
+                    Box::new(Expr::Identifier("b".to_string(), Span::unknown())),
+                    Span::unknown(),
                 ))),
             ])),
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Call(
-                    Box::new(Expr::Identifier("add".to_string())),
+                    Box::new(Expr::Identifier("add".to_string(), Span::unknown())),
                     vec![
-                        Expr::Literal(Literal::Int(3)),
-                        Expr::Literal(Literal::Int(4)),
+                        Expr::Literal(Literal::Int(3), Span::unknown()),
+                        Expr::Literal(Literal::Int(4), Span::unknown()),
                     ],
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2496,37 +2540,45 @@ mod tests {
             ], vec![
                 Stmt::If(IfStmt {
                     condition: Expr::Binary(
-                        Box::new(Expr::Identifier("n".to_string())),
+                        Box::new(Expr::Identifier("n".to_string(), Span::unknown())),
                         Operator::Le,
-                        Box::new(Expr::Literal(Literal::Int(1))),
+                        Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                        Span::unknown(),
                     ),
-                    then_branch: vec![Stmt::Return(Some(Expr::Identifier("n".to_string())))],
+                    then_branch: vec![Stmt::Return(Some(Expr::Identifier("n".to_string(), Span::unknown())))],
                     else_branch: None,
+                    span: Span::unknown(),
                 }),
                 Stmt::Return(Some(Expr::Binary(
                     Box::new(Expr::Call(
-                        Box::new(Expr::Identifier("fib".to_string())),
+                        Box::new(Expr::Identifier("fib".to_string(), Span::unknown())),
                         vec![Expr::Binary(
-                            Box::new(Expr::Identifier("n".to_string())),
+                            Box::new(Expr::Identifier("n".to_string(), Span::unknown())),
                             Operator::Sub,
-                            Box::new(Expr::Literal(Literal::Int(1))),
+                            Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                            Span::unknown(),
                         )],
+                        Span::unknown(),
                     )),
                     Operator::Add,
                     Box::new(Expr::Call(
-                        Box::new(Expr::Identifier("fib".to_string())),
+                        Box::new(Expr::Identifier("fib".to_string(), Span::unknown())),
                         vec![Expr::Binary(
-                            Box::new(Expr::Identifier("n".to_string())),
+                            Box::new(Expr::Identifier("n".to_string(), Span::unknown())),
                             Operator::Sub,
-                            Box::new(Expr::Literal(Literal::Int(2))),
+                            Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
+                            Span::unknown(),
                         )],
+                        Span::unknown(),
                     )),
+                    Span::unknown(),
                 ))),
             ])),
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Call(
-                    Box::new(Expr::Identifier("fib".to_string())),
-                    vec![Expr::Literal(Literal::Int(10))],
+                    Box::new(Expr::Identifier("fib".to_string(), Span::unknown())),
+                    vec![Expr::Literal(Literal::Int(10), Span::unknown())],
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2543,6 +2595,7 @@ mod tests {
         let program = make_program(vec![
             Declaration::Class(ClassDecl {
                 name: "Point".to_string(),
+                type_params: vec![],
                 parent: None,
                 ifaces: vec![],
                 members: vec![
@@ -2550,26 +2603,31 @@ mod tests {
                         access: Access::Public,
                         name: "x".to_string(),
                         typ: Type::simple("long"),
-                        init: Some(Expr::Literal(Literal::Int(0))),
+                        init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
+                        span: Span::unknown(),
                     }),
                     ClassMember::Field(FieldDecl {
                         access: Access::Public,
                         name: "y".to_string(),
                         typ: Type::simple("long"),
-                        init: Some(Expr::Literal(Literal::Int(0))),
+                        init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
+                        span: Span::unknown(),
                     }),
                 ],
+                span: Span::unknown(),
             }),
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::VarDecl(VarDecl {
                     name: "p".to_string(),
                     typ: Some(Type::simple("Point")),
-                    init: Some(Expr::New(Type::simple("Point"), vec![])),
+                    init: Some(Expr::New(Type::simple("Point"), vec![], Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 println_call(Expr::MemberAccess(
-                    Box::new(Expr::Identifier("p".to_string())),
+                    Box::new(Expr::Identifier("p".to_string(), Span::unknown())),
                     "x".to_string(),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2584,6 +2642,7 @@ mod tests {
         let program = make_program(vec![
             Declaration::Class(ClassDecl {
                 name: "Point".to_string(),
+                type_params: vec![],
                 parent: None,
                 ifaces: vec![],
                 members: vec![
@@ -2592,16 +2651,19 @@ mod tests {
                         name: "x".to_string(),
                         typ: Type::simple("long"),
                         init: None,
+                        span: Span::unknown(),
                     }),
                     ClassMember::Field(FieldDecl {
                         access: Access::Public,
                         name: "y".to_string(),
                         typ: Type::simple("long"),
                         init: None,
+                        span: Span::unknown(),
                     }),
                     ClassMember::Constructor(MethodDecl {
                         access: Access::Public,
                         name: "new".to_string(),
+                        type_params: vec![],
                         params: vec![
                             make_param("x", "long"),
                             make_param("y", "long"),
@@ -2610,35 +2672,43 @@ mod tests {
                         body: vec![
                             Stmt::Expr(Expr::Assign(
                                 Box::new(Expr::MemberAccess(
-                                    Box::new(Expr::This),
+                                    Box::new(Expr::This(Span::unknown())),
                                     "x".to_string(),
+                                    Span::unknown(),
                                 )),
-                                Box::new(Expr::Identifier("x".to_string())),
+                                Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+                                Span::unknown(),
                             )),
                             Stmt::Expr(Expr::Assign(
                                 Box::new(Expr::MemberAccess(
-                                    Box::new(Expr::This),
+                                    Box::new(Expr::This(Span::unknown())),
                                     "y".to_string(),
+                                    Span::unknown(),
                                 )),
-                                Box::new(Expr::Identifier("y".to_string())),
+                                Box::new(Expr::Identifier("y".to_string(), Span::unknown())),
+                                Span::unknown(),
                             )),
                         ],
+                        span: Span::unknown(),
                     }),
                 ],
+                span: Span::unknown(),
             }),
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::VarDecl(VarDecl {
                     name: "p".to_string(),
                     typ: Some(Type::simple("Point")),
                     init: Some(Expr::New(Type::simple("Point"), vec![
-                        Expr::Literal(Literal::Int(3)),
-                        Expr::Literal(Literal::Int(4)),
-                    ])),
+                        Expr::Literal(Literal::Int(3), Span::unknown()),
+                        Expr::Literal(Literal::Int(4), Span::unknown()),
+                    ], Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 println_call(Expr::MemberAccess(
-                    Box::new(Expr::Identifier("p".to_string())),
+                    Box::new(Expr::Identifier("p".to_string(), Span::unknown())),
                     "x".to_string(),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2653,6 +2723,7 @@ mod tests {
         let program = make_program(vec![
             Declaration::Class(ClassDecl {
                 name: "Counter".to_string(),
+                type_params: vec![],
                 parent: None,
                 ifaces: vec![],
                 members: vec![
@@ -2660,71 +2731,89 @@ mod tests {
                         access: Access::Public,
                         name: "count".to_string(),
                         typ: Type::simple("long"),
-                        init: Some(Expr::Literal(Literal::Int(0))),
+                        init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
+                        span: Span::unknown(),
                     }),
                     ClassMember::Method(MethodDecl {
                         access: Access::Public,
                         name: "increment".to_string(),
+                        type_params: vec![],
                         params: vec![],
                         return_type: None,
                         body: vec![
                             Stmt::Expr(Expr::Assign(
                                 Box::new(Expr::MemberAccess(
-                                    Box::new(Expr::This),
+                                    Box::new(Expr::This(Span::unknown())),
                                     "count".to_string(),
+                                    Span::unknown(),
                                 )),
                                 Box::new(Expr::Binary(
                                     Box::new(Expr::MemberAccess(
-                                        Box::new(Expr::This),
+                                        Box::new(Expr::This(Span::unknown())),
                                         "count".to_string(),
+                                        Span::unknown(),
                                     )),
                                     Operator::Add,
-                                    Box::new(Expr::Literal(Literal::Int(1))),
+                                    Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                                    Span::unknown(),
                                 )),
+                                Span::unknown(),
                             )),
                         ],
+                        span: Span::unknown(),
                     }),
                     ClassMember::Method(MethodDecl {
                         access: Access::Public,
                         name: "getCount".to_string(),
+                        type_params: vec![],
                         params: vec![],
                         return_type: Some(Type::simple("long")),
                         body: vec![
                             Stmt::Return(Some(Expr::MemberAccess(
-                                Box::new(Expr::This),
+                                Box::new(Expr::This(Span::unknown())),
                                 "count".to_string(),
+                                Span::unknown(),
                             ))),
                         ],
+                        span: Span::unknown(),
                     }),
                 ],
+                span: Span::unknown(),
             }),
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::VarDecl(VarDecl {
                     name: "c".to_string(),
                     typ: Some(Type::simple("Counter")),
-                    init: Some(Expr::New(Type::simple("Counter"), vec![])),
+                    init: Some(Expr::New(Type::simple("Counter"), vec![], Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("c".to_string())),
+                        Box::new(Expr::Identifier("c".to_string(), Span::unknown())),
                         "increment".to_string(),
+                        Span::unknown(),
                     )),
                     vec![],
+                    Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("c".to_string())),
+                        Box::new(Expr::Identifier("c".to_string(), Span::unknown())),
                         "increment".to_string(),
+                        Span::unknown(),
                     )),
                     vec![],
+                    Span::unknown(),
                 )),
                 println_call(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("c".to_string())),
+                        Box::new(Expr::Identifier("c".to_string(), Span::unknown())),
                         "getCount".to_string(),
+                        Span::unknown(),
                     )),
                     vec![],
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2741,24 +2830,28 @@ mod tests {
         let program = make_program(vec![
             Declaration::Enum(EnumDecl {
                 name: "Color".to_string(),
+                type_params: vec![],
                 variants: vec![
                     Variant { name: "Red".to_string(), fields: vec![] },
                     Variant { name: "Green".to_string(), fields: vec![] },
                     Variant { name: "Blue".to_string(), fields: vec![] },
                 ],
+                span: Span::unknown(),
             }),
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::VarDecl(VarDecl {
                     name: "c".to_string(),
                     typ: Some(Type::simple("Color")),
                     init: Some(Expr::Call(
-                        Box::new(Expr::Identifier("Red".to_string())),
+                        Box::new(Expr::Identifier("Red".to_string(), Span::unknown())),
                         vec![],
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::Switch(SwitchStmt {
-                    expr: Expr::Identifier("c".to_string()),
+                    expr: Expr::Identifier("c".to_string(), Span::unknown()),
                     cases: vec![
                         Case {
                             pattern: Pattern::Constructor {
@@ -2766,7 +2859,7 @@ mod tests {
                                 bindings: vec![],
                             },
                             body: vec![
-                                println_call(Expr::Literal(Literal::String("red".to_string()))),
+                                println_call(Expr::Literal(Literal::String("red".to_string()), Span::unknown())),
                             ],
                         },
                         Case {
@@ -2775,13 +2868,14 @@ mod tests {
                                 bindings: vec![],
                             },
                             body: vec![
-                                println_call(Expr::Literal(Literal::String("green".to_string()))),
+                                println_call(Expr::Literal(Literal::String("green".to_string()), Span::unknown())),
                             ],
                         },
                     ],
                     default: Some(vec![
-                        println_call(Expr::Literal(Literal::String("other".to_string()))),
+                        println_call(Expr::Literal(Literal::String("other".to_string()), Span::unknown())),
                     ]),
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -2796,6 +2890,7 @@ mod tests {
         let program = make_program(vec![
             Declaration::Enum(EnumDecl {
                 name: "Option".to_string(),
+                type_params: vec![],
                 variants: vec![
                     Variant {
                         name: "Some".to_string(),
@@ -2806,19 +2901,22 @@ mod tests {
                         fields: vec![],
                     },
                 ],
+                span: Span::unknown(),
             }),
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::VarDecl(VarDecl {
                     name: "opt".to_string(),
                     typ: Some(Type::simple("Option")),
                     init: Some(Expr::Call(
-                        Box::new(Expr::Identifier("Some".to_string())),
-                        vec![Expr::Literal(Literal::Int(42))],
+                        Box::new(Expr::Identifier("Some".to_string(), Span::unknown())),
+                        vec![Expr::Literal(Literal::Int(42), Span::unknown())],
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::Switch(SwitchStmt {
-                    expr: Expr::Identifier("opt".to_string()),
+                    expr: Expr::Identifier("opt".to_string(), Span::unknown()),
                     cases: vec![
                         Case {
                             pattern: Pattern::Constructor {
@@ -2826,13 +2924,14 @@ mod tests {
                                 bindings: vec!["v".to_string()],
                             },
                             body: vec![
-                                println_call(Expr::Identifier("v".to_string())),
+                                println_call(Expr::Identifier("v".to_string(), Span::unknown())),
                             ],
                         },
                     ],
                     default: Some(vec![
-                        println_call(Expr::Literal(Literal::String("none".to_string()))),
+                        println_call(Expr::Literal(Literal::String("none".to_string()), Span::unknown())),
                     ]),
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -2863,18 +2962,20 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "r".to_string(),
                     typ: Some(Type::generic("Result", vec![Type::simple("long"), Type::simple("string")])),
-                    init: Some(Expr::Literal(Literal::Int(42))),
+                    init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "val".to_string(),
                     typ: Some(Type::simple("long")),
                     init: Some(Expr::ErrorPropagation(Box::new(
-                        Expr::Identifier("r".to_string()),
-                    ))),
+                        Expr::Identifier("r".to_string(), Span::unknown()),
+                    ), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("val".to_string())),
+                println_call(Expr::Identifier("val".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2906,15 +3007,18 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "list".to_string(),
                     typ: Some(Type::simple("ArrayList")),
-                    init: Some(Expr::New(Type::simple("ArrayList"), vec![])),
+                    init: Some(Expr::New(Type::simple("ArrayList"), vec![], Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 println_call(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("list".to_string())),
+                        Box::new(Expr::Identifier("list".to_string(), Span::unknown())),
                         "size".to_string(),
+                        Span::unknown(),
                     )),
                     vec![],
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2933,15 +3037,18 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "map".to_string(),
                     typ: Some(Type::simple("HashMap")),
-                    init: Some(Expr::New(Type::simple("HashMap"), vec![])),
+                    init: Some(Expr::New(Type::simple("HashMap"), vec![], Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 println_call(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("map".to_string())),
+                        Box::new(Expr::Identifier("map".to_string(), Span::unknown())),
                         "get".to_string(),
+                        Span::unknown(),
                     )),
-                    vec![Expr::Literal(Literal::String("key".to_string()))],
+                    vec![Expr::Literal(Literal::String("key".to_string()), Span::unknown())],
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2961,12 +3068,14 @@ mod tests {
                     name: "x".to_string(),
                     typ: Some(Type::simple("long")),
                     init: Some(Expr::Cast(
-                        Box::new(Expr::Literal(Literal::Int(42))),
+                        Box::new(Expr::Literal(Literal::Int(42), Span::unknown())),
                         Type::simple("long"),
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("x".to_string())),
+                println_call(Expr::Identifier("x".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -2980,8 +3089,9 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Cast(
-                    Box::new(Expr::Literal(Literal::Int(42))),
+                    Box::new(Expr::Literal(Literal::Int(42), Span::unknown())),
                     Type::simple("double"),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -2996,8 +3106,9 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Cast(
-                    Box::new(Expr::Literal(Literal::Int(300))),
+                    Box::new(Expr::Literal(Literal::Int(300), Span::unknown())),
                     Type::simple("byte"),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3013,8 +3124,9 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Cast(
-                    Box::new(Expr::Literal(Literal::Int(42))),
+                    Box::new(Expr::Literal(Literal::Int(42), Span::unknown())),
                     Type::simple("string"),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3030,7 +3142,7 @@ mod tests {
     fn test_unary_neg() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
-                println_call(Expr::Unary(UnOp::Neg, Box::new(Expr::Literal(Literal::Int(5))))),
+                println_call(Expr::Unary(UnOp::Neg, Box::new(Expr::Literal(Literal::Int(5), Span::unknown())), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3043,7 +3155,7 @@ mod tests {
     fn test_unary_not() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
-                println_call(Expr::Unary(UnOp::Not, Box::new(Expr::Literal(Literal::Bool(true))))),
+                println_call(Expr::Unary(UnOp::Not, Box::new(Expr::Literal(Literal::Bool(true), Span::unknown())), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3056,7 +3168,7 @@ mod tests {
     fn test_bitwise_not() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
-                println_call(Expr::Unary(UnOp::BitNot, Box::new(Expr::Literal(Literal::Int(0))))),
+                println_call(Expr::Unary(UnOp::BitNot, Box::new(Expr::Literal(Literal::Int(0), Span::unknown())), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3072,9 +3184,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(0b1100))),
+                    Box::new(Expr::Literal(Literal::Int(0b1100), Span::unknown())),
                     Operator::BitAnd,
-                    Box::new(Expr::Literal(Literal::Int(0b1010))),
+                    Box::new(Expr::Literal(Literal::Int(0b1010), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3089,9 +3202,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(0b1100))),
+                    Box::new(Expr::Literal(Literal::Int(0b1100), Span::unknown())),
                     Operator::BitOr,
-                    Box::new(Expr::Literal(Literal::Int(0b1010))),
+                    Box::new(Expr::Literal(Literal::Int(0b1010), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3106,9 +3220,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(1))),
+                    Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
                     Operator::BitShl,
-                    Box::new(Expr::Literal(Literal::Int(4))),
+                    Box::new(Expr::Literal(Literal::Int(4), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3123,9 +3238,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(16))),
+                    Box::new(Expr::Literal(Literal::Int(16), Span::unknown())),
                     Operator::BitShr,
-                    Box::new(Expr::Literal(Literal::Int(2))),
+                    Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3142,9 +3258,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Bool(true))),
+                    Box::new(Expr::Literal(Literal::Bool(true), Span::unknown())),
                     Operator::And,
-                    Box::new(Expr::Literal(Literal::Bool(false))),
+                    Box::new(Expr::Literal(Literal::Bool(false), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3159,9 +3276,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Bool(true))),
+                    Box::new(Expr::Literal(Literal::Bool(true), Span::unknown())),
                     Operator::Or,
-                    Box::new(Expr::Literal(Literal::Bool(false))),
+                    Box::new(Expr::Literal(Literal::Bool(false), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3181,51 +3299,62 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "list".to_string(),
                     typ: Some(Type::simple("ArrayList")),
-                    init: Some(Expr::New(Type::simple("ArrayList"), vec![])),
+                    init: Some(Expr::New(Type::simple("ArrayList"), vec![], Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("list".to_string())),
+                        Box::new(Expr::Identifier("list".to_string(), Span::unknown())),
                         "add".to_string(),
+                        Span::unknown(),
                     )),
-                    vec![Expr::Literal(Literal::Int(1))],
+                    vec![Expr::Literal(Literal::Int(1), Span::unknown())],
+                    Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("list".to_string())),
+                        Box::new(Expr::Identifier("list".to_string(), Span::unknown())),
                         "add".to_string(),
+                        Span::unknown(),
                     )),
-                    vec![Expr::Literal(Literal::Int(2))],
+                    vec![Expr::Literal(Literal::Int(2), Span::unknown())],
+                    Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("list".to_string())),
+                        Box::new(Expr::Identifier("list".to_string(), Span::unknown())),
                         "add".to_string(),
+                        Span::unknown(),
                     )),
-                    vec![Expr::Literal(Literal::Int(3))],
+                    vec![Expr::Literal(Literal::Int(3), Span::unknown())],
+                    Span::unknown(),
                 )),
                 Stmt::VarDecl(VarDecl {
                     name: "sum".to_string(),
                     typ: Some(Type::simple("long")),
-                    init: Some(Expr::Literal(Literal::Int(0))),
+                    init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::For(ForStmt {
                     var: "i".to_string(),
-                    iterable: Expr::Identifier("list".to_string()),
+                    iterable: Expr::Identifier("list".to_string(), Span::unknown()),
                     body: vec![
                         Stmt::Expr(Expr::Assign(
-                            Box::new(Expr::Identifier("sum".to_string())),
+                            Box::new(Expr::Identifier("sum".to_string(), Span::unknown())),
                             Box::new(Expr::Binary(
-                                Box::new(Expr::Identifier("sum".to_string())),
+                                Box::new(Expr::Identifier("sum".to_string(), Span::unknown())),
                                 Operator::Add,
-                                Box::new(Expr::Identifier("i".to_string())),
+                                Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
+                                Span::unknown(),
                             )),
+                            Span::unknown(),
                         )),
                     ],
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("sum".to_string())),
+                println_call(Expr::Identifier("sum".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3243,7 +3372,8 @@ mod tests {
                 Stmt::Expr(Expr::StaticCall {
                     class_name: "io".to_string(),
                     method: "println".to_string(),
-                    args: vec![Expr::Literal(Literal::String("hello".to_string()))],
+                    args: vec![Expr::Literal(Literal::String("hello".to_string()), Span::unknown())],
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -3260,7 +3390,8 @@ mod tests {
                 println_call(Expr::StaticCall {
                     class_name: "Integer".to_string(),
                     method: "toString".to_string(),
-                    args: vec![Expr::Literal(Literal::Int(42))],
+                    args: vec![Expr::Literal(Literal::Int(42), Span::unknown())],
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -3277,7 +3408,8 @@ mod tests {
                 println_call(Expr::StaticCall {
                     class_name: "Integer".to_string(),
                     method: "parseInt".to_string(),
-                    args: vec![Expr::Literal(Literal::String("123".to_string()))],
+                    args: vec![Expr::Literal(Literal::String("123".to_string()), Span::unknown())],
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -3305,9 +3437,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::Expr(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(1))),
+                    Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
                     Operator::Div,
-                    Box::new(Expr::Literal(Literal::Int(0))),
+                    Box::new(Expr::Literal(Literal::Int(0), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3322,7 +3455,7 @@ mod tests {
     fn test_undefined_variable() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
-                Stmt::Expr(Expr::Identifier("unknown".to_string())),
+                Stmt::Expr(Expr::Identifier("unknown".to_string(), Span::unknown())),
             ])),
         ]);
         let result = interpret(&program);
@@ -3335,7 +3468,7 @@ mod tests {
     fn test_null_literal() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
-                println_call(Expr::Literal(Literal::Null)),
+                println_call(Expr::Literal(Literal::Null, Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3350,7 +3483,7 @@ mod tests {
     fn test_char_literal() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
-                println_call(Expr::Literal(Literal::Char('A'))),
+                println_call(Expr::Literal(Literal::Char('A'), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3366,9 +3499,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Float(1.5))),
+                    Box::new(Expr::Literal(Literal::Float(1.5), Span::unknown())),
                     Operator::Add,
-                    Box::new(Expr::Literal(Literal::Float(2.5))),
+                    Box::new(Expr::Literal(Literal::Float(2.5), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3387,19 +3521,21 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "x".to_string(),
                     typ: Some(Type::simple("long")),
-                    init: Some(Expr::Literal(Literal::Int(1))),
+                    init: Some(Expr::Literal(Literal::Int(1), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::Block(vec![
                     Stmt::VarDecl(VarDecl {
                         name: "x".to_string(),
                         typ: Some(Type::simple("long")),
-                        init: Some(Expr::Literal(Literal::Int(2))),
+                        init: Some(Expr::Literal(Literal::Int(2), Span::unknown())),
                         mutable: false,
+                        span: Span::unknown(),
                     }),
-                    println_call(Expr::Identifier("x".to_string())),
+                    println_call(Expr::Identifier("x".to_string(), Span::unknown())),
                 ]),
-                println_call(Expr::Identifier("x".to_string())),
+                println_call(Expr::Identifier("x".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3438,9 +3574,10 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(1))),
+                    Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
                     Operator::Ne,
-                    Box::new(Expr::Literal(Literal::Int(2))),
+                    Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3457,14 +3594,16 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(3))),
+                    Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
                     Operator::Le,
-                    Box::new(Expr::Literal(Literal::Int(3))),
+                    Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                    Span::unknown(),
                 )),
                 println_call(Expr::Binary(
-                    Box::new(Expr::Literal(Literal::Int(5))),
+                    Box::new(Expr::Literal(Literal::Int(5), Span::unknown())),
                     Operator::Ge,
-                    Box::new(Expr::Literal(Literal::Int(3))),
+                    Box::new(Expr::Literal(Literal::Int(3), Span::unknown())),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3481,7 +3620,7 @@ mod tests {
     fn test_bool_literal() {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
-                println_call(Expr::Literal(Literal::Bool(true))),
+                println_call(Expr::Literal(Literal::Bool(true), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3571,12 +3710,14 @@ mod tests {
                     name: "r".to_string(),
                     typ: Some(Type::simple("ref")),
                     init: Some(Expr::RefExpr(
-                        Box::new(Expr::Literal(Literal::Int(42))),
+                        Box::new(Expr::Literal(Literal::Int(42), Span::unknown())),
                         RefKind::Immutable,
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Identifier("r".to_string())),
+                println_call(Expr::Identifier("r".to_string(), Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3595,12 +3736,14 @@ mod tests {
                 Stmt::Expr(Expr::UnsafeBlock(vec![
                     Stmt::Expr(Expr::Call(
                         Box::new(Expr::MemberAccess(
-                            Box::new(Expr::Identifier("io".to_string())),
+                            Box::new(Expr::Identifier("io".to_string(), Span::unknown())),
                             "println".to_string(),
+                            Span::unknown(),
                         )),
-                        vec![Expr::Literal(Literal::String("unsafe".to_string()))],
+                        vec![Expr::Literal(Literal::String("unsafe".to_string()), Span::unknown())],
+                        Span::unknown(),
                     )),
-                ])),
+                ], Span::unknown())),
             ])),
         ]);
         let interp = Interpreter::new();
@@ -3616,26 +3759,30 @@ mod tests {
         let program = make_program(vec![
             Declaration::Enum(EnumDecl {
                 name: "Color".to_string(),
+                type_params: vec![],
                 variants: vec![
                     Variant { name: "Red".to_string(), fields: vec![] },
                     Variant { name: "Blue".to_string(), fields: vec![] },
                 ],
+                span: Span::unknown(),
             }),
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::Switch(SwitchStmt {
                     expr: Expr::Call(
-                        Box::new(Expr::Identifier("Blue".to_string())),
+                        Box::new(Expr::Identifier("Blue".to_string(), Span::unknown())),
                         vec![],
+                        Span::unknown(),
                     ),
                     cases: vec![
                         Case {
                             pattern: Pattern::Wildcard,
                             body: vec![
-                                println_call(Expr::Literal(Literal::String("matched".to_string()))),
+                                println_call(Expr::Literal(Literal::String("matched".to_string()), Span::unknown())),
                             ],
                         },
                     ],
                     default: None,
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -3652,18 +3799,19 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 Stmt::Switch(SwitchStmt {
-                    expr: Expr::Literal(Literal::Int(42)),
+                    expr: Expr::Literal(Literal::Int(42), Span::unknown()),
                     cases: vec![
                         Case {
                             pattern: Pattern::Literal(Literal::Int(42)),
                             body: vec![
-                                println_call(Expr::Literal(Literal::String("found".to_string()))),
+                                println_call(Expr::Literal(Literal::String("found".to_string()), Span::unknown())),
                             ],
                         },
                     ],
                     default: Some(vec![
-                        println_call(Expr::Literal(Literal::String("not found".to_string()))),
+                        println_call(Expr::Literal(Literal::String("not found".to_string()), Span::unknown())),
                     ]),
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -3682,36 +3830,45 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "arr".to_string(),
                     typ: Some(Type::simple("ArrayList")),
-                    init: Some(Expr::New(Type::simple("ArrayList"), vec![])),
+                    init: Some(Expr::New(Type::simple("ArrayList"), vec![], Span::unknown())),
                     mutable: true,
+                    span: Span::unknown(),
                 }),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("arr".to_string())),
+                        Box::new(Expr::Identifier("arr".to_string(), Span::unknown())),
                         "add".to_string(),
+                        Span::unknown(),
                     )),
-                    vec![Expr::Literal(Literal::Int(10))],
+                    vec![Expr::Literal(Literal::Int(10), Span::unknown())],
+                    Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("arr".to_string())),
+                        Box::new(Expr::Identifier("arr".to_string(), Span::unknown())),
                         "add".to_string(),
+                        Span::unknown(),
                     )),
-                    vec![Expr::Literal(Literal::Int(20))],
+                    vec![Expr::Literal(Literal::Int(20), Span::unknown())],
+                    Span::unknown(),
                 )),
                 Stmt::Expr(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("arr".to_string())),
+                        Box::new(Expr::Identifier("arr".to_string(), Span::unknown())),
                         "add".to_string(),
+                        Span::unknown(),
                     )),
-                    vec![Expr::Literal(Literal::Int(30))],
+                    vec![Expr::Literal(Literal::Int(30), Span::unknown())],
+                    Span::unknown(),
                 )),
                 println_call(Expr::Call(
                     Box::new(Expr::MemberAccess(
-                        Box::new(Expr::Identifier("arr".to_string())),
+                        Box::new(Expr::Identifier("arr".to_string(), Span::unknown())),
                         "get".to_string(),
+                        Span::unknown(),
                     )),
-                    vec![Expr::Literal(Literal::Int(1))],
+                    vec![Expr::Literal(Literal::Int(1), Span::unknown())],
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3730,12 +3887,14 @@ mod tests {
                 Stmt::VarDecl(VarDecl {
                     name: "s".to_string(),
                     typ: Some(Type::simple("string")),
-                    init: Some(Expr::Literal(Literal::String("hello".to_string()))),
+                    init: Some(Expr::Literal(Literal::String("hello".to_string()), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 println_call(Expr::MemberAccess(
-                    Box::new(Expr::Identifier("s".to_string())),
+                    Box::new(Expr::Identifier("s".to_string(), Span::unknown())),
                     "length".to_string(),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3752,8 +3911,9 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Cast(
-                    Box::new(Expr::Literal(Literal::Int(7))),
+                    Box::new(Expr::Literal(Literal::Int(7), Span::unknown())),
                     Type::simple("float"),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3770,8 +3930,9 @@ mod tests {
         let program = make_program(vec![
             Declaration::Function(make_fn_decl("main", vec![], vec![
                 println_call(Expr::Cast(
-                    Box::new(Expr::Literal(Literal::Float(3.9))),
+                    Box::new(Expr::Literal(Literal::Float(3.9), Span::unknown())),
                     Type::simple("int"),
+                    Span::unknown(),
                 )),
             ])),
         ]);
@@ -3795,24 +3956,28 @@ mod tests {
                     name: "val".to_string(),
                     typ: Some(Type::generic("Result", vec![Type::simple("long"), Type::simple("string")])),
                     init: Some(Expr::Call(
-                        Box::new(Expr::Identifier("makeErr".to_string())),
+                        Box::new(Expr::Identifier("makeErr".to_string(), Span::unknown())),
                         vec![],
+                        Span::unknown(),
                     )),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
                 Stmt::VarDecl(VarDecl {
                     name: "unwrapped".to_string(),
                     typ: Some(Type::simple("long")),
                     init: Some(Expr::ErrorPropagation(Box::new(
-                        Expr::Identifier("val".to_string()),
-                    ))),
+                        Expr::Identifier("val".to_string(), Span::unknown()),
+                    ), Span::unknown())),
                     mutable: false,
+                    span: Span::unknown(),
                 }),
-                println_call(Expr::Literal(Literal::String("should not reach".to_string()))),
+                println_call(Expr::Literal(Literal::String("should not reach".to_string()), Span::unknown())),
             ])),
             Declaration::Function(FnDecl {
                 access: Access::Public,
                 name: "makeErr".to_string(),
+                type_params: vec![],
                 params: vec![],
                 return_type: Some(Type::generic("Result", vec![Type::simple("long"), Type::simple("string")])),
                 body: vec![
@@ -3820,12 +3985,15 @@ mod tests {
                         Box::new(Expr::StaticCall {
                             class_name: "Result".to_string(),
                             method: "err".to_string(),
-                            args: vec![Expr::Literal(Literal::String("bad".to_string()))],
+                            args: vec![Expr::Literal(Literal::String("bad".to_string()), Span::unknown())],
+                            span: Span::unknown(),
                         }),
                         vec![],
+                        Span::unknown(),
                     ))),
                 ],
                 sugar: false,
+                span: Span::unknown(),
             }),
         ]);
         let interp = Interpreter::new();
@@ -3843,7 +4011,8 @@ mod tests {
                 println_call(Expr::StaticCall {
                     class_name: "Integer".to_string(),
                     method: "parseInt".to_string(),
-                    args: vec![Expr::Literal(Literal::String("42".to_string()))],
+                    args: vec![Expr::Literal(Literal::String("42".to_string()), Span::unknown())],
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -3862,7 +4031,8 @@ mod tests {
                 println_call(Expr::StaticCall {
                     class_name: "Integer".to_string(),
                     method: "parseInt".to_string(),
-                    args: vec![Expr::Literal(Literal::String("not_a_number".to_string()))],
+                    args: vec![Expr::Literal(Literal::String("not_a_number".to_string()), Span::unknown())],
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
@@ -3881,7 +4051,8 @@ mod tests {
                 println_call(Expr::StaticCall {
                     class_name: "Double".to_string(),
                     method: "toString".to_string(),
-                    args: vec![Expr::Literal(Literal::Float(3.14))],
+                    args: vec![Expr::Literal(Literal::Float(3.14), Span::unknown())],
+                    span: Span::unknown(),
                 }),
             ])),
         ]);
