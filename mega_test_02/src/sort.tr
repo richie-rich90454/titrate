@@ -1,0 +1,52 @@
+// Utility functions for the mega test.
+
+public int min(int a, int b) {
+    if a < b {
+        return a;
+    }
+    return b;
+}
+
+public int max(int a, int b) {
+    if a > b {
+        return a;
+    }
+    return b;
+}
+
+public int abs(int x) {
+    if x < 0 {
+        return 0 - x;
+    }
+    return x;
+}
+
+public int factorial(int n) {
+    if n <= 1 { return 1; }
+    int result = 1;
+    int i = 2;
+    while i <= n {
+        result = result * i;
+        i = i + 1;
+    }
+    return result;
+}
+
+public int fibonacci(int n) {
+    if n <= 0 {
+        return 0;
+    }
+    if n == 1 {
+        return 1;
+    }
+    int prev2 = 0;
+    int prev1 = 1;
+    int i = 2;
+    while i <= n {
+        int current = prev1 + prev2;
+        prev2 = prev1;
+        prev1 = current;
+        i = i + 1;
+    }
+    return prev1;
+}

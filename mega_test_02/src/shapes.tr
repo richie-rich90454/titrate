@@ -1,0 +1,35 @@
+// Shape classes for the mega test.
+
+public class Circle {
+    private double radius;
+
+    public Circle(double radius) {
+        this.radius = radius;
+    }
+
+    public double area() {
+        return 3.14159 * this.radius * this.radius;
+    }
+
+    public string describe() {
+        return "Circle(r=" + Double.toString(this.radius) + ")";
+    }
+}
+
+public class Rectangle {
+    private double width;
+    private double height;
+
+    public Rectangle(double width, double height) {
+        this.width = width;
+        this.height = height;
+    }
+
+    public double area() {
+        return this.width * this.height;
+    }
+
+    public string describe() {
+        return "Rectangle(" + Double.toString(this.width) + "x" + Double.toString(this.height) + ")";
+    }
+}

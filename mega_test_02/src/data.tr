@@ -1,0 +1,17 @@
+// Data storage using HashMap.
+
+public class DataStore {
+    private HashMap<string, string> data;
+
+    public DataStore() {
+        this.data = new HashMap<string, string>();
+    }
+
+    public void put(string key, string value) {
+        this.data.put(key, value);
+    }
+
+    public string get(string key) {
+        return this.data.get(key);
+    }
+}
