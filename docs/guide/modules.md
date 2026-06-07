@@ -24,16 +24,11 @@ Import a single item:
 import tt::lang::Integer;
 ```
 
-Import multiple items from the same module:
+Import multiple items by listing separate import statements:
 
 ```titrate
-import tt::util::{ArrayList, HashMap};
-```
-
-Import all public items from a module:
-
-```titrate
-import tt::io::*;
+import tt::util::ArrayList;
+import tt::util::HashMap;
 ```
 
 After importing, you can use the items directly:
@@ -44,9 +39,9 @@ import tt::io::println;
 
 public fn main(): void {
     let x = Integer.parseInt("42");
-    match x {
-        Ok(n) => println(n.toString()),
-        Err(e) => println("Parse failed: " + e),
+    switch x {
+        case Ok(n) => println(Integer.toString(n));
+        case Err(e) => println("Parse failed: " + e);
     }
 }
 ```

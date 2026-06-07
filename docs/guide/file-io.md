@@ -1,47 +1,41 @@
 # File I/O
 
-Titrate provides file operations through the `tt::io` module. All file functions use the `File` class and standalone I/O functions.
+Titrate provides file operations through the `File` class and standalone I/O functions.
 
 ## Reading a File
 
-`File.readFile` reads the entire contents of a file as a string. It returns a `Result<string>` to handle potential errors:
+`File.readFile` reads the entire contents of a file as a string. It returns a `Result<string, string>` to handle potential errors:
 
 ```titrate
-import tt::io::File;
-
 public fn main(): void {
-    match File.readFile("data.txt") {
-        Ok(content) => io::println(content),
-        Err(e) => io::println("Failed to read: " + e),
+    switch File.readFile("data.txt") {
+        case Ok(content) => io::println(content);
+        case Err(e) => io::println("Failed to read: " + e);
     }
 }
 ```
 
 ## Writing a File
 
-`File.writeFile` writes a string to a file, creating it if it does not exist or overwriting it if it does. It returns `Result<void>`:
+`File.writeFile` writes a string to a file, creating it if it does not exist or overwriting it if it does. It returns `Result<void, string>`:
 
 ```titrate
-import tt::io::File;
-
 public fn main(): void {
-    match File.writeFile("output.txt", "Hello, file!") {
-        Ok(_) => io::println("Written successfully"),
-        Err(e) => io::println("Failed to write: " + e),
+    switch File.writeFile("output.txt", "Hello, file!") {
+        case Ok(_) => io::println("Written successfully");
+        case Err(e) => io::println("Failed to write: " + e);
     }
 }
 ```
 
 ## Reading Lines
 
-`File.readLines` reads a file and returns an `array&lt;string&gt;`, one element per line:
+`File.readLines` reads a file and returns an array of strings, one element per line:
 
 ```titrate
-import tt::io::File;
-
 public fn main(): void {
     let lines = File.readLines("data.txt");
-    for (line in lines) {
+    for line in lines {
         io::println(line);
     }
 }
@@ -60,11 +54,9 @@ let parts = String.split(csv, ",");
 This is especially useful when processing line-based file input:
 
 ```titrate
-import tt::io::File;
-
 public fn main(): void {
     let lines = File.readLines("data.csv");
-    for (line in lines) {
+    for line in lines {
         let fields = String.split(line, ",");
         io::println(fields[0]);
     }
@@ -73,17 +65,15 @@ public fn main(): void {
 
 ## Print Functions
 
-The `tt::io` module also provides standalone print functions:
+The `tt::io` module provides standalone print functions available without import:
 
-- `println(s: string): void` — print a string followed by a newline
-- `print(s: string): void` — print a string without a trailing newline
+- `io::println(s: string): void` — print a string followed by a newline
+- `io::print(s: string): void` — print a string without a trailing newline
 
 ```titrate
-import tt::io::{println, print};
-
 public fn main(): void {
-    print("Loading...");
-    println("done");
+    io::print("Loading...");
+    io::println("done");
 }
 ```
 
