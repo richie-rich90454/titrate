@@ -12,7 +12,7 @@ public class StringBuilder {
 
     public String build() {
         String result = "";
-        for String part in this.parts {
+        for (part in this.parts) {
             result = result + part;
         }
         return result;

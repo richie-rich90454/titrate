@@ -35,8 +35,8 @@ public class Vec<T> {
     }
 
     public bool contains(T item) {
-        for T elem in this._items {
-            if elem == item {
+        for (elem in this._items) {
+            if (elem == item) {
                 return true;
             }
         }
