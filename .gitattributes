@@ -1,5 +1,8 @@
 # GitHub Linguist - register .tr files as Titrate language
-*.tr linguist-language=Titrate
+# Using linguist-vendored=false and linguist-generated=false ensures
+# .tr files are counted in language statistics. The custom language
+# name "Titrate" will appear in the repo language bar.
+*.tr linguist-language=Titrate linguist-vendored=false linguist-generated=false
 
 # Generated files
 docs/.vitepress/cache/ linguist-vendored
