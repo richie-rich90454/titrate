@@ -35,7 +35,7 @@ public fn main(): void {
 ```titrate
 public fn main(): void {
     let lines = File.readLines("data.txt");
-    for line in lines {
+    for (line in lines) {
         io::println(line);
     }
 }

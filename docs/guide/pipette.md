@@ -53,7 +53,7 @@ Runs all test functions in the project. Test functions are public functions whos
 
 ```titrate
 public fn test_addition(): void {
-    if 1 + 1 != 2 {
+    if (1 + 1 != 2) {
         io::println("FAIL: 1 + 1 != 2");
     }
 }
