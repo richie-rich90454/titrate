@@ -14,7 +14,7 @@ if x > 0 {
 
 ```titrate
 var i: int = 0;
-while i < 10 {
+while (i < 10) {
     io::println(Integer.toString(i));
     i = i + 1;
 }
