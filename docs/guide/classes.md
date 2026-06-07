@@ -7,7 +7,6 @@ class Circle {
     double radius;
 
     public Circle(double r) {
-        super("Circle");
         this.radius = r;
     }
 
@@ -19,17 +18,76 @@ class Circle {
 
 ## Inheritance
 
+Use `extends` to inherit from a base class. Call the parent constructor with `super()`:
+
 ```titrate
-class ColoredCircle extends Circle {
-    string color;
+class Animal {
+    string name;
+
+    public Animal(string name) {
+        this.name = name;
+    }
+
+    public fn speak(): string {
+        return "...";
+    }
+}
+
+class Dog extends Animal {
+    string breed;
+
+    public Dog(string name, string breed) {
+        super(name);
+        this.breed = breed;
+    }
+
+    public fn speak(): string {
+        return "Woof!";
+    }
 }
 ```
 
+The `super()` call must match the parent class constructor signature.
+
 ## Interfaces
+
+Define interfaces with method signatures:
 
 ```titrate
 interface Drawable {
     fn draw(): void;
+}
+
+interface Printable {
+    fn toString(): string;
+}
+```
+
+## Implementing Interfaces
+
+A class declares that it implements one or more interfaces using `implements`:
+
+```titrate
+class Report implements Printable {
+    string title;
+
+    public fn toString(): string {
+        return this.title;
+    }
+}
+```
+
+A class can implement multiple interfaces:
+
+```titrate
+class Shape implements Drawable, Printable {
+    public fn draw(): void {
+        io::println("drawing shape");
+    }
+
+    public fn toString(): string {
+        return "Shape";
+    }
 }
 ```
 
@@ -70,7 +128,7 @@ class SortedList<T: Comparable> {
 Multiple constraints use `+`:
 
 ```titrate
-class Renderer<T: Display + Serializable> {
+class Renderer<T: Display + Printable> {
     public fn render(item: T): string {
         return item.toString();
     }
