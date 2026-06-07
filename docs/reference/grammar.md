@@ -57,7 +57,7 @@ if_stmt      ::= 'if' '(' expr ')' block ('else' (if_stmt | block))?
 while_stmt   ::= 'while' '(' expr ')' block
 for_stmt     ::= 'for' '(' ('var')? IDENTIFIER 'in' expr ')' block
 
-> **Note:** Parentheses around the condition/iterator in `if`, `while`, and `for` statements are optional but preferred. Both `if (expr) { ... }` and `if expr { ... }` are valid; the parenthesized form is the recommended style.
+> **Note:** Parentheses around the condition/iterator in `if`, `while`, and `for` are optional in the parser but the parenthesized form is the **recommended and preferred style**. Always write `if (expr)`, `while (expr)`, and `for (item in list)`.
 return_stmt  ::= 'return' expr? ';'
 break_stmt   ::= 'break' ';'
 continue_stmt ::= 'continue' ';'
