@@ -42,6 +42,13 @@ impl fmt::Display for Access {
     }
 }
 
+/// Type parameter with optional interface constraint.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypeParam {
+    pub name: String,
+    pub constraint: Option<Type>,
+}
+
 /// Type representation in the AST.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
@@ -161,7 +168,7 @@ pub struct Import {
 pub struct FnDecl {
     pub access: Access,
     pub name: String,
-    pub type_params: Vec<String>,
+    pub type_params: Vec<TypeParam>,
     pub params: Vec<Param>,
     pub return_type: Option<Type>,
     pub body: Block,
@@ -182,7 +189,7 @@ pub struct MethodSig {
 pub struct MethodDecl {
     pub access: Access,
     pub name: String,
-    pub type_params: Vec<String>,
+    pub type_params: Vec<TypeParam>,
     pub params: Vec<Param>,
     pub return_type: Option<Type>,
     pub body: Block,
@@ -211,7 +218,7 @@ pub enum ClassMember {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClassDecl {
     pub name: String,
-    pub type_params: Vec<String>,
+    pub type_params: Vec<TypeParam>,
     pub parent: Option<Type>,
     pub ifaces: Vec<Type>,
     pub members: Vec<ClassMember>,
@@ -222,7 +229,7 @@ pub struct ClassDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct InterfaceDecl {
     pub name: String,
-    pub type_params: Vec<String>,
+    pub type_params: Vec<TypeParam>,
     pub parents: Vec<Type>,
     pub methods: Vec<MethodSig>,
     pub span: Span,
@@ -239,7 +246,7 @@ pub struct Variant {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EnumDecl {
     pub name: String,
-    pub type_params: Vec<String>,
+    pub type_params: Vec<TypeParam>,
     pub variants: Vec<Variant>,
     pub span: Span,
 }
