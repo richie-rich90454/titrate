@@ -128,7 +128,7 @@ public void main() {
     numbers.add(20);
     numbers.add(30);
     io::println("Size: " + Integer.toString(numbers.size()));
-    for item in numbers {
+    for (item in numbers) {
         io::println("item: " + Integer.toString(item));
     }
 
@@ -146,7 +146,7 @@ public void main() {
     io::println("");
     io::println("=== While Loop ===");
     var count: int = 0;
-    while count < 5 {
+    while (count < 5) {
         io::println("count: " + Integer.toString(count));
         count = count + 1;
     }
@@ -171,12 +171,12 @@ public void main() {
     nums.add(56);
     nums.add(28);
     io::println("Before sort:");
-    for n in nums {
+    for (n in nums) {
         io::println("  " + Integer.toString(n));
     }
     quicksort(nums);
     io::println("After sort:");
-    for n in nums {
+    for (n in nums) {
         io::println("  " + Integer.toString(n));
     }
 
@@ -185,18 +185,18 @@ public void main() {
     io::println("=== File I/O ===");
     let file_nums: ArrayList<int> = new ArrayList<int>();
     let lines = File.readLines("numbers.txt");
-    for line in lines {
+    for (line in lines) {
         int n = Integer.parseOr(line, 0);
         file_nums.add(n);
     }
     io::println("Read " + Integer.toString(file_nums.size()) + " numbers from file");
     quicksort(file_nums);
     io::println("Sorted numbers from file:");
-    for n in file_nums {
+    for (n in file_nums) {
         io::println("  " + Integer.toString(n));
     }
     string sorted_output = "";
-    for n in file_nums {
+    for (n in file_nums) {
         sorted_output = sorted_output + Integer.toString(n) + "\n";
     }
     File.writeFile("sorted_numbers.txt", sorted_output);
@@ -207,9 +207,9 @@ public void main() {
     io::println("=== Word Frequency ===");
     let wc: WordCounter = new WordCounter();
     let word_lines = File.readLines("words.txt");
-    for wline in word_lines {
+    for (wline in word_lines) {
         let words = String.split(wline, " ");
-        for word in words {
+        for (word in words) {
             wc.count(word);
         }
     }
@@ -263,7 +263,7 @@ class Dog extends Animal {
 // --- Result helper function ---
 
 fn safe_divide(a: int, b: int): Result<int, string> {
-    if b == 0 {
+    if (b == 0) {
         return Err("division by zero");
     }
     return Ok(a / b);
@@ -272,7 +272,7 @@ fn safe_divide(a: int, b: int): Result<int, string> {
 fn factorial(n: int): int {
     int result = 1;
     int i = 2;
-    while i <= n {
+    while (i <= n) {
         result = result * i;
         i = i + 1;
     }
