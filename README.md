@@ -12,7 +12,7 @@ public fn main(): void {
     list.add(7);
     list.add(13);
     list.sort();
-    for n in list {
+    for (n in list) {
         println(Integer.toString(n));
     }
 }
