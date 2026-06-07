@@ -1,4 +1,4 @@
-// Titrate Alpha 0.1 – crafted by richie-rich90454, 2026
+// Titrate Alpha 0.2 – crafted by richie-rich90454, 2026
 
 pub mod lexer;
 pub mod ast;
