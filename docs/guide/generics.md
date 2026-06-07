@@ -78,7 +78,7 @@ Multiple constraints can be specified with `+`:
 ```titrate
 fn sortAndPrint<T: Comparable + Display>(items: ArrayList<T>): void {
     items.sort();
-    for item in items {
+    for (item in items) {
         io::println(item.toString());
     }
 }

@@ -56,7 +56,7 @@ This is especially useful when processing line-based file input:
 ```titrate
 public fn main(): void {
     let lines = File.readLines("data.csv");
-    for line in lines {
+    for (line in lines) {
         let fields = String.split(line, ",");
         io::println(fields[0]);
     }
