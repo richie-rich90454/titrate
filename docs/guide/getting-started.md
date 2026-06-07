@@ -39,6 +39,9 @@ See [Build Tool](./pipette) for the full pipette guide.
 ## What's Next?
 
 - [Variables](./variables) — `let`, `var`, and `const` declarations
-- [Functions](./functions) — defining and calling functions
-- [Classes](./classes) — object-oriented programming
+- [Functions](./functions) — defining and calling functions, including generic functions
+- [Classes](./classes) — object-oriented programming, inheritance, and interfaces
 - [Enums](./enums) — algebraic data types and pattern matching
+- [Generics](./generics) — type parameters, constraints, and monomorphization
+- [Modules](./modules) — multi-file projects and imports
+- [File I/O](./file-io) — reading and writing files

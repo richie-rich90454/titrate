@@ -22,9 +22,19 @@ while i < 10 {
 
 ## for
 
+Iterate over any collection (arrays, ArrayList, etc.):
+
 ```titrate
 for item in collection {
     io::println(item);
+}
+```
+
+Use `var` to make the loop variable mutable:
+
+```titrate
+for var item in collection {
+    item = item + 1;
 }
 ```
 
