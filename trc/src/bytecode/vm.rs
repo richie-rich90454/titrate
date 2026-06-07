@@ -1,4 +1,4 @@
-// Titrate Alpha 0.1 – bytecode virtual machine
+// Titrate Alpha 0.2 – bytecode virtual machine
 // Precision in every step – richie-rich90454, 2026
 
 use std::char;
@@ -34,6 +34,8 @@ pub struct Vm {
     region_stack: Vec<Vec<usize>>,
     /// Captured output
     pub output: Vec<String>,
+    /// Working directory for resolving relative file paths
+    working_dir: Option<std::path::PathBuf>,
 }
 
 impl Vm {
@@ -53,6 +55,7 @@ impl Vm {
             heap: Vec::new(),
             region_stack: Vec::new(),
             output: Vec::new(),
+            working_dir: None,
         };
 
         // Register built-in native functions
@@ -61,6 +64,10 @@ impl Vm {
         vm.register_native("parseInt", native_parse_int);
         vm.register_native("Ok", native_ok);
         vm.register_native("Err", native_err);
+        vm.register_native("File_readFile", native_file_read);
+        vm.register_native("File_writeFile", native_file_write);
+        vm.register_native("File_readLines", native_file_read_lines);
+        vm.register_native("String_split", native_string_split);
 
         vm
     }
@@ -110,6 +117,23 @@ impl Vm {
                     self.register_native(name, func);
                 }
             }
+        }
+    }
+
+    /// Set the working directory for resolving relative file paths.
+    pub fn set_working_dir(&mut self, dir: std::path::PathBuf) {
+        self.working_dir = Some(dir);
+    }
+
+    /// Resolve a file path: if relative, prepend the working directory.
+    fn resolve_path(&self, path: &str) -> std::path::PathBuf {
+        let p = std::path::Path::new(path);
+        if p.is_absolute() {
+            p.to_path_buf()
+        } else if let Some(ref dir) = self.working_dir {
+            dir.join(path)
+        } else {
+            p.to_path_buf()
         }
     }
 
@@ -360,6 +384,8 @@ impl Vm {
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_add(*y))),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_add(*y))),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Long((*x as i64).wrapping_add(*y))),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Long(x.wrapping_add(*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x + y)),
                     (Value::Double(x), Value::Long(y)) => self.push(Value::Double(x + (*y as f64))),
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Double((*x as f64) + y)),
@@ -399,6 +425,8 @@ impl Vm {
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_sub(*y))),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_sub(*y))),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Long((*x as i64).wrapping_sub(*y))),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Long(x.wrapping_sub(*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x - y)),
                     (Value::Double(x), Value::Long(y)) => self.push(Value::Double(x - (*y as f64))),
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Double((*x as f64) - y)),
@@ -437,10 +465,14 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x.wrapping_mul(*y))),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_mul(*y))),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Long((*x as i64).wrapping_mul(*y))),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Long(x.wrapping_mul(*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x * y)),
                     (Value::Double(x), Value::Long(y)) => self.push(Value::Double(x * (*y as f64))),
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Double((*x as f64) * y)),
-                    (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x.wrapping_mul(*y))),
+                    (Value::Double(x), Value::Int(y)) => self.push(Value::Double(x * (*y as f64))),
+                    (Value::Int(x), Value::Double(y)) => self.push(Value::Double((*x as f64) * y)),
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x * y)),
                     _ => return Err(format!("MUL_I64: type mismatch {:?} * {:?}", a, b)),
                 }
@@ -489,6 +521,15 @@ impl Vm {
                     }
                     (Value::Int(x), Value::Int(y)) => {
                         self.push(Value::Int(x.wrapping_div(*y)));
+                    }
+                    (Value::Int(_), Value::Long(0)) | (Value::Long(_), Value::Int(0)) => {
+                        return Err("Division by zero".to_string());
+                    }
+                    (Value::Int(x), Value::Long(y)) => {
+                        self.push(Value::Long((*x as i64).wrapping_div(*y)));
+                    }
+                    (Value::Long(x), Value::Int(y)) => {
+                        self.push(Value::Long(x.wrapping_div(*y as i64)));
                     }
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Double(x / y)),
                     (Value::Double(x), Value::Long(y)) => self.push(Value::Double(x / (*y as f64))),
@@ -696,8 +737,10 @@ impl Vm {
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x == y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x == y)),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) == *y)),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Bool(*x == (*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x == y)),
-                    _ => return Err(format!("EQ_I64: type mismatch {:?}", a)),
+                    _ => return Err(format!("EQ_I64: type mismatch {:?} == {:?}", a, b)),
                 }
             }
             OpCode::EQ_F32 => {
@@ -741,6 +784,8 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(x == y)),
+                    (Value::Null, Value::String(_)) | (Value::String(_), Value::Null) => self.push(Value::Bool(false)),
+                    (Value::Null, Value::Null) => self.push(Value::Bool(true)),
                     _ => return Err(format!("EQ_STRING: type mismatch {:?}", a)),
                 }
             }
@@ -758,8 +803,10 @@ impl Vm {
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x != y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x != y)),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) != *y)),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Bool(*x != (*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x != y)),
-                    _ => return Err(format!("NE_I64: type mismatch {:?}", a)),
+                    _ => return Err(format!("NE_I64: type mismatch {:?} != {:?}", a, b)),
                 }
             }
             OpCode::NE_F32 => {
@@ -796,12 +843,14 @@ impl Vm {
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x < y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x < y)),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) < *y)),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Bool(*x < (*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x < y)),
                     (Value::Double(x), Value::Long(y)) => self.push(Value::Bool(x < &(*y as f64))),
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) < y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x < &(*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) < y)),
-                    _ => return Err(format!("LT_I64: type mismatch {:?}", a)),
+                    _ => return Err(format!("LT_I64: type mismatch {:?} < {:?}", a, b)),
                 }
             }
             OpCode::LT_F32 => {
@@ -834,12 +883,14 @@ impl Vm {
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x <= y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x <= y)),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) <= *y)),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Bool(*x <= (*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x <= y)),
                     (Value::Double(x), Value::Long(y)) => self.push(Value::Bool(x <= &(*y as f64))),
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) <= y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x <= &(*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) <= y)),
-                    _ => return Err(format!("LE_I64: type mismatch {:?}", a)),
+                    _ => return Err(format!("LE_I64: type mismatch {:?} <= {:?}", a, b)),
                 }
             }
             OpCode::LE_F32 => {
@@ -872,12 +923,14 @@ impl Vm {
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x > y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x > y)),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) > *y)),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Bool(*x > (*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x > y)),
                     (Value::Double(x), Value::Long(y)) => self.push(Value::Bool(x > &(*y as f64))),
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) > y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x > &(*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) > y)),
-                    _ => return Err(format!("GT_I64: type mismatch {:?}", a)),
+                    _ => return Err(format!("GT_I64: type mismatch {:?} > {:?}", a, b)),
                 }
             }
             OpCode::GT_F32 => {
@@ -910,12 +963,14 @@ impl Vm {
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Bool(x >= y)),
                     (Value::Int(x), Value::Int(y)) => self.push(Value::Bool(x >= y)),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) >= *y)),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Bool(*x >= (*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x >= y)),
                     (Value::Double(x), Value::Long(y)) => self.push(Value::Bool(x >= &(*y as f64))),
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) >= y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x >= &(*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) >= y)),
-                    _ => return Err(format!("GE_I64: type mismatch {:?}", a)),
+                    _ => return Err(format!("GE_I64: type mismatch {:?} >= {:?}", a, b)),
                 }
             }
             OpCode::GE_F32 => {
@@ -1151,6 +1206,13 @@ impl Vm {
                 let index = self.pop();
                 let array = self.pop();
                 match (&array, &index) {
+                    (Value::String(s), Value::Int(i)) => {
+                        let idx = *i as usize;
+                        match s.chars().nth(idx) {
+                            Some(ch) => self.push(Value::Char(ch)),
+                            None => return Err(format!("String index out of bounds: {}", idx)),
+                        }
+                    }
                     (Value::Array { elements }, Value::Int(i)) => {
                         let idx = *i as usize;
                         if idx < elements.len() {
@@ -1283,6 +1345,16 @@ impl Vm {
                     region.push(idx);
                 }
                 self.push(Value::Ref(idx));
+            }
+            OpCode::FREE_REGION => {
+                // Pop the current region and mark its heap slots as freed.
+                if let Some(indices) = self.region_stack.pop() {
+                    for idx in indices {
+                        if idx < self.heap.len() {
+                            self.heap[idx] = Value::Null;
+                        }
+                    }
+                }
             }
             OpCode::REF_IMMUTABLE => {
                 let val = self.pop();
@@ -1738,6 +1810,50 @@ impl Vm {
                     _ => Ok(Value::Int(0)),
                 }
             }
+            "set" => {
+                if arg_count < 2 {
+                    return Err("ArrayList.set requires 2 arguments (index, value)".to_string());
+                }
+                let value = self.pop();
+                let idx_val = self.pop();
+                let idx = match idx_val {
+                    Value::Int(i) => i as usize,
+                    Value::Long(i) => i as usize,
+                    _ => return Err("ArrayList.set requires an integer index".to_string()),
+                };
+                match fields.borrow_mut().get_mut("_elements") {
+                    Some(Value::Array { elements }) => {
+                        if idx < elements.len() {
+                            elements[idx] = value;
+                            Ok(Value::Void)
+                        } else {
+                            Err(format!("ArrayList index out of bounds: {}", idx))
+                        }
+                    }
+                    _ => Err("ArrayList has no elements".to_string()),
+                }
+            }
+            "remove" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.remove requires 1 argument (index)".to_string());
+                }
+                let idx_val = self.pop();
+                let idx = match idx_val {
+                    Value::Int(i) => i as usize,
+                    Value::Long(i) => i as usize,
+                    _ => return Err("ArrayList.remove requires an integer index".to_string()),
+                };
+                match fields.borrow_mut().get_mut("_elements") {
+                    Some(Value::Array { elements }) => {
+                        if idx < elements.len() {
+                            Ok(elements.remove(idx))
+                        } else {
+                            Err(format!("ArrayList index out of bounds: {}", idx))
+                        }
+                    }
+                    _ => Err("ArrayList has no elements".to_string()),
+                }
+            }
             "sort" => Ok(Value::Void),
             _ => Err(format!("Unknown ArrayList method '{}'", method)),
         }
@@ -1989,6 +2105,23 @@ impl Vm {
                     }
                 }
             }
+            // Integer::parseOr - parse string to int, return default on failure
+            ("Integer" | "int", "parseOr") => {
+                let default_val = self.pop();
+                let val = self.pop();
+                let default = match &default_val {
+                    Value::Int(n) => *n as i64,
+                    Value::Long(n) => *n,
+                    _ => 0,
+                };
+                match &val {
+                    Value::String(s) => match s.trim().parse::<i64>() {
+                        Ok(n) => self.push(Value::Long(n)),
+                        Err(_) => self.push(Value::Long(default)),
+                    },
+                    _ => self.push(Value::Long(default)),
+                }
+            }
             // String::length
             ("String" | "string", "length") => {
                 let val = self.pop();
@@ -2054,6 +2187,80 @@ impl Vm {
                         self.push(Value::Array { elements });
                     }
                     _ => return Err(format!("Array.new: expected Int size, got {:?}", size)),
+                }
+            }
+            // File::readFile
+            ("File", "readFile") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(path) => {
+                        let resolved = self.resolve_path(path.as_str());
+                        match std::fs::read_to_string(&resolved) {
+                            Ok(content) => self.push(Value::ResultOk(Box::new(Value::String(Rc::new(content))))),
+                            Err(e) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                                format!("Failed to read file: {}", e)
+                            ))))),
+                        }
+                    }
+                    _ => return Err(format!("File.readFile: expected String, got {:?}", val)),
+                }
+            }
+            // File::writeFile
+            ("File", "writeFile") => {
+                let content = self.pop();
+                let path = self.pop();
+                match (&path, &content) {
+                    (Value::String(p), Value::String(c)) => {
+                        let resolved = self.resolve_path(p.as_str());
+                        match std::fs::write(&resolved, c.as_str()) {
+                            Ok(()) => self.push(Value::ResultOk(Box::new(Value::Void))),
+                            Err(e) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                                format!("Failed to write file: {}", e)
+                            ))))),
+                        }
+                    }
+                    _ => return Err(format!("File.writeFile: expected (String, String)")),
+                }
+            }
+            // File::readLines
+            ("File", "readLines") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(path) => {
+                        let resolved = self.resolve_path(path.as_str());
+                        match std::fs::read_to_string(&resolved) {
+                            Ok(content) => {
+                                let lines: Vec<Value> = content.lines()
+                                    .map(|line| Value::String(Rc::new(line.to_string())))
+                                    .collect();
+                                self.push(Value::Array { elements: lines });
+                            }
+                            Err(e) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                                format!("Failed to read file: {}", e)
+                            ))))),
+                        }
+                    }
+                    _ => return Err(format!("File.readLines: expected String, got {:?}", val)),
+                }
+            }
+            // String::split
+            ("String", "split") => {
+                let delim = self.pop();
+                let s = self.pop();
+                match (&s, &delim) {
+                    (Value::String(str_val), Value::String(d)) => {
+                        let parts: Vec<Value> = str_val.split(d.as_str())
+                            .map(|part| Value::String(Rc::new(part.to_string())))
+                            .collect();
+                        self.push(Value::Array { elements: parts });
+                    }
+                    (Value::String(str_val), Value::Char(d)) => {
+                        let parts: Vec<Value> = str_val.split(*d)
+                            .map(|part| Value::String(Rc::new(part.to_string())))
+                            .collect();
+                        self.push(Value::Array { elements: parts });
+                    }
+                    _ => return Err(format!("String.split: expected (String, String) or (String, Char)")),
                 }
             }
             // Default: look up user-defined static method in class table
@@ -2288,6 +2495,83 @@ fn native_err(args: &[Value]) -> Result<Value, String> {
     Ok(Value::ResultErr(Box::new(args[0].clone())))
 }
 
+fn native_file_read(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_readFile: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => {
+            match std::fs::read_to_string(path.as_str()) {
+                Ok(content) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(content))))),
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("Failed to read file '{}': {}", path, e)
+                ))))),
+            }
+        }
+        _ => Err("File_readFile: expected String path".to_string()),
+    }
+}
+
+fn native_file_write(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("File_writeFile: expected 2 arguments (path, content)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(path), Value::String(content)) => {
+            match std::fs::write(path.as_str(), content.as_str()) {
+                Ok(()) => Ok(Value::ResultOk(Box::new(Value::Void))),
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("Failed to write file '{}': {}", path, e)
+                ))))),
+            }
+        }
+        _ => Err("File_writeFile: expected (String, String)".to_string()),
+    }
+}
+
+fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_readLines: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => {
+            match std::fs::read_to_string(path.as_str()) {
+                Ok(content) => {
+                    let lines: Vec<Value> = content.lines()
+                        .map(|line| Value::String(Rc::new(line.to_string())))
+                        .collect();
+                    Ok(Value::Array { elements: lines })
+                }
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("Failed to read file '{}': {}", path, e)
+                ))))),
+            }
+        }
+        _ => Err("File_readLines: expected String path".to_string()),
+    }
+}
+
+fn native_string_split(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("String_split: expected 2 arguments (string, delimiter)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::String(delim)) => {
+            let parts: Vec<Value> = s.split(delim.as_str())
+                .map(|part| Value::String(Rc::new(part.to_string())))
+                .collect();
+            Ok(Value::Array { elements: parts })
+        }
+        (Value::String(s), Value::Char(delim)) => {
+            let parts: Vec<Value> = s.split(*delim)
+                .map(|part| Value::String(Rc::new(part.to_string())))
+                .collect();
+            Ok(Value::Array { elements: parts })
+        }
+        _ => Err("String_split: expected (String, String) or (String, Char)".to_string()),
+    }
+}
+
 /// Look up a built-in native function by name. Returns `None` for unknown names.
 fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -2296,6 +2580,10 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "parseInt" => Some(native_parse_int),
         "Ok" => Some(native_ok),
         "Err" => Some(native_err),
+        "File_readFile" => Some(native_file_read),
+        "File_writeFile" => Some(native_file_write),
+        "File_readLines" => Some(native_file_read_lines),
+        "String_split" => Some(native_string_split),
         _ => None,
     }
 }
