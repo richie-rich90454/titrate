@@ -1115,7 +1115,8 @@ impl Parser {
 
     fn parse_for_stmt(&mut self) -> Result<ast::Stmt, String> {
         let span = self.make_span();
-        // for [var] in expr { body }
+        // for ([var] name in expr) { body }  or  for [var] name in expr { body }
+        let has_parens = self.match_token(&lexer::Token::LeftParen);
         let _var_kw = self.match_token(&lexer::Token::Var); // optional 'var'
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let var = match name_tok {
@@ -1129,6 +1130,9 @@ impl Parser {
             _ => return Err(format!("Expected 'in' in for loop, found {}", in_tok)),
         }
         let iterable = self.parse_expression()?;
+        if has_parens {
+            self.expect(&lexer::Token::RightParen)?;
+        }
         let body = self.parse_block()?;
         Ok(ast::Stmt::For(ast::ForStmt {
             var,
@@ -2982,6 +2986,39 @@ import math::sqrt;"#;
             ast::Declaration::Function(fd) => match &fd.body[0] {
                 ast::Stmt::For(fs) => {
                     assert_eq!(fs.var, "item");
+                }
+                other => panic!("Expected For, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // For with parens
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_for_with_parens() {
+        let src = r#"fn f(): void { for (item in list) { process(item); } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::For(fs) => {
+                    assert_eq!(fs.var, "item");
+                }
+                other => panic!("Expected For, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_for_var_with_parens() {
+        let src = r#"fn f(): void { for (var i in items) { continue; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::For(fs) => {
+                    assert_eq!(fs.var, "i");
                 }
                 other => panic!("Expected For, got {:?}", other),
             },
