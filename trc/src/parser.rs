@@ -83,18 +83,27 @@ impl Parser {
         ast::Span::new(line as u32, col as u32)
     }
 
-    /// Parse optional type parameters: `<T, U, ...>`
-    /// If the next token is `<`, parse a comma-separated list of identifiers until `>`.
+    /// Parse optional type parameters: `<T, U: Display, ...>`
+    /// If the next token is `<`, parse a comma-separated list of identifiers
+    /// (each optionally followed by `:` and an interface name) until `>`.
     /// Otherwise return an empty vec.
-    fn parse_type_params(&mut self) -> Result<Vec<String>, String> {
+    fn parse_type_params(&mut self) -> Result<Vec<ast::TypeParam>, String> {
         if self.match_token(&lexer::Token::Less) {
             let mut params = Vec::new();
             loop {
                 let tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-                match tok {
-                    lexer::Token::Identifier(s) => params.push(s),
+                let name = match tok {
+                    lexer::Token::Identifier(s) => s,
                     _ => return Err(format!("Expected type parameter name, found {}", tok)),
-                }
+                };
+                // Optional constraint: `T: Display`
+                let constraint = if self.match_token(&lexer::Token::Colon) {
+                    let ty = self.parse_type()?;
+                    Some(ty)
+                } else {
+                    None
+                };
+                params.push(ast::TypeParam { name, constraint });
                 if !self.match_token(&lexer::Token::Comma) {
                     break;
                 }
@@ -3121,7 +3130,7 @@ import math::sqrt;"#;
         match &prog.declarations[0] {
             ast::Declaration::Function(fd) => {
                 assert_eq!(fd.name, "identity");
-                assert_eq!(fd.type_params, vec!["T".to_string()]);
+                assert_eq!(fd.type_params, vec![ast::TypeParam { name: "T".to_string(), constraint: None }]);
             }
             other => panic!("Expected Function, got {:?}", other),
         }
@@ -3134,7 +3143,7 @@ import math::sqrt;"#;
         match &prog.declarations[0] {
             ast::Declaration::Class(cd) => {
                 assert_eq!(cd.name, "Container");
-                assert_eq!(cd.type_params, vec!["T".to_string()]);
+                assert_eq!(cd.type_params, vec![ast::TypeParam { name: "T".to_string(), constraint: None }]);
             }
             other => panic!("Expected Class, got {:?}", other),
         }
@@ -3147,7 +3156,7 @@ import math::sqrt;"#;
         match &prog.declarations[0] {
             ast::Declaration::Interface(id) => {
                 assert_eq!(id.name, "Comparable");
-                assert_eq!(id.type_params, vec!["T".to_string()]);
+                assert_eq!(id.type_params, vec![ast::TypeParam { name: "T".to_string(), constraint: None }]);
             }
             other => panic!("Expected Interface, got {:?}", other),
         }
@@ -3160,7 +3169,7 @@ import math::sqrt;"#;
         match &prog.declarations[0] {
             ast::Declaration::Enum(ed) => {
                 assert_eq!(ed.name, "Option");
-                assert_eq!(ed.type_params, vec!["T".to_string()]);
+                assert_eq!(ed.type_params, vec![ast::TypeParam { name: "T".to_string(), constraint: None }]);
             }
             other => panic!("Expected Enum, got {:?}", other),
         }
@@ -3176,7 +3185,7 @@ import math::sqrt;"#;
                 match &cd.members[0] {
                     ast::ClassMember::Method(m) => {
                         assert_eq!(m.name, "bar");
-                        assert_eq!(m.type_params, vec!["U".to_string()]);
+                        assert_eq!(m.type_params, vec![ast::TypeParam { name: "U".to_string(), constraint: None }]);
                     }
                     other => panic!("Expected Method, got {:?}", other),
                 }
@@ -3192,7 +3201,7 @@ import math::sqrt;"#;
         match &prog.declarations[0] {
             ast::Declaration::Class(cd) => {
                 assert_eq!(cd.name, "Map");
-                assert_eq!(cd.type_params, vec!["K".to_string(), "V".to_string()]);
+                assert_eq!(cd.type_params, vec![ast::TypeParam { name: "K".to_string(), constraint: None }, ast::TypeParam { name: "V".to_string(), constraint: None }]);
             }
             other => panic!("Expected Class, got {:?}", other),
         }
