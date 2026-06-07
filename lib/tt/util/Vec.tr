@@ -1,0 +1,45 @@
+// Generic resizable vector.
+
+public class Vec<T> {
+    private ArrayList<T> _items;
+
+    public Vec() {
+        this._items = new ArrayList<T>();
+    }
+
+    public void push(T item) {
+        this._items.add(item);
+    }
+
+    public T get(int index) {
+        return this._items.get(index);
+    }
+
+    public void set(int index, T value) {
+        this._items.set(index, value);
+    }
+
+    public int size() {
+        return this._items.size();
+    }
+
+    public bool isEmpty() {
+        return this._items.size() == 0;
+    }
+
+    public T pop() {
+        int last = this._items.size() - 1;
+        T item = this._items.get(last);
+        this._items.remove(last);
+        return item;
+    }
+
+    public bool contains(T item) {
+        for T elem in this._items {
+            if elem == item {
+                return true;
+            }
+        }
+        return false;
+    }
+}
