@@ -1,0 +1,15 @@
+# Titrate language definition for GitHub Linguist
+# Submit to https://github.com/github-linguist/linguist by adding this
+# entry to languages.yml in the Linguist repository.
+
+Titrate:
+  type: programming
+  color: "#E84855"
+  extensions:
+    - ".tr"
+  tm_scope: source.titrate
+  ace_mode: text
+  language_id: 1234567890
+  codemirror_mode: rust
+  codemirror_mime_type: text/x-rustsrc
+  group: Titrate

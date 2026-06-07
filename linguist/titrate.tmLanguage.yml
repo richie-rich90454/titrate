@@ -1,0 +1,59 @@
+# TextMate grammar for Titrate language syntax highlighting
+# This grammar can be used by GitHub Linguist for .tr file rendering.
+# Place in: syntaxes/titrate.tmLanguage.json (for VS Code extension)
+# Or submit alongside languages.yml to GitHub Linguist.
+
+scopeName: source.titrate
+name: Titrate
+patterns:
+  - name: comment.line.double-slash.titrate
+    match: "//.*$"
+  - name: comment.block.titrate
+    begin: "/\\*"
+    end: "\\*/"
+  - name: keyword.control.titrate
+    match: "\\b(if|else|while|for|in|switch|case|default|return|break|continue)\\b"
+  - name: keyword.declaration.titrate
+    match: "\\b(fn|let|var|const|class|interface|enum|extends|implements|import|public|private|new|super|region|unsafe|as|is|type|module)\\b"
+  - name: keyword.operator.titrate
+    match: "\\b(and|or|not|in|as|is)\\b"
+  - name: constant.language.titrate
+    match: "\\b(true|false|null)\\b"
+  - name: constant.language.result.titrate
+    match: "\\b(Ok|Err)\\b"
+  - name: storage.type.titrate
+    match: "\\b(void|bool|byte|short|int|long|vast|uvast|float|double|half|quad|char|string|size|u8|u16|u32|u64|Owned|Result)\\b"
+  - name: string.quoted.double.titrate
+    begin: "\""
+    end: "\""
+    patterns:
+      - name: constant.character.escape.titrate
+        match: "\\\\."
+  - name: string.quoted.single.titrate
+    match: "'.'"
+  - name: constant.numeric.titrate
+    match: "\\b[0-9]+(\\.[0-9]+)?([hq])?\\b"
+  - name: constant.numeric.hex.titrate
+    match: "\\b0x[0-9a-fA-F]+\\b"
+  - name: constant.numeric.octal.titrate
+    match: "\\b0o[0-7]+\\b"
+  - name: constant.numeric.binary.titrate
+    match: "\\b0b[01]+\\b"
+  - name: entity.name.type.titrate
+    match: "\\b[A-Z][A-Za-z0-9_]*\\b"
+  - name: keyword.operator.arithmetic.titrate
+    match: "[+\\-*/%]"
+  - name: keyword.operator.comparison.titrate
+    match: "(==|!=|<=|>=|<|>)"
+  - name: keyword.operator.logical.titrate
+    match: "(&&|\\|\\||!)"
+  - name: keyword.operator.bitwise.titrate
+    match: "(&|\\||\\^|~|<<|>>)"
+  - name: keyword.operator.assignment.titrate
+    match: "="
+  - name: keyword.operator.arrow.titrate
+    match: "=>"
+  - name: keyword.operator.namespace.titrate
+    match: "::"
+  - name: keyword.operator.other.titrate
+    match: "\\?"
