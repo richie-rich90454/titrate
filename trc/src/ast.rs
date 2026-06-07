@@ -53,6 +53,8 @@ pub struct TypeParam {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
     Named { name: String, params: Vec<Type> },
+    Ref(Box<Type>),       // &T
+    MutRef(Box<Type>),    // &mut T
 }
 
 impl Type {
@@ -67,12 +69,16 @@ impl Type {
     pub fn name(&self) -> &str {
         match self {
             Type::Named { name, .. } => name,
+            Type::Ref(inner) => inner.name(),
+            Type::MutRef(inner) => inner.name(),
         }
     }
 
     pub fn params(&self) -> &[Type] {
         match self {
             Type::Named { params, .. } => params,
+            Type::Ref(inner) => inner.params(),
+            Type::MutRef(inner) => inner.params(),
         }
     }
 }
@@ -92,6 +98,8 @@ impl fmt::Display for Type {
                 }
                 Ok(())
             }
+            Type::Ref(inner) => write!(f, "&{}", inner),
+            Type::MutRef(inner) => write!(f, "&mut {}", inner),
         }
     }
 }
@@ -160,6 +168,7 @@ pub struct VarDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Import {
     pub path: Vec<String>,
+    pub glob: bool,
     pub span: Span,
 }
 
@@ -173,6 +182,7 @@ pub struct FnDecl {
     pub return_type: Option<Type>,
     pub body: Block,
     pub sugar: bool,
+    pub where_clause: Vec<TypeParam>,
     pub span: Span,
 }
 
@@ -193,6 +203,7 @@ pub struct MethodDecl {
     pub params: Vec<Param>,
     pub return_type: Option<Type>,
     pub body: Block,
+    pub where_clause: Vec<TypeParam>,
     pub span: Span,
 }
 
@@ -282,11 +293,30 @@ pub struct WhileStmt {
     pub span: Span,
 }
 
+/// While-let statement.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhileLetStmt {
+    pub var_name: String,
+    pub expr: Expr,
+    pub body: Block,
+    pub span: Span,
+}
+
 /// For statement.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForStmt {
     pub var: String,
     pub iterable: Expr,
+    pub body: Block,
+    pub span: Span,
+}
+
+/// C-style for statement.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CForStmt {
+    pub init: Option<Box<Stmt>>,
+    pub condition: Option<Expr>,
+    pub increment: Option<Expr>,
     pub body: Block,
     pub span: Span,
 }
@@ -314,7 +344,9 @@ pub enum Stmt {
     Expr(Expr),
     If(IfStmt),
     While(WhileStmt),
+    WhileLet(WhileLetStmt),
     For(ForStmt),
+    CFor(CForStmt),
     Return(Option<Expr>),
     Break,
     Continue,
@@ -344,6 +376,7 @@ pub enum Expr {
     Cast(Box<Expr>, Type, Span),
     StaticCall { class_name: String, method: String, args: Vec<Expr>, span: Span },
     Assign(Box<Expr>, Box<Expr>, Span),
+    Unit(Span),
 }
 
 /// Complete program.
