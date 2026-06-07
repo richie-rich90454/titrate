@@ -41,8 +41,8 @@ for var item in collection {
 ## break and continue
 
 ```titrate
-while true {
-    if done { break; }
-    if skip { continue; }
+while (true) {
+    if (done) { break; }
+    if (skip) { continue; }
 }
 ```
