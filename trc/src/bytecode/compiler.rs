@@ -1,4 +1,4 @@
-// Titrate Alpha 0.1 – bytecode compiler
+// Titrate Alpha 0.2 – bytecode compiler
 // Lowers the AST to bytecode chunks for the VM.
 // Precision in every step – richie-rich90454, 2026
 
@@ -557,20 +557,21 @@ impl Compiler {
         for decl in &program.declarations {
             match decl {
                 ast::Declaration::Function(fn_decl) => {
-                    // Only register public functions.
-                    if fn_decl.access != ast::Access::Public {
-                        continue;
-                    }
                     if !fn_decl.type_params.is_empty() {
                         // Generic function: store for later instantiation with mangled base name.
-                        let mangled_base = format!("{}.{}", module_name, fn_decl.name);
-                        let idx = self.generic_functions.len();
-                        let mut mangled_fn = fn_decl.clone();
-                        mangled_fn.name = mangled_base.clone();
-                        self.generic_function_map.insert(mangled_base, idx);
-                        self.generic_functions.push(mangled_fn);
+                        // Only public generics are exported.
+                        if fn_decl.access == ast::Access::Public {
+                            let mangled_base = format!("{}.{}", module_name, fn_decl.name);
+                            let idx = self.generic_functions.len();
+                            let mut mangled_fn = fn_decl.clone();
+                            mangled_fn.name = mangled_base.clone();
+                            self.generic_function_map.insert(mangled_base, idx);
+                            self.generic_functions.push(mangled_fn);
+                        }
                         continue;
                     }
+                    // Register ALL functions (public and private) with mangled names.
+                    // Private functions are needed for internal calls within the module.
                     let mangled = format!("{}.{}", module_name, fn_decl.name);
                     let idx = self.functions.len() as u16;
                     self.function_map.insert(mangled.clone(), idx);
@@ -708,45 +709,40 @@ impl Compiler {
         for decl in &program.declarations {
             match decl {
                 ast::Declaration::Function(fn_decl) => {
-                    if fn_decl.access != ast::Access::Public {
+                    if !fn_decl.type_params.is_empty() {
                         continue;
                     }
-                    if fn_decl.type_params.is_empty() {
-                        // Find the mangled name in function_map.
-                        // The module name prefix was added during registration.
-                        // We look it up by the mangled name.
-                        // Since we don't have the module name here, we search
-                        // by the function name suffix.
-                        if let Some(fn_idx) = self.function_map.iter()
-                            .find(|(k, _)| k.ends_with(&format!(".{}", fn_decl.name)))
-                            .map(|(_, &v)| v)
-                        {
-                            let saved_function = self.current_function;
-                            let saved_locals = std::mem::take(&mut self.locals);
-                            let saved_local_count = self.local_count;
-                            let saved_scope_depth = self.scope_depth;
+                    // Compile ALL functions (public and private) in the module.
+                    // Find the mangled name in function_map.
+                    if let Some(fn_idx) = self.function_map.iter()
+                        .find(|(k, _)| k.ends_with(&format!(".{}", fn_decl.name)))
+                        .map(|(_, &v)| v)
+                    {
+                        let saved_function = self.current_function;
+                        let saved_locals = std::mem::take(&mut self.locals);
+                        let saved_local_count = self.local_count;
+                        let saved_scope_depth = self.scope_depth;
 
-                            self.current_function = fn_idx as usize;
-                            self.locals.clear();
-                            self.local_count = 0;
-                            self.scope_depth = 0;
+                        self.current_function = fn_idx as usize;
+                        self.locals.clear();
+                        self.local_count = 0;
+                        self.scope_depth = 0;
 
-                            self.begin_scope();
-                            for param in &fn_decl.params {
-                                self.declare_local(&param.name);
-                            }
-                            self.compile_block(&fn_decl.body)?;
-                            self.emit_opcode(OpCode::PUSH_VOID, 0);
-                            self.emit_opcode(OpCode::RET, 0);
-                            self.end_scope();
-
-                            self.functions[fn_idx as usize].local_count = self.local_count;
-
-                            self.current_function = saved_function;
-                            self.locals = saved_locals;
-                            self.local_count = saved_local_count;
-                            self.scope_depth = saved_scope_depth;
+                        self.begin_scope();
+                        for param in &fn_decl.params {
+                            self.declare_local(&param.name);
                         }
+                        self.compile_block(&fn_decl.body)?;
+                        self.emit_opcode(OpCode::PUSH_VOID, 0);
+                        self.emit_opcode(OpCode::RET, 0);
+                        self.end_scope();
+
+                        self.functions[fn_idx as usize].local_count = self.local_count;
+
+                        self.current_function = saved_function;
+                        self.locals = saved_locals;
+                        self.local_count = saved_local_count;
+                        self.scope_depth = saved_scope_depth;
                     }
                 }
                 ast::Declaration::Class(class_decl) => {
@@ -1384,6 +1380,52 @@ impl Compiler {
         }
     }
 
+    /// Check that a concrete type satisfies a constraint (e.g. `T: Display`).
+    fn check_constraint(&self, concrete_type: &ast::Type, constraint: &ast::Type) -> Result<(), String> {
+        let type_name = concrete_type.name();
+        let constraint_name = constraint.name();
+
+        match constraint_name {
+            "Display" => {
+                match type_name {
+                    "int" | "long" | "byte" | "short" | "vast" | "uvast" |
+                    "float" | "double" | "half" | "quad" |
+                    "bool" | "char" | "string" => Ok(()),
+                    _ => {
+                        // Check if the class implements Display
+                        // For now, accept all class types (they all have toString)
+                        Ok(())
+                    }
+                }
+            }
+            "Numeric" => {
+                match type_name {
+                    "int" | "long" | "byte" | "short" | "vast" | "uvast" |
+                    "float" | "double" | "half" | "quad" => Ok(()),
+                    _ => Err(format!(
+                        "Type '{}' does not satisfy constraint 'Numeric'",
+                        type_name
+                    )),
+                }
+            }
+            "Comparable" => {
+                match type_name {
+                    "int" | "long" | "byte" | "short" | "vast" | "uvast" |
+                    "float" | "double" | "half" | "quad" |
+                    "char" | "string" => Ok(()),
+                    _ => {
+                        // Check if the class implements Comparable
+                        Ok(())
+                    }
+                }
+            }
+            _ => {
+                // Unknown constraint - accept for forward compatibility
+                Ok(())
+            }
+        }
+    }
+
     /// Instantiate a generic function with concrete type arguments.
     /// Returns the function index of the specialized function.
     fn instantiate_generic_function(&mut self, base_name: &str, type_args: &[ast::Type]) -> Result<u16, String> {
@@ -1409,8 +1451,17 @@ impl Compiler {
         // Build type_args map.
         let type_args_map: HashMap<String, ast::Type> = generic_fn.type_params.iter()
             .zip(type_args.iter())
-            .map(|(param, arg)| (param.clone(), arg.clone()))
+            .map(|(tp, arg)| (tp.name.clone(), arg.clone()))
             .collect();
+
+        // Check constraints.
+        for tp in &generic_fn.type_params {
+            if let Some(ref constraint) = tp.constraint {
+                if let Some(concrete) = type_args_map.get(&tp.name) {
+                    self.check_constraint(concrete, constraint)?;
+                }
+            }
+        }
 
         // Substitute types in the function declaration.
         let specialized_params: Vec<ast::Param> = generic_fn.params.iter()
@@ -1484,8 +1535,17 @@ impl Compiler {
         // Build type_args map.
         let type_args_map: HashMap<String, ast::Type> = generic_class.type_params.iter()
             .zip(type_args.iter())
-            .map(|(param, arg)| (param.clone(), arg.clone()))
+            .map(|(tp, arg)| (tp.name.clone(), arg.clone()))
             .collect();
+
+        // Check constraints.
+        for tp in &generic_class.type_params {
+            if let Some(ref constraint) = tp.constraint {
+                if let Some(concrete) = type_args_map.get(&tp.name) {
+                    self.check_constraint(concrete, constraint)?;
+                }
+            }
+        }
 
         // Substitute types in class members.
         let specialized_members: Vec<ast::ClassMember> = generic_class.members.iter()
@@ -2580,6 +2640,23 @@ impl Compiler {
                 return Ok(());
             }
 
+            // Try mangled name (for private functions within the current module).
+            let mangled_candidates: Vec<String> = self.function_map.keys()
+                .filter(|k| k.ends_with(&format!(".{}", name)))
+                .cloned()
+                .collect();
+            if let Some(mangled) = mangled_candidates.first() {
+                if let Some(&fn_idx) = self.function_map.get(mangled) {
+                    for arg in args {
+                        self.compile_expr(arg)?;
+                    }
+                    self.emit_opcode(OpCode::CALL, line);
+                    self.emit_u16(fn_idx, line);
+                    self.emit_u8(args.len() as u8, line);
+                    return Ok(());
+                }
+            }
+
             // Check the imported symbol table for functions.
             if let Some(Symbol::Function(fn_idx)) = self.symbol_table.get(name).cloned() {
                 for arg in args {
@@ -2976,8 +3053,10 @@ impl Compiler {
                 | "Boolean"
                 | "Char"
                 | "String_"
+                | "String"
                 | "ArrayList"
                 | "HashMap"
+                | "File"
                 | "malloc"
                 | "free"
         )
@@ -3762,7 +3841,7 @@ mod tests {
         let generic_fn = ast::FnDecl {
             access: ast::Access::Public,
             name: "id".to_string(),
-            type_params: vec!["T".to_string()],
+            type_params: vec![ast::TypeParam { name: "T".to_string(), constraint: None }],
             params: vec![ast::Param {
                 name: "x".to_string(),
                 typ: ast::Type::simple("T"),
@@ -3841,7 +3920,7 @@ mod tests {
     fn test_instantiate_generic_class() {
         let generic_class = ast::ClassDecl {
             name: "Box".to_string(),
-            type_params: vec!["T".to_string()],
+            type_params: vec![ast::TypeParam { name: "T".to_string(), constraint: None }],
             parent: None,
             ifaces: vec![],
             members: vec![
@@ -3954,7 +4033,7 @@ mod tests {
         let generic_fn = ast::FnDecl {
             access: ast::Access::Public,
             name: "id".to_string(),
-            type_params: vec!["T".to_string()],
+            type_params: vec![ast::TypeParam { name: "T".to_string(), constraint: None }],
             params: vec![ast::Param {
                 name: "x".to_string(),
                 typ: ast::Type::simple("T"),
@@ -4216,9 +4295,10 @@ mod tests {
         assert!(compiler.function_map.contains_key("mymod.visible_fn"),
             "public function should be registered with mangled name");
 
-        // The private function should NOT be in function_map.
-        assert!(!compiler.function_map.contains_key("mymod.hidden_fn"),
-            "private function should NOT be registered with mangled name");
+        // The private function should also be registered with mangled name
+        // so that it can be called from within the same module.
+        assert!(compiler.function_map.contains_key("mymod.hidden_fn"),
+            "private function should be registered with mangled name for intra-module calls");
     }
 
     // -- test_module_circular_import ---------------------------------------------
