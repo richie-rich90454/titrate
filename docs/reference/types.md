@@ -22,9 +22,9 @@
 
 ## Composite Types
 
-- `Owned<T>` — heap-allocated, move-semantics
-- `Result<T, E>` — success or error
-- `array<T>` — fixed-size array
+- `Owned&lt;T&gt;` — heap-allocated, move-semantics
+- `Result&lt;T, E&gt;` — success or error
+- `array&lt;T&gt;` — fixed-size array
 - Class instances
 - Enum instances
 
@@ -34,3 +34,43 @@
 ArrayList<int>
 HashMap<string, double>
 ```
+
+## Generic Type Parameters
+
+Generic type parameters allow you to write code that works across multiple types while preserving type safety.
+
+### Declaration
+
+Type parameters are declared in angle brackets after a class or function name:
+
+```titrate
+class Box<T> {
+    T value;
+}
+
+fn id<T>(x: T): T {
+    return x;
+}
+```
+
+### Constraints
+
+Type parameters can be constrained to types that implement one or more interfaces:
+
+```titrate
+class SortedList<T: Comparable> { ... }
+fn print<T: Display>(value: T): void { ... }
+fn sortAndPrint<T: Comparable + Display>(items: ArrayList<T>): void { ... }
+```
+
+Built-in constraint interfaces:
+
+| Constraint | Requires |
+|-----------|----------|
+| `Display` | `toString()` method |
+| `Numeric` | Arithmetic operators (`+`, `-`, `*`, `/`) |
+| `Comparable` | `compareTo(other: T): int` method |
+
+### Monomorphization
+
+Titrate compiles generics via monomorphization. For each concrete type used, the compiler generates a specialized copy of the generic code. This means there is no runtime overhead — `ArrayList<int>` runs just as fast as a hand-written list for integers.
