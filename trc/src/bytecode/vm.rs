@@ -1,8 +1,10 @@
 // Titrate Alpha 0.2 – bytecode virtual machine
 // Precision in every step – richie-rich90454, 2026
 
+use std::cell::RefCell;
 use std::char;
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Write};
 use std::rc::Rc;
 
 use super::frame::{ClassDef, EnumDef, Frame, FunctionDef};
@@ -67,7 +69,14 @@ impl Vm {
         vm.register_native("File_readFile", native_file_read);
         vm.register_native("File_writeFile", native_file_write);
         vm.register_native("File_readLines", native_file_read_lines);
+        vm.register_native("File_open", native_file_open);
+        vm.register_native("File_readLine", native_file_read_line);
+        vm.register_native("File_write", native_file_write_content);
+        vm.register_native("File_close", native_file_close);
         vm.register_native("String_split", native_string_split);
+        vm.register_native("Integer_parseOr", native_integer_parse_or);
+        vm.register_native("String_trim", native_string_trim);
+        vm.register_native("String_length", native_string_length);
 
         vm
     }
@@ -1738,9 +1747,221 @@ impl Vm {
                         self.stack.drain(receiver_idx..);
                         self.push(Value::String(s.clone()));
                     }
+                    "trim" => {
+                        self.stack.drain(receiver_idx..);
+                        self.push(Value::String(Rc::new(s.trim().to_string())));
+                    }
+                    "split" => {
+                        let delimiter = if arg_count > 0 {
+                            self.stack.last().cloned().unwrap_or(Value::Void)
+                        } else {
+                            return Err("String.split requires 1 argument".to_string());
+                        };
+                        let delim_str = match &delimiter {
+                            Value::String(d) => d.as_str().to_string(),
+                            Value::Char(c) => c.to_string(),
+                            _ => return Err("String.split requires a String or Char delimiter".to_string()),
+                        };
+                        let parts: Vec<Value> = s.split(&delim_str)
+                            .map(|part| Value::String(Rc::new(part.to_string())))
+                            .collect();
+                        let mut fields = HashMap::new();
+                        fields.insert("_elements".to_string(), Value::Array { elements: parts });
+                        let result = Value::ClassInstance {
+                            class_name: "ArrayList".to_string(),
+                            fields: Rc::new(std::cell::RefCell::new(fields)),
+                            vtable: HashMap::new(),
+                        };
+                        self.stack.drain(receiver_idx..);
+                        self.push(result);
+                    }
+                    "isEmpty" => {
+                        self.stack.drain(receiver_idx..);
+                        self.push(Value::Bool(s.is_empty()));
+                    }
+                    "contains" => {
+                        let substring = if arg_count > 0 {
+                            self.stack.last().cloned().unwrap_or(Value::Void)
+                        } else {
+                            return Err("String.contains requires 1 argument".to_string());
+                        };
+                        match &substring {
+                            Value::String(sub) => {
+                                self.stack.drain(receiver_idx..);
+                                self.push(Value::Bool(s.contains(sub.as_str())));
+                            }
+                            _ => return Err("String.contains requires a String argument".to_string()),
+                        }
+                    }
+                    "startsWith" => {
+                        let prefix = if arg_count > 0 {
+                            self.stack.last().cloned().unwrap_or(Value::Void)
+                        } else {
+                            return Err("String.startsWith requires 1 argument".to_string());
+                        };
+                        match &prefix {
+                            Value::String(p) => {
+                                self.stack.drain(receiver_idx..);
+                                self.push(Value::Bool(s.starts_with(p.as_str())));
+                            }
+                            _ => return Err("String.startsWith requires a String argument".to_string()),
+                        }
+                    }
+                    "endsWith" => {
+                        let suffix = if arg_count > 0 {
+                            self.stack.last().cloned().unwrap_or(Value::Void)
+                        } else {
+                            return Err("String.endsWith requires 1 argument".to_string());
+                        };
+                        match &suffix {
+                            Value::String(suf) => {
+                                self.stack.drain(receiver_idx..);
+                                self.push(Value::Bool(s.ends_with(suf.as_str())));
+                            }
+                            _ => return Err("String.endsWith requires a String argument".to_string()),
+                        }
+                    }
+                    "substring" => {
+                        if arg_count < 2 {
+                            return Err("String.substring requires 2 arguments (start, end)".to_string());
+                        }
+                        let end_val = self.stack.last().cloned().unwrap_or(Value::Void);
+                        let start_val = self.stack.get(self.stack.len() - 2).cloned().unwrap_or(Value::Void);
+                        let start = match start_val {
+                            Value::Int(i) => i as usize,
+                            Value::Long(i) => i as usize,
+                            _ => return Err("String.substring: start must be an integer".to_string()),
+                        };
+                        let end = match end_val {
+                            Value::Int(i) => i as usize,
+                            Value::Long(i) => i as usize,
+                            _ => return Err("String.substring: end must be an integer".to_string()),
+                        };
+                        if start > end || end > s.len() {
+                            return Err(format!("String.substring: indices out of range ({}..{}) for string of length {}", start, end, s.len()));
+                        }
+                        let sub = s[start..end].to_string();
+                        self.stack.drain(receiver_idx..);
+                        self.push(Value::String(Rc::new(sub)));
+                    }
+                    "charAt" => {
+                        let idx_val = if arg_count > 0 {
+                            self.stack.last().cloned().unwrap_or(Value::Void)
+                        } else {
+                            return Err("String.charAt requires 1 argument".to_string());
+                        };
+                        let idx = match idx_val {
+                            Value::Int(i) => i as usize,
+                            Value::Long(i) => i as usize,
+                            _ => return Err("String.charAt: index must be an integer".to_string()),
+                        };
+                        match s.chars().nth(idx) {
+                            Some(c) => {
+                                self.stack.drain(receiver_idx..);
+                                self.push(Value::Char(c));
+                            }
+                            None => return Err(format!("String.charAt: index {} out of range", idx)),
+                        }
+                    }
                     _ => {
                         return Err(format!(
                             "No method '{}' on string",
+                            method_name
+                        ))
+                    }
+                }
+            }
+            Value::ResultOk(inner) => {
+                match method_name.as_str() {
+                    "unwrap" => {
+                        self.stack.drain(receiver_idx..);
+                        self.push((**inner).clone());
+                    }
+                    _ => {
+                        return Err(format!(
+                            "No method '{}' on Result",
+                            method_name
+                        ))
+                    }
+                }
+            }
+            Value::ResultErr(err_val) => {
+                match method_name.as_str() {
+                    "unwrap" => {
+                        return Err(format!(
+                            "called unwrap on an Err value: {}",
+                            err_val.display_string()
+                        ));
+                    }
+                    _ => {
+                        return Err(format!(
+                            "No method '{}' on Result",
+                            method_name
+                        ))
+                    }
+                }
+            }
+            Value::FileHandle(file_rc) => {
+                match method_name.as_str() {
+                    "readLine" => {
+                        let result = {
+                            let file_opt = file_rc.borrow_mut();
+                            match file_opt.as_ref() {
+                                Some(file) => {
+                                    let mut reader = BufReader::new(file.try_clone().map_err(|e| format!("FileHandle.readLine: failed to clone file handle: {}", e))?);
+                                    let mut line = String::new();
+                                    match reader.read_line(&mut line) {
+                                        Ok(0) => Value::ResultErr(Box::new(Value::String(Rc::new("EOF".to_string())))),
+                                        Ok(_) => {
+                                            // Remove trailing newline
+                                            if line.ends_with('\n') { line.pop(); }
+                                            if line.ends_with('\r') { line.pop(); }
+                                            Value::ResultOk(Box::new(Value::String(Rc::new(line))))
+                                        }
+                                        Err(e) => Value::ResultErr(Box::new(Value::String(Rc::new(format!("FileHandle.readLine: {}", e))))),
+                                    }
+                                }
+                                None => Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle is closed".to_string())))),
+                            }
+                        };
+                        self.stack.drain(receiver_idx..);
+                        self.push(result);
+                    }
+                    "write" => {
+                        if arg_count == 0 {
+                            return Err("FileHandle.write requires 1 argument (content)".to_string());
+                        }
+                        let content = self.stack.last().cloned().unwrap_or(Value::Void);
+                        let result = {
+                            let mut file_opt = file_rc.borrow_mut();
+                            match file_opt.as_mut() {
+                                Some(file) => {
+                                    match &content {
+                                        Value::String(s) => {
+                                            match file.write_all(s.as_bytes()) {
+                                                Ok(()) => Value::ResultOk(Box::new(Value::Void)),
+                                                Err(e) => Value::ResultErr(Box::new(Value::String(Rc::new(format!("FileHandle.write: {}", e))))),
+                                            }
+                                        }
+                                        _ => Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle.write: expected String argument".to_string())))),
+                                    }
+                                }
+                                None => Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle is closed".to_string())))),
+                            }
+                        };
+                        self.stack.drain(receiver_idx..);
+                        self.push(result);
+                    }
+                    "close" => {
+                        let mut file_opt = file_rc.borrow_mut();
+                        *file_opt = None;
+                        drop(file_opt);
+                        self.stack.drain(receiver_idx..);
+                        self.push(Value::Void);
+                    }
+                    _ => {
+                        return Err(format!(
+                            "No method '{}' on FileHandle",
                             method_name
                         ))
                     }
@@ -1920,6 +2141,81 @@ impl Vm {
                     }
                 }
                 Ok(Value::Null)
+            }
+            "containsKey" => {
+                if arg_count < 1 {
+                    return Err("HashMap.containsKey requires 1 argument".to_string());
+                }
+                let key = self.stack.last().cloned().unwrap_or(Value::Void);
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => return Ok(Value::Bool(false)),
+                };
+                Ok(Value::Bool(keys.iter().any(|k| *k == key)))
+            }
+            "keys" => {
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: keys });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
+            "values" => {
+                let values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: values });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
+            "size" => {
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                Ok(Value::Int(keys.len() as i32))
+            }
+            "remove" => {
+                if arg_count < 1 {
+                    return Err("HashMap.remove requires 1 argument".to_string());
+                }
+                let key = self.stack.last().cloned().unwrap_or(Value::Void);
+                let mut keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => return Ok(Value::Null),
+                };
+                let mut values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => return Ok(Value::Null),
+                };
+                let mut found_idx = None;
+                for (i, k) in keys.iter().enumerate() {
+                    if *k == key {
+                        found_idx = Some(i);
+                        break;
+                    }
+                }
+                match found_idx {
+                    Some(i) => {
+                        let old_val = values.remove(i);
+                        keys.remove(i);
+                        fields.borrow_mut().insert("_keys".to_string(), Value::Array { elements: keys });
+                        fields.borrow_mut().insert("_values".to_string(), Value::Array { elements: values });
+                        Ok(old_val)
+                    }
+                    None => Ok(Value::Null),
+                }
             }
             _ => Err(format!("Unknown HashMap method '{}'", method)),
         }
@@ -2243,6 +2539,43 @@ impl Vm {
                     _ => return Err(format!("File.readLines: expected String, got {:?}", val)),
                 }
             }
+            // File::open - opens a file and returns Result<FileHandle, string>
+            ("File", "open") => {
+                let mode = if arg_count > 1 {
+                    self.pop()
+                } else {
+                    Value::String(Rc::new("r".to_string()))
+                };
+                let path = self.pop();
+                match (&path, &mode) {
+                    (Value::String(p), Value::String(m)) => {
+                        let resolved = self.resolve_path(p.as_str());
+                        let file = match m.as_str() {
+                            "r" | "rb" => std::fs::File::open(&resolved),
+                            "w" | "wb" => std::fs::File::create(&resolved),
+                            "a" | "ab" => std::fs::OpenOptions::new().append(true).open(&resolved),
+                            "r+" => std::fs::OpenOptions::new().read(true).write(true).open(&resolved),
+                            "w+" => std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(&resolved),
+                            "a+" => std::fs::OpenOptions::new().read(true).append(true).open(&resolved),
+                            _ => {
+                                self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                                    format!("File.open: unsupported mode '{}'", m)
+                                )))));
+                                return Ok(());
+                            }
+                        };
+                        match file {
+                            Ok(f) => self.push(Value::ResultOk(Box::new(Value::FileHandle(
+                                Rc::new(RefCell::new(Some(f)))
+                            )))),
+                            Err(e) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                                format!("Failed to open file '{}': {}", p, e)
+                            ))))),
+                        }
+                    }
+                    _ => return Err(format!("File.open: expected (String, String), got ({:?}, {:?})", path, mode)),
+                }
+            }
             // String::split
             ("String", "split") => {
                 let delim = self.pop();
@@ -2551,6 +2884,107 @@ fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+fn native_file_open(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_open: expected at least 1 argument (path)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("File_open: expected String path".to_string()),
+    };
+    let mode = if args.len() > 1 {
+        match &args[1] {
+            Value::String(s) => s.as_str(),
+            _ => return Err("File_open: expected String mode".to_string()),
+        }
+    } else {
+        "r"
+    };
+    let file = match mode {
+        "r" | "rb" => std::fs::File::open(path),
+        "w" | "wb" => std::fs::File::create(path),
+        "a" | "ab" => std::fs::OpenOptions::new().append(true).open(path),
+        "r+" => std::fs::OpenOptions::new().read(true).write(true).open(path),
+        "w+" => std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(path),
+        "a+" => std::fs::OpenOptions::new().read(true).append(true).open(path),
+        _ => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_open: unsupported mode '{}'", mode)
+        ))))),
+    };
+    match file {
+        Ok(f) => Ok(Value::ResultOk(Box::new(Value::FileHandle(
+            Rc::new(RefCell::new(Some(f)))
+        )))),
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("Failed to open file '{}': {}", path, e)
+        ))))),
+    }
+}
+
+fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_readLine: expected 1 argument (FileHandle)".to_string());
+    }
+    match &args[0] {
+        Value::FileHandle(file_rc) => {
+            let file_opt = file_rc.borrow();
+            match file_opt.as_ref() {
+                Some(file) => {
+                    let mut reader = BufReader::new(file.try_clone().map_err(|e| format!("File_readLine: {}", e))?);
+                    let mut line = String::new();
+                    match reader.read_line(&mut line) {
+                        Ok(0) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new("EOF".to_string()))))),
+                        Ok(_) => {
+                            if line.ends_with('\n') { line.pop(); }
+                            if line.ends_with('\r') { line.pop(); }
+                            Ok(Value::ResultOk(Box::new(Value::String(Rc::new(line)))))
+                        }
+                        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(format!("File_readLine: {}", e)))))),
+                    }
+                }
+                None => Ok(Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle is closed".to_string()))))),
+            }
+        }
+        _ => Err("File_readLine: expected FileHandle argument".to_string()),
+    }
+}
+
+fn native_file_write_content(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("File_write: expected 2 arguments (FileHandle, content)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::FileHandle(file_rc), Value::String(content)) => {
+            let mut file_opt = file_rc.borrow_mut();
+            match file_opt.as_mut() {
+                Some(file) => {
+                    use std::io::Write;
+                    match file.write_all(content.as_bytes()) {
+                        Ok(()) => Ok(Value::ResultOk(Box::new(Value::Void))),
+                        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(format!("File_write: {}", e)))))),
+                    }
+                }
+                None => Ok(Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle is closed".to_string()))))),
+            }
+        }
+        _ => Err("File_write: expected (FileHandle, String)".to_string()),
+    }
+}
+
+fn native_file_close(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_close: expected 1 argument (FileHandle)".to_string());
+    }
+    match &args[0] {
+        Value::FileHandle(file_rc) => {
+            let mut file_opt = file_rc.borrow_mut();
+            *file_opt = None;
+            Ok(Value::Void)
+        }
+        _ => Err("File_close: expected FileHandle argument".to_string()),
+    }
+}
+
 fn native_string_split(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("String_split: expected 2 arguments (string, delimiter)".to_string());
@@ -2572,6 +3006,39 @@ fn native_string_split(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+fn native_integer_parse_or(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Integer_parseOr: expected 2 arguments (string, default)".to_string());
+    }
+    match &args[0] {
+        Value::String(s) => match s.parse::<i32>() {
+            Ok(n) => Ok(Value::Int(n)),
+            Err(_) => Ok(args[1].clone()),
+        },
+        _ => Ok(args[1].clone()),
+    }
+}
+
+fn native_string_trim(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("String_trim: expected 1 argument".to_string());
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::String(Rc::new(s.trim().to_string()))),
+        _ => Err("String_trim: expected String argument".to_string()),
+    }
+}
+
+fn native_string_length(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("String_length: expected 1 argument".to_string());
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::Int(s.len() as i32)),
+        _ => Err("String_length: expected String argument".to_string()),
+    }
+}
+
 /// Look up a built-in native function by name. Returns `None` for unknown names.
 fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -2583,7 +3050,14 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "File_readFile" => Some(native_file_read),
         "File_writeFile" => Some(native_file_write),
         "File_readLines" => Some(native_file_read_lines),
+        "File_open" => Some(native_file_open),
+        "File_readLine" => Some(native_file_read_line),
+        "File_write" => Some(native_file_write_content),
+        "File_close" => Some(native_file_close),
         "String_split" => Some(native_string_split),
+        "Integer_parseOr" => Some(native_integer_parse_or),
+        "String_trim" => Some(native_string_trim),
+        "String_length" => Some(native_string_length),
         _ => None,
     }
 }
