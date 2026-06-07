@@ -1,4 +1,4 @@
-// Titrate Alpha 0.1 – crafted by richie-rich90454, 2026
+// Titrate Alpha 0.2 – crafted by richie-rich90454, 2026
 
 // ---------------------------------------------------------------------------
 // Cast target types
@@ -217,6 +217,9 @@ pub enum OpCode {
 
     // -- Super constructor call -----------------------------------------------
     CALL_SUPER = 118,
+
+    // -- Region deallocation --------------------------------------------------
+    FREE_REGION = 119,
 }
 
 impl OpCode {
@@ -303,7 +306,7 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Validate that the value falls within the defined opcode range.
         match value {
-            0..=118 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
+            0..=119 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
             _ => Err(value),
         }
     }
@@ -492,7 +495,7 @@ mod tests {
         fn variants() -> &'static [OpCode] {
             // Since OpCode is repr(u8) and contiguous 0..=117, we can build
             // the list at test time via try_from.
-            (0u8..=118)
+            (0u8..=119)
                 .map(|v| OpCode::try_from(v).expect("valid opcode"))
                 .collect::<Vec<_>>()
                 .leak()
