@@ -49,12 +49,13 @@ Builds the project (if needed) and then executes it on the Titrate VM. This is t
 pipette test
 ```
 
-Runs all test functions in the project. Test functions are marked with the `test` annotation:
+Runs all test functions in the project. Test functions are public functions whose name starts with `test_`:
 
 ```titrate
-@test
-fn test_addition(): void {
-    assert(1 + 1 == 2);
+public fn test_addition(): void {
+    if 1 + 1 != 2 {
+        io::println("FAIL: 1 + 1 != 2");
+    }
 }
 ```
 
