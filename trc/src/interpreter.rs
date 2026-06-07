@@ -707,6 +707,27 @@ impl Interpreter {
                 }
                 Ok(ControlFlow::None)
             }
+            ast::Stmt::WhileLet(while_let_stmt) => {
+                loop {
+                    let val = self.eval_expr_with_env(&while_let_stmt.expr, &env)?;
+                    match val {
+                        Value::ResultOk(inner) => {
+                            let body_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));
+                            body_env.borrow_mut().set(&while_let_stmt.var_name, *inner);
+                            let cf = self.exec_block(&while_let_stmt.body, body_env)?;
+                            match cf {
+                                ControlFlow::Break => break,
+                                ControlFlow::Continue => continue,
+                                ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                                ControlFlow::None => {}
+                            }
+                        }
+                        Value::ResultErr(_) | Value::Null => break,
+                        _ => break,
+                    }
+                }
+                Ok(ControlFlow::None)
+            }
             ast::Stmt::For(for_stmt) => {
                 let iterable = self.eval_expr_with_env(&for_stmt.iterable, &env)?;
                 let elements = match &iterable {
@@ -730,6 +751,32 @@ impl Interpreter {
                         ControlFlow::Continue => continue,
                         ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
                         ControlFlow::None => {}
+                    }
+                }
+                Ok(ControlFlow::None)
+            }
+            ast::Stmt::CFor(cfor_stmt) => {
+                let cfor_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));
+                if let Some(ref init) = cfor_stmt.init {
+                    self.exec_stmt(init, cfor_env.clone())?;
+                }
+                loop {
+                    if let Some(ref cond) = cfor_stmt.condition {
+                        let cond_val = self.eval_expr_with_env(cond, &cfor_env)?;
+                        if !cond_val.is_truthy() {
+                            break;
+                        }
+                    }
+                    let body_env = Rc::new(RefCell::new(Env::with_parent(cfor_env.clone())));
+                    let cf = self.exec_block(&cfor_stmt.body, body_env)?;
+                    match cf {
+                        ControlFlow::Break => break,
+                        ControlFlow::Continue => {}
+                        ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                        ControlFlow::None => {}
+                    }
+                    if let Some(ref incr) = cfor_stmt.increment {
+                        self.eval_expr_with_env(incr, &cfor_env)?;
                     }
                 }
                 Ok(ControlFlow::None)
@@ -970,6 +1017,7 @@ impl Interpreter {
                 let val = self.eval_expr_with_env(value, env)?;
                 self.eval_assign(target, val, env)
             }
+            ast::Expr::Unit(_) => Ok(Value::Void),
         }
     }
 
@@ -2058,6 +2106,7 @@ mod tests {
             return_type: None,
             body,
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }
     }
@@ -2689,6 +2738,7 @@ mod tests {
                                 Span::unknown(),
                             )),
                         ],
+                        where_clause: vec![],
                         span: Span::unknown(),
                     }),
                 ],
@@ -2760,6 +2810,7 @@ mod tests {
                                 Span::unknown(),
                             )),
                         ],
+                        where_clause: vec![],
                         span: Span::unknown(),
                     }),
                     ClassMember::Method(MethodDecl {
@@ -2775,6 +2826,7 @@ mod tests {
                                 Span::unknown(),
                             ))),
                         ],
+                        where_clause: vec![],
                         span: Span::unknown(),
                     }),
                 ],
@@ -3993,6 +4045,7 @@ mod tests {
                     ))),
                 ],
                 sugar: false,
+                where_clause: vec![],
                 span: Span::unknown(),
             }),
         ]);
