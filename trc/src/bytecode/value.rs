@@ -4,6 +4,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
+use std::fs::File;
 use std::rc::Rc;
 
 // ---------------------------------------------------------------------------
@@ -73,6 +74,7 @@ pub enum Value {
         variant: String,
         field_count: usize,
     },
+    FileHandle(Rc<RefCell<Option<File>>>),
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +152,7 @@ impl fmt::Debug for Value {
                 variant,
                 ..
             } => write!(f, "<enum_variant {}::{}>", enum_name, variant),
+            Value::FileHandle(_) => write!(f, "<file_handle>"),
         }
     }
 }
@@ -183,6 +186,7 @@ impl PartialEq for Value {
             (Value::ResultErr(a), Value::ResultErr(b)) => a == b,
             (Value::Function(a), Value::Function(b)) => a == b,
             (Value::NativeFn(a), Value::NativeFn(b)) => a == b,
+            (Value::FileHandle(a), Value::FileHandle(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }
@@ -323,6 +327,7 @@ impl Value {
             Value::Function(idx) => format!("<fn #{}>", idx),
             Value::NativeFn(idx) => format!("<native fn #{}>", idx),
             Value::EnumVariant { variant, .. } => format!("<variant {}>", variant),
+            Value::FileHandle(_) => "<file_handle>".to_string(),
         }
     }
 
@@ -356,6 +361,7 @@ impl Value {
             Value::ResultOk(_) => "result",
             Value::ResultErr(_) => "result",
             Value::EnumVariant { .. } => "enum_variant",
+            Value::FileHandle(_) => "FileHandle",
         }
     }
 }
