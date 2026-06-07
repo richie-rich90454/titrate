@@ -10,7 +10,7 @@ public class WordCounter {
 
     public void count(string word) {
         string current = this.counts.get(word);
-        if current == "" {
+        if (current == "") {
             this.counts.put(word, "1");
         } else {
             int n = Integer.parseOr(current, 0);
@@ -20,7 +20,7 @@ public class WordCounter {
 
     public int get(string word) {
         string current = this.counts.get(word);
-        if current == "" {
+        if (current == "") {
             return 0;
         }
         return Integer.parseOr(current, 0);
