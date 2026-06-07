@@ -191,7 +191,7 @@ fn shape_name(s: Shape): string {
 
 // Result type functions
 fn safe_divide(a: int, b: int): Result<int, string> {
-    if b == 0 {
+    if (b == 0) {
         return Err("division by zero");
     }
     return Ok(a / b);
