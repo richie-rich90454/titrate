@@ -1,0 +1,7 @@
+[package]
+name = "mega_test_02"
+version = "0.2.0"
+entry = "src/main.tr"
+
+[dependencies]
+# No dependencies yet in Alpha 0.2
