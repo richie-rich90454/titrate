@@ -53,9 +53,11 @@ stmt         ::= block | expr_stmt | if_stmt | while_stmt | for_stmt
                | return_stmt | break_stmt | continue_stmt | switch_stmt
                | var_decl | const_decl | unsafe_block | region_block
 block        ::= '{' stmt* '}'
-if_stmt      ::= 'if' expr block ('else' (if_stmt | block))?
-while_stmt   ::= 'while' expr block
-for_stmt     ::= 'for' ('var')? IDENTIFIER 'in' expr block
+if_stmt      ::= 'if' '(' expr ')' block ('else' (if_stmt | block))?
+while_stmt   ::= 'while' '(' expr ')' block
+for_stmt     ::= 'for' '(' ('var')? IDENTIFIER 'in' expr ')' block
+
+> **Note:** Parentheses around the condition/iterator in `if`, `while`, and `for` statements are optional but preferred. Both `if (expr) { ... }` and `if expr { ... }` are valid; the parenthesized form is the recommended style.
 return_stmt  ::= 'return' expr? ';'
 break_stmt   ::= 'break' ';'
 continue_stmt ::= 'continue' ';'
