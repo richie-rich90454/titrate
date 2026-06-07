@@ -14,10 +14,12 @@ hero:
       link: /reference/lexer
 
 features:
-  - title: Precise Types
-    details: From byte to quad, unsigned fixed-width to arbitrary-precision integers. Every bit counts.
-  - title: Ownership Semantics
+  - title: Bytecode VM
+    details: 10x faster than tree-walking interpretation. Compile to bytecode and run on the Titrate VM.
+  - title: Generics with Monomorphization
+    details: Write generic code with zero runtime overhead. The compiler specializes each type instance at compile time.
+  - title: Module System
+    details: Organize code with imports, control visibility with public and private, and detect circular dependencies.
+  - title: Ownership & Regions
     details: Move semantics, borrowing, and region-based allocation — memory safety without garbage collection.
-  - title: Pattern Matching
-    details: Destructure enums, propagate errors with ?, and match with confidence.
 ---

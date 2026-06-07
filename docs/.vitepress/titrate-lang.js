@@ -40,7 +40,7 @@ export default {
         },
         {
           name: 'keyword.other.titrate',
-          match: '\\b(new|this|super|unsafe|region|public|private)\\b',
+          match: '\\b(new|this|super|unsafe|region|public|private|generic)\\b',
         },
         {
           name: 'constant.language.titrate',
