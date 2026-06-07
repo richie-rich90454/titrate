@@ -1,0 +1,9 @@
+public class Uvast {
+    public static uvast parse(String s) {
+        return Uvast::parseUvast(s);
+    }
+
+    public static String toString(uvast value) {
+        return value.toString();
+    }
+}
