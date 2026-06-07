@@ -68,6 +68,7 @@ pub enum Token {
     // Module keywords
     Import,
     Module,
+    Where,
 
     // Primitive type keywords
     Void,
@@ -189,6 +190,7 @@ impl fmt::Display for Token {
             Token::Type => write!(f, "type"),
             Token::Import => write!(f, "import"),
             Token::Module => write!(f, "module"),
+            Token::Where => write!(f, "where"),
             Token::Void => write!(f, "void"),
             Token::Bool => write!(f, "bool"),
             Token::Byte => write!(f, "byte"),
@@ -673,6 +675,7 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                     "type" => Token::Type,
                     "import" => Token::Import,
                     "module" => Token::Module,
+                    "where" => Token::Where,
                     "void" => Token::Void,
                     "bool" => Token::Bool,
                     "byte" => Token::Byte,
