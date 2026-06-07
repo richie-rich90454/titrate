@@ -1,0 +1,6 @@
+# GitHub Linguist - register .tr files as Titrate language
+*.tr linguist-language=Titrate
+
+# Generated files
+docs/.vitepress/cache/ linguist-vendored
+docs/.vitepress/dist/ linguist-vendored
