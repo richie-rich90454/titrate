@@ -73,12 +73,12 @@ fn sum<T: Numeric>(a: T, b: T): T {
 }
 ```
 
-Multiple constraints can be specified:
+Multiple constraints can be specified with `+`:
 
 ```titrate
 fn sortAndPrint<T: Comparable + Display>(items: ArrayList<T>): void {
     items.sort();
-    for (item in items) {
+    for item in items {
         io::println(item.toString());
     }
 }
@@ -105,7 +105,8 @@ let b = new Box<string>("x");
 The standard library provides generic collections that take full advantage of monomorphization:
 
 ```titrate
-import tt::util::{ArrayList, HashMap};
+import tt::util::ArrayList;
+import tt::util::HashMap;
 
 let list = new ArrayList<int>();
 list.add(1);
