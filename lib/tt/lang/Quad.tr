@@ -1,0 +1,9 @@
+public class Quad {
+    public static quad parse(String s) {
+        return Quad::parseQuad(s);
+    }
+
+    public static String toString(quad value) {
+        return value.toString();
+    }
+}

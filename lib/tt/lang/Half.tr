@@ -1,0 +1,9 @@
+public class Half {
+    public static half parse(String s) {
+        return Half::parseHalf(s);
+    }
+
+    public static String toString(half value) {
+        return value.toString();
+    }
+}
