@@ -19,14 +19,28 @@
 | `char` | 32 | Unicode scalar |
 | `string` | — | UTF-8 string |
 | `size` | ptr | Pointer-sized unsigned |
+| `u8` | 8 | Unsigned 8-bit integer |
+| `u16` | 16 | Unsigned 16-bit integer |
+| `u32` | 32 | Unsigned 32-bit integer |
+| `u64` | 64 | Unsigned 64-bit integer |
 
 ## Composite Types
 
-- `Owned&lt;T&gt;` — heap-allocated, move-semantics
-- `Result&lt;T, E&gt;` — success or error
-- `array&lt;T&gt;` — fixed-size array
+- `Owned<T>` — heap-allocated, move-semantics
+- `Result<T, E>` — success or error
+- `array<T>` — fixed-size array
 - Class instances
 - Enum instances
+
+## Type Casting
+
+Use the `as` keyword to cast between compatible types:
+
+```titrate
+let big: long = 99999 as long;
+let d: double = 42 as double;
+let ch: char = 65 as char;
+```
 
 ## Type Parameters
 
