@@ -521,10 +521,9 @@ impl Compiler {
         for import in &program.imports {
             let path = &import.path;
 
-            // Check for glob import (last segment is "*").
-            if path.last().map(|s| s.as_str()) == Some("*") {
-                let dir_path = &path[..path.len() - 1];
-                let files = self.resolver.resolve_glob(dir_path, root_dir)?;
+            // Check for glob import.
+            if import.glob {
+                let files = self.resolver.resolve_glob(path, root_dir)?;
                 for file in files {
                     // Compute the dotted name from the file path relative to root_dir.
                     let dotted = Self::path_to_dotted_name(&file, root_dir);
@@ -816,10 +815,9 @@ impl Compiler {
             let path = &import.path;
 
             // Determine which modules and which names to import.
-            if path.last().map(|s| s.as_str()) == Some("*") {
+            if import.glob {
                 // Glob import: import all public symbols from the module.
-                let dir_path = &path[..path.len() - 1];
-                let dotted_dir = dir_path.join(".");
+                let dotted_dir = path.join(".");
 
                 // Collect module indices that match the glob.
                 let matching_indices: Vec<usize> = self.modules.iter().enumerate()
@@ -1171,6 +1169,8 @@ impl Compiler {
                     s
                 }
             }
+            ast::Type::Ref(inner) => format!("Ref_{}", Self::type_to_mangle_string(inner)),
+            ast::Type::MutRef(inner) => format!("MutRef_{}", Self::type_to_mangle_string(inner)),
         }
     }
 
@@ -1194,6 +1194,12 @@ impl Compiler {
                     name: name.clone(),
                     params: new_params,
                 }
+            }
+            ast::Type::Ref(inner) => {
+                ast::Type::Ref(Box::new(Self::substitute_type(inner, type_args)))
+            }
+            ast::Type::MutRef(inner) => {
+                ast::Type::MutRef(Box::new(Self::substitute_type(inner, type_args)))
             }
         }
     }
@@ -1273,6 +1279,7 @@ impl Compiler {
                 Box::new(Self::substitute_expr(value, type_args)),
                 *span,
             ),
+            ast::Expr::Unit(span) => ast::Expr::Unit(*span),
         }
     }
 
@@ -1298,11 +1305,24 @@ impl Compiler {
                 body: while_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
                 span: while_stmt.span,
             }),
+            ast::Stmt::WhileLet(while_let_stmt) => ast::Stmt::WhileLet(ast::WhileLetStmt {
+                var_name: while_let_stmt.var_name.clone(),
+                expr: Self::substitute_expr(&while_let_stmt.expr, type_args),
+                body: while_let_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                span: while_let_stmt.span,
+            }),
             ast::Stmt::For(for_stmt) => ast::Stmt::For(ast::ForStmt {
                 var: for_stmt.var.clone(),
                 iterable: Self::substitute_expr(&for_stmt.iterable, type_args),
                 body: for_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
                 span: for_stmt.span,
+            }),
+            ast::Stmt::CFor(cfor_stmt) => ast::Stmt::CFor(ast::CForStmt {
+                init: cfor_stmt.init.as_ref().map(|s| Box::new(Self::substitute_stmt(s, type_args))),
+                condition: cfor_stmt.condition.as_ref().map(|e| Self::substitute_expr(e, type_args)),
+                increment: cfor_stmt.increment.as_ref().map(|e| Self::substitute_expr(e, type_args)),
+                body: cfor_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                span: cfor_stmt.span,
             }),
             ast::Stmt::Return(expr) => {
                 ast::Stmt::Return(expr.as_ref().map(|e| Self::substitute_expr(e, type_args)))
@@ -1376,6 +1396,7 @@ impl Compiler {
             params: specialized_params,
             return_type: specialized_return_type,
             body: specialized_body,
+            where_clause: method_decl.where_clause.clone(),
             span: method_decl.span,
         }
     }
@@ -1454,8 +1475,17 @@ impl Compiler {
             .map(|(tp, arg)| (tp.name.clone(), arg.clone()))
             .collect();
 
-        // Check constraints.
+        // Check constraints from type_params.
         for tp in &generic_fn.type_params {
+            if let Some(ref constraint) = tp.constraint {
+                if let Some(concrete) = type_args_map.get(&tp.name) {
+                    self.check_constraint(concrete, constraint)?;
+                }
+            }
+        }
+
+        // Check constraints from where_clause.
+        for tp in &generic_fn.where_clause {
             if let Some(ref constraint) = tp.constraint {
                 if let Some(concrete) = type_args_map.get(&tp.name) {
                     self.check_constraint(concrete, constraint)?;
@@ -1486,6 +1516,7 @@ impl Compiler {
             return_type: specialized_return_type,
             body: specialized_body,
             sugar: generic_fn.sugar,
+            where_clause: vec![],
             span: generic_fn.span,
         };
 
@@ -1872,8 +1903,14 @@ impl Compiler {
             ast::Stmt::While(while_stmt) => {
                 self.compile_while(while_stmt)?;
             }
+            ast::Stmt::WhileLet(while_let_stmt) => {
+                self.compile_while_let(while_let_stmt)?;
+            }
             ast::Stmt::For(for_stmt) => {
                 self.compile_for(for_stmt)?;
+            }
+            ast::Stmt::CFor(cfor_stmt) => {
+                self.compile_c_for(cfor_stmt)?;
             }
             ast::Stmt::Return(expr) => {
                 if let Some(value) = expr {
@@ -1997,6 +2034,64 @@ impl Compiler {
         Ok(())
     }
 
+    fn compile_while_let(&mut self, while_let_stmt: &ast::WhileLetStmt) -> Result<(), String> {
+        let line = while_let_stmt.span.line;
+        self.begin_scope();
+
+        let loop_start = self.current_ip();
+
+        self.loop_stack.push(LoopInfo {
+            start_ip: loop_start,
+            break_patches: Vec::new(),
+        });
+
+        // Compile the expression (e.g., file.readLine()?)
+        self.compile_expr(&while_let_stmt.expr)?;
+
+        // MATCH_OK: checks if top of stack is ResultOk
+        // If ResultOk, replaces with inner value and pushes true
+        // Otherwise, pushes false
+        self.emit_opcode(OpCode::MATCH_OK, line);
+        self.emit_i16(0, line); // placeholder jump offset (consumed but not used for jumping)
+
+        // Stack: [inner_value, true] if ResultOk, or [false] if not
+        // JMP_IF_FALSE pops the top (the bool) and jumps if false
+        self.emit_opcode(OpCode::JMP_IF_FALSE, line);
+        let exit_jump_offset = self.current_ip();
+        self.emit_i16(0, line); // placeholder
+
+        // Stack: [inner_value] — store it in the variable
+        let slot = self.declare_local(&while_let_stmt.var_name);
+        self.emit_opcode(OpCode::STORE_LOCAL, line);
+        self.emit_u8(slot, line);
+
+        // Compile body
+        self.compile_block(&while_let_stmt.body)?;
+
+        // Jump back to loop start
+        self.emit_opcode(OpCode::JMP, line);
+        let current = self.current_ip() + 2;
+        let offset = (loop_start as isize - current as isize) as i16;
+        self.emit_i16(offset, line);
+
+        // Patch the exit jump
+        let end_ip = self.current_ip();
+        let exit_instr_end = exit_jump_offset + 2;
+        let offset = (end_ip - exit_instr_end) as i16;
+        self.patch_i16_at(exit_jump_offset, offset);
+
+        // Patch all break jumps.
+        let loop_info = self.loop_stack.pop().unwrap();
+        for (patch_offset, _line) in &loop_info.break_patches {
+            let patch_instr_end = *patch_offset + 2;
+            let offset = (end_ip - patch_instr_end) as i16;
+            self.patch_i16_at(*patch_offset, offset);
+        }
+
+        self.end_scope();
+        Ok(())
+    }
+
     fn compile_for(&mut self, for_stmt: &ast::ForStmt) -> Result<(), String> {
         let line = for_stmt.span.line;
         self.begin_scope();
@@ -2082,6 +2177,68 @@ impl Compiler {
         self.patch_i16_at(exit_jump_offset, offset);
 
         // Patch all break jumps.
+        let loop_info = self.loop_stack.pop().unwrap();
+        for (patch_offset, _line) in &loop_info.break_patches {
+            let patch_instr_end = *patch_offset + 2;
+            let offset = (end_ip - patch_instr_end) as i16;
+            self.patch_i16_at(*patch_offset, offset);
+        }
+
+        self.end_scope();
+        Ok(())
+    }
+
+    fn compile_c_for(&mut self, cfor_stmt: &ast::CForStmt) -> Result<(), String> {
+        let line = cfor_stmt.span.line;
+        self.begin_scope();
+
+        // Compile init statement
+        if let Some(ref init) = cfor_stmt.init {
+            self.compile_stmt(init)?;
+        }
+
+        let loop_start = self.current_ip();
+
+        self.loop_stack.push(LoopInfo {
+            start_ip: loop_start,
+            break_patches: Vec::new(),
+        });
+
+        // Compile condition (if present)
+        let exit_jump_offset = if let Some(ref cond) = cfor_stmt.condition {
+            self.compile_expr(cond)?;
+            self.emit_opcode(OpCode::JMP_IF_FALSE, line);
+            let offset = self.current_ip();
+            self.emit_i16(0, line); // placeholder
+            Some(offset)
+        } else {
+            None
+        };
+
+        // Compile body
+        self.compile_block(&cfor_stmt.body)?;
+
+        // Compile increment (if present)
+        if let Some(ref incr) = cfor_stmt.increment {
+            self.compile_expr(incr)?;
+            self.emit_opcode(OpCode::POP, line); // discard increment result
+        }
+
+        // Jump back to loop start
+        self.emit_opcode(OpCode::JMP, line);
+        let current = self.current_ip() + 2;
+        let offset = (loop_start as isize - current as isize) as i16;
+        self.emit_i16(offset, line);
+
+        // Patch the exit jump
+        let end_ip = self.current_ip();
+        if let Some(exit_offset) = exit_jump_offset {
+            let exit_instr_end = exit_offset + 2;
+            let offset = (end_ip - exit_instr_end) as i16;
+            self.patch_i16_at(exit_offset, offset);
+        }
+
+        // Patch all break jumps
         let loop_info = self.loop_stack.pop().unwrap();
         for (patch_offset, _line) in &loop_info.break_patches {
             let patch_instr_end = *patch_offset + 2;
@@ -2322,6 +2479,9 @@ impl Compiler {
             }
             ast::Expr::Assign(target, value, span) => {
                 self.compile_assign(target, value, span.line)?;
+            }
+            ast::Expr::Unit(span) => {
+                self.emit_opcode(OpCode::PUSH_VOID, span.line);
             }
         }
         Ok(())
@@ -2956,6 +3116,7 @@ impl Compiler {
                 }
             }
             ast::Expr::Assign(_, _, _) => InferredType::Unknown,
+            ast::Expr::Unit(_) => InferredType::Void,
         }
     }
 
@@ -3001,38 +3162,44 @@ impl Compiler {
     }
 
     fn type_to_inferred(&self, typ: &ast::Type) -> InferredType {
-        match typ.name() {
-            "byte" => InferredType::I8,
-            "short" => InferredType::I16,
-            "int" => InferredType::I32,
-            "long" => InferredType::I64,
-            "vast" => InferredType::I128,
-            "uvast" => InferredType::U128,
-            "float" => InferredType::F32,
-            "double" => InferredType::F64,
-            "bool" => InferredType::Bool,
-            "char" => InferredType::Char,
-            "string" | "String" => InferredType::String,
-            _ => InferredType::Unknown,
+        match typ {
+            ast::Type::Ref(inner) | ast::Type::MutRef(inner) => self.type_to_inferred(inner),
+            ast::Type::Named { .. } => match typ.name() {
+                "byte" => InferredType::I8,
+                "short" => InferredType::I16,
+                "int" => InferredType::I32,
+                "long" => InferredType::I64,
+                "vast" => InferredType::I128,
+                "uvast" => InferredType::U128,
+                "float" => InferredType::F32,
+                "double" => InferredType::F64,
+                "bool" => InferredType::Bool,
+                "char" => InferredType::Char,
+                "string" | "String" => InferredType::String,
+                _ => InferredType::Unknown,
+            },
         }
     }
 
     fn type_to_cast_target(&self, typ: &ast::Type) -> CastTarget {
-        match typ.name() {
-            "byte" => CastTarget::Byte,
-            "short" => CastTarget::Short,
-            "int" => CastTarget::Int,
-            "long" => CastTarget::Long,
-            "vast" => CastTarget::Vast,
-            "uvast" => CastTarget::Uvast,
-            "float" => CastTarget::Float,
-            "double" => CastTarget::Double,
-            "half" => CastTarget::Half,
-            "quad" => CastTarget::Quad,
-            "char" => CastTarget::Char,
-            "string" | "String" => CastTarget::String,
-            "bool" => CastTarget::Bool,
-            _ => CastTarget::Long, // safe default
+        match typ {
+            ast::Type::Ref(inner) | ast::Type::MutRef(inner) => self.type_to_cast_target(inner),
+            ast::Type::Named { .. } => match typ.name() {
+                "byte" => CastTarget::Byte,
+                "short" => CastTarget::Short,
+                "int" => CastTarget::Int,
+                "long" => CastTarget::Long,
+                "vast" => CastTarget::Vast,
+                "uvast" => CastTarget::Uvast,
+                "float" => CastTarget::Float,
+                "double" => CastTarget::Double,
+                "half" => CastTarget::Half,
+                "quad" => CastTarget::Quad,
+                "char" => CastTarget::Char,
+                "string" | "String" => CastTarget::String,
+                "bool" => CastTarget::Bool,
+                _ => CastTarget::Long, // safe default
+            },
         }
     }
 
@@ -3453,6 +3620,7 @@ mod tests {
             return_type: None,
             body: vec![if_stmt],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3493,6 +3661,7 @@ mod tests {
             return_type: None,
             body: vec![while_stmt],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3541,6 +3710,7 @@ mod tests {
                 su(),
             )))],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3559,6 +3729,7 @@ mod tests {
                 su(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3620,6 +3791,7 @@ mod tests {
                 su(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3694,6 +3866,7 @@ mod tests {
                 span: su(),
             })],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3761,6 +3934,7 @@ mod tests {
             return_type: None,
             body: vec![switch_stmt],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3849,6 +4023,7 @@ mod tests {
             return_type: Some(ast::Type::simple("T")),
             body: vec![ast::Stmt::Return(Some(ast::Expr::Identifier("x".to_string(), su())))],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3864,6 +4039,7 @@ mod tests {
                 su(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -3942,6 +4118,7 @@ mod tests {
                         "value".to_string(),
                         su(),
                     )))],
+                    where_clause: vec![],
                     span: su(),
                 }),
             ],
@@ -3960,6 +4137,7 @@ mod tests {
                 su(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -4006,6 +4184,7 @@ mod tests {
                 )),
             ],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -4041,6 +4220,7 @@ mod tests {
             return_type: Some(ast::Type::simple("T")),
             body: vec![ast::Stmt::Return(Some(ast::Expr::Identifier("x".to_string(), su())))],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -4057,6 +4237,7 @@ mod tests {
                 su(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: su(),
         };
 
@@ -4221,6 +4402,7 @@ mod tests {
         let main_program = ast::Program {
             imports: vec![ast::Import {
                 path: vec!["compile_mod_test".to_string(), "Helper".to_string()],
+                glob: false,
                 span: su(),
             }],
             declarations: vec![ast::Declaration::Function(ast::FnDecl {
@@ -4238,6 +4420,7 @@ mod tests {
                     su(),
                 ))],
                 sugar: false,
+                where_clause: vec![],
                 span: su(),
             })],
         };
@@ -4273,6 +4456,7 @@ mod tests {
                     return_type: None,
                     body: vec![],
                     sugar: false,
+                    where_clause: vec![],
                     span: su(),
                 }),
                 ast::Declaration::Function(ast::FnDecl {
@@ -4283,6 +4467,7 @@ mod tests {
                     return_type: None,
                     body: vec![],
                     sugar: false,
+                    where_clause: vec![],
                     span: su(),
                 }),
             ],
@@ -4319,6 +4504,7 @@ mod tests {
         let main_program = ast::Program {
             imports: vec![ast::Import {
                 path: vec!["circular_test".to_string(), "A".to_string()],
+                glob: false,
                 span: su(),
             }],
             declarations: vec![],
@@ -4349,7 +4535,8 @@ mod tests {
 
         let main_program = ast::Program {
             imports: vec![ast::Import {
-                path: vec!["glob_import_test".to_string(), "utils".to_string(), "*".to_string()],
+                path: vec!["glob_import_test".to_string(), "utils".to_string()],
+                glob: true,
                 span: su(),
             }],
             declarations: vec![],
@@ -4381,6 +4568,7 @@ mod tests {
         let main_program = ast::Program {
             imports: vec![ast::Import {
                 path: vec!["class_import_test".to_string(), "Geometry".to_string()],
+                glob: false,
                 span: su(),
             }],
             declarations: vec![],
