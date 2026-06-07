@@ -85,4 +85,45 @@ false
 true
 false
 
+=== Quicksort ===
+Before sort:
+  42
+  7
+  13
+  3
+  99
+  1
+  56
+  28
+After sort:
+  1
+  3
+  7
+  13
+  28
+  42
+  56
+  99
+
+=== File I/O ===
+Read 8 numbers from file
+Sorted numbers from file:
+  1
+  3
+  7
+  13
+  28
+  42
+  56
+  99
+Wrote sorted numbers to sorted_numbers.txt
+
+=== Word Frequency ===
+the: 4
+fox: 3
+brown: 2
+dog: 3
+quick: 2
+lazy: 3
+
 === Mega Test 0.2 Complete ===
