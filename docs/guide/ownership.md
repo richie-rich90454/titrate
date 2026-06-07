@@ -28,11 +28,15 @@ region r {
 
 ## Unsafe Blocks
 
+`unsafe` blocks suspend ownership and borrowing checks. This is useful for low-level operations that the compiler cannot verify:
+
 ```titrate
 unsafe {
-    // ownership rules are suspended
-    let ptr = malloc(4);
-    *ptr = 0xFEED;
-    free(ptr);
+    // ownership rules are suspended inside this block
+    let x: Owned<int> = new int(5);
+    let y = x;       // would normally move x
+    let z = x;       // allowed in unsafe: no move check
 }
 ```
+
+Use `unsafe` sparingly — it disables the safety guarantees that the compiler provides.
