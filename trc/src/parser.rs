@@ -114,6 +114,30 @@ impl Parser {
             Ok(vec![])
         }
     }
+
+    /// Parse optional where clause: `where T: Comparable<T>, U: Display`
+    /// Returns a list of TypeParam entries representing the constraints.
+    fn parse_where_clause(&mut self) -> Result<Vec<ast::TypeParam>, String> {
+        if self.match_token(&lexer::Token::Where) {
+            let mut constraints = Vec::new();
+            loop {
+                let tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+                let name = match tok {
+                    lexer::Token::Identifier(s) => s,
+                    _ => return Err(format!("Expected type parameter name in where clause, found {}", tok)),
+                };
+                self.expect(&lexer::Token::Colon)?;
+                let constraint = self.parse_type()?;
+                constraints.push(ast::TypeParam { name, constraint: Some(constraint) });
+                if !self.match_token(&lexer::Token::Comma) {
+                    break;
+                }
+            }
+            Ok(constraints)
+        } else {
+            Ok(vec![])
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +277,7 @@ impl Parser {
         let span = self.make_span();
         self.expect(&lexer::Token::Import)?;
         let mut path = Vec::new();
+        let mut glob = false;
 
         // First segment must be an identifier
         let first = self.expect(&lexer::Token::Identifier(String::new()))?;
@@ -263,6 +288,12 @@ impl Parser {
 
         // Consume :: segments
         while self.match_token(&lexer::Token::ColonColon) {
+            // Check for glob star: :: *
+            if self.is_at(&lexer::Token::Star) {
+                self.advance();
+                glob = true;
+                break;
+            }
             let seg = self.expect(&lexer::Token::Identifier(String::new()))?;
             match seg {
                 lexer::Token::Identifier(name) => path.push(name),
@@ -271,7 +302,7 @@ impl Parser {
         }
 
         self.expect(&lexer::Token::Semicolon)?;
-        Ok(ast::Import { path, span })
+        Ok(ast::Import { path, glob, span })
     }
 }
 
@@ -362,6 +393,7 @@ impl Parser {
             self.advance(); // consume '('
             let params = self.parse_sugar_params()?;
             self.expect(&lexer::Token::RightParen)?;
+            let where_clause = self.parse_where_clause()?;
             let body = self.parse_block()?;
             Ok(ast::Declaration::Function(ast::FnDecl {
                 access,
@@ -371,6 +403,7 @@ impl Parser {
                 return_type: Some(return_type),
                 body,
                 sugar: true,
+                where_clause,
                 span,
             }))
         } else {
@@ -422,6 +455,8 @@ impl Parser {
             None
         };
 
+        let where_clause = self.parse_where_clause()?;
+
         let body = self.parse_block()?;
 
         Ok(ast::Declaration::Function(ast::FnDecl {
@@ -432,6 +467,7 @@ impl Parser {
             return_type,
             body,
             sugar,
+            where_clause,
             span,
         }))
     }
@@ -561,6 +597,7 @@ impl Parser {
                         params,
                         return_type: None,
                         body,
+                        where_clause: vec![],
                         span,
                     }));
                 } else {
@@ -588,6 +625,7 @@ impl Parser {
             } else {
                 None
             };
+            let where_clause = self.parse_where_clause()?;
             let body = self.parse_block()?;
             return Ok(ast::ClassMember::Method(ast::MethodDecl {
                 access,
@@ -596,6 +634,7 @@ impl Parser {
                 params,
                 return_type,
                 body,
+                where_clause,
                 span,
             }));
         }
@@ -624,6 +663,7 @@ impl Parser {
                     self.advance(); // consume '('
                     let params = self.parse_sugar_params()?;
                     self.expect(&lexer::Token::RightParen)?;
+                    let where_clause = self.parse_where_clause()?;
                     let body = self.parse_block()?;
                     return Ok(ast::ClassMember::Method(ast::MethodDecl {
                         access,
@@ -632,6 +672,7 @@ impl Parser {
                         params,
                         return_type: Some(return_type),
                         body,
+                        where_clause,
                         span,
                     }));
                 } else {
@@ -725,7 +766,9 @@ impl Parser {
     }
 
     fn parse_method_sig(&mut self) -> Result<ast::MethodSig, String> {
-        // fn name(params): type;
+        // [public|private] fn name(params): type;
+        // Allow optional access modifier before fn
+        let _ = self.match_token(&lexer::Token::Public) || self.match_token(&lexer::Token::Private);
         self.expect(&lexer::Token::Fn)?;
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
@@ -1101,6 +1144,32 @@ impl Parser {
 
     fn parse_while_stmt(&mut self) -> Result<ast::Stmt, String> {
         let span = self.make_span();
+
+        // Check for while-let: while let name = expr { body }
+        if self.is_at(&lexer::Token::Let) {
+            self.advance(); // consume 'let'
+            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+            let var_name = match name_tok {
+                lexer::Token::Identifier(s) => s,
+                _ => return Err(format!("Expected identifier after 'while let', found {}", name_tok)),
+            };
+            self.expect(&lexer::Token::Equals)?;
+            let expr = if self.match_token(&lexer::Token::LeftParen) {
+                let e = self.parse_expression()?;
+                self.expect(&lexer::Token::RightParen)?;
+                e
+            } else {
+                self.parse_expression()?
+            };
+            let body = self.parse_block()?;
+            return Ok(ast::Stmt::WhileLet(ast::WhileLetStmt {
+                var_name,
+                expr,
+                body,
+                span,
+            }));
+        }
+
         let condition = if self.match_token(&lexer::Token::LeftParen) {
             let expr = self.parse_expression()?;
             self.expect(&lexer::Token::RightParen)?;
@@ -1115,8 +1184,13 @@ impl Parser {
 
     fn parse_for_stmt(&mut self) -> Result<ast::Stmt, String> {
         let span = self.make_span();
-        // for ([var] name in expr) { body }  or  for [var] name in expr { body }
         let has_parens = self.match_token(&lexer::Token::LeftParen);
+
+        if has_parens && self.is_c_style_for() {
+            return self.parse_c_for_stmt(span);
+        }
+
+        // for-in loop: for ([var] name in expr) { body }  or  for [var] name in expr { body }
         let _var_kw = self.match_token(&lexer::Token::Var); // optional 'var'
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let var = match name_tok {
@@ -1137,6 +1211,115 @@ impl Parser {
         Ok(ast::Stmt::For(ast::ForStmt {
             var,
             iterable,
+            body,
+            span,
+        }))
+    }
+
+    /// Lookahead to determine if a `for (` is a C-style for loop.
+    /// C-style: `for (let j = ...; ...)` or `for (var j = ...; ...)` or `for (expr; ...)`
+    /// For-in: `for (name in ...)` or `for (var name in ...)`
+    fn is_c_style_for(&self) -> bool {
+        let mut pos = self.pos;
+
+        // Check for `let` or `var` after `(`
+        if let Some(st) = self.tokens.get(pos) {
+            if matches!(st.token, lexer::Token::Let | lexer::Token::Var) {
+                pos += 1;
+                // After let/var, check if next is Identifier followed by `=` (C-style) or `in` (for-in)
+                if let Some(st2) = self.tokens.get(pos) {
+                    if let lexer::Token::Identifier(_) = &st2.token {
+                        pos += 1;
+                        if let Some(st3) = self.tokens.get(pos) {
+                            // `=` means C-style, `in` means for-in
+                            return matches!(st3.token, lexer::Token::Equals);
+                        }
+                    }
+                }
+                // If we can't determine, assume not C-style
+                return false;
+            }
+        }
+
+        // Otherwise, check if the tokens before the first `;` look like an expression
+        // (not `identifier in`). We scan for a semicolon at the same nesting level.
+        let mut depth = 0;
+        let mut found_semi = false;
+        let mut found_in = false;
+        let mut scan_pos = pos;
+        while let Some(st) = self.tokens.get(scan_pos) {
+            match &st.token {
+                lexer::Token::LeftParen | lexer::Token::LeftBracket | lexer::Token::LeftBrace => {
+                    depth += 1;
+                }
+                lexer::Token::RightParen | lexer::Token::RightBracket | lexer::Token::RightBrace => {
+                    if depth == 0 {
+                        break;
+                    }
+                    depth -= 1;
+                }
+                lexer::Token::Semicolon if depth == 0 => {
+                    found_semi = true;
+                    break;
+                }
+                lexer::Token::Identifier(ref s) if s == "in" && depth == 0 => {
+                    // Check if this `in` is preceded by an identifier (for-in pattern)
+                    // and followed by an expression (not a semicolon)
+                    found_in = true;
+                    break;
+                }
+                _ => {}
+            }
+            scan_pos += 1;
+        }
+
+        found_semi && !found_in
+    }
+
+    /// Parse a C-style for loop: `for (init; cond; incr) { body }`
+    fn parse_c_for_stmt(&mut self, span: ast::Span) -> Result<ast::Stmt, String> {
+        // We've already consumed `for (`
+        // Parse init
+        let init = if self.is_at(&lexer::Token::Semicolon) {
+            self.advance(); // consume `;`
+            None
+        } else if self.is_at(&lexer::Token::Let) {
+            self.advance();
+            let vd = self.parse_let_decl(false)?;
+            Some(Box::new(ast::Stmt::VarDecl(vd)))
+        } else if self.is_at(&lexer::Token::Var) {
+            self.advance();
+            let vd = self.parse_var_decl()?;
+            Some(Box::new(ast::Stmt::VarDecl(vd)))
+        } else {
+            // Expression statement (without semicolon consumed by parse_stmt)
+            let expr = self.parse_expression()?;
+            self.expect(&lexer::Token::Semicolon)?;
+            Some(Box::new(ast::Stmt::Expr(expr)))
+        };
+
+        // Parse condition
+        let condition = if self.is_at(&lexer::Token::Semicolon) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        self.expect(&lexer::Token::Semicolon)?;
+
+        // Parse increment
+        let increment = if self.is_at(&lexer::Token::RightParen) {
+            None
+        } else {
+            Some(self.parse_expression()?)
+        };
+        self.expect(&lexer::Token::RightParen)?;
+
+        let body = self.parse_block()?;
+
+        Ok(ast::Stmt::CFor(ast::CForStmt {
+            init,
+            condition,
+            increment,
             body,
             span,
         }))
@@ -1334,6 +1517,21 @@ impl Parser {
 
 impl Parser {
     fn parse_type(&mut self) -> Result<ast::Type, String> {
+        // Check for &mut T or &T reference types
+        if self.match_token(&lexer::Token::RefMut) {
+            let inner = self.parse_type()?;
+            return Ok(ast::Type::MutRef(Box::new(inner)));
+        }
+        if self.match_token(&lexer::Token::Ampersand) {
+            // Check if next token is 'mut' (could be &mut without the combined RefMut token)
+            if self.match_token(&lexer::Token::RefMut) {
+                let inner = self.parse_type()?;
+                return Ok(ast::Type::MutRef(Box::new(inner)));
+            }
+            let inner = self.parse_type()?;
+            return Ok(ast::Type::Ref(Box::new(inner)));
+        }
+
         let tok = self.peek().clone();
         let name = if is_type_keyword(&tok) {
             self.advance();
@@ -1693,7 +1891,13 @@ impl Parser {
                 Ok(ast::Expr::Super(span))
             }
             lexer::Token::LeftParen => {
+                let span = self.make_span();
                 self.advance();
+                // Check for unit literal: ()
+                if self.is_at(&lexer::Token::RightParen) {
+                    self.advance();
+                    return Ok(ast::Expr::Unit(span));
+                }
                 let expr = self.parse_expression()?;
                 self.expect(&lexer::Token::RightParen)?;
                 Ok(expr)
@@ -3241,6 +3445,173 @@ import math::sqrt;"#;
                 assert_eq!(cd.type_params, vec![ast::TypeParam { name: "K".to_string(), constraint: None }, ast::TypeParam { name: "V".to_string(), constraint: None }]);
             }
             other => panic!("Expected Class, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // C-style for loop tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_c_for_basic() {
+        let src = r#"fn f(): void { for (let i = 0; i < 10; i = i + 1) { break; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::CFor(cfor) => {
+                    // init should be a VarDecl for i
+                    assert!(cfor.init.is_some());
+                    match cfor.init.as_ref().unwrap().as_ref() {
+                        ast::Stmt::VarDecl(vd) => {
+                            assert_eq!(vd.name, "i");
+                            assert!(!vd.mutable);
+                        }
+                        other => panic!("Expected VarDecl in init, got {:?}", other),
+                    }
+                    // condition should be a binary expr
+                    assert!(cfor.condition.is_some());
+                    assert!(matches!(cfor.condition.as_ref().unwrap(), ast::Expr::Binary(_, ast::Operator::Lt, _, _)));
+                    // increment should be an assignment
+                    assert!(cfor.increment.is_some());
+                    assert!(matches!(cfor.increment.as_ref().unwrap(), ast::Expr::Assign(_, _, _)));
+                    assert_eq!(cfor.body.len(), 1);
+                }
+                other => panic!("Expected CFor, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_c_for_with_var() {
+        let src = r#"fn f(): void { for (var j = low; j < high; j = j + 1) { continue; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::CFor(cfor) => {
+                    assert!(cfor.init.is_some());
+                    match cfor.init.as_ref().unwrap().as_ref() {
+                        ast::Stmt::VarDecl(vd) => {
+                            assert_eq!(vd.name, "j");
+                            assert!(vd.mutable);
+                        }
+                        other => panic!("Expected VarDecl (mutable) in init, got {:?}", other),
+                    }
+                }
+                other => panic!("Expected CFor, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_c_for_with_method_call() {
+        let src = r#"fn f(): void { for (let i = 0; i < numbers.size(); i = i + 1) { break; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::CFor(cfor) => {
+                    // condition should include a method call
+                    assert!(cfor.condition.is_some());
+                }
+                other => panic!("Expected CFor, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_c_for_no_init() {
+        let src = r#"fn f(): void { for (; i < 10; i = i + 1) { break; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::CFor(cfor) => {
+                    assert!(cfor.init.is_none());
+                    assert!(cfor.condition.is_some());
+                    assert!(cfor.increment.is_some());
+                }
+                other => panic!("Expected CFor, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_c_for_no_condition() {
+        let src = r#"fn f(): void { for (let i = 0; ; i = i + 1) { break; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::CFor(cfor) => {
+                    assert!(cfor.init.is_some());
+                    assert!(cfor.condition.is_none());
+                    assert!(cfor.increment.is_some());
+                }
+                other => panic!("Expected CFor, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_c_for_no_increment() {
+        let src = r#"fn f(): void { for (let i = 0; i < 10; ) { break; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::CFor(cfor) => {
+                    assert!(cfor.init.is_some());
+                    assert!(cfor.condition.is_some());
+                    assert!(cfor.increment.is_none());
+                }
+                other => panic!("Expected CFor, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_for_in_still_works_without_parens() {
+        let src = r#"fn f(): void { for item in list { process(item); } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::For(fs) => {
+                    assert_eq!(fs.var, "item");
+                }
+                other => panic!("Expected For (for-in), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_for_in_still_works_with_parens() {
+        let src = r#"fn f(): void { for (item in list) { process(item); } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::For(fs) => {
+                    assert_eq!(fs.var, "item");
+                }
+                other => panic!("Expected For (for-in), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_for_in_var_still_works_with_parens() {
+        let src = r#"fn f(): void { for (var i in items) { continue; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::For(fs) => {
+                    assert_eq!(fs.var, "i");
+                }
+                other => panic!("Expected For (for-in), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
         }
     }
 }
