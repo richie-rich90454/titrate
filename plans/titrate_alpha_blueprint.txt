@@ -1,6 +1,5 @@
 ================================================================================
           TITRATE ALPHA 0.1 – COMPLETE LANGUAGE SPEC & IMPLEMENTATION PLAN
-          (v2.0 – ultra-detailed, with easter eggs and human-like commits)
 ================================================================================
 
 This document is the single source of truth for building the Titrate compiler
@@ -380,5 +379,398 @@ visible to users). The code must include:
 - License: Apache 2.0 for compiler and stdlib.
 
 ================================================================================
-END OF BLUEPRINT
+                  TITRATE ALPHA 0.2 – BYTECODE COMPILER & FOUNDATIONS
+================================================================================
+
+Objective: Replace the tree‑walking interpreter with a fast bytecode VM. Add
+generics, modules, and a multi‑file build system. The standard library stubs
+from 0.1 are replaced by real Titrate code that compiles to bytecode.
+
+No native code yet; performance comes from a heavily optimised bytecode VM.
+All memory management is GC‑free – ownership and region allocation are
+simulated in the VM.
+
+================================================================================
+1. LANGUAGE ADDITIONS
+================================================================================
+
+1.1 Generics
+  - Syntax: class Box<T> { value: T; }
+            fn id<T>(x: T) -> T { return x; }
+  - Type parameters may have interface constraints: T: Display.
+  - Monomorphization: compiler duplicates generic code for each concrete type
+    used. Zero runtime overhead. Entirely compile‑time.
+  - Existing stubs (ArrayList, HashMap) become generic Titrate source files.
+
+1.2 Module System
+  - Each .tr file is a module; name derived from file name.
+  - Import syntax:
+      import tt::lang::Integer;
+      import tt::util::{ArrayList, HashMap};
+      import tt::io::*;
+  - public/private control visibility (default private inside module).
+  - Multi‑file compilation: the compiler resolves the import graph from the
+    root module and compiles everything before linking bytecode.
+
+1.3 Improved Error Handling
+  - Source location (line:col) attached to every AST node.
+  - Multiple errors reported (up to a limit) before the compiler exits.
+
+================================================================================
+2. BYTECODE VIRTUAL MACHINE (written in Rust, in the `trc` crate)
+================================================================================
+
+2.1 Architecture
+  - Stack‑based VM with a typed instruction set. Each stack slot is a 64‑bit
+    word that can hold an integer, float, or pointer.
+  - Opcodes include: PUSH_I32, PUSH_F64, ADD_I32, SUB_I32, MUL_I32, DIV_I32,
+    EQ_I32, JMP, JMP_IF_FALSE, CALL, RET, LOAD_LOCAL, STORE_LOCAL, NEW,
+    INVOKE_VIRTUAL, BOX, UNBOX, ALLOC_REGION, FREE_REGION, and many more.
+  - String interning: all strings are stored in a global table and referenced
+    by index for fast equality and copying.
+  - No garbage collector: the VM implements malloc/free for Owned<T> via
+    BOX/UNBOX opcodes. Region allocations use a bump pointer that is reset
+    when the region block exits.
+
+2.2 Bytecode Compiler Backend
+  - Transforms the typed AST into a linear bytecode sequence.
+  - Handles: control flow, virtual dispatch (vtable), ownership moves,
+    borrowing, region lifetimes, unsafe blocks.
+  - Performance target: at least 10× faster than the tree‑walker on the
+    original Alpha 0.1 Mega Test.
+
+================================================================================
+3. STANDARD LIBRARY (written in Titrate, compiled to bytecode)
+================================================================================
+
+3.1 tt.lang
+  - Boolean, Character, Integer, Long, Vast, Uvast, Float, Double, Half,
+    Quad, Byte, Short, String (static utility), ParseError.
+  - All wrapper methods (toString, parse) are implemented in Titrate using
+    primitive operations.
+
+3.2 tt.util
+  - ArrayList<E>, HashMap<K,V>, Vec<E> (resizable array), StringBuilder.
+  - Each is fully generic and uses Owned<array<T>> internally.
+
+3.3 tt.io
+  - File: open, readLine, write, close (wraps C stdio via VM built‑ins).
+  - println/print (already present).
+
+================================================================================
+4. BUILD TOOL: pipette
+================================================================================
+
+  - `pipette new <name>` – create a project skeleton.
+  - `pipette build` – resolve imports, compile all modules to bytecode, link
+    them into a single executable bytecode file. The tool embeds a copy of the
+    VM and the bytecode into a standalone binary.
+  - `pipette run`, `pipette test`, `pipette watch`.
+  - Dependency management: Git repositories and local paths in Titrate.toml;
+    lock file Titrate.lock. No central registry yet.
+
+================================================================================
+5. MEGA TEST ALPHA 0.2
+================================================================================
+
+  A multi‑file program that:
+    - Reads a list of numbers from a text file.
+    - Uses a generic quicksort function to sort them.
+    - Writes the sorted list to a new file.
+    - Uses HashMap<String, Int> to count word frequencies in another file.
+    - Prints results and verifies output with an expected file.
+  Must compile with `pipette build` and run successfully, producing exact
+  output.
+
+================================================================================
+6. IMPLEMENTATION PHASES (approx. 12 weeks)
+================================================================================
+
+  0. Refactor: extract VM into a separate Rust module; implement a minimal
+     VM with a few hand‑written bytecodes and run a test.
+  1. Bytecode generator: translate expressions and statements.
+  2. Add function calls, vtables, and ownership operations.
+  3. Generics: parsing, type‑checking, monomorphization.
+  4. Module system: import resolution and multi‑file compilation.
+  5. Port standard library from stubs to real Titrate code.
+  6. Extend pipette with dependency fetching and incremental compilation.
+  7. Integration and Mega Test 0.2; update documentation.
+
+================================================================================
+                  TITRATE ALPHA 0.3 – FULL STANDARD LIBRARY & SCIENTIFIC CORE
+================================================================================
+
+Objective: Build out the standard library to near‑Python levels, entirely in
+Titrate, running on the bytecode VM. Introduce the scientific computing stack
+(ndarray, linalg, chem) that becomes Titrate’s killer advantage. The language
+gains closures, iterators, and richer control flow. Still no LLVM – all
+execution is bytecode.
+
+================================================================================
+1. LANGUAGE ADDITIONS
+================================================================================
+
+1.1 Closures
+  - Syntax: `let f = fn(x) => x * 2;`
+  - Capture environment by reference; borrow checker applied to captured
+    variables.
+1.2 Iterator Protocol
+  - `for (item in iterable) { ... }` desugared to calls to `next()`.
+  - Standard collections implement an `Iterable` interface.
+1.3 Exhaustive Pattern Matching
+  - The compiler emits a warning (or error, configurable) for non‑exhaustive
+    switch statements on enums.
+1.4 Tuple Types
+  - Anonymous struct types: `let pair: (int, string) = (42, "hello");`
+  - Destructuring: `let (x, y) = pair;`
+1.5 Operator Overloading
+  - User types may define methods like `operator+(self, other: Self) -> Self`
+    to allow `a + b` syntax.
+
+================================================================================
+2. STANDARD LIBRARY – PYTHON PARITY TARGET
+================================================================================
+
+All modules are written in Titrate and compiled to bytecode.
+
+2.1 Data Structures (tt.util)
+  - Set<E>, Deque<E>, PriorityQueue<E>, Counter<E>.
+2.2 File System & OS (tt.file, tt.sys)
+  - High‑level file ops: copy, move, walk directory, path manipulation.
+  - Command‑line arguments, environment variables, exit.
+2.3 Networking (tt.net)
+  - TCP client and server (wrapping OS sockets via VM built‑ins).
+  - HTTP client (GET, POST) with basic headers.
+2.4 Serialization (tt.json, tt.csv, tt.xml)
+  - JSON: parse and generate (recursive descent).
+  - CSV: read/write with customizable delimiter.
+  - XML: basic DOM parser and builder.
+2.5 Date & Time (tt.time)
+  - DateTime type, duration, sleep, high‑resolution timers.
+2.6 Regular Expressions (tt.regex)
+  - Basic regex engine (NFA/backtracking) or thin wrapper over a small C
+    library (PCRE).
+2.7 Math & Random (tt.math, tt.random)
+  - Mathematical constants, trigonometry, logarithms, special functions.
+  - Pseudo‑random number generators (Mersenne Twister or Xorshift).
+2.8 Testing Framework (assay)
+  - `@test` annotation or test block; assertions; test runner built into pipette.
+
+================================================================================
+3. SCIENTIFIC LIBRARIES (new, game‑changing)
+================================================================================
+
+3.1 tt.math.ndarray
+  - Multi‑dimensional array type `NDArray<T, N>` with shape and strides.
+  - Factory methods: zeros, ones, from flat data.
+  - Indexing and slicing: `arr[1..4, 0]`.
+  - Element‑wise arithmetic via operator overloading.
+  - Broadcasting (basic), reduction ops (sum, mean), reshape, transpose.
+  - All loops executed by the bytecode VM; speed is acceptable for prototyping.
+3.2 tt.math.linalg
+  - Matrix multiplication, dot products.
+  - Gaussian elimination, LU decomposition, Cholesky.
+  - Wraps C LAPACK/BLAS libraries via FFI (future, when LLVM arrives); pure
+    Titrate fallback for now.
+3.3 tt.chem
+  - Molecule data type (atoms, bonds, coordinates).
+  - Force field: energy, gradient methods.
+  - Built‑in force field terms: harmonic bond, angle, torsion, Lennard‑Jones,
+    Coulomb.
+  - Verlet integrator with Berendsen thermostat.
+  - Basic molecular dynamics loop.
+  - Simple Restricted Hartree‑Fock (RHF) implementation using linalg.
+3.4 Units of Measure (tt.units)
+  - Zero‑cost wrapper types (Meter, Second, Joule) that enforce dimensional
+    consistency at compile time.
+
+================================================================================
+4. BUILD TOOL: pipette
+================================================================================
+
+  - Now supports running the entire test suite (`pipette test`).
+  - Generates API documentation from Titrate source comments (`pipette doc`).
+  - Dependency resolution with version constraints; central registry not yet
+    required but can pull from Git.
+
+================================================================================
+5. MEGA TEST ALPHA 0.3
+================================================================================
+
+  Simulate a box of 1000 water molecules using tt.chem. Perform 500 MD steps,
+  output temperature and total energy every 50 steps. Verify against a known
+  reference (hard‑coded expected values). Program runs entirely on the
+  bytecode VM.
+
+================================================================================
+6. IMPLEMENTATION PHASES (approx. 16 weeks)
+================================================================================
+
+  0. Language additions: closures, iterators, tuples, operator overloading.
+  1. Extend parser and type checker for new features.
+  2. Build ndarray with all core operations.
+  3. Implement linalg (pure Titrate) and basic chem modules.
+  4. Develop full stdlib: collections, I/O, net, JSON, CSV, time, regex.
+  5. Create testing framework and integrate with pipette.
+  6. Build the scientific demo (water box) and verify.
+  7. Documentation (Vitepress) updated with tutorials for new features.
+
+================================================================================
+                  TITRATE ALPHA 0.4 – NATIVE CODE (LLVM) & SELF‑HOSTING
+================================================================================
+
+Objective: Add the LLVM native code backend for production performance.
+Self‑host the compiler: rewrite the Titrate compiler entirely in Titrate,
+compiled by the bytecode VM (or by itself once native). Language becomes
+truly self‑sufficient.
+
+================================================================================
+1. LLVM BACKEND
+================================================================================
+
+  - Integrate LLVM 15 via inkwell. Map all Titrate types to LLVM types.
+  - Full native codegen for every language feature, including ownership
+    semantics (drop flags, region alloca, borrow checks at compile time).
+  - SIMD auto‑vectorization for loops over arrays (LLVM’s loop vectorizer).
+  - Link with a small C runtime for startup and I/O.
+  - The existing bytecode VM remains for debug builds and platforms without
+    LLVM.
+
+================================================================================
+2. SELF‑HOSTING COMPILER
+================================================================================
+
+  - The entire Titrate compiler (lexer, parser, analyzer, codegen) is
+    rewritten in Titrate.
+  - Initially, the bootstrap Rust compiler builds the bytecode version; the
+    bytecode VM then executes the self‑hosted compiler.
+  - Once the LLVM backend is stable, the self‑hosted compiler can compile
+    itself to native code.
+  - The self‑hosted compiler must pass all existing tests.
+
+================================================================================
+3. STANDARD LIBRARY ENHANCEMENTS
+================================================================================
+
+  - The scientific stack (ndarray, linalg, chem) now runs natively, delivering
+    near‑Fortran performance.
+  - Bindings to C/Fortran libraries (LAPACK, FFTW) become easy via FFI (now
+    fully supported with native code).
+  - Add tt.plot (basic 2D plotting using a simple rasterizer or SVG output).
+  - Add tt.ml: basic machine learning algorithms (linear regression, k‑means).
+
+================================================================================
+4. DEVELOPMENT TOOLS
+================================================================================
+
+  - Language server `indicator` (LSP) for VS Code.
+  - Code formatter `standardize` (opinionated, like gofmt).
+  - Debugger integration (DWARF line tables and basic breakpoints via LLDB/GDB).
+  - Profiler (sampling profiler or basic instrumentation).
+
+================================================================================
+5. PACKAGE REGISTRY: burette
+================================================================================
+
+  - Central HTTP registry; packages can be published with `pipette publish`.
+  - Versioning (semver), dependency resolution, lock files.
+
+================================================================================
+6. MEGA TEST ALPHA 0.4
+================================================================================
+
+  - Compile the entire self‑hosted compiler to native code using the LLVM
+    backend. Then use that compiler to compile a complex application (e.g., a
+    JSON API server that performs MD simulations on request). The application
+    must run and produce correct results.
+
+================================================================================
+7. IMPLEMENTATION PHASES (approx. 20 weeks)
+================================================================================
+
+  0. Set up LLVM infrastructure, implement hello world to native.
+  1. Codegen for all language features (functions, OOP, enums, ownership).
+  2. Develop self‑hosting compiler in Titrate (bytecode VM).
+  3. Bootstrap: use Rust compiler to build self‑hosted bytecode compiler;
+     then use it to build itself (bytecode). Verify.
+  4. Add FFI support; bind scientific libraries to native implementations.
+  5. Build tools: LSP, formatter, debugger.
+  6. Set up burette registry and publish workflow.
+  7. Mega test: self‑hosted native compiler builds and runs the large app.
+  8. Documentation and release.
+
+================================================================================
+                  TITRATE ALPHA 0.5 – PYTHON‑LEVEL FUNCTIONALITY
+================================================================================
+
+Objective: Titrate becomes a full replacement for Python in a wide variety of
+applications: scripting, data science, web back‑ends, and systems programming.
+The language includes async I/O, extended pattern matching, a comprehensive
+standard library equal to CPython’s core, and a mature scientific ecosystem.
+All execution is native (LLVM) with no GC.
+
+================================================================================
+1. LANGUAGE COMPLETION
+================================================================================
+
+  - Async/await with a built‑in event loop (single‑threaded, non‑blocking I/O).
+  - Extended pattern matching: guards (`case Some(v) if v > 0 => ...`), nested
+    patterns.
+  - Compile‑time function evaluation (const fn) for meta‑programming.
+  - `with` statement desugared to try/finally using drop semantics.
+
+================================================================================
+2. STANDARD LIBRARY – PYTHON 3.11 EQUIVALENT
+================================================================================
+
+  Every commonly used Python standard library module has a counterpart in `tt`:
+
+  - os, sys, io, time, datetime, math, random, re, json, csv, xml, html,
+    urllib, socket, ssl, subprocess, shutil, pathlib, tempfile, logging,
+    unittest (assay), argparse, configparser, sqlite3, zipfile, tarfile,
+    email, hashlib, multiprocessing (OS threads with safe message passing).
+
+================================================================================
+3. SCIENTIFIC STACK MATURITY
+================================================================================
+
+  - ndarray is feature‑complete with NumPy’s core API.
+  - linalg wraps LAPACK fully; sparse matrix support.
+  - chem: advanced force fields (MMFF94, AMBER), semi‑empirical QM (PM3),
+    file I/O for PDB, XYZ, Gaussian.
+  - tt.ml: linear regression, k‑means, PCA, basic neural networks.
+  - tt.plot: a plotting library producing raster/SVG, capable of publication‑
+    quality figures.
+
+================================================================================
+4. ECOSYSTEM & TOOLS
+================================================================================
+
+  - burette registry is populated with essential packages.
+  - Full documentation, tutorials, and migration guides.
+  - LSP, formatter, debugger, profiler are stable and widely used.
+  - Titrate is adopted for teaching and research; community contributions are
+    active.
+
+================================================================================
+5. MEGA TEST ALPHA 0.5
+================================================================================
+
+  - Build a web server that provides a REST API for molecular dynamics
+    simulations: accept a molecule file, run a short simulation using the
+    built‑in chemistry library, and return results as JSON. The server uses
+    async I/O, handles concurrent requests, and runs entirely on native code.
+    Must build with a single `pipette build` and serve correctly.
+
+================================================================================
+6. IMPLEMENTATION PHASES (approx. 24 weeks)
+================================================================================
+
+  0. Finalize language design; stabilize async/await and pattern matching.
+  1. Fill remaining stdlib gaps.
+  2. Polish scientific libraries and add missing parts.
+  3. Build the Mega Test application.
+  4. Community outreach, conference talks, documentation.
+  5. Release candidate and final testing.
+
 ================================================================================
