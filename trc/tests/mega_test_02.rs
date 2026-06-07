@@ -21,6 +21,7 @@ fn compile_and_run_mega_test_02() -> Result<Vec<String>, String> {
         .expect("multi-file compilation should succeed");
 
     let mut vm = bytecode::Vm::new();
+    vm.set_working_dir(base_dir.clone());
     vm.load_program(compiled);
     vm.run()?;
 
