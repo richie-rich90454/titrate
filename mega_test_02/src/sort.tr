@@ -1,31 +1,31 @@
 // Utility functions for the mega test.
 
 public int min(int a, int b) {
-    if a < b {
+    if (a < b) {
         return a;
     }
     return b;
 }
 
 public int max(int a, int b) {
-    if a > b {
+    if (a > b) {
         return a;
     }
     return b;
 }
 
 public int abs(int x) {
-    if x < 0 {
+    if (x < 0) {
         return 0 - x;
     }
     return x;
 }
 
 public int factorial(int n) {
-    if n <= 1 { return 1; }
+    if (n <= 1) { return 1; }
     int result = 1;
     int i = 2;
-    while i <= n {
+    while (i <= n) {
         result = result * i;
         i = i + 1;
     }
@@ -33,16 +33,16 @@ public int factorial(int n) {
 }
 
 public int fibonacci(int n) {
-    if n <= 0 {
+    if (n <= 0) {
         return 0;
     }
-    if n == 1 {
+    if (n == 1) {
         return 1;
     }
     int prev2 = 0;
     int prev1 = 1;
     int i = 2;
-    while i <= n {
+    while (i <= n) {
         int current = prev1 + prev2;
         prev2 = prev1;
         prev1 = current;
@@ -51,16 +51,16 @@ public int fibonacci(int n) {
     return prev1;
 }
 
-// Generic quicksort for ArrayList<int>
+// Quicksort for ArrayList<int>
 public void quicksort(ArrayList<int> arr) {
-    if arr.size() <= 1 {
+    if (arr.size() <= 1) {
         return;
     }
     _quicksort(arr, 0, arr.size() - 1);
 }
 
 void _quicksort(ArrayList<int> arr, int lo, int hi) {
-    if lo < hi {
+    if (lo < hi) {
         int p = _partition(arr, lo, hi);
         _quicksort(arr, lo, p - 1);
         _quicksort(arr, p + 1, hi);
@@ -71,8 +71,8 @@ int _partition(ArrayList<int> arr, int lo, int hi) {
     int pivot = arr.get(hi);
     int i = lo - 1;
     int j = lo;
-    while j < hi {
-        if arr.get(j) <= pivot {
+    while (j < hi) {
+        if (arr.get(j) <= pivot) {
             i = i + 1;
             int tmp = arr.get(i);
             arr.set(i, arr.get(j));
