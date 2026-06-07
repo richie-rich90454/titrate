@@ -112,6 +112,10 @@ fn is_result_type(t: &ast::Type) -> bool {
     t.name() == "Result"
 }
 
+fn is_ref_type(t: &ast::Type) -> bool {
+    matches!(t, ast::Type::Ref(_) | ast::Type::MutRef(_))
+}
+
 fn is_void_type(t: &ast::Type) -> bool {
     t.name() == "void"
 }
@@ -141,6 +145,17 @@ fn is_assignable(source: &ast::Type, target: &ast::Type) -> bool {
     // "any" or "unknown" can be assigned to anything (from builtins).
     if is_unknown_type(source) {
         return true;
+    }
+    // &mut T can be assigned to &T (immutable ref is a supertype of mutable ref)
+    if let (ast::Type::MutRef(src_inner), ast::Type::Ref(tgt_inner)) = (source, target) {
+        return is_assignable(src_inner, tgt_inner);
+    }
+    // &T can be assigned to &T, &mut T to &mut T (same inner type)
+    if let (ast::Type::Ref(src_inner), ast::Type::Ref(tgt_inner)) = (source, target) {
+        return is_assignable(src_inner, tgt_inner);
+    }
+    if let (ast::Type::MutRef(src_inner), ast::Type::MutRef(tgt_inner)) = (source, target) {
+        return is_assignable(src_inner, tgt_inner);
     }
     // Integer literal (int) can be assigned to any integer type.
     if source.name() == "int" && is_integer_type(target) {
@@ -303,6 +318,7 @@ impl Analyzer {
                     ])),
                     body: vec![],
                     sugar: false,
+                    where_clause: vec![],
                     span: ast::Span::unknown(),
                 }),
             );
@@ -329,6 +345,7 @@ impl Analyzer {
                                 return_type: m.return_type.clone(),
                                 body: m.body.clone(),
                                 sugar: false,
+                                where_clause: m.where_clause.clone(),
                                 span: m.span,
                             };
                             class_scope.borrow_mut().define(m.name.clone(), Symbol::Function(fn_decl));
@@ -342,6 +359,7 @@ impl Analyzer {
                                 return_type: m.return_type.clone(),
                                 body: m.body.clone(),
                                 sugar: false,
+                                where_clause: m.where_clause.clone(),
                                 span: m.span,
                             };
                             class_scope.borrow_mut().define(m.name.clone(), Symbol::Function(fn_decl));
@@ -561,6 +579,33 @@ impl Analyzer {
                 }
                 self.analyze_block(&mut while_stmt.body, scope);
             }
+            ast::Stmt::WhileLet(while_let_stmt) => {
+                self.analyze_expr(&mut while_let_stmt.expr, scope);
+                let while_let_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
+                // Register the loop variable in the scope
+                let expr_type = self.infer_expr_type(&while_let_stmt.expr, scope);
+                let var_type = if is_result_type(&expr_type) {
+                    if let Some(ok_type) = expr_type.params().first() {
+                        ok_type.clone()
+                    } else {
+                        ast::Type::simple("any")
+                    }
+                } else {
+                    expr_type
+                };
+                while_let_scope.borrow_mut().define(
+                    while_let_stmt.var_name.clone(),
+                    Symbol::Variable {
+                        typ: var_type,
+                        mutable: false,
+                    },
+                );
+                self.var_states.insert(while_let_stmt.var_name.clone(), VarState::Live);
+                self.local_vars.push(while_let_stmt.var_name.clone());
+                self.analyze_block(&mut while_let_stmt.body, &while_let_scope);
+                self.var_states.remove(&while_let_stmt.var_name);
+                self.local_vars.retain(|v| v != &while_let_stmt.var_name);
+            }
             ast::Stmt::For(for_stmt) => {
                 let for_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
                 self.analyze_expr(&mut for_stmt.iterable, scope);
@@ -578,6 +623,26 @@ impl Analyzer {
                 self.analyze_block(&mut for_stmt.body, &for_scope);
                 self.var_states.remove(&for_stmt.var);
                 self.local_vars.retain(|v| v != &for_stmt.var);
+            }
+            ast::Stmt::CFor(cfor_stmt) => {
+                let cfor_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
+                if let Some(ref mut init) = cfor_stmt.init {
+                    self.analyze_stmt(init, &cfor_scope);
+                }
+                if let Some(ref mut cond) = cfor_stmt.condition {
+                    self.analyze_expr(cond, &cfor_scope);
+                    let cond_type = self.infer_expr_type(cond, &cfor_scope);
+                    if !is_bool_type(&cond_type) {
+                        self.error(format!(
+                            "for condition must be bool, found {}",
+                            cond_type
+                        ));
+                    }
+                }
+                self.analyze_block(&mut cfor_stmt.body, &cfor_scope);
+                if let Some(ref mut incr) = cfor_stmt.increment {
+                    self.analyze_expr(incr, &cfor_scope);
+                }
             }
             ast::Stmt::Return(opt_expr) => {
                 if let Some(ref mut expr) = opt_expr {
@@ -745,6 +810,7 @@ impl Analyzer {
     fn analyze_expr(&mut self, expr: &mut ast::Expr, scope: &Rc<RefCell<Scope>>) {
         match expr {
             ast::Expr::Literal(_, _) => {}
+            ast::Expr::Unit(_) => {}
             ast::Expr::Identifier(name, _) => {
                 // Symbol resolution.
                 let sym = scope.borrow().lookup(name);
@@ -1257,6 +1323,7 @@ impl Analyzer {
     fn infer_expr_type(&self, expr: &ast::Expr, scope: &Rc<RefCell<Scope>>) -> ast::Type {
         match expr {
             ast::Expr::Literal(lit, _) => literal_type(lit),
+            ast::Expr::Unit(_) => ast::Type::simple("void"),
             ast::Expr::Identifier(name, _) => {
                 match scope.borrow().lookup(name) {
                     Some(Symbol::Variable { typ, .. }) => typ,
@@ -1383,10 +1450,10 @@ impl Analyzer {
                 let inner_type = self.infer_expr_type(inner, scope);
                 match ref_kind {
                     ast::RefKind::Immutable => {
-                        ast::Type::generic("Ref", vec![inner_type])
+                        ast::Type::Ref(Box::new(inner_type))
                     }
                     ast::RefKind::Mutable => {
-                        ast::Type::generic("RefMut", vec![inner_type])
+                        ast::Type::MutRef(Box::new(inner_type))
                     }
                 }
             }
@@ -1525,6 +1592,7 @@ mod tests {
             return_type: Some(Type::simple("int")),
             body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(1), Span::unknown())))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -1579,6 +1647,7 @@ mod tests {
             return_type: Some(Type::simple("void")),
             body: vec![Stmt::Expr(Expr::Identifier("unknown_var".to_string(), Span::unknown()))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1605,6 +1674,7 @@ mod tests {
                 Stmt::Expr(Expr::Identifier("x".to_string(), Span::unknown())),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -1655,6 +1725,7 @@ mod tests {
                 span: Span::unknown(),
             })],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1676,6 +1747,7 @@ mod tests {
                 span: Span::unknown(),
             })],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1693,6 +1765,7 @@ mod tests {
             return_type: Some(Type::simple("int")),
             body: vec![Stmt::Return(Some(Expr::Literal(Literal::Bool(true), Span::unknown())))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1710,6 +1783,7 @@ mod tests {
             return_type: Some(Type::simple("int")),
             body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(42), Span::unknown())))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -1730,6 +1804,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1751,6 +1826,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1788,6 +1864,7 @@ mod tests {
                 Stmt::Expr(Expr::Identifier("x".to_string(), Span::unknown())),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1830,6 +1907,7 @@ mod tests {
                 )),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1862,6 +1940,7 @@ mod tests {
                 ))),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1909,6 +1988,7 @@ mod tests {
                 }),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -1942,6 +2022,7 @@ mod tests {
                 Stmt::Expr(Expr::Identifier("x".to_string(), Span::unknown())),
             ], Span::unknown()))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -1975,6 +2056,7 @@ mod tests {
                 Span::unknown(),
             )))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -1995,6 +2077,7 @@ mod tests {
                 span: Span::unknown(),
             })],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2014,6 +2097,7 @@ mod tests {
                 span: Span::unknown(),
             })],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2040,6 +2124,7 @@ mod tests {
                 span: Span::unknown(),
             })],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2076,6 +2161,7 @@ mod tests {
                 )),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2124,6 +2210,7 @@ mod tests {
                 )),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2182,6 +2269,7 @@ mod tests {
                         span: Span::unknown(),
                     })],
                     sugar: false,
+                    where_clause: vec![],
                     span: Span::unknown(),
                 }),
             ],
@@ -2231,6 +2319,7 @@ mod tests {
                         span: Span::unknown(),
                     })],
                     sugar: false,
+                    where_clause: vec![],
                     span: Span::unknown(),
                 }),
             ],
@@ -2258,6 +2347,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2283,6 +2373,7 @@ mod tests {
                 Span::unknown(),
             )))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         // This should pass because the function returns Result.
@@ -2319,6 +2410,7 @@ mod tests {
                 span: Span::unknown(),
             })],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2338,6 +2430,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2371,6 +2464,7 @@ mod tests {
                 )),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2401,6 +2495,7 @@ mod tests {
                 )),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2425,6 +2520,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2445,6 +2541,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2469,6 +2566,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2488,6 +2586,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2507,6 +2606,7 @@ mod tests {
                 Span::unknown(),
             ))],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2550,6 +2650,7 @@ mod tests {
                     return_type: Some(Type::simple("int")),
                     body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(1), Span::unknown())))],
                     sugar: false,
+                    where_clause: vec![],
                     span: Span::unknown(),
                 }),
                 Declaration::Function(FnDecl {
@@ -2564,6 +2665,7 @@ mod tests {
                         Span::unknown(),
                     ))],
                     sugar: false,
+                    where_clause: vec![],
                     span: Span::unknown(),
                 }),
             ],
@@ -2592,6 +2694,7 @@ mod tests {
                         Span::unknown(),
                     )))],
                     sugar: false,
+                    where_clause: vec![],
                     span: Span::unknown(),
                 }),
                 Declaration::Function(FnDecl {
@@ -2606,6 +2709,7 @@ mod tests {
                         Span::unknown(),
                     ))],
                     sugar: false,
+                    where_clause: vec![],
                     span: Span::unknown(),
                 }),
             ],
@@ -2644,6 +2748,7 @@ mod tests {
                 }),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
@@ -2668,6 +2773,7 @@ mod tests {
                 Stmt::Expr(Expr::OwnedDeref(Box::new(Expr::Identifier("x".to_string(), Span::unknown())), Span::unknown())),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2710,6 +2816,7 @@ mod tests {
                 span: Span::unknown(),
             })],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         // Will error on undeclared "range" but "i" should be in scope.
@@ -2742,6 +2849,7 @@ mod tests {
                 Stmt::Expr(Expr::Identifier("x".to_string(), Span::unknown())),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2805,6 +2913,7 @@ mod tests {
                 }),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
@@ -2851,6 +2960,7 @@ mod tests {
                 }),
             ],
             sugar: false,
+            where_clause: vec![],
             span: Span::unknown(),
         }));
         let result = analyze(&prog);
