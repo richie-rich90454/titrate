@@ -24,6 +24,18 @@ public fn main(): void {
 trc hello.tr
 ```
 
+## Using Pipette
+
+Titrate ships with **pipette**, a build tool and package manager. For projects larger than a single file, pipette manages compilation, dependencies, and execution.
+
+```bash
+pipette new myproject    # create a new project
+pipette build            # compile to bytecode
+pipette run              # build and run
+```
+
+See [Build Tool](./pipette) for the full pipette guide.
+
 ## What's Next?
 
 - [Variables](./variables) — `let`, `var`, and `const` declarations
