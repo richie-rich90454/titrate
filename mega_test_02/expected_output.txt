@@ -126,4 +126,30 @@ dog: 3
 quick: 2
 lazy: 3
 
+=== C-Style For Loop ===
+i = 0
+i = 1
+i = 2
+i = 3
+i = 4
+
+=== String Methods ===
+original: '  hello world  '
+trimmed: 'hello world'
+length: 15
+split size: 2
+  part 0: hello
+  part 1: world
+
+=== HashMap Methods ===
+containsKey alpha: true
+containsKey delta: false
+key count: 3
+  alpha => 1
+  beta => 2
+  gamma => 3
+
+=== Unit Type ===
+Ok with unit value
+
 === Mega Test 0.2 Complete ===

@@ -1,12 +1,13 @@
 // Titrate Alpha 0.2 – Mega Test
 // Exercises: generics, modules, pattern matching, Result, classes, file I/O,
-// quicksort, word frequency, and more.
+// C-style for loops, String methods, HashMap methods, unit type, and more.
 
 import sort;
 import data;
 import shapes;
 import wordfreq;
 
+// Entry point
 public void main() {
     // --- Section 1: Utility functions from sort module ---
     io::println("=== Utility Functions ===");
@@ -60,13 +61,15 @@ public void main() {
     io::println("=== Result Type ===");
     let ok_result: Result<int, string> = Ok(42);
     let err_result: Result<int, string> = Err("something went wrong");
-    switch ok_result {
+    switch (ok_result) {
         case Ok(val) => io::println("Ok value: " + Integer.toString(val));
         case Err(msg) => io::println("Error: " + msg);
+        default => { }
     }
-    switch err_result {
+    switch (err_result) {
         case Ok(val) => io::println("Ok value: " + Integer.toString(val));
         case Err(msg) => io::println("Error: " + msg);
+        default => { }
     }
 
     // --- Section 6: Error propagation ---
@@ -74,13 +77,15 @@ public void main() {
     io::println("=== Error Propagation ===");
     let div_ok: Result<int, string> = safe_divide(10, 3);
     let div_err: Result<int, string> = safe_divide(10, 0);
-    switch div_ok {
+    switch (div_ok) {
         case Ok(v) => io::println("10/3 = " + Integer.toString(v));
         case Err(e) => io::println("Error: " + e);
+        default => { }
     }
-    switch div_err {
+    switch (div_err) {
         case Ok(v) => io::println("10/0 = " + Integer.toString(v));
         case Err(e) => io::println("Error: " + e);
+        default => { }
     }
 
     // --- Section 7: Bitwise operators ---
@@ -220,6 +225,52 @@ public void main() {
     io::println("quick: " + Integer.toString(wc.get("quick")));
     io::println("lazy: " + Integer.toString(wc.get("lazy")));
 
+    // --- Section 18: C-style for loop ---
+    io::println("");
+    io::println("=== C-Style For Loop ===");
+    for (let i = 0; i < 5; i = i + 1) {
+        io::println("i = " + Integer.toString(i));
+    }
+
+    // --- Section 19: String methods ---
+    io::println("");
+    io::println("=== String Methods ===");
+    let s = "  hello world  ";
+    io::println("original: '" + s + "'");
+    io::println("trimmed: '" + s.trim() + "'");
+    io::println("length: " + Integer.toString(s.length()));
+    let parts = s.trim().split(" ");
+    io::println("split size: " + Integer.toString(parts.size()));
+    for (let i = 0; i < parts.size(); i = i + 1) {
+        io::println("  part " + Integer.toString(i) + ": " + parts.get(i));
+    }
+
+    // --- Section 20: HashMap containsKey and keys ---
+    io::println("");
+    io::println("=== HashMap Methods ===");
+    let hmap: HashMap<string, string> = new HashMap<string, string>();
+    hmap.put("alpha", "1");
+    hmap.put("beta", "2");
+    hmap.put("gamma", "3");
+    io::println("containsKey alpha: " + Boolean.toString(hmap.containsKey("alpha")));
+    io::println("containsKey delta: " + Boolean.toString(hmap.containsKey("delta")));
+    let hkeys = hmap.keys();
+    io::println("key count: " + Integer.toString(hkeys.size()));
+    for (let i = 0; i < hkeys.size(); i = i + 1) {
+        let key = hkeys.get(i);
+        io::println("  " + key + " => " + hmap.get(key));
+    }
+
+    // --- Section 21: Unit type and Ok(()) ---
+    io::println("");
+    io::println("=== Unit Type ===");
+    let unit_result: Result<void, string> = Ok(());
+    switch (unit_result) {
+        case Ok(_) => io::println("Ok with unit value");
+        case Err(e) => io::println("Error: " + e);
+        default => { }
+    }
+
     // --- Done ---
     io::println("");
     io::println("=== Mega Test 0.2 Complete ===");
@@ -289,7 +340,7 @@ enum Direction {
 }
 
 fn direction_label(d: Direction): string {
-    switch d {
+    switch (d) {
         case North() => return "N";
         case East() => return "E";
         case South() => return "S";
