@@ -1,9 +1,11 @@
 // Titrate Alpha 0.2 – Mega Test
-// Exercises: generics, modules, pattern matching, Result, classes, and more.
+// Exercises: generics, modules, pattern matching, Result, classes, file I/O,
+// quicksort, word frequency, and more.
 
 import sort;
 import data;
 import shapes;
+import wordfreq;
 
 public void main() {
     // --- Section 1: Utility functions from sort module ---
@@ -12,8 +14,6 @@ public void main() {
     io::println("max(3, 7) = " + Integer.toString(max(3, 7)));
     io::println("abs(-5) = " + Integer.toString(abs(-5)));
     io::println("abs(5) = " + Integer.toString(abs(5)));
-
-    // Test local function with multiple locals
     io::println("factorial(0) = " + Integer.toString(factorial(0)));
     io::println("factorial(1) = " + Integer.toString(factorial(1)));
     io::println("factorial(5) = " + Integer.toString(factorial(5)));
@@ -157,6 +157,68 @@ public void main() {
     io::println(Boolean.toString(true && false));
     io::println(Boolean.toString(true || false));
     io::println(Boolean.toString(!true));
+
+    // --- Section 15: Quicksort ---
+    io::println("");
+    io::println("=== Quicksort ===");
+    let nums: ArrayList<int> = new ArrayList<int>();
+    nums.add(42);
+    nums.add(7);
+    nums.add(13);
+    nums.add(3);
+    nums.add(99);
+    nums.add(1);
+    nums.add(56);
+    nums.add(28);
+    io::println("Before sort:");
+    for n in nums {
+        io::println("  " + Integer.toString(n));
+    }
+    quicksort(nums);
+    io::println("After sort:");
+    for n in nums {
+        io::println("  " + Integer.toString(n));
+    }
+
+    // --- Section 16: File I/O – read numbers, sort, write ---
+    io::println("");
+    io::println("=== File I/O ===");
+    let file_nums: ArrayList<int> = new ArrayList<int>();
+    let lines = File.readLines("numbers.txt");
+    for line in lines {
+        int n = Integer.parseOr(line, 0);
+        file_nums.add(n);
+    }
+    io::println("Read " + Integer.toString(file_nums.size()) + " numbers from file");
+    quicksort(file_nums);
+    io::println("Sorted numbers from file:");
+    for n in file_nums {
+        io::println("  " + Integer.toString(n));
+    }
+    string sorted_output = "";
+    for n in file_nums {
+        sorted_output = sorted_output + Integer.toString(n) + "\n";
+    }
+    File.writeFile("sorted_numbers.txt", sorted_output);
+    io::println("Wrote sorted numbers to sorted_numbers.txt");
+
+    // --- Section 17: Word Frequency with HashMap ---
+    io::println("");
+    io::println("=== Word Frequency ===");
+    let wc: WordCounter = new WordCounter();
+    let word_lines = File.readLines("words.txt");
+    for wline in word_lines {
+        let words = String.split(wline, " ");
+        for word in words {
+            wc.count(word);
+        }
+    }
+    io::println("the: " + Integer.toString(wc.get("the")));
+    io::println("fox: " + Integer.toString(wc.get("fox")));
+    io::println("brown: " + Integer.toString(wc.get("brown")));
+    io::println("dog: " + Integer.toString(wc.get("dog")));
+    io::println("quick: " + Integer.toString(wc.get("quick")));
+    io::println("lazy: " + Integer.toString(wc.get("lazy")));
 
     // --- Done ---
     io::println("");
