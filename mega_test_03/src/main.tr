@@ -1,0 +1,134 @@
+// Titrate Alpha 0.3 – Mega Test
+// Simulates a box of 1000 water molecules using the tt.chem module.
+// Exercises: classes, modules, imports, loops, casting, MD simulation,
+// energy computation, thermostat, and result verification.
+
+import forcefield;
+import tt.chem.Atom;
+import tt.chem.Molecule;
+import tt.chem.ForceField;
+import tt.chem.Integrator;
+import tt.chem.MD;
+import tt.io.IO;
+import tt.math.Math;
+
+// Entry point
+public void main() {
+    io::println("=== Titrate Alpha 0.3 – Water Box MD Simulation ===");
+    io::println("");
+
+    // --- Section 1: System setup ---
+    io::println("=== System Setup ===");
+    int nWaters = 1000;
+    int side = 10;  // 10^3 = 1000 molecules
+    double spacing = WaterModel.LJ_SIGMA_O();  // 3.166 Angstrom
+
+    io::println("Water molecules: " + Integer.toString(nWaters));
+    io::println("Lattice: " + Integer.toString(side) + " x " + Integer.toString(side) + " x " + Integer.toString(side));
+    io::println("Spacing: " + Double.toString(spacing) + " A");
+    io::println("Box size: " + Double.toString((double) side * spacing) + " A");
+
+    // Create the molecular system
+    Molecule system = new Molecule("water_box");
+
+    // Place water molecules on a simple cubic lattice
+    int ix = 0;
+    while (ix < side) {
+        int iy = 0;
+        while (iy < side) {
+            int iz = 0;
+            while (iz < side) {
+                double ox = (double) ix * spacing;
+                double oy = (double) iy * spacing;
+                double oz = (double) iz * spacing;
+                WaterModel.addWater(system, ox, oy, oz);
+                iz = iz + 1;
+            }
+            iy = iy + 1;
+        }
+        ix = ix + 1;
+    }
+
+    io::println("Atoms: " + Integer.toString(system.numAtoms()));
+    io::println("Bonds: " + Integer.toString(system.numBonds()));
+    io::println("");
+
+    // --- Section 2: MD setup ---
+    io::println("=== MD Setup ===");
+    double dt = 1.0;         // femtosecond
+    double targetTemp = 300.0; // Kelvin
+    double coupling = 100.0;   // Berendsen coupling constant (fs)
+
+    io::println("Timestep: " + Double.toString(dt) + " fs");
+    io::println("Target temperature: " + Double.toString(targetTemp) + " K");
+    io::println("Thermostat coupling: " + Double.toString(coupling) + " fs");
+
+    Integrator integ = new Integrator(dt, targetTemp, coupling);
+    MD engine = new MD(system, integ);
+
+    // Initialize velocities from Maxwell-Boltzmann distribution
+    io::println("Initializing velocities...");
+    engine.initializeVelocities();
+
+    // Compute initial forces
+    io::println("Computing initial forces...");
+    engine.computeForces();
+    io::println("");
+
+    // --- Section 3: Initial state ---
+    io::println("=== Initial State ===");
+    io::println("Potential Energy: " + Double.toString(engine.potentialEnergy()));
+    io::println("Kinetic Energy:   " + Double.toString(engine.kineticEnergy()));
+    io::println("Total Energy:     " + Double.toString(engine.totalEnergy()));
+    io::println("Temperature:      " + Double.toString(engine.temperature()));
+    io::println("");
+
+    // --- Section 4: Run MD simulation ---
+    io::println("=== Running MD Simulation ===");
+    int nSteps = 500;
+    int reportInterval = 50;
+    engine.run(nSteps, reportInterval);
+    io::println("");
+
+    // --- Section 5: Final state ---
+    io::println("=== Final State ===");
+    double finalTemp = engine.temperature();
+    double finalPotential = engine.potentialEnergy();
+    double finalKinetic = engine.kineticEnergy();
+    double finalTotal = engine.totalEnergy();
+    io::println("Potential Energy: " + Double.toString(finalPotential));
+    io::println("Kinetic Energy:   " + Double.toString(finalKinetic));
+    io::println("Total Energy:     " + Double.toString(finalTotal));
+    io::println("Temperature:      " + Double.toString(finalTemp));
+    io::println("");
+
+    // --- Section 6: Verification ---
+    io::println("=== Verification ===");
+
+    // Check temperature is within reasonable range around thermostat target
+    bool tempInRange = finalTemp > 100.0 && finalTemp < 500.0;
+    io::println("Temperature in range [100, 500] K: " + Boolean.toString(tempInRange));
+
+    // Check energy is finite (not NaN or infinity)
+    bool energyFinite = finalTotal > -1e10 && finalTotal < 1e10;
+    io::println("Energy is finite: " + Boolean.toString(energyFinite));
+
+    // Check potential energy is negative (attractive system)
+    bool potentialNegative = finalPotential < 0.0;
+    io::println("Potential energy is negative: " + Boolean.toString(potentialNegative));
+
+    // Check kinetic energy is positive
+    bool kineticPositive = finalKinetic > 0.0;
+    io::println("Kinetic energy is positive: " + Boolean.toString(kineticPositive));
+
+    // Overall verification
+    bool allPassed = tempInRange && energyFinite && potentialNegative && kineticPositive;
+    if (allPassed) {
+        io::println("VERIFICATION PASSED");
+    } else {
+        io::println("VERIFICATION FAILED");
+    }
+
+    io::println("");
+    io::println("=== Mega Test 0.3 Complete ===");
+}

@@ -1,0 +1,43 @@
+// SPC/E-like Water Model Parameters for Titrate Alpha 0.3
+import tt.chem.Atom;
+import tt.chem.Bond;
+import tt.chem.Molecule;
+import tt.math.Math;
+
+public class WaterModel {
+    // Bond parameters
+    public static double OH_BOND_LENGTH() { return 1.0; }          // Angstrom
+    public static double OH_FORCE_CONSTANT() { return 4500.0; }    // kcal/mol/A^2
+
+    // Angle parameters
+    public static double HOH_ANGLE_DEG() { return 109.47; }        // degrees
+    public static double HOH_ANGLE_RAD() { return 109.47 * Math.PI() / 180.0; }  // radians
+
+    // Charge parameters
+    public static double O_CHARGE() { return -0.8476; }             // e
+    public static double H_CHARGE() { return 0.4238; }              // e
+
+    // Lennard-Jones parameters for oxygen
+    public static double LJ_SIGMA_O() { return 3.166; }            // Angstrom
+    public static double LJ_EPSILON_O() { return 0.1554; }         // kcal/mol
+
+    // Add a single water molecule to the system at position (ox, oy, oz).
+    // The oxygen is placed at (ox, oy, oz) and the two hydrogens are
+    // placed at the correct O-H bond length and H-O-H angle.
+    // Returns the index of the oxygen atom.
+    public static int addWater(Molecule mol, double ox, double oy, double oz) {
+        double bondLen = WaterModel.OH_BOND_LENGTH();
+        double halfAngle = WaterModel.HOH_ANGLE_RAD() / 2.0;
+        double dx = bondLen * Math.sin(halfAngle);
+        double dz = bondLen * Math.cos(halfAngle);
+
+        int oIdx = mol.addAtom(new Atom("O", 15.999, WaterModel.O_CHARGE(), ox, oy, oz));
+        int h1Idx = mol.addAtom(new Atom("H", 1.008, WaterModel.H_CHARGE(), ox + dx, oy, oz + dz));
+        int h2Idx = mol.addAtom(new Atom("H", 1.008, WaterModel.H_CHARGE(), ox - dx, oy, oz + dz));
+
+        mol.addBond(new Bond(oIdx, h1Idx, 1, bondLen, WaterModel.OH_FORCE_CONSTANT()));
+        mol.addBond(new Bond(oIdx, h2Idx, 1, bondLen, WaterModel.OH_FORCE_CONSTANT()));
+
+        return oIdx;
+    }
+}
