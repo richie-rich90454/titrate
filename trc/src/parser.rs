@@ -3940,4 +3940,136 @@ import math::sqrt;"#;
             other => panic!("Expected Function, got {:?}", other),
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Closure tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_closure_expression_body() {
+        let src = r#"fn f(): void { let g = fn(x) => x * 2; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.body.len(), 1);
+                match &fd.body[0] {
+                    ast::Stmt::VarDecl(vd) => {
+                        assert_eq!(vd.name, "g");
+                        match &vd.init {
+                            Some(ast::Expr::Closure { params, expr, body, .. }) => {
+                                assert_eq!(params.len(), 1);
+                                assert_eq!(params[0].0, "x");
+                                assert!(expr.is_some(), "closure should have expression body");
+                                assert!(body.is_empty(), "closure with => should have empty block body");
+                            }
+                            other => panic!("Expected Closure, got {:?}", other),
+                        }
+                    }
+                    other => panic!("Expected VarDecl, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_closure_block_body() {
+        let src = r#"fn f(): void { let g = fn(x) { return x * 2; }; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.body.len(), 1);
+                match &fd.body[0] {
+                    ast::Stmt::VarDecl(vd) => {
+                        assert_eq!(vd.name, "g");
+                        match &vd.init {
+                            Some(ast::Expr::Closure { params, expr, body, .. }) => {
+                                assert_eq!(params.len(), 1);
+                                assert_eq!(params[0].0, "x");
+                                assert!(expr.is_none(), "closure with block body should not have expression");
+                                assert_eq!(body.len(), 1, "closure block body should have 1 statement");
+                            }
+                            other => panic!("Expected Closure, got {:?}", other),
+                        }
+                    }
+                    other => panic!("Expected VarDecl, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_closure_capture() {
+        let src = r#"fn f(): void { let y = 10; let g = fn(x) => x + y; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.body.len(), 2);
+                // Second statement is the closure var decl
+                match &fd.body[1] {
+                    ast::Stmt::VarDecl(vd) => {
+                        assert_eq!(vd.name, "g");
+                        match &vd.init {
+                            Some(ast::Expr::Closure { params, .. }) => {
+                                assert_eq!(params.len(), 1);
+                                assert_eq!(params[0].0, "x");
+                            }
+                            other => panic!("Expected Closure, got {:?}", other),
+                        }
+                    }
+                    other => panic!("Expected VarDecl, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Self parameter tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_self_parameter() {
+        let src = r#"class Foo { fn method(self, x: int): void { } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Class(cd) => {
+                assert_eq!(cd.name, "Foo");
+                match &cd.members[0] {
+                    ast::ClassMember::Method(m) => {
+                        assert_eq!(m.name, "method");
+                        assert_eq!(m.params.len(), 2);
+                        assert_eq!(m.params[0].name, "self");
+                        assert_eq!(m.params[0].typ, ast::Type::simple("Self"));
+                        assert_eq!(m.params[1].name, "x");
+                        assert_eq!(m.params[1].typ, ast::Type::simple("int"));
+                    }
+                    other => panic!("Expected Method, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Class, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_self_with_type() {
+        let src = r#"class Vec2 { fn method(self: Vec2, x: int): void { } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Class(cd) => {
+                assert_eq!(cd.name, "Vec2");
+                match &cd.members[0] {
+                    ast::ClassMember::Method(m) => {
+                        assert_eq!(m.name, "method");
+                        assert_eq!(m.params.len(), 2);
+                        assert_eq!(m.params[0].name, "self");
+                        assert_eq!(m.params[0].typ, ast::Type::simple("Vec2"));
+                        assert_eq!(m.params[1].name, "x");
+                        assert_eq!(m.params[1].typ, ast::Type::simple("int"));
+                    }
+                    other => panic!("Expected Method, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Class, got {:?}", other),
+        }
+    }
 }
