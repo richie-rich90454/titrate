@@ -214,6 +214,15 @@ impl Vm {
         self.working_dir = Some(dir);
     }
 
+    /// Call a registered native function by name with the given arguments.
+    /// Useful for testing native functions directly.
+    pub fn call_native_by_name(&mut self, name: &str, args: &[Value]) -> Result<Value, String> {
+        let idx = self.native_names.get(name).copied()
+            .ok_or_else(|| format!("Unknown native function '{}'", name))?;
+        let native = self.natives[idx as usize];
+        native(args)
+    }
+
     /// Resolve a file path: if relative, prepend the working directory.
     fn resolve_path(&self, path: &str) -> std::path::PathBuf {
         let p = std::path::Path::new(path);
