@@ -246,6 +246,7 @@ fn token_as_name(tok: &lexer::Token) -> Option<String> {
             lexer::Token::New => Some("new".to_string()),
             lexer::Token::This => Some("this".to_string()),
             lexer::Token::Super => Some("super".to_string()),
+            lexer::Token::NullLiteral => Some("null".to_string()),
             _ => None,
         }),
     }
