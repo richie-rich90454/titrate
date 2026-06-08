@@ -1,0 +1,34 @@
+// Directory operations backed by VM built-ins.
+import tt::util::ArrayList;
+
+public class Directory {
+    private String path;
+
+    public Directory(String p) {
+        this.path = p;
+    }
+
+    public ArrayList<String> list() {
+        return Dir::list(this.path);
+    }
+
+    public ArrayList<String> walk() {
+        return Dir::walk(this.path);
+    }
+
+    public bool create() {
+        return Dir::create(this.path);
+    }
+
+    public bool remove() {
+        return Dir::remove(this.path);
+    }
+
+    public bool copy(String dest) {
+        return Dir::copy(this.path, dest);
+    }
+
+    public bool move(String dest) {
+        return Dir::move(this.path, dest);
+    }
+}

@@ -1,0 +1,28 @@
+// System operations backed by VM built-ins.
+import tt::util::ArrayList;
+
+public class Sys {
+    public static ArrayList<String> args() {
+        return Sys_args();
+    }
+
+    public static String env(String key) {
+        return Sys_env(key);
+    }
+
+    public static void setEnv(String key, String val) {
+        Sys_setEnv(key, val);
+    }
+
+    public static void exit(int code) {
+        Sys_exit(code);
+    }
+
+    public static String workingDir() {
+        return Sys_workingDir();
+    }
+
+    public static void sleep(int ms) {
+        Sys_sleep(ms);
+    }
+}

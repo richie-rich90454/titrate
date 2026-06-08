@@ -1,0 +1,40 @@
+// Path operations backed by VM built-ins.
+public class Path {
+    private String path;
+
+    public Path(String p) {
+        this.path = p;
+    }
+
+    public String join(String other) {
+        return Path::join(this.path, other);
+    }
+
+    public String basename() {
+        return Path::basename(this.path);
+    }
+
+    public String dirname() {
+        return Path::dirname(this.path);
+    }
+
+    public String extension() {
+        return Path::extension(this.path);
+    }
+
+    public bool exists() {
+        return Path::exists(this.path);
+    }
+
+    public bool isFile() {
+        return Path::isFile(this.path);
+    }
+
+    public bool isDir() {
+        return Path::isDir(this.path);
+    }
+
+    public String toString() {
+        return this.path;
+    }
+}
