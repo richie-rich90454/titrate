@@ -1,0 +1,154 @@
+// Titrate Alpha 0.3 – Stdlib Integration Test
+// Exercises: JSON, CSV, Math, Random, Time stdlib modules
+
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::csv::CsvReader;
+import tt::csv::CsvWriter;
+import tt::math::Math;
+import tt::random::Random;
+import tt::time::Time;
+import tt::time::DateTime;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// Entry point
+public void main() {
+    // --- Section 1: JSON parsing and serialization ---
+    io::println("=== JSON ===");
+    string jsonStr = "{\"name\":\"Titrate\",\"version\":3,\"stable\":false}";
+    let parsed = Json.parse(jsonStr);
+    io::println("Is object: " + Boolean.toString(parsed.isObject()));
+    io::println("Is null: " + Boolean.toString(parsed.isNull()));
+
+    // Access object fields
+    let obj = parsed.asObject();
+    io::println("Has name key: " + Boolean.toString(obj.containsKey("name")));
+    io::println("Has version key: " + Boolean.toString(obj.containsKey("version")));
+    io::println("Has missing key: " + Boolean.toString(obj.containsKey("missing")));
+
+    // JSON null value
+    let nullVal = JsonValue::null();
+    io::println("Null is null: " + Boolean.toString(nullVal.isNull()));
+
+    // JSON bool value
+    let boolVal = JsonValue::ofBool(true);
+    io::println("Bool is bool: " + Boolean.toString(boolVal.isBool()));
+    io::println("Bool value: " + Boolean.toString(boolVal.asBool()));
+
+    // JSON number value
+    let numVal = JsonValue::ofNum(42.5);
+    io::println("Number is number: " + Boolean.toString(numVal.isNumber()));
+    io::println("Number value: " + Double.toString(numVal.asNumber()));
+
+    // JSON string value
+    let strVal = JsonValue::ofStr("hello");
+    io::println("String is string: " + Boolean.toString(strVal.isString()));
+    io::println("String value: " + strVal.asString());
+
+    // JSON stringify
+    string reserialized = Json.stringify(parsed);
+    io::println("Reserialized: " + reserialized);
+
+    // JSON array
+    string arrJson = "[1,2,3]";
+    let arrParsed = Json.parse(arrJson);
+    io::println("Is array: " + Boolean.toString(arrParsed.isArray()));
+    let arr = arrParsed.asArray();
+    io::println("Array size: " + Integer.toString(arr.size()));
+
+    // --- Section 2: CSV reading ---
+    io::println("");
+    io::println("=== CSV ===");
+    string csvData = "name,age,city\nAlice,30,NYC\nBob,25,LA\nCharlie,35,SF";
+    let reader = new CsvReader();
+    let rows = reader.parse(csvData);
+    io::println("Row count: " + Integer.toString(rows.size()));
+    // First row is header
+    let header = rows.get(0);
+    io::println("Header: " + header.get(0) + "," + header.get(1) + "," + header.get(2));
+    // Second row
+    let row1 = rows.get(1);
+    io::println("Row 1: " + row1.get(0) + "," + row1.get(1) + "," + row1.get(2));
+
+    // CSV with parseToMaps
+    reader.setHasHeader(true);
+    let maps = reader.parseToMaps(csvData);
+    io::println("Map count: " + Integer.toString(maps.size()));
+    let firstMap = maps.get(0);
+    io::println("First name: " + firstMap.get("name"));
+    io::println("First age: " + firstMap.get("age"));
+
+    // CSV writing
+    let writer = new CsvWriter();
+    let writeRows = new ArrayList();
+    let h = new ArrayList();
+    h.add("x");
+    h.add("y");
+    writeRows.add(h);
+    let d = new ArrayList();
+    d.add("1");
+    d.add("2");
+    writeRows.add(d);
+    string csvOutput = writer.writeWithHeaders(h, writeRows);
+    io::println("CSV output: " + csvOutput);
+
+    // --- Section 3: Math functions ---
+    io::println("");
+    io::println("=== Math ===");
+    double pi = Math.PI();
+    double e = Math.E();
+    io::println("PI: " + Double.toString(pi));
+    io::println("E: " + Double.toString(e));
+    io::println("sin(0): " + Double.toString(Math.sin(0.0)));
+    io::println("cos(0): " + Double.toString(Math.cos(0.0)));
+    io::println("sqrt(4): " + Double.toString(Math.sqrt(4.0)));
+    io::println("sqrt(9): " + Double.toString(Math.sqrt(9.0)));
+    io::println("abs(-5): " + Double.toString(Math.abs(-5.0)));
+    io::println("floor(3.7): " + Double.toString(Math.floor(3.7)));
+    io::println("ceil(3.2): " + Double.toString(Math.ceil(3.2)));
+    io::println("pow(2,10): " + Double.toString(Math.pow(2.0, 10.0)));
+    io::println("round(3.5): " + Long.toString(Math.round(3.5)));
+    io::println("max(3,7): " + Double.toString(Math.max(3.0, 7.0)));
+    io::println("min(3,7): " + Double.toString(Math.min(3.0, 7.0)));
+    io::println("clamp(5,0,10): " + Double.toString(Math.clamp(5.0, 0.0, 10.0)));
+    io::println("clamp(-1,0,10): " + Double.toString(Math.clamp(-1.0, 0.0, 10.0)));
+    io::println("clamp(15,0,10): " + Double.toString(Math.clamp(15.0, 0.0, 10.0)));
+
+    // --- Section 4: Random ---
+    io::println("");
+    io::println("=== Random ===");
+    let rng1 = new Random();
+    let rng2 = new Random();
+    int r1 = rng1.nextInt(1000);
+    int r2 = rng2.nextInt(1000);
+    // Two different RNG instances should produce different values (with very high probability)
+    io::println("Random values differ: " + Boolean.toString(r1 != r2));
+    // Same seed should produce same sequence
+    let seeded1 = new Random(42);
+    let seeded2 = new Random(42);
+    int s1 = seeded1.nextInt(10000);
+    int s2 = seeded2.nextInt(10000);
+    io::println("Same seed same value: " + Boolean.toString(s1 == s2));
+    // nextDouble should be in [0, 1)
+    double d1 = rng1.nextDouble();
+    io::println("Double in range: " + Boolean.toString(d1 >= 0.0 && d1 < 1.0));
+    // nextBool should return true or false
+    bool b1 = rng1.nextBool();
+    io::println("Bool is bool: " + Boolean.toString(b1 || !b1));
+
+    // --- Section 5: Time ---
+    io::println("");
+    io::println("=== Time ===");
+    let now = Time.now();
+    io::println("Year >= 2025: " + Boolean.toString(now.getYear() >= 2025));
+    io::println("Month in range: " + Boolean.toString(now.getMonth() >= 1 && now.getMonth() <= 12));
+    io::println("Day in range: " + Boolean.toString(now.getDay() >= 1 && now.getDay() <= 31));
+    io::println("Hour in range: " + Boolean.toString(now.getHour() >= 0 && now.getHour() <= 23));
+    io::println("Minute in range: " + Boolean.toString(now.getMinute() >= 0 && now.getMinute() <= 59));
+    io::println("Second in range: " + Boolean.toString(now.getSecond() >= 0 && now.getSecond() <= 59));
+
+    // --- Done ---
+    io::println("");
+    io::println("=== Stdlib Test Complete ===");
+}

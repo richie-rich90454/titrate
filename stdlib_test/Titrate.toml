@@ -1,0 +1,6 @@
+[package]
+name = "stdlib_test"
+version = "0.3.0"
+entry = "src/main.tr"
+
+[dependencies]
