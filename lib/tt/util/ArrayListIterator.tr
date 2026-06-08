@@ -1,0 +1,21 @@
+import tt::lang::Iterator;
+
+public class ArrayListIterator<T> implements Iterator<T> {
+    private ArrayList<T> list;
+    private int index;
+
+    public ArrayListIterator(ArrayList<T> list) {
+        this.list = list;
+        this.index = 0;
+    }
+
+    public bool hasNext() {
+        return this.index < this.list.size();
+    }
+
+    public T next() {
+        T item = this.list.get(this.index);
+        this.index = this.index + 1;
+        return item;
+    }
+}

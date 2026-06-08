@@ -1,0 +1,3 @@
+interface Iterable<E> {
+    fn iterator(): Iterator<E>;
+}

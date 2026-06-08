@@ -1,0 +1,4 @@
+interface Iterator<E> {
+    fn next(): E;
+    fn hasNext(): bool;
+}

@@ -1,5 +1,8 @@
 // Generic ArrayList backed by the VM's built-in array support.
-public class ArrayList<T> {
+import tt::lang::Iterable;
+import tt::util::ArrayListIterator;
+
+public class ArrayList<T> implements Iterable<T> {
     private ArrayList<T> list;
 
     public ArrayList() {
@@ -20,5 +23,9 @@ public class ArrayList<T> {
 
     public void sort() {
         this.list.sort();
+    }
+
+    public ArrayListIterator<T> iterator() {
+        return new ArrayListIterator<T>(this);
     }
 }

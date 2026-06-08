@@ -1131,13 +1131,45 @@ impl Vm {
                 self.stack[idx] = val;
             }
             OpCode::LOAD_UPVALUE => {
-                let _slot = self.read_u8();
-                // Upvalues are not yet implemented; treat as a no-op placeholder
-                return Err("LOAD_UPVALUE: closures not yet implemented".to_string());
+                let slot = self.read_u8() as usize;
+                let upvalues = self.current_frame().upvalues.clone();
+                match &upvalues {
+                    Some(uvs) => {
+                        if slot < uvs.len() {
+                            self.push(uvs[slot].clone());
+                        } else {
+                            return Err(format!(
+                                "LOAD_UPVALUE: index {} out of bounds (upvalue count {})",
+                                slot,
+                                uvs.len()
+                            ));
+                        }
+                    }
+                    None => {
+                        return Err("LOAD_UPVALUE: no upvalues in current frame".to_string());
+                    }
+                }
             }
             OpCode::STORE_UPVALUE => {
-                let _slot = self.read_u8();
-                return Err("STORE_UPVALUE: closures not yet implemented".to_string());
+                let slot = self.read_u8() as usize;
+                let val = self.pop();
+                let upvalues = self.current_frame_mut().upvalues.as_mut();
+                match upvalues {
+                    Some(uvs) => {
+                        if slot < uvs.len() {
+                            uvs[slot] = val;
+                        } else {
+                            return Err(format!(
+                                "STORE_UPVALUE: index {} out of bounds (upvalue count {})",
+                                slot,
+                                uvs.len()
+                            ));
+                        }
+                    }
+                    None => {
+                        return Err("STORE_UPVALUE: no upvalues in current frame".to_string());
+                    }
+                }
             }
 
             // -- Objects ---------------------------------------------------------
@@ -1149,6 +1181,11 @@ impl Vm {
                 let method_name_idx = self.read_u16();
                 let arg_count = self.read_u8();
                 self.invoke_method(method_name_idx, arg_count)?;
+            }
+            OpCode::INVOKE_OPERATOR => {
+                let method_name_idx = self.read_u16();
+                let arg_count = self.read_u8();
+                self.invoke_operator(method_name_idx, arg_count)?;
             }
             OpCode::GET_FIELD => {
                 let field_name_idx = self.read_u16();
@@ -1589,6 +1626,97 @@ impl Vm {
                     self.stack.push(Value::Null);
                 }
             }
+            OpCode::TUPLE_NEW => {
+                let count = self.read_u16() as usize;
+                let mut elements = Vec::with_capacity(count);
+                for _ in 0..count {
+                    elements.push(Value::Null);
+                }
+                // Pop values from stack in reverse order
+                for i in (0..count).rev() {
+                    elements[i] = self.pop();
+                }
+                self.push(Value::Tuple { elements });
+            }
+            OpCode::TUPLE_GET => {
+                let index = self.read_u8() as usize;
+                let tuple = self.pop();
+                match &tuple {
+                    Value::Tuple { elements } => {
+                        if index < elements.len() {
+                            self.push(elements[index].clone());
+                        } else {
+                            return Err(format!(
+                                "TUPLE_GET: index {} out of bounds (length {})",
+                                index,
+                                elements.len()
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(format!(
+                            "TUPLE_GET: expected tuple, found {:?}",
+                            tuple
+                        ))
+                    }
+                }
+            }
+
+            // -- Closures --------------------------------------------------------
+            OpCode::CLOSURE_NEW => {
+                let func_idx = self.read_u16() as usize;
+                let upvalue_count = self.read_u8() as usize;
+                let mut upvalues = Vec::with_capacity(upvalue_count);
+                for _ in 0..upvalue_count {
+                    upvalues.push(self.pop());
+                }
+                upvalues.reverse();
+                self.push(Value::Closure {
+                    func_idx,
+                    upvalues,
+                });
+            }
+            OpCode::GET_UPVALUE => {
+                let slot = self.read_u8() as usize;
+                let upvalues = self.current_frame().upvalues.clone();
+                match &upvalues {
+                    Some(uvs) => {
+                        if slot < uvs.len() {
+                            self.push(uvs[slot].clone());
+                        } else {
+                            return Err(format!(
+                                "GET_UPVALUE: index {} out of bounds (upvalue count {})",
+                                slot,
+                                uvs.len()
+                            ));
+                        }
+                    }
+                    None => {
+                        return Err("GET_UPVALUE: no upvalues in current frame".to_string());
+                    }
+                }
+            }
+            OpCode::SET_UPVALUE => {
+                let slot = self.read_u8() as usize;
+                let val = self.pop();
+                let upvalues = self.current_frame_mut().upvalues.as_mut();
+                match upvalues {
+                    Some(uvs) => {
+                        if slot < uvs.len() {
+                            uvs[slot] = val;
+                        } else {
+                            return Err(format!(
+                                "SET_UPVALUE: index {} out of bounds (upvalue count {})",
+                                slot,
+                                uvs.len()
+                            ));
+                        }
+                    }
+                    None => {
+                        return Err("SET_UPVALUE: no upvalues in current frame".to_string());
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -1613,7 +1741,16 @@ impl Vm {
         }
 
         let base = self.stack.len() - arg_count as usize;
-        self.frames.push(Frame::new(func_idx, base));
+
+        // Check if there's a Closure value on the stack with this function index.
+        // Search the stack for a matching closure to get its upvalues.
+        let upvalues = self.find_closure_upvalues(func_idx);
+
+        if let Some(uvs) = upvalues {
+            self.frames.push(Frame::new_with_upvalues(func_idx, base, uvs));
+        } else {
+            self.frames.push(Frame::new(func_idx, base));
+        }
 
         // Pre-allocate stack slots for all local variables.
         // The function has `local_count` total slots, of which `arity` are
@@ -1625,6 +1762,19 @@ impl Vm {
         }
 
         Ok(())
+    }
+
+    /// Search the stack for a Closure value with the given function index
+    /// and return its upvalues if found.
+    fn find_closure_upvalues(&self, func_idx: u16) -> Option<Vec<Value>> {
+        for val in self.stack.iter().rev() {
+            if let Value::Closure { func_idx: idx, upvalues } = val {
+                if *idx == func_idx as usize {
+                    return Some(upvalues.clone());
+                }
+            }
+        }
+        None
     }
 
     fn call_native_fn(&mut self, native_idx: u16, arg_count: u8) -> Result<(), String> {
@@ -2179,6 +2329,26 @@ impl Vm {
                     vtable: HashMap::new(),
                 })
             }
+            "entries" => {
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let entries: Vec<Value> = keys.iter().zip(values.iter()).map(|(k, v)| {
+                    Value::Tuple { elements: vec![k.clone(), v.clone()] }
+                }).collect();
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: entries });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
             "size" => {
                 let keys = match fields.borrow().get("_keys") {
                     Some(Value::Array { elements }) => elements.clone(),
@@ -2218,6 +2388,246 @@ impl Vm {
                 }
             }
             _ => Err(format!("Unknown HashMap method '{}'", method)),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // INVOKE_OPERATOR – operator overloading with fallback
+    // -----------------------------------------------------------------------
+
+    fn invoke_operator(&mut self, method_name_idx: u16, arg_count: u8) -> Result<(), String> {
+        // Stack: [left, right, ...]  (left is below right)
+        // arg_count should be 1 (the right operand).
+        let method_name = {
+            let frame = self.current_frame();
+            let chunk = &self.functions[frame.function_index as usize].chunk;
+            chunk.strings[method_name_idx as usize].clone()
+        };
+
+        // The receiver (left operand) is at stack.len() - 1 - arg_count
+        let receiver_idx = self.stack.len() - 1 - arg_count as usize;
+        let receiver = self.stack[receiver_idx].clone();
+
+        if let Value::ClassInstance { vtable, class_name, .. } = &receiver {
+            // Check if the operator method exists in the vtable or class hierarchy
+            let has_operator = if vtable.contains_key(&method_name) {
+                true
+            } else {
+                // Walk up the class hierarchy
+                let mut search_class = class_name.clone();
+                loop {
+                    let class_defs = &self.classes;
+                    let found = class_defs.iter().find(|c| c.name == search_class);
+                    match found {
+                        Some(cd) => {
+                            if cd.methods.contains_key(&method_name) {
+                                break true;
+                            }
+                            if let Some(parent_idx) = cd.parent {
+                                search_class = self.classes[parent_idx as usize].name.clone();
+                            } else {
+                                break false;
+                            }
+                        }
+                        None => break false,
+                    }
+                }
+            };
+
+            if has_operator {
+                // Delegate to invoke_method which handles the full method call
+                return self.invoke_method(method_name_idx, arg_count);
+            }
+        }
+
+        // No operator method found — fall back to built-in operator behavior.
+        // Pop right and left from the stack, apply the built-in operator, push result.
+        let right = self.pop();
+        let left = self.pop();
+        let result = self.apply_builtin_operator(&left, &right, &method_name)?;
+        self.push(result);
+        Ok(())
+    }
+
+    /// Apply a built-in operator when no operator overload method is found.
+    fn apply_builtin_operator(&self, left: &Value, right: &Value, method_name: &str) -> Result<Value, String> {
+        match method_name {
+            "operator+" => self.builtin_add(left, right),
+            "operator-" => self.builtin_sub(left, right),
+            "operator*" => self.builtin_mul(left, right),
+            "operator/" => self.builtin_div(left, right),
+            "operator%" => self.builtin_mod(left, right),
+            "operator==" => Ok(Value::Bool(left == right)),
+            "operator!=" => Ok(Value::Bool(left != right)),
+            "operator<" => self.builtin_cmp(left, right, |a, b| a < b, |a, b| a < b),
+            "operator>" => self.builtin_cmp(left, right, |a, b| a > b, |a, b| a > b),
+            "operator<=" => self.builtin_cmp(left, right, |a, b| a <= b, |a, b| a <= b),
+            "operator>=" => self.builtin_cmp(left, right, |a, b| a >= b, |a, b| a >= b),
+            "operator&" => self.builtin_bitwise(left, right, |a, b| a & b, |a, b| a & b),
+            "operator|" => self.builtin_bitwise(left, right, |a, b| a | b, |a, b| a | b),
+            "operator^" => self.builtin_bitwise(left, right, |a, b| a ^ b, |a, b| a ^ b),
+            "operator<<" => self.builtin_shift(left, right, false),
+            "operator>>" => self.builtin_shift(left, right, true),
+            _ => Err(format!("Unknown operator method '{}'", method_name)),
+        }
+    }
+
+    fn builtin_add(&self, left: &Value, right: &Value) -> Result<Value, String> {
+        match (left, right) {
+            (Value::Byte(a), Value::Byte(b)) => Ok(Value::Byte(a.wrapping_add(*b))),
+            (Value::Short(a), Value::Short(b)) => Ok(Value::Short(a.wrapping_add(*b))),
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a.wrapping_add(*b))),
+            (Value::Long(a), Value::Long(b)) => Ok(Value::Long(a.wrapping_add(*b))),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
+            (Value::Double(a), Value::Double(b)) => Ok(Value::Double(a + b)),
+            (Value::Half(a), Value::Half(b)) => Ok(Value::Half(a + b)),
+            (Value::Quad(a), Value::Quad(b)) => Ok(Value::Quad(a + b)),
+            (Value::Int(a), Value::Long(b)) => Ok(Value::Long(*a as i64 + b)),
+            (Value::Long(a), Value::Int(b)) => Ok(Value::Long(a + *b as i64)),
+            (Value::String(a), Value::String(b)) => Ok(Value::String(Rc::new(format!("{}{}", a, b)))),
+            _ => Err(format!("Cannot add {:?} and {:?}", left, right)),
+        }
+    }
+
+    fn builtin_sub(&self, left: &Value, right: &Value) -> Result<Value, String> {
+        match (left, right) {
+            (Value::Byte(a), Value::Byte(b)) => Ok(Value::Byte(a.wrapping_sub(*b))),
+            (Value::Short(a), Value::Short(b)) => Ok(Value::Short(a.wrapping_sub(*b))),
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a.wrapping_sub(*b))),
+            (Value::Long(a), Value::Long(b)) => Ok(Value::Long(a.wrapping_sub(*b))),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a - b)),
+            (Value::Double(a), Value::Double(b)) => Ok(Value::Double(a - b)),
+            (Value::Half(a), Value::Half(b)) => Ok(Value::Half(a - b)),
+            (Value::Quad(a), Value::Quad(b)) => Ok(Value::Quad(a - b)),
+            (Value::Int(a), Value::Long(b)) => Ok(Value::Long(*a as i64 - b)),
+            (Value::Long(a), Value::Int(b)) => Ok(Value::Long(a - *b as i64)),
+            _ => Err(format!("Cannot subtract {:?} and {:?}", left, right)),
+        }
+    }
+
+    fn builtin_mul(&self, left: &Value, right: &Value) -> Result<Value, String> {
+        match (left, right) {
+            (Value::Byte(a), Value::Byte(b)) => Ok(Value::Byte(a.wrapping_mul(*b))),
+            (Value::Short(a), Value::Short(b)) => Ok(Value::Short(a.wrapping_mul(*b))),
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a.wrapping_mul(*b))),
+            (Value::Long(a), Value::Long(b)) => Ok(Value::Long(a.wrapping_mul(*b))),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
+            (Value::Double(a), Value::Double(b)) => Ok(Value::Double(a * b)),
+            (Value::Half(a), Value::Half(b)) => Ok(Value::Half(a * b)),
+            (Value::Quad(a), Value::Quad(b)) => Ok(Value::Quad(a * b)),
+            (Value::Int(a), Value::Long(b)) => Ok(Value::Long(*a as i64 * b)),
+            (Value::Long(a), Value::Int(b)) => Ok(Value::Long(a * *b as i64)),
+            _ => Err(format!("Cannot multiply {:?} and {:?}", left, right)),
+        }
+    }
+
+    fn builtin_div(&self, left: &Value, right: &Value) -> Result<Value, String> {
+        match (left, right) {
+            (Value::Byte(a), Value::Byte(b)) => {
+                if *b == 0 { return Err("Division by zero".to_string()); }
+                Ok(Value::Byte(a / b))
+            }
+            (Value::Short(a), Value::Short(b)) => {
+                if *b == 0 { return Err("Division by zero".to_string()); }
+                Ok(Value::Short(a / b))
+            }
+            (Value::Int(a), Value::Int(b)) => {
+                if *b == 0 { return Err("Division by zero".to_string()); }
+                Ok(Value::Int(a / b))
+            }
+            (Value::Long(a), Value::Long(b)) => {
+                if *b == 0 { return Err("Division by zero".to_string()); }
+                Ok(Value::Long(a / b))
+            }
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a / b)),
+            (Value::Double(a), Value::Double(b)) => Ok(Value::Double(a / b)),
+            (Value::Half(a), Value::Half(b)) => Ok(Value::Half(a / b)),
+            (Value::Quad(a), Value::Quad(b)) => Ok(Value::Quad(a / b)),
+            _ => Err(format!("Cannot divide {:?} by {:?}", left, right)),
+        }
+    }
+
+    fn builtin_mod(&self, left: &Value, right: &Value) -> Result<Value, String> {
+        match (left, right) {
+            (Value::Byte(a), Value::Byte(b)) => {
+                if *b == 0 { return Err("Division by zero".to_string()); }
+                Ok(Value::Byte(a % b))
+            }
+            (Value::Short(a), Value::Short(b)) => {
+                if *b == 0 { return Err("Division by zero".to_string()); }
+                Ok(Value::Short(a % b))
+            }
+            (Value::Int(a), Value::Int(b)) => {
+                if *b == 0 { return Err("Division by zero".to_string()); }
+                Ok(Value::Int(a % b))
+            }
+            (Value::Long(a), Value::Long(b)) => {
+                if *b == 0 { return Err("Division by zero".to_string()); }
+                Ok(Value::Long(a % b))
+            }
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a % b)),
+            (Value::Double(a), Value::Double(b)) => Ok(Value::Double(a % b)),
+            (Value::Half(a), Value::Half(b)) => Ok(Value::Half(a % b)),
+            (Value::Quad(a), Value::Quad(b)) => Ok(Value::Quad(a % b)),
+            _ => Err(format!("Cannot modulo {:?} and {:?}", left, right)),
+        }
+    }
+
+    fn builtin_cmp(
+        &self,
+        left: &Value,
+        right: &Value,
+        int_op: fn(i64, i64) -> bool,
+        float_op: fn(f64, f64) -> bool,
+    ) -> Result<Value, String> {
+        match (left, right) {
+            (Value::Byte(a), Value::Byte(b)) => Ok(Value::Bool(int_op(*a as i64, *b as i64))),
+            (Value::Short(a), Value::Short(b)) => Ok(Value::Bool(int_op(*a as i64, *b as i64))),
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Bool(int_op(*a as i64, *b as i64))),
+            (Value::Long(a), Value::Long(b)) => Ok(Value::Bool(int_op(*a, *b))),
+            (Value::Float(a), Value::Float(b)) => Ok(Value::Bool(float_op(*a as f64, *b as f64))),
+            (Value::Double(a), Value::Double(b)) => Ok(Value::Bool(float_op(*a, *b))),
+            (Value::Half(a), Value::Half(b)) => Ok(Value::Bool(float_op(*a as f64, *b as f64))),
+            (Value::Quad(a), Value::Quad(b)) => Ok(Value::Bool(float_op(*a, *b))),
+            _ => Err(format!("Cannot compare {:?} and {:?}", left, right)),
+        }
+    }
+
+    fn builtin_bitwise(
+        &self,
+        left: &Value,
+        right: &Value,
+        int_op: fn(i64, i64) -> i64,
+        _long_op: fn(i64, i64) -> i64,
+    ) -> Result<Value, String> {
+        match (left, right) {
+            (Value::Byte(a), Value::Byte(b)) => Ok(Value::Byte(int_op(*a as i64, *b as i64) as i8)),
+            (Value::Short(a), Value::Short(b)) => Ok(Value::Short(int_op(*a as i64, *b as i64) as i16)),
+            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(int_op(*a as i64, *b as i64) as i32)),
+            (Value::Long(a), Value::Long(b)) => Ok(Value::Long(int_op(*a, *b))),
+            _ => Err(format!("Cannot apply bitwise op to {:?} and {:?}", left, right)),
+        }
+    }
+
+    fn builtin_shift(&self, left: &Value, right: &Value, is_right: bool) -> Result<Value, String> {
+        match (left, right) {
+            (Value::Byte(a), Value::Int(b)) => {
+                if is_right { Ok(Value::Byte((*a as i64).wrapping_shr(*b as u32) as i8)) }
+                else { Ok(Value::Byte((*a as i64).wrapping_shl(*b as u32) as i8)) }
+            }
+            (Value::Short(a), Value::Int(b)) => {
+                if is_right { Ok(Value::Short((*a as i64).wrapping_shr(*b as u32) as i16)) }
+                else { Ok(Value::Short((*a as i64).wrapping_shl(*b as u32) as i16)) }
+            }
+            (Value::Int(a), Value::Int(b)) => {
+                if is_right { Ok(Value::Int(a.wrapping_shr(*b as u32))) }
+                else { Ok(Value::Int(a.wrapping_shl(*b as u32))) }
+            }
+            (Value::Long(a), Value::Int(b)) => {
+                if is_right { Ok(Value::Long(a.wrapping_shr(*b as u32))) }
+                else { Ok(Value::Long(a.wrapping_shl(*b as u32))) }
+            }
+            _ => Err(format!("Cannot shift {:?} by {:?}", left, right)),
         }
     }
 

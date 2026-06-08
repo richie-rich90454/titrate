@@ -1,5 +1,8 @@
 // Generic HashMap backed by the VM's built-in hash map support.
-public class HashMap<K, V> {
+import tt::lang::Iterable;
+import tt::util::ArrayList;
+
+public class HashMap<K, V> implements Iterable<K> {
     private HashMap<K, V> map;
 
     public HashMap() {
@@ -12,5 +15,29 @@ public class HashMap<K, V> {
 
     public V get(K key) {
         return this.map.get(key);
+    }
+
+    public bool containsKey(K key) {
+        return this.map.containsKey(key);
+    }
+
+    public ArrayList<K> keys() {
+        return this.map.keys();
+    }
+
+    public ArrayList<V> values() {
+        return this.map.values();
+    }
+
+    public ArrayList<(K, V)> entries() {
+        return this.map.entries();
+    }
+
+    public int size() {
+        return this.map.size();
+    }
+
+    public ArrayListIterator<K> iterator() {
+        return this.map.keys().iterator();
     }
 }
