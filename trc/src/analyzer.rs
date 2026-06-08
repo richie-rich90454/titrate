@@ -261,11 +261,26 @@ fn static_class_for_primitive(t: &ast::Type) -> Option<String> {
 }
 
 // ---------------------------------------------------------------------------
+// ExhaustiveMode
+// ---------------------------------------------------------------------------
+
+/// Controls how non-exhaustive pattern matches are reported.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExhaustiveMode {
+    /// Emit a warning for non-exhaustive matches (default).
+    #[default]
+    Warning,
+    /// Emit an error for non-exhaustive matches.
+    Error,
+}
+
+// ---------------------------------------------------------------------------
 // Analyzer
 // ---------------------------------------------------------------------------
 
 struct Analyzer {
     errors: Vec<String>,
+    warnings: Vec<String>,
     /// Ownership state per variable in the current function scope.
     /// Keyed by a scope-depth-qualified name to handle shadowing.
     var_states: HashMap<String, VarState>,
@@ -275,21 +290,41 @@ struct Analyzer {
     current_return_type: Option<ast::Type>,
     /// Whether we are inside an unsafe block.
     in_unsafe: bool,
+    /// How to report non-exhaustive pattern matches.
+    exhaustive_mode: ExhaustiveMode,
 }
 
 impl Analyzer {
     fn new() -> Self {
         Analyzer {
             errors: Vec::new(),
+            warnings: Vec::new(),
             var_states: HashMap::new(),
             local_vars: Vec::new(),
             current_return_type: None,
             in_unsafe: false,
+            exhaustive_mode: ExhaustiveMode::default(),
+        }
+    }
+
+    fn with_exhaustive_mode(mode: ExhaustiveMode) -> Self {
+        Analyzer {
+            errors: Vec::new(),
+            warnings: Vec::new(),
+            var_states: HashMap::new(),
+            local_vars: Vec::new(),
+            current_return_type: None,
+            in_unsafe: false,
+            exhaustive_mode: mode,
         }
     }
 
     fn error(&mut self, msg: impl Into<String>) {
         self.errors.push(msg.into());
+    }
+
+    fn warn(&mut self, msg: impl Into<String>) {
+        self.warnings.push(msg.into());
     }
 
     // -----------------------------------------------------------------------
@@ -879,6 +914,42 @@ impl Analyzer {
 
         if let Some(ref mut default) = sw.default {
             self.analyze_block(default, scope);
+        }
+
+        // Exhaustiveness check: if switching on an enum with no default,
+        // verify that all variants are covered.
+        if is_enum && sw.default.is_none() {
+            // Collect the names of all variants covered by Constructor patterns.
+            let covered: Vec<&str> = sw.cases.iter().filter_map(|case| {
+                if let ast::Pattern::Constructor { name, .. } = &case.pattern {
+                    Some(name.as_str())
+                } else {
+                    None
+                }
+            }).collect();
+
+            // Look up the enum definition to get all variant names.
+            if let Some(Symbol::Enum(enum_decl)) = scope.borrow().lookup(&enum_name) {
+                let all_variants: Vec<&str> = enum_decl.variants.iter()
+                    .map(|v| v.name.as_str())
+                    .collect();
+                let missing: Vec<&str> = all_variants.iter()
+                    .filter(|v| !covered.contains(v))
+                    .copied()
+                    .collect();
+
+                if !missing.is_empty() {
+                    let msg = format!(
+                        "non-exhaustive pattern match: missing variant{} {}",
+                        if missing.len() > 1 { "s" } else { "" },
+                        missing.join(", ")
+                    );
+                    match self.exhaustive_mode {
+                        ExhaustiveMode::Warning => self.warn(msg),
+                        ExhaustiveMode::Error => self.error(msg),
+                    }
+                }
+            }
         }
     }
 
@@ -1861,11 +1932,24 @@ impl Analyzer {
 /// Returns the (possibly modified) program on success, or a vector of
 /// error strings describing all semantic errors found.
 pub fn analyze(program: &ast::Program) -> Result<ast::Program, Vec<String>> {
+    analyze_with_mode(program, ExhaustiveMode::default())
+}
+
+/// Analyze with an explicit exhaustiveness mode.
+/// Returns `Ok(program)` if there are no errors (warnings are reported
+/// but do not cause a failure), or `Err(errors)` otherwise.
+pub fn analyze_with_mode(program: &ast::Program, mode: ExhaustiveMode) -> Result<ast::Program, Vec<String>> {
+    analyze_with_mode_and_warnings(program, mode).map(|(prog, _)| prog)
+}
+
+/// Analyze with an explicit exhaustiveness mode, returning warnings alongside the result.
+pub fn analyze_with_mode_and_warnings(program: &ast::Program, mode: ExhaustiveMode) -> Result<(ast::Program, Vec<String>), Vec<String>> {
     let mut program = program.clone();
-    let mut analyzer = Analyzer::new();
+    let mut analyzer = Analyzer::with_exhaustive_mode(mode);
     analyzer.analyze_program(&mut program);
+    let warnings = analyzer.warnings.clone();
     if analyzer.errors.is_empty() {
-        Ok(program)
+        Ok((program, warnings))
     } else {
         Err(analyzer.errors)
     }
@@ -3295,5 +3379,199 @@ mod tests {
         }));
         let result = analyze(&prog);
         assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Exhaustiveness checking tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_exhaustive_switch_all_variants_covered() {
+        // Switch covering all enum variants → no warning, no error
+        let prog = Program {
+            imports: vec![],
+            declarations: vec![
+                Declaration::Enum(EnumDecl {
+                    name: "Color".to_string(),
+                    type_params: vec![],
+                    variants: vec![
+                        Variant { name: "Red".to_string(), fields: vec![] },
+                        Variant { name: "Green".to_string(), fields: vec![] },
+                        Variant { name: "Blue".to_string(), fields: vec![] },
+                    ],
+                    span: Span::unknown(),
+                }),
+                Declaration::Function(FnDecl {
+                    access: Access::Public,
+                    name: "test".to_string(),
+                    type_params: vec![],
+                    params: vec![Param { name: "c".to_string(), typ: Type::simple("Color") }],
+                    return_type: Some(Type::simple("void")),
+                    body: vec![Stmt::Switch(SwitchStmt {
+                        expr: Expr::Identifier("c".to_string(), Span::unknown()),
+                        cases: vec![
+                            Case {
+                                pattern: Pattern::Constructor { name: "Red".to_string(), bindings: vec![] },
+                                body: vec![],
+                            },
+                            Case {
+                                pattern: Pattern::Constructor { name: "Green".to_string(), bindings: vec![] },
+                                body: vec![],
+                            },
+                            Case {
+                                pattern: Pattern::Constructor { name: "Blue".to_string(), bindings: vec![] },
+                                body: vec![],
+                            },
+                        ],
+                        default: None,
+                        span: Span::unknown(),
+                    })],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+        };
+        let result = analyze_with_mode_and_warnings(&prog, ExhaustiveMode::Warning);
+        assert!(result.is_ok());
+        let (_, warnings) = result.unwrap();
+        assert!(warnings.is_empty(), "expected no warnings for exhaustive switch, got: {:?}", warnings);
+    }
+
+    #[test]
+    fn test_non_exhaustive_switch_produces_warning() {
+        // Switch missing some variants → warning in Warning mode
+        let prog = Program {
+            imports: vec![],
+            declarations: vec![
+                Declaration::Enum(EnumDecl {
+                    name: "Color".to_string(),
+                    type_params: vec![],
+                    variants: vec![
+                        Variant { name: "Red".to_string(), fields: vec![] },
+                        Variant { name: "Green".to_string(), fields: vec![] },
+                        Variant { name: "Blue".to_string(), fields: vec![] },
+                    ],
+                    span: Span::unknown(),
+                }),
+                Declaration::Function(FnDecl {
+                    access: Access::Public,
+                    name: "test".to_string(),
+                    type_params: vec![],
+                    params: vec![Param { name: "c".to_string(), typ: Type::simple("Color") }],
+                    return_type: Some(Type::simple("void")),
+                    body: vec![Stmt::Switch(SwitchStmt {
+                        expr: Expr::Identifier("c".to_string(), Span::unknown()),
+                        cases: vec![
+                            Case {
+                                pattern: Pattern::Constructor { name: "Red".to_string(), bindings: vec![] },
+                                body: vec![],
+                            },
+                        ],
+                        default: None,
+                        span: Span::unknown(),
+                    })],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+        };
+        let result = analyze_with_mode_and_warnings(&prog, ExhaustiveMode::Warning);
+        assert!(result.is_ok(), "Warning mode should not produce an error");
+        let (_, warnings) = result.unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("non-exhaustive pattern match"));
+        assert!(warnings[0].contains("Green"));
+        assert!(warnings[0].contains("Blue"));
+    }
+
+    #[test]
+    fn test_non_exhaustive_switch_error_mode() {
+        // Switch missing some variants → error in Error mode
+        let prog = Program {
+            imports: vec![],
+            declarations: vec![
+                Declaration::Enum(EnumDecl {
+                    name: "Color".to_string(),
+                    type_params: vec![],
+                    variants: vec![
+                        Variant { name: "Red".to_string(), fields: vec![] },
+                        Variant { name: "Green".to_string(), fields: vec![] },
+                    ],
+                    span: Span::unknown(),
+                }),
+                Declaration::Function(FnDecl {
+                    access: Access::Public,
+                    name: "test".to_string(),
+                    type_params: vec![],
+                    params: vec![Param { name: "c".to_string(), typ: Type::simple("Color") }],
+                    return_type: Some(Type::simple("void")),
+                    body: vec![Stmt::Switch(SwitchStmt {
+                        expr: Expr::Identifier("c".to_string(), Span::unknown()),
+                        cases: vec![
+                            Case {
+                                pattern: Pattern::Constructor { name: "Red".to_string(), bindings: vec![] },
+                                body: vec![],
+                            },
+                        ],
+                        default: None,
+                        span: Span::unknown(),
+                    })],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+        };
+        let result = analyze_with_mode(&prog, ExhaustiveMode::Error);
+        assert!(result.is_err(), "Error mode should produce an error for non-exhaustive switch");
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("non-exhaustive pattern match")));
+    }
+
+    #[test]
+    fn test_switch_with_default_no_warning() {
+        // Switch with default case → no exhaustiveness warning even if variants are missing
+        let prog = Program {
+            imports: vec![],
+            declarations: vec![
+                Declaration::Enum(EnumDecl {
+                    name: "Color".to_string(),
+                    type_params: vec![],
+                    variants: vec![
+                        Variant { name: "Red".to_string(), fields: vec![] },
+                        Variant { name: "Green".to_string(), fields: vec![] },
+                        Variant { name: "Blue".to_string(), fields: vec![] },
+                    ],
+                    span: Span::unknown(),
+                }),
+                Declaration::Function(FnDecl {
+                    access: Access::Public,
+                    name: "test".to_string(),
+                    type_params: vec![],
+                    params: vec![Param { name: "c".to_string(), typ: Type::simple("Color") }],
+                    return_type: Some(Type::simple("void")),
+                    body: vec![Stmt::Switch(SwitchStmt {
+                        expr: Expr::Identifier("c".to_string(), Span::unknown()),
+                        cases: vec![
+                            Case {
+                                pattern: Pattern::Constructor { name: "Red".to_string(), bindings: vec![] },
+                                body: vec![],
+                            },
+                        ],
+                        default: Some(vec![]),
+                        span: Span::unknown(),
+                    })],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+        };
+        let result = analyze_with_mode_and_warnings(&prog, ExhaustiveMode::Warning);
+        assert!(result.is_ok());
+        let (_, warnings) = result.unwrap();
+        assert!(warnings.is_empty(), "expected no warnings for switch with default, got: {:?}", warnings);
     }
 }
