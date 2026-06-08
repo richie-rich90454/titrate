@@ -1,0 +1,325 @@
+// JSON parser and serializer.
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class Json {
+    // Parser state (used internally by instance methods during parsing)
+    private string input;
+    private int pos;
+
+    private Json(string input) {
+        this.input = input;
+        this.pos = 0;
+    }
+
+    // Parse a JSON string into a JsonValue
+    public static JsonValue parse(string input) {
+        Json parser = new Json(input);
+        parser.skipWhitespace();
+        JsonValue result = parser.parseValue();
+        return result;
+    }
+
+    // Convert a JsonValue to a JSON string
+    public static string stringify(JsonValue value) {
+        return value.toString();
+    }
+
+    // Pretty print with indentation
+    public static string prettyPrint(JsonValue value, int indent) {
+        return Json::prettyPrintInner(value, indent, 0);
+    }
+
+    private static string prettyPrintInner(JsonValue value, int indent, int level) {
+        if (value.isNull()) {
+            return "null";
+        }
+        if (value.isBool()) {
+            if (value.asBool()) {
+                return "true";
+            } else {
+                return "false";
+            }
+        }
+        if (value.isNumber()) {
+            return value.asNumber().toString();
+        }
+        if (value.isString()) {
+            return JsonValue::escapeString(value.asString());
+        }
+        if (value.isArray()) {
+            ArrayList<JsonValue> arr = value.asArray();
+            if (arr.size() == 0) {
+                return "[]";
+            }
+            string pad = Json::makeIndent(indent, level + 1);
+            string result = "[\n";
+            int i = 0;
+            while (i < arr.size()) {
+                if (i > 0) {
+                    result = result + ",\n";
+                }
+                result = result + pad + Json::prettyPrintInner(arr.get(i), indent, level + 1);
+                i = i + 1;
+            }
+            result = result + "\n" + Json::makeIndent(indent, level) + "]";
+            return result;
+        }
+        if (value.isObject()) {
+            HashMap obj = value.asObject();
+            ArrayList<string> keys = obj.keys();
+            if (keys.size() == 0) {
+                return "{}";
+            }
+            string pad = Json::makeIndent(indent, level + 1);
+            string result = "{\n";
+            int i = 0;
+            while (i < keys.size()) {
+                if (i > 0) {
+                    result = result + ",\n";
+                }
+                string key = keys.get(i);
+                JsonValue val = obj.get(key);
+                result = result + pad + JsonValue::escapeString(key) + ": " + Json::prettyPrintInner(val, indent, level + 1);
+                i = i + 1;
+            }
+            result = result + "\n" + Json::makeIndent(indent, level) + "}";
+            return result;
+        }
+        return "null";
+    }
+
+    private static string makeIndent(int indent, int level) {
+        string result = "";
+        int total = indent * level;
+        int i = 0;
+        while (i < total) {
+            result = result + " ";
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // ---- Recursive descent parser instance methods ----
+
+    private void skipWhitespace() {
+        while (this.pos < this.input.length()) {
+            string c = this.input.charAt(this.pos);
+            if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                this.pos = this.pos + 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    private string peek() {
+        if (this.pos < this.input.length()) {
+            return this.input.charAt(this.pos);
+        }
+        return "";
+    }
+
+    private string advance() {
+        string c = this.input.charAt(this.pos);
+        this.pos = this.pos + 1;
+        return c;
+    }
+
+    private bool match(string expected) {
+        if (this.pos + expected.length() > this.input.length()) {
+            return false;
+        }
+        string sub = this.input.substring(this.pos, this.pos + expected.length());
+        if (sub == expected) {
+            this.pos = this.pos + expected.length();
+            return true;
+        }
+        return false;
+    }
+
+    private JsonValue parseValue() {
+        this.skipWhitespace();
+        if (this.pos >= this.input.length()) {
+            return JsonValue::null();
+        }
+        string c = this.peek();
+        if (c == "n") {
+            return this.parseNull();
+        }
+        if (c == "t" || c == "f") {
+            return this.parseBool();
+        }
+        if (c == "\"") {
+            return this.parseString();
+        }
+        if (c == "[") {
+            return this.parseArray();
+        }
+        if (c == "{") {
+            return this.parseObject();
+        }
+        if (c == "-" || (c >= "0" && c <= "9")) {
+            return this.parseNumber();
+        }
+        return JsonValue::null();
+    }
+
+    private JsonValue parseNull() {
+        this.match("null");
+        return JsonValue::null();
+    }
+
+    private JsonValue parseBool() {
+        if (this.match("true")) {
+            return JsonValue::ofBool(true);
+        }
+        this.match("false");
+        return JsonValue::ofBool(false);
+    }
+
+    private JsonValue parseNumber() {
+        string numStr = "";
+        if (this.peek() == "-") {
+            numStr = numStr + this.advance();
+        }
+        while (this.pos < this.input.length()) {
+            string c = this.peek();
+            if ((c >= "0" && c <= "9") || c == "." || c == "e" || c == "E" || c == "+" || c == "-") {
+                numStr = numStr + this.advance();
+            } else {
+                break;
+            }
+        }
+        return JsonValue::ofNum(Double::parseDouble(numStr));
+    }
+
+    private JsonValue parseString() {
+        // Skip opening quote
+        this.advance();
+        string result = "";
+        while (this.pos < this.input.length()) {
+            string c = this.advance();
+            if (c == "\"") {
+                break;
+            }
+            if (c == "\\") {
+                string escaped = this.advance();
+                if (escaped == "\"") {
+                    result = result + "\"";
+                } else if (escaped == "\\") {
+                    result = result + "\\";
+                } else if (escaped == "/") {
+                    result = result + "/";
+                } else if (escaped == "b") {
+                    result = result + "\b";
+                } else if (escaped == "f") {
+                    result = result + "\f";
+                } else if (escaped == "n") {
+                    result = result + "\n";
+                } else if (escaped == "r") {
+                    result = result + "\r";
+                } else if (escaped == "t") {
+                    result = result + "\t";
+                } else if (escaped == "u") {
+                    // Parse 4 hex digits
+                    string hex = "";
+                    int h = 0;
+                    while (h < 4) {
+                        hex = hex + this.advance();
+                        h = h + 1;
+                    }
+                    result = result + Json::decodeHex(hex);
+                } else {
+                    result = result + escaped;
+                }
+            } else {
+                result = result + c;
+            }
+        }
+        return JsonValue::ofStr(result);
+    }
+
+    private static string decodeHex(string hex) {
+        int code = 0;
+        int i = 0;
+        while (i < hex.length()) {
+            string c = hex.charAt(i);
+            code = code * 16;
+            if (c >= "0" && c <= "9") {
+                code = code + (c.charAt(0) - "0".charAt(0));
+            } else if (c >= "a" && c <= "f") {
+                code = code + (c.charAt(0) - "a".charAt(0)) + 10;
+            } else if (c >= "A" && c <= "F") {
+                code = code + (c.charAt(0) - "A".charAt(0)) + 10;
+            }
+            i = i + 1;
+        }
+        return code.toString();
+    }
+
+    private JsonValue parseArray() {
+        // Skip opening bracket
+        this.advance();
+        this.skipWhitespace();
+        ArrayList<JsonValue> arr = new ArrayList<JsonValue>();
+        if (this.peek() == "]") {
+            this.advance();
+            return JsonValue::ofArray(arr);
+        }
+        while (true) {
+            this.skipWhitespace();
+            JsonValue elem = this.parseValue();
+            arr.add(elem);
+            this.skipWhitespace();
+            if (this.peek() == ",") {
+                this.advance();
+            } else {
+                break;
+            }
+        }
+        this.skipWhitespace();
+        if (this.peek() == "]") {
+            this.advance();
+        }
+        return JsonValue::ofArray(arr);
+    }
+
+    private JsonValue parseObject() {
+        // Skip opening brace
+        this.advance();
+        this.skipWhitespace();
+        HashMap obj = new HashMap();
+        if (this.peek() == "}") {
+            this.advance();
+            return JsonValue::ofObject(obj);
+        }
+        while (true) {
+            this.skipWhitespace();
+            // Parse key (must be a string)
+            JsonValue keyVal = this.parseString();
+            string key = keyVal.asString();
+            this.skipWhitespace();
+            // Skip colon
+            if (this.peek() == ":") {
+                this.advance();
+            }
+            this.skipWhitespace();
+            // Parse value
+            JsonValue val = this.parseValue();
+            obj.put(key, val);
+            this.skipWhitespace();
+            if (this.peek() == ",") {
+                this.advance();
+            } else {
+                break;
+            }
+        }
+        this.skipWhitespace();
+        if (this.peek() == "}") {
+            this.advance();
+        }
+        return JsonValue::ofObject(obj);
+    }
+}

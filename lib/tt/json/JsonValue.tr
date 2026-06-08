@@ -1,0 +1,205 @@
+// JsonValue represents any JSON value.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class JsonValue {
+    public string kind;
+    public bool boolVal;
+    public double numVal;
+    public string strVal;
+    public ArrayList<JsonValue> arrayVal;
+    public HashMap objVal;
+
+    public JsonValue(string k) {
+        this.kind = k;
+        this.boolVal = false;
+        this.numVal = 0.0;
+        this.strVal = "";
+        this.arrayVal = new ArrayList<JsonValue>();
+        this.objVal = new HashMap();
+    }
+
+    // Factory methods
+    public static JsonValue null() {
+        JsonValue v = new JsonValue("null");
+        return v;
+    }
+
+    public static JsonValue ofBool(bool b) {
+        JsonValue v = new JsonValue("bool");
+        v.boolVal = b;
+        return v;
+    }
+
+    public static JsonValue ofNum(double n) {
+        JsonValue v = new JsonValue("number");
+        v.numVal = n;
+        return v;
+    }
+
+    public static JsonValue ofStr(string s) {
+        JsonValue v = new JsonValue("string");
+        v.strVal = s;
+        return v;
+    }
+
+    public static JsonValue ofArray(ArrayList<JsonValue> arr) {
+        JsonValue v = new JsonValue("array");
+        v.arrayVal = arr;
+        return v;
+    }
+
+    public static JsonValue ofObject(HashMap obj) {
+        JsonValue v = new JsonValue("object");
+        v.objVal = obj;
+        return v;
+    }
+
+    // Type checks
+    public bool isNull() {
+        return this.kind == "null";
+    }
+
+    public bool isBool() {
+        return this.kind == "bool";
+    }
+
+    public bool isNumber() {
+        return this.kind == "number";
+    }
+
+    public bool isString() {
+        return this.kind == "string";
+    }
+
+    public bool isArray() {
+        return this.kind == "array";
+    }
+
+    public bool isObject() {
+        return this.kind == "object";
+    }
+
+    // Value accessors
+    public bool asBool() {
+        return this.boolVal;
+    }
+
+    public double asNumber() {
+        return this.numVal;
+    }
+
+    public string asString() {
+        return this.strVal;
+    }
+
+    public ArrayList<JsonValue> asArray() {
+        return this.arrayVal;
+    }
+
+    public HashMap asObject() {
+        return this.objVal;
+    }
+
+    // Object key access
+    public JsonValue get(string key) {
+        if (this.kind != "object") {
+            return JsonValue::null();
+        }
+        JsonValue val = this.objVal.get(key);
+        if (val == null) {
+            return JsonValue::null();
+        }
+        return val;
+    }
+
+    // Array index access
+    public JsonValue getAt(int index) {
+        if (this.kind != "array") {
+            return JsonValue::null();
+        }
+        if (index < 0 || index >= this.arrayVal.size()) {
+            return JsonValue::null();
+        }
+        return this.arrayVal.get(index);
+    }
+
+    // JSON serialization
+    public string toString() {
+        if (this.kind == "null") {
+            return "null";
+        }
+        if (this.kind == "bool") {
+            if (this.boolVal) {
+                return "true";
+            } else {
+                return "false";
+            }
+        }
+        if (this.kind == "number") {
+            return this.numVal.toString();
+        }
+        if (this.kind == "string") {
+            return JsonValue::escapeString(this.strVal);
+        }
+        if (this.kind == "array") {
+            string result = "[";
+            int i = 0;
+            while (i < this.arrayVal.size()) {
+                if (i > 0) {
+                    result = result + ",";
+                }
+                result = result + this.arrayVal.get(i).toString();
+                i = i + 1;
+            }
+            result = result + "]";
+            return result;
+        }
+        if (this.kind == "object") {
+            string result = "{";
+            ArrayList<string> keys = this.objVal.keys();
+            int i = 0;
+            while (i < keys.size()) {
+                if (i > 0) {
+                    result = result + ",";
+                }
+                string key = keys.get(i);
+                JsonValue val = this.objVal.get(key);
+                result = result + JsonValue::escapeString(key) + ":" + val.toString();
+                i = i + 1;
+            }
+            result = result + "}";
+            return result;
+        }
+        return "null";
+    }
+
+    // Escape a string for JSON output
+    public static string escapeString(string s) {
+        string result = "\"";
+        int i = 0;
+        while (i < s.length()) {
+            string c = s.charAt(i);
+            if (c == "\"") {
+                result = result + "\\\"";
+            } else if (c == "\\") {
+                result = result + "\\\\";
+            } else if (c == "\n") {
+                result = result + "\\n";
+            } else if (c == "\r") {
+                result = result + "\\r";
+            } else if (c == "\t") {
+                result = result + "\\t";
+            } else if (c == "\b") {
+                result = result + "\\b";
+            } else if (c == "\f") {
+                result = result + "\\f";
+            } else {
+                result = result + c;
+            }
+            i = i + 1;
+        }
+        result = result + "\"";
+        return result;
+    }
+}
