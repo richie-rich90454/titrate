@@ -75,6 +75,19 @@ fn main() {
                 process::exit(1);
             }
         }
+        "doc" => {
+            let project_dir = match pipette::project::find_project() {
+                Some(dir) => dir,
+                None => {
+                    eprintln!("Error: No Titrate.toml found in current or parent directories");
+                    process::exit(1);
+                }
+            };
+            if let Err(e) = pipette::doc(&project_dir) {
+                eprintln!("Doc generation failed: {}", e);
+                process::exit(1);
+            }
+        }
         "watch" => {
             let project_dir = match pipette::project::find_project() {
                 Some(dir) => dir,
@@ -109,5 +122,6 @@ fn print_usage() {
     eprintln!("  build          Compile the project");
     eprintln!("  run            Build and run the project");
     eprintln!("  test           Run tests");
+    eprintln!("  doc            Generate API documentation");
     eprintln!("  watch          Watch for changes and rebuild");
 }

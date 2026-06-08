@@ -5,11 +5,47 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
+/// A dependency specification.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Dependency {
+    /// A version-based dependency: package name and version string.
+    Version(String),
+    /// A git-based dependency: URL to a git repository.
+    Git { url: String },
+}
+
+impl Dependency {
+    /// Returns the version string if this is a version dependency.
+    pub fn version(&self) -> Option<&str> {
+        match self {
+            Dependency::Version(v) => Some(v),
+            Dependency::Git { .. } => None,
+        }
+    }
+
+    /// Returns the git URL if this is a git dependency.
+    pub fn git_url(&self) -> Option<&str> {
+        match self {
+            Dependency::Version(_) => None,
+            Dependency::Git { url } => Some(url),
+        }
+    }
+}
+
+impl std::fmt::Display for Dependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Dependency::Version(v) => write!(f, "\"{}\"", v),
+            Dependency::Git { url } => write!(f, "{{ git = \"{}\" }}", url),
+        }
+    }
+}
+
 /// The parsed project manifest.
 #[derive(Debug, Clone)]
 pub struct Config {
     pub package: PackageInfo,
-    pub dependencies: HashMap<String, String>,
+    pub dependencies: HashMap<String, Dependency>,
 }
 
 /// Package metadata from the `[package]` section.
@@ -41,10 +77,15 @@ pub fn load_config(dir: &Path) -> Result<Config, String> {
     parse_toml(&contents)
 }
 
-/// Minimal TOML parser – handles the flat structure we need.
+/// Minimal TOML parser – handles the flat structure we need,
+/// plus nested `[dependencies.name]` sections for git-based deps.
 fn parse_toml(contents: &str) -> Result<Config, String> {
     let mut config = Config::default();
     let mut current_section = String::new();
+
+    // Track the current nested dependency name when inside [dependencies.name]
+    let mut current_dep_name: Option<String> = None;
+    let mut current_dep_git: Option<String> = None;
 
     for line in contents.lines() {
         let trimmed = line.trim();
@@ -54,9 +95,23 @@ fn parse_toml(contents: &str) -> Result<Config, String> {
             continue;
         }
 
-        // Section header like [package] or [dependencies]
+        // Section header like [package] or [dependencies] or [dependencies.name]
         if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            // Flush any pending nested dependency
+            if let Some(name) = current_dep_name.take() {
+                if let Some(url) = current_dep_git.take() {
+                    config.dependencies.insert(name, Dependency::Git { url });
+                }
+            }
+
             current_section = trimmed[1..trimmed.len() - 1].trim().to_string();
+
+            // Check for nested dependency section like [dependencies.mylib]
+            if current_section.starts_with("dependencies.") {
+                let dep_name = current_section["dependencies.".len()..].trim().to_string();
+                current_dep_name = Some(dep_name);
+                current_dep_git = None;
+            }
             continue;
         }
 
@@ -80,12 +135,40 @@ fn parse_toml(contents: &str) -> Result<Config, String> {
                     _ => {} // Ignore unknown keys
                 },
                 "dependencies" => {
+                    // Simple version dependency: mylib = "1.0.0"
                     if !value.is_empty() {
-                        config.dependencies.insert(key, value);
+                        config.dependencies.insert(key, Dependency::Version(value));
                     }
                 }
-                _ => {} // Ignore unknown sections
+                _ => {
+                    // Handle nested [dependencies.name] section
+                    if current_section.starts_with("dependencies.") {
+                        match key.as_str() {
+                            "version" => {
+                                // Flush as version dependency if no git key follows
+                                if let Some(ref name) = current_dep_name {
+                                    // Store temporarily; will be flushed on section change
+                                    // For now, just store as version dep
+                                    let name = name.clone();
+                                    config.dependencies.insert(name, Dependency::Version(value));
+                                    current_dep_name = None;
+                                }
+                            }
+                            "git" => {
+                                current_dep_git = Some(value);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             }
+        }
+    }
+
+    // Flush any remaining nested dependency
+    if let Some(name) = current_dep_name.take() {
+        if let Some(url) = current_dep_git.take() {
+            config.dependencies.insert(name, Dependency::Git { url });
         }
     }
 
@@ -105,7 +188,7 @@ version = "0.1.0"
 entry = "src/main.tr"
 
 [dependencies]
-# No dependencies yet in Alpha 0.2
+# No dependencies yet
 "#,
         name
     )
