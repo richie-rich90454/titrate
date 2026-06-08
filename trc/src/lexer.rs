@@ -274,6 +274,66 @@ pub struct SpannedToken {
     pub column: usize,
 }
 
+/// Try to consume an operator suffix after the identifier "operator".
+/// Returns the operator string (e.g. "+", "==", "<=") if the next
+/// characters form a valid overloadable operator, or None otherwise.
+/// Does NOT consume any characters if the operator is not valid.
+fn try_consume_operator(chars: &mut std::iter::Peekable<std::str::Chars>, column: &mut usize) -> Option<String> {
+    // Peek at the next character without consuming
+    let next = *chars.peek()?;
+
+    // Determine the operator string by peeking ahead
+    let op_str = match next {
+        '+' | '-' | '*' | '/' | '%' => next.to_string(),
+        '=' => {
+            // Only "==" is a valid operator, not "="
+            if chars.clone().nth(1) == Some('=') {
+                "==".to_string()
+            } else {
+                return None; // "operator=" is not valid
+            }
+        }
+        '!' => {
+            // Only "!=" is a valid operator, not "!"
+            if chars.clone().nth(1) == Some('=') {
+                "!=".to_string()
+            } else {
+                return None;
+            }
+        }
+        '<' => {
+            if chars.clone().nth(1) == Some('=') {
+                "<=".to_string()
+            } else if chars.clone().nth(1) == Some('<') {
+                "<<".to_string()
+            } else {
+                "<".to_string()
+            }
+        }
+        '>' => {
+            if chars.clone().nth(1) == Some('=') {
+                ">=".to_string()
+            } else if chars.clone().nth(1) == Some('>') {
+                ">>".to_string()
+            } else {
+                ">".to_string()
+            }
+        }
+        '&' => "&".to_string(),
+        '|' => "|".to_string(),
+        '^' => "^".to_string(),
+        _ => return None,
+    };
+
+    // Now consume the characters that make up the operator
+    for _ in 0..op_str.len() {
+        chars.next();
+        *column += 1;
+    }
+
+    Some(op_str)
+}
+
 /// Convert source code into a list of tokens.
 /// Returns an error on the first unrecognised character that cannot be
 /// represented as an Error token.
@@ -356,9 +416,13 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                             let escaped = match chars.peek() {
                                 Some('n') => '\n',
                                 Some('t') => '\t',
+                                Some('r') => '\r',
                                 Some('\\') => '\\',
                                 Some('"') => '"',
+                                Some('\'') => '\'',
                                 Some('0') => '\0',
+                                Some('b') => '\x08',
+                                Some('f') => '\x0c',
                                 Some(&other) => {
                                     return Err(format!(
                                         "Unknown escape \\{} at {}:{}",
@@ -413,9 +477,13 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                         match chars.peek() {
                             Some('n') => '\n',
                             Some('t') => '\t',
+                            Some('r') => '\r',
                             Some('\\') => '\\',
                             Some('\'') => '\'',
+                            Some('"') => '"',
                             Some('0') => '\0',
+                            Some('b') => '\x08',
+                            Some('f') => '\x0c',
                             Some(&other) => {
                                 return Err(format!(
                                     "Unknown char escape \\{} at {}:{}",
@@ -636,6 +704,16 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                         _ => break,
                     }
                 }
+
+                // Operator overloading: if the identifier is "operator" and the
+                // next character(s) form a valid operator, consume them as part
+                // of the identifier (e.g. "operator+" → Identifier("operator+")).
+                if ident == "operator" {
+                    if let Some(op_str) = try_consume_operator(&mut chars, &mut column) {
+                        ident.push_str(&op_str);
+                    }
+                }
+
                 let tok = match ident.as_str() {
                     "public" => Token::Public,
                     "private" => Token::Private,
@@ -1215,5 +1293,15 @@ mod tests {
         let src = "@";
         let tokens = tokenize(src).expect("tokenize should succeed");
         assert!(tokens.iter().any(|st| matches!(st.token, Token::Error(_))));
+    }
+
+    #[test]
+    fn test_operator_identifier() {
+        let src = "fn operator+(self, other: Vec2): Vec2";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        // operator+ should be a single identifier token
+        assert!(token_kinds.contains(&&Token::Identifier("operator+".to_string())),
+            "Expected operator+ identifier, got: {:?}", token_kinds);
     }
 }
