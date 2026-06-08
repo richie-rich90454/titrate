@@ -10,6 +10,7 @@ use std::rc::Rc;
 use super::frame::{ClassDef, EnumDef, Frame, FunctionDef};
 use super::opcodes::{CastTarget, Chunk, OpCode, TypeTag};
 use super::value::{NativeFn, Value};
+use chrono::{Datelike, Timelike};
 
 // ---------------------------------------------------------------------------
 // Virtual machine
@@ -109,6 +110,53 @@ impl Vm {
         vm.register_native("Net_close", native_net_close);
         vm.register_native("Http_get", native_http_get);
         vm.register_native("Http_post", native_http_post);
+
+        // Time natives
+        vm.register_native("Time_now", native_time_now);
+        vm.register_native("Time_sleep", native_time_sleep);
+        vm.register_native("Time_format", native_time_format);
+        vm.register_native("Time_getYear", native_time_get_year);
+        vm.register_native("Time_getMonth", native_time_get_month);
+        vm.register_native("Time_getDay", native_time_get_day);
+        vm.register_native("Time_getHour", native_time_get_hour);
+        vm.register_native("Time_getMinute", native_time_get_minute);
+        vm.register_native("Time_getSecond", native_time_get_second);
+
+        // Regex natives
+        vm.register_native("Regex_match", native_regex_match);
+        vm.register_native("Regex_find", native_regex_find);
+        vm.register_native("Regex_replace", native_regex_replace);
+
+        // Math natives
+        vm.register_native("Math_sin", native_math_sin);
+        vm.register_native("Math_cos", native_math_cos);
+        vm.register_native("Math_tan", native_math_tan);
+        vm.register_native("Math_asin", native_math_asin);
+        vm.register_native("Math_acos", native_math_acos);
+        vm.register_native("Math_atan", native_math_atan);
+        vm.register_native("Math_atan2", native_math_atan2);
+        vm.register_native("Math_ln", native_math_ln);
+        vm.register_native("Math_log10", native_math_log10);
+        vm.register_native("Math_log2", native_math_log2);
+        vm.register_native("Math_exp", native_math_exp);
+        vm.register_native("Math_pow", native_math_pow);
+        vm.register_native("Math_sqrt", native_math_sqrt);
+        vm.register_native("Math_cbrt", native_math_cbrt);
+        vm.register_native("Math_abs", native_math_abs);
+        vm.register_native("Math_absInt", native_math_abs_int);
+        vm.register_native("Math_floor", native_math_floor);
+        vm.register_native("Math_ceil", native_math_ceil);
+        vm.register_native("Math_round", native_math_round);
+        vm.register_native("Math_inf", native_math_inf);
+        vm.register_native("Math_nan", native_math_nan);
+        vm.register_native("Math_maxDouble", native_math_max_double);
+        vm.register_native("Math_minDouble", native_math_min_double);
+        vm.register_native("Math_maxInt", native_math_max_int);
+        vm.register_native("Math_minInt", native_math_min_int);
+
+        // Random natives
+        vm.register_native("Random_seed", native_random_seed);
+        vm.register_native("Random_nextLong", native_random_next_long);
 
         vm
     }
@@ -3941,6 +3989,366 @@ fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
     Ok((host, port, path.to_string()))
 }
 
+// ---------------------------------------------------------------------------
+// Time native functions
+// ---------------------------------------------------------------------------
+
+fn native_time_now(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    let epoch_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("Time_now: {}", e))?
+        .as_millis() as i64;
+    Ok(Value::Long(epoch_ms))
+}
+
+fn native_time_sleep(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_sleep: expected 1 argument (milliseconds)".to_string());
+    }
+    let ms = args[0].to_i64().unwrap_or(0);
+    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+    Ok(Value::Void)
+}
+
+fn native_time_format(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Time_format: expected 2 arguments (epoch_ms, format)".to_string());
+    }
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let fmt = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Time_format: expected String format".to_string()),
+    };
+    // Simple format: support yyyy, MM, dd, HH, mm, ss placeholders
+    let secs = epoch_ms / 1000;
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    let formatted = datetime.format(&fmt).to_string();
+    Ok(Value::String(Rc::new(formatted)))
+}
+
+fn native_time_get_year(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_getYear: expected 1 argument (epoch_ms)".to_string());
+    }
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let secs = epoch_ms / 1000;
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    Ok(Value::Int(datetime.year() as i32))
+}
+
+fn native_time_get_month(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_getMonth: expected 1 argument (epoch_ms)".to_string());
+    }
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let secs = epoch_ms / 1000;
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    Ok(Value::Int(datetime.month() as i32))
+}
+
+fn native_time_get_day(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_getDay: expected 1 argument (epoch_ms)".to_string());
+    }
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let secs = epoch_ms / 1000;
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    Ok(Value::Int(datetime.day() as i32))
+}
+
+fn native_time_get_hour(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_getHour: expected 1 argument (epoch_ms)".to_string());
+    }
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let secs = epoch_ms / 1000;
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    Ok(Value::Int(datetime.hour() as i32))
+}
+
+fn native_time_get_minute(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_getMinute: expected 1 argument (epoch_ms)".to_string());
+    }
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let secs = epoch_ms / 1000;
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    Ok(Value::Int(datetime.minute() as i32))
+}
+
+fn native_time_get_second(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_getSecond: expected 1 argument (epoch_ms)".to_string());
+    }
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let secs = epoch_ms / 1000;
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    Ok(Value::Int(datetime.second() as i32))
+}
+
+// ---------------------------------------------------------------------------
+// Regex native functions
+// ---------------------------------------------------------------------------
+
+fn native_regex_match(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Regex_match: expected 2 arguments (pattern, input)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_match: expected String pattern".to_string()),
+    };
+    let input = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_match: expected String input".to_string()),
+    };
+    let re = regex::Regex::new(&pattern)
+        .map_err(|e| format!("Regex_match: invalid pattern '{}': {}", pattern, e))?;
+    Ok(Value::Bool(re.is_match(&input)))
+}
+
+fn native_regex_find(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Regex_find: expected 2 arguments (pattern, input)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_find: expected String pattern".to_string()),
+    };
+    let input = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_find: expected String input".to_string()),
+    };
+    let re = regex::Regex::new(&pattern)
+        .map_err(|e| format!("Regex_find: invalid pattern '{}': {}", pattern, e))?;
+    match re.find(&input) {
+        Some(m) => {
+            // Return "start,end,matched_text"
+            let result = format!("{},{},{}", m.start(), m.end(), m.as_str());
+            Ok(Value::String(Rc::new(result)))
+        }
+        None => Ok(Value::String(Rc::new(String::new()))),
+    }
+}
+
+fn native_regex_replace(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("Regex_replace: expected 3 arguments (pattern, input, replacement)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_replace: expected String pattern".to_string()),
+    };
+    let input = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_replace: expected String input".to_string()),
+    };
+    let replacement = match &args[2] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_replace: expected String replacement".to_string()),
+    };
+    let re = regex::Regex::new(&pattern)
+        .map_err(|e| format!("Regex_replace: invalid pattern '{}': {}", pattern, e))?;
+    let result = re.replace_all(&input, &replacement).to_string();
+    Ok(Value::String(Rc::new(result)))
+}
+
+// ---------------------------------------------------------------------------
+// Math native functions
+// ---------------------------------------------------------------------------
+
+fn native_math_sin(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_sin: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.sin()))
+}
+
+fn native_math_cos(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_cos: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.cos()))
+}
+
+fn native_math_tan(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_tan: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.tan()))
+}
+
+fn native_math_asin(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_asin: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.asin()))
+}
+
+fn native_math_acos(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_acos: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.acos()))
+}
+
+fn native_math_atan(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_atan: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.atan()))
+}
+
+fn native_math_atan2(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 { return Err("Math_atan2: expected 2 arguments (y, x)".to_string()); }
+    let y = args[0].to_f64().unwrap_or(0.0);
+    let x = args[1].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(y.atan2(x)))
+}
+
+fn native_math_ln(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_ln: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.ln()))
+}
+
+fn native_math_log10(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_log10: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.log10()))
+}
+
+fn native_math_log2(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_log2: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.log2()))
+}
+
+fn native_math_exp(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_exp: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.exp()))
+}
+
+fn native_math_pow(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 { return Err("Math_pow: expected 2 arguments (base, exp)".to_string()); }
+    let base = args[0].to_f64().unwrap_or(0.0);
+    let exp = args[1].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(base.powf(exp)))
+}
+
+fn native_math_sqrt(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_sqrt: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.sqrt()))
+}
+
+fn native_math_cbrt(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_cbrt: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.cbrt()))
+}
+
+fn native_math_abs(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_abs: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.abs()))
+}
+
+fn native_math_abs_int(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_absInt: expected 1 argument".to_string()); }
+    let x = args[0].to_i64().unwrap_or(0);
+    Ok(Value::Long(x.abs()))
+}
+
+fn native_math_floor(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_floor: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.floor()))
+}
+
+fn native_math_ceil(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_ceil: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.ceil()))
+}
+
+fn native_math_round(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_round: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Long(x.round() as i64))
+}
+
+fn native_math_inf(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Double(f64::INFINITY))
+}
+
+fn native_math_nan(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Double(f64::NAN))
+}
+
+fn native_math_max_double(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Double(f64::MAX))
+}
+
+fn native_math_min_double(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Double(f64::MIN))
+}
+
+fn native_math_max_int(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Long(i64::MAX))
+}
+
+fn native_math_min_int(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Long(i64::MIN))
+}
+
+// ---------------------------------------------------------------------------
+// Random native functions
+// ---------------------------------------------------------------------------
+
+fn native_random_seed(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    let epoch_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("Random_seed: {}", e))?
+        .as_millis() as i64;
+    Ok(Value::Long(epoch_ms))
+}
+
+fn native_random_next_long(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Random_nextLong: expected 2 arguments (state0, state1)".to_string());
+    }
+    let s0 = args[0].to_i64().unwrap_or(0) as u64;
+    let mut s1 = args[1].to_i64().unwrap_or(0) as u64;
+
+    // Xorshift128+
+    s1 ^= s1 << 23;
+    s1 ^= s1 >> 17;
+    s1 ^= s0;
+    s1 ^= s0 >> 26;
+    let new_s0 = s1;
+    let result = (new_s0.wrapping_add(s1)) as i64;
+    let new_s1 = s0;
+
+    Ok(Value::Array {
+        elements: vec![
+            Value::Long(new_s0 as i64),
+            Value::Long(new_s1 as i64),
+            Value::Long(result),
+        ],
+    })
+}
+
 /// Look up a built-in native function by name. Returns `None` for unknown names.
 fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -3988,6 +4396,49 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Net_close" => Some(native_net_close),
         "Http_get" => Some(native_http_get),
         "Http_post" => Some(native_http_post),
+        // Time natives
+        "Time_now" => Some(native_time_now),
+        "Time_sleep" => Some(native_time_sleep),
+        "Time_format" => Some(native_time_format),
+        "Time_getYear" => Some(native_time_get_year),
+        "Time_getMonth" => Some(native_time_get_month),
+        "Time_getDay" => Some(native_time_get_day),
+        "Time_getHour" => Some(native_time_get_hour),
+        "Time_getMinute" => Some(native_time_get_minute),
+        "Time_getSecond" => Some(native_time_get_second),
+        // Regex natives
+        "Regex_match" => Some(native_regex_match),
+        "Regex_find" => Some(native_regex_find),
+        "Regex_replace" => Some(native_regex_replace),
+        // Math natives
+        "Math_sin" => Some(native_math_sin),
+        "Math_cos" => Some(native_math_cos),
+        "Math_tan" => Some(native_math_tan),
+        "Math_asin" => Some(native_math_asin),
+        "Math_acos" => Some(native_math_acos),
+        "Math_atan" => Some(native_math_atan),
+        "Math_atan2" => Some(native_math_atan2),
+        "Math_ln" => Some(native_math_ln),
+        "Math_log10" => Some(native_math_log10),
+        "Math_log2" => Some(native_math_log2),
+        "Math_exp" => Some(native_math_exp),
+        "Math_pow" => Some(native_math_pow),
+        "Math_sqrt" => Some(native_math_sqrt),
+        "Math_cbrt" => Some(native_math_cbrt),
+        "Math_abs" => Some(native_math_abs),
+        "Math_absInt" => Some(native_math_abs_int),
+        "Math_floor" => Some(native_math_floor),
+        "Math_ceil" => Some(native_math_ceil),
+        "Math_round" => Some(native_math_round),
+        "Math_inf" => Some(native_math_inf),
+        "Math_nan" => Some(native_math_nan),
+        "Math_maxDouble" => Some(native_math_max_double),
+        "Math_minDouble" => Some(native_math_min_double),
+        "Math_maxInt" => Some(native_math_max_int),
+        "Math_minInt" => Some(native_math_min_int),
+        // Random natives
+        "Random_seed" => Some(native_random_seed),
+        "Random_nextLong" => Some(native_random_next_long),
         _ => None,
     }
 }
