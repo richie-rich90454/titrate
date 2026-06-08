@@ -378,6 +378,39 @@ impl Vm {
         Ok(())
     }
 
+    /// Call a specific function by its index in the function table.
+    /// The function must have zero parameters. Runs until the function returns.
+    pub fn call_function_by_index(&mut self, func_idx: usize) -> Result<(), String> {
+        if func_idx >= self.functions.len() {
+            return Err(format!("Function index {} out of range", func_idx));
+        }
+
+        let arity = self.functions[func_idx].arity;
+        if arity != 0 {
+            return Err(format!(
+                "Test function '{}' expects {} arguments but call_function_by_index only supports zero-argument calls",
+                self.functions[func_idx].name, arity
+            ));
+        }
+
+        let base = self.stack.len();
+        let func_idx_u16 = func_idx as u16;
+        self.frames.push(Frame::new(func_idx_u16, base));
+
+        // Pre-allocate stack slots for local variables
+        let local_count = self.functions[func_idx].local_count;
+        let needed = base + local_count;
+        while self.stack.len() < needed {
+            self.stack.push(Value::Null);
+        }
+
+        while !self.frames.is_empty() {
+            self.step()?;
+        }
+
+        Ok(())
+    }
+
     fn step(&mut self) -> Result<(), String> {
         let op_byte = self.read_u8();
         let op = OpCode::try_from(op_byte)
@@ -5160,5 +5193,295 @@ mod tests {
                 "oops".to_string()
             )))))
         );
+    }
+
+    // -- 13. test_closure_execution ---------------------------------------------
+
+    #[test]
+    fn test_closure_execution() {
+        // Main: push 3, CLOSURE_NEW func#1 (0 upvalues), PUSH_I32 7,
+        //       CALL func#1 with 1 arg, RET
+        // Func#1 ($closure_0): LOAD_LOCAL 0 (arg), RET
+        let mut main_chunk = Chunk::new();
+        // PUSH_I32 3 (dummy value on stack before closure creation)
+        main_chunk.write_opcode(OpCode::PUSH_I32, 1);
+        main_chunk.code.extend_from_slice(&3i32.to_be_bytes());
+        main_chunk.source_lines.extend_from_slice(&[1; 4]);
+        // POP the dummy (we just needed something before CLOSURE_NEW)
+        main_chunk.write_opcode(OpCode::POP, 1);
+        // CLOSURE_NEW func_idx=1, upvalue_count=0
+        main_chunk.write_opcode(OpCode::CLOSURE_NEW, 1);
+        main_chunk.write_u16(1, 1); // function index 1
+        main_chunk.write_u8(0, 1);  // 0 upvalues
+        // PUSH_I32 7  (argument for the closure)
+        main_chunk.write_opcode(OpCode::PUSH_I32, 1);
+        main_chunk.code.extend_from_slice(&7i32.to_be_bytes());
+        main_chunk.source_lines.extend_from_slice(&[1; 4]);
+        // CALL func_idx=1, arg_count=1
+        main_chunk.write_opcode(OpCode::CALL, 1);
+        main_chunk.write_u16(1, 1); // function index 1
+        main_chunk.write_u8(1, 1);  // 1 arg
+        // RET
+        main_chunk.write_opcode(OpCode::RET, 1);
+
+        let mut closure_chunk = Chunk::new();
+        // LOAD_LOCAL 0 (first arg = 7)
+        closure_chunk.write_opcode(OpCode::LOAD_LOCAL, 1);
+        closure_chunk.write_u8(0, 1);
+        // RET
+        closure_chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = Vm::new();
+        vm.add_function(FunctionDef {
+            name: "main".to_string(),
+            arity: 0,
+            chunk: main_chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 0,
+        });
+        vm.add_function(FunctionDef {
+            name: "$closure_0".to_string(),
+            arity: 1,
+            chunk: closure_chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 1,
+        });
+
+        vm.run().unwrap();
+        assert_eq!(vm.stack.last(), Some(&Value::Int(7)));
+    }
+
+    // -- 14. test_closure_capture_variable ---------------------------------------
+
+    #[test]
+    fn test_closure_capture_variable() {
+        // Main: PUSH_I32 10, STORE_LOCAL 0, LOAD_LOCAL 0,
+        //       CLOSURE_NEW func#1 (1 upvalue: the 10), PUSH_I32 5,
+        //       CALL func#1 with 1 arg, RET
+        // Func#1 ($closure_0): LOAD_LOCAL 0 (arg=5), GET_UPVALUE 0 (captured=10), ADD_I32, RET
+        let mut main_chunk = Chunk::new();
+        // PUSH_I32 10
+        main_chunk.write_opcode(OpCode::PUSH_I32, 1);
+        main_chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        main_chunk.source_lines.extend_from_slice(&[1; 4]);
+        // STORE_LOCAL 0
+        main_chunk.write_opcode(OpCode::STORE_LOCAL, 1);
+        main_chunk.write_u8(0, 1);
+        // LOAD_LOCAL 0 (push captured value for CLOSURE_NEW)
+        main_chunk.write_opcode(OpCode::LOAD_LOCAL, 1);
+        main_chunk.write_u8(0, 1);
+        // CLOSURE_NEW func_idx=1, upvalue_count=1
+        main_chunk.write_opcode(OpCode::CLOSURE_NEW, 1);
+        main_chunk.write_u16(1, 1); // function index 1
+        main_chunk.write_u8(1, 1);  // 1 upvalue
+        // PUSH_I32 5 (argument for the closure)
+        main_chunk.write_opcode(OpCode::PUSH_I32, 1);
+        main_chunk.code.extend_from_slice(&5i32.to_be_bytes());
+        main_chunk.source_lines.extend_from_slice(&[1; 4]);
+        // CALL func_idx=1, arg_count=1
+        main_chunk.write_opcode(OpCode::CALL, 1);
+        main_chunk.write_u16(1, 1);
+        main_chunk.write_u8(1, 1);
+        // RET
+        main_chunk.write_opcode(OpCode::RET, 1);
+
+        let mut closure_chunk = Chunk::new();
+        // LOAD_LOCAL 0 (arg = 5)
+        closure_chunk.write_opcode(OpCode::LOAD_LOCAL, 1);
+        closure_chunk.write_u8(0, 1);
+        // GET_UPVALUE 0 (captured value = 10)
+        closure_chunk.write_opcode(OpCode::GET_UPVALUE, 1);
+        closure_chunk.write_u8(0, 1);
+        // ADD_I32
+        closure_chunk.write_opcode(OpCode::ADD_I32, 1);
+        // RET
+        closure_chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = Vm::new();
+        vm.add_function(FunctionDef {
+            name: "main".to_string(),
+            arity: 0,
+            chunk: main_chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 1,
+        });
+        vm.add_function(FunctionDef {
+            name: "$closure_0".to_string(),
+            arity: 1,
+            chunk: closure_chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 1,
+        });
+
+        vm.run().unwrap();
+        assert_eq!(vm.stack.last(), Some(&Value::Int(15)));
+    }
+
+    // -- 15. test_tuple_creation_and_access --------------------------------------
+
+    #[test]
+    fn test_tuple_creation_and_access() {
+        // Push 42, push "hello", TUPLE_NEW 2, TUPLE_GET 0, RET
+        let mut chunk = Chunk::new();
+        // PUSH_I32 42
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        // PUSH_STRING "hello"
+        let hello_idx = chunk.add_string("hello");
+        chunk.write_opcode(OpCode::PUSH_STRING, 1);
+        chunk.write_u16(hello_idx, 1);
+        // TUPLE_NEW 2
+        chunk.write_opcode(OpCode::TUPLE_NEW, 1);
+        chunk.write_u16(2, 1);
+        // TUPLE_GET 0 (first element = 42)
+        chunk.write_opcode(OpCode::TUPLE_GET, 1);
+        chunk.write_u8(0, 1);
+        // RET
+        chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = vm_with_chunk(chunk);
+        vm.run().unwrap();
+        assert_eq!(vm.stack.last(), Some(&Value::Int(42)));
+    }
+
+    // -- 16. test_tuple_destructuring_vm -----------------------------------------
+
+    #[test]
+    fn test_tuple_destructuring_vm() {
+        // Push 10, push 20, TUPLE_NEW 2, store in local 0,
+        // LOAD_LOCAL 0, TUPLE_GET 0 → 10 (store in local 1),
+        // LOAD_LOCAL 0, TUPLE_GET 1 → 20,
+        // LOAD_LOCAL 1 → 10, ADD_I32 → 30, RET
+        let mut chunk = Chunk::new();
+        // PUSH_I32 10
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        // PUSH_I32 20
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&20i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        // TUPLE_NEW 2
+        chunk.write_opcode(OpCode::TUPLE_NEW, 1);
+        chunk.write_u16(2, 1);
+        // STORE_LOCAL 0 (store the tuple)
+        chunk.write_opcode(OpCode::STORE_LOCAL, 1);
+        chunk.write_u8(0, 1);
+        // LOAD_LOCAL 0 (load tuple)
+        chunk.write_opcode(OpCode::LOAD_LOCAL, 1);
+        chunk.write_u8(0, 1);
+        // TUPLE_GET 0 → 10
+        chunk.write_opcode(OpCode::TUPLE_GET, 1);
+        chunk.write_u8(0, 1);
+        // STORE_LOCAL 1 (store first element)
+        chunk.write_opcode(OpCode::STORE_LOCAL, 1);
+        chunk.write_u8(1, 1);
+        // LOAD_LOCAL 0 (load tuple again)
+        chunk.write_opcode(OpCode::LOAD_LOCAL, 1);
+        chunk.write_u8(0, 1);
+        // TUPLE_GET 1 → 20
+        chunk.write_opcode(OpCode::TUPLE_GET, 1);
+        chunk.write_u8(1, 1);
+        // LOAD_LOCAL 1 → push 10 back
+        chunk.write_opcode(OpCode::LOAD_LOCAL, 1);
+        chunk.write_u8(1, 1);
+        // ADD_I32 → 30
+        chunk.write_opcode(OpCode::ADD_I32, 1);
+        // RET
+        chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = Vm::new();
+        vm.add_function(FunctionDef {
+            name: "main".to_string(),
+            arity: 0,
+            chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 2,
+        });
+
+        vm.run().unwrap();
+        assert_eq!(vm.stack.last(), Some(&Value::Int(30)));
+    }
+
+    // -- 17. test_operator_overload_add ------------------------------------------
+
+    #[test]
+    fn test_operator_overload_add() {
+        // Test INVOKE_OPERATOR "operator+" with two ints (falls back to built-in add)
+        let mut chunk = Chunk::new();
+        // PUSH_I32 3
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&3i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        // PUSH_I32 4
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&4i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        // INVOKE_OPERATOR "operator+" with 1 arg
+        let op_idx = chunk.add_string("operator+");
+        chunk.write_opcode(OpCode::INVOKE_OPERATOR, 1);
+        chunk.write_u16(op_idx, 1);
+        chunk.write_u8(1, 1); // 1 arg (right operand)
+        // RET
+        chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = vm_with_chunk(chunk);
+        vm.run().unwrap();
+        assert_eq!(vm.stack.last(), Some(&Value::Int(7)));
+    }
+
+    // -- 18. test_operator_overload_compare ---------------------------------------
+
+    #[test]
+    fn test_operator_overload_compare() {
+        // Test INVOKE_OPERATOR "operator==" with two equal ints
+        let mut chunk = Chunk::new();
+        // PUSH_I32 5
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&5i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        // PUSH_I32 5
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&5i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        // INVOKE_OPERATOR "operator==" with 1 arg
+        let op_idx = chunk.add_string("operator==");
+        chunk.write_opcode(OpCode::INVOKE_OPERATOR, 1);
+        chunk.write_u16(op_idx, 1);
+        chunk.write_u8(1, 1);
+        // RET
+        chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = vm_with_chunk(chunk);
+        vm.run().unwrap();
+        assert_eq!(vm.stack.last(), Some(&Value::Bool(true)));
+
+        // Test operator!= with different values
+        let mut chunk2 = Chunk::new();
+        // PUSH_I32 3
+        chunk2.write_opcode(OpCode::PUSH_I32, 1);
+        chunk2.code.extend_from_slice(&3i32.to_be_bytes());
+        chunk2.source_lines.extend_from_slice(&[1; 4]);
+        // PUSH_I32 7
+        chunk2.write_opcode(OpCode::PUSH_I32, 1);
+        chunk2.code.extend_from_slice(&7i32.to_be_bytes());
+        chunk2.source_lines.extend_from_slice(&[1; 4]);
+        // INVOKE_OPERATOR "operator!=" with 1 arg
+        let op_idx2 = chunk2.add_string("operator!=");
+        chunk2.write_opcode(OpCode::INVOKE_OPERATOR, 1);
+        chunk2.write_u16(op_idx2, 1);
+        chunk2.write_u8(1, 1);
+        // RET
+        chunk2.write_opcode(OpCode::RET, 1);
+
+        let mut vm2 = vm_with_chunk(chunk2);
+        vm2.run().unwrap();
+        assert_eq!(vm2.stack.last(), Some(&Value::Bool(true)));
     }
 }
