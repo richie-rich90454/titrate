@@ -1,0 +1,171 @@
+// CSV reader with configurable delimiter and quote character.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class CsvReader {
+    public string delimiter;
+    public string quote;
+    public bool hasHeader;
+
+    public CsvReader() {
+        this.delimiter = ",";
+        this.quote = "\"";
+        this.hasHeader = true;
+    }
+
+    public void setDelimiter(string d) {
+        this.delimiter = d;
+    }
+
+    public void setQuote(string q) {
+        this.quote = q;
+    }
+
+    public void setHasHeader(bool h) {
+        this.hasHeader = h;
+    }
+
+    // Parse CSV text into rows (each row is an ArrayList<string>)
+    public ArrayList<ArrayList<string>> parse(string input) {
+        ArrayList<ArrayList<string>> rows = new ArrayList<ArrayList<string>>();
+        int pos = 0;
+        int len = input.length();
+
+        while (pos < len) {
+            ArrayList<string> row = new ArrayList<string>();
+            bool rowDone = false;
+            while (!rowDone && pos < len) {
+                string field = "";
+                // Skip leading whitespace (not newlines)
+                while (pos < len) {
+                    string c = input.charAt(pos);
+                    if (c == " " || c == "\t") {
+                        pos = pos + 1;
+                    } else {
+                        break;
+                    }
+                }
+                if (pos < len && input.charAt(pos) == this.quote) {
+                    // Quoted field
+                    pos = pos + 1; // skip opening quote
+                    while (pos < len) {
+                        string c = input.charAt(pos);
+                        if (c == this.quote) {
+                            // Check for escaped quote (double quote)
+                            if (pos + 1 < len && input.charAt(pos + 1) == this.quote) {
+                                field = field + this.quote;
+                                pos = pos + 2;
+                            } else {
+                                pos = pos + 1; // skip closing quote
+                                break;
+                            }
+                        } else {
+                            field = field + c;
+                            pos = pos + 1;
+                        }
+                    }
+                    // Skip trailing whitespace after closing quote
+                    while (pos < len) {
+                        string c = input.charAt(pos);
+                        if (c == " " || c == "\t") {
+                            pos = pos + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                } else {
+                    // Unquoted field
+                    while (pos < len) {
+                        string c = input.charAt(pos);
+                        if (c == this.delimiter || c == "\n" || c == "\r") {
+                            break;
+                        }
+                        field = field + c;
+                        pos = pos + 1;
+                    }
+                }
+                row.add(field);
+                // Check what comes after the field
+                if (pos < len) {
+                    string c = input.charAt(pos);
+                    if (c == this.delimiter) {
+                        pos = pos + 1; // skip delimiter, continue to next field
+                    } else if (c == "\r") {
+                        pos = pos + 1;
+                        if (pos < len && input.charAt(pos) == "\n") {
+                            pos = pos + 1;
+                        }
+                        rowDone = true;
+                    } else if (c == "\n") {
+                        pos = pos + 1;
+                        rowDone = true;
+                    } else {
+                        // Unexpected character, skip
+                        pos = pos + 1;
+                    }
+                } else {
+                    rowDone = true;
+                }
+            }
+            // Only add non-empty rows
+            if (row.size() > 0) {
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    // Get headers (first row if hasHeader is true)
+    public ArrayList<string> getHeaders(string input) {
+        if (!this.hasHeader) {
+            return new ArrayList<string>();
+        }
+        ArrayList<ArrayList<string>> rows = this.parse(input);
+        if (rows.size() == 0) {
+            return new ArrayList<string>();
+        }
+        return rows.get(0);
+    }
+
+    // Parse into list of maps (header -> value)
+    public ArrayList<HashMap> parseToMaps(string input) {
+        ArrayList<HashMap> result = new ArrayList<HashMap>();
+        ArrayList<ArrayList<string>> rows = this.parse(input);
+        if (rows.size() == 0) {
+            return result;
+        }
+        ArrayList<string> headers;
+        int startRow;
+        if (this.hasHeader) {
+            headers = rows.get(0);
+            startRow = 1;
+        } else {
+            // Generate numeric headers
+            headers = new ArrayList<string>();
+            int colCount = rows.get(0).size();
+            int c = 0;
+            while (c < colCount) {
+                headers.add(c.toString());
+                c = c + 1;
+            }
+            startRow = 0;
+        }
+        int r = startRow;
+        while (r < rows.size()) {
+            ArrayList<string> row = rows.get(r);
+            HashMap map = new HashMap();
+            int col = 0;
+            while (col < headers.size()) {
+                string val = "";
+                if (col < row.size()) {
+                    val = row.get(col);
+                }
+                map.put(headers.get(col), val);
+                col = col + 1;
+            }
+            result.add(map);
+            r = r + 1;
+        }
+        return result;
+    }
+}

@@ -1,0 +1,84 @@
+// CSV writer with configurable delimiter, quote, and newline.
+import tt::util::ArrayList;
+
+public class CsvWriter {
+    public string delimiter;
+    public string quote;
+    public string newline;
+
+    public CsvWriter() {
+        this.delimiter = ",";
+        this.quote = "\"";
+        this.newline = "\n";
+    }
+
+    // Write rows to CSV string
+    public string write(ArrayList<ArrayList<string>> rows) {
+        string result = "";
+        int r = 0;
+        while (r < rows.size()) {
+            if (r > 0) {
+                result = result + this.newline;
+            }
+            result = result + this.formatRow(rows.get(r));
+            r = r + 1;
+        }
+        return result;
+    }
+
+    // Write with headers
+    public string writeWithHeaders(ArrayList<string> headers, ArrayList<ArrayList<string>> rows) {
+        string result = this.formatRow(headers);
+        int r = 0;
+        while (r < rows.size()) {
+            result = result + this.newline + this.formatRow(rows.get(r));
+            r = r + 1;
+        }
+        return result;
+    }
+
+    // Format a single row
+    private string formatRow(ArrayList<string> row) {
+        string result = "";
+        int c = 0;
+        while (c < row.size()) {
+            if (c > 0) {
+                result = result + this.delimiter;
+            }
+            result = result + this.formatField(row.get(c));
+            c = c + 1;
+        }
+        return result;
+    }
+
+    // Format a single field, quoting if necessary
+    private string formatField(string field) {
+        bool needsQuote = false;
+        // Check if field contains delimiter, quote, or newline
+        if (field.contains(this.delimiter)) {
+            needsQuote = true;
+        }
+        if (field.contains(this.quote)) {
+            needsQuote = true;
+        }
+        if (field.contains("\n") || field.contains("\r")) {
+            needsQuote = true;
+        }
+        if (!needsQuote) {
+            return field;
+        }
+        // Escape quotes by doubling them
+        string escaped = "";
+        int i = 0;
+        while (i < field.length()) {
+            string c = field.charAt(i);
+            if (c == this.quote) {
+                escaped = escaped + this.quote + this.quote;
+            } else {
+                escaped = escaped + c;
+            }
+            i = i + 1;
+        }
+        return this.quote + escaped + this.quote;
+    }
+}
