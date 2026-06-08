@@ -3574,4 +3574,152 @@ mod tests {
         let (_, warnings) = result.unwrap();
         assert!(warnings.is_empty(), "expected no warnings for switch with default, got: {:?}", warnings);
     }
+
+    // -----------------------------------------------------------------------
+    // Closure type inference tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_closure_type_inference() {
+        // Verify that a closure assigned to a variable gets inferred as "function" type
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "f".to_string(),
+                    typ: None,
+                    init: Some(Expr::Closure {
+                        params: vec![("x".to_string(), Type::simple("int"))],
+                        return_type: Type::simple("int"),
+                        body: vec![],
+                        expr: Some(Box::new(Expr::Binary(
+                            Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+                            Operator::Mul,
+                            Box::new(Expr::Literal(Literal::Int(2), Span::unknown())),
+                            Span::unknown(),
+                        ))),
+                        captured_vars: vec![],
+                        span: Span::unknown(),
+                    }),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_ok(), "closure type inference should succeed");
+        // Verify the inferred type
+        let analyzed = result.unwrap();
+        match &analyzed.declarations[0] {
+            Declaration::Function(f) => {
+                match &f.body[0] {
+                    Stmt::VarDecl(v) => {
+                        assert_eq!(v.typ, Some(Type::simple("function")),
+                            "closure variable should be inferred as 'function' type");
+                    }
+                    _ => panic!("expected var decl"),
+                }
+            }
+            _ => panic!("expected function"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Tuple type inference tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_tuple_type_inference() {
+        // Verify that a tuple variable gets inferred with a Tuple type
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "t".to_string(),
+                    typ: None,
+                    init: Some(Expr::Tuple(vec![
+                        Expr::Literal(Literal::Int(1), Span::unknown()),
+                        Expr::Literal(Literal::String("hello".to_string()), Span::unknown()),
+                    ], Span::unknown())),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_ok(), "tuple type inference should succeed");
+        let analyzed = result.unwrap();
+        match &analyzed.declarations[0] {
+            Declaration::Function(f) => {
+                match &f.body[0] {
+                    Stmt::VarDecl(v) => {
+                        match &v.typ {
+                            Some(Type::Tuple(types)) => {
+                                assert_eq!(types.len(), 2, "tuple should have 2 element types");
+                            }
+                            other => panic!("expected Tuple type, got {:?}", other),
+                        }
+                    }
+                    _ => panic!("expected var decl"),
+                }
+            }
+            _ => panic!("expected function"),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Self parameter type test
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_self_parameter_type() {
+        // Verify that a method with `self` parameter (type Self) is valid
+        let prog = program_with(Declaration::Class(ClassDecl {
+            name: "Vec2".to_string(),
+            type_params: vec![],
+            parent: None,
+            ifaces: vec![],
+            members: vec![
+                ClassMember::Field(FieldDecl {
+                    access: Access::Public,
+                    name: "x".to_string(),
+                    typ: Type::simple("double"),
+                    init: None,
+                    span: Span::unknown(),
+                }),
+                ClassMember::Method(MethodDecl {
+                    access: Access::Public,
+                    name: "magnitude".to_string(),
+                    type_params: vec![],
+                    params: vec![
+                        Param { name: "self".to_string(), typ: Type::simple("Self") },
+                    ],
+                    return_type: Some(Type::simple("double")),
+                    body: vec![Stmt::Return(Some(Expr::MemberAccess(
+                        Box::new(Expr::This(Span::unknown())),
+                        "x".to_string(),
+                        Span::unknown(),
+                    )))],
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+            span: Span::unknown(),
+        }));
+        assert!(analyze(&prog).is_ok(), "method with self parameter should analyze successfully");
+    }
 }
