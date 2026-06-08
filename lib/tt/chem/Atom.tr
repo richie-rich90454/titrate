@@ -1,0 +1,47 @@
+import tt.math.Math;
+import tt.lang.Double;
+
+public class Atom {
+    public String element;
+    public double mass;
+    public double charge;
+    public double x;
+    public double y;
+    public double z;
+
+    public Atom(String elem, double m, double c, double px, double py, double pz) {
+        this.element = elem;
+        this.mass = m;
+        this.charge = c;
+        this.x = px;
+        this.y = py;
+        this.z = pz;
+    }
+
+    public static Atom hydrogen(double px, double py, double pz) {
+        return new Atom("H", 1.008, 0.0, px, py, pz);
+    }
+
+    public static Atom oxygen(double px, double py, double pz) {
+        return new Atom("O", 15.999, 0.0, px, py, pz);
+    }
+
+    public static Atom carbon(double px, double py, double pz) {
+        return new Atom("C", 12.011, 0.0, px, py, pz);
+    }
+
+    public static Atom nitrogen(double px, double py, double pz) {
+        return new Atom("N", 14.007, 0.0, px, py, pz);
+    }
+
+    public double distanceTo(Atom other) {
+        double dx = this.x - other.x;
+        double dy = this.y - other.y;
+        double dz = this.z - other.z;
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    public String toString() {
+        return this.element + "(" + Double.toString(this.x) + ", " + Double.toString(this.y) + ", " + Double.toString(this.z) + ")";
+    }
+}

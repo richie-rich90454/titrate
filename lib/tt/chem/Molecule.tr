@@ -1,0 +1,46 @@
+import tt.util.ArrayList;
+import tt.chem.Atom;
+import tt.chem.Bond;
+import tt.lang.Integer;
+
+public class Molecule {
+    public ArrayList<Atom> atoms;
+    public ArrayList<Bond> bonds;
+    public String name;
+
+    public Molecule(String n) {
+        this.name = n;
+        this.atoms = new ArrayList<Atom>();
+        this.bonds = new ArrayList<Bond>();
+    }
+
+    public int addAtom(Atom atom) {
+        this.atoms.add(atom);
+        return this.atoms.size() - 1;
+    }
+
+    public void addBond(Bond bond) {
+        this.bonds.add(bond);
+    }
+
+    public Atom getAtom(int i) {
+        return this.atoms.get(i);
+    }
+
+    public Bond getBond(int i) {
+        return this.bonds.get(i);
+    }
+
+    public int numAtoms() {
+        return this.atoms.size();
+    }
+
+    public int numBonds() {
+        return this.bonds.size();
+    }
+
+    public String toString() {
+        String s = "Molecule(" + this.name + ", atoms=" + Integer.toString(this.numAtoms()) + ", bonds=" + Integer.toString(this.numBonds()) + ")";
+        return s;
+    }
+}
