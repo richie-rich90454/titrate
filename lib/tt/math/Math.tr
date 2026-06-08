@@ -1,0 +1,141 @@
+// Math provides mathematical constants and functions.
+public class Math {
+    // Constants
+    public static double PI() {
+        return 3.14159265358979323846;
+    }
+
+    public static double E() {
+        return 2.71828182845904523536;
+    }
+
+    public static double INF() {
+        return Math_inf();
+    }
+
+    public static double NAN() {
+        return Math_nan();
+    }
+
+    public static double MAX_DOUBLE() {
+        return Math_maxDouble();
+    }
+
+    public static double MIN_DOUBLE() {
+        return Math_minDouble();
+    }
+
+    public static long MAX_INT() {
+        return Math_maxInt();
+    }
+
+    public static long MIN_INT() {
+        return Math_minInt();
+    }
+
+    // Trigonometric
+    public static double sin(double x) {
+        return Math_sin(x);
+    }
+
+    public static double cos(double x) {
+        return Math_cos(x);
+    }
+
+    public static double tan(double x) {
+        return Math_tan(x);
+    }
+
+    public static double asin(double x) {
+        return Math_asin(x);
+    }
+
+    public static double acos(double x) {
+        return Math_acos(x);
+    }
+
+    public static double atan(double x) {
+        return Math_atan(x);
+    }
+
+    public static double atan2(double y, double x) {
+        return Math_atan2(y, x);
+    }
+
+    // Logarithmic
+    public static double ln(double x) {
+        return Math_ln(x);
+    }
+
+    public static double log10(double x) {
+        return Math_log10(x);
+    }
+
+    public static double log2(double x) {
+        return Math_log2(x);
+    }
+
+    public static double log(double base, double x) {
+        return Math_ln(x) / Math_ln(base);
+    }
+
+    // Exponential
+    public static double exp(double x) {
+        return Math_exp(x);
+    }
+
+    public static double pow(double base, double exp) {
+        return Math_pow(base, exp);
+    }
+
+    public static double sqrt(double x) {
+        return Math_sqrt(x);
+    }
+
+    public static double cbrt(double x) {
+        return Math_cbrt(x);
+    }
+
+    // Utility
+    public static double abs(double x) {
+        return Math_abs(x);
+    }
+
+    public static int absInt(int x) {
+        return Math_absInt(x);
+    }
+
+    public static double floor(double x) {
+        return Math_floor(x);
+    }
+
+    public static double ceil(double x) {
+        return Math_ceil(x);
+    }
+
+    public static long round(double x) {
+        return Math_round(x);
+    }
+
+    public static double min(double a, double b) {
+        if (a < b) { return a; }
+        return b;
+    }
+
+    public static double max(double a, double b) {
+        if (a > b) { return a; }
+        return b;
+    }
+
+    public static double clamp(double x, double lo, double hi) {
+        if (x < lo) { return lo; }
+        if (x > hi) { return hi; }
+        return x;
+    }
+
+    public static int sign(double x) {
+        if (x < 0.0) { return -1; }
+        if (x > 0.0) { return 1; }
+        return 0;
+    }
+}
