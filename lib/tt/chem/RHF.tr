@@ -1,0 +1,321 @@
+import tt.math.linalg.Matrix;
+import tt.math.ndarray.NDArray;
+import tt.math.Math;
+import tt.util.ArrayList;
+import tt.lang.Double;
+import tt.lang.Integer;
+import tt.io.IO;
+
+public class RHF {
+    public int nBasis;
+    public Matrix overlap;
+    public Matrix kinetic;
+    public Matrix nuclear;
+    public Matrix twoElectron;
+    public Matrix coreHamiltonian;
+    public double enuc;
+    public double energy;
+    public int maxIter;
+    public double convergence;
+    public int nElectrons;
+
+    public RHF(int n) {
+        this.nBasis = n;
+        this.overlap = Matrix.zeros(n, n);
+        this.kinetic = Matrix.zeros(n, n);
+        this.nuclear = Matrix.zeros(n, n);
+        this.twoElectron = Matrix.zeros(n * n, n * n);
+        this.coreHamiltonian = Matrix.zeros(n, n);
+        this.enuc = 0.0;
+        this.energy = 0.0;
+        this.maxIter = 100;
+        this.convergence = 1e-8;
+        this.nElectrons = 0;
+    }
+
+    // Run the SCF procedure
+    public double run() {
+        // Build core Hamiltonian: H = T + V
+        int i = 0;
+        while (i < this.nBasis) {
+            int j = 0;
+            while (j < this.nBasis) {
+                this.coreHamiltonian.set(i, j, this.kinetic.get(i, j) + this.nuclear.get(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        // Initial density matrix is zero
+        Matrix density = Matrix.zeros(this.nBasis, this.nBasis);
+        double oldEnergy = 0.0;
+        int iter = 0;
+        while (iter < this.maxIter) {
+            // Build Fock matrix
+            Matrix fock = this.buildFock(density);
+            // Compute electronic energy
+            double elecEnergy = this.computeEnergy(density, fock);
+            this.energy = elecEnergy + this.enuc;
+            // Check convergence
+            double diff = this.energy - oldEnergy;
+            if (diff < 0.0) { diff = -diff; }
+            if (iter > 0 && diff < this.convergence) {
+                IO.println("SCF converged in " + Integer.toString(iter + 1) + " iterations, E = " + Double.toString(this.energy));
+                return this.energy;
+            }
+            oldEnergy = this.energy;
+            // Solve Roothaan equations: F*C = S*C*e
+            // Transform to orthogonal basis: F' = X^T * F * X where X = S^(-1/2)
+            Matrix sInvHalf = this.symmetricOrthogonalization(this.overlap);
+            Matrix fockPrime = sInvHalf.transpose().multiply(fock.multiply(sInvHalf));
+            // Diagonalize F' to get C' and eigenvalues
+            ArrayList<Object> eigenResult = this.diagonalize(fockPrime);
+            Matrix cPrime = (Matrix) eigenResult.get(0);
+            NDArray eigenvalues = (NDArray) eigenResult.get(1);
+            // Back-transform coefficients: C = X * C'
+            Matrix coeffs = sInvHalf.multiply(cPrime);
+            // Build new density matrix
+            density = this.buildDensity(coeffs, this.nElectrons);
+            iter = iter + 1;
+        }
+        IO.println("SCF did not converge in " + Integer.toString(this.maxIter) + " iterations");
+        return this.energy;
+    }
+
+    // Compute Fock matrix: F = H + G
+    // G_mu_nu = sum_rho_sigma P_rho_sigma * (2*(mu nu|rho sigma) - (mu rho|nu sigma))
+    public Matrix buildFock(Matrix density) {
+        Matrix fock = this.coreHamiltonian.clone();
+        int n = this.nBasis;
+        int mu = 0;
+        while (mu < n) {
+            int nu = 0;
+            while (nu < n) {
+                double g = 0.0;
+                int rho = 0;
+                while (rho < n) {
+                    int sigma = 0;
+                    while (sigma < n) {
+                        double pRS = density.get(rho, sigma);
+                        if (Math.abs(pRS) < 1e-15) {
+                            sigma = sigma + 1;
+                            continue;
+                        }
+                        // (mu nu | rho sigma)
+                        double eri1 = this.getTwoElectron(mu, nu, rho, sigma);
+                        // (mu rho | nu sigma)
+                        double eri2 = this.getTwoElectron(mu, rho, nu, sigma);
+                        g = g + pRS * (2.0 * eri1 - eri2);
+                        sigma = sigma + 1;
+                    }
+                    rho = rho + 1;
+                }
+                fock.set(mu, nu, fock.get(mu, nu) + g);
+                nu = nu + 1;
+            }
+            mu = mu + 1;
+        }
+        return fock;
+    }
+
+    // Compute electron energy: E = 0.5 * sum(P * (H + F))
+    public double computeEnergy(Matrix density, Matrix fock) {
+        double e = 0.0;
+        int n = this.nBasis;
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                e = e + density.get(i, j) * (this.coreHamiltonian.get(i, j) + fock.get(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return 0.5 * e;
+    }
+
+    // Build density matrix from coefficient matrix
+    public Matrix buildDensity(Matrix coeffs, int nElectrons) {
+        int n = this.nBasis;
+        Matrix density = Matrix.zeros(n, n);
+        int nOcc = nElectrons / 2;  // RHF: 2 electrons per orbital
+        int mu = 0;
+        while (mu < n) {
+            int nu = 0;
+            while (nu < n) {
+                double sum = 0.0;
+                int k = 0;
+                while (k < nOcc) {
+                    sum = sum + coeffs.get(mu, k) * coeffs.get(nu, k);
+                    k = k + 1;
+                }
+                density.set(mu, nu, 2.0 * sum);
+                nu = nu + 1;
+            }
+            mu = mu + 1;
+        }
+        return density;
+    }
+
+    // Get two-electron integral (mu nu | rho sigma)
+    // Stored in simplified 2D form: index = mu*n + nu, rho*n + sigma
+    public double getTwoElectron(int mu, int nu, int rho, int sigma) {
+        int n = this.nBasis;
+        int row = mu * n + nu;
+        int col = rho * n + sigma;
+        return this.twoElectron.get(row, col);
+    }
+
+    // Set two-electron integral (mu nu | rho sigma)
+    public void setTwoElectron(int mu, int nu, int rho, int sigma, double val) {
+        int n = this.nBasis;
+        int row = mu * n + nu;
+        int col = rho * n + sigma;
+        this.twoElectron.set(row, col, val);
+    }
+
+    // Symmetric orthogonalization: X = S^(-1/2) via eigenvalue decomposition
+    public Matrix symmetricOrthogonalization(Matrix S) {
+        ArrayList<Object> eigenResult = this.diagonalize(S);
+        Matrix U = (Matrix) eigenResult.get(0);
+        NDArray eigenvalues = (NDArray) eigenResult.get(1);
+        int n = this.nBasis;
+        // Build S^(-1/2) = U * diag(eigenvalues^(-1/2)) * U^T
+        Matrix sInvHalf = Matrix.zeros(n, n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                double sum = 0.0;
+                int k = 0;
+                while (k < n) {
+                    double ev = eigenvalues.get(k);
+                    double invSqrtEv = 0.0;
+                    if (ev > 1e-15) {
+                        invSqrtEv = 1.0 / Math.sqrt(ev);
+                    }
+                    sum = sum + U.get(i, k) * invSqrtEv * U.get(j, k);
+                    k = k + 1;
+                }
+                sInvHalf.set(i, j, sum);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return sInvHalf;
+    }
+
+    // Simple Jacobi eigenvalue decomposition for symmetric matrices
+    // Returns [eigenvectors (Matrix), eigenvalues (NDArray)]
+    public ArrayList<Object> diagonalize(Matrix A) {
+        int n = A.rows;
+        Matrix V = Matrix.identity(n);
+        Matrix mat = A.clone();
+        int maxSweeps = 100;
+        double tol = 1e-12;
+        int sweep = 0;
+        while (sweep < maxSweeps) {
+            // Find largest off-diagonal element
+            double maxOff = 0.0;
+            int p = 0;
+            int q = 1;
+            int i = 0;
+            while (i < n) {
+                int j = i + 1;
+                while (j < n) {
+                    double aij = Math.abs(mat.get(i, j));
+                    if (aij > maxOff) {
+                        maxOff = aij;
+                        p = i;
+                        q = j;
+                    }
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+            if (maxOff < tol) { break; }
+            // Compute rotation angle
+            double app = mat.get(p, p);
+            double aqq = mat.get(q, q);
+            double apq = mat.get(p, q);
+            double theta = 0.0;
+            if (Math.abs(app - aqq) < 1e-15) {
+                theta = Math.PI() / 4.0;
+                if (apq < 0.0) { theta = -theta; }
+            } else {
+                theta = 0.5 * Math.atan2(2.0 * apq, app - aqq);
+            }
+            double c = Math.cos(theta);
+            double s = Math.sin(theta);
+            // Apply rotation to mat
+            i = 0;
+            while (i < n) {
+                if (i != p && i != q) {
+                    double aip = mat.get(i, p);
+                    double aiq = mat.get(i, q);
+                    mat.set(i, p, c * aip + s * aiq);
+                    mat.set(p, i, c * aip + s * aiq);
+                    mat.set(i, q, -s * aip + c * aiq);
+                    mat.set(q, i, -s * aip + c * aiq);
+                }
+                i = i + 1;
+            }
+            double newPP = c * c * app + 2.0 * s * c * apq + s * s * aqq;
+            double newQQ = s * s * app - 2.0 * s * c * apq + c * c * aqq;
+            mat.set(p, p, newPP);
+            mat.set(q, q, newQQ);
+            mat.set(p, q, 0.0);
+            mat.set(q, p, 0.0);
+            // Update eigenvectors
+            i = 0;
+            while (i < n) {
+                double vip = V.get(i, p);
+                double viq = V.get(i, q);
+                V.set(i, p, c * vip + s * viq);
+                V.set(i, q, -s * vip + c * viq);
+                i = i + 1;
+            }
+            sweep = sweep + 1;
+        }
+        // Extract eigenvalues and sort
+        NDArray eigenvalues = new NDArray();
+        eigenvalues.ndim = 1;
+        eigenvalues.strides.add(1);
+        i = 0;
+        while (i < n) {
+            eigenvalues.data.add(mat.get(i, i));
+            eigenvalues.shape.add(n);
+            i = i + 1;
+        }
+        // Sort eigenvalues and eigenvectors (ascending)
+        i = 0;
+        while (i < n - 1) {
+            int minIdx = i;
+            int j = i + 1;
+            while (j < n) {
+                if (eigenvalues.get(j) < eigenvalues.get(minIdx)) {
+                    minIdx = j;
+                }
+                j = j + 1;
+            }
+            if (minIdx != i) {
+                // Swap eigenvalues
+                double tmpEv = eigenvalues.get(i);
+                eigenvalues.data.set(i, eigenvalues.get(minIdx));
+                eigenvalues.data.set(minIdx, tmpEv);
+                // Swap eigenvector columns
+                int k = 0;
+                while (k < n) {
+                    double tmpV = V.get(k, i);
+                    V.set(k, i, V.get(k, minIdx));
+                    V.set(k, minIdx, tmpV);
+                    k = k + 1;
+                }
+            }
+            i = i + 1;
+        }
+        ArrayList<Object> result = new ArrayList<Object>();
+        result.add(V);
+        result.add(eigenvalues);
+        return result;
+    }
+}

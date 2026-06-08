@@ -1,0 +1,140 @@
+import tt.util.ArrayList;
+import tt.chem.Atom;
+import tt.chem.Bond;
+import tt.chem.Molecule;
+import tt.math.Math;
+
+public class ForceField {
+    // Harmonic bond energy: E = 0.5 * k * (r - r0)^2
+    public static double bondEnergy(ArrayList<Atom> atoms, Bond bond) {
+        Atom a1 = atoms.get(bond.atom1);
+        Atom a2 = atoms.get(bond.atom2);
+        double r = a1.distanceTo(a2);
+        double dr = r - bond.restLength;
+        return 0.5 * bond.forceConstant * dr * dr;
+    }
+
+    // Harmonic angle energy: E = 0.5 * k * (theta - theta0)^2
+    public static double angleEnergy(ArrayList<Atom> atoms, int i1, int i2, int i3, double k, double theta0) {
+        Atom a1 = atoms.get(i1);
+        Atom a2 = atoms.get(i2);
+        Atom a3 = atoms.get(i3);
+        double theta = ForceField.angle(a1, a2, a3);
+        double dtheta = theta - theta0;
+        return 0.5 * k * dtheta * dtheta;
+    }
+
+    // Torsion energy: E = k * (1 + cos(n*phi - phi0))
+    public static double torsionEnergy(ArrayList<Atom> atoms, int i1, int i2, int i3, int i4, double k, int n, double phi0) {
+        Atom a1 = atoms.get(i1);
+        Atom a2 = atoms.get(i2);
+        Atom a3 = atoms.get(i3);
+        Atom a4 = atoms.get(i4);
+        // Compute dihedral angle
+        // Vectors b1 = a2-a1, b2 = a3-a2, b3 = a4-a3
+        double b1x = a2.x - a1.x;
+        double b1y = a2.y - a1.y;
+        double b1z = a2.z - a1.z;
+        double b2x = a3.x - a2.x;
+        double b2y = a3.y - a2.y;
+        double b2z = a3.z - a2.z;
+        double b3x = a4.x - a3.x;
+        double b3y = a4.y - a3.y;
+        double b3z = a4.z - a3.z;
+        // n1 = b1 x b2
+        double n1x = b1y * b2z - b1z * b2y;
+        double n1y = b1z * b2x - b1x * b2z;
+        double n1z = b1x * b2y - b1y * b2x;
+        // n2 = b2 x b3
+        double n2x = b2y * b3z - b2z * b3y;
+        double n2y = b2z * b3x - b2x * b3z;
+        double n2z = b2x * b3y - b2y * b3x;
+        // Normalize n1 and n2
+        double n1norm = Math.sqrt(n1x * n1x + n1y * n1y + n1z * n1z);
+        double n2norm = Math.sqrt(n2x * n2x + n2y * n2y + n2z * n2z);
+        double phi = 0.0;
+        if (n1norm > 1e-15 && n2norm > 1e-15) {
+            double cosPhi = (n1x * n2x + n1y * n2y + n1z * n2z) / (n1norm * n2norm);
+            if (cosPhi > 1.0) { cosPhi = 1.0; }
+            if (cosPhi < -1.0) { cosPhi = -1.0; }
+            phi = Math.acos(cosPhi);
+        }
+        double nphi = (double) n * phi;
+        return k * (1.0 + Math.cos(nphi - phi0));
+    }
+
+    // Lennard-Jones: E = 4*epsilon * ((sigma/r)^12 - (sigma/r)^6)
+    public static double ljEnergy(double r, double epsilon, double sigma) {
+        if (r < 1e-15) { return 0.0; }
+        double sr = sigma / r;
+        double sr6 = sr * sr * sr * sr * sr * sr;
+        double sr12 = sr6 * sr6;
+        return 4.0 * epsilon * (sr12 - sr6);
+    }
+
+    // Coulomb: E = k_e * q1 * q2 / r
+    public static double coulombEnergy(double r, double q1, double q2) {
+        if (r < 1e-15) { return 0.0; }
+        // k_e in atomic units is 1.0; in SI it would be 8.9875e9
+        // Using atomic units convention: k_e = 1.0
+        return q1 * q2 / r;
+    }
+
+    // Total energy for a molecule
+    public static double totalEnergy(Molecule mol) {
+        double e = 0.0;
+        // Bond energies
+        int i = 0;
+        while (i < mol.bonds.size()) {
+            e = e + ForceField.bondEnergy(mol.atoms, mol.bonds.get(i));
+            i = i + 1;
+        }
+        // Non-bonded: Lennard-Jones and Coulomb
+        int n = mol.atoms.size();
+        int j = 0;
+        while (j < n) {
+            int k = j + 1;
+            while (k < n) {
+                Atom a1 = mol.atoms.get(j);
+                Atom a2 = mol.atoms.get(k);
+                double r = a1.distanceTo(a2);
+                // Lennard-Jones with default parameters
+                double sigma = 3.4;
+                double epsilon = 0.01;
+                e = e + ForceField.ljEnergy(r, epsilon, sigma);
+                // Coulomb
+                e = e + ForceField.coulombEnergy(r, a1.charge, a2.charge);
+                k = k + 1;
+            }
+            j = j + 1;
+        }
+        return e;
+    }
+
+    // Compute distance between two atoms
+    public static double distance(Atom a1, Atom a2) {
+        return a1.distanceTo(a2);
+    }
+
+    // Compute angle between three atoms (in radians)
+    // Angle at a2 formed by a1-a2-a3
+    public static double angle(Atom a1, Atom a2, Atom a3) {
+        // Vectors from a2 to a1 and a2 to a3
+        double v1x = a1.x - a2.x;
+        double v1y = a1.y - a2.y;
+        double v1z = a1.z - a2.z;
+        double v2x = a3.x - a2.x;
+        double v2y = a3.y - a2.y;
+        double v2z = a3.z - a2.z;
+        // Dot product
+        double dot = v1x * v2x + v1y * v2y + v1z * v2z;
+        // Magnitudes
+        double mag1 = Math.sqrt(v1x * v1x + v1y * v1y + v1z * v1z);
+        double mag2 = Math.sqrt(v2x * v2x + v2y * v2y + v2z * v2z);
+        if (mag1 < 1e-15 || mag2 < 1e-15) { return 0.0; }
+        double cosAngle = dot / (mag1 * mag2);
+        if (cosAngle > 1.0) { cosAngle = 1.0; }
+        if (cosAngle < -1.0) { cosAngle = -1.0; }
+        return Math.acos(cosAngle);
+    }
+}
