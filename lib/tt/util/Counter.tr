@@ -1,0 +1,61 @@
+// Counter collection backed by HashMap.
+public class Counter<E> {
+    private HashMap counts;
+
+    public Counter() {
+        this.counts = new HashMap();
+    }
+
+    public void increment(E key) {
+        int current = this.get(key);
+        this.counts.put(key, current + 1);
+    }
+
+    public void decrement(E key) {
+        int current = this.get(key);
+        if (current <= 1) {
+            this.counts.remove(key);
+        } else {
+            this.counts.put(key, current - 1);
+        }
+    }
+
+    public int get(E key) {
+        if (this.counts.containsKey(key)) {
+            return this.counts.get(key);
+        }
+        return 0;
+    }
+
+    public ArrayList<E> mostCommon() {
+        ArrayList<E> keyList = this.counts.keys();
+        // Selection sort by count descending
+        int n = keyList.size();
+        int i = 0;
+        while (i < n - 1) {
+            int maxIdx = i;
+            int j = i + 1;
+            while (j < n) {
+                if (this.counts.get(keyList.get(j)) > this.counts.get(keyList.get(maxIdx))) {
+                    maxIdx = j;
+                }
+                j = j + 1;
+            }
+            if (maxIdx != i) {
+                E temp = keyList.get(i);
+                keyList.set(i, keyList.get(maxIdx));
+                keyList.set(maxIdx, temp);
+            }
+            i = i + 1;
+        }
+        return keyList;
+    }
+
+    public int size() {
+        return this.counts.size();
+    }
+
+    public ArrayList<E> keys() {
+        return this.counts.keys();
+    }
+}

@@ -1,0 +1,45 @@
+// Double-ended queue backed by ArrayList.
+public class Deque<E> {
+    private ArrayList<E> data;
+
+    public Deque() {
+        this.data = new ArrayList<E>();
+    }
+
+    public void pushFront(E item) {
+        this.data.add(0, item);
+    }
+
+    public void pushBack(E item) {
+        this.data.add(item);
+    }
+
+    public E popFront() {
+        E item = this.data.get(0);
+        this.data.remove(0);
+        return item;
+    }
+
+    public E popBack() {
+        int last = this.data.size() - 1;
+        E item = this.data.get(last);
+        this.data.remove(last);
+        return item;
+    }
+
+    public E peekFront() {
+        return this.data.get(0);
+    }
+
+    public E peekBack() {
+        return this.data.get(this.data.size() - 1);
+    }
+
+    public int size() {
+        return this.data.size();
+    }
+
+    public bool isEmpty() {
+        return this.data.size() == 0;
+    }
+}

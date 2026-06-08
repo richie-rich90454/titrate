@@ -1,0 +1,87 @@
+// Min-heap priority queue backed by ArrayList.
+public class PriorityQueue<E> {
+    private ArrayList<E> data;
+
+    public PriorityQueue() {
+        this.data = new ArrayList<E>();
+    }
+
+    public void push(E item) {
+        this.data.add(item);
+        this.siftUp(this.data.size() - 1);
+    }
+
+    public E pop() {
+        E min = this.data.get(0);
+        int last = this.data.size() - 1;
+        this.data.set(0, this.data.get(last));
+        this.data.remove(last);
+        if (this.data.size() > 0) {
+            this.siftDown(0);
+        }
+        return min;
+    }
+
+    public E peek() {
+        return this.data.get(0);
+    }
+
+    public int size() {
+        return this.data.size();
+    }
+
+    public bool isEmpty() {
+        return this.data.size() == 0;
+    }
+
+    public void siftUp(int idx) {
+        while (idx > 0) {
+            int p = this.parent(idx);
+            if (this.data.get(p) > this.data.get(idx)) {
+                this.swap(p, idx);
+                idx = p;
+            } else {
+                return;
+            }
+        }
+    }
+
+    public void siftDown(int idx) {
+        int size = this.data.size();
+        while (true) {
+            int left = this.leftChild(idx);
+            int right = this.rightChild(idx);
+            int smallest = idx;
+            if (left < size && this.data.get(left) < this.data.get(smallest)) {
+                smallest = left;
+            }
+            if (right < size && this.data.get(right) < this.data.get(smallest)) {
+                smallest = right;
+            }
+            if (smallest != idx) {
+                this.swap(idx, smallest);
+                idx = smallest;
+            } else {
+                return;
+            }
+        }
+    }
+
+    public int parent(int idx) {
+        return (idx - 1) / 2;
+    }
+
+    public int leftChild(int idx) {
+        return 2 * idx + 1;
+    }
+
+    public int rightChild(int idx) {
+        return 2 * idx + 2;
+    }
+
+    public void swap(int i, int j) {
+        E temp = this.data.get(i);
+        this.data.set(i, this.data.get(j));
+        this.data.set(j, temp);
+    }
+}

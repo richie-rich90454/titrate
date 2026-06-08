@@ -1,0 +1,93 @@
+// Generic Set collection backed by ArrayList.
+import tt::lang::Iterable;
+import tt::util::ArrayListIterator;
+
+public class Set<E> implements Iterable<E> {
+    private ArrayList<E> data;
+
+    public Set() {
+        this.data = new ArrayList<E>();
+    }
+
+    public void add(E item) {
+        if (!this.contains(item)) {
+            this.data.add(item);
+        }
+    }
+
+    public bool remove(E item) {
+        int idx = this.indexOf(item);
+        if (idx >= 0) {
+            this.data.remove(idx);
+            return true;
+        }
+        return false;
+    }
+
+    public bool contains(E item) {
+        for (elem in this.data) {
+            if (elem == item) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public int indexOf(E item) {
+        int i = 0;
+        while (i < this.data.size()) {
+            if (this.data.get(i) == item) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public int size() {
+        return this.data.size();
+    }
+
+    public bool isEmpty() {
+        return this.data.size() == 0;
+    }
+
+    public ArrayList<E> toArray() {
+        return this.data;
+    }
+
+    public Set<E> union(Set<E> other) {
+        Set<E> result = new Set<E>();
+        for (elem in this.data) {
+            result.add(elem);
+        }
+        for (elem in other.data) {
+            result.add(elem);
+        }
+        return result;
+    }
+
+    public Set<E> intersection(Set<E> other) {
+        Set<E> result = new Set<E>();
+        for (elem in this.data) {
+            if (other.contains(elem)) {
+                result.add(elem);
+            }
+        }
+        return result;
+    }
+
+    public Set<E> difference(Set<E> other) {
+        Set<E> result = new Set<E>();
+        for (elem in this.data) {
+            if (!other.contains(elem)) {
+                result.add(elem);
+            }
+        }
+        return result;
+    }
+
+    public ArrayListIterator<E> iterator() {
+        return new ArrayListIterator<E>(this.data);
+    }
+}
