@@ -1,0 +1,72 @@
+// Random provides pseudo-random number generation using Xorshift128+.
+import tt::util::ArrayList;
+
+public class Random {
+    public long state0;
+    public long state1;
+
+    public Random() {
+        long seed = Random_seed();
+        this.state0 = seed;
+        this.state1 = seed ^ 0x9E3779B97F4A7C15L;
+    }
+
+    public Random(long seed) {
+        this.state0 = seed;
+        this.state1 = seed ^ 0x9E3779B97F4A7C15L;
+    }
+
+    public long nextLongInternal() {
+        // Xorshift128+ step via native
+        Object result = Random_nextLong(this.state0, this.state1);
+        // result is an array [new_state0, new_state1, output]
+        this.state0 = (long) result[0];
+        this.state1 = (long) result[1];
+        return (long) result[2];
+    }
+
+    public int nextInt(int max) {
+        long val = this.nextLongInternal();
+        int result = (int) (val & 0x7FFFFFFF) % max;
+        if (result < 0) { result = result + max; }
+        return result;
+    }
+
+    public long nextLong(long max) {
+        long val = this.nextLongInternal();
+        long result = (val & 0x7FFFFFFFFFFFFFFFL) % max;
+        if (result < 0) { result = result + max; }
+        return result;
+    }
+
+    public float nextFloat() {
+        long val = this.nextLongInternal();
+        return (float) ((val & 0x7FFFFFFF) / 2147483647.0);
+    }
+
+    public double nextDouble() {
+        long val = this.nextLongInternal();
+        return (double) ((val & 0x7FFFFFFFFFFFFFFFL) / 9223372036854775807.0);
+    }
+
+    public bool nextBool() {
+        return this.nextLongInternal() % 2 == 0;
+    }
+
+    public void shuffle(ArrayList arr) {
+        int n = arr.size();
+        int i = n - 1;
+        while (i > 0) {
+            int j = this.nextInt(i + 1);
+            Object temp = arr.get(i);
+            arr.set(i, arr.get(j));
+            arr.set(j, temp);
+            i = i - 1;
+        }
+    }
+
+    public Object sample(ArrayList arr) {
+        int idx = this.nextInt(arr.size());
+        return arr.get(idx);
+    }
+}
