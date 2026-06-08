@@ -167,6 +167,7 @@ enum InferredType {
     String,
     Null,
     Void,
+    Class,
     Unknown,
 }
 
@@ -248,6 +249,8 @@ pub struct Compiler {
     resolver: ModuleResolver,
     /// Set of module names currently being processed (for circular import detection).
     processing: HashSet<String>,
+    /// Counter for generating unique closure names.
+    closure_counter: usize,
 }
 
 impl Compiler {
@@ -292,6 +295,7 @@ impl Compiler {
             symbol_table: HashMap::new(),
             resolver: ModuleResolver::new(),
             processing: HashSet::new(),
+            closure_counter: 0,
         }
     }
 
@@ -1171,6 +1175,10 @@ impl Compiler {
             }
             ast::Type::Ref(inner) => format!("Ref_{}", Self::type_to_mangle_string(inner)),
             ast::Type::MutRef(inner) => format!("MutRef_{}", Self::type_to_mangle_string(inner)),
+            ast::Type::Tuple(types) => {
+                let inner: Vec<String> = types.iter().map(|t| Self::type_to_mangle_string(t)).collect();
+                format!("Tuple_{}", inner.join("_"))
+            }
         }
     }
 
@@ -1200,6 +1208,13 @@ impl Compiler {
             }
             ast::Type::MutRef(inner) => {
                 ast::Type::MutRef(Box::new(Self::substitute_type(inner, type_args)))
+            }
+            ast::Type::Tuple(types) => {
+                let new_types: Vec<ast::Type> = types
+                    .iter()
+                    .map(|t| Self::substitute_type(t, type_args))
+                    .collect();
+                ast::Type::Tuple(new_types)
             }
         }
     }
@@ -1280,6 +1295,25 @@ impl Compiler {
                 *span,
             ),
             ast::Expr::Unit(span) => ast::Expr::Unit(*span),
+            ast::Expr::Closure {
+                params,
+                return_type,
+                body,
+                expr,
+                captured_vars,
+                span,
+            } => ast::Expr::Closure {
+                params: params.iter().map(|(n, t)| (n.clone(), Self::substitute_type(t, type_args))).collect(),
+                return_type: Self::substitute_type(return_type, type_args),
+                body: body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                expr: expr.as_ref().map(|e| Box::new(Self::substitute_expr(e, type_args))),
+                captured_vars: captured_vars.clone(),
+                span: *span,
+            },
+            ast::Expr::Tuple(elements, span) => ast::Expr::Tuple(
+                elements.iter().map(|e| Self::substitute_expr(e, type_args)).collect(),
+                *span,
+            ),
         }
     }
 
@@ -1340,6 +1374,14 @@ impl Compiler {
             }),
             ast::Stmt::Block(block) => {
                 ast::Stmt::Block(block.iter().map(|s| Self::substitute_stmt(s, type_args)).collect())
+            }
+            ast::Stmt::TupleDestructure { names, expr, mutable, span } => {
+                ast::Stmt::TupleDestructure {
+                    names: names.clone(),
+                    expr: Self::substitute_expr(expr, type_args),
+                    mutable: *mutable,
+                    span: *span,
+                }
             }
         }
     }
@@ -1686,9 +1728,11 @@ impl Compiler {
     }
 
     fn resolve_local(&self, name: &str) -> Option<u8> {
+        // "self" resolves to the same slot as "this" in method bodies
+        let lookup_name = if name == "self" { "this" } else { name };
         // Search from the end (most recent) to find the innermost variable.
         for local in self.locals.iter().rev() {
-            if local.name == name {
+            if local.name == lookup_name {
                 return Some(local.slot);
             }
         }
@@ -1934,6 +1978,9 @@ impl Compiler {
                 self.compile_block(block)?;
                 self.end_scope();
             }
+            ast::Stmt::TupleDestructure { names, expr, mutable: _, span } => {
+                self.compile_tuple_destructure(names, expr, span.line)?;
+            }
         }
         Ok(())
     }
@@ -1948,6 +1995,23 @@ impl Compiler {
         let slot = self.declare_local(&var_decl.name);
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(slot, line);
+        Ok(())
+    }
+
+    fn compile_tuple_destructure(&mut self, names: &[String], expr: &ast::Expr, line: u32) -> Result<(), String> {
+        // Compile the tuple expression, then extract each element
+        self.compile_expr(expr)?;
+        // For each name, duplicate the tuple, get element at index, store to local
+        for (i, name) in names.iter().enumerate() {
+            self.emit_opcode(OpCode::DUP, line);
+            self.emit_opcode(OpCode::TUPLE_GET, line);
+            self.emit_u8(i as u8, line);
+            let slot = self.declare_local(name);
+            self.emit_opcode(OpCode::STORE_LOCAL, line);
+            self.emit_u8(slot, line);
+        }
+        // Pop the remaining tuple from the stack
+        self.emit_opcode(OpCode::POP, line);
         Ok(())
     }
 
@@ -2483,6 +2547,23 @@ impl Compiler {
             ast::Expr::Unit(span) => {
                 self.emit_opcode(OpCode::PUSH_VOID, span.line);
             }
+            ast::Expr::Tuple(elements, span) => {
+                for elem in elements {
+                    self.compile_expr(elem)?;
+                }
+                self.emit_opcode(OpCode::TUPLE_NEW, span.line);
+                self.emit_u16(elements.len() as u16, span.line);
+            }
+            ast::Expr::Closure {
+                params,
+                return_type: _,
+                body,
+                expr,
+                captured_vars,
+                span,
+            } => {
+                self.compile_closure(params, body, expr, captured_vars, span.line)?;
+            }
         }
         Ok(())
     }
@@ -2583,6 +2664,29 @@ impl Compiler {
         Ok(())
     }
 
+    /// Map an AST operator to its operator method name (e.g. Add → "operator+").
+    fn operator_method_name(op: &ast::Operator) -> String {
+        match op {
+            ast::Operator::Add => "operator+".to_string(),
+            ast::Operator::Sub => "operator-".to_string(),
+            ast::Operator::Mul => "operator*".to_string(),
+            ast::Operator::Div => "operator/".to_string(),
+            ast::Operator::Mod => "operator%".to_string(),
+            ast::Operator::Eq => "operator==".to_string(),
+            ast::Operator::Ne => "operator!=".to_string(),
+            ast::Operator::Lt => "operator<".to_string(),
+            ast::Operator::Gt => "operator>".to_string(),
+            ast::Operator::Le => "operator<=".to_string(),
+            ast::Operator::Ge => "operator>=".to_string(),
+            ast::Operator::BitAnd => "operator&".to_string(),
+            ast::Operator::BitOr => "operator|".to_string(),
+            ast::Operator::BitXor => "operator^".to_string(),
+            ast::Operator::BitShl => "operator<<".to_string(),
+            ast::Operator::BitShr => "operator>>".to_string(),
+            ast::Operator::And | ast::Operator::Or => unreachable!("And/Or are short-circuit"),
+        }
+    }
+
     fn compile_binary(
         &mut self,
         left: &ast::Expr,
@@ -2650,6 +2754,18 @@ impl Compiler {
         let left_type = self.infer_expr_type(left);
         let right_type = self.infer_expr_type(right);
         let result_type = self.wider_type(left_type, right_type);
+
+        // If the left operand is a class instance, emit INVOKE_OPERATOR.
+        // The VM will look up the operator method on the class and call it,
+        // falling back to built-in behavior if no operator method exists.
+        if left_type == InferredType::Class {
+            let method_name = Self::operator_method_name(op);
+            let name_idx = self.current_chunk().add_string(&method_name);
+            self.emit_opcode(OpCode::INVOKE_OPERATOR, line);
+            self.emit_u16(name_idx, line);
+            self.emit_u8(1, line); // arg count = 1 (the right operand)
+            return Ok(());
+        }
 
         match op {
             ast::Operator::Add => {
@@ -3034,6 +3150,93 @@ impl Compiler {
         Ok(())
     }
 
+    fn compile_closure(
+        &mut self,
+        params: &[(String, ast::Type)],
+        body: &ast::Block,
+        expr: &Option<Box<ast::Expr>>,
+        captured_vars: &[String],
+        line: u32,
+    ) -> Result<(), String> {
+        // Generate a unique name for the closure function.
+        let closure_name = format!("$closure_{}", self.closure_counter);
+        self.closure_counter += 1;
+
+        // Register the closure as a new function.
+        let fn_idx = self.functions.len() as u16;
+        let arity = params.len();
+
+        self.functions.push(FunctionDef {
+            name: closure_name.clone(),
+            arity,
+            chunk: Chunk::new(),
+            is_method: false,
+            is_constructor: false,
+            local_count: 0,
+        });
+        self.function_map.insert(closure_name.clone(), fn_idx);
+
+        // Save current compilation state.
+        let saved_function = self.current_function;
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_local_count = self.local_count;
+        let saved_scope_depth = self.scope_depth;
+
+        self.current_function = fn_idx as usize;
+        self.locals.clear();
+        self.local_count = 0;
+        self.scope_depth = 0;
+
+        self.begin_scope();
+
+        // Parameters become local variables.
+        for (name, _typ) in params {
+            self.declare_local(name);
+        }
+
+        // Compile the closure body.
+        if let Some(ref e) = expr {
+            // Expression body: fn(x) => x * 2
+            self.compile_expr(e)?;
+            self.emit_opcode(OpCode::RET, line);
+        } else {
+            // Block body: fn(x) { return x + 1; }
+            self.compile_block(body)?;
+            // Ensure every function ends with RET.
+            self.emit_opcode(OpCode::PUSH_VOID, line);
+            self.emit_opcode(OpCode::RET, line);
+        }
+
+        self.end_scope();
+
+        // Store the number of local slots needed.
+        self.functions[fn_idx as usize].local_count = self.local_count;
+
+        // Restore compilation state.
+        self.current_function = saved_function;
+        self.locals = saved_locals;
+        self.local_count = saved_local_count;
+        self.scope_depth = saved_scope_depth;
+
+        // For each captured variable, load its value onto the stack.
+        for var_name in captured_vars {
+            if let Some(slot) = self.resolve_local(var_name) {
+                self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                self.emit_u8(slot, line);
+            } else {
+                // If not a local, push null as placeholder.
+                self.emit_opcode(OpCode::PUSH_NULL, line);
+            }
+        }
+
+        // Emit CLOSURE_NEW with function index and upvalue count.
+        self.emit_opcode(OpCode::CLOSURE_NEW, line);
+        self.emit_u16(fn_idx, line);
+        self.emit_u8(captured_vars.len() as u8, line);
+
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Type inference helpers
     // -----------------------------------------------------------------------
@@ -3096,8 +3299,8 @@ impl Compiler {
             }
             ast::Expr::MemberAccess(_, _, _) => InferredType::Unknown,
             ast::Expr::Index(_, _, _) => InferredType::Unknown,
-            ast::Expr::New(_, _, _) => InferredType::Unknown,
-            ast::Expr::This(_) => InferredType::Unknown,
+            ast::Expr::New(_, _, _) => InferredType::Class,
+            ast::Expr::This(_) => InferredType::Class,
             ast::Expr::Super(_) => InferredType::Unknown,
             ast::Expr::OwnedDeref(inner, _) => self.infer_expr_type(inner),
             ast::Expr::RegionAlloc(_, _, _) => InferredType::Unknown,
@@ -3117,6 +3320,8 @@ impl Compiler {
             }
             ast::Expr::Assign(_, _, _) => InferredType::Unknown,
             ast::Expr::Unit(_) => InferredType::Void,
+            ast::Expr::Tuple(_, _) => InferredType::Unknown,
+            ast::Expr::Closure { .. } => InferredType::Unknown,
         }
     }
 
@@ -3164,6 +3369,7 @@ impl Compiler {
     fn type_to_inferred(&self, typ: &ast::Type) -> InferredType {
         match typ {
             ast::Type::Ref(inner) | ast::Type::MutRef(inner) => self.type_to_inferred(inner),
+            ast::Type::Tuple(_) => InferredType::Unknown,
             ast::Type::Named { .. } => match typ.name() {
                 "byte" => InferredType::I8,
                 "short" => InferredType::I16,
@@ -3184,6 +3390,7 @@ impl Compiler {
     fn type_to_cast_target(&self, typ: &ast::Type) -> CastTarget {
         match typ {
             ast::Type::Ref(inner) | ast::Type::MutRef(inner) => self.type_to_cast_target(inner),
+            ast::Type::Tuple(_) => CastTarget::Long, // safe default
             ast::Type::Named { .. } => match typ.name() {
                 "byte" => CastTarget::Byte,
                 "short" => CastTarget::Short,

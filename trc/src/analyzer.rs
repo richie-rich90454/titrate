@@ -124,6 +124,47 @@ fn is_unknown_type(t: &ast::Type) -> bool {
     t.name() == "unknown" || t.name() == "any"
 }
 
+/// Map an AST operator to its operator method name (e.g. Add → "operator+").
+fn operator_method_name(op: &ast::Operator) -> String {
+    match op {
+        ast::Operator::Add => "operator+".to_string(),
+        ast::Operator::Sub => "operator-".to_string(),
+        ast::Operator::Mul => "operator*".to_string(),
+        ast::Operator::Div => "operator/".to_string(),
+        ast::Operator::Mod => "operator%".to_string(),
+        ast::Operator::Eq => "operator==".to_string(),
+        ast::Operator::Ne => "operator!=".to_string(),
+        ast::Operator::Lt => "operator<".to_string(),
+        ast::Operator::Gt => "operator>".to_string(),
+        ast::Operator::Le => "operator<=".to_string(),
+        ast::Operator::Ge => "operator>=".to_string(),
+        ast::Operator::BitAnd => "operator&".to_string(),
+        ast::Operator::BitOr => "operator|".to_string(),
+        ast::Operator::BitXor => "operator^".to_string(),
+        ast::Operator::BitShl => "operator<<".to_string(),
+        ast::Operator::BitShr => "operator>>".to_string(),
+        ast::Operator::And | ast::Operator::Or => String::new(), // not overloadable
+    }
+}
+
+/// Check if the given type is a class that has an operator overload method for the given operator.
+fn class_has_operator_method(left_type: &ast::Type, op: &ast::Operator, scope: &Rc<RefCell<Scope>>) -> bool {
+    let method_name = operator_method_name(op);
+    if method_name.is_empty() {
+        return false;
+    }
+    if let Some(Symbol::Class(class_decl)) = scope.borrow().lookup(left_type.name()) {
+        for member in &class_decl.members {
+            if let ast::ClassMember::Method(m) = member {
+                if m.name == method_name {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Determine the type of a literal.
 fn literal_type(lit: &ast::Literal) -> ast::Type {
     match lit {
@@ -444,6 +485,11 @@ impl Analyzer {
                     typ: ast::Type::simple(&c.name),
                     mutable: false,
                 });
+                // "self" is an alias for "this" in method bodies
+                class_scope.borrow_mut().define("self".to_string(), Symbol::Variable {
+                    typ: ast::Type::simple(&c.name),
+                    mutable: false,
+                });
                 for member in &mut c.members {
                     match member {
                         ast::ClassMember::Method(m) => {
@@ -683,6 +729,39 @@ impl Analyzer {
             ast::Stmt::ConstDecl(v) => {
                 self.analyze_var_decl(v, scope);
             }
+            ast::Stmt::TupleDestructure { names, expr, mutable: _, span: _ } => {
+                self.analyze_expr(expr, scope);
+                let expr_type = self.infer_expr_type(expr, scope);
+                // Check that the expression is a tuple type
+                if let ast::Type::Tuple(element_types) = &expr_type {
+                    if names.len() != element_types.len() {
+                        self.error(format!(
+                            "tuple destructuring expects {} elements, found {}",
+                            element_types.len(),
+                            names.len()
+                        ));
+                    }
+                } else if !is_unknown_type(&expr_type) {
+                    self.error(format!(
+                        "tuple destructuring requires a tuple type, found {}",
+                        expr_type
+                    ));
+                }
+                // Define each variable in scope
+                let element_types = match &expr_type {
+                    ast::Type::Tuple(types) => types.clone(),
+                    _ => vec![ast::Type::simple("any"); names.len()],
+                };
+                for (i, name) in names.iter().enumerate() {
+                    let typ = element_types.get(i).cloned().unwrap_or_else(|| ast::Type::simple("any"));
+                    scope.borrow_mut().define(
+                        name.clone(),
+                        Symbol::Variable { typ, mutable: false },
+                    );
+                    self.var_states.insert(name.clone(), VarState::Live);
+                    self.local_vars.push(name.clone());
+                }
+            }
         }
     }
 
@@ -865,8 +944,14 @@ impl Analyzer {
                 let left_type = self.infer_expr_type(left, scope);
                 let right_type = self.infer_expr_type(right, scope);
 
+                // Check if the left type is a class with an operator overload method
+                let has_operator_overload = class_has_operator_method(&left_type, op, scope);
+
                 // Skip type checking when types are unknown (from builtins, field access, etc.)
-                if is_unknown_type(&left_type) || is_unknown_type(&right_type) {
+                // or when the left operand has an operator overload method
+                if has_operator_overload {
+                    // Operator overload method exists — fine
+                } else if is_unknown_type(&left_type) || is_unknown_type(&right_type) {
                     // Cannot verify — skip
                 } else {
                 match op {
@@ -1313,11 +1398,235 @@ impl Analyzer {
                     }
                 }
             }
+            ast::Expr::Tuple(elements, _) => {
+                for elem in elements.iter_mut() {
+                    self.analyze_expr(elem, scope);
+                }
+            }
+            ast::Expr::Closure {
+                params,
+                return_type: _,
+                body,
+                expr: closure_expr,
+                captured_vars,
+                span: _,
+            } => {
+                // Create a new scope for the closure body.
+                let closure_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
+
+                // Define parameters in the closure scope.
+                for (name, typ) in &mut *params {
+                    closure_scope.borrow_mut().define(
+                        name.clone(),
+                        Symbol::Variable {
+                            typ: typ.clone(),
+                            mutable: false,
+                        },
+                    );
+                }
+
+                // Analyze the closure body in the new scope.
+                if let Some(ref mut e) = closure_expr {
+                    self.analyze_expr(e, &closure_scope);
+                }
+                for stmt in body.iter_mut() {
+                    self.analyze_stmt(stmt, &closure_scope);
+                }
+
+                // Track which variables from outer scopes are referenced.
+                // We do a simple scan: any identifier in the closure body
+                // that is not a parameter and exists in the outer scope
+                // is a captured variable.
+                let mut captured = Vec::new();
+                self.collect_captured_vars(closure_expr, &params.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(), scope, &mut captured);
+                for stmt in body.iter() {
+                    self.collect_captured_vars_from_stmt(stmt, &params.iter().map(|(n, _)| n.clone()).collect::<Vec<_>>(), scope, &mut captured);
+                }
+                captured.sort();
+                captured.dedup();
+                *captured_vars = captured;
+            }
         }
     }
 
-    // -----------------------------------------------------------------------
-    // Type inference
+    /// Collect identifiers from a closure expression that reference variables
+    /// in the enclosing scope (i.e., captured variables).
+    fn collect_captured_vars(
+        &self,
+        expr: &Option<Box<ast::Expr>>,
+        param_names: &[String],
+        outer_scope: &Rc<RefCell<Scope>>,
+        captured: &mut Vec<String>,
+    ) {
+        if let Some(e) = expr {
+            self.collect_captured_vars_from_expr(e, param_names, outer_scope, captured);
+        }
+    }
+
+    fn collect_captured_vars_from_expr(
+        &self,
+        expr: &ast::Expr,
+        param_names: &[String],
+        outer_scope: &Rc<RefCell<Scope>>,
+        captured: &mut Vec<String>,
+    ) {
+        match expr {
+            ast::Expr::Identifier(name, _) => {
+                if !param_names.contains(name) && outer_scope.borrow().lookup(name).is_some() {
+                    if let Some(Symbol::Variable { .. }) = outer_scope.borrow().lookup(name) {
+                        captured.push(name.clone());
+                    }
+                }
+            }
+            ast::Expr::Binary(left, _, right, _) => {
+                self.collect_captured_vars_from_expr(left, param_names, outer_scope, captured);
+                self.collect_captured_vars_from_expr(right, param_names, outer_scope, captured);
+            }
+            ast::Expr::Unary(_, operand, _) => {
+                self.collect_captured_vars_from_expr(operand, param_names, outer_scope, captured);
+            }
+            ast::Expr::Call(callee, args, _) => {
+                self.collect_captured_vars_from_expr(callee, param_names, outer_scope, captured);
+                for arg in args {
+                    self.collect_captured_vars_from_expr(arg, param_names, outer_scope, captured);
+                }
+            }
+            ast::Expr::MemberAccess(obj, _, _) => {
+                self.collect_captured_vars_from_expr(obj, param_names, outer_scope, captured);
+            }
+            ast::Expr::Index(obj, index, _) => {
+                self.collect_captured_vars_from_expr(obj, param_names, outer_scope, captured);
+                self.collect_captured_vars_from_expr(index, param_names, outer_scope, captured);
+            }
+            ast::Expr::Assign(target, value, _) => {
+                self.collect_captured_vars_from_expr(target, param_names, outer_scope, captured);
+                self.collect_captured_vars_from_expr(value, param_names, outer_scope, captured);
+            }
+            ast::Expr::New(_, args, _) => {
+                for arg in args {
+                    self.collect_captured_vars_from_expr(arg, param_names, outer_scope, captured);
+                }
+            }
+            ast::Expr::OwnedDeref(inner, _) | ast::Expr::ErrorPropagation(inner, _) | ast::Expr::Cast(inner, _, _) => {
+                self.collect_captured_vars_from_expr(inner, param_names, outer_scope, captured);
+            }
+            ast::Expr::RefExpr(inner, _, _) => {
+                self.collect_captured_vars_from_expr(inner, param_names, outer_scope, captured);
+            }
+            ast::Expr::RegionAlloc(_, init, _) => {
+                self.collect_captured_vars_from_expr(init, param_names, outer_scope, captured);
+            }
+            ast::Expr::UnsafeBlock(block, _) => {
+                for stmt in block {
+                    self.collect_captured_vars_from_stmt(stmt, param_names, outer_scope, captured);
+                }
+            }
+            ast::Expr::StaticCall { args, .. } => {
+                for arg in args {
+                    self.collect_captured_vars_from_expr(arg, param_names, outer_scope, captured);
+                }
+            }
+            ast::Expr::Closure { body, expr: closure_expr, .. } => {
+                if let Some(ref e) = closure_expr {
+                    self.collect_captured_vars_from_expr(e, param_names, outer_scope, captured);
+                }
+                for stmt in body {
+                    self.collect_captured_vars_from_stmt(stmt, param_names, outer_scope, captured);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn collect_captured_vars_from_stmt(
+        &self,
+        stmt: &ast::Stmt,
+        param_names: &[String],
+        outer_scope: &Rc<RefCell<Scope>>,
+        captured: &mut Vec<String>,
+    ) {
+        match stmt {
+            ast::Stmt::Expr(expr) => {
+                self.collect_captured_vars_from_expr(expr, param_names, outer_scope, captured);
+            }
+            ast::Stmt::VarDecl(vd) | ast::Stmt::ConstDecl(vd) => {
+                if let Some(ref init) = vd.init {
+                    self.collect_captured_vars_from_expr(init, param_names, outer_scope, captured);
+                }
+            }
+            ast::Stmt::If(if_stmt) => {
+                self.collect_captured_vars_from_expr(&if_stmt.condition, param_names, outer_scope, captured);
+                for s in &if_stmt.then_branch {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+                if let Some(ref else_branch) = if_stmt.else_branch {
+                    for s in else_branch {
+                        self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                    }
+                }
+            }
+            ast::Stmt::While(ws) => {
+                self.collect_captured_vars_from_expr(&ws.condition, param_names, outer_scope, captured);
+                for s in &ws.body {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+            }
+            ast::Stmt::For(fs) => {
+                self.collect_captured_vars_from_expr(&fs.iterable, param_names, outer_scope, captured);
+                for s in &fs.body {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+            }
+            ast::Stmt::Return(expr) => {
+                if let Some(ref e) = expr {
+                    self.collect_captured_vars_from_expr(e, param_names, outer_scope, captured);
+                }
+            }
+            ast::Stmt::Block(block) => {
+                for s in block {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+            }
+            ast::Stmt::Switch(ss) => {
+                self.collect_captured_vars_from_expr(&ss.expr, param_names, outer_scope, captured);
+                for case in &ss.cases {
+                    for s in &case.body {
+                        self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                    }
+                }
+                if let Some(ref default) = ss.default {
+                    for s in default {
+                        self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                    }
+                }
+            }
+            ast::Stmt::WhileLet(wls) => {
+                self.collect_captured_vars_from_expr(&wls.expr, param_names, outer_scope, captured);
+                for s in &wls.body {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+            }
+            ast::Stmt::CFor(cfs) => {
+                if let Some(ref init) = cfs.init {
+                    self.collect_captured_vars_from_stmt(init, param_names, outer_scope, captured);
+                }
+                if let Some(ref cond) = cfs.condition {
+                    self.collect_captured_vars_from_expr(cond, param_names, outer_scope, captured);
+                }
+                if let Some(ref inc) = cfs.increment {
+                    self.collect_captured_vars_from_expr(inc, param_names, outer_scope, captured);
+                }
+                for s in &cfs.body {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+            }
+            ast::Stmt::Break | ast::Stmt::Continue => {}
+            ast::Stmt::TupleDestructure { expr, .. } => {
+                self.collect_captured_vars_from_expr(expr, param_names, outer_scope, captured);
+            }
+        }
+    }
+
     // -----------------------------------------------------------------------
 
     fn infer_expr_type(&self, expr: &ast::Expr, scope: &Rc<RefCell<Scope>>) -> ast::Type {
@@ -1343,6 +1652,19 @@ impl Analyzer {
             }
             ast::Expr::Binary(left, op, _right, _) => {
                 let left_type = self.infer_expr_type(left, scope);
+                // Check for operator overload — if found, return the method's return type
+                let method_name = operator_method_name(op);
+                if !method_name.is_empty() {
+                    if let Some(Symbol::Class(class_decl)) = scope.borrow().lookup(left_type.name()) {
+                        for member in &class_decl.members {
+                            if let ast::ClassMember::Method(m) = member {
+                                if m.name == method_name {
+                                    return m.return_type.clone().unwrap_or(ast::Type::simple("unknown"));
+                                }
+                            }
+                        }
+                    }
+                }
                 match op {
                     ast::Operator::Add => {
                         if is_string_type(&left_type) {
@@ -1485,6 +1807,14 @@ impl Analyzer {
             ast::Expr::Assign(_target, value, _) => {
                 self.infer_expr_type(value, scope)
             }
+            ast::Expr::Tuple(elements, _) => {
+                let types: Vec<ast::Type> = elements
+                    .iter()
+                    .map(|e| self.infer_expr_type(e, scope))
+                    .collect();
+                ast::Type::Tuple(types)
+            }
+            ast::Expr::Closure { .. } => ast::Type::simple("function"),
         }
     }
 

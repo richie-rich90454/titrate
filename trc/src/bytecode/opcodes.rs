@@ -220,6 +220,18 @@ pub enum OpCode {
 
     // -- Region deallocation --------------------------------------------------
     FREE_REGION = 119,
+
+    // -- Closures -------------------------------------------------------------
+    CLOSURE_NEW = 120,
+    GET_UPVALUE = 121,
+    SET_UPVALUE = 122,
+
+    // -- Operator overloading -------------------------------------------------
+    INVOKE_OPERATOR = 123,
+
+    // -- Tuples ---------------------------------------------------------------
+    TUPLE_NEW = 124,
+    TUPLE_GET = 125,
 }
 
 impl OpCode {
@@ -283,6 +295,18 @@ impl OpCode {
             // Super constructor call
             Self::CALL_SUPER => 3, // u16 function index + u8 arg count
 
+            // Closures
+            Self::CLOSURE_NEW => 3, // u16 function index + u8 upvalue count
+            Self::GET_UPVALUE => 1, // u8 upvalue index
+            Self::SET_UPVALUE => 1, // u8 upvalue index
+
+            // Operator overloading
+            Self::INVOKE_OPERATOR => 3, // u16 method name + u8 arg count
+
+            // Tuples
+            Self::TUPLE_NEW => 2, // u16 element count
+            Self::TUPLE_GET => 1, // u8 element index
+
             // Everything else: no operands
             _ => 0,
         }
@@ -306,7 +330,7 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Validate that the value falls within the defined opcode range.
         match value {
-            0..=119 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
+            0..=125 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
             _ => Err(value),
         }
     }
@@ -493,9 +517,9 @@ mod tests {
     // Helper – iterate all defined OpCode variants via discriminant range.
     impl OpCode {
         fn variants() -> &'static [OpCode] {
-            // Since OpCode is repr(u8) and contiguous 0..=117, we can build
+            // Since OpCode is repr(u8) and contiguous 0..=122, we can build
             // the list at test time via try_from.
-            (0u8..=119)
+            (0u8..=125)
                 .map(|v| OpCode::try_from(v).expect("valid opcode"))
                 .collect::<Vec<_>>()
                 .leak()

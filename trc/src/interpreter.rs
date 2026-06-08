@@ -8,6 +8,29 @@ use std::rc::Rc;
 
 use crate::ast;
 
+/// Map an AST operator to its operator method name for the interpreter.
+fn interpreter_operator_method_name(op: &ast::Operator) -> String {
+    match op {
+        ast::Operator::Add => "operator+".to_string(),
+        ast::Operator::Sub => "operator-".to_string(),
+        ast::Operator::Mul => "operator*".to_string(),
+        ast::Operator::Div => "operator/".to_string(),
+        ast::Operator::Mod => "operator%".to_string(),
+        ast::Operator::Eq => "operator==".to_string(),
+        ast::Operator::Ne => "operator!=".to_string(),
+        ast::Operator::Lt => "operator<".to_string(),
+        ast::Operator::Gt => "operator>".to_string(),
+        ast::Operator::Le => "operator<=".to_string(),
+        ast::Operator::Ge => "operator>=".to_string(),
+        ast::Operator::BitAnd => "operator&".to_string(),
+        ast::Operator::BitOr => "operator|".to_string(),
+        ast::Operator::BitXor => "operator^".to_string(),
+        ast::Operator::BitShl => "operator<<".to_string(),
+        ast::Operator::BitShr => "operator>>".to_string(),
+        ast::Operator::And | ast::Operator::Or => String::new(), // not overloadable
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Runtime value
 // ---------------------------------------------------------------------------
@@ -42,6 +65,9 @@ pub enum Value {
     Array {
         elements: Vec<Value>,
     },
+    Tuple {
+        elements: Vec<Value>,
+    },
     Ref(usize),
     RawPtr(usize),
     Function(Rc<ast::FnDecl>),
@@ -55,6 +81,12 @@ pub enum Value {
         enum_name: String,
         variant: String,
         field_count: usize,
+    },
+    Closure {
+        params: Vec<(String, ast::Type)>,
+        body: Vec<ast::Stmt>,
+        expr: Option<Box<ast::Expr>>,
+        captured_env: Rc<RefCell<Env>>,
     },
 }
 
@@ -120,6 +152,14 @@ impl fmt::Debug for Value {
                 }
                 write!(f, "]")
             }
+            Value::Tuple { elements } => {
+                write!(f, "(")?;
+                for (i, v) in elements.iter().enumerate() {
+                    if i > 0 { write!(f, ", ")?; }
+                    write!(f, "{:?}", v)?;
+                }
+                write!(f, ")")
+            }
             Value::Ref(idx) => write!(f, "ref({})", idx),
             Value::RawPtr(idx) => write!(f, "raw_ptr({})", idx),
             Value::Function(fn_decl) => write!(f, "fn {}", fn_decl.name),
@@ -132,6 +172,7 @@ impl fmt::Debug for Value {
             Value::EnumVariant { enum_name, variant, .. } => {
                 write!(f, "<enum_variant {}::{}>", enum_name, variant)
             }
+            Value::Closure { .. } => write!(f, "<closure>"),
         }
     }
 }
@@ -159,6 +200,8 @@ impl PartialEq for Value {
             (Value::ResultErr(a), Value::ResultErr(b)) => a == b,
             (Value::Ref(a), Value::Ref(b)) => a == b,
             (Value::RawPtr(a), Value::RawPtr(b)) => a == b,
+            (Value::Tuple { elements: a }, Value::Tuple { elements: b }) => a == b,
+            (Value::Closure { .. }, Value::Closure { .. }) => false, // closures are never equal
             _ => false,
         }
     }
@@ -260,6 +303,10 @@ impl Value {
                 let items: Vec<String> = elements.iter().map(|e| e.display_string()).collect();
                 format!("[{}]", items.join(", "))
             }
+            Value::Tuple { elements } => {
+                let items: Vec<String> = elements.iter().map(|e| e.display_string()).collect();
+                format!("({})", items.join(", "))
+            }
             Value::ClassInstance { class_name, fields, .. } => {
                 let items: Vec<String> = fields.borrow().iter()
                     .map(|(k, v)| format!("{}: {}", k, v.display_string()))
@@ -282,6 +329,7 @@ impl Value {
             Value::BuiltinFn(name) => format!("<builtin fn {}>", name),
             Value::BuiltinObject(name) => format!("<builtin {}>", name),
             Value::EnumVariant { variant, .. } => format!("<variant {}>", variant),
+            Value::Closure { .. } => "<closure>".to_string(),
         }
     }
 }
@@ -822,6 +870,27 @@ impl Interpreter {
                 env.borrow_mut().set(&const_decl.name, val);
                 Ok(ControlFlow::None)
             }
+            ast::Stmt::TupleDestructure { names, expr, mutable: _, span: _ } => {
+                let val = self.eval_expr_with_env(expr, &env)?;
+                match &val {
+                    Value::Tuple { elements } => {
+                        for (i, name) in names.iter().enumerate() {
+                            if i < elements.len() {
+                                env.borrow_mut().set(name, elements[i].clone());
+                            } else {
+                                env.borrow_mut().set(name, Value::Null);
+                            }
+                        }
+                    }
+                    _ => {
+                        return Err(format!(
+                            "tuple destructuring requires a tuple, found {:?}",
+                            val
+                        ))
+                    }
+                }
+                Ok(ControlFlow::None)
+            }
         }
     }
 
@@ -1018,6 +1087,28 @@ impl Interpreter {
                 self.eval_assign(target, val, env)
             }
             ast::Expr::Unit(_) => Ok(Value::Void),
+            ast::Expr::Tuple(elements, _) => {
+                let mut values = Vec::new();
+                for elem in elements {
+                    values.push(self.eval_expr_with_env(elem, env)?);
+                }
+                Ok(Value::Tuple { elements: values })
+            }
+            ast::Expr::Closure {
+                params,
+                return_type: _,
+                body,
+                expr: closure_expr,
+                captured_vars: _,
+                span: _,
+            } => {
+                Ok(Value::Closure {
+                    params: params.clone(),
+                    body: body.clone(),
+                    expr: closure_expr.clone(),
+                    captured_env: env.clone(),
+                })
+            }
         }
     }
 
@@ -1062,6 +1153,25 @@ impl Interpreter {
 
         let left_val = self.eval_expr_with_env(left, env)?;
         let right_val = self.eval_expr_with_env(right, env)?;
+
+        // Operator overloading: if left is a ClassInstance with an operator method, call it
+        if let Value::ClassInstance { vtable, class_name, .. } = &left_val {
+            let method_name = interpreter_operator_method_name(op);
+            if !method_name.is_empty() {
+                // Check vtable first
+                if vtable.contains_key(&method_name) {
+                    return self.call_method(&left_val, &method_name, &[right_val]);
+                }
+                // Check class definition
+                let class_defs = self.class_defs.borrow();
+                if let Some(cd) = class_defs.get(class_name) {
+                    if cd.methods.contains_key(&method_name) {
+                        drop(class_defs); // release borrow before calling method
+                        return self.call_method(&left_val, &method_name, &[right_val]);
+                    }
+                }
+            }
+        }
 
         // String concatenation
         if matches!(op, ast::Operator::Add) {
@@ -1347,6 +1457,9 @@ impl Interpreter {
                 Some(Value::BuiltinObject(name)) => {
                     return self.call_builtin_object(&name, &arg_vals);
                 }
+                Some(Value::Closure { params, body, expr, captured_env }) => {
+                    return self.call_closure(&params, &body, &expr, &captured_env, &arg_vals);
+                }
                 Some(other) => {
                     return Err(format!("Cannot call {:?} as a function", other));
                 }
@@ -1387,6 +1500,9 @@ impl Interpreter {
                     fields: arg_vals,
                 })
             }
+            Value::Closure { params, body, expr, captured_env } => {
+                self.call_closure(&params, &body, &expr, &captured_env, &arg_vals)
+            }
             other => Err(format!("Cannot call {:?} as a function", other)),
         }
     }
@@ -1405,6 +1521,43 @@ impl Interpreter {
         }
 
         self.exec_block(&fn_decl.body, func_env)
+    }
+
+    fn call_closure(
+        &self,
+        params: &[(String, ast::Type)],
+        body: &[ast::Stmt],
+        expr: &Option<Box<ast::Expr>>,
+        captured_env: &Rc<RefCell<Env>>,
+        args: &[Value],
+    ) -> Result<Value, String> {
+        if args.len() != params.len() {
+            return Err(format!(
+                "Closure expects {} arguments, got {}",
+                params.len(), args.len()
+            ));
+        }
+
+        // Create a new scope with the captured environment as parent.
+        let closure_env = Rc::new(RefCell::new(Env::with_parent(captured_env.clone())));
+        for (i, (name, _)) in params.iter().enumerate() {
+            closure_env.borrow_mut().set(name, args[i].clone());
+        }
+
+        // Execute the closure body.
+        if let Some(ref e) = expr {
+            // Expression body: fn(x) => x * 2
+            self.eval_expr_with_env(e, &closure_env)
+        } else {
+            // Block body: fn(x) { return x + 1; }
+            let cf = self.exec_block(body, closure_env)?;
+            match cf {
+                ControlFlow::Return(v) => Ok(v),
+                ControlFlow::None => Ok(Value::Void),
+                ControlFlow::Break => Err("Break outside of loop".to_string()),
+                ControlFlow::Continue => Err("Continue outside of loop".to_string()),
+            }
+        }
     }
 
     fn call_builtin_fn(&self, name: &str, args: &[Value]) -> Result<Value, String> {
