@@ -1,0 +1,26 @@
+// TCP client operations backed by VM built-ins.
+public class TcpClient {
+    private Socket socket;
+
+    public TcpClient() {
+        this.socket = null;
+    }
+
+    public bool connect(String host, int port) {
+        this.socket = Net_connect(host, port);
+        return this.socket != null;
+    }
+
+    public int send(String data) {
+        return Net_send(this.socket, data);
+    }
+
+    public String receive(int maxBytes) {
+        return Net_receive(this.socket, maxBytes);
+    }
+
+    public void close() {
+        Net_close(this.socket);
+        this.socket = null;
+    }
+}

@@ -62,6 +62,9 @@ pub enum Value {
     Array {
         elements: Vec<Value>,
     },
+    Tuple {
+        elements: Vec<Value>,
+    },
     Owned(Box<Value>),
     Ref(usize),
     RawPtr(usize),
@@ -75,6 +78,12 @@ pub enum Value {
         field_count: usize,
     },
     FileHandle(Rc<RefCell<Option<File>>>),
+    Socket(Rc<RefCell<Option<std::net::TcpStream>>>),
+    Listener(Rc<RefCell<Option<std::net::TcpListener>>>),
+    Closure {
+        func_idx: usize,
+        upvalues: Vec<Value>,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +148,16 @@ impl fmt::Debug for Value {
                 }
                 write!(f, "]")
             }
+            Value::Tuple { elements } => {
+                write!(f, "(")?;
+                for (i, v) in elements.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{:?}", v)?;
+                }
+                write!(f, ")")
+            }
             Value::Ref(idx) => write!(f, "ref({})", idx),
             Value::RawPtr(idx) => write!(f, "raw_ptr({})", idx),
             Value::Function(idx) => write!(f, "fn#{}", idx),
@@ -153,6 +172,16 @@ impl fmt::Debug for Value {
                 ..
             } => write!(f, "<enum_variant {}::{}>", enum_name, variant),
             Value::FileHandle(_) => write!(f, "<file_handle>"),
+            Value::Socket(_) => write!(f, "<socket>"),
+            Value::Listener(_) => write!(f, "<listener>"),
+            Value::Closure { func_idx, upvalues } => {
+                write!(f, "<closure #{} [", func_idx)?;
+                for (i, uv) in upvalues.iter().enumerate() {
+                    if i > 0 { write!(f, ", ")?; }
+                    write!(f, "{:?}", uv)?;
+                }
+                write!(f, "]>")
+            }
         }
     }
 }
@@ -187,6 +216,10 @@ impl PartialEq for Value {
             (Value::Function(a), Value::Function(b)) => a == b,
             (Value::NativeFn(a), Value::NativeFn(b)) => a == b,
             (Value::FileHandle(a), Value::FileHandle(b)) => Rc::ptr_eq(a, b),
+            (Value::Socket(a), Value::Socket(b)) => Rc::ptr_eq(a, b),
+            (Value::Listener(a), Value::Listener(b)) => Rc::ptr_eq(a, b),
+            (Value::Closure { func_idx: a, .. }, Value::Closure { func_idx: b, .. }) => a == b,
+            (Value::Tuple { elements: a }, Value::Tuple { elements: b }) => a == b,
             _ => false,
         }
     }
@@ -299,6 +332,10 @@ impl Value {
                 let items: Vec<String> = elements.iter().map(|e| e.display_string()).collect();
                 format!("[{}]", items.join(", "))
             }
+            Value::Tuple { elements } => {
+                let items: Vec<String> = elements.iter().map(|e| e.display_string()).collect();
+                format!("({})", items.join(", "))
+            }
             Value::ClassInstance {
                 class_name, fields, ..
             } => {
@@ -328,6 +365,9 @@ impl Value {
             Value::NativeFn(idx) => format!("<native fn #{}>", idx),
             Value::EnumVariant { variant, .. } => format!("<variant {}>", variant),
             Value::FileHandle(_) => "<file_handle>".to_string(),
+            Value::Socket(_) => "<socket>".to_string(),
+            Value::Listener(_) => "<listener>".to_string(),
+            Value::Closure { func_idx, .. } => format!("<closure #{}>", func_idx),
         }
     }
 
@@ -353,6 +393,7 @@ impl Value {
             Value::ClassInstance { .. } => "class_instance",
             Value::EnumInstance { .. } => "enum_instance",
             Value::Array { .. } => "array",
+            Value::Tuple { .. } => "tuple",
             Value::Owned(_) => "owned",
             Value::Ref(_) => "ref",
             Value::RawPtr(_) => "raw_ptr",
@@ -362,6 +403,9 @@ impl Value {
             Value::ResultErr(_) => "result",
             Value::EnumVariant { .. } => "enum_variant",
             Value::FileHandle(_) => "FileHandle",
+            Value::Socket(_) => "Socket",
+            Value::Listener(_) => "Listener",
+            Value::Closure { .. } => "closure",
         }
     }
 }

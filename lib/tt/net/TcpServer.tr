@@ -1,0 +1,25 @@
+// TCP server operations backed by VM built-ins.
+public class TcpServer {
+    private Listener listener;
+
+    public TcpServer() {
+        this.listener = null;
+    }
+
+    public bool bind(int port) {
+        this.listener = Net_bind(port);
+        return this.listener != null;
+    }
+
+    public TcpClient accept() {
+        Socket clientSocket = Net_accept(this.listener);
+        TcpClient client = new TcpClient();
+        client.setSocket(clientSocket);
+        return client;
+    }
+
+    public void close() {
+        Net_close(this.listener);
+        this.listener = null;
+    }
+}

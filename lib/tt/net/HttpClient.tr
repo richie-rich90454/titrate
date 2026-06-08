@@ -1,0 +1,10 @@
+// HTTP client operations backed by VM built-ins.
+public class HttpClient {
+    public String get(String url) {
+        return Http_get(url);
+    }
+
+    public String post(String url, String body, String contentType) {
+        return Http_post(url, body, contentType);
+    }
+}

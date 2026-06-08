@@ -78,6 +78,38 @@ impl Vm {
         vm.register_native("String_trim", native_string_trim);
         vm.register_native("String_length", native_string_length);
 
+        // Path natives
+        vm.register_native("Path_join", native_path_join);
+        vm.register_native("Path_exists", native_path_exists);
+        vm.register_native("Path_isFile", native_path_is_file);
+        vm.register_native("Path_isDir", native_path_is_dir);
+        vm.register_native("Path_basename", native_path_basename);
+        vm.register_native("Path_dirname", native_path_dirname);
+        vm.register_native("Path_extension", native_path_extension);
+
+        // Directory natives
+        vm.register_native("Dir_list", native_dir_list);
+        vm.register_native("Dir_create", native_dir_create);
+        vm.register_native("Dir_remove", native_dir_remove);
+
+        // Sys natives
+        vm.register_native("Sys_args", native_sys_args);
+        vm.register_native("Sys_env", native_sys_env);
+        vm.register_native("Sys_setEnv", native_sys_set_env);
+        vm.register_native("Sys_exit", native_sys_exit);
+        vm.register_native("Sys_workingDir", native_sys_working_dir);
+        vm.register_native("Sys_sleep", native_sys_sleep);
+
+        // Network natives
+        vm.register_native("Net_connect", native_net_connect);
+        vm.register_native("Net_send", native_net_send);
+        vm.register_native("Net_receive", native_net_receive);
+        vm.register_native("Net_bind", native_net_bind);
+        vm.register_native("Net_accept", native_net_accept);
+        vm.register_native("Net_close", native_net_close);
+        vm.register_native("Http_get", native_http_get);
+        vm.register_native("Http_post", native_http_post);
+
         vm
     }
 
@@ -3449,6 +3481,466 @@ fn native_string_length(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Path native functions
+// ---------------------------------------------------------------------------
+
+fn native_path_join(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Path_join: expected 2 arguments (path, other)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(path), Value::String(other)) => {
+            let joined = std::path::Path::new(path.as_str())
+                .join(other.as_str())
+                .to_string_lossy()
+                .to_string();
+            Ok(Value::String(Rc::new(joined)))
+        }
+        _ => Err("Path_join: expected (String, String)".to_string()),
+    }
+}
+
+fn native_path_exists(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Path_exists: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).exists())),
+        _ => Err("Path_exists: expected String argument".to_string()),
+    }
+}
+
+fn native_path_is_file(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Path_isFile: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).is_file())),
+        _ => Err("Path_isFile: expected String argument".to_string()),
+    }
+}
+
+fn native_path_is_dir(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Path_isDir: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).is_dir())),
+        _ => Err("Path_isDir: expected String argument".to_string()),
+    }
+}
+
+fn native_path_basename(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Path_basename: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => {
+            let name = std::path::Path::new(path.as_str())
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            Ok(Value::String(Rc::new(name)))
+        }
+        _ => Err("Path_basename: expected String argument".to_string()),
+    }
+}
+
+fn native_path_dirname(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Path_dirname: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => {
+            let dir = std::path::Path::new(path.as_str())
+                .parent()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            Ok(Value::String(Rc::new(dir)))
+        }
+        _ => Err("Path_dirname: expected String argument".to_string()),
+    }
+}
+
+fn native_path_extension(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Path_extension: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => {
+            let ext = std::path::Path::new(path.as_str())
+                .extension()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            Ok(Value::String(Rc::new(ext)))
+        }
+        _ => Err("Path_extension: expected String argument".to_string()),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Directory native functions
+// ---------------------------------------------------------------------------
+
+fn native_dir_list(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Dir_list: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => {
+            let entries: Vec<Value> = std::fs::read_dir(path.as_str())
+                .map_err(|e| format!("Dir_list: {}", e))?
+                .filter_map(|e| e.ok())
+                .map(|e| Value::String(Rc::new(e.file_name().to_string_lossy().to_string())))
+                .collect();
+            Ok(Value::Array { elements: entries })
+        }
+        _ => Err("Dir_list: expected String argument".to_string()),
+    }
+}
+
+fn native_dir_create(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Dir_create: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => match std::fs::create_dir_all(path.as_str()) {
+            Ok(()) => Ok(Value::Bool(true)),
+            Err(_) => Ok(Value::Bool(false)),
+        },
+        _ => Err("Dir_create: expected String argument".to_string()),
+    }
+}
+
+fn native_dir_remove(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Dir_remove: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => match std::fs::remove_dir_all(path.as_str()) {
+            Ok(()) => Ok(Value::Bool(true)),
+            Err(_) => Ok(Value::Bool(false)),
+        },
+        _ => Err("Dir_remove: expected String argument".to_string()),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sys native functions
+// ---------------------------------------------------------------------------
+
+fn native_sys_args(args: &[Value]) -> Result<Value, String> {
+    // The VM doesn't have direct access to std::env::args() in a clean way,
+    // but we can return an empty array as placeholder. A real implementation
+    // would need the args to be passed into the VM at startup.
+    let _ = args;
+    let elements: Vec<Value> = std::env::args()
+        .map(|a| Value::String(Rc::new(a)))
+        .collect();
+    Ok(Value::Array { elements })
+}
+
+fn native_sys_env(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Sys_env: expected 1 argument (key)".to_string());
+    }
+    match &args[0] {
+        Value::String(key) => match std::env::var(key.as_str()) {
+            Ok(val) => Ok(Value::String(Rc::new(val))),
+            Err(_) => Ok(Value::String(Rc::new(String::new()))),
+        },
+        _ => Err("Sys_env: expected String argument".to_string()),
+    }
+}
+
+fn native_sys_set_env(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Sys_setEnv: expected 2 arguments (key, value)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(key), Value::String(val)) => {
+            std::env::set_var(key.as_str(), val.as_str());
+            Ok(Value::Void)
+        }
+        _ => Err("Sys_setEnv: expected (String, String)".to_string()),
+    }
+}
+
+fn native_sys_exit(args: &[Value]) -> Result<Value, String> {
+    let code = if args.is_empty() {
+        0i64
+    } else {
+        args[0].to_i64().unwrap_or(0)
+    };
+    std::process::exit(code as i32);
+}
+
+fn native_sys_working_dir(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    match std::env::current_dir() {
+        Ok(path) => Ok(Value::String(Rc::new(path.to_string_lossy().to_string()))),
+        Err(e) => Err(format!("Sys_workingDir: {}", e)),
+    }
+}
+
+fn native_sys_sleep(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Sys_sleep: expected 1 argument (milliseconds)".to_string());
+    }
+    let ms = args[0].to_i64().unwrap_or(0);
+    std::thread::sleep(std::time::Duration::from_millis(ms as u64));
+    Ok(Value::Void)
+}
+
+// ---------------------------------------------------------------------------
+// Network native functions
+// ---------------------------------------------------------------------------
+
+fn native_net_connect(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Net_connect: expected 2 arguments (host, port)".to_string());
+    }
+    let host = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Net_connect: expected String host".to_string()),
+    };
+    let port = args[1].to_i64().unwrap_or(0);
+    let addr = format!("{}:{}", host, port);
+    match std::net::TcpStream::connect(&addr) {
+        Ok(stream) => Ok(Value::Socket(Rc::new(RefCell::new(Some(stream))))),
+        Err(e) => Err(format!("Net_connect: failed to connect to {}: {}", addr, e)),
+    }
+}
+
+fn native_net_send(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Net_send: expected 2 arguments (socket, data)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::Socket(socket_rc), Value::String(data)) => {
+            let mut socket_opt = socket_rc.borrow_mut();
+            match socket_opt.as_mut() {
+                Some(stream) => {
+                    use std::io::Write;
+                    match stream.write_all(data.as_bytes()) {
+                        Ok(()) => Ok(Value::Int(data.len() as i32)),
+                        Err(e) => Err(format!("Net_send: {}", e)),
+                    }
+                }
+                None => Err("Net_send: socket is closed".to_string()),
+            }
+        }
+        _ => Err("Net_send: expected (Socket, String)".to_string()),
+    }
+}
+
+fn native_net_receive(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Net_receive: expected 2 arguments (socket, maxBytes)".to_string());
+    }
+    let max_bytes = args[1].to_i64().unwrap_or(4096) as usize;
+    match &args[0] {
+        Value::Socket(socket_rc) => {
+            let mut socket_opt = socket_rc.borrow_mut();
+            match socket_opt.as_mut() {
+                Some(stream) => {
+                    use std::io::Read;
+                    let mut buf = vec![0u8; max_bytes];
+                    match stream.read(&mut buf) {
+                        Ok(n) => {
+                            let s = String::from_utf8_lossy(&buf[..n]).to_string();
+                            Ok(Value::String(Rc::new(s)))
+                        }
+                        Err(e) => Err(format!("Net_receive: {}", e)),
+                    }
+                }
+                None => Err("Net_receive: socket is closed".to_string()),
+            }
+        }
+        _ => Err("Net_receive: expected Socket argument".to_string()),
+    }
+}
+
+fn native_net_bind(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Net_bind: expected 1 argument (port)".to_string());
+    }
+    let port = args[0].to_i64().unwrap_or(0);
+    let addr = format!("0.0.0.0:{}", port);
+    match std::net::TcpListener::bind(&addr) {
+        Ok(listener) => Ok(Value::Listener(Rc::new(RefCell::new(Some(listener))))),
+        Err(e) => Err(format!("Net_bind: failed to bind to port {}: {}", port, e)),
+    }
+}
+
+fn native_net_accept(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Net_accept: expected 1 argument (listener)".to_string());
+    }
+    match &args[0] {
+        Value::Listener(listener_rc) => {
+            let mut listener_opt = listener_rc.borrow_mut();
+            match listener_opt.as_mut() {
+                Some(listener) => {
+                    let (stream, _addr) = listener.accept()
+                        .map_err(|e| format!("Net_accept: {}", e))?;
+                    Ok(Value::Socket(Rc::new(RefCell::new(Some(stream)))))
+                }
+                None => Err("Net_accept: listener is closed".to_string()),
+            }
+        }
+        _ => Err("Net_accept: expected Listener argument".to_string()),
+    }
+}
+
+fn native_net_close(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Net_close: expected 1 argument (socket or listener)".to_string());
+    }
+    match &args[0] {
+        Value::Socket(socket_rc) => {
+            let mut socket_opt = socket_rc.borrow_mut();
+            *socket_opt = None;
+            Ok(Value::Void)
+        }
+        Value::Listener(listener_rc) => {
+            let mut listener_opt = listener_rc.borrow_mut();
+            *listener_opt = None;
+            Ok(Value::Void)
+        }
+        _ => Err("Net_close: expected Socket or Listener argument".to_string()),
+    }
+}
+
+fn native_http_get(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Http_get: expected 1 argument (url)".to_string());
+    }
+    let url = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_get: expected String url".to_string()),
+    };
+
+    // Parse URL manually
+    let url_str = url.to_string();
+    let (host, port, path) = parse_http_url(&url_str)?;
+
+    let addr = format!("{}:{}", host, port);
+    let mut stream = std::net::TcpStream::connect(&addr)
+        .map_err(|e| format!("Http_get: connection failed: {}", e))?;
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+        .map_err(|e| format!("Http_get: {}", e))?;
+
+    let request = format!("GET {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", path, host);
+    use std::io::Write;
+    stream.write_all(request.as_bytes())
+        .map_err(|e| format!("Http_get: write failed: {}", e))?;
+
+    use std::io::Read;
+    let mut response = Vec::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => response.extend_from_slice(&buf[..n]),
+            Err(e) => {
+                if response.is_empty() {
+                    return Err(format!("Http_get: read failed: {}", e));
+                }
+                break;
+            }
+        }
+    }
+
+    let response_str = String::from_utf8_lossy(&response).to_string();
+    // Strip HTTP headers
+    if let Some(idx) = response_str.find("\r\n\r\n") {
+        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
+    } else {
+        Ok(Value::String(Rc::new(response_str)))
+    }
+}
+
+fn native_http_post(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("Http_post: expected 3 arguments (url, body, contentType)".to_string());
+    }
+    let url = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_post: expected String url".to_string()),
+    };
+    let body = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_post: expected String body".to_string()),
+    };
+    let content_type = match &args[2] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_post: expected String contentType".to_string()),
+    };
+
+    let url_str = url.to_string();
+    let (host, port, path) = parse_http_url(&url_str)?;
+
+    let addr = format!("{}:{}", host, port);
+    let mut stream = std::net::TcpStream::connect(&addr)
+        .map_err(|e| format!("Http_post: connection failed: {}", e))?;
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+        .map_err(|e| format!("Http_post: {}", e))?;
+
+    let request = format!(
+        "POST {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        path, host, content_type, body.len(), body
+    );
+    use std::io::Write;
+    stream.write_all(request.as_bytes())
+        .map_err(|e| format!("Http_post: write failed: {}", e))?;
+
+    use std::io::Read;
+    let mut response = Vec::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => response.extend_from_slice(&buf[..n]),
+            Err(e) => {
+                if response.is_empty() {
+                    return Err(format!("Http_post: read failed: {}", e));
+                }
+                break;
+            }
+        }
+    }
+
+    let response_str = String::from_utf8_lossy(&response).to_string();
+    if let Some(idx) = response_str.find("\r\n\r\n") {
+        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
+    } else {
+        Ok(Value::String(Rc::new(response_str)))
+    }
+}
+
+/// Parse a simple HTTP URL into (host, port, path).
+fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
+    let url = url.strip_prefix("http://").unwrap_or(url);
+    let url = url.strip_prefix("https://").unwrap_or(url);
+
+    let (host_port, path) = match url.find('/') {
+        Some(idx) => (&url[..idx], &url[idx..]),
+        None => (url, "/"),
+    };
+
+    let (host, port) = if host_port.contains(':') {
+        let parts: Vec<&str> = host_port.splitn(2, ':').collect();
+        let port: u16 = parts[1].parse().unwrap_or(80);
+        (parts[0].to_string(), port)
+    } else {
+        (host_port.to_string(), 80)
+    };
+
+    Ok((host, port, path.to_string()))
+}
+
 /// Look up a built-in native function by name. Returns `None` for unknown names.
 fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -3468,6 +3960,34 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Integer_parseOr" => Some(native_integer_parse_or),
         "String_trim" => Some(native_string_trim),
         "String_length" => Some(native_string_length),
+        // Path natives
+        "Path_join" => Some(native_path_join),
+        "Path_exists" => Some(native_path_exists),
+        "Path_isFile" => Some(native_path_is_file),
+        "Path_isDir" => Some(native_path_is_dir),
+        "Path_basename" => Some(native_path_basename),
+        "Path_dirname" => Some(native_path_dirname),
+        "Path_extension" => Some(native_path_extension),
+        // Directory natives
+        "Dir_list" => Some(native_dir_list),
+        "Dir_create" => Some(native_dir_create),
+        "Dir_remove" => Some(native_dir_remove),
+        // Sys natives
+        "Sys_args" => Some(native_sys_args),
+        "Sys_env" => Some(native_sys_env),
+        "Sys_setEnv" => Some(native_sys_set_env),
+        "Sys_exit" => Some(native_sys_exit),
+        "Sys_workingDir" => Some(native_sys_working_dir),
+        "Sys_sleep" => Some(native_sys_sleep),
+        // Network natives
+        "Net_connect" => Some(native_net_connect),
+        "Net_send" => Some(native_net_send),
+        "Net_receive" => Some(native_net_receive),
+        "Net_bind" => Some(native_net_bind),
+        "Net_accept" => Some(native_net_accept),
+        "Net_close" => Some(native_net_close),
+        "Http_get" => Some(native_http_get),
+        "Http_post" => Some(native_http_post),
         _ => None,
     }
 }
