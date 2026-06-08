@@ -1,0 +1,63 @@
+// Regex provides regular expression operations.
+import tt::regex::Match;
+import tt::util::ArrayList;
+
+public class Regex {
+    public String pattern;
+
+    public Regex(String p) {
+        this.pattern = p;
+    }
+
+    public static Regex compile(String p) {
+        return new Regex(p);
+    }
+
+    public bool match(String input) {
+        return Regex_match(this.pattern, input);
+    }
+
+    public Match find(String input) {
+        String raw = Regex_find(this.pattern, input);
+        if (raw.length() == 0) {
+            return null;
+        }
+        // Parse "start,end,matched_text" format
+        int firstComma = raw.indexOf(",");
+        int secondComma = raw.indexOf(",", firstComma + 1);
+        int start = Integer.parseInt(raw.substring(0, firstComma));
+        int end = Integer.parseInt(raw.substring(firstComma + 1, secondComma));
+        String matched = raw.substring(secondComma + 1);
+        Match m = new Match(matched, start, end);
+        return m;
+    }
+
+    public ArrayList<Match> findAll(String input) {
+        ArrayList<Match> results = new ArrayList<Match>();
+        String remaining = input;
+        int offset = 0;
+        while (true) {
+            String raw = Regex_find(this.pattern, remaining);
+            if (raw.length() == 0) {
+                break;
+            }
+            int firstComma = raw.indexOf(",");
+            int secondComma = raw.indexOf(",", firstComma + 1);
+            int start = Integer.parseInt(raw.substring(0, firstComma));
+            int end = Integer.parseInt(raw.substring(firstComma + 1, secondComma));
+            String matched = raw.substring(secondComma + 1);
+            Match m = new Match(matched, start + offset, end + offset);
+            results.add(m);
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = remaining.substring(end);
+        }
+        return results;
+    }
+
+    public String replaceAll(String input, String replacement) {
+        return Regex_replace(this.pattern, input, replacement);
+    }
+}

@@ -1,0 +1,36 @@
+// Match represents a single regex match result.
+import tt::util::ArrayList;
+
+public class Match {
+    public String matched;
+    public int start;
+    public int end;
+    public ArrayList<String> groups;
+
+    public Match(String m, int s, int e) {
+        this.matched = m;
+        this.start = s;
+        this.end = e;
+        this.groups = new ArrayList<String>();
+    }
+
+    public String getMatched() {
+        return this.matched;
+    }
+
+    public int getStart() {
+        return this.start;
+    }
+
+    public int getEnd() {
+        return this.end;
+    }
+
+    public String getGroup(int i) {
+        return this.groups.get(i);
+    }
+
+    public int groupCount() {
+        return this.groups.size();
+    }
+}
