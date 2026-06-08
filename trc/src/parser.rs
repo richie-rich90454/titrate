@@ -138,6 +138,31 @@ impl Parser {
             Ok(vec![])
         }
     }
+
+    /// If the current token is an operator that can be overloaded,
+    /// return its string representation (e.g. "+", "==", "<<").
+    /// Returns None if the current token is not an overloadable operator.
+    fn operator_token_to_str(&self) -> Option<&'static str> {
+        match self.peek() {
+            lexer::Token::Plus => Some("+"),
+            lexer::Token::Minus => Some("-"),
+            lexer::Token::Star => Some("*"),
+            lexer::Token::Slash => Some("/"),
+            lexer::Token::Percent => Some("%"),
+            lexer::Token::EqualEqual => Some("=="),
+            lexer::Token::NotEqual => Some("!="),
+            lexer::Token::Less => Some("<"),
+            lexer::Token::Greater => Some(">"),
+            lexer::Token::LessEqual => Some("<="),
+            lexer::Token::GreaterEqual => Some(">="),
+            lexer::Token::Ampersand => Some("&"),
+            lexer::Token::Pipe => Some("|"),
+            lexer::Token::Caret => Some("^"),
+            lexer::Token::LeftShift => Some("<<"),
+            lexer::Token::RightShift => Some(">>"),
+            _ => None,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -484,9 +509,14 @@ impl Parser {
                 lexer::Token::Identifier(s) => s,
                 _ => return Err(format!("Expected parameter name, found {}", name_tok)),
             };
-            self.expect(&lexer::Token::Colon)?;
-            let typ = self.parse_type()?;
-            params.push(ast::Param { name, typ });
+            // Support `self` without type annotation (type defaults to "Self")
+            if name == "self" && !self.is_at(&lexer::Token::Colon) {
+                params.push(ast::Param { name, typ: ast::Type::simple("Self") });
+            } else {
+                self.expect(&lexer::Token::Colon)?;
+                let typ = self.parse_type()?;
+                params.push(ast::Param { name, typ });
+            }
             if !self.match_token(&lexer::Token::Comma) {
                 break;
             }
@@ -612,10 +642,18 @@ impl Parser {
             self.advance();
             let span = self.make_span();
             let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-            let name = match name_tok {
+            let mut name = match name_tok {
                 lexer::Token::Identifier(s) => s,
                 _ => return Err(format!("Expected method name, found {}", name_tok)),
             };
+            // Support operator overloading: `fn operator+(...)` → name = "operator+"
+            if name == "operator" {
+                let op_str = self.operator_token_to_str();
+                if let Some(s) = op_str {
+                    name = format!("operator{}", s);
+                    self.advance(); // consume the operator token
+                }
+            }
             let type_params = self.parse_type_params()?;
             self.expect(&lexer::Token::LeftParen)?;
             let params = self.parse_params()?;
@@ -988,6 +1026,29 @@ impl Parser {
             span,
         })
     }
+
+    /// Parse tuple destructuring: `let (a, b, ...) = expr;` or `var (a, b, ...) = expr;`
+    fn parse_tuple_destructure(&mut self, mutable: bool) -> Result<ast::Stmt, String> {
+        let span = self.make_span();
+        self.expect(&lexer::Token::LeftParen)?;
+        let mut names = Vec::new();
+        loop {
+            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+            let name = match name_tok {
+                lexer::Token::Identifier(s) => s,
+                _ => return Err(format!("Expected identifier in tuple destructuring, found {}", name_tok)),
+            };
+            names.push(name);
+            if !self.match_token(&lexer::Token::Comma) {
+                break;
+            }
+        }
+        self.expect(&lexer::Token::RightParen)?;
+        self.expect(&lexer::Token::Equals)?;
+        let expr = self.parse_expression()?;
+        self.expect(&lexer::Token::Semicolon)?;
+        Ok(ast::Stmt::TupleDestructure { names, expr, mutable, span })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1033,13 +1094,23 @@ impl Parser {
             }
             lexer::Token::Let => {
                 self.advance();
-                let vd = self.parse_let_decl(false)?;
-                Ok(ast::Stmt::VarDecl(vd))
+                // Check for tuple destructuring: let (a, b, ...) = expr;
+                if self.is_at(&lexer::Token::LeftParen) {
+                    self.parse_tuple_destructure(false)
+                } else {
+                    let vd = self.parse_let_decl(false)?;
+                    Ok(ast::Stmt::VarDecl(vd))
+                }
             }
             lexer::Token::Var => {
                 self.advance();
-                let vd = self.parse_var_decl()?;
-                Ok(ast::Stmt::VarDecl(vd))
+                // Check for tuple destructuring: var (a, b, ...) = expr;
+                if self.is_at(&lexer::Token::LeftParen) {
+                    self.parse_tuple_destructure(true)
+                } else {
+                    let vd = self.parse_var_decl()?;
+                    Ok(ast::Stmt::VarDecl(vd))
+                }
             }
             lexer::Token::Const => {
                 self.advance();
@@ -1532,6 +1603,30 @@ impl Parser {
             return Ok(ast::Type::Ref(Box::new(inner)));
         }
 
+        // Check for tuple type: (T1, T2, ...)
+        if self.match_token(&lexer::Token::LeftParen) {
+            // Empty parens = void (unit type)
+            if self.is_at(&lexer::Token::RightParen) {
+                self.advance();
+                return Ok(ast::Type::simple("void"));
+            }
+            let first = self.parse_type()?;
+            if self.match_token(&lexer::Token::Comma) {
+                let mut types = vec![first];
+                loop {
+                    types.push(self.parse_type()?);
+                    if !self.match_token(&lexer::Token::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&lexer::Token::RightParen)?;
+                return Ok(ast::Type::Tuple(types));
+            }
+            self.expect(&lexer::Token::RightParen)?;
+            // Single type in parens is just grouping
+            return Ok(first);
+        }
+
         let tok = self.peek().clone();
         let name = if is_type_keyword(&tok) {
             self.advance();
@@ -1797,6 +1892,32 @@ impl Parser {
         Ok(expr)
     }
 
+    /// Parse closure parameters: `x`, `x: Type`, or `x, y: Type, z`
+    /// Each param is (name, type). If no type annotation, defaults to "auto".
+    fn parse_closure_params(&mut self) -> Result<Vec<(String, ast::Type)>, String> {
+        let mut params = Vec::new();
+        if self.is_at(&lexer::Token::RightParen) {
+            return Ok(params);
+        }
+        loop {
+            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+            let name = match name_tok {
+                lexer::Token::Identifier(s) => s,
+                _ => return Err(format!("Expected parameter name, found {}", name_tok)),
+            };
+            let typ = if self.match_token(&lexer::Token::Colon) {
+                self.parse_type()?
+            } else {
+                ast::Type::simple("auto")
+            };
+            params.push((name, typ));
+            if !self.match_token(&lexer::Token::Comma) {
+                break;
+            }
+        }
+        Ok(params)
+    }
+
     fn parse_args(&mut self) -> Result<Vec<ast::Expr>, String> {
         let mut args = Vec::new();
         if self.is_at(&lexer::Token::RightParen) {
@@ -1898,9 +2019,21 @@ impl Parser {
                     self.advance();
                     return Ok(ast::Expr::Unit(span));
                 }
-                let expr = self.parse_expression()?;
+                let first = self.parse_expression()?;
+                // Check for tuple: (expr, expr, ...)
+                if self.match_token(&lexer::Token::Comma) {
+                    let mut elements = vec![first];
+                    loop {
+                        elements.push(self.parse_expression()?);
+                        if !self.match_token(&lexer::Token::Comma) {
+                            break;
+                        }
+                    }
+                    self.expect(&lexer::Token::RightParen)?;
+                    return Ok(ast::Expr::Tuple(elements, span));
+                }
                 self.expect(&lexer::Token::RightParen)?;
-                Ok(expr)
+                Ok(first) // grouping: (expr)
             }
             lexer::Token::New => {
                 let span = self.make_span();
@@ -1934,6 +2067,46 @@ impl Parser {
                     vec![expr],
                     span,
                 ))
+            }
+            lexer::Token::Fn => {
+                // Closure expression: fn(params) => expr  or  fn(params) { block }
+                let span = self.make_span();
+                self.advance(); // consume 'fn'
+                self.expect(&lexer::Token::LeftParen)?;
+                let params = self.parse_closure_params()?;
+                self.expect(&lexer::Token::RightParen)?;
+
+                let return_type = ast::Type::simple("void");
+
+                if self.match_token(&lexer::Token::FatArrow) {
+                    // Expression body: fn(x) => x * 2
+                    let expr = self.parse_expression()?;
+                    Ok(ast::Expr::Closure {
+                        params,
+                        return_type,
+                        body: vec![],
+                        expr: Some(Box::new(expr)),
+                        captured_vars: vec![],
+                        span,
+                    })
+                } else if self.is_at(&lexer::Token::LeftBrace) {
+                    // Block body: fn(x) { return x + 1; }
+                    let body = self.parse_block()?;
+                    Ok(ast::Expr::Closure {
+                        params,
+                        return_type,
+                        body,
+                        expr: None,
+                        captured_vars: vec![],
+                        span,
+                    })
+                } else {
+                    let (line, col) = self.span_here();
+                    Err(format!(
+                        "Expected '=>' or '{{' after closure parameters at {}:{}",
+                        line, col
+                    ))
+                }
             }
             lexer::Token::Unsafe => {
                 let span = self.make_span();
@@ -3611,6 +3784,159 @@ import math::sqrt;"#;
                 }
                 other => panic!("Expected For (for-in), got {:?}", other),
             },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Operator overloading tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_operator_overload_method() {
+        let src = r#"class Vec2 {
+    double x;
+    double y;
+
+    fn operator+(self, other: Vec2): Vec2 {
+        return new Vec2(this.x + other.x, this.y + other.y);
+    }
+}"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Class(cd) => {
+                assert_eq!(cd.name, "Vec2");
+                // Should have 2 fields and 1 method
+                let methods: Vec<_> = cd.members.iter().filter_map(|m| match m {
+                    ast::ClassMember::Method(m) => Some(m.name.clone()),
+                    _ => None,
+                }).collect();
+                assert!(methods.contains(&"operator+".to_string()),
+                    "Expected operator+ method, found methods: {:?}", methods);
+            }
+            other => panic!("Expected Class, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_operator_overload_comparison() {
+        let src = r#"class Vec2 {
+    double x;
+    double y;
+
+    fn operator==(self, other: Vec2): bool {
+        return this.x == other.x && this.y == other.y;
+    }
+
+    fn operator!=(self, other: Vec2): bool {
+        return !(this == other);
+    }
+}"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Class(cd) => {
+                assert_eq!(cd.name, "Vec2");
+                let methods: Vec<_> = cd.members.iter().filter_map(|m| match m {
+                    ast::ClassMember::Method(m) => Some(m.name.clone()),
+                    _ => None,
+                }).collect();
+                assert!(methods.contains(&"operator==".to_string()),
+                    "Expected operator== method, found methods: {:?}", methods);
+                assert!(methods.contains(&"operator!=".to_string()),
+                    "Expected operator!= method, found methods: {:?}", methods);
+            }
+            other => panic!("Expected Class, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Tuple tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_tuple_two_elements() {
+        let src = r#"fn f(): void { let x = (1, "hello"); }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.body.len(), 1);
+                match &fd.body[0] {
+                    ast::Stmt::VarDecl(vd) => {
+                        match &vd.init {
+                            Some(ast::Expr::Tuple(elements, _)) => {
+                                assert_eq!(elements.len(), 2);
+                            }
+                            other => panic!("Expected Tuple expression, got {:?}", other),
+                        }
+                    }
+                    other => panic!("Expected VarDecl, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_tuple_three_elements() {
+        let src = r#"fn f(): void { let x = (1, 2, 3); }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.body.len(), 1);
+                match &fd.body[0] {
+                    ast::Stmt::VarDecl(vd) => {
+                        match &vd.init {
+                            Some(ast::Expr::Tuple(elements, _)) => {
+                                assert_eq!(elements.len(), 3);
+                            }
+                            other => panic!("Expected Tuple expression, got {:?}", other),
+                        }
+                    }
+                    other => panic!("Expected VarDecl, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_tuple_type_annotation() {
+        let src = r#"fn f(): void { let x: (int, string) = (1, "a"); }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.body.len(), 1);
+                match &fd.body[0] {
+                    ast::Stmt::VarDecl(vd) => {
+                        match &vd.typ {
+                            Some(ast::Type::Tuple(types)) => {
+                                assert_eq!(types.len(), 2);
+                            }
+                            other => panic!("Expected Tuple type, got {:?}", other),
+                        }
+                    }
+                    other => panic!("Expected VarDecl, got {:?}", other),
+                }
+            }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_tuple_destructuring() {
+        let src = r#"fn f(): void { let (a, b) = pair; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.body.len(), 1);
+                match &fd.body[0] {
+                    ast::Stmt::TupleDestructure { names, mutable, .. } => {
+                        assert_eq!(names.len(), 2);
+                        assert_eq!(names[0], "a");
+                        assert_eq!(names[1], "b");
+                        assert!(!mutable);
+                    }
+                    other => panic!("Expected TupleDestructure, got {:?}", other),
+                }
+            }
             other => panic!("Expected Function, got {:?}", other),
         }
     }
