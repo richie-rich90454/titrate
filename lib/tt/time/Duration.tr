@@ -1,0 +1,66 @@
+// Duration represents a length of time in milliseconds.
+public class Duration {
+    public long millis;
+
+    public Duration(long ms) {
+        this.millis = ms;
+    }
+
+    public static Duration ofMillis(long ms) {
+        return new Duration(ms);
+    }
+
+    public static Duration ofSeconds(long s) {
+        return new Duration(s * 1000);
+    }
+
+    public static Duration ofMinutes(long m) {
+        return new Duration(m * 60000);
+    }
+
+    public static Duration ofHours(long h) {
+        return new Duration(h * 3600000);
+    }
+
+    public long toMillis() {
+        return this.millis;
+    }
+
+    public long toSeconds() {
+        return this.millis / 1000;
+    }
+
+    public long toMinutes() {
+        return this.millis / 60000;
+    }
+
+    public long toHours() {
+        return this.millis / 3600000;
+    }
+
+    public Duration plus(Duration other) {
+        return new Duration(this.millis + other.millis);
+    }
+
+    public Duration minus(Duration other) {
+        return new Duration(this.millis - other.millis);
+    }
+
+    public String toString() {
+        long ms = this.millis;
+        long hours = ms / 3600000;
+        long minutes = (ms % 3600000) / 60000;
+        long seconds = (ms % 60000) / 1000;
+        long remainder = ms % 1000;
+        if (hours > 0) {
+            return hours + "h " + minutes + "m " + seconds + "s " + remainder + "ms";
+        }
+        if (minutes > 0) {
+            return minutes + "m " + seconds + "s " + remainder + "ms";
+        }
+        if (seconds > 0) {
+            return seconds + "s " + remainder + "ms";
+        }
+        return remainder + "ms";
+    }
+}

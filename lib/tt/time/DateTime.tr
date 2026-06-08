@@ -1,0 +1,58 @@
+// DateTime represents a point in time as milliseconds since the Unix epoch.
+import tt::time::Duration;
+
+public class DateTime {
+    public long epochMillis;
+
+    public DateTime(long ms) {
+        this.epochMillis = ms;
+    }
+
+    public static DateTime now() {
+        return new DateTime(Time_now());
+    }
+
+    public static DateTime ofEpochMillis(long ms) {
+        return new DateTime(ms);
+    }
+
+    public int getYear() {
+        return Time_getYear(this.epochMillis);
+    }
+
+    public int getMonth() {
+        return Time_getMonth(this.epochMillis);
+    }
+
+    public int getDay() {
+        return Time_getDay(this.epochMillis);
+    }
+
+    public int getHour() {
+        return Time_getHour(this.epochMillis);
+    }
+
+    public int getMinute() {
+        return Time_getMinute(this.epochMillis);
+    }
+
+    public int getSecond() {
+        return Time_getSecond(this.epochMillis);
+    }
+
+    public DateTime plus(Duration d) {
+        return new DateTime(this.epochMillis + d.millis);
+    }
+
+    public DateTime minus(Duration d) {
+        return new DateTime(this.epochMillis - d.millis);
+    }
+
+    public String format(String fmt) {
+        return Time_format(this.epochMillis, fmt);
+    }
+
+    public String toString() {
+        return this.format("%Y-%m-%d %H:%M:%S");
+    }
+}

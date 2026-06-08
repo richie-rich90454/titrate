@@ -1,0 +1,17 @@
+// Time utility class for common time operations.
+import tt::time::DateTime;
+import tt::time::Duration;
+
+public class Time {
+    public static DateTime now() {
+        return DateTime.now();
+    }
+
+    public static void sleep(long ms) {
+        Time_sleep(ms);
+    }
+
+    public static void sleepDuration(Duration d) {
+        Time_sleep(d.millis);
+    }
+}
