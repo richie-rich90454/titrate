@@ -1,0 +1,59 @@
+class Meter {
+    double value;
+    Meter(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Meter): Meter { return new Meter(this.value + other.value); }
+    fn minus(other: Meter): Meter { return new Meter(this.value - other.value); }
+    fn times(d: double): Meter { return new Meter(this.value * d); }
+    fn div(d: double): Meter { return new Meter(this.value / d); }
+    fn toString(): string { return Double::toString(this.value) + " m"; }
+}
+
+class Second {
+    double value;
+    Second(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Second): Second { return new Second(this.value + other.value); }
+    fn minus(other: Second): Second { return new Second(this.value - other.value); }
+    fn times(d: double): Second { return new Second(this.value * d); }
+    fn div(d: double): Second { return new Second(this.value / d); }
+    fn toString(): string { return Double::toString(this.value) + " s"; }
+}
+
+class Kilogram {
+    double value;
+    Kilogram(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Kilogram): Kilogram { return new Kilogram(this.value + other.value); }
+    fn minus(other: Kilogram): Kilogram { return new Kilogram(this.value - other.value); }
+    fn times(d: double): Kilogram { return new Kilogram(this.value * d); }
+    fn div(d: double): Kilogram { return new Kilogram(this.value / d); }
+    fn toString(): string { return Double::toString(this.value) + " kg"; }
+}
+
+class Kelvin {
+    double value;
+    Kelvin(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Kelvin): Kelvin { return new Kelvin(this.value + other.value); }
+    fn minus(other: Kelvin): Kelvin { return new Kelvin(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " K"; }
+}
+
+class Mole {
+    double value;
+    Mole(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Mole): Mole { return new Mole(this.value + other.value); }
+    fn minus(other: Mole): Mole { return new Mole(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " mol"; }
+}
+
+class Ampere {
+    double value;
+    Ampere(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Ampere): Ampere { return new Ampere(this.value + other.value); }
+    fn minus(other: Ampere): Ampere { return new Ampere(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " A"; }
+}

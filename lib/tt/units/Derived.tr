@@ -1,0 +1,87 @@
+import tt.units.Base;
+
+class Joule {
+    double value;
+    Joule(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Joule): Joule { return new Joule(this.value + other.value); }
+    fn minus(other: Joule): Joule { return new Joule(this.value - other.value); }
+    fn times(d: double): Joule { return new Joule(this.value * d); }
+    fn div(d: double): Joule { return new Joule(this.value / d); }
+    fn toString(): string { return Double::toString(this.value) + " J"; }
+
+    // Derived: kg * m^2 / s^2
+    static fn fromBase(m: Meter, kg: Kilogram, s: Second): Joule {
+        return new Joule(kg.getValue() * m.getValue() * m.getValue() / (s.getValue() * s.getValue()));
+    }
+}
+
+class Newton {
+    double value;
+    Newton(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Newton): Newton { return new Newton(this.value + other.value); }
+    fn minus(other: Newton): Newton { return new Newton(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " N"; }
+
+    // Derived: kg * m / s^2
+    static fn fromBase(m: Meter, kg: Kilogram, s: Second): Newton {
+        return new Newton(kg.getValue() * m.getValue() / (s.getValue() * s.getValue()));
+    }
+}
+
+class Pascal {
+    double value;
+    Pascal(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Pascal): Pascal { return new Pascal(this.value + other.value); }
+    fn minus(other: Pascal): Pascal { return new Pascal(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " Pa"; }
+
+    // Derived: N / m^2
+    static fn fromBase(n: Newton, m: Meter): Pascal {
+        return new Pascal(n.getValue() / (m.getValue() * m.getValue()));
+    }
+}
+
+class Watt {
+    double value;
+    Watt(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Watt): Watt { return new Watt(this.value + other.value); }
+    fn minus(other: Watt): Watt { return new Watt(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " W"; }
+
+    // Derived: J / s
+    static fn fromBase(j: Joule, s: Second): Watt {
+        return new Watt(j.getValue() / s.getValue());
+    }
+}
+
+class Coulomb {
+    double value;
+    Coulomb(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Coulomb): Coulomb { return new Coulomb(this.value + other.value); }
+    fn minus(other: Coulomb): Coulomb { return new Coulomb(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " C"; }
+
+    // Derived: A * s
+    static fn fromBase(a: Ampere, s: Second): Coulomb {
+        return new Coulomb(a.getValue() * s.getValue());
+    }
+}
+
+class Volt {
+    double value;
+    Volt(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Volt): Volt { return new Volt(this.value + other.value); }
+    fn minus(other: Volt): Volt { return new Volt(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " V"; }
+
+    // Derived: J / C
+    static fn fromBase(j: Joule, c: Coulomb): Volt {
+        return new Volt(j.getValue() / c.getValue());
+    }
+}

@@ -1,0 +1,11 @@
+class Constants {
+    static fn BOLTZMANN(): double { return 1.380649e-23; }
+    static fn AVOGADRO(): double { return 6.02214076e23; }
+    static fn GAS_CONSTANT(): double { return 8.314462618; }
+    static fn PLANCK(): double { return 6.62607015e-34; }
+    static fn SPEED_OF_LIGHT(): double { return 299792458.0; }
+    static fn ELEMENTARY_CHARGE(): double { return 1.602176634e-19; }
+    static fn COULOMB_CONSTANT(): double { return 8.9875517923e9; }
+    static fn GRAVITATIONAL(): double { return 6.67430e-11; }
+    static fn PI(): double { return 3.14159265358979323846; }
+}
