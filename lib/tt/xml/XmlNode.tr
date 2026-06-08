@@ -1,0 +1,150 @@
+// XmlNode represents an XML element with tag, attributes, children, and text.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class XmlNode {
+    public string tag;
+    public HashMap attributes;
+    public ArrayList<XmlNode> children;
+    public string text;
+
+    public XmlNode(string t) {
+        this.tag = t;
+        this.attributes = new HashMap();
+        this.children = new ArrayList<XmlNode>();
+        this.text = "";
+    }
+
+    public string getTag() {
+        return this.tag;
+    }
+
+    public string getText() {
+        return this.text;
+    }
+
+    public string getAttr(string name) {
+        string val = this.attributes.get(name);
+        if (val == null) {
+            return "";
+        }
+        return val;
+    }
+
+    public void setAttr(string name, string value) {
+        this.attributes.put(name, value);
+    }
+
+    public void addChild(XmlNode node) {
+        this.children.add(node);
+    }
+
+    public ArrayList<XmlNode> getChildren() {
+        return this.children;
+    }
+
+    public ArrayList<XmlNode> getChildrenByTag(string tag) {
+        ArrayList<XmlNode> result = new ArrayList<XmlNode>();
+        int i = 0;
+        while (i < this.children.size()) {
+            XmlNode child = this.children.get(i);
+            if (child.tag == tag) {
+                result.add(child);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // XML serialization
+    public string toString() {
+        return this.toStringWithIndent(0);
+    }
+
+    private string toStringWithIndent(int level) {
+        string indent = "";
+        int i = 0;
+        while (i < level) {
+            indent = indent + "  ";
+            i = i + 1;
+        }
+        string result = indent + "<" + this.tag;
+        // Serialize attributes
+        ArrayList<string> keys = this.attributes.keys();
+        int k = 0;
+        while (k < keys.size()) {
+            string key = keys.get(k);
+            string val = this.attributes.get(key);
+            result = result + " " + key + "=\"" + XmlNode::escapeAttr(val) + "\"";
+            k = k + 1;
+        }
+        // If no children and no text, self-close
+        if (this.children.size() == 0 && this.text == "") {
+            result = result + " />";
+            return result;
+        }
+        result = result + ">";
+        // If only text content (no children), inline it
+        if (this.children.size() == 0) {
+            result = result + XmlNode::escapeText(this.text) + "</" + this.tag + ">";
+            return result;
+        }
+        // Has children
+        result = result + "\n";
+        // Text content before children
+        if (this.text != "") {
+            result = result + indent + "  " + XmlNode::escapeText(this.text) + "\n";
+        }
+        int c = 0;
+        while (c < this.children.size()) {
+            result = result + this.children.get(c).toStringWithIndent(level + 1) + "\n";
+            c = c + 1;
+        }
+        result = result + indent + "</" + this.tag + ">";
+        return result;
+    }
+
+    // Escape text content for XML
+    public static string escapeText(string s) {
+        string result = "";
+        int i = 0;
+        while (i < s.length()) {
+            string c = s.charAt(i);
+            if (c == "&") {
+                result = result + "&amp;";
+            } else if (c == "<") {
+                result = result + "&lt;";
+            } else if (c == ">") {
+                result = result + "&gt;";
+            } else {
+                result = result + c;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Escape attribute value for XML
+    public static string escapeAttr(string s) {
+        string result = "";
+        int i = 0;
+        while (i < s.length()) {
+            string c = s.charAt(i);
+            if (c == "&") {
+                result = result + "&amp;";
+            } else if (c == "<") {
+                result = result + "&lt;";
+            } else if (c == ">") {
+                result = result + "&gt;";
+            } else if (c == "\"") {
+                result = result + "&quot;";
+            } else if (c == "'") {
+                result = result + "&apos;";
+            } else {
+                result = result + c;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+}
