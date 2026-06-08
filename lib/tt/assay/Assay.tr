@@ -1,0 +1,114 @@
+// Assay testing framework with assertion functions and test reporting.
+import tt::util::ArrayList;
+import tt::io::IO;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Boolean;
+
+public class Assay {
+    private int passed;
+    private int failed;
+    private ArrayList<String> failures;
+
+    public Assay() {
+        this.passed = 0;
+        this.failed = 0;
+        this.failures = new ArrayList<String>();
+    }
+
+    // Assertions
+
+    public void assertEqual(int actual, int expected, String msg) {
+        if (actual != expected) {
+            this.fail("assertEqual failed: expected " + Integer::toString(expected) + " but got " + Integer::toString(actual) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    public void assertEqualDouble(double actual, double expected, String msg) {
+        if (actual != expected) {
+            this.fail("assertEqualDouble failed: expected " + Double::toString(expected) + " but got " + Double::toString(actual) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    public void assertEqualString(String actual, String expected, String msg) {
+        if (actual != expected) {
+            this.fail("assertEqualString failed: expected \"" + expected + "\" but got \"" + actual + "\" - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    public void assertEqualBool(bool actual, bool expected, String msg) {
+        if (actual != expected) {
+            this.fail("assertEqualBool failed: expected " + Boolean::toString(expected) + " but got " + Boolean::toString(actual) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    public void assertNotEqual(int actual, int expected, String msg) {
+        if (actual == expected) {
+            this.fail("assertNotEqual failed: expected different values but both were " + Integer::toString(expected) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    public void assertTrue(bool condition, String msg) {
+        if (!condition) {
+            this.fail("assertTrue failed: expected true but got false - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    public void assertFalse(bool condition, String msg) {
+        if (condition) {
+            this.fail("assertFalse failed: expected false but got true - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    public void assertApproxEqual(double actual, double expected, double tolerance, String msg) {
+        double diff = actual - expected;
+        if (diff < 0) {
+            diff = 0 - diff;
+        }
+        if (diff > tolerance) {
+            this.fail("assertApproxEqual failed: expected " + Double::toString(expected) + " +/- " + Double::toString(tolerance) + " but got " + Double::toString(actual) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Internal
+
+    public void fail(String msg) {
+        this.failed = this.failed + 1;
+        this.failures.add(msg);
+    }
+
+    // Report
+
+    public void report() {
+        IO::println("=== Test Results ===");
+        IO::println("Passed: " + Integer::toString(this.passed));
+        IO::println("Failed: " + Integer::toString(this.failed));
+        if (this.failed > 0) {
+            IO::println("Failures:");
+            for (f in this.failures) {
+                IO::println("  - " + f);
+            }
+        }
+        IO::println("===================");
+    }
+
+    public bool allPassed() {
+        return this.failed == 0;
+    }
+}

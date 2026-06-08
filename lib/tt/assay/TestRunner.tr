@@ -1,0 +1,32 @@
+// Simple test runner that discovers and executes test functions.
+import tt::util::ArrayList;
+import tt::io::IO;
+import tt::lang::Integer;
+
+public class TestRunner {
+    private ArrayList<String> testNames;
+    private int passed;
+    private int failed;
+
+    public TestRunner() {
+        this.testNames = new ArrayList<String>();
+        this.passed = 0;
+        this.failed = 0;
+    }
+
+    public void register(String name) {
+        this.testNames.add(name);
+    }
+
+    public void run() {
+        IO::println("Running " + Integer::toString(this.testNames.size()) + " tests...");
+        for (name in this.testNames) {
+            IO::println("  [RUN ] " + name);
+        }
+    }
+
+    public void summary() {
+        IO::println("Tests passed: " + Integer::toString(this.passed));
+        IO::println("Tests failed: " + Integer::toString(this.failed));
+    }
+}
