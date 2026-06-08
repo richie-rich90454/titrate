@@ -28,6 +28,9 @@ class_decl   ::= 'class' IDENTIFIER type_params? ('extends' type)? ('implements'
 class_member ::= field_decl | method_decl | constructor_decl
 field_decl   ::= access? type IDENTIFIER ('=' expr)? ';'
 method_decl  ::= access? 'fn' IDENTIFIER '(' params? ')' (':' type)? block
+             | access? 'fn' 'operator' OP '(' self_param (',' param)* ')' (':' type)? block   // operator overloading
+self_param   ::= 'self'
+OP           ::= '+' | '-' | '*' | '/' | '%' | '==' | '!=' | '<' | '>' | '<=' | '>='
 constructor_decl ::= access? IDENTIFIER '(' params? ')' (super_call)? block
 super_call   ::= 'super' '(' args? ')' ';'
 ```
@@ -56,6 +59,9 @@ block        ::= '{' stmt* '}'
 if_stmt      ::= 'if' '(' expr ')' block ('else' (if_stmt | block))?
 while_stmt   ::= 'while' '(' expr ')' block
 for_stmt     ::= 'for' '(' ('var')? IDENTIFIER 'in' expr ')' block
+var_decl     ::= 'var' IDENTIFIER (':' type)? '=' expr ';'
+             | 'var' '(' IDENTIFIER (',' IDENTIFIER)+ ')' '=' expr ';'   // tuple destructuring
+const_decl   ::= 'const' IDENTIFIER ':' type '=' expr ';'
 
 > **Note:** Parentheses around the condition/iterator in `if`, `while`, and `for` are optional in the parser but the parenthesized form is the **recommended and preferred style**. Always write `if (expr)`, `while (expr)`, and `for (item in list)`.
 return_stmt  ::= 'return' expr? ';'
@@ -97,8 +103,11 @@ primary      ::= INTEGER | FLOAT | STRING | CHAR | 'true' | 'false' | 'null'
              | 'Ok' '(' expr ')' | 'Err' '(' expr ')'
              | IDENTIFIER ('<' type (',' type)* '>')?
              | '(' expr ')'
+             | '(' expr ',' expr (',' expr)* ')'    // tuple expression
              | 'new' type '(' args? ')'
              | 'super' '(' args? ')'
+             | 'fn' '(' params? ')' (':' type)? '=>' expr   // closure (expression form)
+             | 'fn' '(' params? ')' (':' type)? block       // closure (block form)
 args         ::= expr (',' expr)*
 ```
 
@@ -108,6 +117,9 @@ args         ::= expr (',' expr)*
 type         ::= primitive | 'string' | 'void' | IDENTIFIER ('<' type (',' type)* '>')?
              | 'Owned' '<' type '>' | 'Result' '<' type ',' type '>'
              | 'array' '<' type '>'
+             | '(' type (',' type)+ ')'              // tuple type
+             | '(' ')'                                // unit type
+             | 'fn' '(' (type (',' type)*)? ')' (':' type)?  // closure type
 primitive    ::= 'bool' | 'byte' | 'short' | 'int' | 'long' | 'vast' | 'uvast'
              | 'float' | 'double' | 'half' | 'quad' | 'char' | 'size'
              | 'u8' | 'u16' | 'u32' | 'u64'

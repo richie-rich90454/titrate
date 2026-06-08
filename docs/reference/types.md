@@ -32,6 +32,65 @@
 - Class instances
 - Enum instances
 
+## Tuple Types
+
+Tuples are fixed-size, heterogeneous containers written as parenthesized type lists:
+
+```titrate
+let pair: (int, string) = (1, "hello");
+let triple: (double, bool, char) = (3.14, true, 'x');
+```
+
+A single-element tuple requires a trailing comma: `(int,)`. The empty tuple `()` is the **unit type** (see below).
+
+Tuple elements are accessed by zero-based index with dot notation:
+
+```titrate
+let point: (double, double, double) = (1.0, 2.0, 3.0);
+let x = point.0;  // 1.0
+let y = point.1;  // 2.0
+```
+
+Tuples support destructuring in `let` bindings:
+
+```titrate
+let (a, b) = (10, 20);
+```
+
+## Closure Types
+
+Closures are anonymous functions with the type `fn(ParamTypes) => ReturnType`:
+
+```titrate
+let add: fn(int, int): int = fn(a: int, b: int): int => a + b;
+```
+
+Closures can capture variables from their enclosing scope. The closure type only describes the parameter types and return type — captures are not part of the type signature:
+
+```titrate
+fn apply(x: int, f: fn(int): int): int {
+    return f(x);
+}
+
+let result = apply(5, fn(n: int): int => n * 2);  // 10
+```
+
+## Unit Type
+
+The unit type `()` has exactly one value, also written `()`. It represents the absence of a meaningful return value. Functions declared with `: void` implicitly return unit:
+
+```titrate
+fn doNothing(): void {
+    // implicitly returns ()
+}
+```
+
+Unit is also the result of statements that don't produce a value, such as assignments:
+
+```titrate
+let x: () = (io::println("hi"));  // println returns ()
+```
+
 ## Type Casting
 
 Use the `as` keyword to cast between compatible types:
