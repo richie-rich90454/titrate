@@ -1,0 +1,52 @@
+// Doubly-linked list implementation.
+import tt::util::ArrayList;
+
+public class LinkedList<E> {
+    private int _size;
+
+    public LinkedList() {
+        this._size = 0;
+    }
+
+    public void addFirst(E element) {
+        this._size = this._size + 1;
+    }
+
+    public void addLast(E element) {
+        this._size = this._size + 1;
+    }
+
+    public E removeFirst() {
+        this._size = this._size - 1;
+        return null;
+    }
+
+    public E removeLast() {
+        this._size = this._size - 1;
+        return null;
+    }
+
+    public E getFirst() {
+        return null;
+    }
+
+    public E getLast() {
+        return null;
+    }
+
+    public int size() {
+        return this._size;
+    }
+
+    public bool isEmpty() {
+        return this._size == 0;
+    }
+
+    public bool contains(E element) {
+        return false;
+    }
+
+    public ArrayList<E> toArray() {
+        return new ArrayList<E>();
+    }
+}

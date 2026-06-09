@@ -1,0 +1,93 @@
+// Bit set collection for efficient bit-level operations.
+public class BitSet {
+    private ArrayList<int> words;
+
+    public BitSet() {
+        this.words = new ArrayList<int>();
+    }
+
+    private static int wordIndex(int bitIndex) {
+        return bitIndex / 32;
+    }
+
+    private void ensureCapacity(int wordIndex) {
+        while (this.words.size() <= wordIndex) {
+            this.words.add(0);
+        }
+    }
+
+    public void set(int bitIndex) {
+        int idx = BitSet::wordIndex(bitIndex);
+        this.ensureCapacity(idx);
+        int word = this.words.get(idx);
+        this.words.set(idx, word | (1 << (bitIndex % 32)));
+    }
+
+    public bool get(int bitIndex) {
+        int idx = BitSet::wordIndex(bitIndex);
+        if (idx >= this.words.size()) {
+            return false;
+        }
+        int word = this.words.get(idx);
+        return (word & (1 << (bitIndex % 32))) != 0;
+    }
+
+    public void clear(int bitIndex) {
+        int idx = BitSet::wordIndex(bitIndex);
+        if (idx < this.words.size()) {
+            int word = this.words.get(idx);
+            this.words.set(idx, word & ~(1 << (bitIndex % 32)));
+        }
+    }
+
+    public void flip(int bitIndex) {
+        int idx = BitSet::wordIndex(bitIndex);
+        this.ensureCapacity(idx);
+        int word = this.words.get(idx);
+        this.words.set(idx, word ^ (1 << (bitIndex % 32)));
+    }
+
+    public int cardinality() {
+        int count = 0;
+        int i = 0;
+        while (i < this.words.size()) {
+            int word = this.words.get(i);
+            while (word != 0) {
+                count = count + (word & 1);
+                word = word >> 1;
+            }
+            i = i + 1;
+        }
+        return count;
+    }
+
+    public void and(BitSet other) {
+        int i = 0;
+        while (i < this.words.size()) {
+            if (i < other.words.size()) {
+                this.words.set(i, this.words.get(i) & other.words.get(i));
+            } else {
+                this.words.set(i, 0);
+            }
+            i = i + 1;
+        }
+    }
+
+    public void or(BitSet other) {
+        int i = 0;
+        while (i < other.words.size()) {
+            this.ensureCapacity(i);
+            this.words.set(i, this.words.get(i) | other.words.get(i));
+            i = i + 1;
+        }
+    }
+
+    public void xor(BitSet other) {
+        int i = 0;
+        while (i < other.words.size()) {
+            this.ensureCapacity(i);
+            this.words.set(i, this.words.get(i) ^ other.words.get(i));
+            i = i + 1;
+        }
+    }
+}

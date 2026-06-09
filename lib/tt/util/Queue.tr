@@ -1,0 +1,44 @@
+// FIFO queue backed by ArrayList.
+import tt::util::ArrayList;
+
+public class Queue<E> {
+    private ArrayList<E> data;
+    private int head;
+
+    public Queue() {
+        this.data = new ArrayList<E>();
+        this.head = 0;
+    }
+
+    public void enqueue(E element) {
+        this.data.add(element);
+    }
+
+    public E dequeue() {
+        E item = this.data.get(this.head);
+        this.head = this.head + 1;
+        return item;
+    }
+
+    public E peek() {
+        return this.data.get(this.head);
+    }
+
+    public bool isEmpty() {
+        return this.head >= this.data.size();
+    }
+
+    public int size() {
+        return this.data.size() - this.head;
+    }
+
+    public ArrayList<E> toArray() {
+        ArrayList<E> result = new ArrayList<E>();
+        int i = this.head;
+        while (i < this.data.size()) {
+            result.add(this.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}

@@ -1,0 +1,52 @@
+// LIFO stack backed by ArrayList.
+import tt::util::ArrayList;
+
+public class Stack<E> {
+    private ArrayList<E> data;
+
+    public Stack() {
+        this.data = new ArrayList<E>();
+    }
+
+    public void push(E element) {
+        this.data.add(element);
+    }
+
+    public E pop() {
+        int last = this.data.size() - 1;
+        E item = this.data.get(last);
+        this.data.remove(last);
+        return item;
+    }
+
+    public E peek() {
+        return this.data.get(this.data.size() - 1);
+    }
+
+    public bool isEmpty() {
+        return this.data.size() == 0;
+    }
+
+    public int size() {
+        return this.data.size();
+    }
+
+    public ArrayList<E> toArray() {
+        ArrayList<E> result = new ArrayList<E>();
+        int i = 0;
+        while (i < this.data.size()) {
+            result.add(this.data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public bool contains(E element) {
+        for (item in this.data) {
+            if (item == element) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
