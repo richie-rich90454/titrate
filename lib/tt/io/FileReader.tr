@@ -1,0 +1,43 @@
+// File reader implementation backed by VM built-in File operations.
+import tt::io::Reader;
+import tt::io::File;
+
+public class FileReader implements Reader {
+    private File file;
+    private bool closed;
+
+    public FileReader(String path) {
+        this.file = new File(path);
+        this.closed = false;
+    }
+
+    public static FileReader open(String path) {
+        return new FileReader(path);
+    }
+
+    public String read() {
+        return this.file.readLine();
+    }
+
+    public String readLine() {
+        return this.file.readLine();
+    }
+
+    public String readAll() {
+        StringBuilder sb = new StringBuilder();
+        String line = this.file.readLine();
+        while (line != null) {
+            sb.append(line);
+            sb.append("\n");
+            line = this.file.readLine();
+        }
+        return sb.build();
+    }
+
+    public void close() {
+        if (!this.closed) {
+            this.file.close();
+            this.closed = true;
+        }
+    }
+}
