@@ -548,4 +548,96 @@ public class NDArray {
     public int flatIndex3D(int i, int j, int k) {
         return i * this.strides.get(0) + j * this.strides.get(1) + k * this.strides.get(2);
     }
+
+    public int argMax() {
+        if (this.data.size() == 0) { return -1; }
+        int idx = 0;
+        double m = this.data.get(0);
+        int i = 1;
+        while (i < this.data.size()) {
+            if (this.data.get(i) > m) {
+                m = this.data.get(i);
+                idx = i;
+            }
+            i = i + 1;
+        }
+        return idx;
+    }
+
+    public int argMin() {
+        if (this.data.size() == 0) { return -1; }
+        int idx = 0;
+        double m = this.data.get(0);
+        int i = 1;
+        while (i < this.data.size()) {
+            if (this.data.get(i) < m) {
+                m = this.data.get(i);
+                idx = i;
+            }
+            i = i + 1;
+        }
+        return idx;
+    }
+
+    public double dot(NDArray other) {
+        double s = 0.0;
+        int i = 0;
+        while (i < this.data.size()) {
+            s = s + this.data.get(i) * other.data.get(i);
+            i = i + 1;
+        }
+        return s;
+    }
+
+    public double norm() {
+        double s = 0.0;
+        int i = 0;
+        while (i < this.data.size()) {
+            double v = this.data.get(i);
+            s = s + v * v;
+            i = i + 1;
+        }
+        return Math.sqrt(s);
+    }
+
+    public NDArray apply(String fn_name) {
+        NDArray a = this.clone();
+        int i = 0;
+        while (i < a.data.size()) {
+            double v = a.data.get(i);
+            if (fn_name == "sin") {
+                a.data.set(i, Math.sin(v));
+            } else if (fn_name == "cos") {
+                a.data.set(i, Math.cos(v));
+            } else if (fn_name == "tan") {
+                a.data.set(i, Math.tan(v));
+            } else if (fn_name == "asin") {
+                a.data.set(i, Math.asin(v));
+            } else if (fn_name == "acos") {
+                a.data.set(i, Math.acos(v));
+            } else if (fn_name == "atan") {
+                a.data.set(i, Math.atan(v));
+            } else if (fn_name == "ln") {
+                a.data.set(i, Math.ln(v));
+            } else if (fn_name == "log10") {
+                a.data.set(i, Math.log10(v));
+            } else if (fn_name == "log2") {
+                a.data.set(i, Math.log2(v));
+            } else if (fn_name == "exp") {
+                a.data.set(i, Math.exp(v));
+            } else if (fn_name == "sqrt") {
+                a.data.set(i, Math.sqrt(v));
+            } else if (fn_name == "cbrt") {
+                a.data.set(i, Math.cbrt(v));
+            } else if (fn_name == "abs") {
+                a.data.set(i, Math.abs(v));
+            } else if (fn_name == "floor") {
+                a.data.set(i, Math.floor(v));
+            } else if (fn_name == "ceil") {
+                a.data.set(i, Math.ceil(v));
+            }
+            i = i + 1;
+        }
+        return a;
+    }
 }
