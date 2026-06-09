@@ -1,0 +1,39 @@
+// Channel for message passing between concurrent tasks.
+import tt::util::ArrayList;
+
+public class Channel<T> {
+    private ArrayList<T> buffer;
+    private bool closed;
+
+    public Channel() {
+        this.buffer = new ArrayList<T>();
+        this.closed = false;
+    }
+
+    public void send(T value) {
+        if (!this.closed) {
+            this.buffer.add(value);
+        }
+    }
+
+    public T receive() {
+        T item = this.buffer.get(0);
+        this.buffer.remove(0);
+        return item;
+    }
+
+    public T tryReceive() {
+        if (this.buffer.size() == 0) {
+            return null;
+        }
+        return this.receive();
+    }
+
+    public void close() {
+        this.closed = true;
+    }
+
+    public bool isClosed() {
+        return this.closed;
+    }
+}

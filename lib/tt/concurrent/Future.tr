@@ -1,0 +1,38 @@
+// Future type for asynchronous operations.
+public class Future<T> {
+    private T value;
+    private bool done;
+    private bool cancelled;
+
+    public Future() {
+        this.done = false;
+        this.cancelled = false;
+    }
+
+    public bool isDone() {
+        return this.done;
+    }
+
+    public T get() {
+        return this.value;
+    }
+
+    public bool isCancelled() {
+        return this.cancelled;
+    }
+
+    public bool cancel() {
+        if (!this.done) {
+            this.cancelled = true;
+            return true;
+        }
+        return false;
+    }
+
+    public void complete(T value) {
+        if (!this.done && !this.cancelled) {
+            this.value = value;
+            this.done = true;
+        }
+    }
+}
