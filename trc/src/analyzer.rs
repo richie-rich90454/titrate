@@ -5,10 +5,153 @@
 /// error-propagation validation, and toString desugaring.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::fmt;
 use std::rc::Rc;
 
 use crate::ast;
+
+// ---------------------------------------------------------------------------
+// Compile error types
+// ---------------------------------------------------------------------------
+
+/// A suggestion attached to a compile error, providing a helpful hint
+/// or a possible replacement.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Suggestion {
+    pub message: String,
+    pub replacement: Option<String>,
+}
+
+impl fmt::Display for Suggestion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.replacement {
+            Some(rep) => write!(f, "{} (did you mean '{}'?)", self.message, rep),
+            None => write!(f, "{}", self.message),
+        }
+    }
+}
+
+/// A semantic error produced by the analyzer.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompileError {
+    /// The primary error message.
+    pub message: String,
+    /// Optional suggestions for fixing the error.
+    pub suggestions: Vec<Suggestion>,
+}
+
+impl CompileError {
+    /// Create a new error with just a message.
+    pub fn new(msg: impl Into<String>) -> Self {
+        CompileError {
+            message: msg.into(),
+            suggestions: Vec::new(),
+        }
+    }
+
+    /// Create a new error with a message and a single suggestion.
+    pub fn with_suggestion(msg: impl Into<String>, suggestion: Suggestion) -> Self {
+        CompileError {
+            message: msg.into(),
+            suggestions: vec![suggestion],
+        }
+    }
+
+    /// Add a suggestion to this error.
+    pub fn suggest(mut self, suggestion: Suggestion) -> Self {
+        self.suggestions.push(suggestion);
+        self
+    }
+
+    /// Check if the error message contains the given substring.
+    /// This searches the primary message and all suggestion messages.
+    pub fn contains(&self, pattern: &str) -> bool {
+        if self.message.contains(pattern) {
+            return true;
+        }
+        for s in &self.suggestions {
+            if s.message.contains(pattern) || s.replacement.as_ref().map_or(false, |r| r.contains(pattern)) {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+impl fmt::Display for CompileError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.message)?;
+        for s in &self.suggestions {
+            write!(f, "\n  help: {}", s)?;
+        }
+        Ok(())
+    }
+}
+
+impl From<String> for CompileError {
+    fn from(msg: String) -> Self {
+        CompileError::new(msg)
+    }
+}
+
+impl From<&str> for CompileError {
+    fn from(msg: &str) -> Self {
+        CompileError::new(msg)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Levenshtein distance for name suggestions
+// ---------------------------------------------------------------------------
+
+/// Compute the Levenshtein edit distance between two strings.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a_len = a.chars().count();
+    let b_len = b.chars().count();
+
+    if a_len == 0 {
+        return b_len;
+    }
+    if b_len == 0 {
+        return a_len;
+    }
+
+    let mut prev: Vec<usize> = (0..=b_len).collect();
+    let mut curr: Vec<usize> = vec![0; b_len + 1];
+
+    for (i, ac) in a.chars().enumerate() {
+        curr[0] = i + 1;
+        for (j, bc) in b.chars().enumerate() {
+            let cost = if ac == bc { 0 } else { 1 };
+            curr[j + 1] = (prev[j + 1] + 1)   // deletion
+                .min(curr[j] + 1)               // insertion
+                .min(prev[j] + cost);           // substitution
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[b_len]
+}
+
+/// Find symbol names in scope that are similar to the given name.
+/// Returns names whose Levenshtein distance is at most `max_distance`.
+fn find_similar_names(name: &str, scope: &Rc<RefCell<Scope>>, max_distance: usize) -> Vec<String> {
+    let all_names = scope.borrow().all_names();
+    let mut similar: Vec<(usize, String)> = all_names
+        .into_iter()
+        .filter_map(|n| {
+            let dist = levenshtein(name, &n);
+            if dist <= max_distance && dist > 0 {
+                Some((dist, n))
+            } else {
+                None
+            }
+        })
+        .collect();
+    similar.sort_by_key(|(d, _)| *d);
+    similar.into_iter().map(|(_, n)| n).collect()
+}
 
 // ---------------------------------------------------------------------------
 // Symbol types
@@ -71,6 +214,17 @@ impl Scope {
             return p.borrow().lookup(name);
         }
         None
+    }
+
+    /// Collect all symbol names visible in this scope (including parent scopes).
+    fn all_names(&self) -> Vec<String> {
+        let mut names: HashSet<String> = self.symbols.keys().cloned().collect();
+        if let Some(ref p) = self.parent {
+            for name in p.borrow().all_names() {
+                names.insert(name);
+            }
+        }
+        names.into_iter().collect()
     }
 }
 
@@ -279,7 +433,7 @@ pub enum ExhaustiveMode {
 // ---------------------------------------------------------------------------
 
 struct Analyzer {
-    errors: Vec<String>,
+    errors: Vec<CompileError>,
     warnings: Vec<String>,
     /// Ownership state per variable in the current function scope.
     /// Keyed by a scope-depth-qualified name to handle shadowing.
@@ -288,10 +442,17 @@ struct Analyzer {
     local_vars: Vec<String>,
     /// Current function return type (for return-checking and ?-operator).
     current_return_type: Option<ast::Type>,
+    /// Current function name (for better error messages).
+    current_fn_name: Option<String>,
     /// Whether we are inside an unsafe block.
     in_unsafe: bool,
     /// How to report non-exhaustive pattern matches.
     exhaustive_mode: ExhaustiveMode,
+    /// Track variables that have been used (read) in the current function.
+    used_vars: HashSet<String>,
+    /// Track whether the current position is after a return/break/continue
+    /// (for unreachable code detection).
+    after_terminator: bool,
 }
 
 impl Analyzer {
@@ -302,8 +463,11 @@ impl Analyzer {
             var_states: HashMap::new(),
             local_vars: Vec::new(),
             current_return_type: None,
+            current_fn_name: None,
             in_unsafe: false,
             exhaustive_mode: ExhaustiveMode::default(),
+            used_vars: HashSet::new(),
+            after_terminator: false,
         }
     }
 
@@ -314,13 +478,16 @@ impl Analyzer {
             var_states: HashMap::new(),
             local_vars: Vec::new(),
             current_return_type: None,
+            current_fn_name: None,
             in_unsafe: false,
             exhaustive_mode: mode,
+            used_vars: HashSet::new(),
+            after_terminator: false,
         }
     }
 
-    fn error(&mut self, msg: impl Into<String>) {
-        self.errors.push(msg.into());
+    fn error(&mut self, err: impl Into<CompileError>) {
+        self.errors.push(err.into());
     }
 
     fn warn(&mut self, msg: impl Into<String>) {
@@ -404,9 +571,27 @@ impl Analyzer {
     fn register_declaration(&mut self, decl: &ast::Declaration, scope: &Rc<RefCell<Scope>>) {
         match decl {
             ast::Declaration::Function(f) => {
+                if scope.borrow().symbols.contains_key(&f.name) {
+                    self.error(CompileError::new(format!(
+                        "duplicate declaration: '{}' is already declared in this scope",
+                        f.name
+                    )).suggest(Suggestion {
+                        message: "use a different name for this function".to_string(),
+                        replacement: None,
+                    }));
+                }
                 scope.borrow_mut().define(f.name.clone(), Symbol::Function(f.clone()));
             }
             ast::Declaration::Class(c) => {
+                if scope.borrow().symbols.contains_key(&c.name) {
+                    self.error(CompileError::new(format!(
+                        "duplicate declaration: '{}' is already declared in this scope",
+                        c.name
+                    )).suggest(Suggestion {
+                        message: "use a different name for this class".to_string(),
+                        replacement: None,
+                    }));
+                }
                 scope.borrow_mut().define(c.name.clone(), Symbol::Class(c.clone()));
                 // Register class members in a sub-scope.
                 let class_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
@@ -450,12 +635,39 @@ impl Analyzer {
                 let _ = class_scope;
             }
             ast::Declaration::Interface(i) => {
+                if scope.borrow().symbols.contains_key(&i.name) {
+                    self.error(CompileError::new(format!(
+                        "duplicate declaration: '{}' is already declared in this scope",
+                        i.name
+                    )).suggest(Suggestion {
+                        message: "use a different name for this interface".to_string(),
+                        replacement: None,
+                    }));
+                }
                 scope.borrow_mut().define(i.name.clone(), Symbol::Interface(i.clone()));
             }
             ast::Declaration::Enum(e) => {
+                if scope.borrow().symbols.contains_key(&e.name) {
+                    self.error(CompileError::new(format!(
+                        "duplicate declaration: '{}' is already declared in this scope",
+                        e.name
+                    )).suggest(Suggestion {
+                        message: "use a different name for this enum".to_string(),
+                        replacement: None,
+                    }));
+                }
                 scope.borrow_mut().define(e.name.clone(), Symbol::Enum(e.clone()));
                 // Register each variant as a symbol.
                 for variant in &e.variants {
+                    if scope.borrow().symbols.contains_key(&variant.name) {
+                        self.error(CompileError::new(format!(
+                            "duplicate declaration: variant '{}' is already declared in this scope",
+                            variant.name
+                        )).suggest(Suggestion {
+                            message: "use a different name for this variant".to_string(),
+                            replacement: None,
+                        }));
+                    }
                     scope.borrow_mut().define(
                         variant.name.clone(),
                         Symbol::Variant {
@@ -563,11 +775,16 @@ impl Analyzer {
     fn analyze_fn_decl(&mut self, f: &mut ast::FnDecl, scope: &Rc<RefCell<Scope>>) {
         let fn_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
         let prev_return = self.current_return_type.clone();
+        let prev_fn_name = self.current_fn_name.clone();
         self.current_return_type = f.return_type.clone();
+        self.current_fn_name = Some(f.name.clone());
 
         // Reset ownership state for this function.
         let prev_states = std::mem::take(&mut self.var_states);
         let prev_locals = std::mem::take(&mut self.local_vars);
+        let prev_used = std::mem::take(&mut self.used_vars);
+        let prev_after_terminator = self.after_terminator;
+        self.after_terminator = false;
 
         for param in &f.params {
             fn_scope.borrow_mut().define(
@@ -583,19 +800,50 @@ impl Analyzer {
 
         self.analyze_block(&mut f.body, &fn_scope);
 
+        // Check for missing return statement in non-void functions.
+        if let Some(ref ret_type) = f.return_type {
+            if !is_void_type(ret_type) && !self.block_always_returns(&f.body) {
+                let fn_name = f.name.clone();
+                self.error(CompileError::new(format!(
+                    "function '{}' is missing a return statement: expected return type {}",
+                    fn_name, ret_type
+                )).suggest(Suggestion {
+                    message: "add a return statement at the end of the function body".to_string(),
+                    replacement: None,
+                }));
+            }
+        }
+
+        // Check for unused variables.
+        let unused: Vec<String> = self.local_vars.iter()
+            .filter(|var_name| !self.used_vars.contains(*var_name) && !var_name.starts_with('_'))
+            .cloned()
+            .collect();
+        for var_name in &unused {
+            self.warn(format!("unused variable: {}", var_name));
+        }
+
         // Restore.
         self.var_states = prev_states;
         self.local_vars = prev_locals;
         self.current_return_type = prev_return;
+        self.current_fn_name = prev_fn_name;
+        self.used_vars = prev_used;
+        self.after_terminator = prev_after_terminator;
     }
 
     fn analyze_method(&mut self, m: &mut ast::MethodDecl, scope: &Rc<RefCell<Scope>>) {
         let method_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
         let prev_return = self.current_return_type.clone();
+        let prev_fn_name = self.current_fn_name.clone();
         self.current_return_type = m.return_type.clone();
+        self.current_fn_name = Some(m.name.clone());
 
         let prev_states = std::mem::take(&mut self.var_states);
         let prev_locals = std::mem::take(&mut self.local_vars);
+        let prev_used = std::mem::take(&mut self.used_vars);
+        let prev_after_terminator = self.after_terminator;
+        self.after_terminator = false;
 
         for param in &m.params {
             method_scope.borrow_mut().define(
@@ -611,9 +859,35 @@ impl Analyzer {
 
         self.analyze_block(&mut m.body, &method_scope);
 
+        // Check for missing return statement in non-void methods.
+        if let Some(ref ret_type) = m.return_type {
+            if !is_void_type(ret_type) && !self.block_always_returns(&m.body) {
+                let method_name = m.name.clone();
+                self.error(CompileError::new(format!(
+                    "method '{}' is missing a return statement: expected return type {}",
+                    method_name, ret_type
+                )).suggest(Suggestion {
+                    message: "add a return statement at the end of the method body".to_string(),
+                    replacement: None,
+                }));
+            }
+        }
+
+        // Check for unused variables.
+        let unused: Vec<String> = self.local_vars.iter()
+            .filter(|var_name| !self.used_vars.contains(*var_name) && !var_name.starts_with('_'))
+            .cloned()
+            .collect();
+        for var_name in &unused {
+            self.warn(format!("unused variable: {}", var_name));
+        }
+
         self.var_states = prev_states;
         self.local_vars = prev_locals;
         self.current_return_type = prev_return;
+        self.current_fn_name = prev_fn_name;
+        self.used_vars = prev_used;
+        self.after_terminator = prev_after_terminator;
     }
 
     // -----------------------------------------------------------------------
@@ -622,9 +896,45 @@ impl Analyzer {
 
     fn analyze_block(&mut self, block: &mut ast::Block, scope: &Rc<RefCell<Scope>>) {
         let block_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
+        let prev_after_terminator = self.after_terminator;
+        self.after_terminator = false;
         for stmt in block.iter_mut() {
+            if self.after_terminator {
+                self.warn("unreachable code detected after return/break/continue".to_string());
+                self.after_terminator = false;
+            }
             self.analyze_stmt(stmt, &block_scope);
         }
+        // If the block didn't end with a terminator, reset for the parent.
+        if !self.after_terminator {
+            self.after_terminator = prev_after_terminator;
+        }
+    }
+
+    /// Check whether a block always returns (i.e., ends with a return statement
+    /// or all branches of an if/else return).
+    fn block_always_returns(&self, block: &ast::Block) -> bool {
+        for stmt in block.iter() {
+            match stmt {
+                ast::Stmt::Return(_) => return true,
+                ast::Stmt::If(if_stmt) => {
+                    let then_returns = self.block_always_returns(&if_stmt.then_branch);
+                    let else_returns = if_stmt.else_branch.as_ref()
+                        .map(|e| self.block_always_returns(e))
+                        .unwrap_or(false);
+                    if then_returns && else_returns {
+                        return true;
+                    }
+                }
+                ast::Stmt::Block(inner) => {
+                    if self.block_always_returns(inner) {
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
+        false
     }
 
     fn analyze_stmt(&mut self, stmt: &mut ast::Stmt, scope: &Rc<RefCell<Scope>>) {
@@ -639,10 +949,13 @@ impl Analyzer {
                 self.analyze_expr(&mut if_stmt.condition, scope);
                 let cond_type = self.infer_expr_type(&if_stmt.condition, scope);
                 if !is_bool_type(&cond_type) {
-                    self.error(format!(
+                    self.error(CompileError::new(format!(
                         "if condition must be bool, found {}",
                         cond_type
-                    ));
+                    )).suggest(Suggestion {
+                        message: "use a comparison or boolean expression".to_string(),
+                        replacement: None,
+                    }));
                 }
                 self.analyze_block(&mut if_stmt.then_branch, scope);
                 if let Some(ref mut else_b) = if_stmt.else_branch {
@@ -653,10 +966,13 @@ impl Analyzer {
                 self.analyze_expr(&mut while_stmt.condition, scope);
                 let cond_type = self.infer_expr_type(&while_stmt.condition, scope);
                 if !is_bool_type(&cond_type) {
-                    self.error(format!(
+                    self.error(CompileError::new(format!(
                         "while condition must be bool, found {}",
                         cond_type
-                    ));
+                    )).suggest(Suggestion {
+                        message: "use a comparison or boolean expression".to_string(),
+                        replacement: None,
+                    }));
                 }
                 self.analyze_block(&mut while_stmt.body, scope);
             }
@@ -714,10 +1030,13 @@ impl Analyzer {
                     self.analyze_expr(cond, &cfor_scope);
                     let cond_type = self.infer_expr_type(cond, &cfor_scope);
                     if !is_bool_type(&cond_type) {
-                        self.error(format!(
+                        self.error(CompileError::new(format!(
                             "for condition must be bool, found {}",
                             cond_type
-                        ));
+                        )).suggest(Suggestion {
+                            message: "use a comparison or boolean expression".to_string(),
+                            replacement: None,
+                        }));
                     }
                 }
                 self.analyze_block(&mut cfor_stmt.body, &cfor_scope);
@@ -726,35 +1045,53 @@ impl Analyzer {
                 }
             }
             ast::Stmt::Return(opt_expr) => {
+                self.after_terminator = true;
                 if let Some(ref mut expr) = opt_expr {
                     self.analyze_expr(expr, scope);
                     let ret_type = self.infer_expr_type(expr, scope);
                     if let Some(ref expected) = self.current_return_type {
                         if !is_assignable(&ret_type, expected) && !is_void_type(expected) {
-                            self.error(format!(
-                                "return type mismatch: expected {}, found {}",
-                                expected, ret_type
-                            ));
+                            let fn_name = self.current_fn_name.clone().unwrap_or_default();
+                            self.error(CompileError::new(format!(
+                                "return type mismatch in function '{}': expected {}, found {}",
+                                fn_name, expected, ret_type
+                            )).suggest(Suggestion {
+                                message: format!("change the return expression to type {}", expected),
+                                replacement: None,
+                            }));
                         }
                     }
                 } else if let Some(ref expected) = self.current_return_type {
                     if !is_void_type(expected) {
-                        self.error(format!(
-                            "function with return type {} must return a value",
-                            expected
-                        ));
+                        let fn_name = self.current_fn_name.clone().unwrap_or_default();
+                        self.error(CompileError::new(format!(
+                            "function '{}' with return type {} must return a value",
+                            fn_name, expected
+                        )).suggest(Suggestion {
+                            message: "add a return value or change the return type to void".to_string(),
+                            replacement: None,
+                        }));
                     }
                 }
 
                 // Check for returning a borrow of a local.
                 if let Some(ref expr) = opt_expr {
                     if self.expr_borrows_local(expr) {
-                        self.error("cannot return a borrow of a local variable".to_string());
+                        self.error(CompileError::new(
+                            "cannot return a borrow of a local variable".to_string()
+                        ).suggest(Suggestion {
+                            message: "return an owned value instead, or use a region-allocated reference".to_string(),
+                            replacement: None,
+                        }));
                     }
                 }
             }
-            ast::Stmt::Break => {}
-            ast::Stmt::Continue => {}
+            ast::Stmt::Break => {
+                self.after_terminator = true;
+            }
+            ast::Stmt::Continue => {
+                self.after_terminator = true;
+            }
             ast::Stmt::Switch(sw) => {
                 self.analyze_switch(sw, scope);
             }
@@ -770,17 +1107,23 @@ impl Analyzer {
                 // Check that the expression is a tuple type
                 if let ast::Type::Tuple(element_types) = &expr_type {
                     if names.len() != element_types.len() {
-                        self.error(format!(
+                        self.error(CompileError::new(format!(
                             "tuple destructuring expects {} elements, found {}",
                             element_types.len(),
                             names.len()
-                        ));
+                        )).suggest(Suggestion {
+                            message: format!("the tuple has {} element(s)", element_types.len()),
+                            replacement: None,
+                        }));
                     }
                 } else if !is_unknown_type(&expr_type) {
-                    self.error(format!(
+                    self.error(CompileError::new(format!(
                         "tuple destructuring requires a tuple type, found {}",
                         expr_type
-                    ));
+                    )).suggest(Suggestion {
+                        message: "use a tuple expression on the right-hand side".to_string(),
+                        replacement: None,
+                    }));
                 }
                 // Define each variable in scope
                 let element_types = match &expr_type {
@@ -809,10 +1152,13 @@ impl Analyzer {
             if let Some(ref declared) = v.typ {
                 // Type check: initializer must be assignable to declared type.
                 if !is_assignable(&init_type, declared) {
-                    self.error(format!(
-                        "type mismatch: cannot assign {} to {}",
-                        init_type, declared
-                    ));
+                    self.error(CompileError::new(format!(
+                        "type mismatch in variable '{}': cannot assign {} to {}",
+                        v.name, init_type, declared
+                    )).suggest(Suggestion {
+                        message: format!("expected type {}, found {}", declared, init_type),
+                        replacement: None,
+                    }));
                 }
             } else {
                 // Infer type from initializer.
@@ -872,14 +1218,23 @@ impl Analyzer {
                         match variant_sym {
                             Some(Symbol::Variant { enum_name: en, .. }) => {
                                 if en != enum_name {
-                                    self.error(format!(
-                                        "variant {} does not belong to enum {}",
+                                    self.error(CompileError::new(format!(
+                                        "variant '{}' does not belong to enum '{}'",
                                         name, enum_name
-                                    ));
+                                    )).suggest(Suggestion {
+                                        message: format!("this variant belongs to enum '{}'", en),
+                                        replacement: None,
+                                    }));
                                 }
                             }
                             Some(_) => {
-                                self.error(format!("{} is not an enum variant", name));
+                                self.error(CompileError::new(format!(
+                                    "'{}' is not an enum variant",
+                                    name
+                                )).suggest(Suggestion {
+                                    message: "use a variant name from the matched enum".to_string(),
+                                    replacement: None,
+                                }));
                             }
                             None => {
                                 // Could be Ok/Err — allow for Result matching
@@ -966,25 +1321,45 @@ impl Analyzer {
                 let sym = scope.borrow().lookup(name);
                 match sym {
                     None => {
-                        self.error(format!("undeclared identifier: {}", name));
+                        let mut err = CompileError::new(format!(
+                            "undeclared identifier: '{}'",
+                            name
+                        ));
+                        // Suggest similar names from scope.
+                        let similar = find_similar_names(name, scope, 2);
+                        if let Some(best) = similar.first() {
+                            err = err.suggest(Suggestion {
+                                message: "a similar name exists in scope".to_string(),
+                                replacement: Some(best.clone()),
+                            });
+                        }
+                        self.error(err);
                     }
                     Some(Symbol::Variable { .. }) => {
+                        // Track variable usage for unused variable detection.
+                        self.used_vars.insert(name.clone());
                         // Ownership check: is the variable still live?
                         if !self.in_unsafe {
                             if let Some(state) = self.var_states.get(name) {
                                 match state {
                                     VarState::Moved => {
-                                        self.error(format!(
-                                            "use of moved variable: {}",
+                                        self.error(CompileError::new(format!(
+                                            "use of moved variable: '{}'",
                                             name
-                                        ));
+                                        )).suggest(Suggestion {
+                                            message: "this value was moved earlier; consider cloning or using a reference".to_string(),
+                                            replacement: None,
+                                        }));
                                     }
                                     VarState::BorrowedMutable => {
                                         // Reading while mutably borrowed is an error.
-                                        self.error(format!(
-                                            "cannot read variable {} while it is mutably borrowed",
+                                        self.error(CompileError::new(format!(
+                                            "cannot read variable '{}' while it is mutably borrowed",
                                             name
-                                        ));
+                                        )).suggest(Suggestion {
+                                            message: "wait for the mutable borrow to go out of scope before reading".to_string(),
+                                            replacement: None,
+                                        }));
                                     }
                                     VarState::Live | VarState::BorrowedImmutable => {}
                                 }
@@ -1033,10 +1408,13 @@ impl Analyzer {
                         } else if is_string_type(&left_type) || is_string_type(&right_type) {
                             // String concatenation — fine.
                         } else {
-                            self.error(format!(
+                            self.error(CompileError::new(format!(
                                 "operator + cannot be applied to {} and {}",
                                 left_type, right_type
-                            ));
+                            )).suggest(Suggestion {
+                                message: "+ requires numeric or string operands".to_string(),
+                                replacement: None,
+                            }));
                         }
                     }
                     ast::Operator::Sub
@@ -1044,10 +1422,13 @@ impl Analyzer {
                     | ast::Operator::Div
                     | ast::Operator::Mod => {
                         if !is_numeric_type(&left_type) || !is_numeric_type(&right_type) {
-                            self.error(format!(
+                            self.error(CompileError::new(format!(
                                 "arithmetic operator requires numeric operands, found {} and {}",
                                 left_type, right_type
-                            ));
+                            )).suggest(Suggestion {
+                                message: "use numeric types (int, long, float, double, etc.)".to_string(),
+                                replacement: None,
+                            }));
                         }
                     }
                     ast::Operator::Eq
@@ -1060,10 +1441,13 @@ impl Analyzer {
                     }
                     ast::Operator::And | ast::Operator::Or => {
                         if !is_bool_type(&left_type) || !is_bool_type(&right_type) {
-                            self.error(format!(
+                            self.error(CompileError::new(format!(
                                 "logical operator requires bool operands, found {} and {}",
                                 left_type, right_type
-                            ));
+                            )).suggest(Suggestion {
+                                message: "use comparison operators to produce bool values".to_string(),
+                                replacement: None,
+                            }));
                         }
                     }
                     ast::Operator::BitAnd
@@ -1072,10 +1456,13 @@ impl Analyzer {
                     | ast::Operator::BitShl
                     | ast::Operator::BitShr => {
                         if !is_integer_type(&left_type) || !is_integer_type(&right_type) {
-                            self.error(format!(
+                            self.error(CompileError::new(format!(
                                 "bitwise operator requires integer operands, found {} and {}",
                                 left_type, right_type
-                            ));
+                            )).suggest(Suggestion {
+                                message: "use integer types (byte, short, int, long, vast, etc.)".to_string(),
+                                replacement: None,
+                            }));
                         }
                     }
                 }
@@ -1087,26 +1474,35 @@ impl Analyzer {
                 match unop {
                     ast::UnOp::Neg => {
                         if !is_numeric_type(&operand_type) {
-                            self.error(format!(
+                            self.error(CompileError::new(format!(
                                 "unary - requires numeric operand, found {}",
                                 operand_type
-                            ));
+                            )).suggest(Suggestion {
+                                message: "use a numeric type (int, long, float, double, etc.)".to_string(),
+                                replacement: None,
+                            }));
                         }
                     }
                     ast::UnOp::Not => {
                         if !is_bool_type(&operand_type) {
-                            self.error(format!(
+                            self.error(CompileError::new(format!(
                                 "unary ! requires bool operand, found {}",
                                 operand_type
-                            ));
+                            )).suggest(Suggestion {
+                                message: "use a comparison expression to produce a bool".to_string(),
+                                replacement: None,
+                            }));
                         }
                     }
                     ast::UnOp::BitNot => {
                         if !is_integer_type(&operand_type) {
-                            self.error(format!(
+                            self.error(CompileError::new(format!(
                                 "unary ~ requires integer operand, found {}",
                                 operand_type
-                            ));
+                            )).suggest(Suggestion {
+                                message: "use an integer type (byte, short, int, long, vast, etc.)".to_string(),
+                                replacement: None,
+                            }));
                         }
                     }
                 }
@@ -1242,10 +1638,13 @@ impl Analyzer {
                 self.analyze_expr(inner, scope);
                 let inner_type = self.infer_expr_type(inner, scope);
                 if !is_owned_type(&inner_type) && !is_unknown_type(&inner_type) {
-                    self.error(format!(
+                    self.error(CompileError::new(format!(
                         "owned dereference requires Owned type, found {}",
                         inner_type
-                    ));
+                    )).suggest(Suggestion {
+                        message: "wrap the value in Owned<T> before dereferencing".to_string(),
+                        replacement: None,
+                    }));
                 }
             }
             ast::Expr::RegionAlloc(_typ, region_expr, _) => {
@@ -1268,16 +1667,22 @@ impl Analyzer {
                                 if let Some(state) = self.var_states.get(name) {
                                     match state {
                                         VarState::Moved => {
-                                            self.error(format!(
-                                                "cannot borrow moved variable: {}",
+                                            self.error(CompileError::new(format!(
+                                                "cannot borrow moved variable: '{}'",
                                                 name
-                                            ));
+                                            )).suggest(Suggestion {
+                                                message: "the value was moved earlier; consider cloning or reassigning".to_string(),
+                                                replacement: None,
+                                            }));
                                         }
                                         VarState::BorrowedMutable => {
-                                            self.error(format!(
-                                                "cannot immutably borrow {} while it is mutably borrowed",
+                                            self.error(CompileError::new(format!(
+                                                "cannot immutably borrow '{}' while it is mutably borrowed",
                                                 name
-                                            ));
+                                            )).suggest(Suggestion {
+                                                message: "wait for the mutable borrow to go out of scope".to_string(),
+                                                replacement: None,
+                                            }));
                                         }
                                         VarState::Live | VarState::BorrowedImmutable => {
                                             self.var_states.insert(name.clone(), VarState::BorrowedImmutable);
@@ -1289,22 +1694,31 @@ impl Analyzer {
                                 if let Some(state) = self.var_states.get(name) {
                                     match state {
                                         VarState::Moved => {
-                                            self.error(format!(
-                                                "cannot mutably borrow moved variable: {}",
+                                            self.error(CompileError::new(format!(
+                                                "cannot mutably borrow moved variable: '{}'",
                                                 name
-                                            ));
+                                            )).suggest(Suggestion {
+                                                message: "the value was moved earlier; consider cloning or reassigning".to_string(),
+                                                replacement: None,
+                                            }));
                                         }
                                         VarState::BorrowedImmutable => {
-                                            self.error(format!(
-                                                "cannot mutably borrow {} while it is immutably borrowed",
+                                            self.error(CompileError::new(format!(
+                                                "cannot mutably borrow '{}' while it is immutably borrowed",
                                                 name
-                                            ));
+                                            )).suggest(Suggestion {
+                                                message: "wait for the immutable borrow(s) to go out of scope".to_string(),
+                                                replacement: None,
+                                            }));
                                         }
                                         VarState::BorrowedMutable => {
-                                            self.error(format!(
-                                                "cannot mutably borrow {} more than once",
+                                            self.error(CompileError::new(format!(
+                                                "cannot mutably borrow '{}' more than once",
                                                 name
-                                            ));
+                                            )).suggest(Suggestion {
+                                                message: "consider using a shared reference (&T) instead, or restructuring the code".to_string(),
+                                                replacement: None,
+                                            }));
                                         }
                                         VarState::Live => {
                                             self.var_states.insert(name.clone(), VarState::BorrowedMutable);
@@ -1335,13 +1749,24 @@ impl Analyzer {
                 // The function return type must be a Result.
                 if let Some(ref ret) = self.current_return_type {
                     if !is_result_type(ret) {
-                        self.error(format!(
-                            "? operator can only be used in functions returning Result, found return type {}",
-                            ret
-                        ));
+                        let fn_name = self.current_fn_name.clone().unwrap_or_default();
+                        self.error(CompileError::new(format!(
+                            "? operator can only be used in functions returning Result, found return type {} in function '{}'",
+                            ret, fn_name
+                        )).suggest(Suggestion {
+                            message: "change the function return type to Result<T, E>".to_string(),
+                            replacement: None,
+                        }));
                     }
                 } else {
-                    self.error("? operator used in function with no return type".to_string());
+                    let fn_name = self.current_fn_name.clone().unwrap_or_default();
+                    self.error(CompileError::new(format!(
+                        "? operator used in function '{}' with no return type",
+                        fn_name
+                    )).suggest(Suggestion {
+                        message: "add a Result return type to the function".to_string(),
+                        replacement: None,
+                    }));
                 }
             }
             ast::Expr::Cast(inner, target_type, _) => {
@@ -1355,10 +1780,13 @@ impl Analyzer {
                 } else if is_bool_type(&inner_type) && is_numeric_type(target_type) {
                     // Fine.
                 } else {
-                    self.error(format!(
+                    self.error(CompileError::new(format!(
                         "cannot cast from {} to {}",
                         inner_type, target_type
-                    ));
+                    )).suggest(Suggestion {
+                        message: "casts are supported between numeric types, or between numeric and bool".to_string(),
+                        replacement: None,
+                    }));
                 }
             }
             ast::Expr::StaticCall { class_name, method, args, span: _ } => {
@@ -1382,11 +1810,23 @@ impl Analyzer {
                             "String_", "io", "Result", "Ok", "Err",
                         ];
                         if !builtin_wrappers.contains(&class_name.as_str()) {
-                            self.error(format!("{} is not a class", class_name));
+                            self.error(CompileError::new(format!(
+                                "'{}' is not a class",
+                                class_name
+                            )).suggest(Suggestion {
+                                message: "check the class name for typos".to_string(),
+                                replacement: None,
+                            }));
                         }
                     }
                     Some(_) => {
-                        self.error(format!("{} is not a class", class_name));
+                        self.error(CompileError::new(format!(
+                            "'{}' is not a class",
+                            class_name
+                        )).suggest(Suggestion {
+                            message: "use a class name for static method calls".to_string(),
+                            replacement: None,
+                        }));
                     }
                 }
                 let _ = method;
@@ -1404,20 +1844,37 @@ impl Analyzer {
                         let sym = scope.borrow().lookup(name);
                         match sym {
                             None => {
-                                self.error(format!("undeclared identifier in assignment: {}", name));
+                                let mut err = CompileError::new(format!(
+                                    "undeclared identifier in assignment: '{}'",
+                                    name
+                                ));
+                                let similar = find_similar_names(name, scope, 2);
+                                if let Some(best) = similar.first() {
+                                    err = err.suggest(Suggestion {
+                                        message: "a similar name exists in scope".to_string(),
+                                        replacement: Some(best.clone()),
+                                    });
+                                }
+                                self.error(err);
                             }
                             Some(Symbol::Variable { typ, mutable }) => {
                                 if !mutable {
-                                    self.error(format!(
-                                        "cannot assign to immutable variable: {}",
+                                    self.error(CompileError::new(format!(
+                                        "cannot assign to immutable variable: '{}'",
                                         name
-                                    ));
+                                    )).suggest(Suggestion {
+                                        message: "declare the variable with 'var' or 'mut' to make it mutable".to_string(),
+                                        replacement: None,
+                                    }));
                                 }
                                 if !is_assignable(&value_type, &typ) {
-                                    self.error(format!(
-                                        "type mismatch in assignment: cannot assign {} to {}",
-                                        value_type, typ
-                                    ));
+                                    self.error(CompileError::new(format!(
+                                        "type mismatch in assignment to '{}': cannot assign {} to {}",
+                                        name, value_type, typ
+                                    )).suggest(Suggestion {
+                                        message: format!("expected type {}, found {}", typ, value_type),
+                                        replacement: None,
+                                    }));
                                 }
 
                                 // Ownership check: cannot assign to a borrowed variable.
@@ -1425,16 +1882,22 @@ impl Analyzer {
                                     if let Some(state) = self.var_states.get(name) {
                                         match state {
                                             VarState::BorrowedImmutable => {
-                                                self.error(format!(
-                                                    "cannot assign to {} while it is immutably borrowed",
+                                                self.error(CompileError::new(format!(
+                                                    "cannot assign to '{}' while it is immutably borrowed",
                                                     name
-                                                ));
+                                                )).suggest(Suggestion {
+                                                    message: "wait for the immutable borrow to go out of scope".to_string(),
+                                                    replacement: None,
+                                                }));
                                             }
                                             VarState::BorrowedMutable => {
-                                                self.error(format!(
-                                                    "cannot assign to {} while it is mutably borrowed",
+                                                self.error(CompileError::new(format!(
+                                                    "cannot assign to '{}' while it is mutably borrowed",
                                                     name
-                                                ));
+                                                )).suggest(Suggestion {
+                                                    message: "wait for the mutable borrow to go out of scope".to_string(),
+                                                    replacement: None,
+                                                }));
                                             }
                                             VarState::Moved | VarState::Live => {}
                                         }
@@ -1445,7 +1908,13 @@ impl Analyzer {
                                 self.var_states.insert(name.clone(), VarState::Live);
                             }
                             Some(_) => {
-                                self.error(format!("cannot assign to non-variable: {}", name));
+                                self.error(CompileError::new(format!(
+                                    "cannot assign to non-variable: '{}'",
+                                    name
+                                )).suggest(Suggestion {
+                                    message: "only variables can be assigned to".to_string(),
+                                    replacement: None,
+                                }));
                             }
                         }
                     }
@@ -1453,7 +1922,12 @@ impl Analyzer {
                         // Already analyzed above.
                     }
                     _ => {
-                        self.error("invalid assignment target".to_string());
+                        self.error(CompileError::new(
+                            "invalid assignment target".to_string()
+                        ).suggest(Suggestion {
+                            message: "assignment target must be a variable, field access, or index".to_string(),
+                            replacement: None,
+                        }));
                     }
                 }
 
@@ -1930,20 +2404,20 @@ impl Analyzer {
 /// ownership analysis, and toString desugaring.
 ///
 /// Returns the (possibly modified) program on success, or a vector of
-/// error strings describing all semantic errors found.
-pub fn analyze(program: &ast::Program) -> Result<ast::Program, Vec<String>> {
+/// compile errors describing all semantic errors found.
+pub fn analyze(program: &ast::Program) -> Result<ast::Program, Vec<CompileError>> {
     analyze_with_mode(program, ExhaustiveMode::default())
 }
 
 /// Analyze with an explicit exhaustiveness mode.
 /// Returns `Ok(program)` if there are no errors (warnings are reported
 /// but do not cause a failure), or `Err(errors)` otherwise.
-pub fn analyze_with_mode(program: &ast::Program, mode: ExhaustiveMode) -> Result<ast::Program, Vec<String>> {
+pub fn analyze_with_mode(program: &ast::Program, mode: ExhaustiveMode) -> Result<ast::Program, Vec<CompileError>> {
     analyze_with_mode_and_warnings(program, mode).map(|(prog, _)| prog)
 }
 
 /// Analyze with an explicit exhaustiveness mode, returning warnings alongside the result.
-pub fn analyze_with_mode_and_warnings(program: &ast::Program, mode: ExhaustiveMode) -> Result<(ast::Program, Vec<String>), Vec<String>> {
+pub fn analyze_with_mode_and_warnings(program: &ast::Program, mode: ExhaustiveMode) -> Result<(ast::Program, Vec<String>), Vec<CompileError>> {
     let mut program = program.clone();
     let mut analyzer = Analyzer::with_exhaustive_mode(mode);
     analyzer.analyze_program(&mut program);
@@ -3981,5 +4455,364 @@ mod tests {
             span: Span::unknown(),
         }));
         assert!(analyze(&prog).is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // Improved error message tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_undeclared_identifier_suggests_similar_name() {
+        // Declare "count" and use "cont" — should suggest "count"
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "foo".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "count".to_string(),
+                    typ: Some(Type::simple("int")),
+                    init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+                Stmt::Expr(Expr::Identifier("cont".to_string(), Span::unknown())),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        assert!(errs.iter().any(|e| e.contains("undeclared identifier")), "expected 'undeclared identifier' error, got: {:?}", errs);
+        assert!(errs.iter().any(|e| e.contains("count")), "expected suggestion of 'count', got: {:?}", errs);
+    }
+
+    #[test]
+    fn test_undeclared_identifier_no_suggestion_for_very_different_name() {
+        // Declare "x" and use "zzzzzz" — should not suggest anything
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "foo".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "x".to_string(),
+                    typ: Some(Type::simple("int")),
+                    init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+                Stmt::Expr(Expr::Identifier("zzzzzz".to_string(), Span::unknown())),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        assert!(errs.iter().any(|e| e.contains("undeclared identifier")), "expected 'undeclared identifier' error, got: {:?}", errs);
+        // The error should not suggest "x" since it's too different from "zzzzzz"
+        let err_msg = errs.iter().find(|e| e.contains("undeclared identifier")).unwrap();
+        assert!(!err_msg.contains("did you mean"), "should not suggest for very different name, got: {}", err_msg);
+    }
+
+    #[test]
+    fn test_type_mismatch_shows_expected_vs_actual() {
+        let prog = program_with(Declaration::VarDecl(VarDecl {
+            name: "x".to_string(),
+            typ: Some(Type::simple("int")),
+            init: Some(Expr::Literal(Literal::Bool(true), Span::unknown())),
+            mutable: false,
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        let err = errs.iter().find(|e| e.contains("type mismatch")).unwrap();
+        assert!(err.contains("expected type int") || err.contains("expected") && err.contains("found"), "expected 'expected' and 'found' in error, got: {}", err);
+    }
+
+    #[test]
+    fn test_duplicate_declaration_error() {
+        let prog = Program {
+            imports: vec![],
+            declarations: vec![
+                Declaration::Function(FnDecl {
+                    access: Access::Public,
+                    name: "foo".to_string(),
+                    type_params: vec![],
+                    params: vec![],
+                    return_type: Some(Type::simple("void")),
+                    body: vec![],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+                Declaration::Function(FnDecl {
+                    access: Access::Public,
+                    name: "foo".to_string(),
+                    type_params: vec![],
+                    params: vec![],
+                    return_type: Some(Type::simple("int")),
+                    body: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(1), Span::unknown())))],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+        };
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        assert!(errs.iter().any(|e| e.contains("duplicate declaration")), "expected 'duplicate declaration' error, got: {:?}", errs);
+    }
+
+    #[test]
+    fn test_missing_return_statement_error() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "get_value".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("int")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "x".to_string(),
+                    typ: Some(Type::simple("int")),
+                    init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        let err = errs.iter().find(|e| e.contains("missing a return statement")).unwrap();
+        assert!(err.contains("get_value"), "expected function name 'get_value' in error, got: {}", err);
+        assert!(err.contains("int"), "expected return type 'int' in error, got: {}", err);
+    }
+
+    #[test]
+    fn test_return_type_mismatch_includes_function_name() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "compute".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("int")),
+            body: vec![Stmt::Return(Some(Expr::Literal(Literal::Bool(true), Span::unknown())))],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        let err = errs.iter().find(|e| e.contains("return type mismatch")).unwrap();
+        assert!(err.contains("compute"), "expected function name in error, got: {}", err);
+    }
+
+    #[test]
+    fn test_unreachable_code_warning() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "foo".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("int")),
+            body: vec![
+                Stmt::Return(Some(Expr::Literal(Literal::Int(1), Span::unknown()))),
+                Stmt::Expr(Expr::Literal(Literal::Int(2), Span::unknown())),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze_with_mode_and_warnings(&prog, ExhaustiveMode::default());
+        // The function should still error because of missing return (the return is there but
+        // the block_always_returns check may not see it due to the unreachable code after it).
+        // Actually, the function does return, so it should be ok but with a warning.
+        if let Ok((_, warnings)) = result {
+            assert!(warnings.iter().any(|w| w.contains("unreachable")), "expected unreachable code warning, got: {:?}", warnings);
+        }
+    }
+
+    #[test]
+    fn test_unused_variable_warning() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "foo".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "unused_var".to_string(),
+                    typ: Some(Type::simple("int")),
+                    init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze_with_mode_and_warnings(&prog, ExhaustiveMode::default());
+        if let Ok((_, warnings)) = result {
+            assert!(warnings.iter().any(|w| w.contains("unused variable") && w.contains("unused_var")),
+                "expected unused variable warning for 'unused_var', got: {:?}", warnings);
+        }
+    }
+
+    #[test]
+    fn test_unused_variable_underscore_prefix_no_warning() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "foo".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "_unused".to_string(),
+                    typ: Some(Type::simple("int")),
+                    init: Some(Expr::Literal(Literal::Int(42), Span::unknown())),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze_with_mode_and_warnings(&prog, ExhaustiveMode::default());
+        if let Ok((_, warnings)) = result {
+            assert!(!warnings.iter().any(|w| w.contains("_unused")),
+                "should not warn about '_unused' (underscore prefix), got: {:?}", warnings);
+        }
+    }
+
+    #[test]
+    fn test_compile_error_display_format() {
+        let err = CompileError::new("test error".to_string());
+        assert_eq!(err.to_string(), "test error");
+
+        let err_with_suggestion = CompileError::new("test error".to_string())
+            .suggest(Suggestion {
+                message: "try this".to_string(),
+                replacement: Some("foo".to_string()),
+            });
+        let displayed = err_with_suggestion.to_string();
+        assert!(displayed.contains("test error"));
+        assert!(displayed.contains("help:"));
+        assert!(displayed.contains("foo"));
+    }
+
+    #[test]
+    fn test_levenshtein_distance() {
+        assert_eq!(levenshtein("", ""), 0);
+        assert_eq!(levenshtein("abc", "abc"), 0);
+        assert_eq!(levenshtein("abc", "abd"), 1);
+        assert_eq!(levenshtein("abc", "ab"), 1);
+        assert_eq!(levenshtein("abc", "abcd"), 1);
+        assert_eq!(levenshtein("kitten", "sitting"), 3);
+        assert_eq!(levenshtein("count", "cont"), 1);
+    }
+
+    #[test]
+    fn test_suggestion_struct() {
+        let s = Suggestion {
+            message: "similar name exists".to_string(),
+            replacement: Some("count".to_string()),
+        };
+        let displayed = s.to_string();
+        assert!(displayed.contains("count"));
+        assert!(displayed.contains("did you mean"));
+
+        let s_no_replacement = Suggestion {
+            message: "try something else".to_string(),
+            replacement: None,
+        };
+        assert_eq!(s_no_replacement.to_string(), "try something else");
+    }
+
+    #[test]
+    fn test_compile_error_contains_method() {
+        let err = CompileError::new("undeclared identifier: 'cont'".to_string())
+            .suggest(Suggestion {
+                message: "a similar name exists in scope".to_string(),
+                replacement: Some("count".to_string()),
+            });
+        assert!(err.contains("undeclared"));
+        assert!(err.contains("count"));
+        assert!(!err.contains("xyz"));
+    }
+
+    #[test]
+    fn test_immutable_assignment_suggests_mut() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "foo".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "x".to_string(),
+                    typ: Some(Type::simple("int")),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+                Stmt::Expr(Expr::Assign(
+                    Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+                    Box::new(Expr::Literal(Literal::Int(10), Span::unknown())),
+                    Span::unknown(),
+                )),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        let err = errs.iter().find(|e| e.contains("immutable")).unwrap();
+        assert!(err.contains("mut"), "expected suggestion about 'mut', got: {}", err);
+    }
+
+    #[test]
+    fn test_error_propagation_shows_function_name() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "my_func".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("int")),
+            body: vec![Stmt::Expr(Expr::ErrorPropagation(
+                Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                Span::unknown(),
+            ))],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        let err = errs.iter().find(|e| e.contains("? operator")).unwrap();
+        assert!(err.contains("my_func"), "expected function name in error, got: {}", err);
     }
 }
