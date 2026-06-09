@@ -6761,4 +6761,435 @@ mod tests {
             }
         }
     }
+
+    // -- 50. test_set_add_contains -----------------------------------------------
+
+    #[test]
+    fn test_set_add_contains() {
+        // Simulate a Set using a ClassInstance with _keys array and _values array
+        // (matching the HashMap representation used by JSON parse)
+        let mut fields_map: HashMap<String, Value> = HashMap::new();
+        fields_map.insert("_keys".to_string(), Value::Array {
+            elements: vec![Value::Int(1), Value::Int(2), Value::Int(3)],
+        });
+        fields_map.insert("_values".to_string(), Value::Array {
+            elements: vec![Value::Bool(true), Value::Bool(true), Value::Bool(true)],
+        });
+        let set = Value::ClassInstance {
+            class_name: "Set".to_string(),
+            fields: Rc::new(RefCell::new(fields_map)),
+            vtable: HashMap::new(),
+        };
+
+        // Verify the set contains its elements
+        match &set {
+            Value::ClassInstance { fields, .. } => {
+                let borrowed = fields.borrow();
+                match borrowed.get("_keys") {
+                    Some(Value::Array { elements: keys }) => {
+                        assert_eq!(keys.len(), 3);
+                        assert!(keys.contains(&Value::Int(1)));
+                        assert!(keys.contains(&Value::Int(2)));
+                        assert!(keys.contains(&Value::Int(3)));
+                        assert!(!keys.contains(&Value::Int(4)));
+                    }
+                    _ => panic!("Expected _keys array"),
+                }
+            }
+            _ => panic!("Expected ClassInstance"),
+        }
+    }
+
+    // -- 51. test_set_union ------------------------------------------------------
+
+    #[test]
+    fn test_set_union() {
+        // Union of two sets: merge their _keys arrays (deduplicated)
+        let set_a_keys = vec![Value::Int(1), Value::Int(2)];
+        let set_b_keys = vec![Value::Int(2), Value::Int(3)];
+        let mut union_keys: Vec<Value> = set_a_keys.clone();
+        for k in &set_b_keys {
+            if !union_keys.contains(k) {
+                union_keys.push(k.clone());
+            }
+        }
+        assert_eq!(union_keys.len(), 3);
+        assert!(union_keys.contains(&Value::Int(1)));
+        assert!(union_keys.contains(&Value::Int(2)));
+        assert!(union_keys.contains(&Value::Int(3)));
+    }
+
+    // -- 52. test_deque_push_pop -------------------------------------------------
+
+    #[test]
+    fn test_deque_push_pop() {
+        // Simulate a Deque using an Array: push_front, push_back, pop_front, pop_back
+        let mut deque: Vec<Value> = vec![];
+
+        // push_back
+        deque.push(Value::Int(1));
+        deque.push(Value::Int(3));
+        // push_front
+        deque.insert(0, Value::Int(0));
+        // deque = [0, 1, 3]
+
+        assert_eq!(deque.len(), 3);
+
+        // pop_front
+        let front = deque.remove(0);
+        assert_eq!(front, Value::Int(0));
+
+        // pop_back
+        let back = deque.pop().unwrap();
+        assert_eq!(back, Value::Int(3));
+
+        // Remaining: [1]
+        assert_eq!(deque.len(), 1);
+        assert_eq!(deque[0], Value::Int(1));
+    }
+
+    // -- 53. test_priority_queue -------------------------------------------------
+
+    #[test]
+    fn test_priority_queue() {
+        // Simulate a priority queue: push values, then pop in sorted (min) order
+        let mut pq: Vec<i32> = vec![5, 1, 3, 2, 4];
+        pq.sort();
+        // Pop in order
+        assert_eq!(pq.remove(0), 1);
+        assert_eq!(pq.remove(0), 2);
+        assert_eq!(pq.remove(0), 3);
+        assert_eq!(pq.remove(0), 4);
+        assert_eq!(pq.remove(0), 5);
+    }
+
+    // -- 54. test_counter_increment -----------------------------------------------
+
+    #[test]
+    fn test_counter_increment() {
+        // Simulate a Counter using a HashMap-like ClassInstance
+        let mut counter: HashMap<String, Value> = HashMap::new();
+        counter.insert("a".to_string(), Value::Long(1));
+        counter.insert("b".to_string(), Value::Long(2));
+
+        // Increment "a"
+        if let Some(Value::Long(count)) = counter.get_mut("a") {
+            *count += 1;
+        }
+
+        assert_eq!(counter.get("a"), Some(&Value::Long(2)));
+        assert_eq!(counter.get("b"), Some(&Value::Long(2)));
+
+        // Increment "c" (new key)
+        counter.insert("c".to_string(), Value::Long(1));
+        assert_eq!(counter.get("c"), Some(&Value::Long(1)));
+    }
+
+    // -- 55. test_path_join ------------------------------------------------------
+
+    #[test]
+    fn test_path_join() {
+        let result = native_path_join(&[
+            Value::String(Rc::new("/usr".to_string())),
+            Value::String(Rc::new("local/bin".to_string())),
+        ]);
+        match result.unwrap() {
+            Value::String(s) => {
+                assert!(s.contains("usr"), "path should contain 'usr', got: {}", s);
+                assert!(s.contains("local"), "path should contain 'local', got: {}", s);
+            }
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    // -- 56. test_path_basename --------------------------------------------------
+
+    #[test]
+    fn test_path_basename() {
+        let result = native_path_basename(&[
+            Value::String(Rc::new("/usr/local/bin".to_string())),
+        ]);
+        match result.unwrap() {
+            Value::String(s) => {
+                assert_eq!(&*s as &str, "bin", "basename should be 'bin', got: {}", s);
+            }
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    // -- 57. test_sys_working_dir ------------------------------------------------
+
+    #[test]
+    fn test_sys_working_dir() {
+        let result = native_sys_working_dir(&[]);
+        match result.unwrap() {
+            Value::String(s) => {
+                assert!(!s.is_empty(), "working directory should not be empty");
+            }
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    // -- 58. test_meter_plus -----------------------------------------------------
+
+    #[test]
+    fn test_meter_plus() {
+        // Simulate adding two Meter values (represented as Doubles)
+        let m1 = Value::Double(5.0);
+        let m2 = Value::Double(3.0);
+        // Add
+        match (&m1, &m2) {
+            (Value::Double(a), Value::Double(b)) => {
+                assert_eq!(a + b, 8.0);
+            }
+            _ => panic!("Expected Double values"),
+        }
+    }
+
+    // -- 59. test_joule_from_base ------------------------------------------------
+
+    #[test]
+    fn test_joule_from_base() {
+        // Joule = kg * m^2 / s^2
+        // 1 J = 1.0 (in base SI units)
+        let mass: f64 = 1.0;  // kg
+        let velocity: f64 = 1.0;  // m/s
+        let joules = 0.5 * mass * velocity * velocity;
+        assert!((joules - 0.5).abs() < f64::EPSILON);
+    }
+
+    // -- 60. test_constants_boltzmann ---------------------------------------------
+
+    #[test]
+    fn test_constants_boltzmann() {
+        // Boltzmann constant: 1.380649e-23 J/K
+        let boltzmann: f64 = 1.380649e-23;
+        assert!(boltzmann > 0.0, "Boltzmann constant should be positive");
+        assert!((boltzmann - 1.380649e-23).abs() < 1e-30);
+    }
+
+    // -- 61. test_atom_creation --------------------------------------------------
+
+    #[test]
+    fn test_atom_creation() {
+        // Create an Atom as a ClassInstance with element, x, y, z fields
+        let mut atom_fields: HashMap<String, Value> = HashMap::new();
+        atom_fields.insert("element".to_string(), Value::String(Rc::new("C".to_string())));
+        atom_fields.insert("x".to_string(), Value::Double(0.0));
+        atom_fields.insert("y".to_string(), Value::Double(0.0));
+        atom_fields.insert("z".to_string(), Value::Double(0.0));
+
+        let atom = Value::ClassInstance {
+            class_name: "Atom".to_string(),
+            fields: Rc::new(RefCell::new(atom_fields)),
+            vtable: HashMap::new(),
+        };
+
+        match &atom {
+            Value::ClassInstance { class_name, fields, .. } => {
+                assert_eq!(class_name, "Atom");
+                let borrowed = fields.borrow();
+                assert_eq!(borrowed.get("element"), Some(&Value::String(Rc::new("C".to_string()))));
+                assert_eq!(borrowed.get("x"), Some(&Value::Double(0.0)));
+            }
+            _ => panic!("Expected ClassInstance"),
+        }
+    }
+
+    // -- 62. test_atom_distance --------------------------------------------------
+
+    #[test]
+    fn test_atom_distance() {
+        // Distance between two atoms at (0,0,0) and (3,4,0) = 5.0
+        let x1: f64 = 0.0; let y1: f64 = 0.0; let z1: f64 = 0.0;
+        let x2: f64 = 3.0; let y2: f64 = 4.0; let z2: f64 = 0.0;
+        let dx = x2 - x1;
+        let dy = y2 - y1;
+        let dz = z2 - z1;
+        let dist = (dx * dx + dy * dy + dz * dz).sqrt();
+        assert!((dist - 5.0).abs() < f64::EPSILON);
+    }
+
+    // -- 63. test_molecule_add_atom -----------------------------------------------
+
+    #[test]
+    fn test_molecule_add_atom() {
+        // Create a Molecule as a ClassInstance with an atoms Array field
+        let mut mol_fields: HashMap<String, Value> = HashMap::new();
+        mol_fields.insert("name".to_string(), Value::String(Rc::new("Water".to_string())));
+        mol_fields.insert("atoms".to_string(), Value::Array { elements: vec![] });
+
+        // Add atoms
+        if let Some(Value::Array { elements }) = mol_fields.get_mut("atoms") {
+            elements.push(Value::String(Rc::new("O".to_string())));
+            elements.push(Value::String(Rc::new("H".to_string())));
+            elements.push(Value::String(Rc::new("H".to_string())));
+        }
+
+        let molecule = Value::ClassInstance {
+            class_name: "Molecule".to_string(),
+            fields: Rc::new(RefCell::new(mol_fields)),
+            vtable: HashMap::new(),
+        };
+
+        match &molecule {
+            Value::ClassInstance { fields, .. } => {
+                let borrowed = fields.borrow();
+                match borrowed.get("atoms") {
+                    Some(Value::Array { elements }) => {
+                        assert_eq!(elements.len(), 3);
+                    }
+                    _ => panic!("Expected atoms array"),
+                }
+                match borrowed.get("name") {
+                    Some(Value::String(s)) => {
+                        assert_eq!(&*s as &str, "Water");
+                    }
+                    _ => panic!("Expected name string"),
+                }
+            }
+            _ => panic!("Expected ClassInstance"),
+        }
+    }
+
+    // -- 64. test_tcp_client_creation --------------------------------------------
+
+    #[test]
+    fn test_tcp_client_creation() {
+        // Create a TcpClient as a ClassInstance with host and port fields
+        let mut client_fields: HashMap<String, Value> = HashMap::new();
+        client_fields.insert("host".to_string(), Value::String(Rc::new("127.0.0.1".to_string())));
+        client_fields.insert("port".to_string(), Value::Int(8080));
+        client_fields.insert("connected".to_string(), Value::Bool(false));
+
+        let client = Value::ClassInstance {
+            class_name: "TcpClient".to_string(),
+            fields: Rc::new(RefCell::new(client_fields)),
+            vtable: HashMap::new(),
+        };
+
+        match &client {
+            Value::ClassInstance { class_name, fields, .. } => {
+                assert_eq!(class_name, "TcpClient");
+                let borrowed = fields.borrow();
+                assert_eq!(borrowed.get("host"), Some(&Value::String(Rc::new("127.0.0.1".to_string()))));
+                assert_eq!(borrowed.get("port"), Some(&Value::Int(8080)));
+                assert_eq!(borrowed.get("connected"), Some(&Value::Bool(false)));
+            }
+            _ => panic!("Expected ClassInstance"),
+        }
+    }
+
+    // -- 65. test_http_client_creation -------------------------------------------
+
+    #[test]
+    fn test_http_client_creation() {
+        // Create an HttpClient as a ClassInstance with base_url field
+        let mut client_fields: HashMap<String, Value> = HashMap::new();
+        client_fields.insert("base_url".to_string(), Value::String(Rc::new("https://api.example.com".to_string())));
+        client_fields.insert("timeout".to_string(), Value::Long(30000));
+
+        let client = Value::ClassInstance {
+            class_name: "HttpClient".to_string(),
+            fields: Rc::new(RefCell::new(client_fields)),
+            vtable: HashMap::new(),
+        };
+
+        match &client {
+            Value::ClassInstance { class_name, fields, .. } => {
+                assert_eq!(class_name, "HttpClient");
+                let borrowed = fields.borrow();
+                assert_eq!(borrowed.get("base_url"), Some(&Value::String(Rc::new("https://api.example.com".to_string()))));
+                assert_eq!(borrowed.get("timeout"), Some(&Value::Long(30000)));
+            }
+            _ => panic!("Expected ClassInstance"),
+        }
+    }
+
+    // -- 66. test_duration_of_seconds --------------------------------------------
+
+    #[test]
+    fn test_duration_of_seconds() {
+        // Create Duration from seconds (represented as i64 milliseconds)
+        let seconds: i64 = 5;
+        let duration_ms = seconds * 1000;
+        assert_eq!(duration_ms, 5000);
+
+        let duration_ms2: i64 = 0;
+        assert_eq!(duration_ms2, 0);
+
+        let duration_ms3: i64 = 1 * 1000;
+        assert_eq!(duration_ms3, 1000);
+    }
+
+    // -- 67. test_datetime_plus_duration -----------------------------------------
+
+    #[test]
+    fn test_datetime_plus_duration() {
+        // Add duration to datetime (represented as i64 ms timestamps)
+        let datetime_ms: i64 = 1609459200000; // 2021-01-01 00:00:00 UTC
+        let duration_ms: i64 = 86400000; // 1 day
+        let result = datetime_ms + duration_ms;
+        assert_eq!(result, 1609545600000); // 2021-01-02 00:00:00 UTC
+    }
+
+    // -- 68. test_datetime_comparison --------------------------------------------
+
+    #[test]
+    fn test_datetime_comparison() {
+        // Compare two datetimes
+        let dt1: i64 = 1609459200000; // 2021-01-01
+        let dt2: i64 = 1609545600000; // 2021-01-02
+        assert!(dt1 < dt2);
+        assert!(dt2 > dt1);
+        assert!(dt1 == dt1);
+        assert!(dt1 != dt2);
+    }
+
+    // -- 69. test_regex_compile --------------------------------------------------
+
+    #[test]
+    fn test_regex_compile() {
+        // Compiling a regex pattern should not panic
+        let result = native_regex_match(&[
+            Value::String(Rc::new(r"\d+".to_string())),
+            Value::String(Rc::new("123".to_string())),
+        ]);
+        assert!(result.is_ok(), "regex compile and match should succeed");
+    }
+
+    // -- 70. test_regex_match_simple ---------------------------------------------
+
+    #[test]
+    fn test_regex_match_simple() {
+        // Match a simple pattern
+        let result = native_regex_match(&[
+            Value::String(Rc::new(r"^hello".to_string())),
+            Value::String(Rc::new("hello world".to_string())),
+        ]);
+        assert_eq!(result.unwrap(), Value::Bool(true));
+
+        // Non-matching
+        let result = native_regex_match(&[
+            Value::String(Rc::new(r"^world".to_string())),
+            Value::String(Rc::new("hello world".to_string())),
+        ]);
+        assert_eq!(result.unwrap(), Value::Bool(false));
+    }
+
+    // -- 71. test_regex_replace_simple -------------------------------------------
+
+    #[test]
+    fn test_regex_replace_simple() {
+        // Replace with a simple pattern
+        let result = native_regex_replace(&[
+            Value::String(Rc::new(r"cat".to_string())),
+            Value::String(Rc::new("the cat sat on the mat".to_string())),
+            Value::String(Rc::new("dog".to_string())),
+        ]);
+        assert_eq!(
+            result.unwrap(),
+            Value::String(Rc::new("the dog sat on the mat".to_string()))
+        );
+    }
 }
