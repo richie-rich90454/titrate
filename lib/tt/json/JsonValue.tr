@@ -124,6 +124,85 @@ public class JsonValue {
         return this.arrayVal.get(index);
     }
 
+    // Check if object has a key
+    public bool hasKey(string key) {
+        if (this.kind != "object") {
+            return false;
+        }
+        return this.objVal.containsKey(key);
+    }
+
+    // Get all keys of an object
+    public ArrayList<string> keys() {
+        if (this.kind != "object") {
+            return new ArrayList<string>();
+        }
+        return this.objVal.keys();
+    }
+
+    // Get the size of an array or object
+    public int size() {
+        if (this.kind == "array") {
+            return this.arrayVal.size();
+        }
+        if (this.kind == "object") {
+            return this.objVal.size();
+        }
+        return 0;
+    }
+
+    // Create a deep copy of this value
+    public JsonValue deepCopy() {
+        if (this.kind == "null") {
+            return JsonValue::null();
+        }
+        if (this.kind == "bool") {
+            return JsonValue::ofBool(this.boolVal);
+        }
+        if (this.kind == "number") {
+            return JsonValue::ofNum(this.numVal);
+        }
+        if (this.kind == "string") {
+            return JsonValue::ofStr(this.strVal);
+        }
+        if (this.kind == "array") {
+            ArrayList<JsonValue> arr = new ArrayList<JsonValue>();
+            int i = 0;
+            while (i < this.arrayVal.size()) {
+                arr.add(this.arrayVal.get(i).deepCopy());
+                i = i + 1;
+            }
+            return JsonValue::ofArray(arr);
+        }
+        if (this.kind == "object") {
+            HashMap obj = new HashMap();
+            ArrayList<string> ks = this.objVal.keys();
+            int i = 0;
+            while (i < ks.size()) {
+                string key = ks.get(i);
+                JsonValue val = this.objVal.get(key);
+                obj.put(key, val.deepCopy());
+                i = i + 1;
+            }
+            return JsonValue::ofObject(obj);
+        }
+        return JsonValue::null();
+    }
+
+    // Merge another JsonValue (object) into this one
+    public void merge(JsonValue other) {
+        if (this.kind != "object" || other.kind != "object") {
+            return;
+        }
+        ArrayList<string> ks = other.keys();
+        int i = 0;
+        while (i < ks.size()) {
+            string key = ks.get(i);
+            this.objVal.put(key, other.get(key));
+            i = i + 1;
+        }
+    }
+
     // JSON serialization
     public string toString() {
         if (this.kind == "null") {
