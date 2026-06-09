@@ -2405,19 +2405,19 @@ impl Analyzer {
 ///
 /// Returns the (possibly modified) program on success, or a vector of
 /// compile errors describing all semantic errors found.
-pub fn analyze(program: &ast::Program) -> Result<ast::Program, Vec<CompileError>> {
+pub fn analyze(program: &ast::Program) -> Result<ast::Program, Vec<String>> {
     analyze_with_mode(program, ExhaustiveMode::default())
 }
 
 /// Analyze with an explicit exhaustiveness mode.
 /// Returns `Ok(program)` if there are no errors (warnings are reported
 /// but do not cause a failure), or `Err(errors)` otherwise.
-pub fn analyze_with_mode(program: &ast::Program, mode: ExhaustiveMode) -> Result<ast::Program, Vec<CompileError>> {
+pub fn analyze_with_mode(program: &ast::Program, mode: ExhaustiveMode) -> Result<ast::Program, Vec<String>> {
     analyze_with_mode_and_warnings(program, mode).map(|(prog, _)| prog)
 }
 
 /// Analyze with an explicit exhaustiveness mode, returning warnings alongside the result.
-pub fn analyze_with_mode_and_warnings(program: &ast::Program, mode: ExhaustiveMode) -> Result<(ast::Program, Vec<String>), Vec<CompileError>> {
+pub fn analyze_with_mode_and_warnings(program: &ast::Program, mode: ExhaustiveMode) -> Result<(ast::Program, Vec<String>), Vec<String>> {
     let mut program = program.clone();
     let mut analyzer = Analyzer::with_exhaustive_mode(mode);
     analyzer.analyze_program(&mut program);
@@ -2425,7 +2425,7 @@ pub fn analyze_with_mode_and_warnings(program: &ast::Program, mode: ExhaustiveMo
     if analyzer.errors.is_empty() {
         Ok((program, warnings))
     } else {
-        Err(analyzer.errors)
+        Err(analyzer.errors.iter().map(|e| e.to_string()).collect())
     }
 }
 
