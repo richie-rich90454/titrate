@@ -1,3 +1,4 @@
+// Static utility methods for the Long type.
 public class Long {
     public static long parse(String s) {
         return Long::parseLong(s);
@@ -5,5 +6,13 @@ public class Long {
 
     public static String toString(long value) {
         return value.toString();
+    }
+
+    public static long MAX_VALUE() {
+        return 9223372036854775807;
+    }
+
+    public static long MIN_VALUE() {
+        return -9223372036854775808;
     }
 }
