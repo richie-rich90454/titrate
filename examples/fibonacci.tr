@@ -1,0 +1,53 @@
+// Fibonacci Sequence Calculator
+// Demonstrates: recursion, iteration, while loops, functions
+
+public fn main(): void {
+    io::println("=== Fibonacci Sequence ===");
+
+    // Iterative approach
+    io::println("Iterative:");
+    var i: int = 0;
+    while (i < 10) {
+        io::println("  fib(" + Integer.toString(i) + ") = " + Integer.toString(fib_iterative(i)));
+        i = i + 1;
+    }
+
+    // Recursive approach
+    io::println("Recursive:");
+    var j: int = 0;
+    while (j < 10) {
+        io::println("  fib(" + Integer.toString(j) + ") = " + Integer.toString(fib_recursive(j)));
+        j = j + 1;
+    }
+}
+
+// Iterative Fibonacci - O(n) time, O(1) space
+fn fib_iterative(n: int): int {
+    if (n <= 0) {
+        return 0;
+    }
+    if (n == 1) {
+        return 1;
+    }
+    var prev2: int = 0;
+    var prev1: int = 1;
+    var i: int = 2;
+    while (i <= n) {
+        let current: int = prev1 + prev2;
+        prev2 = prev1;
+        prev1 = current;
+        i = i + 1;
+    }
+    return prev1;
+}
+
+// Recursive Fibonacci - O(2^n) time, O(n) space
+fn fib_recursive(n: int): int {
+    if (n <= 0) {
+        return 0;
+    }
+    if (n == 1) {
+        return 1;
+    }
+    return fib_recursive(n - 1) + fib_recursive(n - 2);
+}

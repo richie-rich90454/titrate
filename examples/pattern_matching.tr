@@ -1,0 +1,141 @@
+// Pattern Matching with Enums and Exhaustive Matching
+// Demonstrates: enum definitions, switch/match, wildcard patterns, Result matching
+
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public fn main(): void {
+    io::println("=== Pattern Matching ===");
+
+    // --- Simple enum matching ---
+    let dir: Direction = North();
+    io::println("North label: " + direction_label(dir));
+    io::println("East label: " + direction_label(East()));
+    io::println("South label: " + direction_label(South()));
+    io::println("West label: " + direction_label(West()));
+
+    // --- Enum with data (payload) ---
+    let shapes: ArrayList<Shape> = new ArrayList<Shape>();
+    shapes.add(Circle(5.0));
+    shapes.add(Rectangle(3.0, 4.0));
+    shapes.add(Triangle(3.0, 4.0, 5.0));
+
+    for (s in shapes) {
+        io::println("  " + describe_shape(s) + " with area " + Double.toString(shape_area(s)));
+    }
+
+    // --- Result type pattern matching ---
+    let ok_result: Result<int, string> = Ok(42);
+    let err_result: Result<int, string> = Err("something went wrong");
+
+    switch (ok_result) {
+        case Ok(val) => io::println("Ok value: " + Integer.toString(val));
+        case Err(msg) => io::println("Error: " + msg);
+        default => { }
+    }
+
+    switch (err_result) {
+        case Ok(val) => io::println("Ok value: " + Integer.toString(val));
+        case Err(msg) => io::println("Error: " + msg);
+        default => { }
+    }
+
+    // --- Wildcard pattern ---
+    let ignored: Result<int, string> = Ok(100);
+    switch (ignored) {
+        case Ok(_) => io::println("Got an Ok (value ignored)");
+        case Err(_) => io::println("Got an Err (message ignored)");
+        default => { }
+    }
+
+    // --- Matching with safe_divide ---
+    let r1: Result<int, string> = safe_divide(10, 3);
+    let r2: Result<int, string> = safe_divide(10, 0);
+
+    switch (r1) {
+        case Ok(v) => io::println("10/3 = " + Integer.toString(v));
+        case Err(e) => io::println("Error: " + e);
+        default => { }
+    }
+    switch (r2) {
+        case Ok(v) => io::println("10/0 = " + Integer.toString(v));
+        case Err(e) => io::println("Error: " + e);
+        default => { }
+    }
+
+    // --- Matching on an optional-like enum ---
+    let some_val: Option<int> = Some(42);
+    let none_val: Option<int> = None();
+
+    io::println("Some(42) => " + option_to_string(some_val));
+    io::println("None() => " + option_to_string(none_val));
+}
+
+// --- Enum definitions ---
+
+enum Direction {
+    North,
+    East,
+    South,
+    West,
+}
+
+enum Shape {
+    Circle(double),
+    Rectangle(double, double),
+    Triangle(double, double, double),
+}
+
+enum Option<T> {
+    Some(T),
+    None,
+}
+
+// --- Pattern matching functions ---
+
+fn direction_label(d: Direction): string {
+    switch (d) {
+        case North() => return "N";
+        case East() => return "E";
+        case South() => return "S";
+        case West() => return "W";
+    }
+    return "?";
+}
+
+fn describe_shape(s: Shape): string {
+    switch (s) {
+        case Circle(_) => return "Circle";
+        case Rectangle(_, _) => return "Rectangle";
+        case Triangle(_, _, _) => return "Triangle";
+    }
+    return "Unknown";
+}
+
+fn shape_area(s: Shape): double {
+    switch (s) {
+        case Circle(r) => return 3.14159 * r * r;
+        case Rectangle(w, h) => return w * h;
+        case Triangle(a, b, c) => {
+            // Heron's formula
+            let s: double = (a + b + c) / 2.0;
+            return Math.sqrt(s * (s - a) * (s - b) * (s - c));
+        }
+    }
+    return 0.0;
+}
+
+fn safe_divide(a: int, b: int): Result<int, string> {
+    if (b == 0) {
+        return Err("division by zero");
+    }
+    return Ok(a / b);
+}
+
+fn option_to_string(opt: Option<int>): string {
+    switch (opt) {
+        case Some(v) => return "Some(" + Integer.toString(v) + ")";
+        case None() => return "None";
+    }
+    return "?";
+}

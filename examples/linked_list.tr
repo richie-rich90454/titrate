@@ -1,0 +1,160 @@
+// Generic Linked List with map/filter operations
+// Demonstrates: generics, classes, higher-order functions, closures
+
+import tt::util::ArrayList;
+
+public fn main(): void {
+    io::println("=== Generic Linked List ===");
+
+    // Create a linked list of integers
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(10);
+    list.addLast(20);
+    list.addLast(30);
+    list.addLast(40);
+    list.addLast(50);
+
+    io::println("Original list size: " + Integer.toString(list.size()));
+
+    // Convert to array and print
+    let arr: ArrayList<int> = list.toArray();
+    var i: int = 0;
+    while (i < arr.size()) {
+        io::println("  item: " + Integer.toString(arr.get(i)));
+        i = i + 1;
+    }
+
+    // Add at the front
+    list.addFirst(5);
+    io::println("After addFirst(5), size: " + Integer.toString(list.size()));
+
+    // Remove from front and back
+    let first: int = list.removeFirst();
+    let last: int = list.removeLast();
+    io::println("Removed first: " + Integer.toString(first));
+    io::println("Removed last: " + Integer.toString(last));
+    io::println("Final size: " + Integer.toString(list.size()));
+
+    // Create a linked list of strings
+    let words: LinkedList<string> = new LinkedList<string>();
+    words.addLast("hello");
+    words.addLast("world");
+    words.addLast("titrate");
+    io::println("String list size: " + Integer.toString(words.size()));
+}
+
+// A simple generic linked list node
+class ListNode<T> {
+    T value;
+    ListNode<T> next;
+
+    ListNode(T value) {
+        this.value = value;
+        this.next = null;
+    }
+}
+
+// A generic linked list with map and filter
+class LinkedList<T> {
+    ListNode<T> head;
+    int _size;
+
+    LinkedList() {
+        this.head = null;
+        this._size = 0;
+    }
+
+    fn addFirst(element: T): void {
+        let node: ListNode<T> = new ListNode<T>(element);
+        node.next = this.head;
+        this.head = node;
+        this._size = this._size + 1;
+    }
+
+    fn addLast(element: T): void {
+        let node: ListNode<T> = new ListNode<T>(element);
+        if (this.head == null) {
+            this.head = node;
+        } else {
+            var current: ListNode<T> = this.head;
+            while (current.next != null) {
+                current = current.next;
+            }
+            current.next = node;
+        }
+        this._size = this._size + 1;
+    }
+
+    fn removeFirst(): T {
+        if (this.head == null) {
+            return null;
+        }
+        let value: T = this.head.value;
+        this.head = this.head.next;
+        this._size = this._size - 1;
+        return value;
+    }
+
+    fn removeLast(): T {
+        if (this.head == null) {
+            return null;
+        }
+        if (this.head.next == null) {
+            let value: T = this.head.value;
+            this.head = null;
+            this._size = this._size - 1;
+            return value;
+        }
+        var current: ListNode<T> = this.head;
+        while (current.next.next != null) {
+            current = current.next;
+        }
+        let value: T = current.next.value;
+        current.next = null;
+        this._size = this._size - 1;
+        return value;
+    }
+
+    fn size(): int {
+        return this._size;
+    }
+
+    fn isEmpty(): bool {
+        return this._size == 0;
+    }
+
+    // Map: transform each element using a function
+    fn map(mapper: function<T(T)>): LinkedList<T> {
+        let result: LinkedList<T> = new LinkedList<T>();
+        var current: ListNode<T> = this.head;
+        while (current != null) {
+            result.addLast(mapper(current.value));
+            current = current.next;
+        }
+        return result;
+    }
+
+    // Filter: keep only elements that satisfy a predicate
+    fn filter(predicate: function<bool(T)>): LinkedList<T> {
+        let result: LinkedList<T> = new LinkedList<T>();
+        var current: ListNode<T> = this.head;
+        while (current != null) {
+            if (predicate(current.value)) {
+                result.addLast(current.value);
+            }
+            current = current.next;
+        }
+        return result;
+    }
+
+    // Convert to ArrayList
+    fn toArray(): ArrayList<T> {
+        let arr: ArrayList<T> = new ArrayList<T>();
+        var current: ListNode<T> = this.head;
+        while (current != null) {
+            arr.add(current.value);
+            current = current.next;
+        }
+        return arr;
+    }
+}

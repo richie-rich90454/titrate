@@ -1,0 +1,15 @@
+// Hello World - The simplest Titrate program.
+// Demonstrates: main function, string output, variable declaration
+
+public fn main(): void {
+    io::println("Hello, World!");
+
+    // Using a variable
+    let name: string = "Titrate";
+    io::println("Hello from " + name + "!");
+
+    // Using var for a mutable greeting
+    var greeting: string = "Hello";
+    greeting = greeting + ", World!";
+    io::println(greeting);
+}

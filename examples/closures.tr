@@ -1,0 +1,100 @@
+// Closures and Higher-Order Functions
+// Demonstrates: closures, function types, capturing variables, callbacks
+
+import tt::util::ArrayList;
+
+public fn main(): void {
+    io::println("=== Closures and Higher-Order Functions ===");
+
+    // --- Expression closures ---
+    let double = fn(x: int): int => x * 2;
+    io::println("double(5) = " + Integer.toString(double(5)));
+
+    let square = fn(x: int): int => x * x;
+    io::println("square(4) = " + Integer.toString(square(4)));
+
+    // --- Block closures ---
+    let greet = fn(name: string): string {
+        return "Hello, " + name + "!";
+    };
+    io::println(greet("Titrate"));
+
+    // --- Capturing variables ---
+    var total: int = 0;
+    let add = fn(n: int): void {
+        total = total + n;
+    };
+    add(3);
+    add(7);
+    add(5);
+    io::println("Total after adds: " + Integer.toString(total));
+
+    // --- Counter factory (closure capturing mutable state) ---
+    let counter = makeCounter();
+    io::println("counter() = " + Integer.toString(counter()));
+    io::println("counter() = " + Integer.toString(counter()));
+    io::println("counter() = " + Integer.toString(counter()));
+
+    // --- Passing closures to functions ---
+    let result = apply(10, fn(x: int): int => x * x);
+    io::println("apply(10, square) = " + Integer.toString(result));
+
+    // --- Callback pattern ---
+    repeat(3, fn(i: int): void {
+        io::println("  Iteration " + Integer.toString(i));
+    });
+
+    // --- Using closures with collections ---
+    let numbers: ArrayList<int> = new ArrayList<int>();
+    numbers.add(1);
+    numbers.add(2);
+    numbers.add(3);
+    numbers.add(4);
+    numbers.add(5);
+
+    io::println("Even numbers:");
+    for (n in numbers) {
+        if (n % 2 == 0) {
+            io::println("  " + Integer.toString(n));
+        }
+    }
+
+    // --- Closure composition ---
+    let addOne = fn(x: int): int => x + 1;
+    let thenDouble = fn(x: int): int => x * 2;
+    let composed = fn(x: int): int => thenDouble(addOne(x));
+    io::println("composed(3) = " + Integer.toString(composed(3)));
+
+    // --- Closure returning a closure ---
+    let multiplier = makeMultiplier(5);
+    io::println("multiplier(3) = " + Integer.toString(multiplier(3)));
+    io::println("multiplier(7) = " + Integer.toString(multiplier(7)));
+}
+
+// Factory function that returns a counter closure
+fn makeCounter(): fn(): int {
+    var count: int = 0;
+    return fn(): int {
+        count = count + 1;
+        return count;
+    };
+}
+
+// Apply a function to a value
+fn apply(a: int, f: fn(int): int): int {
+    return f(a);
+}
+
+// Repeat an action n times
+fn repeat(n: int, action: fn(int): void): void {
+    var i: int = 0;
+    while (i < n) {
+        action(i);
+        i = i + 1;
+    }
+}
+
+// Factory that creates a multiplier closure
+fn makeMultiplier(factor: int): fn(int): int {
+    return fn(x: int): int => x * factor;
+}
