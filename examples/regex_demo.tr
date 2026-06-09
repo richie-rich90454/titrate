@@ -1,0 +1,64 @@
+// Regular Expression Matching Demo
+// Demonstrates: Regex.compile, match, find, findAll, replaceAll, split
+
+import tt::regex::Regex;
+import tt::regex::Match;
+import tt::util::ArrayList;
+
+public fn main(): void {
+    io::println("=== Regex Demo ===");
+
+    // --- Basic matching ---
+    let re: Regex = Regex.compile("\\d+");
+    io::println("Match '123': " + Boolean.toString(re.match("123")));
+    io::println("Match 'abc': " + Boolean.toString(re.match("abc")));
+
+    // --- Find first match ---
+    let text: string = "The price is $42 and the discount is $15";
+    let numRe: Regex = Regex.compile("\\d+");
+    let firstMatch: Match = numRe.find(text);
+    if (firstMatch != null) {
+        io::println("First number: '" + firstMatch.matched + "' at " + Integer.toString(firstMatch.start) + ".." + Integer.toString(firstMatch.end));
+    }
+
+    // --- Find all matches ---
+    let allMatches: ArrayList<Match> = numRe.findAll(text);
+    io::println("All numbers in text:");
+    var i: int = 0;
+    while (i < allMatches.size()) {
+        let m: Match = allMatches.get(i);
+        io::println("  '" + m.matched + "' at " + Integer.toString(m.start) + ".." + Integer.toString(m.end));
+        i = i + 1;
+    }
+
+    // --- Replace all ---
+    let replaced: string = numRe.replaceAll(text, "XXX");
+    io::println("After replace: " + replaced);
+
+    // --- Split by pattern ---
+    let csvRe: Regex = Regex.compile(",");
+    let parts: ArrayList<string> = csvRe.split("one,two,three,four");
+    io::println("Split result:");
+    var j: int = 0;
+    while (j < parts.size()) {
+        io::println("  [" + Integer.toString(j) + "] " + parts.get(j));
+        j = j + 1;
+    }
+
+    // --- Email-like pattern ---
+    let emailRe: Regex = Regex.compile("[a-zA-Z0-9]+@[a-zA-Z0-9]+\\.[a-zA-Z]+");
+    let emailText: string = "Contact us at info@titrate.dev or support@titrate.dev";
+    let emails: ArrayList<Match> = emailRe.findAll(emailText);
+    io::println("Emails found:");
+    var k: int = 0;
+    while (k < emails.size()) {
+        io::println("  " + emails.get(k).matched);
+        k = k + 1;
+    }
+
+    // --- Word boundary matching ---
+    let wordRe: Regex = Regex.compile("\\bcat\\b");
+    let sentence: string = "The cat sat on the catalog but the cat was happy";
+    let catMatches: ArrayList<Match> = wordRe.findAll(sentence);
+    io::println("'cat' as whole word found " + Integer.toString(catMatches.size()) + " times");
+}

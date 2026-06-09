@@ -1,0 +1,65 @@
+// File Reading and Writing
+// Demonstrates: File.readFile, File.writeFile, File.readLines, Result handling
+
+import tt::util::ArrayList;
+
+public fn main(): void {
+    io::println("=== File I/O Demo ===");
+
+    // --- Writing a file ---
+    switch (File.writeFile("example_output.txt", "Hello from Titrate!\nThis is line 2.\nThis is line 3.")) {
+        case Ok(_) => io::println("Written successfully to example_output.txt");
+        case Err(e) => io::println("Failed to write: " + e);
+    }
+
+    // --- Reading a file as a whole string ---
+    switch (File.readFile("example_output.txt")) {
+        case Ok(content) => {
+            io::println("File contents:");
+            io::println(content);
+        }
+        case Err(e) => io::println("Failed to read: " + e);
+    }
+
+    // --- Reading a file line by line ---
+    io::println("Reading line by line:");
+    let lines: ArrayList<string> = File.readLines("example_output.txt");
+    var i: int = 0;
+    while (i < lines.size()) {
+        io::println("  Line " + Integer.toString(i) + ": " + lines.get(i));
+        i = i + 1;
+    }
+
+    // --- Appending data by reading, modifying, and writing back ---
+    var combined: string = "";
+    for (line in lines) {
+        combined = combined + line + "\n";
+    }
+    combined = combined + "This is an appended line.\n";
+
+    switch (File.writeFile("example_output.txt", combined)) {
+        case Ok(_) => io::println("Appended line and wrote back");
+        case Err(e) => io::println("Failed to append: " + e);
+    }
+
+    // --- Processing CSV-like data ---
+    switch (File.writeFile("data.csv", "name,age,city\nAlice,30,Beijing\nBob,25,Shanghai\nCarol,35,Shenzhen")) {
+        case Ok(_) => { }
+        case Err(e) => io::println("Failed to write CSV: " + e);
+    }
+
+    let csv_lines: ArrayList<string> = File.readLines("data.csv");
+    io::println("CSV data:");
+    var row: int = 0;
+    while (row < csv_lines.size()) {
+        let fields: ArrayList<string> = String.split(csv_lines.get(row), ",");
+        var col: int = 0;
+        string line_out = "  Row " + Integer.toString(row) + ":";
+        while (col < fields.size()) {
+            line_out = line_out + " [" + Integer.toString(col) + "]=" + fields.get(col);
+            col = col + 1;
+        }
+        io::println(line_out);
+        row = row + 1;
+    }
+}

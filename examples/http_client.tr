@@ -1,0 +1,43 @@
+// HTTP GET Request Example
+// Demonstrates: HttpClient, HTTP GET and POST, Result handling for network ops
+
+import tt::net::HttpClient;
+
+public fn main(): void {
+    io::println("=== HTTP Client Demo ===");
+
+    let client: HttpClient = new HttpClient();
+
+    // --- Simple GET request ---
+    io::println("Fetching from httpbin.org/get ...");
+    let getResponse: string = client.get("https://httpbin.org/get");
+    io::println("GET response length: " + Integer.toString(getResponse.length()) + " chars");
+    // Print first 200 characters of response
+    if (getResponse.length() > 200) {
+        io::println(getResponse.substring(0, 200) + "...");
+    } else {
+        io::println(getResponse);
+    }
+
+    // --- POST request with JSON body ---
+    io::println("");
+    io::println("Posting to httpbin.org/post ...");
+    let jsonBody: string = "{\"name\":\"Titrate\",\"version\":\"0.3\"}";
+    let postResponse: string = client.post("https://httpbin.org/post", jsonBody, "application/json");
+    io::println("POST response length: " + Integer.toString(postResponse.length()) + " chars");
+    if (postResponse.length() > 200) {
+        io::println(postResponse.substring(0, 200) + "...");
+    } else {
+        io::println(postResponse);
+    }
+
+    // --- Using Result to handle potential failures ---
+    io::println("");
+    io::println("Handling responses with Result:");
+    let response: string = client.get("https://httpbin.org/status/200");
+    if (response.length() > 0) {
+        io::println("Request succeeded (got " + Integer.toString(response.length()) + " bytes)");
+    } else {
+        io::println("Request failed or returned empty");
+    }
+}

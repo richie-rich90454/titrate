@@ -1,0 +1,78 @@
+// JSON Parsing and Manipulation
+// Demonstrates: Json.parse, JsonValue access, object/array construction, pretty printing
+
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn main(): void {
+    io::println("=== JSON Parse Demo ===");
+
+    // --- Parse a JSON string ---
+    let jsonStr: string = "{\"name\":\"Titrate\",\"version\":0.3,\"features\":[\"generics\",\"closures\",\"pattern matching\"],\"stable\":true}";
+    let root: JsonValue = Json.parse(jsonStr);
+
+    // --- Access object fields ---
+    let name: JsonValue = root.get("name");
+    io::println("name: " + name.asString());
+
+    let version: JsonValue = root.get("version");
+    io::println("version: " + Double.toString(version.asNumber()));
+
+    let stable: JsonValue = root.get("stable");
+    io::println("stable: " + Boolean.toString(stable.asBool()));
+
+    // --- Access array elements ---
+    let features: JsonValue = root.get("features");
+    io::println("features count: " + Integer.toString(features.size()));
+    var i: int = 0;
+    while (i < features.size()) {
+        let feature: JsonValue = features.getAt(i);
+        io::println("  [" + Integer.toString(i) + "] " + feature.asString());
+        i = i + 1;
+    }
+
+    // --- Check if a key exists ---
+    io::println("Has 'name': " + Boolean.toString(root.hasKey("name")));
+    io::println("Has 'missing': " + Boolean.toString(root.hasKey("missing")));
+
+    // --- Build JSON programmatically ---
+    io::println("");
+    io::println("=== Building JSON ===");
+
+    // Create an object
+    let obj: HashMap = new HashMap();
+    obj.put("language", JsonValue::ofStr("Titrate"));
+    obj.put("year", JsonValue::ofNum(2025.0));
+    obj.put("open_source", JsonValue::ofBool(true));
+
+    // Create an array
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue::ofStr("fast"));
+    arr.add(JsonValue::ofStr("safe"));
+    arr.add(JsonValue::ofStr("expressive"));
+    obj.put("adjectives", JsonValue::ofArray(arr));
+
+    let built: JsonValue = JsonValue::ofObject(obj);
+
+    // Serialize to compact JSON
+    io::println("Compact: " + built.toString());
+
+    // Pretty print with 2-space indent
+    io::println("Pretty:");
+    io::println(Json.prettyPrint(built, 2));
+
+    // --- Deep copy and merge ---
+    io::println("");
+    io::println("=== Deep Copy & Merge ===");
+    let copy: JsonValue = built.deepCopy();
+    io::println("Deep copy equals original: " + Boolean.toString(copy.toString() == built.toString()));
+
+    // Merge another object
+    let extra: HashMap = new HashMap();
+    extra.put("license", JsonValue::ofStr("MIT"));
+    let extraObj: JsonValue = JsonValue::ofObject(extra);
+    copy.merge(extraObj);
+    io::println("After merge, has 'license': " + Boolean.toString(copy.hasKey("license")));
+}
