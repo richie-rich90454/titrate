@@ -2,4 +2,23 @@ public class Boolean {
     public static String toString(bool value) {
         return value.toString();
     }
+
+    public static bool parseBoolean(String s) {
+        if (s == "true") {
+            return true;
+        }
+        return false;
+    }
+
+    public static bool logicalAnd(bool a, bool b) {
+        return a && b;
+    }
+
+    public static bool logicalOr(bool a, bool b) {
+        return a || b;
+    }
+
+    public static bool logicalNot(bool a) {
+        return !a;
+    }
 }
