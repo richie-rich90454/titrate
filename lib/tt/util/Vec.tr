@@ -42,4 +42,55 @@ public class Vec<T> {
         }
         return false;
     }
+
+    public void reverse() {
+        int i = 0;
+        int j = this._items.size() - 1;
+        while (i < j) {
+            T tmp = this._items.get(i);
+            this._items.set(i, this._items.get(j));
+            this._items.set(j, tmp);
+            i = i + 1;
+            j = j - 1;
+        }
+    }
+
+    public int indexOf(T item) {
+        int i = 0;
+        while (i < this._items.size()) {
+            if (this._items.get(i) == item) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public T last() {
+        return this._items.get(this._items.size() - 1);
+    }
+
+    public T first() {
+        return this._items.get(0);
+    }
+
+    public Vec<T> take(int n) {
+        Vec<T> result = new Vec<T>();
+        int i = 0;
+        while (i < n && i < this._items.size()) {
+            result.push(this._items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public Vec<T> drop(int n) {
+        Vec<T> result = new Vec<T>();
+        int i = n;
+        while (i < this._items.size()) {
+            result.push(this._items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
 }
