@@ -55,6 +55,7 @@ pub enum Type {
     Named { name: String, params: Vec<Type> },
     Ref(Box<Type>),       // &T
     MutRef(Box<Type>),    // &mut T
+    Tuple(Vec<Type>),     // (T1, T2, ...)
 }
 
 impl Type {
@@ -71,6 +72,7 @@ impl Type {
             Type::Named { name, .. } => name,
             Type::Ref(inner) => inner.name(),
             Type::MutRef(inner) => inner.name(),
+            Type::Tuple(_) => "tuple",
         }
     }
 
@@ -79,6 +81,7 @@ impl Type {
             Type::Named { params, .. } => params,
             Type::Ref(inner) => inner.params(),
             Type::MutRef(inner) => inner.params(),
+            Type::Tuple(_) => &[],
         }
     }
 }
@@ -100,6 +103,14 @@ impl fmt::Display for Type {
             }
             Type::Ref(inner) => write!(f, "&{}", inner),
             Type::MutRef(inner) => write!(f, "&mut {}", inner),
+            Type::Tuple(types) => {
+                write!(f, "(")?;
+                for (i, t) in types.iter().enumerate() {
+                    if i > 0 { write!(f, ", ")?; }
+                    write!(f, "{}", t)?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -353,6 +364,7 @@ pub enum Stmt {
     Switch(SwitchStmt),
     VarDecl(VarDecl),
     ConstDecl(VarDecl),
+    TupleDestructure { names: Vec<String>, expr: Expr, mutable: bool, span: Span },
 }
 
 /// Expression.
@@ -377,6 +389,15 @@ pub enum Expr {
     StaticCall { class_name: String, method: String, args: Vec<Expr>, span: Span },
     Assign(Box<Expr>, Box<Expr>, Span),
     Unit(Span),
+    Tuple(Vec<Expr>, Span),
+    Closure {
+        params: Vec<(String, Type)>,
+        return_type: Type,
+        body: Block,
+        expr: Option<Box<Expr>>,
+        captured_vars: Vec<String>,
+        span: Span,
+    },
 }
 
 /// Complete program.

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use super::opcodes::Chunk;
+use super::value::Value;
 
 /// One activation on the call stack.
 ///
@@ -13,6 +14,8 @@ pub struct Frame {
     pub ip: usize,
     /// Base pointer – index into the value stack where this frame's locals start.
     pub base: usize,
+    /// Captured upvalues for closures. None for regular functions.
+    pub upvalues: Option<Vec<Value>>,
 }
 
 impl Frame {
@@ -21,6 +24,16 @@ impl Frame {
             function_index,
             ip: 0,
             base,
+            upvalues: None,
+        }
+    }
+
+    pub fn new_with_upvalues(function_index: u16, base: usize, upvalues: Vec<Value>) -> Self {
+        Self {
+            function_index,
+            ip: 0,
+            base,
+            upvalues: Some(upvalues),
         }
     }
 }
