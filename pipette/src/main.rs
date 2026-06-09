@@ -145,6 +145,32 @@ fn main() {
                 process::exit(1);
             }
         }
+        "outdated" => {
+            let project_dir = match pipette::project::find_project() {
+                Some(dir) => dir,
+                None => {
+                    eprintln!("Error: No Titrate.toml found in current or parent directories");
+                    process::exit(1);
+                }
+            };
+            if let Err(e) = pipette::outdated(&project_dir) {
+                eprintln!("Outdated check failed: {}", e);
+                process::exit(1);
+            }
+        }
+        "tree" => {
+            let project_dir = match pipette::project::find_project() {
+                Some(dir) => dir,
+                None => {
+                    eprintln!("Error: No Titrate.toml found in current or parent directories");
+                    process::exit(1);
+                }
+            };
+            if let Err(e) = pipette::tree(&project_dir) {
+                eprintln!("Tree failed: {}", e);
+                process::exit(1);
+            }
+        }
         "watch" => {
             let project_dir = match pipette::project::find_project() {
                 Some(dir) => dir,
@@ -185,4 +211,6 @@ fn print_usage() {
     eprintln!("  clean          Remove build output directory");
     eprintln!("  lint           Run the analyzer on all .tr files");
     eprintln!("  fmt            Format .tr source files");
+    eprintln!("  outdated       Check for newer versions of dependencies");
+    eprintln!("  tree           Show the dependency tree");
 }
