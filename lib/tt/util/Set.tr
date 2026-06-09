@@ -90,4 +90,29 @@ public class Set<E> implements Iterable<E> {
     public ArrayListIterator<E> iterator() {
         return new ArrayListIterator<E>(this.data);
     }
+
+    public bool isSubsetOf(Set<E> other) {
+        for (elem in this.data) {
+            if (!other.contains(elem)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public bool isSupersetOf(Set<E> other) {
+        return other.isSubsetOf(this);
+    }
+
+    public String toString() {
+        String s = "{";
+        int i = 0;
+        while (i < this.data.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this.data.get(i);
+            i = i + 1;
+        }
+        s = s + "}";
+        return s;
+    }
 }
