@@ -88,6 +88,45 @@ fn main() {
                 process::exit(1);
             }
         }
+        "clean" => {
+            let project_dir = match pipette::project::find_project() {
+                Some(dir) => dir,
+                None => {
+                    eprintln!("Error: No Titrate.toml found in current or parent directories");
+                    process::exit(1);
+                }
+            };
+            if let Err(e) = pipette::clean(&project_dir) {
+                eprintln!("Clean failed: {}", e);
+                process::exit(1);
+            }
+        }
+        "lint" => {
+            let project_dir = match pipette::project::find_project() {
+                Some(dir) => dir,
+                None => {
+                    eprintln!("Error: No Titrate.toml found in current or parent directories");
+                    process::exit(1);
+                }
+            };
+            if let Err(e) = pipette::lint(&project_dir) {
+                eprintln!("Lint failed: {}", e);
+                process::exit(1);
+            }
+        }
+        "fmt" => {
+            let project_dir = match pipette::project::find_project() {
+                Some(dir) => dir,
+                None => {
+                    eprintln!("Error: No Titrate.toml found in current or parent directories");
+                    process::exit(1);
+                }
+            };
+            if let Err(e) = pipette::fmt(&project_dir) {
+                eprintln!("Format failed: {}", e);
+                process::exit(1);
+            }
+        }
         "watch" => {
             let project_dir = match pipette::project::find_project() {
                 Some(dir) => dir,
@@ -124,4 +163,7 @@ fn print_usage() {
     eprintln!("  test           Run tests");
     eprintln!("  doc            Generate API documentation");
     eprintln!("  watch          Watch for changes and rebuild");
+    eprintln!("  clean          Remove build output directory");
+    eprintln!("  lint           Run the analyzer on all .tr files");
+    eprintln!("  fmt            Format .tr source files");
 }
