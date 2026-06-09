@@ -4792,4 +4792,160 @@ mod tests {
         // Cleanup
         std::fs::remove_dir_all(&dir).ok();
     }
+
+    // -- test_compile_closure -----------------------------------------------------
+
+    #[test]
+    fn test_compile_closure() {
+        let closure_expr = ast::Expr::Closure {
+            params: vec![("x".to_string(), ast::Type::simple("long"))],
+            return_type: ast::Type::simple("long"),
+            body: vec![],
+            expr: Some(Box::new(ast::Expr::Binary(
+                Box::new(ast::Expr::Identifier("x".to_string(), su())),
+                ast::Operator::Add,
+                Box::new(ast::Expr::Literal(ast::Literal::Int(1), su())),
+                su(),
+            ))),
+            captured_vars: vec![],
+            span: su(),
+        };
+
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "test_closure".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![ast::Stmt::VarDecl(ast::VarDecl {
+                name: "f".to_string(),
+                typ: None,
+                init: Some(closure_expr),
+                mutable: false,
+                span: su(),
+            })],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Function(fn_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        let fn_chunk = &compiled.functions[1].chunk;
+        assert!(
+            fn_chunk.code.contains(&(OpCode::CLOSURE_NEW as u8)),
+            "closure expression should emit CLOSURE_NEW"
+        );
+    }
+
+    // -- test_compile_tuple -------------------------------------------------------
+
+    #[test]
+    fn test_compile_tuple() {
+        let tuple_expr = ast::Expr::Tuple(vec![
+            ast::Expr::Literal(ast::Literal::Int(1), su()),
+            ast::Expr::Literal(ast::Literal::Int(2), su()),
+            ast::Expr::Literal(ast::Literal::Int(3), su()),
+        ], su());
+
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "test_tuple".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![ast::Stmt::VarDecl(ast::VarDecl {
+                name: "t".to_string(),
+                typ: None,
+                init: Some(tuple_expr),
+                mutable: false,
+                span: su(),
+            })],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Function(fn_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        let fn_chunk = &compiled.functions[1].chunk;
+        assert!(
+            fn_chunk.code.contains(&(OpCode::TUPLE_NEW as u8)),
+            "tuple expression should emit TUPLE_NEW"
+        );
+    }
+
+    // -- test_compile_operator_overload -------------------------------------------
+
+    #[test]
+    fn test_compile_operator_overload() {
+        let class_decl = ast::ClassDecl {
+            name: "Vec2".to_string(),
+            type_params: vec![],
+            parent: None,
+            ifaces: vec![],
+            members: vec![
+                ast::ClassMember::Field(ast::FieldDecl {
+                    access: ast::Access::Public,
+                    name: "x".to_string(),
+                    typ: ast::Type::simple("long"),
+                    init: Some(ast::Expr::Literal(ast::Literal::Int(0), su())),
+                    span: su(),
+                }),
+                ast::ClassMember::Field(ast::FieldDecl {
+                    access: ast::Access::Public,
+                    name: "y".to_string(),
+                    typ: ast::Type::simple("long"),
+                    init: Some(ast::Expr::Literal(ast::Literal::Int(0), su())),
+                    span: su(),
+                }),
+                ast::ClassMember::Method(ast::MethodDecl {
+                    access: ast::Access::Public,
+                    name: "operator+".to_string(),
+                    type_params: vec![],
+                    params: vec![ast::Param {
+                        name: "other".to_string(),
+                        typ: ast::Type::simple("Vec2"),
+                    }],
+                    return_type: Some(ast::Type::simple("Vec2")),
+                    body: vec![ast::Stmt::Return(Some(ast::Expr::New(
+                        ast::Type::simple("Vec2"),
+                        vec![],
+                        su(),
+                    )))],
+                    where_clause: vec![],
+                    span: su(),
+                }),
+            ],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Class(class_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        assert_eq!(compiled.classes.len(), 1);
+        assert_eq!(compiled.classes[0].name, "Vec2");
+        // The operator+ method should be registered in the class methods
+        assert!(
+            compiled.classes[0].methods.contains_key("operator+"),
+            "Vec2 class should have operator+ method"
+        );
+    }
 }
