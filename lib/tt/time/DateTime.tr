@@ -40,6 +40,30 @@ public class DateTime {
         return Time_getSecond(this.epochMillis);
     }
 
+    public bool isBefore(DateTime other) {
+        return this.epochMillis < other.epochMillis;
+    }
+
+    public bool isAfter(DateTime other) {
+        return this.epochMillis > other.epochMillis;
+    }
+
+    public bool equals(DateTime other) {
+        return this.epochMillis == other.epochMillis;
+    }
+
+    public int hashCode() {
+        return this.epochMillis.hashCode();
+    }
+
+    public int dayOfWeek() {
+        return Time_dayOfWeek(this.epochMillis);
+    }
+
+    public int dayOfYear() {
+        return Time_dayOfYear(this.epochMillis);
+    }
+
     public DateTime plus(Duration d) {
         return new DateTime(this.epochMillis + d.millis);
     }
