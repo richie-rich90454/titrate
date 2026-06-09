@@ -161,6 +161,34 @@ impl Vm {
         // Json natives
         vm.register_native("Json_parse", native_json_parse);
 
+        // Env natives
+        vm.register_native("Env_get", native_env_get);
+        vm.register_native("Env_set", native_env_set);
+        vm.register_native("Env_vars", native_env_vars);
+
+        // Fs natives
+        vm.register_native("Fs_exists", native_fs_exists);
+        vm.register_native("Fs_isFile", native_fs_is_file);
+        vm.register_native("Fs_isDir", native_fs_is_dir);
+        vm.register_native("Fs_size", native_fs_size);
+
+        // Process natives
+        vm.register_native("Process_id", native_process_id);
+        vm.register_native("Process_args", native_process_args);
+
+        // Os natives
+        vm.register_native("Os_name", native_os_name);
+        vm.register_native("Os_arch", native_os_arch);
+        vm.register_native("Os_family", native_os_family);
+
+        // String utility natives
+        vm.register_native("String_trimStart", native_string_trim_start);
+        vm.register_native("String_trimEnd", native_string_trim_end);
+        vm.register_native("String_startsWith", native_string_starts_with);
+        vm.register_native("String_endsWith", native_string_ends_with);
+        vm.register_native("String_padLeft", native_string_pad_left);
+        vm.register_native("String_padRight", native_string_pad_right);
+
         vm
     }
 
@@ -4677,6 +4705,209 @@ fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Env native functions
+// ---------------------------------------------------------------------------
+
+fn native_env_get(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Env_get: expected 1 argument (name)".to_string());
+    }
+    match &args[0] {
+        Value::String(name) => match std::env::var(name.as_str()) {
+            Ok(val) => Ok(Value::String(Rc::new(val))),
+            Err(_) => Ok(Value::Null),
+        },
+        _ => Err("Env_get: expected String argument".to_string()),
+    }
+}
+
+fn native_env_set(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Env_set: expected 2 arguments (name, value)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(name), Value::String(val)) => {
+            std::env::set_var(name.as_str(), val.as_str());
+            Ok(Value::Void)
+        }
+        _ => Err("Env_set: expected (String, String)".to_string()),
+    }
+}
+
+fn native_env_vars(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    let elements: Vec<Value> = std::env::vars()
+        .map(|(k, v)| Value::String(Rc::new(format!("{}={}", k, v))))
+        .collect();
+    Ok(Value::Array { elements })
+}
+
+// ---------------------------------------------------------------------------
+// Fs native functions
+// ---------------------------------------------------------------------------
+
+fn native_fs_exists(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Fs_exists: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).exists())),
+        _ => Err("Fs_exists: expected String argument".to_string()),
+    }
+}
+
+fn native_fs_is_file(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Fs_isFile: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).is_file())),
+        _ => Err("Fs_isFile: expected String argument".to_string()),
+    }
+}
+
+fn native_fs_is_dir(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Fs_isDir: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => Ok(Value::Bool(std::path::Path::new(path.as_str()).is_dir())),
+        _ => Err("Fs_isDir: expected String argument".to_string()),
+    }
+}
+
+fn native_fs_size(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Fs_size: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => match std::fs::metadata(path.as_str()) {
+            Ok(meta) => Ok(Value::Long(meta.len() as i64)),
+            Err(e) => Err(format!("Fs_size: {}", e)),
+        },
+        _ => Err("Fs_size: expected String argument".to_string()),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Process native functions
+// ---------------------------------------------------------------------------
+
+fn native_process_id(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Long(std::process::id() as i64))
+}
+
+fn native_process_args(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    let elements: Vec<Value> = std::env::args()
+        .map(|a| Value::String(Rc::new(a)))
+        .collect();
+    Ok(Value::Array { elements })
+}
+
+// ---------------------------------------------------------------------------
+// Os native functions
+// ---------------------------------------------------------------------------
+
+fn native_os_name(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::String(Rc::new(std::env::consts::OS.to_string())))
+}
+
+fn native_os_arch(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::String(Rc::new(std::env::consts::ARCH.to_string())))
+}
+
+fn native_os_family(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::String(Rc::new(std::env::consts::FAMILY.to_string())))
+}
+
+// ---------------------------------------------------------------------------
+// String utility native functions
+// ---------------------------------------------------------------------------
+
+fn native_string_trim_start(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("String_trimStart: expected 1 argument".to_string());
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::String(Rc::new(s.trim_start().to_string()))),
+        _ => Err("String_trimStart: expected String argument".to_string()),
+    }
+}
+
+fn native_string_trim_end(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("String_trimEnd: expected 1 argument".to_string());
+    }
+    match &args[0] {
+        Value::String(s) => Ok(Value::String(Rc::new(s.trim_end().to_string()))),
+        _ => Err("String_trimEnd: expected String argument".to_string()),
+    }
+}
+
+fn native_string_starts_with(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("String_startsWith: expected 2 arguments (string, prefix)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::String(prefix)) => Ok(Value::Bool(s.starts_with(prefix.as_str()))),
+        _ => Err("String_startsWith: expected (String, String)".to_string()),
+    }
+}
+
+fn native_string_ends_with(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("String_endsWith: expected 2 arguments (string, suffix)".to_string());
+    }
+    match (&args[0], &args[1]) {
+        (Value::String(s), Value::String(suffix)) => Ok(Value::Bool(s.ends_with(suffix.as_str()))),
+        _ => Err("String_endsWith: expected (String, String)".to_string()),
+    }
+}
+
+fn native_string_pad_left(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("String_padLeft: expected 3 arguments (string, width, char)".to_string());
+    }
+    match (&args[0], &args[1], &args[2]) {
+        (Value::String(s), Value::Int(width), Value::Char(pad_char)) => {
+            let padded = format!("{:>width$}", s.as_str(), width = *width as usize)
+                .replace(' ', &pad_char.to_string());
+            Ok(Value::String(Rc::new(padded)))
+        }
+        (Value::String(s), Value::Long(width), Value::Char(pad_char)) => {
+            let padded = format!("{:>width$}", s.as_str(), width = *width as usize)
+                .replace(' ', &pad_char.to_string());
+            Ok(Value::String(Rc::new(padded)))
+        }
+        _ => Err("String_padLeft: expected (String, Int/Long, Char)".to_string()),
+    }
+}
+
+fn native_string_pad_right(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("String_padRight: expected 3 arguments (string, width, char)".to_string());
+    }
+    match (&args[0], &args[1], &args[2]) {
+        (Value::String(s), Value::Int(width), Value::Char(pad_char)) => {
+            let padded = format!("{:<width$}", s.as_str(), width = *width as usize)
+                .replace(' ', &pad_char.to_string());
+            Ok(Value::String(Rc::new(padded)))
+        }
+        (Value::String(s), Value::Long(width), Value::Char(pad_char)) => {
+            let padded = format!("{:<width$}", s.as_str(), width = *width as usize)
+                .replace(' ', &pad_char.to_string());
+            Ok(Value::String(Rc::new(padded)))
+        }
+        _ => Err("String_padRight: expected (String, Int/Long, Char)".to_string()),
+    }
+}
+
 /// Look up a built-in native function by name. Returns `None` for unknown names.
 fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -4769,6 +5000,29 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Random_nextLong" => Some(native_random_next_long),
         // Json natives
         "Json_parse" => Some(native_json_parse),
+        // Env natives
+        "Env_get" => Some(native_env_get),
+        "Env_set" => Some(native_env_set),
+        "Env_vars" => Some(native_env_vars),
+        // Fs natives
+        "Fs_exists" => Some(native_fs_exists),
+        "Fs_isFile" => Some(native_fs_is_file),
+        "Fs_isDir" => Some(native_fs_is_dir),
+        "Fs_size" => Some(native_fs_size),
+        // Process natives
+        "Process_id" => Some(native_process_id),
+        "Process_args" => Some(native_process_args),
+        // Os natives
+        "Os_name" => Some(native_os_name),
+        "Os_arch" => Some(native_os_arch),
+        "Os_family" => Some(native_os_family),
+        // String utility natives
+        "String_trimStart" => Some(native_string_trim_start),
+        "String_trimEnd" => Some(native_string_trim_end),
+        "String_startsWith" => Some(native_string_starts_with),
+        "String_endsWith" => Some(native_string_ends_with),
+        "String_padLeft" => Some(native_string_pad_left),
+        "String_padRight" => Some(native_string_pad_right),
         _ => None,
     }
 }
@@ -7191,5 +7445,320 @@ mod tests {
             result.unwrap(),
             Value::String(Rc::new("the dog sat on the mat".to_string()))
         );
+    }
+
+    // -- 72. test_env_get -------------------------------------------------------
+
+    #[test]
+    fn test_env_get() {
+        // Set an env var then retrieve it
+        std::env::set_var("TITRATE_TEST_ENV_GET", "hello");
+        let result = native_env_get(&[Value::String(Rc::new("TITRATE_TEST_ENV_GET".to_string()))]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("hello".to_string())));
+
+        // Non-existent env var returns Null
+        let result = native_env_get(&[Value::String(Rc::new("TITRATE_NONEXISTENT_VAR_XYZ".to_string()))]);
+        assert_eq!(result.unwrap(), Value::Null);
+
+        // Error on wrong type
+        let result = native_env_get(&[Value::Int(42)]);
+        assert!(result.is_err());
+    }
+
+    // -- 73. test_env_set -------------------------------------------------------
+
+    #[test]
+    fn test_env_set() {
+        let result = native_env_set(&[
+            Value::String(Rc::new("TITRATE_TEST_ENV_SET".to_string())),
+            Value::String(Rc::new("world".to_string())),
+        ]);
+        assert_eq!(result.unwrap(), Value::Void);
+        assert_eq!(std::env::var("TITRATE_TEST_ENV_SET").unwrap(), "world");
+
+        // Error on wrong type
+        let result = native_env_set(&[Value::Int(1), Value::Int(2)]);
+        assert!(result.is_err());
+    }
+
+    // -- 74. test_env_vars -------------------------------------------------------
+
+    #[test]
+    fn test_env_vars() {
+        let result = native_env_vars(&[]);
+        match result.unwrap() {
+            Value::Array { elements } => {
+                assert!(!elements.is_empty());
+                // Each element should be a "key=value" string
+                for elem in &elements {
+                    match elem {
+                        Value::String(s) => assert!(s.contains('=')),
+                        _ => panic!("Expected String in env vars array"),
+                    }
+                }
+            }
+            _ => panic!("Expected Array from Env_vars"),
+        }
+    }
+
+    // -- 75. test_fs_exists -----------------------------------------------------
+
+    #[test]
+    fn test_fs_exists() {
+        // Current directory should exist
+        let result = native_fs_exists(&[Value::String(Rc::new(".".to_string()))]);
+        assert_eq!(result.unwrap(), Value::Bool(true));
+
+        // Non-existent path
+        let result = native_fs_exists(&[Value::String(Rc::new("/no/such/path/titrate_test_xyz".to_string()))]);
+        assert_eq!(result.unwrap(), Value::Bool(false));
+
+        // Error on wrong type
+        let result = native_fs_exists(&[Value::Int(42)]);
+        assert!(result.is_err());
+    }
+
+    // -- 76. test_fs_is_file ----------------------------------------------------
+
+    #[test]
+    fn test_fs_is_file() {
+        // This source file should be a file
+        let this_file = file!().replace('\\', "/");
+        let result = native_fs_is_file(&[Value::String(Rc::new(this_file))]);
+        assert_eq!(result.unwrap(), Value::Bool(true));
+
+        // Current directory is not a file
+        let result = native_fs_is_file(&[Value::String(Rc::new(".".to_string()))]);
+        assert_eq!(result.unwrap(), Value::Bool(false));
+
+        // Error on wrong type
+        let result = native_fs_is_file(&[Value::Int(42)]);
+        assert!(result.is_err());
+    }
+
+    // -- 77. test_fs_is_dir -----------------------------------------------------
+
+    #[test]
+    fn test_fs_is_dir() {
+        // Current directory should be a directory
+        let result = native_fs_is_dir(&[Value::String(Rc::new(".".to_string()))]);
+        assert_eq!(result.unwrap(), Value::Bool(true));
+
+        // This source file is not a directory
+        let this_file = file!().replace('\\', "/");
+        let result = native_fs_is_dir(&[Value::String(Rc::new(this_file))]);
+        assert_eq!(result.unwrap(), Value::Bool(false));
+
+        // Error on wrong type
+        let result = native_fs_is_dir(&[Value::Int(42)]);
+        assert!(result.is_err());
+    }
+
+    // -- 78. test_fs_size -------------------------------------------------------
+
+    #[test]
+    fn test_fs_size() {
+        // This source file should have a positive size
+        let this_file = file!().replace('\\', "/");
+        let result = native_fs_size(&[Value::String(Rc::new(this_file))]);
+        match result.unwrap() {
+            Value::Long(n) => assert!(n > 0),
+            _ => panic!("Expected Long from Fs_size"),
+        }
+
+        // Non-existent file should error
+        let result = native_fs_size(&[Value::String(Rc::new("/no/such/file_titrate_xyz".to_string()))]);
+        assert!(result.is_err());
+
+        // Error on wrong type
+        let result = native_fs_size(&[Value::Int(42)]);
+        assert!(result.is_err());
+    }
+
+    // -- 79. test_process_id ----------------------------------------------------
+
+    #[test]
+    fn test_process_id() {
+        let result = native_process_id(&[]);
+        match result.unwrap() {
+            Value::Long(n) => assert!(n > 0),
+            _ => panic!("Expected Long from Process_id"),
+        }
+    }
+
+    // -- 80. test_process_args --------------------------------------------------
+
+    #[test]
+    fn test_process_args() {
+        let result = native_process_args(&[]);
+        match result.unwrap() {
+            Value::Array { elements } => {
+                assert!(!elements.is_empty());
+                for elem in &elements {
+                    match elem {
+                        Value::String(_) => {}
+                        _ => panic!("Expected String in process args array"),
+                    }
+                }
+            }
+            _ => panic!("Expected Array from Process_args"),
+        }
+    }
+
+    // -- 81. test_os_name -------------------------------------------------------
+
+    #[test]
+    fn test_os_name() {
+        let result = native_os_name(&[]);
+        match result.unwrap() {
+            Value::String(s) => assert!(!s.is_empty()),
+            _ => panic!("Expected String from Os_name"),
+        }
+    }
+
+    // -- 82. test_os_arch -------------------------------------------------------
+
+    #[test]
+    fn test_os_arch() {
+        let result = native_os_arch(&[]);
+        match result.unwrap() {
+            Value::String(s) => assert!(!s.is_empty()),
+            _ => panic!("Expected String from Os_arch"),
+        }
+    }
+
+    // -- 83. test_os_family -----------------------------------------------------
+
+    #[test]
+    fn test_os_family() {
+        let result = native_os_family(&[]);
+        match result.unwrap() {
+            Value::String(s) => {
+                assert!(!s.is_empty());
+                // Should be "unix" or "windows"
+                assert!(s.as_str() == "unix" || s.as_str() == "windows", "Unexpected OS family: {}", s);
+            }
+            _ => panic!("Expected String from Os_family"),
+        }
+    }
+
+    // -- 84. test_string_trim_start ---------------------------------------------
+
+    #[test]
+    fn test_string_trim_start() {
+        let result = native_string_trim_start(&[Value::String(Rc::new("  hello  ".to_string()))]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("hello  ".to_string())));
+
+        let result = native_string_trim_start(&[Value::String(Rc::new("no_leading".to_string()))]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("no_leading".to_string())));
+
+        // Error on wrong type
+        let result = native_string_trim_start(&[Value::Int(42)]);
+        assert!(result.is_err());
+    }
+
+    // -- 85. test_string_trim_end -----------------------------------------------
+
+    #[test]
+    fn test_string_trim_end() {
+        let result = native_string_trim_end(&[Value::String(Rc::new("  hello  ".to_string()))]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("  hello".to_string())));
+
+        let result = native_string_trim_end(&[Value::String(Rc::new("no_trailing".to_string()))]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("no_trailing".to_string())));
+
+        // Error on wrong type
+        let result = native_string_trim_end(&[Value::Int(42)]);
+        assert!(result.is_err());
+    }
+
+    // -- 86. test_string_starts_with --------------------------------------------
+
+    #[test]
+    fn test_string_starts_with() {
+        let result = native_string_starts_with(&[
+            Value::String(Rc::new("hello world".to_string())),
+            Value::String(Rc::new("hello".to_string())),
+        ]);
+        assert_eq!(result.unwrap(), Value::Bool(true));
+
+        let result = native_string_starts_with(&[
+            Value::String(Rc::new("hello world".to_string())),
+            Value::String(Rc::new("world".to_string())),
+        ]);
+        assert_eq!(result.unwrap(), Value::Bool(false));
+
+        // Error on wrong type
+        let result = native_string_starts_with(&[Value::Int(1), Value::Int(2)]);
+        assert!(result.is_err());
+    }
+
+    // -- 87. test_string_ends_with ----------------------------------------------
+
+    #[test]
+    fn test_string_ends_with() {
+        let result = native_string_ends_with(&[
+            Value::String(Rc::new("hello world".to_string())),
+            Value::String(Rc::new("world".to_string())),
+        ]);
+        assert_eq!(result.unwrap(), Value::Bool(true));
+
+        let result = native_string_ends_with(&[
+            Value::String(Rc::new("hello world".to_string())),
+            Value::String(Rc::new("hello".to_string())),
+        ]);
+        assert_eq!(result.unwrap(), Value::Bool(false));
+
+        // Error on wrong type
+        let result = native_string_ends_with(&[Value::Int(1), Value::Int(2)]);
+        assert!(result.is_err());
+    }
+
+    // -- 88. test_string_pad_left -----------------------------------------------
+
+    #[test]
+    fn test_string_pad_left() {
+        let result = native_string_pad_left(&[
+            Value::String(Rc::new("hi".to_string())),
+            Value::Int(5),
+            Value::Char('*'),
+        ]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("***hi".to_string())));
+
+        // Already long enough
+        let result = native_string_pad_left(&[
+            Value::String(Rc::new("hello".to_string())),
+            Value::Int(3),
+            Value::Char(' '),
+        ]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("hello".to_string())));
+
+        // Error on wrong type
+        let result = native_string_pad_left(&[Value::Int(1), Value::Int(2), Value::Int(3)]);
+        assert!(result.is_err());
+    }
+
+    // -- 89. test_string_pad_right ----------------------------------------------
+
+    #[test]
+    fn test_string_pad_right() {
+        let result = native_string_pad_right(&[
+            Value::String(Rc::new("hi".to_string())),
+            Value::Int(5),
+            Value::Char('*'),
+        ]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("hi***".to_string())));
+
+        // Already long enough
+        let result = native_string_pad_right(&[
+            Value::String(Rc::new("hello".to_string())),
+            Value::Int(3),
+            Value::Char(' '),
+        ]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("hello".to_string())));
+
+        // Error on wrong type
+        let result = native_string_pad_right(&[Value::Int(1), Value::Int(2), Value::Int(3)]);
+        assert!(result.is_err());
     }
 }
