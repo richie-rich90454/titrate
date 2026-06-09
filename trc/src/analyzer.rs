@@ -4815,4 +4815,61 @@ mod tests {
         let err = errs.iter().find(|e| e.contains("? operator")).unwrap();
         assert!(err.contains("my_func"), "expected function name in error, got: {}", err);
     }
+
+    #[test]
+    fn test_undeclared_identifier_in_assignment_suggests_similar() {
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "foo".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "value".to_string(),
+                    typ: Some(Type::simple("int")),
+                    init: Some(Expr::Literal(Literal::Int(5), Span::unknown())),
+                    mutable: true,
+                    span: Span::unknown(),
+                }),
+                Stmt::Expr(Expr::Assign(
+                    Box::new(Expr::Identifier("valu".to_string(), Span::unknown())),
+                    Box::new(Expr::Literal(Literal::Int(10), Span::unknown())),
+                    Span::unknown(),
+                )),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        let errs = result.unwrap_err();
+        let err = errs.iter().find(|e| e.contains("undeclared identifier in assignment")).unwrap();
+        assert!(err.contains("value"), "expected suggestion of 'value', got: {}", err);
+    }
+
+    #[test]
+    fn test_missing_return_in_if_else_branches() {
+        // Function with if-else where both branches return — should NOT error
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "abs".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("int")),
+            body: vec![Stmt::If(IfStmt {
+                condition: Expr::Literal(Literal::Bool(true), Span::unknown()),
+                then_branch: vec![Stmt::Return(Some(Expr::Literal(Literal::Int(1), Span::unknown())))],
+                else_branch: Some(vec![Stmt::Return(Some(Expr::Literal(Literal::Int(-1), Span::unknown())))]),
+                span: Span::unknown(),
+            })],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        // This should NOT error because both branches return
+        let result = analyze(&prog);
+        assert!(result.is_ok(), "expected no error when both if/else branches return, got: {:?}", result);
+    }
 }
