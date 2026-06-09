@@ -3722,4 +3722,91 @@ mod tests {
         }));
         assert!(analyze(&prog).is_ok(), "method with self parameter should analyze successfully");
     }
+
+    // -----------------------------------------------------------------------
+    // Operator overloading type check tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_operator_overload_type_check() {
+        // Verify operator+ method has correct signature: (self, other: Vec2) -> Vec2
+        let prog = program_with(Declaration::Class(ClassDecl {
+            name: "Vec2".to_string(),
+            type_params: vec![],
+            parent: None,
+            ifaces: vec![],
+            members: vec![
+                ClassMember::Field(FieldDecl {
+                    access: Access::Public,
+                    name: "x".to_string(),
+                    typ: Type::simple("double"),
+                    init: None,
+                    span: Span::unknown(),
+                }),
+                ClassMember::Field(FieldDecl {
+                    access: Access::Private,
+                    name: "y".to_string(),
+                    typ: Type::simple("double"),
+                    init: None,
+                    span: Span::unknown(),
+                }),
+                ClassMember::Method(MethodDecl {
+                    access: Access::Public,
+                    name: "operator+".to_string(),
+                    type_params: vec![],
+                    params: vec![
+                        Param { name: "self".to_string(), typ: Type::simple("Self") },
+                        Param { name: "other".to_string(), typ: Type::simple("Vec2") },
+                    ],
+                    return_type: Some(Type::simple("Vec2")),
+                    body: vec![Stmt::Return(Some(Expr::New(
+                        Type::simple("Vec2"),
+                        vec![],
+                        Span::unknown(),
+                    )))],
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_ok(), "operator+ with correct signature should analyze successfully: {:?}", result.err());
+    }
+
+    #[test]
+    fn test_operator_overload_return_type() {
+        // Verify operator== returns bool
+        let prog = program_with(Declaration::Class(ClassDecl {
+            name: "Vec2".to_string(),
+            type_params: vec![],
+            parent: None,
+            ifaces: vec![],
+            members: vec![
+                ClassMember::Field(FieldDecl {
+                    access: Access::Public,
+                    name: "x".to_string(),
+                    typ: Type::simple("double"),
+                    init: None,
+                    span: Span::unknown(),
+                }),
+                ClassMember::Method(MethodDecl {
+                    access: Access::Public,
+                    name: "operator==".to_string(),
+                    type_params: vec![],
+                    params: vec![
+                        Param { name: "self".to_string(), typ: Type::simple("Self") },
+                        Param { name: "other".to_string(), typ: Type::simple("Vec2") },
+                    ],
+                    return_type: Some(Type::simple("bool")),
+                    body: vec![Stmt::Return(Some(Expr::Literal(Literal::Bool(true), Span::unknown())))],
+                    where_clause: vec![],
+                    span: Span::unknown(),
+                }),
+            ],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        assert!(result.is_ok(), "operator== returning bool should analyze successfully: {:?}", result.err());
+    }
 }
