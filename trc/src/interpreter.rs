@@ -2157,6 +2157,31 @@ impl Interpreter {
             "sort" => {
                 Ok(Value::Void)
             }
+            "length" => {
+                match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => Ok(Value::Int(elements.len() as i32)),
+                    _ => Ok(Value::Int(0)),
+                }
+            }
+            "forEach" => {
+                let closure = args.first().ok_or("ArrayList.forEach requires 1 argument (closure)")?.clone();
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                for elem in &elements {
+                    self.call_closure_value(&closure, &[elem.clone()])?;
+                }
+                Ok(Value::Void)
+            }
+            "toString" => {
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let items: Vec<String> = elements.iter().map(|e| e.display_string()).collect();
+                Ok(Value::String(format!("[{}]", items.join(", "))))
+            }
             _ => Err(format!("Unknown ArrayList method '{}'", method)),
         }
     }
@@ -2213,7 +2238,68 @@ impl Interpreter {
                 }
                 Ok(Value::Null)
             }
+            "entries" => {
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let entries: Vec<Value> = keys.iter().zip(values.iter()).map(|(k, v)| {
+                    Value::Tuple { elements: vec![k.clone(), v.clone()] }
+                }).collect();
+                let mut al_fields = HashMap::new();
+                al_fields.insert("_elements".to_string(), Value::Array { elements: entries });
+                Ok(Value::ClassInstance {
+                    class_name: "ArrayList".to_string(),
+                    fields: Rc::new(RefCell::new(al_fields)),
+                    vtable: HashMap::new(),
+                })
+            }
+            "toString" => {
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let items: Vec<String> = keys.iter().zip(values.iter())
+                    .map(|(k, v)| format!("{}: {}", k.display_string(), v.display_string()))
+                    .collect();
+                Ok(Value::String(format!("{{{}}}", items.join(", "))))
+            }
             _ => Err(format!("Unknown HashMap method '{}'", method)),
+        }
+    }
+
+    fn call_closure_value(&self, closure: &Value, args: &[Value]) -> Result<Value, String> {
+        match closure {
+            Value::Closure { params, body, expr, captured_env } => {
+                if args.len() != params.len() {
+                    return Err(format!(
+                        "Closure expects {} arguments, got {}",
+                        params.len(), args.len()
+                    ));
+                }
+                let closure_env = Rc::new(RefCell::new(Env::with_parent(captured_env.clone())));
+                for (i, (name, _)) in params.iter().enumerate() {
+                    closure_env.borrow_mut().set(name, args[i].clone());
+                }
+                if let Some(expr) = expr {
+                    self.eval_expr_with_env(expr, &closure_env)
+                } else {
+                    let cf = self.exec_block(body, closure_env)?;
+                    match cf {
+                        ControlFlow::Return(v) => Ok(v),
+                        _ => Ok(Value::Void),
+                    }
+                }
+            }
+            _ => Err("forEach: expected a closure".to_string()),
         }
     }
 }
@@ -4266,5 +4352,95 @@ mod tests {
         interp.run(&program).ok();
         let output = interp.output.borrow();
         assert_eq!(output.last(), Some(&"3.14".to_string()));
+    }
+
+    // ---- Closure tests ----
+
+    #[test]
+    fn test_interpret_closure() {
+        let program = make_program(vec![
+            Declaration::Function(make_fn_decl("main", vec![], vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "f".to_string(),
+                    typ: None,
+                    init: Some(Expr::Closure {
+                        params: vec![("x".to_string(), Type::simple("long"))],
+                        return_type: Type::simple("long"),
+                        body: vec![],
+                        expr: Some(Box::new(Expr::Binary(
+                            Box::new(Expr::Identifier("x".to_string(), Span::unknown())),
+                            Operator::Add,
+                            Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                            Span::unknown(),
+                        ))),
+                        captured_vars: vec![],
+                        span: Span::unknown(),
+                    }),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+                println_call(Expr::Call(
+                    Box::new(Expr::Identifier("f".to_string(), Span::unknown())),
+                    vec![Expr::Literal(Literal::Int(41), Span::unknown())],
+                    Span::unknown(),
+                )),
+            ])),
+        ]);
+        let interp = Interpreter::new();
+        interp.run(&program).ok();
+        let output = interp.output.borrow();
+        assert_eq!(output.last(), Some(&"42".to_string()));
+    }
+
+    // ---- Tuple tests ----
+
+    #[test]
+    fn test_interpret_tuple() {
+        let program = make_program(vec![
+            Declaration::Function(make_fn_decl("main", vec![], vec![
+                Stmt::VarDecl(VarDecl {
+                    name: "t".to_string(),
+                    typ: None,
+                    init: Some(Expr::Tuple(vec![
+                        Expr::Literal(Literal::Int(10), Span::unknown()),
+                        Expr::Literal(Literal::Int(20), Span::unknown()),
+                    ], Span::unknown())),
+                    mutable: false,
+                    span: Span::unknown(),
+                }),
+                println_call(Expr::Identifier("t".to_string(), Span::unknown())),
+            ])),
+        ]);
+        let interp = Interpreter::new();
+        interp.run(&program).ok();
+        let output = interp.output.borrow();
+        assert_eq!(output.last(), Some(&"(10, 20)".to_string()));
+    }
+
+    #[test]
+    fn test_interpret_tuple_destructure() {
+        let program = make_program(vec![
+            Declaration::Function(make_fn_decl("main", vec![], vec![
+                Stmt::TupleDestructure {
+                    names: vec!["a".to_string(), "b".to_string()],
+                    expr: Expr::Tuple(vec![
+                        Expr::Literal(Literal::Int(10), Span::unknown()),
+                        Expr::Literal(Literal::Int(20), Span::unknown()),
+                    ], Span::unknown()),
+                    mutable: false,
+                    span: Span::unknown(),
+                },
+                println_call(Expr::Binary(
+                    Box::new(Expr::Identifier("a".to_string(), Span::unknown())),
+                    Operator::Add,
+                    Box::new(Expr::Identifier("b".to_string(), Span::unknown())),
+                    Span::unknown(),
+                )),
+            ])),
+        ]);
+        let interp = Interpreter::new();
+        interp.run(&program).ok();
+        let output = interp.output.borrow();
+        assert_eq!(output.last(), Some(&"30".to_string()));
     }
 }
