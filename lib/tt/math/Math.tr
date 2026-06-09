@@ -167,4 +167,20 @@ public class Math {
     public static double nextDown(double x) {
         return Math_nextDown(x);
     }
+
+    public static double ulp(double x) {
+        return Math_ulp(x);
+    }
+
+    public static int getExponent(double x) {
+        return Math_getExponent(x);
+    }
+
+    public static double scalb(double x, int scaleFactor) {
+        return Math_scalb(x, scaleFactor);
+    }
+
+    public static double random() {
+        return Math_random();
+    }
 }
