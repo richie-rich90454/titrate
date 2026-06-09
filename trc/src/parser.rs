@@ -4073,4 +4073,81 @@ import math::sqrt;"#;
             other => panic!("Expected Class, got {:?}", other),
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Stdlib import tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_import_tt_math() {
+        let src = r#"import tt::math::Math;"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        assert_eq!(prog.imports.len(), 1);
+        assert_eq!(prog.imports[0].path, vec!["tt", "math", "Math"]);
+    }
+
+    #[test]
+    fn test_import_tt_chem() {
+        let src = r#"import tt::chem::Molecule;"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        assert_eq!(prog.imports.len(), 1);
+        assert_eq!(prog.imports[0].path, vec!["tt", "chem", "Molecule"]);
+    }
+
+    #[test]
+    fn test_static_call_math() {
+        let src = r#"fn f(): void { Math::sqrt(4.0); }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Call(callee, args, _)) => {
+                    assert!(matches!(callee.as_ref(), ast::Expr::MemberAccess(_, name, _) if name == "sqrt"));
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("Expected Call, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_class_with_operator_overload_all() {
+        let src = r#"class Number {
+    double value;
+
+    fn operator+(self, other: Number): Number {
+        return new Number();
+    }
+
+    fn operator-(self, other: Number): Number {
+        return new Number();
+    }
+
+    fn operator*(self, other: Number): Number {
+        return new Number();
+    }
+
+    fn operator/(self, other: Number): Number {
+        return new Number();
+    }
+}"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Class(cd) => {
+                assert_eq!(cd.name, "Number");
+                let methods: Vec<_> = cd.members.iter().filter_map(|m| match m {
+                    ast::ClassMember::Method(m) => Some(m.name.clone()),
+                    _ => None,
+                }).collect();
+                assert!(methods.contains(&"operator+".to_string()),
+                    "Expected operator+ method, found: {:?}", methods);
+                assert!(methods.contains(&"operator-".to_string()),
+                    "Expected operator- method, found: {:?}", methods);
+                assert!(methods.contains(&"operator*".to_string()),
+                    "Expected operator* method, found: {:?}", methods);
+                assert!(methods.contains(&"operator/".to_string()),
+                    "Expected operator/ method, found: {:?}", methods);
+            }
+            other => panic!("Expected Class, got {:?}", other),
+        }
+    }
 }
