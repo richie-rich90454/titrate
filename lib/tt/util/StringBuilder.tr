@@ -17,4 +17,28 @@ public class StringBuilder {
         }
         return result;
     }
+
+    public void insert(int index, String s) {
+        this.parts.add(index, s);
+    }
+
+    public void deleteCharAt(int index) {
+        String current = this.build();
+        String before = current.substring(0, index);
+        String after = current.substring(index + 1, current.length());
+        this.parts = new ArrayList<String>();
+        this.parts.add(before + after);
+    }
+
+    public int length() {
+        return this.build().length();
+    }
+
+    public String substring(int start, int end) {
+        return this.build().substring(start, end);
+    }
+
+    public void clear() {
+        this.parts = new ArrayList<String>();
+    }
 }
