@@ -6,4 +6,32 @@ public class Double {
     public static String toString(double value) {
         return value.toString();
     }
+
+    public static bool isNaN(double value) {
+        return value != value;
+    }
+
+    public static bool isInfinite(double value) {
+        return value == Double::POSITIVE_INFINITY() || value == Double::NEGATIVE_INFINITY();
+    }
+
+    public static double parseOr(String s, double defaultValue) {
+        double result = Double::parseDouble(s);
+        if (Double::isNaN(result)) {
+            return defaultValue;
+        }
+        return result;
+    }
+
+    public static double POSITIVE_INFINITY() {
+        return Math_inf();
+    }
+
+    public static double NEGATIVE_INFINITY() {
+        return Math_negInf();
+    }
+
+    public static double NaN() {
+        return Math_nan();
+    }
 }
