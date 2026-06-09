@@ -158,6 +158,9 @@ impl Vm {
         vm.register_native("Random_seed", native_random_seed);
         vm.register_native("Random_nextLong", native_random_next_long);
 
+        // Json natives
+        vm.register_native("Json_parse", native_json_parse);
+
         vm
     }
 
@@ -2239,6 +2242,27 @@ impl Vm {
                     }
                 }
             }
+            Value::EnumInstance { variant, fields, .. } => {
+                // Handle enum instance methods
+                match method_name.as_str() {
+                    "toString" => {
+                        let s = if fields.is_empty() {
+                            variant.clone()
+                        } else {
+                            let items: Vec<String> = fields.iter().map(|v| v.display_string()).collect();
+                            format!("{}({})", variant, items.join(", "))
+                        };
+                        self.stack.drain(receiver_idx..);
+                        self.push(Value::String(Rc::new(s)));
+                    }
+                    _ => {
+                        return Err(format!(
+                            "INVOKE_VIRTUAL: cannot invoke '{}' on enum instance '{}'",
+                            method_name, variant
+                        ))
+                    }
+                }
+            }
             _ => {
                 return Err(format!(
                     "INVOKE_VIRTUAL: cannot invoke '{}' on {:?}",
@@ -2348,6 +2372,34 @@ impl Vm {
                 }
             }
             "sort" => Ok(Value::Void),
+            "length" => {
+                match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => Ok(Value::Int(elements.len() as i32)),
+                    _ => Ok(Value::Int(0)),
+                }
+            }
+            "forEach" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.forEach requires 1 argument (closure)".to_string());
+                }
+                let closure = self.stack.last().cloned().unwrap_or(Value::Void);
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                for elem in &elements {
+                    self.call_closure_with_args(&closure, &[elem.clone()])?;
+                }
+                Ok(Value::Void)
+            }
+            "toString" => {
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let items: Vec<String> = elements.iter().map(|e| e.display_string()).collect();
+                Ok(Value::String(Rc::new(format!("[{}]", items.join(", ")))))
+            }
             _ => Err(format!("Unknown ArrayList method '{}'", method)),
         }
     }
@@ -2509,6 +2561,20 @@ impl Vm {
                     None => Ok(Value::Null),
                 }
             }
+            "toString" => {
+                let keys = match fields.borrow().get("_keys") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let values = match fields.borrow().get("_values") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                let items: Vec<String> = keys.iter().zip(values.iter())
+                    .map(|(k, v)| format!("{}: {}", k.display_string(), v.display_string()))
+                    .collect();
+                Ok(Value::String(Rc::new(format!("{{{}}}", items.join(", ")))))
+            }
             _ => Err(format!("Unknown HashMap method '{}'", method)),
         }
     }
@@ -2569,6 +2635,38 @@ impl Vm {
         let result = self.apply_builtin_operator(&left, &right, &method_name)?;
         self.push(result);
         Ok(())
+    }
+
+    /// Call a closure value with the given arguments.
+    /// Used by built-in methods like ArrayList.forEach.
+    fn call_closure_with_args(&mut self, closure: &Value, args: &[Value]) -> Result<(), String> {
+        match closure {
+            Value::Closure { func_idx, .. } => {
+                let fi = *func_idx;
+                if fi >= self.functions.len() {
+                    return Err("forEach: invalid closure".to_string());
+                }
+                let arity = self.functions[fi].arity;
+                let base = self.stack.len();
+                // Push args
+                for arg in args {
+                    self.push(arg.clone());
+                }
+                // Pad if needed
+                for _ in args.len()..arity as usize {
+                    self.push(Value::Null);
+                }
+                self.frames.push(Frame::new(fi as u16, base));
+                // Execute the closure frame
+                while self.frames.len() > 1 {
+                    self.step()?;
+                }
+                // Pop the return value
+                let _ = self.pop();
+                Ok(())
+            }
+            _ => Err("forEach: expected a closure".to_string()),
+        }
     }
 
     /// Apply a built-in operator when no operator overload method is found.
@@ -4391,6 +4489,194 @@ fn native_random_next_long(args: &[Value]) -> Result<Value, String> {
     })
 }
 
+fn native_json_parse(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Json_parse: expected 1 argument (json string)".to_string());
+    }
+    let json_str = match &args[0] {
+        Value::String(s) => s.as_str().trim().to_string(),
+        _ => return Err("Json_parse: expected String argument".to_string()),
+    };
+    json_parse_value(&json_str).map(|(v, _)| v)
+}
+
+/// Simple recursive-descent JSON parser.
+/// Returns (Value, remaining_string) on success.
+fn json_parse_value(input: &str) -> Result<(Value, &str), String> {
+    let input = input.trim_start();
+    if input.is_empty() {
+        return Err("Json_parse: unexpected end of input".to_string());
+    }
+    if input.starts_with("null") {
+        return Ok((Value::Null, &input[4..]));
+    }
+    if input.starts_with("true") {
+        return Ok((Value::Bool(true), &input[4..]));
+    }
+    if input.starts_with("false") {
+        return Ok((Value::Bool(false), &input[5..]));
+    }
+    if input.starts_with('"') {
+        return json_parse_string(input);
+    }
+    if input.starts_with('[') {
+        return json_parse_array(input);
+    }
+    if input.starts_with('{') {
+        return json_parse_object(input);
+    }
+    // Number
+    json_parse_number(input)
+}
+
+fn json_parse_string(input: &str) -> Result<(Value, &str), String> {
+    let bytes = input.as_bytes();
+    if bytes[0] != b'"' {
+        return Err("Json_parse: expected '\"'".to_string());
+    }
+    let mut i = 1;
+    let mut result = String::new();
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => {
+                if i + 1 >= bytes.len() {
+                    return Err("Json_parse: unexpected end of string escape".to_string());
+                }
+                i += 1;
+                match bytes[i] {
+                    b'"' => result.push('"'),
+                    b'\\' => result.push('\\'),
+                    b'/' => result.push('/'),
+                    b'n' => result.push('\n'),
+                    b'r' => result.push('\r'),
+                    b't' => result.push('\t'),
+                    _ => result.push(bytes[i] as char),
+                }
+                i += 1;
+            }
+            b'"' => {
+                return Ok((Value::String(Rc::new(result)), &input[i + 1..]));
+            }
+            b => {
+                result.push(b as char);
+                i += 1;
+            }
+        }
+    }
+    Err("Json_parse: unterminated string".to_string())
+}
+
+fn json_parse_number(input: &str) -> Result<(Value, &str), String> {
+    let mut i = 0;
+    let bytes = input.as_bytes();
+    let start = 0;
+    if i < bytes.len() && (bytes[i] == b'-' || bytes[i] == b'+') {
+        i += 1;
+    }
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+    let is_float = if i < bytes.len() && bytes[i] == b'.' {
+        i += 1;
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+        true
+    } else {
+        false
+    };
+    // Handle exponent
+    if i < bytes.len() && (bytes[i] == b'e' || bytes[i] == b'E') {
+        i += 1;
+        if i < bytes.len() && (bytes[i] == b'+' || bytes[i] == b'-') {
+            i += 1;
+        }
+        while i < bytes.len() && bytes[i].is_ascii_digit() {
+            i += 1;
+        }
+    }
+    let num_str = &input[start..i];
+    if is_float {
+        match num_str.parse::<f64>() {
+            Ok(f) => Ok((Value::Double(f), &input[i..])),
+            Err(_) => Err(format!("Json_parse: invalid number '{}'", num_str)),
+        }
+    } else {
+        match num_str.parse::<i64>() {
+            Ok(n) => Ok((Value::Long(n), &input[i..])),
+            Err(_) => Err(format!("Json_parse: invalid number '{}'", num_str)),
+        }
+    }
+}
+
+fn json_parse_array(input: &str) -> Result<(Value, &str), String> {
+    let mut rest = input[1..].trim_start(); // skip '['
+    let mut elements = Vec::new();
+    if rest.starts_with(']') {
+        return Ok((Value::Array { elements }, &rest[1..]));
+    }
+    loop {
+        let (val, remaining) = json_parse_value(rest)?;
+        elements.push(val);
+        rest = remaining.trim_start();
+        if rest.starts_with(']') {
+            return Ok((Value::Array { elements }, &rest[1..]));
+        }
+        if !rest.starts_with(',') {
+            return Err("Json_parse: expected ',' or ']' in array".to_string());
+        }
+        rest = rest[1..].trim_start();
+    }
+}
+
+fn json_parse_object(input: &str) -> Result<(Value, &str), String> {
+    let mut rest = input[1..].trim_start(); // skip '{'
+    let mut keys = Vec::new();
+    let mut values = Vec::new();
+    if rest.starts_with('}') {
+        let mut fields = HashMap::new();
+        fields.insert("_keys".to_string(), Value::Array { elements: keys });
+        fields.insert("_values".to_string(), Value::Array { elements: values });
+        return Ok((Value::ClassInstance {
+            class_name: "HashMap".to_string(),
+            fields: Rc::new(std::cell::RefCell::new(fields)),
+            vtable: HashMap::new(),
+        }, &rest[1..]));
+    }
+    loop {
+        // Parse key (must be a string)
+        let (key_val, remaining) = json_parse_value(rest)?;
+        let key_str = match &key_val {
+            Value::String(s) => s.as_str().to_string(),
+            _ => return Err("Json_parse: object key must be a string".to_string()),
+        };
+        rest = remaining.trim_start();
+        if !rest.starts_with(':') {
+            return Err("Json_parse: expected ':' in object".to_string());
+        }
+        rest = rest[1..].trim_start();
+        // Parse value
+        let (val, remaining) = json_parse_value(rest)?;
+        keys.push(Value::String(Rc::new(key_str)));
+        values.push(val);
+        rest = remaining.trim_start();
+        if rest.starts_with('}') {
+            let mut fields = HashMap::new();
+            fields.insert("_keys".to_string(), Value::Array { elements: keys });
+            fields.insert("_values".to_string(), Value::Array { elements: values });
+            return Ok((Value::ClassInstance {
+                class_name: "HashMap".to_string(),
+                fields: Rc::new(std::cell::RefCell::new(fields)),
+                vtable: HashMap::new(),
+            }, &rest[1..]));
+        }
+        if !rest.starts_with(',') {
+            return Err("Json_parse: expected ',' or '}' in object".to_string());
+        }
+        rest = rest[1..].trim_start();
+    }
+}
+
 /// Look up a built-in native function by name. Returns `None` for unknown names.
 fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -4481,6 +4767,8 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         // Random natives
         "Random_seed" => Some(native_random_seed),
         "Random_nextLong" => Some(native_random_next_long),
+        // Json natives
+        "Json_parse" => Some(native_json_parse),
         _ => None,
     }
 }
@@ -5492,5 +5780,91 @@ mod tests {
         let mut vm2 = vm_with_chunk(chunk2);
         vm2.run().unwrap();
         assert_eq!(vm2.stack.last(), Some(&Value::Bool(true)));
+    }
+
+    // -- 19. test_json_parse_null -----------------------------------------------
+
+    #[test]
+    fn test_json_parse_null() {
+        let result = native_json_parse(&[Value::String(Rc::new("null".to_string()))]);
+        assert_eq!(result.unwrap(), Value::Null);
+    }
+
+    // -- 20. test_json_parse_bool -----------------------------------------------
+
+    #[test]
+    fn test_json_parse_bool() {
+        let result_true = native_json_parse(&[Value::String(Rc::new("true".to_string()))]);
+        assert_eq!(result_true.unwrap(), Value::Bool(true));
+
+        let result_false = native_json_parse(&[Value::String(Rc::new("false".to_string()))]);
+        assert_eq!(result_false.unwrap(), Value::Bool(false));
+    }
+
+    // -- 21. test_json_parse_number ---------------------------------------------
+
+    #[test]
+    fn test_json_parse_number() {
+        let result_int = native_json_parse(&[Value::String(Rc::new("42".to_string()))]);
+        assert_eq!(result_int.unwrap(), Value::Long(42));
+
+        let result_float = native_json_parse(&[Value::String(Rc::new("3.14".to_string()))]);
+        let val = result_float.unwrap();
+        match val {
+            Value::Double(f) => assert!((f - 3.14).abs() < 0.001),
+            _ => panic!("Expected Double, got {:?}", val),
+        }
+    }
+
+    // -- 22. test_json_parse_string ---------------------------------------------
+
+    #[test]
+    fn test_json_parse_string() {
+        let result = native_json_parse(&[Value::String(Rc::new("\"hello\"".to_string()))]);
+        assert_eq!(result.unwrap(), Value::String(Rc::new("hello".to_string())));
+    }
+
+    // -- 23. test_json_parse_array ----------------------------------------------
+
+    #[test]
+    fn test_json_parse_array() {
+        let result = native_json_parse(&[Value::String(Rc::new("[1, 2, 3]".to_string()))]);
+        match result.unwrap() {
+            Value::Array { elements } => {
+                assert_eq!(elements.len(), 3);
+                assert_eq!(elements[0], Value::Long(1));
+                assert_eq!(elements[1], Value::Long(2));
+                assert_eq!(elements[2], Value::Long(3));
+            }
+            other => panic!("Expected Array, got {:?}", other),
+        }
+    }
+
+    // -- 24. test_json_parse_object ---------------------------------------------
+
+    #[test]
+    fn test_json_parse_object() {
+        let result = native_json_parse(&[Value::String(Rc::new("{\"key\": \"value\"}".to_string()))]);
+        match result.unwrap() {
+            Value::ClassInstance { class_name, fields, .. } => {
+                assert_eq!(class_name, "HashMap");
+                let borrowed = fields.borrow();
+                match borrowed.get("_keys") {
+                    Some(Value::Array { elements: keys }) => {
+                        assert_eq!(keys.len(), 1);
+                        assert_eq!(keys[0], Value::String(Rc::new("key".to_string())));
+                    }
+                    _ => panic!("Expected _keys array"),
+                }
+                match borrowed.get("_values") {
+                    Some(Value::Array { elements: values }) => {
+                        assert_eq!(values.len(), 1);
+                        assert_eq!(values[0], Value::String(Rc::new("value".to_string())));
+                    }
+                    _ => panic!("Expected _values array"),
+                }
+            }
+            other => panic!("Expected ClassInstance (HashMap), got {:?}", other),
+        }
     }
 }
