@@ -3809,4 +3809,177 @@ mod tests {
         let result = analyze(&prog);
         assert!(result.is_ok(), "operator== returning bool should analyze successfully: {:?}", result.err());
     }
+
+    // -----------------------------------------------------------------------
+    // For-in type check tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_for_in_type_check() {
+        // for-in loop with a valid iterable expression
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![Stmt::For(ForStmt {
+                var: "item".to_string(),
+                iterable: Expr::Identifier("list".to_string(), Span::unknown()),
+                body: vec![Stmt::Expr(Expr::Identifier("item".to_string(), Span::unknown()))],
+                span: Span::unknown(),
+            })],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        // Will error on undeclared "list" but "item" should be in scope
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().iter().any(|e| e.contains("undeclared")));
+    }
+
+    // -----------------------------------------------------------------------
+    // C-style for scope tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_c_style_for_scope() {
+        // Variable declared in C-style for init should be scoped to the loop
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![
+                Stmt::CFor(CForStmt {
+                    init: Some(Box::new(Stmt::VarDecl(VarDecl {
+                        name: "i".to_string(),
+                        typ: Some(Type::simple("int")),
+                        init: Some(Expr::Literal(Literal::Int(0), Span::unknown())),
+                        mutable: true,
+                        span: Span::unknown(),
+                    }))),
+                    condition: Some(Expr::Binary(
+                        Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
+                        Operator::Lt,
+                        Box::new(Expr::Literal(Literal::Int(10), Span::unknown())),
+                        Span::unknown(),
+                    )),
+                    increment: Some(Expr::Assign(
+                        Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
+                        Box::new(Expr::Binary(
+                            Box::new(Expr::Identifier("i".to_string(), Span::unknown())),
+                            Operator::Add,
+                            Box::new(Expr::Literal(Literal::Int(1), Span::unknown())),
+                            Span::unknown(),
+                        )),
+                        Span::unknown(),
+                    )),
+                    body: vec![Stmt::Expr(Expr::Identifier("i".to_string(), Span::unknown()))],
+                    span: Span::unknown(),
+                }),
+                // i should NOT be in scope after the loop
+                Stmt::Expr(Expr::Identifier("i".to_string(), Span::unknown())),
+            ],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        let result = analyze(&prog);
+        // "i" used after the loop should be an error (undeclared or out of scope)
+        assert!(result.is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // While-let type check tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_while_let_type_check() {
+        // while-let with a valid expression
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![Stmt::WhileLet(WhileLetStmt {
+                var_name: "line".to_string(),
+                expr: Expr::Call(
+                    Box::new(Expr::MemberAccess(
+                        Box::new(Expr::Identifier("file".to_string(), Span::unknown())),
+                        "readLine".to_string(),
+                        Span::unknown(),
+                    )),
+                    vec![],
+                    Span::unknown(),
+                ),
+                body: vec![Stmt::Expr(Expr::Identifier("line".to_string(), Span::unknown()))],
+                span: Span::unknown(),
+            })],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        // Will error on undeclared "file" but the while-let structure should be valid
+        let result = analyze(&prog);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().iter().any(|e| e.contains("undeclared")));
+    }
+
+    // -----------------------------------------------------------------------
+    // Tuple assign tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_tuple_assign() {
+        // Assign a tuple to a variable
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "test".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::simple("void")),
+            body: vec![Stmt::VarDecl(VarDecl {
+                name: "t".to_string(),
+                typ: None,
+                init: Some(Expr::Tuple(vec![
+                    Expr::Literal(Literal::Int(1), Span::unknown()),
+                    Expr::Literal(Literal::String("hello".to_string()), Span::unknown()),
+                ], Span::unknown())),
+                mutable: false,
+                span: Span::unknown(),
+            })],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        assert!(analyze(&prog).is_ok());
+    }
+
+    // -----------------------------------------------------------------------
+    // Tuple return function tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_tuple_return_function() {
+        // Function returning a tuple type
+        let prog = program_with(Declaration::Function(FnDecl {
+            access: Access::Public,
+            name: "pair".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: Some(Type::Tuple(vec![Type::simple("int"), Type::simple("string")])),
+            body: vec![Stmt::Return(Some(Expr::Tuple(vec![
+                Expr::Literal(Literal::Int(42), Span::unknown()),
+                Expr::Literal(Literal::String("answer".to_string()), Span::unknown()),
+            ], Span::unknown())))],
+            sugar: false,
+            where_clause: vec![],
+            span: Span::unknown(),
+        }));
+        assert!(analyze(&prog).is_ok());
+    }
 }
