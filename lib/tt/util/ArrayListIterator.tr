@@ -18,4 +18,14 @@ public class ArrayListIterator<T> implements Iterator<T> {
         this.index = this.index + 1;
         return item;
     }
+
+    public void reset() {
+        this.index = 0;
+    }
+
+    public void forEachRemaining(function<void(T)> action) {
+        while (this.hasNext()) {
+            action(this.next());
+        }
+    }
 }
