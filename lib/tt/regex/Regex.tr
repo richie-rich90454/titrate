@@ -57,7 +57,45 @@ public class Regex {
         return results;
     }
 
+    public ArrayList<Match> matchAll(String input) {
+        return this.findAll(input);
+    }
+
     public String replaceAll(String input, String replacement) {
         return Regex_replace(this.pattern, input, replacement);
+    }
+
+    public ArrayList<String> split(String input) {
+        ArrayList<String> parts = new ArrayList<String>();
+        int lastEnd = 0;
+        String remaining = input;
+        int offset = 0;
+        while (true) {
+            String raw = Regex_find(this.pattern, remaining);
+            if (raw.length() == 0) {
+                break;
+            }
+            int firstComma = raw.indexOf(",");
+            int secondComma = raw.indexOf(",", firstComma + 1);
+            int start = Integer.parseInt(raw.substring(0, firstComma));
+            int end = Integer.parseInt(raw.substring(firstComma + 1, secondComma));
+            parts.add(input.substring(lastEnd, offset + start));
+            lastEnd = offset + end;
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = remaining.substring(end);
+        }
+        parts.add(input.substring(lastEnd));
+        return parts;
+    }
+
+    public int groupCount() {
+        return Regex_groupCount(this.pattern);
+    }
+
+    public String getPattern() {
+        return this.pattern;
     }
 }
