@@ -58,4 +58,23 @@ public class Counter<E> {
     public ArrayList<E> keys() {
         return this.counts.keys();
     }
+
+    public ArrayList<(E, int)> items() {
+        return this.counts.entries();
+    }
+
+    public int total() {
+        int sum = 0;
+        ArrayList<int> vals = this.counts.values();
+        int i = 0;
+        while (i < vals.size()) {
+            sum = sum + vals.get(i);
+            i = i + 1;
+        }
+        return sum;
+    }
+
+    public void clear() {
+        this.counts = new HashMap();
+    }
 }
