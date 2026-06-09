@@ -4948,4 +4948,312 @@ mod tests {
             "Vec2 class should have operator+ method"
         );
     }
+
+    // -- test_compile_for_in -----------------------------------------------------
+
+    #[test]
+    fn test_compile_for_in() {
+        let for_stmt = ast::Stmt::For(ast::ForStmt {
+            var: "item".to_string(),
+            iterable: ast::Expr::Identifier("list".to_string(), su()),
+            body: vec![ast::Stmt::Expr(ast::Expr::Identifier("item".to_string(), su()))],
+            span: su(),
+        });
+
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "test_for_in".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![for_stmt],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Function(fn_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        let fn_chunk = &compiled.functions[1].chunk;
+        // For-in loop should contain JMP_IF_FALSE for the loop condition
+        assert!(
+            fn_chunk.code.contains(&(OpCode::JMP_IF_FALSE as u8)),
+            "for-in loop should emit JMP_IF_FALSE"
+        );
+        // And a JMP back to the start
+        assert!(
+            fn_chunk.code.contains(&(OpCode::JMP as u8)),
+            "for-in loop should emit JMP back to start"
+        );
+    }
+
+    // -- test_compile_c_style_for ------------------------------------------------
+
+    #[test]
+    fn test_compile_c_style_for() {
+        let cfor_stmt = ast::Stmt::CFor(ast::CForStmt {
+            init: Some(Box::new(ast::Stmt::VarDecl(ast::VarDecl {
+                name: "i".to_string(),
+                typ: None,
+                init: Some(ast::Expr::Literal(ast::Literal::Int(0), su())),
+                mutable: true,
+                span: su(),
+            }))),
+            condition: Some(ast::Expr::Binary(
+                Box::new(ast::Expr::Identifier("i".to_string(), su())),
+                ast::Operator::Lt,
+                Box::new(ast::Expr::Literal(ast::Literal::Int(10), su())),
+                su(),
+            )),
+            increment: Some(ast::Expr::Assign(
+                Box::new(ast::Expr::Identifier("i".to_string(), su())),
+                Box::new(ast::Expr::Binary(
+                    Box::new(ast::Expr::Identifier("i".to_string(), su())),
+                    ast::Operator::Add,
+                    Box::new(ast::Expr::Literal(ast::Literal::Int(1), su())),
+                    su(),
+                )),
+                su(),
+            )),
+            body: vec![ast::Stmt::Break],
+            span: su(),
+        });
+
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "test_c_for".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![cfor_stmt],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Function(fn_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        let fn_chunk = &compiled.functions[1].chunk;
+        assert!(
+            fn_chunk.code.contains(&(OpCode::JMP_IF_FALSE as u8)),
+            "C-style for should emit JMP_IF_FALSE"
+        );
+        assert!(
+            fn_chunk.code.contains(&(OpCode::JMP as u8)),
+            "C-style for should emit JMP"
+        );
+    }
+
+    // -- test_compile_while_let --------------------------------------------------
+
+    #[test]
+    fn test_compile_while_let() {
+        let while_let_stmt = ast::Stmt::WhileLet(ast::WhileLetStmt {
+            var_name: "line".to_string(),
+            expr: ast::Expr::Call(
+                Box::new(ast::Expr::MemberAccess(
+                    Box::new(ast::Expr::Identifier("file".to_string(), su())),
+                    "readLine".to_string(),
+                    su(),
+                )),
+                vec![],
+                su(),
+            ),
+            body: vec![ast::Stmt::Break],
+            span: su(),
+        });
+
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "test_while_let".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![while_let_stmt],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Function(fn_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        let fn_chunk = &compiled.functions[1].chunk;
+        assert!(
+            fn_chunk.code.contains(&(OpCode::JMP_IF_FALSE as u8)),
+            "while-let should emit JMP_IF_FALSE"
+        );
+        assert!(
+            fn_chunk.code.contains(&(OpCode::JMP as u8)),
+            "while-let should emit JMP back to start"
+        );
+    }
+
+    // -- test_compile_switch_enum ------------------------------------------------
+
+    #[test]
+    fn test_compile_switch_enum() {
+        let enum_decl = ast::EnumDecl {
+            name: "Color".to_string(),
+            type_params: vec![],
+            variants: vec![
+                ast::Variant {
+                    name: "Red".to_string(),
+                    fields: vec![],
+                },
+                ast::Variant {
+                    name: "Blue".to_string(),
+                    fields: vec![],
+                },
+            ],
+            span: su(),
+        };
+
+        let switch_stmt = ast::Stmt::Switch(ast::SwitchStmt {
+            expr: ast::Expr::Identifier("color".to_string(), su()),
+            cases: vec![
+                ast::Case {
+                    pattern: ast::Pattern::Constructor {
+                        name: "Red".to_string(),
+                        bindings: vec![],
+                    },
+                    body: vec![ast::Stmt::Expr(ast::Expr::Literal(ast::Literal::Int(1), su()))],
+                },
+                ast::Case {
+                    pattern: ast::Pattern::Constructor {
+                        name: "Blue".to_string(),
+                        bindings: vec![],
+                    },
+                    body: vec![ast::Stmt::Expr(ast::Expr::Literal(ast::Literal::Int(2), su()))],
+                },
+            ],
+            default: None,
+            span: su(),
+        });
+
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "test_switch_enum".to_string(),
+            type_params: vec![],
+            params: vec![ast::Param {
+                name: "color".to_string(),
+                typ: ast::Type::simple("Color"),
+            }],
+            return_type: None,
+            body: vec![switch_stmt],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![
+                ast::Declaration::Enum(enum_decl),
+                ast::Declaration::Function(fn_decl),
+            ],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        let fn_chunk = &compiled.functions[1].chunk;
+        assert!(
+            fn_chunk.code.contains(&(OpCode::DUP as u8)),
+            "switch on enum should DUP the subject"
+        );
+        assert!(
+            fn_chunk.code.contains(&(OpCode::JMP_IF_FALSE as u8)),
+            "switch on enum should use JMP_IF_FALSE"
+        );
+    }
+
+    // -- test_compile_where_clause -----------------------------------------------
+
+    #[test]
+    fn test_compile_where_clause() {
+        // Compile a non-generic function with an empty where clause
+        // (where clause is for type checking; compilation should succeed)
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "foo".to_string(),
+            type_params: vec![],
+            params: vec![ast::Param {
+                name: "x".to_string(),
+                typ: ast::Type::simple("int"),
+            }],
+            return_type: Some(ast::Type::simple("void")),
+            body: vec![ast::Stmt::Return(None)],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Function(fn_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        // The function should be compiled
+        assert!(
+            compiled.functions.len() >= 2,
+            "compiled program should contain main and foo functions"
+        );
+
+        // Also test that a generic function with where clause can be registered
+        let generic_fn = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "bar".to_string(),
+            type_params: vec![ast::TypeParam {
+                name: "T".to_string(),
+                constraint: Some(ast::Type::simple("Comparable")),
+            }],
+            params: vec![ast::Param {
+                name: "x".to_string(),
+                typ: ast::Type::simple("T"),
+            }],
+            return_type: Some(ast::Type::simple("void")),
+            body: vec![ast::Stmt::Return(None)],
+            sugar: false,
+            where_clause: vec![ast::TypeParam {
+                name: "T".to_string(),
+                constraint: Some(ast::Type::simple("Comparable")),
+            }],
+            span: su(),
+        };
+
+        let mut compiler2 = Compiler::new();
+        // Register the generic function (should not fail on registration)
+        compiler2.register_function(&generic_fn);
+        // Generic functions are stored in generic_function_map, not function_map
+        assert!(
+            compiler2.generic_function_map.contains_key("bar"),
+            "generic function should be registered in generic_function_map"
+        );
+        assert_eq!(
+            compiler2.generic_functions.len(),
+            1,
+            "generic_functions should contain one entry"
+        );
+    }
 }
