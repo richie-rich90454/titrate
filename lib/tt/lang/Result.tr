@@ -1,0 +1,72 @@
+// Result<T, E> utility methods for error handling.
+public class Result<T, E> {
+    private T okValue;
+    private E errValue;
+    private bool isOk;
+
+    private Result() {}
+
+    public static Result<T, E> ok(T value) {
+        Result<T, E> r = new Result<T, E>();
+        r.okValue = value;
+        r.isOk = true;
+        return r;
+    }
+
+    public static Result<T, E> err(E value) {
+        Result<T, E> r = new Result<T, E>();
+        r.errValue = value;
+        r.isOk = false;
+        return r;
+    }
+
+    public bool isOk() {
+        return this.isOk;
+    }
+
+    public bool isErr() {
+        return !this.isOk;
+    }
+
+    public T unwrap() {
+        if (this.isOk) {
+            return this.okValue;
+        }
+        return null;
+    }
+
+    public T unwrapOr(T defaultValue) {
+        if (this.isOk) {
+            return this.okValue;
+        }
+        return defaultValue;
+    }
+
+    public Result<T, E> map(function<T(T)> mapper) {
+        if (this.isOk) {
+            return Result<T, E>::ok(mapper(this.okValue));
+        }
+        return this;
+    }
+
+    public Result<T, E> mapErr(function<E(E)> mapper) {
+        if (!this.isOk) {
+            return Result<T, E>::err(mapper(this.errValue));
+        }
+        return this;
+    }
+
+    public Result<T, E> andThen(function<Result<T, E>(T)> mapper) {
+        if (this.isOk) {
+            return mapper(this.okValue);
+        }
+        return this;
+    }
+
+    public Result<T, E> orElse(function<Result<T, E>(E)> mapper) {
+        if (!this.isOk) {
+            return mapper(this.errValue);
+        }
+        return this;
+    }
+}
