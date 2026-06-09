@@ -512,4 +512,56 @@ public class Matrix {
         }
         return true;
     }
+
+    public bool isSymmetric() {
+        if (this.rows != this.cols) { return false; }
+        int i = 0;
+        while (i < this.rows) {
+            int j = i + 1;
+            while (j < this.cols) {
+                double a = this.data.get2D(i, j);
+                double b = this.data.get2D(j, i);
+                double diff = a - b;
+                if (diff < 0.0) { diff = -diff; }
+                if (diff > 1e-9) { return false; }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public bool isPositiveDefinite() {
+        if (this.rows != this.cols) { return false; }
+        Matrix L = this.choleskyDecompose();
+        int i = 0;
+        while (i < this.rows) {
+            if (L.data.get2D(i, i) <= 0.0) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public double norm() {
+        double s = 0.0;
+        int i = 0;
+        while (i < this.rows) {
+            int j = 0;
+            while (j < this.cols) {
+                double v = this.data.get2D(i, j);
+                s = s + v * v;
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return Math.sqrt(s);
+    }
+
+    public double conditionNumber() {
+        if (this.rows != this.cols) { return 0.0; }
+        double det = this.determinant();
+        if (Math.abs(det) < 1e-15) { return Math.INF(); }
+        Matrix inv = this.inverse();
+        return this.norm() * inv.norm();
+    }
 }
