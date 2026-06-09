@@ -1,0 +1,77 @@
+// Math Operations Demo
+// Demonstrates: trigonometric functions, logarithms, constants, utility functions
+
+import tt::math::Math;
+
+public fn main(): void {
+    io::println("=== Math Demo ===");
+
+    // --- Constants ---
+    io::println("=== Constants ===");
+    io::println("PI = " + Double.toString(Math.PI()));
+    io::println("E  = " + Double.toString(Math.E()));
+    io::println("INF = " + Double.toString(Math.INF()));
+    io::println("MAX_DOUBLE = " + Double.toString(Math.MAX_DOUBLE()));
+    io::println("MIN_DOUBLE = " + Double.toString(Math.MIN_DOUBLE()));
+    io::println("MAX_INT = " + Long.toString(Math.MAX_INT()));
+    io::println("MIN_INT = " + Long.toString(Math.MIN_INT()));
+
+    // --- Trigonometric functions ---
+    io::println("");
+    io::println("=== Trigonometry ===");
+    let angle: double = Math.PI() / 4.0;  // 45 degrees in radians
+    io::println("sin(PI/4) = " + Double.toString(Math.sin(angle)));
+    io::println("cos(PI/4) = " + Double.toString(Math.cos(angle)));
+    io::println("tan(PI/4) = " + Double.toString(Math.tan(angle)));
+
+    // Inverse trig
+    io::println("asin(0.7071) = " + Double.toString(Math.asin(0.7071)));
+    io::println("acos(0.7071) = " + Double.toString(Math.acos(0.7071)));
+    io::println("atan(1.0) = " + Double.toString(Math.atan(1.0)));
+    io::println("atan2(1, 1) = " + Double.toString(Math.atan2(1.0, 1.0)));
+
+    // --- Degree/Radian conversion ---
+    io::println("");
+    io::println("=== Degree/Radian Conversion ===");
+    let deg90: double = Math.toDegrees(Math.PI() / 2.0);
+    let rad180: double = Math.toRadians(180.0);
+    io::println("PI/2 radians = " + Double.toString(deg90) + " degrees");
+    io::println("180 degrees = " + Double.toString(rad180) + " radians");
+
+    // --- Logarithmic functions ---
+    io::println("");
+    io::println("=== Logarithms ===");
+    io::println("ln(E) = " + Double.toString(Math.ln(Math.E())));
+    io::println("log10(100) = " + Double.toString(Math.log10(100.0)));
+    io::println("log2(8) = " + Double.toString(Math.log2(8.0)));
+    io::println("log(2, 8) = " + Double.toString(Math.log(2.0, 8.0)));
+
+    // --- Exponential and power ---
+    io::println("");
+    io::println("=== Exponential & Power ===");
+    io::println("exp(1) = " + Double.toString(Math.exp(1.0)));
+    io::println("pow(2, 10) = " + Double.toString(Math.pow(2.0, 10.0)));
+    io::println("sqrt(2) = " + Double.toString(Math.sqrt(2.0)));
+    io::println("cbrt(27) = " + Double.toString(Math.cbrt(27.0)));
+
+    // --- Utility functions ---
+    io::println("");
+    io::println("=== Utility ===");
+    io::println("abs(-42.5) = " + Double.toString(Math.abs(-42.5)));
+    io::println("absInt(-7) = " + Integer.toString(Math.absInt(-7)));
+    io::println("floor(3.7) = " + Double.toString(Math.floor(3.7)));
+    io::println("ceil(3.2) = " + Double.toString(Math.ceil(3.2)));
+    io::println("round(3.5) = " + Long.toString(Math.round(3.5)));
+    io::println("min(3, 7) = " + Double.toString(Math.min(3.0, 7.0)));
+    io::println("max(3, 7) = " + Double.toString(Math.max(3.0, 7.0)));
+    io::println("clamp(5, 0, 10) = " + Double.toString(Math.clamp(5.0, 0.0, 10.0)));
+    io::println("clamp(15, 0, 10) = " + Double.toString(Math.clamp(15.0, 0.0, 10.0)));
+    io::println("sign(-7.3) = " + Integer.toString(Math.sign(-7.3)));
+    io::println("hypot(3, 4) = " + Double.toString(Math.hypot(3.0, 4.0)));
+
+    // --- Random numbers ---
+    io::println("");
+    io::println("=== Random ===");
+    io::println("random() = " + Double.toString(Math.random()));
+    io::println("random() = " + Double.toString(Math.random()));
+}

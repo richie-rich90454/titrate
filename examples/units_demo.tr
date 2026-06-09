@@ -1,0 +1,90 @@
+// Unit Conversion Demo
+// Demonstrates: units library (Base, Derived, Constants), type-safe unit arithmetic
+
+import tt::units::Base;
+import tt::units::Derived;
+import tt::units::Constants;
+
+public fn main(): void {
+    io::println("=== Unit Conversion Demo ===");
+
+    // --- Base units ---
+    io::println("=== Base SI Units ===");
+    let distance: Meter = new Meter(100.0);
+    let time: Second = new Second(9.58);
+    let mass: Kilogram = new Kilogram(75.0);
+    let temp: Kelvin = new Kelvin(293.15);
+    let amount: Mole = new Mole(1.0);
+    let current: Ampere = new Ampere(2.5);
+
+    io::println("Distance: " + distance.toString());
+    io::println("Time: " + time.toString());
+    io::println("Mass: " + mass.toString());
+    io::println("Temperature: " + temp.toString());
+    io::println("Amount: " + amount.toString());
+    io::println("Current: " + current.toString());
+
+    // --- Unit arithmetic ---
+    io::println("");
+    io::println("=== Unit Arithmetic ===");
+    let d1: Meter = new Meter(10.0);
+    let d2: Meter = new Meter(5.0);
+    let sum: Meter = d1.plus(d2);
+    let diff: Meter = d1.minus(d2);
+    let scaled: Meter = d1.times(3.0);
+    let divided: Meter = d1.div(2.0);
+    io::println("10 m + 5 m = " + sum.toString());
+    io::println("10 m - 5 m = " + diff.toString());
+    io::println("10 m * 3 = " + scaled.toString());
+    io::println("10 m / 2 = " + divided.toString());
+
+    // --- Derived units ---
+    io::println("");
+    io::println("=== Derived Units ===");
+
+    // Force: Newton = kg * m / s^2
+    let force: Newton = Newton::fromBase(distance, mass, time);
+    io::println("Force (100 m, 75 kg, 9.58 s): " + force.toString());
+
+    // Energy: Joule = kg * m^2 / s^2
+    let energy: Joule = Joule::fromBase(distance, mass, time);
+    io::println("Energy (100 m, 75 kg, 9.58 s): " + energy.toString());
+
+    // Power: Watt = J / s
+    let power: Watt = Watt::fromBase(energy, time);
+    io::println("Power: " + power.toString());
+
+    // Pressure: Pascal = N / m^2
+    let pressure: Pascal = Pascal::fromBase(force, distance);
+    io::println("Pressure: " + pressure.toString());
+
+    // Charge: Coulomb = A * s
+    let charge: Coulomb = Coulomb::fromBase(current, time);
+    io::println("Charge: " + charge.toString());
+
+    // Voltage: Volt = J / C
+    let voltage: Volt = Volt::fromBase(energy, charge);
+    io::println("Voltage: " + voltage.toString());
+
+    // --- Physical constants ---
+    io::println("");
+    io::println("=== Physical Constants ===");
+    io::println("Boltzmann constant: " + Double.toString(Constants::BOLTZMANN()) + " J/K");
+    io::println("Avogadro number: " + Double.toString(Constants::AVOGADRO()) + " /mol");
+    io::println("Gas constant: " + Double.toString(Constants::GAS_CONSTANT()) + " J/(mol*K)");
+    io::println("Planck constant: " + Double.toString(Constants::PLANCK()) + " J*s");
+    io::println("Speed of light: " + Double.toString(Constants::SPEED_OF_LIGHT()) + " m/s");
+    io::println("Elementary charge: " + Double.toString(Constants::ELEMENTARY_CHARGE()) + " C");
+    io::println("Coulomb constant: " + Double.toString(Constants::COULOMB_CONSTANT()) + " N*m^2/C^2");
+    io::println("Gravitational constant: " + Double.toString(Constants::GRAVITATIONAL()) + " m^3/(kg*s^2)");
+
+    // --- Temperature conversion ---
+    io::println("");
+    io::println("=== Temperature Conversion ===");
+    let roomTemp: Kelvin = new Kelvin(293.15);
+    io::println("Room temp: " + roomTemp.toString());
+    let celsius: double = roomTemp.getValue() - 273.15;
+    io::println("In Celsius: " + Double.toString(celsius) + " C");
+    let fahrenheit: double = celsius * 9.0 / 5.0 + 32.0;
+    io::println("In Fahrenheit: " + Double.toString(fahrenheit) + " F");
+}

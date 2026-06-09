@@ -1,0 +1,78 @@
+// Simple Molecular Weight Calculator
+// Demonstrates: chem library (Atom, Molecule, Bond), HashMap for element lookup
+
+import tt::chem::Atom;
+import tt::chem::Molecule;
+import tt::chem::Bond;
+import tt::util::HashMap;
+
+public fn main(): void {
+    io::println("=== Molecular Weight Calculator ===");
+
+    // --- Build a water molecule (H2O) ---
+    let water: Molecule = new Molecule("Water");
+    let h1: int = water.addAtom(Atom::hydrogen(0.0, 0.0, 0.0));
+    let h2: int = water.addAtom(Atom::hydrogen(0.957, 0.0, 0.0));
+    let o: int = water.addAtom(Atom::oxygen(0.0, 0.586, 0.0));
+    water.addBond(new Bond(h1, o, 1, 0.96, 450.0));
+    water.addBond(new Bond(h2, o, 1, 0.96, 450.0));
+
+    io::println(water.toString());
+    io::println("Molecular weight of water: " + Double.toString(molecularWeight(water)) + " g/mol");
+
+    // --- Build a carbon dioxide molecule (CO2) ---
+    let co2: Molecule = new Molecule("Carbon Dioxide");
+    let c: int = co2.addAtom(Atom::carbon(0.0, 0.0, 0.0));
+    let o1: int = co2.addAtom(Atom::oxygen(1.16, 0.0, 0.0));
+    let o2: int = co2.addAtom(Atom::oxygen(-1.16, 0.0, 0.0));
+    co2.addBond(new Bond(c, o1, 2, 1.16, 800.0));
+    co2.addBond(new Bond(c, o2, 2, 1.16, 800.0));
+
+    io::println(co2.toString());
+    io::println("Molecular weight of CO2: " + Double.toString(molecularWeight(co2)) + " g/mol");
+
+    // --- Build an ammonia molecule (NH3) ---
+    let nh3: Molecule = new Molecule("Ammonia");
+    let n: int = nh3.addAtom(Atom::nitrogen(0.0, 0.0, 0.0));
+    let nh1: int = nh3.addAtom(Atom::hydrogen(0.94, 0.0, 0.33));
+    let nh2: int = nh3.addAtom(Atom::hydrogen(-0.47, 0.81, 0.33));
+    let nh3_idx: int = nh3.addAtom(Atom::hydrogen(-0.47, -0.81, 0.33));
+    nh3.addBond(new Bond(n, nh1, 1, 1.01, 410.0));
+    nh3.addBond(new Bond(n, nh2, 1, 1.01, 410.0));
+    nh3.addBond(new Bond(n, nh3_idx, 1, 1.01, 410.0));
+
+    io::println(nh3.toString());
+    io::println("Molecular weight of NH3: " + Double.toString(molecularWeight(nh3)) + " g/mol");
+
+    // --- Element lookup table ---
+    io::println("");
+    io::println("=== Element Masses ===");
+    let elements: HashMap<string, double> = new HashMap<string, double>();
+    elements.put("H", 1.008);
+    elements.put("C", 12.011);
+    elements.put("N", 14.007);
+    elements.put("O", 15.999);
+    elements.put("S", 32.06);
+    elements.put("P", 30.974);
+    elements.put("Cl", 35.45);
+
+    let elKeys: ArrayList<string> = elements.keys();
+    var i: int = 0;
+    while (i < elKeys.size()) {
+        let key: string = elKeys.get(i);
+        io::println("  " + key + ": " + Double.toString(elements.get(key)) + " g/mol");
+        i = i + 1;
+    }
+}
+
+// Calculate the molecular weight by summing atomic masses
+fn molecularWeight(mol: Molecule): double {
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < mol.numAtoms()) {
+        let atom: Atom = mol.getAtom(i);
+        total = total + atom.mass;
+        i = i + 1;
+    }
+    return total;
+}

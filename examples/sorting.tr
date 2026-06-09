@@ -1,0 +1,162 @@
+// Sorting Algorithms: Bubble Sort, Quick Sort, Merge Sort
+// Demonstrates: algorithms, ArrayList manipulation, recursion, iteration
+
+import tt::util::ArrayList;
+
+public fn main(): void {
+    io::println("=== Sorting Algorithms ===");
+
+    // --- Bubble Sort ---
+    let data1: ArrayList<int> = new ArrayList<int>();
+    data1.add(64);
+    data1.add(34);
+    data1.add(25);
+    data1.add(12);
+    data1.add(22);
+    data1.add(11);
+    data1.add(90);
+
+    io::println("Before bubble sort:");
+    printList(data1);
+    bubbleSort(data1);
+    io::println("After bubble sort:");
+    printList(data1);
+
+    // --- Quick Sort ---
+    let data2: ArrayList<int> = new ArrayList<int>();
+    data2.add(42);
+    data2.add(7);
+    data2.add(13);
+    data2.add(3);
+    data2.add(99);
+    data2.add(1);
+    data2.add(56);
+    data2.add(28);
+
+    io::println("Before quick sort:");
+    printList(data2);
+    quickSort(data2);
+    io::println("After quick sort:");
+    printList(data2);
+
+    // --- Merge Sort ---
+    let data3: ArrayList<int> = new ArrayList<int>();
+    data3.add(38);
+    data3.add(27);
+    data3.add(43);
+    data3.add(3);
+    data3.add(9);
+    data3.add(82);
+    data3.add(10);
+
+    io::println("Before merge sort:");
+    printList(data3);
+    let sorted: ArrayList<int> = mergeSort(data3);
+    io::println("After merge sort:");
+    printList(sorted);
+}
+
+// --- Bubble Sort: O(n^2) ---
+fn bubbleSort(arr: ArrayList<int>): void {
+    let n: int = arr.size();
+    var i: int = 0;
+    while (i < n - 1) {
+        var j: int = 0;
+        while (j < n - i - 1) {
+            if (arr.get(j) > arr.get(j + 1)) {
+                // Swap
+                let temp: int = arr.get(j);
+                arr.set(j, arr.get(j + 1));
+                arr.set(j + 1, temp);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+}
+
+// --- Quick Sort: O(n log n) average ---
+fn quickSort(arr: ArrayList<int>): void {
+    if (arr.size() <= 1) {
+        return;
+    }
+    _quickSort(arr, 0, arr.size() - 1);
+}
+
+fn _quickSort(arr: ArrayList<int>, lo: int, hi: int): void {
+    if (lo < hi) {
+        let p: int = _partition(arr, lo, hi);
+        _quickSort(arr, lo, p - 1);
+        _quickSort(arr, p + 1, hi);
+    }
+}
+
+fn _partition(arr: ArrayList<int>, lo: int, hi: int): int {
+    let pivot: int = arr.get(hi);
+    var i: int = lo - 1;
+    var j: int = lo;
+    while (j < hi) {
+        if (arr.get(j) <= pivot) {
+            i = i + 1;
+            let tmp: int = arr.get(i);
+            arr.set(i, arr.get(j));
+            arr.set(j, tmp);
+        }
+        j = j + 1;
+    }
+    let tmp2: int = arr.get(i + 1);
+    arr.set(i + 1, arr.get(hi));
+    arr.set(hi, tmp2);
+    return i + 1;
+}
+
+// --- Merge Sort: O(n log n) ---
+fn mergeSort(arr: ArrayList<int>): ArrayList<int> {
+    if (arr.size() <= 1) {
+        return arr;
+    }
+    let mid: int = arr.size() / 2;
+    let left: ArrayList<int> = arr.subList(0, mid);
+    let right: ArrayList<int> = arr.subList(mid, arr.size());
+    return _merge(mergeSort(left), mergeSort(right));
+}
+
+fn _merge(left: ArrayList<int>, right: ArrayList<int>): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    var j: int = 0;
+    while (i < left.size() && j < right.size()) {
+        if (left.get(i) <= right.get(j)) {
+            result.add(left.get(i));
+            i = i + 1;
+        } else {
+            result.add(right.get(j));
+            j = j + 1;
+        }
+    }
+    // Copy remaining elements
+    while (i < left.size()) {
+        result.add(left.get(i));
+        i = i + 1;
+    }
+    while (j < right.size()) {
+        result.add(right.get(j));
+        j = j + 1;
+    }
+    return result;
+}
+
+// --- Utility ---
+fn printList(arr: ArrayList<int>): void {
+    var i: int = 0;
+    string out = "  [";
+    while (i < arr.size()) {
+        if (i > 0) {
+            out = out + ", ";
+        }
+        out = out + Integer.toString(arr.get(i));
+        i = i + 1;
+    }
+    out = out + "]";
+    io::println(out);
+}
