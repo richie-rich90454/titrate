@@ -7522,14 +7522,17 @@ mod tests {
 
     #[test]
     fn test_fs_is_file() {
-        // This source file should be a file
-        let this_file = file!().replace('\\', "/");
-        let result = native_fs_is_file(&[Value::String(Rc::new(this_file))]);
-        assert_eq!(result.unwrap(), Value::Bool(true));
-
         // Current directory is not a file
         let result = native_fs_is_file(&[Value::String(Rc::new(".".to_string()))]);
         assert_eq!(result.unwrap(), Value::Bool(false));
+
+        // A known existing file - use Cargo.toml from the crate root
+        let cargo_toml = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .to_string();
+        let result = native_fs_is_file(&[Value::String(Rc::new(cargo_toml))]);
+        assert_eq!(result.unwrap(), Value::Bool(true));
 
         // Error on wrong type
         let result = native_fs_is_file(&[Value::Int(42)]);
@@ -7558,9 +7561,12 @@ mod tests {
 
     #[test]
     fn test_fs_size() {
-        // This source file should have a positive size
-        let this_file = file!().replace('\\', "/");
-        let result = native_fs_size(&[Value::String(Rc::new(this_file))]);
+        // Cargo.toml should have a positive size
+        let cargo_toml = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("Cargo.toml")
+            .to_string_lossy()
+            .to_string();
+        let result = native_fs_size(&[Value::String(Rc::new(cargo_toml))]);
         match result.unwrap() {
             Value::Long(n) => assert!(n > 0),
             _ => panic!("Expected Long from Fs_size"),
