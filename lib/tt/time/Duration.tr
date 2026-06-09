@@ -46,6 +46,33 @@ public class Duration {
         return new Duration(this.millis - other.millis);
     }
 
+    public bool isNegative() {
+        return this.millis < 0;
+    }
+
+    public bool isZero() {
+        return this.millis == 0;
+    }
+
+    public Duration multipliedBy(long factor) {
+        return new Duration(this.millis * factor);
+    }
+
+    public Duration dividedBy(long divisor) {
+        return new Duration(this.millis / divisor);
+    }
+
+    public Duration negated() {
+        return new Duration(-this.millis);
+    }
+
+    public Duration abs() {
+        if (this.millis < 0) {
+            return new Duration(-this.millis);
+        }
+        return this;
+    }
+
     public String toString() {
         long ms = this.millis;
         long hours = ms / 3600000;
