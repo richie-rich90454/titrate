@@ -4150,4 +4150,140 @@ import math::sqrt;"#;
             other => panic!("Expected Class, got {:?}", other),
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Import glob test
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_import_glob() {
+        let src = r#"import tt::util::*;"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        assert_eq!(prog.imports.len(), 1);
+        assert_eq!(prog.imports[0].path, vec!["tt", "util"]);
+        assert!(prog.imports[0].glob);
+    }
+
+    // -----------------------------------------------------------------------
+    // Import multiple (selective) test
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_import_multiple() {
+        // Multiple imports from the same module using separate import statements
+        let src = r#"import tt::math::Math;
+import tt::math::NDArray;"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        assert_eq!(prog.imports.len(), 2);
+        assert_eq!(prog.imports[0].path, vec!["tt", "math", "Math"]);
+        assert_eq!(prog.imports[1].path, vec!["tt", "math", "NDArray"]);
+    }
+
+    // -----------------------------------------------------------------------
+    // For-in loop test
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_for_in_loop() {
+        let src = r#"fn f(): void { for (item in list) { process(item); } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::For(fs) => {
+                    assert_eq!(fs.var, "item");
+                    assert!(matches!(fs.iterable, ast::Expr::Identifier(_, _)));
+                }
+                other => panic!("Expected For, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // While-let test
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_while_let() {
+        let src = r#"fn f(): void { while let line = file.readLine() { io::println(line); } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::WhileLet(wl) => {
+                    assert_eq!(wl.var_name, "line");
+                }
+                other => panic!("Expected WhileLet, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // C-style for loop test
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_c_style_for() {
+        let src = r#"fn f(): void { for (let i = 0; i < n; i = i + 1) { break; } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::CFor(cfor) => {
+                    assert!(cfor.init.is_some());
+                    assert!(cfor.condition.is_some());
+                    assert!(cfor.increment.is_some());
+                    // Verify init is a VarDecl
+                    match cfor.init.as_ref().unwrap().as_ref() {
+                        ast::Stmt::VarDecl(vd) => {
+                            assert_eq!(vd.name, "i");
+                            assert!(!vd.mutable);
+                        }
+                        other => panic!("Expected VarDecl in init, got {:?}", other),
+                    }
+                }
+                other => panic!("Expected CFor, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Switch on enum value test
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_switch_on_enum() {
+        let src = r#"fn f(): void { switch color { case Red => return; case Blue => { break; } } }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Switch(ss) => {
+                    assert_eq!(ss.cases.len(), 2);
+                    assert_eq!(
+                        ss.cases[0].pattern,
+                        ast::Pattern::Constructor { name: "Red".to_string(), bindings: vec![] }
+                    );
+                    assert_eq!(
+                        ss.cases[1].pattern,
+                        ast::Pattern::Constructor { name: "Blue".to_string(), bindings: vec![] }
+                    );
+                }
+                other => panic!("Expected Switch, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Where clause test
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_where_clause() {
+        let src = r#"fn foo<T>(x: T): void where T: Comparable<T> { return; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => {
+                assert_eq!(fd.name, "foo");
+                assert_eq!(fd.type_params.len(), 1);
+                assert_eq!(fd.type_params[0].name, "T");
+                // where clause should be parsed
+                assert!(!fd.where_clause.is_empty(), "expected where clause to be parsed");
+            }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
 }
