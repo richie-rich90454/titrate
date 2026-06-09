@@ -1,0 +1,190 @@
+// Operator Overloading with Vec2 and Vec3 Types
+// Demonstrates: operator+/-/*//, comparison operators, self parameter, custom types
+
+import tt::math::Math;
+
+public fn main(): void {
+    io::println("=== Operator Overloading Demo ===");
+
+    // --- Vec2 operations ---
+    io::println("=== Vec2 ===");
+    let a: Vec2 = new Vec2(1.0, 2.0);
+    let b: Vec2 = new Vec2(3.0, 4.0);
+
+    // Arithmetic operators
+    let sum: Vec2 = a + b;
+    let diff: Vec2 = b - a;
+    let scaled: Vec2 = a * 3.0;
+    let divided: Vec2 = b / 2.0;
+
+    io::println("a = " + a.toString());
+    io::println("b = " + b.toString());
+    io::println("a + b = " + sum.toString());
+    io::println("b - a = " + diff.toString());
+    io::println("a * 3.0 = " + scaled.toString());
+    io::println("b / 2.0 = " + divided.toString());
+
+    // Magnitude
+    io::println("|a| = " + Double.toString(a.magnitude()));
+    io::println("|b| = " + Double.toString(b.magnitude()));
+
+    // Comparison operators (compare by magnitude)
+    if (a < b) {
+        io::println("a is shorter than b");
+    }
+    if (a <= b) {
+        io::println("a is shorter than or equal to b");
+    }
+
+    // Equality
+    let c: Vec2 = new Vec2(1.0, 2.0);
+    if (a == c) {
+        io::println("a equals c");
+    }
+    if (a != b) {
+        io::println("a does not equal b");
+    }
+
+    // --- Vec3 operations ---
+    io::println("");
+    io::println("=== Vec3 ===");
+    let v1: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let v2: Vec3 = new Vec3(0.0, 1.0, 0.0);
+
+    let v3: Vec3 = v1 + v2;
+    io::println("v1 = " + v1.toString());
+    io::println("v2 = " + v2.toString());
+    io::println("v1 + v2 = " + v3.toString());
+    io::println("|v1| = " + Double.toString(v1.magnitude()));
+    io::println("|v2| = " + Double.toString(v2.magnitude()));
+    io::println("|v1 + v2| = " + Double.toString(v3.magnitude()));
+
+    // Dot product (via named method)
+    let dot: double = v1.dot(v2);
+    io::println("v1 . v2 = " + Double.toString(dot));
+
+    // Cross product (via named method)
+    let cross: Vec3 = v1.cross(v2);
+    io::println("v1 x v2 = " + cross.toString());
+}
+
+// --- Vec2: 2D vector with operator overloading ---
+class Vec2 {
+    double x;
+    double y;
+
+    public Vec2(double x, double y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    // Arithmetic operators
+    fn operator+(self, other: Vec2): Vec2 {
+        return new Vec2(self.x + other.x, self.y + other.y);
+    }
+
+    fn operator-(self, other: Vec2): Vec2 {
+        return new Vec2(self.x - other.x, self.y - other.y);
+    }
+
+    fn operator*(self, scalar: double): Vec2 {
+        return new Vec2(self.x * scalar, self.y * scalar);
+    }
+
+    fn operator/(self, scalar: double): Vec2 {
+        return new Vec2(self.x / scalar, self.y / scalar);
+    }
+
+    // Comparison operators (by magnitude)
+    fn operator==(self, other: Vec2): bool {
+        return self.x == other.x && self.y == other.y;
+    }
+
+    fn operator!=(self, other: Vec2): bool {
+        return !(self == other);
+    }
+
+    fn operator<(self, other: Vec2): bool {
+        return self.magnitude() < other.magnitude();
+    }
+
+    fn operator<=(self, other: Vec2): bool {
+        return self.magnitude() <= other.magnitude();
+    }
+
+    fn operator>(self, other: Vec2): bool {
+        return self.magnitude() > other.magnitude();
+    }
+
+    fn operator>=(self, other: Vec2): bool {
+        return self.magnitude() >= other.magnitude();
+    }
+
+    // Utility methods
+    fn magnitude(): double {
+        return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+
+    fn toString(): string {
+        return "Vec2(" + this.x.toString() + ", " + this.y.toString() + ")";
+    }
+}
+
+// --- Vec3: 3D vector with operator overloading ---
+class Vec3 {
+    double x;
+    double y;
+    double z;
+
+    public Vec3(double x, double y, double z) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    fn operator+(self, other: Vec3): Vec3 {
+        return new Vec3(self.x + other.x, self.y + other.y, self.z + other.z);
+    }
+
+    fn operator-(self, other: Vec3): Vec3 {
+        return new Vec3(self.x - other.x, self.y - other.y, self.z - other.z);
+    }
+
+    fn operator*(self, scalar: double): Vec3 {
+        return new Vec3(self.x * scalar, self.y * scalar, self.z * scalar);
+    }
+
+    fn operator/(self, scalar: double): Vec3 {
+        return new Vec3(self.x / scalar, self.y / scalar, self.z / scalar);
+    }
+
+    fn operator==(self, other: Vec3): bool {
+        return self.x == other.x && self.y == other.y && self.z == other.z;
+    }
+
+    fn operator!=(self, other: Vec3): bool {
+        return !(self == other);
+    }
+
+    fn magnitude(): double {
+        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+    }
+
+    // Dot product
+    fn dot(other: Vec3): double {
+        return this.x * other.x + this.y * other.y + this.z * other.z;
+    }
+
+    // Cross product
+    fn cross(other: Vec3): Vec3 {
+        return new Vec3(
+            this.y * other.z - this.z * other.y,
+            this.z * other.x - this.x * other.z,
+            this.x * other.y - this.y * other.x
+        );
+    }
+
+    fn toString(): string {
+        return "Vec3(" + this.x.toString() + ", " + this.y.toString() + ", " + this.z.toString() + ")";
+    }
+}

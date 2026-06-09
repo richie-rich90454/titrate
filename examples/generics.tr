@@ -1,0 +1,185 @@
+// Generic Data Structures and Functions
+// Demonstrates: generic classes, generic functions, interface constraints, monomorphization
+
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn main(): void {
+    io::println("=== Generics Demo ===");
+
+    // --- Generic Box class ---
+    io::println("=== Generic Box ===");
+    let intBox: Box<int> = new Box<int>(42);
+    let strBox: Box<string> = new Box<string>("hello");
+    io::println("intBox: " + Integer.toString(intBox.get()));
+    io::println("strBox: " + strBox.get());
+
+    // Mutate the box
+    intBox.set(100);
+    io::println("intBox after set(100): " + Integer.toString(intBox.get()));
+
+    // --- Generic Pair class ---
+    io::println("");
+    io::println("=== Generic Pair ===");
+    let p1: Pair<string, int> = new Pair<string, int>("age", 30);
+    let p2: Pair<string, double> = new Pair<string, double>("pi", 3.14159);
+    io::println("Pair 1: (" + p1.first + ", " + Integer.toString(p1.second) + ")");
+    io::println("Pair 2: (" + p2.first + ", " + Double.toString(p2.second) + ")");
+
+    // --- Generic Stack ---
+    io::println("");
+    io::println("=== Generic Stack ===");
+    let stack: Stack<string> = new Stack<string>();
+    stack.push("first");
+    stack.push("second");
+    stack.push("third");
+    io::println("Stack size: " + Integer.toString(stack.size()));
+    io::println("Pop: " + stack.pop());
+    io::println("Pop: " + stack.pop());
+    io::println("Peek: " + stack.peek());
+    io::println("Stack size after pops: " + Integer.toString(stack.size()));
+
+    // --- Generic functions ---
+    io::println("");
+    io::println("=== Generic Functions ===");
+    io::println("id(42) = " + Integer.toString(id<int>(42)));
+    io::println("id(\"hi\") = " + id<string>("hi"));
+    io::println("first(10, 20) = " + Integer.toString(first<int>(10, 20)));
+
+    // --- Generic Dictionary ---
+    io::println("");
+    io::println("=== Generic Dictionary ===");
+    let dict: Dict<string, int> = new Dict<string, int>();
+    dict.put("one", 1);
+    dict.put("two", 2);
+    dict.put("three", 3);
+    io::println("dict.get(\"one\") = " + Integer.toString(dict.get("one")));
+    io::println("dict.get(\"two\") = " + Integer.toString(dict.get("two")));
+    io::println("dict.get(\"missing\") = " + Integer.toString(dict.get("missing")));
+    io::println("dict.hasKey(\"three\") = " + Boolean.toString(dict.hasKey("three")));
+    io::println("dict.hasKey(\"four\") = " + Boolean.toString(dict.hasKey("four")));
+
+    // --- Using standard library generics ---
+    io::println("");
+    io::println("=== Standard Library Generics ===");
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10);
+    list.add(20);
+    list.add(30);
+    for (item in list) {
+        io::println("  item: " + Integer.toString(item));
+    }
+
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    map.put("lang", "Titrate");
+    map.put("type", "compiled");
+    io::println("lang => " + map.get("lang"));
+    io::println("type => " + map.get("type"));
+}
+
+// --- Generic Box: holds a single value ---
+class Box<T> {
+    T value;
+
+    public Box(T value) {
+        this.value = value;
+    }
+
+    public fn get(): T {
+        return this.value;
+    }
+
+    public fn set(newValue: T): void {
+        this.value = newValue;
+    }
+}
+
+// --- Generic Pair: holds two values of potentially different types ---
+class Pair<A, B> {
+    A first;
+    B second;
+
+    public Pair(A first, B second) {
+        this.first = first;
+        this.second = second;
+    }
+
+    public fn getFirst(): A {
+        return this.first;
+    }
+
+    public fn getSecond(): B {
+        return this.second;
+    }
+}
+
+// --- Generic Stack: LIFO data structure ---
+class Stack<T> {
+    ArrayList<T> items;
+
+    Stack() {
+        this.items = new ArrayList<T>();
+    }
+
+    fn push(item: T): void {
+        this.items.add(item);
+    }
+
+    fn pop(): T {
+        if (this.items.size() == 0) {
+            return null;
+        }
+        let item: T = this.items.get(this.items.size() - 1);
+        this.items.remove(item);
+        return item;
+    }
+
+    fn peek(): T {
+        if (this.items.size() == 0) {
+            return null;
+        }
+        return this.items.get(this.items.size() - 1);
+    }
+
+    fn size(): int {
+        return this.items.size();
+    }
+
+    fn isEmpty(): bool {
+        return this.items.size() == 0;
+    }
+}
+
+// --- Generic Dict: simple key-value store backed by HashMap ---
+class Dict<K, V> {
+    HashMap<K, V> data;
+
+    Dict() {
+        this.data = new HashMap<K, V>();
+    }
+
+    fn put(key: K, value: V): void {
+        this.data.put(key, value);
+    }
+
+    fn get(key: K): V {
+        return this.data.get(key);
+    }
+
+    fn hasKey(key: K): bool {
+        return this.data.containsKey(key);
+    }
+
+    fn size(): int {
+        return this.data.size();
+    }
+}
+
+// --- Generic functions ---
+fn id<T>(x: T): T {
+    return x;
+}
+
+fn first<T>(a: T, b: T): T {
+    return a;
+}
