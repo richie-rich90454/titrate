@@ -138,4 +138,33 @@ public class Math {
         if (x > 0.0) { return 1; }
         return 0;
     }
+
+    public static double toRadians(double degrees) {
+        return degrees * Math.PI() / 180.0;
+    }
+
+    public static double toDegrees(double radians) {
+        return radians * 180.0 / Math.PI();
+    }
+
+    public static double hypot(double a, double b) {
+        return Math.sqrt(a * a + b * b);
+    }
+
+    public static double copySign(double magnitude, double sign) {
+        if (sign < 0.0) {
+            if (magnitude < 0.0) { return magnitude; }
+            return -magnitude;
+        }
+        if (magnitude < 0.0) { return -magnitude; }
+        return magnitude;
+    }
+
+    public static double nextUp(double x) {
+        return Math_nextUp(x);
+    }
+
+    public static double nextDown(double x) {
+        return Math_nextDown(x);
+    }
 }
