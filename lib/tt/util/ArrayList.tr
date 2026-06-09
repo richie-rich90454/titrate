@@ -25,6 +25,82 @@ public class ArrayList<T> implements Iterable<T> {
         this.list.sort();
     }
 
+    public int lastIndexOf(T element) {
+        int i = this.list.size() - 1;
+        while (i >= 0) {
+            if (this.list.get(i) == element) {
+                return i;
+            }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    public ArrayList<T> subList(int fromIndex, int toIndex) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = fromIndex;
+        while (i < toIndex) {
+            result.add(this.list.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public void ensureCapacity(int minCapacity) {
+        this.list.ensureCapacity(minCapacity);
+    }
+
+    public void trimToSize() {
+        this.list.trimToSize();
+    }
+
+    public bool containsAll(ArrayList<T> other) {
+        int i = 0;
+        while (i < other.size()) {
+            if (!this.contains(other.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public void addAll(ArrayList<T> other) {
+        int i = 0;
+        while (i < other.size()) {
+            this.list.add(other.get(i));
+            i = i + 1;
+        }
+    }
+
+    public void removeAll(ArrayList<T> other) {
+        int i = 0;
+        while (i < other.size()) {
+            this.list.remove(other.get(i));
+            i = i + 1;
+        }
+    }
+
+    public void retainAll(ArrayList<T> other) {
+        int i = this.list.size() - 1;
+        while (i >= 0) {
+            T element = this.list.get(i);
+            bool found = false;
+            int j = 0;
+            while (j < other.size()) {
+                if (other.get(j) == element) {
+                    found = true;
+                    break;
+                }
+                j = j + 1;
+            }
+            if (!found) {
+                this.list.remove(element);
+            }
+            i = i - 1;
+        }
+    }
+
     public ArrayListIterator<T> iterator() {
         return new ArrayListIterator<T>(this);
     }
