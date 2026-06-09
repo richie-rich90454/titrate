@@ -37,6 +37,54 @@ public class HashMap<K, V> implements Iterable<K> {
         return this.map.size();
     }
 
+    public bool isEmpty() {
+        return this.map.size() == 0;
+    }
+
+    public V putIfAbsent(K key, V value) {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        this.map.put(key, value);
+        return value;
+    }
+
+    public V computeIfAbsent(K key, function<V(K)> mapper) {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        V value = mapper(key);
+        this.map.put(key, value);
+        return value;
+    }
+
+    public V merge(K key, V value, function<V(V, V)> remapper) {
+        if (this.map.containsKey(key)) {
+            V oldVal = this.map.get(key);
+            V newVal = remapper(oldVal, value);
+            this.map.put(key, newVal);
+            return newVal;
+        }
+        this.map.put(key, value);
+        return value;
+    }
+
+    public V getOrDefault(K key, V defaultValue) {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        return defaultValue;
+    }
+
+    public V replace(K key, V value) {
+        if (this.map.containsKey(key)) {
+            V oldVal = this.map.get(key);
+            this.map.put(key, value);
+            return oldVal;
+        }
+        return null;
+    }
+
     public ArrayListIterator<K> iterator() {
         return this.map.keys().iterator();
     }
