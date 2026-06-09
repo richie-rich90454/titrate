@@ -4,7 +4,31 @@ public class Integer {
         return Integer::parseInt(s);
     }
 
+    public static int parseInt(String s) {
+        return Integer::parseInt(s);
+    }
+
     public static String toString(int value) {
         return value.toString();
+    }
+
+    public static int MAX_VALUE() {
+        return 2147483647;
+    }
+
+    public static int MIN_VALUE() {
+        return -2147483648;
+    }
+
+    public static int parseOr(String s, int defaultValue) {
+        int result = Integer::parseInt(s);
+        if (result == 0 && s != "0") {
+            return defaultValue;
+        }
+        return result;
+    }
+
+    public static int parseIntOr(String s, int defaultValue) {
+        return Integer::parseOr(s, defaultValue);
     }
 }
