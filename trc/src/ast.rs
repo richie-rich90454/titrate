@@ -388,6 +388,8 @@ pub enum Expr {
     Cast(Box<Expr>, Type, Span),
     StaticCall { class_name: String, method: String, args: Vec<Expr>, span: Span },
     Assign(Box<Expr>, Box<Expr>, Span),
+    Range(Box<Expr>, Box<Expr>, Span),
+    RangeInclusive(Box<Expr>, Box<Expr>, Span),
     Unit(Span),
     Tuple(Vec<Expr>, Span),
     Closure {
