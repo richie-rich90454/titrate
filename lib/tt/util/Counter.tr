@@ -77,4 +77,79 @@ public class Counter<E> {
     public void clear() {
         this.counts = new HashMap();
     }
+
+    public ArrayList<(E, int)> mostCommon(int n) {
+        ArrayList<E> sorted = this.mostCommon();
+        ArrayList<(E, int)> result = new ArrayList<(E, int)>();
+        int i = 0;
+        while (i < n && i < sorted.size()) {
+            E key = sorted.get(i);
+            result.add((key, this.counts.get(key)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public void subtract(Counter<E> other) {
+        ArrayList<E> otherKeys = other.keys();
+        int i = 0;
+        while (i < otherKeys.size()) {
+            E key = otherKeys.get(i);
+            int diff = this.get(key) - other.get(key);
+            if (diff <= 0) {
+                this.counts.remove(key);
+            } else {
+                this.counts.put(key, diff);
+            }
+            i = i + 1;
+        }
+    }
+
+    public void add(Counter<E> other) {
+        ArrayList<E> otherKeys = other.keys();
+        int i = 0;
+        while (i < otherKeys.size()) {
+            E key = otherKeys.get(i);
+            this.counts.put(key, this.get(key) + other.get(key));
+            i = i + 1;
+        }
+    }
+
+    public ArrayList<E> elements() {
+        ArrayList<E> result = new ArrayList<E>();
+        ArrayList<(E, int)> items = this.counts.entries();
+        int i = 0;
+        while (i < items.size()) {
+            (E key, int count) = items.get(i);
+            int j = 0;
+            while (j < count) {
+                result.add(key);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public void update(ArrayList<E> list) {
+        int i = 0;
+        while (i < list.size()) {
+            this.increment(list.get(i));
+            i = i + 1;
+        }
+    }
+
+    public String toString() {
+        String s = "Counter({";
+        ArrayList<(E, int)> items = this.counts.entries();
+        int i = 0;
+        while (i < items.size()) {
+            if (i > 0) { s = s + ", "; }
+            (E key, int count) = items.get(i);
+            s = s + key + ": " + count;
+            i = i + 1;
+        }
+        s = s + "})";
+        return s;
+    }
 }

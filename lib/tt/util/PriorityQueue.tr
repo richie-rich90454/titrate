@@ -1,9 +1,26 @@
 // Min-heap priority queue backed by ArrayList.
+import tt::util::ArrayList;
+import tt::util::ArrayListIterator;
+
 public class PriorityQueue<E> {
     private ArrayList<E> data;
+    private function<bool(E, E)> _comparator;
 
     public PriorityQueue() {
         this.data = new ArrayList<E>();
+        this._comparator = null;
+    }
+
+    public PriorityQueue(function<bool(E, E)> comparator) {
+        this.data = new ArrayList<E>();
+        this._comparator = comparator;
+    }
+
+    private bool _less(E a, E b) {
+        if (this._comparator != null) {
+            return this._comparator(a, b);
+        }
+        return a < b;
     }
 
     public void push(E item) {
@@ -37,7 +54,7 @@ public class PriorityQueue<E> {
     public void siftUp(int idx) {
         while (idx > 0) {
             int p = this.parent(idx);
-            if (this.data.get(p) > this.data.get(idx)) {
+            if (this._less(this.data.get(idx), this.data.get(p))) {
                 this.swap(p, idx);
                 idx = p;
             } else {
@@ -52,10 +69,10 @@ public class PriorityQueue<E> {
             int left = this.leftChild(idx);
             int right = this.rightChild(idx);
             int smallest = idx;
-            if (left < size && this.data.get(left) < this.data.get(smallest)) {
+            if (left < size && this._less(this.data.get(left), this.data.get(smallest))) {
                 smallest = left;
             }
-            if (right < size && this.data.get(right) < this.data.get(smallest)) {
+            if (right < size && this._less(this.data.get(right), this.data.get(smallest))) {
                 smallest = right;
             }
             if (smallest != idx) {
@@ -83,5 +100,42 @@ public class PriorityQueue<E> {
         E temp = this.data.get(i);
         this.data.set(i, this.data.get(j));
         this.data.set(j, temp);
+    }
+
+    public bool contains(E value) {
+        int i = 0;
+        while (i < this.data.size()) {
+            if (this.data.get(i) == value) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public bool remove(E value) {
+        int i = 0;
+        while (i < this.data.size()) {
+            if (this.data.get(i) == value) {
+                int last = this.data.size() - 1;
+                this.swap(i, last);
+                this.data.remove(last);
+                if (i < this.data.size()) {
+                    this.siftUp(i);
+                    this.siftDown(i);
+                }
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public ArrayListIterator<E> iterator() {
+        return new ArrayListIterator<E>(this.data);
+    }
+
+    public void clear() {
+        this.data = new ArrayList<E>();
     }
 }

@@ -1,4 +1,7 @@
 // Double-ended queue backed by ArrayList.
+import tt::util::ArrayList;
+import tt::util::ArrayListIterator;
+
 public class Deque<E> {
     private ArrayList<E> data;
 
@@ -41,5 +44,24 @@ public class Deque<E> {
 
     public bool isEmpty() {
         return this.data.size() == 0;
+    }
+
+    public bool contains(E value) {
+        int i = 0;
+        while (i < this.data.size()) {
+            if (this.data.get(i) == value) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public ArrayListIterator<E> iterator() {
+        return new ArrayListIterator<E>(this.data);
+    }
+
+    public void clear() {
+        this.data = new ArrayList<E>();
     }
 }
