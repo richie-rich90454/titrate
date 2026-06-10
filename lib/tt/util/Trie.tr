@@ -1,0 +1,115 @@
+// Trie (prefix tree) data structure for string keys.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class Trie {
+    private HashMap<String, TrieNode> children;
+    private bool isEnd;
+    private int _size;
+
+    public Trie() {
+        this.children = new HashMap<String, TrieNode>();
+        this.isEnd = false;
+        this._size = 0;
+    }
+
+    public void insert(String word) {
+        TrieNode node = this;
+        int i = 0;
+        while (i < String_length(word)) {
+            String ch = String_charAt(word, i);
+            HashMap<String, TrieNode> kids = node.children;
+            TrieNode next = kids.get(ch);
+            if (next == null) {
+                next = new TrieNode();
+                kids.put(ch, next);
+            }
+            node = next;
+            i = i + 1;
+        }
+        if (!node.isEnd) {
+            node.isEnd = true;
+            this._size = this._size + 1;
+        }
+    }
+
+    public bool search(String word) {
+        TrieNode node = this._findNode(word);
+        if (node == null) {
+            return false;
+        }
+        return node.isEnd;
+    }
+
+    public bool startsWith(String prefix) {
+        TrieNode node = this._findNode(prefix);
+        return node != null;
+    }
+
+    public bool delete(String word) {
+        TrieNode node = this._findNode(word);
+        if (node == null || !node.isEnd) {
+            return false;
+        }
+        node.isEnd = false;
+        this._size = this._size - 1;
+        return true;
+    }
+
+    public bool isEmpty() {
+        return this._size == 0;
+    }
+
+    public int size() {
+        return this._size;
+    }
+
+    public ArrayList<String> keysWithPrefix(String prefix) {
+        ArrayList<String> result = new ArrayList<String>();
+        TrieNode node = this._findNode(prefix);
+        if (node == null) {
+            return result;
+        }
+        this._collectKeys(node, prefix, result);
+        return result;
+    }
+
+    private TrieNode _findNode(String word) {
+        TrieNode node = this;
+        int i = 0;
+        while (i < String_length(word)) {
+            String ch = String_charAt(word, i);
+            TrieNode next = node.children.get(ch);
+            if (next == null) {
+                return null;
+            }
+            node = next;
+            i = i + 1;
+        }
+        return node;
+    }
+
+    private void _collectKeys(TrieNode node, String prefix, ArrayList<String> result) {
+        if (node.isEnd) {
+            result.add(prefix);
+        }
+        ArrayList<String> keys = node.children.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            String ch = keys.get(i);
+            TrieNode child = node.children.get(ch);
+            this._collectKeys(child, prefix + ch, result);
+            i = i + 1;
+        }
+    }
+}
+
+public class TrieNode {
+    public HashMap<String, TrieNode> children;
+    public bool isEnd;
+
+    public TrieNode() {
+        this.children = new HashMap<String, TrieNode>();
+        this.isEnd = false;
+    }
+}

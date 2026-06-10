@@ -1,0 +1,213 @@
+// Graph data structure with adjacency list representation.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Queue;
+import tt::util::Stack;
+import tt::util::Set;
+
+public class Graph<V> {
+    private HashMap<V, ArrayList<V>> adj;
+    private bool directed;
+    private int _edgeCount;
+
+    public Graph() {
+        this.adj = new HashMap<V, ArrayList<V>>();
+        this.directed = false;
+        this._edgeCount = 0;
+    }
+
+    public Graph(bool directed) {
+        this.adj = new HashMap<V, ArrayList<V>>();
+        this.directed = directed;
+        this._edgeCount = 0;
+    }
+
+    public void addVertex(V vertex) {
+        if (!this.adj.containsKey(vertex)) {
+            this.adj.put(vertex, new ArrayList<V>());
+        }
+    }
+
+    public void addEdge(V from, V to) {
+        this.addVertex(from);
+        this.addVertex(to);
+        ArrayList<V> fromList = this.adj.get(from);
+        if (!this._containsNeighbor(fromList, to)) {
+            fromList.add(to);
+            this._edgeCount = this._edgeCount + 1;
+        }
+        if (!this.directed) {
+            ArrayList<V> toList = this.adj.get(to);
+            if (!this._containsNeighbor(toList, from)) {
+                toList.add(from);
+            }
+        }
+    }
+
+    public void removeVertex(V vertex) {
+        if (!this.adj.containsKey(vertex)) {
+            return;
+        }
+        // Remove all edges pointing to this vertex
+        ArrayList<V> allVertices = this.adj.keys();
+        int i = 0;
+        while (i < allVertices.size()) {
+            V v = allVertices.get(i);
+            if (v != vertex) {
+                ArrayList<V> neighbors = this.adj.get(v);
+                this._removeNeighbor(neighbors, vertex);
+            }
+            i = i + 1;
+        }
+        // Count edges being removed from this vertex's list
+        ArrayList<V> removed = this.adj.get(vertex);
+        this._edgeCount = this._edgeCount - removed.size();
+        this.adj.remove(vertex);
+    }
+
+    public void removeEdge(V from, V to) {
+        if (this.adj.containsKey(from)) {
+            ArrayList<V> fromList = this.adj.get(from);
+            if (this._removeNeighbor(fromList, to)) {
+                this._edgeCount = this._edgeCount - 1;
+            }
+        }
+        if (!this.directed) {
+            if (this.adj.containsKey(to)) {
+                ArrayList<V> toList = this.adj.get(to);
+                this._removeNeighbor(toList, from);
+            }
+        }
+    }
+
+    public ArrayList<V> neighbors(V vertex) {
+        if (!this.adj.containsKey(vertex)) {
+            return new ArrayList<V>();
+        }
+        return this.adj.get(vertex);
+    }
+
+    public bool hasVertex(V vertex) {
+        return this.adj.containsKey(vertex);
+    }
+
+    public bool hasEdge(V from, V to) {
+        if (!this.adj.containsKey(from)) {
+            return false;
+        }
+        ArrayList<V> fromList = this.adj.get(from);
+        return this._containsNeighbor(fromList, to);
+    }
+
+    public ArrayList<V> vertices() {
+        return this.adj.keys();
+    }
+
+    public ArrayList<(V, V)> edges() {
+        ArrayList<(V, V)> result = new ArrayList<(V, V)>();
+        ArrayList<V> allVertices = this.adj.keys();
+        Set<String> seen = new Set<String>();
+        int i = 0;
+        while (i < allVertices.size()) {
+            V from = allVertices.get(i);
+            ArrayList<V> nbrs = this.adj.get(from);
+            int j = 0;
+            while (j < nbrs.size()) {
+                V to = nbrs.get(j);
+                String key = this._edgeKey(from, to);
+                String revKey = this._edgeKey(to, from);
+                if (!seen.contains(key)) {
+                    result.add((from, to));
+                    seen.add(key);
+                    if (!this.directed) {
+                        seen.add(revKey);
+                    }
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public ArrayList<V> bfs(V start) {
+        ArrayList<V> result = new ArrayList<V>();
+        if (!this.adj.containsKey(start)) {
+            return result;
+        }
+        Set<V> visited = new Set<V>();
+        Queue<V> queue = new Queue<V>();
+        visited.add(start);
+        queue.enqueue(start);
+        while (!queue.isEmpty()) {
+            V current = queue.dequeue();
+            result.add(current);
+            ArrayList<V> nbrs = this.adj.get(current);
+            int i = 0;
+            while (i < nbrs.size()) {
+                V neighbor = nbrs.get(i);
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    queue.enqueue(neighbor);
+                }
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    public ArrayList<V> dfs(V start) {
+        ArrayList<V> result = new ArrayList<V>();
+        if (!this.adj.containsKey(start)) {
+            return result;
+        }
+        Set<V> visited = new Set<V>();
+        Stack<V> stack = new Stack<V>();
+        stack.push(start);
+        while (!stack.isEmpty()) {
+            V current = stack.pop();
+            if (visited.contains(current)) {
+                continue;
+            }
+            visited.add(current);
+            result.add(current);
+            ArrayList<V> nbrs = this.adj.get(current);
+            int i = nbrs.size() - 1;
+            while (i >= 0) {
+                V neighbor = nbrs.get(i);
+                if (!visited.contains(neighbor)) {
+                    stack.push(neighbor);
+                }
+                i = i - 1;
+            }
+        }
+        return result;
+    }
+
+    private bool _containsNeighbor(ArrayList<V> list, V target) {
+        int i = 0;
+        while (i < list.size()) {
+            if (list.get(i) == target) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    private bool _removeNeighbor(ArrayList<V> list, V target) {
+        int i = 0;
+        while (i < list.size()) {
+            if (list.get(i) == target) {
+                list.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    private String _edgeKey(V from, V to) {
+        return toString(from) + "->" + toString(to);
+    }
+}
