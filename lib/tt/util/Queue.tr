@@ -1,13 +1,12 @@
 // FIFO queue backed by ArrayList.
 import tt::util::ArrayList;
+import tt::util::ArrayListIterator;
 
 public class Queue<E> {
     private ArrayList<E> data;
-    private int head;
 
     public Queue() {
         this.data = new ArrayList<E>();
-        this.head = 0;
     }
 
     public void enqueue(E element) {
@@ -15,30 +14,61 @@ public class Queue<E> {
     }
 
     public E dequeue() {
-        E item = this.data.get(this.head);
-        this.head = this.head + 1;
+        E item = this.data.get(0);
+        this.data.remove(0);
         return item;
     }
 
     public E peek() {
-        return this.data.get(this.head);
+        return this.data.get(0);
     }
 
     public bool isEmpty() {
-        return this.head >= this.data.size();
+        return this.data.size() == 0;
     }
 
     public int size() {
-        return this.data.size() - this.head;
+        return this.data.size();
+    }
+
+    public bool contains(E element) {
+        int i = 0;
+        while (i < this.data.size()) {
+            if (this.data.get(i) == element) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public void clear() {
+        this.data = new ArrayList<E>();
     }
 
     public ArrayList<E> toArray() {
         ArrayList<E> result = new ArrayList<E>();
-        int i = this.head;
+        int i = 0;
         while (i < this.data.size()) {
             result.add(this.data.get(i));
             i = i + 1;
         }
         return result;
+    }
+
+    public ArrayListIterator<E> iterator() {
+        return new ArrayListIterator<E>(this.data);
+    }
+
+    public String toString() {
+        String s = "[";
+        int i = 0;
+        while (i < this.data.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this.data.get(i);
+            i = i + 1;
+        }
+        s = s + "]";
+        return s;
     }
 }
