@@ -8,6 +8,7 @@ class Joule {
     fn minus(other: Joule): Joule { return new Joule(this.value - other.value); }
     fn times(d: double): Joule { return new Joule(this.value * d); }
     fn div(d: double): Joule { return new Joule(this.value / d); }
+    fn div(s: Second): Watt { return new Watt(this.value / s.getValue()); }
     fn toString(): string { return Double::toString(this.value) + " J"; }
 
     // Derived: kg * m^2 / s^2
@@ -22,6 +23,9 @@ class Newton {
     fn getValue(): double { return this.value; }
     fn plus(other: Newton): Newton { return new Newton(this.value + other.value); }
     fn minus(other: Newton): Newton { return new Newton(this.value - other.value); }
+    fn times(d: double): Newton { return new Newton(this.value * d); }
+    fn div(d: double): Newton { return new Newton(this.value / d); }
+    fn times(m: Meter): Joule { return new Joule(this.value * m.getValue()); }
     fn toString(): string { return Double::toString(this.value) + " N"; }
 
     // Derived: kg * m / s^2
@@ -36,6 +40,8 @@ class Pascal {
     fn getValue(): double { return this.value; }
     fn plus(other: Pascal): Pascal { return new Pascal(this.value + other.value); }
     fn minus(other: Pascal): Pascal { return new Pascal(this.value - other.value); }
+    fn times(d: double): Pascal { return new Pascal(this.value * d); }
+    fn div(d: double): Pascal { return new Pascal(this.value / d); }
     fn toString(): string { return Double::toString(this.value) + " Pa"; }
 
     // Derived: N / m^2
@@ -50,6 +56,9 @@ class Watt {
     fn getValue(): double { return this.value; }
     fn plus(other: Watt): Watt { return new Watt(this.value + other.value); }
     fn minus(other: Watt): Watt { return new Watt(this.value - other.value); }
+    fn times(d: double): Watt { return new Watt(this.value * d); }
+    fn div(d: double): Watt { return new Watt(this.value / d); }
+    fn times(s: Second): Joule { return new Joule(this.value * s.getValue()); }
     fn toString(): string { return Double::toString(this.value) + " W"; }
 
     // Derived: J / s
@@ -64,6 +73,8 @@ class Coulomb {
     fn getValue(): double { return this.value; }
     fn plus(other: Coulomb): Coulomb { return new Coulomb(this.value + other.value); }
     fn minus(other: Coulomb): Coulomb { return new Coulomb(this.value - other.value); }
+    fn times(d: double): Coulomb { return new Coulomb(this.value * d); }
+    fn div(d: double): Coulomb { return new Coulomb(this.value / d); }
     fn toString(): string { return Double::toString(this.value) + " C"; }
 
     // Derived: A * s
@@ -78,10 +89,182 @@ class Volt {
     fn getValue(): double { return this.value; }
     fn plus(other: Volt): Volt { return new Volt(this.value + other.value); }
     fn minus(other: Volt): Volt { return new Volt(this.value - other.value); }
+    fn times(d: double): Volt { return new Volt(this.value * d); }
+    fn div(d: double): Volt { return new Volt(this.value / d); }
+    fn times(c: Coulomb): Joule { return new Joule(this.value * c.getValue()); }
+    fn div(a: Ampere): Ohm { return new Ohm(this.value / a.getValue()); }
     fn toString(): string { return Double::toString(this.value) + " V"; }
 
     // Derived: J / C
     static fn fromBase(j: Joule, c: Coulomb): Volt {
         return new Volt(j.getValue() / c.getValue());
+    }
+}
+
+class Ohm {
+    double value;
+    Ohm(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Ohm): Ohm { return new Ohm(this.value + other.value); }
+    fn minus(other: Ohm): Ohm { return new Ohm(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " Ω"; }
+
+    // Derived: V / A
+    static fn fromBase(v: Volt, a: Ampere): Ohm {
+        return new Ohm(v.getValue() / a.getValue());
+    }
+}
+
+class Farad {
+    double value;
+    Farad(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Farad): Farad { return new Farad(this.value + other.value); }
+    fn minus(other: Farad): Farad { return new Farad(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " F"; }
+
+    // Derived: C / V
+    static fn fromBase(c: Coulomb, v: Volt): Farad {
+        return new Farad(c.getValue() / v.getValue());
+    }
+}
+
+class Henry {
+    double value;
+    Henry(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Henry): Henry { return new Henry(this.value + other.value); }
+    fn minus(other: Henry): Henry { return new Henry(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " H"; }
+
+    // Derived: V * s / A
+    static fn fromBase(v: Volt, s: Second, a: Ampere): Henry {
+        return new Henry(v.getValue() * s.getValue() / a.getValue());
+    }
+}
+
+class Tesla {
+    double value;
+    Tesla(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Tesla): Tesla { return new Tesla(this.value + other.value); }
+    fn minus(other: Tesla): Tesla { return new Tesla(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " T"; }
+
+    // Derived: V * s / m²
+    static fn fromBase(v: Volt, s: Second, m2: MeterSquared): Tesla {
+        return new Tesla(v.getValue() * s.getValue() / m2.getValue());
+    }
+}
+
+class Weber {
+    double value;
+    Weber(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Weber): Weber { return new Weber(this.value + other.value); }
+    fn minus(other: Weber): Weber { return new Weber(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " Wb"; }
+
+    // Derived: V * s
+    static fn fromBase(v: Volt, s: Second): Weber {
+        return new Weber(v.getValue() * s.getValue());
+    }
+}
+
+class Hertz {
+    double value;
+    Hertz(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Hertz): Hertz { return new Hertz(this.value + other.value); }
+    fn minus(other: Hertz): Hertz { return new Hertz(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " Hz"; }
+
+    // Derived: 1 / s
+    static fn fromBase(s: Second): Hertz {
+        return new Hertz(1.0 / s.getValue());
+    }
+}
+
+class Becquerel {
+    double value;
+    Becquerel(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Becquerel): Becquerel { return new Becquerel(this.value + other.value); }
+    fn minus(other: Becquerel): Becquerel { return new Becquerel(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " Bq"; }
+
+    // Derived: 1 / s
+    static fn fromBase(s: Second): Becquerel {
+        return new Becquerel(1.0 / s.getValue());
+    }
+}
+
+class Gray {
+    double value;
+    Gray(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Gray): Gray { return new Gray(this.value + other.value); }
+    fn minus(other: Gray): Gray { return new Gray(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " Gy"; }
+
+    // Derived: J / kg
+    static fn fromBase(j: Joule, kg: Kilogram): Gray {
+        return new Gray(j.getValue() / kg.getValue());
+    }
+}
+
+class Sievert {
+    double value;
+    Sievert(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Sievert): Sievert { return new Sievert(this.value + other.value); }
+    fn minus(other: Sievert): Sievert { return new Sievert(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " Sv"; }
+
+    // Derived: J / kg
+    static fn fromBase(j: Joule, kg: Kilogram): Sievert {
+        return new Sievert(j.getValue() / kg.getValue());
+    }
+}
+
+class Lux {
+    double value;
+    Lux(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Lux): Lux { return new Lux(this.value + other.value); }
+    fn minus(other: Lux): Lux { return new Lux(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " lx"; }
+
+    // Derived: cd / m²
+    static fn fromBase(cd: Candela, m2: MeterSquared): Lux {
+        return new Lux(cd.getValue() / m2.getValue());
+    }
+}
+
+class Lumen {
+    double value;
+    Lumen(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Lumen): Lumen { return new Lumen(this.value + other.value); }
+    fn minus(other: Lumen): Lumen { return new Lumen(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " lm"; }
+
+    // Derived: cd * sr (steradian is dimensionless, so cd * 1)
+    static fn fromBase(cd: Candela): Lumen {
+        return new Lumen(cd.getValue());
+    }
+}
+
+class Katal {
+    double value;
+    Katal(double v) { this.value = v; }
+    fn getValue(): double { return this.value; }
+    fn plus(other: Katal): Katal { return new Katal(this.value + other.value); }
+    fn minus(other: Katal): Katal { return new Katal(this.value - other.value); }
+    fn toString(): string { return Double::toString(this.value) + " kat"; }
+
+    // Derived: mol / s
+    static fn fromBase(mol: Mole, s: Second): Katal {
+        return new Katal(mol.getValue() / s.getValue());
     }
 }

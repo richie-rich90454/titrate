@@ -8,4 +8,16 @@ class Constants {
     static fn COULOMB_CONSTANT(): double { return 8.9875517923e9; }
     static fn GRAVITATIONAL(): double { return 6.67430e-11; }
     static fn PI(): double { return 3.14159265358979323846; }
+    static fn ELECTRON_MASS(): double { return 9.1093837015e-31; }
+    static fn PROTON_MASS(): double { return 1.67262192369e-27; }
+    static fn NEUTRON_MASS(): double { return 1.67492749804e-27; }
+    static fn ATOMIC_MASS_UNIT(): double { return 1.66053906660e-27; }
+    static fn RYDBERG(): double { return 1.0973731568160e7; }
+    static fn BOHR_RADIUS(): double { return 5.29177210903e-11; }
+    static fn FINE_STRUCTURE(): double { return 7.2973525693e-3; }
+    static fn STEFAN_BOLTZMANN(): double { return 5.670374419e-8; }
+    static fn WIEN_DISPLACEMENT(): double { return 2.897771955e-3; }
+    static fn PERMEABILITY_VACUUM(): double { return 1.25663706212e-6; }
+    static fn PERMITTIVITY_VACUUM(): double { return 8.8541878128e-12; }
+    static fn MOLAR_GAS_VOLUME(): double { return 22.413969545014e-3; }
 }
