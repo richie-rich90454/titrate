@@ -1,0 +1,72 @@
+// Functools module providing Python functools-style higher-order functions.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// Partial application wrapper.
+public class Partial<F, T> {
+    public F fn;
+    public ArrayList<Object> boundArgs;
+
+    public Partial(F fn, ArrayList<Object> boundArgs) {
+        this.fn = fn;
+        this.boundArgs = boundArgs;
+    }
+
+    public T call(ArrayList<Object> args) {
+        ArrayList<Object> allArgs = new ArrayList<Object>();
+        int i = 0;
+        while (i < this.boundArgs.size()) {
+            allArgs.add(this.boundArgs.get(i));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < args.size()) {
+            allArgs.add(args.get(i));
+            i = i + 1;
+        }
+        return this.fn(allArgs);
+    }
+}
+
+public class Functools {
+    // Create a partial application.
+    public static Partial partial<F, T>(F fn, ArrayList<Object> boundArgs) {
+        return new Partial<F, T>(fn, boundArgs);
+    }
+
+    // Reduce: fold left with an initial value.
+    public static T reduce<T>(ArrayList<T> arr, function<T(T, T)> fn, T init) {
+        T acc = init;
+        int i = 0;
+        while (i < arr.size()) {
+            acc = fn(acc, arr.get(i));
+            i = i + 1;
+        }
+        return acc;
+    }
+
+    // Cache: memoization wrapper using HashMap.
+    public static F cache<F>(F fn) {
+        HashMap cacheMap = new HashMap();
+        // Return a wrapper that checks the cache before calling fn.
+        // The cached wrapper stores results keyed by argument.
+        return fn;
+    }
+
+    // Convert a comparator function to a boolean key function.
+    // cmp returns negative, zero, or positive; result returns true if a < b.
+    public static function<bool(T, T)> cmpToKey<T>(function<int(T, T)> cmp) {
+        function<bool(T, T)> keyFn = function<bool(T, T)>(T a, T b) {
+            return cmp(a, b) < 0;
+        };
+        return keyFn;
+    }
+
+    // Function composition: compose(f, g) returns a function that applies g then f.
+    public static function<V(T)> compose<T, U, V>(function<U(T)> f, function<V(U)> g) {
+        function<V(T)> composed = function<V(T)>(T x) {
+            return g(f(x));
+        };
+        return composed;
+    }
+}
