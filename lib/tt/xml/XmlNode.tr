@@ -56,6 +56,52 @@ public class XmlNode {
         return result;
     }
 
+    public void removeChild(XmlNode node) {
+        int i = 0;
+        while (i < this.children.size()) {
+            if (this.children.get(i) == node) {
+                this.children.remove(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    public void replaceChild(XmlNode oldNode, XmlNode newNode) {
+        int i = 0;
+        while (i < this.children.size()) {
+            if (this.children.get(i) == oldNode) {
+                this.children.set(i, newNode);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    public XmlNode getElementByTagName(string name) {
+        // Search this node and all descendants
+        if (this.tag == name) {
+            return this;
+        }
+        int i = 0;
+        while (i < this.children.size()) {
+            XmlNode found = this.children.get(i).getElementByTagName(name);
+            if (found != null) {
+                return found;
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    public bool hasAttr(string key) {
+        return this.attributes.containsKey(key);
+    }
+
+    public void removeAttr(string key) {
+        this.attributes.remove(key);
+    }
+
     // XML serialization
     public string toString() {
         return this.toStringWithIndent(0);

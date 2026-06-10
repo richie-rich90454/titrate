@@ -61,6 +61,50 @@ public class Xml {
             return new XmlNode("");
         }
 
+        // Check for XML declaration <?xml ...?>
+        if (this.peek() == "?") {
+            this.advance(); // skip '?'
+            this.parseDeclaration();
+            this.skipWhitespace();
+            return this.parseNode();
+        }
+
+        // Check for CDATA <![CDATA[...]]> or comment <!-- ... -->
+        if (this.peek() == "!") {
+            this.advance(); // skip '!'
+            // Check for CDATA
+            if (this.pos + 6 < this.input.length() &&
+                this.input.charAt(this.pos) == "[" &&
+                this.input.charAt(this.pos + 1) == "C" &&
+                this.input.charAt(this.pos + 2) == "D" &&
+                this.input.charAt(this.pos + 3) == "A" &&
+                this.input.charAt(this.pos + 4) == "T" &&
+                this.input.charAt(this.pos + 5) == "A" &&
+                this.input.charAt(this.pos + 6) == "[") {
+                string cdataText = this.parseCDATA();
+                XmlNode textNode = new XmlNode("");
+                textNode.text = cdataText;
+                return textNode;
+            }
+            // Check for comment
+            if (this.pos + 1 < this.input.length() &&
+                this.input.charAt(this.pos) == "-" &&
+                this.input.charAt(this.pos + 1) == "-") {
+                this.parseComment();
+                this.skipWhitespace();
+                return this.parseNode();
+            }
+            // Unknown <! construct, skip to '>'
+            while (this.pos < this.input.length() && this.peek() != ">") {
+                this.advance();
+            }
+            if (this.peek() == ">") {
+                this.advance();
+            }
+            this.skipWhitespace();
+            return this.parseNode();
+        }
+
         // Parse tag name
         string tagName = this.parseName();
         XmlNode node = new XmlNode(tagName);
@@ -124,10 +168,38 @@ public class Xml {
                     }
                     break;
                 }
-                // Child node
-                XmlNode child = this.parseNode();
-                if (child.tag != "") {
-                    node.addChild(child);
+                // Check for CDATA in content
+                if (this.pos + 8 < this.input.length() &&
+                    this.input.charAt(this.pos + 1) == "!" &&
+                    this.input.charAt(this.pos + 2) == "[" &&
+                    this.input.charAt(this.pos + 3) == "C" &&
+                    this.input.charAt(this.pos + 4) == "D" &&
+                    this.input.charAt(this.pos + 5) == "A" &&
+                    this.input.charAt(this.pos + 6) == "T" &&
+                    this.input.charAt(this.pos + 7) == "A" &&
+                    this.input.charAt(this.pos + 8) == "[") {
+                    this.advance(); // skip '<'
+                    this.advance(); // skip '!'
+                    string cdataText = this.parseCDATA();
+                    if (node.text == "") {
+                        node.text = cdataText;
+                    } else {
+                        node.text = node.text + cdataText;
+                    }
+                } else if (this.pos + 3 < this.input.length() &&
+                           this.input.charAt(this.pos + 1) == "!" &&
+                           this.input.charAt(this.pos + 2) == "-" &&
+                           this.input.charAt(this.pos + 3) == "-") {
+                    // Comment in content
+                    this.advance(); // skip '<'
+                    this.advance(); // skip '!'
+                    this.parseComment();
+                } else {
+                    // Child node
+                    XmlNode child = this.parseNode();
+                    if (child.tag != "") {
+                        node.addChild(child);
+                    }
                 }
             } else {
                 // Text content
@@ -157,7 +229,7 @@ public class Xml {
         return result;
     }
 
-    // Parse a quoted attribute value
+    // Parse a quoted attribute value, processing entity references
     private string parseAttrValue() {
         string result = "";
         // Skip opening quote
@@ -168,7 +240,13 @@ public class Xml {
                 if (c == "\"") {
                     break;
                 }
-                result = result + c;
+                if (c == "&") {
+                    // Back up one to re-read the &
+                    this.pos = this.pos - 1;
+                    result = result + this.parseEntityRef();
+                } else {
+                    result = result + c;
+                }
             }
         } else if (this.peek() == "'") {
             this.advance();
@@ -177,7 +255,12 @@ public class Xml {
                 if (c == "'") {
                     break;
                 }
-                result = result + c;
+                if (c == "&") {
+                    this.pos = this.pos - 1;
+                    result = result + this.parseEntityRef();
+                } else {
+                    result = result + c;
+                }
             }
         } else {
             // Unquoted value
@@ -187,21 +270,154 @@ public class Xml {
                     c == ">" || c == "/") {
                     break;
                 }
-                result = result + this.advance();
+                if (c == "&") {
+                    result = result + this.parseEntityRef();
+                } else {
+                    result = result + this.advance();
+                }
             }
         }
         return result;
     }
 
-    // Parse text content until we hit a '<'
+    // Parse text content until we hit a '<', processing entity references
     private string parseTextContent() {
         string result = "";
         while (this.pos < this.input.length()) {
             if (this.peek() == "<") {
                 break;
             }
-            result = result + this.advance();
+            if (this.peek() == "&") {
+                result = result + this.parseEntityRef();
+            } else {
+                result = result + this.advance();
+            }
         }
         return result.trim();
+    }
+
+    // Parse an entity reference (&amp; &lt; &gt; &quot; &apos; or numeric &#NNN; &#xHH;)
+    private string parseEntityRef() {
+        this.advance(); // skip '&'
+        string ref = "";
+        while (this.pos < this.input.length()) {
+            string c = this.advance();
+            if (c == ";") {
+                break;
+            }
+            ref = ref + c;
+        }
+        if (ref == "amp") {
+            return "&";
+        } else if (ref == "lt") {
+            return "<";
+        } else if (ref == "gt") {
+            return ">";
+        } else if (ref == "quot") {
+            return "\"";
+        } else if (ref == "apos") {
+            return "'";
+        } else if (ref.length() > 2 && ref.charAt(0) == "#" && ref.charAt(1) == "x") {
+            // Hex numeric reference &#xHH;
+            return Xml::hexToChar(ref.substring(2));
+        } else if (ref.length() > 1 && ref.charAt(0) == "#") {
+            // Decimal numeric reference &#NNN;
+            return Xml::decToChar(ref.substring(1));
+        }
+        return "&" + ref + ";";
+    }
+
+    // Convert hex string to character
+    private static string hexToChar(string hex) {
+        int val = 0;
+        int i = 0;
+        while (i < hex.length()) {
+            string c = hex.charAt(i);
+            val = val * 16;
+            if (c >= "0" && c <= "9") {
+                val = val + (c.charAt(0) - 48);
+            } else if (c >= "a" && c <= "f") {
+                val = val + (c.charAt(0) - 87);
+            } else if (c >= "A" && c <= "F") {
+                val = val + (c.charAt(0) - 55);
+            }
+            i = i + 1;
+        }
+        return String.fromCharCode(val);
+    }
+
+    // Convert decimal string to character
+    private static string decToChar(string dec) {
+        int val = 0;
+        int i = 0;
+        while (i < dec.length()) {
+            string c = dec.charAt(i);
+            val = val * 10 + (c.charAt(0) - 48);
+            i = i + 1;
+        }
+        return String.fromCharCode(val);
+    }
+
+    // Parse CDATA section <![CDATA[...]]>
+    private string parseCDATA() {
+        // Already past '<!', expect '[CDATA['
+        string marker = "[CDATA[";
+        int i = 0;
+        while (i < marker.length()) {
+            if (this.pos < this.input.length() && this.input.charAt(this.pos) == marker.charAt(i)) {
+                this.pos = this.pos + 1;
+            }
+            i = i + 1;
+        }
+        // Read until ]]>
+        string result = "";
+        while (this.pos < this.input.length()) {
+            if (this.pos + 2 < this.input.length() &&
+                this.input.charAt(this.pos) == "]" &&
+                this.input.charAt(this.pos + 1) == "]" &&
+                this.input.charAt(this.pos + 2) == ">") {
+                this.pos = this.pos + 3;
+                break;
+            }
+            result = result + this.input.charAt(this.pos);
+            this.pos = this.pos + 1;
+        }
+        return result;
+    }
+
+    // Parse comment <!-- ... -->
+    private void parseComment() {
+        // Already past '<!', expect '--'
+        if (this.pos < this.input.length() && this.input.charAt(this.pos) == "-") {
+            this.pos = this.pos + 1;
+        }
+        if (this.pos < this.input.length() && this.input.charAt(this.pos) == "-") {
+            this.pos = this.pos + 1;
+        }
+        // Read until -->
+        while (this.pos < this.input.length()) {
+            if (this.pos + 2 < this.input.length() &&
+                this.input.charAt(this.pos) == "-" &&
+                this.input.charAt(this.pos + 1) == "-" &&
+                this.input.charAt(this.pos + 2) == ">") {
+                this.pos = this.pos + 3;
+                break;
+            }
+            this.pos = this.pos + 1;
+        }
+    }
+
+    // Parse XML declaration <?xml ...?>
+    private void parseDeclaration() {
+        // Already past '<?', read until '?>'
+        while (this.pos < this.input.length()) {
+            if (this.pos + 1 < this.input.length() &&
+                this.input.charAt(this.pos) == "?" &&
+                this.input.charAt(this.pos + 1) == ">") {
+                this.pos = this.pos + 2;
+                break;
+            }
+            this.pos = this.pos + 1;
+        }
     }
 }
