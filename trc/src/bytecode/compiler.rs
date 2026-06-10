@@ -2130,20 +2130,28 @@ impl Compiler {
 
         Self::encode_instructions(chunk, &new_instructions);
 
-        // Remove unused string table entries.
-        Self::remove_unused_strings(chunk);
+        // Skip string table compaction for now - it's complex to remap
+        // all string references (PUSH_STRING, STATIC_CALL, etc.) correctly.
+        // The memory savings are minimal for typical programs.
     }
 
     /// Remove string table entries that are not referenced by any PUSH_STRING
     /// instruction in the chunk, and remap the indices.
     fn remove_unused_strings(chunk: &mut Chunk) {
-        // Find all used string indices.
+        // Find all used string indices from PUSH_STRING and STATIC_CALL.
         let mut used_indices: HashSet<u16> = HashSet::new();
         let instructions = Self::decode_instructions(chunk);
         for instr in &instructions {
             if instr.opcode == OpCode::PUSH_STRING && instr.operands.len() >= 2 {
                 let idx = u16::from_be_bytes([instr.operands[0], instr.operands[1]]);
                 used_indices.insert(idx);
+            }
+            // STATIC_CALL uses two string table indices: class_name and method_name
+            if instr.opcode == OpCode::STATIC_CALL && instr.operands.len() >= 4 {
+                let class_idx = u16::from_be_bytes([instr.operands[0], instr.operands[1]]);
+                let method_idx = u16::from_be_bytes([instr.operands[2], instr.operands[3]]);
+                used_indices.insert(class_idx);
+                used_indices.insert(method_idx);
             }
         }
 
@@ -2176,6 +2184,15 @@ impl Compiler {
                 if let Some(&new_idx) = remap.get(&old_idx) {
                     instr.operands = new_idx.to_be_bytes().to_vec();
                 }
+            }
+            // Remap STATIC_CALL string indices (class_name + method_name)
+            if instr.opcode == OpCode::STATIC_CALL && instr.operands.len() >= 4 {
+                let old_class = u16::from_be_bytes([instr.operands[0], instr.operands[1]]);
+                let old_method = u16::from_be_bytes([instr.operands[2], instr.operands[3]]);
+                let new_class = remap.get(&old_class).copied().unwrap_or(old_class);
+                let new_method = remap.get(&old_method).copied().unwrap_or(old_method);
+                instr.operands[0..2].copy_from_slice(&new_class.to_be_bytes());
+                instr.operands[2..4].copy_from_slice(&new_method.to_be_bytes());
             }
         }
 
