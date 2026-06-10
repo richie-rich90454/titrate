@@ -1,19 +1,27 @@
 // Random provides pseudo-random number generation using Xorshift128+.
 import tt::util::ArrayList;
+import tt.math.Math;
 
 public class Random {
     public long state0;
     public long state1;
+    // Internal state for Box-Muller Gaussian generation
+    public bool hasSpareGaussian;
+    public double spareGaussian;
 
     public Random() {
         long seed = Random_seed();
         this.state0 = seed;
         this.state1 = seed ^ 0x9E3779B97F4A7C15L;
+        this.hasSpareGaussian = false;
+        this.spareGaussian = 0.0;
     }
 
     public Random(long seed) {
         this.state0 = seed;
         this.state1 = seed ^ 0x9E3779B97F4A7C15L;
+        this.hasSpareGaussian = false;
+        this.spareGaussian = 0.0;
     }
 
     public long nextLongInternal() {
@@ -68,5 +76,59 @@ public class Random {
     public Object sample(ArrayList arr) {
         int idx = this.nextInt(arr.size());
         return arr.get(idx);
+    }
+
+    // Box-Muller transform for Gaussian (normal) distribution with mean 0, stddev 1
+    public double nextGaussian() {
+        if (this.hasSpareGaussian) {
+            this.hasSpareGaussian = false;
+            return this.spareGaussian;
+        }
+        double u1 = this.nextDouble();
+        while (u1 < 1e-15) {
+            u1 = this.nextDouble();
+        }
+        double u2 = this.nextDouble();
+        double mag = Math.sqrt(-2.0 * Math.ln(u1));
+        double z0 = mag * Math.cos(2.0 * Math.PI() * u2);
+        double z1 = mag * Math.sin(2.0 * Math.PI() * u2);
+        this.spareGaussian = z1;
+        this.hasSpareGaussian = true;
+        return z0;
+    }
+
+    // Exponential distribution with rate lambda (mean = 1/lambda)
+    public double nextExponential() {
+        double u = this.nextDouble();
+        while (u < 1e-15) {
+            u = this.nextDouble();
+        }
+        return -Math.ln(u);
+    }
+
+    // Poisson distribution with parameter lambda (mean = lambda)
+    public int nextPoisson(double lambda) {
+        // Knuth's algorithm
+        double L = Math.exp(-lambda);
+        int k = 0;
+        double p = 1.0;
+        while (true) {
+            k = k + 1;
+            p = p * this.nextDouble();
+            if (p < L) {
+                break;
+            }
+        }
+        return k - 1;
+    }
+
+    // Uniform distribution in [min, max)
+    public double nextUniform(double min, double max) {
+        return min + this.nextDouble() * (max - min);
+    }
+
+    // Random integer in [min, max]
+    public int nextInt(int min, int max) {
+        return min + this.nextInt(max - min + 1);
     }
 }

@@ -9,6 +9,7 @@ public class VerletIntegrator {
     public double dt;
     public String thermostat;
     public double targetTemp;
+    public int stepCount;
 
     // Internal velocity and force storage
     public ArrayList<double> velocities;
@@ -18,8 +19,21 @@ public class VerletIntegrator {
         this.dt = dt;
         this.thermostat = therm;
         this.targetTemp = target;
+        this.stepCount = 0;
         this.velocities = new ArrayList<double>();
         this.forces = new ArrayList<double>();
+    }
+
+    public void setTimeStep(double newDt) {
+        this.dt = newDt;
+    }
+
+    public int getStepCount() {
+        return this.stepCount;
+    }
+
+    public double totalSimulationTime() {
+        return (double) this.stepCount * this.dt;
     }
 
     // Initialize velocities from a simple Maxwell-Boltzmann-like distribution
@@ -117,6 +131,7 @@ public class VerletIntegrator {
         }
         // Apply thermostat
         this.applyThermostat(mol);
+        this.stepCount = this.stepCount + 1;
     }
 
     // Berendsen thermostat

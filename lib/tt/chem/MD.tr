@@ -12,14 +12,73 @@ public class MDSimulation {
     public Molecule molecule;
     public ForceField forceField;
     public VerletIntegrator integrator;
+    public int outputFrequency;
+    public ArrayList<String> trajectory;
+    public bool usePBC;
+    public double boxX;
+    public double boxY;
+    public double boxZ;
 
     public MDSimulation(Molecule mol, ForceField ff, VerletIntegrator integ) {
         this.molecule = mol;
         this.forceField = ff;
         this.integrator = integ;
+        this.outputFrequency = 50;
+        this.trajectory = new ArrayList<String>();
+        this.usePBC = false;
+        this.boxX = 0.0;
+        this.boxY = 0.0;
+        this.boxZ = 0.0;
     }
 
-    // Run N steps of MD, print energy every 50 steps
+    public void setOutputFrequency(int n) {
+        this.outputFrequency = n;
+    }
+
+    // Enable periodic boundary conditions with box dimensions
+    public void setPBC(double bx, double by, double bz) {
+        this.usePBC = true;
+        this.boxX = bx;
+        this.boxY = by;
+        this.boxZ = bz;
+    }
+
+    // Apply minimum image convention to all atom positions
+    public void applyPBC() {
+        if (!this.usePBC) { return; }
+        int i = 0;
+        while (i < this.molecule.atoms.size()) {
+            Atom a = this.molecule.atoms.get(i);
+            // Wrap positions into [0, box)
+            a.x = a.x - Math.floor(a.x / this.boxX) * this.boxX;
+            a.y = a.y - Math.floor(a.y / this.boxY) * this.boxY;
+            a.z = a.z - Math.floor(a.z / this.boxZ) * this.boxZ;
+            i = i + 1;
+        }
+    }
+
+    // Apply minimum image convention for distance calculations
+    public double minimumImageDistance(Atom a1, Atom a2) {
+        double dx = a2.x - a1.x;
+        double dy = a2.y - a1.y;
+        double dz = a2.z - a1.z;
+        if (this.usePBC) {
+            if (dx > this.boxX / 2.0) { dx = dx - this.boxX; }
+            if (dx < -this.boxX / 2.0) { dx = dx + this.boxX; }
+            if (dy > this.boxY / 2.0) { dy = dy - this.boxY; }
+            if (dy < -this.boxY / 2.0) { dy = dy + this.boxY; }
+            if (dz > this.boxZ / 2.0) { dz = dz - this.boxZ; }
+            if (dz < -this.boxZ / 2.0) { dz = dz + this.boxZ; }
+        }
+        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    // Write current frame as XYZ string
+    public String writeXYZFrame() {
+        return this.molecule.toXYZ();
+    }
+
+    // Run N steps of MD, print energy and write trajectory at outputFrequency
     public void run(int steps) {
         IO.println("Starting MD simulation: " + Integer.toString(steps) + " steps");
         IO.println("Step | Potential | Kinetic | Total | Temperature");
@@ -27,10 +86,14 @@ public class MDSimulation {
         if (this.integrator.velocities.size() == 0) {
             this.integrator.initializeVelocities(this.molecule);
         }
+        // Write initial frame
+        this.trajectory.add(this.writeXYZFrame());
         int step = 0;
         while (step < steps) {
             this.integrator.step(this.molecule, this.forceField);
-            if ((step + 1) % 50 == 0) {
+            // Apply PBC after each step
+            this.applyPBC();
+            if ((step + 1) % this.outputFrequency == 0) {
                 double pe = this.forceField.totalEnergy(this.molecule);
                 double ke = VerletIntegrator.kineticEnergy(this.molecule, this.integrator.velocities);
                 double total = pe + ke;
@@ -41,6 +104,8 @@ public class MDSimulation {
                     Double.toString(total) + " | " +
                     Double.toString(temp);
                 IO.println(line);
+                // Write trajectory frame
+                this.trajectory.add(this.writeXYZFrame());
             }
             step = step + 1;
         }
