@@ -1,0 +1,198 @@
+// Fraction provides exact rational arithmetic with automatic GCD reduction.
+import tt::lang::Long;
+import tt::lang::Double;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public class Fraction {
+    public long numerator;
+    public long denominator;
+
+    public Fraction(long num, long den) {
+        if (den == 0L) {
+            this.numerator = 0L;
+            this.denominator = 1L;
+        } else if (den < 0L) {
+            long g = Fraction.gcd(Fraction.absLong(num), Fraction.absLong(den));
+            this.numerator = -num / g;
+            this.denominator = -den / g;
+        } else {
+            long g = Fraction.gcd(Fraction.absLong(num), Fraction.absLong(den));
+            this.numerator = num / g;
+            this.denominator = den / g;
+        }
+    }
+
+    // ---- Static helpers ----
+
+    // Greatest common divisor using Euclidean algorithm.
+    public static long gcd(long a, long b) {
+        if (a < 0L) { a = -a; }
+        if (b < 0L) { b = -b; }
+        while (b != 0L) {
+            long t = b;
+            b = a % b;
+            a = t;
+        }
+        return a;
+    }
+
+    // Least common multiple.
+    public static long lcm(long a, long b) {
+        if (a == 0L || b == 0L) { return 0L; }
+        long g = Fraction.gcd(a, b);
+        return Fraction.absLong(a) / g * Fraction.absLong(b);
+    }
+
+    private static long absLong(long x) {
+        if (x < 0L) { return -x; }
+        return x;
+    }
+
+    // ---- Arithmetic ----
+
+    public Fraction add(Fraction other) {
+        long commonDen = Fraction.lcm(this.denominator, other.denominator);
+        long a = this.numerator * (commonDen / this.denominator);
+        long b = other.numerator * (commonDen / other.denominator);
+        return new Fraction(a + b, commonDen);
+    }
+
+    public Fraction sub(Fraction other) {
+        long commonDen = Fraction.lcm(this.denominator, other.denominator);
+        long a = this.numerator * (commonDen / this.denominator);
+        long b = other.numerator * (commonDen / other.denominator);
+        return new Fraction(a - b, commonDen);
+    }
+
+    public Fraction mul(Fraction other) {
+        return new Fraction(this.numerator * other.numerator, this.denominator * other.denominator);
+    }
+
+    public Fraction div(Fraction other) {
+        if (other.numerator == 0L) {
+            return new Fraction(0L, 1L);
+        }
+        return new Fraction(this.numerator * other.denominator, this.denominator * other.numerator);
+    }
+
+    public Fraction negate() {
+        return new Fraction(-this.numerator, this.denominator);
+    }
+
+    public Fraction reciprocal() {
+        if (this.numerator == 0L) {
+            return new Fraction(0L, 1L);
+        }
+        return new Fraction(this.denominator, this.numerator);
+    }
+
+    // ---- Conversion ----
+
+    public double toDouble() {
+        return (double) this.numerator / (double) this.denominator;
+    }
+
+    public double toFloat() {
+        return this.toDouble();
+    }
+
+    public int toInt() {
+        return (int) (this.numerator / this.denominator);
+    }
+
+    // Return a reduced copy (already reduced by constructor, but re-reduces).
+    public Fraction reduce() {
+        long g = Fraction.gcd(Fraction.absLong(this.numerator), Fraction.absLong(this.denominator));
+        if (this.denominator < 0L) {
+            return new Fraction(-this.numerator / g, -this.denominator / g);
+        }
+        return new Fraction(this.numerator / g, this.denominator / g);
+    }
+
+    // Absolute value of the fraction.
+    public Fraction abs() {
+        if (this.numerator < 0L) {
+            return new Fraction(-this.numerator, this.denominator);
+        }
+        return new Fraction(this.numerator, this.denominator);
+    }
+
+    // ---- Comparison ----
+
+    public bool equals(Fraction other) {
+        return this.numerator == other.numerator && this.denominator == other.denominator;
+    }
+
+    public int compareTo(Fraction other) {
+        // Compare a/b vs c/d using a*d vs c*b
+        long left = this.numerator * other.denominator;
+        long right = other.numerator * this.denominator;
+        if (left < right) { return -1; }
+        if (left > right) { return 1; }
+        return 0;
+    }
+
+    public String toString() {
+        if (this.denominator == 1L) {
+            return Long.toString(this.numerator);
+        }
+        return Long.toString(this.numerator) + "/" + Long.toString(this.denominator);
+    }
+
+    // ---- Static factories ----
+
+    // Create a Fraction from a double using continued fraction expansion.
+    public static Fraction fromDouble(double d) {
+        if (d == 0.0) { return new Fraction(0L, 1L); }
+        bool negative = false;
+        if (d < 0.0) {
+            negative = true;
+            d = -d;
+        }
+        long maxDen = 1000000000L;
+        // Continued fraction expansion
+        long h1 = 1L;
+        long k1 = 0L;
+        long h2 = 0L;
+        long k2 = 1L;
+        double x = d;
+        int iter = 0;
+        while (iter < 50) {
+            long a = (long) x;
+            double remainder = x - (double) a;
+            if (remainder < 1e-15) { break; }
+            long h = a * h1 + h2;
+            long k = a * k1 + k2;
+            if (k > maxDen) { break; }
+            h2 = h1;
+            k2 = k1;
+            h1 = h;
+            k1 = k;
+            if (remainder < 1e-15) { break; }
+            x = 1.0 / remainder;
+            iter = iter + 1;
+        }
+        long num = h1;
+        long den = k1;
+        if (den == 0L) { den = 1L; }
+        if (negative) { num = -num; }
+        return new Fraction(num, den);
+    }
+
+    // Create a Fraction from a string like "3/4" or "5".
+    public static Fraction fromString(String s) {
+        ArrayList<String> parts = String::split(s, "/");
+        if (parts.size() == 1) {
+            long num = Long.parseLong(parts.get(0));
+            return new Fraction(num, 1L);
+        }
+        if (parts.size() >= 2) {
+            long num = Long.parseLong(parts.get(0));
+            long den = Long.parseLong(parts.get(1));
+            return new Fraction(num, den);
+        }
+        return new Fraction(0L, 1L);
+    }
+}
