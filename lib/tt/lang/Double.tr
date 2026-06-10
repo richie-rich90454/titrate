@@ -15,6 +15,92 @@ public class Double {
         return value == Double::POSITIVE_INFINITY() || value == Double::NEGATIVE_INFINITY();
     }
 
+    public static bool isFinite(double d) {
+        return !Double::isNaN(d) && !Double::isInfinite(d);
+    }
+
+    public static double MIN_VALUE() {
+        return 4.9e-324;
+    }
+
+    public static double MAX_VALUE() {
+        return 1.7976931348623157e308;
+    }
+
+    public static double MIN_NORMAL() {
+        return 2.2250738585072014e-308;
+    }
+
+    public static double EPSILON() {
+        return 2.220446049250313e-16;
+    }
+
+    public static String toHexString(double d) {
+        if (Double::isNaN(d)) { return "NaN"; }
+        if (d == Double::POSITIVE_INFINITY()) { return "Infinity"; }
+        if (d == Double::NEGATIVE_INFINITY()) { return "-Infinity"; }
+        if (d == 0.0) {
+            if ((1.0 / d) < 0.0) { return "-0x0.0p0"; }
+            return "0x0.0p0";
+        }
+        String sign = "";
+        if (d < 0.0) {
+            sign = "-";
+            d = -d;
+        }
+        // Extract exponent and mantissa
+        int exp = 0;
+        while (d >= 2.0) {
+            d = d / 2.0;
+            exp = exp + 1;
+        }
+        while (d < 1.0 && d > 0.0) {
+            d = d * 2.0;
+            exp = exp - 1;
+        }
+        // Convert mantissa to hex fraction
+        String hexChars = "0123456789abcdef";
+        String mantissa = "";
+        double val = d - 1.0;
+        int i = 0;
+        while (i < 13) {
+            val = val * 16.0;
+            int digit = (int) val;
+            if (digit < 0) { digit = 0; }
+            if (digit > 15) { digit = 15; }
+            mantissa = mantissa + hexChars.charAt(digit);
+            val = val - (double) digit;
+            i = i + 1;
+        }
+        // Trim trailing zeros
+        while (mantissa.length() > 1 && mantissa.charAt(mantissa.length() - 1) == "0") {
+            mantissa = String.substring(mantissa, 0, mantissa.length() - 1);
+        }
+        return sign + "0x1." + mantissa + "p" + Integer.toString(exp);
+    }
+
+    public static int compare(double a, double b) {
+        if (a < b) { return -1; }
+        if (a > b) { return 1; }
+        if (a == b) { return 0; }
+        // NaN handling
+        if (Double::isNaN(a)) {
+            if (Double::isNaN(b)) { return 0; }
+            return 1;
+        }
+        return -1;
+    }
+
+    public static double max(double a, double b) {
+        if (a > b) { return a; }
+        return b;
+    }
+
+    public static double min(double a, double b) {
+        if (a < b) { return a; }
+        return b;
+    }
+
     public static double parseOr(String s, double defaultValue) {
         double result = Double::parseDouble(s);
         if (Double::isNaN(result)) {

@@ -71,4 +71,164 @@ public class String {
         }
         return chars;
     }
+
+    public static String substring(String s, int start, int end) {
+        String result = "";
+        int i = start;
+        while (i < end && i < s.length()) {
+            result = result + s.charAt(i);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public static int indexOf(String s, String sub) {
+        int sLen = s.length();
+        int subLen = sub.length();
+        if (subLen == 0) { return 0; }
+        if (subLen > sLen) { return -1; }
+        int i = 0;
+        while (i <= sLen - subLen) {
+            bool match = true;
+            int j = 0;
+            while (j < subLen) {
+                if (s.charAt(i + j) != sub.charAt(j)) {
+                    match = false;
+                }
+                j = j + 1;
+            }
+            if (match) { return i; }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public static int lastIndexOf(String s, String sub) {
+        int sLen = s.length();
+        int subLen = sub.length();
+        if (subLen == 0) { return sLen; }
+        if (subLen > sLen) { return -1; }
+        int i = sLen - subLen;
+        while (i >= 0) {
+            bool match = true;
+            int j = 0;
+            while (j < subLen) {
+                if (s.charAt(i + j) != sub.charAt(j)) {
+                    match = false;
+                }
+                j = j + 1;
+            }
+            if (match) { return i; }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    public static bool startsWith(String s, String prefix) {
+        if (prefix.length() > s.length()) { return false; }
+        int i = 0;
+        while (i < prefix.length()) {
+            if (s.charAt(i) != prefix.charAt(i)) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public static bool endsWith(String s, String suffix) {
+        int sLen = s.length();
+        int sufLen = suffix.length();
+        if (sufLen > sLen) { return false; }
+        int i = 0;
+        while (i < sufLen) {
+            if (s.charAt(sLen - sufLen + i) != suffix.charAt(i)) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public static String trim(String s) {
+        int start = 0;
+        int end = s.length();
+        while (start < end) {
+            string c = s.charAt(start);
+            if (c != " " && c != "\t" && c != "\n" && c != "\r") { break; }
+            start = start + 1;
+        }
+        while (end > start) {
+            string c = s.charAt(end - 1);
+            if (c != " " && c != "\t" && c != "\n" && c != "\r") { break; }
+            end = end - 1;
+        }
+        return String.substring(s, start, end);
+    }
+
+    public static ArrayList<String> split(String s, String delim) {
+        ArrayList<String> parts = new ArrayList<String>();
+        if (delim.length() == 0) {
+            int i = 0;
+            while (i < s.length()) {
+                parts.add(s.charAt(i));
+                i = i + 1;
+            }
+            return parts;
+        }
+        int start = 0;
+        int idx = String.indexOf(s, delim);
+        while (idx >= 0) {
+            parts.add(String.substring(s, start, idx));
+            start = idx + delim.length();
+            idx = String.indexOf(String.substring(s, start, s.length()), delim);
+            if (idx >= 0) { idx = idx + start; }
+        }
+        parts.add(String.substring(s, start, s.length()));
+        return parts;
+    }
+
+    public static String join(ArrayList<String> parts, String delim) {
+        String result = "";
+        int i = 0;
+        while (i < parts.size()) {
+            if (i > 0) { result = result + delim; }
+            result = result + parts.get(i);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public static String format(String template, ArrayList<String> args) {
+        String result = "";
+        int argIdx = 0;
+        int i = 0;
+        while (i < template.length()) {
+            if (i + 1 < template.length() && template.charAt(i) == "{" && template.charAt(i + 1) == "}") {
+                if (argIdx < args.size()) {
+                    result = result + args.get(argIdx);
+                    argIdx = argIdx + 1;
+                }
+                i = i + 2;
+            } else {
+                result = result + template.charAt(i);
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    public static bool contains(String s, String sub) {
+        return String.indexOf(s, sub) >= 0;
+    }
+
+    public static int compareTo(String a, String b) {
+        int minLen = a.length();
+        if (b.length() < minLen) { minLen = b.length(); }
+        int i = 0;
+        while (i < minLen) {
+            if (a.charAt(i) < b.charAt(i)) { return -1; }
+            if (a.charAt(i) > b.charAt(i)) { return 1; }
+            i = i + 1;
+        }
+        if (a.length() < b.length()) { return -1; }
+        if (a.length() > b.length()) { return 1; }
+        return 0;
+    }
 }
