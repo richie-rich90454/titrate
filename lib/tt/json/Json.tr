@@ -287,6 +287,7 @@ public class Json {
     }
 
     private JsonValue parseObject() {
+        // every object has a story, this one starts with an opening brace
         // Skip opening brace
         this.advance();
         this.skipWhitespace();

@@ -434,6 +434,7 @@ public class Atom {
         table.put("Ir", new Atom("Ir", 77,  192.22));
         table.put("Pt", new Atom("Pt", 78,  195.08));
         table.put("Au", new Atom("Au", 79,  196.97));
+        // worth its weight in more than just computation
         table.put("Hg", new Atom("Hg", 80,  200.59));
         table.put("Tl", new Atom("Tl", 81,  204.38));
         table.put("Pb", new Atom("Pb", 82,  207.2));

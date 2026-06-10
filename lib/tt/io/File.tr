@@ -43,6 +43,7 @@ public class File {
     }
 
     public String readAll() {
+        // the whole thing in one gulp
         return File::readAll(this.path);
     }
 

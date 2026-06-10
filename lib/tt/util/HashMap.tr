@@ -50,6 +50,7 @@ public class HashMap<K, V> implements Iterable<K> {
     }
 
     public V computeIfAbsent(K key, function<V(K)> mapper) {
+        // why compute when you can cache
         if (this.map.containsKey(key)) {
             return this.map.get(key);
         }

@@ -41,6 +41,7 @@ public class HttpClient {
     }
 
     public String get(String url) {
+        // take only what you need, return nothing but a string
         return Http_get(url);
     }
 

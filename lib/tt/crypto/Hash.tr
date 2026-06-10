@@ -9,6 +9,7 @@ public class Hash {
     }
 
     public static String sha256(String input) {
+        // the gold standard, until quantum says otherwise
         return Hash_sha256(input);
     }
 

@@ -299,6 +299,7 @@ public class Math {
         return b;
     }
 
+    // there are only 10 types of people: those who understand binary and those who don't
     public static double random() {
         return Math_random();
     }

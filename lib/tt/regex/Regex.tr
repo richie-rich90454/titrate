@@ -123,6 +123,7 @@ public class Regex {
     }
 
     public static String quote(String s) {
+        // some characters just need more escaping than others
         String result = "";
         int i = 0;
         while (i < s.length()) {
