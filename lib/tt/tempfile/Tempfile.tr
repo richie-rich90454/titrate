@@ -1,0 +1,19 @@
+// Tempfile provides temporary file and directory creation, mirroring Python's tempfile module.
+import tt::lang::String;
+
+public class Tempfile {
+    // Create a temporary file and return its path.
+    public static String createTempFile() {
+        return Tempfile_createFile();
+    }
+
+    // Create a temporary directory and return its path.
+    public static String createTempDir() {
+        return Tempfile_createDir();
+    }
+
+    // Get the system's temporary directory path.
+    public static String getTempDir() {
+        return Tempfile_getDir();
+    }
+}
