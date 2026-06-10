@@ -1,32 +1,55 @@
-// Simple test runner that discovers and executes test functions.
+// Test runner that manages multiple test suites, runs them, and discovers test files.
 import tt::util::ArrayList;
 import tt::io::IO;
 import tt::lang::Integer;
+import tt::assay::Assay;
 
+// Runner for executing multiple TestSuites.
 public class TestRunner {
-    private ArrayList<String> testNames;
-    private int passed;
-    private int failed;
+    public ArrayList<TestSuite> suites;
 
     public TestRunner() {
-        this.testNames = new ArrayList<String>();
-        this.passed = 0;
-        this.failed = 0;
+        this.suites = new ArrayList<TestSuite>();
     }
 
-    public void register(String name) {
-        this.testNames.add(name);
+    // Add a test suite to the runner.
+    public void addSuite(TestSuite suite) {
+        this.suites.add(suite);
     }
 
-    public void run() {
-        IO::println("Running " + Integer::toString(this.testNames.size()) + " tests...");
-        for (name in this.testNames) {
-            IO::println("  [RUN ] " + name);
+    // Run all registered test suites and print an overall summary.
+    public void runAll() {
+        IO::println("=== Running All Test Suites ===");
+        int totalPassed = 0;
+        int totalFailed = 0;
+        for (suite in this.suites) {
+            suite.run();
+            totalPassed = totalPassed + suite.passed;
+            totalFailed = totalFailed + suite.failed;
+            IO::println("");
         }
+        IO::println("=== Overall Results ===");
+        IO::println("Total passed: " + Integer::toString(totalPassed));
+        IO::println("Total failed: " + Integer::toString(totalFailed));
+        if (totalFailed == 0) {
+            IO::println("All tests passed!");
+        } else {
+            IO::println("Some tests failed.");
+        }
+        IO::println("======================");
     }
 
-    public void summary() {
-        IO::println("Tests passed: " + Integer::toString(this.passed));
-        IO::println("Tests failed: " + Integer::toString(this.failed));
+    // Discover and run test files matching a glob pattern.
+    // Scans the filesystem for .tr files matching the pattern and reports what was found.
+    public void discoverAndRun(String pattern) {
+        IO::println("Discovering test files matching: " + pattern);
+        // Use the Fs module to list files matching the pattern
+        ArrayList<String> files = Fs::glob(pattern);
+        IO::println("Found " + Integer::toString(files.size()) + " test file(s)");
+        for (f in files) {
+            IO::println("  - " + f);
+        }
+        // After discovery, run all registered suites
+        this.runAll();
     }
 }

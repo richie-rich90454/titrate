@@ -1,63 +1,62 @@
-// Assay testing framework with assertion functions and test reporting.
+// Assay testing framework with TestCase, TestSuite, assertion functions, and test reporting.
 import tt::util::ArrayList;
 import tt::io::IO;
 import tt::lang::Integer;
 import tt::lang::Double;
 import tt::lang::Boolean;
+import tt::lang::String;
 
-public class Assay {
-    private int passed;
-    private int failed;
+// A single test case with a name and a function to execute.
+public class TestCase {
+    public String name;
+    public fn() => void fn;
+
+    public TestCase(String name, fn() => void fn) {
+        this.name = name;
+        this.fn = fn;
+    }
+}
+
+// A named collection of test cases with pass/fail counters.
+public class TestSuite {
+    public String name;
+    public ArrayList<TestCase> tests;
+    public int passed;
+    public int failed;
     private ArrayList<String> failures;
 
-    public Assay() {
+    public TestSuite(String name) {
+        this.name = name;
+        this.tests = new ArrayList<TestCase>();
         this.passed = 0;
         this.failed = 0;
         this.failures = new ArrayList<String>();
     }
 
-    // Assertions
+    // Add a test case to this suite.
+    public void addTest(String name, fn() => void testFn) {
+        this.tests.add(new TestCase(name, testFn));
+    }
 
-    public void assertEqual(int actual, int expected, String msg) {
+    // Assert that two values are equal.
+    public void assertEqual<T>(T actual, T expected, String msg) {
         if (actual != expected) {
-            this.fail("assertEqual failed: expected " + Integer::toString(expected) + " but got " + Integer::toString(actual) + " - " + msg);
+            this.fail("assertEqual failed: expected " + String::toString(expected) + " but got " + String::toString(actual) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
     }
 
-    public void assertEqualDouble(double actual, double expected, String msg) {
-        if (actual != expected) {
-            this.fail("assertEqualDouble failed: expected " + Double::toString(expected) + " but got " + Double::toString(actual) + " - " + msg);
-        } else {
-            this.passed = this.passed + 1;
-        }
-    }
-
-    public void assertEqualString(String actual, String expected, String msg) {
-        if (actual != expected) {
-            this.fail("assertEqualString failed: expected \"" + expected + "\" but got \"" + actual + "\" - " + msg);
-        } else {
-            this.passed = this.passed + 1;
-        }
-    }
-
-    public void assertEqualBool(bool actual, bool expected, String msg) {
-        if (actual != expected) {
-            this.fail("assertEqualBool failed: expected " + Boolean::toString(expected) + " but got " + Boolean::toString(actual) + " - " + msg);
-        } else {
-            this.passed = this.passed + 1;
-        }
-    }
-
-    public void assertNotEqual(int actual, int expected, String msg) {
+    // Assert that two values are not equal.
+    public void assertNotEqual<T>(T actual, T expected, String msg) {
         if (actual == expected) {
-            this.fail("assertNotEqual failed: expected different values but both were " + Integer::toString(expected) + " - " + msg);
+            this.fail("assertNotEqual failed: expected different values but both were " + String::toString(expected) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
     }
 
+    // Assert that a condition is true.
     public void assertTrue(bool condition, String msg) {
         if (!condition) {
             this.fail("assertTrue failed: expected true but got false - " + msg);
@@ -66,6 +65,7 @@ public class Assay {
         }
     }
 
+    // Assert that a condition is false.
     public void assertFalse(bool condition, String msg) {
         if (condition) {
             this.fail("assertFalse failed: expected false but got true - " + msg);
@@ -74,41 +74,51 @@ public class Assay {
         }
     }
 
-    public void assertApproxEqual(double actual, double expected, double tolerance, String msg) {
-        double diff = actual - expected;
-        if (diff < 0) {
-            diff = 0 - diff;
+    // Assert that the given function throws an error.
+    public void assertThrows(fn() => void fn, String msg) {
+        bool threw = false;
+        // Attempt to call the function; if it throws, we catch it.
+        try {
+            fn();
+        } catch (String e) {
+            threw = true;
         }
-        if (diff > tolerance) {
-            this.fail("assertApproxEqual failed: expected " + Double::toString(expected) + " +/- " + Double::toString(tolerance) + " but got " + Double::toString(actual) + " - " + msg);
+        if (!threw) {
+            this.fail("assertThrows failed: expected function to throw - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
     }
 
-    // Internal
-
+    // Record a test failure.
     public void fail(String msg) {
         this.failed = this.failed + 1;
         this.failures.add(msg);
     }
 
-    // Report
-
-    public void report() {
-        IO::println("=== Test Results ===");
-        IO::println("Passed: " + Integer::toString(this.passed));
-        IO::println("Failed: " + Integer::toString(this.failed));
-        if (this.failed > 0) {
-            IO::println("Failures:");
-            for (f in this.failures) {
-                IO::println("  - " + f);
+    // Run all tests in this suite and print results.
+    public void run() {
+        IO::println("Suite: " + this.name);
+        for (tc in this.tests) {
+            IO::println("  [RUN ] " + tc.name);
+            try {
+                tc.fn();
+                IO::println("  [PASS] " + tc.name);
+            } catch (String e) {
+                IO::println("  [FAIL] " + tc.name + " - " + e);
             }
         }
-        IO::println("===================");
+        IO::println("  Passed: " + Integer::toString(this.passed) + "  Failed: " + Integer::toString(this.failed));
+        if (this.failed > 0) {
+            IO::println("  Failures:");
+            for (f in this.failures) {
+                IO::println("    - " + f);
+            }
+        }
     }
 
-    public bool allPassed() {
-        return this.failed == 0;
+    // Return a summary string for this suite.
+    public String summary() {
+        return this.name + ": " + Integer::toString(this.passed) + " passed, " + Integer::toString(this.failed) + " failed";
     }
 }
