@@ -232,6 +232,10 @@ pub enum OpCode {
     // -- Tuples ---------------------------------------------------------------
     TUPLE_NEW = 124,
     TUPLE_GET = 125,
+
+    // -- Closure capture ------------------------------------------------------
+    CLOSURE_NEW_CAPTURED = 126,
+    CLOSURE_CAPTURE      = 127,
 }
 
 impl OpCode {
@@ -307,6 +311,10 @@ impl OpCode {
             Self::TUPLE_NEW => 2, // u16 element count
             Self::TUPLE_GET => 1, // u8 element index
 
+            // Closure capture
+            Self::CLOSURE_NEW_CAPTURED => 3, // u16 function index + u8 captured count
+            Self::CLOSURE_CAPTURE      => 1, // u8 local slot index
+
             // Everything else: no operands
             _ => 0,
         }
@@ -330,7 +338,7 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Validate that the value falls within the defined opcode range.
         match value {
-            0..=125 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
+            0..=127 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
             _ => Err(value),
         }
     }
@@ -517,9 +525,9 @@ mod tests {
     // Helper – iterate all defined OpCode variants via discriminant range.
     impl OpCode {
         fn variants() -> &'static [OpCode] {
-            // Since OpCode is repr(u8) and contiguous 0..=122, we can build
+            // Since OpCode is repr(u8) and contiguous 0..=127, we can build
             // the list at test time via try_from.
-            (0u8..=125)
+            (0u8..=127)
                 .map(|v| OpCode::try_from(v).expect("valid opcode"))
                 .collect::<Vec<_>>()
                 .leak()
