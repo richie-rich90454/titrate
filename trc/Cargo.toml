@@ -1,6 +1,6 @@
 [package]
 name = "trc"
-version = "0.1.0"
+version = "0.3.0-alpha"
 edition = "2021"
 description = "Titrate language compiler and interpreter"
 
