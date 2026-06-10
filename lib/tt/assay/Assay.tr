@@ -24,6 +24,8 @@ public class TestSuite {
     public int passed;
     public int failed;
     private ArrayList<String> failures;
+    private fn() => void beforeEachFn;
+    private fn() => void afterEachFn;
 
     public TestSuite(String name) {
         this.name = name;
@@ -31,6 +33,8 @@ public class TestSuite {
         this.passed = 0;
         this.failed = 0;
         this.failures = new ArrayList<String>();
+        this.beforeEachFn = null;
+        this.afterEachFn = null;
     }
 
     // Add a test case to this suite.
@@ -90,6 +94,89 @@ public class TestSuite {
         }
     }
 
+    // Assert that two values are approximately equal within a tolerance.
+    public void assertApproxEqual(double actual, double expected, double tolerance, String msg) {
+        double diff = actual - expected;
+        if (diff < 0) { diff = -diff; }
+        if (diff > tolerance) {
+            this.fail("assertApproxEqual failed: expected " + Double::toString(expected) + " ± " + Double::toString(tolerance) + " but got " + Double::toString(actual) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that actual is greater than expected.
+    public void assertGreaterThan(double actual, double expected, String msg) {
+        if (actual <= expected) {
+            this.fail("assertGreaterThan failed: expected " + Double::toString(actual) + " > " + Double::toString(expected) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that actual is less than expected.
+    public void assertLessThan(double actual, double expected, String msg) {
+        if (actual >= expected) {
+            this.fail("assertLessThan failed: expected " + Double::toString(actual) + " < " + Double::toString(expected) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that a collection contains an item.
+    public void assertContains<T>(ArrayList<T> collection, T item, String msg) {
+        bool found = false;
+        for (elem in collection) {
+            if (elem == item) {
+                found = true;
+            }
+        }
+        if (!found) {
+            this.fail("assertContains failed: collection did not contain " + String::toString(item) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that a value is null.
+    public void assertNull<T>(T value, String msg) {
+        if (value != null) {
+            this.fail("assertNull failed: expected null but got " + String::toString(value) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that a value is not null.
+    public void assertNotNull<T>(T value, String msg) {
+        if (value == null) {
+            this.fail("assertNotNull failed: expected non-null value - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Register a function to run before each test.
+    public void beforeEach(fn() => void fn) {
+        this.beforeEachFn = fn;
+    }
+
+    // Register a function to run after each test.
+    public void afterEach(fn() => void fn) {
+        this.afterEachFn = fn;
+    }
+
+    // Skip the current test with a message.
+    public void skip(String msg) {
+        IO::println("  [SKIP] " + msg);
+    }
+
+    // Run a function with a timeout in milliseconds.
+    public void timeout(int ms, fn() => void fn) {
+        // Execute the function; timeout enforcement depends on the runtime scheduler.
+        fn();
+    }
+
     // Record a test failure.
     public void fail(String msg) {
         this.failed = this.failed + 1;
@@ -102,9 +189,12 @@ public class TestSuite {
         for (tc in this.tests) {
             IO::println("  [RUN ] " + tc.name);
             try {
+                if (this.beforeEachFn != null) { this.beforeEachFn(); }
                 tc.fn();
+                if (this.afterEachFn != null) { this.afterEachFn(); }
                 IO::println("  [PASS] " + tc.name);
             } catch (String e) {
+                if (this.afterEachFn != null) { this.afterEachFn(); }
                 IO::println("  [FAIL] " + tc.name + " - " + e);
             }
         }

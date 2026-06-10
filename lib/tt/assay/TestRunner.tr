@@ -7,9 +7,11 @@ import tt::assay::Assay;
 // Runner for executing multiple TestSuites.
 public class TestRunner {
     public ArrayList<TestSuite> suites;
+    private int totalFailed;
 
     public TestRunner() {
         this.suites = new ArrayList<TestSuite>();
+        this.totalFailed = 0;
     }
 
     // Add a test suite to the runner.
@@ -21,22 +23,77 @@ public class TestRunner {
     public void runAll() {
         IO::println("=== Running All Test Suites ===");
         int totalPassed = 0;
-        int totalFailed = 0;
+        this.totalFailed = 0;
         for (suite in this.suites) {
             suite.run();
             totalPassed = totalPassed + suite.passed;
-            totalFailed = totalFailed + suite.failed;
+            this.totalFailed = this.totalFailed + suite.failed;
             IO::println("");
         }
         IO::println("=== Overall Results ===");
         IO::println("Total passed: " + Integer::toString(totalPassed));
-        IO::println("Total failed: " + Integer::toString(totalFailed));
-        if (totalFailed == 0) {
+        IO::println("Total failed: " + Integer::toString(this.totalFailed));
+        if (this.totalFailed == 0) {
             IO::println("All tests passed!");
         } else {
             IO::println("Some tests failed.");
         }
         IO::println("======================");
+    }
+
+    // Filter test suites by name pattern.
+    public void filterByName(String pattern) {
+        ArrayList<TestSuite> filtered = new ArrayList<TestSuite>();
+        for (suite in this.suites) {
+            if (String::contains(suite.name, pattern)) {
+                filtered.add(suite);
+            }
+        }
+        this.suites = filtered;
+    }
+
+    // Return the exit code: 0 if all tests passed, 1 otherwise.
+    public int exitCode() {
+        if (this.totalFailed == 0) {
+            return 0;
+        }
+        return 1;
+    }
+
+    // List all registered test names.
+    public void listTests() {
+        IO::println("=== Test List ===");
+        for (suite in this.suites) {
+            IO::println("Suite: " + suite.name);
+            for (tc in suite.tests) {
+                IO::println("  - " + tc.name);
+            }
+        }
+        IO::println("=================");
+    }
+
+    // Run a single test by name across all suites.
+    public void runSingle(String name) {
+        IO::println("=== Running Single Test: " + name + " ===");
+        bool found = false;
+        for (suite in this.suites) {
+            for (tc in suite.tests) {
+                if (tc.name == name) {
+                    found = true;
+                    IO::println("  [RUN ] " + tc.name);
+                    try {
+                        tc.fn();
+                        IO::println("  [PASS] " + tc.name);
+                    } catch (String e) {
+                        IO::println("  [FAIL] " + tc.name + " - " + e);
+                    }
+                }
+            }
+        }
+        if (!found) {
+            IO::println("  Test not found: " + name);
+        }
+        IO::println("=================================");
     }
 
     // Discover and run test files matching a glob pattern.
