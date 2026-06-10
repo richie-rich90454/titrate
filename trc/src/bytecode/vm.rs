@@ -11,6 +11,11 @@ use super::frame::{ClassDef, EnumDef, Frame, FunctionDef};
 use super::opcodes::{CastTarget, Chunk, OpCode, TypeTag};
 use super::value::{NativeFn, Value};
 use chrono::{Datelike, Timelike};
+use md5::{Digest, Md5};
+use sha1::Sha1;
+use sha2::Sha256;
+use base64::{Engine as _, engine::general_purpose};
+use percent_encoding::{utf8_percent_encode, percent_decode_str, NON_ALPHANUMERIC};
 
 // ---------------------------------------------------------------------------
 // Virtual machine
@@ -188,6 +193,23 @@ impl Vm {
         vm.register_native("String_endsWith", native_string_ends_with);
         vm.register_native("String_padLeft", native_string_pad_left);
         vm.register_native("String_padRight", native_string_pad_right);
+
+        // Hash natives
+        vm.register_native("Hash_md5", native_hash_md5);
+        vm.register_native("Hash_sha1", native_hash_sha1);
+        vm.register_native("Hash_sha256", native_hash_sha256);
+
+        // Base64 natives
+        vm.register_native("Base64_encode", native_base64_encode);
+        vm.register_native("Base64_decode", native_base64_decode);
+
+        // Hex natives
+        vm.register_native("Hex_encode", native_hex_encode);
+        vm.register_native("Hex_decode", native_hex_decode);
+
+        // URL encoding natives
+        vm.register_native("Url_encode", native_url_encode);
+        vm.register_native("Url_decode", native_url_decode);
 
         vm
     }
