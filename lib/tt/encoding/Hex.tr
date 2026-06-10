@@ -7,4 +7,20 @@ public class Hex {
     public static String decode(String input) {
         return Hex_decode(input);
     }
+
+    public static String encodeUpperCase(String data) {
+        return Hex_encodeUpperCase(data);
+    }
+
+    public static String encodeLowerCase(String data) {
+        return Hex_encodeLowerCase(data);
+    }
+
+    public static String encodeBytes(ArrayList<int> bytes) {
+        return Hex_encodeBytes(bytes);
+    }
+
+    public static ArrayList<int> decodeToBytes(String data) {
+        return Hex_decodeToBytes(data);
+    }
 }

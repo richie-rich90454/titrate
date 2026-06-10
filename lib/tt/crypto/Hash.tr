@@ -11,4 +11,29 @@ public class Hash {
     public static String sha256(String input) {
         return Hash_sha256(input);
     }
+
+    public static String sha384(String input) {
+        return Hash_sha384(input);
+    }
+
+    public static String sha512(String input) {
+        return Hash_sha512(input);
+    }
+
+    public static String hmac(String key, String data) {
+        return Hash_hmac(key, data);
+    }
+
+    public static String crc32(String data) {
+        return Hash_crc32(data);
+    }
+
+    public static String hashBytes(String algorithm, String data) {
+        if (algorithm == "md5") { return Hash_md5(data); }
+        if (algorithm == "sha1") { return Hash_sha1(data); }
+        if (algorithm == "sha256") { return Hash_sha256(data); }
+        if (algorithm == "sha384") { return Hash_sha384(data); }
+        if (algorithm == "sha512") { return Hash_sha512(data); }
+        return "";
+    }
 }

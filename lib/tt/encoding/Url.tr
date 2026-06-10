@@ -1,4 +1,7 @@
 // URL encoding and decoding backed by native implementations.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
 public class Url {
     public static String encode(String input) {
         return Url_encode(input);
@@ -6,5 +9,51 @@ public class Url {
 
     public static String decode(String input) {
         return Url_decode(input);
+    }
+
+    public static String encodeComponent(String s) {
+        return Url_encodeComponent(s);
+    }
+
+    public static String decodeComponent(String s) {
+        return Url_decodeComponent(s);
+    }
+
+    public static HashMap<String, String> parseQueryString(String qs) {
+        HashMap<String, String> result = new HashMap<String, String>();
+        if (qs == null || qs.length() == 0) {
+            return result;
+        }
+        // Remove leading '?' if present
+        if (qs.charAt(0) == '?') {
+            qs = qs.substring(1);
+        }
+        ArrayList<String> pairs = String::split(qs, "&");
+        for (pair in pairs) {
+            ArrayList<String> kv = String::split(pair, "=");
+            if (kv.size() >= 2) {
+                String key = Url_decodeComponent(kv.get(0));
+                String value = Url_decodeComponent(kv.get(1));
+                result.put(key, value);
+            } else if (kv.size() == 1 && kv.get(0).length() > 0) {
+                String key = Url_decodeComponent(kv.get(0));
+                result.put(key, "");
+            }
+        }
+        return result;
+    }
+
+    public static String buildQueryString(HashMap<String, String> map) {
+        String result = "";
+        ArrayList<String> keys = map.keys();
+        bool first = true;
+        for (key in keys) {
+            if (!first) {
+                result = result + "&";
+            }
+            result = result + Url_encodeComponent(key) + "=" + Url_encodeComponent(map.get(key));
+            first = false;
+        }
+        return result;
     }
 }

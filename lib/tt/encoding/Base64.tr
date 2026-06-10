@@ -7,4 +7,29 @@ public class Base64 {
     public static String decode(String input) {
         return Base64_decode(input);
     }
+
+    public static String encodeUrlSafe(String data) {
+        return Base64_encodeUrlSafe(data);
+    }
+
+    public static String decodeUrlSafe(String data) {
+        return Base64_decodeUrlSafe(data);
+    }
+
+    public static String encodeWithoutPadding(String data) {
+        String encoded = Base64_encode(data);
+        // Remove trailing '=' padding characters
+        while (encoded.length() > 0 && encoded.charAt(encoded.length() - 1) == '=') {
+            encoded = encoded.substring(0, encoded.length() - 1);
+        }
+        return encoded;
+    }
+
+    public static String encodeBytes(ArrayList<int> bytes) {
+        return Base64_encodeBytes(bytes);
+    }
+
+    public static ArrayList<int> decodeToBytes(String data) {
+        return Base64_decodeToBytes(data);
+    }
 }
