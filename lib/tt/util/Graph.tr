@@ -210,4 +210,204 @@ public class Graph<V> {
     private String _edgeKey(V from, V to) {
         return toString(from) + "->" + toString(to);
     }
+
+    public ArrayList<V> topologicalSort() {
+        ArrayList<V> result = new ArrayList<V>();
+        HashMap<V, int> inDegree = new HashMap<V, int>();
+        ArrayList<V> allVertices = this.adj.keys();
+        int i = 0;
+        while (i < allVertices.size()) {
+            V v = allVertices.get(i);
+            inDegree.put(v, 0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < allVertices.size()) {
+            V v = allVertices.get(i);
+            ArrayList<V> nbrs = this.adj.get(v);
+            int j = 0;
+            while (j < nbrs.size()) {
+                V neighbor = nbrs.get(j);
+                inDegree.put(neighbor, inDegree.get(neighbor) + 1);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        Queue<V> queue = new Queue<V>();
+        i = 0;
+        while (i < allVertices.size()) {
+            V v = allVertices.get(i);
+            if (inDegree.get(v) == 0) {
+                queue.enqueue(v);
+            }
+            i = i + 1;
+        }
+        while (!queue.isEmpty()) {
+            V current = queue.dequeue();
+            result.add(current);
+            ArrayList<V> nbrs = this.adj.get(current);
+            int j = 0;
+            while (j < nbrs.size()) {
+                V neighbor = nbrs.get(j);
+                inDegree.put(neighbor, inDegree.get(neighbor) - 1);
+                if (inDegree.get(neighbor) == 0) {
+                    queue.enqueue(neighbor);
+                }
+                j = j + 1;
+            }
+        }
+        return result;
+    }
+
+    public ArrayList<V> shortestPath(V from, V to) {
+        if (!this.adj.containsKey(from) || !this.adj.containsKey(to)) {
+            return new ArrayList<V>();
+        }
+        HashMap<V, V> prev = new HashMap<V, V>();
+        Set<V> visited = new Set<V>();
+        Queue<V> queue = new Queue<V>();
+        visited.add(from);
+        queue.enqueue(from);
+        while (!queue.isEmpty()) {
+            V current = queue.dequeue();
+            if (current == to) {
+                break;
+            }
+            ArrayList<V> nbrs = this.adj.get(current);
+            int j = 0;
+            while (j < nbrs.size()) {
+                V neighbor = nbrs.get(j);
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    prev.put(neighbor, current);
+                    queue.enqueue(neighbor);
+                }
+                j = j + 1;
+            }
+        }
+        if (!prev.containsKey(to) && from != to) {
+            return new ArrayList<V>();
+        }
+        ArrayList<V> path = new ArrayList<V>();
+        V node = to;
+        while (node != null) {
+            path.add(0, node);
+            if (node == from) {
+                break;
+            }
+            node = prev.get(node);
+        }
+        return path;
+    }
+
+    public HashMap<V, int> dijkstra(V start) {
+        HashMap<V, int> dist = new HashMap<V, int>();
+        ArrayList<V> allVertices = this.adj.keys();
+        int i = 0;
+        while (i < allVertices.size()) {
+            dist.put(allVertices.get(i), 999999999);
+            i = i + 1;
+        }
+        dist.put(start, 0);
+        Set<V> visited = new Set<V>();
+        int n = allVertices.size();
+        i = 0;
+        while (i < n) {
+            V u = null;
+            int minDist = 999999999;
+            int j = 0;
+            while (j < allVertices.size()) {
+                V v = allVertices.get(j);
+                if (!visited.contains(v) && dist.get(v) < minDist) {
+                    minDist = dist.get(v);
+                    u = v;
+                }
+                j = j + 1;
+            }
+            if (u == null) {
+                break;
+            }
+            visited.add(u);
+            ArrayList<V> nbrs = this.adj.get(u);
+            j = 0;
+            while (j < nbrs.size()) {
+                V neighbor = nbrs.get(j);
+                int alt = dist.get(u) + 1;
+                if (alt < dist.get(neighbor)) {
+                    dist.put(neighbor, alt);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return dist;
+    }
+
+    public bool isConnected() {
+        ArrayList<V> allVertices = this.adj.keys();
+        if (allVertices.size() == 0) {
+            return true;
+        }
+        ArrayList<V> traversal = this.bfs(allVertices.get(0));
+        return traversal.size() == allVertices.size();
+    }
+
+    public bool isCyclic() {
+        ArrayList<V> allVertices = this.adj.keys();
+        Set<V> visited = new Set<V>();
+        Set<V> recStack = new Set<V>();
+        int i = 0;
+        while (i < allVertices.size()) {
+            V v = allVertices.get(i);
+            if (!visited.contains(v)) {
+                if (this._isCyclicDFS(v, visited, recStack)) {
+                    return true;
+                }
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    private bool _isCyclicDFS(V node, Set<V> visited, Set<V> recStack) {
+        visited.add(node);
+        recStack.add(node);
+        ArrayList<V> nbrs = this.adj.get(node);
+        int i = 0;
+        while (i < nbrs.size()) {
+            V neighbor = nbrs.get(i);
+            if (!visited.contains(neighbor)) {
+                if (this._isCyclicDFS(neighbor, visited, recStack)) {
+                    return true;
+                }
+            } else if (recStack.contains(neighbor)) {
+                return true;
+            }
+            i = i + 1;
+        }
+        recStack.remove(node);
+        return false;
+    }
+
+    public String toString() {
+        String s = "Graph({";
+        ArrayList<V> allVertices = this.adj.keys();
+        int i = 0;
+        while (i < allVertices.size()) {
+            if (i > 0) { s = s + ", "; }
+            V v = allVertices.get(i);
+            s = s + v + ": [";
+            ArrayList<V> nbrs = this.adj.get(v);
+            int j = 0;
+            while (j < nbrs.size()) {
+                if (j > 0) { s = s + ", "; }
+                s = s + nbrs.get(j);
+                j = j + 1;
+            }
+            s = s + "]";
+            i = i + 1;
+        }
+        s = s + "})";
+        return s;
+    }
 }

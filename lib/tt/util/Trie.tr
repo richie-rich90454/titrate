@@ -1,6 +1,7 @@
 // Trie (prefix tree) data structure for string keys.
 import tt::util::ArrayList;
 import tt::util::HashMap;
+import tt::util::ArrayListIterator;
 
 public class Trie {
     private HashMap<String, TrieNode> children;
@@ -72,6 +73,60 @@ public class Trie {
         }
         this._collectKeys(node, prefix, result);
         return result;
+    }
+
+    public String longestPrefixOf(String prefix) {
+        TrieNode node = this;
+        int lastEnd = 0;
+        int i = 0;
+        while (i < String_length(prefix)) {
+            String ch = String_charAt(prefix, i);
+            TrieNode next = node.children.get(ch);
+            if (next == null) {
+                break;
+            }
+            node = next;
+            i = i + 1;
+            if (node.isEnd) {
+                lastEnd = i;
+            }
+        }
+        if (lastEnd == 0) {
+            return "";
+        }
+        return prefix.substring(0, lastEnd);
+    }
+
+    public ArrayList<String> keys() {
+        ArrayList<String> result = new ArrayList<String>();
+        this._collectKeys(this, "", result);
+        return result;
+    }
+
+    public ArrayList<String> values() {
+        return this.keys();
+    }
+
+    public ArrayList<(String, String)> entries() {
+        ArrayList<String> allKeys = this.keys();
+        ArrayList<(String, String)> result = new ArrayList<(String, String)>();
+        int i = 0;
+        while (i < allKeys.size()) {
+            String key = allKeys.get(i);
+            result.add((key, key));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public void clear() {
+        this.children = new HashMap<String, TrieNode>();
+        this.isEnd = false;
+        this._size = 0;
+    }
+
+    public ArrayListIterator<String> iterator() {
+        return new ArrayListIterator<String>(this.keys());
     }
 
     private TrieNode _findNode(String word) {
