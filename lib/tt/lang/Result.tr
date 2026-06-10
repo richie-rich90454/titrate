@@ -69,4 +69,70 @@ public class Result<T, E> {
         }
         return this;
     }
+
+    public E unwrapErr() {
+        if (!this.isOk) {
+            return this.errValue;
+        }
+        return null;
+    }
+
+    public T expect(String msg) {
+        if (this.isOk) {
+            return this.okValue;
+        }
+        return null;
+    }
+
+    public E expectErr(String msg) {
+        if (!this.isOk) {
+            return this.errValue;
+        }
+        return null;
+    }
+
+    // Flatten a nested Result<Result<T, E>, E> into Result<T, E>
+    public Result<T, E> flatten() {
+        if (this.isOk) {
+            // If the okValue is itself a Result, unwrap it
+            Object val = this.okValue;
+            if (val instanceof Result) {
+                Result<T, E> inner = (Result<T, E>) val;
+                if (inner.isOk) {
+                    return Result<T, E>::ok(inner.okValue);
+                }
+                return Result<T, E>::err(inner.errValue);
+            }
+            return this;
+        }
+        return this;
+    }
+
+    public bool isOkAnd(function<bool(T)> fn) {
+        if (this.isOk) {
+            return fn(this.okValue);
+        }
+        return false;
+    }
+
+    public bool isErrAnd(function<bool(E)> fn) {
+        if (!this.isOk) {
+            return fn(this.errValue);
+        }
+        return false;
+    }
+
+    public Result<T, E> inspect(function<void(T)> fn) {
+        if (this.isOk) {
+            fn(this.okValue);
+        }
+        return this;
+    }
+
+    public Result<T, E> inspectErr(function<void(E)> fn) {
+        if (!this.isOk) {
+            fn(this.errValue);
+        }
+        return this;
+    }
 }
