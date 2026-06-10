@@ -1,0 +1,131 @@
+// Logger provides Python-style logging with configurable handlers and formatters.
+import tt::util::ArrayList;
+import tt::io::File;
+
+// Formatter controls the layout of log messages.
+public class Formatter {
+    public String format(String level, String message, String timestamp) {
+        return "[" + timestamp + "] " + level + ": " + message;
+    }
+}
+
+// Handler interface for processing log records.
+interface Handler {
+    fn handle(String level, String message, String timestamp): void;
+}
+
+// ConsoleHandler prints log messages to stderr.
+public class ConsoleHandler implements Handler {
+    public Formatter formatter;
+
+    public ConsoleHandler() {
+        this.formatter = new Formatter();
+    }
+
+    public ConsoleHandler(Formatter formatter) {
+        this.formatter = formatter;
+    }
+
+    public void handle(String level, String message, String timestamp) {
+        String formatted = this.formatter.format(level, message, timestamp);
+        ConsoleHandler._printStderr(formatted);
+    }
+
+    private static void _printStderr(String text) {
+        Sys_stderr(text);
+    }
+}
+
+// FileHandler appends log messages to a file.
+public class FileHandler implements Handler {
+    public Formatter formatter;
+    private String filePath;
+
+    public FileHandler(String path) {
+        this.formatter = new Formatter();
+        this.filePath = path;
+    }
+
+    public FileHandler(String path, Formatter formatter) {
+        this.formatter = formatter;
+        this.filePath = path;
+    }
+
+    public void handle(String level, String message, String timestamp) {
+        String formatted = this.formatter.format(level, message, timestamp);
+        File file = new File(this.filePath);
+        file.append(formatted + "\n");
+    }
+}
+
+// Logger manages log levels and dispatches to handlers.
+public class Logger {
+    public String name;
+    public String level;
+    public ArrayList<Handler> handlers;
+
+    private static int _levelValue(String lvl) {
+        if (lvl == "DEBUG") { return 10; }
+        if (lvl == "INFO") { return 20; }
+        if (lvl == "WARNING") { return 30; }
+        if (lvl == "ERROR") { return 40; }
+        if (lvl == "CRITICAL") { return 50; }
+        return 0;
+    }
+
+    public Logger(String name) {
+        this.name = name;
+        this.level = "WARNING";
+        this.handlers = new ArrayList<Handler>();
+    }
+
+    public Logger(String name, String level) {
+        this.name = name;
+        this.level = level;
+        this.handlers = new ArrayList<Handler>();
+    }
+
+    public void setLevel(String level) {
+        this.level = level;
+    }
+
+    public void addHandler(Handler handler) {
+        this.handlers.add(handler);
+    }
+
+    public void debug(String msg) {
+        Logger._log(this, "DEBUG", msg);
+    }
+
+    public void info(String msg) {
+        Logger._log(this, "INFO", msg);
+    }
+
+    public void warning(String msg) {
+        Logger._log(this, "WARNING", msg);
+    }
+
+    public void error(String msg) {
+        Logger._log(this, "ERROR", msg);
+    }
+
+    public void critical(String msg) {
+        Logger._log(this, "CRITICAL", msg);
+    }
+
+    private static void _log(Logger self, String level, String msg) {
+        if (Logger._levelValue(level) < Logger._levelValue(self.level)) {
+            return;
+        }
+        String timestamp = Logger._timestamp();
+        int i = 0;
+        while (i < self.handlers.size()) {
+            self.handlers.get(i).handle(level, msg, timestamp);
+            i = i + 1;
+        }
+    }
+
+    private static String _timestamp() {
+        return DateTime_now();
+    }
+}
