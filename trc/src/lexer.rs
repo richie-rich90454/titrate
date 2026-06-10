@@ -120,6 +120,8 @@ pub enum Token {
     FatArrow,
     Question,
     Dot,
+    DotDot,
+    DotDotEq,
     Comma,
     Semicolon,
     Colon,
@@ -135,7 +137,9 @@ pub enum Token {
     IntLiteral(i64),
     FloatLiteral { value: f64, suffix: Option<FloatSuffix> },
     StringLiteral(String),
+    RawStringLiteral(String),
     CharLiteral(char),
+    ByteLiteral(u8),
     BoolLiteral(bool),
     NullLiteral,
 
@@ -236,6 +240,8 @@ impl fmt::Display for Token {
             Token::FatArrow => write!(f, "=>"),
             Token::Question => write!(f, "?"),
             Token::Dot => write!(f, "."),
+            Token::DotDot => write!(f, ".."),
+            Token::DotDotEq => write!(f, "..="),
             Token::Comma => write!(f, ","),
             Token::Semicolon => write!(f, ";"),
             Token::Colon => write!(f, ":"),
@@ -256,7 +262,9 @@ impl fmt::Display for Token {
                 }
             }
             Token::StringLiteral(s) => write!(f, "\"{}\"", s),
+            Token::RawStringLiteral(s) => write!(f, "r\"{}\"", s),
             Token::CharLiteral(c) => write!(f, "'{}'", c),
+            Token::ByteLiteral(v) => write!(f, "b'{}'", v),
             Token::BoolLiteral(b) => write!(f, "{}", b),
             Token::NullLiteral => write!(f, "null"),
             Token::Identifier(s) => write!(f, "{}", s),
@@ -693,6 +701,167 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
 
             // Identifiers and keywords
             'a'..='z' | 'A'..='Z' | '_' => {
+                // Check for raw string literal: r"..." or r#"..."#
+                if ch == 'r' {
+                    let next = chars.clone().nth(1);
+                    if next == Some('"') || next == Some('#') {
+                        chars.next(); // consume 'r'
+                        column += 1;
+
+                        // Count the number of '#' delimiters
+                        let mut hash_count = 0;
+                        while chars.peek() == Some(&'#') {
+                            chars.next();
+                            column += 1;
+                            hash_count += 1;
+                        }
+
+                        // Expect opening '"'
+                        if chars.peek() != Some(&'"') {
+                            return Err(format!(
+                                "Expected opening '\"' in raw string at {}:{}",
+                                start_line, start_col
+                            ));
+                        }
+                        chars.next(); // consume '"'
+                        column += 1;
+
+                        // Build the closing pattern: '"' + hash_count '#'
+                        let closing: String = format!("\"{}", "#".repeat(hash_count));
+                        let mut s = String::new();
+                        let mut closed = false;
+                        while let Some(&c) = chars.peek() {
+                            // Check if we've reached the closing delimiter
+                            if c == '"' {
+                                let ahead: String = chars.clone().take(closing.len()).collect();
+                                if ahead == closing {
+                                    // Consume the closing delimiter
+                                    for _ in 0..closing.len() {
+                                        chars.next();
+                                        column += 1;
+                                    }
+                                    closed = true;
+                                    break;
+                                }
+                            }
+                            if c == '\n' {
+                                line += 1;
+                                column = 1;
+                            } else {
+                                column += 1;
+                            }
+                            s.push(c);
+                            chars.next();
+                        }
+                        if !closed {
+                            return Err(format!(
+                                "Unterminated raw string at {}:{}",
+                                start_line, start_col
+                            ));
+                        }
+                        tokens.push(SpannedToken {
+                            token: Token::RawStringLiteral(s),
+                            line: start_line,
+                            column: start_col,
+                        });
+                        continue;
+                    }
+                }
+
+                // Check for byte literal: b'x'
+                if ch == 'b' {
+                    let next = chars.clone().nth(1);
+                    if next == Some('\'') {
+                        chars.next(); // consume 'b'
+                        column += 1;
+                        chars.next(); // consume opening '\''
+                        column += 1;
+
+                        let byte_val = match chars.peek() {
+                            Some('\\') => {
+                                chars.next(); // consume '\'
+                                column += 1;
+                                match chars.peek() {
+                                    Some('n') => { chars.next(); column += 1; b'\n' }
+                                    Some('t') => { chars.next(); column += 1; b'\t' }
+                                    Some('r') => { chars.next(); column += 1; b'\r' }
+                                    Some('\\') => { chars.next(); column += 1; b'\\' }
+                                    Some('\'') => { chars.next(); column += 1; b'\'' }
+                                    Some('"') => { chars.next(); column += 1; b'"' }
+                                    Some('0') => { chars.next(); column += 1; b'\0' }
+                                    Some('x') => {
+                                        chars.next(); // consume 'x'
+                                        column += 1;
+                                        let hex1 = chars.peek().and_then(|c| c.to_digit(16));
+                                        let hex2 = chars.clone().nth(1).and_then(|c| c.to_digit(16));
+                                        match (hex1, hex2) {
+                                            (Some(h1), Some(h2)) => {
+                                                chars.next(); column += 1;
+                                                chars.next(); column += 1;
+                                                (h1 * 16 + h2) as u8
+                                            }
+                                            _ => {
+                                                return Err(format!(
+                                                    "Invalid hex escape in byte literal at {}:{}",
+                                                    start_line, start_col
+                                                ));
+                                            }
+                                        }
+                                    }
+                                    Some(&other) => {
+                                        return Err(format!(
+                                            "Unknown byte escape \\{} at {}:{}",
+                                            other, start_line, start_col
+                                        ));
+                                    }
+                                    None => {
+                                        return Err(format!(
+                                            "Unterminated byte literal at {}:{}",
+                                            start_line, start_col
+                                        ));
+                                    }
+                                }
+                            }
+                            Some(&c) if c.is_ascii() && c != '\'' => {
+                                chars.next();
+                                column += 1;
+                                c as u8
+                            }
+                            Some(_) => {
+                                return Err(format!(
+                                    "Invalid byte literal character at {}:{}",
+                                    start_line, start_col
+                                ));
+                            }
+                            None => {
+                                return Err(format!(
+                                    "Unterminated byte literal at {}:{}",
+                                    start_line, start_col
+                                ));
+                            }
+                        };
+
+                        match chars.peek() {
+                            Some('\'') => {
+                                chars.next();
+                                column += 1;
+                            }
+                            _ => {
+                                return Err(format!(
+                                    "Expected closing quote for byte literal at {}:{}",
+                                    start_line, start_col
+                                ));
+                            }
+                        }
+                        tokens.push(SpannedToken {
+                            token: Token::ByteLiteral(byte_val),
+                            line: start_line,
+                            column: start_col,
+                        });
+                        continue;
+                    }
+                }
+
                 let mut ident = String::new();
                 while let Some(&c) = chars.peek() {
                     match c {
@@ -1048,11 +1217,31 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
             '.' => {
                 chars.next();
                 column += 1;
-                tokens.push(SpannedToken {
-                    token: Token::Dot,
-                    line: start_line,
-                    column: start_col,
-                });
+                if chars.peek() == Some(&'.') {
+                    chars.next();
+                    column += 1;
+                    if chars.peek() == Some(&'=') {
+                        chars.next();
+                        column += 1;
+                        tokens.push(SpannedToken {
+                            token: Token::DotDotEq,
+                            line: start_line,
+                            column: start_col,
+                        });
+                    } else {
+                        tokens.push(SpannedToken {
+                            token: Token::DotDot,
+                            line: start_line,
+                            column: start_col,
+                        });
+                    }
+                } else {
+                    tokens.push(SpannedToken {
+                        token: Token::Dot,
+                        line: start_line,
+                        column: start_col,
+                    });
+                }
             }
             ',' => {
                 chars.next();
@@ -1303,5 +1492,202 @@ mod tests {
         // operator+ should be a single identifier token
         assert!(token_kinds.contains(&&Token::Identifier("operator+".to_string())),
             "Expected operator+ identifier, got: {:?}", token_kinds);
+    }
+
+    // -----------------------------------------------------------------------
+    // Raw string literal tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_raw_string_simple() {
+        let src = r##"r"hello world""##;
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::RawStringLiteral("hello world".to_string()));
+    }
+
+    #[test]
+    fn test_raw_string_with_hash() {
+        let src = r###"r#"hello "world""#"###;
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::RawStringLiteral("hello \"world\"".to_string()));
+    }
+
+    #[test]
+    fn test_raw_string_no_escapes() {
+        let src = r##"r"hello\nworld""##;
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        // Raw strings do NOT process escapes — \n stays literal
+        assert_eq!(tokens[0].token, Token::RawStringLiteral("hello\\nworld".to_string()));
+    }
+
+    #[test]
+    fn test_raw_string_double_hash() {
+        let src = r####"r##"contains #"# hash"##"####;
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::RawStringLiteral("contains #\"# hash".to_string()));
+    }
+
+    #[test]
+    fn test_raw_string_empty() {
+        let src = "r\"\"";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::RawStringLiteral("".to_string()));
+    }
+
+    #[test]
+    fn test_raw_string_vs_identifier() {
+        // 'r' followed by a letter should be an identifier, not a raw string
+        let src = "return result";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::Return);
+        assert_eq!(tokens[1].token, Token::Identifier("result".to_string()));
+    }
+
+    // -----------------------------------------------------------------------
+    // Byte literal tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_byte_literal_simple() {
+        let src = "b'x'";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::ByteLiteral(b'x'));
+    }
+
+    #[test]
+    fn test_byte_literal_escape() {
+        let src = "b'\\n'";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::ByteLiteral(b'\n'));
+    }
+
+    #[test]
+    fn test_byte_literal_backslash() {
+        let src = "b'\\\\'";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::ByteLiteral(b'\\'));
+    }
+
+    #[test]
+    fn test_byte_literal_hex_escape() {
+        let src = "b'\\x41'";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::ByteLiteral(0x41));
+    }
+
+    #[test]
+    fn test_byte_literal_vs_identifier() {
+        // 'b' followed by a letter should be an identifier, not a byte literal
+        let src = "bool byte";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::Bool);
+        assert_eq!(tokens[1].token, Token::Byte);
+    }
+
+    // -----------------------------------------------------------------------
+    // Underscore in numeric literals tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_underscore_decimal() {
+        let src = "1_000_000";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::IntLiteral(1000000));
+    }
+
+    #[test]
+    fn test_underscore_hex() {
+        let src = "0xFF_FF";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::IntLiteral(0xFFFF));
+    }
+
+    #[test]
+    fn test_underscore_binary() {
+        let src = "0b1010_1100";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::IntLiteral(0b10101100));
+    }
+
+    #[test]
+    fn test_underscore_octal() {
+        let src = "0o777_000";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::IntLiteral(0o777000));
+    }
+
+    #[test]
+    fn test_underscore_float() {
+        let src = "1_000.5_0";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::FloatLiteral { value: 1000.50, suffix: None });
+    }
+
+    // -----------------------------------------------------------------------
+    // Binary and octal literal tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_binary_literal() {
+        let src = "0b1010";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::IntLiteral(10));
+    }
+
+    #[test]
+    fn test_binary_literal_uppercase() {
+        let src = "0B1100";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::IntLiteral(12));
+    }
+
+    #[test]
+    fn test_octal_literal() {
+        let src = "0o777";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::IntLiteral(511));
+    }
+
+    #[test]
+    fn test_octal_literal_uppercase() {
+        let src = "0O123";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::IntLiteral(83));
+    }
+
+    // -----------------------------------------------------------------------
+    // Range token tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_dot_dot() {
+        let src = "1..10";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert!(token_kinds.contains(&&Token::DotDot), "Expected DotDot token, got: {:?}", token_kinds);
+        assert_eq!(token_kinds[0], &Token::IntLiteral(1));
+        assert_eq!(token_kinds[1], &Token::DotDot);
+        assert_eq!(token_kinds[2], &Token::IntLiteral(10));
+    }
+
+    #[test]
+    fn test_dot_dot_eq() {
+        let src = "1..=10";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert!(token_kinds.contains(&&Token::DotDotEq), "Expected DotDotEq token, got: {:?}", token_kinds);
+        assert_eq!(token_kinds[0], &Token::IntLiteral(1));
+        assert_eq!(token_kinds[1], &Token::DotDotEq);
+        assert_eq!(token_kinds[2], &Token::IntLiteral(10));
+    }
+
+    #[test]
+    fn test_dot_still_works() {
+        let src = "obj.field";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::Dot);
+    }
+
+    #[test]
+    fn test_float_not_range() {
+        let src = "1.5";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        assert_eq!(tokens[0].token, Token::FloatLiteral { value: 1.5, suffix: None });
     }
 }
