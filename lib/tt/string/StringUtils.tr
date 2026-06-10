@@ -1,0 +1,182 @@
+// StringUtils provides string constants and template substitution, mirroring Python's string module.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+public class StringUtils {
+    // String constants
+    public static String asciiLetters() {
+        return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    }
+
+    public static String asciiLowercase() {
+        return "abcdefghijklmnopqrstuvwxyz";
+    }
+
+    public static String asciiUppercase() {
+        return "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    }
+
+    public static String digits() {
+        return "0123456789";
+    }
+
+    public static String hexdigits() {
+        return "0123456789abcdefABCDEF";
+    }
+
+    public static String octdigits() {
+        return "01234567";
+    }
+
+    public static String punctuation() {
+        return "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+    }
+
+    public static String whitespace() {
+        return " \t\n\r\x0b\x0c";
+    }
+
+    public static String printable() {
+        return StringUtils.digits() + StringUtils.asciiLetters() + StringUtils.punctuation() + StringUtils.whitespace();
+    }
+
+    // Capitalize each word in the string.
+    public static String capwords(String s) {
+        if (s.length() == 0) { return s; }
+        ArrayList<String> words = String::split(s, " ");
+        String result = "";
+        int i = 0;
+        while (i < words.size()) {
+            if (i > 0) { result = result + " "; }
+            String word = words.get(i);
+            if (word.length() > 0) {
+                String first = String::toUpperCase(word.charAt(0));
+                String rest = "";
+                if (word.length() > 1) {
+                    rest = String::toLowerCase(String.substring(word, 1, word.length()));
+                }
+                result = result + first + rest;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// Template provides string substitution using $variable placeholders.
+public class Template {
+    public String template;
+
+    public Template(String template) {
+        this.template = template;
+    }
+
+    // Perform substitution using the map. Throws on missing keys.
+    public String substitute(HashMap<String, String> map) {
+        String result = "";
+        int i = 0;
+        while (i < this.template.length()) {
+            String c = this.template.charAt(i);
+            if (c == "$" && i + 1 < this.template.length()) {
+                String next = this.template.charAt(i + 1);
+                if (next == "{") {
+                    // Find closing brace
+                    int end = i + 2;
+                    while (end < this.template.length() && this.template.charAt(end) != "}") {
+                        end = end + 1;
+                    }
+                    if (end < this.template.length()) {
+                        String key = String.substring(this.template, i + 2, end);
+                        if (map.containsKey(key)) {
+                            result = result + map.get(key);
+                        }
+                        i = end + 1;
+                    } else {
+                        result = result + c;
+                        i = i + 1;
+                    }
+                } else if (next == "$") {
+                    result = result + "$";
+                    i = i + 2;
+                } else {
+                    // Identifier: collect alphanumeric and underscore characters
+                    int start = i + 1;
+                    int end = start;
+                    while (end < this.template.length()) {
+                        String ch = this.template.charAt(end);
+                        if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "_") {
+                            end = end + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    String key = String.substring(this.template, start, end);
+                    if (map.containsKey(key)) {
+                        result = result + map.get(key);
+                    }
+                    i = end;
+                }
+            } else {
+                result = result + c;
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    // Perform safe substitution: missing keys are left as-is.
+    public String safeSubstitute(HashMap<String, String> map) {
+        String result = "";
+        int i = 0;
+        while (i < this.template.length()) {
+            String c = this.template.charAt(i);
+            if (c == "$" && i + 1 < this.template.length()) {
+                String next = this.template.charAt(i + 1);
+                if (next == "{") {
+                    int end = i + 2;
+                    while (end < this.template.length() && this.template.charAt(end) != "}") {
+                        end = end + 1;
+                    }
+                    if (end < this.template.length()) {
+                        String key = String.substring(this.template, i + 2, end);
+                        if (map.containsKey(key)) {
+                            result = result + map.get(key);
+                        } else {
+                            result = result + "${" + key + "}";
+                        }
+                        i = end + 1;
+                    } else {
+                        result = result + c;
+                        i = i + 1;
+                    }
+                } else if (next == "$") {
+                    result = result + "$";
+                    i = i + 2;
+                } else {
+                    int start = i + 1;
+                    int end = start;
+                    while (end < this.template.length()) {
+                        String ch = this.template.charAt(end);
+                        if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "_") {
+                            end = end + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    String key = String.substring(this.template, start, end);
+                    if (map.containsKey(key)) {
+                        result = result + map.get(key);
+                    } else {
+                        result = result + "$" + key;
+                    }
+                    i = end;
+                }
+            } else {
+                result = result + c;
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+}

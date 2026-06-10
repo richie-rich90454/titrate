@@ -1,0 +1,123 @@
+// Html provides HTML escaping and unescaping, mirroring Python's html module.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class Html {
+    // Replace special characters with HTML entities.
+    // & -> &amp;, < -> &lt;, > -> &gt;, " -> &quot;, ' -> &#x27;
+    public static String escape(String s) {
+        String result = "";
+        int i = 0;
+        while (i < s.length()) {
+            String c = s.charAt(i);
+            if (c == "&") {
+                result = result + "&amp;";
+            } else if (c == "<") {
+                result = result + "&lt;";
+            } else if (c == ">") {
+                result = result + "&gt;";
+            } else if (c == "\"") {
+                result = result + "&quot;";
+            } else if (c == "'") {
+                result = result + "&#x27;";
+            } else {
+                result = result + c;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Replace HTML entities with their character equivalents.
+    public static String unescape(String s) {
+        String result = s;
+        // Named entities
+        result = String::replace(result, "&amp;", "&");
+        result = String::replace(result, "&lt;", "<");
+        result = String::replace(result, "&gt;", ">");
+        result = String::replace(result, "&quot;", "\"");
+        result = String::replace(result, "&#x27;", "'");
+        result = String::replace(result, "&apos;", "'");
+        result = String::replace(result, "&nbsp;", " ");
+        // Numeric decimal entities: &#NNN;
+        result = Html.unescapeNumeric(result);
+        return result;
+    }
+
+    // Helper: unescape numeric HTML entities (decimal &#NNN; and hex &#xHH;).
+    private static String unescapeNumeric(String s) {
+        String result = "";
+        int i = 0;
+        while (i < s.length()) {
+            if (s.charAt(i) == "&" && i + 1 < s.length() && s.charAt(i + 1) == "#") {
+                int end = i + 2;
+                bool isHex = false;
+                if (end < s.length() && (s.charAt(end) == "x" || s.charAt(end) == "X")) {
+                    isHex = true;
+                    end = end + 1;
+                }
+                int numStart = end;
+                while (end < s.length() && s.charAt(end) != ";") {
+                    end = end + 1;
+                }
+                if (end < s.length()) {
+                    String numStr = String.substring(s, numStart, end);
+                    int code = Html.parseEntityNumber(numStr, isHex);
+                    if (code > 0) {
+                        result = result + Html.codePointToString(code);
+                    } else {
+                        result = result + String.substring(s, i, end + 1);
+                    }
+                    i = end + 1;
+                } else {
+                    result = result + s.charAt(i);
+                    i = i + 1;
+                }
+            } else {
+                result = result + s.charAt(i);
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    // Parse a numeric entity value from string.
+    private static int parseEntityNumber(String s, bool isHex) {
+        if (s.length() == 0) { return -1; }
+        int result = 0;
+        if (isHex) {
+            int i = 0;
+            while (i < s.length()) {
+                String c = s.charAt(i);
+                result = result * 16;
+                if (c >= "0" && c <= "9") {
+                    result = result + (c.charAt(0) - "0".charAt(0));
+                } else if (c >= "a" && c <= "f") {
+                    result = result + 10 + (c.charAt(0) - "a".charAt(0));
+                } else if (c >= "A" && c <= "F") {
+                    result = result + 10 + (c.charAt(0) - "A".charAt(0));
+                } else {
+                    return -1;
+                }
+                i = i + 1;
+            }
+        } else {
+            int i = 0;
+            while (i < s.length()) {
+                String c = s.charAt(i);
+                if (c >= "0" && c <= "9") {
+                    result = result * 10 + (c.charAt(0) - "0".charAt(0));
+                } else {
+                    return -1;
+                }
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    // Convert a code point to a single-character string.
+    private static String codePointToString(int code) {
+        return Html_cpToString(code);
+    }
+}

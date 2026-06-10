@@ -1,0 +1,65 @@
+// Copy provides shallow and deep copy utilities, mirroring Python's copy module.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class Copy {
+    // Create a shallow copy of an object.
+    // For collections, copies the container but not the elements.
+    public static Object shallowCopy(Object obj) {
+        return Copy_shallow(obj);
+    }
+
+    // Create a deep copy of an object recursively.
+    // All nested objects are also copied.
+    public static Object deepCopy(Object obj) {
+        return Copy_deep(obj);
+    }
+
+    // Shallow copy an ArrayList.
+    public static ArrayList shallowCopyList(ArrayList list) {
+        ArrayList result = new ArrayList();
+        int i = 0;
+        while (i < list.size()) {
+            result.add(list.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Deep copy an ArrayList by recursively deep-copying each element.
+    public static ArrayList deepCopyList(ArrayList list) {
+        ArrayList result = new ArrayList();
+        int i = 0;
+        while (i < list.size()) {
+            result.add(Copy.deepCopy(list.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Shallow copy a HashMap.
+    public static HashMap shallowCopyMap(HashMap map) {
+        HashMap result = new HashMap();
+        ArrayList keys = map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            Object key = keys.get(i);
+            result.put(key, map.get(key));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Deep copy a HashMap by recursively deep-copying keys and values.
+    public static HashMap deepCopyMap(HashMap map) {
+        HashMap result = new HashMap();
+        ArrayList keys = map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            Object key = keys.get(i);
+            result.put(Copy.deepCopy(key), Copy.deepCopy(map.get(key)));
+            i = i + 1;
+        }
+        return result;
+    }
+}
