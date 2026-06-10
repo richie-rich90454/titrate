@@ -1,37 +1,161 @@
 // Doubly-linked list implementation.
 import tt::util::ArrayList;
 
+public class Node<E> {
+    public E value;
+    public Node<E> prev;
+    public Node<E> next;
+
+    public Node(E value) {
+        this.value = value;
+        this.prev = null;
+        this.next = null;
+    }
+}
+
 public class LinkedList<E> {
+    private Node<E> head;
+    private Node<E> tail;
     private int _size;
 
     public LinkedList() {
+        this.head = null;
+        this.tail = null;
         this._size = 0;
     }
 
     public void addFirst(E element) {
+        Node<E> node = new Node<E>(element);
+        if (this.head == null) {
+            this.head = node;
+            this.tail = node;
+        } else {
+            node.next = this.head;
+            this.head.prev = node;
+            this.head = node;
+        }
         this._size = this._size + 1;
     }
 
     public void addLast(E element) {
+        Node<E> node = new Node<E>(element);
+        if (this.tail == null) {
+            this.head = node;
+            this.tail = node;
+        } else {
+            node.prev = this.tail;
+            this.tail.next = node;
+            this.tail = node;
+        }
         this._size = this._size + 1;
     }
 
     public E removeFirst() {
+        if (this.head == null) {
+            return null;
+        }
+        E value = this.head.value;
+        this.head = this.head.next;
+        if (this.head == null) {
+            this.tail = null;
+        } else {
+            this.head.prev = null;
+        }
         this._size = this._size - 1;
-        return null;
+        return value;
     }
 
     public E removeLast() {
+        if (this.tail == null) {
+            return null;
+        }
+        E value = this.tail.value;
+        this.tail = this.tail.prev;
+        if (this.tail == null) {
+            this.head = null;
+        } else {
+            this.tail.next = null;
+        }
         this._size = this._size - 1;
-        return null;
+        return value;
     }
 
     public E getFirst() {
-        return null;
+        if (this.head == null) {
+            return null;
+        }
+        return this.head.value;
     }
 
     public E getLast() {
-        return null;
+        if (this.tail == null) {
+            return null;
+        }
+        return this.tail.value;
+    }
+
+    public E get(int index) {
+        Node<E> current = this._nodeAt(index);
+        if (current == null) {
+            return null;
+        }
+        return current.value;
+    }
+
+    public void add(int index, E value) {
+        if (index <= 0) {
+            this.addFirst(value);
+            return;
+        }
+        if (index >= this._size) {
+            this.addLast(value);
+            return;
+        }
+        Node<E> succ = this._nodeAt(index);
+        Node<E> node = new Node<E>(value);
+        Node<E> pred = succ.prev;
+        node.prev = pred;
+        node.next = succ;
+        pred.next = node;
+        succ.prev = node;
+        this._size = this._size + 1;
+    }
+
+    public E remove(int index) {
+        if (index < 0 || index >= this._size) {
+            return null;
+        }
+        if (index == 0) {
+            return this.removeFirst();
+        }
+        if (index == this._size - 1) {
+            return this.removeLast();
+        }
+        Node<E> node = this._nodeAt(index);
+        E value = node.value;
+        Node<E> pred = node.prev;
+        Node<E> succ = node.next;
+        pred.next = succ;
+        succ.prev = pred;
+        this._size = this._size - 1;
+        return value;
+    }
+
+    public int indexOf(E value) {
+        Node<E> current = this.head;
+        int i = 0;
+        while (current != null) {
+            if (current.value == value) {
+                return i;
+            }
+            current = current.next;
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public bool contains(E element) {
+        return this.indexOf(element) != -1;
     }
 
     public int size() {
@@ -42,11 +166,56 @@ public class LinkedList<E> {
         return this._size == 0;
     }
 
-    public bool contains(E element) {
-        return false;
+    public ArrayList<E> toArray() {
+        ArrayList<E> result = new ArrayList<E>();
+        Node<E> current = this.head;
+        while (current != null) {
+            result.add(current.value);
+            current = current.next;
+        }
+        return result;
     }
 
-    public ArrayList<E> toArray() {
-        return new ArrayList<E>();
+    public void clear() {
+        this.head = null;
+        this.tail = null;
+        this._size = 0;
+    }
+
+    public String toString() {
+        String s = "[";
+        Node<E> current = this.head;
+        int i = 0;
+        while (current != null) {
+            if (i > 0) { s = s + ", "; }
+            s = s + current.value;
+            current = current.next;
+            i = i + 1;
+        }
+        s = s + "]";
+        return s;
+    }
+
+    private Node<E> _nodeAt(int index) {
+        if (index < 0 || index >= this._size) {
+            return null;
+        }
+        Node<E> current;
+        if (index < this._size / 2) {
+            current = this.head;
+            int i = 0;
+            while (i < index) {
+                current = current.next;
+                i = i + 1;
+            }
+        } else {
+            current = this.tail;
+            int i = this._size - 1;
+            while (i > index) {
+                current = current.prev;
+                i = i - 1;
+            }
+        }
+        return current;
     }
 }
