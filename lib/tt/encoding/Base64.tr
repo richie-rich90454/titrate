@@ -1,0 +1,10 @@
+// Base64 encoding and decoding backed by native implementations.
+public class Base64 {
+    public static String encode(String input) {
+        return Base64_encode(input);
+    }
+
+    public static String decode(String input) {
+        return Base64_decode(input);
+    }
+}

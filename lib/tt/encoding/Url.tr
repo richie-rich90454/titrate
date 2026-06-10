@@ -1,0 +1,10 @@
+// URL encoding and decoding backed by native implementations.
+public class Url {
+    public static String encode(String input) {
+        return Url_encode(input);
+    }
+
+    public static String decode(String input) {
+        return Url_decode(input);
+    }
+}

@@ -1,0 +1,10 @@
+// Hex encoding and decoding backed by native implementations.
+public class Hex {
+    public static String encode(String input) {
+        return Hex_encode(input);
+    }
+
+    public static String decode(String input) {
+        return Hex_decode(input);
+    }
+}

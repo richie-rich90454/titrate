@@ -1,0 +1,14 @@
+// Cryptographic hash functions backed by native implementations.
+public class Hash {
+    public static String md5(String input) {
+        return Hash_md5(input);
+    }
+
+    public static String sha1(String input) {
+        return Hash_sha1(input);
+    }
+
+    public static String sha256(String input) {
+        return Hash_sha256(input);
+    }
+}
