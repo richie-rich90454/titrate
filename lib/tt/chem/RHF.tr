@@ -1,6 +1,7 @@
 import tt.util.ArrayList;
 import tt.chem.Atom;
 import tt.chem.Molecule;
+import tt.math.linalg.Matrix;
 import tt.math.Math;
 import tt.lang.Double;
 import tt.lang.Integer;
@@ -9,30 +10,39 @@ import tt.io.IO;
 public class RHF {
     public Molecule molecule;
     public int basisSize;
+    public int maxIterations;
+    public double convergenceThreshold;
+    public double nuclearRepulsion;
+    public ArrayList<ArrayList<double>> overlapMatrix;
+    public ArrayList<ArrayList<double>> coreHamiltonian;
+    public ArrayList<ArrayList<double>> densityMatrix;
+    public ArrayList<ArrayList<double>> fock;
+    public ArrayList<double> orbitalEnergies;
+    public double totalEnergy;
+    public bool converged;
+    public int iterations;
 
     public RHF(Molecule mol, int basisSize) {
         this.molecule = mol;
         this.basisSize = basisSize;
+        this.maxIterations = 100;
+        this.convergenceThreshold = 1e-6;
+        this.totalEnergy = 0.0;
+        this.converged = false;
+        this.iterations = 0;
+        this.orbitalEnergies = new ArrayList<double>();
+        this.nuclearRepulsion = this.computeNuclearRepulsion();
+        this.overlapMatrix = this.buildOverlapMatrix();
+        this.coreHamiltonian = this.buildCoreHamiltonian();
+        this.densityMatrix = this.makeZeroMatrix(basisSize);
+        this.fock = this.makeZeroMatrix(basisSize);
     }
 
-    // Simplified RHF computation using an empirical formula
-    // based on atom count and interatomic distances.
-    // E = sum_i E_atom(i) + sum_{i<j} E_pair(i,j)
-    // where E_atom = -Z^2 * 0.5 (hydrogen-like) and E_pair includes nuclear repulsion
-    public double compute() {
-        double energy = 0.0;
+    // Compute nuclear repulsion energy: sum_{i<j} Z_i * Z_j / R_ij
+    public double computeNuclearRepulsion() {
+        double enuc = 0.0;
         int n = this.molecule.atomCount();
-        // One-electron contribution (simplified atomic energies)
         int i = 0;
-        while (i < n) {
-            Atom a = this.molecule.getAtom(i);
-            double z = (double) a.atomicNumber;
-            // Hydrogen-like energy: -Z^2 / (2 * n^2) for 1s
-            energy = energy - z * z * 0.5;
-            i = i + 1;
-        }
-        // Two-electron (pair) contribution: nuclear repulsion + electron correlation
-        i = 0;
         while (i < n) {
             int j = i + 1;
             while (j < n) {
@@ -42,62 +52,597 @@ public class RHF {
                 if (r < 1e-10) { r = 1e-10; }
                 double z1 = (double) a1.atomicNumber;
                 double z2 = (double) a2.atomicNumber;
-                // Nuclear repulsion
-                energy = energy + z1 * z2 / r;
-                // Simplified electron correlation (attractive)
-                energy = energy - 0.3 * z1 * z2 / (r + 1.0);
+                enuc = enuc + z1 * z2 / r;
                 j = j + 1;
             }
             i = i + 1;
         }
-        // Basis set correction (larger basis = lower energy)
-        energy = energy - 0.01 * (double) this.basisSize;
-        return energy;
+        return enuc;
     }
 
-    // Build a simplified Fock matrix
-    // F_ij = H_core_ij + sum_kl P_kl * (2*(ij|kl) - (ik|jl))
-    // Simplified: use overlap-based approximation
-    public ArrayList<ArrayList<double>> fockMatrix() {
-        int n = this.basisSize;
-        ArrayList<ArrayList<double>> fock = new ArrayList<ArrayList<double>>();
+    // Helper: create a zero NxN matrix as ArrayList<ArrayList<double>>
+    public ArrayList<ArrayList<double>> makeZeroMatrix(int n) {
+        ArrayList<ArrayList<double>> m = new ArrayList<ArrayList<double>>();
         int i = 0;
         while (i < n) {
             ArrayList<double> row = new ArrayList<double>();
             int j = 0;
             while (j < n) {
-                double val = 0.0;
-                if (i == j) {
-                    // Diagonal: core Hamiltonian (one-electron energy)
-                    if (i < this.molecule.atomCount()) {
-                        Atom a = this.molecule.getAtom(i);
-                        double z = (double) a.atomicNumber;
-                        val = -z * z * 0.5;
-                    } else {
-                        val = -1.0;
-                    }
-                } else {
-                    // Off-diagonal: overlap-like term
-                    if (i < this.molecule.atomCount() && j < this.molecule.atomCount()) {
-                        Atom a1 = this.molecule.getAtom(i);
-                        Atom a2 = this.molecule.getAtom(j);
-                        double r = a1.distanceTo(a2);
-                        if (r < 1e-10) { r = 1e-10; }
-                        // Simplified overlap: S ~ exp(-alpha * r)
-                        double overlap = Math.exp(-1.0 * r);
-                        double z1 = (double) a1.atomicNumber;
-                        double z2 = (double) a2.atomicNumber;
-                        val = -z1 * z2 * overlap * 0.5;
-                    } else {
-                        val = -0.1;
-                    }
-                }
-                row.add(val);
+                row.add(0.0);
                 j = j + 1;
             }
-            fock.add(row);
+            m.add(row);
             i = i + 1;
         }
-        return fock;
+        return m;
+    }
+
+    // Get effective orbital exponent (zeta) for STO-3G-like basis
+    // Uses Slater rules approximation: zeta = (Z - sigma) / n*
+    public double orbitalExponent(int atomicNumber) {
+        // Simplified Slater-type orbital exponents for 1s/2s/2p
+        if (atomicNumber == 1)  { return 1.24; }  // H 1s
+        if (atomicNumber == 2)  { return 1.69; }  // He 1s
+        if (atomicNumber == 3)  { return 2.69; }  // Li 2s
+        if (atomicNumber == 4)  { return 3.68; }  // Be 2s
+        if (atomicNumber == 5)  { return 4.68; }  // B
+        if (atomicNumber == 6)  { return 5.67; }  // C
+        if (atomicNumber == 7)  { return 6.67; }  // N
+        if (atomicNumber == 8)  { return 7.66; }  // O
+        if (atomicNumber == 9)  { return 8.65; }  // F
+        if (atomicNumber == 10) { return 9.64; }  // Ne
+        return (double) atomicNumber * 0.95;
+    }
+
+    // Map basis function index to atom index
+    public int basisToAtom(int mu) {
+        int nAtoms = this.molecule.atomCount();
+        if (nAtoms == 0) { return 0; }
+        // Distribute basis functions evenly across atoms
+        int perAtom = this.basisSize / nAtoms;
+        if (perAtom < 1) { perAtom = 1; }
+        int atomIdx = mu / perAtom;
+        if (atomIdx >= nAtoms) { atomIdx = nAtoms - 1; }
+        return atomIdx;
+    }
+
+    // Build overlap matrix S using Gaussian overlap integral approximation
+    // S_mu_nu ~ exp(-alpha * R^2 / (alpha + beta)) * normalization
+    public ArrayList<ArrayList<double>> buildOverlapMatrix() {
+        int n = this.basisSize;
+        ArrayList<ArrayList<double>> S = this.makeZeroMatrix(n);
+        int i = 0;
+        while (i < n) {
+            int j = i;
+            while (j < n) {
+                double val = 0.0;
+                if (i == j) {
+                    val = 1.0;
+                } else {
+                    int ai = this.basisToAtom(i);
+                    int aj = this.basisToAtom(j);
+                    Atom a1 = this.molecule.getAtom(ai);
+                    Atom a2 = this.molecule.getAtom(aj);
+                    double r = a1.distanceTo(a2);
+                    double z1 = this.orbitalExponent(a1.atomicNumber);
+                    double z2 = this.orbitalExponent(a2.atomicNumber);
+                    // Gaussian overlap: S ~ (4*z1*z2/(z1+z2)^2)^(3/4) * exp(-z1*z2*r^2/(z1+z2))
+                    double zeta = z1 * z2 / (z1 + z2);
+                    double norm = Math.pow(4.0 * z1 * z2 / ((z1 + z2) * (z1 + z2)), 0.75);
+                    val = norm * Math.exp(-zeta * r * r);
+                }
+                S.get(i).set(j, val);
+                S.get(j).set(i, val);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return S;
+    }
+
+    // Build core Hamiltonian H_core = T + V
+    // T: kinetic energy integral approximation
+    // V: nuclear attraction integral approximation
+    public ArrayList<ArrayList<double>> buildCoreHamiltonian() {
+        int n = this.basisSize;
+        ArrayList<ArrayList<double>> H = this.makeZeroMatrix(n);
+        int i = 0;
+        while (i < n) {
+            int j = i;
+            while (j < n) {
+                double val = 0.0;
+                int ai = this.basisToAtom(i);
+                int aj = this.basisToAtom(j);
+                Atom a1 = this.molecule.getAtom(ai);
+                Atom a2 = this.molecule.getAtom(aj);
+                double z1 = this.orbitalExponent(a1.atomicNumber);
+                double z2 = this.orbitalExponent(a2.atomicNumber);
+                double r = a1.distanceTo(a2);
+
+                if (i == j) {
+                    // Diagonal: kinetic energy + nuclear attraction to own nucleus
+                    // T_mu_mu ~ zeta^2 / 2 (in atomic units, for 1s STO)
+                    double zeta = z1;
+                    double kinetic = zeta * zeta * 0.5;
+                    // Nuclear attraction: -Z * F0(zeta * R) where R=0 => F0=1
+                    double nucAttr = -(double) a1.atomicNumber * zeta;
+                    val = kinetic + nucAttr;
+                } else {
+                    // Off-diagonal: overlap-based approximation
+                    double overlap = this.overlapMatrix.get(i).get(j);
+                    double zetaAvg = (z1 + z2) * 0.5;
+                    // Kinetic: T_ij ~ zetaAvg * overlap * (zetaAvg - 2.0 * z1 * z2 / (z1 + z2))
+                    double kinetic = zetaAvg * overlap * (zetaAvg - 2.0 * z1 * z2 / (z1 + z2));
+                    // Nuclear attraction: sum over atoms K of -Z_K * overlap * F0(zetaAvg * R_iK) * F0(zetaAvg * R_jK)
+                    double nucAttr = 0.0;
+                    int k = 0;
+                    while (k < this.molecule.atomCount()) {
+                        Atom ak = this.molecule.getAtom(k);
+                        double rik = a1.distanceTo(ak);
+                        double rjk = a2.distanceTo(ak);
+                        double zk = (double) ak.atomicNumber;
+                        // F0(x) = (1 - exp(-x)) / x for x > 0, 1 for x = 0
+                        double arg_i = zetaAvg * rik;
+                        double arg_j = zetaAvg * rjk;
+                        double f0_i = 0.0;
+                        if (arg_i < 1e-10) {
+                            f0_i = 1.0;
+                        } else {
+                            f0_i = (1.0 - Math.exp(-arg_i)) / arg_i;
+                        }
+                        double f0_j = 0.0;
+                        if (arg_j < 1e-10) {
+                            f0_j = 1.0;
+                        } else {
+                            f0_j = (1.0 - Math.exp(-arg_j)) / arg_j;
+                        }
+                        nucAttr = nucAttr - zk * overlap * f0_i * f0_j;
+                        k = k + 1;
+                    }
+                    val = kinetic + nucAttr;
+                }
+                H.get(i).set(j, val);
+                H.get(j).set(i, val);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return H;
+    }
+
+    // Compute two-electron integral (mu nu | lambda sigma) approximation
+    // Using the Mulliken approximation: (mu nu | lam sig) ~ 0.5 * S_mu_nu * S_lam_sig * J_avg
+    // where J_avg depends on the orbital exponents and distances
+    public double twoElectronIntegral(int mu, int nu, int lam, int sig) {
+        int am = this.basisToAtom(mu);
+        int an = this.basisToAtom(nu);
+        int al = this.basisToAtom(lam);
+        int as = this.basisToAtom(sig);
+
+        Atom atomM = this.molecule.getAtom(am);
+        Atom atomN = this.molecule.getAtom(an);
+        Atom atomL = this.molecule.getAtom(al);
+        Atom atomS = this.molecule.getAtom(as);
+
+        double zM = this.orbitalExponent(atomM.atomicNumber);
+        double zN = this.orbitalExponent(atomN.atomicNumber);
+        double zL = this.orbitalExponent(atomL.atomicNumber);
+        double zS = this.orbitalExponent(atomS.atomicNumber);
+
+        double sMN = this.overlapMatrix.get(mu).get(nu);
+        double sLS = this.overlapMatrix.get(lam).get(sig);
+
+        // Average orbital exponent for the charge distributions
+        double zeta1 = (zM + zN) * 0.5;
+        double zeta2 = (zL + zS) * 0.5;
+
+        // Distance between centroids of charge distributions
+        double cx1 = (atomM.x + atomN.x) * 0.5;
+        double cy1 = (atomM.y + atomN.y) * 0.5;
+        double cz1 = (atomM.z + atomN.z) * 0.5;
+        double cx2 = (atomL.x + atomS.x) * 0.5;
+        double cy2 = (atomL.y + atomS.y) * 0.5;
+        double cz2 = (atomL.z + atomS.z) * 0.5;
+        double dx = cx1 - cx2;
+        double dy = cy1 - cy2;
+        double dz = cz1 - cz2;
+        double R = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        // Coulomb integral: (ab|cd) ~ S_ab * S_cd * 2 * sqrt(zeta1*zeta2) / (zeta1 + zeta2) * F0(R12 * (zeta1+zeta2)/2)
+        double rho = (zeta1 + zeta2) * 0.5;
+        double arg = R * rho;
+        double f0 = 0.0;
+        if (arg < 1e-10) {
+            f0 = 1.0;
+        } else {
+            f0 = (1.0 - Math.exp(-arg)) / arg;
+        }
+        double coulomb = 2.0 * Math.sqrt(zeta1 * zeta2) / (zeta1 + zeta2) * f0;
+
+        // Scale by overlap factors (Mulliken-type approximation)
+        double result = sMN * sLS * coulomb;
+
+        // For same-center distributions, add a correction
+        if (am == an && al == as && am == al) {
+            // On-center: (mu mu | mu mu) ~ 5/8 * zeta for 1s STO
+            double zeta = zM;
+            result = 0.625 * zeta;
+        }
+
+        return result;
+    }
+
+    // Build Fock matrix: F_mu_nu = H_core_mu_nu + sum_{lam,sig} P_lam_sig * (2*(mu nu|lam sig) - (mu sig|lam nu))
+    public ArrayList<ArrayList<double>> buildFockMatrix() {
+        int n = this.basisSize;
+        ArrayList<ArrayList<double>> F = this.makeZeroMatrix(n);
+        int mu = 0;
+        while (mu < n) {
+            int nu = mu;
+            while (nu < n) {
+                double val = this.coreHamiltonian.get(mu).get(nu);
+                int lam = 0;
+                while (lam < n) {
+                    int sig = 0;
+                    while (sig < n) {
+                        double pLS = this.densityMatrix.get(lam).get(sig);
+                        if (Math.abs(pLS) > 1e-14) {
+                            double jInt = this.twoElectronIntegral(mu, nu, lam, sig);
+                            double kInt = this.twoElectronIntegral(mu, sig, lam, nu);
+                            val = val + pLS * (2.0 * jInt - kInt);
+                        }
+                        sig = sig + 1;
+                    }
+                    lam = lam + 1;
+                }
+                F.get(mu).set(nu, val);
+                F.get(nu).set(mu, val);
+                nu = nu + 1;
+            }
+            mu = mu + 1;
+        }
+        return F;
+    }
+
+    // Convert ArrayList<ArrayList<double>> to Matrix
+    public Matrix toMatrix(ArrayList<ArrayList<double>> arr) {
+        int n = arr.size();
+        Matrix m = new Matrix(n, n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                m.set(i, j, arr.get(i).get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // Convert Matrix to ArrayList<ArrayList<double>>
+    public ArrayList<ArrayList<double>> fromMatrix(Matrix m) {
+        int n = m.rows();
+        ArrayList<ArrayList<double>> arr = this.makeZeroMatrix(n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                arr.get(i).set(j, m.get(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return arr;
+    }
+
+    // Compute S^{-1/2} via symmetric orthogonalization (canonical)
+    // S^{-1/2} = U * s^{-1/2} * U^T where S = U * s * U^T
+    public Matrix computeSInverseHalf() {
+        int n = this.basisSize;
+        Matrix S = this.toMatrix(this.overlapMatrix);
+
+        // Diagonalize S using Jacobi method
+        (Matrix eigenvecs, ArrayList<double> eigenvals) = this.jacobiDiagonalize(S);
+
+        // Build s^{-1/2} diagonal matrix
+        Matrix sinvHalf = new Matrix(n, n);
+        int i = 0;
+        while (i < n) {
+            double ev = eigenvals.get(i);
+            if (ev > 1e-14) {
+                sinvHalf.set(i, i, 1.0 / Math.sqrt(ev));
+            } else {
+                sinvHalf.set(i, i, 0.0);
+            }
+            i = i + 1;
+        }
+
+        // S^{-1/2} = U * s^{-1/2} * U^T
+        Matrix result = eigenvecs.mul(sinvHalf).mul(eigenvecs.transpose());
+        return result;
+    }
+
+    // Jacobi eigenvalue algorithm for symmetric matrices
+    // Returns (eigenvectors as columns, eigenvalues as ArrayList)
+    public (Matrix, ArrayList<double>) jacobiDiagonalize(Matrix A) {
+        int n = A.rows();
+        Matrix V = Matrix.identity(n);
+        Matrix D = A.clone();
+        int maxSweeps = 50;
+        double tol = 1e-12;
+        int sweep = 0;
+
+        while (sweep < maxSweeps) {
+            // Check convergence: sum of off-diagonal elements squared
+            double offDiag = 0.0;
+            int i = 1;
+            while (i < n) {
+                int j = 0;
+                while (j < i) {
+                    double v = D.get(i, j);
+                    offDiag = offDiag + v * v;
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+            if (offDiag < tol) { break; }
+
+            // Sweep through all off-diagonal elements
+            int p = 0;
+            while (p < n - 1) {
+                int q = p + 1;
+                while (q < n) {
+                    double apq = D.get(p, q);
+                    if (Math.abs(apq) < 1e-15) {
+                        q = q + 1;
+                        continue;
+                    }
+
+                    double app = D.get(p, p);
+                    double aqq = D.get(q, q);
+
+                    // Compute rotation angle
+                    double tau = 0.0;
+                    if (Math.abs(aqq - app) > 1e-15) {
+                        tau = (aqq - app) / (2.0 * apq);
+                    } else {
+                        tau = 1e10;
+                    }
+                    double t = 0.0;
+                    if (tau >= 0.0) {
+                        t = 1.0 / (tau + Math.sqrt(1.0 + tau * tau));
+                    } else {
+                        t = -1.0 / (-tau + Math.sqrt(1.0 + tau * tau));
+                    }
+                    double c = 1.0 / Math.sqrt(1.0 + t * t);
+                    double s = t * c;
+
+                    // Update D matrix
+                    D.set(p, p, app - t * apq);
+                    D.set(q, q, aqq + t * apq);
+                    D.set(p, q, 0.0);
+                    D.set(q, p, 0.0);
+
+                    int r = 0;
+                    while (r < n) {
+                        if (r != p && r != q) {
+                            double drp = D.get(r, p);
+                            double drq = D.get(r, q);
+                            D.set(r, p, c * drp - s * drq);
+                            D.set(p, r, c * drp - s * drq);
+                            D.set(r, q, s * drp + c * drq);
+                            D.set(q, r, s * drp + c * drq);
+                        }
+                        r = r + 1;
+                    }
+
+                    // Update eigenvector matrix
+                    r = 0;
+                    while (r < n) {
+                        double vrp = V.get(r, p);
+                        double vrq = V.get(r, q);
+                        V.set(r, p, c * vrp - s * vrq);
+                        V.set(r, q, s * vrp + c * vrq);
+                        r = r + 1;
+                    }
+
+                    q = q + 1;
+                }
+                p = p + 1;
+            }
+            sweep = sweep + 1;
+        }
+
+        // Extract eigenvalues from diagonal
+        ArrayList<double> eigenvals = new ArrayList<double>();
+        int idx = 0;
+        while (idx < n) {
+            eigenvals.add(D.get(idx, idx));
+            idx = idx + 1;
+        }
+
+        // Sort eigenvalues and eigenvectors (ascending)
+        int ii = 0;
+        while (ii < n - 1) {
+            int minIdx = ii;
+            int jj = ii + 1;
+            while (jj < n) {
+                if (eigenvals.get(jj) < eigenvals.get(minIdx)) {
+                    minIdx = jj;
+                }
+                jj = jj + 1;
+            }
+            if (minIdx != ii) {
+                // Swap eigenvalues
+                double tmp = eigenvals.get(ii);
+                eigenvals.set(ii, eigenvals.get(minIdx));
+                eigenvals.set(minIdx, tmp);
+                // Swap eigenvector columns
+                int row = 0;
+                while (row < n) {
+                    double tmpV = V.get(row, ii);
+                    V.set(row, ii, V.get(row, minIdx));
+                    V.set(row, minIdx, tmpV);
+                    row = row + 1;
+                }
+            }
+            ii = ii + 1;
+        }
+
+        return (V, eigenvals);
+    }
+
+    // Count total number of electrons in the molecule
+    public int totalElectrons() {
+        int nelec = 0;
+        int i = 0;
+        while (i < this.molecule.atomCount()) {
+            nelec = nelec + this.molecule.getAtom(i).atomicNumber;
+            i = i + 1;
+        }
+        return nelec;
+    }
+
+    // Run the SCF computation
+    public double compute() {
+        int n = this.basisSize;
+        int nElectrons = this.totalElectrons();
+        int nOcc = nElectrons / 2; // Number of occupied orbitals (RHF: 2 electrons per orbital)
+        if (nOcc > n) { nOcc = n; }
+        if (nOcc < 1) { nOcc = 1; }
+
+        // Compute S^{-1/2} for orthogonalization
+        Matrix sinvHalf = this.computeSInverseHalf();
+
+        // Initial Fock matrix is just the core Hamiltonian
+        this.fock = this.copyMatrix(this.coreHamiltonian);
+
+        int iter = 0;
+        while (iter < this.maxIterations) {
+            // Transform Fock matrix to orthogonal basis: F' = S^{-1/2} * F * S^{-1/2}
+            Matrix F = this.toMatrix(this.fock);
+            Matrix Fprime = sinvHalf.mul(F).mul(sinvHalf);
+
+            // Diagonalize F' to get orbital energies and coefficients
+            (Matrix Cprime, ArrayList<double> eigenvals) = this.jacobiDiagonalize(Fprime);
+
+            // Transform coefficients back: C = S^{-1/2} * C'
+            Matrix C = sinvHalf.mul(Cprime);
+
+            // Store orbital energies
+            this.orbitalEnergies = eigenvals;
+
+            // Build new density matrix from occupied orbitals
+            ArrayList<ArrayList<double>> newDensity = this.makeZeroMatrix(n);
+            int i = 0;
+            while (i < n) {
+                int j = 0;
+                while (j <= i) {
+                    double pval = 0.0;
+                    int k = 0;
+                    while (k < nOcc) {
+                        // P_ij = 2 * sum_{k occ} C_ik * C_jk
+                        pval = pval + 2.0 * C.get(i, k) * C.get(j, k);
+                        k = k + 1;
+                    }
+                    newDensity.get(i).set(j, pval);
+                    newDensity.get(j).set(i, pval);
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+
+            // Check convergence: max change in density matrix
+            double maxDelta = 0.0;
+            i = 0;
+            while (i < n) {
+                int j = 0;
+                while (j < n) {
+                    double delta = Math.abs(newDensity.get(i).get(j) - this.densityMatrix.get(i).get(j));
+                    if (delta > maxDelta) {
+                        maxDelta = delta;
+                    }
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+
+            // Update density matrix
+            this.densityMatrix = newDensity;
+
+            // Build new Fock matrix
+            this.fock = this.buildFockMatrix();
+
+            this.iterations = iter + 1;
+
+            if (maxDelta < this.convergenceThreshold) {
+                this.converged = true;
+                break;
+            }
+
+            iter = iter + 1;
+        }
+
+        // Compute total energy: E = 0.5 * sum_{ij} P_ij * (H_ij + F_ij) + E_nuc
+        double eElec = 0.0;
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                eElec = eElec + this.densityMatrix.get(i).get(j) * (this.coreHamiltonian.get(i).get(j) + this.fock.get(i).get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        eElec = eElec * 0.5;
+        this.totalEnergy = eElec + this.nuclearRepulsion;
+        return this.totalEnergy;
+    }
+
+    // Copy an ArrayList<ArrayList<double>> matrix
+    public ArrayList<ArrayList<double>> copyMatrix(ArrayList<ArrayList<double>> m) {
+        int n = m.size();
+        ArrayList<ArrayList<double>> copy = this.makeZeroMatrix(n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                copy.get(i).set(j, m.get(i).get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return copy;
+    }
+
+    // Return the Fock matrix
+    public ArrayList<ArrayList<double>> fockMatrix() {
+        return this.fock;
+    }
+
+    // Return the density matrix
+    public ArrayList<ArrayList<double>> getDensityMatrix() {
+        return this.densityMatrix;
+    }
+
+    // Return the orbital energies
+    public ArrayList<double> getOrbitalEnergies() {
+        return this.orbitalEnergies;
+    }
+
+    // Return the total energy
+    public double getTotalEnergy() {
+        return this.totalEnergy;
+    }
+
+    // Return convergence status
+    public bool isConverged() {
+        return this.converged;
+    }
+
+    // Return number of iterations used
+    public int getIterations() {
+        return this.iterations;
     }
 }
