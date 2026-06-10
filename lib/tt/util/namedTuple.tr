@@ -1,0 +1,107 @@
+// Named tuple with field access by name.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class namedTuple {
+    private ArrayList<String> _fieldNames;
+    private HashMap<String, Object> _fields;
+
+    public namedTuple(ArrayList<String> fieldNames, ArrayList<Object> values) {
+        this._fieldNames = new ArrayList<String>();
+        this._fields = new HashMap<String, Object>();
+        int i = 0;
+        while (i < fieldNames.size()) {
+            this._fieldNames.add(fieldNames.get(i));
+            if (i < values.size()) {
+                this._fields.put(fieldNames.get(i), values.get(i));
+            } else {
+                this._fields.put(fieldNames.get(i), null);
+            }
+            i = i + 1;
+        }
+    }
+
+    public Object get(String fieldName) {
+        return this._fields.get(fieldName);
+    }
+
+    public void set(String fieldName, Object value) {
+        if (this._fields.containsKey(fieldName)) {
+            this._fields.put(fieldName, value);
+        }
+    }
+
+    public Object getByIndex(int index) {
+        String fieldName = this._fieldNames.get(index);
+        return this._fields.get(fieldName);
+    }
+
+    public void setByIndex(int index, Object value) {
+        String fieldName = this._fieldNames.get(index);
+        this._fields.put(fieldName, value);
+    }
+
+    public ArrayList<String> fieldNames() {
+        ArrayList<String> result = new ArrayList<String>();
+        int i = 0;
+        while (i < this._fieldNames.size()) {
+            result.add(this._fieldNames.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public ArrayList<Object> values() {
+        ArrayList<Object> result = new ArrayList<Object>();
+        int i = 0;
+        while (i < this._fieldNames.size()) {
+            result.add(this._fields.get(this._fieldNames.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public int size() {
+        return this._fieldNames.size();
+    }
+
+    public bool hasField(String fieldName) {
+        return this._fields.containsKey(fieldName);
+    }
+
+    public bool equals(namedTuple other) {
+        if (this.size() != other.size()) {
+            return false;
+        }
+        int i = 0;
+        while (i < this._fieldNames.size()) {
+            String name = this._fieldNames.get(i);
+            if (!other.hasField(name)) {
+                return false;
+            }
+            if (this._fields.get(name) != other.get(name)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public namedTuple clone() {
+        ArrayList<Object> vals = this.values();
+        return new namedTuple(this._fieldNames, vals);
+    }
+
+    public String toString() {
+        String s = "(";
+        int i = 0;
+        while (i < this._fieldNames.size()) {
+            if (i > 0) { s = s + ", "; }
+            String name = this._fieldNames.get(i);
+            s = s + name + "=" + this._fields.get(name);
+            i = i + 1;
+        }
+        s = s + ")";
+        return s;
+    }
+}

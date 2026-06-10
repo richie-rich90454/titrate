@@ -1,0 +1,106 @@
+// HashMap with default factory function for missing keys.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::ArrayListIterator;
+
+public class defaultdict<K, V> {
+    private HashMap<K, V> map;
+    private function<V()> factory;
+
+    public defaultdict(function<V()> factory) {
+        this.map = new HashMap<K, V>();
+        this.factory = factory;
+    }
+
+    public V get(K key) {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        V defaultValue = this.factory();
+        this.map.put(key, defaultValue);
+        return defaultValue;
+    }
+
+    public void put(K key, V value) {
+        this.map.put(key, value);
+    }
+
+    public bool containsKey(K key) {
+        return this.map.containsKey(key);
+    }
+
+    public void remove(K key) {
+        this.map.remove(key);
+    }
+
+    public int size() {
+        return this.map.size();
+    }
+
+    public bool isEmpty() {
+        return this.map.size() == 0;
+    }
+
+    public ArrayList<K> keys() {
+        return this.map.keys();
+    }
+
+    public ArrayList<V> values() {
+        return this.map.values();
+    }
+
+    public ArrayList<(K, V)> entries() {
+        return this.map.entries();
+    }
+
+    public void clear() {
+        this.map = new HashMap<K, V>();
+    }
+
+    public V getOrDefault(K key, V defaultValue) {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        return defaultValue;
+    }
+
+    public void forEach(function<void(K, V)> fn) {
+        ArrayList<(K, V)> entries = this.map.entries();
+        int i = 0;
+        while (i < entries.size()) {
+            (K key, V val) = entries.get(i);
+            fn(key, val);
+            i = i + 1;
+        }
+    }
+
+    public defaultdict<K, V> clone() {
+        defaultdict<K, V> result = new defaultdict<K, V>(this.factory);
+        ArrayList<(K, V)> entries = this.map.entries();
+        int i = 0;
+        while (i < entries.size()) {
+            (K key, V val) = entries.get(i);
+            result.put(key, val);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public String toString() {
+        String s = "defaultdict({";
+        ArrayList<(K, V)> entries = this.map.entries();
+        int i = 0;
+        while (i < entries.size()) {
+            if (i > 0) { s = s + ", "; }
+            (K key, V val) = entries.get(i);
+            s = s + key + ": " + val;
+            i = i + 1;
+        }
+        s = s + "})";
+        return s;
+    }
+
+    public ArrayListIterator<K> iterator() {
+        return this.map.keys().iterator();
+    }
+}

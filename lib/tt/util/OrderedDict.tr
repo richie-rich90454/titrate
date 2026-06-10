@@ -1,0 +1,150 @@
+// Insertion-ordered HashMap that maintains key insertion order.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::ArrayListIterator;
+
+public class OrderedDict<K, V> {
+    private HashMap<K, V> map;
+    private ArrayList<K> order;
+
+    public OrderedDict() {
+        this.map = new HashMap<K, V>();
+        this.order = new ArrayList<K>();
+    }
+
+    public void put(K key, V value) {
+        if (!this.map.containsKey(key)) {
+            this.order.add(key);
+        }
+        this.map.put(key, value);
+    }
+
+    public V get(K key) {
+        return this.map.get(key);
+    }
+
+    public V getOrDefault(K key, V defaultValue) {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        return defaultValue;
+    }
+
+    public bool containsKey(K key) {
+        return this.map.containsKey(key);
+    }
+
+    public void remove(K key) {
+        if (this.map.containsKey(key)) {
+            this.map.remove(key);
+            int i = 0;
+            while (i < this.order.size()) {
+                if (this.order.get(i) == key) {
+                    this.order.remove(i);
+                    break;
+                }
+                i = i + 1;
+            }
+        }
+    }
+
+    public int size() {
+        return this.map.size();
+    }
+
+    public bool isEmpty() {
+        return this.map.size() == 0;
+    }
+
+    public ArrayList<K> keys() {
+        ArrayList<K> result = new ArrayList<K>();
+        int i = 0;
+        while (i < this.order.size()) {
+            K key = this.order.get(i);
+            if (this.map.containsKey(key)) {
+                result.add(key);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public ArrayList<V> values() {
+        ArrayList<V> result = new ArrayList<V>();
+        int i = 0;
+        while (i < this.order.size()) {
+            K key = this.order.get(i);
+            if (this.map.containsKey(key)) {
+                result.add(this.map.get(key));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public ArrayList<(K, V)> entries() {
+        ArrayList<(K, V)> result = new ArrayList<(K, V)>();
+        int i = 0;
+        while (i < this.order.size()) {
+            K key = this.order.get(i);
+            if (this.map.containsKey(key)) {
+                result.add((key, this.map.get(key)));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public void clear() {
+        this.map = new HashMap<K, V>();
+        this.order = new ArrayList<K>();
+    }
+
+    public V putIfAbsent(K key, V value) {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        this.put(key, value);
+        return value;
+    }
+
+    public void forEach(function<void(K, V)> fn) {
+        ArrayList<(K, V)> entries = this.entries();
+        int i = 0;
+        while (i < entries.size()) {
+            (K key, V val) = entries.get(i);
+            fn(key, val);
+            i = i + 1;
+        }
+    }
+
+    public OrderedDict<K, V> clone() {
+        OrderedDict<K, V> result = new OrderedDict<K, V>();
+        ArrayList<(K, V)> entries = this.entries();
+        int i = 0;
+        while (i < entries.size()) {
+            (K key, V val) = entries.get(i);
+            result.put(key, val);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public String toString() {
+        String s = "OrderedDict({";
+        ArrayList<(K, V)> entries = this.entries();
+        int i = 0;
+        while (i < entries.size()) {
+            if (i > 0) { s = s + ", "; }
+            (K key, V val) = entries.get(i);
+            s = s + key + ": " + val;
+            i = i + 1;
+        }
+        s = s + "})";
+        return s;
+    }
+
+    public ArrayListIterator<K> iterator() {
+        return new ArrayListIterator<K>(this.keys());
+    }
+}
