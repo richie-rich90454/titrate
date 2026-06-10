@@ -18,6 +18,46 @@ public class File {
         File::write(this.path, content);
     }
 
+    public bool exists() {
+        return File::exists(this.path);
+    }
+
+    public int length() {
+        return File::length(this.path);
+    }
+
+    public bool delete() {
+        return File::delete(this.path);
+    }
+
+    public bool renameTo(String newPath) {
+        return File::rename(this.path, newPath);
+    }
+
+    public bool copyTo(String dest) {
+        return File::copy(this.path, dest);
+    }
+
+    public bool moveTo(String dest) {
+        return File::move(this.path, dest);
+    }
+
+    public String readAll() {
+        return File::readAll(this.path);
+    }
+
+    public void append(String content) {
+        File::append(this.path, content);
+    }
+
+    public bool isFile() {
+        return File::isFile(this.path);
+    }
+
+    public bool isDirectory() {
+        return File::isDirectory(this.path);
+    }
+
     public void close() {
         File::close(this.path);
     }

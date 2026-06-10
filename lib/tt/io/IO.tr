@@ -7,4 +7,25 @@ public class IO {
     public static void print(String message) {
         io::print(message);
     }
+
+    public static String readLine() {
+        return io::readLine();
+    }
+
+    public static String readAll() {
+        return io::readAll();
+    }
+
+    public static void stderr() {
+        // TODO: switch stderr stream for subsequent eprint/eprintln calls
+        io::stderr();
+    }
+
+    public static void eprintln(String msg) {
+        io::eprintln(msg);
+    }
+
+    public static void eprint(String msg) {
+        io::eprint(msg);
+    }
 }
