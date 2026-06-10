@@ -34,6 +34,34 @@ public class Path {
         return Path::isDir(this.path);
     }
 
+    public String absolutePath() {
+        return Path::absolutePath(this.path);
+    }
+
+    public String canonicalPath() {
+        return Path::canonicalPath(this.path);
+    }
+
+    public String resolve(String other) {
+        return Path::resolve(this.path, other);
+    }
+
+    public String relativize(String other) {
+        return Path::relativize(this.path, other);
+    }
+
+    public String normalize() {
+        return Path::normalize(this.path);
+    }
+
+    public String parent() {
+        return Path::dirname(this.path);
+    }
+
+    public String fileName() {
+        return Path::basename(this.path);
+    }
+
     public String toString() {
         return this.path;
     }

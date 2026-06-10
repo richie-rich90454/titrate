@@ -31,4 +31,28 @@ public class Directory {
     public bool move(String dest) {
         return Dir::move(this.path, dest);
     }
+
+    public bool exists() {
+        return Dir::exists(this.path);
+    }
+
+    public static String getCurrent() {
+        return Dir::getCurrent();
+    }
+
+    public static void setCurrent(String path) {
+        Dir::setCurrent(path);
+    }
+
+    public ArrayList<String> listFiles() {
+        return Dir::listFiles(this.path);
+    }
+
+    public int size() {
+        return Dir::size(this.path);
+    }
+
+    public bool isEmpty() {
+        return Dir::isEmpty(this.path);
+    }
 }
