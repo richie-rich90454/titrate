@@ -23,4 +23,20 @@ public class TcpClient {
         Net_close(this.socket);
         this.socket = null;
     }
+
+    public bool isConnected() {
+        return this.socket != null;
+    }
+
+    public void setTimeout(int ms) {
+        Net_setTimeout(this.socket, ms);
+    }
+
+    public String getLocalAddress() {
+        return Net_localAddress(this.socket);
+    }
+
+    public String getRemoteAddress() {
+        return Net_remoteAddress(this.socket);
+    }
 }

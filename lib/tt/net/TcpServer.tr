@@ -22,4 +22,16 @@ public class TcpServer {
         Net_close(this.listener);
         this.listener = null;
     }
+
+    public bool isBound() {
+        return this.listener != null;
+    }
+
+    public int getLocalPort() {
+        return Net_localPort(this.listener);
+    }
+
+    public void setTimeout(int ms) {
+        Net_setServerTimeout(this.listener, ms);
+    }
 }
