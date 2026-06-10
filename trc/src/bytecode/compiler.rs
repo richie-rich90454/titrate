@@ -4222,18 +4222,35 @@ mod tests {
 
     #[test]
     fn test_compile_binary_add() {
-        let compiled = compile_program(vec![ast::Declaration::VarDecl(ast::VarDecl {
-            name: "x".to_string(),
-            typ: None,
-            init: Some(ast::Expr::Binary(
-                Box::new(ast::Expr::Literal(ast::Literal::Int(1), su())),
-                ast::Operator::Add,
-                Box::new(ast::Expr::Literal(ast::Literal::Int(2), su())),
-                su(),
-            )),
-            mutable: false,
-            span: su(),
-        })]);
+        // Use variables so constant folding cannot eliminate the ADD opcode
+        let compiled = compile_program(vec![
+            ast::Declaration::VarDecl(ast::VarDecl {
+                name: "a".to_string(),
+                typ: None,
+                init: Some(ast::Expr::Literal(ast::Literal::Int(1), su())),
+                mutable: false,
+                span: su(),
+            }),
+            ast::Declaration::VarDecl(ast::VarDecl {
+                name: "b".to_string(),
+                typ: None,
+                init: Some(ast::Expr::Literal(ast::Literal::Int(2), su())),
+                mutable: false,
+                span: su(),
+            }),
+            ast::Declaration::VarDecl(ast::VarDecl {
+                name: "x".to_string(),
+                typ: None,
+                init: Some(ast::Expr::Binary(
+                    Box::new(ast::Expr::Identifier("a".to_string(), su())),
+                    ast::Operator::Add,
+                    Box::new(ast::Expr::Identifier("b".to_string(), su())),
+                    su(),
+                )),
+                mutable: false,
+                span: su(),
+            }),
+        ]);
 
         let main_chunk = &compiled.functions[0].chunk;
         assert!(
