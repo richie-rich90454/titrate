@@ -1,4 +1,6 @@
 import tt.lang.Integer;
+import tt.chem.Atom;
+import tt.math.Math;
 
 public class Bond {
     public int atom1;
@@ -11,6 +13,88 @@ public class Bond {
         this.atom2 = a2;
         this.bondType = btype;
         this.order = ord;
+    }
+
+    // Bond length between two atoms
+    public double length(ArrayList<Atom> atoms) {
+        Atom a1 = atoms.get(this.atom1);
+        Atom a2 = atoms.get(this.atom2);
+        return a1.distanceTo(a2);
+    }
+
+    // Angle formed by this bond and another bond sharing a common atom.
+    // This bond is a1-a2, other is a2-a3. Returns angle at a2 in radians.
+    public double angle(Bond other, ArrayList<Atom> atoms) {
+        int shared = -1;
+        int end1 = -1;
+        int end2 = -1;
+        if (this.atom1 == other.atom1) {
+            shared = this.atom1;
+            end1 = this.atom2;
+            end2 = other.atom2;
+        } else if (this.atom1 == other.atom2) {
+            shared = this.atom1;
+            end1 = this.atom2;
+            end2 = other.atom1;
+        } else if (this.atom2 == other.atom1) {
+            shared = this.atom2;
+            end1 = this.atom1;
+            end2 = other.atom2;
+        } else if (this.atom2 == other.atom2) {
+            shared = this.atom2;
+            end1 = this.atom1;
+            end2 = other.atom1;
+        }
+        if (shared == -1) { return 0.0; }
+        return ForceField.computeAngle(atoms.get(end1), atoms.get(shared), atoms.get(end2));
+    }
+
+    // Dihedral angle formed by this bond and two other bonds.
+    // This bond is a1-a2, next is a2-a3, then a3-a4.
+    // Returns dihedral angle in radians.
+    public double dihedral(Bond b2, Bond b3, ArrayList<Atom> atoms) {
+        // Find the chain a1-a2-a3-a4
+        int a1 = this.atom1;
+        int a2 = this.atom2;
+        int a3 = -1;
+        int a4 = -1;
+        // Find a3 from b2 (shared with a2)
+        if (b2.atom1 == a2) { a3 = b2.atom2; }
+        else if (b2.atom2 == a2) { a3 = b2.atom1; }
+        if (a3 == -1) { return 0.0; }
+        // Find a4 from b3 (shared with a3)
+        if (b3.atom1 == a3) { a4 = b3.atom2; }
+        else if (b3.atom2 == a3) { a4 = b3.atom1; }
+        if (a4 == -1) { return 0.0; }
+        // Compute dihedral using cross products
+        Atom p1 = atoms.get(a1);
+        Atom p2 = atoms.get(a2);
+        Atom p3 = atoms.get(a3);
+        Atom p4 = atoms.get(a4);
+        // Vectors b1 = p2-p1, b2 = p3-p2, b3 = p4-p3
+        double b1x = p2.x - p1.x; double b1y = p2.y - p1.y; double b1z = p2.z - p1.z;
+        double b2x = p3.x - p2.x; double b2y = p3.y - p2.y; double b2z = p3.z - p2.z;
+        double b3x = p4.x - p3.x; double b3y = p4.y - p3.y; double b3z = p4.z - p3.z;
+        // n1 = b1 x b2
+        double n1x = b1y * b2z - b1z * b2y;
+        double n1y = b1z * b2x - b1x * b2z;
+        double n1z = b1x * b2y - b1y * b2x;
+        // n2 = b2 x b3
+        double n2x = b2y * b3z - b2z * b3y;
+        double n2y = b2z * b3x - b2x * b3z;
+        double n2z = b2x * b3y - b2y * b3x;
+        // m1 = n1 x b2 (to get sign)
+        double m1x = n1y * b2z - n1z * b2y;
+        double m1y = n1z * b2x - n1x * b2z;
+        double m1z = n1x * b2y - n1y * b2x;
+        double x = n1x * n2x + n1y * n2y + n1z * n2z;
+        double y = m1x * n2x + m1y * n2y + m1z * n2z;
+        return Math.atan2(y, x);
+    }
+
+    // Check if this bond is aromatic
+    public bool isAromatic() {
+        return this.bondType == "aromatic";
     }
 
     public String toString() {

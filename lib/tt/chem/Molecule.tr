@@ -41,6 +41,145 @@ public class Molecule {
         return this.bonds.size();
     }
 
+    public void removeAtom(int index) {
+        this.atoms.remove(index);
+        // Update bond indices: remove bonds involving the atom, shift indices > index
+        int b = this.bonds.size() - 1;
+        while (b >= 0) {
+            Bond bond = this.bonds.get(b);
+            if (bond.atom1 == index || bond.atom2 == index) {
+                this.bonds.remove(b);
+            } else {
+                if (bond.atom1 > index) { bond.atom1 = bond.atom1 - 1; }
+                if (bond.atom2 > index) { bond.atom2 = bond.atom2 - 1; }
+            }
+            b = b - 1;
+        }
+    }
+
+    public void removeBond(int index) {
+        this.bonds.remove(index);
+    }
+
+    public int findBond(int a1, int a2) {
+        int i = 0;
+        while (i < this.bonds.size()) {
+            Bond b = this.bonds.get(i);
+            if ((b.atom1 == a1 && b.atom2 == a2) || (b.atom1 == a2 && b.atom2 == a1)) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public ArrayList<Bond> getBondsOf(int atomIndex) {
+        ArrayList<Bond> result = new ArrayList<Bond>();
+        int i = 0;
+        while (i < this.bonds.size()) {
+            Bond b = this.bonds.get(i);
+            if (b.atom1 == atomIndex || b.atom2 == atomIndex) {
+                result.add(b);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public ArrayList<int> getNeighborsOf(int atomIndex) {
+        ArrayList<int> neighbors = new ArrayList<int>();
+        int i = 0;
+        while (i < this.bonds.size()) {
+            Bond b = this.bonds.get(i);
+            if (b.atom1 == atomIndex) {
+                neighbors.add(b.atom2);
+            } else if (b.atom2 == atomIndex) {
+                neighbors.add(b.atom1);
+            }
+            i = i + 1;
+        }
+        return neighbors;
+    }
+
+    // Geometric centroid (unweighted average of positions)
+    public ArrayList<double> centroid() {
+        double cx = 0.0;
+        double cy = 0.0;
+        double cz = 0.0;
+        int n = this.atoms.size();
+        int i = 0;
+        while (i < n) {
+            Atom a = this.atoms.get(i);
+            cx = cx + a.x;
+            cy = cy + a.y;
+            cz = cz + a.z;
+            i = i + 1;
+        }
+        ArrayList<double> result = new ArrayList<double>();
+        if (n > 0) {
+            result.add(cx / n);
+            result.add(cy / n);
+            result.add(cz / n);
+        } else {
+            result.add(0.0);
+            result.add(0.0);
+            result.add(0.0);
+        }
+        return result;
+    }
+
+    // Translate all atoms by (dx, dy, dz)
+    public void translate(double dx, double dy, double dz) {
+        int i = 0;
+        while (i < this.atoms.size()) {
+            Atom a = this.atoms.get(i);
+            a.x = a.x + dx;
+            a.y = a.y + dy;
+            a.z = a.z + dz;
+            i = i + 1;
+        }
+    }
+
+    // Export to XYZ format string
+    public String toXYZ() {
+        String s = Integer.toString(this.atoms.size()) + "\n";
+        s = s + this.name + "\n";
+        int i = 0;
+        while (i < this.atoms.size()) {
+            Atom a = this.atoms.get(i);
+            s = s + a.symbol + " " + Double.toString(a.x) + " " + Double.toString(a.y) + " " + Double.toString(a.z) + "\n";
+            i = i + 1;
+        }
+        return s;
+    }
+
+    // Import from XYZ format string
+    public static Molecule fromXYZ(String xyzString) {
+        // Parse lines
+        ArrayList<String> lines = String.split(xyzString, "\n");
+        if (lines.size() < 3) { return new Molecule("empty"); }
+        int nAtoms = Integer.parseInt(lines.get(0));
+        String name = lines.get(1);
+        Molecule mol = new Molecule(name);
+        int i = 2;
+        while (i < 2 + nAtoms && i < lines.size()) {
+            String line = String.trim(lines.get(i));
+            if (line.length() == 0) { i = i + 1; continue; }
+            ArrayList<String> parts = String.split(line, " ");
+            if (parts.size() >= 4) {
+                String sym = parts.get(0);
+                double x = Double.parseDouble(parts.get(1));
+                double y = Double.parseDouble(parts.get(2));
+                double z = Double.parseDouble(parts.get(3));
+                Atom a = Atom.getElement(sym);
+                a.setPosition(x, y, z);
+                mol.addAtom(a);
+            }
+            i = i + 1;
+        }
+        return mol;
+    }
+
     public double molecularWeight() {
         double total = 0.0;
         int i = 0;
