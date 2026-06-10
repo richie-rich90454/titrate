@@ -1948,6 +1948,14 @@ impl Analyzer {
                     self.analyze_expr(elem, scope);
                 }
             }
+            ast::Expr::Range(start, end, _) => {
+                self.analyze_expr(start, scope);
+                self.analyze_expr(end, scope);
+            }
+            ast::Expr::RangeInclusive(start, end, _) => {
+                self.analyze_expr(start, scope);
+                self.analyze_expr(end, scope);
+            }
             ast::Expr::Closure {
                 params,
                 return_type: _,
@@ -2078,6 +2086,14 @@ impl Analyzer {
                 for stmt in body {
                     self.collect_captured_vars_from_stmt(stmt, param_names, outer_scope, captured);
                 }
+            }
+            ast::Expr::Range(start, end, _) => {
+                self.collect_captured_vars_from_expr(start, param_names, outer_scope, captured);
+                self.collect_captured_vars_from_expr(end, param_names, outer_scope, captured);
+            }
+            ast::Expr::RangeInclusive(start, end, _) => {
+                self.collect_captured_vars_from_expr(start, param_names, outer_scope, captured);
+                self.collect_captured_vars_from_expr(end, param_names, outer_scope, captured);
             }
             _ => {}
         }
@@ -2359,6 +2375,8 @@ impl Analyzer {
                     .collect();
                 ast::Type::Tuple(types)
             }
+            ast::Expr::Range(_, _, _) => ast::Type::simple("Range"),
+            ast::Expr::RangeInclusive(_, _, _) => ast::Type::simple("Range"),
             ast::Expr::Closure { .. } => ast::Type::simple("function"),
         }
     }

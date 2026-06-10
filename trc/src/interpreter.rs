@@ -1086,6 +1086,12 @@ impl Interpreter {
                 let val = self.eval_expr_with_env(value, env)?;
                 self.eval_assign(target, val, env)
             }
+            ast::Expr::Range(_, _, _) => {
+                Err("Range expressions are not yet supported at runtime".to_string())
+            }
+            ast::Expr::RangeInclusive(_, _, _) => {
+                Err("Inclusive range expressions are not yet supported at runtime".to_string())
+            }
             ast::Expr::Unit(_) => Ok(Value::Void),
             ast::Expr::Tuple(elements, _) => {
                 let mut values = Vec::new();
