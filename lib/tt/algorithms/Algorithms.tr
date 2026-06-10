@@ -1,0 +1,608 @@
+// Algorithms provides C++ STL-style generic algorithms for sorting, searching,
+// numeric operations, and sequence transformations.
+import tt::util::ArrayList;
+import tt::random::Random;
+import tt.math.Math;
+
+public class Algorithms {
+    // --- Sorting ---
+
+    // Quicksort (not stable). Returns a new sorted list.
+    public static ArrayList<T> sort<T>(ArrayList<T> arr) {
+        if (arr.size() <= 1) {
+            return arr.clone();
+        }
+        ArrayList<T> result = arr.clone();
+        Algorithms._quickSort<T>(result, 0, result.size() - 1);
+        return result;
+    }
+
+    private static void _quickSort<T>(ArrayList<T> arr, int lo, int hi) {
+        if (lo < hi) {
+            int p = Algorithms._partition<T>(arr, lo, hi);
+            Algorithms._quickSort<T>(arr, lo, p - 1);
+            Algorithms._quickSort<T>(arr, p + 1, hi);
+        }
+    }
+
+    private static int _partition<T>(ArrayList<T> arr, int lo, int hi) {
+        T pivot = arr.get(hi);
+        int i = lo - 1;
+        int j = lo;
+        while (j < hi) {
+            if (arr.get(j) < pivot) {
+                i = i + 1;
+                Algorithms._swap<T>(arr, i, j);
+            }
+            j = j + 1;
+        }
+        Algorithms._swap<T>(arr, i + 1, hi);
+        return i + 1;
+    }
+
+    private static void _swap<T>(ArrayList<T> arr, int i, int j) {
+        T temp = arr.get(i);
+        arr.set(i, arr.get(j));
+        arr.set(j, temp);
+    }
+
+    // Merge sort (stable). Returns a new sorted list.
+    public static ArrayList<T> stableSort<T>(ArrayList<T> arr) {
+        if (arr.size() <= 1) {
+            return arr.clone();
+        }
+        return Algorithms._mergeSort<T>(arr, 0, arr.size() - 1);
+    }
+
+    private static ArrayList<T> _mergeSort<T>(ArrayList<T> arr, int lo, int hi) {
+        if (lo == hi) {
+            ArrayList<T> single = new ArrayList<T>();
+            single.add(arr.get(lo));
+            return single;
+        }
+        int mid = lo + (hi - lo) / 2;
+        ArrayList<T> left = Algorithms._mergeSort<T>(arr, lo, mid);
+        ArrayList<T> right = Algorithms._mergeSort<T>(arr, mid + 1, hi);
+        return Algorithms._mergeLists<T>(left, right);
+    }
+
+    private static ArrayList<T> _mergeLists<T>(ArrayList<T> left, ArrayList<T> right) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        int j = 0;
+        while (i < left.size() && j < right.size()) {
+            if (left.get(i) <= right.get(j)) {
+                result.add(left.get(i));
+                i = i + 1;
+            } else {
+                result.add(right.get(j));
+                j = j + 1;
+            }
+        }
+        while (i < left.size()) {
+            result.add(left.get(i));
+            i = i + 1;
+        }
+        while (j < right.size()) {
+            result.add(right.get(j));
+            j = j + 1;
+        }
+        return result;
+    }
+
+    // --- Search ---
+
+    // Linear search: returns index of value, or -1 if not found.
+    public static int find<T>(ArrayList<T> arr, T value) {
+        int i = 0;
+        while (i < arr.size()) {
+            if (arr.get(i) == value) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Linear search with predicate: returns index of first match, or -1.
+    public static int findIf<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        int i = 0;
+        while (i < arr.size()) {
+            if (fn(arr.get(i))) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Binary search on a sorted array: returns index or -1.
+    public static int binarySearch<T>(ArrayList<T> arr, T value) {
+        int lo = 0;
+        int hi = arr.size() - 1;
+        while (lo <= hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (arr.get(mid) == value) {
+                return mid;
+            }
+            if (arr.get(mid) < value) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return -1;
+    }
+
+    // Lower bound: first index where element would not compare less than value.
+    public static int lowerBound<T>(ArrayList<T> arr, T value) {
+        int lo = 0;
+        int hi = arr.size();
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (arr.get(mid) < value) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    // Upper bound: first index where element would compare greater than value.
+    public static int upperBound<T>(ArrayList<T> arr, T value) {
+        int lo = 0;
+        int hi = arr.size();
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (arr.get(mid) <= value) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    // --- Counting ---
+
+    public static int count<T>(ArrayList<T> arr, T value) {
+        int c = 0;
+        int i = 0;
+        while (i < arr.size()) {
+            if (arr.get(i) == value) {
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+        return c;
+    }
+
+    public static int countIf<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        int c = 0;
+        int i = 0;
+        while (i < arr.size()) {
+            if (fn(arr.get(i))) {
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+        return c;
+    }
+
+    // --- Transform ---
+
+    // Apply fn to each element, returning a new list.
+    public static ArrayList<U> transform<T, U>(ArrayList<T> arr, function<U(T)> fn) {
+        ArrayList<U> result = new ArrayList<U>();
+        int i = 0;
+        while (i < arr.size()) {
+            result.add(fn(arr.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // --- Replace (in-place) ---
+
+    public static void replace<T>(ArrayList<T> arr, T old, T newVal) {
+        int i = 0;
+        while (i < arr.size()) {
+            if (arr.get(i) == old) {
+                arr.set(i, newVal);
+            }
+            i = i + 1;
+        }
+    }
+
+    public static void replaceIf<T>(ArrayList<T> arr, function<bool(T)> fn, T newVal) {
+        int i = 0;
+        while (i < arr.size()) {
+            if (fn(arr.get(i))) {
+                arr.set(i, newVal);
+            }
+            i = i + 1;
+        }
+    }
+
+    // --- Remove (returns new list) ---
+
+    public static ArrayList<T> remove<T>(ArrayList<T> arr, T value) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < arr.size()) {
+            if (arr.get(i) != value) {
+                result.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public static ArrayList<T> removeIf<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < arr.size()) {
+            if (!fn(arr.get(i))) {
+                result.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // --- Unique (remove consecutive duplicates) ---
+
+    public static ArrayList<T> unique<T>(ArrayList<T> arr) {
+        if (arr.size() == 0) {
+            return new ArrayList<T>();
+        }
+        ArrayList<T> result = new ArrayList<T>();
+        result.add(arr.get(0));
+        int i = 1;
+        while (i < arr.size()) {
+            if (arr.get(i) != arr.get(i - 1)) {
+                result.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // --- Reverse ---
+
+    public static ArrayList<T> reverse<T>(ArrayList<T> arr) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = arr.size() - 1;
+        while (i >= 0) {
+            result.add(arr.get(i));
+            i = i - 1;
+        }
+        return result;
+    }
+
+    // --- Rotate ---
+
+    // Rotate left by n positions. n may be negative (rotates right).
+    public static ArrayList<T> rotate<T>(ArrayList<T> arr, int n) {
+        if (arr.size() == 0) {
+            return new ArrayList<T>();
+        }
+        int len = arr.size();
+        n = ((n % len) + len) % len;
+        if (n == 0) {
+            return arr.clone();
+        }
+        ArrayList<T> result = new ArrayList<T>();
+        int i = n;
+        while (i < len) {
+            result.add(arr.get(i));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < n) {
+            result.add(arr.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // --- Shuffle ---
+
+    public static ArrayList<T> shuffle<T>(ArrayList<T> arr) {
+        ArrayList<T> result = arr.clone();
+        Random rng = new Random();
+        int i = result.size() - 1;
+        while (i > 0) {
+            int j = rng.nextInt(i + 1);
+            Algorithms._swap<T>(result, i, j);
+            i = i - 1;
+        }
+        return result;
+    }
+
+    // --- Partition ---
+
+    // Returns [true_part, false_part].
+    public static ArrayList<ArrayList<T>> partition<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        ArrayList<T> truePart = new ArrayList<T>();
+        ArrayList<T> falsePart = new ArrayList<T>();
+        int i = 0;
+        while (i < arr.size()) {
+            if (fn(arr.get(i))) {
+                truePart.add(arr.get(i));
+            } else {
+                falsePart.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        ArrayList<ArrayList<T>> result = new ArrayList<ArrayList<T>>();
+        result.add(truePart);
+        result.add(falsePart);
+        return result;
+    }
+
+    // --- Min / Max ---
+
+    public static T minElement<T>(ArrayList<T> arr) {
+        if (arr.size() == 0) {
+            return null;
+        }
+        T best = arr.get(0);
+        int i = 1;
+        while (i < arr.size()) {
+            if (arr.get(i) < best) {
+                best = arr.get(i);
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    public static T maxElement<T>(ArrayList<T> arr) {
+        if (arr.size() == 0) {
+            return null;
+        }
+        T best = arr.get(0);
+        int i = 1;
+        while (i < arr.size()) {
+            if (arr.get(i) > best) {
+                best = arr.get(i);
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    // --- Numeric ---
+
+    public static T accumulate<T>(ArrayList<T> arr, T init, function<T(T, T)> fn) {
+        T acc = init;
+        int i = 0;
+        while (i < arr.size()) {
+            acc = fn(acc, arr.get(i));
+            i = i + 1;
+        }
+        return acc;
+    }
+
+    public static T innerProduct<T>(ArrayList<T> a, ArrayList<T> b, T init) {
+        T acc = init;
+        int len = Math.min(a.size(), b.size());
+        int i = 0;
+        while (i < len) {
+            acc = acc + a.get(i) * b.get(i);
+            i = i + 1;
+        }
+        return acc;
+    }
+
+    public static ArrayList<T> adjacentDifference<T>(ArrayList<T> arr) {
+        if (arr.size() == 0) {
+            return new ArrayList<T>();
+        }
+        ArrayList<T> result = new ArrayList<T>();
+        result.add(arr.get(0));
+        int i = 1;
+        while (i < arr.size()) {
+            result.add(arr.get(i) - arr.get(i - 1));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public static ArrayList<T> partialSum<T>(ArrayList<T> arr) {
+        if (arr.size() == 0) {
+            return new ArrayList<T>();
+        }
+        ArrayList<T> result = new ArrayList<T>();
+        T running = arr.get(0);
+        result.add(running);
+        int i = 1;
+        while (i < arr.size()) {
+            running = running + arr.get(i);
+            result.add(running);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // --- Iota ---
+
+    public static ArrayList<int> iota(int start, int n) {
+        ArrayList<int> result = new ArrayList<int>();
+        int i = 0;
+        while (i < n) {
+            result.add(start + i);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // --- GCD / LCM ---
+
+    public static int gcd(int a, int b) {
+        int x = Math.absInt(a);
+        int y = Math.absInt(b);
+        while (y != 0) {
+            int t = y;
+            y = x % y;
+            x = t;
+        }
+        return x;
+    }
+
+    public static int lcm(int a, int b) {
+        if (a == 0 || b == 0) {
+            return 0;
+        }
+        return Math.absInt(a) / Algorithms.gcd(a, b) * Math.absInt(b);
+    }
+
+    // --- Clamp ---
+
+    public static T clamp<T>(T value, T min, T max) {
+        if (value < min) { return min; }
+        if (value > max) { return max; }
+        return value;
+    }
+
+    // --- Merge (sorted) ---
+
+    public static ArrayList<T> merge<T>(ArrayList<T> a, ArrayList<T> b) {
+        return Algorithms._mergeLists<T>(a, b);
+    }
+
+    // --- Permutations ---
+
+    // Next permutation in lexicographic order. Returns a new list.
+    public static ArrayList<T> nextPermutation<T>(ArrayList<T> arr) {
+        ArrayList<T> result = arr.clone();
+        int n = result.size();
+        if (n <= 1) {
+            return result;
+        }
+        // Find the largest index i such that result[i] < result[i + 1]
+        int i = n - 2;
+        while (i >= 0 && result.get(i) >= result.get(i + 1)) {
+            i = i - 1;
+        }
+        if (i < 0) {
+            // Already the last permutation; return reversed
+            return Algorithms.reverse<T>(result);
+        }
+        // Find the largest index j > i such that result[i] < result[j]
+        int j = n - 1;
+        while (result.get(j) <= result.get(i)) {
+            j = j - 1;
+        }
+        Algorithms._swap<T>(result, i, j);
+        // Reverse the suffix starting at i + 1
+        int left = i + 1;
+        int right = n - 1;
+        while (left < right) {
+            Algorithms._swap<T>(result, left, right);
+            left = left + 1;
+            right = right - 1;
+        }
+        return result;
+    }
+
+    // Previous permutation in lexicographic order. Returns a new list.
+    public static ArrayList<T> prevPermutation<T>(ArrayList<T> arr) {
+        ArrayList<T> result = arr.clone();
+        int n = result.size();
+        if (n <= 1) {
+            return result;
+        }
+        // Find the largest index i such that result[i] > result[i + 1]
+        int i = n - 2;
+        while (i >= 0 && result.get(i) <= result.get(i + 1)) {
+            i = i - 1;
+        }
+        if (i < 0) {
+            // Already the first permutation; return reversed
+            return Algorithms.reverse<T>(result);
+        }
+        // Find the largest index j > i such that result[i] > result[j]
+        int j = n - 1;
+        while (result.get(j) >= result.get(i)) {
+            j = j - 1;
+        }
+        Algorithms._swap<T>(result, i, j);
+        // Reverse the suffix starting at i + 1
+        int left = i + 1;
+        int right = n - 1;
+        while (left < right) {
+            Algorithms._swap<T>(result, left, right);
+            left = left + 1;
+            right = right - 1;
+        }
+        return result;
+    }
+
+    // --- Predicate checks ---
+
+    public static bool anyOf<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        int i = 0;
+        while (i < arr.size()) {
+            if (fn(arr.get(i))) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public static bool allOf<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        int i = 0;
+        while (i < arr.size()) {
+            if (!fn(arr.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public static bool noneOf<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        int i = 0;
+        while (i < arr.size()) {
+            if (fn(arr.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // --- For-each ---
+
+    public static void forEach<T>(ArrayList<T> arr, function<void(T)> fn) {
+        int i = 0;
+        while (i < arr.size()) {
+            fn(arr.get(i));
+            i = i + 1;
+        }
+    }
+
+    // --- Fill (in-place) ---
+
+    public static void fill<T>(ArrayList<T> arr, T value) {
+        int i = 0;
+        while (i < arr.size()) {
+            arr.set(i, value);
+            i = i + 1;
+        }
+    }
+
+    // --- Generate (in-place) ---
+
+    public static void generate<T>(ArrayList<T> arr, function<T()> fn) {
+        int i = 0;
+        while (i < arr.size()) {
+            arr.set(i, fn());
+            i = i + 1;
+        }
+    }
+}
