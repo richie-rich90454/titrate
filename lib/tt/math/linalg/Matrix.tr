@@ -649,4 +649,225 @@ public class Matrix {
         Matrix inv = this.inverse();
         return this.norm() * inv.norm();
     }
+
+    // ---- Cholesky decomposition ----
+
+    // Returns lower triangular L such that A = L * L^T.
+    // Requires symmetric positive-definite matrix.
+    public Matrix choleskyDecompose() {
+        int n = this.rows();
+        Matrix L = new Matrix(n, n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j <= i) {
+                double sum = 0.0;
+                if (j == i) {
+                    int k = 0;
+                    while (k < j) {
+                        double v = L.data.get2D(j, k);
+                        sum = sum + v * v;
+                        k = k + 1;
+                    }
+                    double diag = this.data.get2D(j, j) - sum;
+                    if (diag <= 0.0) { diag = 1e-15; }
+                    L.data.set2D(j, j, Math.sqrt(diag));
+                } else {
+                    int k = 0;
+                    while (k < j) {
+                        sum = sum + L.data.get2D(i, k) * L.data.get2D(j, k);
+                        k = k + 1;
+                    }
+                    double denom = L.data.get2D(j, j);
+                    if (Math.abs(denom) < 1e-15) { denom = 1e-15; }
+                    L.data.set2D(i, j, (this.data.get2D(i, j) - sum) / denom);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return L;
+    }
+
+    // ---- Rank ----
+
+    // Compute matrix rank via Gaussian elimination (count non-zero pivots).
+    public int rank() {
+        Matrix ref = this.gaussianElimination();
+        int r = 0;
+        int n = Math.min(ref.rows(), ref.cols());
+        int i = 0;
+        while (i < n) {
+            if (Math.abs(ref.data.get2D(i, i)) > 1e-10) {
+                r = r + 1;
+            }
+            i = i + 1;
+        }
+        return r;
+    }
+
+    // ---- Cross product (3D vectors) ----
+
+    // Cross product for 3D vectors (3x1 or 1x3 matrices).
+    public Matrix cross(Matrix other) {
+        Matrix a = this;
+        Matrix b = other;
+        // Treat as 3-element vectors
+        double a0 = a.data.get2D(0, 0);
+        double a1 = a.data.get2D(1, 0);
+        double a2 = a.data.get2D(2, 0);
+        double b0 = b.data.get2D(0, 0);
+        double b1 = b.data.get2D(1, 0);
+        double b2 = b.data.get2D(2, 0);
+        Matrix result = new Matrix(3, 1);
+        result.data.set2D(0, 0, a1 * b2 - a2 * b1);
+        result.data.set2D(1, 0, a2 * b0 - a0 * b2);
+        result.data.set2D(2, 0, a0 * b1 - a1 * b0);
+        return result;
+    }
+
+    // ---- Outer product ----
+
+    // Outer product: this (column) x other^T (row) = matrix
+    public Matrix outerProduct(Matrix other) {
+        int m = this.rows() * this.cols();
+        int n = other.rows() * other.cols();
+        Matrix result = new Matrix(m, n);
+        int i = 0;
+        while (i < m) {
+            int ri = i / this.cols();
+            int ci = i % this.cols();
+            double vi = this.data.get2D(ri, ci);
+            int j = 0;
+            while (j < n) {
+                int rj = j / other.cols();
+                int cj = j % other.cols();
+                double vj = other.data.get2D(rj, cj);
+                result.data.set2D(i, j, vi * vj);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // ---- Concatenation ----
+
+    // Concatenate horizontally (side by side).
+    public Matrix concatHorizontal(Matrix other) {
+        int r = this.rows();
+        int c1 = this.cols();
+        int c2 = other.cols();
+        Matrix result = new Matrix(r, c1 + c2);
+        int i = 0;
+        while (i < r) {
+            int j = 0;
+            while (j < c1) {
+                result.data.set2D(i, j, this.data.get2D(i, j));
+                j = j + 1;
+            }
+            j = 0;
+            while (j < c2) {
+                result.data.set2D(i, c1 + j, other.data.get2D(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Concatenate vertically (stacked).
+    public Matrix concatVertical(Matrix other) {
+        int r1 = this.rows();
+        int r2 = other.rows();
+        int c = this.cols();
+        Matrix result = new Matrix(r1 + r2, c);
+        int i = 0;
+        while (i < r1) {
+            int j = 0;
+            while (j < c) {
+                result.data.set2D(i, j, this.data.get2D(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < r2) {
+            int j = 0;
+            while (j < c) {
+                result.data.set2D(r1 + i, j, other.data.get2D(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // ---- Sub-matrix ----
+
+    // Extract sub-matrix [rowStart, rowEnd) x [colStart, colEnd).
+    public Matrix subMatrix(int rowStart, int rowEnd, int colStart, int colEnd) {
+        int r = rowEnd - rowStart;
+        int c = colEnd - colStart;
+        Matrix result = new Matrix(r, c);
+        int i = 0;
+        while (i < r) {
+            int j = 0;
+            while (j < c) {
+                result.data.set2D(i, j, this.data.get2D(rowStart + i, colStart + j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // ---- Matrix properties ----
+
+    // Check if matrix is positive definite via Cholesky.
+    public bool isPositiveDefinite() {
+        if (!this.isSymmetric()) { return false; }
+        int n = this.rows();
+        Matrix L = new Matrix(n, n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j <= i) {
+                double sum = 0.0;
+                int k = 0;
+                while (k < j) {
+                    sum = sum + L.data.get2D(i, k) * L.data.get2D(j, k);
+                    k = k + 1;
+                }
+                double val = this.data.get2D(i, j) - sum;
+                if (i == j) {
+                    if (val <= 0.0) { return false; }
+                    L.data.set2D(i, j, Math.sqrt(val));
+                } else {
+                    double denom = L.data.get2D(j, j);
+                    if (Math.abs(denom) < 1e-15) { return false; }
+                    L.data.set2D(i, j, val / denom);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Check if matrix is diagonal (off-diagonal elements are near zero).
+    public bool isDiagonal() {
+        int i = 0;
+        while (i < this.rows()) {
+            int j = 0;
+            while (j < this.cols()) {
+                if (i != j) {
+                    if (Math.abs(this.data.get2D(i, j)) > 1e-10) { return false; }
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
 }
