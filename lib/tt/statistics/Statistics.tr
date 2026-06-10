@@ -1,0 +1,248 @@
+// Statistics module providing Python statistics-style functions.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+
+public class Statistics {
+    // Arithmetic mean.
+    public static double mean(ArrayList<double> data) {
+        if (data.size() == 0) {
+            return 0.0;
+        }
+        double sum = 0.0;
+        int i = 0;
+        while (i < data.size()) {
+            sum = sum + data.get(i);
+            i = i + 1;
+        }
+        return sum / data.size();
+    }
+
+    // Median (middle value).
+    public static double median(ArrayList<double> data) {
+        if (data.size() == 0) {
+            return 0.0;
+        }
+        ArrayList<double> sorted = Statistics.sortCopy(data);
+        int n = sorted.size();
+        int mid = n / 2;
+        if (n % 2 == 1) {
+            return sorted.get(mid);
+        }
+        return (sorted.get(mid - 1) + sorted.get(mid)) / 2.0;
+    }
+
+    // Mode (most frequent value).
+    public static double mode(ArrayList<double> data) {
+        if (data.size() == 0) {
+            return 0.0;
+        }
+        HashMap<double, int> counts = new HashMap<double, int>();
+        int i = 0;
+        while (i < data.size()) {
+            double val = data.get(i);
+            if (counts.containsKey(val)) {
+                counts.put(val, counts.get(val) + 1);
+            } else {
+                counts.put(val, 1);
+            }
+            i = i + 1;
+        }
+        double modeVal = data.get(0);
+        int maxCount = counts.get(data.get(0));
+        ArrayList<double> keys = counts.keys();
+        i = 0;
+        while (i < keys.size()) {
+            double key = keys.get(i);
+            int cnt = counts.get(key);
+            if (cnt > maxCount) {
+                maxCount = cnt;
+                modeVal = key;
+            }
+            i = i + 1;
+        }
+        return modeVal;
+    }
+
+    // Sample standard deviation.
+    public static double stdev(ArrayList<double> data) {
+        double v = Statistics.variance(data);
+        return Math.sqrt(v);
+    }
+
+    // Sample variance.
+    public static double variance(ArrayList<double> data) {
+        if (data.size() < 2) {
+            return 0.0;
+        }
+        double m = Statistics.mean(data);
+        double sumSq = 0.0;
+        int i = 0;
+        while (i < data.size()) {
+            double diff = data.get(i) - m;
+            sumSq = sumSq + diff * diff;
+            i = i + 1;
+        }
+        return sumSq / (data.size() - 1);
+    }
+
+    // Population standard deviation.
+    public static double pstdev(ArrayList<double> data) {
+        double v = Statistics.pvariance(data);
+        return Math.sqrt(v);
+    }
+
+    // Population variance.
+    public static double pvariance(ArrayList<double> data) {
+        if (data.size() == 0) {
+            return 0.0;
+        }
+        double m = Statistics.mean(data);
+        double sumSq = 0.0;
+        int i = 0;
+        while (i < data.size()) {
+            double diff = data.get(i) - m;
+            sumSq = sumSq + diff * diff;
+            i = i + 1;
+        }
+        return sumSq / data.size();
+    }
+
+    // Quantiles: divide data into n equal-sized intervals.
+    // Returns n-1 cut points.
+    public static ArrayList<double> quantiles(ArrayList<double> data, int n) {
+        ArrayList<double> result = new ArrayList<double>();
+        if (data.size() == 0 || n <= 1) {
+            return result;
+        }
+        ArrayList<double> sorted = Statistics.sortCopy(data);
+        int m = sorted.size();
+        int i = 1;
+        while (i < n) {
+            double pos = (double) i * (m - 1) / n;
+            int lo = (int) Math.floor(pos);
+            int hi = lo + 1;
+            if (hi >= m) {
+                result.add(sorted.get(m - 1));
+            } else {
+                double frac = pos - lo;
+                double val = sorted.get(lo) + frac * (sorted.get(hi) - sorted.get(lo));
+                result.add(val);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Pearson correlation coefficient.
+    public static double correlation(ArrayList<double> x, ArrayList<double> y) {
+        if (x.size() != y.size() || x.size() < 2) {
+            return 0.0;
+        }
+        double meanX = Statistics.mean(x);
+        double meanY = Statistics.mean(y);
+        double sumXY = 0.0;
+        double sumX2 = 0.0;
+        double sumY2 = 0.0;
+        int i = 0;
+        while (i < x.size()) {
+            double dx = x.get(i) - meanX;
+            double dy = y.get(i) - meanY;
+            sumXY = sumXY + dx * dy;
+            sumX2 = sumX2 + dx * dx;
+            sumY2 = sumY2 + dy * dy;
+            i = i + 1;
+        }
+        if (sumX2 == 0.0 || sumY2 == 0.0) {
+            return 0.0;
+        }
+        return sumXY / Math.sqrt(sumX2 * sumY2);
+    }
+
+    // Linear regression: returns [slope, intercept].
+    public static ArrayList<double> linearRegression(ArrayList<double> x, ArrayList<double> y) {
+        ArrayList<double> result = new ArrayList<double>();
+        if (x.size() != y.size() || x.size() < 2) {
+            result.add(0.0);
+            result.add(0.0);
+            return result;
+        }
+        double meanX = Statistics.mean(x);
+        double meanY = Statistics.mean(y);
+        double sumXY = 0.0;
+        double sumX2 = 0.0;
+        int i = 0;
+        while (i < x.size()) {
+            double dx = x.get(i) - meanX;
+            double dy = y.get(i) - meanY;
+            sumXY = sumXY + dx * dy;
+            sumX2 = sumX2 + dx * dx;
+            i = i + 1;
+        }
+        double slope = 0.0;
+        if (sumX2 != 0.0) {
+            slope = sumXY / sumX2;
+        }
+        double intercept = meanY - slope * meanX;
+        result.add(slope);
+        result.add(intercept);
+        return result;
+    }
+
+    // Geometric mean.
+    public static double geometricMean(ArrayList<double> data) {
+        if (data.size() == 0) {
+            return 0.0;
+        }
+        double sumLog = 0.0;
+        int i = 0;
+        while (i < data.size()) {
+            if (data.get(i) <= 0.0) {
+                return 0.0;
+            }
+            sumLog = sumLog + Math.ln(data.get(i));
+            i = i + 1;
+        }
+        return Math.exp(sumLog / data.size());
+    }
+
+    // Harmonic mean.
+    public static double harmonicMean(ArrayList<double> data) {
+        if (data.size() == 0) {
+            return 0.0;
+        }
+        double sumRecip = 0.0;
+        int i = 0;
+        while (i < data.size()) {
+            if (data.get(i) == 0.0) {
+                return 0.0;
+            }
+            sumRecip = sumRecip + 1.0 / data.get(i);
+            i = i + 1;
+        }
+        return data.size() / sumRecip;
+    }
+
+    // Helper: sort a copy of the data.
+    private static ArrayList<double> sortCopy(ArrayList<double> data) {
+        ArrayList<double> copy = new ArrayList<double>();
+        int i = 0;
+        while (i < data.size()) {
+            copy.add(data.get(i));
+            i = i + 1;
+        }
+        // Insertion sort
+        int j = 1;
+        while (j < copy.size()) {
+            double key = copy.get(j);
+            int k = j - 1;
+            while (k >= 0 && copy.get(k) > key) {
+                copy.set(k + 1, copy.get(k));
+                k = k - 1;
+            }
+            copy.set(k + 1, key);
+            j = j + 1;
+        }
+        return copy;
+    }
+}
