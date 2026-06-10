@@ -19,6 +19,20 @@ public fn main(): void {
     let (n, s) = pair;
     io::println(s + " = " + Integer.toString(n));
 
+    // Range expressions
+    for (i in 0..10) {
+        io::println(Integer.toString(i));
+    }
+
+    // Raw strings and byte literals
+    let raw: string = r"No \escaping here";
+    let b: byte = b'A';
+
+    // Numeric literals: binary, octal, underscores
+    let bin: int = 0b1010;
+    let oct: int = 0o777;
+    let big: long = 1_000_000_000L;
+
     // Standard library
     let map: HashMap<string, double> = new HashMap<string, double>();
     map.put("pi", Math.PI());
@@ -39,16 +53,26 @@ public fn main(): void {
 - **Tuples** — anonymous product types with destructuring
 - **Operator overloading** — define `operator+`, `operator==`, etc. on user types
 - **Iterators** — `for (item in iterable)` desugars to `next()` calls
+- **Range expressions** — exclusive `0..10` and inclusive `0..=9`
+- **Exhaustive pattern matching** — compiler errors on non-exhaustive switch on enums
+- **Raw strings** — `r"..."` and `r#"..."#` with no escape processing
+- **Byte literals** — `b'x'` for byte values
+- **Rich numeric literals** — binary `0b1010`, octal `0o777`, underscore separators `1_000_000`
 - **Ownership** — move semantics, borrowing, region-based allocation, no GC
 - **Modules** — import system with public/private visibility
 - **Pattern matching** — destructuring enums, Result type, error propagation with `?`
+- **Compiler optimizations** — constant folding, dead code elimination
+- **Helpful errors** — compiler suggestions with "did you mean?" hints
 
 ## Standard Library
 
 | Module | Description |
 |--------|-------------|
-| `tt::util` | ArrayList, HashMap, Set, Deque, PriorityQueue, Counter, StringBuilder, Vec |
-| `tt::io` | File I/O, println, print |
+| `tt::util` | ArrayList, HashMap, Set, Deque, PriorityQueue, Counter, StringBuilder, Vec, Stack, Queue, LinkedList, BitSet, Trie, Graph |
+| `tt::io` | File I/O, println, print, Reader, Writer, FileReader, FileWriter, BufferedReader |
+| `tt::concurrent` | Future, Channel |
+| `tt::crypto` | Hash |
+| `tt::encoding` | Base64, Hex, URL encoding |
 | `tt::json` | JSON parser and serializer |
 | `tt::csv` | CSV reader and writer |
 | `tt::math` | Trig, logs, special functions, constants |
@@ -63,7 +87,7 @@ public fn main(): void {
 | `tt::xml` | XML parser and writer |
 | `tt::units` | Units of measure (Meter, Second, Joule, etc.) |
 | `tt::assay` | Testing framework with assertions |
-| `tt::lang` | Core types: Integer, Double, String, Boolean, etc. |
+| `tt::lang` | Core types: Integer, Double, String, Boolean, Result, etc. |
 
 ## Scientific Computing
 
@@ -115,6 +139,23 @@ cd myproject
 pipette run
 ```
 
+## Pipette Commands
+
+```
+pipette new <name>     Create a new project
+pipette build          Compile the project [--release for optimized build]
+pipette run            Build and run the project
+pipette test           Run tests
+pipette bench          Run benchmark files
+pipette doc            Generate API documentation
+pipette clean          Remove build output directory
+pipette lint           Run the analyzer on all .tr files
+pipette fmt            Format .tr source files
+pipette outdated       Check for newer versions of dependencies
+pipette tree           Show the dependency tree
+pipette watch          Watch for changes and rebuild
+```
+
 ## Language
 
 ```titrate
@@ -161,10 +202,13 @@ class Dog extends Animal {
     }
 }
 
-// pattern matching
-switch result {
-    case Ok(val) => io::println(Integer.toString(val));
-    case Err(msg) => io::println("error: " + msg);
+// exhaustive pattern matching
+enum Direction { North(), South(), East(), West() }
+switch dir {
+    case North() => io::println("N");
+    case South() => io::println("S");
+    case East()  => io::println("E");
+    case West()  => io::println("W");
 }
 
 // iterators
@@ -172,6 +216,21 @@ let list = new ArrayList<int>();
 for (item in list) {
     io::println(Integer.toString(item));
 }
+
+// range expressions
+for (i in 0..10) { io::println(Integer.toString(i)); }
+for (i in 0..=9) { io::println(Integer.toString(i)); }
+
+// raw strings
+let pattern: string = r"\d+\.\d+";
+
+// byte literals
+let ch: byte = b'A';
+
+// binary, octal, underscore literals
+let flags: int = 0b1101_0101;
+let perms: int = 0o755;
+let million: int = 1_000_000;
 
 // ownership
 let owned: Owned<int> = new int(5);
