@@ -1,0 +1,49 @@
+// Stopwatch for measuring elapsed time.
+import tt::time::Duration;
+
+public class Stopwatch {
+    private long startTime;
+    private long elapsed;
+    private bool running;
+
+    public Stopwatch() {
+        this.startTime = 0;
+        this.elapsed = 0;
+        this.running = false;
+    }
+
+    public Stopwatch start() {
+        if (!this.running) {
+            this.startTime = Time_nanos();
+            this.running = true;
+        }
+        return this;
+    }
+
+    public Stopwatch stop() {
+        if (this.running) {
+            this.elapsed = this.elapsed + (Time_nanos() - this.startTime);
+            this.running = false;
+        }
+        return this;
+    }
+
+    public Stopwatch reset() {
+        this.elapsed = 0;
+        this.startTime = 0;
+        this.running = false;
+        return this;
+    }
+
+    public Duration elapsed() {
+        long total = this.elapsed;
+        if (this.running) {
+            total = total + (Time_nanos() - this.startTime);
+        }
+        return new Duration(total / 1000000);
+    }
+
+    public bool isRunning() {
+        return this.running;
+    }
+}

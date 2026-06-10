@@ -14,4 +14,27 @@ public class Time {
     public static void sleepDuration(Duration d) {
         Time_sleep(d.millis);
     }
+
+    public static long millis() {
+        return Time_now();
+    }
+
+    public static long micros() {
+        return Time_micros();
+    }
+
+    public static long nanos() {
+        return Time_nanos();
+    }
+
+    public static Duration measure(fn) {
+        long start = Time_nanos();
+        fn();
+        long end = Time_nanos();
+        return new Duration((end - start) / 1000000);
+    }
+
+    public static Stopwatch stopwatch() {
+        return new Stopwatch();
+    }
 }
