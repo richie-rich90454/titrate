@@ -3,29 +3,45 @@ import tt.math.Math;
 import tt.lang.Integer;
 import tt.lang.Double;
 
-public class NDArray {
-    public ArrayList<double> data;
+// Multi-dimensional array with generic element type.
+// For numeric operations (sum, mean, operators), T should be a numeric type (int, double).
+public class NDArray<T> {
+    public ArrayList<T> data;
     public ArrayList<int> shape;
     public ArrayList<int> strides;
-    public int ndim;
 
-    public NDArray() {
-        this.data = new ArrayList<double>();
+    // Constructor - creates array with given shape. Data is uninitialized;
+    // use factory methods (zeros, ones, filled, fromData) for initialized arrays.
+    public NDArray(ArrayList<int> shape) {
+        this.data = new ArrayList<T>();
+        this.shape = new ArrayList<int>();
+        int i = 0;
+        while (i < shape.size()) {
+            this.shape.add(shape.get(i));
+            i = i + 1;
+        }
+        this.computeStrides();
+    }
+
+    // Internal no-arg constructor for factory methods
+    private NDArray() {
+        this.data = new ArrayList<T>();
         this.shape = new ArrayList<int>();
         this.strides = new ArrayList<int>();
-        this.ndim = 0;
     }
 
     // ---- Factory methods ----
 
-    public static NDArray zeros(int rows, int cols) {
-        NDArray a = new NDArray();
-        a.shape.add(rows);
-        a.shape.add(cols);
-        a.ndim = 2;
-        a.computeStrides();
-        int total = rows * cols;
+    public static NDArray<double> zeros(ArrayList<int> shape) {
+        NDArray<double> a = new NDArray<double>();
         int i = 0;
+        while (i < shape.size()) {
+            a.shape.add(shape.get(i));
+            i = i + 1;
+        }
+        a.computeStrides();
+        int total = a.totalElements();
+        i = 0;
         while (i < total) {
             a.data.add(0.0);
             i = i + 1;
@@ -33,30 +49,16 @@ public class NDArray {
         return a;
     }
 
-    public static NDArray zeros3D(int x, int y, int z) {
-        NDArray a = new NDArray();
-        a.shape.add(x);
-        a.shape.add(y);
-        a.shape.add(z);
-        a.ndim = 3;
-        a.computeStrides();
-        int total = x * y * z;
+    public static NDArray<double> ones(ArrayList<int> shape) {
+        NDArray<double> a = new NDArray<double>();
         int i = 0;
-        while (i < total) {
-            a.data.add(0.0);
+        while (i < shape.size()) {
+            a.shape.add(shape.get(i));
             i = i + 1;
         }
-        return a;
-    }
-
-    public static NDArray ones(int rows, int cols) {
-        NDArray a = new NDArray();
-        a.shape.add(rows);
-        a.shape.add(cols);
-        a.ndim = 2;
         a.computeStrides();
-        int total = rows * cols;
-        int i = 0;
+        int total = a.totalElements();
+        i = 0;
         while (i < total) {
             a.data.add(1.0);
             i = i + 1;
@@ -64,240 +66,202 @@ public class NDArray {
         return a;
     }
 
-    public static NDArray fromFlat(ArrayList<double> d, int rows, int cols) {
-        NDArray a = new NDArray();
-        a.shape.add(rows);
-        a.shape.add(cols);
-        a.ndim = 2;
-        a.computeStrides();
+    public static NDArray<T> fromData(ArrayList<int> shape, ArrayList<T> data) {
+        NDArray<T> a = new NDArray<T>();
         int i = 0;
-        while (i < d.size()) {
-            a.data.add(d.get(i));
+        while (i < shape.size()) {
+            a.shape.add(shape.get(i));
+            i = i + 1;
+        }
+        a.computeStrides();
+        i = 0;
+        while (i < data.size()) {
+            a.data.add(data.get(i));
             i = i + 1;
         }
         return a;
     }
 
-    public static NDArray eye(int n) {
-        NDArray a = NDArray.zeros(n, n);
+    public static NDArray<double> filled(ArrayList<int> shape, double value) {
+        NDArray<double> a = new NDArray<double>();
         int i = 0;
-        while (i < n) {
-            a.set2D(i, i, 1.0);
+        while (i < shape.size()) {
+            a.shape.add(shape.get(i));
             i = i + 1;
         }
-        return a;
-    }
-
-    public static NDArray arange(double start, double stop, double step) {
-        NDArray a = new NDArray();
-        a.ndim = 1;
-        a.shape.add(0);
-        a.strides.add(1);
-        double val = start;
-        if (step > 0.0) {
-            while (val < stop) {
-                a.data.add(val);
-                val = val + step;
-            }
-        } else if (step < 0.0) {
-            while (val > stop) {
-                a.data.add(val);
-                val = val + step;
-            }
-        }
-        a.shape.set(0, a.data.size());
-        return a;
-    }
-
-    public static NDArray filled(int rows, int cols, double val) {
-        NDArray a = new NDArray();
-        a.shape.add(rows);
-        a.shape.add(cols);
-        a.ndim = 2;
         a.computeStrides();
-        int total = rows * cols;
-        int i = 0;
+        int total = a.totalElements();
+        i = 0;
         while (i < total) {
-            a.data.add(val);
+            a.data.add(value);
             i = i + 1;
         }
         return a;
     }
 
-    // ---- Indexing ----
+    // ---- Multi-dimensional indexing ----
 
-    public double get(int i) {
+    public T get(ArrayList<int> indices) {
+        int flat = this.flatIndex(indices);
+        return this.data.get(flat);
+    }
+
+    public void set(ArrayList<int> indices, T value) {
+        int flat = this.flatIndex(indices);
+        this.data.set(flat, value);
+    }
+
+    // Convenience: flat (linear) indexing into the data buffer
+    public T getFlat(int i) {
         return this.data.get(i);
     }
 
-    public double get2D(int i, int j) {
-        return this.data.get(this.flatIndex(i, j));
+    public void setFlat(int i, T value) {
+        this.data.set(i, value);
     }
 
-    public double get3D(int i, int j, int k) {
-        return this.data.get(this.flatIndex3D(i, j, k));
+    // Convenience: 1D indexing using stride
+    public T get1D(int i) {
+        return this.data.get(i * this.strides.get(0));
     }
 
-    // ---- Setting ----
-
-    public void set(int i, double val) {
-        this.data.set(i, val);
+    public void set1D(int i, T value) {
+        this.data.set(i * this.strides.get(0), value);
     }
 
-    public void set2D(int i, int j, double val) {
-        this.data.set(this.flatIndex(i, j), val);
+    // Convenience: 2D indexing using strides
+    public T get2D(int i, int j) {
+        return this.data.get(i * this.strides.get(0) + j * this.strides.get(1));
     }
 
-    public void set3D(int i, int j, int k, double val) {
-        this.data.set(this.flatIndex3D(i, j, k), val);
+    public void set2D(int i, int j, T value) {
+        this.data.set(i * this.strides.get(0) + j * this.strides.get(1), value);
+    }
+
+    // Convenience: 3D indexing using strides
+    public T get3D(int i, int j, int k) {
+        return this.data.get(i * this.strides.get(0) + j * this.strides.get(1) + k * this.strides.get(2));
+    }
+
+    public void set3D(int i, int j, int k, T value) {
+        this.data.set(i * this.strides.get(0) + j * this.strides.get(1) + k * this.strides.get(2), value);
     }
 
     // ---- Shape operations ----
 
-    public int rows() {
-        if (this.ndim == 0) { return 0; }
-        return this.shape.get(0);
-    }
-
-    public int cols() {
-        if (this.ndim < 2) { return 0; }
-        return this.shape.get(1);
-    }
-
-    public int size() {
-        return this.data.size();
-    }
-
-    public NDArray reshape(int rows, int cols) {
-        NDArray a = new NDArray();
-        a.shape.add(rows);
-        a.shape.add(cols);
-        a.ndim = 2;
+    // Reshape without copying data. The returned array shares the same data buffer.
+    public NDArray<T> reshape(ArrayList<int> newShape) {
+        NDArray<T> a = new NDArray<T>();
+        int i = 0;
+        while (i < newShape.size()) {
+            a.shape.add(newShape.get(i));
+            i = i + 1;
+        }
         a.computeStrides();
-        int i = 0;
-        while (i < this.data.size()) {
-            a.data.add(this.data.get(i));
-            i = i + 1;
-        }
+        // Share data reference (no copy)
+        a.data = this.data;
         return a;
     }
 
-    public NDArray flatten() {
-        NDArray a = new NDArray();
-        int total = this.data.size();
-        a.shape.add(total);
-        a.ndim = 1;
-        a.strides.add(1);
+    // Reverse axis order transpose.
+    // For 2D: swaps rows and columns.
+    // For nD: reverses the axis order (shape [a,b,c] -> [c,b,a]).
+    public NDArray<T> transpose() {
+        int nd = this.shape.size();
+        if (nd <= 1) { return this.clone(); }
+
+        NDArray<T> a = new NDArray<T>();
+        // Reverse the shape
+        int d = nd - 1;
+        while (d >= 0) {
+            a.shape.add(this.shape.get(d));
+            d = d - 1;
+        }
+        a.computeStrides();
+
+        // Copy data with reversed indices
+        int total = this.totalElements();
+        ArrayList<int> indices = new ArrayList<int>();
         int i = 0;
-        while (i < this.data.size()) {
-            a.data.add(this.data.get(i));
+        while (i < nd) {
+            indices.add(0);
             i = i + 1;
         }
-        return a;
-    }
 
-    public NDArray transpose() {
-        if (this.ndim < 2) { return this.clone(); }
-        int r = this.rows();
-        int c = this.cols();
-        NDArray a = NDArray.zeros(c, r);
-        int i = 0;
-        while (i < r) {
-            int j = 0;
-            while (j < c) {
-                a.set2D(j, i, this.get2D(i, j));
-                j = j + 1;
+        i = 0;
+        while (i < total) {
+            // Build reversed indices
+            ArrayList<int> revIndices = new ArrayList<int>();
+            int j = nd - 1;
+            while (j >= 0) {
+                revIndices.add(indices.get(j));
+                j = j - 1;
+            }
+            a.data.add(this.get(revIndices));
+
+            // Increment indices in lexicographic order
+            int axis = nd - 1;
+            while (axis >= 0) {
+                int val = indices.get(axis) + 1;
+                indices.set(axis, val);
+                if (val < this.shape.get(axis)) {
+                    break;
+                }
+                indices.set(axis, 0);
+                axis = axis - 1;
             }
             i = i + 1;
         }
         return a;
     }
 
-    // ---- Element-wise arithmetic ----
+    // Collapse to 1D. The returned array shares the same data buffer.
+    public NDArray<T> flatten() {
+        NDArray<T> a = new NDArray<T>();
+        a.shape.add(this.totalElements());
+        a.strides.add(1);
+        // Share data reference
+        a.data = this.data;
+        return a;
+    }
 
-    public NDArray add(NDArray other) {
-        NDArray a = this.clone();
+    // ---- Element-wise operations with functions ----
+
+    // Apply a transformation function to every element.
+    public NDArray<T> map(f: fn(T): T) {
+        NDArray<T> a = new NDArray<T>();
         int i = 0;
-        while (i < a.data.size()) {
-            a.data.set(i, a.data.get(i) + other.data.get(i));
+        while (i < this.shape.size()) {
+            a.shape.add(this.shape.get(i));
+            i = i + 1;
+        }
+        a.computeStrides();
+        i = 0;
+        while (i < this.data.size()) {
+            a.data.add(f(this.data.get(i)));
             i = i + 1;
         }
         return a;
     }
 
-    public NDArray sub(NDArray other) {
-        NDArray a = this.clone();
+    // Apply a binary function element-wise across two arrays of the same shape.
+    public NDArray<T> zipMap(NDArray<T> other, f: fn(T, T): T) {
+        NDArray<T> a = new NDArray<T>();
         int i = 0;
-        while (i < a.data.size()) {
-            a.data.set(i, a.data.get(i) - other.data.get(i));
+        while (i < this.shape.size()) {
+            a.shape.add(this.shape.get(i));
+            i = i + 1;
+        }
+        a.computeStrides();
+        i = 0;
+        while (i < this.data.size()) {
+            a.data.add(f(this.data.get(i), other.data.get(i)));
             i = i + 1;
         }
         return a;
     }
 
-    public NDArray mul(NDArray other) {
-        NDArray a = this.clone();
-        int i = 0;
-        while (i < a.data.size()) {
-            a.data.set(i, a.data.get(i) * other.data.get(i));
-            i = i + 1;
-        }
-        return a;
-    }
-
-    public NDArray div(NDArray other) {
-        NDArray a = this.clone();
-        int i = 0;
-        while (i < a.data.size()) {
-            a.data.set(i, a.data.get(i) / other.data.get(i));
-            i = i + 1;
-        }
-        return a;
-    }
-
-    // ---- Scalar operations ----
-
-    public NDArray addScalar(double s) {
-        NDArray a = this.clone();
-        int i = 0;
-        while (i < a.data.size()) {
-            a.data.set(i, a.data.get(i) + s);
-            i = i + 1;
-        }
-        return a;
-    }
-
-    public NDArray subScalar(double s) {
-        NDArray a = this.clone();
-        int i = 0;
-        while (i < a.data.size()) {
-            a.data.set(i, a.data.get(i) - s);
-            i = i + 1;
-        }
-        return a;
-    }
-
-    public NDArray mulScalar(double s) {
-        NDArray a = this.clone();
-        int i = 0;
-        while (i < a.data.size()) {
-            a.data.set(i, a.data.get(i) * s);
-            i = i + 1;
-        }
-        return a;
-    }
-
-    public NDArray divScalar(double s) {
-        NDArray a = this.clone();
-        int i = 0;
-        while (i < a.data.size()) {
-            a.data.set(i, a.data.get(i) / s);
-            i = i + 1;
-        }
-        return a;
-    }
-
-    // ---- Reductions ----
+    // ---- Reductions (for numeric types) ----
 
     public double sum() {
         double s = 0.0;
@@ -319,7 +283,8 @@ public class NDArray {
         double m = this.data.get(0);
         int i = 1;
         while (i < this.data.size()) {
-            m = Math.min(m, this.data.get(i));
+            double v = this.data.get(i);
+            if (v < m) { m = v; }
             i = i + 1;
         }
         return m;
@@ -330,103 +295,114 @@ public class NDArray {
         double m = this.data.get(0);
         int i = 1;
         while (i < this.data.size()) {
-            m = Math.max(m, this.data.get(i));
+            double v = this.data.get(i);
+            if (v > m) { m = v; }
             i = i + 1;
         }
         return m;
     }
 
-    public NDArray sumRows() {
-        if (this.ndim < 2) { return this.clone(); }
-        int r = this.rows();
-        NDArray a = new NDArray();
-        a.ndim = 1;
-        a.strides.add(1);
-        int i = 0;
-        while (i < r) {
-            double s = 0.0;
-            int j = 0;
-            while (j < this.cols()) {
-                s = s + this.get2D(i, j);
-                j = j + 1;
-            }
-            a.data.add(s);
-            i = i + 1;
-        }
-        a.shape.add(r);
-        return a;
+    // ---- Info ----
+
+    // Total number of elements in the data buffer.
+    public int size() {
+        return this.data.size();
     }
 
-    public NDArray sumCols() {
-        if (this.ndim < 2) { return this.clone(); }
-        int c = this.cols();
-        NDArray a = new NDArray();
-        a.ndim = 1;
-        a.strides.add(1);
-        int j = 0;
-        while (j < c) {
-            double s = 0.0;
+    // Number of dimensions.
+    public int ndim() {
+        return this.shape.size();
+    }
+
+    // First dimension size (number of rows for 2D arrays).
+    public int rows() {
+        if (this.shape.size() == 0) { return 0; }
+        return this.shape.get(0);
+    }
+
+    // Second dimension size (number of columns for 2D arrays).
+    public int cols() {
+        if (this.shape.size() < 2) { return 0; }
+        return this.shape.get(1);
+    }
+
+    // ---- String representation ----
+
+    public string toString() {
+        if (this.shape.size() == 0) { return "NDArray([])"; }
+        if (this.shape.size() == 1) {
+            String s = "[";
             int i = 0;
-            while (i < this.rows()) {
-                s = s + this.get2D(i, j);
+            while (i < this.data.size()) {
+                if (i > 0) { s = s + ", "; }
+                s = s + this.data.get(i).toString();
                 i = i + 1;
             }
-            a.data.add(s);
-            j = j + 1;
+            s = s + "]";
+            return s;
         }
-        a.shape.add(c);
-        return a;
-    }
-
-    public NDArray meanRows() {
-        if (this.ndim < 2) { return this.clone(); }
-        int r = this.rows();
-        int c = this.cols();
-        NDArray a = new NDArray();
-        a.ndim = 1;
-        a.strides.add(1);
-        int i = 0;
-        while (i < r) {
-            double s = 0.0;
-            int j = 0;
-            while (j < c) {
-                s = s + this.get2D(i, j);
-                j = j + 1;
-            }
-            a.data.add(s / c);
-            i = i + 1;
-        }
-        a.shape.add(r);
-        return a;
-    }
-
-    public NDArray meanCols() {
-        if (this.ndim < 2) { return this.clone(); }
-        int r = this.rows();
-        int c = this.cols();
-        NDArray a = new NDArray();
-        a.ndim = 1;
-        a.strides.add(1);
-        int j = 0;
-        while (j < c) {
-            double s = 0.0;
+        if (this.shape.size() == 2) {
+            int r = this.shape.get(0);
+            int c = this.shape.get(1);
+            String s = "[";
             int i = 0;
             while (i < r) {
-                s = s + this.get2D(i, j);
+                if (i > 0) { s = s + ",\n "; }
+                s = s + "[";
+                int j = 0;
+                while (j < c) {
+                    if (j > 0) { s = s + ", "; }
+                    s = s + this.get2D(i, j).toString();
+                    j = j + 1;
+                }
+                s = s + "]";
                 i = i + 1;
             }
-            a.data.add(s / r);
-            j = j + 1;
+            s = s + "]";
+            return s;
         }
-        a.shape.add(c);
-        return a;
+        // Higher dimensions: show shape summary and first few elements
+        String s = "NDArray(shape=[";
+        int d = 0;
+        while (d < this.shape.size()) {
+            if (d > 0) { s = s + ", "; }
+            s = s + Integer.toString(this.shape.get(d));
+            d = d + 1;
+        }
+        s = s + "], data=[";
+        int limit = this.data.size();
+        if (limit > 10) { limit = 10; }
+        int i = 0;
+        while (i < limit) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this.data.get(i).toString();
+            i = i + 1;
+        }
+        if (this.data.size() > 10) {
+            s = s + ", ...";
+        }
+        s = s + "])";
+        return s;
+    }
+
+    // ---- Operator overloading (for numeric NDArrays) ----
+
+    fn operator+(self, other: NDArray<T>): NDArray<T> {
+        return self.zipMap(other, fn(a: T, b: T): T => a + b);
+    }
+
+    fn operator-(self, other: NDArray<T>): NDArray<T> {
+        return self.zipMap(other, fn(a: T, b: T): T => a - b);
+    }
+
+    fn operator*(self, scalar: double): NDArray<T> {
+        return self.map(fn(a: T): T => a * scalar);
     }
 
     // ---- Utility ----
 
-    public NDArray clone() {
-        NDArray a = new NDArray();
-        a.ndim = this.ndim;
+    public NDArray<T> clone() {
+        NDArray<T> a = new NDArray<T>();
         int i = 0;
         while (i < this.shape.size()) {
             a.shape.add(this.shape.get(i));
@@ -445,60 +421,16 @@ public class NDArray {
         return a;
     }
 
-    public String toString() {
-        if (this.ndim == 0) { return "[]"; }
-        if (this.ndim == 1) {
-            String s = "[";
-            int i = 0;
-            while (i < this.data.size()) {
-                if (i > 0) { s = s + ", "; }
-                s = s + Double.toString(this.data.get(i));
-                i = i + 1;
-            }
-            s = s + "]";
-            return s;
-        }
-        if (this.ndim == 2) {
-            String s = "[";
-            int r = this.rows();
-            int c = this.cols();
-            int i = 0;
-            while (i < r) {
-                if (i > 0) { s = s + ",\n "; }
-                s = s + "[";
-                int j = 0;
-                while (j < c) {
-                    if (j > 0) { s = s + ", "; }
-                    s = s + Double.toString(this.get2D(i, j));
-                    j = j + 1;
-                }
-                s = s + "]";
-                i = i + 1;
-            }
-            s = s + "]";
-            return s;
-        }
-        // 3D and above: basic representation
-        String s = "NDArray(shape=[";
-        int d = 0;
-        while (d < this.ndim) {
-            if (d > 0) { s = s + ", "; }
-            s = s + Integer.toString(this.shape.get(d));
-            d = d + 1;
-        }
-        s = s + "], data=[";
+    public void fill(T value) {
         int i = 0;
         while (i < this.data.size()) {
-            if (i > 0) { s = s + ", "; }
-            s = s + Double.toString(this.data.get(i));
+            this.data.set(i, value);
             i = i + 1;
         }
-        s = s + "])";
-        return s;
     }
 
-    public bool equals(NDArray other) {
-        if (this.ndim != other.ndim) { return false; }
+    public bool equals(NDArray<T> other) {
+        if (this.shape.size() != other.shape.size()) { return false; }
         if (this.data.size() != other.data.size()) { return false; }
         int i = 0;
         while (i < this.shape.size()) {
@@ -507,46 +439,10 @@ public class NDArray {
         }
         i = 0;
         while (i < this.data.size()) {
-            double a = this.data.get(i);
-            double b = other.data.get(i);
-            double diff = a - b;
-            if (diff < 0.0) { diff = -diff; }
-            if (diff > 1e-9) { return false; }
+            if (this.data.get(i) != other.data.get(i)) { return false; }
             i = i + 1;
         }
         return true;
-    }
-
-    public void fill(double val) {
-        int i = 0;
-        while (i < this.data.size()) {
-            this.data.set(i, val);
-            i = i + 1;
-        }
-    }
-
-    // ---- Internal ----
-
-    public void computeStrides() {
-        this.strides = new ArrayList<int>();
-        if (this.ndim == 0) { return; }
-        int i = this.ndim - 1;
-        while (i >= 0) {
-            if (i == this.ndim - 1) {
-                this.strides.add(0, 1);
-            } else {
-                this.strides.add(0, this.strides.get(0) * this.shape.get(i + 1));
-            }
-            i = i - 1;
-        }
-    }
-
-    public int flatIndex(int i, int j) {
-        return i * this.strides.get(0) + j * this.strides.get(1);
-    }
-
-    public int flatIndex3D(int i, int j, int k) {
-        return i * this.strides.get(0) + j * this.strides.get(1) + k * this.strides.get(2);
     }
 
     public int argMax() {
@@ -555,8 +451,9 @@ public class NDArray {
         double m = this.data.get(0);
         int i = 1;
         while (i < this.data.size()) {
-            if (this.data.get(i) > m) {
-                m = this.data.get(i);
+            double v = this.data.get(i);
+            if (v > m) {
+                m = v;
                 idx = i;
             }
             i = i + 1;
@@ -570,8 +467,9 @@ public class NDArray {
         double m = this.data.get(0);
         int i = 1;
         while (i < this.data.size()) {
-            if (this.data.get(i) < m) {
-                m = this.data.get(i);
+            double v = this.data.get(i);
+            if (v < m) {
+                m = v;
                 idx = i;
             }
             i = i + 1;
@@ -579,7 +477,7 @@ public class NDArray {
         return idx;
     }
 
-    public double dot(NDArray other) {
+    public double dot(NDArray<T> other) {
         double s = 0.0;
         int i = 0;
         while (i < this.data.size()) {
@@ -600,44 +498,41 @@ public class NDArray {
         return Math.sqrt(s);
     }
 
-    public NDArray apply(String fn_name) {
-        NDArray a = this.clone();
-        int i = 0;
-        while (i < a.data.size()) {
-            double v = a.data.get(i);
-            if (fn_name == "sin") {
-                a.data.set(i, Math.sin(v));
-            } else if (fn_name == "cos") {
-                a.data.set(i, Math.cos(v));
-            } else if (fn_name == "tan") {
-                a.data.set(i, Math.tan(v));
-            } else if (fn_name == "asin") {
-                a.data.set(i, Math.asin(v));
-            } else if (fn_name == "acos") {
-                a.data.set(i, Math.acos(v));
-            } else if (fn_name == "atan") {
-                a.data.set(i, Math.atan(v));
-            } else if (fn_name == "ln") {
-                a.data.set(i, Math.ln(v));
-            } else if (fn_name == "log10") {
-                a.data.set(i, Math.log10(v));
-            } else if (fn_name == "log2") {
-                a.data.set(i, Math.log2(v));
-            } else if (fn_name == "exp") {
-                a.data.set(i, Math.exp(v));
-            } else if (fn_name == "sqrt") {
-                a.data.set(i, Math.sqrt(v));
-            } else if (fn_name == "cbrt") {
-                a.data.set(i, Math.cbrt(v));
-            } else if (fn_name == "abs") {
-                a.data.set(i, Math.abs(v));
-            } else if (fn_name == "floor") {
-                a.data.set(i, Math.floor(v));
-            } else if (fn_name == "ceil") {
-                a.data.set(i, Math.ceil(v));
+    // ---- Internal helpers ----
+
+    public void computeStrides() {
+        this.strides = new ArrayList<int>();
+        int n = this.shape.size();
+        if (n == 0) { return; }
+        int i = n - 1;
+        while (i >= 0) {
+            if (i == n - 1) {
+                this.strides.add(0, 1);
+            } else {
+                this.strides.add(0, this.strides.get(0) * this.shape.get(i + 1));
             }
+            i = i - 1;
+        }
+    }
+
+    public int totalElements() {
+        if (this.shape.size() == 0) { return 0; }
+        int total = 1;
+        int i = 0;
+        while (i < this.shape.size()) {
+            total = total * this.shape.get(i);
             i = i + 1;
         }
-        return a;
+        return total;
+    }
+
+    public int flatIndex(ArrayList<int> indices) {
+        int flat = 0;
+        int i = 0;
+        while (i < indices.size()) {
+            flat = flat + indices.get(i) * this.strides.get(i);
+            i = i + 1;
+        }
+        return flat;
     }
 }
