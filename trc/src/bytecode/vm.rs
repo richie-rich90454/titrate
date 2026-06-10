@@ -211,6 +211,42 @@ impl Vm {
         vm.register_native("Url_encode", native_url_encode);
         vm.register_native("Url_decode", native_url_decode);
 
+        // Additional String natives
+        vm.register_native("String_toUppercase", native_string_to_uppercase);
+        vm.register_native("String_toLowerCase", native_string_to_lower_case);
+        vm.register_native("String_replace", native_string_replace);
+
+        // Additional Math natives
+        vm.register_native("Math_nextUp", native_math_next_up);
+        vm.register_native("Math_nextDown", native_math_next_down);
+        vm.register_native("Math_ulp", native_math_ulp);
+        vm.register_native("Math_getExponent", native_math_get_exponent);
+        vm.register_native("Math_scalb", native_math_scalb);
+        vm.register_native("Math_random", native_math_random);
+        vm.register_native("Math_negInf", native_math_neg_inf);
+
+        // Additional Regex natives
+        vm.register_native("Regex_groupCount", native_regex_group_count);
+
+        // Additional Directory natives
+        vm.register_native("Dir_walk", native_dir_walk);
+        vm.register_native("Dir_copy", native_dir_copy);
+        vm.register_native("Dir_move", native_dir_move);
+
+        // Additional Time natives
+        vm.register_native("Time_dayOfWeek", native_time_day_of_week);
+        vm.register_native("Time_dayOfYear", native_time_day_of_year);
+
+        // Double and Long parsing natives
+        vm.register_native("Double_parseDouble", native_double_parse_double);
+        vm.register_native("Long_parseLong", native_long_parse_long);
+
+        // Subprocess natives
+        vm.register_native("Subprocess_run", native_subprocess_run);
+
+        // Tempfile natives
+        vm.register_native("Tempfile_create", native_tempfile_create);
+
         vm
     }
 
@@ -5079,6 +5115,312 @@ fn native_url_decode(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Additional String native functions
+// ---------------------------------------------------------------------------
+
+fn native_string_to_uppercase(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => Ok(Value::String(Rc::new(s.to_uppercase()))),
+        _ => Err("String_toUppercase: expected a String argument".to_string()),
+    }
+}
+
+fn native_string_to_lower_case(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => Ok(Value::String(Rc::new(s.to_lowercase()))),
+        _ => Err("String_toLowerCase: expected a String argument".to_string()),
+    }
+}
+
+fn native_string_replace(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("String_replace: expected 3 arguments (input, target, replacement)".to_string());
+    }
+    let input = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("String_replace: expected String input".to_string()),
+    };
+    let target = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("String_replace: expected String target".to_string()),
+    };
+    let replacement = match &args[2] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("String_replace: expected String replacement".to_string()),
+    };
+    Ok(Value::String(Rc::new(input.replace(&target, &replacement))))
+}
+
+// ---------------------------------------------------------------------------
+// Additional Math native functions
+// ---------------------------------------------------------------------------
+
+fn native_math_next_up(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_nextUp: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.next_up()))
+}
+
+fn native_math_next_down(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_nextDown: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(x.next_down()))
+}
+
+fn native_math_ulp(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_ulp: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0).abs();
+    let ulp = if x == 0.0 {
+        f64::MIN_POSITIVE
+    } else {
+        let exp = x.log2().floor() as i32;
+        f64::powf(2.0, exp as f64) * f64::EPSILON
+    };
+    Ok(Value::Double(ulp))
+}
+
+fn native_math_get_exponent(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() { return Err("Math_getExponent: expected 1 argument".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    if x == 0.0 || !x.is_finite() {
+        return Ok(Value::Long(i64::MIN));
+    }
+    let exp = x.abs().log2().floor() as i64;
+    Ok(Value::Long(exp))
+}
+
+fn native_math_scalb(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 { return Err("Math_scalb: expected 2 arguments (x, scaleFactor)".to_string()); }
+    let x = args[0].to_f64().unwrap_or(0.0);
+    let scale = args[1].to_i64().unwrap_or(0) as i32;
+    Ok(Value::Double(x * 2.0_f64.powi(scale)))
+}
+
+fn native_math_random(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let seed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| format!("Math_random: {}", e))?
+        .as_nanos() as u64;
+    // Simple xorshift64 for a quick random double in [0, 1)
+    let mut s = seed;
+    s ^= s << 13;
+    s ^= s >> 7;
+    s ^= s << 17;
+    let result = (s >> 11) as f64 / (1u64 << 53) as f64;
+    Ok(Value::Double(result))
+}
+
+fn native_math_neg_inf(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Double(f64::NEG_INFINITY))
+}
+
+// ---------------------------------------------------------------------------
+// Additional Regex native functions
+// ---------------------------------------------------------------------------
+
+fn native_regex_group_count(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Regex_groupCount: expected 1 argument (pattern)".to_string());
+    }
+    let pattern = match args.first() {
+        Some(Value::String(s)) => s.as_str().to_string(),
+        _ => return Err("Regex_groupCount: expected String pattern".to_string()),
+    };
+    let re = regex::Regex::new(&pattern)
+        .map_err(|e| format!("Regex_groupCount: invalid pattern '{}': {}", pattern, e))?;
+    Ok(Value::Int(re.captures_len() as i32 - 1))
+}
+
+// ---------------------------------------------------------------------------
+// Additional Directory native functions
+// ---------------------------------------------------------------------------
+
+fn native_dir_walk(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Dir_walk: expected 1 argument (path)".to_string());
+    }
+    let path = match args.first() {
+        Some(Value::String(s)) => s.as_str().to_string(),
+        _ => return Err("Dir_walk: expected String path".to_string()),
+    };
+    let mut results = Vec::new();
+    fn walk_dir(dir: &std::path::Path, results: &mut Vec<Value>) -> Result<(), String> {
+        let entries = std::fs::read_dir(dir)
+            .map_err(|e| format!("Dir_walk: cannot read '{}': {}", dir.display(), e))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("Dir_walk: {}", e))?;
+            let path = entry.path();
+            results.push(Value::String(Rc::new(path.to_string_lossy().to_string())));
+            if path.is_dir() {
+                walk_dir(&path, results)?;
+            }
+        }
+        Ok(())
+    }
+    walk_dir(std::path::Path::new(&path), &mut results)?;
+    Ok(Value::Array { elements: results })
+}
+
+fn native_dir_copy(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Dir_copy: expected 2 arguments (src, dst)".to_string());
+    }
+    let src = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Dir_copy: expected String source path".to_string()),
+    };
+    let dst = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Dir_copy: expected String destination path".to_string()),
+    };
+    fn copy_recursive(src: &std::path::Path, dst: &std::path::Path) -> Result<(), String> {
+        std::fs::create_dir_all(dst)
+            .map_err(|e| format!("Dir_copy: cannot create '{}': {}", dst.display(), e))?;
+        for entry in std::fs::read_dir(src)
+            .map_err(|e| format!("Dir_copy: cannot read '{}': {}", src.display(), e))?
+        {
+            let entry = entry.map_err(|e| format!("Dir_copy: {}", e))?;
+            let src_path = entry.path();
+            let dst_path = dst.join(entry.file_name());
+            if src_path.is_dir() {
+                copy_recursive(&src_path, &dst_path)?;
+            } else {
+                std::fs::copy(&src_path, &dst_path)
+                    .map_err(|e| format!("Dir_copy: cannot copy '{}': {}", src_path.display(), e))?;
+            }
+        }
+        Ok(())
+    }
+    copy_recursive(std::path::Path::new(&src), std::path::Path::new(&dst))?;
+    Ok(Value::Void)
+}
+
+fn native_dir_move(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Dir_move: expected 2 arguments (src, dst)".to_string());
+    }
+    let src = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Dir_move: expected String source path".to_string()),
+    };
+    let dst = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Dir_move: expected String destination path".to_string()),
+    };
+    std::fs::rename(&src, &dst)
+        .map_err(|e| format!("Dir_move: cannot move '{}' to '{}': {}", src, dst, e))?;
+    Ok(Value::Void)
+}
+
+// ---------------------------------------------------------------------------
+// Additional Time native functions
+// ---------------------------------------------------------------------------
+
+fn native_time_day_of_week(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_dayOfWeek: expected 1 argument (epoch seconds)".to_string());
+    }
+    let secs = args[0].to_i64().unwrap_or(0);
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    // chrono: 0=Mon, 6=Sun via .weekday().num_days_from_monday()
+    Ok(Value::Int(datetime.weekday().num_days_from_monday() as i32))
+}
+
+fn native_time_day_of_year(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Time_dayOfYear: expected 1 argument (epoch seconds)".to_string());
+    }
+    let secs = args[0].to_i64().unwrap_or(0);
+    let datetime = chrono::DateTime::from_timestamp(secs, 0)
+        .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
+    Ok(Value::Int(datetime.ordinal() as i32))
+}
+
+// ---------------------------------------------------------------------------
+// Double and Long parsing native functions
+// ---------------------------------------------------------------------------
+
+fn native_double_parse_double(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Double_parseDouble: expected 1 argument (string)".to_string());
+    }
+    let s = match &args[0] {
+        Value::String(s) => s.as_str().trim().to_string(),
+        _ => return Err("Double_parseDouble: expected String argument".to_string()),
+    };
+    s.parse::<f64>()
+        .map(Value::Double)
+        .map_err(|e| format!("Double_parseDouble: cannot parse '{}': {}", s, e))
+}
+
+fn native_long_parse_long(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Long_parseLong: expected 1 argument (string)".to_string());
+    }
+    let s = match &args[0] {
+        Value::String(s) => s.as_str().trim().to_string(),
+        _ => return Err("Long_parseLong: expected String argument".to_string()),
+    };
+    s.parse::<i64>()
+        .map(Value::Long)
+        .map_err(|e| format!("Long_parseLong: cannot parse '{}': {}", s, e))
+}
+
+// ---------------------------------------------------------------------------
+// Subprocess native functions
+// ---------------------------------------------------------------------------
+
+fn native_subprocess_run(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Subprocess_run: expected at least 1 argument (command)".to_string());
+    }
+    let program = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Subprocess_run: expected String command".to_string()),
+    };
+    let mut cmd = std::process::Command::new(&program);
+    // Additional arguments as strings
+    for arg in &args[1..] {
+        match arg {
+            Value::String(s) => { cmd.arg(s.as_str()); }
+            other => { cmd.arg(format!("{:?}", other)); }
+        }
+    }
+    let status = cmd.status()
+        .map_err(|e| format!("Subprocess_run: failed to execute '{}': {}", program, e))?;
+    Ok(Value::Int(status.code().unwrap_or(-1)))
+}
+
+// ---------------------------------------------------------------------------
+// Tempfile native functions
+// ---------------------------------------------------------------------------
+
+fn native_tempfile_create(args: &[Value]) -> Result<Value, String> {
+    let prefix = match args.first() {
+        Some(Value::String(s)) => s.as_str().to_string(),
+        _ => "titrate_".to_string(),
+    };
+    let is_dir = args.get(1)
+        .map(|v| matches!(v, Value::Bool(true)))
+        .unwrap_or(false);
+    if is_dir {
+        let dir = std::env::temp_dir().join(format!("{}{}", prefix, std::process::id()));
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("Tempfile_create: cannot create directory '{}': {}", dir.display(), e))?;
+        Ok(Value::String(Rc::new(dir.to_string_lossy().to_string())))
+    } else {
+        let path = std::env::temp_dir().join(format!("{}{}", prefix, std::process::id()));
+        std::fs::File::create(&path)
+            .map_err(|e| format!("Tempfile_create: cannot create file '{}': {}", path.display(), e))?;
+        Ok(Value::String(Rc::new(path.to_string_lossy().to_string())))
+    }
+}
+
 /// Look up a built-in native function by name. Returns `None` for unknown names.
 fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -5194,6 +5536,47 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "String_endsWith" => Some(native_string_ends_with),
         "String_padLeft" => Some(native_string_pad_left),
         "String_padRight" => Some(native_string_pad_right),
+        // Additional String natives
+        "String_toUppercase" => Some(native_string_to_uppercase),
+        "String_toLowerCase" => Some(native_string_to_lower_case),
+        "String_replace" => Some(native_string_replace),
+        // Hash natives
+        "Hash_md5" => Some(native_hash_md5),
+        "Hash_sha1" => Some(native_hash_sha1),
+        "Hash_sha256" => Some(native_hash_sha256),
+        // Base64 natives
+        "Base64_encode" => Some(native_base64_encode),
+        "Base64_decode" => Some(native_base64_decode),
+        // Hex natives
+        "Hex_encode" => Some(native_hex_encode),
+        "Hex_decode" => Some(native_hex_decode),
+        // URL encoding natives
+        "Url_encode" => Some(native_url_encode),
+        "Url_decode" => Some(native_url_decode),
+        // Additional Math natives
+        "Math_nextUp" => Some(native_math_next_up),
+        "Math_nextDown" => Some(native_math_next_down),
+        "Math_ulp" => Some(native_math_ulp),
+        "Math_getExponent" => Some(native_math_get_exponent),
+        "Math_scalb" => Some(native_math_scalb),
+        "Math_random" => Some(native_math_random),
+        "Math_negInf" => Some(native_math_neg_inf),
+        // Additional Regex natives
+        "Regex_groupCount" => Some(native_regex_group_count),
+        // Additional Directory natives
+        "Dir_walk" => Some(native_dir_walk),
+        "Dir_copy" => Some(native_dir_copy),
+        "Dir_move" => Some(native_dir_move),
+        // Additional Time natives
+        "Time_dayOfWeek" => Some(native_time_day_of_week),
+        "Time_dayOfYear" => Some(native_time_day_of_year),
+        // Double and Long parsing natives
+        "Double_parseDouble" => Some(native_double_parse_double),
+        "Long_parseLong" => Some(native_long_parse_long),
+        // Subprocess natives
+        "Subprocess_run" => Some(native_subprocess_run),
+        // Tempfile natives
+        "Tempfile_create" => Some(native_tempfile_create),
         _ => None,
     }
 }
@@ -8228,5 +8611,283 @@ mod tests {
             Ok(other) => panic!("Expected String, got {:?}", other),
             Err(e) => panic!("Url_encode failed: {}", e),
         }
+    }
+
+    // -- New native function tests -------------------------------------------
+
+    #[test]
+    fn test_string_to_uppercase() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("String_toUppercase", &[
+            Value::String(Rc::new("hello World".to_string())),
+        ]).unwrap();
+        match result {
+            Value::String(s) => assert_eq!(s.as_str(), "HELLO WORLD"),
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_string_to_lower_case() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("String_toLowerCase", &[
+            Value::String(Rc::new("Hello WORLD".to_string())),
+        ]).unwrap();
+        match result {
+            Value::String(s) => assert_eq!(s.as_str(), "hello world"),
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_string_replace() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("String_replace", &[
+            Value::String(Rc::new("hello world hello".to_string())),
+            Value::String(Rc::new("hello".to_string())),
+            Value::String(Rc::new("hi".to_string())),
+        ]).unwrap();
+        match result {
+            Value::String(s) => assert_eq!(s.as_str(), "hi world hi"),
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_math_next_up_down() {
+        let mut vm = Vm::new();
+        let one = Value::Double(1.0);
+        let up = vm.call_native_by_name("Math_nextUp", &[one.clone()]).unwrap();
+        let down = vm.call_native_by_name("Math_nextDown", &[one.clone()]).unwrap();
+        match (up, down) {
+            (Value::Double(u), Value::Double(d)) => {
+                assert!(u > 1.0, "next_up(1.0) should be > 1.0");
+                assert!(d < 1.0, "next_down(1.0) should be < 1.0");
+            }
+            other => panic!("Expected Double values, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_math_neg_inf() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Math_negInf", &[]).unwrap();
+        match result {
+            Value::Double(d) => assert!(d.is_infinite() && d.is_sign_negative(),
+                "Math_negInf should be negative infinity, got {}", d),
+            other => panic!("Expected Double, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_math_ulp() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Math_ulp", &[Value::Double(1.0)]).unwrap();
+        match result {
+            Value::Double(d) => assert!(d > 0.0, "ulp(1.0) should be positive, got {}", d),
+            other => panic!("Expected Double, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_math_get_exponent() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Math_getExponent", &[Value::Double(8.0)]).unwrap();
+        match result {
+            Value::Long(e) => assert_eq!(e, 3, "getExponent(8.0) should be 3, got {}", e),
+            other => panic!("Expected Long, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_math_scalb() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Math_scalb", &[
+            Value::Double(1.0),
+            Value::Long(3),
+        ]).unwrap();
+        match result {
+            Value::Double(d) => assert_eq!(d, 8.0, "scalb(1.0, 3) should be 8.0, got {}", d),
+            other => panic!("Expected Double, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_math_random() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Math_random", &[]).unwrap();
+        match result {
+            Value::Double(d) => assert!(d >= 0.0 && d < 1.0,
+                "Math_random should be in [0, 1), got {}", d),
+            other => panic!("Expected Double, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_regex_group_count() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Regex_groupCount", &[
+            Value::String(Rc::new("(a)(b)(c)".to_string())),
+        ]).unwrap();
+        match result {
+            Value::Int(n) => assert_eq!(n, 3, "Regex_groupCount('(a)(b)(c)') should be 3, got {}", n),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_time_day_of_week() {
+        let mut vm = Vm::new();
+        // 2024-01-01 00:00:00 UTC is a Monday (0)
+        let result = vm.call_native_by_name("Time_dayOfWeek", &[
+            Value::Long(1704067200),
+        ]).unwrap();
+        match result {
+            Value::Int(d) => assert_eq!(d, 0, "2024-01-01 should be Monday (0), got {}", d),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_time_day_of_year() {
+        let mut vm = Vm::new();
+        // 2024-01-01 is day 1 of the year
+        let result = vm.call_native_by_name("Time_dayOfYear", &[
+            Value::Long(1704067200),
+        ]).unwrap();
+        match result {
+            Value::Int(d) => assert_eq!(d, 1, "2024-01-01 should be day 1, got {}", d),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_double_parse_double() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Double_parseDouble", &[
+            Value::String(Rc::new("3.14159".to_string())),
+        ]).unwrap();
+        match result {
+            Value::Double(d) => assert!((d - 3.14159).abs() < 1e-10,
+                "Double_parseDouble('3.14159') should be 3.14159, got {}", d),
+            other => panic!("Expected Double, got {:?}", other),
+        }
+        // Test error case
+        let err = vm.call_native_by_name("Double_parseDouble", &[
+            Value::String(Rc::new("not_a_number".to_string())),
+        ]);
+        assert!(err.is_err(), "Parsing 'not_a_number' should fail");
+    }
+
+    #[test]
+    fn test_long_parse_long() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Long_parseLong", &[
+            Value::String(Rc::new("123456789".to_string())),
+        ]).unwrap();
+        match result {
+            Value::Long(l) => assert_eq!(l, 123456789, "Long_parseLong('123456789') should be 123456789, got {}", l),
+            other => panic!("Expected Long, got {:?}", other),
+        }
+        // Test error case
+        let err = vm.call_native_by_name("Long_parseLong", &[
+            Value::String(Rc::new("not_a_number".to_string())),
+        ]);
+        assert!(err.is_err(), "Parsing 'not_a_number' should fail");
+    }
+
+    #[test]
+    fn test_subprocess_run() {
+        let mut vm = Vm::new();
+        // On Windows, use "cmd" with /C echo
+        let result = vm.call_native_by_name("Subprocess_run", &[
+            Value::String(Rc::new("cmd".to_string())),
+            Value::String(Rc::new("/C".to_string())),
+            Value::String(Rc::new("echo hello".to_string())),
+        ]);
+        match result {
+            Ok(Value::Int(code)) => assert_eq!(code, 0, "Successful command should return exit code 0"),
+            Ok(other) => panic!("Expected Int, got {:?}", other),
+            Err(e) => panic!("Subprocess_run failed: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_tempfile_create() {
+        let mut vm = Vm::new();
+        // Create a temp file
+        let result = vm.call_native_by_name("Tempfile_create", &[
+            Value::String(Rc::new("test_vm_".to_string())),
+        ]).unwrap();
+        let _path = match result {
+            Value::String(s) => {
+                let p = s.to_string();
+                assert!(std::path::Path::new(&p).exists(), "Temp file should exist at {}", p);
+                // Clean up
+                let _ = std::fs::remove_file(&p);
+                p
+            }
+            other => panic!("Expected String, got {:?}", other),
+        };
+        // Create a temp directory
+        let result = vm.call_native_by_name("Tempfile_create", &[
+            Value::String(Rc::new("test_vm_dir_".to_string())),
+            Value::Bool(true),
+        ]).unwrap();
+        match result {
+            Value::String(s) => {
+                let p = s.to_string();
+                assert!(std::path::Path::new(&p).is_dir(), "Temp dir should exist at {}", p);
+                // Clean up
+                let _ = std::fs::remove_dir_all(&p);
+            }
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_dir_walk_and_move() {
+        let mut vm = Vm::new();
+        let base = std::env::temp_dir().join("titrate_test_walk");
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        std::fs::write(base.join("a.txt"), "hello").unwrap();
+        std::fs::create_dir_all(base.join("sub")).unwrap();
+        std::fs::write(base.join("sub").join("b.txt"), "world").unwrap();
+
+        // Test Dir_walk
+        let result = vm.call_native_by_name("Dir_walk", &[
+            Value::String(Rc::new(base.to_string_lossy().to_string())),
+        ]).unwrap();
+        let count = match result {
+            Value::Array { elements } => elements.len(),
+            other => panic!("Expected Array, got {:?}", other),
+        };
+        assert!(count >= 3, "Dir_walk should find at least 3 entries, got {}", count);
+
+        // Test Dir_copy
+        let dst = std::env::temp_dir().join("titrate_test_walk_copy");
+        let _ = std::fs::remove_dir_all(&dst);
+        let result = vm.call_native_by_name("Dir_copy", &[
+            Value::String(Rc::new(base.to_string_lossy().to_string())),
+            Value::String(Rc::new(dst.to_string_lossy().to_string())),
+        ]);
+        assert!(result.is_ok(), "Dir_copy should succeed");
+        assert!(dst.join("a.txt").exists(), "Copied file should exist");
+
+        // Test Dir_move
+        let moved = std::env::temp_dir().join("titrate_test_walk_moved");
+        let _ = std::fs::remove_dir_all(&moved);
+        let result = vm.call_native_by_name("Dir_move", &[
+            Value::String(Rc::new(dst.to_string_lossy().to_string())),
+            Value::String(Rc::new(moved.to_string_lossy().to_string())),
+        ]);
+        assert!(result.is_ok(), "Dir_move should succeed");
+        assert!(moved.join("a.txt").exists(), "Moved file should exist");
+        assert!(!dst.exists(), "Original dir should be gone after move");
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(&base);
+        let _ = std::fs::remove_dir_all(&moved);
     }
 }
