@@ -2,143 +2,44 @@ import tt.util.ArrayList;
 import tt.chem.Molecule;
 import tt.chem.Atom;
 import tt.chem.ForceField;
-import tt.chem.Integrator;
+import tt.chem.VerletIntegrator;
 import tt.math.Math;
 import tt.io.IO;
 import tt.lang.Double;
 import tt.lang.Integer;
-import tt.random.Random;
 
-public class MD {
+public class MDSimulation {
     public Molecule molecule;
-    public Integrator integrator;
-    public ArrayList<double> velocities;
-    public ArrayList<double> forces;
+    public ForceField forceField;
+    public VerletIntegrator integrator;
 
-    public MD(Molecule mol, Integrator integ) {
+    public MDSimulation(Molecule mol, ForceField ff, VerletIntegrator integ) {
         this.molecule = mol;
+        this.forceField = ff;
         this.integrator = integ;
-        this.velocities = new ArrayList<double>();
-        this.forces = new ArrayList<double>();
     }
 
-    // Initialize velocities from Maxwell-Boltzmann distribution
-    public void initializeVelocities() {
-        this.velocities = new ArrayList<double>();
-        int nAtoms = this.molecule.numAtoms();
-        Random rng = new Random();
-        int i = 0;
-        while (i < nAtoms) {
-            // Generate random velocities from Gaussian-like distribution
-            // Using Box-Muller with uniform random numbers
-            double u1 = rng.nextDouble();
-            double u2 = rng.nextDouble();
-            if (u1 < 1e-15) { u1 = 1e-15; }
-            double mag = Math.sqrt(-2.0 * Math.ln(u1));
-            double vx = mag * Math.cos(2.0 * Math.PI() * u2);
-            u1 = rng.nextDouble();
-            u2 = rng.nextDouble();
-            if (u1 < 1e-15) { u1 = 1e-15; }
-            mag = Math.sqrt(-2.0 * Math.ln(u1));
-            double vy = mag * Math.cos(2.0 * Math.PI() * u2);
-            u1 = rng.nextDouble();
-            u2 = rng.nextDouble();
-            if (u1 < 1e-15) { u1 = 1e-15; }
-            mag = Math.sqrt(-2.0 * Math.ln(u1));
-            double vz = mag * Math.cos(2.0 * Math.PI() * u2);
-            // Scale by sqrt(kT/m)
-            Atom a = this.molecule.getAtom(i);
-            double mass = a.mass;
-            if (mass < 1e-15) { mass = 1.0; }
-            double scale = Math.sqrt(this.integrator.targetTemp / mass);
-            this.velocities.add(vx * scale);
-            this.velocities.add(vy * scale);
-            this.velocities.add(vz * scale);
-            i = i + 1;
-        }
-        // Remove center-of-mass velocity
-        double totalMass = 0.0;
-        double vcx = 0.0;
-        double vcy = 0.0;
-        double vcz = 0.0;
-        i = 0;
-        while (i < nAtoms) {
-            Atom a = this.molecule.getAtom(i);
-            double m = a.mass;
-            if (m < 1e-15) { m = 1.0; }
-            vcx = vcx + m * this.velocities.get(i * 3);
-            vcy = vcy + m * this.velocities.get(i * 3 + 1);
-            vcz = vcz + m * this.velocities.get(i * 3 + 2);
-            totalMass = totalMass + m;
-            i = i + 1;
-        }
-        if (totalMass > 1e-15) {
-            vcx = vcx / totalMass;
-            vcy = vcy / totalMass;
-            vcz = vcz / totalMass;
-            i = 0;
-            while (i < nAtoms) {
-                this.velocities.set(i * 3, this.velocities.get(i * 3) - vcx);
-                this.velocities.set(i * 3 + 1, this.velocities.get(i * 3 + 1) - vcy);
-                this.velocities.set(i * 3 + 2, this.velocities.get(i * 3 + 2) - vcz);
-                i = i + 1;
-            }
-        }
-    }
-
-    // Compute forces on all atoms using finite differences of potential energy
-    public void computeForces() {
-        this.forces = new ArrayList<double>();
-        int nAtoms = this.molecule.numAtoms();
-        double delta = 1e-5;
-        int i = 0;
-        while (i < nAtoms) {
-            Atom a = this.molecule.getAtom(i);
-            // Force = -dE/dx, computed via central difference
-            // fx
-            double origX = a.x;
-            a.x = origX + delta;
-            double ePlus = ForceField.totalEnergy(this.molecule);
-            a.x = origX - delta;
-            double eMinus = ForceField.totalEnergy(this.molecule);
-            a.x = origX;
-            double fx = -(ePlus - eMinus) / (2.0 * delta);
-            // fy
-            double origY = a.y;
-            a.y = origY + delta;
-            ePlus = ForceField.totalEnergy(this.molecule);
-            a.y = origY - delta;
-            eMinus = ForceField.totalEnergy(this.molecule);
-            a.y = origY;
-            double fy = -(ePlus - eMinus) / (2.0 * delta);
-            // fz
-            double origZ = a.z;
-            a.z = origZ + delta;
-            ePlus = ForceField.totalEnergy(this.molecule);
-            a.z = origZ - delta;
-            eMinus = ForceField.totalEnergy(this.molecule);
-            a.z = origZ;
-            double fz = -(ePlus - eMinus) / (2.0 * delta);
-            this.forces.add(fx);
-            this.forces.add(fy);
-            this.forces.add(fz);
-            i = i + 1;
-        }
-    }
-
-    // Run N steps of MD
-    public void run(int steps, int reportInterval) {
+    // Run N steps of MD, print energy every 50 steps
+    public void run(int steps) {
         IO.println("Starting MD simulation: " + Integer.toString(steps) + " steps");
         IO.println("Step | Potential | Kinetic | Total | Temperature");
+        // Initialize velocities if not already done
+        if (this.integrator.velocities.size() == 0) {
+            this.integrator.initializeVelocities(this.molecule);
+        }
         int step = 0;
         while (step < steps) {
-            this.step();
-            if (reportInterval > 0 && (step + 1) % reportInterval == 0) {
+            this.integrator.step(this.molecule, this.forceField);
+            if ((step + 1) % 50 == 0) {
+                double pe = this.forceField.totalEnergy(this.molecule);
+                double ke = VerletIntegrator.kineticEnergy(this.molecule, this.integrator.velocities);
+                double total = pe + ke;
+                double temp = VerletIntegrator.kineticTemperature(this.molecule, this.integrator.velocities);
                 String line = Integer.toString(step + 1) + " | " +
-                    Double.toString(this.potentialEnergy()) + " | " +
-                    Double.toString(this.kineticEnergy()) + " | " +
-                    Double.toString(this.totalEnergy()) + " | " +
-                    Double.toString(this.temperature());
+                    Double.toString(pe) + " | " +
+                    Double.toString(ke) + " | " +
+                    Double.toString(total) + " | " +
+                    Double.toString(temp);
                 IO.println(line);
             }
             step = step + 1;
@@ -146,36 +47,10 @@ public class MD {
         IO.println("MD simulation complete.");
     }
 
-    // Single MD step using Velocity Verlet
-    public void step() {
-        // First half: update positions and half-step velocities
-        this.velocities = this.integrator.step(this.molecule, this.velocities, this.forces);
-        // Compute new forces
-        this.computeForces();
-        // Second half: complete velocity update
-        this.velocities = this.integrator.completeStep(this.molecule, this.velocities, this.forces);
-        // Apply thermostat
-        double temp = this.temperature();
-        this.velocities = this.integrator.applyThermostat(this.velocities, temp);
-    }
-
-    // Get current potential energy
-    public double potentialEnergy() {
-        return ForceField.totalEnergy(this.molecule);
-    }
-
-    // Get current kinetic energy
-    public double kineticEnergy() {
-        return Integrator.kineticEnergy(this.molecule, this.velocities);
-    }
-
     // Get current total energy
-    public double totalEnergy() {
-        return this.potentialEnergy() + this.kineticEnergy();
-    }
-
-    // Get current temperature
-    public double temperature() {
-        return Integrator.temperature(this.molecule, this.velocities);
+    public double currentEnergy() {
+        double pe = this.forceField.totalEnergy(this.molecule);
+        double ke = VerletIntegrator.kineticEnergy(this.molecule, this.integrator.velocities);
+        return pe + ke;
     }
 }

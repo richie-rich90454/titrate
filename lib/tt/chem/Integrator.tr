@@ -5,31 +5,81 @@ import tt.chem.ForceField;
 import tt.math.Math;
 import tt.lang.Double;
 
-public class Integrator {
+public class VerletIntegrator {
     public double dt;
+    public String thermostat;
     public double targetTemp;
-    public double coupling;
 
-    public Integrator(double dt, double temp, double coupling) {
+    // Internal velocity and force storage
+    public ArrayList<double> velocities;
+    public ArrayList<double> forces;
+
+    public VerletIntegrator(double dt, String therm, double target) {
         this.dt = dt;
-        this.targetTemp = temp;
-        this.coupling = coupling;
+        this.thermostat = therm;
+        this.targetTemp = target;
+        this.velocities = new ArrayList<double>();
+        this.forces = new ArrayList<double>();
     }
 
-    // Velocity Verlet integration step
-    // velocities and forces are flat arrays: [vx0, vy0, vz0, vx1, vy1, vz1, ...]
-    // Returns updated velocities
-    public ArrayList<double> step(Molecule mol, ArrayList<double> velocities, ArrayList<double> forces) {
-        int nAtoms = mol.numAtoms();
-        int n3 = nAtoms * 3;
-        ArrayList<double> newVel = new ArrayList<double>();
+    // Initialize velocities from a simple Maxwell-Boltzmann-like distribution
+    public void initializeVelocities(Molecule mol) {
+        this.velocities = new ArrayList<double>();
+        int nAtoms = mol.atomCount();
         int i = 0;
-        while (i < n3) {
-            newVel.add(velocities.get(i));
+        while (i < nAtoms) {
+            Atom a = mol.getAtom(i);
+            double mass = a.mass;
+            if (mass < 1e-15) { mass = 1.0; }
+            double scale = Math.sqrt(this.targetTemp / mass);
+            // Simple random-like initialization using deterministic values
+            double vx = scale * Math.sin((double) (i * 3 + 1));
+            double vy = scale * Math.sin((double) (i * 3 + 2));
+            double vz = scale * Math.sin((double) (i * 3 + 3));
+            this.velocities.add(vx);
+            this.velocities.add(vy);
+            this.velocities.add(vz);
             i = i + 1;
         }
-        // Update positions and half-step velocities
+        // Remove center-of-mass velocity
+        double totalMass = 0.0;
+        double vcx = 0.0;
+        double vcy = 0.0;
+        double vcz = 0.0;
         i = 0;
+        while (i < nAtoms) {
+            Atom a = mol.getAtom(i);
+            double m = a.mass;
+            if (m < 1e-15) { m = 1.0; }
+            vcx = vcx + m * this.velocities.get(i * 3);
+            vcy = vcy + m * this.velocities.get(i * 3 + 1);
+            vcz = vcz + m * this.velocities.get(i * 3 + 2);
+            totalMass = totalMass + m;
+            i = i + 1;
+        }
+        if (totalMass > 1e-15) {
+            vcx = vcx / totalMass;
+            vcy = vcy / totalMass;
+            vcz = vcz / totalMass;
+            i = 0;
+            while (i < nAtoms) {
+                this.velocities.set(i * 3, this.velocities.get(i * 3) - vcx);
+                this.velocities.set(i * 3 + 1, this.velocities.get(i * 3 + 1) - vcy);
+                this.velocities.set(i * 3 + 2, this.velocities.get(i * 3 + 2) - vcz);
+                i = i + 1;
+            }
+        }
+    }
+
+    // Single Velocity Verlet MD step
+    public void step(Molecule mol, ForceField ff) {
+        int nAtoms = mol.atomCount();
+        // If no forces yet, compute them
+        if (this.forces.size() == 0) {
+            this.forces = ff.computeForces(mol);
+        }
+        // Update positions and half-step velocities
+        int i = 0;
         while (i < nAtoms) {
             Atom a = mol.getAtom(i);
             double mass = a.mass;
@@ -39,27 +89,18 @@ public class Integrator {
             int iy = i * 3 + 1;
             int iz = i * 3 + 2;
             // Update position: x += v*dt + 0.5*f/m*dt^2
-            a.x = a.x + velocities.get(ix) * this.dt + 0.5 * forces.get(ix) * invMass * this.dt * this.dt;
-            a.y = a.y + velocities.get(iy) * this.dt + 0.5 * forces.get(iy) * invMass * this.dt * this.dt;
-            a.z = a.z + velocities.get(iz) * this.dt + 0.5 * forces.get(iz) * invMass * this.dt * this.dt;
+            a.x = a.x + this.velocities.get(ix) * this.dt + 0.5 * this.forces.get(ix) * invMass * this.dt * this.dt;
+            a.y = a.y + this.velocities.get(iy) * this.dt + 0.5 * this.forces.get(iy) * invMass * this.dt * this.dt;
+            a.z = a.z + this.velocities.get(iz) * this.dt + 0.5 * this.forces.get(iz) * invMass * this.dt * this.dt;
             // Half-step velocity: v += 0.5*f/m*dt
-            newVel.set(ix, newVel.get(ix) + 0.5 * forces.get(ix) * invMass * this.dt);
-            newVel.set(iy, newVel.get(iy) + 0.5 * forces.get(iy) * invMass * this.dt);
-            newVel.set(iz, newVel.get(iz) + 0.5 * forces.get(iz) * invMass * this.dt);
+            this.velocities.set(ix, this.velocities.get(ix) + 0.5 * this.forces.get(ix) * invMass * this.dt);
+            this.velocities.set(iy, this.velocities.get(iy) + 0.5 * this.forces.get(iy) * invMass * this.dt);
+            this.velocities.set(iz, this.velocities.get(iz) + 0.5 * this.forces.get(iz) * invMass * this.dt);
             i = i + 1;
         }
-        return newVel;
-    }
-
-    // Complete velocity update with new forces (second half of Verlet)
-    public ArrayList<double> completeStep(Molecule mol, ArrayList<double> velocities, ArrayList<double> newForces) {
-        int nAtoms = mol.numAtoms();
-        ArrayList<double> newVel = new ArrayList<double>();
-        int i = 0;
-        while (i < velocities.size()) {
-            newVel.add(velocities.get(i));
-            i = i + 1;
-        }
+        // Compute new forces
+        this.forces = ff.computeForces(mol);
+        // Complete velocity update (second half of Verlet)
         i = 0;
         while (i < nAtoms) {
             Atom a = mol.getAtom(i);
@@ -69,32 +110,34 @@ public class Integrator {
             int ix = i * 3;
             int iy = i * 3 + 1;
             int iz = i * 3 + 2;
-            newVel.set(ix, newVel.get(ix) + 0.5 * newForces.get(ix) * invMass * this.dt);
-            newVel.set(iy, newVel.get(iy) + 0.5 * newForces.get(iy) * invMass * this.dt);
-            newVel.set(iz, newVel.get(iz) + 0.5 * newForces.get(iz) * invMass * this.dt);
+            this.velocities.set(ix, this.velocities.get(ix) + 0.5 * this.forces.get(ix) * invMass * this.dt);
+            this.velocities.set(iy, this.velocities.get(iy) + 0.5 * this.forces.get(iy) * invMass * this.dt);
+            this.velocities.set(iz, this.velocities.get(iz) + 0.5 * this.forces.get(iz) * invMass * this.dt);
             i = i + 1;
         }
-        return newVel;
+        // Apply thermostat
+        this.applyThermostat(mol);
     }
 
     // Berendsen thermostat
-    public ArrayList<double> applyThermostat(ArrayList<double> velocities, double currentTemp) {
-        if (this.coupling < 1e-15 || currentTemp < 1e-15) { return velocities; }
+    public void applyThermostat(Molecule mol) {
+        if (this.thermostat != "berendsen") { return; }
+        double currentTemp = VerletIntegrator.kineticTemperature(mol, this.velocities);
+        if (currentTemp < 1e-15) { return; }
+        double coupling = 100.0; // coupling constant
         double ratio = this.targetTemp / currentTemp;
-        double lambda = Math.sqrt(1.0 + (this.dt / this.coupling) * (ratio - 1.0));
-        ArrayList<double> scaled = new ArrayList<double>();
+        double lambda = Math.sqrt(1.0 + (this.dt / coupling) * (ratio - 1.0));
         int i = 0;
-        while (i < velocities.size()) {
-            scaled.add(velocities.get(i) * lambda);
+        while (i < this.velocities.size()) {
+            this.velocities.set(i, this.velocities.get(i) * lambda);
             i = i + 1;
         }
-        return scaled;
     }
 
-    // Compute kinetic energy from velocities
+    // Compute kinetic energy
     public static double kineticEnergy(Molecule mol, ArrayList<double> velocities) {
         double ke = 0.0;
-        int nAtoms = mol.numAtoms();
+        int nAtoms = mol.atomCount();
         int i = 0;
         while (i < nAtoms) {
             Atom a = mol.getAtom(i);
@@ -109,12 +152,12 @@ public class Integrator {
         return ke;
     }
 
-    // Compute temperature from kinetic energy
-    // T = 2*KE / (3*N*k_B), using k_B = 1.0 in reduced units
-    public static double temperature(Molecule mol, ArrayList<double> velocities) {
-        int nAtoms = mol.numAtoms();
+    // Compute temperature from kinetic energy: T = 2*KE / (3*N*k_B)
+    // Using k_B = 1.0 in reduced units
+    public static double kineticTemperature(Molecule mol, ArrayList<double> velocities) {
+        int nAtoms = mol.atomCount();
         if (nAtoms == 0) { return 0.0; }
-        double ke = Integrator.kineticEnergy(mol, velocities);
+        double ke = VerletIntegrator.kineticEnergy(mol, velocities);
         return 2.0 * ke / (3.0 * (double) nAtoms);
     }
 }
