@@ -180,6 +180,125 @@ public class Math {
         return Math_scalb(x, scaleFactor);
     }
 
+    // Hyperbolic
+    public static double sinh(double x) {
+        return (Math.exp(x) - Math.exp(-x)) / 2.0;
+    }
+
+    public static double cosh(double x) {
+        return (Math.exp(x) + Math.exp(-x)) / 2.0;
+    }
+
+    public static double tanh(double x) {
+        return Math.sinh(x) / Math.cosh(x);
+    }
+
+    public static double asinh(double x) {
+        return Math.ln(x + Math.sqrt(x * x + 1.0));
+    }
+
+    public static double acosh(double x) {
+        if (x < 1.0) { return Math.NAN(); }
+        return Math.ln(x + Math.sqrt(x * x - 1.0));
+    }
+
+    public static double atanh(double x) {
+        if (x <= -1.0 || x >= 1.0) { return Math.NAN(); }
+        return 0.5 * Math.ln((1.0 + x) / (1.0 - x));
+    }
+
+    // Logarithmic (continued)
+    public static double log1p(double x) {
+        if (Math.abs(x) < 1e-8) {
+            return x - x * x / 2.0 + x * x * x / 3.0;
+        }
+        return Math.ln(1.0 + x);
+    }
+
+    // Exponential (continued)
+    public static double expm1(double x) {
+        if (Math.abs(x) < 1e-8) {
+            return x + x * x / 2.0 + x * x * x / 6.0;
+        }
+        return Math.exp(x) - 1.0;
+    }
+
+    // Fused multiply-add: a * b + c
+    public static double fma(double a, double b, double c) {
+        return a * b + c;
+    }
+
+    // Integer division that floors toward negative infinity
+    public static long floorDiv(long a, long b) {
+        long q = a / b;
+        if ((a ^ b) < 0 && q * b != a) {
+            q = q - 1;
+        }
+        return q;
+    }
+
+    // Floor modulus
+    public static long floorMod(long a, long b) {
+        return a - Math.floorDiv(a, b) * b;
+    }
+
+    // Exact arithmetic (throw on overflow - returns clamped value as fallback)
+    public static long addExact(long a, long b) {
+        long result = a + b;
+        if (((a ^ result) & (b ^ result)) < 0) {
+            return Math.MAX_INT();
+        }
+        return result;
+    }
+
+    public static long subtractExact(long a, long b) {
+        long result = a - b;
+        if (((a ^ b) & (a ^ result)) < 0) {
+            return Math.MIN_INT();
+        }
+        return result;
+    }
+
+    public static long multiplyExact(long a, long b) {
+        long result = a * b;
+        if (a != 0 && result / a != b) {
+            return Math.MAX_INT();
+        }
+        return result;
+    }
+
+    public static long incrementExact(long a) {
+        if (a == Math.MAX_INT()) { return Math.MAX_INT(); }
+        return a + 1;
+    }
+
+    public static long decrementExact(long a) {
+        if (a == Math.MIN_INT()) { return Math.MIN_INT(); }
+        return a - 1;
+    }
+
+    public static long negateExact(long a) {
+        if (a == Math.MIN_INT()) { return Math.MAX_INT(); }
+        return -a;
+    }
+
+    public static int toIntExact(long value) {
+        if (value > 2147483647L) { return 2147483647; }
+        if (value < -2147483648L) { return -2147483648; }
+        return (int) value;
+    }
+
+    // Integer min/max
+    public static int min(int a, int b) {
+        if (a < b) { return a; }
+        return b;
+    }
+
+    public static int max(int a, int b) {
+        if (a > b) { return a; }
+        return b;
+    }
+
     public static double random() {
         return Math_random();
     }
