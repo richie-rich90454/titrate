@@ -93,4 +93,74 @@ public class Vec<T> {
         }
         return result;
     }
+
+    public void insert(int index, T value) {
+        this._items.add(index, value);
+    }
+
+    public T removeAt(int index) {
+        T item = this._items.get(index);
+        this._items.remove(index);
+        return item;
+    }
+
+    public void sort() {
+        this._items.sort();
+    }
+
+    public void forEach(function<void(T)> fn) {
+        for (elem in this._items) {
+            fn(elem);
+        }
+    }
+
+    public Vec<T> map(function<T(T)> fn) {
+        Vec<T> result = new Vec<T>();
+        for (elem in this._items) {
+            result.push(fn(elem));
+        }
+        return result;
+    }
+
+    public Vec<T> filter(function<bool(T)> fn) {
+        Vec<T> result = new Vec<T>();
+        for (elem in this._items) {
+            if (fn(elem)) {
+                result.push(elem);
+            }
+        }
+        return result;
+    }
+
+    public T reduce(function<T(T, T)> fn, T init) {
+        T acc = init;
+        for (elem in this._items) {
+            acc = fn(acc, elem);
+        }
+        return acc;
+    }
+
+    public void clear() {
+        this._items = new ArrayList<T>();
+    }
+
+    public Vec<T> clone() {
+        Vec<T> result = new Vec<T>();
+        for (elem in this._items) {
+            result.push(elem);
+        }
+        return result;
+    }
+
+    public String toString() {
+        String s = "[";
+        int i = 0;
+        while (i < this._items.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this._items.get(i);
+            i = i + 1;
+        }
+        s = s + "]";
+        return s;
+    }
 }
