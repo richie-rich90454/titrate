@@ -1,10 +1,66 @@
 // HTTP client operations backed by VM built-ins.
+import tt::util::HashMap;
+
+public class HttpResponse {
+    private int statusCode;
+    private HashMap<String, String> headers;
+    private String body;
+
+    public HttpResponse(int statusCode, HashMap<String, String> headers, String body) {
+        this.statusCode = statusCode;
+        this.headers = headers;
+        this.body = body;
+    }
+
+    public int getStatusCode() {
+        return this.statusCode;
+    }
+
+    public HashMap<String, String> getHeaders() {
+        return this.headers;
+    }
+
+    public String getBody() {
+        return this.body;
+    }
+
+    public String toString() {
+        return "HttpResponse{statusCode=" + this.statusCode + ", body=" + this.body + "}";
+    }
+}
+
 public class HttpClient {
+    private HashMap<String, String> defaultHeaders;
+
+    public HttpClient() {
+        this.defaultHeaders = new HashMap<String, String>();
+    }
+
+    public void setHeader(String key, String value) {
+        this.defaultHeaders.put(key, value);
+    }
+
     public String get(String url) {
         return Http_get(url);
     }
 
     public String post(String url, String body, String contentType) {
         return Http_post(url, body, contentType);
+    }
+
+    public String put(String url, String body) {
+        return Http_put(url, body);
+    }
+
+    public String delete(String url) {
+        return Http_delete(url);
+    }
+
+    public String patch(String url, String body) {
+        return Http_patch(url, body);
+    }
+
+    public HttpResponse head(String url) {
+        return Http_head(url);
     }
 }
