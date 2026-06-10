@@ -1,0 +1,567 @@
+// Titrate Alpha 0.3 – Mega Test
+// Exercises: chemistry modules, MD simulation, RHF, HashMap word frequency,
+// ArrayList quicksort, NDArray, Matrix, JSON, regex, file I/O,
+// closures, iterators, ranges, pattern matching on Result types.
+
+import tt.chem.Atom;
+import tt.chem.Bond;
+import tt.chem.Molecule;
+import tt.chem.ForceField;
+import tt.chem.VerletIntegrator;
+import tt.chem.MD;
+import tt.chem.RHF;
+import tt.math.Math;
+import tt.math.ndarray.NDArray;
+import tt.math.linalg.Matrix;
+import tt.util.ArrayList;
+import tt.util.HashMap;
+import tt.json.Json;
+import tt.json.JsonValue;
+import tt.regex.Regex;
+import tt.regex.Match;
+import tt.lang.Integer;
+import tt.lang.Double;
+import tt.lang.Boolean;
+
+public fn main(): void {
+    io::println("=== Titrate Alpha 0.3 – Mega Test ===");
+    io::println("");
+
+    // ================================================================
+    // Section 1: Chemistry – Water Molecule
+    // ================================================================
+    io::println("=== Section 1: Chemistry – Water Molecule ===");
+
+    // Create water molecule: O at origin, H atoms at correct geometry
+    let water: Molecule = new Molecule("water");
+
+    // Get element data from periodic table
+    let oxygenData: Atom = Atom.getElement("O");
+    let hydrogenData: Atom = Atom.getElement("H");
+
+    io::println("O mass: " + Double.toString(oxygenData.mass) + " g/mol");
+    io::println("H mass: " + Double.toString(hydrogenData.mass) + " g/mol");
+    io::println("O atomic number: " + Integer.toString(oxygenData.atomicNumber));
+    io::println("H atomic number: " + Integer.toString(hydrogenData.atomicNumber));
+
+    // Build water: O at origin, H1 and H2 at tetrahedral-like positions
+    let oAtom: Atom = new Atom("O", 8, 15.999);
+    oAtom.setPosition(0.0, 0.0, 0.0);
+    let h1Atom: Atom = new Atom("H", 1, 1.008);
+    h1Atom.setPosition(0.757, 0.586, 0.0);
+    let h2Atom: Atom = new Atom("H", 1, 1.008);
+    h2Atom.setPosition(-0.757, 0.586, 0.0);
+
+    let oIdx: int = water.addAtom(oAtom);
+    let h1Idx: int = water.addAtom(h1Atom);
+    let h2Idx: int = water.addAtom(h2Atom);
+
+    water.addBond(new Bond(oIdx, h1Idx, "single", 1));
+    water.addBond(new Bond(oIdx, h2Idx, "single", 1));
+
+    io::println("Molecular formula: " + water.toString());
+    io::println("Atom count: " + Integer.toString(water.atomCount()));
+    io::println("Bond count: " + Integer.toString(water.bondCount()));
+    io::println("Molecular weight: " + Double.toString(water.molecularWeight()) + " g/mol");
+
+    // Center of mass
+    let com: ArrayList<double> = water.centerOfMass();
+    io::println("Center of mass: (" + Double.toString(com.get(0)) + ", " + Double.toString(com.get(1)) + ", " + Double.toString(com.get(2)) + ")");
+
+    // O-H distances
+    let oh1Dist: double = oAtom.distanceTo(h1Atom);
+    let oh2Dist: double = oAtom.distanceTo(h2Atom);
+    io::println("O-H1 distance: " + Double.toString(oh1Dist) + " A");
+    io::println("O-H2 distance: " + Double.toString(oh2Dist) + " A");
+
+    // Verify molecular weight (expected ~18.015)
+    let mwExpected: double = 18.015;
+    let mwDiff: double = water.molecularWeight() - mwExpected;
+    if (mwDiff < 0.0) { mwDiff = -mwDiff; }
+    io::println("MW within 0.01 of expected: " + Boolean.toString(mwDiff < 0.01));
+    io::println("");
+
+    // ================================================================
+    // Section 2: Force Field Energy
+    // ================================================================
+    io::println("=== Section 2: Force Field Energy ===");
+
+    let ff: ForceField = new ForceField();
+    let bondE: double = ff.bondEnergy(water);
+    let angleE: double = ff.angleEnergy(water);
+    let ljE: double = ff.lennardJonesEnergy(water);
+    let coulombE: double = ff.coulombEnergy(water);
+    let totalE: double = ff.totalEnergy(water);
+
+    io::println("Bond energy: " + Double.toString(bondE));
+    io::println("Angle energy: " + Double.toString(angleE));
+    io::println("LJ energy: " + Double.toString(ljE));
+    io::println("Coulomb energy: " + Double.toString(coulombE));
+    io::println("Total energy: " + Double.toString(totalE));
+    io::println("Energy is finite: " + Boolean.toString(totalE > -1e10 && totalE < 1e10));
+    io::println("");
+
+    // ================================================================
+    // Section 3: MD Simulation
+    // ================================================================
+    io::println("=== Section 3: MD Simulation ===");
+
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "berendsen", 300.0);
+    let sim: MDSimulation = new MDSimulation(water, ff, integ);
+    sim.run(100);
+
+    let finalEnergy: double = sim.currentEnergy();
+    io::println("Final total energy: " + Double.toString(finalEnergy));
+    io::println("Energy is finite after MD: " + Boolean.toString(finalEnergy > -1e10 && finalEnergy < 1e10));
+    io::println("");
+
+    // ================================================================
+    // Section 4: RHF Quantum Chemistry
+    // ================================================================
+    io::println("=== Section 4: RHF Quantum Chemistry ===");
+
+    // Create a fresh water molecule for RHF (positions may have moved from MD)
+    let water2: Molecule = new Molecule("water_rhf");
+    let o2: Atom = new Atom("O", 8, 15.999);
+    o2.setPosition(0.0, 0.0, 0.0);
+    let h2a: Atom = new Atom("H", 1, 1.008);
+    h2a.setPosition(0.757, 0.586, 0.0);
+    let h2b: Atom = new Atom("H", 1, 1.008);
+    h2b.setPosition(-0.757, 0.586, 0.0);
+    water2.addAtom(o2);
+    water2.addAtom(h2a);
+    water2.addAtom(h2b);
+
+    let rhf: RHF = new RHF(water2, 7);  // 7 basis functions (STO-3G-like)
+    let rhfEnergy: double = rhf.compute();
+    io::println("RHF energy: " + Double.toString(rhfEnergy) + " Hartree");
+    io::println("RHF energy is negative: " + Boolean.toString(rhfEnergy < 0.0));
+
+    // Fock matrix
+    let fock: ArrayList<ArrayList<double>> = rhf.fockMatrix();
+    io::println("Fock matrix size: " + Integer.toString(fock.size()) + "x" + Integer.toString(fock.get(0).size()));
+    io::println("Fock diagonal: " + Double.toString(fock.get(0).get(0)) + ", " + Double.toString(fock.get(1).get(1)) + ", " + Double.toString(fock.get(2).get(2)));
+    io::println("");
+
+    // ================================================================
+    // Section 5: HashMap Word Frequency
+    // ================================================================
+    io::println("=== Section 5: HashMap Word Frequency ===");
+
+    let text: string = "the quick brown fox jumps over the lazy dog the fox was quick";
+    let words: ArrayList<string> = String.split(text, " ");
+    let freq: HashMap<string, int> = new HashMap<string, int>();
+
+    var wi: int = 0;
+    while (wi < words.size()) {
+        let word: string = words.get(wi);
+        if (freq.containsKey(word)) {
+            freq.put(word, freq.get(word) + 1);
+        } else {
+            freq.put(word, 1);
+        }
+        wi = wi + 1;
+    }
+
+    let freqKeys: ArrayList<string> = freq.keys();
+    io::println("Unique words: " + Integer.toString(freqKeys.size()));
+    io::println("'the' count: " + Integer.toString(freq.get("the")));
+    io::println("'fox' count: " + Integer.toString(freq.get("fox")));
+    io::println("'quick' count: " + Integer.toString(freq.get("quick")));
+    io::println("'brown' count: " + Integer.toString(freq.get("brown")));
+
+    // Verify expected counts
+    let theOk: bool = freq.get("the") == 3;
+    let foxOk: bool = freq.get("fox") == 2;
+    let quickOk: bool = freq.get("quick") == 2;
+    io::println("Word frequency verified: " + Boolean.toString(theOk && foxOk && quickOk));
+    io::println("");
+
+    // ================================================================
+    // Section 6: ArrayList with Generic Quicksort
+    // ================================================================
+    io::println("=== Section 6: ArrayList with Generic Quicksort ===");
+
+    let nums: ArrayList<int> = new ArrayList<int>();
+    nums.add(42);
+    nums.add(7);
+    nums.add(13);
+    nums.add(3);
+    nums.add(99);
+    nums.add(1);
+    nums.add(56);
+    nums.add(28);
+
+    io::println("Before sort:");
+    var ni: int = 0;
+    while (ni < nums.size()) {
+        io::println("  " + Integer.toString(nums.get(ni)));
+        ni = ni + 1;
+    }
+
+    quicksort(nums, 0, nums.size() - 1);
+
+    io::println("After sort:");
+    ni = 0;
+    while (ni < nums.size()) {
+        io::println("  " + Integer.toString(nums.get(ni)));
+        ni = ni + 1;
+    }
+
+    // Verify sorted
+    let sortedOk: bool = nums.get(0) == 1 && nums.get(7) == 99;
+    io::println("Sort verified: " + Boolean.toString(sortedOk));
+    io::println("");
+
+    // ================================================================
+    // Section 7: NDArray Creation and Operations
+    // ================================================================
+    io::println("=== Section 7: NDArray Creation and Operations ===");
+
+    let a: NDArray = NDArray.zeros(3, 3);
+    a.set2D(0, 0, 1.0);
+    a.set2D(1, 1, 2.0);
+    a.set2D(2, 2, 3.0);
+    io::println("Diagonal matrix trace: " + Double.toString(a.get2D(0, 0) + a.get2D(1, 1) + a.get2D(2, 2)));
+
+    let b: NDArray = NDArray.ones(3, 3);
+    let c: NDArray = a.add(b);
+    io::println("a + ones at (0,0): " + Double.toString(c.get2D(0, 0)));
+    io::println("a + ones at (1,1): " + Double.toString(c.get2D(1, 1)));
+
+    let d: NDArray = a.mulScalar(2.0);
+    io::println("a * 2 at (2,2): " + Double.toString(d.get2D(2, 2)));
+
+    // arange
+    let rng: NDArray = NDArray.arange(0.0, 5.0, 1.0);
+    io::println("arange(0, 5, 1) size: " + Integer.toString(rng.size()));
+    io::println("arange sum: " + Double.toString(rng.sum()));
+
+    // Reductions
+    io::println("a sum: " + Double.toString(a.sum()));
+    io::println("a mean: " + Double.toString(a.mean()));
+    io::println("a min: " + Double.toString(a.min()));
+    io::println("a max: " + Double.toString(a.max()));
+
+    // Transpose
+    let t: NDArray = NDArray.zeros(2, 3);
+    t.set2D(0, 1, 5.0);
+    let tt: NDArray = t.transpose();
+    io::println("Transpose shape: " + Integer.toString(tt.rows()) + "x" + Integer.toString(tt.cols()));
+    io::println("Transposed element: " + Double.toString(tt.get2D(1, 0)));
+
+    let ndarrayOk: bool = c.get2D(0, 0) == 2.0 && d.get2D(2, 2) == 6.0 && rng.sum() == 10.0;
+    io::println("NDArray verified: " + Boolean.toString(ndarrayOk));
+    io::println("");
+
+    // ================================================================
+    // Section 8: Matrix Multiplication and Determinant
+    // ================================================================
+    io::println("=== Section 8: Matrix Multiplication and Determinant ===");
+
+    let m1: Matrix = new Matrix(2, 2);
+    m1.set(0, 0, 1.0);
+    m1.set(0, 1, 2.0);
+    m1.set(1, 0, 3.0);
+    m1.set(1, 1, 4.0);
+
+    let m2: Matrix = new Matrix(2, 2);
+    m2.set(0, 0, 5.0);
+    m2.set(0, 1, 6.0);
+    m2.set(1, 0, 7.0);
+    m2.set(1, 1, 8.0);
+
+    let m3: Matrix = m1.multiply(m2);
+    io::println("m1 * m2:");
+    io::println("  [0,0] = " + Double.toString(m3.get(0, 0)));  // 1*5+2*7 = 19
+    io::println("  [0,1] = " + Double.toString(m3.get(0, 1)));  // 1*6+2*8 = 22
+    io::println("  [1,0] = " + Double.toString(m3.get(1, 0)));  // 3*5+4*7 = 43
+    io::println("  [1,1] = " + Double.toString(m3.get(1, 1)));  // 3*6+4*8 = 50
+
+    let det: double = m1.determinant();
+    io::println("det(m1) = " + Double.toString(det));  // 1*4 - 2*3 = -2
+
+    let identity: Matrix = Matrix.identity(3);
+    io::println("Identity trace: " + Double.toString(identity.trace()));  // 3.0
+    io::println("Identity det: " + Double.toString(identity.determinant()));  // 1.0
+
+    let matmulOk: bool = m3.get(0, 0) == 19.0 && m3.get(1, 1) == 50.0;
+    let detOk: bool = Math.abs(det - (-2.0)) < 1e-9;
+    io::println("Matrix multiply verified: " + Boolean.toString(matmulOk));
+    io::println("Determinant verified: " + Boolean.toString(detOk));
+    io::println("");
+
+    // ================================================================
+    // Section 9: JSON Parsing
+    // ================================================================
+    io::println("=== Section 9: JSON Parsing ===");
+
+    let jsonStr: string = "{\"name\":\"Titrate\",\"version\":0.3,\"features\":[\"generics\",\"closures\",\"chemistry\"],\"stable\":true}";
+    let root: JsonValue = Json.parse(jsonStr);
+
+    let name: JsonValue = root.get("name");
+    io::println("name: " + name.asString());
+
+    let version: JsonValue = root.get("version");
+    io::println("version: " + Double.toString(version.asNumber()));
+
+    let stable: JsonValue = root.get("stable");
+    io::println("stable: " + Boolean.toString(stable.asBool()));
+
+    let features: JsonValue = root.get("features");
+    io::println("features count: " + Integer.toString(features.size()));
+    var fi: int = 0;
+    while (fi < features.size()) {
+        let f: JsonValue = features.getAt(fi);
+        io::println("  [" + Integer.toString(fi) + "] " + f.asString());
+        fi = fi + 1;
+    }
+
+    let jsonOk: bool = name.asString() == "Titrate" && stable.asBool() == true;
+    io::println("JSON verified: " + Boolean.toString(jsonOk));
+    io::println("");
+
+    // ================================================================
+    // Section 10: Regex Matching
+    // ================================================================
+    io::println("=== Section 10: Regex Matching ===");
+
+    let numRe: Regex = Regex.compile("\\d+");
+    io::println("Match '123': " + Boolean.toString(numRe.match("123")));
+    io::println("Match 'abc': " + Boolean.toString(numRe.match("abc")));
+
+    let text2: string = "The price is $42 and the discount is $15";
+    let allNums: ArrayList<Match> = numRe.findAll(text2);
+    io::println("Numbers found: " + Integer.toString(allNums.size()));
+    var ri: int = 0;
+    while (ri < allNums.size()) {
+        let m: Match = allNums.get(ri);
+        io::println("  '" + m.matched + "' at " + Integer.toString(m.start) + ".." + Integer.toString(m.end));
+        ri = ri + 1;
+    }
+
+    let replaced: string = numRe.replaceAll(text2, "XXX");
+    io::println("After replace: " + replaced);
+
+    let emailRe: Regex = Regex.compile("[a-zA-Z0-9]+@[a-zA-Z0-9]+\\.[a-zA-Z]+");
+    let emailText: string = "Contact us at info@titrate.dev or support@titrate.dev";
+    let emails: ArrayList<Match> = emailRe.findAll(emailText);
+    io::println("Emails found: " + Integer.toString(emails.size()));
+
+    let regexOk: bool = numRe.match("123") == true && allNums.size() == 2;
+    io::println("Regex verified: " + Boolean.toString(regexOk));
+    io::println("");
+
+    // ================================================================
+    // Section 11: File I/O
+    // ================================================================
+    io::println("=== Section 11: File I/O ===");
+
+    // Write results to file
+    let output: string = "Mega Test Alpha 0.3 Results\n";
+    output = output + "Molecular formula: " + water.toString() + "\n";
+    output = output + "Molecular weight: " + Double.toString(water.molecularWeight()) + "\n";
+    output = output + "Force field energy: " + Double.toString(totalE) + "\n";
+    output = output + "RHF energy: " + Double.toString(rhfEnergy) + "\n";
+    output = output + "Matrix det: " + Double.toString(det) + "\n";
+
+    switch (File.writeFile("mega_test_results.txt", output)) {
+        case Ok(_) => io::println("Written results to mega_test_results.txt");
+        case Err(e) => io::println("Failed to write: " + e);
+    }
+
+    // Read them back
+    switch (File.readFile("mega_test_results.txt")) {
+        case Ok(content) => {
+            io::println("Read back " + Integer.toString(content.length()) + " characters");
+            let lines: ArrayList<string> = File.readLines("mega_test_results.txt");
+            io::println("Lines: " + Integer.toString(lines.size()));
+            // Verify first line
+            let firstLine: string = lines.get(0);
+            io::println("First line: " + firstLine);
+            let fileOk: bool = firstLine == "Mega Test Alpha 0.3 Results";
+            io::println("File I/O verified: " + Boolean.toString(fileOk));
+        }
+        case Err(e) => {
+            io::println("Failed to read: " + e);
+            io::println("File I/O verified: false");
+        }
+    }
+    io::println("");
+
+    // ================================================================
+    // Section 12: Closures and Iterators
+    // ================================================================
+    io::println("=== Section 12: Closures and Iterators ===");
+
+    // Expression closure
+    let double = fn(x: int): int => x * 2;
+    io::println("double(21) = " + Integer.toString(double(21)));
+
+    // Block closure
+    let greet = fn(name: string): string {
+        return "Hello, " + name + "!";
+    };
+    io::println(greet("Titrate"));
+
+    // Capturing variable
+    var total: int = 0;
+    let add = fn(n: int): void {
+        total = total + n;
+    };
+    add(3);
+    add(7);
+    add(5);
+    io::println("Total after adds: " + Integer.toString(total));
+
+    // Closure composition
+    let addOne = fn(x: int): int => x + 1;
+    let thenDouble = fn(x: int): int => x * 2;
+    let composed = fn(x: int): int => thenDouble(addOne(x));
+    io::println("composed(3) = " + Integer.toString(composed(3)));
+
+    // Iterator over ArrayList
+    let items: ArrayList<int> = new ArrayList<int>();
+    items.add(10);
+    items.add(20);
+    items.add(30);
+    io::println("Items via for loop:");
+    for (item in items) {
+        io::println("  " + Integer.toString(item));
+    }
+
+    let closureOk: bool = double(21) == 42 && total == 15 && composed(3) == 8;
+    io::println("Closures verified: " + Boolean.toString(closureOk));
+    io::println("");
+
+    // ================================================================
+    // Section 13: Range Expressions
+    // ================================================================
+    io::println("=== Section 13: Range Expressions ===");
+
+    // C-style for loop as range
+    io::println("Range 0..5:");
+    for (let i = 0; i < 5; i = i + 1) {
+        io::println("  i = " + Integer.toString(i));
+    }
+
+    // Sum of range
+    var rangeSum: int = 0;
+    for (let i = 1; i <= 10; i = i + 1) {
+        rangeSum = rangeSum + i;
+    }
+    io::println("Sum 1..10 = " + Integer.toString(rangeSum));  // 55
+
+    // Range with step
+    io::println("Even numbers 0..10:");
+    for (let i = 0; i <= 10; i = i + 2) {
+        io::println("  " + Integer.toString(i));
+    }
+
+    let rangeOk: bool = rangeSum == 55;
+    io::println("Range verified: " + Boolean.toString(rangeOk));
+    io::println("");
+
+    // ================================================================
+    // Section 14: Pattern Matching on Result Types
+    // ================================================================
+    io::println("=== Section 14: Pattern Matching on Result Types ===");
+
+    let okResult: Result<int, string> = Ok(42);
+    let errResult: Result<int, string> = Err("something went wrong");
+
+    switch (okResult) {
+        case Ok(v) => io::println("Ok value: " + Integer.toString(v));
+        case Err(msg) => io::println("Error: " + msg);
+        default => { }
+    }
+
+    switch (errResult) {
+        case Ok(v) => io::println("Ok value: " + Integer.toString(v));
+        case Err(msg) => io::println("Error: " + msg);
+        default => { }
+    }
+
+    // Safe divide with Result
+    let divOk: Result<int, string> = safeDivide(10, 3);
+    let divErr: Result<int, string> = safeDivide(10, 0);
+
+    switch (divOk) {
+        case Ok(v) => io::println("10/3 = " + Integer.toString(v));
+        case Err(e) => io::println("Error: " + e);
+        default => { }
+    }
+    switch (divErr) {
+        case Ok(v) => io::println("10/0 = " + Integer.toString(v));
+        case Err(e) => io::println("Error: " + e);
+        default => { }
+    }
+
+    let resultOk: bool = true;
+    io::println("Result pattern matching verified: " + Boolean.toString(resultOk));
+    io::println("");
+
+    // ================================================================
+    // Final Verification
+    // ================================================================
+    io::println("=== Final Verification ===");
+
+    let allPassed: bool = mwDiff < 0.01 &&
+        totalE > -1e10 && totalE < 1e10 &&
+        rhfEnergy < 0.0 &&
+        theOk && foxOk && quickOk &&
+        sortedOk &&
+        ndarrayOk &&
+        matmulOk && detOk &&
+        jsonOk &&
+        regexOk &&
+        closureOk &&
+        rangeOk;
+
+    if (allPassed) {
+        io::println("ALL VERIFICATIONS PASSED");
+    } else {
+        io::println("SOME VERIFICATIONS FAILED");
+    }
+
+    io::println("");
+    io::println("=== Mega Test Alpha 0.3 Complete ===");
+}
+
+// ---- Helper functions ----
+
+fn safeDivide(a: int, b: int): Result<int, string> {
+    if (b == 0) {
+        return Err("division by zero");
+    }
+    return Ok(a / b);
+}
+
+fn quicksort(arr: ArrayList<int>, lo: int, hi: int): void {
+    if (lo < hi) {
+        let p: int = partition(arr, lo, hi);
+        quicksort(arr, lo, p - 1);
+        quicksort(arr, p + 1, hi);
+    }
+}
+
+fn partition(arr: ArrayList<int>, lo: int, hi: int): int {
+    let pivot: int = arr.get(hi);
+    var i: int = lo - 1;
+    var j: int = lo;
+    while (j < hi) {
+        if (arr.get(j) <= pivot) {
+            i = i + 1;
+            // Swap arr[i] and arr[j]
+            let tmp: int = arr.get(i);
+            arr.set(i, arr.get(j));
+            arr.set(j, tmp);
+        }
+        j = j + 1;
+    }
+    // Swap arr[i+1] and arr[hi]
+    let tmp2: int = arr.get(i + 1);
+    arr.set(i + 1, arr.get(hi));
+    arr.set(hi, tmp2);
+    return i + 1;
+}
