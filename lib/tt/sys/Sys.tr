@@ -25,4 +25,32 @@ public class Sys {
     public static void sleep(int ms) {
         Sys_sleep(ms);
     }
+
+    public static String platform() {
+        return Sys_platform();
+    }
+
+    public static int cpuCount() {
+        return Sys_cpuCount();
+    }
+
+    public static String exec(String command) {
+        return Sys_exec(command);
+    }
+
+    public static int pid() {
+        return Sys_pid();
+    }
+
+    public static long nanoTime() {
+        return Sys_nanoTime();
+    }
+
+    public static String userName() {
+        return Sys_userName();
+    }
+
+    public static String hostName() {
+        return Sys_hostName();
+    }
 }
