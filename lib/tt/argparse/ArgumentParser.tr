@@ -1,0 +1,172 @@
+// ArgumentParser provides Python-style command-line argument parsing.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// Represents a single argument definition.
+public class Argument {
+    public String name;
+    public String typ;
+    public Object default;
+    public bool required;
+    public String help;
+
+    public Argument(String name, String typ, Object default, bool required, String help) {
+        this.name = name;
+        this.typ = typ;
+        this.default = default;
+        this.required = required;
+        this.help = help;
+    }
+}
+
+// Parses command-line arguments according to registered definitions.
+public class ArgumentParser {
+    public String name;
+    public String description;
+    public ArrayList<Argument> arguments;
+    public HashMap<String, Object> parsedArgs;
+
+    public ArgumentParser(String name, String description) {
+        this.name = name;
+        this.description = description;
+        this.arguments = new ArrayList<Argument>();
+        this.parsedArgs = new HashMap<String, Object>();
+    }
+
+    public void addArgument(String name, String typ, Object default, bool required, String help) {
+        Argument arg = new Argument(name, typ, default, required, help);
+        this.arguments.add(arg);
+    }
+
+    public HashMap<String, Object> parseArgs(ArrayList<String> args) {
+        HashMap<String, Object> result = new HashMap<String, Object>();
+        // Set defaults first
+        int i = 0;
+        while (i < this.arguments.size()) {
+            Argument arg = this.arguments.get(i);
+            if (arg.default != null) {
+                result.put(arg.name, arg.default);
+            }
+            i = i + 1;
+        }
+        // Parse positional and named arguments
+        int pos = 0;
+        while (pos < args.size()) {
+            String token = args.get(pos);
+            if (token.startsWith("--")) {
+                // Named argument: --name value
+                String argName = token.substring(2);
+                // Find matching argument definition
+                Argument match = null;
+                int j = 0;
+                while (j < this.arguments.size()) {
+                    if (this.arguments.get(j).name == argName) {
+                        match = this.arguments.get(j);
+                        break;
+                    }
+                    j = j + 1;
+                }
+                if (match != null && pos + 1 < args.size()) {
+                    pos = pos + 1;
+                    String val = args.get(pos);
+                    result.put(argName, ArgumentParser._convert(val, match.typ));
+                } else if (match != null) {
+                    // Flag argument (bool), treat as true
+                    result.put(argName, true);
+                }
+            } else if (token.startsWith("-")) {
+                // Short argument: -n value
+                String argName = token.substring(1);
+                Argument match = null;
+                int j = 0;
+                while (j < this.arguments.size()) {
+                    if (this.arguments.get(j).name == argName) {
+                        match = this.arguments.get(j);
+                        break;
+                    }
+                    j = j + 1;
+                }
+                if (match != null && pos + 1 < args.size()) {
+                    pos = pos + 1;
+                    String val = args.get(pos);
+                    result.put(argName, ArgumentParser._convert(val, match.typ));
+                } else if (match != null) {
+                    result.put(argName, true);
+                }
+            } else {
+                // Positional argument: assign to the next argument without a value
+                int j = 0;
+                while (j < this.arguments.size()) {
+                    if (!result.containsKey(this.arguments.get(j).name)) {
+                        result.put(this.arguments.get(j).name, ArgumentParser._convert(token, this.arguments.get(j).typ));
+                        break;
+                    }
+                    j = j + 1;
+                }
+            }
+            pos = pos + 1;
+        }
+        // Check required arguments
+        i = 0;
+        while (i < this.arguments.size()) {
+            Argument arg = this.arguments.get(i);
+            if (arg.required && !result.containsKey(arg.name)) {
+                // Missing required argument; store null as sentinel
+                result.put(arg.name, null);
+            }
+            i = i + 1;
+        }
+        this.parsedArgs = result;
+        return result;
+    }
+
+    // Convert a string value to the specified type.
+    private static Object _convert(String val, String typ) {
+        if (typ == "int") {
+            return Integer.parseInt(val);
+        }
+        if (typ == "double" || typ == "float") {
+            return Double.parseDouble(val);
+        }
+        if (typ == "bool") {
+            return val == "true" || val == "1";
+        }
+        // Default: string
+        return val;
+    }
+
+    public String usage() {
+        String s = "usage: " + this.name;
+        int i = 0;
+        while (i < this.arguments.size()) {
+            Argument arg = this.arguments.get(i);
+            if (arg.required) {
+                s = s + " --" + arg.name + " <" + arg.typ + ">";
+            } else {
+                s = s + " [--" + arg.name + " <" + arg.typ + ">]";
+            }
+            i = i + 1;
+        }
+        return s;
+    }
+
+    public String help() {
+        String s = this.usage();
+        s = s + "\n\n" + this.description + "\n\noptional arguments:";
+        int i = 0;
+        while (i < this.arguments.size()) {
+            Argument arg = this.arguments.get(i);
+            String defaultStr = "";
+            if (arg.default != null) {
+                defaultStr = " (default: " + arg.default + ")";
+            }
+            String requiredStr = "";
+            if (arg.required) {
+                requiredStr = " [required]";
+            }
+            s = s + "\n  --" + arg.name + "  " + arg.help + requiredStr + defaultStr;
+            i = i + 1;
+        }
+        return s;
+    }
+}
