@@ -33,4 +33,15 @@ public class Match {
     public int groupCount() {
         return this.groups.size();
     }
+
+    public ArrayList<String> groups() {
+        return this.groups;
+    }
+
+    public ArrayList<int> range() {
+        ArrayList<int> r = new ArrayList<int>();
+        r.add(this.start);
+        r.add(this.end);
+        return r;
+    }
 }

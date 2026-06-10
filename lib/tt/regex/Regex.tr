@@ -4,13 +4,24 @@ import tt::util::ArrayList;
 
 public class Regex {
     public String pattern;
+    public String flags;
 
     public Regex(String p) {
         this.pattern = p;
+        this.flags = "";
+    }
+
+    public Regex(String p, String f) {
+        this.pattern = p;
+        this.flags = f;
     }
 
     public static Regex compile(String p) {
         return new Regex(p);
+    }
+
+    public static Regex compile(String p, String f) {
+        return new Regex(p, f);
     }
 
     public bool match(String input) {
@@ -97,5 +108,33 @@ public class Regex {
 
     public String getPattern() {
         return this.pattern;
+    }
+
+    public String replaceFirst(String input, String replacement) {
+        return Regex_replaceFirst(this.pattern, input, replacement);
+    }
+
+    public bool matches(String input) {
+        Match m = this.find(input);
+        if (m == null) {
+            return false;
+        }
+        return m.start == 0 && m.end == input.length();
+    }
+
+    public static String quote(String s) {
+        String result = "";
+        int i = 0;
+        while (i < s.length()) {
+            String c = s.charAt(i);
+            if (c == "\\" || c == "." || c == "*" || c == "+" || c == "?" ||
+                c == "(" || c == ")" || c == "[" || c == "]" || c == "{" ||
+                c == "}" || c == "|" || c == "^" || c == "$") {
+                result = result + "\\";
+            }
+            result = result + c;
+            i = i + 1;
+        }
+        return result;
     }
 }
