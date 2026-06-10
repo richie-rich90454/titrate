@@ -1676,7 +1676,7 @@ impl Parser {
     }
 
     fn parse_assignment(&mut self) -> Result<ast::Expr, String> {
-        let expr = self.parse_or()?;
+        let expr = self.parse_range()?;
 
         if self.match_token(&lexer::Token::Equals) {
             let span = self.make_span();
@@ -1686,6 +1686,23 @@ impl Parser {
         } else {
             Ok(expr)
         }
+    }
+
+    fn parse_range(&mut self) -> Result<ast::Expr, String> {
+        let expr = self.parse_or()?;
+
+        if self.match_token(&lexer::Token::DotDot) {
+            let span = self.make_span();
+            let end = self.parse_or()?;
+            return Ok(ast::Expr::Range(Box::new(expr), Box::new(end), span));
+        }
+        if self.match_token(&lexer::Token::DotDotEq) {
+            let span = self.make_span();
+            let end = self.parse_or()?;
+            return Ok(ast::Expr::RangeInclusive(Box::new(expr), Box::new(end), span));
+        }
+
+        Ok(expr)
     }
 
     fn parse_or(&mut self) -> Result<ast::Expr, String> {
@@ -1965,6 +1982,26 @@ impl Parser {
                         Ok(ast::Expr::Literal(ast::Literal::String(s), span))
                     }
                     _ => Err("Expected string literal".to_string()),
+                }
+            }
+            lexer::Token::RawStringLiteral(_) => {
+                let span = self.make_span();
+                let t = self.advance();
+                match t {
+                    lexer::Token::RawStringLiteral(s) => {
+                        Ok(ast::Expr::Literal(ast::Literal::String(s), span))
+                    }
+                    _ => Err("Expected raw string literal".to_string()),
+                }
+            }
+            lexer::Token::ByteLiteral(_) => {
+                let span = self.make_span();
+                let t = self.advance();
+                match t {
+                    lexer::Token::ByteLiteral(v) => {
+                        Ok(ast::Expr::Literal(ast::Literal::Int(v as i64), span))
+                    }
+                    _ => Err("Expected byte literal".to_string()),
                 }
             }
             lexer::Token::CharLiteral(_) => {
@@ -4283,6 +4320,164 @@ import tt::math::NDArray;"#;
                 // where clause should be parsed
                 assert!(!fd.where_clause.is_empty(), "expected where clause to be parsed");
             }
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Range expression tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_exclusive_range() {
+        let src = r#"fn f(): void { 1..10; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Range(start, end, _)) => {
+                    assert!(matches!(start.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                    assert!(matches!(end.as_ref(), ast::Expr::Literal(ast::Literal::Int(10), _)));
+                }
+                other => panic!("Expected Range, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_inclusive_range() {
+        let src = r#"fn f(): void { 1..=10; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::RangeInclusive(start, end, _)) => {
+                    assert!(matches!(start.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                    assert!(matches!(end.as_ref(), ast::Expr::Literal(ast::Literal::Int(10), _)));
+                }
+                other => panic!("Expected RangeInclusive, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_with_expressions() {
+        let src = r#"fn f(): void { a + 1..b * 2; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Range(start, end, _)) => {
+                    assert!(matches!(start.as_ref(), ast::Expr::Binary(_, ast::Operator::Add, _, _)));
+                    assert!(matches!(end.as_ref(), ast::Expr::Binary(_, ast::Operator::Mul, _, _)));
+                }
+                other => panic!("Expected Range with expressions, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_range_assignment() {
+        let src = r#"fn f(): void { x = 1..10; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Range(_, _, _)),
+                        "Expected Range on right side of assignment");
+                }
+                other => panic!("Expected Assign with Range, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Raw string literal expression tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_raw_string_expr() {
+        let src = r#"fn f(): void { return r"hello"; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::String(s), _))) => {
+                    assert_eq!(s, "hello");
+                }
+                other => panic!("Expected Return(String), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_raw_string_with_hash_expr() {
+        let src = r##"fn f(): void { return r#"has "quotes""#; }"##;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::String(s), _))) => {
+                    assert_eq!(s, "has \"quotes\"");
+                }
+                other => panic!("Expected Return(String), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Byte literal expression tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_byte_literal_expr() {
+        let src = r#"fn f(): void { return b'x'; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(120), _))) => {}
+                other => panic!("Expected Return(Int(120)), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Numeric format expression tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_underscore_number_expr() {
+        let src = r#"fn f(): int { return 1_000_000; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(1000000), _))) => {}
+                other => panic!("Expected Return(Int(1000000)), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_binary_expr() {
+        let src = r#"fn f(): int { return 0b1010; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(10), _))) => {}
+                other => panic!("Expected Return(Int(10)), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_octal_expr() {
+        let src = r#"fn f(): int { return 0o777; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(511), _))) => {}
+                other => panic!("Expected Return(Int(511)), got {:?}", other),
+            },
             other => panic!("Expected Function, got {:?}", other),
         }
     }
