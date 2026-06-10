@@ -1,0 +1,396 @@
+// Itertools module providing Python itertools-style functions.
+import tt::util::ArrayList;
+
+public class Itertools {
+    // Flatten an ArrayList of ArrayLists into a single ArrayList.
+    public static ArrayList<T> chain<T>(ArrayList<ArrayList<T>> iterables) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < iterables.size()) {
+            ArrayList<T> inner = iterables.get(i);
+            int j = 0;
+            while (j < inner.size()) {
+                result.add(inner.get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Generate all r-length combinations of elements from arr.
+    public static ArrayList<ArrayList<T>> combinations<T>(ArrayList<T> arr, int r) {
+        ArrayList<ArrayList<T>> result = new ArrayList<ArrayList<T>>();
+        int n = arr.size();
+        if (r > n || r <= 0) {
+            return result;
+        }
+        ArrayList<int> indices = new ArrayList<int>();
+        int i = 0;
+        while (i < r) {
+            indices.add(i);
+            i = i + 1;
+        }
+        // Add first combination
+        ArrayList<T> first = new ArrayList<T>();
+        int k = 0;
+        while (k < r) {
+            first.add(arr.get(indices.get(k)));
+            k = k + 1;
+        }
+        result.add(first);
+        // Generate remaining combinations
+        while (true) {
+            int idx = r - 1;
+            while (idx >= 0 && indices.get(idx) == n - r + idx) {
+                idx = idx - 1;
+            }
+            if (idx < 0) {
+                break;
+            }
+            indices.set(idx, indices.get(idx) + 1);
+            int j = idx + 1;
+            while (j < r) {
+                indices.set(j, indices.get(j - 1) + 1);
+                j = j + 1;
+            }
+            ArrayList<T> combo = new ArrayList<T>();
+            int m = 0;
+            while (m < r) {
+                combo.add(arr.get(indices.get(m)));
+                m = m + 1;
+            }
+            result.add(combo);
+        }
+        return result;
+    }
+
+    // Generate r-length combinations with replacement.
+    public static ArrayList<ArrayList<T>> combinationsWithReplacement<T>(ArrayList<T> arr, int r) {
+        ArrayList<ArrayList<T>> result = new ArrayList<ArrayList<T>>();
+        int n = arr.size();
+        if (r <= 0) {
+            ArrayList<T> empty = new ArrayList<T>();
+            result.add(empty);
+            return result;
+        }
+        if (n == 0) {
+            return result;
+        }
+        ArrayList<int> indices = new ArrayList<int>();
+        int i = 0;
+        while (i < r) {
+            indices.add(0);
+            i = i + 1;
+        }
+        // Add first combination
+        ArrayList<T> first = new ArrayList<T>();
+        int k = 0;
+        while (k < r) {
+            first.add(arr.get(indices.get(k)));
+            k = k + 1;
+        }
+        result.add(first);
+        // Generate remaining combinations
+        while (true) {
+            int idx = r - 1;
+            while (idx >= 0 && indices.get(idx) == n - 1) {
+                idx = idx - 1;
+            }
+            if (idx < 0) {
+                break;
+            }
+            indices.set(idx, indices.get(idx) + 1);
+            int j = idx + 1;
+            while (j < r) {
+                indices.set(j, indices.get(idx));
+                j = j + 1;
+            }
+            ArrayList<T> combo = new ArrayList<T>();
+            int m = 0;
+            while (m < r) {
+                combo.add(arr.get(indices.get(m)));
+                m = m + 1;
+            }
+            result.add(combo);
+        }
+        return result;
+    }
+
+    // Generate r-length permutations of elements from arr.
+    public static ArrayList<ArrayList<T>> permutations<T>(ArrayList<T> arr, int r) {
+        ArrayList<ArrayList<T>> result = new ArrayList<ArrayList<T>>();
+        int n = arr.size();
+        if (r > n) {
+            return result;
+        }
+        // Use index-based approach
+        ArrayList<int> indices = new ArrayList<int>();
+        int i = 0;
+        while (i < n) {
+            indices.add(i);
+            i = i + 1;
+        }
+        // Generate cycles
+        ArrayList<int> cycles = new ArrayList<int>();
+        i = n;
+        while (i > n - r) {
+            cycles.add(i);
+            i = i - 1;
+        }
+        // Add first permutation
+        ArrayList<T> first = new ArrayList<T>();
+        int k = 0;
+        while (k < r) {
+            first.add(arr.get(indices.get(k)));
+            k = k + 1;
+        }
+        result.add(first);
+        // Generate remaining permutations
+        while (true) {
+            bool done = false;
+            int idx = r - 1;
+            while (idx >= 0) {
+                cycles.set(idx, cycles.get(idx) - 1);
+                if (cycles.get(idx) == 0) {
+                    // Rotate: move element at idx to end
+                    int val = indices.get(idx);
+                    int j = idx;
+                    while (j < indices.size() - 1) {
+                        indices.set(j, indices.get(j + 1));
+                        j = j + 1;
+                    }
+                    indices.set(indices.size() - 1, val);
+                    cycles.set(idx, n - idx);
+                } else {
+                    // Swap
+                    int swapIdx = indices.size() - cycles.get(idx);
+                    int temp = indices.get(idx);
+                    indices.set(idx, indices.get(swapIdx));
+                    indices.set(swapIdx, temp);
+                    ArrayList<T> perm = new ArrayList<T>();
+                    int m = 0;
+                    while (m < r) {
+                        perm.add(arr.get(indices.get(m)));
+                        m = m + 1;
+                    }
+                    result.add(perm);
+                    done = true;
+                    break;
+                }
+                idx = idx - 1;
+            }
+            if (!done) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    // Cartesian product of two arrays.
+    public static ArrayList<ArrayList<Object>> product<T, U>(ArrayList<T> arr1, ArrayList<U> arr2) {
+        ArrayList<ArrayList<Object>> result = new ArrayList<ArrayList<Object>>();
+        int i = 0;
+        while (i < arr1.size()) {
+            int j = 0;
+            while (j < arr2.size()) {
+                ArrayList<Object> pair = new ArrayList<Object>();
+                pair.add(arr1.get(i));
+                pair.add(arr2.get(j));
+                result.add(pair);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Running accumulation with a binary function.
+    public static ArrayList<T> accumulate<T>(ArrayList<T> arr, function<T(T, T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        if (arr.size() == 0) {
+            return result;
+        }
+        T acc = arr.get(0);
+        result.add(acc);
+        int i = 1;
+        while (i < arr.size()) {
+            acc = fn(acc, arr.get(i));
+            result.add(acc);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Repeat the array n times (cycle).
+    public static ArrayList<T> cycle<T>(ArrayList<T> arr, int n) {
+        ArrayList<T> result = new ArrayList<T>();
+        int c = 0;
+        while (c < n) {
+            int i = 0;
+            while (i < arr.size()) {
+                result.add(arr.get(i));
+                i = i + 1;
+            }
+            c = c + 1;
+        }
+        return result;
+    }
+
+    // Slice with step (islice).
+    public static ArrayList<T> islice<T>(ArrayList<T> arr, int start, int stop, int step) {
+        ArrayList<T> result = new ArrayList<T>();
+        if (step <= 0) {
+            return result;
+        }
+        int i = start;
+        while (i < stop && i < arr.size()) {
+            result.add(arr.get(i));
+            i = i + step;
+        }
+        return result;
+    }
+
+    // Zip longest: zip two arrays, filling missing with fillValue.
+    public static ArrayList<ArrayList<Object>> zipLongest<T, U>(ArrayList<T> a, ArrayList<U> b, Object fillValue) {
+        ArrayList<ArrayList<Object>> result = new ArrayList<ArrayList<Object>>();
+        int maxLen = a.size();
+        if (b.size() > maxLen) {
+            maxLen = b.size();
+        }
+        int i = 0;
+        while (i < maxLen) {
+            ArrayList<Object> pair = new ArrayList<Object>();
+            if (i < a.size()) {
+                pair.add(a.get(i));
+            } else {
+                pair.add(fillValue);
+            }
+            if (i < b.size()) {
+                pair.add(b.get(i));
+            } else {
+                pair.add(fillValue);
+            }
+            result.add(pair);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Generate a count sequence: start, start+step, ..., n values.
+    public static ArrayList<int> count(int start, int step, int n) {
+        ArrayList<int> result = new ArrayList<int>();
+        int i = 0;
+        while (i < n) {
+            result.add(start + i * step);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Repeat a value n times.
+    public static ArrayList<T> repeat<T>(T value, int n) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < n) {
+            result.add(value);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Starmap: apply function to each argument list.
+    public static ArrayList<T> starmap<T>(function<T(ArrayList<Object>)> fn, ArrayList<ArrayList<Object>> args) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < args.size()) {
+            result.add(fn(args.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Compress: filter data by selectors.
+    public static ArrayList<T> compress<T>(ArrayList<T> data, ArrayList<bool> selectors) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < data.size() && i < selectors.size()) {
+            if (selectors.get(i)) {
+                result.add(data.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Filter false: keep elements where fn returns false.
+    public static ArrayList<T> filterFalse<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < arr.size()) {
+            if (!fn(arr.get(i))) {
+                result.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Drop while: drop elements while fn returns true.
+    public static ArrayList<T> dropWhile<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        bool dropping = true;
+        while (i < arr.size()) {
+            if (dropping && fn(arr.get(i))) {
+                // skip
+            } else {
+                dropping = false;
+                result.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Take while: take elements while fn returns true.
+    public static ArrayList<T> takeWhile<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < arr.size()) {
+            if (fn(arr.get(i))) {
+                result.add(arr.get(i));
+            } else {
+                break;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Group consecutive elements by key function.
+    public static ArrayList<ArrayList<T>> groupby<T, K>(ArrayList<T> arr, function<K(T)> fn) {
+        ArrayList<ArrayList<T>> result = new ArrayList<ArrayList<T>>();
+        if (arr.size() == 0) {
+            return result;
+        }
+        ArrayList<T> currentGroup = new ArrayList<T>();
+        K currentKey = fn(arr.get(0));
+        currentGroup.add(arr.get(0));
+        int i = 1;
+        while (i < arr.size()) {
+            K key = fn(arr.get(i));
+            if (key == currentKey) {
+                currentGroup.add(arr.get(i));
+            } else {
+                result.add(currentGroup);
+                currentGroup = new ArrayList<T>();
+                currentKey = key;
+                currentGroup.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        result.add(currentGroup);
+        return result;
+    }
+}
