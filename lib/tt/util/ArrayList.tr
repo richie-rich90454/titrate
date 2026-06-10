@@ -13,6 +13,10 @@ public class ArrayList<T> implements Iterable<T> {
         this.list.add(element);
     }
 
+    public void set(int index, T value) {
+        this.list.set(index, value);
+    }
+
     public T get(int index) {
         return this.list.get(index);
     }
