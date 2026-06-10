@@ -277,3 +277,275 @@ fn test_string_split() {
         Err(e) => panic!("String_split failed: {}", e),
     }
 }
+
+// ---------------------------------------------------------------------------
+// String utility native function tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_string_trim_start() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_trimStart", &[
+        Value::String(std::rc::Rc::new("  hello  ".to_string())),
+    ]);
+    match result {
+        Ok(Value::String(s)) => {
+            assert_eq!(s.as_str(), "hello  ", "String.trimStart('  hello  ') should be 'hello  ', got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("String_trimStart failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_trim_end() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_trimEnd", &[
+        Value::String(std::rc::Rc::new("  hello  ".to_string())),
+    ]);
+    match result {
+        Ok(Value::String(s)) => {
+            assert_eq!(s.as_str(), "  hello", "String.trimEnd('  hello  ') should be '  hello', got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("String_trimEnd failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_starts_with() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_startsWith", &[
+        Value::String(std::rc::Rc::new("hello world".to_string())),
+        Value::String(std::rc::Rc::new("hello".to_string())),
+    ]);
+    match result {
+        Ok(Value::Bool(b)) => {
+            assert!(b, "String.startsWith('hello world', 'hello') should be true");
+        }
+        Ok(other) => panic!("Expected Bool, got {:?}", other),
+        Err(e) => panic!("String_startsWith failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_starts_with_false() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_startsWith", &[
+        Value::String(std::rc::Rc::new("hello world".to_string())),
+        Value::String(std::rc::Rc::new("world".to_string())),
+    ]);
+    match result {
+        Ok(Value::Bool(b)) => {
+            assert!(!b, "String.startsWith('hello world', 'world') should be false");
+        }
+        Ok(other) => panic!("Expected Bool, got {:?}", other),
+        Err(e) => panic!("String_startsWith failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_ends_with() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_endsWith", &[
+        Value::String(std::rc::Rc::new("hello world".to_string())),
+        Value::String(std::rc::Rc::new("world".to_string())),
+    ]);
+    match result {
+        Ok(Value::Bool(b)) => {
+            assert!(b, "String.endsWith('hello world', 'world') should be true");
+        }
+        Ok(other) => panic!("Expected Bool, got {:?}", other),
+        Err(e) => panic!("String_endsWith failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_ends_with_false() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_endsWith", &[
+        Value::String(std::rc::Rc::new("hello world".to_string())),
+        Value::String(std::rc::Rc::new("hello".to_string())),
+    ]);
+    match result {
+        Ok(Value::Bool(b)) => {
+            assert!(!b, "String.endsWith('hello world', 'hello') should be false");
+        }
+        Ok(other) => panic!("Expected Bool, got {:?}", other),
+        Err(e) => panic!("String_endsWith failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_pad_left() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_padLeft", &[
+        Value::String(std::rc::Rc::new("hi".to_string())),
+        Value::Int(5),
+        Value::Char('*'),
+    ]);
+    match result {
+        Ok(Value::String(s)) => {
+            assert_eq!(s.as_str(), "***hi", "String.padLeft('hi', 5, '*') should be '***hi', got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("String_padLeft failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_pad_left_long_width() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_padLeft", &[
+        Value::String(std::rc::Rc::new("42".to_string())),
+        Value::Long(6),
+        Value::Char('0'),
+    ]);
+    match result {
+        Ok(Value::String(s)) => {
+            assert_eq!(s.as_str(), "000042", "String.padLeft('42', 6, '0') should be '000042', got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("String_padLeft failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_pad_right() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_padRight", &[
+        Value::String(std::rc::Rc::new("hi".to_string())),
+        Value::Int(5),
+        Value::Char('-'),
+    ]);
+    match result {
+        Ok(Value::String(s)) => {
+            assert_eq!(s.as_str(), "hi---", "String.padRight('hi', 5, '-') should be 'hi---', got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("String_padRight failed: {}", e),
+    }
+}
+
+#[test]
+fn test_string_pad_right_long_width() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("String_padRight", &[
+        Value::String(std::rc::Rc::new("abc".to_string())),
+        Value::Long(7),
+        Value::Char('.'),
+    ]);
+    match result {
+        Ok(Value::String(s)) => {
+            assert_eq!(s.as_str(), "abc....", "String.padRight('abc', 7, '.') should be 'abc....', got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("String_padRight failed: {}", e),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Env native function tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_env_get_nonexistent() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("Env_get", &[
+        Value::String(std::rc::Rc::new("TITRATE_NONEXISTENT_VAR_XYZ".to_string())),
+    ]);
+    match result {
+        Ok(Value::Null) => {}
+        Ok(other) => panic!("Expected Null for nonexistent env var, got {:?}", other),
+        Err(e) => panic!("Env_get failed: {}", e),
+    }
+}
+
+#[test]
+fn test_env_set_and_get() {
+    let mut vm = Vm::new();
+    // Set an env var
+    let set_result = vm.call_native_by_name("Env_set", &[
+        Value::String(std::rc::Rc::new("TITRATE_TEST_ENV_SET".to_string())),
+        Value::String(std::rc::Rc::new("test_value_123".to_string())),
+    ]);
+    match set_result {
+        Ok(Value::Void) => {}
+        Ok(other) => panic!("Expected Void from Env_set, got {:?}", other),
+        Err(e) => panic!("Env_set failed: {}", e),
+    }
+
+    // Get it back
+    let get_result = vm.call_native_by_name("Env_get", &[
+        Value::String(std::rc::Rc::new("TITRATE_TEST_ENV_SET".to_string())),
+    ]);
+    match get_result {
+        Ok(Value::String(s)) => {
+            assert_eq!(s.as_str(), "test_value_123", "Env_get should return 'test_value_123', got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("Env_get failed: {}", e),
+    }
+}
+
+#[test]
+fn test_env_vars() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("Env_vars", &[]);
+    match result {
+        Ok(Value::Array { elements }) => {
+            // Should return a non-empty array of "KEY=VALUE" strings
+            assert!(!elements.is_empty(), "Env_vars should return at least one environment variable");
+        }
+        Ok(other) => panic!("Expected Array, got {:?}", other),
+        Err(e) => panic!("Env_vars failed: {}", e),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// OS native function tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_os_name() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("Os_name", &[]);
+    match result {
+        Ok(Value::String(s)) => {
+            // Should be one of the known OS names
+            let valid = ["linux", "macos", "windows", "freebsd", "netbsd", "openbsd", "dragonfly", "solaris"];
+            assert!(valid.contains(&s.as_str()), "Os_name should return a known OS name, got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("Os_name failed: {}", e),
+    }
+}
+
+#[test]
+fn test_os_arch() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("Os_arch", &[]);
+    match result {
+        Ok(Value::String(s)) => {
+            // Should be a non-empty string
+            assert!(!s.is_empty(), "Os_arch should return a non-empty string");
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("Os_arch failed: {}", e),
+    }
+}
+
+#[test]
+fn test_os_family() {
+    let mut vm = Vm::new();
+    let result = vm.call_native_by_name("Os_family", &[]);
+    match result {
+        Ok(Value::String(s)) => {
+            // Should be one of the known family names
+            let valid = ["unix", "windows"];
+            assert!(valid.contains(&s.as_str()), "Os_family should return a known family name, got '{}'", s);
+        }
+        Ok(other) => panic!("Expected String, got {:?}", other),
+        Err(e) => panic!("Os_family failed: {}", e),
+    }
+}
