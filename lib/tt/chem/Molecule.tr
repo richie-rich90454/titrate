@@ -1,7 +1,9 @@
 import tt.util.ArrayList;
 import tt.chem.Atom;
 import tt.chem.Bond;
+import tt.math.Math;
 import tt.lang.Integer;
+import tt.lang.Double;
 
 public class Molecule {
     public ArrayList<Atom> atoms;
@@ -31,16 +33,127 @@ public class Molecule {
         return this.bonds.get(i);
     }
 
-    public int numAtoms() {
+    public int atomCount() {
         return this.atoms.size();
     }
 
-    public int numBonds() {
+    public int bondCount() {
         return this.bonds.size();
     }
 
+    public double molecularWeight() {
+        double total = 0.0;
+        int i = 0;
+        while (i < this.atoms.size()) {
+            total = total + this.atoms.get(i).mass;
+            i = i + 1;
+        }
+        return total;
+    }
+
+    // Returns (cx, cy, cz) as a flat ArrayList<double> representing center of mass
+    public ArrayList<double> centerOfMass() {
+        double totalMass = 0.0;
+        double cx = 0.0;
+        double cy = 0.0;
+        double cz = 0.0;
+        int i = 0;
+        while (i < this.atoms.size()) {
+            Atom a = this.atoms.get(i);
+            double m = a.mass;
+            cx = cx + m * a.x;
+            cy = cy + m * a.y;
+            cz = cz + m * a.z;
+            totalMass = totalMass + m;
+            i = i + 1;
+        }
+        ArrayList<double> result = new ArrayList<double>();
+        if (totalMass > 1e-15) {
+            result.add(cx / totalMass);
+            result.add(cy / totalMass);
+            result.add(cz / totalMass);
+        } else {
+            result.add(0.0);
+            result.add(0.0);
+            result.add(0.0);
+        }
+        return result;
+    }
+
+    // Generate molecular formula string (e.g., "H2O", "C6H12O6")
+    // Uses a simple approach: count element symbols and format
     public String toString() {
-        String s = "Molecule(" + this.name + ", atoms=" + Integer.toString(this.numAtoms()) + ", bonds=" + Integer.toString(this.numBonds()) + ")";
-        return s;
+        // Count atoms by element symbol
+        ArrayList<String> symbols = new ArrayList<String>();
+        ArrayList<int> counts = new ArrayList<int>();
+        int i = 0;
+        while (i < this.atoms.size()) {
+            String sym = this.atoms.get(i).symbol;
+            int idx = -1;
+            int j = 0;
+            while (j < symbols.size()) {
+                if (symbols.get(j) == sym) {
+                    idx = j;
+                }
+                j = j + 1;
+            }
+            if (idx >= 0) {
+                counts.set(idx, counts.get(idx) + 1);
+            } else {
+                symbols.add(sym);
+                counts.add(1);
+            }
+            i = i + 1;
+        }
+        // Standard Hill system: C first, then H, then alphabetical
+        String formula = "";
+        // Check for carbon
+        int cIdx = -1;
+        i = 0;
+        while (i < symbols.size()) {
+            if (symbols.get(i) == "C") { cIdx = i; }
+            i = i + 1;
+        }
+        if (cIdx >= 0) {
+            formula = formula + "C";
+            if (counts.get(cIdx) > 1) {
+                formula = formula + Integer.toString(counts.get(cIdx));
+            }
+            // H next
+            int hIdx = -1;
+            i = 0;
+            while (i < symbols.size()) {
+                if (symbols.get(i) == "H") { hIdx = i; }
+                i = i + 1;
+            }
+            if (hIdx >= 0) {
+                formula = formula + "H";
+                if (counts.get(hIdx) > 1) {
+                    formula = formula + Integer.toString(counts.get(hIdx));
+                }
+            }
+            // Remaining elements alphabetically
+            i = 0;
+            while (i < symbols.size()) {
+                if (i != cIdx && i != hIdx) {
+                    formula = formula + symbols.get(i);
+                    if (counts.get(i) > 1) {
+                        formula = formula + Integer.toString(counts.get(i));
+                    }
+                }
+                i = i + 1;
+            }
+        } else {
+            // No carbon: just alphabetical
+            i = 0;
+            while (i < symbols.size()) {
+                formula = formula + symbols.get(i);
+                if (counts.get(i) > 1) {
+                    formula = formula + Integer.toString(counts.get(i));
+                }
+                i = i + 1;
+            }
+        }
+        return formula;
     }
 }

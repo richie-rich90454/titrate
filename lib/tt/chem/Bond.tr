@@ -1,27 +1,19 @@
 import tt.lang.Integer;
-import tt.lang.Double;
 
 public class Bond {
     public int atom1;
     public int atom2;
+    public String bondType;
     public int order;
-    public double restLength;
-    public double forceConstant;
 
-    public Bond(int a1, int a2, int ord, double rl, double fc) {
+    public Bond(int a1, int a2, String btype, int ord) {
         this.atom1 = a1;
         this.atom2 = a2;
+        this.bondType = btype;
         this.order = ord;
-        this.restLength = rl;
-        this.forceConstant = fc;
     }
 
     public String toString() {
-        String ordStr = "";
-        if (this.order == 1) { ordStr = "single"; }
-        else if (this.order == 2) { ordStr = "double"; }
-        else if (this.order == 3) { ordStr = "triple"; }
-        else { ordStr = "order=" + Integer.toString(this.order); }
-        return "Bond(" + Integer.toString(this.atom1) + "-" + Integer.toString(this.atom2) + ", " + ordStr + ", r0=" + Double.toString(this.restLength) + ")";
+        return "Bond(" + Integer.toString(this.atom1) + "-" + Integer.toString(this.atom2) + ", " + this.bondType + ", order=" + Integer.toString(this.order) + ")";
     }
 }

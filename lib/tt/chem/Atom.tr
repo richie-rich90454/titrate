@@ -1,37 +1,30 @@
 import tt.math.Math;
 import tt.lang.Double;
+import tt.lang.Integer;
+import tt.util.ArrayList;
+import tt.util.HashMap;
 
 public class Atom {
-    public String element;
+    public String symbol;
+    public int atomicNumber;
     public double mass;
-    public double charge;
     public double x;
     public double y;
     public double z;
 
-    public Atom(String elem, double m, double c, double px, double py, double pz) {
-        this.element = elem;
+    public Atom(String sym, int number, double m) {
+        this.symbol = sym;
+        this.atomicNumber = number;
         this.mass = m;
-        this.charge = c;
+        this.x = 0.0;
+        this.y = 0.0;
+        this.z = 0.0;
+    }
+
+    public void setPosition(double px, double py, double pz) {
         this.x = px;
         this.y = py;
         this.z = pz;
-    }
-
-    public static Atom hydrogen(double px, double py, double pz) {
-        return new Atom("H", 1.008, 0.0, px, py, pz);
-    }
-
-    public static Atom oxygen(double px, double py, double pz) {
-        return new Atom("O", 15.999, 0.0, px, py, pz);
-    }
-
-    public static Atom carbon(double px, double py, double pz) {
-        return new Atom("C", 12.011, 0.0, px, py, pz);
-    }
-
-    public static Atom nitrogen(double px, double py, double pz) {
-        return new Atom("N", 14.007, 0.0, px, py, pz);
     }
 
     public double distanceTo(Atom other) {
@@ -42,6 +35,74 @@ public class Atom {
     }
 
     public String toString() {
-        return this.element + "(" + Double.toString(this.x) + ", " + Double.toString(this.y) + ", " + Double.toString(this.z) + ")";
+        return this.symbol + "(" + Double.toString(this.x) + ", " + Double.toString(this.y) + ", " + Double.toString(this.z) + ")";
+    }
+
+    // ---- Static periodic table data ----
+
+    public static Atom getElement(String sym) {
+        HashMap<String, Atom> table = Atom.periodicTable();
+        if (table.containsKey(sym)) {
+            return table.get(sym);
+        }
+        return new Atom("??", 0, 0.0);
+    }
+
+    public static double getMass(String sym) {
+        return Atom.getElement(sym).mass;
+    }
+
+    // Build the periodic table (first 36 elements + common transition metals)
+    public static HashMap<String, Atom> periodicTable() {
+        HashMap<String, Atom> table = new HashMap<String, Atom>();
+        // Period 1
+        table.put("H",  new Atom("H",  1,   1.008));
+        table.put("He", new Atom("He", 2,   4.0026));
+        // Period 2
+        table.put("Li", new Atom("Li", 3,   6.941));
+        table.put("Be", new Atom("Be", 4,   9.0122));
+        table.put("B",  new Atom("B",  5,   10.81));
+        table.put("C",  new Atom("C",  6,   12.011));
+        table.put("N",  new Atom("N",  7,   14.007));
+        table.put("O",  new Atom("O",  8,   15.999));
+        table.put("F",  new Atom("F",  9,   18.998));
+        table.put("Ne", new Atom("Ne", 10,  20.180));
+        // Period 3
+        table.put("Na", new Atom("Na", 11,  22.990));
+        table.put("Mg", new Atom("Mg", 12,  24.305));
+        table.put("Al", new Atom("Al", 13,  26.982));
+        table.put("Si", new Atom("Si", 14,  28.086));
+        table.put("P",  new Atom("P",  15,  30.974));
+        table.put("S",  new Atom("S",  16,  32.06));
+        table.put("Cl", new Atom("Cl", 17,  35.45));
+        table.put("Ar", new Atom("Ar", 18,  39.948));
+        // Period 4
+        table.put("K",  new Atom("K",  19,  39.098));
+        table.put("Ca", new Atom("Ca", 20,  40.078));
+        table.put("Sc", new Atom("Sc", 21,  44.956));
+        table.put("Ti", new Atom("Ti", 22,  47.867));
+        table.put("V",  new Atom("V",  23,  50.942));
+        table.put("Cr", new Atom("Cr", 24,  51.996));
+        table.put("Mn", new Atom("Mn", 25,  54.938));
+        table.put("Fe", new Atom("Fe", 26,  55.845));
+        table.put("Co", new Atom("Co", 27,  58.933));
+        table.put("Ni", new Atom("Ni", 28,  58.693));
+        table.put("Cu", new Atom("Cu", 29,  63.546));
+        table.put("Zn", new Atom("Zn", 30,  65.38));
+        table.put("Ga", new Atom("Ga", 31,  69.723));
+        table.put("Ge", new Atom("Ge", 32,  72.630));
+        table.put("As", new Atom("As", 33,  74.922));
+        table.put("Se", new Atom("Se", 34,  78.971));
+        table.put("Br", new Atom("Br", 35,  79.904));
+        table.put("Kr", new Atom("Kr", 36,  83.798));
+        // Additional common elements
+        table.put("I",  new Atom("I",  53,  126.90));
+        table.put("Ag", new Atom("Ag", 47,  107.87));
+        table.put("Au", new Atom("Au", 79,  196.97));
+        table.put("Pt", new Atom("Pt", 78,  195.08));
+        table.put("Hg", new Atom("Hg", 80,  200.59));
+        table.put("Pb", new Atom("Pb", 82,  207.2));
+        table.put("U",  new Atom("U",  92,  238.03));
+        return table;
     }
 }
