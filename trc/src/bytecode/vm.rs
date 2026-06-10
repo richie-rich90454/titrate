@@ -8049,4 +8049,184 @@ mod tests {
             other => panic!("Expected Closure, got {:?}", other),
         }
     }
+
+    // =========================================================================
+    // Hash / Encoding native function tests
+    // =========================================================================
+
+    // -- test_hash_md5 ----------------------------------------------------------
+
+    #[test]
+    fn test_hash_md5() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Hash_md5", &[
+            Value::String(Rc::new("hello".to_string())),
+        ]);
+        match result {
+            Ok(Value::String(s)) => {
+                // MD5 of "hello" is 5d41402abc4b2a76b9719d911017c592
+                assert_eq!(s.as_str(), "5d41402abc4b2a76b9719d911017c592",
+                    "Hash_md5('hello') should be 5d41402abc4b2a76b9719d911017c592, got {}", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Hash_md5 failed: {}", e),
+        }
+    }
+
+    // -- test_hash_sha256 -------------------------------------------------------
+
+    #[test]
+    fn test_hash_sha256() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Hash_sha256", &[
+            Value::String(Rc::new("hello".to_string())),
+        ]);
+        match result {
+            Ok(Value::String(s)) => {
+                // SHA-256 of "hello" starts with "2cf24dba5fb0a30e"
+                assert!(s.starts_with("2cf24dba5fb0a30e"),
+                    "Hash_sha256('hello') should start with 2cf24dba5fb0a30e, got {}", s);
+                // Full SHA-256 hex is 64 characters
+                assert_eq!(s.len(), 64,
+                    "SHA-256 hex output should be 64 characters, got {}", s.len());
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Hash_sha256 failed: {}", e),
+        }
+    }
+
+    // -- test_base64_encode_decode ----------------------------------------------
+
+    #[test]
+    fn test_base64_encode_decode() {
+        let mut vm = Vm::new();
+
+        // Encode "hello"
+        let encoded = vm.call_native_by_name("Base64_encode", &[
+            Value::String(Rc::new("hello".to_string())),
+        ]);
+        match encoded {
+            Ok(Value::String(s)) => {
+                assert_eq!(s.as_str(), "aGVsbG8=",
+                    "Base64_encode('hello') should be 'aGVsbG8=', got '{}'", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Base64_encode failed: {}", e),
+        }
+
+        // Decode "aGVsbG8=" back to "hello"
+        let decoded = vm.call_native_by_name("Base64_decode", &[
+            Value::String(Rc::new("aGVsbG8=".to_string())),
+        ]);
+        match decoded {
+            Ok(Value::String(s)) => {
+                assert_eq!(s.as_str(), "hello",
+                    "Base64_decode('aGVsbG8=') should be 'hello', got '{}'", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Base64_decode failed: {}", e),
+        }
+    }
+
+    // -- test_hex_encode_decode -------------------------------------------------
+
+    #[test]
+    fn test_hex_encode_decode() {
+        let mut vm = Vm::new();
+
+        // Encode "hello"
+        let encoded = vm.call_native_by_name("Hex_encode", &[
+            Value::String(Rc::new("hello".to_string())),
+        ]);
+        match encoded {
+            Ok(Value::String(s)) => {
+                assert_eq!(s.as_str(), "68656c6c6f",
+                    "Hex_encode('hello') should be '68656c6c6f', got '{}'", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Hex_encode failed: {}", e),
+        }
+
+        // Decode "68656c6c6f" back to "hello"
+        let decoded = vm.call_native_by_name("Hex_decode", &[
+            Value::String(Rc::new("68656c6c6f".to_string())),
+        ]);
+        match decoded {
+            Ok(Value::String(s)) => {
+                assert_eq!(s.as_str(), "hello",
+                    "Hex_decode('68656c6c6f') should be 'hello', got '{}'", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Hex_decode failed: {}", e),
+        }
+    }
+
+    // -- test_url_encode_decode -------------------------------------------------
+
+    #[test]
+    fn test_url_encode_decode() {
+        let mut vm = Vm::new();
+
+        // Encode "hello world"
+        let encoded = vm.call_native_by_name("Url_encode", &[
+            Value::String(Rc::new("hello world".to_string())),
+        ]);
+        match encoded {
+            Ok(Value::String(s)) => {
+                assert_eq!(s.as_str(), "hello%20world",
+                    "Url_encode('hello world') should be 'hello%20world', got '{}'", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Url_encode failed: {}", e),
+        }
+
+        // Decode "hello%20world" back to "hello world"
+        let decoded = vm.call_native_by_name("Url_decode", &[
+            Value::String(Rc::new("hello%20world".to_string())),
+        ]);
+        match decoded {
+            Ok(Value::String(s)) => {
+                assert_eq!(s.as_str(), "hello world",
+                    "Url_decode('hello%20world') should be 'hello world', got '{}'", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Url_decode failed: {}", e),
+        }
+    }
+
+    // -- test_base64_encode_empty -----------------------------------------------
+
+    #[test]
+    fn test_base64_encode_empty() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Base64_encode", &[
+            Value::String(Rc::new("".to_string())),
+        ]);
+        match result {
+            Ok(Value::String(s)) => {
+                assert_eq!(s.as_str(), "",
+                    "Base64_encode('') should be '', got '{}'", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Base64_encode failed: {}", e),
+        }
+    }
+
+    // -- test_url_encode_special ------------------------------------------------
+
+    #[test]
+    fn test_url_encode_special() {
+        let mut vm = Vm::new();
+        let result = vm.call_native_by_name("Url_encode", &[
+            Value::String(Rc::new("a=b&c=d".to_string())),
+        ]);
+        match result {
+            Ok(Value::String(s)) => {
+                assert_eq!(s.as_str(), "a%3Db%26c%3Dd",
+                    "Url_encode('a=b&c=d') should be 'a%3Db%26c%3Dd', got '{}'", s);
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(e) => panic!("Url_encode failed: {}", e),
+        }
+    }
 }
