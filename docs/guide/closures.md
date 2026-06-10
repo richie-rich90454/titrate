@@ -135,6 +135,59 @@ repeat(3, fn(i: int): void {
 });
 ```
 
+## Capture Semantics
+
+Closures in Titrate capture variables **by reference** from the enclosing scope. This means the closure holds a reference to the original variable, not a copy of its value. Any mutations made inside the closure are immediately visible outside, and vice versa.
+
+### How Captures Work at the Bytecode Level
+
+When the compiler encounters a closure that references outer variables, it emits two opcodes:
+
+- **`CLOSURE_NEW_CAPTURED`** — creates a new closure object, recording the function index and the number of captured variables. Operands: `u16` function index + `u8` captured count.
+- **`CLOSURE_CAPTURE`** — copies a local variable's value into the closure's captured environment. Operand: `u8` local slot index.
+
+Each captured variable becomes an **upvalue** inside the closure. The closure body accesses captured variables through `GET_UPVALUE` and `SET_UPVALUE` opcodes instead of `LOAD_LOCAL` / `STORE_LOCAL`.
+
+### Capture Analysis
+
+The analyzer automatically detects which variables from outer scopes are referenced inside a closure body. Only variables that are actually used are captured — unused outer variables are not included in the closure's captured environment.
+
+```titrate
+var x: int = 10;
+var y: int = 20;
+
+// Only x is captured; y is not referenced inside the closure
+let closure = fn(): int {
+    return x + 1;
+};
+```
+
+### Shared and Mutable Captures
+
+Because captures are by reference, multiple closures can share the same captured variable:
+
+```titrate
+fn makeCounters(): (fn(): int, fn(): void) {
+    var count: int = 0;
+    let increment = fn(): int {
+        count = count + 1;
+        return count;
+    };
+    let reset = fn(): void {
+        count = 0;
+    };
+    return (increment, reset);
+}
+
+let (inc, reset) = makeCounters();
+io::println(inc().toString());  // 1
+io::println(inc().toString());  // 2
+reset();
+io::println(inc().toString());  // 1
+```
+
+Both `increment` and `reset` share the same `count` variable through their captured environments.
+
 ## Borrow Checker Implications
 
 Because closures capture variables by reference from the enclosing scope, the borrow checker enforces the same ownership rules:

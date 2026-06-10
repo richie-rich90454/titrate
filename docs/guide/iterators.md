@@ -161,6 +161,57 @@ for (item in buf) {
 }
 ```
 
+## Range Iterators
+
+Titrate provides built-in range syntax that produces iterable sequences of integers. Ranges implement `Iterable<int>` and can be used directly in `for-in` loops.
+
+### Exclusive Range (`..`)
+
+The `..` operator creates an exclusive range — the end value is **not** included:
+
+```titrate
+for (i in 0..5) {
+    io::println(i.toString());  // 0, 1, 2, 3, 4
+}
+```
+
+### Inclusive Range (`..=`)
+
+The `..=` operator creates an inclusive range — the end value **is** included:
+
+```titrate
+for (i in 1..=5) {
+    io::println(i.toString());  // 1, 2, 3, 4, 5
+}
+```
+
+### Range Types
+
+Both `..` and `..=` expressions produce a value of type `Range`. The compiler infers the `Range` type from the expression:
+
+```titrate
+let exclusive: Range = 0..10;    // 0, 1, 2, ..., 9
+let inclusive: Range = 1..=10;   // 1, 2, 3, ..., 10
+```
+
+### Using Ranges in for-in
+
+Ranges are the most concise way to iterate over a sequence of integers:
+
+```titrate
+// Count from 0 to 9
+for (i in 0..10) {
+    io::println(i.toString());
+}
+
+// Count from 1 to 10 (inclusive)
+for (i in 1..=10) {
+    io::println(i.toString());
+}
+```
+
+See [Ranges](./ranges) for full details on range syntax and types.
+
 ## Built-in Iterables
 
 These standard library types implement `Iterable`:

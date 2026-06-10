@@ -85,7 +85,8 @@ pattern      ::= IDENTIFIER '(' (IDENTIFIER)? ')'
 
 ```
 expr         ::= assignment
-assignment   ::= ternary (('=' | '+=' | '-=' | '*=' | '/=') assignment)?
+assignment   ::= range_expr (('=' | '+=' | '-=' | '*=' | '/=') assignment)?
+range_expr   ::= ternary ('..' ternary | '..=' ternary)?
 ternary      ::= or_expr ('?' expr ':' ternary)?
 or_expr      ::= and_expr ('||' and_expr)*
 and_expr     ::= equality ('&&' equality)*
@@ -99,7 +100,7 @@ postfix      ::= primary (call | member | index)*
 call         ::= '(' args? ')'
 member       ::= '.' IDENTIFIER | '::' IDENTIFIER
 index        ::= '[' expr ']'
-primary      ::= INTEGER | FLOAT | STRING | CHAR | 'true' | 'false' | 'null'
+primary      ::= INTEGER | FLOAT | STRING | RAW_STRING | CHAR | BYTE | 'true' | 'false' | 'null'
              | 'Ok' '(' expr ')' | 'Err' '(' expr ')'
              | IDENTIFIER ('<' type (',' type)* '>')?
              | '(' expr ')'
@@ -109,6 +110,18 @@ primary      ::= INTEGER | FLOAT | STRING | CHAR | 'true' | 'false' | 'null'
              | 'fn' '(' params? ')' (':' type)? '=>' expr   // closure (expression form)
              | 'fn' '(' params? ')' (':' type)? block       // closure (block form)
 args         ::= expr (',' expr)*
+
+INTEGER      ::= DECIMAL | HEX_LITERAL | OCT_LITERAL | BIN_LITERAL
+DECIMAL      ::= [0-9] [0-9_]*  (e.g. 42, 1_000_000)
+HEX_LITERAL  ::= '0' ('x' | 'X') [0-9a-fA-F] [0-9a-fA-F_]*  (e.g. 0xFF, 0xDE_AD)
+OCT_LITERAL  ::= '0' ('o' | 'O') [0-7] [0-7_]*  (e.g. 0o777)
+BIN_LITERAL  ::= '0' ('b' | 'B') [01] [01_]*  (e.g. 0b1010, 0b1111_0000)
+FLOAT        ::= [0-9] [0-9_]* '.' [0-9] [0-9_]* (('h' | 'q'))?  (e.g. 3.14, 1.0h, 2.0q)
+STRING       ::= '"' ... '"'   (with escape sequences: \n \t \r \\ \" \0 \xNN)
+RAW_STRING   ::= 'r' '"' ... '"'                    (no escape processing)
+             | 'r' '#'+ '"' ... '"' '#'+   (hash-delimited, e.g. r#"..."#)
+CHAR         ::= '\'' CHAR_OR_ESCAPE '\''
+BYTE         ::= 'b' '\'' ASCII_OR_ESCAPE '\''  (e.g. b'A', b'\n', b'\x41)
 ```
 
 ## Types
