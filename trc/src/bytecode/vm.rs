@@ -1870,6 +1870,34 @@ impl Vm {
                     }
                 }
             }
+            OpCode::CLOSURE_NEW_CAPTURED => {
+                let func_idx = self.read_u16() as usize;
+                let capture_count = self.read_u8() as usize;
+                let mut upvalues = Vec::with_capacity(capture_count);
+                for _ in 0..capture_count {
+                    upvalues.push(self.pop());
+                }
+                upvalues.reverse();
+                self.push(Value::Closure {
+                    func_idx,
+                    upvalues,
+                });
+            }
+            OpCode::CLOSURE_CAPTURE => {
+                let slot = self.read_u8() as usize;
+                let frame = self.current_frame();
+                let base = frame.base;
+                if base + slot < self.stack.len() {
+                    let val = self.stack[base + slot].clone();
+                    self.push(val);
+                } else {
+                    return Err(format!(
+                        "CLOSURE_CAPTURE: local slot {} out of bounds (stack len {})",
+                        slot,
+                        self.stack.len()
+                    ));
+                }
+            }
         }
 
         Ok(())
@@ -7766,5 +7794,116 @@ mod tests {
         // Error on wrong type
         let result = native_string_pad_right(&[Value::Int(1), Value::Int(2), Value::Int(3)]);
         assert!(result.is_err());
+    }
+
+    // =========================================================================
+    // Closure opcode tests
+    // =========================================================================
+
+    #[test]
+    fn test_closure_new_captured() {
+        // Build a chunk that:
+        // 1. Pushes two upvalue values onto the stack
+        // 2. CLOSURE_NEW_CAPTURED with func_idx=1, capture_count=2
+        // 3. RET
+        let mut chunk = Chunk::new();
+        // Push upvalue values (they'll be popped by CLOSURE_NEW_CAPTURED)
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&20i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        // CLOSURE_NEW_CAPTURED: func_idx=1 (u16), capture_count=2 (u8)
+        chunk.write_opcode(OpCode::CLOSURE_NEW_CAPTURED, 1);
+        chunk.write_u16(1, 1); // function index
+        chunk.write_u8(2, 1);  // capture count
+        chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = vm_with_chunk(chunk);
+        // Add a dummy function at index 1 that the closure will reference
+        vm.add_function(FunctionDef {
+            name: "inner".to_string(),
+            arity: 0,
+            chunk: {
+                let mut c = Chunk::new();
+                c.write_opcode(OpCode::PUSH_NULL, 1);
+                c.write_opcode(OpCode::RET, 1);
+                c
+            },
+            is_method: false,
+            is_constructor: false,
+            local_count: 0,
+        });
+
+        vm.run().unwrap();
+
+        // The top of the stack should be a Closure value
+        match vm.stack.last() {
+            Some(Value::Closure { func_idx, upvalues }) => {
+                assert_eq!(*func_idx, 1, "closure should reference function index 1");
+                assert_eq!(upvalues.len(), 2, "closure should have 2 upvalues");
+                assert_eq!(upvalues[0], Value::Int(10), "first upvalue should be Int(10)");
+                assert_eq!(upvalues[1], Value::Int(20), "second upvalue should be Int(20)");
+            }
+            other => panic!("Expected Closure on stack, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_closure_capture() {
+        // Build a chunk that:
+        // 1. Stores a value in local slot 0
+        // 2. CLOSURE_CAPTURE slot 0 — pushes the local's value onto the stack
+        // 3. RET
+        let mut chunk = Chunk::new();
+        // Store value at local slot 0: PUSH_I32 42, STORE_LOCAL 0
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::STORE_LOCAL, 1);
+        chunk.write_u8(0, 1);
+        // CLOSURE_CAPTURE: push the value at local slot 0 onto the stack
+        chunk.write_opcode(OpCode::CLOSURE_CAPTURE, 1);
+        chunk.write_u8(0, 1); // local slot index
+        // RET
+        chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = Vm::new();
+        vm.add_function(FunctionDef {
+            name: "main".to_string(),
+            arity: 0,
+            chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 1, // need at least 1 local slot
+        });
+
+        vm.run().unwrap();
+
+        // After CLOSURE_CAPTURE, the value from slot 0 should be on the stack
+        assert_eq!(vm.stack.last(), Some(&Value::Int(42)),
+            "CLOSURE_CAPTURE should push the local's value onto the stack");
+    }
+
+    #[test]
+    fn test_closure_new_captured_zero_captures() {
+        // CLOSURE_NEW_CAPTURED with 0 captures creates a closure with empty upvalues
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::CLOSURE_NEW_CAPTURED, 1);
+        chunk.write_u16(0, 1); // function index 0 (main itself, for testing)
+        chunk.write_u8(0, 1);  // 0 captures
+        chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = vm_with_chunk(chunk);
+        vm.run().unwrap();
+
+        match vm.stack.last() {
+            Some(Value::Closure { func_idx, upvalues }) => {
+                assert_eq!(*func_idx, 0);
+                assert!(upvalues.is_empty(), "closure with 0 captures should have empty upvalues");
+            }
+            other => panic!("Expected Closure, got {:?}", other),
+        }
     }
 }
