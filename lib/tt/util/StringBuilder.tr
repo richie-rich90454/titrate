@@ -41,4 +41,45 @@ public class StringBuilder {
     public void clear() {
         this.parts = new ArrayList<String>();
     }
+
+    public void appendChar(char c) {
+        this.parts.add(toString(c));
+    }
+
+    public void appendInt(int n) {
+        this.parts.add(toString(n));
+    }
+
+    public void appendDouble(double d) {
+        this.parts.add(toString(d));
+    }
+
+    public void appendLine(String s) {
+        this.parts.add(s + "\n");
+    }
+
+    public void replace(int start, int end, String s) {
+        String current = this.build();
+        String before = current.substring(0, start);
+        String after = current.substring(end, current.length());
+        this.parts = new ArrayList<String>();
+        this.parts.add(before + s + after);
+    }
+
+    public void reverse() {
+        String current = this.build();
+        String result = "";
+        int i = current.length() - 1;
+        while (i >= 0) {
+            result = result + String_charAt(current, i);
+            i = i - 1;
+        }
+        this.parts = new ArrayList<String>();
+        this.parts.add(result);
+    }
+
+    public char charAt(int index) {
+        String current = this.build();
+        return String_charAt(current, index);
+    }
 }

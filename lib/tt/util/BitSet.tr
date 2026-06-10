@@ -90,4 +90,128 @@ public class BitSet {
             i = i + 1;
         }
     }
+
+    public int size() {
+        return this.words.size() * 32;
+    }
+
+    public int length() {
+        int i = this.words.size() - 1;
+        while (i >= 0) {
+            if (this.words.get(i) != 0) {
+                int word = this.words.get(i);
+                int bit = 31;
+                while (bit >= 0) {
+                    if ((word & (1 << bit)) != 0) {
+                        return i * 32 + bit + 1;
+                    }
+                    bit = bit - 1;
+                }
+            }
+            i = i - 1;
+        }
+        return 0;
+    }
+
+    public bool isEmpty() {
+        int i = 0;
+        while (i < this.words.size()) {
+            if (this.words.get(i) != 0) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public void clear() {
+        int i = 0;
+        while (i < this.words.size()) {
+            this.words.set(i, 0);
+            i = i + 1;
+        }
+    }
+
+    public void set(int from, int to) {
+        int i = from;
+        while (i < to) {
+            this.set(i);
+            i = i + 1;
+        }
+    }
+
+    public BitSet get(int from, int to) {
+        BitSet result = new BitSet();
+        int i = from;
+        while (i < to) {
+            if (this.get(i)) {
+                result.set(i - from);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public void clear(int from, int to) {
+        int i = from;
+        while (i < to) {
+            this.clear(i);
+            i = i + 1;
+        }
+    }
+
+    public void flip(int from, int to) {
+        int i = from;
+        while (i < to) {
+            this.flip(i);
+            i = i + 1;
+        }
+    }
+
+    public void andNot(BitSet other) {
+        int i = 0;
+        while (i < this.words.size()) {
+            if (i < other.words.size()) {
+                this.words.set(i, this.words.get(i) & ~other.words.get(i));
+            }
+            i = i + 1;
+        }
+    }
+
+    public bool intersects(BitSet other) {
+        int i = 0;
+        while (i < this.words.size() && i < other.words.size()) {
+            if ((this.words.get(i) & other.words.get(i)) != 0) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public String toString() {
+        String s = "{";
+        bool first = true;
+        int i = 0;
+        while (i < this.size()) {
+            if (this.get(i)) {
+                if (!first) { s = s + ", "; }
+                s = s + i;
+                first = false;
+            }
+            i = i + 1;
+        }
+        s = s + "}";
+        return s;
+    }
+
+    public BitSet clone() {
+        BitSet result = new BitSet();
+        int i = 0;
+        while (i < this.words.size()) {
+            result.words.add(this.words.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
 }
