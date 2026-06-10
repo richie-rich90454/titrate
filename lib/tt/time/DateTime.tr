@@ -79,4 +79,72 @@ public class DateTime {
     public String toString() {
         return this.format("%Y-%m-%d %H:%M:%S");
     }
+
+    public DateTime withYear(int y) {
+        return new DateTime(Time_withYear(this.epochMillis, y));
+    }
+
+    public DateTime withMonth(int m) {
+        return new DateTime(Time_withMonth(this.epochMillis, m));
+    }
+
+    public DateTime withDay(int d) {
+        return new DateTime(Time_withDay(this.epochMillis, d));
+    }
+
+    public DateTime withHour(int h) {
+        return new DateTime(Time_withHour(this.epochMillis, h));
+    }
+
+    public DateTime withMinute(int m) {
+        return new DateTime(Time_withMinute(this.epochMillis, m));
+    }
+
+    public DateTime withSecond(int s) {
+        return new DateTime(Time_withSecond(this.epochMillis, s));
+    }
+
+    public DateTime plusDays(long n) {
+        return new DateTime(this.epochMillis + n * 86400000);
+    }
+
+    public DateTime plusMonths(int n) {
+        return new DateTime(Time_plusMonths(this.epochMillis, n));
+    }
+
+    public DateTime plusYears(int n) {
+        return new DateTime(Time_plusMonths(this.epochMillis, n * 12));
+    }
+
+    public DateTime minusDays(long n) {
+        return new DateTime(this.epochMillis - n * 86400000);
+    }
+
+    public static DateTime fromISO(String s) {
+        return new DateTime(Time_parseISO(s));
+    }
+
+    public String toISO() {
+        return this.format("%Y-%m-%dT%H:%M:%S");
+    }
+
+    public bool isLeapYear() {
+        int y = this.getYear();
+        return (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
+    }
+
+    public int daysInMonth() {
+        int m = this.getMonth();
+        if (m == 1 || m == 3 || m == 5 || m == 7 || m == 8 || m == 10 || m == 12) {
+            return 31;
+        } else if (m == 4 || m == 6 || m == 9 || m == 11) {
+            return 30;
+        } else if (m == 2) {
+            if (this.isLeapYear()) {
+                return 29;
+            }
+            return 28;
+        }
+        return 30;
+    }
 }

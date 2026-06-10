@@ -1,4 +1,6 @@
 // Duration represents a length of time in milliseconds.
+import tt::time::DateTime;
+
 public class Duration {
     public long millis;
 
@@ -22,6 +24,14 @@ public class Duration {
         return new Duration(h * 3600000);
     }
 
+    public static Duration ofDays(long d) {
+        return new Duration(d * 86400000);
+    }
+
+    public static Duration ofNanos(long n) {
+        return new Duration(n / 1000000);
+    }
+
     public long toMillis() {
         return this.millis;
     }
@@ -36,6 +46,18 @@ public class Duration {
 
     public long toHours() {
         return this.millis / 3600000;
+    }
+
+    public long toDays() {
+        return this.millis / 86400000;
+    }
+
+    public long toNanos() {
+        return this.millis * 1000000;
+    }
+
+    public static Duration between(DateTime start, DateTime end) {
+        return new Duration(end.epochMillis - start.epochMillis);
     }
 
     public Duration plus(Duration other) {
