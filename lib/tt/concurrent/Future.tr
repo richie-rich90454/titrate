@@ -3,10 +3,12 @@ public class Future<T> {
     private T value;
     private bool done;
     private bool cancelled;
+    private String error;
 
     public Future() {
         this.done = false;
         this.cancelled = false;
+        this.error = null;
     }
 
     public bool isDone() {
@@ -29,10 +31,82 @@ public class Future<T> {
         return false;
     }
 
+    public bool cancel(bool mayInterrupt) {
+        if (!this.done) {
+            this.cancelled = true;
+            return true;
+        }
+        return false;
+    }
+
     public void complete(T value) {
         if (!this.done && !this.cancelled) {
             this.value = value;
             this.done = true;
         }
+    }
+
+    public void completeExceptionally(String err) {
+        if (!this.done && !this.cancelled) {
+            this.error = err;
+            this.done = true;
+        }
+    }
+
+    public String getError() {
+        return this.error;
+    }
+
+    public bool hasError() {
+        return this.error != null;
+    }
+
+    // Apply a transformation function to the future's value when it completes.
+    public <R> Future<R> thenApply(fn(T) => R fn) {
+        Future<R> result = new Future<R>();
+        if (this.done && !this.hasError()) {
+            result.complete(fn(this.value));
+        }
+        return result;
+    }
+
+    // Compose this future with another future-producing function.
+    public <R> Future<R> thenCompose(fn(T) => Future<R> fn) {
+        Future<R> result = new Future<R>();
+        if (this.done && !this.hasError()) {
+            Future<R> composed = fn(this.value);
+            if (composed.isDone()) {
+                result.complete(composed.get());
+            }
+        }
+        return result;
+    }
+
+    // Handle errors by providing a recovery function.
+    public Future<T> exceptionally(fn(String) => T fn) {
+        Future<T> result = new Future<T>();
+        if (this.done && this.hasError()) {
+            result.complete(fn(this.error));
+        } else if (this.done) {
+            result.complete(this.value);
+        }
+        return result;
+    }
+
+    // Handle both success and error cases with a single function.
+    public <R> Future<R> handle(fn(T, String) => R fn) {
+        Future<R> result = new Future<R>();
+        if (this.done) {
+            result.complete(fn(this.value, this.error));
+        }
+        return result;
+    }
+
+    // Execute a side-effect function when the future completes, regardless of outcome.
+    public Future<T> whenComplete(fn(T, String) => void fn) {
+        if (this.done) {
+            fn(this.value, this.error);
+        }
+        return this;
     }
 }

@@ -4,16 +4,40 @@ import tt::util::ArrayList;
 public class Channel<T> {
     private ArrayList<T> buffer;
     private bool closed;
+    public int capacity;
+    private fn() => void onCloseFn;
 
     public Channel() {
         this.buffer = new ArrayList<T>();
         this.closed = false;
+        this.capacity = 0;
+        this.onCloseFn = null;
+    }
+
+    public Channel(int capacity) {
+        this.buffer = new ArrayList<T>();
+        this.closed = false;
+        this.capacity = capacity;
+        this.onCloseFn = null;
     }
 
     public void send(T value) {
         if (!this.closed) {
-            this.buffer.add(value);
+            if (this.capacity == 0 || this.buffer.size() < this.capacity) {
+                this.buffer.add(value);
+            }
         }
+    }
+
+    public bool trySend(T value) {
+        if (this.closed) {
+            return false;
+        }
+        if (this.capacity > 0 && this.buffer.size() >= this.capacity) {
+            return false;
+        }
+        this.buffer.add(value);
+        return true;
     }
 
     public T receive() {
@@ -29,11 +53,33 @@ public class Channel<T> {
         return this.receive();
     }
 
+    public int len() {
+        return this.buffer.size();
+    }
+
+    public bool isFull() {
+        if (this.capacity == 0) {
+            return false;
+        }
+        return this.buffer.size() >= this.capacity;
+    }
+
+    public bool isEmpty() {
+        return this.buffer.size() == 0;
+    }
+
     public void close() {
         this.closed = true;
+        if (this.onCloseFn != null) {
+            this.onCloseFn();
+        }
     }
 
     public bool isClosed() {
         return this.closed;
+    }
+
+    public void onClose(fn() => void fn) {
+        this.onCloseFn = fn;
     }
 }
