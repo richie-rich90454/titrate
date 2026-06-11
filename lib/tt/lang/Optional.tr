@@ -1,0 +1,132 @@
+// Optional<T> represents a value that may or may not be present.
+import tt::lang::String;
+
+public class Optional<T> {
+    private T _value;
+    private bool _present;
+
+    private Optional() {}
+
+    // Returns an empty Optional with no value.
+    public static Optional<T> empty() {
+        Optional<T> opt = new Optional<T>();
+        opt._present = false;
+        return opt;
+    }
+
+    // Returns an Optional containing the given non-null value.
+    public static Optional<T> of(T value) {
+        Optional<T> opt = new Optional<T>();
+        opt._value = value;
+        opt._present = true;
+        return opt;
+    }
+
+    // Returns an Optional containing the value if non-null, otherwise empty.
+    public static Optional<T> ofNullable(T value) {
+        if (value == null) {
+            return Optional<T>::empty();
+        }
+        return Optional<T>::of(value);
+    }
+
+    // Returns true if a value is present.
+    public bool isPresent() {
+        return this._present;
+    }
+
+    // Returns true if no value is present.
+    public bool isEmpty() {
+        return !this._present;
+    }
+
+    // Returns the value if present, otherwise throws.
+    public T get() {
+        if (this._present) {
+            return this._value;
+        }
+        throw "NoSuchElement: Optional is empty";
+    }
+
+    // Returns the value if present, otherwise returns defaultValue.
+    public T orElse(T defaultValue) {
+        if (this._present) {
+            return this._value;
+        }
+        return defaultValue;
+    }
+
+    // Returns the value if present, otherwise invokes supplier and returns its result.
+    public T orElseGet(function<T()> supplier) {
+        if (this._present) {
+            return this._value;
+        }
+        return supplier();
+    }
+
+    // Returns this Optional if present, otherwise returns the Optional produced by supplier.
+    public Optional<T> or(function<Optional<T>()> supplier) {
+        if (this._present) {
+            return this;
+        }
+        return supplier();
+    }
+
+    // If a value is present, apply the mapper and return an Optional of the result.
+    public Optional<U> map(function<U(T)> mapper) {
+        if (this._present) {
+            return Optional<U>::of(mapper(this._value));
+        }
+        return Optional<U>::empty();
+    }
+
+    // If a value is present, apply the mapper that returns an Optional, and return that result.
+    public Optional<U> flatMap(function<Optional<U>(T)> mapper) {
+        if (this._present) {
+            return mapper(this._value);
+        }
+        return Optional<U>::empty();
+    }
+
+    // If a value is present and matches the predicate, return this Optional; otherwise return empty.
+    public Optional<T> filter(function<bool(T)> predicate) {
+        if (this._present && predicate(this._value)) {
+            return this;
+        }
+        return Optional<T>::empty();
+    }
+
+    // If a value is present, invoke the action with the value.
+    public void ifPresent(function<void(T)> action) {
+        if (this._present) {
+            action(this._value);
+        }
+    }
+
+    // If a value is present, invoke the action; otherwise invoke emptyAction.
+    public void ifPresentOrElse(function<void(T)> action, function<void()> emptyAction) {
+        if (this._present) {
+            action(this._value);
+        } else {
+            emptyAction();
+        }
+    }
+
+    // Compares this Optional to another object for equality.
+    public bool equals(Object other) {
+        if (other == null) { return false; }
+        if (!(other instanceof Optional)) { return false; }
+        Optional<T> o = (Optional<T>) other;
+        if (this._present != o._present) { return false; }
+        if (!this._present) { return true; }
+        return this._value == o._value;
+    }
+
+    // Returns a string representation of this Optional.
+    public String toString() {
+        if (this._present) {
+            return "Optional(" + this._value + ")";
+        }
+        return "Optional.empty";
+    }
+}

@@ -1,0 +1,88 @@
+// Operator provides functional equivalents of built-in operators, mirroring Python's operator module.
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public class Operator {
+    // Arithmetic operators
+    public static int add(int a, int b) {
+        return a + b;
+    }
+
+    public static int sub(int a, int b) {
+        return a - b;
+    }
+
+    public static int mul(int a, int b) {
+        return a * b;
+    }
+
+    public static double truediv(double a, double b) {
+        return a / b;
+    }
+
+    public static int mod(int a, int b) {
+        return a % b;
+    }
+
+    public static double neg(double a) {
+        return -a;
+    }
+
+    public static double pos(double a) {
+        return a;
+    }
+
+    public static double abs(double a) {
+        return Math.abs(a);
+    }
+
+    // Comparison operators
+    public static bool eq(Object a, Object b) {
+        return a == b;
+    }
+
+    public static bool ne(Object a, Object b) {
+        return a != b;
+    }
+
+    public static bool lt(int a, int b) {
+        return a < b;
+    }
+
+    public static bool le(int a, int b) {
+        return a <= b;
+    }
+
+    public static bool gt(int a, int b) {
+        return a > b;
+    }
+
+    public static bool ge(int a, int b) {
+        return a >= b;
+    }
+
+    // Logical operators
+    public static bool not(bool a) {
+        return !a;
+    }
+
+    public static bool and(bool a, bool b) {
+        return a && b;
+    }
+
+    public static bool or(bool a, bool b) {
+        return a || b;
+    }
+
+    // Item access: returns the element at the given index.
+    public static Object itemGetter(ArrayList<Object> arr, int index) {
+        return arr.get(index);
+    }
+
+    // Attribute access: returns the value of the given attribute on the object.
+    // Since Titrate does not have dynamic attribute access, this returns null as a fallback.
+    public static Object attrGetter(Object obj, String attr) {
+        if (obj == null) { return null; }
+        return null;
+    }
+}

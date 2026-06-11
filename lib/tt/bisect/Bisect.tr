@@ -1,0 +1,76 @@
+// Bisect provides binary search insertion points for sorted arrays, mirroring Python's bisect module.
+import tt::util::ArrayList;
+
+public class Bisect {
+    // Returns the leftmost index where x should be inserted to keep arr sorted.
+    public static int bisectLeft(ArrayList<int> arr, int x) {
+        int lo = 0;
+        int hi = arr.size();
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (arr.get(mid) < x) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    // Returns the rightmost index where x should be inserted to keep arr sorted.
+    public static int bisectRight(ArrayList<int> arr, int x) {
+        int lo = 0;
+        int hi = arr.size();
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (arr.get(mid) <= x) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    // Inserts x into arr at the leftmost position to maintain sorted order.
+    public static void insortLeft(ArrayList<int> arr, int x) {
+        int idx = Bisect::bisectLeft(arr, x);
+        arr.add(idx, x);
+    }
+
+    // Inserts x into arr at the rightmost position to maintain sorted order.
+    public static void insortRight(ArrayList<int> arr, int x) {
+        int idx = Bisect::bisectRight(arr, x);
+        arr.add(idx, x);
+    }
+
+    // Returns the leftmost index where x should be inserted to keep arr sorted (double variant).
+    public static int bisectLeftD(ArrayList<double> arr, double x) {
+        int lo = 0;
+        int hi = arr.size();
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (arr.get(mid) < x) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+
+    // Returns the rightmost index where x should be inserted to keep arr sorted (double variant).
+    public static int bisectRightD(ArrayList<double> arr, double x) {
+        int lo = 0;
+        int hi = arr.size();
+        while (lo < hi) {
+            int mid = lo + (hi - lo) / 2;
+            if (arr.get(mid) <= x) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
+    }
+}

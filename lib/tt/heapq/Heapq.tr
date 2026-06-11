@@ -1,0 +1,142 @@
+// Heapq provides min-heap operations on ArrayList, mirroring Python's heapq module.
+import tt::util::ArrayList;
+
+public class Heapq {
+    // Transforms an ArrayList into a min-heap in-place.
+    public static void heapify(ArrayList<int> arr) {
+        int n = arr.size();
+        int i = n / 2 - 1;
+        while (i >= 0) {
+            Heapq::_siftDown(arr, i, n);
+            i = i - 1;
+        }
+    }
+
+    // Pushes an item onto the heap, maintaining the heap invariant.
+    public static void heappush(ArrayList<int> arr, int item) {
+        arr.add(item);
+        Heapq::_siftUp(arr, arr.size() - 1);
+    }
+
+    // Pops and returns the smallest item from the heap.
+    public static int heappop(ArrayList<int> arr) {
+        if (arr.size() == 0) {
+            throw "IndexError: heap is empty";
+        }
+        int last = arr.size() - 1;
+        int result = arr.get(0);
+        arr.set(0, arr.get(last));
+        arr.remove(last);
+        if (arr.size() > 0) {
+            Heapq::_siftDown(arr, 0, arr.size());
+        }
+        return result;
+    }
+
+    // Pushes an item then pops and returns the smallest item. More efficient than heappush + heappop.
+    public static int heappushpop(ArrayList<int> arr, int item) {
+        if (arr.size() > 0 && arr.get(0) < item) {
+            int result = arr.get(0);
+            arr.set(0, item);
+            Heapq::_siftDown(arr, 0, arr.size());
+            return result;
+        }
+        return item;
+    }
+
+    // Pops and returns the smallest item, then pushes the new item. More efficient than heappop + heappush.
+    public static int heapreplace(ArrayList<int> arr, int item) {
+        if (arr.size() == 0) {
+            throw "IndexError: heap is empty";
+        }
+        int result = arr.get(0);
+        arr.set(0, item);
+        Heapq::_siftDown(arr, 0, arr.size());
+        return result;
+    }
+
+    // Returns the n largest elements from the heap, sorted from largest to smallest.
+    public static ArrayList<int> nlargest(ArrayList<int> arr, int n) {
+        if (n <= 0) {
+            return new ArrayList<int>();
+        }
+        // Copy and sort descending
+        ArrayList<int> copy = new ArrayList<int>();
+        int i = 0;
+        while (i < arr.size()) {
+            copy.add(arr.get(i));
+            i = i + 1;
+        }
+        copy.sort();
+        ArrayList<int> result = new ArrayList<int>();
+        int j = copy.size() - 1;
+        int count = 0;
+        while (j >= 0 && count < n) {
+            result.add(copy.get(j));
+            j = j - 1;
+            count = count + 1;
+        }
+        return result;
+    }
+
+    // Returns the n smallest elements from the heap, sorted from smallest to largest.
+    public static ArrayList<int> nsmallest(ArrayList<int> arr, int n) {
+        if (n <= 0) {
+            return new ArrayList<int>();
+        }
+        ArrayList<int> copy = new ArrayList<int>();
+        int i = 0;
+        while (i < arr.size()) {
+            copy.add(arr.get(i));
+            i = i + 1;
+        }
+        copy.sort();
+        ArrayList<int> result = new ArrayList<int>();
+        int j = 0;
+        int count = 0;
+        while (j < copy.size() && count < n) {
+            result.add(copy.get(j));
+            j = j + 1;
+            count = count + 1;
+        }
+        return result;
+    }
+
+    // Sift up from index i to restore heap property.
+    private static void _siftUp(ArrayList<int> arr, int i) {
+        while (i > 0) {
+            int parent = (i - 1) / 2;
+            if (arr.get(i) < arr.get(parent)) {
+                int temp = arr.get(i);
+                arr.set(i, arr.get(parent));
+                arr.set(parent, temp);
+                i = parent;
+            } else {
+                return;
+            }
+        }
+    }
+
+    // Sift down from index i within bounds n to restore heap property.
+    private static void _siftDown(ArrayList<int> arr, int i, int n) {
+        while (true) {
+            int left = 2 * i + 1;
+            int right = 2 * i + 2;
+            int smallest = i;
+            if (left < n && arr.get(left) < arr.get(smallest)) {
+                smallest = left;
+            }
+            if (right < n && arr.get(right) < arr.get(smallest)) {
+                smallest = right;
+            }
+            if (smallest != i) {
+                int temp = arr.get(i);
+                arr.set(i, arr.get(smallest));
+                arr.set(smallest, temp);
+                i = smallest;
+            } else {
+                return;
+            }
+        }
+    }
+}

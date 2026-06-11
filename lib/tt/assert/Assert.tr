@@ -1,0 +1,87 @@
+// Assert provides static assertion methods for validating conditions.
+import tt::io::IO;
+
+public class Assert {
+    // Asserts that the condition is true.
+    public static void assertTrue(bool condition) {
+        Assert::assertTrue(condition, "Expected true but got false");
+    }
+
+    // Asserts that the condition is true with a custom message.
+    public static void assertTrue(bool condition, String message) {
+        if (!condition) {
+            throw "AssertionError: " + message;
+        }
+    }
+
+    // Asserts that the condition is false.
+    public static void assertFalse(bool condition) {
+        Assert::assertFalse(condition, "Expected false but got true");
+    }
+
+    // Asserts that the condition is false with a custom message.
+    public static void assertFalse(bool condition, String message) {
+        if (condition) {
+            throw "AssertionError: " + message;
+        }
+    }
+
+    // Asserts that expected and actual are equal.
+    public static void assertEqual(Object expected, Object actual) {
+        Assert::assertEqual(expected, actual, "Expected " + expected + " but got " + actual);
+    }
+
+    // Asserts that expected and actual are equal with a custom message.
+    public static void assertEqual(Object expected, Object actual, String message) {
+        if (expected == null && actual == null) { return; }
+        if (expected == null || actual == null) {
+            throw "AssertionError: " + message;
+        }
+        if (!(expected == actual)) {
+            throw "AssertionError: " + message;
+        }
+    }
+
+    // Asserts that expected and actual are not equal.
+    public static void assertNotEqual(Object expected, Object actual) {
+        if (expected == null && actual == null) {
+            throw "AssertionError: Expected different values but both were null";
+        }
+        if (expected != null && actual != null && expected == actual) {
+            throw "AssertionError: Expected different values but both were " + expected;
+        }
+    }
+
+    // Asserts that the value is null.
+    public static void assertNull(Object value) {
+        if (value != null) {
+            throw "AssertionError: Expected null but got " + value;
+        }
+    }
+
+    // Asserts that the value is not null.
+    public static void assertNotNull(Object value) {
+        if (value == null) {
+            throw "AssertionError: Expected non-null value";
+        }
+    }
+
+    // Always fails with the given message.
+    public static void fail(String message) {
+        throw "AssertionError: " + message;
+    }
+
+    // Asserts that an int value is within the inclusive range [low, high].
+    public static void assertInRange(int value, int low, int high) {
+        if (value < low || value > high) {
+            throw "AssertionError: " + value + " is not in range [" + low + ", " + high + "]";
+        }
+    }
+
+    // Asserts that a double value is within the inclusive range [low, high].
+    public static void assertInRange(double value, double low, double high) {
+        if (value < low || value > high) {
+            throw "AssertionError: " + value + " is not in range [" + low + ", " + high + "]";
+        }
+    }
+}

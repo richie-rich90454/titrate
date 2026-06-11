@@ -1,0 +1,193 @@
+// HashSet<E> is a hash-based set collection backed by HashMap.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class HashSet<E> {
+    private HashMap<E, bool> _map;
+
+    public HashSet() {
+        this._map = new HashMap<E, bool>();
+    }
+
+    // Adds an element. Returns true if the element was not already present.
+    public bool add(E element) {
+        if (this._map.containsKey(element)) {
+            return false;
+        }
+        this._map.put(element, true);
+        return true;
+    }
+
+    // Removes an element. Returns true if the element was present.
+    public bool remove(E element) {
+        if (this._map.containsKey(element)) {
+            this._map.remove(element);
+            return true;
+        }
+        return false;
+    }
+
+    // Returns true if the element is in the set.
+    public bool contains(E element) {
+        return this._map.containsKey(element);
+    }
+
+    // Returns the number of elements in the set.
+    public int size() {
+        return this._map.size();
+    }
+
+    // Returns true if the set contains no elements.
+    public bool isEmpty() {
+        return this._map.size() == 0;
+    }
+
+    // Removes all elements from the set.
+    public void clear() {
+        this._map.clear();
+    }
+
+    // Returns a new ArrayList containing all elements in the set.
+    public ArrayList<E> toArrayList() {
+        return this._map.keys();
+    }
+
+    // Returns a new HashSet that is the union of this set and other.
+    public HashSet<E> union(HashSet<E> other) {
+        HashSet<E> result = new HashSet<E>();
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            result.add(keys.get(i));
+            i = i + 1;
+        }
+        ArrayList<E> otherKeys = other._map.keys();
+        int j = 0;
+        while (j < otherKeys.size()) {
+            result.add(otherKeys.get(j));
+            j = j + 1;
+        }
+        return result;
+    }
+
+    // Returns a new HashSet that is the intersection of this set and other.
+    public HashSet<E> intersection(HashSet<E> other) {
+        HashSet<E> result = new HashSet<E>();
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            if (other.contains(keys.get(i))) {
+                result.add(keys.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Returns a new HashSet with elements in this set but not in other.
+    public HashSet<E> difference(HashSet<E> other) {
+        HashSet<E> result = new HashSet<E>();
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            if (!other.contains(keys.get(i))) {
+                result.add(keys.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Returns a new HashSet with elements in either set but not in both.
+    public HashSet<E> symmetricDifference(HashSet<E> other) {
+        HashSet<E> result = new HashSet<E>();
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            if (!other.contains(keys.get(i))) {
+                result.add(keys.get(i));
+            }
+            i = i + 1;
+        }
+        ArrayList<E> otherKeys = other._map.keys();
+        int j = 0;
+        while (j < otherKeys.size()) {
+            if (!this.contains(otherKeys.get(j))) {
+                result.add(otherKeys.get(j));
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+
+    // Returns true if every element in this set is also in other.
+    public bool isSubsetOf(HashSet<E> other) {
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            if (!other.contains(keys.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Returns true if every element in other is also in this set.
+    public bool isSupersetOf(HashSet<E> other) {
+        return other.isSubsetOf(this);
+    }
+
+    // Compares this HashSet to another object for equality.
+    public bool equals(Object other) {
+        if (other == null) { return false; }
+        if (!(other instanceof HashSet)) { return false; }
+        HashSet<E> o = (HashSet<E>) other;
+        if (this.size() != o.size()) { return false; }
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            if (!o.contains(keys.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Returns a string representation of this HashSet.
+    public String toString() {
+        String s = "HashSet{";
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + keys.get(i);
+            i = i + 1;
+        }
+        s = s + "}";
+        return s;
+    }
+
+    // Applies action to each element in the set.
+    public void forEach(function<void(E)> action) {
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            action(keys.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Returns a shallow copy of this HashSet.
+    public HashSet<E> clone() {
+        HashSet<E> result = new HashSet<E>();
+        ArrayList<E> keys = this._map.keys();
+        int i = 0;
+        while (i < keys.size()) {
+            result.add(keys.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
