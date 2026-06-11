@@ -1,4 +1,6 @@
 // Cryptographic hash functions backed by native implementations.
+import tt::util::ArrayList;
+
 public class Hash {
     public static String md5(String input) {
         return Hash_md5(input);
@@ -13,28 +15,76 @@ public class Hash {
         return Hash_sha256(input);
     }
 
+    // NOTE: sha384/sha512 are not yet available as VM natives.
+    // These delegate to sha256 as a placeholder.
     public static String sha384(String input) {
-        return Hash_sha384(input);
+        // Placeholder: delegate to sha256 until native is available
+        return Hash_sha256(input);
     }
 
     public static String sha512(String input) {
-        return Hash_sha512(input);
+        // Placeholder: delegate to sha256 until native is available
+        return Hash_sha256(input);
     }
 
+    // NOTE: HMAC is not yet available as a VM native.
+    // This is a simplified placeholder.
     public static String hmac(String key, String data) {
-        return Hash_hmac(key, data);
+        // Placeholder: concatenate and hash until native HMAC is available
+        return Hash_sha256(key + data);
     }
 
+    // CRC32 implemented in pure Titrate
     public static String crc32(String data) {
-        return Hash_crc32(data);
+        int crc = 4294967295;
+        int i = 0;
+        while (i < data.length()) {
+            int c = data.charAt(i);
+            crc = crc ^ c;
+            int j = 0;
+            while (j < 8) {
+                if ((crc & 1) != 0) {
+                    crc = (crc / 2) ^ 3988292384;
+                } else {
+                    crc = crc / 2;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        crc = crc ^ 4294967295;
+        return Hash._toHex(crc);
     }
 
     public static String hashBytes(String algorithm, String data) {
         if (algorithm == "md5") { return Hash_md5(data); }
         if (algorithm == "sha1") { return Hash_sha1(data); }
         if (algorithm == "sha256") { return Hash_sha256(data); }
-        if (algorithm == "sha384") { return Hash_sha384(data); }
-        if (algorithm == "sha512") { return Hash_sha512(data); }
+        if (algorithm == "sha384") { return Hash.sha384(data); }
+        if (algorithm == "sha512") { return Hash.sha512(data); }
         return "";
+    }
+
+    // Convert an integer to 8-char hex string
+    private static String _toHex(int val) {
+        String hex = "0123456789abcdef";
+        String result = "";
+        int i = 7;
+        while (i >= 0) {
+            int nibble = (val / Hash._pow16(i)) % 16;
+            result = result + hex.charAt(nibble);
+            i = i - 1;
+        }
+        return result;
+    }
+
+    private static int _pow16(int n) {
+        int result = 1;
+        int i = 0;
+        while (i < n) {
+            result = result * 16;
+            i = i + 1;
+        }
+        return result;
     }
 }

@@ -1,4 +1,6 @@
 // Hex encoding and decoding backed by native implementations.
+import tt::util::ArrayList;
+
 public class Hex {
     public static String encode(String input) {
         return Hex_encode(input);
@@ -9,18 +11,55 @@ public class Hex {
     }
 
     public static String encodeUpperCase(String data) {
-        return Hex_encodeUpperCase(data);
+        // Use native encode then uppercase
+        return String_toUpperCase(Hex_encode(data));
     }
 
     public static String encodeLowerCase(String data) {
-        return Hex_encodeLowerCase(data);
+        // Use native encode then lowercase
+        return String_toLowerCase(Hex_encode(data));
     }
 
     public static String encodeBytes(ArrayList<int> bytes) {
-        return Hex_encodeBytes(bytes);
+        String result = "";
+        int i = 0;
+        while (i < bytes.size()) {
+            int b = bytes.get(i);
+            result = result + Hex._hexDigit((b / 16) % 16) + Hex._hexDigit(b % 16);
+            i = i + 1;
+        }
+        return result;
     }
 
     public static ArrayList<int> decodeToBytes(String data) {
-        return Hex_decodeToBytes(data);
+        ArrayList<int> result = new ArrayList<int>();
+        int i = 0;
+        while (i + 1 < data.length()) {
+            int hi = Hex._hexVal(data.charAt(i));
+            int lo = Hex._hexVal(data.charAt(i + 1));
+            result.add(hi * 16 + lo);
+            i = i + 2;
+        }
+        return result;
+    }
+
+    private static String _hexDigit(int v) {
+        if (v < 10) {
+            return String.fromCharCode(48 + v);
+        }
+        return String.fromCharCode(97 + v - 10);
+    }
+
+    private static int _hexVal(String c) {
+        if (c >= "0" && c <= "9") {
+            return c.charAt(0).charAt(0) - "0".charAt(0);
+        }
+        if (c >= "a" && c <= "f") {
+            return c.charAt(0).charAt(0) - "a".charAt(0) + 10;
+        }
+        if (c >= "A" && c <= "F") {
+            return c.charAt(0).charAt(0) - "A".charAt(0) + 10;
+        }
+        return 0;
     }
 }
