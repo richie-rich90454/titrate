@@ -95,7 +95,9 @@ pub enum Token {
 
     // Operators and punctuation
     Plus,
+    PlusPlus,
     Minus,
+    MinusMinus,
     Star,
     Slash,
     Percent,
@@ -115,6 +117,16 @@ pub enum Token {
     Tilde,
     LeftShift,
     RightShift,
+    PlusEqual,
+    MinusEqual,
+    StarEqual,
+    SlashEqual,
+    PercentEqual,
+    AmpersandEqual,
+    PipeEqual,
+    CaretEqual,
+    LeftShiftEqual,
+    RightShiftEqual,
     ColonColon,
     Arrow,
     FatArrow,
@@ -215,7 +227,9 @@ impl fmt::Display for Token {
             Token::U32 => write!(f, "u32"),
             Token::U64 => write!(f, "u64"),
             Token::Plus => write!(f, "+"),
+            Token::PlusPlus => write!(f, "++"),
             Token::Minus => write!(f, "-"),
+            Token::MinusMinus => write!(f, "--"),
             Token::Star => write!(f, "*"),
             Token::Slash => write!(f, "/"),
             Token::Percent => write!(f, "%"),
@@ -252,6 +266,16 @@ impl fmt::Display for Token {
             Token::LeftBracket => write!(f, "["),
             Token::RightBracket => write!(f, "]"),
             Token::RefMut => write!(f, "&mut"),
+            Token::PlusEqual => write!(f, "+="),
+            Token::MinusEqual => write!(f, "-="),
+            Token::StarEqual => write!(f, "*="),
+            Token::SlashEqual => write!(f, "/="),
+            Token::PercentEqual => write!(f, "%="),
+            Token::AmpersandEqual => write!(f, "&="),
+            Token::PipeEqual => write!(f, "|="),
+            Token::CaretEqual => write!(f, "^="),
+            Token::LeftShiftEqual => write!(f, "<<="),
+            Token::RightShiftEqual => write!(f, ">>="),
             Token::IntLiteral(v) => write!(f, "{}", v),
             Token::FloatLiteral { value, suffix } => {
                 write!(f, "{}", value)?;
@@ -955,11 +979,29 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
             '+' => {
                 chars.next();
                 column += 1;
-                tokens.push(SpannedToken {
-                    token: Token::Plus,
-                    line: start_line,
-                    column: start_col,
-                });
+                if chars.peek() == Some(&'+') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::PlusPlus,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else if chars.peek() == Some(&'=') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::PlusEqual,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else {
+                    tokens.push(SpannedToken {
+                        token: Token::Plus,
+                        line: start_line,
+                        column: start_col,
+                    });
+                }
             }
             '-' => {
                 chars.next();
@@ -969,6 +1011,22 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                     column += 1;
                     tokens.push(SpannedToken {
                         token: Token::Arrow,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else if chars.peek() == Some(&'-') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::MinusMinus,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else if chars.peek() == Some(&'=') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::MinusEqual,
                         line: start_line,
                         column: start_col,
                     });
@@ -983,30 +1041,60 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
             '*' => {
                 chars.next();
                 column += 1;
-                tokens.push(SpannedToken {
-                    token: Token::Star,
-                    line: start_line,
-                    column: start_col,
-                });
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::StarEqual,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else {
+                    tokens.push(SpannedToken {
+                        token: Token::Star,
+                        line: start_line,
+                        column: start_col,
+                    });
+                }
             }
             '/' => {
                 // Already handled comments above; this is the division operator
                 chars.next();
                 column += 1;
-                tokens.push(SpannedToken {
-                    token: Token::Slash,
-                    line: start_line,
-                    column: start_col,
-                });
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::SlashEqual,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else {
+                    tokens.push(SpannedToken {
+                        token: Token::Slash,
+                        line: start_line,
+                        column: start_col,
+                    });
+                }
             }
             '%' => {
                 chars.next();
                 column += 1;
-                tokens.push(SpannedToken {
-                    token: Token::Percent,
-                    line: start_line,
-                    column: start_col,
-                });
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::PercentEqual,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else {
+                    tokens.push(SpannedToken {
+                        token: Token::Percent,
+                        line: start_line,
+                        column: start_col,
+                    });
+                }
             }
             '=' => {
                 chars.next();
@@ -1068,11 +1156,21 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                 } else if chars.peek() == Some(&'<') {
                     chars.next();
                     column += 1;
-                    tokens.push(SpannedToken {
-                        token: Token::LeftShift,
-                        line: start_line,
-                        column: start_col,
-                    });
+                    if chars.peek() == Some(&'=') {
+                        chars.next();
+                        column += 1;
+                        tokens.push(SpannedToken {
+                            token: Token::LeftShiftEqual,
+                            line: start_line,
+                            column: start_col,
+                        });
+                    } else {
+                        tokens.push(SpannedToken {
+                            token: Token::LeftShift,
+                            line: start_line,
+                            column: start_col,
+                        });
+                    }
                 } else {
                     tokens.push(SpannedToken {
                         token: Token::Less,
@@ -1095,11 +1193,21 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                 } else if chars.peek() == Some(&'>') {
                     chars.next();
                     column += 1;
-                    tokens.push(SpannedToken {
-                        token: Token::RightShift,
-                        line: start_line,
-                        column: start_col,
-                    });
+                    if chars.peek() == Some(&'=') {
+                        chars.next();
+                        column += 1;
+                        tokens.push(SpannedToken {
+                            token: Token::RightShiftEqual,
+                            line: start_line,
+                            column: start_col,
+                        });
+                    } else {
+                        tokens.push(SpannedToken {
+                            token: Token::RightShift,
+                            line: start_line,
+                            column: start_col,
+                        });
+                    }
                 } else {
                     tokens.push(SpannedToken {
                         token: Token::Greater,
@@ -1116,6 +1224,14 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                     column += 1;
                     tokens.push(SpannedToken {
                         token: Token::AndAnd,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else if chars.peek() == Some(&'=') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::AmpersandEqual,
                         line: start_line,
                         column: start_col,
                     });
@@ -1160,6 +1276,14 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                         line: start_line,
                         column: start_col,
                     });
+                } else if chars.peek() == Some(&'=') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::PipeEqual,
+                        line: start_line,
+                        column: start_col,
+                    });
                 } else {
                     tokens.push(SpannedToken {
                         token: Token::Pipe,
@@ -1171,11 +1295,21 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
             '^' => {
                 chars.next();
                 column += 1;
-                tokens.push(SpannedToken {
-                    token: Token::Caret,
-                    line: start_line,
-                    column: start_col,
-                });
+                if chars.peek() == Some(&'=') {
+                    chars.next();
+                    column += 1;
+                    tokens.push(SpannedToken {
+                        token: Token::CaretEqual,
+                        line: start_line,
+                        column: start_col,
+                    });
+                } else {
+                    tokens.push(SpannedToken {
+                        token: Token::Caret,
+                        line: start_line,
+                        column: start_col,
+                    });
+                }
             }
             '~' => {
                 chars.next();
@@ -1689,5 +1823,196 @@ mod tests {
         let src = "1.5";
         let tokens = tokenize(src).expect("tokenize should succeed");
         assert_eq!(tokens[0].token, Token::FloatLiteral { value: 1.5, suffix: None });
+    }
+
+    // -----------------------------------------------------------------------
+    // Compound assignment operator tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_compound_assignment_plus_equal() {
+        let src = "x += 1";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[0], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[1], &Token::PlusEqual);
+        assert_eq!(token_kinds[2], &Token::IntLiteral(1));
+    }
+
+    #[test]
+    fn test_compound_assignment_minus_equal() {
+        let src = "x -= 1";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::MinusEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_star_equal() {
+        let src = "x *= 2";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::StarEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_slash_equal() {
+        let src = "x /= 2";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::SlashEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_percent_equal() {
+        let src = "x %= 2";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::PercentEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_ampersand_equal() {
+        let src = "x &= 3";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::AmpersandEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_pipe_equal() {
+        let src = "x |= 3";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::PipeEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_caret_equal() {
+        let src = "x ^= 3";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::CaretEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_left_shift_equal() {
+        let src = "x <<= 2";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::LeftShiftEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_right_shift_equal() {
+        let src = "x >>= 2";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::RightShiftEqual);
+    }
+
+    #[test]
+    fn test_compound_assignment_vs_regular() {
+        // Ensure += is not confused with ++ and =
+        let src = "x += 1 y + 1";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::PlusEqual);
+        assert_eq!(token_kinds[4], &Token::Plus);
+    }
+
+    #[test]
+    fn test_left_shift_vs_less_equal() {
+        // <<= should not be confused with <=  <
+        let src = "x <<= 2";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::LeftShiftEqual);
+    }
+
+    #[test]
+    fn test_less_equal_not_shift_equal() {
+        // <= should remain LessEqual, not be confused with <<=
+        let src = "x <= 2";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[1], &Token::LessEqual);
+    }
+
+    #[test]
+    fn test_all_compound_assignments() {
+        let src = "+= -= *= /= %= &= |= ^= <<= >>=";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let ops: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert!(ops.contains(&&Token::PlusEqual));
+        assert!(ops.contains(&&Token::MinusEqual));
+        assert!(ops.contains(&&Token::StarEqual));
+        assert!(ops.contains(&&Token::SlashEqual));
+        assert!(ops.contains(&&Token::PercentEqual));
+        assert!(ops.contains(&&Token::AmpersandEqual));
+        assert!(ops.contains(&&Token::PipeEqual));
+        assert!(ops.contains(&&Token::CaretEqual));
+        assert!(ops.contains(&&Token::LeftShiftEqual));
+        assert!(ops.contains(&&Token::RightShiftEqual));
+    }
+
+    // -----------------------------------------------------------------------
+    // Increment/decrement operator tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_plus_plus() {
+        let src = "++x";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[0], &Token::PlusPlus);
+        assert_eq!(token_kinds[1], &Token::Identifier("x".to_string()));
+    }
+
+    #[test]
+    fn test_minus_minus() {
+        let src = "--x";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[0], &Token::MinusMinus);
+        assert_eq!(token_kinds[1], &Token::Identifier("x".to_string()));
+    }
+
+    #[test]
+    fn test_postfix_plus_plus() {
+        let src = "x++";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[0], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[1], &Token::PlusPlus);
+    }
+
+    #[test]
+    fn test_postfix_minus_minus() {
+        let src = "x--";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[0], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[1], &Token::MinusMinus);
+    }
+
+    #[test]
+    fn test_plus_plus_vs_plus_equal() {
+        // ++ should not be confused with += or two separate +
+        let src = "++x x++ x += 1";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[0], &Token::PlusPlus);
+        assert_eq!(token_kinds[2], &Token::PlusPlus);
+        assert_eq!(token_kinds[4], &Token::PlusEqual);
+    }
+
+    #[test]
+    fn test_minus_minus_vs_arrow() {
+        // -- should not be confused with -> or two separate -
+        let src = "--x x-- x -> y";
+        let tokens = tokenize(src).expect("tokenize should succeed");
+        let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        assert_eq!(token_kinds[0], &Token::MinusMinus);
+        assert_eq!(token_kinds[2], &Token::MinusMinus);
+        assert_eq!(token_kinds[4], &Token::Arrow);
     }
 }

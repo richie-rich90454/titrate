@@ -69,6 +69,49 @@ impl Parser {
         matches!(self.peek(), lexer::Token::Eof)
     }
 
+    /// Peek at the token at position `self.pos + offset` without consuming.
+    fn peek_at(&self, offset: usize) -> &lexer::Token {
+        match self.tokens.get(self.pos + offset) {
+            Some(st) => &st.token,
+            None => &lexer::Token::Eof,
+        }
+    }
+
+    /// Check whether the current `?` token is the start of a ternary expression
+    /// rather than error propagation. Returns true if the token after `?` looks
+    /// like it could start an expression (i.e., it's a ternary `?`).
+    fn is_ternary_question(&self) -> bool {
+        debug_assert!(self.is_at(&lexer::Token::Question));
+        let next = self.peek_at(1).clone();
+        matches!(next,
+            lexer::Token::IntLiteral(_)
+            | lexer::Token::FloatLiteral { .. }
+            | lexer::Token::StringLiteral(_)
+            | lexer::Token::RawStringLiteral(_)
+            | lexer::Token::CharLiteral(_)
+            | lexer::Token::ByteLiteral(_)
+            | lexer::Token::BoolLiteral(_)
+            | lexer::Token::NullLiteral
+            | lexer::Token::Identifier(_)
+            | lexer::Token::LeftParen
+            | lexer::Token::LeftBrace
+            | lexer::Token::LeftBracket
+            | lexer::Token::Not
+            | lexer::Token::Minus
+            | lexer::Token::Tilde
+            | lexer::Token::Star
+            | lexer::Token::Ampersand
+            | lexer::Token::RefMut
+            | lexer::Token::PlusPlus
+            | lexer::Token::MinusMinus
+            | lexer::Token::New
+            | lexer::Token::This
+            | lexer::Token::Super
+            | lexer::Token::Owned
+            | lexer::Token::Unsafe
+        )
+    }
+
     /// Helper: get the current line/column for error messages.
     fn span_here(&self) -> (usize, usize) {
         match self.tokens.get(self.pos) {
@@ -1676,16 +1719,74 @@ impl Parser {
     }
 
     fn parse_assignment(&mut self) -> Result<ast::Expr, String> {
-        let expr = self.parse_range()?;
+        let expr = self.parse_ternary()?;
 
         if self.match_token(&lexer::Token::Equals) {
             let span = self.make_span();
             let value = self.parse_assignment()?; // right-associative
             // The left side must be an lvalue — we check at the AST level
             Ok(ast::Expr::Assign(Box::new(expr), Box::new(value), span))
+        } else if let Some(op) = self.match_compound_assignment() {
+            let span = self.make_span();
+            let value = self.parse_assignment()?; // right-associative
+            // Desugar: x += y  →  x = x + y
+            let lhs_clone = expr.clone();
+            let binary = ast::Expr::Binary(Box::new(lhs_clone), op, Box::new(value), span);
+            Ok(ast::Expr::Assign(Box::new(expr), Box::new(binary), span))
         } else {
             Ok(expr)
         }
+    }
+
+    /// Parse ternary conditional expression: condition ? then_expr : else_expr
+    /// Precedence: between assignment and range/logical OR.
+    fn parse_ternary(&mut self) -> Result<ast::Expr, String> {
+        let expr = self.parse_range()?;
+
+        if self.match_token(&lexer::Token::Question) {
+            let span = self.make_span();
+            let then_expr = self.parse_ternary()?; // right-associative
+            self.expect(&lexer::Token::Colon)?;
+            let else_expr = self.parse_ternary()?; // right-associative
+            Ok(ast::Expr::Ternary {
+                condition: Box::new(expr),
+                then_expr: Box::new(then_expr),
+                else_expr: Box::new(else_expr),
+                span,
+            })
+        } else {
+            Ok(expr)
+        }
+    }
+
+    /// Check if the current token is a compound assignment operator.
+    /// If so, consume it and return the corresponding binary operator.
+    fn match_compound_assignment(&mut self) -> Option<ast::Operator> {
+        let op = if self.is_at(&lexer::Token::PlusEqual) {
+            ast::Operator::Add
+        } else if self.is_at(&lexer::Token::MinusEqual) {
+            ast::Operator::Sub
+        } else if self.is_at(&lexer::Token::StarEqual) {
+            ast::Operator::Mul
+        } else if self.is_at(&lexer::Token::SlashEqual) {
+            ast::Operator::Div
+        } else if self.is_at(&lexer::Token::PercentEqual) {
+            ast::Operator::Mod
+        } else if self.is_at(&lexer::Token::AmpersandEqual) {
+            ast::Operator::BitAnd
+        } else if self.is_at(&lexer::Token::PipeEqual) {
+            ast::Operator::BitOr
+        } else if self.is_at(&lexer::Token::CaretEqual) {
+            ast::Operator::BitXor
+        } else if self.is_at(&lexer::Token::LeftShiftEqual) {
+            ast::Operator::BitShl
+        } else if self.is_at(&lexer::Token::RightShiftEqual) {
+            ast::Operator::BitShr
+        } else {
+            return None;
+        };
+        self.advance();
+        Some(op)
     }
 
     fn parse_range(&mut self) -> Result<ast::Expr, String> {
@@ -1823,6 +1924,23 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Result<ast::Expr, String> {
+        // Prefix increment/decrement: ++x desugars to x = x + 1
+        if self.match_token(&lexer::Token::PlusPlus) {
+            let span = self.make_span();
+            let expr = self.parse_unary()?;
+            // Desugar ++x to x = x + 1
+            let one = ast::Expr::Literal(ast::Literal::Int(1), span);
+            let increment = ast::Expr::Binary(Box::new(expr.clone()), ast::Operator::Add, Box::new(one), span);
+            return Ok(ast::Expr::Assign(Box::new(expr), Box::new(increment), span));
+        }
+        if self.match_token(&lexer::Token::MinusMinus) {
+            let span = self.make_span();
+            let expr = self.parse_unary()?;
+            // Desugar --x to x = x - 1
+            let one = ast::Expr::Literal(ast::Literal::Int(1), span);
+            let decrement = ast::Expr::Binary(Box::new(expr.clone()), ast::Operator::Sub, Box::new(one), span);
+            return Ok(ast::Expr::Assign(Box::new(expr), Box::new(decrement), span));
+        }
         if self.match_token(&lexer::Token::Not) {
             let span = self.make_span();
             let expr = self.parse_unary()?;
@@ -1894,8 +2012,14 @@ impl Parser {
                 let index = self.parse_expression()?;
                 self.expect(&lexer::Token::RightBracket)?;
                 expr = ast::Expr::Index(Box::new(expr), Box::new(index), span);
-            } else if self.match_token(&lexer::Token::Question) {
-                // Error propagation
+            } else if self.is_at(&lexer::Token::Question) {
+                // Disambiguate: if `?` is followed by something that could start
+                // an expression, it's the beginning of a ternary — leave it for
+                // parse_ternary(). Otherwise, consume as error propagation.
+                if self.is_ternary_question() {
+                    break;
+                }
+                self.advance(); // consume the `?`
                 let span = self.make_span();
                 expr = ast::Expr::ErrorPropagation(Box::new(expr), span);
             } else if self.match_token(&lexer::Token::As) {
@@ -1903,6 +2027,18 @@ impl Parser {
                 let span = self.make_span();
                 let typ = self.parse_type()?;
                 expr = ast::Expr::Cast(Box::new(expr), typ, span);
+            } else if self.match_token(&lexer::Token::PlusPlus) {
+                // Postfix increment: x++ desugars to x = x + 1
+                let span = self.make_span();
+                let one = ast::Expr::Literal(ast::Literal::Int(1), span);
+                let increment = ast::Expr::Binary(Box::new(expr.clone()), ast::Operator::Add, Box::new(one), span);
+                expr = ast::Expr::Assign(Box::new(expr), Box::new(increment), span);
+            } else if self.match_token(&lexer::Token::MinusMinus) {
+                // Postfix decrement: x-- desugars to x = x - 1
+                let span = self.make_span();
+                let one = ast::Expr::Literal(ast::Literal::Int(1), span);
+                let decrement = ast::Expr::Binary(Box::new(expr.clone()), ast::Operator::Sub, Box::new(one), span);
+                expr = ast::Expr::Assign(Box::new(expr), Box::new(decrement), span);
             } else {
                 break;
             }
@@ -4477,6 +4613,214 @@ import tt::math::NDArray;"#;
             ast::Declaration::Function(fd) => match &fd.body[0] {
                 ast::Stmt::Return(Some(ast::Expr::Literal(ast::Literal::Int(511), _))) => {}
                 other => panic!("Expected Return(Int(511)), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Compound assignment desugaring tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_compound_assign_plus_equal() {
+        let src = r#"fn f(): void { x += 1; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(target, value, _)) => {
+                    // target should be x
+                    assert!(matches!(target.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                    // value should be x + 1
+                    match value.as_ref() {
+                        ast::Expr::Binary(left, ast::Operator::Add, right, _) => {
+                            assert!(matches!(left.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                        }
+                        other => panic!("Expected Binary(Add), got {:?}", other),
+                    }
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_minus_equal() {
+        let src = r#"fn f(): void { x -= 2; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::Sub, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_star_equal() {
+        let src = r#"fn f(): void { x *= 3; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::Mul, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_slash_equal() {
+        let src = r#"fn f(): void { x /= 4; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::Div, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_percent_equal() {
+        let src = r#"fn f(): void { x %= 5; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::Mod, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_bitand_equal() {
+        let src = r#"fn f(): void { x &= 3; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::BitAnd, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_bitor_equal() {
+        let src = r#"fn f(): void { x |= 3; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::BitOr, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_bitxor_equal() {
+        let src = r#"fn f(): void { x ^= 3; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::BitXor, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_left_shift_equal() {
+        let src = r#"fn f(): void { x <<= 2; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::BitShl, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_right_shift_equal() {
+        let src = r#"fn f(): void { x >>= 2; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Binary(_, ast::Operator::BitShr, _, _)));
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_member_access() {
+        // obj.field += 1 should desugar to obj.field = obj.field + 1
+        let src = r#"fn f(): void { obj.field += 1; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(target, value, _)) => {
+                    assert!(matches!(target.as_ref(), ast::Expr::MemberAccess(_, name, _) if name == "field"));
+                    match value.as_ref() {
+                        ast::Expr::Binary(left, ast::Operator::Add, right, _) => {
+                            assert!(matches!(left.as_ref(), ast::Expr::MemberAccess(_, name, _) if name == "field"));
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                        }
+                        other => panic!("Expected Binary(Add), got {:?}", other),
+                    }
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_compound_assign_index_access() {
+        // arr[0] += 1 should desugar to arr[0] = arr[0] + 1
+        let src = r#"fn f(): void { arr[0] += 1; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(target, value, _)) => {
+                    assert!(matches!(target.as_ref(), ast::Expr::Index(_, _, _)));
+                    match value.as_ref() {
+                        ast::Expr::Binary(left, ast::Operator::Add, right, _) => {
+                            assert!(matches!(left.as_ref(), ast::Expr::Index(_, _, _)));
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                        }
+                        other => panic!("Expected Binary(Add), got {:?}", other),
+                    }
+                }
+                other => panic!("Expected Assign, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
         }
