@@ -243,6 +243,7 @@ impl Vm {
 
         // Subprocess natives
         vm.register_native("Subprocess_run", native_subprocess_run);
+        vm.register_native("Subprocess_exec", native_subprocess_exec);
 
         // Tempfile natives
         vm.register_native("Tempfile_create", native_tempfile_create);
@@ -5396,9 +5397,32 @@ fn native_subprocess_run(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Int(status.code().unwrap_or(-1)))
 }
 
+fn native_subprocess_exec(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Subprocess_exec: expected at least 1 argument (command)".to_string());
+    }
+    let program = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Subprocess_exec: expected String command".to_string()),
+    };
+    let mut cmd = std::process::Command::new(&program);
+    for arg in &args[1..] {
+        match arg {
+            Value::String(s) => { cmd.arg(s.as_str()); }
+            other => { cmd.arg(format!("{:?}", other)); }
+        }
+    }
+    let output = cmd.output()
+        .map_err(|e| format!("Subprocess_exec: failed to execute '{}': {}", program, e))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    Ok(Value::String(Rc::new(stdout)))
+}
+
 // ---------------------------------------------------------------------------
 // Tempfile native functions
 // ---------------------------------------------------------------------------
+
+static TEMPFILE_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 fn native_tempfile_create(args: &[Value]) -> Result<Value, String> {
     let prefix = match args.first() {
@@ -5408,13 +5432,16 @@ fn native_tempfile_create(args: &[Value]) -> Result<Value, String> {
     let is_dir = args.get(1)
         .map(|v| matches!(v, Value::Bool(true)))
         .unwrap_or(false);
+    let pid = std::process::id();
+    let counter = TEMPFILE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let suffix = format!("{}_{}", pid, counter);
     if is_dir {
-        let dir = std::env::temp_dir().join(format!("{}{}", prefix, std::process::id()));
+        let dir = std::env::temp_dir().join(format!("{}{}", prefix, suffix));
         std::fs::create_dir_all(&dir)
             .map_err(|e| format!("Tempfile_create: cannot create directory '{}': {}", dir.display(), e))?;
         Ok(Value::String(Rc::new(dir.to_string_lossy().to_string())))
     } else {
-        let path = std::env::temp_dir().join(format!("{}{}", prefix, std::process::id()));
+        let path = std::env::temp_dir().join(format!("{}{}", prefix, suffix));
         std::fs::File::create(&path)
             .map_err(|e| format!("Tempfile_create: cannot create file '{}': {}", path.display(), e))?;
         Ok(Value::String(Rc::new(path.to_string_lossy().to_string())))
@@ -5575,6 +5602,7 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Long_parseLong" => Some(native_long_parse_long),
         // Subprocess natives
         "Subprocess_run" => Some(native_subprocess_run),
+        "Subprocess_exec" => Some(native_subprocess_exec),
         // Tempfile natives
         "Tempfile_create" => Some(native_tempfile_create),
         _ => None,
