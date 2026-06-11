@@ -3357,6 +3357,27 @@ impl Vm {
                         return Ok(());
                     }
                 }
+
+                // Fallback: try native function lookup (ClassName_method)
+                let native_name = format!("{}_{}", class_name, method_name);
+                if let Some(&native_idx) = self.native_names.get(&native_name) {
+                    let arg_start = self.stack.len() - arg_count as usize;
+                    let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                    let func = self.natives[native_idx as usize];
+                    let result = func(&args)?;
+                    self.push(result);
+                    return Ok(());
+                }
+
+                // Also try lookup_builtin_native in case it hasn't been registered yet
+                if let Some(func) = lookup_builtin_native(&native_name) {
+                    let arg_start = self.stack.len() - arg_count as usize;
+                    let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                    let result = func(&args)?;
+                    self.push(result);
+                    return Ok(());
+                }
+
                 return Err(format!(
                     "Unknown static call: {}.{}",
                     class_name, method_name
