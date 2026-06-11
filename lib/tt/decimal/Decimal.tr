@@ -3,6 +3,7 @@ import tt::lang::String;
 import tt::lang::Integer;
 import tt::lang::Double;
 import tt::util::ArrayList;
+import tt::decimal::DecimalArithmetic;
 
 public class Decimal {
     // Sign: true = negative, false = positive or zero
@@ -24,200 +25,49 @@ public class Decimal {
         }
         int dotPos = String.indexOf(s, ".");
         if (dotPos < 0) {
-            this.digits = Decimal.stripLeadingZeros(s);
+            this.digits = DecimalArithmetic.stripLeadingZeros(s);
             this.scale = 0;
         } else {
             String intPart = String.substring(s, 0, dotPos);
             String fracPart = String.substring(s, dotPos + 1, s.length());
-            this.digits = Decimal.stripLeadingZeros(intPart + fracPart);
+            this.digits = DecimalArithmetic.stripLeadingZeros(intPart + fracPart);
             this.scale = fracPart.length();
         }
         if (this.digits.length() == 0) { this.digits = "0"; }
         this.negative = neg;
-        if (Decimal.isZeroStr(this.digits)) {
+        if (DecimalArithmetic.isZeroStr(this.digits)) {
             this.negative = false;
         }
     }
 
     // Private constructor from components
     private Decimal(bool neg, String digs, int sc) {
-        this.digits = Decimal.stripLeadingZeros(digs);
+        this.digits = DecimalArithmetic.stripLeadingZeros(digs);
         if (this.digits.length() == 0) { this.digits = "0"; }
         this.scale = sc;
         this.negative = neg;
-        if (Decimal.isZeroStr(this.digits)) {
+        if (DecimalArithmetic.isZeroStr(this.digits)) {
             this.negative = false;
         }
-    }
-
-    // ---- Helpers ----
-
-    private static String stripLeadingZeros(String s) {
-        int i = 0;
-        while (i < s.length() - 1 && s.charAt(i) == "0") {
-            i = i + 1;
-        }
-        return String.substring(s, i, s.length());
-    }
-
-    private static bool isZeroStr(String s) {
-        int i = 0;
-        while (i < s.length()) {
-            if (s.charAt(i) != "0") { return false; }
-            i = i + 1;
-        }
-        return true;
-    }
-
-    // Compare two unsigned digit strings of the same length.
-    // Returns -1, 0, or 1.
-    private static int compareDigitStrings(String a, String b) {
-        if (a.length() > b.length()) { return 1; }
-        if (a.length() < b.length()) { return -1; }
-        int i = 0;
-        while (i < a.length()) {
-            if (a.charAt(i) > b.charAt(i)) { return 1; }
-            if (a.charAt(i) < b.charAt(i)) { return -1; }
-            i = i + 1;
-        }
-        return 0;
-    }
-
-    // Add two unsigned digit strings.
-    private static String addDigitStrings(String a, String b) {
-        String result = "";
-        int i = a.length() - 1;
-        int j = b.length() - 1;
-        int carry = 0;
-        while (i >= 0 || j >= 0 || carry > 0) {
-            int da = 0;
-            if (i >= 0) { da = a.charAt(i) - "0".charAt(0); i = i - 1; }
-            int db = 0;
-            if (j >= 0) { db = b.charAt(j) - "0".charAt(0); j = j - 1; }
-            int sum = da + db + carry;
-            carry = sum / 10;
-            int digit = sum % 10;
-            result = Integer.toString(digit) + result;
-        }
-        return result;
-    }
-
-    // Subtract two unsigned digit strings (a >= b).
-    private static String subDigitStrings(String a, String b) {
-        // Pad b to length of a
-        while (b.length() < a.length()) {
-            b = "0" + b;
-        }
-        String result = "";
-        int i = a.length() - 1;
-        int borrow = 0;
-        while (i >= 0) {
-            int da = a.charAt(i) - "0".charAt(0);
-            int db = b.charAt(i) - "0".charAt(0);
-            int diff = da - db - borrow;
-            if (diff < 0) {
-                diff = diff + 10;
-                borrow = 1;
-            } else {
-                borrow = 0;
-            }
-            result = Integer.toString(diff) + result;
-            i = i - 1;
-        }
-        return Decimal.stripLeadingZeros(result);
-    }
-
-    // Multiply two unsigned digit strings.
-    private static String mulDigitStrings(String a, String b) {
-        if (Decimal.isZeroStr(a) || Decimal.isZeroStr(b)) { return "0"; }
-        int lenA = a.length();
-        int lenB = b.length();
-        ArrayList<int> result = new ArrayList<int>();
-        int i = 0;
-        while (i < lenA + lenB) {
-            result.add(0);
-            i = i + 1;
-        }
-        i = lenA - 1;
-        while (i >= 0) {
-            int j = lenB - 1;
-            while (j >= 0) {
-                int da = a.charAt(i) - "0".charAt(0);
-                int db = b.charAt(j) - "0".charAt(0);
-                int pos = i + j + 1;
-                int product = da * db + result.get(pos);
-                result.set(pos, product % 10);
-                result.set(pos - 1, result.get(pos - 1) + product / 10);
-                j = j - 1;
-            }
-            i = i - 1;
-        }
-        String s = "";
-        i = 0;
-        while (i < result.size()) {
-            s = s + Integer.toString(result.get(i));
-            i = i + 1;
-        }
-        return Decimal.stripLeadingZeros(s);
-    }
-
-    // Divide unsigned digit string a by single digit d, returning quotient and remainder.
-    private static (String, int) divDigitStringByInt(String a, int d) {
-        String quotient = "";
-        int remainder = 0;
-        int i = 0;
-        while (i < a.length()) {
-            int digit = a.charAt(i) - "0".charAt(0);
-            int val = remainder * 10 + digit;
-            quotient = quotient + Integer.toString(val / d);
-            remainder = val % d;
-            i = i + 1;
-        }
-        return (Decimal.stripLeadingZeros(quotient), remainder);
-    }
-
-    // ---- Align scales for arithmetic ----
-
-    // Returns (digitsA, digitsB) aligned to the same scale (the max scale).
-    private static (String, String) alignScales(String dA, int sA, String dB, int sB) {
-        if (sA == sB) { return (dA, dB); }
-        if (sA < sB) {
-            int diff = sB - sA;
-            String zeros = "";
-            int i = 0;
-            while (i < diff) {
-                zeros = zeros + "0";
-                i = i + 1;
-            }
-            return (dA + zeros, dB);
-        }
-        int diff = sA - sB;
-        String zeros = "";
-        int i = 0;
-        while (i < diff) {
-            zeros = zeros + "0";
-            i = i + 1;
-        }
-        return (dA, dB + zeros);
     }
 
     // ---- Arithmetic ----
 
     public Decimal add(Decimal other) {
-        (String a, String b) = Decimal.alignScales(this.digits, this.scale, other.digits, other.scale);
+        (String a, String b) = DecimalArithmetic.alignScales(this.digits, this.scale, other.digits, other.scale);
         int newScale = this.scale;
         if (other.scale > newScale) { newScale = other.scale; }
         if (this.negative == other.negative) {
-            String sum = Decimal.addDigitStrings(a, b);
+            String sum = DecimalArithmetic.addDigitStrings(a, b);
             return new Decimal(this.negative, sum, newScale);
         }
-        int cmp = Decimal.compareDigitStrings(a, b);
+        int cmp = DecimalArithmetic.compareDigitStrings(a, b);
         if (cmp == 0) { return new Decimal(false, "0", 0); }
         if (cmp > 0) {
-            String diff = Decimal.subDigitStrings(a, b);
+            String diff = DecimalArithmetic.subDigitStrings(a, b);
             return new Decimal(this.negative, diff, newScale);
         }
-        String diff = Decimal.subDigitStrings(b, a);
+        String diff = DecimalArithmetic.subDigitStrings(b, a);
         return new Decimal(other.negative, diff, newScale);
     }
 
@@ -227,14 +77,14 @@ public class Decimal {
     }
 
     public Decimal mul(Decimal other) {
-        String product = Decimal.mulDigitStrings(this.digits, other.digits);
+        String product = DecimalArithmetic.mulDigitStrings(this.digits, other.digits);
         int newScale = this.scale + other.scale;
         bool neg = this.negative != other.negative;
         return new Decimal(neg, product, newScale);
     }
 
     public Decimal div(Decimal other) {
-        if (Decimal.isZeroStr(other.digits)) {
+        if (DecimalArithmetic.isZeroStr(other.digits)) {
             return new Decimal(false, "0", 0);
         }
         // Multiply numerator by 10^precision to get desired decimal places
@@ -251,25 +101,25 @@ public class Decimal {
         String quotient = "";
         String remainder = "";
         int idx = 0;
-        while (idx < paddedNum.length() || !Decimal.isZeroStr(remainder)) {
+        while (idx < paddedNum.length() || !DecimalArithmetic.isZeroStr(remainder)) {
             int digit = 0;
             if (idx < paddedNum.length()) {
                 digit = paddedNum.charAt(idx) - "0".charAt(0);
             }
             remainder = remainder + Integer.toString(digit);
-            remainder = Decimal.stripLeadingZeros(remainder);
-            if (Decimal.isZeroStr(remainder)) { remainder = ""; }
+            remainder = DecimalArithmetic.stripLeadingZeros(remainder);
+            if (DecimalArithmetic.isZeroStr(remainder)) { remainder = ""; }
             int count = 0;
-            while (Decimal.compareDigitStrings(remainder, other.digits) >= 0 && !Decimal.isZeroStr(remainder)) {
-                remainder = Decimal.subDigitStrings(remainder, other.digits);
+            while (DecimalArithmetic.compareDigitStrings(remainder, other.digits) >= 0 && !DecimalArithmetic.isZeroStr(remainder)) {
+                remainder = DecimalArithmetic.subDigitStrings(remainder, other.digits);
                 count = count + 1;
             }
             quotient = quotient + Integer.toString(count);
             idx = idx + 1;
             if (idx > paddedNum.length() + precision) { break; }
         }
-        quotient = Decimal.stripLeadingZeros(quotient);
-        if (Decimal.isZeroStr(quotient)) { quotient = "0"; }
+        quotient = DecimalArithmetic.stripLeadingZeros(quotient);
+        if (DecimalArithmetic.isZeroStr(quotient)) { quotient = "0"; }
         bool neg = this.negative != other.negative;
         return new Decimal(neg, quotient, effectiveScale);
     }
@@ -279,8 +129,8 @@ public class Decimal {
     public int compareTo(Decimal other) {
         if (this.negative && !other.negative) { return -1; }
         if (!this.negative && other.negative) { return 1; }
-        (String a, String b) = Decimal.alignScales(this.digits, this.scale, other.digits, other.scale);
-        int cmp = Decimal.compareDigitStrings(a, b);
+        (String a, String b) = DecimalArithmetic.alignScales(this.digits, this.scale, other.digits, other.scale);
+        int cmp = DecimalArithmetic.compareDigitStrings(a, b);
         if (this.negative) { cmp = -cmp; }
         return cmp;
     }
