@@ -191,9 +191,7 @@ public class ForceField {
                         mol.atoms.get(end1), mol.atoms.get(shared), mol.atoms.get(end2),
                         mol.atoms.get(end2)  // simplified: no 4th atom, use 0 energy contribution
                     );
-                    // Use a simplified torsion based on the angle
-                    double angle = ForceField.computeAngle(mol.atoms.get(end1), mol.atoms.get(shared), mol.atoms.get(end2));
-                    e = e + kTors * (1.0 + Math.cos(n * angle - phi0));
+                    e = e + kTors * (1.0 + Math.cos(n * phi - phi0));
                 }
                 b2 = b2 + 1;
             }
