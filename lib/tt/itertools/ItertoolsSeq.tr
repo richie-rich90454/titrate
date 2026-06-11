@@ -1,0 +1,209 @@
+import tt::util::ArrayList;
+
+// ItertoolsSeq: sequential iteration utilities (chain, accumulate, cycle, islice, zipLongest, count, repeat, starmap, compress, filterFalse, dropWhile, takeWhile, groupby)
+public class ItertoolsSeq {
+    // Flatten an ArrayList of ArrayLists into a single ArrayList.
+    public static ArrayList<T> chain<T>(ArrayList<ArrayList<T>> iterables) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < iterables.size()) {
+            ArrayList<T> inner = iterables.get(i);
+            int j = 0;
+            while (j < inner.size()) {
+                result.add(inner.get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Running accumulation with a binary function.
+    public static ArrayList<T> accumulate<T>(ArrayList<T> arr, function<T(T, T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        if (arr.size() == 0) {
+            return result;
+        }
+        T acc = arr.get(0);
+        result.add(acc);
+        int i = 1;
+        while (i < arr.size()) {
+            acc = fn(acc, arr.get(i));
+            result.add(acc);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Repeat the array n times (cycle).
+    public static ArrayList<T> cycle<T>(ArrayList<T> arr, int n) {
+        ArrayList<T> result = new ArrayList<T>();
+        int c = 0;
+        while (c < n) {
+            int i = 0;
+            while (i < arr.size()) {
+                result.add(arr.get(i));
+                i = i + 1;
+            }
+            c = c + 1;
+        }
+        return result;
+    }
+
+    // Slice with step (islice).
+    public static ArrayList<T> islice<T>(ArrayList<T> arr, int start, int stop, int step) {
+        ArrayList<T> result = new ArrayList<T>();
+        if (step <= 0) {
+            return result;
+        }
+        int i = start;
+        while (i < stop && i < arr.size()) {
+            result.add(arr.get(i));
+            i = i + step;
+        }
+        return result;
+    }
+
+    // Zip longest: zip two arrays, filling missing with fillValue.
+    public static ArrayList<ArrayList<Object>> zipLongest<T, U>(ArrayList<T> a, ArrayList<U> b, Object fillValue) {
+        ArrayList<ArrayList<Object>> result = new ArrayList<ArrayList<Object>>();
+        int maxLen = a.size();
+        if (b.size() > maxLen) {
+            maxLen = b.size();
+        }
+        int i = 0;
+        while (i < maxLen) {
+            ArrayList<Object> pair = new ArrayList<Object>();
+            if (i < a.size()) {
+                pair.add(a.get(i));
+            } else {
+                pair.add(fillValue);
+            }
+            if (i < b.size()) {
+                pair.add(b.get(i));
+            } else {
+                pair.add(fillValue);
+            }
+            result.add(pair);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Generate a count sequence: start, start+step, ..., n values.
+    public static ArrayList<int> count(int start, int step, int n) {
+        ArrayList<int> result = new ArrayList<int>();
+        int i = 0;
+        while (i < n) {
+            result.add(start + i * step);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Repeat a value n times.
+    public static ArrayList<T> repeat<T>(T value, int n) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < n) {
+            result.add(value);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Starmap: apply function to each argument list.
+    public static ArrayList<T> starmap<T>(function<T(ArrayList<Object>)> fn, ArrayList<ArrayList<Object>> args) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < args.size()) {
+            result.add(fn(args.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Compress: filter data by selectors.
+    public static ArrayList<T> compress<T>(ArrayList<T> data, ArrayList<bool> selectors) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < data.size() && i < selectors.size()) {
+            if (selectors.get(i)) {
+                result.add(data.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Filter false: keep elements where fn returns false.
+    public static ArrayList<T> filterFalse<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < arr.size()) {
+            if (!fn(arr.get(i))) {
+                result.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Drop while: drop elements while fn returns true.
+    public static ArrayList<T> dropWhile<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        bool dropping = true;
+        while (i < arr.size()) {
+            if (dropping && fn(arr.get(i))) {
+                // skip
+            } else {
+                dropping = false;
+                result.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Take while: take elements while fn returns true.
+    public static ArrayList<T> takeWhile<T>(ArrayList<T> arr, function<bool(T)> fn) {
+        ArrayList<T> result = new ArrayList<T>();
+        int i = 0;
+        while (i < arr.size()) {
+            if (fn(arr.get(i))) {
+                result.add(arr.get(i));
+            } else {
+                break;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Group consecutive elements by key function.
+    public static ArrayList<ArrayList<T>> groupby<T, K>(ArrayList<T> arr, function<K(T)> fn) {
+        ArrayList<ArrayList<T>> result = new ArrayList<ArrayList<T>>();
+        if (arr.size() == 0) {
+            return result;
+        }
+        ArrayList<T> currentGroup = new ArrayList<T>();
+        K currentKey = fn(arr.get(0));
+        currentGroup.add(arr.get(0));
+        int i = 1;
+        while (i < arr.size()) {
+            K key = fn(arr.get(i));
+            if (key == currentKey) {
+                currentGroup.add(arr.get(i));
+            } else {
+                result.add(currentGroup);
+                currentGroup = new ArrayList<T>();
+                currentKey = key;
+                currentGroup.add(arr.get(i));
+            }
+            i = i + 1;
+        }
+        result.add(currentGroup);
+        return result;
+    }
+}
