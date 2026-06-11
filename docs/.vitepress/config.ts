@@ -17,6 +17,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Reference', link: '/reference/lexer' },
+      { text: 'Stdlib', link: '/stdlib/itertools' },
     ],
     sidebar: {
       '/guide/': [
@@ -56,6 +57,21 @@ export default defineConfig({
             { text: 'Grammar', link: '/reference/grammar' },
             { text: 'Types', link: '/reference/types' },
             { text: 'Memory Model', link: '/reference/memory-model' },
+          ],
+        },
+      ],
+      '/stdlib/': [
+        {
+          text: 'Standard Library Reference',
+          items: [
+            { text: 'itertools', link: '/stdlib/itertools' },
+            { text: 'functools', link: '/stdlib/functools' },
+            { text: 'statistics', link: '/stdlib/statistics' },
+            { text: 'algorithms', link: '/stdlib/algorithms' },
+            { text: 'argparse', link: '/stdlib/argparse' },
+            { text: 'logging', link: '/stdlib/logging' },
+            { text: 'Complex', link: '/stdlib/complex' },
+            { text: 'Fraction', link: '/stdlib/fractions' },
           ],
         },
       ],
