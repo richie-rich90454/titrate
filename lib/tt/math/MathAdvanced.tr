@@ -1,0 +1,152 @@
+import tt::lang::Integer;
+
+// MathAdvanced: logarithmic, exponential, power, IEEE-754, and exact arithmetic functions
+public class MathAdvanced {
+    // Logarithmic
+    public static double ln(double x) {
+        return Math_ln(x);
+    }
+
+    public static double log10(double x) {
+        return Math_log10(x);
+    }
+
+    public static double log2(double x) {
+        return Math_log2(x);
+    }
+
+    public static double log(double base, double x) {
+        return Math_ln(x) / Math_ln(base);
+    }
+
+    public static double log1p(double x) {
+        if (Math_abs(x) < 1e-8) {
+            return x - x * x / 2.0 + x * x * x / 3.0;
+        }
+        return Math_ln(1.0 + x);
+    }
+
+    // Exponential
+    public static double exp(double x) {
+        return Math_exp(x);
+    }
+
+    public static double expm1(double x) {
+        if (Math_abs(x) < 1e-8) {
+            return x + x * x / 2.0 + x * x * x / 6.0;
+        }
+        return Math_exp(x) - 1.0;
+    }
+
+    public static double pow(double base, double exp) {
+        return Math_pow(base, exp);
+    }
+
+    public static double sqrt(double x) {
+        return Math_sqrt(x);
+    }
+
+    public static double cbrt(double x) {
+        return Math_cbrt(x);
+    }
+
+    // Utility
+    public static double hypot(double a, double b) {
+        return Math_sqrt(a * a + b * b);
+    }
+
+    // Fused multiply-add: a * b + c
+    public static double fma(double a, double b, double c) {
+        return a * b + c;
+    }
+
+    // IEEE-754 helpers
+    public static double copySign(double magnitude, double sign) {
+        if (sign < 0.0) {
+            if (magnitude < 0.0) { return magnitude; }
+            return -magnitude;
+        }
+        if (magnitude < 0.0) { return -magnitude; }
+        return magnitude;
+    }
+
+    public static double nextUp(double x) {
+        return Math_nextUp(x);
+    }
+
+    public static double nextDown(double x) {
+        return Math_nextDown(x);
+    }
+
+    public static double ulp(double x) {
+        return Math_ulp(x);
+    }
+
+    public static int getExponent(double x) {
+        return Math_getExponent(x);
+    }
+
+    public static double scalb(double x, int scaleFactor) {
+        return Math_scalb(x, scaleFactor);
+    }
+
+    // Integer division that floors toward negative infinity
+    public static long floorDiv(long a, long b) {
+        long q = a / b;
+        if ((a ^ b) < 0 && q * b != a) {
+            q = q - 1;
+        }
+        return q;
+    }
+
+    // Floor modulus
+    public static long floorMod(long a, long b) {
+        return a - MathAdvanced.floorDiv(a, b) * b;
+    }
+
+    // Exact arithmetic (throw on overflow - returns clamped value as fallback)
+    public static long addExact(long a, long b) {
+        long result = a + b;
+        if (((a ^ result) & (b ^ result)) < 0) {
+            return Math_maxInt();
+        }
+        return result;
+    }
+
+    public static long subtractExact(long a, long b) {
+        long result = a - b;
+        if (((a ^ b) & (a ^ result)) < 0) {
+            return Math_minInt();
+        }
+        return result;
+    }
+
+    public static long multiplyExact(long a, long b) {
+        long result = a * b;
+        if (a != 0 && result / a != b) {
+            return Math_maxInt();
+        }
+        return result;
+    }
+
+    public static long incrementExact(long a) {
+        if (a == Math_maxInt()) { return Math_maxInt(); }
+        return a + 1;
+    }
+
+    public static long decrementExact(long a) {
+        if (a == Math_minInt()) { return Math_minInt(); }
+        return a - 1;
+    }
+
+    public static long negateExact(long a) {
+        if (a == Math_minInt()) { return Math_maxInt(); }
+        return -a;
+    }
+
+    public static int toIntExact(long value) {
+        if (value > 2147483647L) { return 2147483647; }
+        if (value < -2147483648L) { return -2147483648; }
+        return (int) value;
+    }
+}

@@ -1,0 +1,58 @@
+// MathTrig: trigonometric and hyperbolic functions
+public class MathTrig {
+    // Trigonometric
+    public static double sin(double x) {
+        return Math_sin(x);
+    }
+
+    public static double cos(double x) {
+        return Math_cos(x);
+    }
+
+    public static double tan(double x) {
+        return Math_tan(x);
+    }
+
+    public static double asin(double x) {
+        return Math_asin(x);
+    }
+
+    public static double acos(double x) {
+        return Math_acos(x);
+    }
+
+    public static double atan(double x) {
+        return Math_atan(x);
+    }
+
+    public static double atan2(double y, double x) {
+        return Math_atan2(y, x);
+    }
+
+    // Hyperbolic
+    public static double sinh(double x) {
+        return (Math_exp(x) - Math_exp(-x)) / 2.0;
+    }
+
+    public static double cosh(double x) {
+        return (Math_exp(x) + Math_exp(-x)) / 2.0;
+    }
+
+    public static double tanh(double x) {
+        return MathTrig.sinh(x) / MathTrig.cosh(x);
+    }
+
+    public static double asinh(double x) {
+        return Math_ln(x + Math_sqrt(x * x + 1.0));
+    }
+
+    public static double acosh(double x) {
+        if (x < 1.0) { return Math_nan(); }
+        return Math_ln(x + Math_sqrt(x * x - 1.0));
+    }
+
+    public static double atanh(double x) {
+        if (x <= -1.0 || x >= 1.0) { return Math_nan(); }
+        return 0.5 * Math_ln((1.0 + x) / (1.0 - x));
+    }
+}
