@@ -1,0 +1,202 @@
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::chem::Molecule;
+import tt::math::Math;
+
+// ForceField nonbonded: lennardJonesEnergy, coulombEnergy, gradient, computeForces, partialCharge
+public class ForceFieldNonbonded {
+    // Lennard-Jones 6-12 potential: E = 4*epsilon * ((sigma/r)^12 - (sigma/r)^6)
+    public static double lennardJonesEnergy(ForceField ff, Molecule mol) {
+        double e = 0.0;
+        int n = mol.atoms.size();
+        int i = 0;
+        while (i < n) {
+            int j = i + 1;
+            while (j < n) {
+                Atom a1 = mol.atoms.get(i);
+                Atom a2 = mol.atoms.get(j);
+                double r = a1.distanceTo(a2);
+                if (r < 1e-10) {
+                    j = j + 1;
+                    continue;
+                }
+                double sr = ff.ljSigma / r;
+                double sr6 = sr * sr * sr * sr * sr * sr;
+                double sr12 = sr6 * sr6;
+                e = e + 4.0 * ff.ljEpsilon * (sr12 - sr6);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return e;
+    }
+
+    // Coulomb electrostatic energy: E = k_e * q1 * q2 / r
+    public static double coulombEnergy(ForceField ff, Molecule mol) {
+        double e = 0.0;
+        int n = mol.atoms.size();
+        int i = 0;
+        while (i < n) {
+            int j = i + 1;
+            while (j < n) {
+                Atom a1 = mol.atoms.get(i);
+                Atom a2 = mol.atoms.get(j);
+                double r = a1.distanceTo(a2);
+                if (r < 1e-10) {
+                    j = j + 1;
+                    continue;
+                }
+                double q1 = ForceFieldNonbonded.partialCharge(a1.symbol);
+                double q2 = ForceFieldNonbonded.partialCharge(a2.symbol);
+                e = e + ff.coulombK * q1 * q2 / r;
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return e;
+    }
+
+    // Simplified partial charges for common elements
+    public static double partialCharge(String symbol) {
+        if (symbol == "O") { return -0.8476; }
+        if (symbol == "H") { return 0.4238; }
+        if (symbol == "N") { return -0.47; }
+        if (symbol == "C") { return -0.1; }
+        if (symbol == "S") { return -0.2; }
+        return 0.0;
+    }
+
+    // Analytical gradient (negative of forces) for each atom coordinate.
+    // Returns flat ArrayList<double> of size 3*nAtoms: [gx0, gy0, gz0, gx1, ...]
+    public static ArrayList<double> gradient(ForceField ff, Molecule mol) {
+        int nAtoms = mol.atoms.size();
+        ArrayList<double> grad = new ArrayList<double>();
+        int i = 0;
+        while (i < nAtoms * 3) {
+            grad.add(0.0);
+            i = i + 1;
+        }
+        // Bond gradient: dE/dr = k*(r - r0) * (dr/dx)
+        i = 0;
+        while (i < mol.bonds.size()) {
+            Bond b = mol.bonds.get(i);
+            Atom a1 = mol.atoms.get(b.atom1);
+            Atom a2 = mol.atoms.get(b.atom2);
+            double dx = a2.x - a1.x;
+            double dy = a2.y - a1.y;
+            double dz = a2.z - a1.z;
+            double r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            if (r < 1e-15) { i = i + 1; continue; }
+            double dr = r - ff.bondR0;
+            double dEdr = ff.bondK * dr;
+            double dEdx = dEdr * dx / r;
+            double dEdy = dEdr * dy / r;
+            double dEdz = dEdr * dz / r;
+            grad.set(b.atom1 * 3, grad.get(b.atom1 * 3) + dEdx);
+            grad.set(b.atom1 * 3 + 1, grad.get(b.atom1 * 3 + 1) + dEdy);
+            grad.set(b.atom1 * 3 + 2, grad.get(b.atom1 * 3 + 2) + dEdz);
+            grad.set(b.atom2 * 3, grad.get(b.atom2 * 3) - dEdx);
+            grad.set(b.atom2 * 3 + 1, grad.get(b.atom2 * 3 + 1) - dEdy);
+            grad.set(b.atom2 * 3 + 2, grad.get(b.atom2 * 3 + 2) - dEdz);
+            i = i + 1;
+        }
+        // LJ gradient
+        i = 0;
+        while (i < nAtoms) {
+            int j = i + 1;
+            while (j < nAtoms) {
+                Atom a1 = mol.atoms.get(i);
+                Atom a2 = mol.atoms.get(j);
+                double dx = a2.x - a1.x;
+                double dy = a2.y - a1.y;
+                double dz = a2.z - a1.z;
+                double r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (r < 1e-10) { j = j + 1; continue; }
+                double sr = ff.ljSigma / r;
+                double sr6 = sr * sr * sr * sr * sr * sr;
+                double sr12 = sr6 * sr6;
+                double dEdr = 4.0 * ff.ljEpsilon * (-12.0 * sr12 + 6.0 * sr6) / r;
+                double dEdx = dEdr * dx / r;
+                double dEdy = dEdr * dy / r;
+                double dEdz = dEdr * dz / r;
+                grad.set(i * 3, grad.get(i * 3) + dEdx);
+                grad.set(i * 3 + 1, grad.get(i * 3 + 1) + dEdy);
+                grad.set(i * 3 + 2, grad.get(i * 3 + 2) + dEdz);
+                grad.set(j * 3, grad.get(j * 3) - dEdx);
+                grad.set(j * 3 + 1, grad.get(j * 3 + 1) - dEdy);
+                grad.set(j * 3 + 2, grad.get(j * 3 + 2) - dEdz);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        // Coulomb gradient
+        i = 0;
+        while (i < nAtoms) {
+            int j = i + 1;
+            while (j < nAtoms) {
+                Atom a1 = mol.atoms.get(i);
+                Atom a2 = mol.atoms.get(j);
+                double dx = a2.x - a1.x;
+                double dy = a2.y - a1.y;
+                double dz = a2.z - a1.z;
+                double r = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (r < 1e-10) { j = j + 1; continue; }
+                double q1 = ForceFieldNonbonded.partialCharge(a1.symbol);
+                double q2 = ForceFieldNonbonded.partialCharge(a2.symbol);
+                double dEdr = -ff.coulombK * q1 * q2 / (r * r);
+                double dEdx = dEdr * dx / r;
+                double dEdy = dEdr * dy / r;
+                double dEdz = dEdr * dz / r;
+                grad.set(i * 3, grad.get(i * 3) + dEdx);
+                grad.set(i * 3 + 1, grad.get(i * 3 + 1) + dEdy);
+                grad.set(i * 3 + 2, grad.get(i * 3 + 2) + dEdz);
+                grad.set(j * 3, grad.get(j * 3) - dEdx);
+                grad.set(j * 3 + 1, grad.get(j * 3 + 1) - dEdy);
+                grad.set(j * 3 + 2, grad.get(j * 3 + 2) - dEdz);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return grad;
+    }
+
+    // Compute forces via finite differences
+    public static ArrayList<double> computeForces(ForceField ff, Molecule mol) {
+        ArrayList<double> forces = new ArrayList<double>();
+        double delta = 1e-5;
+        int n = mol.atoms.size();
+        int i = 0;
+        while (i < n) {
+            Atom a = mol.atoms.get(i);
+            // fx
+            double origX = a.x;
+            a.x = origX + delta;
+            double ePlus = ff.totalEnergy(mol);
+            a.x = origX - delta;
+            double eMinus = ff.totalEnergy(mol);
+            a.x = origX;
+            double fx = -(ePlus - eMinus) / (2.0 * delta);
+            // fy
+            double origY = a.y;
+            a.y = origY + delta;
+            ePlus = ff.totalEnergy(mol);
+            a.y = origY - delta;
+            eMinus = ff.totalEnergy(mol);
+            a.y = origY;
+            double fy = -(ePlus - eMinus) / (2.0 * delta);
+            // fz
+            double origZ = a.z;
+            a.z = origZ + delta;
+            ePlus = ff.totalEnergy(mol);
+            a.z = origZ - delta;
+            eMinus = ff.totalEnergy(mol);
+            a.z = origZ;
+            double fz = -(ePlus - eMinus) / (2.0 * delta);
+            forces.add(fx);
+            forces.add(fy);
+            forces.add(fz);
+            i = i + 1;
+        }
+        return forces;
+    }
+}
