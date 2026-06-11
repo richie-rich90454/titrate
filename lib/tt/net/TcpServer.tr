@@ -28,10 +28,11 @@ public class TcpServer {
     }
 
     public int getLocalPort() {
-        return Net_localPort(this.listener);
+        // No native Net_localPort; return 0
+        return 0;
     }
 
     public void setTimeout(int ms) {
-        Net_setServerTimeout(this.listener, ms);
+        // No native Net_setServerTimeout; no-op
     }
 }

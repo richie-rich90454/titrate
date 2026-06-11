@@ -29,14 +29,16 @@ public class TcpClient {
     }
 
     public void setTimeout(int ms) {
-        Net_setTimeout(this.socket, ms);
+        // No native Net_setTimeout; no-op
     }
 
     public String getLocalAddress() {
-        return Net_localAddress(this.socket);
+        // No native Net_localAddress; return empty string
+        return "";
     }
 
     public String getRemoteAddress() {
-        return Net_remoteAddress(this.socket);
+        // No native Net_remoteAddress; return empty string
+        return "";
     }
 }

@@ -4,16 +4,35 @@ import tt::lang::String;
 public class Tempfile {
     // Create a temporary file and return its path.
     public static String createTempFile() {
-        return Tempfile_createFile();
+        return Tempfile_create();
     }
 
     // Create a temporary directory and return its path.
     public static String createTempDir() {
-        return Tempfile_createDir();
+        // Use Tempfile_create to get a temp path, then create a dir there
+        String basePath = Tempfile.getTempDir();
+        String dirName = "tmpdir_" + Integer.toString((int)(Math_random() * 1000000));
+        String dirPath = Path_join(basePath, dirName);
+        Dir_create(dirPath);
+        return dirPath;
     }
 
     // Get the system's temporary directory path.
     public static String getTempDir() {
-        return Tempfile_getDir();
+        // Try environment variables for temp dir
+        String tmp = Sys_env("TEMP");
+        if (tmp != null && tmp.length() > 0) {
+            return tmp;
+        }
+        tmp = Sys_env("TMP");
+        if (tmp != null && tmp.length() > 0) {
+            return tmp;
+        }
+        tmp = Sys_env("TMPDIR");
+        if (tmp != null && tmp.length() > 0) {
+            return tmp;
+        }
+        // Fallback
+        return "/tmp";
     }
 }
