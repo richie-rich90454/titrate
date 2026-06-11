@@ -1343,6 +1343,12 @@ impl Compiler {
                 Box::new(Self::substitute_expr(end, type_args)),
                 *span,
             ),
+            ast::Expr::Ternary { condition, then_expr, else_expr, span } => ast::Expr::Ternary {
+                condition: Box::new(Self::substitute_expr(condition, type_args)),
+                then_expr: Box::new(Self::substitute_expr(then_expr, type_args)),
+                else_expr: Box::new(Self::substitute_expr(else_expr, type_args)),
+                span: *span,
+            },
         }
     }
 
@@ -3055,6 +3061,9 @@ impl Compiler {
             ast::Expr::Assign(target, value, span) => {
                 self.compile_assign(target, value, span.line)?;
             }
+            ast::Expr::Ternary { condition, then_expr, else_expr, span } => {
+                self.compile_ternary(condition, then_expr, else_expr, span.line)?;
+            }
             ast::Expr::Unit(span) => {
                 self.emit_opcode(OpCode::PUSH_VOID, span.line);
             }
@@ -3664,6 +3673,45 @@ impl Compiler {
         Ok(())
     }
 
+    fn compile_ternary(
+        &mut self,
+        condition: &ast::Expr,
+        then_expr: &ast::Expr,
+        else_expr: &ast::Expr,
+        line: u32,
+    ) -> Result<(), String> {
+        // 1. Compile condition
+        self.compile_expr(condition)?;
+        self.emit_opcode(OpCode::JMP_IF_FALSE, line);
+        let else_jump_offset = self.current_ip();
+        self.emit_i16(0, line); // placeholder
+
+        // 2. Compile then_expr (leaves value on stack)
+        self.compile_expr(then_expr)?;
+
+        // 3. Jump over else_expr
+        self.emit_opcode(OpCode::JMP, line);
+        let end_jump_offset = self.current_ip();
+        self.emit_i16(0, line); // placeholder
+
+        // 4. Patch else jump
+        let else_start = self.current_ip();
+        let else_instr_end = else_jump_offset + 2;
+        let offset = (else_start - else_instr_end) as i16;
+        self.patch_i16_at(else_jump_offset, offset);
+
+        // 5. Compile else_expr (leaves value on stack)
+        self.compile_expr(else_expr)?;
+
+        // 6. Patch end jump
+        let end_ip = self.current_ip();
+        let end_instr_end = end_jump_offset + 2;
+        let offset = (end_ip - end_instr_end) as i16;
+        self.patch_i16_at(end_jump_offset, offset);
+
+        Ok(())
+    }
+
     fn compile_closure(
         &mut self,
         params: &[(String, ast::Type)],
@@ -3833,6 +3881,7 @@ impl Compiler {
                 }
             }
             ast::Expr::Assign(_, _, _) => InferredType::Unknown,
+            ast::Expr::Ternary { .. } => InferredType::Unknown,
             ast::Expr::Unit(_) => InferredType::Void,
             ast::Expr::Tuple(_, _) => InferredType::Unknown,
             ast::Expr::Closure { .. } => InferredType::Unknown,
