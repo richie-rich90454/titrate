@@ -14,7 +14,7 @@ public class Stopwatch {
 
     public Stopwatch start() {
         if (!this.running) {
-            this.startTime = Time_nanos();
+            this.startTime = Time_now() * 1000000;
             this.running = true;
         }
         return this;
@@ -22,7 +22,7 @@ public class Stopwatch {
 
     public Stopwatch stop() {
         if (this.running) {
-            this.elapsed = this.elapsed + (Time_nanos() - this.startTime);
+            this.elapsed = this.elapsed + (Time_now() * 1000000 - this.startTime);
             this.running = false;
         }
         return this;
@@ -38,7 +38,7 @@ public class Stopwatch {
     public Duration elapsed() {
         long total = this.elapsed;
         if (this.running) {
-            total = total + (Time_nanos() - this.startTime);
+            total = total + (Time_now() * 1000000 - this.startTime);
         }
         return new Duration(total / 1000000);
     }
