@@ -870,6 +870,23 @@ impl Interpreter {
                     Ok(ControlFlow::None)
                 }
             }
+            ast::Stmt::With(with_stmt) => {
+                let resource = self.eval_expr_with_env(&with_stmt.resource_expr, &env)?;
+                let with_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));
+
+                // Bind the resource to a variable if a name was given.
+                if let Some(ref name) = with_stmt.var_name {
+                    with_env.borrow_mut().set(name, resource.clone());
+                }
+
+                // Execute the body.
+                let cf = self.exec_block(&with_stmt.body, with_env.clone());
+
+                // Always call .close() on the resource (finally-like semantics).
+                let _ = self.call_method(&resource, "close", &[]);
+
+                cf
+            }
             ast::Stmt::VarDecl(var_decl) => {
                 let val = match &var_decl.init {
                     Some(init) => self.eval_expr_with_env(init, &env)?,

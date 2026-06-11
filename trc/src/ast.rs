@@ -356,6 +356,18 @@ pub struct SwitchStmt {
     pub span: Span,
 }
 
+/// With statement (context manager / RAII).
+/// `with (resource) { body }` or `with (let f: T = expr) { body }`
+/// The resource's `.close()` method is called automatically when the body exits.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WithStmt {
+    pub resource_expr: Expr,
+    pub var_name: Option<String>,
+    pub var_type: Option<Type>,
+    pub body: Block,
+    pub span: Span,
+}
+
 /// Statement.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
@@ -371,6 +383,7 @@ pub enum Stmt {
     Break,
     Continue,
     Switch(SwitchStmt),
+    With(WithStmt),
     VarDecl(VarDecl),
     ConstDecl(VarDecl),
     TupleDestructure { names: Vec<String>, expr: Expr, mutable: bool, span: Span },

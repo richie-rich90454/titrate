@@ -1140,6 +1140,10 @@ impl Parser {
                 self.advance();
                 self.parse_switch_stmt()
             }
+            lexer::Token::With => {
+                self.advance();
+                self.parse_with_stmt()
+            }
             lexer::Token::Let => {
                 self.advance();
                 // Check for tuple destructuring: let (a, b, ...) = expr;
@@ -1525,6 +1529,44 @@ impl Parser {
             let stmt = self.parse_stmt()?;
             Ok(vec![stmt])
         }
+    }
+
+    /// Parse a with-statement: `with (resource) { body }` or `with (let f: T = expr) { body }`
+    fn parse_with_stmt(&mut self) -> Result<ast::Stmt, String> {
+        let span = self.make_span();
+        self.expect(&lexer::Token::LeftParen)?;
+
+        // Check for `let name [: Type] = expr` form
+        let (resource_expr, var_name, var_type) = if self.match_token(&lexer::Token::Let) {
+            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+            let name = match name_tok {
+                lexer::Token::Identifier(s) => s,
+                _ => return Err(format!("Expected identifier after 'with let', found {}", name_tok)),
+            };
+            let typ = if self.match_token(&lexer::Token::Colon) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            self.expect(&lexer::Token::Equals)?;
+            let expr = self.parse_expression()?;
+            (expr, Some(name), typ)
+        } else {
+            // Simple form: with (expr) { body }
+            let expr = self.parse_expression()?;
+            (expr, None, None)
+        };
+
+        self.expect(&lexer::Token::RightParen)?;
+        let body = self.parse_block()?;
+
+        Ok(ast::Stmt::With(ast::WithStmt {
+            resource_expr,
+            var_name,
+            var_type,
+            body,
+            span,
+        }))
     }
 }
 

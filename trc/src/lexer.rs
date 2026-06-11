@@ -40,6 +40,7 @@ pub enum Token {
     Switch,
     Case,
     Default,
+    With,
 
     // Literal keywords
     True,
@@ -191,6 +192,7 @@ impl fmt::Display for Token {
             Token::Switch => write!(f, "switch"),
             Token::Case => write!(f, "case"),
             Token::Default => write!(f, "default"),
+            Token::With => write!(f, "with"),
             Token::True => write!(f, "true"),
             Token::False => write!(f, "false"),
             Token::Null => write!(f, "null"),
@@ -932,6 +934,7 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                     "switch" => Token::Switch,
                     "case" => Token::Case,
                     "default" => Token::Default,
+                    "with" => Token::With,
                     "true" => Token::BoolLiteral(true),
                     "false" => Token::BoolLiteral(false),
                     "null" => Token::NullLiteral,

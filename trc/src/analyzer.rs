@@ -1109,6 +1109,27 @@ impl Analyzer {
             ast::Stmt::Switch(sw) => {
                 self.analyze_switch(sw, scope);
             }
+            ast::Stmt::With(with_stmt) => {
+                self.analyze_expr(&mut with_stmt.resource_expr, scope);
+                let with_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
+                if let Some(ref name) = with_stmt.var_name {
+                    let res_type = self.infer_expr_type(&with_stmt.resource_expr, scope);
+                    with_scope.borrow_mut().define(
+                        name.clone(),
+                        Symbol::Variable {
+                            typ: res_type,
+                            mutable: false,
+                        },
+                    );
+                    self.var_states.insert(name.clone(), VarState::Live);
+                    self.local_vars.push(name.clone());
+                }
+                self.analyze_block(&mut with_stmt.body, &with_scope);
+                if let Some(ref name) = with_stmt.var_name {
+                    self.var_states.remove(name);
+                    self.local_vars.retain(|v| v != name);
+                }
+            }
             ast::Stmt::VarDecl(v) => {
                 self.analyze_var_decl(v, scope);
             }
@@ -2212,6 +2233,12 @@ impl Analyzer {
                 }
             }
             ast::Stmt::Break | ast::Stmt::Continue => {}
+            ast::Stmt::With(ws) => {
+                self.collect_captured_vars_from_expr(&ws.resource_expr, param_names, outer_scope, captured);
+                for s in &ws.body {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+            }
             ast::Stmt::TupleDestructure { expr, .. } => {
                 self.collect_captured_vars_from_expr(expr, param_names, outer_scope, captured);
             }
