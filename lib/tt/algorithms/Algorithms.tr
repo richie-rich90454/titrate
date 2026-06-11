@@ -2,7 +2,7 @@
 // numeric operations, and sequence transformations.
 import tt::util::ArrayList;
 import tt::random::Random;
-import tt.math.Math;
+import tt::math::Math;
 
 public class Algorithms {
     // --- Sorting ---

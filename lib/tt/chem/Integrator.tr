@@ -1,9 +1,9 @@
-import tt.util.ArrayList;
-import tt.chem.Atom;
-import tt.chem.Molecule;
-import tt.chem.ForceField;
-import tt.math.Math;
-import tt.lang.Double;
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::chem::Molecule;
+import tt::chem::ForceField;
+import tt::math::Math;
+import tt::lang::Double;
 
 public class VerletIntegrator {
     public double dt;

@@ -3,25 +3,25 @@
 // ArrayList quicksort, NDArray, Matrix, JSON, regex, file I/O,
 // closures, iterators, ranges, pattern matching on Result types.
 
-import tt.chem.Atom;
-import tt.chem.Bond;
-import tt.chem.Molecule;
-import tt.chem.ForceField;
-import tt.chem.VerletIntegrator;
-import tt.chem.MD;
-import tt.chem.RHF;
-import tt.math.Math;
-import tt.math.ndarray.NDArray;
-import tt.math.linalg.Matrix;
-import tt.util.ArrayList;
-import tt.util.HashMap;
-import tt.json.Json;
-import tt.json.JsonValue;
-import tt.regex.Regex;
-import tt.regex.Match;
-import tt.lang.Integer;
-import tt.lang.Double;
-import tt.lang.Boolean;
+import tt::chem::Atom;
+import tt::chem::Bond;
+import tt::chem::Molecule;
+import tt::chem::ForceField;
+import tt::chem::VerletIntegrator;
+import tt::chem::MD;
+import tt::chem::RHF;
+import tt::math::Math;
+import tt::math::ndarray::NDArray;
+import tt::math::linalg::Matrix;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::regex::Regex;
+import tt::regex::Match;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Boolean;
 
 public fn main(): void {
     io::println("=== Titrate Alpha 0.3 – Mega Test ===");

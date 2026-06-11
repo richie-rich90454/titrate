@@ -1,7 +1,7 @@
-import tt.util.ArrayList;
-import tt.math.Math;
-import tt.lang.Integer;
-import tt.lang.Double;
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::lang::Integer;
+import tt::lang::Double;
 
 // Multi-dimensional array with generic element type.
 // For numeric operations (sum, mean, operators), T should be a numeric type (int, double).

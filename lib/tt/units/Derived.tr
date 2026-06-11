@@ -1,4 +1,4 @@
-import tt.units.Base;
+import tt::units::Base;
 
 class Joule {
     double value;

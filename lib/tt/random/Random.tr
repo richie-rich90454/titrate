@@ -1,6 +1,6 @@
 // Random provides pseudo-random number generation using Xorshift128+.
 import tt::util::ArrayList;
-import tt.math.Math;
+import tt::math::Math;
 
 public class Random {
     public long state0;

@@ -1,4 +1,4 @@
-import tt.util.ArrayList;
+import tt::util::ArrayList;
 
 interface Iterator<E> {
     fn next(): E;

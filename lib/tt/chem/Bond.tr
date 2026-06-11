@@ -1,6 +1,6 @@
-import tt.lang.Integer;
-import tt.chem.Atom;
-import tt.math.Math;
+import tt::lang::Integer;
+import tt::chem::Atom;
+import tt::math::Math;
 
 public class Bond {
     public int atom1;

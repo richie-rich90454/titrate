@@ -1,9 +1,9 @@
-import tt.util.ArrayList;
-import tt.chem.Atom;
-import tt.chem.Bond;
-import tt.math.Math;
-import tt.lang.Integer;
-import tt.lang.Double;
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::chem::Bond;
+import tt::math::Math;
+import tt::lang::Integer;
+import tt::lang::Double;
 
 public class Molecule {
     public ArrayList<Atom> atoms;

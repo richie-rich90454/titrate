@@ -1,8 +1,8 @@
-import tt.util.ArrayList;
-import tt.chem.Atom;
-import tt.chem.Bond;
-import tt.chem.Molecule;
-import tt.math.Math;
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::chem::Bond;
+import tt::chem::Molecule;
+import tt::math::Math;
 
 public class ForceField {
     // Default force field parameters

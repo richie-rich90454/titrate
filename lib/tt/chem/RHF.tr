@@ -1,11 +1,11 @@
-import tt.util.ArrayList;
-import tt.chem.Atom;
-import tt.chem.Molecule;
-import tt.math.linalg.Matrix;
-import tt.math.Math;
-import tt.lang.Double;
-import tt.lang.Integer;
-import tt.io.IO;
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::chem::Molecule;
+import tt::math::linalg::Matrix;
+import tt::math::Math;
+import tt::lang::Double;
+import tt::lang::Integer;
+import tt::io::IO;
 
 public class RHF {
     public Molecule molecule;

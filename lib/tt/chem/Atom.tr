@@ -1,8 +1,8 @@
-import tt.math.Math;
-import tt.lang.Double;
-import tt.lang.Integer;
-import tt.util.ArrayList;
-import tt.util.HashMap;
+import tt::math::Math;
+import tt::lang::Double;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+import tt::util::HashMap;
 
 public class Atom {
     public String symbol;

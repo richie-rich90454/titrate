@@ -1,8 +1,8 @@
-import tt.math.ndarray.NDArray;
-import tt.math.Math;
-import tt.util.ArrayList;
-import tt.lang.Double;
-import tt.lang.Integer;
+import tt::math::ndarray::NDArray;
+import tt::math::Math;
+import tt::util::ArrayList;
+import tt::lang::Double;
+import tt::lang::Integer;
 
 // Matrix wraps an NDArray<double> for linear algebra operations.
 public class Matrix {
