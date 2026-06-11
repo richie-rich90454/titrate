@@ -64,8 +64,8 @@ interface Iterator<E> {
         return new ChainIterator<E>(this, other);
     }
 
-    fn enumerate(): Iterator<E> {
-        return this;
+    fn enumerate(): Iterator<(int, E)> {
+        return new EnumeratedIterator<E>(this);
     }
 
     fn any(fn: function<bool(E)>): bool {
@@ -244,5 +244,26 @@ class ZipIterator<E> implements Iterator<E> {
 
     fn hasNext(): bool {
         return this.a.hasNext() && this.b.hasNext();
+    }
+}
+
+// Helper iterator that yields (index, value) pairs
+class EnumeratedIterator<E> implements Iterator<(int, E)> {
+    public int index;
+    public Iterator<E> source;
+
+    public EnumeratedIterator(Iterator<E> src) {
+        this.index = 0;
+        this.source = src;
+    }
+
+    fn next(): (int, E) {
+        (int, E) result = (this.index, this.source.next());
+        this.index = this.index + 1;
+        return result;
+    }
+
+    fn hasNext(): bool {
+        return this.source.hasNext();
     }
 }
