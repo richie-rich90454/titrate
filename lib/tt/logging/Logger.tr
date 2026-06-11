@@ -32,7 +32,8 @@ public class ConsoleHandler implements Handler {
     }
 
     private static void _printStderr(String text) {
-        Sys_stderr(text);
+        // No Sys_stderr native; use println as fallback
+        println(text);
     }
 }
 
@@ -126,6 +127,6 @@ public class Logger {
     }
 
     private static String _timestamp() {
-        return DateTime_now();
+        return Time_format(Time_now(), "%Y-%m-%d %H:%M:%S");
     }
 }

@@ -20,17 +20,17 @@ public class Time {
     }
 
     public static long micros() {
-        return Time_micros();
+        return Time_now() * 1000;
     }
 
     public static long nanos() {
-        return Time_nanos();
+        return Time_now() * 1000000;
     }
 
     public static Duration measure(fn) {
-        long start = Time_nanos();
+        long start = Time_now() * 1000000;
         fn();
-        long end = Time_nanos();
+        long end = Time_now() * 1000000;
         return new Duration((end - start) / 1000000);
     }
 
