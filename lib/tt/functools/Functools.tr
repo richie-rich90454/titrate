@@ -48,9 +48,15 @@ public class Functools {
     // Cache: memoization wrapper using HashMap.
     public static F cache<F>(F fn) {
         HashMap cacheMap = new HashMap();
-        // Return a wrapper that checks the cache before calling fn.
-        // The cached wrapper stores results keyed by argument.
-        return fn;
+        function<Object(Object)> cached = function<Object(Object)>(Object args) {
+            if (cacheMap.containsKey(args)) {
+                return cacheMap.get(args);
+            }
+            Object result = fn(args);
+            cacheMap.put(args, result);
+            return result;
+        };
+        return cached;
     }
 
     // Convert a comparator function to a boolean key function.
