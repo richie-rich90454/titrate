@@ -2000,9 +2000,13 @@ mod tests {
         let src = "++x x++ x += 1";
         let tokens = tokenize(src).expect("tokenize should succeed");
         let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        // Tokens: ++ x x ++ x += 1
         assert_eq!(token_kinds[0], &Token::PlusPlus);
-        assert_eq!(token_kinds[2], &Token::PlusPlus);
-        assert_eq!(token_kinds[4], &Token::PlusEqual);
+        assert_eq!(token_kinds[1], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[2], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[3], &Token::PlusPlus);
+        assert_eq!(token_kinds[4], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[5], &Token::PlusEqual);
     }
 
     #[test]
@@ -2011,8 +2015,12 @@ mod tests {
         let src = "--x x-- x -> y";
         let tokens = tokenize(src).expect("tokenize should succeed");
         let token_kinds: Vec<&Token> = tokens.iter().map(|st| &st.token).collect();
+        // Tokens: -- x x -- x -> y
         assert_eq!(token_kinds[0], &Token::MinusMinus);
-        assert_eq!(token_kinds[2], &Token::MinusMinus);
-        assert_eq!(token_kinds[4], &Token::Arrow);
+        assert_eq!(token_kinds[1], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[2], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[3], &Token::MinusMinus);
+        assert_eq!(token_kinds[4], &Token::Identifier("x".to_string()));
+        assert_eq!(token_kinds[5], &Token::Arrow);
     }
 }

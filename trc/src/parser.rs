@@ -4825,4 +4825,180 @@ import tt::math::NDArray;"#;
             other => panic!("Expected Function, got {:?}", other),
         }
     }
+
+    // -----------------------------------------------------------------------
+    // Increment/decrement operator tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_prefix_increment() {
+        // ++x desugars to x = x + 1
+        let src = r#"fn f(): void { ++x; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(target, value, _)) => {
+                    assert!(matches!(target.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                    match value.as_ref() {
+                        ast::Expr::Binary(left, ast::Operator::Add, right, _) => {
+                            assert!(matches!(left.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                        }
+                        other => panic!("Expected Binary(Add), got {:?}", other),
+                    }
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_prefix_decrement() {
+        // --x desugars to x = x - 1
+        let src = r#"fn f(): void { --x; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(target, value, _)) => {
+                    assert!(matches!(target.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                    match value.as_ref() {
+                        ast::Expr::Binary(left, ast::Operator::Sub, right, _) => {
+                            assert!(matches!(left.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                        }
+                        other => panic!("Expected Binary(Sub), got {:?}", other),
+                    }
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_postfix_increment() {
+        // x++ desugars to x = x + 1
+        let src = r#"fn f(): void { x++; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(target, value, _)) => {
+                    assert!(matches!(target.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                    match value.as_ref() {
+                        ast::Expr::Binary(left, ast::Operator::Add, right, _) => {
+                            assert!(matches!(left.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                        }
+                        other => panic!("Expected Binary(Add), got {:?}", other),
+                    }
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_postfix_decrement() {
+        // x-- desugars to x = x - 1
+        let src = r#"fn f(): void { x--; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(target, value, _)) => {
+                    assert!(matches!(target.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                    match value.as_ref() {
+                        ast::Expr::Binary(left, ast::Operator::Sub, right, _) => {
+                            assert!(matches!(left.as_ref(), ast::Expr::Identifier(name, _) if name == "x"));
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                        }
+                        other => panic!("Expected Binary(Sub), got {:?}", other),
+                    }
+                }
+                other => panic!("Expected Assign, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Ternary operator tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_ternary_simple() {
+        let src = r#"fn f(): int { return true ? 1 : 2; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Ternary { condition, then_expr, else_expr, .. })) => {
+                    assert!(matches!(condition.as_ref(), ast::Expr::Literal(ast::Literal::Bool(true), _)));
+                    assert!(matches!(then_expr.as_ref(), ast::Expr::Literal(ast::Literal::Int(1), _)));
+                    assert!(matches!(else_expr.as_ref(), ast::Expr::Literal(ast::Literal::Int(2), _)));
+                }
+                other => panic!("Expected Return(Ternary), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ternary_with_expressions() {
+        let src = r#"fn f(): int { return x > 0 ? x : -x; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Ternary { .. })) => {}
+                other => panic!("Expected Return(Ternary), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ternary_right_associative() {
+        // a ? b : c ? d : e  should parse as  a ? b : (c ? d : e)
+        let src = r#"fn f(): int { return a ? 1 : b ? 2 : 3; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Return(Some(ast::Expr::Ternary { else_expr, .. })) => {
+                    // else_expr should be another Ternary
+                    assert!(matches!(else_expr.as_ref(), ast::Expr::Ternary { .. }),
+                        "Expected nested Ternary in else branch");
+                }
+                other => panic!("Expected Return(Ternary), got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_ternary_in_assignment() {
+        let src = r#"fn f(): void { x = cond ? 1 : 0; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::Assign(_, value, _)) => {
+                    assert!(matches!(value.as_ref(), ast::Expr::Ternary { .. }),
+                        "Expected Ternary on right side of assignment");
+                }
+                other => panic!("Expected Assign with Ternary, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_error_propagation_still_works() {
+        // x? at end of expression should still be error propagation
+        let src = r#"fn f(): void { x?; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::Expr(ast::Expr::ErrorPropagation(_, _)) => {}
+                other => panic!("Expected ErrorPropagation, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
 }
