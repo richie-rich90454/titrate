@@ -1,0 +1,84 @@
+use super::*;
+
+// ---------------------------------------------------------------------------
+// Type parsing
+// ---------------------------------------------------------------------------
+
+impl Parser {
+    pub(super) fn parse_type(&mut self) -> Result<ast::Type, String> {
+        // Check for &mut T or &T reference types
+        if self.match_token(&lexer::Token::RefMut) {
+            let inner = self.parse_type()?;
+            return Ok(ast::Type::MutRef(Box::new(inner)));
+        }
+        if self.match_token(&lexer::Token::Ampersand) {
+            // Check if next token is 'mut' (could be &mut without the combined RefMut token)
+            if self.match_token(&lexer::Token::RefMut) {
+                let inner = self.parse_type()?;
+                return Ok(ast::Type::MutRef(Box::new(inner)));
+            }
+            let inner = self.parse_type()?;
+            return Ok(ast::Type::Ref(Box::new(inner)));
+        }
+
+        // Check for tuple type: (T1, T2, ...)
+        if self.match_token(&lexer::Token::LeftParen) {
+            // Empty parens = void (unit type)
+            if self.is_at(&lexer::Token::RightParen) {
+                self.advance();
+                return Ok(ast::Type::simple("void"));
+            }
+            let first = self.parse_type()?;
+            if self.match_token(&lexer::Token::Comma) {
+                let mut types = vec![first];
+                loop {
+                    types.push(self.parse_type()?);
+                    if !self.match_token(&lexer::Token::Comma) {
+                        break;
+                    }
+                }
+                self.expect(&lexer::Token::RightParen)?;
+                return Ok(ast::Type::Tuple(types));
+            }
+            self.expect(&lexer::Token::RightParen)?;
+            // Single type in parens is just grouping
+            return Ok(first);
+        }
+
+        let tok = self.peek().clone();
+        let name = if is_type_keyword(&tok) {
+            self.advance();
+            type_keyword_name(&tok)
+                .ok_or_else(|| format!("Expected type keyword, found {}", tok))?
+        } else if matches!(tok, lexer::Token::Owned) {
+            self.advance();
+            "Owned".to_string()
+        } else if matches!(tok, lexer::Token::Result) {
+            self.advance();
+            "Result".to_string()
+        } else {
+            let id_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+            match id_tok {
+                lexer::Token::Identifier(s) => s,
+                _ => return Err(format!("Expected type name, found {}", id_tok)),
+            }
+        };
+
+        // Check for generic parameters <Type, Type, ...>
+        let params = if self.match_token(&lexer::Token::Less) {
+            let mut ps = Vec::new();
+            loop {
+                ps.push(self.parse_type()?);
+                if !self.match_token(&lexer::Token::Comma) {
+                    break;
+                }
+            }
+            self.expect(&lexer::Token::Greater)?;
+            ps
+        } else {
+            Vec::new()
+        };
+
+        Ok(ast::Type::Named { name, params })
+    }
+}
