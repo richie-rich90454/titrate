@@ -13,8 +13,8 @@ use std::rc::Rc;
 fn run_source(source: &str) -> Result<Vec<String>, String> {
     let tokens = lexer::tokenize(source)?;
     let ast = parser::parse(tokens)?;
-    let typed_ast = analyzer::analyze(&ast)?;
-    bytecode::execute(&typed_ast)
+    let typed_ast = analyzer::analyze(&ast).map_err(|errs| errs.join("\n"))?;
+    bytecode::execute(&typed_ast).map_err(|e| e)
 }
 
 #[test]
@@ -22,11 +22,11 @@ fn test_do_while_executes_body_once() {
     // Body should execute at least once even though condition is false
     let source = r#"
 fn main(): void {
-    let x = 0;
+    var x = 0;
     do {
         x = x + 1;
     } while (x < 0);
-    println(x);
+    io::println(x);
 }
 "#;
     let output = run_source(source).expect("execution should succeed");
@@ -37,11 +37,11 @@ fn main(): void {
 fn test_do_while_loops_while_true() {
     let source = r#"
 fn main(): void {
-    let x = 0;
+    var x = 0;
     do {
         x = x + 1;
     } while (x < 3);
-    println(x);
+    io::println(x);
 }
 "#;
     let output = run_source(source).expect("execution should succeed");
@@ -54,16 +54,16 @@ fn test_do_while_vs_while_difference() {
     // do-while should execute once
     let source = r#"
 fn main(): void {
-    let a = 0;
+    var a = 0;
     while (a < 0) {
         a = a + 1;
     }
-    let b = 0;
+    var b = 0;
     do {
         b = b + 1;
     } while (b < 0);
-    println(a);
-    println(b);
+    io::println(a);
+    io::println(b);
 }
 "#;
     let output = run_source(source).expect("execution should succeed");
@@ -74,14 +74,14 @@ fn main(): void {
 fn test_do_while_with_break() {
     let source = r#"
 fn main(): void {
-    let x = 0;
+    var x = 0;
     do {
         x = x + 1;
         if (x == 5) {
             break;
         }
     } while (x < 100);
-    println(x);
+    io::println(x);
 }
 "#;
     let output = run_source(source).expect("execution should succeed");
@@ -92,8 +92,8 @@ fn main(): void {
 fn test_do_while_with_continue() {
     let source = r#"
 fn main(): void {
-    let x = 0;
-    let sum = 0;
+    var x = 0;
+    var sum = 0;
     do {
         x = x + 1;
         if (x == 3) {
@@ -101,7 +101,7 @@ fn main(): void {
         }
         sum = sum + x;
     } while (x < 5);
-    println(sum);
+    io::println(sum);
 }
 "#;
     let output = run_source(source).expect("execution should succeed");
@@ -110,24 +110,82 @@ fn main(): void {
 }
 
 #[test]
+fn test_do_while_continue_jumps_to_condition() {
+    // This is the key semantic test: continue in a do-while must jump to
+    // the condition check, NOT back to the body start. If continue jumped
+    // to the body start, this would be an infinite loop because the
+    // condition would never be re-evaluated.
+    let source = r#"
+fn main(): void {
+    var x = 0;
+    do {
+        x = x + 1;
+        if (x >= 3) {
+            continue;
+        }
+        io::println(x);
+    } while (x < 3);
+}
+"#;
+    let output = run_source(source).expect("execution should succeed");
+    // x=1: x>=3 false, print 1, check x<3 true
+    // x=2: x>=3 false, print 2, check x<3 true
+    // x=3: x>=3 true, continue -> jump to condition check
+    //       check x<3 false -> exit loop
+    assert_eq!(output, vec!["1", "2"], "continue must jump to condition check, not body start");
+}
+
+#[test]
 fn test_do_while_nested() {
     let source = r#"
 fn main(): void {
-    let count = 0;
-    let i = 0;
+    var count = 0;
+    var i = 0;
     do {
-        let j = 0;
+        var j = 0;
         do {
             count = count + 1;
             j = j + 1;
         } while (j < 2);
         i = i + 1;
     } while (i < 3);
-    println(count);
+    io::println(count);
 }
 "#;
     let output = run_source(source).expect("execution should succeed");
     assert_eq!(output, vec!["6"], "nested do-while should count 3*2=6 iterations");
+}
+
+#[test]
+fn test_do_while_without_parens() {
+    // do-while condition without parentheses
+    let source = r#"
+fn main(): void {
+    var x = 0;
+    do {
+        x = x + 1;
+    } while x < 3;
+    io::println(x);
+}
+"#;
+    let output = run_source(source).expect("execution should succeed");
+    assert_eq!(output, vec!["3"], "do-while should work without parens around condition");
+}
+
+#[test]
+fn test_do_while_trailing_semicolon() {
+    // do-while with trailing semicolon (optional)
+    let source = r#"
+fn main(): void {
+    var x = 0;
+    do {
+        x = x + 1;
+    } while (x < 2);
+    io::println(x);
+}
+"#;
+    let output = run_source(source).expect("execution should succeed");
+    assert_eq!(output, vec!["2"], "do-while with trailing semicolon should work");
 }
 
 // ---------------------------------------------------------------------------
