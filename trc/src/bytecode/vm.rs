@@ -212,7 +212,7 @@ impl Vm {
         vm.register_native("Url_decode", native_url_decode);
 
         // Additional String natives
-        vm.register_native("String_toUppercase", native_string_to_uppercase);
+        vm.register_native("String_toUpperCase", native_string_to_uppercase);
         vm.register_native("String_toLowerCase", native_string_to_lower_case);
         vm.register_native("String_replace", native_string_replace);
 
@@ -5122,7 +5122,7 @@ fn native_url_decode(args: &[Value]) -> Result<Value, String> {
 fn native_string_to_uppercase(args: &[Value]) -> Result<Value, String> {
     match args.first() {
         Some(Value::String(s)) => Ok(Value::String(Rc::new(s.to_uppercase()))),
-        _ => Err("String_toUppercase: expected a String argument".to_string()),
+        _ => Err("String_toUpperCase: expected a String argument".to_string()),
     }
 }
 
@@ -5537,7 +5537,7 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "String_padLeft" => Some(native_string_pad_left),
         "String_padRight" => Some(native_string_pad_right),
         // Additional String natives
-        "String_toUppercase" => Some(native_string_to_uppercase),
+        "String_toUpperCase" => Some(native_string_to_uppercase),
         "String_toLowerCase" => Some(native_string_to_lower_case),
         "String_replace" => Some(native_string_replace),
         // Hash natives
@@ -8618,7 +8618,7 @@ mod tests {
     #[test]
     fn test_string_to_uppercase() {
         let mut vm = Vm::new();
-        let result = vm.call_native_by_name("String_toUppercase", &[
+        let result = vm.call_native_by_name("String_toUpperCase", &[
             Value::String(Rc::new("hello World".to_string())),
         ]).unwrap();
         match result {
