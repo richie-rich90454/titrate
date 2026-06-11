@@ -188,8 +188,9 @@ struct Local {
 // ---------------------------------------------------------------------------
 
 struct LoopInfo {
-    /// IP of the start of the loop (for `continue`).
-    start_ip: usize,
+    /// IP that `continue` jumps to. For `while`/`for` this is the condition
+    /// check; for `do-while` it is the condition check *after* the body.
+    continue_ip: usize,
     /// Locations to patch with the end-of-loop offset (for `break`).
     break_patches: Vec<(usize, u32)>,
 }
@@ -1374,6 +1375,11 @@ impl Compiler {
                 body: while_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
                 span: while_stmt.span,
             }),
+            ast::Stmt::DoWhile(do_while_stmt) => ast::Stmt::DoWhile(ast::DoWhileStmt {
+                body: do_while_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                condition: Self::substitute_expr(&do_while_stmt.condition, type_args),
+                span: do_while_stmt.span,
+            }),
             ast::Stmt::WhileLet(while_let_stmt) => ast::Stmt::WhileLet(ast::WhileLetStmt {
                 var_name: while_let_stmt.var_name.clone(),
                 expr: Self::substitute_expr(&while_let_stmt.expr, type_args),
@@ -2464,6 +2470,9 @@ impl Compiler {
             ast::Stmt::While(while_stmt) => {
                 self.compile_while(while_stmt)?;
             }
+            ast::Stmt::DoWhile(do_while_stmt) => {
+                self.compile_do_while(do_while_stmt)?;
+            }
             ast::Stmt::WhileLet(while_let_stmt) => {
                 self.compile_while_let(while_let_stmt)?;
             }
@@ -2579,7 +2588,7 @@ impl Compiler {
         let loop_start = self.current_ip();
 
         self.loop_stack.push(LoopInfo {
-            start_ip: loop_start,
+            continue_ip: loop_start,
             break_patches: Vec::new(),
         });
 
@@ -2615,6 +2624,47 @@ impl Compiler {
         Ok(())
     }
 
+    fn compile_do_while(&mut self, do_while_stmt: &ast::DoWhileStmt) -> Result<(), String> {
+        let line = do_while_stmt.span.line;
+        let loop_start = self.current_ip();
+
+        // Push with a placeholder continue_ip; we'll update it after compiling
+        // the body so that `continue` jumps to the condition check, not the
+        // body start.
+        self.loop_stack.push(LoopInfo {
+            continue_ip: loop_start, // placeholder, updated below
+            break_patches: Vec::new(),
+        });
+
+        // Compile body first (guaranteed first execution)
+        self.compile_block(&do_while_stmt.body)?;
+
+        // Now we know where the condition check begins — update continue_ip
+        // so that `continue` jumps here instead of back to the body start.
+        let condition_ip = self.current_ip();
+        self.loop_stack.last_mut().unwrap().continue_ip = condition_ip;
+
+        // Then compile condition
+        self.compile_expr(&do_while_stmt.condition)?;
+
+        // If condition is true, jump back to body start
+        self.emit_opcode(OpCode::JMP_IF_TRUE, line);
+        let current = self.current_ip() + 2; // after the i16 operand
+        let offset = (loop_start as isize - current as isize) as i16;
+        self.emit_i16(offset, line);
+
+        // Patch all break jumps.
+        let end_ip = self.current_ip();
+        let loop_info = self.loop_stack.pop().unwrap();
+        for (patch_offset, _line) in &loop_info.break_patches {
+            let patch_instr_end = *patch_offset + 2;
+            let offset = (end_ip - patch_instr_end) as i16;
+            self.patch_i16_at(*patch_offset, offset);
+        }
+
+        Ok(())
+    }
+
     fn compile_while_let(&mut self, while_let_stmt: &ast::WhileLetStmt) -> Result<(), String> {
         let line = while_let_stmt.span.line;
         self.begin_scope();
@@ -2622,7 +2672,7 @@ impl Compiler {
         let loop_start = self.current_ip();
 
         self.loop_stack.push(LoopInfo {
-            start_ip: loop_start,
+            continue_ip: loop_start,
             break_patches: Vec::new(),
         });
 
@@ -2704,7 +2754,7 @@ impl Compiler {
         let loop_start = self.current_ip();
 
         self.loop_stack.push(LoopInfo {
-            start_ip: loop_start,
+            continue_ip: loop_start,
             break_patches: Vec::new(),
         });
 
@@ -2781,7 +2831,7 @@ impl Compiler {
         let loop_start = self.current_ip();
 
         self.loop_stack.push(LoopInfo {
-            start_ip: loop_start,
+            continue_ip: loop_start,
             break_patches: Vec::new(),
         });
 
@@ -2850,10 +2900,10 @@ impl Compiler {
         if self.loop_stack.is_empty() {
             return Err("'continue' outside of loop".to_string());
         }
-        let loop_start = self.loop_stack.last().unwrap().start_ip;
+        let continue_ip = self.loop_stack.last().unwrap().continue_ip;
         self.emit_opcode(OpCode::JMP, line);
         let current = self.current_ip() + 2;
-        let offset = (loop_start as isize - current as isize) as i16;
+        let offset = (continue_ip as isize - current as isize) as i16;
         self.emit_i16(offset, line);
         Ok(())
     }
@@ -4469,6 +4519,43 @@ mod tests {
         assert!(
             fn_chunk.code.contains(&(OpCode::JMP as u8)),
             "while loop should emit JMP back to start"
+        );
+    }
+
+    // -- test_compile_do_while_loop ----------------------------------------------
+
+    #[test]
+    fn test_compile_do_while_loop() {
+        let do_while_stmt = ast::Stmt::DoWhile(ast::DoWhileStmt {
+            body: vec![ast::Stmt::Expr(ast::Expr::Literal(ast::Literal::Int(1), su()))],
+            condition: ast::Expr::Literal(ast::Literal::Bool(true), su()),
+            span: su(),
+        });
+
+        let fn_decl = ast::FnDecl {
+            access: ast::Access::Public,
+            name: "test_do_while".to_string(),
+            type_params: vec![],
+            params: vec![],
+            return_type: None,
+            body: vec![do_while_stmt],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        };
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations: vec![ast::Declaration::Function(fn_decl)],
+        };
+
+        let mut compiler = Compiler::new();
+        let compiled = compiler.compile(&program).expect("compilation should succeed");
+
+        let fn_chunk = &compiled.functions[1].chunk;
+        assert!(
+            fn_chunk.code.contains(&(OpCode::JMP_IF_TRUE as u8)),
+            "do-while loop should emit JMP_IF_TRUE"
         );
     }
 

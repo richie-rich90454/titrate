@@ -304,6 +304,14 @@ pub struct WhileStmt {
     pub span: Span,
 }
 
+/// Do-while statement.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DoWhileStmt {
+    pub body: Block,
+    pub condition: Expr,
+    pub span: Span,
+}
+
 /// While-let statement.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WhileLetStmt {
@@ -355,6 +363,7 @@ pub enum Stmt {
     Expr(Expr),
     If(IfStmt),
     While(WhileStmt),
+    DoWhile(DoWhileStmt),
     WhileLet(WhileLetStmt),
     For(ForStmt),
     CFor(CForStmt),

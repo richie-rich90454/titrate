@@ -976,6 +976,20 @@ impl Analyzer {
                 }
                 self.analyze_block(&mut while_stmt.body, scope);
             }
+            ast::Stmt::DoWhile(do_while_stmt) => {
+                self.analyze_block(&mut do_while_stmt.body, scope);
+                self.analyze_expr(&mut do_while_stmt.condition, scope);
+                let cond_type = self.infer_expr_type(&do_while_stmt.condition, scope);
+                if !is_bool_type(&cond_type) {
+                    self.error(CompileError::new(format!(
+                        "do-while condition must be bool, found {}",
+                        cond_type
+                    )).suggest(Suggestion {
+                        message: "use a comparison or boolean expression".to_string(),
+                        replacement: None,
+                    }));
+                }
+            }
             ast::Stmt::WhileLet(while_let_stmt) => {
                 self.analyze_expr(&mut while_let_stmt.expr, scope);
                 let while_let_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
@@ -2141,6 +2155,12 @@ impl Analyzer {
                 for s in &ws.body {
                     self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
                 }
+            }
+            ast::Stmt::DoWhile(dw) => {
+                for s in &dw.body {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+                self.collect_captured_vars_from_expr(&dw.condition, param_names, outer_scope, captured);
             }
             ast::Stmt::For(fs) => {
                 self.collect_captured_vars_from_expr(&fs.iterable, param_names, outer_scope, captured);

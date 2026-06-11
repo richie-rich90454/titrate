@@ -29,6 +29,7 @@ pub enum Token {
     Const,
 
     // Control flow keywords
+    Do,
     If,
     Else,
     While,
@@ -179,6 +180,7 @@ impl fmt::Display for Token {
             Token::Let => write!(f, "let"),
             Token::Var => write!(f, "var"),
             Token::Const => write!(f, "const"),
+            Token::Do => write!(f, "do"),
             Token::If => write!(f, "if"),
             Token::Else => write!(f, "else"),
             Token::While => write!(f, "while"),
@@ -919,6 +921,7 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                     "let" => Token::Let,
                     "var" => Token::Var,
                     "const" => Token::Const,
+                    "do" => Token::Do,
                     "if" => Token::If,
                     "else" => Token::Else,
                     "while" => Token::While,

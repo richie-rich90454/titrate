@@ -1110,6 +1110,10 @@ impl Parser {
                 self.advance();
                 self.parse_if_stmt()
             }
+            lexer::Token::Do => {
+                self.advance();
+                self.parse_do_while_stmt()
+            }
             lexer::Token::While => {
                 self.advance();
                 self.parse_while_stmt()
@@ -1295,6 +1299,33 @@ impl Parser {
 
         let body = self.parse_block()?;
         Ok(ast::Stmt::While(ast::WhileStmt { condition, body, span }))
+    }
+
+    fn parse_do_while_stmt(&mut self) -> Result<ast::Stmt, String> {
+        let span = self.make_span();
+
+        // Parse body: do { ... }
+        let body = self.parse_block()?;
+
+        // Expect 'while'
+        let while_tok = self.expect(&lexer::Token::While)?;
+        if !matches!(while_tok, lexer::Token::While) {
+            return Err(format!("Expected 'while' after do block, found {}", while_tok));
+        }
+
+        // Parse condition: while (expr)
+        let condition = if self.match_token(&lexer::Token::LeftParen) {
+            let expr = self.parse_expression()?;
+            self.expect(&lexer::Token::RightParen)?;
+            expr
+        } else {
+            self.parse_expression()?
+        };
+
+        // Optional trailing semicolon
+        let _ = self.match_token(&lexer::Token::Semicolon);
+
+        Ok(ast::Stmt::DoWhile(ast::DoWhileStmt { body, condition, span }))
     }
 
     fn parse_for_stmt(&mut self) -> Result<ast::Stmt, String> {
@@ -2431,6 +2462,37 @@ mod tests {
                     assert!(matches!(&ws.body[0], ast::Stmt::Break));
                 }
                 other => panic!("Expected While, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_do_while_stmt() {
+        let src = r#"fn f(): void { do { x = x + 1; } while (x < 10); }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::DoWhile(dw) => {
+                    assert!(matches!(dw.condition, ast::Expr::Binary(_, ast::Operator::Lt, _, _)));
+                    assert_eq!(dw.body.len(), 1);
+                }
+                other => panic!("Expected DoWhile, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_do_while_no_parens() {
+        let src = r#"fn f(): void { do { break; } while true; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::DoWhile(dw) => {
+                    assert!(matches!(dw.condition, ast::Expr::Literal(ast::Literal::Bool(true), _)));
+                }
+                other => panic!("Expected DoWhile, got {:?}", other),
             },
             other => panic!("Expected Function, got {:?}", other),
         }

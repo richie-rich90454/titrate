@@ -755,6 +755,22 @@ impl Interpreter {
                 }
                 Ok(ControlFlow::None)
             }
+            ast::Stmt::DoWhile(do_while_stmt) => {
+                loop {
+                    let body_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));
+                    let cf = self.exec_block(&do_while_stmt.body, body_env)?;
+                    match cf {
+                        ControlFlow::Break => break,
+                        ControlFlow::Return(v) => return Ok(ControlFlow::Return(v)),
+                        _ => {}
+                    }
+                    let cond = self.eval_expr_with_env(&do_while_stmt.condition, &env)?;
+                    if !cond.is_truthy() {
+                        break;
+                    }
+                }
+                Ok(ControlFlow::None)
+            }
             ast::Stmt::WhileLet(while_let_stmt) => {
                 loop {
                     let val = self.eval_expr_with_env(&while_let_stmt.expr, &env)?;
