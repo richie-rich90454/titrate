@@ -11,55 +11,61 @@ public class File {
     }
 
     public String readLine() {
-        return File::readLine(this.path);
+        return File_readLine(this.path);
     }
 
     public void write(String content) {
-        File::write(this.path, content);
+        File_write(this.path, content);
     }
 
     public bool exists() {
-        return File::exists(this.path);
+        return Fs_exists(this.path);
     }
 
     public int length() {
-        return File::length(this.path);
+        return Fs_size(this.path);
     }
 
     public bool delete() {
-        return File::delete(this.path);
+        // No File_delete native; use Dir_remove which works for files too
+        return Dir_remove(this.path);
     }
 
     public bool renameTo(String newPath) {
-        return File::rename(this.path, newPath);
+        return Dir_move(this.path, newPath);
     }
 
     public bool copyTo(String dest) {
-        return File::copy(this.path, dest);
+        return Dir_copy(this.path, dest);
     }
 
     public bool moveTo(String dest) {
-        return File::move(this.path, dest);
+        return Dir_move(this.path, dest);
     }
 
     public String readAll() {
         // the whole thing in one gulp
-        return File::readAll(this.path);
+        return File_readFile(this.path);
     }
 
     public void append(String content) {
-        File::append(this.path, content);
+        // File_writeFile overwrites; read existing then write combined
+        String existing = "";
+        if (Fs_exists(this.path)) {
+            existing = File_readFile(this.path);
+        }
+        File_writeFile(this.path, existing + content);
     }
 
     public bool isFile() {
-        return File::isFile(this.path);
+        return Fs_isFile(this.path);
     }
 
     public bool isDirectory() {
-        return File::isDirectory(this.path);
+        return Fs_isDir(this.path);
     }
 
     public void close() {
-        File::close(this.path);
+        File_close(this.path);
     }
 }

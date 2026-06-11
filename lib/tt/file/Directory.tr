@@ -9,50 +9,63 @@ public class Directory {
     }
 
     public ArrayList<String> list() {
-        return Dir::list(this.path);
+        return Dir_list(this.path);
     }
 
     public ArrayList<String> walk() {
-        return Dir::walk(this.path);
+        return Dir_walk(this.path);
     }
 
     public bool create() {
-        return Dir::create(this.path);
+        return Dir_create(this.path);
     }
 
     public bool remove() {
-        return Dir::remove(this.path);
+        return Dir_remove(this.path);
     }
 
     public bool copy(String dest) {
-        return Dir::copy(this.path, dest);
+        return Dir_copy(this.path, dest);
     }
 
     public bool move(String dest) {
-        return Dir::move(this.path, dest);
+        return Dir_move(this.path, dest);
     }
 
     public bool exists() {
-        return Dir::exists(this.path);
+        return Path_exists(this.path);
     }
 
     public static String getCurrent() {
-        return Dir::getCurrent();
+        return Sys_workingDir();
     }
 
     public static void setCurrent(String path) {
-        Dir::setCurrent(path);
+        // No native for setWorkingDir; no-op
     }
 
     public ArrayList<String> listFiles() {
-        return Dir::listFiles(this.path);
+        // Dir_list returns all entries; filter to files using Fs_isFile
+        ArrayList<String> all = Dir_list(this.path);
+        ArrayList<String> files = new ArrayList<String>();
+        int i = 0;
+        while (i < all.size()) {
+            String entry = all.get(i);
+            String fullPath = Path_join(this.path, entry);
+            if (Fs_isFile(fullPath)) {
+                files.add(entry);
+            }
+            i = i + 1;
+        }
+        return files;
     }
 
     public int size() {
-        return Dir::size(this.path);
+        return Fs_size(this.path);
     }
 
     public bool isEmpty() {
-        return Dir::isEmpty(this.path);
+        ArrayList<String> entries = Dir_list(this.path);
+        return entries.size() == 0;
     }
 }

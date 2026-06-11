@@ -27,30 +27,48 @@ public class Sys {
     }
 
     public static String platform() {
-        return Sys_platform();
+        return Os_name();
     }
 
     public static int cpuCount() {
-        return Sys_cpuCount();
+        String val = Sys_env("NUMBER_OF_PROCESSORS");
+        if (val != null && val.length() > 0) {
+            return Integer.parseInt(val);
+        }
+        return 1;
     }
 
     public static String exec(String command) {
-        return Sys_exec(command);
+        return Subprocess_exec(command);
     }
 
     public static int pid() {
-        return Sys_pid();
+        return Process_id();
     }
 
     public static long nanoTime() {
-        return Sys_nanoTime();
+        return Time_now() * 1000000;
     }
 
     public static String userName() {
-        return Sys_userName();
+        String name = Sys_env("USER");
+        if (name == null || name.length() == 0) {
+            name = Sys_env("USERNAME");
+        }
+        if (name == null) {
+            return "";
+        }
+        return name;
     }
 
     public static String hostName() {
-        return Sys_hostName();
+        String name = Sys_env("HOSTNAME");
+        if (name == null || name.length() == 0) {
+            name = Sys_env("COMPUTERNAME");
+        }
+        if (name == null) {
+            return "";
+        }
+        return name;
     }
 }
