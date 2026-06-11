@@ -1956,6 +1956,11 @@ impl Analyzer {
                 self.analyze_expr(start, scope);
                 self.analyze_expr(end, scope);
             }
+            ast::Expr::Ternary { condition, then_expr, else_expr, .. } => {
+                self.analyze_expr(condition, scope);
+                self.analyze_expr(then_expr, scope);
+                self.analyze_expr(else_expr, scope);
+            }
             ast::Expr::Closure {
                 params,
                 return_type: _,
@@ -2054,6 +2059,11 @@ impl Analyzer {
             ast::Expr::Assign(target, value, _) => {
                 self.collect_captured_vars_from_expr(target, param_names, outer_scope, captured);
                 self.collect_captured_vars_from_expr(value, param_names, outer_scope, captured);
+            }
+            ast::Expr::Ternary { condition, then_expr, else_expr, .. } => {
+                self.collect_captured_vars_from_expr(condition, param_names, outer_scope, captured);
+                self.collect_captured_vars_from_expr(then_expr, param_names, outer_scope, captured);
+                self.collect_captured_vars_from_expr(else_expr, param_names, outer_scope, captured);
             }
             ast::Expr::New(_, args, _) => {
                 for arg in args {
@@ -2367,6 +2377,15 @@ impl Analyzer {
             }
             ast::Expr::Assign(_target, value, _) => {
                 self.infer_expr_type(value, scope)
+            }
+            ast::Expr::Ternary { then_expr, else_expr, .. } => {
+                let then_type = self.infer_expr_type(then_expr, scope);
+                let else_type = self.infer_expr_type(else_expr, scope);
+                if then_type == else_type {
+                    then_type
+                } else {
+                    ast::Type::simple("auto")
+                }
             }
             ast::Expr::Tuple(elements, _) => {
                 let types: Vec<ast::Type> = elements

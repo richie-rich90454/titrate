@@ -1086,6 +1086,14 @@ impl Interpreter {
                 let val = self.eval_expr_with_env(value, env)?;
                 self.eval_assign(target, val, env)
             }
+            ast::Expr::Ternary { condition, then_expr, else_expr, .. } => {
+                let cond_val = self.eval_expr_with_env(condition, env)?;
+                match cond_val {
+                    Value::Bool(true) => self.eval_expr_with_env(then_expr, env),
+                    Value::Bool(false) => self.eval_expr_with_env(else_expr, env),
+                    _ => Err("Ternary condition must be a boolean".to_string()),
+                }
+            }
             ast::Expr::Range(_, _, _) => {
                 Err("Range expressions are not yet supported at runtime".to_string())
             }
