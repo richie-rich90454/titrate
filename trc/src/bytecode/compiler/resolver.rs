@@ -10,7 +10,7 @@ use super::Compiler;
 // ModuleResolver – resolves import paths to file paths and caches results
 // ---------------------------------------------------------------------------
 
-pub(super) struct ModuleResolver {
+pub(in crate::bytecode) struct ModuleResolver {
     /// Cache: dotted module name → resolved file path.
     pub cache: HashMap<String, PathBuf>,
 }
