@@ -1,6 +1,6 @@
 public class Vast {
     public static vast parse(String s) {
-        return Vast::parseVast(s);
+        return Long_parseLong(s);
     }
 
     public static String toString(vast value) {

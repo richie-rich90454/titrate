@@ -111,7 +111,16 @@ public class Regex {
     }
 
     public String replaceFirst(String input, String replacement) {
-        return Regex_replaceFirst(this.pattern, input, replacement);
+        // No native Regex_replaceFirst; find first match and replace manually
+        String raw = Regex_find(this.pattern, input);
+        if (raw.length() == 0) {
+            return input;
+        }
+        int firstComma = raw.indexOf(",");
+        int secondComma = raw.indexOf(",", firstComma + 1);
+        int start = Integer.parseInt(raw.substring(0, firstComma));
+        int end = Integer.parseInt(raw.substring(firstComma + 1, secondComma));
+        return input.substring(0, start) + replacement + input.substring(end);
     }
 
     public bool matches(String input) {

@@ -118,6 +118,6 @@ public class Html {
 
     // Convert a code point to a single-character string.
     private static String codePointToString(int code) {
-        return Html_cpToString(code);
+        return String.fromCharCode(code);
     }
 }

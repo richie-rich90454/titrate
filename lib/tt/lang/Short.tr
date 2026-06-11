@@ -1,6 +1,6 @@
 public class Short {
     public static short parse(String s) {
-        return Short::parseShort(s);
+        return parseInt(s);
     }
 
     public static String toString(short value) {

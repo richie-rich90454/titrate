@@ -1,6 +1,6 @@
 public class Byte {
     public static byte parse(String s) {
-        return Byte::parseByte(s);
+        return parseInt(s);
     }
 
     public static String toString(byte value) {

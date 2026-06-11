@@ -1,6 +1,6 @@
 public class Float {
     public static float parse(String s) {
-        return Float::parseFloat(s);
+        return Double_parseDouble(s);
     }
 
     public static String toString(float value) {
@@ -12,26 +12,26 @@ public class Float {
     }
 
     public static bool isInfinite(float value) {
-        return value == Float::POSITIVE_INFINITY() || value == Float::NEGATIVE_INFINITY();
+        return value == Float.POSITIVE_INFINITY() || value == Float.NEGATIVE_INFINITY();
     }
 
     public static float parseOr(String s, float defaultValue) {
-        float result = Float::parseFloat(s);
-        if (Float::isNaN(result)) {
+        float result = Double_parseDouble(s);
+        if (Float.isNaN(result)) {
             return defaultValue;
         }
         return result;
     }
 
     public static float POSITIVE_INFINITY() {
-        return Float_inf();
+        return Math_inf();
     }
 
     public static float NEGATIVE_INFINITY() {
-        return Float_negInf();
+        return Math_negInf();
     }
 
     public static float NaN() {
-        return Float_nan();
+        return Math_nan();
     }
 }

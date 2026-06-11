@@ -17,8 +17,8 @@ public class Trie {
     public void insert(String word) {
         TrieNode node = this;
         int i = 0;
-        while (i < String_length(word)) {
-            String ch = String_charAt(word, i);
+        while (i < word.length()) {
+            String ch = word.substring(i, i + 1);
             HashMap<String, TrieNode> kids = node.children;
             TrieNode next = kids.get(ch);
             if (next == null) {
@@ -79,8 +79,8 @@ public class Trie {
         TrieNode node = this;
         int lastEnd = 0;
         int i = 0;
-        while (i < String_length(prefix)) {
-            String ch = String_charAt(prefix, i);
+        while (i < prefix.length()) {
+            String ch = prefix.substring(i, i + 1);
             TrieNode next = node.children.get(ch);
             if (next == null) {
                 break;
@@ -132,8 +132,8 @@ public class Trie {
     private TrieNode _findNode(String word) {
         TrieNode node = this;
         int i = 0;
-        while (i < String_length(word)) {
-            String ch = String_charAt(word, i);
+        while (i < word.length()) {
+            String ch = word.substring(i, i + 1);
             TrieNode next = node.children.get(ch);
             if (next == null) {
                 return null;

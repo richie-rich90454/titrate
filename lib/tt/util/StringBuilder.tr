@@ -71,7 +71,7 @@ public class StringBuilder {
         String result = "";
         int i = current.length() - 1;
         while (i >= 0) {
-            result = result + String_charAt(current, i);
+            result = result + current.substring(i, i + 1);
             i = i - 1;
         }
         this.parts = new ArrayList<String>();
@@ -80,6 +80,6 @@ public class StringBuilder {
 
     public char charAt(int index) {
         String current = this.build();
-        return String_charAt(current, index);
+        return current.substring(index, index + 1);
     }
 }

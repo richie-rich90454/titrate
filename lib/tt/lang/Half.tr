@@ -1,6 +1,6 @@
 public class Half {
     public static half parse(String s) {
-        return Half::parseHalf(s);
+        return Double_parseDouble(s);
     }
 
     public static String toString(half value) {

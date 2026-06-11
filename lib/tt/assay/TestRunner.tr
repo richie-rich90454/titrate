@@ -100,8 +100,34 @@ public class TestRunner {
     // Scans the filesystem for .tr files matching the pattern and reports what was found.
     public void discoverAndRun(String pattern) {
         IO::println("Discovering test files matching: " + pattern);
-        // Use the Fs module to list files matching the pattern
-        ArrayList<String> files = Fs::glob(pattern);
+        // Use Dir_walk to list files, then filter by pattern
+        // Simple pattern: treat as directory path ending in **/*.tr
+        String dir = ".";
+        String suffix = ".tr";
+        // Extract directory from pattern if it contains a path separator
+        int lastSlash = pattern.lastIndexOf("/");
+        if (lastSlash < 0) {
+            lastSlash = pattern.lastIndexOf("\\");
+        }
+        if (lastSlash >= 0) {
+            dir = pattern.substring(0, lastSlash);
+            String rest = pattern.substring(lastSlash + 1);
+            if (rest.length() > 3) {
+                suffix = rest.substring(rest.length() - 3);
+            }
+        }
+        ArrayList<String> files = new ArrayList<String>();
+        if (Path_exists(dir)) {
+            ArrayList<String> all = Dir_walk(dir);
+            int i = 0;
+            while (i < all.size()) {
+                String f = all.get(i);
+                if (f.length() >= suffix.length() && f.substring(f.length() - suffix.length()) == suffix) {
+                    files.add(f);
+                }
+                i = i + 1;
+            }
+        }
         IO::println("Found " + Integer::toString(files.size()) + " test file(s)");
         for (f in files) {
             IO::println("  - " + f);

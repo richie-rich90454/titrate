@@ -1,6 +1,6 @@
 public class Quad {
     public static quad parse(String s) {
-        return Quad::parseQuad(s);
+        return Double_parseDouble(s);
     }
 
     public static String toString(quad value) {
