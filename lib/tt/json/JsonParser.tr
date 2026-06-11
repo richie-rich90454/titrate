@@ -1,0 +1,236 @@
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// JsonParser: internal recursive descent parser for JSON
+public class JsonParser {
+    // Parser state
+    private string input;
+    private int pos;
+
+    public JsonParser(string input) {
+        this.input = input;
+        this.pos = 0;
+    }
+
+    public void skipWhitespace() {
+        while (this.pos < this.input.length()) {
+            string c = this.input.charAt(this.pos);
+            if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                this.pos = this.pos + 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    public string peek() {
+        if (this.pos < this.input.length()) {
+            return this.input.charAt(this.pos);
+        }
+        return "";
+    }
+
+    public string advance() {
+        string c = this.input.charAt(this.pos);
+        this.pos = this.pos + 1;
+        return c;
+    }
+
+    public bool match(string expected) {
+        if (this.pos + expected.length() > this.input.length()) {
+            return false;
+        }
+        string sub = this.input.substring(this.pos, this.pos + expected.length());
+        if (sub == expected) {
+            this.pos = this.pos + expected.length();
+            return true;
+        }
+        return false;
+    }
+
+    public JsonValue parseValue() {
+        this.skipWhitespace();
+        if (this.pos >= this.input.length()) {
+            return JsonValue::null();
+        }
+        string c = this.peek();
+        if (c == "n") {
+            return this.parseNull();
+        }
+        if (c == "t" || c == "f") {
+            return this.parseBool();
+        }
+        if (c == "\"") {
+            return this.parseString();
+        }
+        if (c == "[") {
+            return this.parseArray();
+        }
+        if (c == "{") {
+            return this.parseObject();
+        }
+        if (c == "-" || (c >= "0" && c <= "9")) {
+            return this.parseNumber();
+        }
+        return JsonValue::null();
+    }
+
+    public JsonValue parseNull() {
+        this.match("null");
+        return JsonValue::null();
+    }
+
+    public JsonValue parseBool() {
+        if (this.match("true")) {
+            return JsonValue::ofBool(true);
+        }
+        this.match("false");
+        return JsonValue::ofBool(false);
+    }
+
+    public JsonValue parseNumber() {
+        string numStr = "";
+        if (this.peek() == "-") {
+            numStr = numStr + this.advance();
+        }
+        while (this.pos < this.input.length()) {
+            string c = this.peek();
+            if ((c >= "0" && c <= "9") || c == "." || c == "e" || c == "E" || c == "+" || c == "-") {
+                numStr = numStr + this.advance();
+            } else {
+                break;
+            }
+        }
+        return JsonValue::ofNum(Double::parseDouble(numStr));
+    }
+
+    public JsonValue parseString() {
+        // Skip opening quote
+        this.advance();
+        string result = "";
+        while (this.pos < this.input.length()) {
+            string c = this.advance();
+            if (c == "\"") {
+                break;
+            }
+            if (c == "\\") {
+                string escaped = this.advance();
+                if (escaped == "\"") {
+                    result = result + "\"";
+                } else if (escaped == "\\") {
+                    result = result + "\\";
+                } else if (escaped == "/") {
+                    result = result + "/";
+                } else if (escaped == "b") {
+                    result = result + "\b";
+                } else if (escaped == "f") {
+                    result = result + "\f";
+                } else if (escaped == "n") {
+                    result = result + "\n";
+                } else if (escaped == "r") {
+                    result = result + "\r";
+                } else if (escaped == "t") {
+                    result = result + "\t";
+                } else if (escaped == "u") {
+                    // Parse 4 hex digits
+                    string hex = "";
+                    int h = 0;
+                    while (h < 4) {
+                        hex = hex + this.advance();
+                        h = h + 1;
+                    }
+                    result = result + JsonParser.decodeHex(hex);
+                } else {
+                    result = result + escaped;
+                }
+            } else {
+                result = result + c;
+            }
+        }
+        return JsonValue::ofStr(result);
+    }
+
+    public static string decodeHex(string hex) {
+        int code = 0;
+        int i = 0;
+        while (i < hex.length()) {
+            string c = hex.charAt(i);
+            code = code * 16;
+            if (c >= "0" && c <= "9") {
+                code = code + (c.charAt(0) - "0".charAt(0));
+            } else if (c >= "a" && c <= "f") {
+                code = code + (c.charAt(0) - "a".charAt(0)) + 10;
+            } else if (c >= "A" && c <= "F") {
+                code = code + (c.charAt(0) - "A".charAt(0)) + 10;
+            }
+            i = i + 1;
+        }
+        return code.toString();
+    }
+
+    public JsonValue parseArray() {
+        // Skip opening bracket
+        this.advance();
+        this.skipWhitespace();
+        ArrayList<JsonValue> arr = new ArrayList<JsonValue>();
+        if (this.peek() == "]") {
+            this.advance();
+            return JsonValue::ofArray(arr);
+        }
+        while (true) {
+            this.skipWhitespace();
+            JsonValue elem = this.parseValue();
+            arr.add(elem);
+            this.skipWhitespace();
+            if (this.peek() == ",") {
+                this.advance();
+            } else {
+                break;
+            }
+        }
+        this.skipWhitespace();
+        if (this.peek() == "]") {
+            this.advance();
+        }
+        return JsonValue::ofArray(arr);
+    }
+
+    public JsonValue parseObject() {
+        // every object has a story, this one starts with an opening brace
+        // Skip opening brace
+        this.advance();
+        this.skipWhitespace();
+        HashMap obj = new HashMap();
+        if (this.peek() == "}") {
+            this.advance();
+            return JsonValue::ofObject(obj);
+        }
+        while (true) {
+            this.skipWhitespace();
+            // Parse key (must be a string)
+            JsonValue keyVal = this.parseString();
+            string key = keyVal.asString();
+            this.skipWhitespace();
+            // Skip colon
+            if (this.peek() == ":") {
+                this.advance();
+            }
+            this.skipWhitespace();
+            // Parse value
+            JsonValue val = this.parseValue();
+            obj.put(key, val);
+            this.skipWhitespace();
+            if (this.peek() == ",") {
+                this.advance();
+            } else {
+                break;
+            }
+        }
+        this.skipWhitespace();
+        if (this.peek() == "}") {
+            this.advance();
+        }
+        return JsonValue::ofObject(obj);
+    }
+}
