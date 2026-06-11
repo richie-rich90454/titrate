@@ -1,0 +1,286 @@
+import tt::math::ndarray::NDArray;
+import tt::math::Math;
+
+// Matrix decompositions: gaussianElimination, luDecompose, choleskyDecompose, inverse, solve
+public class MatrixDecomp {
+    // Returns the row echelon form of this matrix.
+    public static Matrix gaussianElimination(Matrix m) {
+        Matrix ref = m.clone();
+        int n = ref.rows();
+        int mm = ref.cols();
+        int pivotRow = 0;
+        int col = 0;
+        while (pivotRow < n && col < mm) {
+            // Find pivot in this column
+            double maxVal = Math.abs(ref.data.get2D(pivotRow, col));
+            int maxIdx = pivotRow;
+            int row = pivotRow + 1;
+            while (row < n) {
+                double val = Math.abs(ref.data.get2D(row, col));
+                if (val > maxVal) {
+                    maxVal = val;
+                    maxIdx = row;
+                }
+                row = row + 1;
+            }
+            if (maxVal < 1e-15) {
+                col = col + 1;
+                continue;
+            }
+            // Swap rows
+            if (maxIdx != pivotRow) {
+                int j = 0;
+                while (j < mm) {
+                    double tmp = ref.data.get2D(pivotRow, j);
+                    ref.data.set2D(pivotRow, j, ref.data.get2D(maxIdx, j));
+                    ref.data.set2D(maxIdx, j, tmp);
+                    j = j + 1;
+                }
+            }
+            // Scale pivot row
+            double pivotVal = ref.data.get2D(pivotRow, col);
+            int j = col;
+            while (j < mm) {
+                ref.data.set2D(pivotRow, j, ref.data.get2D(pivotRow, j) / pivotVal);
+                j = j + 1;
+            }
+            // Eliminate below
+            row = pivotRow + 1;
+            while (row < n) {
+                double factor = ref.data.get2D(row, col);
+                if (Math.abs(factor) > 1e-15) {
+                    j = col;
+                    while (j < mm) {
+                        ref.data.set2D(row, j, ref.data.get2D(row, j) - factor * ref.data.get2D(pivotRow, j));
+                        j = j + 1;
+                    }
+                }
+                row = row + 1;
+            }
+            pivotRow = pivotRow + 1;
+            col = col + 1;
+        }
+        return ref;
+    }
+
+    // Doolittle LU decomposition with partial pivoting.
+    // Returns (L, U) where L is lower triangular with 1s on diagonal,
+    // and U is upper triangular.
+    public static (Matrix, Matrix) luDecompose(Matrix m) {
+        int n = m.rows();
+        Matrix L = Matrix.identity(n);
+        Matrix U = m.clone();
+
+        int col = 0;
+        while (col < n) {
+            // Find pivot
+            double maxVal = Math.abs(U.data.get2D(col, col));
+            int maxRow = col;
+            int row = col + 1;
+            while (row < n) {
+                double val = Math.abs(U.data.get2D(row, col));
+                if (val > maxVal) {
+                    maxVal = val;
+                    maxRow = row;
+                }
+                row = row + 1;
+            }
+            if (maxRow != col) {
+                // Swap rows in U
+                int j = 0;
+                while (j < n) {
+                    double tmp = U.data.get2D(col, j);
+                    U.data.set2D(col, j, U.data.get2D(maxRow, j));
+                    U.data.set2D(maxRow, j, tmp);
+                    j = j + 1;
+                }
+                // Swap rows in L (only the part before col)
+                j = 0;
+                while (j < col) {
+                    double tmp = L.data.get2D(col, j);
+                    L.data.set2D(col, j, L.data.get2D(maxRow, j));
+                    L.data.set2D(maxRow, j, tmp);
+                    j = j + 1;
+                }
+            }
+            // Eliminate below
+            row = col + 1;
+            while (row < n) {
+                if (Math.abs(U.data.get2D(col, col)) < 1e-15) {
+                    L.data.set2D(row, col, 0.0);
+                } else {
+                    double factor = U.data.get2D(row, col) / U.data.get2D(col, col);
+                    L.data.set2D(row, col, factor);
+                    int j = col;
+                    while (j < n) {
+                        U.data.set2D(row, j, U.data.get2D(row, j) - factor * U.data.get2D(col, j));
+                        j = j + 1;
+                    }
+                }
+                row = row + 1;
+            }
+            col = col + 1;
+        }
+        return (L, U);
+    }
+
+    // Solve Ax = b via Gaussian elimination with back substitution.
+    public static Matrix solve(Matrix m, Matrix b) {
+        // Use LU decomposition and forward/back substitution
+        (Matrix L, Matrix U) = MatrixDecomp.luDecompose(m);
+        int n = m.rows();
+        // Forward substitution: Ly = b
+        Matrix y = new Matrix(n, b.cols());
+        int col = 0;
+        while (col < b.cols()) {
+            int i = 0;
+            while (i < n) {
+                double sum = 0.0;
+                int k = 0;
+                while (k < i) {
+                    sum = sum + L.data.get2D(i, k) * y.data.get2D(k, col);
+                    k = k + 1;
+                }
+                y.data.set2D(i, col, b.data.get2D(i, col) - sum);
+                i = i + 1;
+            }
+            col = col + 1;
+        }
+        // Back substitution: Ux = y
+        Matrix x = new Matrix(n, b.cols());
+        col = 0;
+        while (col < b.cols()) {
+            int i = n - 1;
+            while (i >= 0) {
+                double sum = 0.0;
+                int k = i + 1;
+                while (k < n) {
+                    sum = sum + U.data.get2D(i, k) * x.data.get2D(k, col);
+                    k = k + 1;
+                }
+                if (Math.abs(U.data.get2D(i, i)) < 1e-15) {
+                    x.data.set2D(i, col, 0.0);
+                } else {
+                    x.data.set2D(i, col, (y.data.get2D(i, col) - sum) / U.data.get2D(i, i));
+                }
+                i = i - 1;
+            }
+            col = col + 1;
+        }
+        return x;
+    }
+
+    // Matrix inverse via Gauss-Jordan elimination
+    public static Matrix inverse(Matrix m) {
+        if (m.rows() != m.cols()) { return new Matrix(0, 0); }
+        int n = m.rows();
+        // Augmented matrix [A | I]
+        Matrix aug = new Matrix(n, 2 * n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                aug.data.set2D(i, j, m.data.get2D(i, j));
+                j = j + 1;
+            }
+            aug.data.set2D(i, n + i, 1.0);
+            i = i + 1;
+        }
+        // Gauss-Jordan elimination
+        int col = 0;
+        while (col < n) {
+            // Find pivot
+            double maxVal = Math.abs(aug.data.get2D(col, col));
+            int maxRow = col;
+            int row = col + 1;
+            while (row < n) {
+                double val = Math.abs(aug.data.get2D(row, col));
+                if (val > maxVal) {
+                    maxVal = val;
+                    maxRow = row;
+                }
+                row = row + 1;
+            }
+            // Swap rows
+            if (maxRow != col) {
+                int j = 0;
+                while (j < 2 * n) {
+                    double tmp = aug.data.get2D(col, j);
+                    aug.data.set2D(col, j, aug.data.get2D(maxRow, j));
+                    aug.data.set2D(maxRow, j, tmp);
+                    j = j + 1;
+                }
+            }
+            // Scale pivot row
+            double pivot = aug.data.get2D(col, col);
+            int j = 0;
+            while (j < 2 * n) {
+                aug.data.set2D(col, j, aug.data.get2D(col, j) / pivot);
+                j = j + 1;
+            }
+            // Eliminate column in other rows
+            row = 0;
+            while (row < n) {
+                if (row != col) {
+                    double factor = aug.data.get2D(row, col);
+                    j = 0;
+                    while (j < 2 * n) {
+                        aug.data.set2D(row, j, aug.data.get2D(row, j) - factor * aug.data.get2D(col, j));
+                        j = j + 1;
+                    }
+                }
+                row = row + 1;
+            }
+            col = col + 1;
+        }
+        // Extract inverse from augmented matrix
+        Matrix inv = new Matrix(n, n);
+        i = 0;
+        while (i < n) {
+            j = 0;
+            while (j < n) {
+                inv.data.set2D(i, j, aug.data.get2D(i, n + j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return inv;
+    }
+
+    // Returns lower triangular L such that A = L * L^T.
+    // Requires symmetric positive-definite matrix.
+    public static Matrix choleskyDecompose(Matrix m) {
+        int n = m.rows();
+        Matrix L = new Matrix(n, n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j <= i) {
+                double sum = 0.0;
+                if (j == i) {
+                    int k = 0;
+                    while (k < j) {
+                        double v = L.data.get2D(j, k);
+                        sum = sum + v * v;
+                        k = k + 1;
+                    }
+                    double diag = m.data.get2D(j, j) - sum;
+                    if (diag <= 0.0) { diag = 1e-15; }
+                    L.data.set2D(j, j, Math.sqrt(diag));
+                } else {
+                    int k = 0;
+                    while (k < j) {
+                        sum = sum + L.data.get2D(i, k) * L.data.get2D(j, k);
+                        k = k + 1;
+                    }
+                    double denom = L.data.get2D(j, j);
+                    if (Math.abs(denom) < 1e-15) { denom = 1e-15; }
+                    L.data.set2D(i, j, (m.data.get2D(i, j) - sum) / denom);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return L;
+    }
+}
