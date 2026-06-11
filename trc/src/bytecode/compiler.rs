@@ -753,7 +753,7 @@ impl Compiler {
 
                         self.begin_scope();
                         for param in &fn_decl.params {
-                            self.declare_local(&param.name);
+                            self.declare_local(&param.name)?;
                         }
                         self.compile_block(&fn_decl.body)?;
                         self.emit_opcode(OpCode::PUSH_VOID, 0);
@@ -1412,6 +1412,13 @@ impl Compiler {
                 }).collect(),
                 default: switch_stmt.default.as_ref().map(|b| b.iter().map(|s| Self::substitute_stmt(s, type_args)).collect()),
                 span: switch_stmt.span,
+            }),
+            ast::Stmt::With(with_stmt) => ast::Stmt::With(ast::WithStmt {
+                resource_expr: Self::substitute_expr(&with_stmt.resource_expr, type_args),
+                var_name: with_stmt.var_name.clone(),
+                var_type: with_stmt.var_type.as_ref().map(|t| Self::substitute_type(t, type_args)),
+                body: with_stmt.body.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                span: with_stmt.span,
             }),
             ast::Stmt::Block(block) => {
                 ast::Stmt::Block(block.iter().map(|s| Self::substitute_stmt(s, type_args)).collect())
@@ -2238,7 +2245,10 @@ impl Compiler {
         }
     }
 
-    fn declare_local(&mut self, name: &str) -> u8 {
+    fn declare_local(&mut self, name: &str) -> Result<u8, String> {
+        if self.local_count >= 255 {
+            return Err("Too many local variables in function (max 255)".to_string());
+        }
         let slot = self.local_count as u8;
         self.locals.push(Local {
             name: name.to_string(),
@@ -2247,7 +2257,7 @@ impl Compiler {
             slot,
         });
         self.local_count += 1;
-        slot
+        Ok(slot)
     }
 
     fn resolve_local(&self, name: &str) -> Option<u8> {
@@ -2301,7 +2311,7 @@ impl Compiler {
 
         // Parameters become local variables (slot 0, 1, 2, ...).
         for param in &fn_decl.params {
-            self.declare_local(&param.name);
+            self.declare_local(&param.name)?;
         }
 
         self.compile_block(&fn_decl.body)?;
@@ -2413,11 +2423,11 @@ impl Compiler {
         self.begin_scope();
 
         // Slot 0 = "this"
-        self.declare_local("this");
+        self.declare_local("this")?;
 
         // Parameters start at slot 1.
         for param in params {
-            self.declare_local(&param.name);
+            self.declare_local(&param.name)?;
         }
 
         self.compile_block(body)?;
@@ -2499,6 +2509,9 @@ impl Compiler {
             ast::Stmt::Switch(switch_stmt) => {
                 self.compile_switch(switch_stmt)?;
             }
+            ast::Stmt::With(with_stmt) => {
+                self.compile_with(with_stmt)?;
+            }
             ast::Stmt::Block(block) => {
                 self.begin_scope();
                 self.compile_block(block)?;
@@ -2518,7 +2531,7 @@ impl Compiler {
         } else {
             self.emit_opcode(OpCode::PUSH_NULL, line);
         }
-        let slot = self.declare_local(&var_decl.name);
+        let slot = self.declare_local(&var_decl.name)?;
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(slot, line);
         Ok(())
@@ -2532,7 +2545,7 @@ impl Compiler {
             self.emit_opcode(OpCode::DUP, line);
             self.emit_opcode(OpCode::TUPLE_GET, line);
             self.emit_u8(i as u8, line);
-            let slot = self.declare_local(name);
+            let slot = self.declare_local(name)?;
             self.emit_opcode(OpCode::STORE_LOCAL, line);
             self.emit_u8(slot, line);
         }
@@ -2692,7 +2705,7 @@ impl Compiler {
         self.emit_i16(0, line); // placeholder
 
         // Stack: [inner_value] — store it in the variable
-        let slot = self.declare_local(&while_let_stmt.var_name);
+        let slot = self.declare_local(&while_let_stmt.var_name)?;
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(slot, line);
 
@@ -2729,7 +2742,7 @@ impl Compiler {
 
         // Compile the iterable expression and store it in a local.
         self.compile_expr(&for_stmt.iterable)?;
-        let iter_slot = self.declare_local("__iter");
+        let iter_slot = self.declare_local("__iter")?;
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(iter_slot, line);
 
@@ -2739,7 +2752,7 @@ impl Compiler {
         for &b in &bytes {
             self.emit_u8(b, line);
         }
-        let idx_slot = self.declare_local("__iter_idx");
+        let idx_slot = self.declare_local("__iter_idx")?;
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(idx_slot, line);
 
@@ -2747,7 +2760,7 @@ impl Compiler {
         self.emit_opcode(OpCode::LOAD_LOCAL, line);
         self.emit_u8(iter_slot, line);
         self.emit_opcode(OpCode::ARRAY_LEN, line);
-        let len_slot = self.declare_local("__iter_len");
+        let len_slot = self.declare_local("__iter_len")?;
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(len_slot, line);
 
@@ -2776,11 +2789,9 @@ impl Compiler {
         self.emit_opcode(OpCode::ARRAY_GET, line);
 
         // Store the element in the loop variable.
-        let loop_var_slot = self.declare_local(&for_stmt.var);
+        let loop_var_slot = self.declare_local(&for_stmt.var)?;
         self.emit_opcode(OpCode::STORE_LOCAL, line);
         self.emit_u8(loop_var_slot, line);
-
-        // compile body
         self.compile_block(&for_stmt.body)?;
 
         // Increment the index: __iter_idx = __iter_idx + 1
@@ -2934,7 +2945,7 @@ impl Compiler {
                     // Store them in reverse order.
                     for binding in bindings.iter().rev() {
                         if binding != "_" {
-                            let slot = self.declare_local(binding);
+                            let slot = self.declare_local(binding)?;
                             self.emit_opcode(OpCode::STORE_LOCAL, line);
                             self.emit_u8(slot, line);
                         } else {
@@ -2981,6 +2992,42 @@ impl Compiler {
             let jump = (end_ip - instr_end) as i16;
             self.patch_i16_at(*offset, jump);
         }
+
+        Ok(())
+    }
+
+    fn compile_with(&mut self, with_stmt: &ast::WithStmt) -> Result<(), String> {
+        let line = with_stmt.span.line;
+
+        // Compile the resource expression — result on stack.
+        self.compile_expr(&with_stmt.resource_expr)?;
+
+        // Begin a new scope for the with-statement.
+        self.begin_scope();
+
+        // Store the resource into a local variable.
+        let var_name = match &with_stmt.var_name {
+            Some(name) => name.clone(),
+            None => "__with_resource".to_string(),
+        };
+        let resource_slot = self.declare_local(&var_name)?;
+        self.emit_opcode(OpCode::STORE_LOCAL, line);
+        self.emit_u8(resource_slot, line);
+
+        // Compile the body.
+        self.compile_block(&with_stmt.body)?;
+
+        // After the body completes normally, call .close() on the resource.
+        // Load the resource, invoke close(), pop the result.
+        self.emit_opcode(OpCode::LOAD_LOCAL, line);
+        self.emit_u8(resource_slot, line);
+        let close_idx = self.intern_string("close");
+        self.emit_opcode(OpCode::INVOKE_VIRTUAL, line);
+        self.emit_u16(close_idx, line);
+        self.emit_u8(0, line); // 0 args
+        self.emit_opcode(OpCode::POP, line); // discard close() return
+
+        self.end_scope();
 
         Ok(())
     }
@@ -3803,7 +3850,7 @@ impl Compiler {
 
         // Parameters become local variables.
         for (name, _typ) in params {
-            self.declare_local(name);
+            self.declare_local(name)?;
         }
 
         // Compile the closure body.
@@ -6150,5 +6197,40 @@ mod tests {
         let push_offset = chunk.code.iter().position(|&b| b == OpCode::PUSH_STRING as u8).unwrap();
         let new_idx = u16::from_be_bytes([chunk.code[push_offset+1], chunk.code[push_offset+2]]);
         assert_eq!(new_idx, 0, "string index should be remapped to 0");
+    }
+
+    #[test]
+    fn test_too_many_local_variables() {
+        // Create a function with 256 parameters, which exceeds the 255 local variable limit
+        let params: Vec<ast::Param> = (0..256)
+            .map(|i| ast::Param {
+                name: format!("v{}", i),
+                typ: ast::Type::simple("long"),
+            })
+            .collect();
+
+        let declarations = vec![ast::Declaration::Function(ast::FnDecl {
+            access: ast::Access::Public,
+            name: "too_many_locals".to_string(),
+            type_params: vec![],
+            params,
+            return_type: None,
+            body: vec![],
+            sugar: false,
+            where_clause: vec![],
+            span: su(),
+        })];
+
+        let program = ast::Program {
+            imports: vec![],
+            declarations,
+        };
+        let mut compiler = Compiler::new();
+        let result = compiler.compile(&program);
+        match result {
+            Err(msg) => assert_eq!(msg, "Too many local variables in function (max 255)",
+                "Expected local variable overflow error, got: {}", msg),
+            Ok(_) => panic!("Expected compilation error for too many local variables"),
+        }
     }
 }

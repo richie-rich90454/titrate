@@ -44,6 +44,8 @@ pub struct Vm {
     pub output: Vec<String>,
     /// Working directory for resolving relative file paths
     working_dir: Option<std::path::PathBuf>,
+    /// Maximum call depth to prevent stack overflow (default 10000)
+    max_call_depth: usize,
 }
 
 impl Vm {
@@ -64,6 +66,7 @@ impl Vm {
             region_stack: Vec::new(),
             output: Vec::new(),
             working_dir: None,
+            max_call_depth: 10000,
         };
 
         // Register built-in native functions
@@ -307,6 +310,11 @@ impl Vm {
     /// Set the working directory for resolving relative file paths.
     pub fn set_working_dir(&mut self, dir: std::path::PathBuf) {
         self.working_dir = Some(dir);
+    }
+
+    /// Set the maximum call depth to prevent stack overflow.
+    pub fn set_max_call_depth(&mut self, depth: usize) {
+        self.max_call_depth = depth;
     }
 
     /// Call a registered native function by name with the given arguments.
@@ -1972,6 +1980,10 @@ impl Vm {
     // -----------------------------------------------------------------------
 
     fn call_function(&mut self, func_idx: u16, arg_count: u8) -> Result<(), String> {
+        if self.frames.len() >= self.max_call_depth {
+            return Err("Stack overflow: maximum call depth exceeded".to_string());
+        }
+
         let fi = func_idx as usize;
         if fi >= self.functions.len() {
             return Err(format!("CALL: function index {} out of range", func_idx));
@@ -9561,6 +9573,63 @@ mod tests {
                 assert!(s.contains("\"value\""), "Roundtrip should contain value, got {}", s);
             }
             other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    // -- test_vm_stack_overflow ---------------------------------------------------
+
+    #[test]
+    fn test_vm_stack_overflow() {
+        // Build a recursive function: fn recurse() { recurse() }
+        // Function 0 (main): calls recurse (function 1)
+        // Function 1 (recurse): calls itself with no args
+
+        // Build the recurse function chunk
+        let mut recurse_chunk = Chunk::new();
+        // CALL function 1 (recurse itself), 0 args
+        recurse_chunk.write_opcode(OpCode::CALL, 1);
+        recurse_chunk.write_u16(1, 1); // func_idx = 1
+        recurse_chunk.write_u8(0, 1);  // arg_count = 0
+        // RET
+        recurse_chunk.write_opcode(OpCode::RET, 1);
+
+        // Build the main function chunk
+        let mut main_chunk = Chunk::new();
+        // CALL function 1 (recurse), 0 args
+        main_chunk.write_opcode(OpCode::CALL, 1);
+        main_chunk.write_u16(1, 1); // func_idx = 1
+        main_chunk.write_u8(0, 1);  // arg_count = 0
+        // RET
+        main_chunk.write_opcode(OpCode::RET, 1);
+
+        let mut vm = Vm::new();
+        // Add main as function 0
+        vm.add_function(FunctionDef {
+            name: "main".to_string(),
+            arity: 0,
+            chunk: main_chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 0,
+        });
+        // Add recurse as function 1
+        vm.add_function(FunctionDef {
+            name: "recurse".to_string(),
+            arity: 0,
+            chunk: recurse_chunk,
+            is_method: false,
+            is_constructor: false,
+            local_count: 0,
+        });
+
+        // Set a low max call depth for testing
+        vm.set_max_call_depth(10);
+
+        let result = vm.run();
+        match result {
+            Err(msg) => assert_eq!(msg, "Stack overflow: maximum call depth exceeded",
+                "Expected stack overflow error, got: {}", msg),
+            Ok(()) => panic!("Expected stack overflow error but execution succeeded"),
         }
     }
 }
