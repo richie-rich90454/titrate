@@ -7,17 +7,20 @@ import tt::util::Set;
 
 public class Graph<V> {
     private HashMap<V, ArrayList<V>> adj;
+    private HashMap<String, double> weights;
     private bool directed;
     private int _edgeCount;
 
     public Graph() {
         this.adj = new HashMap<V, ArrayList<V>>();
+        this.weights = new HashMap<String, double>();
         this.directed = false;
         this._edgeCount = 0;
     }
 
     public Graph(bool directed) {
         this.adj = new HashMap<V, ArrayList<V>>();
+        this.weights = new HashMap<String, double>();
         this.directed = directed;
         this._edgeCount = 0;
     }
@@ -29,17 +32,23 @@ public class Graph<V> {
     }
 
     public void addEdge(V from, V to) {
+        this.addEdge(from, to, 1.0);
+    }
+
+    public void addEdge(V from, V to, double weight) {
         this.addVertex(from);
         this.addVertex(to);
         ArrayList<V> fromList = this.adj.get(from);
         if (!this._containsNeighbor(fromList, to)) {
             fromList.add(to);
+            this.weights.put(this._edgeKey(from, to), weight);
             this._edgeCount = this._edgeCount + 1;
         }
         if (!this.directed) {
             ArrayList<V> toList = this.adj.get(to);
             if (!this._containsNeighbor(toList, from)) {
                 toList.add(from);
+                this.weights.put(this._edgeKey(to, from), weight);
             }
         }
     }
@@ -300,21 +309,21 @@ public class Graph<V> {
         return path;
     }
 
-    public HashMap<V, int> dijkstra(V start) {
-        HashMap<V, int> dist = new HashMap<V, int>();
+    public HashMap<V, double> dijkstra(V start) {
+        HashMap<V, double> dist = new HashMap<V, double>();
         ArrayList<V> allVertices = this.adj.keys();
         int i = 0;
         while (i < allVertices.size()) {
-            dist.put(allVertices.get(i), 999999999);
+            dist.put(allVertices.get(i), 999999999.0);
             i = i + 1;
         }
-        dist.put(start, 0);
+        dist.put(start, 0.0);
         Set<V> visited = new Set<V>();
         int n = allVertices.size();
         i = 0;
         while (i < n) {
             V u = null;
-            int minDist = 999999999;
+            double minDist = 999999999.0;
             int j = 0;
             while (j < allVertices.size()) {
                 V v = allVertices.get(j);
@@ -332,7 +341,8 @@ public class Graph<V> {
             j = 0;
             while (j < nbrs.size()) {
                 V neighbor = nbrs.get(j);
-                int alt = dist.get(u) + 1;
+                double w = this.weights.get(this._edgeKey(u, neighbor));
+                double alt = dist.get(u) + w;
                 if (alt < dist.get(neighbor)) {
                     dist.put(neighbor, alt);
                 }
