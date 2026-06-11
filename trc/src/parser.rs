@@ -355,9 +355,9 @@ impl Parser {
             _ => return Err(format!("Expected identifier in import path, found {}", first)),
         }
 
-        // Consume :: segments
-        while self.match_token(&lexer::Token::ColonColon) {
-            // Check for glob star: :: *
+        // Consume :: or . segments (both are valid import path separators)
+        while self.match_token(&lexer::Token::ColonColon) || self.match_token(&lexer::Token::Dot) {
+            // Check for glob star: :: * or . *
             if self.is_at(&lexer::Token::Star) {
                 self.advance();
                 glob = true;
@@ -4410,6 +4410,65 @@ import tt::math::NDArray;"#;
         assert_eq!(prog.imports.len(), 2);
         assert_eq!(prog.imports[0].path, vec!["tt", "math", "Math"]);
         assert_eq!(prog.imports[1].path, vec!["tt", "math", "NDArray"]);
+    }
+
+    // -----------------------------------------------------------------------
+    // Dot-notation import tests (syntax sugar for ::)
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_import_dot_notation() {
+        let src = r#"import tt.math.Math;"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        assert_eq!(prog.imports.len(), 1);
+        assert_eq!(prog.imports[0].path, vec!["tt", "math", "Math"]);
+    }
+
+    #[test]
+    fn test_import_dot_notation_deep() {
+        let src = r#"import tt.math.linalg.Matrix;"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        assert_eq!(prog.imports.len(), 1);
+        assert_eq!(prog.imports[0].path, vec!["tt", "math", "linalg", "Matrix"]);
+    }
+
+    #[test]
+    fn test_import_dot_notation_glob() {
+        let src = r#"import tt.util.*;"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        assert_eq!(prog.imports.len(), 1);
+        assert_eq!(prog.imports[0].path, vec!["tt", "util"]);
+        assert!(prog.imports[0].glob);
+    }
+
+    #[test]
+    fn test_import_mixed_notation() {
+        // Both notations should work in the same file
+        let src = r#"import tt::math::Math;
+import tt.chem.Molecule;"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        assert_eq!(prog.imports.len(), 2);
+        assert_eq!(prog.imports[0].path, vec!["tt", "math", "Math"]);
+        assert_eq!(prog.imports[1].path, vec!["tt", "chem", "Molecule"]);
+    }
+
+    #[test]
+    fn test_import_dot_notation_does_not_affect_expressions() {
+        // Ensure that `a.b` in expressions is still parsed as member access, not import path
+        let src = r#"fn f(): void { let x = obj.field; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::VarDecl(vd) => match &vd.init {
+                    Some(ast::Expr::MemberAccess(obj, name, _)) => {
+                        assert!(matches!(obj.as_ref(), ast::Expr::Identifier(ident, _) if ident == "obj"));
+                        assert_eq!(name, "field");
+                    }
+                    other => panic!("Expected MemberAccess, got {:?}", other),
+                },
+                other => panic!("Expected VarDecl, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
     }
 
     // -----------------------------------------------------------------------
