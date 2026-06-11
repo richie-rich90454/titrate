@@ -115,6 +115,10 @@ impl Vm {
         vm.register_native("Net_close", native_net_close);
         vm.register_native("Http_get", native_http_get);
         vm.register_native("Http_post", native_http_post);
+        vm.register_native("Http_put", native_http_put);
+        vm.register_native("Http_delete", native_http_delete);
+        vm.register_native("Http_patch", native_http_patch);
+        vm.register_native("Http_head", native_http_head);
 
         // Time natives
         vm.register_native("Time_now", native_time_now);
@@ -165,6 +169,7 @@ impl Vm {
 
         // Json natives
         vm.register_native("Json_parse", native_json_parse);
+        vm.register_native("Json_stringify", native_json_stringify);
 
         // Env natives
         vm.register_native("Env_get", native_env_get);
@@ -4223,6 +4228,216 @@ fn native_http_post(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+fn native_http_put(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("Http_put: expected 3 arguments (url, body, contentType)".to_string());
+    }
+    let url = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_put: expected String url".to_string()),
+    };
+    let body = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_put: expected String body".to_string()),
+    };
+    let content_type = match &args[2] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_put: expected String contentType".to_string()),
+    };
+
+    let url_str = url.to_string();
+    let (host, port, path) = parse_http_url(&url_str)?;
+
+    let addr = format!("{}:{}", host, port);
+    let mut stream = std::net::TcpStream::connect(&addr)
+        .map_err(|e| format!("Http_put: connection failed: {}", e))?;
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+        .map_err(|e| format!("Http_put: {}", e))?;
+
+    let request = format!(
+        "PUT {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        path, host, content_type, body.len(), body
+    );
+    use std::io::Write;
+    stream.write_all(request.as_bytes())
+        .map_err(|e| format!("Http_put: write failed: {}", e))?;
+
+    use std::io::Read;
+    let mut response = Vec::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => response.extend_from_slice(&buf[..n]),
+            Err(e) => {
+                if response.is_empty() {
+                    return Err(format!("Http_put: read failed: {}", e));
+                }
+                break;
+            }
+        }
+    }
+
+    let response_str = String::from_utf8_lossy(&response).to_string();
+    if let Some(idx) = response_str.find("\r\n\r\n") {
+        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
+    } else {
+        Ok(Value::String(Rc::new(response_str)))
+    }
+}
+
+fn native_http_delete(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Http_delete: expected 1 argument (url)".to_string());
+    }
+    let url = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_delete: expected String url".to_string()),
+    };
+
+    let url_str = url.to_string();
+    let (host, port, path) = parse_http_url(&url_str)?;
+
+    let addr = format!("{}:{}", host, port);
+    let mut stream = std::net::TcpStream::connect(&addr)
+        .map_err(|e| format!("Http_delete: connection failed: {}", e))?;
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+        .map_err(|e| format!("Http_delete: {}", e))?;
+
+    let request = format!("DELETE {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", path, host);
+    use std::io::Write;
+    stream.write_all(request.as_bytes())
+        .map_err(|e| format!("Http_delete: write failed: {}", e))?;
+
+    use std::io::Read;
+    let mut response = Vec::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => response.extend_from_slice(&buf[..n]),
+            Err(e) => {
+                if response.is_empty() {
+                    return Err(format!("Http_delete: read failed: {}", e));
+                }
+                break;
+            }
+        }
+    }
+
+    let response_str = String::from_utf8_lossy(&response).to_string();
+    if let Some(idx) = response_str.find("\r\n\r\n") {
+        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
+    } else {
+        Ok(Value::String(Rc::new(response_str)))
+    }
+}
+
+fn native_http_patch(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("Http_patch: expected 3 arguments (url, body, contentType)".to_string());
+    }
+    let url = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_patch: expected String url".to_string()),
+    };
+    let body = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_patch: expected String body".to_string()),
+    };
+    let content_type = match &args[2] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_patch: expected String contentType".to_string()),
+    };
+
+    let url_str = url.to_string();
+    let (host, port, path) = parse_http_url(&url_str)?;
+
+    let addr = format!("{}:{}", host, port);
+    let mut stream = std::net::TcpStream::connect(&addr)
+        .map_err(|e| format!("Http_patch: connection failed: {}", e))?;
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+        .map_err(|e| format!("Http_patch: {}", e))?;
+
+    let request = format!(
+        "PATCH {} HTTP/1.1\r\nHost: {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        path, host, content_type, body.len(), body
+    );
+    use std::io::Write;
+    stream.write_all(request.as_bytes())
+        .map_err(|e| format!("Http_patch: write failed: {}", e))?;
+
+    use std::io::Read;
+    let mut response = Vec::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => response.extend_from_slice(&buf[..n]),
+            Err(e) => {
+                if response.is_empty() {
+                    return Err(format!("Http_patch: read failed: {}", e));
+                }
+                break;
+            }
+        }
+    }
+
+    let response_str = String::from_utf8_lossy(&response).to_string();
+    if let Some(idx) = response_str.find("\r\n\r\n") {
+        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
+    } else {
+        Ok(Value::String(Rc::new(response_str)))
+    }
+}
+
+fn native_http_head(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Http_head: expected 1 argument (url)".to_string());
+    }
+    let url = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Http_head: expected String url".to_string()),
+    };
+
+    let url_str = url.to_string();
+    let (host, port, path) = parse_http_url(&url_str)?;
+
+    let addr = format!("{}:{}", host, port);
+    let mut stream = std::net::TcpStream::connect(&addr)
+        .map_err(|e| format!("Http_head: connection failed: {}", e))?;
+    stream.set_read_timeout(Some(std::time::Duration::from_secs(30)))
+        .map_err(|e| format!("Http_head: {}", e))?;
+
+    let request = format!("HEAD {} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n", path, host);
+    use std::io::Write;
+    stream.write_all(request.as_bytes())
+        .map_err(|e| format!("Http_head: write failed: {}", e))?;
+
+    use std::io::Read;
+    let mut response = Vec::new();
+    let mut buf = [0u8; 4096];
+    loop {
+        match stream.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => response.extend_from_slice(&buf[..n]),
+            Err(e) => {
+                if response.is_empty() {
+                    return Err(format!("Http_head: read failed: {}", e));
+                }
+                break;
+            }
+        }
+    }
+
+    let response_str = String::from_utf8_lossy(&response).to_string();
+    if let Some(idx) = response_str.find("\r\n\r\n") {
+        Ok(Value::String(Rc::new(response_str[idx + 4..].to_string())))
+    } else {
+        Ok(Value::String(Rc::new(response_str)))
+    }
+}
+
 /// Parse a simple HTTP URL into (host, port, path).
 fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
     let url = url.strip_prefix("http://").unwrap_or(url);
@@ -4613,6 +4828,113 @@ fn native_json_parse(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Json_parse: expected String argument".to_string()),
     };
     json_parse_value(&json_str).map(|(v, _)| v)
+}
+
+fn native_json_stringify(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Json_stringify: expected 1 argument (value)".to_string());
+    }
+    Ok(Value::String(Rc::new(json_stringify_value(&args[0]))))
+}
+
+fn json_stringify_value(value: &Value) -> String {
+    match value {
+        Value::Null => "null".to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Int(n) => n.to_string(),
+        Value::Long(n) => n.to_string(),
+        Value::Double(f) => {
+            if f.is_nan() || f.is_infinite() {
+                "null".to_string()
+            } else {
+                let s = format!("{}", f);
+                // Ensure decimal point for whole-number doubles
+                if !s.contains('.') && !s.contains('e') && !s.contains('E') {
+                    format!("{}.0", s)
+                } else {
+                    s
+                }
+            }
+        }
+        Value::Float(f) => {
+            if f.is_nan() || f.is_infinite() {
+                "null".to_string()
+            } else {
+                let s = format!("{}", f);
+                if !s.contains('.') && !s.contains('e') && !s.contains('E') {
+                    format!("{}.0", s)
+                } else {
+                    s
+                }
+            }
+        }
+        Value::String(s) => {
+            let escaped = s
+                .replace('\\', "\\\\")
+                .replace('"', "\\\"")
+                .replace('\n', "\\n")
+                .replace('\r', "\\r")
+                .replace('\t', "\\t");
+            format!("\"{}\"", escaped)
+        }
+        Value::Array { elements } => {
+            let items: Vec<String> = elements.iter().map(json_stringify_value).collect();
+            format!("[{}]", items.join(", "))
+        }
+        Value::ClassInstance { fields, .. } => {
+            let borrowed = fields.borrow();
+            // Check if this is a HashMap representation (has _keys and _values)
+            if let (Some(Value::Array { elements: keys }), Some(Value::Array { elements: values })) =
+                (borrowed.get("_keys"), borrowed.get("_values"))
+            {
+                let items: Vec<String> = keys.iter().zip(values.iter())
+                    .map(|(k, v)| format!("{}: {}", json_stringify_value(k), json_stringify_value(v)))
+                    .collect();
+                format!("{{{}}}", items.join(", "))
+            } else {
+                // Generic class instance: serialize all fields
+                let items: Vec<String> = borrowed.iter()
+                    .map(|(k, v)| format!("\"{}\": {}", k, json_stringify_value(v)))
+                    .collect();
+                format!("{{{}}}", items.join(", "))
+            }
+        }
+        Value::Void => "null".to_string(),
+        // Fallback for other types
+        _ => format!("\"{}\"", value_to_string(value)),
+    }
+}
+
+fn value_to_string(value: &Value) -> String {
+    match value {
+        Value::Void => "void".to_string(),
+        Value::Null => "null".to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Byte(v) => format!("{}b", v),
+        Value::Short(v) => format!("{}s", v),
+        Value::Int(v) => v.to_string(),
+        Value::Long(v) => format!("{}L", v),
+        Value::Vast(v) => format!("{}V", v),
+        Value::Uvast(v) => format!("{}U", v),
+        Value::Float(v) => format!("{}f", v),
+        Value::Double(v) => format!("{}d", v),
+        Value::Half(v) => format!("{}h", v),
+        Value::Quad(v) => format!("{}q", v),
+        Value::Char(c) => c.to_string(),
+        Value::String(s) => s.to_string(),
+        Value::Array { elements } => {
+            let items: Vec<String> = elements.iter().map(value_to_string).collect();
+            format!("[{}]", items.join(", "))
+        }
+        Value::ClassInstance { class_name, fields, .. } => {
+            let borrowed = fields.borrow();
+            let items: Vec<String> = borrowed.iter()
+                .map(|(k, v)| format!("{}: {}", k, value_to_string(v)))
+                .collect();
+            format!("{}({})", class_name, items.join(", "))
+        }
+        _ => format!("{:?}", value),
+    }
 }
 
 /// Simple recursive-descent JSON parser.
@@ -5495,6 +5817,10 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Net_close" => Some(native_net_close),
         "Http_get" => Some(native_http_get),
         "Http_post" => Some(native_http_post),
+        "Http_put" => Some(native_http_put),
+        "Http_delete" => Some(native_http_delete),
+        "Http_patch" => Some(native_http_patch),
+        "Http_head" => Some(native_http_head),
         // Time natives
         "Time_now" => Some(native_time_now),
         "Time_sleep" => Some(native_time_sleep),
@@ -5540,6 +5866,7 @@ fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Random_nextLong" => Some(native_random_next_long),
         // Json natives
         "Json_parse" => Some(native_json_parse),
+        "Json_stringify" => Some(native_json_stringify),
         // Env natives
         "Env_get" => Some(native_env_get),
         "Env_set" => Some(native_env_set),
@@ -8917,5 +9244,235 @@ mod tests {
         // Clean up
         let _ = std::fs::remove_dir_all(&base);
         let _ = std::fs::remove_dir_all(&moved);
+    }
+
+    // -- test_http_put -----------------------------------------------------------
+
+    #[test]
+    fn test_http_put() {
+        let result = native_http_put(&[
+            Value::String(Rc::new("http://example.com/resource".to_string())),
+            Value::String(Rc::new("{\"key\":\"value\"}".to_string())),
+            Value::String(Rc::new("application/json".to_string())),
+        ]);
+        match result {
+            Ok(Value::String(s)) => {
+                assert!(!s.is_empty(), "HTTP PUT response should not be empty");
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(_) => {
+                eprintln!("Skipping test_http_put: network unavailable");
+            }
+        }
+    }
+
+    #[test]
+    fn test_http_put_wrong_args() {
+        let result = native_http_put(&[
+            Value::String(Rc::new("http://example.com/".to_string())),
+        ]);
+        assert!(result.is_err(), "Http_put with < 3 args should return error");
+    }
+
+    // -- test_http_delete -------------------------------------------------------
+
+    #[test]
+    fn test_http_delete() {
+        let result = native_http_delete(&[
+            Value::String(Rc::new("http://example.com/resource".to_string())),
+        ]);
+        match result {
+            Ok(Value::String(s)) => {
+                assert!(!s.is_empty(), "HTTP DELETE response should not be empty");
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(_) => {
+                eprintln!("Skipping test_http_delete: network unavailable");
+            }
+        }
+    }
+
+    #[test]
+    fn test_http_delete_wrong_args() {
+        let result = native_http_delete(&[]);
+        assert!(result.is_err(), "Http_delete with no args should return error");
+    }
+
+    // -- test_http_patch --------------------------------------------------------
+
+    #[test]
+    fn test_http_patch() {
+        let result = native_http_patch(&[
+            Value::String(Rc::new("http://example.com/resource".to_string())),
+            Value::String(Rc::new("{\"key\":\"patched\"}".to_string())),
+            Value::String(Rc::new("application/json".to_string())),
+        ]);
+        match result {
+            Ok(Value::String(s)) => {
+                assert!(!s.is_empty(), "HTTP PATCH response should not be empty");
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(_) => {
+                eprintln!("Skipping test_http_patch: network unavailable");
+            }
+        }
+    }
+
+    #[test]
+    fn test_http_patch_wrong_args() {
+        let result = native_http_patch(&[
+            Value::String(Rc::new("http://example.com/".to_string())),
+        ]);
+        assert!(result.is_err(), "Http_patch with < 3 args should return error");
+    }
+
+    // -- test_http_head ---------------------------------------------------------
+
+    #[test]
+    fn test_http_head() {
+        let result = native_http_head(&[
+            Value::String(Rc::new("http://example.com/".to_string())),
+        ]);
+        match result {
+            Ok(Value::String(_s)) => {
+                // HEAD response body is typically empty, but the function returns a String
+            }
+            Ok(other) => panic!("Expected String, got {:?}", other),
+            Err(_) => {
+                eprintln!("Skipping test_http_head: network unavailable");
+            }
+        }
+    }
+
+    #[test]
+    fn test_http_head_wrong_args() {
+        let result = native_http_head(&[]);
+        assert!(result.is_err(), "Http_head with no args should return error");
+    }
+
+    // -- test_json_stringify ----------------------------------------------------
+
+    #[test]
+    fn test_json_stringify_null() {
+        let result = native_json_stringify(&[Value::Null]).unwrap();
+        assert_eq!(result, Value::String(Rc::new("null".to_string())));
+    }
+
+    #[test]
+    fn test_json_stringify_bool() {
+        let result_true = native_json_stringify(&[Value::Bool(true)]).unwrap();
+        assert_eq!(result_true, Value::String(Rc::new("true".to_string())));
+
+        let result_false = native_json_stringify(&[Value::Bool(false)]).unwrap();
+        assert_eq!(result_false, Value::String(Rc::new("false".to_string())));
+    }
+
+    #[test]
+    fn test_json_stringify_int() {
+        let result = native_json_stringify(&[Value::Int(42)]).unwrap();
+        assert_eq!(result, Value::String(Rc::new("42".to_string())));
+    }
+
+    #[test]
+    fn test_json_stringify_long() {
+        let result = native_json_stringify(&[Value::Long(123456789)]).unwrap();
+        assert_eq!(result, Value::String(Rc::new("123456789".to_string())));
+    }
+
+    #[test]
+    fn test_json_stringify_double() {
+        let result = native_json_stringify(&[Value::Double(3.14)]).unwrap();
+        match result {
+            Value::String(s) => {
+                let parsed: f64 = s.parse().unwrap();
+                assert!((parsed - 3.14).abs() < 0.001, "Expected ~3.14, got {}", s);
+            }
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_json_stringify_string() {
+        let result = native_json_stringify(&[Value::String(Rc::new("hello".to_string()))]).unwrap();
+        assert_eq!(result, Value::String(Rc::new("\"hello\"".to_string())));
+    }
+
+    #[test]
+    fn test_json_stringify_string_with_escapes() {
+        let result = native_json_stringify(&[Value::String(Rc::new("line1\nline2\ttab".to_string()))]).unwrap();
+        assert_eq!(result, Value::String(Rc::new("\"line1\\nline2\\ttab\"".to_string())));
+    }
+
+    #[test]
+    fn test_json_stringify_array() {
+        let result = native_json_stringify(&[Value::Array {
+            elements: vec![Value::Long(1), Value::Long(2), Value::Long(3)],
+        }]).unwrap();
+        assert_eq!(result, Value::String(Rc::new("[1, 2, 3]".to_string())));
+    }
+
+    #[test]
+    fn test_json_stringify_hashmap() {
+        let mut fields = HashMap::new();
+        fields.insert("_keys".to_string(), Value::Array {
+            elements: vec![Value::String(Rc::new("name".to_string()))],
+        });
+        fields.insert("_values".to_string(), Value::Array {
+            elements: vec![Value::String(Rc::new("Alice".to_string()))],
+        });
+        let hashmap = Value::ClassInstance {
+            class_name: "HashMap".to_string(),
+            fields: Rc::new(RefCell::new(fields)),
+            vtable: HashMap::new(),
+        };
+        let result = native_json_stringify(&[hashmap]).unwrap();
+        match result {
+            Value::String(s) => {
+                assert!(s.contains("\"name\""), "Should contain key 'name', got {}", s);
+                assert!(s.contains("\"Alice\""), "Should contain value 'Alice', got {}", s);
+            }
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_json_stringify_class_instance() {
+        let mut fields = HashMap::new();
+        fields.insert("x".to_string(), Value::Int(10));
+        fields.insert("y".to_string(), Value::Int(20));
+        let instance = Value::ClassInstance {
+            class_name: "Point".to_string(),
+            fields: Rc::new(RefCell::new(fields)),
+            vtable: HashMap::new(),
+        };
+        let result = native_json_stringify(&[instance]).unwrap();
+        match result {
+            Value::String(s) => {
+                assert!(s.contains("\"x\": 10"), "Should contain field x, got {}", s);
+                assert!(s.contains("\"y\": 20"), "Should contain field y, got {}", s);
+            }
+            other => panic!("Expected String, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_json_stringify_no_args() {
+        let result = native_json_stringify(&[]);
+        assert!(result.is_err(), "Json_stringify with no args should return error");
+    }
+
+    #[test]
+    fn test_json_stringify_roundtrip() {
+        // Parse then stringify should produce equivalent JSON
+        let original = "{\"key\": \"value\"}";
+        let parsed = native_json_parse(&[Value::String(Rc::new(original.to_string()))]).unwrap();
+        let stringified = native_json_stringify(&[parsed]).unwrap();
+        match stringified {
+            Value::String(s) => {
+                assert!(s.contains("\"key\""), "Roundtrip should contain key, got {}", s);
+                assert!(s.contains("\"value\""), "Roundtrip should contain value, got {}", s);
+            }
+            other => panic!("Expected String, got {:?}", other),
+        }
     }
 }
