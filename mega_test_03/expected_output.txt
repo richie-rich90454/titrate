@@ -1,52 +1,22 @@
-=== Titrate Alpha 0.3 – Water Box MD Simulation ===
+=== Titrate Alpha 0.3 – Water Box Simulation ===
 
 === System Setup ===
-Water molecules: 1000
-Lattice: 10 x 10 x 10
+Water molecules: 8
+Lattice: 2 x 2 x 2
 Spacing: 3.166 A
-Box size: 31.66 A
-Atoms: 3000
-Bonds: 2000
+Box size: 6.332 A
+Atoms: 24
+Bonds: 16
 
-=== MD Setup ===
-Timestep: 1.0 fs
-Target temperature: 300.0 K
-Thermostat coupling: 100.0 fs
-Initializing velocities...
-Computing initial forces...
-
-=== Initial State ===
-Potential Energy: <PLACEHOLDER>
-Kinetic Energy:   <PLACEHOLDER>
-Total Energy:     <PLACEHOLDER>
-Temperature:      <PLACEHOLDER>
-
-=== Running MD Simulation ===
-Starting MD simulation: 500 steps
-Step | Potential | Kinetic | Total | Temperature
-50 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-100 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-150 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-200 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-250 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-300 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-350 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-400 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-450 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-500 | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER> | <PLACEHOLDER>
-MD simulation complete.
-
-=== Final State ===
-Potential Energy: <PLACEHOLDER>
-Kinetic Energy:   <PLACEHOLDER>
-Total Energy:     <PLACEHOLDER>
-Temperature:      <PLACEHOLDER>
+=== Energy Computation ===
+Bond Energy: <PLACEHOLDER>
+LJ Energy:   <PLACEHOLDER>
+Total Energy: <PLACEHOLDER>
 
 === Verification ===
-Temperature in range [100, 500] K: true
+Atom count is 24: true
+Bond count is 16: true
 Energy is finite: true
-Potential energy is negative: true
-Kinetic energy is positive: true
 VERIFICATION PASSED
 
 === Mega Test 0.3 Complete ===

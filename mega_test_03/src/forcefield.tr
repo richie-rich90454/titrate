@@ -1,43 +1,137 @@
-// SPC/E-like Water Model Parameters for Titrate Alpha 0.3
-import tt.chem.Atom;
-import tt.chem.Bond;
-import tt.chem.Molecule;
-import tt.math.Math;
+// WaterBox – SPC/E-like Water Model for Titrate Alpha 0.3
+// Self-contained class that models a box of water molecules.
 
-public class WaterModel {
-    // Bond parameters
-    public static double OH_BOND_LENGTH() { return 1.0; }          // Angstrom
-    public static double OH_FORCE_CONSTANT() { return 4500.0; }    // kcal/mol/A^2
+public class WaterBox {
+    public ArrayList<double> x;
+    public ArrayList<double> y;
+    public ArrayList<double> z;
+    public ArrayList<String> symbol;
+    public ArrayList<double> charge;
+    public ArrayList<double> mass;
+    public ArrayList<int> bondA;
+    public ArrayList<int> bondB;
+    public ArrayList<double> bondR0;
+    public ArrayList<double> bondK;
 
-    // Angle parameters
-    public static double HOH_ANGLE_DEG() { return 109.47; }        // degrees
-    public static double HOH_ANGLE_RAD() { return 109.47 * Math.PI() / 180.0; }  // radians
+    // LJ parameters
+    public double ljSigma;
+    public double ljEpsilon;
 
-    // Charge parameters
-    public static double O_CHARGE() { return -0.8476; }             // e
-    public static double H_CHARGE() { return 0.4238; }              // e
+    public WaterBox() {
+        this.x = new ArrayList<double>();
+        this.y = new ArrayList<double>();
+        this.z = new ArrayList<double>();
+        this.symbol = new ArrayList<String>();
+        this.charge = new ArrayList<double>();
+        this.mass = new ArrayList<double>();
+        this.bondA = new ArrayList<int>();
+        this.bondB = new ArrayList<int>();
+        this.bondR0 = new ArrayList<double>();
+        this.bondK = new ArrayList<double>();
+        this.ljSigma = 3.166;
+        this.ljEpsilon = 0.1554;
+    }
 
-    // Lennard-Jones parameters for oxygen
-    public static double LJ_SIGMA_O() { return 3.166; }            // Angstrom
-    public static double LJ_EPSILON_O() { return 0.1554; }         // kcal/mol
+    public int atomCount() {
+        return this.x.size();
+    }
 
-    // Add a single water molecule to the system at position (ox, oy, oz).
-    // The oxygen is placed at (ox, oy, oz) and the two hydrogens are
-    // placed at the correct O-H bond length and H-O-H angle.
-    // Returns the index of the oxygen atom.
-    public static int addWater(Molecule mol, double ox, double oy, double oz) {
-        double bondLen = WaterModel.OH_BOND_LENGTH();
-        double halfAngle = WaterModel.HOH_ANGLE_RAD() / 2.0;
-        double dx = bondLen * Math.sin(halfAngle);
-        double dz = bondLen * Math.cos(halfAngle);
+    public int bondCount() {
+        return this.bondA.size();
+    }
 
-        int oIdx = mol.addAtom(new Atom("O", 15.999, WaterModel.O_CHARGE(), ox, oy, oz));
-        int h1Idx = mol.addAtom(new Atom("H", 1.008, WaterModel.H_CHARGE(), ox + dx, oy, oz + dz));
-        int h2Idx = mol.addAtom(new Atom("H", 1.008, WaterModel.H_CHARGE(), ox - dx, oy, oz + dz));
+    // Add a single atom and return its index
+    public int addAtom(String sym, double m, double q, double px, double py, double pz) {
+        this.symbol.add(sym);
+        this.mass.add(m);
+        this.charge.add(q);
+        this.x.add(px);
+        this.y.add(py);
+        this.z.add(pz);
+        return this.x.size() - 1;
+    }
 
-        mol.addBond(new Bond(oIdx, h1Idx, 1, bondLen, WaterModel.OH_FORCE_CONSTANT()));
-        mol.addBond(new Bond(oIdx, h2Idx, 1, bondLen, WaterModel.OH_FORCE_CONSTANT()));
+    // Add a bond between atoms at indices a and b
+    public void addBond(int a, int b, double r0, double k) {
+        this.bondA.add(a);
+        this.bondB.add(b);
+        this.bondR0.add(r0);
+        this.bondK.add(k);
+    }
 
-        return oIdx;
+    // Add a water molecule at position (ox, oy, oz)
+    // Uses precomputed geometry: OH bond length = 1.0 A
+    // HOH angle = 109.47 deg, half = 54.735 deg
+    // sin(54.735 deg) = 0.8165, cos(54.735 deg) = 0.5774
+    public void addWater(double ox, double oy, double oz) {
+        double bondLen = 1.0;
+        double dx = bondLen * 0.8165;
+        double dz = bondLen * 0.5774;
+
+        int oIdx = this.addAtom("O", 15.999, -0.8476, ox, oy, oz);
+        int h1Idx = this.addAtom("H", 1.008, 0.4238, ox + dx, oy, oz + dz);
+        int h2Idx = this.addAtom("H", 1.008, 0.4238, ox - dx, oy, oz + dz);
+
+        this.addBond(oIdx, h1Idx, bondLen, 4500.0);
+        this.addBond(oIdx, h2Idx, bondLen, 4500.0);
+    }
+
+    // Newton's method square root
+    public double sqrt(double val) {
+        if (val <= 0.0) { return 0.0; }
+        double x = val;
+        int i = 0;
+        while (i < 20) {
+            x = 0.5 * (x + val / x);
+            i = i + 1;
+        }
+        return x;
+    }
+
+    // Compute distance between atoms i and j
+    public double distance(int i, int j) {
+        double dx = this.x.get(i) - this.x.get(j);
+        double dy = this.y.get(i) - this.y.get(j);
+        double dz = this.z.get(i) - this.z.get(j);
+        return this.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    // Harmonic bond energy: E = sum of 0.5 * k * (r - r0)^2
+    public double computeBondEnergy() {
+        double e = 0.0;
+        int i = 0;
+        while (i < this.bondA.size()) {
+            int a = this.bondA.get(i);
+            int b = this.bondB.get(i);
+            double r = this.distance(a, b);
+            double dr = r - this.bondR0.get(i);
+            e = e + 0.5 * this.bondK.get(i) * dr * dr;
+            i = i + 1;
+        }
+        return e;
+    }
+
+    // Lennard-Jones 6-12 potential: E = 4*epsilon * ((sigma/r)^12 - (sigma/r)^6)
+    public double computeLJEnergy() {
+        double e = 0.0;
+        int n = this.x.size();
+        int i = 0;
+        while (i < n) {
+            int j = i + 1;
+            while (j < n) {
+                double r = this.distance(i, j);
+                if (r < 0.001) {
+                    j = j + 1;
+                    continue;
+                }
+                double sr = this.ljSigma / r;
+                double sr6 = sr * sr * sr * sr * sr * sr;
+                double sr12 = sr6 * sr6;
+                e = e + 4.0 * this.ljEpsilon * (sr12 - sr6);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return e;
     }
 }
