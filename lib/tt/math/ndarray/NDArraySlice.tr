@@ -1,0 +1,202 @@
+import tt::util::ArrayList;
+
+// NDArray slicing and combination: slice, concat, stack, where, clip
+public class NDArraySlice {
+    // Slice the array along each dimension. starts/ends are per-dimension bounds (exclusive end).
+    public static NDArray<T> slice(NDArray<T> a, ArrayList<int> starts, ArrayList<int> ends) {
+        NDArray<T> result = new NDArray<T>();
+        int nd = a.shape.size();
+        ArrayList<int> newShape = new ArrayList<int>();
+        int i = 0;
+        while (i < nd) {
+            int s = starts.get(i);
+            int e = ends.get(i);
+            if (e > a.shape.get(i)) { e = a.shape.get(i); }
+            newShape.add(e - s);
+            result.shape.add(e - s);
+            i = i + 1;
+        }
+        result.computeStrides();
+        int total = result.totalElements();
+        ArrayList<int> indices = new ArrayList<int>();
+        i = 0;
+        while (i < nd) {
+            indices.add(0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < total) {
+            ArrayList<int> srcIndices = new ArrayList<int>();
+            int d = 0;
+            while (d < nd) {
+                srcIndices.add(indices.get(d) + starts.get(d));
+                d = d + 1;
+            }
+            result.data.add(a.get(srcIndices));
+            int axis = nd - 1;
+            while (axis >= 0) {
+                int val = indices.get(axis) + 1;
+                indices.set(axis, val);
+                if (val < newShape.get(axis)) {
+                    break;
+                }
+                indices.set(axis, 0);
+                axis = axis - 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Concatenate with another array along the given axis.
+    public static NDArray<T> concat(NDArray<T> a, NDArray<T> other, int axis) {
+        NDArray<T> result = new NDArray<T>();
+        int nd = a.shape.size();
+        int i = 0;
+        while (i < nd) {
+            if (i == axis) {
+                result.shape.add(a.shape.get(i) + other.shape.get(i));
+            } else {
+                result.shape.add(a.shape.get(i));
+            }
+            i = i + 1;
+        }
+        result.computeStrides();
+        int total = result.totalElements();
+        ArrayList<int> indices = new ArrayList<int>();
+        i = 0;
+        while (i < nd) {
+            indices.add(0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < total) {
+            ArrayList<int> srcIndices = new ArrayList<int>();
+            int d = 0;
+            while (d < nd) {
+                int idx = indices.get(d);
+                if (d == axis) {
+                    if (idx < a.shape.get(d)) {
+                        srcIndices.add(idx);
+                    } else {
+                        srcIndices.add(idx - a.shape.get(d));
+                    }
+                } else {
+                    srcIndices.add(idx);
+                }
+                d = d + 1;
+            }
+            if (indices.get(axis) < a.shape.get(axis)) {
+                result.data.add(a.get(srcIndices));
+            } else {
+                result.data.add(other.get(srcIndices));
+            }
+            int ax = nd - 1;
+            while (ax >= 0) {
+                int val = indices.get(ax) + 1;
+                indices.set(ax, val);
+                if (val < result.shape.get(ax)) {
+                    break;
+                }
+                indices.set(ax, 0);
+                ax = ax - 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Stack this and other along a new axis.
+    public static NDArray<T> stack(NDArray<T> a, NDArray<T> other, int axis) {
+        NDArray<T> result = new NDArray<T>();
+        int nd = a.shape.size();
+        int i = 0;
+        int inserted = 0;
+        while (i < nd + 1) {
+            if (i == axis) {
+                result.shape.add(2);
+                inserted = 1;
+            } else {
+                result.shape.add(a.shape.get(i - inserted));
+            }
+            i = i + 1;
+        }
+        result.computeStrides();
+        int total = result.totalElements();
+        ArrayList<int> indices = new ArrayList<int>();
+        i = 0;
+        while (i < nd + 1) {
+            indices.add(0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < total) {
+            ArrayList<int> srcIndices = new ArrayList<int>();
+            int d = 0;
+            while (d < nd + 1) {
+                if (d != axis) {
+                    srcIndices.add(indices.get(d));
+                }
+                d = d + 1;
+            }
+            if (indices.get(axis) == 0) {
+                result.data.add(a.get(srcIndices));
+            } else {
+                result.data.add(other.get(srcIndices));
+            }
+            int ax = nd;
+            while (ax >= 0) {
+                int val = indices.get(ax) + 1;
+                indices.set(ax, val);
+                if (val < result.shape.get(ax)) {
+                    break;
+                }
+                indices.set(ax, 0);
+                ax = ax - 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Select elements from this where condition is nonzero, else 0.
+    public static NDArray<T> where(NDArray<T> a, NDArray<T> condition) {
+        NDArray<T> result = new NDArray<T>();
+        int i = 0;
+        while (i < a.shape.size()) {
+            result.shape.add(a.shape.get(i));
+            i = i + 1;
+        }
+        result.computeStrides();
+        i = 0;
+        while (i < a.data.size()) {
+            if (condition.data.get(i) != 0) {
+                result.data.add(a.data.get(i));
+            } else {
+                result.data.add(0);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Clip values to [lo, hi].
+    public static NDArray<T> clip(NDArray<T> a, double lo, double hi) {
+        NDArray<T> result = new NDArray<T>();
+        int i = 0;
+        while (i < a.shape.size()) {
+            result.shape.add(a.shape.get(i));
+            i = i + 1;
+        }
+        result.computeStrides();
+        i = 0;
+        while (i < a.data.size()) {
+            double v = a.data.get(i);
+            if (v < lo) { v = lo; }
+            if (v > hi) { v = hi; }
+            result.data.add(v);
+            i = i + 1;
+        }
+        return result;
+    }
+}
