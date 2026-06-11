@@ -3116,6 +3116,73 @@ impl Vm {
                 self.output.push(output);
                 self.push(Value::Void);
             }
+            // io::print (same as println but no newline)
+            ("io", "print") => {
+                let arg_start = self.stack.len() - arg_count as usize;
+                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                let output = if args.is_empty() {
+                    String::new()
+                } else {
+                    args[0].display_string()
+                };
+                // Append to last output line instead of pushing new line
+                if let Some(last) = self.output.last_mut() {
+                    last.push_str(&output);
+                } else {
+                    self.output.push(output);
+                }
+                self.push(Value::Void);
+            }
+            // io::readLine - read a line from stdin
+            ("io", "readLine") => {
+                let _ = self.pop(); // pop any args
+                let mut input = String::new();
+                if std::io::stdin().read_line(&mut input).is_ok() {
+                    let trimmed = input.trim_end_matches('\n').trim_end_matches('\r').to_string();
+                    self.push(Value::String(Rc::new(trimmed)));
+                } else {
+                    self.push(Value::String(Rc::new(String::new())));
+                }
+            }
+            // io::readAll - read all of stdin
+            ("io", "readAll") => {
+                let _ = self.pop(); // pop any args
+                let mut input = String::new();
+                if std::io::Read::read_to_string(&mut std::io::stdin(), &mut input).is_ok() {
+                    self.push(Value::String(Rc::new(input)));
+                } else {
+                    self.push(Value::String(Rc::new(String::new())));
+                }
+            }
+            // io::stderr - switch to stderr mode (no-op in VM, just mark intent)
+            ("io", "stderr") => {
+                let _ = self.pop(); // pop any args
+                self.push(Value::Void);
+            }
+            // io::eprintln - print to stderr
+            ("io", "eprintln") => {
+                let arg_start = self.stack.len() - arg_count as usize;
+                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                let output = if args.is_empty() {
+                    String::new()
+                } else {
+                    args[0].display_string()
+                };
+                eprintln!("{}", output);
+                self.push(Value::Void);
+            }
+            // io::eprint - print to stderr without newline
+            ("io", "eprint") => {
+                let arg_start = self.stack.len() - arg_count as usize;
+                let args: Vec<Value> = self.stack.drain(arg_start..).collect();
+                let output = if args.is_empty() {
+                    String::new()
+                } else {
+                    args[0].display_string()
+                };
+                eprint!("{}", output);
+                self.push(Value::Void);
+            }
             // Integer::toString
             ("Integer" | "int", "toString") => {
                 let val = self.pop();

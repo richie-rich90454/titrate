@@ -17,7 +17,6 @@ public class IO {
     }
 
     public static void stderr() {
-        // TODO: switch stderr stream for subsequent eprint/eprintln calls
         io::stderr();
     }
 
