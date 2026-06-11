@@ -1,0 +1,201 @@
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::math::linalg::Matrix;
+import tt::math::Math;
+
+// RHF matrix construction: overlapMatrix, coreHamiltonian, fockMatrix, makeZeroMatrix, toMatrix, fromMatrix, copyMatrix
+public class RHFMatrix {
+    // Helper: create a zero NxN matrix as ArrayList<ArrayList<double>>
+    public static ArrayList<ArrayList<double>> makeZeroMatrix(int n) {
+        ArrayList<ArrayList<double>> m = new ArrayList<ArrayList<double>>();
+        int i = 0;
+        while (i < n) {
+            ArrayList<double> row = new ArrayList<double>();
+            int j = 0;
+            while (j < n) {
+                row.add(0.0);
+                j = j + 1;
+            }
+            m.add(row);
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // Build overlap matrix S using Gaussian overlap integral approximation
+    // S_mu_nu ~ exp(-alpha * R^2 / (alpha + beta)) * normalization
+    public static ArrayList<ArrayList<double>> buildOverlapMatrix(RHF rhf) {
+        int n = rhf.basisSize;
+        ArrayList<ArrayList<double>> S = RHFMatrix.makeZeroMatrix(n);
+        int i = 0;
+        while (i < n) {
+            int j = i;
+            while (j < n) {
+                double val = 0.0;
+                if (i == j) {
+                    val = 1.0;
+                } else {
+                    int ai = RHFIntegrals.basisToAtom(rhf, i);
+                    int aj = RHFIntegrals.basisToAtom(rhf, j);
+                    Atom a1 = rhf.molecule.getAtom(ai);
+                    Atom a2 = rhf.molecule.getAtom(aj);
+                    double r = a1.distanceTo(a2);
+                    double z1 = RHFIntegrals.orbitalExponent(a1.atomicNumber);
+                    double z2 = RHFIntegrals.orbitalExponent(a2.atomicNumber);
+                    // Gaussian overlap: S ~ (4*z1*z2/(z1+z2)^2)^(3/4) * exp(-z1*z2*r^2/(z1+z2))
+                    double zeta = z1 * z2 / (z1 + z2);
+                    double norm = Math.pow(4.0 * z1 * z2 / ((z1 + z2) * (z1 + z2)), 0.75);
+                    val = norm * Math.exp(-zeta * r * r);
+                }
+                S.get(i).set(j, val);
+                S.get(j).set(i, val);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return S;
+    }
+
+    // Build core Hamiltonian H_core = T + V
+    public static ArrayList<ArrayList<double>> buildCoreHamiltonian(RHF rhf) {
+        int n = rhf.basisSize;
+        ArrayList<ArrayList<double>> H = RHFMatrix.makeZeroMatrix(n);
+        int i = 0;
+        while (i < n) {
+            int j = i;
+            while (j < n) {
+                double val = 0.0;
+                int ai = RHFIntegrals.basisToAtom(rhf, i);
+                int aj = RHFIntegrals.basisToAtom(rhf, j);
+                Atom a1 = rhf.molecule.getAtom(ai);
+                Atom a2 = rhf.molecule.getAtom(aj);
+                double z1 = RHFIntegrals.orbitalExponent(a1.atomicNumber);
+                double z2 = RHFIntegrals.orbitalExponent(a2.atomicNumber);
+                double r = a1.distanceTo(a2);
+
+                if (i == j) {
+                    // Diagonal: kinetic energy + nuclear attraction to own nucleus
+                    double zeta = z1;
+                    double kinetic = zeta * zeta * 0.5;
+                    double nucAttr = -(double) a1.atomicNumber * zeta;
+                    val = kinetic + nucAttr;
+                } else {
+                    // Off-diagonal: overlap-based approximation
+                    double overlap = rhf.overlapMatrix.get(i).get(j);
+                    double zetaAvg = (z1 + z2) * 0.5;
+                    double kinetic = zetaAvg * overlap * (zetaAvg - 2.0 * z1 * z2 / (z1 + z2));
+                    double nucAttr = 0.0;
+                    int k = 0;
+                    while (k < rhf.molecule.atomCount()) {
+                        Atom ak = rhf.molecule.getAtom(k);
+                        double rik = a1.distanceTo(ak);
+                        double rjk = a2.distanceTo(ak);
+                        double zk = (double) ak.atomicNumber;
+                        double arg_i = zetaAvg * rik;
+                        double arg_j = zetaAvg * rjk;
+                        double f0_i = 0.0;
+                        if (arg_i < 1e-10) {
+                            f0_i = 1.0;
+                        } else {
+                            f0_i = (1.0 - Math.exp(-arg_i)) / arg_i;
+                        }
+                        double f0_j = 0.0;
+                        if (arg_j < 1e-10) {
+                            f0_j = 1.0;
+                        } else {
+                            f0_j = (1.0 - Math.exp(-arg_j)) / arg_j;
+                        }
+                        nucAttr = nucAttr - zk * overlap * f0_i * f0_j;
+                        k = k + 1;
+                    }
+                    val = kinetic + nucAttr;
+                }
+                H.get(i).set(j, val);
+                H.get(j).set(i, val);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return H;
+    }
+
+    // Build Fock matrix: F_mu_nu = H_core_mu_nu + sum_{lam,sig} P_lam_sig * (2*(mu nu|lam sig) - (mu sig|lam nu))
+    public static ArrayList<ArrayList<double>> buildFockMatrix(RHF rhf) {
+        int n = rhf.basisSize;
+        ArrayList<ArrayList<double>> F = RHFMatrix.makeZeroMatrix(n);
+        int mu = 0;
+        while (mu < n) {
+            int nu = mu;
+            while (nu < n) {
+                double val = rhf.coreHamiltonian.get(mu).get(nu);
+                int lam = 0;
+                while (lam < n) {
+                    int sig = 0;
+                    while (sig < n) {
+                        double pLS = rhf.densityMatrix.get(lam).get(sig);
+                        if (Math.abs(pLS) > 1e-14) {
+                            double jInt = RHFIntegrals.twoElectronIntegral(rhf, mu, nu, lam, sig);
+                            double kInt = RHFIntegrals.twoElectronIntegral(rhf, mu, sig, lam, nu);
+                            val = val + pLS * (2.0 * jInt - kInt);
+                        }
+                        sig = sig + 1;
+                    }
+                    lam = lam + 1;
+                }
+                F.get(mu).set(nu, val);
+                F.get(nu).set(mu, val);
+                nu = nu + 1;
+            }
+            mu = mu + 1;
+        }
+        return F;
+    }
+
+    // Convert ArrayList<ArrayList<double>> to Matrix
+    public static Matrix toMatrix(RHF rhf, ArrayList<ArrayList<double>> arr) {
+        int n = arr.size();
+        Matrix m = new Matrix(n, n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                m.set(i, j, arr.get(i).get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return m;
+    }
+
+    // Convert Matrix to ArrayList<ArrayList<double>>
+    public static ArrayList<ArrayList<double>> fromMatrix(RHF rhf, Matrix m) {
+        int n = m.rows();
+        ArrayList<ArrayList<double>> arr = RHFMatrix.makeZeroMatrix(n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                arr.get(i).set(j, m.get(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return arr;
+    }
+
+    // Copy an ArrayList<ArrayList<double>> matrix
+    public static ArrayList<ArrayList<double>> copyMatrix(RHF rhf, ArrayList<ArrayList<double>> m) {
+        int n = m.size();
+        ArrayList<ArrayList<double>> copy = RHFMatrix.makeZeroMatrix(n);
+        int i = 0;
+        while (i < n) {
+            int j = 0;
+            while (j < n) {
+                copy.get(i).set(j, m.get(i).get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return copy;
+    }
+}
