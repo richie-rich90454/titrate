@@ -2,87 +2,85 @@
 import tt::util::ArrayList;
 import tt::math::Math;
 
-public class Operator {
-    // Arithmetic operators
-    public fn add(a: int, b: int): int {
-        return a + b;
-    }
+// Arithmetic operators
+public fn add(a: int, b: int): int {
+    return a + b;
+}
 
-    public fn sub(a: int, b: int): int {
-        return a - b;
-    }
+public fn sub(a: int, b: int): int {
+    return a - b;
+}
 
-    public fn mul(a: int, b: int): int {
-        return a * b;
-    }
+public fn mul(a: int, b: int): int {
+    return a * b;
+}
 
-    public fn truediv(a: double, b: double): double {
-        return a / b;
-    }
+public fn truediv(a: double, b: double): double {
+    return a / b;
+}
 
-    public fn mod(a: int, b: int): int {
-        return a % b;
-    }
+public fn mod(a: int, b: int): int {
+    return a % b;
+}
 
-    public fn neg(a: double): double {
-        return -a;
-    }
+public fn neg(a: double): double {
+    return -a;
+}
 
-    public fn pos(a: double): double {
-        return a;
-    }
+public fn pos(a: double): double {
+    return a;
+}
 
-    public fn abs(a: double): double {
-        return Math.abs(a);
-    }
+public fn abs(a: double): double {
+    return Math.abs(a);
+}
 
-    // Comparison operators
-    public fn eq<T>(a: T, b: T): bool {
-        return a == b;
-    }
+// Comparison operators
+public fn eq<T>(a: T, b: T): bool {
+    return a == b;
+}
 
-    public fn ne<T>(a: T, b: T): bool {
-        return a != b;
-    }
+public fn ne<T>(a: T, b: T): bool {
+    return a != b;
+}
 
-    public fn lt(a: int, b: int): bool {
-        return a < b;
-    }
+public fn lt(a: int, b: int): bool {
+    return a < b;
+}
 
-    public fn le(a: int, b: int): bool {
-        return a <= b;
-    }
+public fn le(a: int, b: int): bool {
+    return a <= b;
+}
 
-    public fn gt(a: int, b: int): bool {
-        return a > b;
-    }
+public fn gt(a: int, b: int): bool {
+    return a > b;
+}
 
-    public fn ge(a: int, b: int): bool {
-        return a >= b;
-    }
+public fn ge(a: int, b: int): bool {
+    return a >= b;
+}
 
-    // Logical operators
-    public fn not(a: bool): bool {
-        return !a;
-    }
+// Logical operators
+public fn not(a: bool): bool {
+    return !a;
+}
 
-    public fn and(a: bool, b: bool): bool {
-        return a && b;
-    }
+public fn and(a: bool, b: bool): bool {
+    return a && b;
+}
 
-    public fn or(a: bool, b: bool): bool {
-        return a || b;
-    }
+public fn or(a: bool, b: bool): bool {
+    return a || b;
+}
 
-    // Item access: returns the element at the given index.
-    public fn itemGetter<T>(arr: ArrayList<T>, index: int): T {
-        return arr.get(index);
-    }
+// Item access: returns the element at the given index.
+public fn itemGetter<T>(arr: ArrayList<T>, index: int): T {
+    return arr.get(index);
+}
 
-    // Attribute access: returns the value of the given attribute on the object.
-    // Since Titrate does not have dynamic attribute access, this returns null as a fallback.
-    public fn attrGetter<T>(obj: T, attr: string): Variant {
-        if (obj == null) { return null; }
-        return null;
-    }
+// Attribute access: returns the value of the given attribute on the object.
+// Since Titrate does not have dynamic attribute access, this returns null as a fallback.
+public fn attrGetter<T>(obj: T, attr: string): Variant {
+    if (obj == null) { return null; }
+    return null;
 }
