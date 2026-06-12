@@ -1,115 +1,113 @@
 // Uuid provides UUID generation and validation utilities.
 import tt::random::Random;
 
-public class Uuid {
-    // Generate a version 4 (random) UUID string in the format xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
-    // where y is one of 8, 9, a, or b.
-    public fn uuid4(): string {
-        let rng: Random = new Random();
-        // Build 32 hex characters
-        let hex: string = "";
-        let i: int = 0;
-        while (i < 32) {
-            let val: int = rng.nextInt(0, 15);
-            hex = hex + Uuid::_hexDigit(val);
+// Generate a version 4 (random) UUID string in the format xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+// where y is one of 8, 9, a, or b.
+public fn uuid4(): string {
+    let rng: Random = new Random();
+    // Build 32 hex characters
+    let hex: string = "";
+    let i: int = 0;
+    while (i < 32) {
+        let val: int = rng.nextInt(0, 15);
+        hex = hex + _hexDigit(val);
+        i = i + 1;
+    }
+    // Set version nibble (position 12, 0-indexed) to 4
+    hex = _setCharAt(hex, 12, "4");
+    // Set variant nibble (position 16, 0-indexed) to 8, 9, a, or b
+    let variant: int = rng.nextInt(0, 3);
+    let variantChar: string = "8";
+    if (variant == 1) { variantChar = "9"; }
+    if (variant == 2) { variantChar = "a"; }
+    if (variant == 3) { variantChar = "b"; }
+    hex = _setCharAt(hex, 16, variantChar);
+    // Format with dashes: 8-4-4-4-12
+    let result: string = String.substring(hex, 0, 8) + "-" + String.substring(hex, 8, 12) + "-" + String.substring(hex, 12, 16) + "-" + String.substring(hex, 16, 20) + "-" + String.substring(hex, 20, 32);
+    return result;
+}
+
+// Generate a simple random UUID (32 hex characters, no version bits).
+public fn random(): string {
+    let rng: Random = new Random();
+    let hex: string = "";
+    let i: int = 0;
+    while (i < 32) {
+        let val: int = rng.nextInt(0, 15);
+        hex = hex + _hexDigit(val);
+        i = i + 1;
+    }
+    let result: string = String.substring(hex, 0, 8) + "-" + String.substring(hex, 8, 12) + "-" + String.substring(hex, 12, 16) + "-" + String.substring(hex, 16, 20) + "-" + String.substring(hex, 20, 32);
+    return result;
+}
+
+// Validate whether a string is a properly formatted UUID.
+public fn isValid(uuid: string): bool {
+    if (uuid == null) { return false; }
+    // Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars total)
+    if (String.length(uuid) != 36) { return false; }
+    // Check dash positions
+    if (String.charAt(uuid, 8) != '-') { return false; }
+    if (String.charAt(uuid, 13) != '-') { return false; }
+    if (String.charAt(uuid, 18) != '-') { return false; }
+    if (String.charAt(uuid, 23) != '-') { return false; }
+    // Check all other positions are hex digits
+    let i: int = 0;
+    while (i < 36) {
+        if (i == 8 || i == 13 || i == 18 || i == 23) {
             i = i + 1;
+            continue;
         }
-        // Set version nibble (position 12, 0-indexed) to 4
-        hex = Uuid::_setCharAt(hex, 12, "4");
-        // Set variant nibble (position 16, 0-indexed) to 8, 9, a, or b
-        let variant: int = rng.nextInt(0, 3);
-        let variantChar: string = "8";
-        if (variant == 1) { variantChar = "9"; }
-        if (variant == 2) { variantChar = "a"; }
-        if (variant == 3) { variantChar = "b"; }
-        hex = Uuid::_setCharAt(hex, 16, variantChar);
-        // Format with dashes: 8-4-4-4-12
-        let result: string = String.substring(hex, 0, 8) + "-" + String.substring(hex, 8, 12) + "-" + String.substring(hex, 12, 16) + "-" + String.substring(hex, 16, 20) + "-" + String.substring(hex, 20, 32);
-        return result;
+        let c: string = String.substring(uuid, i, i + 1);
+        if (!_isHexChar(c)) { return false; }
+        i = i + 1;
     }
+    return true;
+}
 
-    // Generate a simple random UUID (32 hex characters, no version bits).
-    public fn random(): string {
-        let rng: Random = new Random();
-        let hex: string = "";
-        let i: int = 0;
-        while (i < 32) {
-            let val: int = rng.nextInt(0, 15);
-            hex = hex + Uuid::_hexDigit(val);
-            i = i + 1;
-        }
-        let result: string = String.substring(hex, 0, 8) + "-" + String.substring(hex, 8, 12) + "-" + String.substring(hex, 12, 16) + "-" + String.substring(hex, 16, 20) + "-" + String.substring(hex, 20, 32);
-        return result;
+// Returns a single hex digit character for values 0-15.
+fn _hexDigit(val: int): string {
+    if (val < 10) {
+        return Integer.toString(val);
     }
+    if (val == 10) { return "a"; }
+    if (val == 11) { return "b"; }
+    if (val == 12) { return "c"; }
+    if (val == 13) { return "d"; }
+    if (val == 14) { return "e"; }
+    return "f";
+}
 
-    // Validate whether a string is a properly formatted UUID.
-    public fn isValid(uuid: string): bool {
-        if (uuid == null) { return false; }
-        // Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars total)
-        if (String.length(uuid) != 36) { return false; }
-        // Check dash positions
-        if (String.charAt(uuid, 8) != '-') { return false; }
-        if (String.charAt(uuid, 13) != '-') { return false; }
-        if (String.charAt(uuid, 18) != '-') { return false; }
-        if (String.charAt(uuid, 23) != '-') { return false; }
-        // Check all other positions are hex digits
-        let i: int = 0;
-        while (i < 36) {
-            if (i == 8 || i == 13 || i == 18 || i == 23) {
-                i = i + 1;
-                continue;
-            }
-            let c: string = String.substring(uuid, i, i + 1);
-            if (!Uuid::_isHexChar(c)) { return false; }
-            i = i + 1;
-        }
-        return true;
-    }
+// Replaces the character at the given index in a string.
+fn _setCharAt(s: string, idx: int, ch: string): string {
+    let before: string = String.substring(s, 0, idx);
+    let after: string = String.substring(s, idx + 1);
+    return before + ch + after;
+}
 
-    // Returns a single hex digit character for values 0-15.
-    private fn _hexDigit(val: int): string {
-        if (val < 10) {
-            return Integer::toString(val);
-        }
-        if (val == 10) { return "a"; }
-        if (val == 11) { return "b"; }
-        if (val == 12) { return "c"; }
-        if (val == 13) { return "d"; }
-        if (val == 14) { return "e"; }
-        return "f";
-    }
-
-    // Replaces the character at the given index in a string.
-    private fn _setCharAt(s: string, idx: int, ch: string): string {
-        let before: string = String.substring(s, 0, idx);
-        let after: string = String.substring(s, idx + 1);
-        return before + ch + after;
-    }
-
-    // Checks if a single character string is a valid hex digit.
-    private fn _isHexChar(c: string): bool {
-        if (c == "0") { return true; }
-        if (c == "1") { return true; }
-        if (c == "2") { return true; }
-        if (c == "3") { return true; }
-        if (c == "4") { return true; }
-        if (c == "5") { return true; }
-        if (c == "6") { return true; }
-        if (c == "7") { return true; }
-        if (c == "8") { return true; }
-        if (c == "9") { return true; }
-        if (c == "a") { return true; }
-        if (c == "b") { return true; }
-        if (c == "c") { return true; }
-        if (c == "d") { return true; }
-        if (c == "e") { return true; }
-        if (c == "f") { return true; }
-        if (c == "A") { return true; }
-        if (c == "B") { return true; }
-        if (c == "C") { return true; }
-        if (c == "D") { return true; }
-        if (c == "E") { return true; }
-        if (c == "F") { return true; }
-        return false;
-    }
+// Checks if a single character string is a valid hex digit.
+fn _isHexChar(c: string): bool {
+    if (c == "0") { return true; }
+    if (c == "1") { return true; }
+    if (c == "2") { return true; }
+    if (c == "3") { return true; }
+    if (c == "4") { return true; }
+    if (c == "5") { return true; }
+    if (c == "6") { return true; }
+    if (c == "7") { return true; }
+    if (c == "8") { return true; }
+    if (c == "9") { return true; }
+    if (c == "a") { return true; }
+    if (c == "b") { return true; }
+    if (c == "c") { return true; }
+    if (c == "d") { return true; }
+    if (c == "e") { return true; }
+    if (c == "f") { return true; }
+    if (c == "A") { return true; }
+    if (c == "B") { return true; }
+    if (c == "C") { return true; }
+    if (c == "D") { return true; }
+    if (c == "E") { return true; }
+    if (c == "F") { return true; }
+    return false;
 }
