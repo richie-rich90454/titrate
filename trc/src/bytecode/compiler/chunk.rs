@@ -2,7 +2,8 @@
 
 use crate::ast;
 use super::super::frame::ClassDef;
-use super::super::opcodes::{Chunk, OpCode};
+use super::super::chunk::Chunk;
+use super::super::opcodes::OpCode;
 use super::Compiler;
 
 impl Compiler {

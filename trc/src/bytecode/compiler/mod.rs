@@ -16,7 +16,8 @@ use std::path::{Path, PathBuf};
 
 use crate::ast;
 use super::frame::{ClassDef, EnumDef, FieldDef, FunctionDef, VariantDef};
-use super::opcodes::{Chunk, OpCode};
+use super::chunk::Chunk;
+use super::opcodes::OpCode;
 
 // ---------------------------------------------------------------------------
 // Compiled program – the output of the compiler

@@ -4,7 +4,8 @@
 #[cfg(test)]
 mod tests {
     use crate::bytecode::value::Value;
-    use crate::bytecode::opcodes::{Chunk, OpCode, CastTarget};
+    use crate::bytecode::chunk::Chunk;
+    use crate::bytecode::opcodes::{OpCode, CastTarget};
     use crate::bytecode::frame::{FunctionDef, ClassDef};
     use crate::bytecode::vm::Vm;
     use crate::bytecode::vm::natives::json::{native_json_parse, native_json_stringify};

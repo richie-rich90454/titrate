@@ -3,12 +3,14 @@
 pub mod compiler;
 pub mod frame;
 pub mod opcodes;
+pub mod chunk;
 pub mod value;
 mod value_impl;
 pub mod vm;
 
 pub use compiler::{CompiledProgram, Compiler};
-pub use opcodes::{CastTarget, Chunk, OpCode, TypeTag};
+pub use opcodes::{CastTarget, OpCode, TypeTag};
+pub use chunk::Chunk;
 pub use vm::Vm;
 
 use crate::ast;

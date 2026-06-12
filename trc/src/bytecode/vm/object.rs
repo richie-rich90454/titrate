@@ -2,7 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::frame::{Frame, FunctionDef};
-use super::super::opcodes::Chunk;
+use super::super::chunk::Chunk;
 use super::super::value::Value;
 use super::natives::lookup_builtin_native;
 use super::Vm;

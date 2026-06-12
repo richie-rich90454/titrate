@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::opcodes::Chunk;
+use super::chunk::Chunk;
 use super::value::Value;
 
 /// One activation on the call stack.
