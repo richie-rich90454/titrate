@@ -23,8 +23,8 @@ Static methods for parsing and serializing JSON.
 
 ```titrate
 let data = Json.parse("{\"name\": \"Alice\", \"age\": 30}");
-String name = data.get("name").asString();  // "Alice"
-double age = data.get("age").asNumber();     // 30.0
+let name: string = data.get("name").asString();  // "Alice"
+let age: double = data.get("age").asNumber();     // 30.0
 ```
 
 ### JsonValue
@@ -37,13 +37,13 @@ Represents any JSON value with type-safe accessors.
 - `JsonValue.ofNum(n: double): JsonValue` — create a number
 - `JsonValue.ofStr(s: string): JsonValue` — create a string
 - `JsonValue.ofArray(arr: ArrayList<JsonValue>): JsonValue` — create an array
-- `JsonValue.ofObject(obj: HashMap): JsonValue` — create an object
+- `JsonValue.ofObject(obj: HashMap<string, JsonValue>): JsonValue` — create an object
 
 **Type checks:**
 - `isNull(): bool`, `isBool(): bool`, `isNumber(): bool`, `isString(): bool`, `isArray(): bool`, `isObject(): bool`
 
 **Accessors:**
-- `asBool(): bool`, `asNumber(): double`, `asString(): string`, `asArray(): ArrayList<JsonValue>`, `asObject(): HashMap`
+- `asBool(): bool`, `asNumber(): double`, `asString(): string`, `asArray(): ArrayList<JsonValue>`, `asObject(): HashMap<string, JsonValue>`
 - `get(key: string): JsonValue` — get object field
 - `getAt(index: int): JsonValue` — get array element
 - `hasKey(key: string): bool` — check object key
@@ -66,20 +66,20 @@ io::println(Json.prettyPrint(root, 2));
 
 Parse CSV text with configurable delimiter and quote character.
 
-- `CsvReader()` — create with defaults (comma delimiter, double-quote, has header)
-- `setDelimiter(d: String): void` — set field delimiter
-- `setQuote(q: String): void` — set quote character
+- `fn init()` — create with defaults (comma delimiter, double-quote, has header)
+- `setDelimiter(d: string): void` — set field delimiter
+- `setQuote(q: string): void` — set quote character
 - `setHasHeader(h: bool): void` — set whether first row is a header
-- `parse(input: String): ArrayList<ArrayList<String>>` — parse into rows
-- `parseToMaps(input: String): ArrayList<HashMap>` — parse rows into maps (keyed by header)
-- `getColumn(rows: ArrayList<ArrayList<String>>, colIndex: int): ArrayList<String>` — extract a column by index
-- `getColumnByName(rows: ArrayList<ArrayList<String>>, colName: String): ArrayList<String>` — extract a column by header name
-- `getHeaders(input: String): ArrayList<String>` — get header row
-- `skipLines(input: String, lines: int): String` — skip the first N lines
+- `parse(input: string): ArrayList<ArrayList<string>>` — parse into rows
+- `parseToMaps(input: string): ArrayList<HashMap<string, string>>` — parse rows into maps (keyed by header)
+- `getColumn(rows: ArrayList<ArrayList<string>>, colIndex: int): ArrayList<string>` — extract a column by index
+- `getColumnByName(rows: ArrayList<ArrayList<string>>, colName: string): ArrayList<string>` — extract a column by header name
+- `getHeaders(input: string): ArrayList<string>` — get header row
+- `skipLines(input: string, lines: int): string` — skip the first N lines
 
 ```titrate
 let reader = new CsvReader();
-ArrayList<HashMap> rows = reader.parseToMaps("name,age\nAlice,30\nBob,25");
+let rows: ArrayList<HashMap<string, string>> = reader.parseToMaps("name,age\nAlice,30\nBob,25");
 // [{name: "Alice", age: "30"}, {name: "Bob", age: "25"}]
 ```
 
@@ -87,9 +87,9 @@ ArrayList<HashMap> rows = reader.parseToMaps("name,age\nAlice,30\nBob,25");
 
 Write CSV with configurable delimiter, quote, and newline.
 
-- `CsvWriter()` — create with defaults (comma, double-quote, `\n`)
-- `write(rows: ArrayList<ArrayList<String>>): String` — serialize rows to CSV
-- `writeWithHeaders(headers: ArrayList<String>, rows: ArrayList<ArrayList<String>>): String` — serialize with header row
+- `fn init()` — create with defaults (comma, double-quote, `\n`)
+- `write(rows: ArrayList<ArrayList<string>>): string` — serialize rows to CSV
+- `writeWithHeaders(headers: ArrayList<string>, rows: ArrayList<ArrayList<string>>): string` — serialize with header row
 
 ```titrate
 let writer = new CsvWriter();
@@ -97,7 +97,7 @@ let headers = new ArrayList<string>();
 headers.add("x"); headers.add("y");
 let rows = new ArrayList<ArrayList<string>>();
 // ... add rows
-String csv = writer.writeWithHeaders(headers, rows);
+let csv: string = writer.writeWithHeaders(headers, rows);
 ```
 
 ## XML
@@ -106,30 +106,30 @@ String csv = writer.writeWithHeaders(headers, rows);
 
 Static method for parsing XML.
 
-- `Xml.parse(input: String): XmlNode` — parse XML string into a tree
+- `Xml.parse(input: string): XmlNode` — parse XML string into a tree
 
 ```titrate
 let doc = Xml.parse("<root><item key=\"a\">hello</item></root>");
-String val = doc.getChildrenByTag("item").get(0).getText();  // "hello"
+let val: string = doc.getChildrenByTag("item").get(0).getText();  // "hello"
 ```
 
 ### XmlNode
 
 Represents an XML element with tag, attributes, children, and text.
 
-- `XmlNode(tag: String)` — create a node with the given tag
-- `getTag(): String` — element tag name
-- `getText(): String` — text content
-- `getAttr(name: String): String` — attribute value (empty string if missing)
-- `setAttr(name: String, value: String): void` — set attribute
-- `hasAttr(key: String): bool` — check attribute existence
-- `removeAttr(key: String): void` — remove attribute
+- `fn init(tag: string)` — create a node with the given tag
+- `getTag(): string` — element tag name
+- `getText(): string` — text content
+- `getAttr(name: string): string` — attribute value (empty string if missing)
+- `setAttr(name: string, value: string): void` — set attribute
+- `hasAttr(key: string): bool` — check attribute existence
+- `removeAttr(key: string): void` — remove attribute
 - `addChild(node: XmlNode): void` — append a child
 - `getChildren(): ArrayList<XmlNode>` — all children
-- `getChildrenByTag(tag: String): ArrayList<XmlNode>` — children matching tag
-- `getElementByTagName(name: String): XmlNode` — first descendant matching tag
+- `getChildrenByTag(tag: string): ArrayList<XmlNode>` — children matching tag
+- `getElementByTagName(name: string): XmlNode` — first descendant matching tag
 - `removeChild(node: XmlNode): void` — remove a child
 - `replaceChild(oldNode: XmlNode, newNode: XmlNode): void` — replace a child
-- `toString(): String` — serialize to XML
-- `XmlNode.escapeText(s: String): String` — static: escape text for XML
-- `XmlNode.escapeAttr(s: String): String` — static: escape attribute value for XML
+- `toString(): string` — serialize to XML
+- `XmlNode.escapeText(s: string): string` — static: escape text for XML
+- `XmlNode.escapeAttr(s: string): string` — static: escape attribute value for XML
