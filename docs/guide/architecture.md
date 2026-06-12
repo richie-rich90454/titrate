@@ -155,7 +155,7 @@ Native functions are dispatched via the `CALL_NATIVE` opcode with a function ind
 
 ## Instruction Set Overview
 
-The VM has ~128 opcodes organized into categories:
+The VM has over 100 opcodes organized into categories:
 
 | Category | Examples | Description |
 |----------|----------|-------------|
