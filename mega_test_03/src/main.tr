@@ -6,15 +6,15 @@
 import forcefield;
 
 // Entry point
-public void main() {
+public fn main(): void {
     io::println("=== Titrate Alpha 0.3 – Water Box Simulation ===");
     io::println("");
 
     // --- Section 1: System setup ---
     io::println("=== System Setup ===");
-    int nWaters = 8;
-    int side = 2;  // 2^3 = 8 molecules
-    double spacing = 3.166;
+    let nWaters: int = 8;
+    let side: int = 2;  // 2^3 = 8 molecules
+    let spacing: double = 3.166;
 
     io::println("Water molecules: " + Integer.toString(nWaters));
     io::println("Lattice: " + Integer.toString(side) + " x " + Integer.toString(side) + " x " + Integer.toString(side));
@@ -25,15 +25,15 @@ public void main() {
     let system: WaterBox = new WaterBox();
 
     // Place water molecules on a simple cubic lattice
-    int ix = 0;
+    var ix: int = 0;
     while (ix < side) {
-        int iy = 0;
+        var iy: int = 0;
         while (iy < side) {
-            int iz = 0;
+            var iz: int = 0;
             while (iz < side) {
-                double ox = ix as double * spacing;
-                double oy = iy as double * spacing;
-                double oz = iz as double * spacing;
+                let ox: double = ix as double * spacing;
+                let oy: double = iy as double * spacing;
+                let oz: double = iz as double * spacing;
                 system.addWater(ox, oy, oz);
                 iz = iz + 1;
             }
@@ -48,9 +48,9 @@ public void main() {
 
     // --- Section 2: Energy computation ---
     io::println("=== Energy Computation ===");
-    double bondEnergy = system.computeBondEnergy();
-    double ljEnergy = system.computeLJEnergy();
-    double totalEnergy = bondEnergy + ljEnergy;
+    let bondEnergy: double = system.computeBondEnergy();
+    let ljEnergy: double = system.computeLJEnergy();
+    let totalEnergy: double = bondEnergy + ljEnergy;
 
     io::println("Bond Energy: " + Double.toString(bondEnergy));
     io::println("LJ Energy:   " + Double.toString(ljEnergy));
@@ -61,19 +61,19 @@ public void main() {
     io::println("=== Verification ===");
 
     // Check atom count: 8 waters * 3 atoms = 24
-    bool atomsCorrect = system.atomCount() == 24;
+    let atomsCorrect: bool = system.atomCount() == 24;
     io::println("Atom count is 24: " + Boolean.toString(atomsCorrect));
 
     // Check bond count: 8 waters * 2 bonds = 16
-    bool bondsCorrect = system.bondCount() == 16;
+    let bondsCorrect: bool = system.bondCount() == 16;
     io::println("Bond count is 16: " + Boolean.toString(bondsCorrect));
 
     // Check energy is finite
-    bool energyFinite = totalEnergy > -10000000000.0 && totalEnergy < 10000000000.0;
+    let energyFinite: bool = totalEnergy > -10000000000.0 && totalEnergy < 10000000000.0;
     io::println("Energy is finite: " + Boolean.toString(energyFinite));
 
     // Overall verification
-    bool allPassed = atomsCorrect && bondsCorrect && energyFinite;
+    let allPassed: bool = atomsCorrect && bondsCorrect && energyFinite;
     if (allPassed) {
         io::println("VERIFICATION PASSED");
     } else {

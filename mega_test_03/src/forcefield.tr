@@ -5,7 +5,7 @@ public class WaterBox {
     public ArrayList<double> x;
     public ArrayList<double> y;
     public ArrayList<double> z;
-    public ArrayList<String> symbol;
+    public ArrayList<string> symbol;
     public ArrayList<double> charge;
     public ArrayList<double> mass;
     public ArrayList<int> bondA;
@@ -17,11 +17,11 @@ public class WaterBox {
     public double ljSigma;
     public double ljEpsilon;
 
-    public WaterBox() {
+    fn init() {
         this.x = new ArrayList<double>();
         this.y = new ArrayList<double>();
         this.z = new ArrayList<double>();
-        this.symbol = new ArrayList<String>();
+        this.symbol = new ArrayList<string>();
         this.charge = new ArrayList<double>();
         this.mass = new ArrayList<double>();
         this.bondA = new ArrayList<int>();
@@ -32,16 +32,16 @@ public class WaterBox {
         this.ljEpsilon = 0.1554;
     }
 
-    public int atomCount() {
+    public fn atomCount(): int {
         return this.x.size();
     }
 
-    public int bondCount() {
+    public fn bondCount(): int {
         return this.bondA.size();
     }
 
     // Add a single atom and return its index
-    public int addAtom(String sym, double m, double q, double px, double py, double pz) {
+    public fn addAtom(sym: string, m: double, q: double, px: double, py: double, pz: double): int {
         this.symbol.add(sym);
         this.mass.add(m);
         this.charge.add(q);
@@ -52,7 +52,7 @@ public class WaterBox {
     }
 
     // Add a bond between atoms at indices a and b
-    public void addBond(int a, int b, double r0, double k) {
+    public fn addBond(a: int, b: int, r0: double, k: double): void {
         this.bondA.add(a);
         this.bondB.add(b);
         this.bondR0.add(r0);
@@ -63,24 +63,24 @@ public class WaterBox {
     // Uses precomputed geometry: OH bond length = 1.0 A
     // HOH angle = 109.47 deg, half = 54.735 deg
     // sin(54.735 deg) = 0.8165, cos(54.735 deg) = 0.5774
-    public void addWater(double ox, double oy, double oz) {
-        double bondLen = 1.0;
-        double dx = bondLen * 0.8165;
-        double dz = bondLen * 0.5774;
+    public fn addWater(ox: double, oy: double, oz: double): void {
+        let bondLen: double = 1.0;
+        let dx: double = bondLen * 0.8165;
+        let dz: double = bondLen * 0.5774;
 
-        int oIdx = this.addAtom("O", 15.999, -0.8476, ox, oy, oz);
-        int h1Idx = this.addAtom("H", 1.008, 0.4238, ox + dx, oy, oz + dz);
-        int h2Idx = this.addAtom("H", 1.008, 0.4238, ox - dx, oy, oz + dz);
+        let oIdx: int = this.addAtom("O", 15.999, -0.8476, ox, oy, oz);
+        let h1Idx: int = this.addAtom("H", 1.008, 0.4238, ox + dx, oy, oz + dz);
+        let h2Idx: int = this.addAtom("H", 1.008, 0.4238, ox - dx, oy, oz + dz);
 
         this.addBond(oIdx, h1Idx, bondLen, 4500.0);
         this.addBond(oIdx, h2Idx, bondLen, 4500.0);
     }
 
     // Newton's method square root
-    public double sqrt(double val) {
+    public fn sqrt(val: double): double {
         if (val <= 0.0) { return 0.0; }
-        double x = val;
-        int i = 0;
+        var x: double = val;
+        var i: int = 0;
         while (i < 20) {
             x = 0.5 * (x + val / x);
             i = i + 1;
@@ -89,22 +89,22 @@ public class WaterBox {
     }
 
     // Compute distance between atoms i and j
-    public double distance(int i, int j) {
-        double dx = this.x.get(i) - this.x.get(j);
-        double dy = this.y.get(i) - this.y.get(j);
-        double dz = this.z.get(i) - this.z.get(j);
+    public fn distance(i: int, j: int): double {
+        let dx: double = this.x.get(i) - this.x.get(j);
+        let dy: double = this.y.get(i) - this.y.get(j);
+        let dz: double = this.z.get(i) - this.z.get(j);
         return this.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     // Harmonic bond energy: E = sum of 0.5 * k * (r - r0)^2
-    public double computeBondEnergy() {
-        double e = 0.0;
-        int i = 0;
+    public fn computeBondEnergy(): double {
+        var e: double = 0.0;
+        var i: int = 0;
         while (i < this.bondA.size()) {
-            int a = this.bondA.get(i);
-            int b = this.bondB.get(i);
-            double r = this.distance(a, b);
-            double dr = r - this.bondR0.get(i);
+            let a: int = this.bondA.get(i);
+            let b: int = this.bondB.get(i);
+            let r: double = this.distance(a, b);
+            let dr: double = r - this.bondR0.get(i);
             e = e + 0.5 * this.bondK.get(i) * dr * dr;
             i = i + 1;
         }
@@ -112,21 +112,21 @@ public class WaterBox {
     }
 
     // Lennard-Jones 6-12 potential: E = 4*epsilon * ((sigma/r)^12 - (sigma/r)^6)
-    public double computeLJEnergy() {
-        double e = 0.0;
-        int n = this.x.size();
-        int i = 0;
+    public fn computeLJEnergy(): double {
+        var e: double = 0.0;
+        let n: int = this.x.size();
+        var i: int = 0;
         while (i < n) {
-            int j = i + 1;
+            var j: int = i + 1;
             while (j < n) {
-                double r = this.distance(i, j);
+                let r: double = this.distance(i, j);
                 if (r < 0.001) {
                     j = j + 1;
                     continue;
                 }
-                double sr = this.ljSigma / r;
-                double sr6 = sr * sr * sr * sr * sr * sr;
-                double sr12 = sr6 * sr6;
+                let sr: double = this.ljSigma / r;
+                let sr6: double = sr * sr * sr * sr * sr * sr;
+                let sr12: double = sr6 * sr6;
                 e = e + 4.0 * this.ljEpsilon * (sr12 - sr6);
                 j = j + 1;
             }
