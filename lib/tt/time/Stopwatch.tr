@@ -6,13 +6,13 @@ public class Stopwatch {
     private long elapsed;
     private bool running;
 
-    public Stopwatch() {
+    fn init() {
         this.startTime = 0;
         this.elapsed = 0;
         this.running = false;
     }
 
-    public Stopwatch start() {
+    public fn start(): Stopwatch {
         if (!this.running) {
             this.startTime = Time_now() * 1000000;
             this.running = true;
@@ -20,7 +20,7 @@ public class Stopwatch {
         return this;
     }
 
-    public Stopwatch stop() {
+    public fn stop(): Stopwatch {
         if (this.running) {
             this.elapsed = this.elapsed + (Time_now() * 1000000 - this.startTime);
             this.running = false;
@@ -28,22 +28,22 @@ public class Stopwatch {
         return this;
     }
 
-    public Stopwatch reset() {
+    public fn reset(): Stopwatch {
         this.elapsed = 0;
         this.startTime = 0;
         this.running = false;
         return this;
     }
 
-    public Duration elapsed() {
-        long total = this.elapsed;
+    public fn elapsed(): Duration {
+        var total: long = this.elapsed;
         if (this.running) {
             total = total + (Time_now() * 1000000 - this.startTime);
         }
         return new Duration(total / 1000000);
     }
 
-    public bool isRunning() {
+    public fn isRunning(): bool {
         return this.running;
     }
 }

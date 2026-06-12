@@ -2,39 +2,37 @@
 import tt::time::DateTime;
 import tt::time::Duration;
 
-public class Time {
-    public static DateTime now() {
-        return DateTime.now();
-    }
+fn now(): DateTime {
+    return DateTime.now();
+}
 
-    public static void sleep(long ms) {
-        Time_sleep(ms);
-    }
+fn sleep(ms: long): void {
+    Time_sleep(ms);
+}
 
-    public static void sleepDuration(Duration d) {
-        Time_sleep(d.millis);
-    }
+fn sleepDuration(d: Duration): void {
+    Time_sleep(d.millis);
+}
 
-    public static long millis() {
-        return Time_now();
-    }
+fn millis(): long {
+    return Time_now();
+}
 
-    public static long micros() {
-        return Time_now() * 1000;
-    }
+fn micros(): long {
+    return Time_now() * 1000;
+}
 
-    public static long nanos() {
-        return Time_now() * 1000000;
-    }
+fn nanos(): long {
+    return Time_now() * 1000000;
+}
 
-    public static Duration measure(fn) {
-        long start = Time_now() * 1000000;
-        fn();
-        long end = Time_now() * 1000000;
-        return new Duration((end - start) / 1000000);
-    }
+fn measure(fn: fn(): void): Duration {
+    let start: long = Time_now() * 1000000;
+    fn();
+    let end: long = Time_now() * 1000000;
+    return new Duration((end - start) / 1000000);
+}
 
-    public static Stopwatch stopwatch() {
-        return new Stopwatch();
-    }
+fn stopwatch(): Stopwatch {
+    return new Stopwatch();
 }

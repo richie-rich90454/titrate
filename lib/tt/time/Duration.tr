@@ -4,103 +4,75 @@ import tt::time::DateTime;
 public class Duration {
     public long millis;
 
-    public Duration(long ms) {
+    fn init(ms: long) {
         this.millis = ms;
     }
 
-    public static Duration ofMillis(long ms) {
-        return new Duration(ms);
-    }
-
-    public static Duration ofSeconds(long s) {
-        return new Duration(s * 1000);
-    }
-
-    public static Duration ofMinutes(long m) {
-        return new Duration(m * 60000);
-    }
-
-    public static Duration ofHours(long h) {
-        return new Duration(h * 3600000);
-    }
-
-    public static Duration ofDays(long d) {
-        return new Duration(d * 86400000);
-    }
-
-    public static Duration ofNanos(long n) {
-        return new Duration(n / 1000000);
-    }
-
-    public long toMillis() {
+    public fn toMillis(): long {
         return this.millis;
     }
 
-    public long toSeconds() {
+    public fn toSeconds(): long {
         return this.millis / 1000;
     }
 
-    public long toMinutes() {
+    public fn toMinutes(): long {
         return this.millis / 60000;
     }
 
-    public long toHours() {
+    public fn toHours(): long {
         return this.millis / 3600000;
     }
 
-    public long toDays() {
+    public fn toDays(): long {
         return this.millis / 86400000;
     }
 
-    public long toNanos() {
+    public fn toNanos(): long {
         return this.millis * 1000000;
     }
 
-    public static Duration between(DateTime start, DateTime end) {
-        return new Duration(end.epochMillis - start.epochMillis);
-    }
-
-    public Duration plus(Duration other) {
+    public fn plus(other: Duration): Duration {
         return new Duration(this.millis + other.millis);
     }
 
-    public Duration minus(Duration other) {
+    public fn minus(other: Duration): Duration {
         return new Duration(this.millis - other.millis);
     }
 
-    public bool isNegative() {
+    public fn isNegative(): bool {
         return this.millis < 0;
     }
 
-    public bool isZero() {
+    public fn isZero(): bool {
         return this.millis == 0;
     }
 
-    public Duration multipliedBy(long factor) {
+    public fn multipliedBy(factor: long): Duration {
         return new Duration(this.millis * factor);
     }
 
-    public Duration dividedBy(long divisor) {
+    public fn dividedBy(divisor: long): Duration {
         return new Duration(this.millis / divisor);
     }
 
-    public Duration negated() {
+    public fn negated(): Duration {
         return new Duration(-this.millis);
     }
 
-    public Duration abs() {
+    public fn abs(): Duration {
         if (this.millis < 0) {
             return new Duration(-this.millis);
         }
         return this;
     }
 
-    public String toString() {
-        long ms = this.millis;
-        long hours = ms / 3600000;
-        long minutes = (ms % 3600000) / 60000;
-        long seconds = (ms % 60000) / 1000;
-        long remainder = ms % 1000;
+    public fn toString(): string {
+        let ms: long = this.millis;
+        let hours: long = ms / 3600000;
+        let minutes: long = (ms % 3600000) / 60000;
+        let seconds: long = (ms % 60000) / 1000;
+        let remainder: long = ms % 1000;
         if (hours > 0) {
             return hours + "h " + minutes + "m " + seconds + "s " + remainder + "ms";
         }
@@ -112,4 +84,32 @@ public class Duration {
         }
         return remainder + "ms";
     }
+}
+
+fn ofMillis(ms: long): Duration {
+    return new Duration(ms);
+}
+
+fn ofSeconds(s: long): Duration {
+    return new Duration(s * 1000);
+}
+
+fn ofMinutes(m: long): Duration {
+    return new Duration(m * 60000);
+}
+
+fn ofHours(h: long): Duration {
+    return new Duration(h * 3600000);
+}
+
+fn ofDays(d: long): Duration {
+    return new Duration(d * 86400000);
+}
+
+fn ofNanos(n: long): Duration {
+    return new Duration(n / 1000000);
+}
+
+fn between(start: DateTime, end: DateTime): Duration {
+    return new Duration(end.epochMillis - start.epochMillis);
 }
