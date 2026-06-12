@@ -25,6 +25,37 @@ public class ThreadPoolExecutor {
         this.shutdown_ = false;
         this.activeCount = 0;
         this.maxThreads = maxThreads;
+        // Spawn worker threads
+        var i: int = 0;
+        while (i < maxThreads) {
+            let worker: Thread = new Thread(fn(): void {
+                this._workerLoop();
+            });
+            this.workers.add(worker);
+            worker.start();
+            i = i + 1;
+        }
+    }
+
+    private fn _workerLoop(): void {
+        while (true) {
+            let task: fn(): void = null;
+            this.queueMutex.lock();
+            while (this.taskQueue.size() == 0 && !this.shutdown_) {
+                this.queueCv.wait(this.queueMutex);
+            }
+            if (this.shutdown_ && this.taskQueue.size() == 0) {
+                this.queueMutex.unlock();
+                return;
+            }
+            task = this.taskQueue.removeFirst();
+            this.activeCount = this.activeCount + 1;
+            this.queueMutex.unlock();
+            task();
+            this.queueMutex.lock();
+            this.activeCount = this.activeCount - 1;
+            this.queueMutex.unlock();
+        }
     }
 
     public fn submit(task: fn(): void): void {
