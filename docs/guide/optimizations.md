@@ -1,6 +1,6 @@
 # Optimizations
 
-The Titrate compiler includes optimization passes that run automatically during bytecode compilation. These passes reduce code size and improve runtime performance without changing program behavior.
+Ever wondered what happens between writing Titrate code and running it? The compiler doesn't just translate your code — it makes it smarter. Titrate includes automatic optimization passes that reduce code size and improve runtime performance without changing your program's behavior. The best part? You don't have to do anything — it just works.
 
 ## Overview
 
@@ -63,6 +63,10 @@ let greeting: string = "Hello, " + "World!";
 | String concatenation | `"a" + "b"` | `"ab"` |
 
 Only expressions where **both** operands are compile-time constants are folded. Expressions involving variables or function calls are left as-is.
+
+::: tip Write readable code, let the compiler optimize
+Don't manually pre-compute constants like `let x: int = 7` instead of `let x: int = 3 + 4`. Write the expression that makes your intent clear — the compiler will fold it anyway. `3 + 4` might represent "3 days + 4 days" in your domain, which is more meaningful than a bare `7`.
+:::
 
 ## Dead Code Elimination
 
@@ -131,6 +135,49 @@ Both passes run on each compiled function independently. Constant folding runs f
 
 - **Debug builds** (`pipette build`): optimizations still run, producing efficient bytecode.
 - **Release builds** (`pipette build --release`): same optimization passes, but the release profile may enable additional backend optimizations in the future.
+
+## Try It Yourself
+
+See the optimizer in action! Consider this function:
+
+```titrate
+fn calculate(): int {
+    let a: int = 10 + 20;
+    let b: int = 5 * 3;
+    let c: int = a + b;
+    return c;
+    let d: int = 999;
+    return d;
+}
+```
+
+Before you read the answer below, think about what the optimizer will do:
+1. Which expressions will be constant-folded?
+2. Which lines will be eliminated as dead code?
+
+<details>
+<summary>Show the optimized bytecode</summary>
+
+Here's what happens step by step:
+
+**Constant folding:**
+- `10 + 20` → `30` (both operands are constants)
+- `5 * 3` → `15` (both operands are constants)
+- `a + b` → stays as-is at first, but since `a` and `b` are now known constants (`30` and `15`), this becomes `45`
+
+**Dead code elimination:**
+- `let d: int = 999;` — eliminated (after `return c`)
+- `return d;` — eliminated (after `return c`)
+
+The final bytecode is essentially:
+
+```
+PUSH_I32 45
+RET
+```
+
+Everything collapsed into a single push and return!
+</details>
 
 ## What's Next?
 
