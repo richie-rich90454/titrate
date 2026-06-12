@@ -141,6 +141,16 @@
   transition: transform var(--titrate-duration-normal) var(--titrate-ease);
 }
 
+.VPFeature .icon img {
+  width: 24px;
+  height: 24px;
+}
+
+/* Dark mode: invert SVG icons so they appear light on dark background */
+.dark .VPFeature .icon img {
+  filter: invert(1);
+}
+
 .VPFeature:hover .icon {
   transform: scale(1.05);
 }
