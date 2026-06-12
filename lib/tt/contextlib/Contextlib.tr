@@ -1,30 +1,28 @@
 // Contextlib module — context manager utilities for the with-statement.
 import tt::io::IO;
 
-public class Contextlib {
-    // Suppress specified exceptions within a block.
-    // Catches any error and silently ignores it.
-    public fn suppress(block: fn(): void): void {
-        // Attempt to run the block; if it throws, silently swallow the error.
-        // In Titrate, Result types are used for error handling.
-        // This wrapper catches ResultErr and discards it.
-        block();
-    }
+// Suppress specified exceptions within a block.
+// Catches any error and silently ignores it.
+public fn suppress(block: fn(): void): void {
+    // Attempt to run the block; if it throws, silently swallow the error.
+    // In Titrate, Result types are used for error handling.
+    // This wrapper catches ResultErr and discards it.
+    block();
+}
 
-    // Redirect stdout during a block.
-    // Captures all output produced by the block and returns it as a string.
-    public fn redirectStdout(block: fn(): void): void {
-        // Execute the block; stdout redirection is handled by the VM runtime.
-        // This provides a hook for custom output handling.
-        block();
-    }
+// Redirect stdout during a block.
+// Captures all output produced by the block and returns it as a string.
+public fn redirectStdout(block: fn(): void): void {
+    // Execute the block; stdout redirection is handled by the VM runtime.
+    // This provides a hook for custom output handling.
+    block();
+}
 
-    // Closing helper — ensures .close() is called on the resource after the block.
-    // This is the programmatic equivalent of the with-statement.
-    public fn closing<T>(resource: T, block: fn(): void): void {
-        block();
-        // Ensure close() is called even if the block throws.
-        // The resource must have a close() method.
-        resource.close();
-    }
+// Closing helper — ensures .close() is called on the resource after the block.
+// This is the programmatic equivalent of the with-statement.
+public fn closing<T>(resource: T, block: fn(): void): void {
+    block();
+    // Ensure close() is called even if the block throws.
+    // The resource must have a close() method.
+    resource.close();
 }
