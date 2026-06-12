@@ -3,15 +3,15 @@
 public class DataStore {
     private HashMap<string, string> data;
 
-    public DataStore() {
+    fn init() {
         this.data = new HashMap<string, string>();
     }
 
-    public void put(string key, string value) {
+    public fn put(key: string, value: string): void {
         this.data.put(key, value);
     }
 
-    public string get(string key) {
+    public fn get(key: string): string {
         return this.data.get(key);
     }
 }

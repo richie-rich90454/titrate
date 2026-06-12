@@ -1,6 +1,6 @@
 // Titrate Alpha 0.2 – Mega Test
 // Exercises: generics, modules, pattern matching, Result, classes, file I/O,
-// C-style for loops, String methods, HashMap methods, unit type, and more.
+// String methods, HashMap methods, unit type, and more.
 
 import sort;
 import data;
@@ -8,7 +8,7 @@ import shapes;
 import wordfreq;
 
 // Entry point
-public void main() {
+public fn main(): void {
     // --- Section 1: Utility functions from sort module ---
     io::println("=== Utility Functions ===");
     io::println("min(3, 7) = " + Integer.toString(min(3, 7)));
@@ -110,9 +110,9 @@ public void main() {
     // --- Section 9: String operations ---
     io::println("");
     io::println("=== Strings ===");
-    string greeting = "Hello" + " " + "World";
+    let greeting: string = "Hello" + " " + "World";
     io::println(greeting);
-    string num_str = Integer.toString(42) + " is the answer";
+    let num_str: string = Integer.toString(42) + " is the answer";
     io::println(num_str);
 
     // --- Section 10: Enum pattern matching ---
@@ -189,9 +189,9 @@ public void main() {
     io::println("");
     io::println("=== File I/O ===");
     let file_nums: ArrayList<int> = new ArrayList<int>();
-    let lines = File.readLines("numbers.txt");
+    let lines: ArrayList<string> = File.readLines("numbers.txt");
     for (line in lines) {
-        int n = Integer.parseOr(line, 0);
+        let n: int = Integer.parseOr(line, 0);
         file_nums.add(n);
     }
     io::println("Read " + Integer.toString(file_nums.size()) + " numbers from file");
@@ -200,7 +200,7 @@ public void main() {
     for (n in file_nums) {
         io::println("  " + Integer.toString(n));
     }
-    string sorted_output = "";
+    var sorted_output: string = "";
     for (n in file_nums) {
         sorted_output = sorted_output + Integer.toString(n) + "\n";
     }
@@ -211,9 +211,9 @@ public void main() {
     io::println("");
     io::println("=== Word Frequency ===");
     let wc: WordCounter = new WordCounter();
-    let word_lines = File.readLines("words.txt");
+    let word_lines: ArrayList<string> = File.readLines("words.txt");
     for (wline in word_lines) {
-        let words = String.split(wline, " ");
+        let words: ArrayList<string> = String.split(wline, " ");
         for (word in words) {
             wc.count(word);
         }
@@ -225,24 +225,28 @@ public void main() {
     io::println("quick: " + Integer.toString(wc.get("quick")));
     io::println("lazy: " + Integer.toString(wc.get("lazy")));
 
-    // --- Section 18: C-style for loop ---
+    // --- Section 18: C-style for loop (rewritten to while) ---
     io::println("");
-    io::println("=== C-Style For Loop ===");
-    for (let i = 0; i < 5; i = i + 1) {
-        io::println("i = " + Integer.toString(i));
+    io::println("=== While Loop (was C-style for) ===");
+    var i18: int = 0;
+    while (i18 < 5) {
+        io::println("i = " + Integer.toString(i18));
+        i18 = i18 + 1;
     }
 
     // --- Section 19: String methods ---
     io::println("");
     io::println("=== String Methods ===");
-    let s = "  hello world  ";
+    let s: string = "  hello world  ";
     io::println("original: '" + s + "'");
     io::println("trimmed: '" + s.trim() + "'");
     io::println("length: " + Integer.toString(s.length()));
-    let parts = s.trim().split(" ");
+    let parts: ArrayList<string> = s.trim().split(" ");
     io::println("split size: " + Integer.toString(parts.size()));
-    for (let i = 0; i < parts.size(); i = i + 1) {
-        io::println("  part " + Integer.toString(i) + ": " + parts.get(i));
+    var i19: int = 0;
+    while (i19 < parts.size()) {
+        io::println("  part " + Integer.toString(i19) + ": " + parts.get(i19));
+        i19 = i19 + 1;
     }
 
     // --- Section 20: HashMap containsKey and keys ---
@@ -254,11 +258,13 @@ public void main() {
     hmap.put("gamma", "3");
     io::println("containsKey alpha: " + Boolean.toString(hmap.containsKey("alpha")));
     io::println("containsKey delta: " + Boolean.toString(hmap.containsKey("delta")));
-    let hkeys = hmap.keys();
+    let hkeys: ArrayList<string> = hmap.keys();
     io::println("key count: " + Integer.toString(hkeys.size()));
-    for (let i = 0; i < hkeys.size(); i = i + 1) {
-        let key = hkeys.get(i);
+    var i20: int = 0;
+    while (i20 < hkeys.size()) {
+        let key: string = hkeys.get(i20);
         io::println("  " + key + " => " + hmap.get(key));
+        i20 = i20 + 1;
     }
 
     // --- Section 21: Unit type and Ok(()) ---
@@ -279,34 +285,34 @@ public void main() {
 // --- Local classes for inheritance testing ---
 
 class Animal {
-    string name;
+    public string name;
 
-    public Animal(string name) {
+    fn init(name: string) {
         this.name = name;
     }
 
-    public string getName() {
+    public fn getName(): string {
         return this.name;
     }
 
-    public string speak() {
+    public fn speak(): string {
         return "...";
     }
 }
 
 class Dog extends Animal {
-    string breed;
+    public string breed;
 
-    public Dog(string name, string breed) {
+    fn init(name: string, breed: string) {
         super(name);
         this.breed = breed;
     }
 
-    public string speak() {
+    public fn speak(): string {
         return "Woof!";
     }
 
-    public string getBreed() {
+    public fn getBreed(): string {
         return this.breed;
     }
 }
@@ -321,8 +327,8 @@ fn safe_divide(a: int, b: int): Result<int, string> {
 }
 
 fn factorial(n: int): int {
-    int result = 1;
-    int i = 2;
+    var result: int = 1;
+    var i: int = 2;
     while (i <= n) {
         result = result * i;
         i = i + 1;

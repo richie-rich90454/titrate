@@ -4,22 +4,22 @@
 public class WordCounter {
     private HashMap<string, string> counts;
 
-    public WordCounter() {
+    fn init() {
         this.counts = new HashMap<string, string>();
     }
 
-    public void count(string word) {
-        string current = this.counts.get(word);
+    public fn count(word: string): void {
+        let current: string = this.counts.get(word);
         if (current == "") {
             this.counts.put(word, "1");
         } else {
-            int n = Integer.parseOr(current, 0);
+            let n: int = Integer.parseOr(current, 0);
             this.counts.put(word, Integer.toString(n + 1));
         }
     }
 
-    public int get(string word) {
-        string current = this.counts.get(word);
+    public fn get(word: string): int {
+        let current: string = this.counts.get(word);
         if (current == "") {
             return 0;
         }
