@@ -10,127 +10,127 @@ import tt.statistics;
 
 ### mean
 
-- `statistics::mean(data: array<double>): double` — arithmetic mean (average)
+- `statistics.mean(data: ArrayList<double>): double` — arithmetic mean (average)
 
 ```titrate
-let avg = statistics::mean([1.0, 2.0, 3.0, 4.0, 5.0]);
-io::println(avg.toString());  // 3.0
+let avg = statistics.mean([1.0, 2.0, 3.0, 4.0, 5.0]);
+io::println(Double.toString(avg));  // 3.0
 ```
 
 ### median
 
-- `statistics::median(data: array<double>): double` — middle value when sorted
+- `statistics.median(data: ArrayList<double>): double` — middle value when sorted
 
 ```titrate
-let mid = statistics::median([1.0, 3.0, 5.0, 7.0, 9.0]);
-io::println(mid.toString());  // 5.0
+let mid = statistics.median([1.0, 3.0, 5.0, 7.0, 9.0]);
+io::println(Double.toString(mid));  // 5.0
 ```
 
 ### mode
 
-- `statistics::mode(data: array<double>): double` — most frequently occurring value
+- `statistics.mode(data: ArrayList<double>): double` — most frequently occurring value
 
 ```titrate
-let m = statistics::mode([1.0, 2.0, 2.0, 3.0, 3.0, 3.0]);
-io::println(m.toString());  // 3.0
+let m = statistics.mode([1.0, 2.0, 2.0, 3.0, 3.0, 3.0]);
+io::println(Double.toString(m));  // 3.0
 ```
 
 ### variance
 
-- `statistics::variance(data: array<double>): double` — population variance
+- `statistics.variance(data: ArrayList<double>): double` — population variance
 
 ```titrate
-let v = statistics::variance([2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]);
-io::println(v.toString());  // 4.0
+let v = statistics.variance([2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]);
+io::println(Double.toString(v));  // 4.0
 ```
 
 ### pvariance
 
-- `statistics::pvariance(data: array<double>): double` — population variance (explicit name)
+- `statistics.pvariance(data: ArrayList<double>): double` — population variance (explicit name)
 
 ### stdev
 
-- `statistics::stdev(data: array<double>): double` — population standard deviation (square root of variance)
+- `statistics.stdev(data: ArrayList<double>): double` — population standard deviation (square root of variance)
 
 ```titrate
-let s = statistics::stdev([2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]);
-io::println(s.toString());  // 2.0
+let s = statistics.stdev([2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]);
+io::println(Double.toString(s));  // 2.0
 ```
 
 ### pstdev
 
-- `statistics::pstdev(data: array<double>): double` — population standard deviation (explicit name)
+- `statistics.pstdev(data: ArrayList<double>): double` — population standard deviation (explicit name)
 
 ### sampleVariance
 
-- `statistics::sampleVariance(data: array<double>): double` — sample variance (Bessel's correction, divides by N-1)
+- `statistics.sampleVariance(data: ArrayList<double>): double` — sample variance (Bessel's correction, divides by N-1)
 
 ### sampleStdev
 
-- `statistics::sampleStdev(data: array<double>): double` — sample standard deviation
+- `statistics.sampleStdev(data: ArrayList<double>): double` — sample standard deviation
 
 ## Spread and Range
 
 ### min
 
-- `statistics::min(data: array<double>): double` — minimum value
+- `statistics.min(data: ArrayList<double>): double` — minimum value
 
 ### max
 
-- `statistics::max(data: array<double>): double` — maximum value
+- `statistics.max(data: ArrayList<double>): double` — maximum value
 
 ### range
 
-- `statistics::range(data: array<double>): double` — difference between max and min
+- `statistics.range(data: ArrayList<double>): double` — difference between max and min
 
 ```titrate
-let r = statistics::range([1.0, 5.0, 3.0, 9.0, 2.0]);
-io::println(r.toString());  // 8.0
+let r = statistics.range([1.0, 5.0, 3.0, 9.0, 2.0]);
+io::println(Double.toString(r));  // 8.0
 ```
 
 ## Quantiles
 
 ### quantile
 
-- `statistics::quantile(data: array<double>, q: double): double` — value at the given quantile (0.0–1.0)
+- `statistics.quantile(data: ArrayList<double>, q: double): double` — value at the given quantile (0.0–1.0)
 
 ```titrate
-let q1 = statistics::quantile([1.0, 2.0, 3.0, 4.0, 5.0], 0.25);  // first quartile
+let q1 = statistics.quantile([1.0, 2.0, 3.0, 4.0, 5.0], 0.25);  // first quartile
 ```
 
 ### quartiles
 
-- `statistics::quartiles(data: array<double>): (double, double, double)` — returns (Q1, Q2, Q3)
+- `statistics.quartiles(data: ArrayList<double>): (double, double, double)` — returns (Q1, Q2, Q3)
 
 ```titrate
-let (q1, q2, q3) = statistics::quartiles([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
+let (q1, q2, q3) = statistics.quartiles([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]);
 ```
 
 ### iqr
 
-- `statistics::iqr(data: array<double>): double` — interquartile range (Q3 - Q1)
+- `statistics.iqr(data: ArrayList<double>): double` — interquartile range (Q3 - Q1)
 
 ## Correlation and Regression
 
 ### correlation
 
-- `statistics::correlation(x: array<double>, y: array<double>): double` — Pearson correlation coefficient (-1.0 to 1.0)
+- `statistics.correlation(x: ArrayList<double>, y: ArrayList<double>): double` — Pearson correlation coefficient (-1.0 to 1.0)
 
 ```titrate
-let r = statistics::correlation([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]);
-io::println(r.toString());  // 1.0 (perfect positive correlation)
+let r = statistics.correlation([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]);
+io::println(Double.toString(r));  // 1.0 (perfect positive correlation)
 ```
 
 ### covariance
 
-- `statistics::covariance(x: array<double>, y: array<double>): double` — population covariance
+- `statistics.covariance(x: ArrayList<double>, y: ArrayList<double>): double` — population covariance
 
 ### linearRegression
 
-- `statistics::linearRegression(x: array<double>, y: array<double>): (double, double)` — returns (slope, intercept) of best-fit line
+- `statistics.linearRegression(x: ArrayList<double>, y: ArrayList<double>): (double, double)` — returns (slope, intercept) of best-fit line
 
 ```titrate
-let (slope, intercept) = statistics::linearRegression([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]);
+let (slope, intercept) = statistics.linearRegression([1.0, 2.0, 3.0], [2.0, 4.0, 6.0]);
 // slope ≈ 2.0, intercept ≈ 0.0
 ```
 
@@ -138,14 +138,14 @@ let (slope, intercept) = statistics::linearRegression([1.0, 2.0, 3.0], [2.0, 4.0
 
 ### describe
 
-- `statistics::describe(data: array<double>): Summary` — compute a statistical summary
+- `statistics.describe(data: ArrayList<double>): Summary` — compute a statistical summary
 
 ```titrate
-let summary = statistics::describe([1.0, 2.0, 3.0, 4.0, 5.0]);
-io::println(summary.mean().toString());    // 3.0
-io::println(summary.stdev().toString());   // 1.414...
-io::println(summary.min().toString());     // 1.0
-io::println(summary.max().toString());     // 5.0
+let summary = statistics.describe([1.0, 2.0, 3.0, 4.0, 5.0]);
+io::println(Double.toString(summary.mean()));    // 3.0
+io::println(Double.toString(summary.stdev()));   // 1.414...
+io::println(Double.toString(summary.min()));     // 1.0
+io::println(Double.toString(summary.max()));     // 5.0
 ```
 
 ### Summary
