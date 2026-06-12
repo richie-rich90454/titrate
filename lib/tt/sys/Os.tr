@@ -131,9 +131,17 @@ public fn rmdir(path: string): Result<string, string> {
     return remove(path);
 }
 
-// Walk directory tree yielding (dirpath, subdirs, files).
+// Walk directory tree yielding (dirpath, subdirs, files) for each directory.
+// Returns a flat ArrayList where every 3 consecutive elements represent
+// one directory: [dirpath, subdirs, files, dirpath2, subdirs2, files2, ...]
 public fn walk(path: string): ArrayList<ArrayList<string>> {
     let result: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    walkHelper(path, result);
+    return result;
+}
+
+// Internal helper that recursively walks the directory tree.
+fn walkHelper(path: string, result: ArrayList<ArrayList<string>>): void {
     let dirs: ArrayList<string> = new ArrayList<string>();
     let files: ArrayList<string> = new ArrayList<string>();
     let entries: ArrayList<string> = listDir(path);
@@ -148,12 +156,18 @@ public fn walk(path: string): ArrayList<ArrayList<string>> {
         }
         i = i + 1;
     }
-    let item: ArrayList<string> = new ArrayList<string>();
-    item.add(path);
-    result.add(item);
+    let dirpath: ArrayList<string> = new ArrayList<string>();
+    dirpath.add(path);
+    result.add(dirpath);
     result.add(dirs);
     result.add(files);
-    return result;
+    // Recurse into subdirectories
+    var j: int = 0;
+    while (j < dirs.size()) {
+        let subPath: string = Path_join(path, dirs.get(j));
+        walkHelper(subPath, result);
+        j = j + 1;
+    }
 }
 
 // Get file size.
