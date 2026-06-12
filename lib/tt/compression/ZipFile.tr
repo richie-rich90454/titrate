@@ -1,0 +1,76 @@
+// ZIP archive reading and writing.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Result;
+
+public class ZipEntry {
+    public string name;
+    public long compressedSize;
+    public long uncompressedSize;
+    public int method;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.compressedSize = 0;
+        this.uncompressedSize = 0;
+        this.method = 8;
+    }
+}
+
+public class ZipFile {
+    private string _path;
+    private ArrayList<ZipEntry> _entries;
+
+    public fn init(path: string) {
+        this._path = path;
+        this._entries = new ArrayList<ZipEntry>();
+    }
+
+    // Get the list of entries in the ZIP file
+    public fn entries(): ArrayList<ZipEntry> {
+        return this._entries;
+    }
+
+    // Read the content of a specific entry by name
+    public fn readEntry(name: string): Result<string, string> {
+        // Placeholder: requires VM native support
+        return err("zip reading not yet supported");
+    }
+
+    // Extract all entries to a destination directory
+    public fn extractAll(destDir: string): Result<string, string> {
+        // Placeholder: requires VM native support
+        return err("zip extraction not yet supported");
+    }
+
+    // Close the ZIP file (no-op placeholder)
+    public fn close(): void { }
+}
+
+public class ZipWriter {
+    private string _path;
+    private ArrayList<ZipEntry> _entries;
+
+    public fn init(path: string) {
+        this._path = path;
+        this._entries = new ArrayList<ZipEntry>();
+    }
+
+    // Add an entry to the ZIP archive
+    public fn addEntry(name: string, data: string): void {
+        let entry: ZipEntry = new ZipEntry(name);
+        entry.uncompressedSize = String.length(data) as long;
+        entry.compressedSize = String.length(data) as long;
+        this._entries.add(entry);
+    }
+
+    // Write the ZIP archive to disk
+    public fn write(): Result<string, string> {
+        // Placeholder: requires VM native support
+        return err("zip writing not yet supported");
+    }
+
+    // Close the ZIP writer (no-op placeholder)
+    public fn close(): void { }
+}
