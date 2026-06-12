@@ -311,7 +311,7 @@ public class Money {
 
     // Add your operator methods here!
 
-    public fn toString(): string {
+    public fn toString(self): string {
         return "$" + Double.toString(this.amount);
     }
 }
@@ -375,7 +375,7 @@ public class Money {
         return self.amount >= other.amount;
     }
 
-    public fn toString(): string {
+    public fn toString(self): string {
         return "$" + Double.toString(this.amount);
     }
 }
