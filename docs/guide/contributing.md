@@ -37,10 +37,10 @@ This compiles the compiler (`trc`) and the VM. The resulting binary can run `.tr
 Before making changes, make sure the existing tests pass:
 
 ```bash
-# Compiler/VM unit tests (571 tests)
+# Compiler/VM unit tests
 cargo test --lib
 
-# Standard library integration tests (53 tests)
+# Standard library integration tests
 cargo test --test stdlib_test
 
 # End-to-end mega test
