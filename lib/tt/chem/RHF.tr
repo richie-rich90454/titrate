@@ -25,9 +25,9 @@ public class RHF {
     public bool converged;
     public int iterations;
 
-    public RHF(Molecule mol, int basisSize) {
+    fn init(mol: Molecule, basis: int) {
         this.molecule = mol;
-        this.basisSize = basisSize;
+        this.basisSize = basis;
         this.maxIterations = 100;
         this.convergenceThreshold = 1e-6;
         this.totalEnergy = 0.0;
@@ -35,26 +35,26 @@ public class RHF {
         this.iterations = 0;
         this.orbitalEnergies = new ArrayList<double>();
         this.nuclearRepulsion = this.computeNuclearRepulsion();
-        this.overlapMatrix = RHFMatrix.buildOverlapMatrix(this);
-        this.coreHamiltonian = RHFMatrix.buildCoreHamiltonian(this);
-        this.densityMatrix = RHFMatrix.makeZeroMatrix(basisSize);
-        this.fock = RHFMatrix.makeZeroMatrix(basisSize);
+        this.overlapMatrix = buildOverlapMatrix(this);
+        this.coreHamiltonian = buildCoreHamiltonian(this);
+        this.densityMatrix = makeZeroMatrix(basis);
+        this.fock = makeZeroMatrix(basis);
     }
 
     // Compute nuclear repulsion energy: sum_{i<j} Z_i * Z_j / R_ij
-    public double computeNuclearRepulsion() {
-        double enuc = 0.0;
-        int n = this.molecule.atomCount();
-        int i = 0;
+    public fn computeNuclearRepulsion(): double {
+        var enuc: double = 0.0;
+        let n: int = this.molecule.atomCount();
+        var i: int = 0;
         while (i < n) {
-            int j = i + 1;
+            var j: int = i + 1;
             while (j < n) {
-                Atom a1 = this.molecule.getAtom(i);
-                Atom a2 = this.molecule.getAtom(j);
-                double r = a1.distanceTo(a2);
+                let a1: Atom = this.molecule.getAtom(i);
+                let a2: Atom = this.molecule.getAtom(j);
+                var r: double = a1.distanceTo(a2);
                 if (r < 1e-10) { r = 1e-10; }
-                double z1 = (double) a1.atomicNumber;
-                double z2 = (double) a2.atomicNumber;
+                let z1: double = a1.atomicNumber as double;
+                let z2: double = a2.atomicNumber as double;
                 enuc = enuc + z1 * z2 / r;
                 j = j + 1;
             }
@@ -64,9 +64,9 @@ public class RHF {
     }
 
     // Count total number of electrons in the molecule
-    public int totalElectrons() {
-        int nelec = 0;
-        int i = 0;
+    public fn totalElectrons(): int {
+        var nelec: int = 0;
+        var i: int = 0;
         while (i < this.molecule.atomCount()) {
             nelec = nelec + this.molecule.getAtom(i).atomicNumber;
             i = i + 1;
@@ -75,42 +75,42 @@ public class RHF {
     }
 
     // Run the SCF computation
-    public double compute() {
-        int n = this.basisSize;
-        int nElectrons = this.totalElectrons();
-        int nOcc = nElectrons / 2; // Number of occupied orbitals (RHF: 2 electrons per orbital)
+    public fn compute(): double {
+        let n: int = this.basisSize;
+        let nElectrons: int = this.totalElectrons();
+        var nOcc: int = nElectrons / 2; // Number of occupied orbitals (RHF: 2 electrons per orbital)
         if (nOcc > n) { nOcc = n; }
         if (nOcc < 1) { nOcc = 1; }
 
         // Compute S^{-1/2} for orthogonalization
-        Matrix sinvHalf = RHFDiag.computeSInverseHalf(this);
+        let sinvHalf: Matrix = computeSInverseHalf(this);
 
         // Initial Fock matrix is just the core Hamiltonian
-        this.fock = RHFMatrix.copyMatrix(this, this.coreHamiltonian);
+        this.fock = copyMatrix(this, this.coreHamiltonian);
 
-        int iter = 0;
+        var iter: int = 0;
         while (iter < this.maxIterations) {
             // Transform Fock matrix to orthogonal basis: F' = S^{-1/2} * F * S^{-1/2}
-            Matrix F = RHFMatrix.toMatrix(this, this.fock);
-            Matrix Fprime = sinvHalf.mul(F).mul(sinvHalf);
+            let F: Matrix = toMatrix(this, this.fock);
+            let Fprime: Matrix = sinvHalf.mul(F).mul(sinvHalf);
 
             // Diagonalize F' to get orbital energies and coefficients
-            (Matrix Cprime, ArrayList<double> eigenvals) = RHFDiag.jacobiDiagonalize(this, Fprime);
+            let (Cprime, eigenvals): (Matrix, ArrayList<double>) = jacobiDiagonalize(this, Fprime);
 
             // Transform coefficients back: C = S^{-1/2} * C'
-            Matrix C = sinvHalf.mul(Cprime);
+            let C: Matrix = sinvHalf.mul(Cprime);
 
             // Store orbital energies
             this.orbitalEnergies = eigenvals;
 
             // Build new density matrix from occupied orbitals
-            ArrayList<ArrayList<double>> newDensity = RHFMatrix.makeZeroMatrix(n);
-            int i = 0;
+            let newDensity: ArrayList<ArrayList<double>> = makeZeroMatrix(n);
+            var i: int = 0;
             while (i < n) {
-                int j = 0;
+                var j: int = 0;
                 while (j <= i) {
-                    double pval = 0.0;
-                    int k = 0;
+                    var pval: double = 0.0;
+                    var k: int = 0;
                     while (k < nOcc) {
                         // P_ij = 2 * sum_{k occ} C_ik * C_jk
                         pval = pval + 2.0 * C.get(i, k) * C.get(j, k);
@@ -124,12 +124,12 @@ public class RHF {
             }
 
             // Check convergence: max change in density matrix
-            double maxDelta = 0.0;
+            var maxDelta: double = 0.0;
             i = 0;
             while (i < n) {
-                int j = 0;
+                j = 0;
                 while (j < n) {
-                    double delta = Math.abs(newDensity.get(i).get(j) - this.densityMatrix.get(i).get(j));
+                    let delta: double = Math.abs(newDensity.get(i).get(j) - this.densityMatrix.get(i).get(j));
                     if (delta > maxDelta) {
                         maxDelta = delta;
                     }
@@ -142,7 +142,7 @@ public class RHF {
             this.densityMatrix = newDensity;
 
             // Build new Fock matrix
-            this.fock = RHFMatrix.buildFockMatrix(this);
+            this.fock = buildFockMatrix(this);
 
             this.iterations = iter + 1;
 
@@ -155,10 +155,10 @@ public class RHF {
         }
 
         // Compute total energy: E = 0.5 * sum_{ij} P_ij * (H_ij + F_ij) + E_nuc
-        double eElec = 0.0;
-        int i = 0;
+        var eElec: double = 0.0;
+        i = 0;
         while (i < n) {
-            int j = 0;
+            var j: int = 0;
             while (j < n) {
                 eElec = eElec + this.densityMatrix.get(i).get(j) * (this.coreHamiltonian.get(i).get(j) + this.fock.get(i).get(j));
                 j = j + 1;
@@ -171,32 +171,32 @@ public class RHF {
     }
 
     // Return the Fock matrix
-    public ArrayList<ArrayList<double>> fockMatrix() {
+    public fn fockMatrix(): ArrayList<ArrayList<double>> {
         return this.fock;
     }
 
     // Return the density matrix
-    public ArrayList<ArrayList<double>> getDensityMatrix() {
+    public fn getDensityMatrix(): ArrayList<ArrayList<double>> {
         return this.densityMatrix;
     }
 
     // Return the orbital energies
-    public ArrayList<double> getOrbitalEnergies() {
+    public fn getOrbitalEnergies(): ArrayList<double> {
         return this.orbitalEnergies;
     }
 
     // Return the total energy
-    public double getTotalEnergy() {
+    public fn getTotalEnergy(): double {
         return this.totalEnergy;
     }
 
     // Return convergence status
-    public bool isConverged() {
+    public fn isConverged(): bool {
         return this.converged;
     }
 
     // Return number of iterations used
-    public int getIterations() {
+    public fn getIterations(): int {
         return this.iterations;
     }
 }
