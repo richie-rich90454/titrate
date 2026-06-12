@@ -8,9 +8,9 @@ Declare type parameters in angle brackets after the class name:
 
 ```titrate
 class Box<T> {
-    T value;
+    public T value;
 
-    public Box(T value) {
+    public fn init(value: T) {
         this.value = value;
     }
 
@@ -30,7 +30,7 @@ Instantiate with concrete types:
 let intBox = new Box<int>(42);
 let strBox = new Box<string>("hello");
 
-io::println(intBox.get().toString());  // 42
+io::println(Integer.toString(intBox.get()));  // 42
 io::println(strBox.get());             // hello
 ```
 
@@ -117,5 +117,5 @@ let map = new HashMap<string, int>();
 map.put("one", 1);
 map.put("two", 2);
 
-io::println(map.get("one").toString());  // 1
+io::println(Integer.toString(map.get("one")));  // 1
 ```

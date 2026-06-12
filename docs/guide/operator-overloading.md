@@ -8,8 +8,8 @@ Operator methods follow the naming convention `operatorX`, where `X` is the oper
 
 ```titrate
 class Vec2 {
-    double x;
-    double y;
+    public double x;
+    public double y;
 
     fn operator+(self, other: Vec2): Vec2 {
         return new Vec2(self.x + other.x, self.y + other.y);
@@ -67,11 +67,11 @@ fn operator>=(self, other: Self): bool
 
 ```titrate
 class Vec2 {
-    double x;
-    double y;
+    public double x;
+    public double y;
 
     // Constructor
-    public Vec2(double x, double y) {
+    public fn init(x: double, y: double) {
         this.x = x;
         this.y = y;
     }
@@ -124,7 +124,7 @@ class Vec2 {
     }
 
     fn toString(self): string {
-        return "(" + self.x.toString() + ", " + self.y.toString() + ")";
+        return "(" + Double.toString(self.x) + ", " + Double.toString(self.y) + ")";
     }
 }
 ```
@@ -166,8 +166,8 @@ Operator methods work with generic types. For example, a generic `Pair` class co
 
 ```titrate
 class Pair<T: Comparable> {
-    T first;
-    T second;
+    public T first;
+    public T second;
 
     fn operator==(self, other: Pair<T>): bool {
         return self.first.compareTo(other.first) == 0

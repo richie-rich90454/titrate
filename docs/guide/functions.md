@@ -8,15 +8,25 @@ public fn greet(name: string): void {
 }
 ```
 
-## Sugar Form
+## Sugar Form (C-family Compatibility)
+
+Titrate supports a sugar form that will feel familiar to developers coming from C, C++, ECMAScript, or similar languages:
 
 ```titrate
+// Sugar form — familiar to C/ECMAScript developers
 public void greet(string name) {
     io::println("Hello, " + name);
 }
 ```
 
-The sugar form is desugared into the canonical form during parsing.
+This is automatically desugared into the canonical `fn` form during parsing. However, **the canonical `fn` form is the recommended Titrate style**. Use the sugar form only during migration or if your team prefers C-family syntax:
+
+```titrate
+// Canonical form — recommended for all Titrate code
+public fn greet(name: string): void {
+    io::println("Hello, " + name);
+}
+```
 
 ## Return Values
 

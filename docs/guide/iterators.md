@@ -59,10 +59,10 @@ while (iter.hasNext()) {
 
 ```titrate
 class IntRange implements Iterable<int> {
-    int start;
-    int end;
+    private int start;
+    private int end;
 
-    public IntRange(int start, int end) {
+    public fn init(start: int, end: int) {
         this.start = start;
         this.end = end;
     }
@@ -73,10 +73,10 @@ class IntRange implements Iterable<int> {
 }
 
 class IntRangeIterator implements Iterator<int> {
-    int current;
-    int end;
+    private int current;
+    private int end;
 
-    public IntRangeIterator(int start, int end) {
+    public fn init(start: int, end: int) {
         this.current = start;
         this.end = end;
     }
@@ -98,7 +98,7 @@ Usage:
 ```titrate
 let range = new IntRange(0, 5);
 for (i in range) {
-    io::println(i.toString());  // 0, 1, 2, 3, 4
+    io::println(Integer.toString(i));  // 0, 1, 2, 3, 4
 }
 ```
 
@@ -106,11 +106,11 @@ for (i in range) {
 
 ```titrate
 class RingBuffer<T> implements Iterable<T> {
-    array<T> data;
-    int head;
-    int count;
+    private array<T> data;
+    private int head;
+    private int count;
 
-    public RingBuffer(int capacity) {
+    public fn init(capacity: int) {
         this.data = new array<T>(capacity);
         this.head = 0;
         this.count = 0;
@@ -128,10 +128,10 @@ class RingBuffer<T> implements Iterable<T> {
 }
 
 class RingBufferIterator<T> implements Iterator<T> {
-    Owned<RingBuffer<T>> buffer;
-    int index;
+    private Owned<RingBuffer<T>> buffer;
+    private int index;
 
-    public RingBufferIterator(RingBuffer<T> buffer) {
+    public fn init(buffer: RingBuffer<T>) {
         this.buffer = buffer;
         this.index = 0;
     }
@@ -171,7 +171,7 @@ The `..` operator creates an exclusive range — the end value is **not** includ
 
 ```titrate
 for (i in 0..5) {
-    io::println(i.toString());  // 0, 1, 2, 3, 4
+    io::println(Integer.toString(i));  // 0, 1, 2, 3, 4
 }
 ```
 
@@ -181,7 +181,7 @@ The `..=` operator creates an inclusive range — the end value **is** included:
 
 ```titrate
 for (i in 1..=5) {
-    io::println(i.toString());  // 1, 2, 3, 4, 5
+    io::println(Integer.toString(i));  // 1, 2, 3, 4, 5
 }
 ```
 
@@ -201,12 +201,12 @@ Ranges are the most concise way to iterate over a sequence of integers:
 ```titrate
 // Count from 0 to 9
 for (i in 0..10) {
-    io::println(i.toString());
+    io::println(Integer.toString(i));
 }
 
 // Count from 1 to 10 (inclusive)
 for (i in 1..=10) {
-    io::println(i.toString());
+    io::println(Integer.toString(i));
 }
 ```
 
@@ -237,7 +237,7 @@ numbers.add(5);
 
 for (n in numbers) {
     if (n % 2 != 0) {
-        io::println(n.toString());  // 1, 3, 5
+        io::println(Integer.toString(n));  // 1, 3, 5
     }
 }
 ```

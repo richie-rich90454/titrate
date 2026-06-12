@@ -4,9 +4,9 @@
 
 ```titrate
 class Circle {
-    double radius;
+    public double radius;
 
-    public Circle(double r) {
+    public fn init(r: double) {
         this.radius = r;
     }
 
@@ -22,9 +22,9 @@ Use `extends` to inherit from a base class. Call the parent constructor with `su
 
 ```titrate
 class Animal {
-    string name;
+    public string name;
 
-    public Animal(string name) {
+    public fn init(name: string) {
         this.name = name;
     }
 
@@ -34,9 +34,9 @@ class Animal {
 }
 
 class Dog extends Animal {
-    string breed;
+    public string breed;
 
-    public Dog(string name, string breed) {
+    public fn init(name: string, breed: string) {
         super(name);
         this.breed = breed;
     }
@@ -69,7 +69,7 @@ A class declares that it implements one or more interfaces using `implements`:
 
 ```titrate
 class Report implements Printable {
-    string title;
+    public string title;
 
     public fn toString(): string {
         return this.title;
@@ -97,9 +97,9 @@ Classes can declare type parameters in angle brackets:
 
 ```titrate
 class Box<T> {
-    T value;
+    public T value;
 
-    public Box(T value) {
+    public fn init(value: T) {
         this.value = value;
     }
 
@@ -115,7 +115,7 @@ Restrict type parameters to types that implement specific interfaces:
 
 ```titrate
 class SortedList<T: Comparable> {
-    ArrayList<T> items;
+    public ArrayList<T> items;
 
     public fn insert(item: T): void {
         // T is guaranteed to have compareTo
