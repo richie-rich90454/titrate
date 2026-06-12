@@ -11,7 +11,7 @@ public class TestCase {
     public string name;
     public fn(): void fn;
 
-    public TestCase(name: string, fn: fn(): void) {
+    fn init(name: string, fn: fn(): void) {
         this.name = name;
         this.fn = fn;
     }
@@ -27,7 +27,7 @@ public class TestSuite {
     private fn(): void beforeEachFn;
     private fn(): void afterEachFn;
 
-    public TestSuite(name: string) {
+    fn init(name: string) {
         this.name = name;
         this.tests = new ArrayList<TestCase>();
         this.passed = 0;
@@ -45,7 +45,7 @@ public class TestSuite {
     // Assert that two values are equal.
     public fn assertEqual<T>(actual: T, expected: T, msg: string): void {
         if (actual != expected) {
-            this.fail("assertEqual failed: expected " + String::toString(expected) + " but got " + String::toString(actual) + " - " + msg);
+            this.fail("assertEqual failed: expected " + String.toString(expected) + " but got " + String.toString(actual) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
@@ -54,7 +54,7 @@ public class TestSuite {
     // Assert that two values are not equal.
     public fn assertNotEqual<T>(actual: T, expected: T, msg: string): void {
         if (actual == expected) {
-            this.fail("assertNotEqual failed: expected different values but both were " + String::toString(expected) + " - " + msg);
+            this.fail("assertNotEqual failed: expected different values but both were " + String.toString(expected) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
@@ -99,7 +99,7 @@ public class TestSuite {
         let diff: double = actual - expected;
         if (diff < 0) { diff = -diff; }
         if (diff > tolerance) {
-            this.fail("assertApproxEqual failed: expected " + Double::toString(expected) + " +/- " + Double::toString(tolerance) + " but got " + Double::toString(actual) + " - " + msg);
+            this.fail("assertApproxEqual failed: expected " + Double.toString(expected) + " +/- " + Double.toString(tolerance) + " but got " + Double.toString(actual) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
@@ -108,7 +108,7 @@ public class TestSuite {
     // Assert that actual is greater than expected.
     public fn assertGreaterThan(actual: double, expected: double, msg: string): void {
         if (actual <= expected) {
-            this.fail("assertGreaterThan failed: expected " + Double::toString(actual) + " > " + Double::toString(expected) + " - " + msg);
+            this.fail("assertGreaterThan failed: expected " + Double.toString(actual) + " > " + Double.toString(expected) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
@@ -117,7 +117,7 @@ public class TestSuite {
     // Assert that actual is less than expected.
     public fn assertLessThan(actual: double, expected: double, msg: string): void {
         if (actual >= expected) {
-            this.fail("assertLessThan failed: expected " + Double::toString(actual) + " < " + Double::toString(expected) + " - " + msg);
+            this.fail("assertLessThan failed: expected " + Double.toString(actual) + " < " + Double.toString(expected) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
@@ -132,7 +132,7 @@ public class TestSuite {
             }
         }
         if (!found) {
-            this.fail("assertContains failed: collection did not contain " + String::toString(item) + " - " + msg);
+            this.fail("assertContains failed: collection did not contain " + String.toString(item) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
@@ -141,7 +141,7 @@ public class TestSuite {
     // Assert that a value is null.
     public fn assertNull<T>(value: T, msg: string): void {
         if (value != null) {
-            this.fail("assertNull failed: expected null but got " + String::toString(value) + " - " + msg);
+            this.fail("assertNull failed: expected null but got " + String.toString(value) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
@@ -168,7 +168,7 @@ public class TestSuite {
 
     // Skip the current test with a message.
     public fn skip(msg: string): void {
-        IO::println("  [SKIP] " + msg);
+        IO.println("  [SKIP] " + msg);
     }
 
     // Run a function with a timeout in milliseconds.
@@ -185,30 +185,30 @@ public class TestSuite {
 
     // Run all tests in this suite and print results.
     public fn run(): void {
-        IO::println("Suite: " + this.name);
+        IO.println("Suite: " + this.name);
         for (tc in this.tests) {
-            IO::println("  [RUN ] " + tc.name);
+            IO.println("  [RUN ] " + tc.name);
             try {
                 if (this.beforeEachFn != null) { this.beforeEachFn(); }
                 tc.fn();
                 if (this.afterEachFn != null) { this.afterEachFn(); }
-                IO::println("  [PASS] " + tc.name);
+                IO.println("  [PASS] " + tc.name);
             } catch (e: string) {
                 if (this.afterEachFn != null) { this.afterEachFn(); }
-                IO::println("  [FAIL] " + tc.name + " - " + e);
+                IO.println("  [FAIL] " + tc.name + " - " + e);
             }
         }
-        IO::println("  Passed: " + Integer::toString(this.passed) + "  Failed: " + Integer::toString(this.failed));
+        IO.println("  Passed: " + Integer.toString(this.passed) + "  Failed: " + Integer.toString(this.failed));
         if (this.failed > 0) {
-            IO::println("  Failures:");
+            IO.println("  Failures:");
             for (f in this.failures) {
-                IO::println("    - " + f);
+                IO.println("    - " + f);
             }
         }
     }
 
     // Return a summary string for this suite.
     public fn summary(): string {
-        return this.name + ": " + Integer::toString(this.passed) + " passed, " + Integer::toString(this.failed) + " failed";
+        return this.name + ": " + Integer.toString(this.passed) + " passed, " + Integer.toString(this.failed) + " failed";
     }
 }
