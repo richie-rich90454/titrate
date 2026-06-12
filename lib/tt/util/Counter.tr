@@ -1,18 +1,18 @@
 // Counter collection backed by HashMap.
 public class Counter<E> {
-    private HashMap counts;
+    private HashMap<E, int> counts;
 
-    public Counter() {
-        this.counts = new HashMap();
+    public fn Counter() {
+        this.counts = new HashMap<E, int>();
     }
 
-    public void increment(E key) {
-        int current = this.get(key);
+    public fn increment(key: E): void {
+        let current: int = this.get(key);
         this.counts.put(key, current + 1);
     }
 
-    public void decrement(E key) {
-        int current = this.get(key);
+    public fn decrement(key: E): void {
+        let current: int = this.get(key);
         if (current <= 1) {
             this.counts.remove(key);
         } else {
@@ -20,21 +20,21 @@ public class Counter<E> {
         }
     }
 
-    public int get(E key) {
+    public fn get(key: E): int {
         if (this.counts.containsKey(key)) {
             return this.counts.get(key);
         }
         return 0;
     }
 
-    public ArrayList<E> mostCommon() {
-        ArrayList<E> keyList = this.counts.keys();
+    public fn mostCommon(): ArrayList<E> {
+        let keyList: ArrayList<E> = this.counts.keys();
         // Selection sort by count descending
-        int n = keyList.size();
-        int i = 0;
+        let n: int = keyList.size();
+        let i: int = 0;
         while (i < n - 1) {
-            int maxIdx = i;
-            int j = i + 1;
+            let maxIdx: int = i;
+            let j: int = i + 1;
             while (j < n) {
                 if (this.counts.get(keyList.get(j)) > this.counts.get(keyList.get(maxIdx))) {
                     maxIdx = j;
@@ -42,7 +42,7 @@ public class Counter<E> {
                 j = j + 1;
             }
             if (maxIdx != i) {
-                E temp = keyList.get(i);
+                let temp: E = keyList.get(i);
                 keyList.set(i, keyList.get(maxIdx));
                 keyList.set(maxIdx, temp);
             }
@@ -51,22 +51,22 @@ public class Counter<E> {
         return keyList;
     }
 
-    public int size() {
+    public fn size(): int {
         return this.counts.size();
     }
 
-    public ArrayList<E> keys() {
+    public fn keys(): ArrayList<E> {
         return this.counts.keys();
     }
 
-    public ArrayList<(E, int)> items() {
+    public fn items(): ArrayList<(E, int)> {
         return this.counts.entries();
     }
 
-    public int total() {
-        int sum = 0;
-        ArrayList<int> vals = this.counts.values();
-        int i = 0;
+    public fn total(): int {
+        let sum: int = 0;
+        let vals: ArrayList<int> = this.counts.values();
+        let i: int = 0;
         while (i < vals.size()) {
             sum = sum + vals.get(i);
             i = i + 1;
@@ -74,28 +74,28 @@ public class Counter<E> {
         return sum;
     }
 
-    public void clear() {
-        this.counts = new HashMap();
+    public fn clear(): void {
+        this.counts = new HashMap<E, int>();
     }
 
-    public ArrayList<(E, int)> mostCommon(int n) {
-        ArrayList<E> sorted = this.mostCommon();
-        ArrayList<(E, int)> result = new ArrayList<(E, int)>();
-        int i = 0;
+    public fn mostCommon(n: int): ArrayList<(E, int)> {
+        let sorted: ArrayList<E> = this.mostCommon();
+        let result: ArrayList<(E, int)> = new ArrayList<(E, int)>();
+        let i: int = 0;
         while (i < n && i < sorted.size()) {
-            E key = sorted.get(i);
+            let key: E = sorted.get(i);
             result.add((key, this.counts.get(key)));
             i = i + 1;
         }
         return result;
     }
 
-    public void subtract(Counter<E> other) {
-        ArrayList<E> otherKeys = other.keys();
-        int i = 0;
+    public fn subtract(other: Counter<E>): void {
+        let otherKeys: ArrayList<E> = other.keys();
+        let i: int = 0;
         while (i < otherKeys.size()) {
-            E key = otherKeys.get(i);
-            int diff = this.get(key) - other.get(key);
+            let key: E = otherKeys.get(i);
+            let diff: int = this.get(key) - other.get(key);
             if (diff <= 0) {
                 this.counts.remove(key);
             } else {
@@ -105,23 +105,23 @@ public class Counter<E> {
         }
     }
 
-    public void add(Counter<E> other) {
-        ArrayList<E> otherKeys = other.keys();
-        int i = 0;
+    public fn add(other: Counter<E>): void {
+        let otherKeys: ArrayList<E> = other.keys();
+        let i: int = 0;
         while (i < otherKeys.size()) {
-            E key = otherKeys.get(i);
+            let key: E = otherKeys.get(i);
             this.counts.put(key, this.get(key) + other.get(key));
             i = i + 1;
         }
     }
 
-    public ArrayList<E> elements() {
-        ArrayList<E> result = new ArrayList<E>();
-        ArrayList<(E, int)> items = this.counts.entries();
-        int i = 0;
+    public fn elements(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        let items: ArrayList<(E, int)> = this.counts.entries();
+        let i: int = 0;
         while (i < items.size()) {
-            (E key, int count) = items.get(i);
-            int j = 0;
+            let (key: E, count: int) = items.get(i);
+            let j: int = 0;
             while (j < count) {
                 result.add(key);
                 j = j + 1;
@@ -131,21 +131,21 @@ public class Counter<E> {
         return result;
     }
 
-    public void update(ArrayList<E> list) {
-        int i = 0;
+    public fn update(list: ArrayList<E>): void {
+        let i: int = 0;
         while (i < list.size()) {
             this.increment(list.get(i));
             i = i + 1;
         }
     }
 
-    public String toString() {
-        String s = "Counter({";
-        ArrayList<(E, int)> items = this.counts.entries();
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "Counter({";
+        let items: ArrayList<(E, int)> = this.counts.entries();
+        let i: int = 0;
         while (i < items.size()) {
             if (i > 0) { s = s + ", "; }
-            (E key, int count) = items.get(i);
+            let (key: E, count: int) = items.get(i);
             s = s + key + ": " + count;
             i = i + 1;
         }
