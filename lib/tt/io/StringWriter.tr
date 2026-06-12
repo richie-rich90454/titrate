@@ -1,0 +1,33 @@
+// In-memory string stream implementing the Writer interface.
+import tt::util::StringBuilder;
+import tt::io::Writer;
+
+public class StringWriter implements Writer {
+    private StringBuilder _buf;
+
+    public fn init() {
+        this._buf = new StringBuilder();
+    }
+
+    // Write a string to the buffer
+    public fn write(s: string): void {
+        this._buf.append(s);
+    }
+
+    // Write a string followed by a newline
+    public fn writeLine(s: string): void {
+        this._buf.append(s);
+        this._buf.append("\n");
+    }
+
+    // Flush is a no-op for in-memory streams
+    public fn flush(): void { }
+
+    // Close is a no-op for in-memory streams
+    public fn close(): void { }
+
+    // Get the accumulated string content
+    public fn toString(): string {
+        return this._buf.build();
+    }
+}
