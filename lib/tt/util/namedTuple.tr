@@ -3,13 +3,13 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 
 public class namedTuple {
-    private ArrayList<String> _fieldNames;
-    private HashMap<String, Object> _fields;
+    private ArrayList<string> _fieldNames;
+    private HashMap<string, Variant> _fields;
 
-    public namedTuple(ArrayList<String> fieldNames, ArrayList<Object> values) {
-        this._fieldNames = new ArrayList<String>();
-        this._fields = new HashMap<String, Object>();
-        int i = 0;
+    public fn namedTuple(fieldNames: ArrayList<string>, values: ArrayList<Variant>) {
+        this._fieldNames = new ArrayList<string>();
+        this._fields = new HashMap<string, Variant>();
+        let i: int = 0;
         while (i < fieldNames.size()) {
             this._fieldNames.add(fieldNames.get(i));
             if (i < values.size()) {
@@ -21,29 +21,29 @@ public class namedTuple {
         }
     }
 
-    public Object get(String fieldName) {
+    public fn get(fieldName: string): Variant {
         return this._fields.get(fieldName);
     }
 
-    public void set(String fieldName, Object value) {
+    public fn set(fieldName: string, value: Variant): void {
         if (this._fields.containsKey(fieldName)) {
             this._fields.put(fieldName, value);
         }
     }
 
-    public Object getByIndex(int index) {
-        String fieldName = this._fieldNames.get(index);
+    public fn getByIndex(index: int): Variant {
+        let fieldName: string = this._fieldNames.get(index);
         return this._fields.get(fieldName);
     }
 
-    public void setByIndex(int index, Object value) {
-        String fieldName = this._fieldNames.get(index);
+    public fn setByIndex(index: int, value: Variant): void {
+        let fieldName: string = this._fieldNames.get(index);
         this._fields.put(fieldName, value);
     }
 
-    public ArrayList<String> fieldNames() {
-        ArrayList<String> result = new ArrayList<String>();
-        int i = 0;
+    public fn fieldNames(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let i: int = 0;
         while (i < this._fieldNames.size()) {
             result.add(this._fieldNames.get(i));
             i = i + 1;
@@ -51,9 +51,9 @@ public class namedTuple {
         return result;
     }
 
-    public ArrayList<Object> values() {
-        ArrayList<Object> result = new ArrayList<Object>();
-        int i = 0;
+    public fn values(): ArrayList<Variant> {
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        let i: int = 0;
         while (i < this._fieldNames.size()) {
             result.add(this._fields.get(this._fieldNames.get(i)));
             i = i + 1;
@@ -61,21 +61,21 @@ public class namedTuple {
         return result;
     }
 
-    public int size() {
+    public fn size(): int {
         return this._fieldNames.size();
     }
 
-    public bool hasField(String fieldName) {
+    public fn hasField(fieldName: string): bool {
         return this._fields.containsKey(fieldName);
     }
 
-    public bool equals(namedTuple other) {
+    public fn equals(other: namedTuple): bool {
         if (this.size() != other.size()) {
             return false;
         }
-        int i = 0;
+        let i: int = 0;
         while (i < this._fieldNames.size()) {
-            String name = this._fieldNames.get(i);
+            let name: string = this._fieldNames.get(i);
             if (!other.hasField(name)) {
                 return false;
             }
@@ -87,17 +87,17 @@ public class namedTuple {
         return true;
     }
 
-    public namedTuple clone() {
-        ArrayList<Object> vals = this.values();
+    public fn clone(): namedTuple {
+        let vals: ArrayList<Variant> = this.values();
         return new namedTuple(this._fieldNames, vals);
     }
 
-    public String toString() {
-        String s = "(";
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "(";
+        let i: int = 0;
         while (i < this._fieldNames.size()) {
             if (i > 0) { s = s + ", "; }
-            String name = this._fieldNames.get(i);
+            let name: string = this._fieldNames.get(i);
             s = s + name + "=" + this._fields.get(name);
             i = i + 1;
         }
