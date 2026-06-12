@@ -1,0 +1,126 @@
+// Bit manipulation utilities for systems programming.
+
+// Count the number of set bits (population count).
+public fn popcount(value: int): int {
+    var v: int = value;
+    var count: int = 0;
+    while (v != 0) {
+        count = count + (v & 1);
+        v = v >> 1;
+    }
+    return count;
+}
+
+// Count leading zero bits.
+public fn countlZero(value: int): int {
+    if (value == 0) { return 32; }
+    var v: int = value;
+    var count: int = 0;
+    while ((v & 0x80000000) == 0) {
+        count = count + 1;
+        v = v << 1;
+    }
+    return count;
+}
+
+// Count trailing zero bits.
+public fn countrZero(value: int): int {
+    if (value == 0) { return 32; }
+    var v: int = value;
+    var count: int = 0;
+    while ((v & 1) == 0) {
+        count = count + 1;
+        v = v >> 1;
+    }
+    return count;
+}
+
+// Rotate left.
+public fn rotl(value: int, shift: int): int {
+    let s: int = shift % 32;
+    if (s == 0) { return value; }
+    return ((value << s) | (value >> (32 - s)));
+}
+
+// Rotate right.
+public fn rotr(value: int, shift: int): int {
+    let s: int = shift % 32;
+    if (s == 0) { return value; }
+    return ((value >> s) | (value << (32 - s)));
+}
+
+// Check if value has exactly one bit set.
+public fn hasSingleBit(value: int): bool {
+    return value != 0 && (value & (value - 1)) == 0;
+}
+
+// Bit width (number of bits needed to represent the value).
+public fn bitWidth(value: int): int {
+    if (value == 0) { return 0; }
+    return 32 - countlZero(value);
+}
+
+// Floor to power of two.
+public fn floor2(value: int): int {
+    if (value <= 0) { return 0; }
+    return 1 << (bitWidth(value) - 1);
+}
+
+// Ceiling to power of two.
+public fn ceil2(value: int): int {
+    if (value <= 1) { return 1; }
+    let w: int = bitWidth(value - 1);
+    return 1 << w;
+}
+
+// Bit cast integer to another representation (identity for same size).
+public fn bitCast(value: int): int {
+    return value;
+}
+
+// Get bit at position.
+public fn getBit(value: int, position: int): int {
+    return (value >> position) & 1;
+}
+
+// Set bit at position.
+public fn setBit(value: int, position: int): int {
+    return value | (1 << position);
+}
+
+// Clear bit at position.
+public fn clearBit(value: int, position: int): int {
+    return value & (~(1 << position));
+}
+
+// Toggle bit at position.
+public fn toggleBit(value: int, position: int): int {
+    return value ^ (1 << position);
+}
+
+// Create bitmask of N low bits.
+public fn mask(count: int): int {
+    if (count >= 32) { return -1; }
+    return (1 << count) - 1;
+}
+
+// Reverse bits.
+public fn reverseBits(value: int): int {
+    var v: int = value;
+    var result: int = 0;
+    var i: int = 0;
+    while (i < 32) {
+        result = (result << 1) | (v & 1);
+        v = v >> 1;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Byte swap (endian conversion).
+public fn byteSwap(value: int): int {
+    return ((value & 0xFF) << 24) |
+           (((value >> 8) & 0xFF) << 16) |
+           (((value >> 16) & 0xFF) << 8) |
+           ((value >> 24) & 0xFF);
+}
