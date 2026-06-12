@@ -8,14 +8,14 @@ public class JsonParser {
     private string input;
     private int pos;
 
-    public JsonParser(string input) {
+    public fn init(input: string) {
         this.input = input;
         this.pos = 0;
     }
 
-    public void skipWhitespace() {
-        while (this.pos < this.input.length()) {
-            string c = this.input.charAt(this.pos);
+    public fn skipWhitespace(): void {
+        while (this.pos < String.length(this.input)) {
+            let c: string = String.charAt(this.input, this.pos);
             if (c == " " || c == "\t" || c == "\n" || c == "\r") {
                 this.pos = this.pos + 1;
             } else {
@@ -24,37 +24,37 @@ public class JsonParser {
         }
     }
 
-    public string peek() {
-        if (this.pos < this.input.length()) {
-            return this.input.charAt(this.pos);
+    public fn peek(): string {
+        if (this.pos < String.length(this.input)) {
+            return String.charAt(this.input, this.pos);
         }
         return "";
     }
 
-    public string advance() {
-        string c = this.input.charAt(this.pos);
+    public fn advance(): string {
+        let c: string = String.charAt(this.input, this.pos);
         this.pos = this.pos + 1;
         return c;
     }
 
-    public bool match(string expected) {
-        if (this.pos + expected.length() > this.input.length()) {
+    public fn match(expected: string): bool {
+        if (this.pos + String.length(expected) > String.length(this.input)) {
             return false;
         }
-        string sub = this.input.substring(this.pos, this.pos + expected.length());
+        let sub: string = String.substring(this.input, this.pos, this.pos + String.length(expected));
         if (sub == expected) {
-            this.pos = this.pos + expected.length();
+            this.pos = this.pos + String.length(expected);
             return true;
         }
         return false;
     }
 
-    public JsonValue parseValue() {
+    public fn parseValue(): JsonValue {
         this.skipWhitespace();
-        if (this.pos >= this.input.length()) {
+        if (this.pos >= String.length(this.input)) {
             return JsonValue::null();
         }
-        string c = this.peek();
+        let c: string = this.peek();
         if (c == "n") {
             return this.parseNull();
         }
@@ -76,12 +76,12 @@ public class JsonParser {
         return JsonValue::null();
     }
 
-    public JsonValue parseNull() {
+    public fn parseNull(): JsonValue {
         this.match("null");
         return JsonValue::null();
     }
 
-    public JsonValue parseBool() {
+    public fn parseBool(): JsonValue {
         if (this.match("true")) {
             return JsonValue::ofBool(true);
         }
@@ -89,13 +89,13 @@ public class JsonParser {
         return JsonValue::ofBool(false);
     }
 
-    public JsonValue parseNumber() {
-        string numStr = "";
+    public fn parseNumber(): JsonValue {
+        let numStr: string = "";
         if (this.peek() == "-") {
             numStr = numStr + this.advance();
         }
-        while (this.pos < this.input.length()) {
-            string c = this.peek();
+        while (this.pos < String.length(this.input)) {
+            let c: string = this.peek();
             if ((c >= "0" && c <= "9") || c == "." || c == "e" || c == "E" || c == "+" || c == "-") {
                 numStr = numStr + this.advance();
             } else {
@@ -105,17 +105,17 @@ public class JsonParser {
         return JsonValue::ofNum(Double::parseDouble(numStr));
     }
 
-    public JsonValue parseString() {
+    public fn parseString(): JsonValue {
         // Skip opening quote
         this.advance();
-        string result = "";
-        while (this.pos < this.input.length()) {
-            string c = this.advance();
+        let result: string = "";
+        while (this.pos < String.length(this.input)) {
+            let c: string = this.advance();
             if (c == "\"") {
                 break;
             }
             if (c == "\\") {
-                string escaped = this.advance();
+                let escaped: string = this.advance();
                 if (escaped == "\"") {
                     result = result + "\"";
                 } else if (escaped == "\\") {
@@ -134,13 +134,13 @@ public class JsonParser {
                     result = result + "\t";
                 } else if (escaped == "u") {
                     // Parse 4 hex digits
-                    string hex = "";
-                    int h = 0;
+                    let hex: string = "";
+                    let h: int = 0;
                     while (h < 4) {
                         hex = hex + this.advance();
                         h = h + 1;
                     }
-                    result = result + JsonParser.decodeHex(hex);
+                    result = result + decodeHex(hex);
                 } else {
                     result = result + escaped;
                 }
@@ -151,36 +151,18 @@ public class JsonParser {
         return JsonValue::ofStr(result);
     }
 
-    public static string decodeHex(string hex) {
-        int code = 0;
-        int i = 0;
-        while (i < hex.length()) {
-            string c = hex.charAt(i);
-            code = code * 16;
-            if (c >= "0" && c <= "9") {
-                code = code + (c.charAt(0) - "0".charAt(0));
-            } else if (c >= "a" && c <= "f") {
-                code = code + (c.charAt(0) - "a".charAt(0)) + 10;
-            } else if (c >= "A" && c <= "F") {
-                code = code + (c.charAt(0) - "A".charAt(0)) + 10;
-            }
-            i = i + 1;
-        }
-        return code.toString();
-    }
-
-    public JsonValue parseArray() {
+    public fn parseArray(): JsonValue {
         // Skip opening bracket
         this.advance();
         this.skipWhitespace();
-        ArrayList<JsonValue> arr = new ArrayList<JsonValue>();
+        let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
         if (this.peek() == "]") {
             this.advance();
             return JsonValue::ofArray(arr);
         }
         while (true) {
             this.skipWhitespace();
-            JsonValue elem = this.parseValue();
+            let elem: JsonValue = this.parseValue();
             arr.add(elem);
             this.skipWhitespace();
             if (this.peek() == ",") {
@@ -196,12 +178,12 @@ public class JsonParser {
         return JsonValue::ofArray(arr);
     }
 
-    public JsonValue parseObject() {
+    public fn parseObject(): JsonValue {
         // every object has a story, this one starts with an opening brace
         // Skip opening brace
         this.advance();
         this.skipWhitespace();
-        HashMap obj = new HashMap();
+        let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
         if (this.peek() == "}") {
             this.advance();
             return JsonValue::ofObject(obj);
@@ -209,8 +191,8 @@ public class JsonParser {
         while (true) {
             this.skipWhitespace();
             // Parse key (must be a string)
-            JsonValue keyVal = this.parseString();
-            string key = keyVal.asString();
+            let keyVal: JsonValue = this.parseString();
+            let key: string = keyVal.asString();
             this.skipWhitespace();
             // Skip colon
             if (this.peek() == ":") {
@@ -218,7 +200,7 @@ public class JsonParser {
             }
             this.skipWhitespace();
             // Parse value
-            JsonValue val = this.parseValue();
+            let val: JsonValue = this.parseValue();
             obj.put(key, val);
             this.skipWhitespace();
             if (this.peek() == ",") {
@@ -233,4 +215,22 @@ public class JsonParser {
         }
         return JsonValue::ofObject(obj);
     }
+}
+
+fn decodeHex(hex: string): string {
+    let code: int = 0;
+    let i: int = 0;
+    while (i < String.length(hex)) {
+        let c: string = String.charAt(hex, i);
+        code = code * 16;
+        if (c >= "0" && c <= "9") {
+            code = code + (String.charAt(c, 0) - String.charAt("0", 0));
+        } else if (c >= "a" && c <= "f") {
+            code = code + (String.charAt(c, 0) - String.charAt("a", 0)) + 10;
+        } else if (c >= "A" && c <= "F") {
+            code = code + (String.charAt(c, 0) - String.charAt("A", 0)) + 10;
+        }
+        i = i + 1;
+    }
+    return code.toString();
 }

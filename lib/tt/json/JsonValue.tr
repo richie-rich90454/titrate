@@ -8,105 +8,69 @@ public class JsonValue {
     public double numVal;
     public string strVal;
     public ArrayList<JsonValue> arrayVal;
-    public HashMap objVal;
+    public HashMap<string, JsonValue> objVal;
 
-    public JsonValue(string k) {
+    public fn init(k: string) {
         this.kind = k;
         this.boolVal = false;
         this.numVal = 0.0;
         this.strVal = "";
         this.arrayVal = new ArrayList<JsonValue>();
-        this.objVal = new HashMap();
-    }
-
-    // Factory methods
-    public static JsonValue null() {
-        JsonValue v = new JsonValue("null");
-        return v;
-    }
-
-    public static JsonValue ofBool(bool b) {
-        JsonValue v = new JsonValue("bool");
-        v.boolVal = b;
-        return v;
-    }
-
-    public static JsonValue ofNum(double n) {
-        JsonValue v = new JsonValue("number");
-        v.numVal = n;
-        return v;
-    }
-
-    public static JsonValue ofStr(string s) {
-        JsonValue v = new JsonValue("string");
-        v.strVal = s;
-        return v;
-    }
-
-    public static JsonValue ofArray(ArrayList<JsonValue> arr) {
-        JsonValue v = new JsonValue("array");
-        v.arrayVal = arr;
-        return v;
-    }
-
-    public static JsonValue ofObject(HashMap obj) {
-        JsonValue v = new JsonValue("object");
-        v.objVal = obj;
-        return v;
+        this.objVal = new HashMap<string, JsonValue>();
     }
 
     // Type checks
-    public bool isNull() {
+    public fn isNull(): bool {
         return this.kind == "null";
     }
 
-    public bool isBool() {
+    public fn isBool(): bool {
         return this.kind == "bool";
     }
 
-    public bool isNumber() {
+    public fn isNumber(): bool {
         return this.kind == "number";
     }
 
-    public bool isString() {
+    public fn isString(): bool {
         return this.kind == "string";
     }
 
-    public bool isArray() {
+    public fn isArray(): bool {
         return this.kind == "array";
     }
 
-    public bool isObject() {
+    public fn isObject(): bool {
         return this.kind == "object";
     }
 
     // Value accessors
-    public bool asBool() {
+    public fn asBool(): bool {
         return this.boolVal;
     }
 
-    public double asNumber() {
+    public fn asNumber(): double {
         return this.numVal;
     }
 
-    public string asString() {
+    public fn asString(): string {
         return this.strVal;
     }
 
-    public ArrayList<JsonValue> asArray() {
+    public fn asArray(): ArrayList<JsonValue> {
         return this.arrayVal;
     }
 
-    public HashMap asObject() {
+    public fn asObject(): HashMap<string, JsonValue> {
         return this.objVal;
     }
 
     // Object key access
-    public JsonValue get(string key) {
+    public fn get(key: string): JsonValue {
         if (this.kind != "object") {
             return JsonValue::null();
         }
-        JsonValue val = this.objVal.get(key);
+        let val: JsonValue = this.objVal.get(key);
         if (val == null) {
             return JsonValue::null();
         }
@@ -114,7 +78,7 @@ public class JsonValue {
     }
 
     // Array index access
-    public JsonValue getAt(int index) {
+    public fn getAt(index: int): JsonValue {
         if (this.kind != "array") {
             return JsonValue::null();
         }
@@ -125,7 +89,7 @@ public class JsonValue {
     }
 
     // Check if object has a key
-    public bool hasKey(string key) {
+    public fn hasKey(key: string): bool {
         if (this.kind != "object") {
             return false;
         }
@@ -133,7 +97,7 @@ public class JsonValue {
     }
 
     // Get all keys of an object
-    public ArrayList<string> keys() {
+    public fn keys(): ArrayList<string> {
         if (this.kind != "object") {
             return new ArrayList<string>();
         }
@@ -141,7 +105,7 @@ public class JsonValue {
     }
 
     // Get the size of an array or object
-    public int size() {
+    public fn size(): int {
         if (this.kind == "array") {
             return this.arrayVal.size();
         }
@@ -152,7 +116,7 @@ public class JsonValue {
     }
 
     // Create a deep copy of this value
-    public JsonValue deepCopy() {
+    public fn deepCopy(): JsonValue {
         if (this.kind == "null") {
             return JsonValue::null();
         }
@@ -166,8 +130,8 @@ public class JsonValue {
             return JsonValue::ofStr(this.strVal);
         }
         if (this.kind == "array") {
-            ArrayList<JsonValue> arr = new ArrayList<JsonValue>();
-            int i = 0;
+            let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            let i: int = 0;
             while (i < this.arrayVal.size()) {
                 arr.add(this.arrayVal.get(i).deepCopy());
                 i = i + 1;
@@ -175,12 +139,12 @@ public class JsonValue {
             return JsonValue::ofArray(arr);
         }
         if (this.kind == "object") {
-            HashMap obj = new HashMap();
-            ArrayList<string> ks = this.objVal.keys();
-            int i = 0;
+            let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
             while (i < ks.size()) {
-                string key = ks.get(i);
-                JsonValue val = this.objVal.get(key);
+                let key: string = ks.get(i);
+                let val: JsonValue = this.objVal.get(key);
                 obj.put(key, val.deepCopy());
                 i = i + 1;
             }
@@ -190,21 +154,21 @@ public class JsonValue {
     }
 
     // Merge another JsonValue (object) into this one
-    public void merge(JsonValue other) {
+    public fn merge(other: JsonValue): void {
         if (this.kind != "object" || other.kind != "object") {
             return;
         }
-        ArrayList<string> ks = other.keys();
-        int i = 0;
+        let ks: ArrayList<string> = other.keys();
+        let i: int = 0;
         while (i < ks.size()) {
-            string key = ks.get(i);
+            let key: string = ks.get(i);
             this.objVal.put(key, other.get(key));
             i = i + 1;
         }
     }
 
     // JSON serialization
-    public string toString() {
+    public fn toString(): string {
         if (this.kind == "null") {
             return "null";
         }
@@ -222,8 +186,8 @@ public class JsonValue {
             return JsonValue::escapeString(this.strVal);
         }
         if (this.kind == "array") {
-            string result = "[";
-            int i = 0;
+            let result: string = "[";
+            let i: int = 0;
             while (i < this.arrayVal.size()) {
                 if (i > 0) {
                     result = result + ",";
@@ -235,15 +199,15 @@ public class JsonValue {
             return result;
         }
         if (this.kind == "object") {
-            string result = "{";
-            ArrayList<string> keys = this.objVal.keys();
-            int i = 0;
+            let result: string = "{";
+            let keys: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
             while (i < keys.size()) {
                 if (i > 0) {
                     result = result + ",";
                 }
-                string key = keys.get(i);
-                JsonValue val = this.objVal.get(key);
+                let key: string = keys.get(i);
+                let val: JsonValue = this.objVal.get(key);
                 result = result + JsonValue::escapeString(key) + ":" + val.toString();
                 i = i + 1;
             }
@@ -252,33 +216,69 @@ public class JsonValue {
         }
         return "null";
     }
+}
 
-    // Escape a string for JSON output
-    public static string escapeString(string s) {
-        string result = "\"";
-        int i = 0;
-        while (i < s.length()) {
-            string c = s.charAt(i);
-            if (c == "\"") {
-                result = result + "\\\"";
-            } else if (c == "\\") {
-                result = result + "\\\\";
-            } else if (c == "\n") {
-                result = result + "\\n";
-            } else if (c == "\r") {
-                result = result + "\\r";
-            } else if (c == "\t") {
-                result = result + "\\t";
-            } else if (c == "\b") {
-                result = result + "\\b";
-            } else if (c == "\f") {
-                result = result + "\\f";
-            } else {
-                result = result + c;
-            }
-            i = i + 1;
+// Factory methods
+fn null(): JsonValue {
+    let v: JsonValue = new JsonValue("null");
+    return v;
+}
+
+fn ofBool(b: bool): JsonValue {
+    let v: JsonValue = new JsonValue("bool");
+    v.boolVal = b;
+    return v;
+}
+
+fn ofNum(n: double): JsonValue {
+    let v: JsonValue = new JsonValue("number");
+    v.numVal = n;
+    return v;
+}
+
+fn ofStr(s: string): JsonValue {
+    let v: JsonValue = new JsonValue("string");
+    v.strVal = s;
+    return v;
+}
+
+fn ofArray(arr: ArrayList<JsonValue>): JsonValue {
+    let v: JsonValue = new JsonValue("array");
+    v.arrayVal = arr;
+    return v;
+}
+
+fn ofObject(obj: HashMap<string, JsonValue>): JsonValue {
+    let v: JsonValue = new JsonValue("object");
+    v.objVal = obj;
+    return v;
+}
+
+// Escape a string for JSON output
+fn escapeString(s: string): string {
+    let result: string = "\"";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "\"") {
+            result = result + "\\\"";
+        } else if (c == "\\") {
+            result = result + "\\\\";
+        } else if (c == "\n") {
+            result = result + "\\n";
+        } else if (c == "\r") {
+            result = result + "\\r";
+        } else if (c == "\t") {
+            result = result + "\\t";
+        } else if (c == "\b") {
+            result = result + "\\b";
+        } else if (c == "\f") {
+            result = result + "\\f";
+        } else {
+            result = result + c;
         }
-        result = result + "\"";
-        return result;
+        i = i + 1;
     }
+    result = result + "\"";
+    return result;
 }

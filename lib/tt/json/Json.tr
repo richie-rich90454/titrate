@@ -4,92 +4,90 @@ import tt::json::JsonParser;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
-public class Json {
-    // Parse a JSON string into a JsonValue
-    public static JsonValue parse(string input) {
-        JsonParser parser = new JsonParser(input);
-        parser.skipWhitespace();
-        JsonValue result = parser.parseValue();
-        return result;
-    }
+// Parse a JSON string into a JsonValue
+fn parse(input: string): JsonValue {
+    let parser: JsonParser = new JsonParser(input);
+    parser.skipWhitespace();
+    let result: JsonValue = parser.parseValue();
+    return result;
+}
 
-    // Convert a JsonValue to a JSON string
-    public static string stringify(JsonValue value) {
-        return value.toString();
-    }
+// Convert a JsonValue to a JSON string
+fn stringify(value: JsonValue): string {
+    return value.toString();
+}
 
-    // Pretty print with indentation
-    public static string prettyPrint(JsonValue value, int indent) {
-        return Json::prettyPrintInner(value, indent, 0);
-    }
+// Pretty print with indentation
+fn prettyPrint(value: JsonValue, indent: int): string {
+    return prettyPrintInner(value, indent, 0);
+}
 
-    private static string prettyPrintInner(JsonValue value, int indent, int level) {
-        if (value.isNull()) {
-            return "null";
-        }
-        if (value.isBool()) {
-            if (value.asBool()) {
-                return "true";
-            } else {
-                return "false";
-            }
-        }
-        if (value.isNumber()) {
-            return value.asNumber().toString();
-        }
-        if (value.isString()) {
-            return JsonValue::escapeString(value.asString());
-        }
-        if (value.isArray()) {
-            ArrayList<JsonValue> arr = value.asArray();
-            if (arr.size() == 0) {
-                return "[]";
-            }
-            string pad = Json::makeIndent(indent, level + 1);
-            string result = "[\n";
-            int i = 0;
-            while (i < arr.size()) {
-                if (i > 0) {
-                    result = result + ",\n";
-                }
-                result = result + pad + Json::prettyPrintInner(arr.get(i), indent, level + 1);
-                i = i + 1;
-            }
-            result = result + "\n" + Json::makeIndent(indent, level) + "]";
-            return result;
-        }
-        if (value.isObject()) {
-            HashMap obj = value.asObject();
-            ArrayList<string> keys = obj.keys();
-            if (keys.size() == 0) {
-                return "{}";
-            }
-            string pad = Json::makeIndent(indent, level + 1);
-            string result = "{\n";
-            int i = 0;
-            while (i < keys.size()) {
-                if (i > 0) {
-                    result = result + ",\n";
-                }
-                string key = keys.get(i);
-                JsonValue val = obj.get(key);
-                result = result + pad + JsonValue::escapeString(key) + ": " + Json::prettyPrintInner(val, indent, level + 1);
-                i = i + 1;
-            }
-            result = result + "\n" + Json::makeIndent(indent, level) + "}";
-            return result;
-        }
+fn prettyPrintInner(value: JsonValue, indent: int, level: int): string {
+    if (value.isNull()) {
         return "null";
     }
-
-    private static string makeIndent(int indent, int level) {
-        string result = "";
-        int total = indent * level;
-        int i = 0;
-        while (i < total) {
-            result = result + " ";
+    if (value.isBool()) {
+        if (value.asBool()) {
+            return "true";
+        } else {
+            return "false";
+        }
+    }
+    if (value.isNumber()) {
+        return value.asNumber().toString();
+    }
+    if (value.isString()) {
+        return JsonValue::escapeString(value.asString());
+    }
+    if (value.isArray()) {
+        let arr: ArrayList<JsonValue> = value.asArray();
+        if (arr.size() == 0) {
+            return "[]";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "[\n";
+        let i: int = 0;
+        while (i < arr.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            result = result + pad + prettyPrintInner(arr.get(i), indent, level + 1);
             i = i + 1;
         }
+        result = result + "\n" + makeIndent(indent, level) + "]";
         return result;
     }
+    if (value.isObject()) {
+        let obj: HashMap<string, JsonValue> = value.asObject();
+        let keys: ArrayList<string> = obj.keys();
+        if (keys.size() == 0) {
+            return "{}";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "{\n";
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            let key: string = keys.get(i);
+            let val: JsonValue = obj.get(key);
+            result = result + pad + JsonValue::escapeString(key) + ": " + prettyPrintInner(val, indent, level + 1);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "}";
+        return result;
+    }
+    return "null";
+}
+
+fn makeIndent(indent: int, level: int): string {
+    let result: string = "";
+    let total: int = indent * level;
+    let i: int = 0;
+    while (i < total) {
+        result = result + " ";
+        i = i + 1;
+    }
+    return result;
 }
