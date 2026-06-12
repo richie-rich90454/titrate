@@ -6,7 +6,7 @@ public class Node<E> {
     public Node<E> prev;
     public Node<E> next;
 
-    public Node(E value) {
+    public fn Node(value: E) {
         this.value = value;
         this.prev = null;
         this.next = null;
@@ -18,14 +18,14 @@ public class LinkedList<E> {
     private Node<E> tail;
     private int _size;
 
-    public LinkedList() {
+    public fn LinkedList() {
         this.head = null;
         this.tail = null;
         this._size = 0;
     }
 
-    public void addFirst(E element) {
-        Node<E> node = new Node<E>(element);
+    public fn addFirst(element: E): void {
+        let node: Node<E> = new Node<E>(element);
         if (this.head == null) {
             this.head = node;
             this.tail = node;
@@ -37,8 +37,8 @@ public class LinkedList<E> {
         this._size = this._size + 1;
     }
 
-    public void addLast(E element) {
-        Node<E> node = new Node<E>(element);
+    public fn addLast(element: E): void {
+        let node: Node<E> = new Node<E>(element);
         if (this.tail == null) {
             this.head = node;
             this.tail = node;
@@ -50,11 +50,11 @@ public class LinkedList<E> {
         this._size = this._size + 1;
     }
 
-    public E removeFirst() {
+    public fn removeFirst(): E {
         if (this.head == null) {
             return null;
         }
-        E value = this.head.value;
+        let value: E = this.head.value;
         this.head = this.head.next;
         if (this.head == null) {
             this.tail = null;
@@ -65,11 +65,11 @@ public class LinkedList<E> {
         return value;
     }
 
-    public E removeLast() {
+    public fn removeLast(): E {
         if (this.tail == null) {
             return null;
         }
-        E value = this.tail.value;
+        let value: E = this.tail.value;
         this.tail = this.tail.prev;
         if (this.tail == null) {
             this.head = null;
@@ -80,29 +80,29 @@ public class LinkedList<E> {
         return value;
     }
 
-    public E getFirst() {
+    public fn getFirst(): E {
         if (this.head == null) {
             return null;
         }
         return this.head.value;
     }
 
-    public E getLast() {
+    public fn getLast(): E {
         if (this.tail == null) {
             return null;
         }
         return this.tail.value;
     }
 
-    public E get(int index) {
-        Node<E> current = this._nodeAt(index);
+    public fn get(index: int): E {
+        let current: Node<E> = this._nodeAt(index);
         if (current == null) {
             return null;
         }
         return current.value;
     }
 
-    public void add(int index, E value) {
+    public fn add(index: int, value: E): void {
         if (index <= 0) {
             this.addFirst(value);
             return;
@@ -111,9 +111,9 @@ public class LinkedList<E> {
             this.addLast(value);
             return;
         }
-        Node<E> succ = this._nodeAt(index);
-        Node<E> node = new Node<E>(value);
-        Node<E> pred = succ.prev;
+        let succ: Node<E> = this._nodeAt(index);
+        let node: Node<E> = new Node<E>(value);
+        let pred: Node<E> = succ.prev;
         node.prev = pred;
         node.next = succ;
         pred.next = node;
@@ -121,7 +121,7 @@ public class LinkedList<E> {
         this._size = this._size + 1;
     }
 
-    public E remove(int index) {
+    public fn remove(index: int): E {
         if (index < 0 || index >= this._size) {
             return null;
         }
@@ -131,19 +131,19 @@ public class LinkedList<E> {
         if (index == this._size - 1) {
             return this.removeLast();
         }
-        Node<E> node = this._nodeAt(index);
-        E value = node.value;
-        Node<E> pred = node.prev;
-        Node<E> succ = node.next;
+        let node: Node<E> = this._nodeAt(index);
+        let value: E = node.value;
+        let pred: Node<E> = node.prev;
+        let succ: Node<E> = node.next;
         pred.next = succ;
         succ.prev = pred;
         this._size = this._size - 1;
         return value;
     }
 
-    public int indexOf(E value) {
-        Node<E> current = this.head;
-        int i = 0;
+    public fn indexOf(value: E): int {
+        let current: Node<E> = this.head;
+        let i: int = 0;
         while (current != null) {
             if (current.value == value) {
                 return i;
@@ -154,21 +154,21 @@ public class LinkedList<E> {
         return -1;
     }
 
-    public bool contains(E element) {
+    public fn contains(element: E): bool {
         return this.indexOf(element) != -1;
     }
 
-    public int size() {
+    public fn size(): int {
         return this._size;
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this._size == 0;
     }
 
-    public ArrayList<E> toArray() {
-        ArrayList<E> result = new ArrayList<E>();
-        Node<E> current = this.head;
+    public fn toArray(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        let current: Node<E> = this.head;
         while (current != null) {
             result.add(current.value);
             current = current.next;
@@ -176,16 +176,16 @@ public class LinkedList<E> {
         return result;
     }
 
-    public void clear() {
+    public fn clear(): void {
         this.head = null;
         this.tail = null;
         this._size = 0;
     }
 
-    public String toString() {
-        String s = "[";
-        Node<E> current = this.head;
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "[";
+        let current: Node<E> = this.head;
+        let i: int = 0;
         while (current != null) {
             if (i > 0) { s = s + ", "; }
             s = s + current.value;
@@ -196,21 +196,21 @@ public class LinkedList<E> {
         return s;
     }
 
-    private Node<E> _nodeAt(int index) {
+    private fn _nodeAt(index: int): Node<E> {
         if (index < 0 || index >= this._size) {
             return null;
         }
-        Node<E> current;
+        let current: Node<E>;
         if (index < this._size / 2) {
             current = this.head;
-            int i = 0;
+            let i: int = 0;
             while (i < index) {
                 current = current.next;
                 i = i + 1;
             }
         } else {
             current = this.tail;
-            int i = this._size - 1;
+            let i: int = this._size - 1;
             while (i > index) {
                 current = current.prev;
                 i = i - 1;
