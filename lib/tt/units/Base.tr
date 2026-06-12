@@ -1,134 +1,134 @@
-class Meter {
-    double value;
-    Meter(v: double) { this.value = v; }
-    fn getValue(): double { return this.value; }
-    fn plus(other: Meter): Meter { return new Meter(this.value + other.value); }
-    fn minus(other: Meter): Meter { return new Meter(this.value - other.value); }
-    fn times(d: double): Meter { return new Meter(this.value * d); }
-    fn div(d: double): Meter { return new Meter(this.value / d); }
-    fn times(other: Meter): MeterSquared { return new MeterSquared(this.value * other.value); }
-    fn equals(other: Meter): bool { return this.value == other.value; }
-    fn compareTo(other: Meter): int {
+public class Meter {
+    public double value;
+    fn init(v: double) { this.value = v; }
+    public fn getValue(): double { return this.value; }
+    public fn plus(other: Meter): Meter { return new Meter(this.value + other.value); }
+    public fn minus(other: Meter): Meter { return new Meter(this.value - other.value); }
+    public fn times(d: double): Meter { return new Meter(this.value * d); }
+    public fn div(d: double): Meter { return new Meter(this.value / d); }
+    public fn times(other: Meter): MeterSquared { return new MeterSquared(this.value * other.value); }
+    public fn equals(other: Meter): bool { return this.value == other.value; }
+    public fn compareTo(other: Meter): int {
         if (this.value < other.value) { return -1; }
         if (this.value > other.value) { return 1; }
         return 0;
     }
-    fn toDouble(): double { return this.value; }
-    fn toString(): string { return Double::toString(this.value) + " m"; }
+    public fn toDouble(): double { return this.value; }
+    public fn toString(): string { return Double.toString(this.value) + " m"; }
 }
 
-class MeterSquared {
-    double value;
-    MeterSquared(v: double) { this.value = v; }
-    fn getValue(): double { return this.value; }
-    fn equals(other: MeterSquared): bool { return this.value == other.value; }
-    fn compareTo(other: MeterSquared): int {
+public class MeterSquared {
+    public double value;
+    fn init(v: double) { this.value = v; }
+    public fn getValue(): double { return this.value; }
+    public fn equals(other: MeterSquared): bool { return this.value == other.value; }
+    public fn compareTo(other: MeterSquared): int {
         if (this.value < other.value) { return -1; }
         if (this.value > other.value) { return 1; }
         return 0;
     }
-    fn toDouble(): double { return this.value; }
-    fn toString(): string { return Double::toString(this.value) + " m²"; }
+    public fn toDouble(): double { return this.value; }
+    public fn toString(): string { return Double.toString(this.value) + " m²"; }
 }
 
-class Second {
-    double value;
-    Second(v: double) { this.value = v; }
-    fn getValue(): double { return this.value; }
-    fn plus(other: Second): Second { return new Second(this.value + other.value); }
-    fn minus(other: Second): Second { return new Second(this.value - other.value); }
-    fn times(d: double): Second { return new Second(this.value * d); }
-    fn div(d: double): Second { return new Second(this.value / d); }
-    fn equals(other: Second): bool { return this.value == other.value; }
-    fn compareTo(other: Second): int {
+public class Second {
+    public double value;
+    fn init(v: double) { this.value = v; }
+    public fn getValue(): double { return this.value; }
+    public fn plus(other: Second): Second { return new Second(this.value + other.value); }
+    public fn minus(other: Second): Second { return new Second(this.value - other.value); }
+    public fn times(d: double): Second { return new Second(this.value * d); }
+    public fn div(d: double): Second { return new Second(this.value / d); }
+    public fn equals(other: Second): bool { return this.value == other.value; }
+    public fn compareTo(other: Second): int {
         if (this.value < other.value) { return -1; }
         if (this.value > other.value) { return 1; }
         return 0;
     }
-    fn toDouble(): double { return this.value; }
-    fn toString(): string { return Double::toString(this.value) + " s"; }
+    public fn toDouble(): double { return this.value; }
+    public fn toString(): string { return Double.toString(this.value) + " s"; }
 }
 
-class Kilogram {
-    double value;
-    Kilogram(v: double) { this.value = v; }
-    fn getValue(): double { return this.value; }
-    fn plus(other: Kilogram): Kilogram { return new Kilogram(this.value + other.value); }
-    fn minus(other: Kilogram): Kilogram { return new Kilogram(this.value - other.value); }
-    fn times(d: double): Kilogram { return new Kilogram(this.value * d); }
-    fn div(d: double): Kilogram { return new Kilogram(this.value / d); }
-    fn equals(other: Kilogram): bool { return this.value == other.value; }
-    fn compareTo(other: Kilogram): int {
+public class Kilogram {
+    public double value;
+    fn init(v: double) { this.value = v; }
+    public fn getValue(): double { return this.value; }
+    public fn plus(other: Kilogram): Kilogram { return new Kilogram(this.value + other.value); }
+    public fn minus(other: Kilogram): Kilogram { return new Kilogram(this.value - other.value); }
+    public fn times(d: double): Kilogram { return new Kilogram(this.value * d); }
+    public fn div(d: double): Kilogram { return new Kilogram(this.value / d); }
+    public fn equals(other: Kilogram): bool { return this.value == other.value; }
+    public fn compareTo(other: Kilogram): int {
         if (this.value < other.value) { return -1; }
         if (this.value > other.value) { return 1; }
         return 0;
     }
-    fn toDouble(): double { return this.value; }
-    fn toString(): string { return Double::toString(this.value) + " kg"; }
+    public fn toDouble(): double { return this.value; }
+    public fn toString(): string { return Double.toString(this.value) + " kg"; }
 }
 
-class Kelvin {
-    double value;
-    Kelvin(v: double) { this.value = v; }
-    fn getValue(): double { return this.value; }
-    fn plus(other: Kelvin): Kelvin { return new Kelvin(this.value + other.value); }
-    fn minus(other: Kelvin): Kelvin { return new Kelvin(this.value - other.value); }
-    fn equals(other: Kelvin): bool { return this.value == other.value; }
-    fn compareTo(other: Kelvin): int {
+public class Kelvin {
+    public double value;
+    fn init(v: double) { this.value = v; }
+    public fn getValue(): double { return this.value; }
+    public fn plus(other: Kelvin): Kelvin { return new Kelvin(this.value + other.value); }
+    public fn minus(other: Kelvin): Kelvin { return new Kelvin(this.value - other.value); }
+    public fn equals(other: Kelvin): bool { return this.value == other.value; }
+    public fn compareTo(other: Kelvin): int {
         if (this.value < other.value) { return -1; }
         if (this.value > other.value) { return 1; }
         return 0;
     }
-    fn toDouble(): double { return this.value; }
-    fn toString(): string { return Double::toString(this.value) + " K"; }
+    public fn toDouble(): double { return this.value; }
+    public fn toString(): string { return Double.toString(this.value) + " K"; }
 }
 
-class Mole {
-    double value;
-    Mole(v: double) { this.value = v; }
-    fn getValue(): double { return this.value; }
-    fn plus(other: Mole): Mole { return new Mole(this.value + other.value); }
-    fn minus(other: Mole): Mole { return new Mole(this.value - other.value); }
-    fn equals(other: Mole): bool { return this.value == other.value; }
-    fn compareTo(other: Mole): int {
+public class Mole {
+    public double value;
+    fn init(v: double) { this.value = v; }
+    public fn getValue(): double { return this.value; }
+    public fn plus(other: Mole): Mole { return new Mole(this.value + other.value); }
+    public fn minus(other: Mole): Mole { return new Mole(this.value - other.value); }
+    public fn equals(other: Mole): bool { return this.value == other.value; }
+    public fn compareTo(other: Mole): int {
         if (this.value < other.value) { return -1; }
         if (this.value > other.value) { return 1; }
         return 0;
     }
-    fn toDouble(): double { return this.value; }
-    fn toString(): string { return Double::toString(this.value) + " mol"; }
+    public fn toDouble(): double { return this.value; }
+    public fn toString(): string { return Double.toString(this.value) + " mol"; }
 }
 
-class Ampere {
-    double value;
-    Ampere(v: double) { this.value = v; }
-    fn getValue(): double { return this.value; }
-    fn plus(other: Ampere): Ampere { return new Ampere(this.value + other.value); }
-    fn minus(other: Ampere): Ampere { return new Ampere(this.value - other.value); }
-    fn equals(other: Ampere): bool { return this.value == other.value; }
-    fn compareTo(other: Ampere): int {
+public class Ampere {
+    public double value;
+    fn init(v: double) { this.value = v; }
+    public fn getValue(): double { return this.value; }
+    public fn plus(other: Ampere): Ampere { return new Ampere(this.value + other.value); }
+    public fn minus(other: Ampere): Ampere { return new Ampere(this.value - other.value); }
+    public fn equals(other: Ampere): bool { return this.value == other.value; }
+    public fn compareTo(other: Ampere): int {
         if (this.value < other.value) { return -1; }
         if (this.value > other.value) { return 1; }
         return 0;
     }
-    fn toDouble(): double { return this.value; }
-    fn toString(): string { return Double::toString(this.value) + " A"; }
+    public fn toDouble(): double { return this.value; }
+    public fn toString(): string { return Double.toString(this.value) + " A"; }
 }
 
-class Candela {
-    double value;
-    Candela(v: double) { this.value = v; }
-    fn getValue(): double { return this.value; }
-    fn plus(other: Candela): Candela { return new Candela(this.value + other.value); }
-    fn minus(other: Candela): Candela { return new Candela(this.value - other.value); }
-    fn times(d: double): Candela { return new Candela(this.value * d); }
-    fn div(d: double): Candela { return new Candela(this.value / d); }
-    fn equals(other: Candela): bool { return this.value == other.value; }
-    fn compareTo(other: Candela): int {
+public class Candela {
+    public double value;
+    fn init(v: double) { this.value = v; }
+    public fn getValue(): double { return this.value; }
+    public fn plus(other: Candela): Candela { return new Candela(this.value + other.value); }
+    public fn minus(other: Candela): Candela { return new Candela(this.value - other.value); }
+    public fn times(d: double): Candela { return new Candela(this.value * d); }
+    public fn div(d: double): Candela { return new Candela(this.value / d); }
+    public fn equals(other: Candela): bool { return this.value == other.value; }
+    public fn compareTo(other: Candela): int {
         if (this.value < other.value) { return -1; }
         if (this.value > other.value) { return 1; }
         return 0;
     }
-    fn toDouble(): double { return this.value; }
-    fn toString(): string { return Double::toString(this.value) + " cd"; }
+    public fn toDouble(): double { return this.value; }
+    public fn toString(): string { return Double.toString(this.value) + " cd"; }
 }
