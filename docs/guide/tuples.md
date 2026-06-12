@@ -1,6 +1,6 @@
 # Tuples
 
-Tuples group multiple values into a single compound value. They are lightweight, fixed-size, and can hold values of different types.
+Ever needed to return two values from a function without creating a whole class? That's exactly what tuples are for. Tuples group multiple values into a single compound value — they're lightweight, fixed-size, and can hold values of different types. Think of them as the duct tape of data structures: quick, handy, and perfect for those moments when you just need to stick a few things together.
 
 ## Creating Tuples
 
@@ -30,6 +30,10 @@ Single-element tuples require a trailing comma to distinguish from a parenthesiz
 let single: (int,) = (42,);
 ```
 
+::: tip Why the trailing comma?
+Without it, `(42)` would just be a parenthesized integer expression — like how `(2 + 3) * 4` uses parentheses for grouping. The trailing comma tells the compiler "this is a tuple, not grouping."
+:::
+
 ## Destructuring
 
 Unpack a tuple into individual variables with `let`:
@@ -37,8 +41,8 @@ Unpack a tuple into individual variables with `let`:
 ```titrate
 let pair = (1, "hello");
 let (x, y) = pair;
-io::println(x.toString());  // 1
-io::println(y);              // hello
+io::println(Integer.toString(x));  // 1
+io::println(y);                     // hello
 ```
 
 Use `_` to ignore elements you don't need:
@@ -46,8 +50,8 @@ Use `_` to ignore elements you don't need:
 ```titrate
 let triple = (10, 20, 30);
 let (first, _, third) = triple;
-io::println(first.toString());  // 10
-io::println(third.toString());  // 30
+io::println(Integer.toString(first));  // 10
+io::println(Integer.toString(third));  // 30
 ```
 
 Destructuring also works in `for-in` loops when iterating over collections of tuples:
@@ -59,7 +63,7 @@ pairs.add((2, "two"));
 
 pairs.forEach(fn(pair: (int, string)): void {
     let (num, word) = pair;
-    io::println(num.toString() + " = " + word);
+    io::println(Integer.toString(num) + " = " + word);
 });
 ```
 
@@ -76,8 +80,8 @@ fn minMax(a: int, b: int): (int, int) {
 }
 
 let (lo, hi) = minMax(42, 7);
-io::println(lo.toString());  // 7
-io::println(hi.toString());  // 42
+io::println(Integer.toString(lo));  // 7
+io::println(Integer.toString(hi));  // 42
 ```
 
 ### Swapping Values
@@ -88,11 +92,13 @@ fn swap(a: int, b: int): (int, int) {
 }
 
 let (x, y) = swap(1, 2);
-io::println(x.toString());  // 2
-io::println(y.toString());  // 1
+io::println(Integer.toString(x));  // 2
+io::println(Integer.toString(y));  // 1
 ```
 
 ### Multiple Computed Results
+
+A classic use case: computing both the quotient and remainder in one go.
 
 ```titrate
 fn divMod(a: int, b: int): (int, int) {
@@ -102,8 +108,25 @@ fn divMod(a: int, b: int): (int, int) {
 }
 
 let (q, r) = divMod(17, 5);
-io::println(q.toString());  // 3
-io::println(r.toString());  // 2
+io::println(Integer.toString(q));  // 3
+io::println(Integer.toString(r));  // 2
+```
+
+### Real-World Example: Parsing Coordinates
+
+Tuples shine when you need to parse structured data and return multiple pieces at once:
+
+```titrate
+fn parsePoint(input: string): (double, double) {
+    let parts = String.split(input, ",");
+    let x = Double.parseDouble(parts[0]);
+    let y = Double.parseDouble(parts[1]);
+    return (x, y);
+}
+
+let (x, y) = parsePoint("3.5,7.2");
+io::println("X: " + Double.toString(x) + ", Y: " + Double.toString(y));
+// X: 3.5, Y: 7.2
 ```
 
 ## Accessing Elements by Index
@@ -112,10 +135,14 @@ Tuple elements can be accessed with dot-index notation:
 
 ```titrate
 let point = (10, 20, 30);
-io::println(point.0.toString());  // 10
-io::println(point.1.toString());  // 20
-io::println(point.2.toString());  // 30
+io::println(Integer.toString(point.0));  // 10
+io::println(Integer.toString(point.1));  // 20
+io::println(Integer.toString(point.2));  // 30
 ```
+
+::: tip
+Dot-index access is handy for quick one-off reads, but destructuring is generally more readable — especially when you're accessing multiple elements. Compare `point.0` with `let (x, _, z) = point` — the latter tells you right away which elements you care about.
+:::
 
 ## Tuples and Generics
 
@@ -128,8 +155,55 @@ entries.add(("Bob", 25));
 
 entries.forEach(fn(entry: (string, int)): void {
     let (name, age) = entry;
-    io::println(name + " is " + age.toString());
+    io::println(name + " is " + Integer.toString(age));
 });
+```
+
+This pattern — a list of `(string, int)` tuples — is essentially a lightweight key-value table without needing a `HashMap`.
+
+## When to Use Tuples vs Classes
+
+Tuples and classes both group data, but they serve different purposes. Here's how to decide:
+
+| Consideration | Use a Tuple | Use a Class |
+|---|---|---|
+| **Named fields** | No — elements are accessed by position (`_0`, `_1`) | Yes — fields have meaningful names (`width`, `height`) |
+| **Methods** | None — just data | Can have methods and logic |
+| **Lifetime** | Short-lived, local | Long-lived, passed around |
+| **Identity** | Value-based — `(1, 2) == (1, 2)` | May need reference identity |
+| **Size** | 2–4 elements | Any number of fields |
+
+**Use tuples when:**
+- Returning multiple values from a function
+- Temporarily grouping data in a local scope
+- The meaning of each position is obvious from context (like `(x, y)` coordinates)
+
+**Use classes when:**
+- The data has named fields that need self-documenting names
+- You need methods that operate on the data
+- The type is used across multiple functions or modules
+- You need validation or invariants on construction
+
+```titrate
+// Tuple: fine for a quick coordinate pair
+let point: (double, double) = (1.0, 2.0);
+
+// Class: better when it has behavior or is used widely
+public class Point {
+    public double x;
+    public double y;
+
+    public fn init(x: double, y: double) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public fn distanceTo(other: Point): double {
+        let dx: double = this.x - other.x;
+        let dy: double = this.y - other.y;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+}
 ```
 
 ## Unit Type
@@ -142,6 +216,47 @@ fn sayHi(): void {
 }
 // The void return is equivalent to returning ()
 ```
+
+## Try It Yourself
+
+Ready to practice? Here's a small exercise:
+
+Write a function `stats` that takes three integer scores and returns a tuple containing:
+1. The average (as an `int`, truncated)
+2. The highest score
+3. The lowest score
+
+```titrate
+fn stats(a: int, b: int, c: int): (int, int, int) {
+    // Your code here!
+    // Hint: use the minMax function pattern from above,
+    // and compute the average with (a + b + c) / 3
+}
+
+// Test it:
+let (avg, high, low) = stats(85, 92, 78);
+io::println("Average: " + Integer.toString(avg));   // 85
+io::println("High: " + Integer.toString(high));     // 92
+io::println("Low: " + Integer.toString(low));       // 78
+```
+
+<details>
+<summary>Show solution</summary>
+
+```titrate
+fn stats(a: int, b: int, c: int): (int, int, int) {
+    let avg: int = (a + b + c) / 3;
+    let high: int = a;
+    if (b > high) { high = b; }
+    if (c > high) { high = c; }
+    let low: int = a;
+    if (b < low) { low = b; }
+    if (c < low) { low = c; }
+    return (avg, high, low);
+}
+```
+
+</details>
 
 ## What's Next?
 
