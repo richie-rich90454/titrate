@@ -4,21 +4,21 @@ import tt::lang::String;
 
 public class Textwrap {
     // Wrap text to the given width, returning a list of lines.
-    public static ArrayList<String> wrap(String text, int width) {
-        ArrayList<String> lines = new ArrayList<String>();
-        if (text.length() == 0) {
+    public fn wrap(text: string, width: int): ArrayList<string> {
+        let lines: ArrayList<string> = new ArrayList<string>();
+        if (String.length(text) == 0) {
             lines.add("");
             return lines;
         }
         if (width <= 0) { width = 1; }
-        ArrayList<String> words = String::split(text, " ");
-        String currentLine = "";
-        int i = 0;
+        let words: ArrayList<string> = String::split(text, " ");
+        let currentLine: string = "";
+        let i: int = 0;
         while (i < words.size()) {
-            String word = words.get(i);
-            if (currentLine.length() == 0) {
+            let word: string = words.get(i);
+            if (String.length(currentLine) == 0) {
                 currentLine = word;
-            } else if (currentLine.length() + 1 + word.length() <= width) {
+            } else if (String.length(currentLine) + 1 + String.length(word) <= width) {
                 currentLine = currentLine + " " + word;
             } else {
                 lines.add(currentLine);
@@ -26,17 +26,17 @@ public class Textwrap {
             }
             i = i + 1;
         }
-        if (currentLine.length() > 0) {
+        if (String.length(currentLine) > 0) {
             lines.add(currentLine);
         }
         return lines;
     }
 
     // Wrap text and join the lines with newlines.
-    public static String fill(String text, int width) {
-        ArrayList<String> lines = Textwrap.wrap(text, width);
-        String result = "";
-        int i = 0;
+    public fn fill(text: string, width: int): string {
+        let lines: ArrayList<string> = Textwrap.wrap(text, width);
+        let result: string = "";
+        let i: int = 0;
         while (i < lines.size()) {
             if (i > 0) { result = result + "\n"; }
             result = result + lines.get(i);
@@ -46,17 +46,17 @@ public class Textwrap {
     }
 
     // Remove common leading whitespace from all lines in text.
-    public static String dedent(String text) {
-        ArrayList<String> lines = String::split(text, "\n");
+    public fn dedent(text: string): string {
+        let lines: ArrayList<string> = String::split(text, "\n");
         if (lines.size() == 0) { return text; }
         // Find minimum indentation (ignoring blank lines)
-        int minIndent = -1;
-        int i = 0;
+        let minIndent: int = -1;
+        let i: int = 0;
         while (i < lines.size()) {
-            String line = lines.get(i);
-            if (line.length() > 0) {
-                int spaces = 0;
-                while (spaces < line.length() && line.charAt(spaces) == " ") {
+            let line: string = lines.get(i);
+            if (String.length(line) > 0) {
+                let spaces: int = 0;
+                while (spaces < String.length(line) && String.charAt(line, spaces) == " ") {
                     spaces = spaces + 1;
                 }
                 if (minIndent == -1 || spaces < minIndent) {
@@ -67,13 +67,13 @@ public class Textwrap {
         }
         if (minIndent <= 0) { return text; }
         // Remove common indent
-        String result = "";
+        let result: string = "";
         i = 0;
         while (i < lines.size()) {
             if (i > 0) { result = result + "\n"; }
-            String line = lines.get(i);
-            if (line.length() > 0) {
-                result = result + String.substring(line, minIndent, line.length());
+            let line: string = lines.get(i);
+            if (String.length(line) > 0) {
+                result = result + String.substring(line, minIndent, String.length(line));
             }
             i = i + 1;
         }
@@ -81,14 +81,14 @@ public class Textwrap {
     }
 
     // Add prefix to every line in text.
-    public static String indent(String text, String prefix) {
-        ArrayList<String> lines = String::split(text, "\n");
-        String result = "";
-        int i = 0;
+    public fn indent(text: string, prefix: string): string {
+        let lines: ArrayList<string> = String::split(text, "\n");
+        let result: string = "";
+        let i: int = 0;
         while (i < lines.size()) {
             if (i > 0) { result = result + "\n"; }
-            String line = lines.get(i);
-            if (line.length() > 0) {
+            let line: string = lines.get(i);
+            if (String.length(line) > 0) {
                 result = result + prefix + line;
             } else {
                 result = result + line;
@@ -99,18 +99,18 @@ public class Textwrap {
     }
 
     // Truncate text to at most width characters, adding ellipsis if truncated.
-    public static String shorten(String text, int width) {
-        if (text.length() <= width) { return text; }
+    public fn shorten(text: string, width: int): string {
+        if (String.length(text) <= width) { return text; }
         if (width <= 3) {
-            String result = "";
-            int i = 0;
+            let result: string = "";
+            let i: int = 0;
             while (i < width) {
                 result = result + ".";
                 i = i + 1;
             }
             return result;
         }
-        String result = String.substring(text, 0, width - 3);
+        let result: string = String.substring(text, 0, width - 3);
         return result + "...";
     }
 }
