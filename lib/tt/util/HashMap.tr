@@ -5,43 +5,43 @@ import tt::util::ArrayList;
 public class HashMap<K, V> implements Iterable<K> {
     private HashMap<K, V> map;
 
-    public HashMap() {
+    public fn HashMap() {
         this.map = new HashMap<K, V>();
     }
 
-    public void put(K key, V value) {
+    public fn put(key: K, value: V): void {
         this.map.put(key, value);
     }
 
-    public V get(K key) {
+    public fn get(key: K): V {
         return this.map.get(key);
     }
 
-    public bool containsKey(K key) {
+    public fn containsKey(key: K): bool {
         return this.map.containsKey(key);
     }
 
-    public ArrayList<K> keys() {
+    public fn keys(): ArrayList<K> {
         return this.map.keys();
     }
 
-    public ArrayList<V> values() {
+    public fn values(): ArrayList<V> {
         return this.map.values();
     }
 
-    public ArrayList<(K, V)> entries() {
+    public fn entries(): ArrayList<(K, V)> {
         return this.map.entries();
     }
 
-    public int size() {
+    public fn size(): int {
         return this.map.size();
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this.map.size() == 0;
     }
 
-    public V putIfAbsent(K key, V value) {
+    public fn putIfAbsent(key: K, value: V): V {
         if (this.map.containsKey(key)) {
             return this.map.get(key);
         }
@@ -49,20 +49,20 @@ public class HashMap<K, V> implements Iterable<K> {
         return value;
     }
 
-    public V computeIfAbsent(K key, function<V(K)> mapper) {
+    public fn computeIfAbsent(key: K, mapper: fn(K): V): V {
         // why compute when you can cache
         if (this.map.containsKey(key)) {
             return this.map.get(key);
         }
-        V value = mapper(key);
+        let value: V = mapper(key);
         this.map.put(key, value);
         return value;
     }
 
-    public V merge(K key, V value, function<V(V, V)> remapper) {
+    public fn merge(key: K, value: V, remapper: fn(V, V): V): V {
         if (this.map.containsKey(key)) {
-            V oldVal = this.map.get(key);
-            V newVal = remapper(oldVal, value);
+            let oldVal: V = this.map.get(key);
+            let newVal: V = remapper(oldVal, value);
             this.map.put(key, newVal);
             return newVal;
         }
@@ -70,37 +70,37 @@ public class HashMap<K, V> implements Iterable<K> {
         return value;
     }
 
-    public V getOrDefault(K key, V defaultValue) {
+    public fn getOrDefault(key: K, defaultValue: V): V {
         if (this.map.containsKey(key)) {
             return this.map.get(key);
         }
         return defaultValue;
     }
 
-    public V replace(K key, V value) {
+    public fn replace(key: K, value: V): V {
         if (this.map.containsKey(key)) {
-            V oldVal = this.map.get(key);
+            let oldVal: V = this.map.get(key);
             this.map.put(key, value);
             return oldVal;
         }
         return null;
     }
 
-    public ArrayListIterator<K> iterator() {
+    public fn iterator(): ArrayListIterator<K> {
         return this.map.keys().iterator();
     }
 
-    public void remove(K key) {
+    public fn remove(key: K): void {
         this.map.remove(key);
     }
 
-    public void clear() {
+    public fn clear(): void {
         this.map = new HashMap<K, V>();
     }
 
-    public bool containsValue(V value) {
-        ArrayList<V> vals = this.map.values();
-        int i = 0;
+    public fn containsValue(value: V): bool {
+        let vals: ArrayList<V> = this.map.values();
+        let i: int = 0;
         while (i < vals.size()) {
             if (vals.get(i) == value) {
                 return true;
@@ -110,25 +110,25 @@ public class HashMap<K, V> implements Iterable<K> {
         return false;
     }
 
-    public HashMap<K, V> clone() {
-        HashMap<K, V> result = new HashMap<K, V>();
-        ArrayList<(K, V)> entries = this.map.entries();
-        int i = 0;
+    public fn clone(): HashMap<K, V> {
+        let result: HashMap<K, V> = new HashMap<K, V>();
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
         while (i < entries.size()) {
-            (K key, V val) = entries.get(i);
+            let (key: K, val: V) = entries.get(i);
             result.put(key, val);
             i = i + 1;
         }
         return result;
     }
 
-    public String toString() {
-        String s = "{";
-        ArrayList<(K, V)> entries = this.map.entries();
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "{";
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
         while (i < entries.size()) {
             if (i > 0) { s = s + ", "; }
-            (K key, V val) = entries.get(i);
+            let (key: K, val: V) = entries.get(i);
             s = s + key + ": " + val;
             i = i + 1;
         }
@@ -136,35 +136,35 @@ public class HashMap<K, V> implements Iterable<K> {
         return s;
     }
 
-    public void forEach(function<void(K, V)> fn) {
-        ArrayList<(K, V)> entries = this.map.entries();
-        int i = 0;
+    public fn forEach(fn: fn(K, V): void): void {
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
         while (i < entries.size()) {
-            (K key, V val) = entries.get(i);
+            let (key: K, val: V) = entries.get(i);
             fn(key, val);
             i = i + 1;
         }
     }
 
-    public HashMap<K, V> map(function<(K, V)(K, V)> fn) {
-        HashMap<K, V> result = new HashMap<K, V>();
-        ArrayList<(K, V)> entries = this.map.entries();
-        int i = 0;
+    public fn map(fn: fn(K, V): (K, V)): HashMap<K, V> {
+        let result: HashMap<K, V> = new HashMap<K, V>();
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
         while (i < entries.size()) {
-            (K key, V val) = entries.get(i);
-            (K newKey, V newVal) = fn(key, val);
+            let (key: K, val: V) = entries.get(i);
+            let (newKey: K, newVal: V) = fn(key, val);
             result.put(newKey, newVal);
             i = i + 1;
         }
         return result;
     }
 
-    public HashMap<K, V> filter(function<bool(K, V)> fn) {
-        HashMap<K, V> result = new HashMap<K, V>();
-        ArrayList<(K, V)> entries = this.map.entries();
-        int i = 0;
+    public fn filter(fn: fn(K, V): bool): HashMap<K, V> {
+        let result: HashMap<K, V> = new HashMap<K, V>();
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
         while (i < entries.size()) {
-            (K key, V val) = entries.get(i);
+            let (key: K, val: V) = entries.get(i);
             if (fn(key, val)) {
                 result.put(key, val);
             }
