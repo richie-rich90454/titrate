@@ -1,85 +1,85 @@
-// Efficient string builder using ArrayList<String> internally.
+// Efficient string builder using ArrayList<string> internally.
 public class StringBuilder {
-    private ArrayList<String> parts;
+    private ArrayList<string> parts;
 
-    public StringBuilder() {
-        this.parts = new ArrayList<String>();
+    public fn StringBuilder() {
+        this.parts = new ArrayList<string>();
     }
 
-    public void append(String s) {
+    public fn append(s: string): void {
         this.parts.add(s);
     }
 
-    public String build() {
-        String result = "";
+    public fn build(): string {
+        let result: string = "";
         for (part in this.parts) {
             result = result + part;
         }
         return result;
     }
 
-    public void insert(int index, String s) {
+    public fn insert(index: int, s: string): void {
         this.parts.add(index, s);
     }
 
-    public void deleteCharAt(int index) {
-        String current = this.build();
-        String before = current.substring(0, index);
-        String after = current.substring(index + 1, current.length());
-        this.parts = new ArrayList<String>();
+    public fn deleteCharAt(index: int): void {
+        let current: string = this.build();
+        let before: string = current.substring(0, index);
+        let after: string = current.substring(index + 1, String.length(current));
+        this.parts = new ArrayList<string>();
         this.parts.add(before + after);
     }
 
-    public int length() {
-        return this.build().length();
+    public fn length(): int {
+        return String.length(this.build());
     }
 
-    public String substring(int start, int end) {
+    public fn substring(start: int, end: int): string {
         return this.build().substring(start, end);
     }
 
-    public void clear() {
-        this.parts = new ArrayList<String>();
+    public fn clear(): void {
+        this.parts = new ArrayList<string>();
     }
 
-    public void appendChar(char c) {
+    public fn appendChar(c: char): void {
         this.parts.add(toString(c));
     }
 
-    public void appendInt(int n) {
+    public fn appendInt(n: int): void {
         this.parts.add(toString(n));
     }
 
-    public void appendDouble(double d) {
+    public fn appendDouble(d: double): void {
         this.parts.add(toString(d));
     }
 
-    public void appendLine(String s) {
+    public fn appendLine(s: string): void {
         this.parts.add(s + "\n");
     }
 
-    public void replace(int start, int end, String s) {
-        String current = this.build();
-        String before = current.substring(0, start);
-        String after = current.substring(end, current.length());
-        this.parts = new ArrayList<String>();
+    public fn replace(start: int, end: int, s: string): void {
+        let current: string = this.build();
+        let before: string = current.substring(0, start);
+        let after: string = current.substring(end, String.length(current));
+        this.parts = new ArrayList<string>();
         this.parts.add(before + s + after);
     }
 
-    public void reverse() {
-        String current = this.build();
-        String result = "";
-        int i = current.length() - 1;
+    public fn reverse(): void {
+        let current: string = this.build();
+        let result: string = "";
+        let i: int = String.length(current) - 1;
         while (i >= 0) {
             result = result + current.substring(i, i + 1);
             i = i - 1;
         }
-        this.parts = new ArrayList<String>();
+        this.parts = new ArrayList<string>();
         this.parts.add(result);
     }
 
-    public char charAt(int index) {
-        String current = this.build();
+    public fn charAt(index: int): char {
+        let current: string = this.build();
         return current.substring(index, index + 1);
     }
 }
