@@ -1,9 +1,10 @@
 # crypto
 
-The `tt.crypto` and `tt.encoding` modules provide cryptographic hashing, encoding, and decoding utilities. Hash offers common digest algorithms, while Base64, Hex, and Url handle standard encoding schemes.
+The `tt.crypto` and `tt.encoding` modules provide cryptographic hashing, HMAC, encoding, and decoding utilities. Hash offers common digest algorithms, Hmac provides keyed-hash message authentication, while Base64, Hex, and Url handle standard encoding schemes.
 
 ```titrate
 import tt.crypto.Hash;
+import tt.crypto.Hmac;
 import tt.encoding.Base64;
 import tt.encoding.Hex;
 import tt.encoding.Url;
@@ -24,6 +25,21 @@ import tt.encoding.Url;
 let digest = Hash.sha256("hello world");
 let mac = Hash.hmac("secret-key", "message");
 let checksum = Hash.crc32("some data");
+```
+
+## Hmac
+
+Keyed-hash message authentication codes (HMAC) for verifying both data integrity and authenticity.
+
+- `Hmac.sha256(key: string, data: string): string` — HMAC-SHA256 hex digest
+- `Hmac.sha512(key: string, data: string): string` — HMAC-SHA512 hex digest
+- `Hmac.md5(key: string, data: string): string` — HMAC-MD5 hex digest
+- `Hmac.digest(key: string, data: string, algorithm: string): string` — HMAC with named algorithm (`"sha256"`, `"sha512"`, `"md5"`)
+
+```titrate
+let mac256 = Hmac.sha256("secret-key", "message");
+let mac512 = Hmac.sha512("secret-key", "message");
+let custom = Hmac.digest("key", "data", "sha256");
 ```
 
 ## Base64
