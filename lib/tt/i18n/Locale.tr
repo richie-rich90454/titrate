@@ -1,0 +1,113 @@
+// Locale-aware formatting and internationalization support.
+import tt::util::HashMap;
+
+public class Locale {
+    public string name;
+    public string decimalPoint;
+    public string thousandsSep;
+    public string currencySymbol;
+    public string dateFormat;
+    public string timeFormat;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.decimalPoint = ".";
+        this.thousandsSep = ",";
+        this.currencySymbol = "$";
+        this.dateFormat = "%Y-%m-%d";
+        this.timeFormat = "%H:%M:%S";
+        this.applyDefaults(name);
+    }
+
+    private fn applyDefaults(name: string): void {
+        if (name == "en_US") {
+            this.decimalPoint = ".";
+            this.thousandsSep = ",";
+            this.currencySymbol = "$";
+            this.dateFormat = "%m/%d/%Y";
+            this.timeFormat = "%I:%M:%S %p";
+        } else if (name == "de_DE" || name == "fr_FR" || name == "es_ES") {
+            this.decimalPoint = ",";
+            this.thousandsSep = ".";
+            this.currencySymbol = "\u20ac";
+            this.dateFormat = "%d.%m.%Y";
+            this.timeFormat = "%H:%M:%S";
+        } else if (name == "ja_JP") {
+            this.decimalPoint = ".";
+            this.thousandsSep = ",";
+            this.currencySymbol = "\u00a5";
+            this.dateFormat = "%Y/%m/%d";
+            this.timeFormat = "%H:%M:%S";
+        } else if (name == "zh_CN") {
+            this.decimalPoint = ".";
+            this.thousandsSep = ",";
+            this.currencySymbol = "\u00a5";
+            this.dateFormat = "%Y-%m-%d";
+            this.timeFormat = "%H:%M:%S";
+        } else if (name == "en_GB") {
+            this.decimalPoint = ".";
+            this.thousandsSep = ",";
+            this.currencySymbol = "\u00a3";
+            this.dateFormat = "%d/%m/%Y";
+            this.timeFormat = "%H:%M:%S";
+        }
+    }
+
+    public fn formatNumber(value: double, decimals: int): string {
+        let intPart: int = value as int;
+        let fracPart: double = value - (intPart as double);
+        if (fracPart < 0) { fracPart = -fracPart; }
+
+        var result: string = Integer.toString(intPart);
+        // Add thousands separator
+        var formatted: string = "";
+        var i: int = 0;
+        while (i < String.length(result)) {
+            if (i > 0 && (String.length(result) - i) % 3 == 0) {
+                formatted = formatted + this.thousandsSep;
+            }
+            formatted = formatted + String.charAt(result, i);
+            i = i + 1;
+        }
+
+        if (decimals > 0) {
+            formatted = formatted + this.decimalPoint;
+            var d: int = 0;
+            while (d < decimals) {
+                fracPart = fracPart * 10.0;
+                let digit: int = fracPart as int;
+                formatted = formatted + Integer.toString(digit);
+                fracPart = fracPart - (digit as double);
+                d = d + 1;
+            }
+        }
+        return formatted;
+    }
+
+    public fn formatCurrency(value: double): string {
+        return this.currencySymbol + this.formatNumber(value, 2);
+    }
+
+    public fn toString(): string {
+        return this.name;
+    }
+}
+
+// Get the default locale.
+public fn defaultLocale(): Locale {
+    let lang: string = Os_getEnv("LANG");
+    let lcAll: string = Os_getEnv("LC_ALL");
+    let localeStr: string = lcAll;
+    if (String.length(localeStr) == 0) {
+        localeStr = lang;
+    }
+    if (String.length(localeStr) == 0) {
+        localeStr = "en_US";
+    }
+    // Strip encoding suffix (e.g., "en_US.UTF-8" -> "en_US")
+    let dotIdx: int = String.indexOf(localeStr, ".");
+    if (dotIdx > 0) {
+        localeStr = String.substring(localeStr, 0, dotIdx);
+    }
+    return new Locale(localeStr);
+}
