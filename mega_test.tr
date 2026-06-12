@@ -160,7 +160,7 @@ public fn greet(name: string): void {
 class Circle {
     public double radius;
 
-    fn init(double r) {
+    fn init(r: double) {
         this.radius = r;
     }
 

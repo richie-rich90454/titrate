@@ -81,7 +81,7 @@ public fn main(): void {
 class Box<T> {
     public T value;
 
-    fn init(T value) {
+    fn init(value: T) {
         this.value = value;
     }
 
@@ -99,7 +99,7 @@ class Pair<A, B> {
     public A first;
     public B second;
 
-    fn init(A first, B second) {
+    fn init(first: A, second: B) {
         this.first = first;
         this.second = second;
     }

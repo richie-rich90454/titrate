@@ -48,7 +48,7 @@ class ListNode<T> {
     public T value;
     public ListNode<T> next;
 
-    fn init(T value) {
+    fn init(value: T) {
         this.value = value;
         this.next = null;
     }
