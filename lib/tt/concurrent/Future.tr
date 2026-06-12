@@ -3,7 +3,7 @@ public class Future<T> {
     private T value;
     private bool done;
     private bool cancelled;
-    private String error;
+    private string error;
 
     public Future() {
         this.done = false;
@@ -11,19 +11,19 @@ public class Future<T> {
         this.error = null;
     }
 
-    public bool isDone() {
+    public fn isDone(): bool {
         return this.done;
     }
 
-    public T get() {
+    public fn get(): T {
         return this.value;
     }
 
-    public bool isCancelled() {
+    public fn isCancelled(): bool {
         return this.cancelled;
     }
 
-    public bool cancel() {
+    public fn cancel(): bool {
         if (!this.done) {
             this.cancelled = true;
             return true;
@@ -31,7 +31,7 @@ public class Future<T> {
         return false;
     }
 
-    public bool cancel(bool mayInterrupt) {
+    public fn cancel(mayInterrupt: bool): bool {
         if (!this.done) {
             this.cancelled = true;
             return true;
@@ -39,31 +39,31 @@ public class Future<T> {
         return false;
     }
 
-    public void complete(T value) {
+    public fn complete(value: T): void {
         if (!this.done && !this.cancelled) {
             this.value = value;
             this.done = true;
         }
     }
 
-    public void completeExceptionally(String err) {
+    public fn completeExceptionally(err: string): void {
         if (!this.done && !this.cancelled) {
             this.error = err;
             this.done = true;
         }
     }
 
-    public String getError() {
+    public fn getError(): string {
         return this.error;
     }
 
-    public bool hasError() {
+    public fn hasError(): bool {
         return this.error != null;
     }
 
     // Apply a transformation function to the future's value when it completes.
-    public <R> Future<R> thenApply(fn(T) => R fn) {
-        Future<R> result = new Future<R>();
+    public fn thenApply<R>(fn: fn(T): R): Future<R> {
+        let result: Future<R> = new Future<R>();
         if (this.done && !this.hasError()) {
             result.complete(fn(this.value));
         }
@@ -71,10 +71,10 @@ public class Future<T> {
     }
 
     // Compose this future with another future-producing function.
-    public <R> Future<R> thenCompose(fn(T) => Future<R> fn) {
-        Future<R> result = new Future<R>();
+    public fn thenCompose<R>(fn: fn(T): Future<R>): Future<R> {
+        let result: Future<R> = new Future<R>();
         if (this.done && !this.hasError()) {
-            Future<R> composed = fn(this.value);
+            let composed: Future<R> = fn(this.value);
             if (composed.isDone()) {
                 result.complete(composed.get());
             }
@@ -83,8 +83,8 @@ public class Future<T> {
     }
 
     // Handle errors by providing a recovery function.
-    public Future<T> exceptionally(fn(String) => T fn) {
-        Future<T> result = new Future<T>();
+    public fn exceptionally(fn: fn(string): T): Future<T> {
+        let result: Future<T> = new Future<T>();
         if (this.done && this.hasError()) {
             result.complete(fn(this.error));
         } else if (this.done) {
@@ -94,8 +94,8 @@ public class Future<T> {
     }
 
     // Handle both success and error cases with a single function.
-    public <R> Future<R> handle(fn(T, String) => R fn) {
-        Future<R> result = new Future<R>();
+    public fn handle<R>(fn: fn(T, string): R): Future<R> {
+        let result: Future<R> = new Future<R>();
         if (this.done) {
             result.complete(fn(this.value, this.error));
         }
@@ -103,7 +103,7 @@ public class Future<T> {
     }
 
     // Execute a side-effect function when the future completes, regardless of outcome.
-    public Future<T> whenComplete(fn(T, String) => void fn) {
+    public fn whenComplete(fn: fn(T, string): void): Future<T> {
         if (this.done) {
             fn(this.value, this.error);
         }

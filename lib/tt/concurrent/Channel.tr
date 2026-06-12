@@ -5,7 +5,7 @@ public class Channel<T> {
     private ArrayList<T> buffer;
     private bool closed;
     public int capacity;
-    private fn() => void onCloseFn;
+    private fn(): void onCloseFn;
 
     public Channel() {
         this.buffer = new ArrayList<T>();
@@ -14,14 +14,14 @@ public class Channel<T> {
         this.onCloseFn = null;
     }
 
-    public Channel(int capacity) {
+    public Channel(capacity: int) {
         this.buffer = new ArrayList<T>();
         this.closed = false;
         this.capacity = capacity;
         this.onCloseFn = null;
     }
 
-    public void send(T value) {
+    public fn send(value: T): void {
         if (!this.closed) {
             if (this.capacity == 0 || this.buffer.size() < this.capacity) {
                 this.buffer.add(value);
@@ -29,7 +29,7 @@ public class Channel<T> {
         }
     }
 
-    public bool trySend(T value) {
+    public fn trySend(value: T): bool {
         if (this.closed) {
             return false;
         }
@@ -40,46 +40,46 @@ public class Channel<T> {
         return true;
     }
 
-    public T receive() {
-        T item = this.buffer.get(0);
+    public fn receive(): T {
+        let item: T = this.buffer.get(0);
         this.buffer.remove(0);
         return item;
     }
 
-    public T tryReceive() {
+    public fn tryReceive(): T {
         if (this.buffer.size() == 0) {
             return null;
         }
         return this.receive();
     }
 
-    public int len() {
+    public fn len(): int {
         return this.buffer.size();
     }
 
-    public bool isFull() {
+    public fn isFull(): bool {
         if (this.capacity == 0) {
             return false;
         }
         return this.buffer.size() >= this.capacity;
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this.buffer.size() == 0;
     }
 
-    public void close() {
+    public fn close(): void {
         this.closed = true;
         if (this.onCloseFn != null) {
             this.onCloseFn();
         }
     }
 
-    public bool isClosed() {
+    public fn isClosed(): bool {
         return this.closed;
     }
 
-    public void onClose(fn() => void fn) {
+    public fn onClose(fn: fn(): void): void {
         this.onCloseFn = fn;
     }
 }
