@@ -183,3 +183,47 @@ pub(crate) fn native_signal_register(_args: &[Value]) -> Result<Value, String> {
 pub(crate) fn native_signal_raise(_args: &[Value]) -> Result<Value, String> {
     Err("Signal handling not supported on this platform".to_string())
 }
+
+// ---------------------------------------------------------------------------
+// Additional Os natives
+// ---------------------------------------------------------------------------
+
+pub(crate) fn native_os_cpu_count(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    let count = std::thread::available_parallelism()
+        .map(|n| n.get() as i64)
+        .unwrap_or(1);
+    Ok(Value::Long(count))
+}
+
+pub(crate) fn native_os_user_name(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Try USERNAME (Windows) then USER (Unix)
+    let name = std::env::var("USERNAME")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "unknown".to_string());
+    Ok(Value::String(Rc::new(name)))
+}
+
+pub(crate) fn native_os_host_name(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Try COMPUTERNAME (Windows) then HOSTNAME (Unix)
+    let name = std::env::var("COMPUTERNAME")
+        .or_else(|_| std::env::var("HOSTNAME"))
+        .unwrap_or_else(|_| "unknown".to_string());
+    Ok(Value::String(Rc::new(name)))
+}
+
+pub(crate) fn native_os_urandom(args: &[Value]) -> Result<Value, String> {
+    let n = match args.first() {
+        Some(Value::Long(v)) => *v as usize,
+        Some(Value::Int(v)) => *v as usize,
+        _ => return Err("Os_urandom: expected an Int/Long byte count".to_string()),
+    };
+    let mut buf = vec![0u8; n];
+    // Use the rand crate that's already a dependency
+    use rand::RngCore;
+    rand::thread_rng().fill_bytes(&mut buf);
+    let hex: String = buf.iter().map(|b| format!("{:02x}", b)).collect();
+    Ok(Value::String(Rc::new(hex)))
+}
