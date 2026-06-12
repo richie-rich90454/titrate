@@ -1,0 +1,26 @@
+// Write-end of a Future.
+import tt::concurrent::Future;
+
+public class Promise<T> {
+    private Future<T> future;
+
+    public fn init() {
+        this.future = new Future<T>();
+    }
+
+    public fn complete(value: T): void {
+        this.future.complete(value);
+    }
+
+    public fn completeExceptionally(err: string): void {
+        this.future.completeExceptionally(err);
+    }
+
+    public fn future(): Future<T> {
+        return this.future;
+    }
+
+    public fn isDone(): bool {
+        return this.future.isDone();
+    }
+}
