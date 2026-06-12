@@ -3,38 +3,38 @@
 public class Vec<T> {
     private ArrayList<T> _items;
 
-    public Vec() {
+    public fn Vec() {
         this._items = new ArrayList<T>();
     }
 
-    public void push(T item) {
+    public fn push(item: T): void {
         this._items.add(item);
     }
 
-    public T get(int index) {
+    public fn get(index: int): T {
         return this._items.get(index);
     }
 
-    public void set(int index, T value) {
+    public fn set(index: int, value: T): void {
         this._items.set(index, value);
     }
 
-    public int size() {
+    public fn size(): int {
         return this._items.size();
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this._items.size() == 0;
     }
 
-    public T pop() {
-        int last = this._items.size() - 1;
-        T item = this._items.get(last);
+    public fn pop(): T {
+        let last: int = this._items.size() - 1;
+        let item: T = this._items.get(last);
         this._items.remove(last);
         return item;
     }
 
-    public bool contains(T item) {
+    public fn contains(item: T): bool {
         for (elem in this._items) {
             if (elem == item) {
                 return true;
@@ -43,11 +43,11 @@ public class Vec<T> {
         return false;
     }
 
-    public void reverse() {
-        int i = 0;
-        int j = this._items.size() - 1;
+    public fn reverse(): void {
+        let i: int = 0;
+        let j: int = this._items.size() - 1;
         while (i < j) {
-            T tmp = this._items.get(i);
+            let tmp: T = this._items.get(i);
             this._items.set(i, this._items.get(j));
             this._items.set(j, tmp);
             i = i + 1;
@@ -55,8 +55,8 @@ public class Vec<T> {
         }
     }
 
-    public int indexOf(T item) {
-        int i = 0;
+    public fn indexOf(item: T): int {
+        let i: int = 0;
         while (i < this._items.size()) {
             if (this._items.get(i) == item) {
                 return i;
@@ -66,17 +66,17 @@ public class Vec<T> {
         return -1;
     }
 
-    public T last() {
+    public fn last(): T {
         return this._items.get(this._items.size() - 1);
     }
 
-    public T first() {
+    public fn first(): T {
         return this._items.get(0);
     }
 
-    public Vec<T> take(int n) {
-        Vec<T> result = new Vec<T>();
-        int i = 0;
+    public fn take(n: int): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
+        let i: int = 0;
         while (i < n && i < this._items.size()) {
             result.push(this._items.get(i));
             i = i + 1;
@@ -84,9 +84,9 @@ public class Vec<T> {
         return result;
     }
 
-    public Vec<T> drop(int n) {
-        Vec<T> result = new Vec<T>();
-        int i = n;
+    public fn drop(n: int): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
+        let i: int = n;
         while (i < this._items.size()) {
             result.push(this._items.get(i));
             i = i + 1;
@@ -94,36 +94,36 @@ public class Vec<T> {
         return result;
     }
 
-    public void insert(int index, T value) {
+    public fn insert(index: int, value: T): void {
         this._items.add(index, value);
     }
 
-    public T removeAt(int index) {
-        T item = this._items.get(index);
+    public fn removeAt(index: int): T {
+        let item: T = this._items.get(index);
         this._items.remove(index);
         return item;
     }
 
-    public void sort() {
+    public fn sort(): void {
         this._items.sort();
     }
 
-    public void forEach(function<void(T)> fn) {
+    public fn forEach(fn: fn(T): void): void {
         for (elem in this._items) {
             fn(elem);
         }
     }
 
-    public Vec<T> map(function<T(T)> fn) {
-        Vec<T> result = new Vec<T>();
+    public fn map(fn: fn(T): T): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
         for (elem in this._items) {
             result.push(fn(elem));
         }
         return result;
     }
 
-    public Vec<T> filter(function<bool(T)> fn) {
-        Vec<T> result = new Vec<T>();
+    public fn filter(fn: fn(T): bool): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
         for (elem in this._items) {
             if (fn(elem)) {
                 result.push(elem);
@@ -132,29 +132,29 @@ public class Vec<T> {
         return result;
     }
 
-    public T reduce(function<T(T, T)> fn, T init) {
-        T acc = init;
+    public fn reduce(fn: fn(T, T): T, init: T): T {
+        let acc: T = init;
         for (elem in this._items) {
             acc = fn(acc, elem);
         }
         return acc;
     }
 
-    public void clear() {
+    public fn clear(): void {
         this._items = new ArrayList<T>();
     }
 
-    public Vec<T> clone() {
-        Vec<T> result = new Vec<T>();
+    public fn clone(): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
         for (elem in this._items) {
             result.push(elem);
         }
         return result;
     }
 
-    public String toString() {
-        String s = "[";
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "[";
+        let i: int = 0;
         while (i < this._items.size()) {
             if (i > 0) { s = s + ", "; }
             s = s + this._items.get(i);
