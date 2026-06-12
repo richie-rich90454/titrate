@@ -1,0 +1,115 @@
+// Red-black tree based sorted set with O(log n) operations.
+import tt::util::ArrayList;
+
+public class TreeSet<E> {
+    private TreeMap<E, int> map;
+
+    public fn init() {
+        this.map = new TreeMap<E, int>();
+    }
+
+    public fn init(comparator: fn(E, E): int) {
+        this.map = new TreeMap<E, int>(comparator);
+    }
+
+    public fn add(item: E): void {
+        this.map.put(item, 1);
+    }
+
+    public fn remove(item: E): bool {
+        return this.map.remove(item);
+    }
+
+    public fn contains(item: E): bool {
+        return this.map.containsKey(item);
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.map.isEmpty();
+    }
+
+    public fn first(): E {
+        return this.map.firstKey();
+    }
+
+    public fn last(): E {
+        return this.map.lastKey();
+    }
+
+    // Ceiling: smallest element >= given
+    public fn ceiling(item: E): E {
+        return this.map.ceilingKey(item);
+    }
+
+    // Floor: largest element <= given
+    public fn floor(item: E): E {
+        return this.map.floorKey(item);
+    }
+
+    public fn toArray(): ArrayList<E> {
+        return this.map.keys();
+    }
+
+    public fn union(other: TreeSet<E>): TreeSet<E> {
+        let result: TreeSet<E> = new TreeSet<E>();
+        var items: ArrayList<E> = this.toArray();
+        var i: int = 0;
+        while (i < items.size()) {
+            result.add(items.get(i));
+            i = i + 1;
+        }
+        items = other.toArray();
+        i = 0;
+        while (i < items.size()) {
+            result.add(items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn intersection(other: TreeSet<E>): TreeSet<E> {
+        let result: TreeSet<E> = new TreeSet<E>();
+        var items: ArrayList<E> = this.toArray();
+        var i: int = 0;
+        while (i < items.size()) {
+            if (other.contains(items.get(i))) {
+                result.add(items.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn difference(other: TreeSet<E>): TreeSet<E> {
+        let result: TreeSet<E> = new TreeSet<E>();
+        var items: ArrayList<E> = this.toArray();
+        var i: int = 0;
+        while (i < items.size()) {
+            if (!other.contains(items.get(i))) {
+                result.add(items.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.map.clear();
+    }
+
+    public fn toString(): string {
+        let items: ArrayList<E> = this.toArray();
+        var result: string = "{";
+        var i: int = 0;
+        while (i < items.size()) {
+            if (i > 0) { result = result + ", "; }
+            result = result + items.get(i) as string;
+            i = i + 1;
+        }
+        return result + "}";
+    }
+}
