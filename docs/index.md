@@ -4,10 +4,7 @@ layout: home
 hero:
   name: Titrate
   text: The language for precise systems
-  tagline: Memory-safe without GC. Zero-cost generics. Scientific computing built in. Write code that's as reliable as it is expressive.
-  image:
-    src: /logo.svg
-    alt: Titrate
+  tagline: Memory-safe without GC. Zero-cost generics. Scientific computing built in. Write code that is as reliable as it is expressive.
   actions:
     - theme: brand
       text: Get Started
@@ -20,33 +17,42 @@ hero:
       link: https://github.com/richie-rich90454/titrate
 
 features:
-  - icon: ⚡
+  - icon:
+      src: /icons/vm.svg
     title: Bytecode VM
     details: 10x faster than tree-walking interpretation. Compile to optimized bytecode and run on the Titrate VM with built-in garbage-free memory management.
-  - icon: 🔒
-    title: Ownership & Regions
-    details: Move semantics, borrowing, and region-based allocation — memory safety without garbage collection or manual free.
-  - icon: 🧬
+  - icon:
+      src: /icons/shield.svg
+    title: Ownership and Regions
+    details: Move semantics, borrowing, and region-based allocation -- memory safety without garbage collection or manual free.
+  - icon:
+      src: /icons/generics.svg
     title: Zero-Cost Generics
     details: Monomorphizing compiler generates specialized code for each type instance. No boxing, no vtables, no runtime overhead.
-  - icon: 📦
+  - icon:
+      src: /icons/module.svg
     title: Module System
     details: Organize code with imports, control visibility with public and private, and detect circular dependencies at compile time.
-  - icon: 🧪
+  - icon:
+      src: /icons/flask.svg
     title: Scientific Computing
-    details: Chemistry (Atom, Molecule, ForceField, MD), linear algebra (Matrix, NDArray), and units of measure — all in the standard library.
-  - icon: 🎯
+    details: Chemistry (Atom, Molecule, ForceField, MD), linear algebra (Matrix, NDArray), and units of measure -- all in the standard library.
+  - icon:
+      src: /icons/compat.svg
     title: C-family Compatibility
     details: Familiar syntax for developers from C, C++, and ECMAScript. Sugar forms like `int x = 5` and `++i` alongside canonical Titrate style.
-  - icon: 🛡️
+  - icon:
+      src: /icons/result.svg
     title: Result-Based Error Handling
     details: No exceptions, no null pointer errors. Use `Result<T, E>` with `ok()` and `err()` to make error handling explicit and type-safe at compile time.
-  - icon: 🔧
+  - icon:
+      src: /icons/operator.svg
     title: Operator Overloading
     details: Define natural syntax for your types with `fn operator+`, `fn operator*`, and more. Build expressive DSLs for math, physics, and data.
-  - icon: 🌐
+  - icon:
+      src: /icons/library.svg
     title: Rich Standard Library
-    details: Collections, I/O, JSON, CSV, XML, TCP, HTTP, SHA-256, HMAC, Base64 — everything you need to build real applications, out of the box.
+    details: Collections, I/O, JSON, CSV, XML, TCP, HTTP, SHA-256, HMAC, Base64 -- everything you need to build real applications, out of the box.
 ---
 
 ## Quick Start
@@ -67,7 +73,7 @@ pipette run
 ## Language at a Glance
 
 ```titrate
-// Variables — let for immutable, var for mutable
+// Variables -- let for immutable, var for mutable
 let name: string = "Titrate";
 var count: int = 0;
 
@@ -87,13 +93,13 @@ class Point {
     }
 }
 
-// Generics with monomorphization — zero runtime overhead
+// Generics with monomorphization -- zero runtime overhead
 class Box<T> {
     public T value;
     public fn init(value: T) { this.value = value; }
 }
 
-// Result-based error handling — no exceptions
+// Result-based error handling -- no exceptions
 fn parse(s: string): Result<int, string> {
     let n: Result<int, string> = Integer.parseInt(s);
     if (n.isOk()) { return ok(n.unwrap() * 2); }
@@ -225,11 +231,11 @@ for (item in buf) {
 
 ### Type Safety Without Runtime Cost
 
-Titrate's monomorphizing compiler generates specialized code for each generic type instance. `ArrayList<int>` runs just as fast as hand-written code for integers — no boxing, no type checks at runtime.
+Titrate's monomorphizing compiler generates specialized code for each generic type instance. `ArrayList<int>` runs just as fast as hand-written code for integers -- no boxing, no type checks at runtime.
 
 ### Memory Safety Without Garbage Collection
 
-Ownership semantics, move checking, and region-based allocation give you memory safety guarantees without the pause times and overhead of a garbage collector. When a value goes out of scope, it's cleaned up immediately.
+Ownership semantics, move checking, and region-based allocation give you memory safety guarantees without the pause times and overhead of a garbage collector. When a value goes out of scope, it is cleaned up immediately.
 
 ### Clean, Modern Syntax
 
@@ -237,11 +243,11 @@ Inspired by Rust and Python, Titrate uses `name: Type` parameter order, `fn` dec
 
 ### Scientific Computing Built In
 
-Chemistry simulations (Atom, Molecule, ForceField, MD, RHF), linear algebra (Matrix, NDArray with operator overloading), and units of measure are part of the standard library — not third-party packages.
+Chemistry simulations (Atom, Molecule, ForceField, MD, RHF), linear algebra (Matrix, NDArray with operator overloading), and units of measure are part of the standard library -- not third-party packages.
 
 ### Comprehensive Standard Library
 
-Collections (ArrayList, HashMap, HashSet, Vec), I/O (File, BufferedReader), serialization (JSON, CSV, XML), networking (TCP, HTTP), cryptography (SHA-256, HMAC, Base64), and more — all included out of the box.
+Collections (ArrayList, HashMap, HashSet, Vec), I/O (File, BufferedReader), serialization (JSON, CSV, XML), networking (TCP, HTTP), cryptography (SHA-256, HMAC, Base64), and more -- all included out of the box.
 
 ## Comparison
 
@@ -249,15 +255,15 @@ How does Titrate compare to other systems languages for common tasks?
 
 | Feature | Titrate | C | Rust | Python |
 |---------|:-------:|:---:|:----:|:------:|
-| Memory safety | ✅ | ❌ | ✅ | ✅ |
-| No garbage collector | ✅ | ✅ | ✅ | ❌ |
-| Zero-cost generics | ✅ | ❌ | ✅ | ❌ |
-| Simple syntax | ✅ | ❌ | ❌ | ✅ |
-| Scientific computing stdlib | ✅ | ❌ | ❌ | ✅ |
-| Result-based error handling | ✅ | ❌ | ✅ | ❌ |
-| Operator overloading | ✅ | ❌ | ✅ | ✅ |
-| Fast compile times | ✅ | ✅ | ❌ | ✅ |
-| C-family sugar forms | ✅ | ✅ | ❌ | ❌ |
+| Memory safety | Yes | No | Yes | Yes |
+| No garbage collector | Yes | Yes | Yes | No |
+| Zero-cost generics | Yes | No | Yes | No |
+| Simple syntax | Yes | No | No | Yes |
+| Scientific computing stdlib | Yes | No | No | Yes |
+| Result-based error handling | Yes | No | Yes | No |
+| Operator overloading | Yes | No | Yes | Yes |
+| Fast compile times | Yes | Yes | No | Yes |
+| C-family sugar forms | Yes | Yes | No | No |
 
 ## Standard Library Ecosystem
 
@@ -281,23 +287,23 @@ Titrate ships with a comprehensive standard library organized into intuitive mod
 
 > Titrate gave us the performance of a systems language with the ergonomics we needed for our computational chemistry pipeline. The built-in MD and RHF modules saved us months of work.
 >
-> — <cite>Dr. Sarah Chen, Computational Chemistry Lab</cite>
+> -- <cite>Dr. Sarah Chen, Computational Chemistry Lab</cite>
 
-> Coming from Python, I was amazed at how quickly I could be productive. The syntax is intuitive, and the compiler catches errors I'd only find at runtime in Python.
+> Coming from Python, I was amazed at how quickly I could be productive. The syntax is intuitive, and the compiler catches errors I would only find at runtime in Python.
 >
-> — <cite>Marcus Rivera, Data Engineer at StreamFlow</cite>
+> -- <cite>Marcus Rivera, Data Engineer at StreamFlow</cite>
 
-> The zero-cost generics are real. Our `ArrayList<Order>` runs just as fast as hand-rolled C code, but we get type safety and a module system. That's a huge win.
+> The zero-cost generics are real. Our `ArrayList<Order>` runs just as fast as hand-rolled C code, but we get type safety and a module system. That is a huge win.
 >
-> — <cite>Aisha Patel, Backend Engineer</cite>
+> -- <cite>Aisha Patel, Backend Engineer</cite>
 
-## Community & Contributing
+## Community and Contributing
 
 Titrate is open source and actively developed. Join us!
 
-- **GitHub** — [richie-rich90454/titrate](https://github.com/richie-rich90454/titrate) — Report issues, request features, contribute code
-- **Contributing** — Check the `AGENTS.md` and codebase for contribution guidelines
-- **Build & Test** — `cargo test --lib` (571 unit tests), `cargo test --test stdlib_test` (53 integration tests)
+- **GitHub** -- [richie-rich90454/titrate](https://github.com/richie-rich90454/titrate) -- Report issues, request features, contribute code
+- **Contributing** -- Check the [contributing guide](/guide/contributing) for guidelines
+- **Build and Test** -- `cargo test --lib` (571 unit tests), `cargo test --test stdlib_test` (53 integration tests)
 
 ```bash
 # Clone and build
@@ -306,5 +312,5 @@ cd titrate
 cargo build --release
 
 # Run the full test suite
-cargo test --lib && cargo test --test stdlib_test && cargo test --test mega_test
+cargo test --lib; cargo test --test stdlib_test; cargo test --test mega_test
 ```
