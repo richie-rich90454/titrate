@@ -21,17 +21,34 @@ public class Regex {
     }
 
     public fn find(input: string): Match {
-        let raw: string = Regex_find(this.pattern, input);
+        let raw: string = Regex_findGroups(this.pattern, input);
         if (String.length(raw) == 0) {
             return null;
         }
-        // Parse "start,end,matched_text" format
-        let firstComma: int = String.indexOf(raw, ",");
-        let secondComma: int = String.indexOf(raw, firstComma + 1);
-        let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
-        let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
-        let matched: string = String.substring(raw, secondComma + 1);
+        // Parse "group0_start,group0_end,group0_text;group1_start,group1_end,group1_text;..."
+        let segments: ArrayList<string> = String.split(raw, ";");
+        // First segment is the full match (group 0)
+        let first: string = segments.get(0);
+        let c1: int = String.indexOf(first, ",");
+        let c2: int = String.indexOf(first, c1 + 1);
+        let start: int = Integer.parseInt(String.substring(first, 0, c1));
+        let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
+        let matched: string = String.substring(first, c2 + 1);
         let m: Match = new Match(matched, start, end);
+        // Populate capture groups (skip group 0 which is the full match)
+        var i: int = 1;
+        while (i < segments.size()) {
+            let seg: string = segments.get(i);
+            let s1: int = String.indexOf(seg, ",");
+            let s2: int = String.indexOf(seg, s1 + 1);
+            let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
+            let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
+            let gText: string = String.substring(seg, s2 + 1);
+            m.groups.add(gText);
+            m.groupStarts.add(gStart);
+            m.groupEnds.add(gEnd);
+            i = i + 1;
+        }
         return m;
     }
 
@@ -40,16 +57,31 @@ public class Regex {
         let remaining: string = input;
         let offset: int = 0;
         while (true) {
-            let raw: string = Regex_find(this.pattern, remaining);
+            let raw: string = Regex_findGroups(this.pattern, remaining);
             if (String.length(raw) == 0) {
                 break;
             }
-            let firstComma: int = String.indexOf(raw, ",");
-            let secondComma: int = String.indexOf(raw, firstComma + 1);
-            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
-            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
-            let matched: string = String.substring(raw, secondComma + 1);
+            let segments: ArrayList<string> = String.split(raw, ";");
+            let first: string = segments.get(0);
+            let c1: int = String.indexOf(first, ",");
+            let c2: int = String.indexOf(first, c1 + 1);
+            let start: int = Integer.parseInt(String.substring(first, 0, c1));
+            let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
+            let matched: string = String.substring(first, c2 + 1);
             let m: Match = new Match(matched, start + offset, end + offset);
+            var i: int = 1;
+            while (i < segments.size()) {
+                let seg: string = segments.get(i);
+                let s1: int = String.indexOf(seg, ",");
+                let s2: int = String.indexOf(seg, s1 + 1);
+                let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
+                let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
+                let gText: string = String.substring(seg, s2 + 1);
+                m.groups.add(gText);
+                m.groupStarts.add(gStart + offset);
+                m.groupEnds.add(gEnd + offset);
+                i = i + 1;
+            }
             results.add(m);
             if (end == 0) {
                 break;

@@ -138,6 +138,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Math_random" => Some(math::native_math_random),
         "Math_negInf" => Some(math::native_math_neg_inf),
         "Regex_groupCount" => Some(regex::native_regex_group_count),
+        "Regex_findGroups" => Some(regex::native_regex_find_groups),
         "Dir_walk" => Some(directory::native_dir_walk),
         "Dir_copy" => Some(directory::native_dir_copy),
         "Dir_move" => Some(directory::native_dir_move),

@@ -244,6 +244,7 @@ impl Vm {
 
         // Additional Regex natives
         vm.register_native("Regex_groupCount", natives::regex::native_regex_group_count);
+        vm.register_native("Regex_findGroups", natives::regex::native_regex_find_groups);
 
         // Additional Directory natives
         vm.register_native("Dir_walk", natives::directory::native_dir_walk);

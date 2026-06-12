@@ -79,3 +79,33 @@ pub(crate) fn native_regex_group_count(args: &[Value]) -> Result<Value, String> 
         .map_err(|e| format!("Regex_groupCount: invalid pattern '{}': {}", pattern, e))?;
     Ok(Value::Int(re.captures_len() as i32 - 1))
 }
+
+pub(crate) fn native_regex_find_groups(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Regex_findGroups: expected 2 arguments (pattern, input)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_findGroups: expected String pattern".to_string()),
+    };
+    let input = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_findGroups: expected String input".to_string()),
+    };
+    let re = regex::Regex::new(&pattern)
+        .map_err(|e| format!("Regex_findGroups: invalid pattern '{}': {}", pattern, e))?;
+    match re.captures(&input) {
+        Some(caps) => {
+            // Format: "group0_start,group0_end,group0_text;group1_start,group1_end,group1_text;..."
+            let parts: Vec<String> = caps.iter().enumerate().map(|(i, m)| {
+                match m {
+                    Some(m) => format!("{},{},{}", m.start(), m.end(), m.as_str()),
+                    None => format!("-1,-1,"),
+                }
+            }).collect();
+            let result = parts.join(";");
+            Ok(Value::String(Rc::new(result)))
+        }
+        None => Ok(Value::String(Rc::new(String::new()))),
+    }
+}
