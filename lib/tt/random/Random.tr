@@ -9,97 +9,97 @@ public class Random {
     public bool hasSpareGaussian;
     public double spareGaussian;
 
-    public Random() {
-        long seed = Random_seed();
+    public fn init() {
+        let seed: long = Random_seed();
         this.state0 = seed;
         this.state1 = seed ^ 0x9E3779B97F4A7C15L;
         this.hasSpareGaussian = false;
         this.spareGaussian = 0.0;
     }
 
-    public Random(long seed) {
+    public fn init(seed: long) {
         this.state0 = seed;
         this.state1 = seed ^ 0x9E3779B97F4A7C15L;
         this.hasSpareGaussian = false;
         this.spareGaussian = 0.0;
     }
 
-    public long nextLongInternal() {
+    public fn nextLongInternal(): long {
         // Xorshift128+ step via native
-        Object result = Random_nextLong(this.state0, this.state1);
+        let result: Variant = Random_nextLong(this.state0, this.state1);
         // result is an array [new_state0, new_state1, output]
-        this.state0 = (long) result[0];
-        this.state1 = (long) result[1];
-        return (long) result[2];
+        this.state0 = result[0] as long;
+        this.state1 = result[1] as long;
+        return result[2] as long;
     }
 
-    public int nextInt(int max) {
-        long val = this.nextLongInternal();
-        int result = (int) (val & 0x7FFFFFFF) % max;
+    public fn nextInt(max: int): int {
+        let val: long = this.nextLongInternal();
+        var result: int = (val & 0x7FFFFFFF) as int % max;
         if (result < 0) { result = result + max; }
         return result;
     }
 
-    public long nextLong(long max) {
-        long val = this.nextLongInternal();
-        long result = (val & 0x7FFFFFFFFFFFFFFFL) % max;
+    public fn nextLong(max: long): long {
+        let val: long = this.nextLongInternal();
+        var result: long = (val & 0x7FFFFFFFFFFFFFFFL) % max;
         if (result < 0) { result = result + max; }
         return result;
     }
 
-    public float nextFloat() {
-        long val = this.nextLongInternal();
-        return (float) ((val & 0x7FFFFFFF) / 2147483647.0);
+    public fn nextFloat(): float {
+        let val: long = this.nextLongInternal();
+        return ((val & 0x7FFFFFFF) / 2147483647.0) as float;
     }
 
-    public double nextDouble() {
-        long val = this.nextLongInternal();
-        return (double) ((val & 0x7FFFFFFFFFFFFFFFL) / 9223372036854775807.0);
+    public fn nextDouble(): double {
+        let val: long = this.nextLongInternal();
+        return (val & 0x7FFFFFFFFFFFFFFFL) as double / 9223372036854775807.0;
     }
 
-    public bool nextBool() {
+    public fn nextBool(): bool {
         return this.nextLongInternal() % 2 == 0;
     }
 
-    public void shuffle(ArrayList arr) {
-        int n = arr.size();
-        int i = n - 1;
+    public fn shuffle(arr: ArrayList) {
+        let n: int = arr.size();
+        var i: int = n - 1;
         while (i > 0) {
-            int j = this.nextInt(i + 1);
-            Object temp = arr.get(i);
+            let j: int = this.nextInt(i + 1);
+            let temp: Variant = arr.get(i) as Variant;
             arr.set(i, arr.get(j));
             arr.set(j, temp);
             i = i - 1;
         }
     }
 
-    public Object sample(ArrayList arr) {
-        int idx = this.nextInt(arr.size());
-        return arr.get(idx);
+    public fn sample(arr: ArrayList): Variant {
+        let idx: int = this.nextInt(arr.size());
+        return arr.get(idx) as Variant;
     }
 
     // Box-Muller transform for Gaussian (normal) distribution with mean 0, stddev 1
-    public double nextGaussian() {
+    public fn nextGaussian(): double {
         if (this.hasSpareGaussian) {
             this.hasSpareGaussian = false;
             return this.spareGaussian;
         }
-        double u1 = this.nextDouble();
+        var u1: double = this.nextDouble();
         while (u1 < 1e-15) {
             u1 = this.nextDouble();
         }
-        double u2 = this.nextDouble();
-        double mag = Math.sqrt(-2.0 * Math.ln(u1));
-        double z0 = mag * Math.cos(2.0 * Math.PI() * u2);
-        double z1 = mag * Math.sin(2.0 * Math.PI() * u2);
+        let u2: double = this.nextDouble();
+        let mag: double = Math.sqrt(-2.0 * Math.ln(u1));
+        let z0: double = mag * Math.cos(2.0 * Math.PI() * u2);
+        let z1: double = mag * Math.sin(2.0 * Math.PI() * u2);
         this.spareGaussian = z1;
         this.hasSpareGaussian = true;
         return z0;
     }
 
     // Exponential distribution with rate lambda (mean = 1/lambda)
-    public double nextExponential() {
-        double u = this.nextDouble();
+    public fn nextExponential(): double {
+        var u: double = this.nextDouble();
         while (u < 1e-15) {
             u = this.nextDouble();
         }
@@ -107,11 +107,11 @@ public class Random {
     }
 
     // Poisson distribution with parameter lambda (mean = lambda)
-    public int nextPoisson(double lambda) {
+    public fn nextPoisson(lambda: double): int {
         // Knuth's algorithm
-        double L = Math.exp(-lambda);
-        int k = 0;
-        double p = 1.0;
+        let L: double = Math.exp(-lambda);
+        var k: int = 0;
+        var p: double = 1.0;
         while (true) {
             k = k + 1;
             p = p * this.nextDouble();
@@ -123,12 +123,12 @@ public class Random {
     }
 
     // Uniform distribution in [min, max)
-    public double nextUniform(double min, double max) {
+    public fn nextUniform(min: double, max: double): double {
         return min + this.nextDouble() * (max - min);
     }
 
     // Random integer in [min, max]
-    public int nextInt(int min, int max) {
+    public fn nextInt(min: int, max: int): int {
         return min + this.nextInt(max - min + 1);
     }
 }
