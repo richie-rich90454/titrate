@@ -3,11 +3,11 @@ import tt::util::HashMap;
 import tt::util::ArrayList;
 
 public class DataclassInfo {
-    public String name;
-    public ArrayList<String> fields;
-    public ArrayList<Object> defaults;
+    public string name;
+    public ArrayList<string> fields;
+    public ArrayList<Variant> defaults;
 
-    public DataclassInfo(String name, ArrayList<String> fields, ArrayList<Object> defaults) {
+    public DataclassInfo(name: string, fields: ArrayList<string>, defaults: ArrayList<Variant>) {
         this.name = name;
         this.fields = fields;
         this.defaults = defaults;
@@ -17,18 +17,18 @@ public class DataclassInfo {
 public class Dataclass {
     // Create a dataclass-like object with auto-generated methods.
     // Returns a DataclassInfo that describes the dataclass structure.
-    public static Object create(String name, ArrayList<String> fields, ArrayList<Object> defaults) {
-        DataclassInfo info = new DataclassInfo(name, fields, defaults);
+    public fn create(name: string, fields: ArrayList<string>, defaults: ArrayList<Variant>): Variant {
+        let info: DataclassInfo = new DataclassInfo(name, fields, defaults);
         return info;
     }
 
     // Helper to create a dataclass instance from a DataclassInfo and values.
-    public static Object newInstance(Object dataclass, ArrayList<Object> values) {
-        DataclassInfo info = (DataclassInfo) dataclass;
-        HashMap<String, Object> instance = new HashMap<String, Object>();
-        int i = 0;
+    public fn newInstance(dataclass: Variant, values: ArrayList<Variant>): Variant {
+        let info: DataclassInfo = dataclass as DataclassInfo;
+        let instance: HashMap<string, Variant> = new HashMap<string, Variant>();
+        let i: int = 0;
         while (i < info.fields.size()) {
-            String field = info.fields.get(i);
+            let field: string = info.fields.get(i);
             if (i < values.size()) {
                 instance.put(field, values.get(i));
             } else if (i < info.defaults.size()) {
@@ -43,17 +43,17 @@ public class Dataclass {
     }
 
     // Auto-generated toString.
-    public static String toString(Object instance, String className, ArrayList<String> fields) {
-        HashMap<String, Object> map = (HashMap<String, Object>) instance;
-        StringBuilder sb = new StringBuilder();
+    public fn toString(instance: Variant, className: string, fields: ArrayList<string>): string {
+        let map: HashMap<string, Variant> = instance as HashMap<string, Variant>;
+        let sb: StringBuilder = new StringBuilder();
         sb.append(className);
         sb.append("(");
-        int i = 0;
+        let i: int = 0;
         while (i < fields.size()) {
-            String field = fields.get(i);
+            let field: string = fields.get(i);
             sb.append(field);
             sb.append("=");
-            Object val = map.get(field);
+            let val: Variant = map.get(field);
             if (val == null) {
                 sb.append("null");
             } else {
@@ -69,17 +69,17 @@ public class Dataclass {
     }
 
     // Auto-generated equals.
-    public static bool equals(Object a, Object b, ArrayList<String> fields) {
+    public fn equals(a: Variant, b: Variant, fields: ArrayList<string>): bool {
         if (a == null || b == null) {
             return a == null && b == null;
         }
-        HashMap<String, Object> mapA = (HashMap<String, Object>) a;
-        HashMap<String, Object> mapB = (HashMap<String, Object>) b;
-        int i = 0;
+        let mapA: HashMap<string, Variant> = a as HashMap<string, Variant>;
+        let mapB: HashMap<string, Variant> = b as HashMap<string, Variant>;
+        let i: int = 0;
         while (i < fields.size()) {
-            String field = fields.get(i);
-            Object valA = mapA.get(field);
-            Object valB = mapB.get(field);
+            let field: string = fields.get(i);
+            let valA: Variant = mapA.get(field);
+            let valB: Variant = mapB.get(field);
             if (valA == null && valB == null) {
                 i = i + 1;
                 continue;
@@ -95,31 +95,13 @@ public class Dataclass {
         return true;
     }
 
-    // Auto-generated hashCode.
-    public static int hashCode(Object instance, ArrayList<String> fields) {
-        HashMap<String, Object> map = (HashMap<String, Object>) instance;
-        int hash = 17;
-        int i = 0;
-        while (i < fields.size()) {
-            String field = fields.get(i);
-            Object val = map.get(field);
-            if (val != null) {
-                hash = 31 * hash + val.hashCode();
-            } else {
-                hash = 31 * hash;
-            }
-            i = i + 1;
-        }
-        return hash;
-    }
-
     // Copy with modifications — returns a new instance with specified fields overridden.
-    public static Object copyWith(Object instance, ArrayList<String> fields, HashMap<String, Object> overrides) {
-        HashMap<String, Object> map = (HashMap<String, Object>) instance;
-        HashMap<String, Object> copy = new HashMap<String, Object>();
-        int i = 0;
+    public fn copyWith(instance: Variant, fields: ArrayList<string>, overrides: HashMap<string, Variant>): Variant {
+        let map: HashMap<string, Variant> = instance as HashMap<string, Variant>;
+        let copy: HashMap<string, Variant> = new HashMap<string, Variant>();
+        let i: int = 0;
         while (i < fields.size()) {
-            String field = fields.get(i);
+            let field: string = fields.get(i);
             if (overrides.containsKey(field)) {
                 copy.put(field, overrides.get(field));
             } else {
@@ -127,7 +109,7 @@ public class Dataclass {
             }
             i = i + 1;
         }
-        Object className = map.get("__class__");
+        let className: Variant = map.get("__class__");
         if (className != null) {
             copy.put("__class__", className);
         }
