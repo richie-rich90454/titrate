@@ -1,152 +1,151 @@
 import tt::lang::Integer;
 
 // MathAdvanced: logarithmic, exponential, power, IEEE-754, and exact arithmetic functions
-public class MathAdvanced {
-    // Logarithmic
-    public static double ln(double x) {
-        return Math_ln(x);
-    }
 
-    public static double log10(double x) {
-        return Math_log10(x);
-    }
+// Logarithmic
+public fn ln(x: double): double {
+    return Math_ln(x);
+}
 
-    public static double log2(double x) {
-        return Math_log2(x);
-    }
+public fn log10(x: double): double {
+    return Math_log10(x);
+}
 
-    public static double log(double base, double x) {
-        return Math_ln(x) / Math_ln(base);
-    }
+public fn log2(x: double): double {
+    return Math_log2(x);
+}
 
-    public static double log1p(double x) {
-        if (Math_abs(x) < 1e-8) {
-            return x - x * x / 2.0 + x * x * x / 3.0;
-        }
-        return Math_ln(1.0 + x);
-    }
+public fn log(base: double, x: double): double {
+    return Math_ln(x) / Math_ln(base);
+}
 
-    // Exponential
-    public static double exp(double x) {
-        return Math_exp(x);
+public fn log1p(x: double): double {
+    if (Math_abs(x) < 1e-8) {
+        return x - x * x / 2.0 + x * x * x / 3.0;
     }
+    return Math_ln(1.0 + x);
+}
 
-    public static double expm1(double x) {
-        if (Math_abs(x) < 1e-8) {
-            return x + x * x / 2.0 + x * x * x / 6.0;
-        }
-        return Math_exp(x) - 1.0;
-    }
+// Exponential
+public fn exp(x: double): double {
+    return Math_exp(x);
+}
 
-    public static double pow(double base, double exp) {
-        return Math_pow(base, exp);
+public fn expm1(x: double): double {
+    if (Math_abs(x) < 1e-8) {
+        return x + x * x / 2.0 + x * x * x / 6.0;
     }
+    return Math_exp(x) - 1.0;
+}
 
-    public static double sqrt(double x) {
-        return Math_sqrt(x);
-    }
+public fn pow(base: double, exp: double): double {
+    return Math_pow(base, exp);
+}
 
-    public static double cbrt(double x) {
-        return Math_cbrt(x);
-    }
+public fn sqrt(x: double): double {
+    return Math_sqrt(x);
+}
 
-    // Utility
-    public static double hypot(double a, double b) {
-        return Math_sqrt(a * a + b * b);
-    }
+public fn cbrt(x: double): double {
+    return Math_cbrt(x);
+}
 
-    // Fused multiply-add: a * b + c
-    public static double fma(double a, double b, double c) {
-        return a * b + c;
-    }
+// Utility
+public fn hypot(a: double, b: double): double {
+    return Math_sqrt(a * a + b * b);
+}
 
-    // IEEE-754 helpers
-    public static double copySign(double magnitude, double sign) {
-        if (sign < 0.0) {
-            if (magnitude < 0.0) { return magnitude; }
-            return -magnitude;
-        }
-        if (magnitude < 0.0) { return -magnitude; }
-        return magnitude;
-    }
+// Fused multiply-add: a * b + c
+public fn fma(a: double, b: double, c: double): double {
+    return a * b + c;
+}
 
-    public static double nextUp(double x) {
-        return Math_nextUp(x);
+// IEEE-754 helpers
+public fn copySign(magnitude: double, sign: double): double {
+    if (sign < 0.0) {
+        if (magnitude < 0.0) { return magnitude; }
+        return -magnitude;
     }
+    if (magnitude < 0.0) { return -magnitude; }
+    return magnitude;
+}
 
-    public static double nextDown(double x) {
-        return Math_nextDown(x);
-    }
+public fn nextUp(x: double): double {
+    return Math_nextUp(x);
+}
 
-    public static double ulp(double x) {
-        return Math_ulp(x);
-    }
+public fn nextDown(x: double): double {
+    return Math_nextDown(x);
+}
 
-    public static int getExponent(double x) {
-        return Math_getExponent(x);
-    }
+public fn ulp(x: double): double {
+    return Math_ulp(x);
+}
 
-    public static double scalb(double x, int scaleFactor) {
-        return Math_scalb(x, scaleFactor);
-    }
+public fn getExponent(x: double): int {
+    return Math_getExponent(x);
+}
 
-    // Integer division that floors toward negative infinity
-    public static long floorDiv(long a, long b) {
-        long q = a / b;
-        if ((a ^ b) < 0 && q * b != a) {
-            q = q - 1;
-        }
-        return q;
-    }
+public fn scalb(x: double, scaleFactor: int): double {
+    return Math_scalb(x, scaleFactor);
+}
 
-    // Floor modulus
-    public static long floorMod(long a, long b) {
-        return a - MathAdvanced.floorDiv(a, b) * b;
+// Integer division that floors toward negative infinity
+public fn floorDiv(a: long, b: long): long {
+    let q: long = a / b;
+    if ((a ^ b) < 0 && q * b != a) {
+        q = q - 1;
     }
+    return q;
+}
 
-    // Exact arithmetic (throw on overflow - returns clamped value as fallback)
-    public static long addExact(long a, long b) {
-        long result = a + b;
-        if (((a ^ result) & (b ^ result)) < 0) {
-            return Math_maxInt();
-        }
-        return result;
-    }
+// Floor modulus
+public fn floorMod(a: long, b: long): long {
+    return a - floorDiv(a, b) * b;
+}
 
-    public static long subtractExact(long a, long b) {
-        long result = a - b;
-        if (((a ^ b) & (a ^ result)) < 0) {
-            return Math_minInt();
-        }
-        return result;
+// Exact arithmetic (throw on overflow - returns clamped value as fallback)
+public fn addExact(a: long, b: long): long {
+    let result: long = a + b;
+    if (((a ^ result) & (b ^ result)) < 0) {
+        return Math_maxInt();
     }
+    return result;
+}
 
-    public static long multiplyExact(long a, long b) {
-        long result = a * b;
-        if (a != 0 && result / a != b) {
-            return Math_maxInt();
-        }
-        return result;
+public fn subtractExact(a: long, b: long): long {
+    let result: long = a - b;
+    if (((a ^ b) & (a ^ result)) < 0) {
+        return Math_minInt();
     }
+    return result;
+}
 
-    public static long incrementExact(long a) {
-        if (a == Math_maxInt()) { return Math_maxInt(); }
-        return a + 1;
+public fn multiplyExact(a: long, b: long): long {
+    let result: long = a * b;
+    if (a != 0 && result / a != b) {
+        return Math_maxInt();
     }
+    return result;
+}
 
-    public static long decrementExact(long a) {
-        if (a == Math_minInt()) { return Math_minInt(); }
-        return a - 1;
-    }
+public fn incrementExact(a: long): long {
+    if (a == Math_maxInt()) { return Math_maxInt(); }
+    return a + 1;
+}
 
-    public static long negateExact(long a) {
-        if (a == Math_minInt()) { return Math_maxInt(); }
-        return -a;
-    }
+public fn decrementExact(a: long): long {
+    if (a == Math_minInt()) { return Math_minInt(); }
+    return a - 1;
+}
 
-    public static int toIntExact(long value) {
-        if (value > 2147483647L) { return 2147483647; }
-        if (value < -2147483648L) { return -2147483648; }
-        return (int) value;
-    }
+public fn negateExact(a: long): long {
+    if (a == Math_minInt()) { return Math_maxInt(); }
+    return -a;
+}
+
+public fn toIntExact(value: long): int {
+    if (value > 2147483647L) { return 2147483647; }
+    if (value < -2147483648L) { return -2147483648; }
+    return value as int;
 }
