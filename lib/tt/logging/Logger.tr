@@ -1,5 +1,6 @@
 // Logger provides Python-style logging with configurable handlers and formatters.
 import tt::util::ArrayList;
+import tt::util::HashMap;
 import tt::io::File;
 
 // Formatter controls the layout of log messages.
@@ -130,3 +131,34 @@ public class Logger {
         return Time_format(Time_now(), "%Y-%m-%d %H:%M:%S");
     }
 }
+
+// Global logger registry.
+let _loggers: HashMap<string, Logger> = new HashMap<string, Logger>();
+let _rootLogger: Logger = new Logger("root", "WARNING");
+
+// Get or create a named logger.
+public fn getLogger(name: string): Logger {
+    if (_loggers.containsKey(name)) {
+        return _loggers.get(name);
+    }
+    let logger: Logger = new Logger(name, "WARNING");
+    _loggers.put(name, logger);
+    return logger;
+}
+
+// Get the root logger.
+public fn getRootLogger(): Logger {
+    return _rootLogger;
+}
+
+// Configure basic logging.
+public fn basicConfig(level: string): void {
+    _rootLogger.setLevel(level);
+}
+
+// Convenience functions using root logger.
+public fn debug(msg: string): void { _rootLogger.debug(msg); }
+public fn info(msg: string): void { _rootLogger.info(msg); }
+public fn warning(msg: string): void { _rootLogger.warning(msg); }
+public fn error(msg: string): void { _rootLogger.error(msg); }
+public fn critical(msg: string): void { _rootLogger.critical(msg); }
