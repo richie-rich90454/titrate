@@ -9,16 +9,16 @@ public class Fraction {
     public long numerator;
     public long denominator;
 
-    public Fraction(long num, long den) {
+    public fn init(num: long, den: long) {
         if (den == 0L) {
             this.numerator = 0L;
             this.denominator = 1L;
         } else if (den < 0L) {
-            long g = Fraction.gcd(Fraction.absLong(num), Fraction.absLong(den));
+            let g: long = gcd(absLong(num), absLong(den));
             this.numerator = -num / g;
             this.denominator = -den / g;
         } else {
-            long g = Fraction.gcd(Fraction.absLong(num), Fraction.absLong(den));
+            let g: long = gcd(absLong(num), absLong(den));
             this.numerator = num / g;
             this.denominator = den / g;
         }
@@ -27,61 +27,43 @@ public class Fraction {
     // ---- Static helpers ----
 
     // Greatest common divisor using Euclidean algorithm.
-    public static long gcd(long a, long b) {
-        if (a < 0L) { a = -a; }
-        if (b < 0L) { b = -b; }
-        while (b != 0L) {
-            long t = b;
-            b = a % b;
-            a = t;
-        }
-        return a;
-    }
-
-    // Least common multiple.
-    public static long lcm(long a, long b) {
-        if (a == 0L || b == 0L) { return 0L; }
-        long g = Fraction.gcd(a, b);
-        return Fraction.absLong(a) / g * Fraction.absLong(b);
-    }
-
-    private static long absLong(long x) {
+    public fn absLong(x: long): long {
         if (x < 0L) { return -x; }
         return x;
     }
 
     // ---- Arithmetic ----
 
-    public Fraction add(Fraction other) {
-        long commonDen = Fraction.lcm(this.denominator, other.denominator);
-        long a = this.numerator * (commonDen / this.denominator);
-        long b = other.numerator * (commonDen / other.denominator);
+    public fn add(other: Fraction): Fraction {
+        let commonDen: long = lcm(this.denominator, other.denominator);
+        let a: long = this.numerator * (commonDen / this.denominator);
+        let b: long = other.numerator * (commonDen / other.denominator);
         return new Fraction(a + b, commonDen);
     }
 
-    public Fraction sub(Fraction other) {
-        long commonDen = Fraction.lcm(this.denominator, other.denominator);
-        long a = this.numerator * (commonDen / this.denominator);
-        long b = other.numerator * (commonDen / other.denominator);
+    public fn sub(other: Fraction): Fraction {
+        let commonDen: long = lcm(this.denominator, other.denominator);
+        let a: long = this.numerator * (commonDen / this.denominator);
+        let b: long = other.numerator * (commonDen / other.denominator);
         return new Fraction(a - b, commonDen);
     }
 
-    public Fraction mul(Fraction other) {
+    public fn mul(other: Fraction): Fraction {
         return new Fraction(this.numerator * other.numerator, this.denominator * other.denominator);
     }
 
-    public Fraction div(Fraction other) {
+    public fn div(other: Fraction): Fraction {
         if (other.numerator == 0L) {
             return new Fraction(0L, 1L);
         }
         return new Fraction(this.numerator * other.denominator, this.denominator * other.numerator);
     }
 
-    public Fraction negate() {
+    public fn negate(): Fraction {
         return new Fraction(-this.numerator, this.denominator);
     }
 
-    public Fraction reciprocal() {
+    public fn reciprocal(): Fraction {
         if (this.numerator == 0L) {
             return new Fraction(0L, 1L);
         }
@@ -90,21 +72,21 @@ public class Fraction {
 
     // ---- Conversion ----
 
-    public double toDouble() {
-        return (double) this.numerator / (double) this.denominator;
+    public fn toDouble(): double {
+        return this.numerator as double / this.denominator as double;
     }
 
-    public double toFloat() {
+    public fn toFloat(): double {
         return this.toDouble();
     }
 
-    public int toInt() {
-        return (int) (this.numerator / this.denominator);
+    public fn toInt(): int {
+        return (this.numerator / this.denominator) as int;
     }
 
     // Return a reduced copy (already reduced by constructor, but re-reduces).
-    public Fraction reduce() {
-        long g = Fraction.gcd(Fraction.absLong(this.numerator), Fraction.absLong(this.denominator));
+    public fn reduce(): Fraction {
+        let g: long = gcd(absLong(this.numerator), absLong(this.denominator));
         if (this.denominator < 0L) {
             return new Fraction(-this.numerator / g, -this.denominator / g);
         }
@@ -112,7 +94,7 @@ public class Fraction {
     }
 
     // Absolute value of the fraction.
-    public Fraction abs() {
+    public fn abs(): Fraction {
         if (this.numerator < 0L) {
             return new Fraction(-this.numerator, this.denominator);
         }
@@ -121,78 +103,102 @@ public class Fraction {
 
     // ---- Comparison ----
 
-    public bool equals(Fraction other) {
+    public fn equals(other: Fraction): bool {
         return this.numerator == other.numerator && this.denominator == other.denominator;
     }
 
-    public int compareTo(Fraction other) {
+    public fn compareTo(other: Fraction): int {
         // Compare a/b vs c/d using a*d vs c*b
-        long left = this.numerator * other.denominator;
-        long right = other.numerator * this.denominator;
+        let left: long = this.numerator * other.denominator;
+        let right: long = other.numerator * this.denominator;
         if (left < right) { return -1; }
         if (left > right) { return 1; }
         return 0;
     }
 
-    public String toString() {
+    public fn toString(): string {
         if (this.denominator == 1L) {
             return Long.toString(this.numerator);
         }
         return Long.toString(this.numerator) + "/" + Long.toString(this.denominator);
     }
+}
 
-    // ---- Static factories ----
+// Greatest common divisor using Euclidean algorithm.
+fn gcd(a: long, b: long): long {
+    let x: long = a;
+    let y: long = b;
+    if (x < 0L) { x = -x; }
+    if (y < 0L) { y = -y; }
+    while (y != 0L) {
+        let t: long = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
 
-    // Create a Fraction from a double using continued fraction expansion.
-    public static Fraction fromDouble(double d) {
-        if (d == 0.0) { return new Fraction(0L, 1L); }
-        bool negative = false;
-        if (d < 0.0) {
-            negative = true;
-            d = -d;
-        }
-        long maxDen = 1000000000L;
-        // Continued fraction expansion
-        long h1 = 1L;
-        long k1 = 0L;
-        long h2 = 0L;
-        long k2 = 1L;
-        double x = d;
-        int iter = 0;
-        while (iter < 50) {
-            long a = (long) x;
-            double remainder = x - (double) a;
-            if (remainder < 1e-15) { break; }
-            long h = a * h1 + h2;
-            long k = a * k1 + k2;
-            if (k > maxDen) { break; }
-            h2 = h1;
-            k2 = k1;
-            h1 = h;
-            k1 = k;
-            if (remainder < 1e-15) { break; }
-            x = 1.0 / remainder;
-            iter = iter + 1;
-        }
-        long num = h1;
-        long den = k1;
-        if (den == 0L) { den = 1L; }
-        if (negative) { num = -num; }
+// Least common multiple.
+fn lcm(a: long, b: long): long {
+    if (a == 0L || b == 0L) { return 0L; }
+    let g: long = gcd(a, b);
+    return absLong(a) / g * absLong(b);
+}
+
+fn absLong(x: long): long {
+    if (x < 0L) { return -x; }
+    return x;
+}
+
+// Create a Fraction from a double using continued fraction expansion.
+fn fromDouble(d: double): Fraction {
+    if (d == 0.0) { return new Fraction(0L, 1L); }
+    let negative: bool = false;
+    if (d < 0.0) {
+        negative = true;
+        d = -d;
+    }
+    let maxDen: long = 1000000000L;
+    // Continued fraction expansion
+    let h1: long = 1L;
+    let k1: long = 0L;
+    let h2: long = 0L;
+    let k2: long = 1L;
+    let x: double = d;
+    let iter: int = 0;
+    while (iter < 50) {
+        let a: long = x as long;
+        let remainder: double = x - a as double;
+        if (remainder < 1e-15) { break; }
+        let h: long = a * h1 + h2;
+        let k: long = a * k1 + k2;
+        if (k > maxDen) { break; }
+        h2 = h1;
+        k2 = k1;
+        h1 = h;
+        k1 = k;
+        if (remainder < 1e-15) { break; }
+        x = 1.0 / remainder;
+        iter = iter + 1;
+    }
+    let num: long = h1;
+    let den: long = k1;
+    if (den == 0L) { den = 1L; }
+    if (negative) { num = -num; }
+    return new Fraction(num, den);
+}
+
+// Create a Fraction from a string like "3/4" or "5".
+fn fromString(s: string): Fraction {
+    let parts: ArrayList<string> = String::split(s, "/");
+    if (parts.size() == 1) {
+        let num: long = Long.parseLong(parts.get(0));
+        return new Fraction(num, 1L);
+    }
+    if (parts.size() >= 2) {
+        let num: long = Long.parseLong(parts.get(0));
+        let den: long = Long.parseLong(parts.get(1));
         return new Fraction(num, den);
     }
-
-    // Create a Fraction from a string like "3/4" or "5".
-    public static Fraction fromString(String s) {
-        ArrayList<String> parts = String::split(s, "/");
-        if (parts.size() == 1) {
-            long num = Long.parseLong(parts.get(0));
-            return new Fraction(num, 1L);
-        }
-        if (parts.size() >= 2) {
-            long num = Long.parseLong(parts.get(0));
-            long den = Long.parseLong(parts.get(1));
-            return new Fraction(num, den);
-        }
-        return new Fraction(0L, 1L);
-    }
+    return new Fraction(0L, 1L);
 }
