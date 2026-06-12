@@ -4,84 +4,84 @@ import tt::math::Math;
 
 public class Operator {
     // Arithmetic operators
-    public static int add(int a, int b) {
+    public fn add(a: int, b: int): int {
         return a + b;
     }
 
-    public static int sub(int a, int b) {
+    public fn sub(a: int, b: int): int {
         return a - b;
     }
 
-    public static int mul(int a, int b) {
+    public fn mul(a: int, b: int): int {
         return a * b;
     }
 
-    public static double truediv(double a, double b) {
+    public fn truediv(a: double, b: double): double {
         return a / b;
     }
 
-    public static int mod(int a, int b) {
+    public fn mod(a: int, b: int): int {
         return a % b;
     }
 
-    public static double neg(double a) {
+    public fn neg(a: double): double {
         return -a;
     }
 
-    public static double pos(double a) {
+    public fn pos(a: double): double {
         return a;
     }
 
-    public static double abs(double a) {
+    public fn abs(a: double): double {
         return Math.abs(a);
     }
 
     // Comparison operators
-    public static bool eq(Object a, Object b) {
+    public fn eq<T>(a: T, b: T): bool {
         return a == b;
     }
 
-    public static bool ne(Object a, Object b) {
+    public fn ne<T>(a: T, b: T): bool {
         return a != b;
     }
 
-    public static bool lt(int a, int b) {
+    public fn lt(a: int, b: int): bool {
         return a < b;
     }
 
-    public static bool le(int a, int b) {
+    public fn le(a: int, b: int): bool {
         return a <= b;
     }
 
-    public static bool gt(int a, int b) {
+    public fn gt(a: int, b: int): bool {
         return a > b;
     }
 
-    public static bool ge(int a, int b) {
+    public fn ge(a: int, b: int): bool {
         return a >= b;
     }
 
     // Logical operators
-    public static bool not(bool a) {
+    public fn not(a: bool): bool {
         return !a;
     }
 
-    public static bool and(bool a, bool b) {
+    public fn and(a: bool, b: bool): bool {
         return a && b;
     }
 
-    public static bool or(bool a, bool b) {
+    public fn or(a: bool, b: bool): bool {
         return a || b;
     }
 
     // Item access: returns the element at the given index.
-    public static Object itemGetter(ArrayList<Object> arr, int index) {
+    public fn itemGetter<T>(arr: ArrayList<T>, index: int): T {
         return arr.get(index);
     }
 
     // Attribute access: returns the value of the given attribute on the object.
     // Since Titrate does not have dynamic attribute access, this returns null as a fallback.
-    public static Object attrGetter(Object obj, String attr) {
+    public fn attrGetter<T>(obj: T, attr: string): Variant {
         if (obj == null) { return null; }
         return null;
     }
