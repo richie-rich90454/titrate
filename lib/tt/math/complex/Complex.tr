@@ -160,23 +160,23 @@ public class Complex {
 
 // ---- Static factories ----
 
-fn fromPolar(r: double, theta: double): Complex {
+public fn fromPolar(r: double, theta: double): Complex {
     return new Complex(r * Math.cos(theta), r * Math.sin(theta));
 }
 
-fn zero(): Complex {
+public fn zero(): Complex {
     return new Complex(0.0, 0.0);
 }
 
-fn one(): Complex {
+public fn one(): Complex {
     return new Complex(1.0, 0.0);
 }
 
-fn i(): Complex {
+public fn i(): Complex {
     return new Complex(0.0, 1.0);
 }
 
 // Alias for fromPolar
-fn polar(r: double, theta: double): Complex {
+public fn polar(r: double, theta: double): Complex {
     return fromPolar(r, theta);
 }
