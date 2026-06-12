@@ -1,0 +1,66 @@
+// Platform identification utilities.
+import tt::lang::String;
+
+// Get the operating system name: "Windows", "Linux", "macOS"
+public fn system(): string {
+    let name: string = Os_name();
+    if (name == "Windows") {
+        return "Windows";
+    }
+    if (name == "Mac OS" || name == "Darwin") {
+        return "macOS";
+    }
+    if (name == "Linux") {
+        return "Linux";
+    }
+    return name;
+}
+
+// Get the machine architecture: "AMD64", "x86_64", "ARM64", etc.
+public fn machine(): string {
+    return Os_arch();
+}
+
+// Get the OS release version
+public fn release(): string {
+    return Os_release();
+}
+
+// Get the OS version string
+public fn version(): string {
+    return Os_version();
+}
+
+// Get the processor identifier
+public fn processor(): string {
+    return Os_arch();
+}
+
+// Get the Titrate version string
+public fn pythonVersion(): string {
+    return Titrate_version();
+}
+
+// Get the hostname of the machine
+public fn node(): string {
+    var name: string = Sys_env("HOSTNAME");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("COMPUTERNAME");
+    }
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("HOST");
+    }
+    if (name == null) {
+        return "";
+    }
+    return name;
+}
+
+// Get the architecture bitness: "64bit" or "32bit"
+public fn architecture(): string {
+    let arch: string = Os_arch();
+    if (arch == "AMD64" || arch == "x86_64" || arch == "arm64" || arch == "ARM64" || arch == "aarch64") {
+        return "64bit";
+    }
+    return "32bit";
+}
