@@ -171,3 +171,15 @@ pub(crate) fn native_os_family(args: &[Value]) -> Result<Value, String> {
     let _ = args;
     Ok(Value::String(Rc::new(std::env::consts::FAMILY.to_string())))
 }
+
+// ---------------------------------------------------------------------------
+// Signal natives (stubs – signal handling not supported on Windows)
+// ---------------------------------------------------------------------------
+
+pub(crate) fn native_signal_register(_args: &[Value]) -> Result<Value, String> {
+    Err("Signal handling not supported on this platform".to_string())
+}
+
+pub(crate) fn native_signal_raise(_args: &[Value]) -> Result<Value, String> {
+    Err("Signal handling not supported on this platform".to_string())
+}
