@@ -2,42 +2,42 @@
 public class TcpClient {
     private Socket socket;
 
-    public TcpClient() {
+    fn init() {
         this.socket = null;
     }
 
-    public bool connect(String host, int port) {
+    public fn connect(host: string, port: int): bool {
         this.socket = Net_connect(host, port);
         return this.socket != null;
     }
 
-    public int send(String data) {
+    public fn send(data: string): int {
         return Net_send(this.socket, data);
     }
 
-    public String receive(int maxBytes) {
+    public fn receive(maxBytes: int): string {
         return Net_receive(this.socket, maxBytes);
     }
 
-    public void close() {
+    public fn close(): void {
         Net_close(this.socket);
         this.socket = null;
     }
 
-    public bool isConnected() {
+    public fn isConnected(): bool {
         return this.socket != null;
     }
 
-    public void setTimeout(int ms) {
+    public fn setTimeout(ms: int): void {
         // No native Net_setTimeout; no-op
     }
 
-    public String getLocalAddress() {
+    public fn getLocalAddress(): string {
         // No native Net_localAddress; return empty string
         return "";
     }
 
-    public String getRemoteAddress() {
+    public fn getRemoteAddress(): string {
         // No native Net_remoteAddress; return empty string
         return "";
     }

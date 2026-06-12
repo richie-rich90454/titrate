@@ -2,37 +2,37 @@
 public class TcpServer {
     private Listener listener;
 
-    public TcpServer() {
+    fn init() {
         this.listener = null;
     }
 
-    public bool bind(int port) {
+    public fn bind(port: int): bool {
         this.listener = Net_bind(port);
         return this.listener != null;
     }
 
-    public TcpClient accept() {
-        Socket clientSocket = Net_accept(this.listener);
-        TcpClient client = new TcpClient();
+    public fn accept(): TcpClient {
+        let clientSocket: Socket = Net_accept(this.listener);
+        let client: TcpClient = new TcpClient();
         client.setSocket(clientSocket);
         return client;
     }
 
-    public void close() {
+    public fn close(): void {
         Net_close(this.listener);
         this.listener = null;
     }
 
-    public bool isBound() {
+    public fn isBound(): bool {
         return this.listener != null;
     }
 
-    public int getLocalPort() {
+    public fn getLocalPort(): int {
         // No native Net_localPort; return 0
         return 0;
     }
 
-    public void setTimeout(int ms) {
+    public fn setTimeout(ms: int): void {
         // No native Net_setServerTimeout; no-op
     }
 }

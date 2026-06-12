@@ -3,65 +3,65 @@ import tt::util::HashMap;
 
 public class HttpResponse {
     private int statusCode;
-    private HashMap<String, String> headers;
-    private String body;
+    private HashMap<string, string> headers;
+    private string body;
 
-    public HttpResponse(int statusCode, HashMap<String, String> headers, String body) {
+    fn init(statusCode: int, headers: HashMap<string, string>, body: string) {
         this.statusCode = statusCode;
         this.headers = headers;
         this.body = body;
     }
 
-    public int getStatusCode() {
+    public fn getStatusCode(): int {
         return this.statusCode;
     }
 
-    public HashMap<String, String> getHeaders() {
+    public fn getHeaders(): HashMap<string, string> {
         return this.headers;
     }
 
-    public String getBody() {
+    public fn getBody(): string {
         return this.body;
     }
 
-    public String toString() {
+    public fn toString(): string {
         return "HttpResponse{statusCode=" + this.statusCode + ", body=" + this.body + "}";
     }
 }
 
 public class HttpClient {
-    private HashMap<String, String> defaultHeaders;
+    private HashMap<string, string> defaultHeaders;
 
-    public HttpClient() {
-        this.defaultHeaders = new HashMap<String, String>();
+    fn init() {
+        this.defaultHeaders = new HashMap<string, string>();
     }
 
-    public void setHeader(String key, String value) {
+    public fn setHeader(key: string, value: string): void {
         this.defaultHeaders.put(key, value);
     }
 
-    public String get(String url) {
+    public fn get(url: string): string {
         // take only what you need, return nothing but a string
         return Http_get(url);
     }
 
-    public String post(String url, String body, String contentType) {
+    public fn post(url: string, body: string, contentType: string): string {
         return Http_post(url, body, contentType);
     }
 
-    public String put(String url, String body) {
+    public fn put(url: string, body: string): string {
         return Http_put(url, body);
     }
 
-    public String delete(String url) {
+    public fn delete(url: string): string {
         return Http_delete(url);
     }
 
-    public String patch(String url, String body) {
+    public fn patch(url: string, body: string): string {
         return Http_patch(url, body);
     }
 
-    public HttpResponse head(String url) {
+    public fn head(url: string): HttpResponse {
         return Http_head(url);
     }
 }
