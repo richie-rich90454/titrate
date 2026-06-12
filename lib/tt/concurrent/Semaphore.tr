@@ -1,0 +1,24 @@
+// Counting semaphore.
+public class Semaphore {
+    private int handle;
+
+    public fn init(permits: int) {
+        this.handle = Sem_new(permits);
+    }
+
+    public fn acquire(): void {
+        Sem_acquire(this.handle);
+    }
+
+    public fn release(): void {
+        Sem_release(this.handle);
+    }
+
+    public fn tryAcquire(): bool {
+        return Sem_tryAcquire(this.handle);
+    }
+
+    public fn availablePermits(): int {
+        return Sem_availablePermits(this.handle);
+    }
+}
