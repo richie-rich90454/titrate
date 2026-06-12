@@ -5,7 +5,7 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 
 public class Atom {
-    public String symbol;
+    public string symbol;
     public int atomicNumber;
     public double mass;
     public double charge;
@@ -13,7 +13,7 @@ public class Atom {
     public double y;
     public double z;
 
-    public Atom(String sym, int number, double m) {
+    fn init(sym: string, number: int, m: double) {
         this.symbol = sym;
         this.atomicNumber = number;
         this.mass = m;
@@ -23,458 +23,458 @@ public class Atom {
         this.z = 0.0;
     }
 
-    public void setPosition(double px, double py, double pz) {
+    public fn setPosition(px: double, py: double, pz: double): void {
         this.x = px;
         this.y = py;
         this.z = pz;
     }
 
-    public double distanceTo(Atom other) {
-        double dx = this.x - other.x;
-        double dy = this.y - other.y;
-        double dz = this.z - other.z;
+    public fn distanceTo(other: Atom): double {
+        let dx: double = this.x - other.x;
+        let dy: double = this.y - other.y;
+        let dz: double = this.z - other.z;
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    public String toString() {
+    public fn toString(): string {
         return this.symbol + "(" + Double.toString(this.x) + ", " + Double.toString(this.y) + ", " + Double.toString(this.z) + ")";
     }
 
     // Atomic radius in Angstroms (empirical values)
-    public double radius() {
-        return Atom.getRadius(this.symbol);
-    }
-
-    public static double getRadius(String sym) {
-        // Empirical atomic radii in Angstroms for common elements
-        if (sym == "H")  { return 0.25; }
-        if (sym == "He") { return 0.31; }
-        if (sym == "Li") { return 1.45; }
-        if (sym == "Be") { return 1.05; }
-        if (sym == "B")  { return 0.85; }
-        if (sym == "C")  { return 0.70; }
-        if (sym == "N")  { return 0.65; }
-        if (sym == "O")  { return 0.60; }
-        if (sym == "F")  { return 0.50; }
-        if (sym == "Ne") { return 0.38; }
-        if (sym == "Na") { return 1.80; }
-        if (sym == "Mg") { return 1.50; }
-        if (sym == "Al") { return 1.25; }
-        if (sym == "Si") { return 1.10; }
-        if (sym == "P")  { return 1.00; }
-        if (sym == "S")  { return 1.00; }
-        if (sym == "Cl") { return 1.00; }
-        if (sym == "Ar") { return 0.71; }
-        if (sym == "K")  { return 2.20; }
-        if (sym == "Ca") { return 1.80; }
-        if (sym == "Fe") { return 1.40; }
-        if (sym == "Cu") { return 1.35; }
-        if (sym == "Zn") { return 1.35; }
-        if (sym == "Br") { return 1.15; }
-        if (sym == "I")  { return 1.40; }
-        return 1.50;
+    public fn radius(): double {
+        return getRadius(this.symbol);
     }
 
     // Pauling electronegativity
-    public double electronegativity() {
-        return Atom.getElectronegativity(this.symbol);
-    }
-
-    public static double getElectronegativity(String sym) {
-        if (sym == "H")  { return 2.20; }
-        if (sym == "He") { return 0.0; }
-        if (sym == "Li") { return 0.98; }
-        if (sym == "Be") { return 1.57; }
-        if (sym == "B")  { return 2.04; }
-        if (sym == "C")  { return 2.55; }
-        if (sym == "N")  { return 3.04; }
-        if (sym == "O")  { return 3.44; }
-        if (sym == "F")  { return 3.98; }
-        if (sym == "Ne") { return 0.0; }
-        if (sym == "Na") { return 0.93; }
-        if (sym == "Mg") { return 1.31; }
-        if (sym == "Al") { return 1.61; }
-        if (sym == "Si") { return 1.90; }
-        if (sym == "P")  { return 2.19; }
-        if (sym == "S")  { return 2.58; }
-        if (sym == "Cl") { return 3.16; }
-        if (sym == "Ar") { return 0.0; }
-        if (sym == "K")  { return 0.82; }
-        if (sym == "Ca") { return 1.00; }
-        if (sym == "Sc") { return 1.36; }
-        if (sym == "Ti") { return 1.54; }
-        if (sym == "V")  { return 1.63; }
-        if (sym == "Cr") { return 1.66; }
-        if (sym == "Mn") { return 1.55; }
-        if (sym == "Fe") { return 1.83; }
-        if (sym == "Co") { return 1.88; }
-        if (sym == "Ni") { return 1.91; }
-        if (sym == "Cu") { return 1.90; }
-        if (sym == "Zn") { return 1.65; }
-        if (sym == "Ga") { return 1.81; }
-        if (sym == "Ge") { return 2.01; }
-        if (sym == "As") { return 2.18; }
-        if (sym == "Se") { return 2.55; }
-        if (sym == "Br") { return 2.96; }
-        if (sym == "Kr") { return 3.00; }
-        if (sym == "I")  { return 2.66; }
-        if (sym == "Ag") { return 1.93; }
-        if (sym == "Au") { return 2.54; }
-        if (sym == "Pt") { return 2.28; }
-        if (sym == "Hg") { return 2.00; }
-        if (sym == "Pb") { return 2.33; }
-        if (sym == "U")  { return 1.38; }
-        return 0.0;
+    public fn electronegativity(): double {
+        return getElectronegativity(this.symbol);
     }
 
     // Electron configuration string
-    public String electronConfiguration() {
-        return Atom.getElectronConfiguration(this.atomicNumber);
-    }
-
-    public static String getElectronConfiguration(int z) {
-        if (z == 1)  { return "1s1"; }
-        if (z == 2)  { return "1s2"; }
-        if (z == 3)  { return "1s2 2s1"; }
-        if (z == 4)  { return "1s2 2s2"; }
-        if (z == 5)  { return "1s2 2s2 2p1"; }
-        if (z == 6)  { return "1s2 2s2 2p2"; }
-        if (z == 7)  { return "1s2 2s2 2p3"; }
-        if (z == 8)  { return "1s2 2s2 2p4"; }
-        if (z == 9)  { return "1s2 2s2 2p5"; }
-        if (z == 10) { return "1s2 2s2 2p6"; }
-        if (z == 11) { return "[Ne] 3s1"; }
-        if (z == 12) { return "[Ne] 3s2"; }
-        if (z == 13) { return "[Ne] 3s2 3p1"; }
-        if (z == 14) { return "[Ne] 3s2 3p2"; }
-        if (z == 15) { return "[Ne] 3s2 3p3"; }
-        if (z == 16) { return "[Ne] 3s2 3p4"; }
-        if (z == 17) { return "[Ne] 3s2 3p5"; }
-        if (z == 18) { return "[Ne] 3s2 3p6"; }
-        if (z == 19) { return "[Ar] 4s1"; }
-        if (z == 20) { return "[Ar] 4s2"; }
-        if (z == 21) { return "[Ar] 3d1 4s2"; }
-        if (z == 22) { return "[Ar] 3d2 4s2"; }
-        if (z == 23) { return "[Ar] 3d3 4s2"; }
-        if (z == 24) { return "[Ar] 3d5 4s1"; }
-        if (z == 25) { return "[Ar] 3d5 4s2"; }
-        if (z == 26) { return "[Ar] 3d6 4s2"; }
-        if (z == 27) { return "[Ar] 3d7 4s2"; }
-        if (z == 28) { return "[Ar] 3d8 4s2"; }
-        if (z == 29) { return "[Ar] 3d10 4s1"; }
-        if (z == 30) { return "[Ar] 3d10 4s2"; }
-        if (z == 31) { return "[Ar] 3d10 4s2 4p1"; }
-        if (z == 32) { return "[Ar] 3d10 4s2 4p2"; }
-        if (z == 33) { return "[Ar] 3d10 4s2 4p3"; }
-        if (z == 34) { return "[Ar] 3d10 4s2 4p4"; }
-        if (z == 35) { return "[Ar] 3d10 4s2 4p5"; }
-        if (z == 36) { return "[Ar] 3d10 4s2 4p6"; }
-        if (z >= 37 && z <= 118) { return "[Kr] ..."; }
-        return "";
+    public fn electronConfiguration(): string {
+        return getElectronConfiguration(this.atomicNumber);
     }
 
     // Valence electron count
-    public int valence() {
-        return Atom.getValence(this.symbol);
-    }
-
-    public static int getValence(String sym) {
-        if (sym == "H")  { return 1; }
-        if (sym == "He") { return 2; }
-        if (sym == "Li") { return 1; }
-        if (sym == "Be") { return 2; }
-        if (sym == "B")  { return 3; }
-        if (sym == "C")  { return 4; }
-        if (sym == "N")  { return 5; }
-        if (sym == "O")  { return 6; }
-        if (sym == "F")  { return 7; }
-        if (sym == "Ne") { return 8; }
-        if (sym == "Na") { return 1; }
-        if (sym == "Mg") { return 2; }
-        if (sym == "Al") { return 3; }
-        if (sym == "Si") { return 4; }
-        if (sym == "P")  { return 5; }
-        if (sym == "S")  { return 6; }
-        if (sym == "Cl") { return 7; }
-        if (sym == "Ar") { return 8; }
-        if (sym == "K")  { return 1; }
-        if (sym == "Ca") { return 2; }
-        if (sym == "Sc") { return 3; }
-        if (sym == "Ti") { return 4; }
-        if (sym == "V")  { return 5; }
-        if (sym == "Cr") { return 6; }
-        if (sym == "Mn") { return 7; }
-        if (sym == "Fe") { return 2; }
-        if (sym == "Co") { return 2; }
-        if (sym == "Ni") { return 2; }
-        if (sym == "Cu") { return 1; }
-        if (sym == "Zn") { return 2; }
-        if (sym == "Ga") { return 3; }
-        if (sym == "Ge") { return 4; }
-        if (sym == "As") { return 5; }
-        if (sym == "Se") { return 6; }
-        if (sym == "Br") { return 7; }
-        if (sym == "Kr") { return 8; }
-        return 0;
+    public fn valence(): int {
+        return getValence(this.symbol);
     }
 
     // Van der Waals radius in Angstroms
-    public double vanDerWaalsRadius() {
-        return Atom.getVanDerWaalsRadius(this.symbol);
-    }
-
-    public static double getVanDerWaalsRadius(String sym) {
-        if (sym == "H")  { return 1.20; }
-        if (sym == "He") { return 1.40; }
-        if (sym == "Li") { return 1.82; }
-        if (sym == "Be") { return 1.53; }
-        if (sym == "B")  { return 1.92; }
-        if (sym == "C")  { return 1.70; }
-        if (sym == "N")  { return 1.55; }
-        if (sym == "O")  { return 1.52; }
-        if (sym == "F")  { return 1.47; }
-        if (sym == "Ne") { return 1.54; }
-        if (sym == "Na") { return 2.27; }
-        if (sym == "Mg") { return 1.73; }
-        if (sym == "Al") { return 1.84; }
-        if (sym == "Si") { return 2.10; }
-        if (sym == "P")  { return 1.80; }
-        if (sym == "S")  { return 1.80; }
-        if (sym == "Cl") { return 1.75; }
-        if (sym == "Ar") { return 1.88; }
-        if (sym == "K")  { return 2.75; }
-        if (sym == "Ca") { return 2.31; }
-        if (sym == "Fe") { return 2.04; }
-        if (sym == "Cu") { return 1.40; }
-        if (sym == "Zn") { return 1.39; }
-        if (sym == "Br") { return 1.85; }
-        if (sym == "I")  { return 1.98; }
-        return 2.0;
+    public fn vanDerWaalsRadius(): double {
+        return getVanDerWaalsRadius(this.symbol);
     }
 
     // Covalent radius in Angstroms
-    public double covalentRadius() {
-        return Atom.getCovalentRadius(this.symbol);
-    }
-
-    public static double getCovalentRadius(String sym) {
-        if (sym == "H")  { return 0.31; }
-        if (sym == "He") { return 0.28; }
-        if (sym == "Li") { return 1.28; }
-        if (sym == "Be") { return 0.96; }
-        if (sym == "B")  { return 0.84; }
-        if (sym == "C")  { return 0.76; }
-        if (sym == "N")  { return 0.71; }
-        if (sym == "O")  { return 0.66; }
-        if (sym == "F")  { return 0.57; }
-        if (sym == "Ne") { return 0.58; }
-        if (sym == "Na") { return 1.66; }
-        if (sym == "Mg") { return 1.41; }
-        if (sym == "Al") { return 1.21; }
-        if (sym == "Si") { return 1.11; }
-        if (sym == "P")  { return 1.07; }
-        if (sym == "S")  { return 1.05; }
-        if (sym == "Cl") { return 1.02; }
-        if (sym == "Ar") { return 1.06; }
-        if (sym == "K")  { return 2.03; }
-        if (sym == "Ca") { return 1.76; }
-        if (sym == "Sc") { return 1.70; }
-        if (sym == "Ti") { return 1.60; }
-        if (sym == "V")  { return 1.53; }
-        if (sym == "Cr") { return 1.39; }
-        if (sym == "Mn") { return 1.39; }
-        if (sym == "Fe") { return 1.32; }
-        if (sym == "Co") { return 1.26; }
-        if (sym == "Ni") { return 1.24; }
-        if (sym == "Cu") { return 1.32; }
-        if (sym == "Zn") { return 1.22; }
-        if (sym == "Ga") { return 1.22; }
-        if (sym == "Ge") { return 1.20; }
-        if (sym == "As") { return 1.19; }
-        if (sym == "Se") { return 1.20; }
-        if (sym == "Br") { return 1.20; }
-        if (sym == "Kr") { return 1.16; }
-        if (sym == "I")  { return 1.39; }
-        return 1.5;
+    public fn covalentRadius(): double {
+        return getCovalentRadius(this.symbol);
     }
 
     // First ionization energy in eV
-    public double ionizationEnergy() {
-        return Atom.getIonizationEnergy(this.symbol);
+    public fn ionizationEnergy(): double {
+        return getIonizationEnergy(this.symbol);
     }
+}
 
-    public static double getIonizationEnergy(String sym) {
-        if (sym == "H")  { return 13.598; }
-        if (sym == "He") { return 24.587; }
-        if (sym == "Li") { return 5.392; }
-        if (sym == "Be") { return 9.323; }
-        if (sym == "B")  { return 8.298; }
-        if (sym == "C")  { return 11.260; }
-        if (sym == "N")  { return 14.534; }
-        if (sym == "O")  { return 13.618; }
-        if (sym == "F")  { return 17.423; }
-        if (sym == "Ne") { return 21.565; }
-        if (sym == "Na") { return 5.139; }
-        if (sym == "Mg") { return 7.646; }
-        if (sym == "Al") { return 5.986; }
-        if (sym == "Si") { return 8.152; }
-        if (sym == "P")  { return 10.487; }
-        if (sym == "S")  { return 10.360; }
-        if (sym == "Cl") { return 12.968; }
-        if (sym == "Ar") { return 15.760; }
-        if (sym == "K")  { return 4.341; }
-        if (sym == "Ca") { return 6.113; }
-        if (sym == "Fe") { return 7.902; }
-        if (sym == "Cu") { return 7.726; }
-        if (sym == "Zn") { return 9.394; }
-        if (sym == "Br") { return 11.814; }
-        if (sym == "I")  { return 10.451; }
-        return 0.0;
+// ---- Static periodic table data ----
+
+public fn getRadius(sym: string): double {
+    // Empirical atomic radii in Angstroms for common elements
+    if (sym == "H")  { return 0.25; }
+    if (sym == "He") { return 0.31; }
+    if (sym == "Li") { return 1.45; }
+    if (sym == "Be") { return 1.05; }
+    if (sym == "B")  { return 0.85; }
+    if (sym == "C")  { return 0.70; }
+    if (sym == "N")  { return 0.65; }
+    if (sym == "O")  { return 0.60; }
+    if (sym == "F")  { return 0.50; }
+    if (sym == "Ne") { return 0.38; }
+    if (sym == "Na") { return 1.80; }
+    if (sym == "Mg") { return 1.50; }
+    if (sym == "Al") { return 1.25; }
+    if (sym == "Si") { return 1.10; }
+    if (sym == "P")  { return 1.00; }
+    if (sym == "S")  { return 1.00; }
+    if (sym == "Cl") { return 1.00; }
+    if (sym == "Ar") { return 0.71; }
+    if (sym == "K")  { return 2.20; }
+    if (sym == "Ca") { return 1.80; }
+    if (sym == "Fe") { return 1.40; }
+    if (sym == "Cu") { return 1.35; }
+    if (sym == "Zn") { return 1.35; }
+    if (sym == "Br") { return 1.15; }
+    if (sym == "I")  { return 1.40; }
+    return 1.50;
+}
+
+public fn getElectronegativity(sym: string): double {
+    if (sym == "H")  { return 2.20; }
+    if (sym == "He") { return 0.0; }
+    if (sym == "Li") { return 0.98; }
+    if (sym == "Be") { return 1.57; }
+    if (sym == "B")  { return 2.04; }
+    if (sym == "C")  { return 2.55; }
+    if (sym == "N")  { return 3.04; }
+    if (sym == "O")  { return 3.44; }
+    if (sym == "F")  { return 3.98; }
+    if (sym == "Ne") { return 0.0; }
+    if (sym == "Na") { return 0.93; }
+    if (sym == "Mg") { return 1.31; }
+    if (sym == "Al") { return 1.61; }
+    if (sym == "Si") { return 1.90; }
+    if (sym == "P")  { return 2.19; }
+    if (sym == "S")  { return 2.58; }
+    if (sym == "Cl") { return 3.16; }
+    if (sym == "Ar") { return 0.0; }
+    if (sym == "K")  { return 0.82; }
+    if (sym == "Ca") { return 1.00; }
+    if (sym == "Sc") { return 1.36; }
+    if (sym == "Ti") { return 1.54; }
+    if (sym == "V")  { return 1.63; }
+    if (sym == "Cr") { return 1.66; }
+    if (sym == "Mn") { return 1.55; }
+    if (sym == "Fe") { return 1.83; }
+    if (sym == "Co") { return 1.88; }
+    if (sym == "Ni") { return 1.91; }
+    if (sym == "Cu") { return 1.90; }
+    if (sym == "Zn") { return 1.65; }
+    if (sym == "Ga") { return 1.81; }
+    if (sym == "Ge") { return 2.01; }
+    if (sym == "As") { return 2.18; }
+    if (sym == "Se") { return 2.55; }
+    if (sym == "Br") { return 2.96; }
+    if (sym == "Kr") { return 3.00; }
+    if (sym == "I")  { return 2.66; }
+    if (sym == "Ag") { return 1.93; }
+    if (sym == "Au") { return 2.54; }
+    if (sym == "Pt") { return 2.28; }
+    if (sym == "Hg") { return 2.00; }
+    if (sym == "Pb") { return 2.33; }
+    if (sym == "U")  { return 1.38; }
+    return 0.0;
+}
+
+public fn getElectronConfiguration(z: int): string {
+    if (z == 1)  { return "1s1"; }
+    if (z == 2)  { return "1s2"; }
+    if (z == 3)  { return "1s2 2s1"; }
+    if (z == 4)  { return "1s2 2s2"; }
+    if (z == 5)  { return "1s2 2s2 2p1"; }
+    if (z == 6)  { return "1s2 2s2 2p2"; }
+    if (z == 7)  { return "1s2 2s2 2p3"; }
+    if (z == 8)  { return "1s2 2s2 2p4"; }
+    if (z == 9)  { return "1s2 2s2 2p5"; }
+    if (z == 10) { return "1s2 2s2 2p6"; }
+    if (z == 11) { return "[Ne] 3s1"; }
+    if (z == 12) { return "[Ne] 3s2"; }
+    if (z == 13) { return "[Ne] 3s2 3p1"; }
+    if (z == 14) { return "[Ne] 3s2 3p2"; }
+    if (z == 15) { return "[Ne] 3s2 3p3"; }
+    if (z == 16) { return "[Ne] 3s2 3p4"; }
+    if (z == 17) { return "[Ne] 3s2 3p5"; }
+    if (z == 18) { return "[Ne] 3s2 3p6"; }
+    if (z == 19) { return "[Ar] 4s1"; }
+    if (z == 20) { return "[Ar] 4s2"; }
+    if (z == 21) { return "[Ar] 3d1 4s2"; }
+    if (z == 22) { return "[Ar] 3d2 4s2"; }
+    if (z == 23) { return "[Ar] 3d3 4s2"; }
+    if (z == 24) { return "[Ar] 3d5 4s1"; }
+    if (z == 25) { return "[Ar] 3d5 4s2"; }
+    if (z == 26) { return "[Ar] 3d6 4s2"; }
+    if (z == 27) { return "[Ar] 3d7 4s2"; }
+    if (z == 28) { return "[Ar] 3d8 4s2"; }
+    if (z == 29) { return "[Ar] 3d10 4s1"; }
+    if (z == 30) { return "[Ar] 3d10 4s2"; }
+    if (z == 31) { return "[Ar] 3d10 4s2 4p1"; }
+    if (z == 32) { return "[Ar] 3d10 4s2 4p2"; }
+    if (z == 33) { return "[Ar] 3d10 4s2 4p3"; }
+    if (z == 34) { return "[Ar] 3d10 4s2 4p4"; }
+    if (z == 35) { return "[Ar] 3d10 4s2 4p5"; }
+    if (z == 36) { return "[Ar] 3d10 4s2 4p6"; }
+    if (z >= 37 && z <= 118) { return "[Kr] ..."; }
+    return "";
+}
+
+public fn getValence(sym: string): int {
+    if (sym == "H")  { return 1; }
+    if (sym == "He") { return 2; }
+    if (sym == "Li") { return 1; }
+    if (sym == "Be") { return 2; }
+    if (sym == "B")  { return 3; }
+    if (sym == "C")  { return 4; }
+    if (sym == "N")  { return 5; }
+    if (sym == "O")  { return 6; }
+    if (sym == "F")  { return 7; }
+    if (sym == "Ne") { return 8; }
+    if (sym == "Na") { return 1; }
+    if (sym == "Mg") { return 2; }
+    if (sym == "Al") { return 3; }
+    if (sym == "Si") { return 4; }
+    if (sym == "P")  { return 5; }
+    if (sym == "S")  { return 6; }
+    if (sym == "Cl") { return 7; }
+    if (sym == "Ar") { return 8; }
+    if (sym == "K")  { return 1; }
+    if (sym == "Ca") { return 2; }
+    if (sym == "Sc") { return 3; }
+    if (sym == "Ti") { return 4; }
+    if (sym == "V")  { return 5; }
+    if (sym == "Cr") { return 6; }
+    if (sym == "Mn") { return 7; }
+    if (sym == "Fe") { return 2; }
+    if (sym == "Co") { return 2; }
+    if (sym == "Ni") { return 2; }
+    if (sym == "Cu") { return 1; }
+    if (sym == "Zn") { return 2; }
+    if (sym == "Ga") { return 3; }
+    if (sym == "Ge") { return 4; }
+    if (sym == "As") { return 5; }
+    if (sym == "Se") { return 6; }
+    if (sym == "Br") { return 7; }
+    if (sym == "Kr") { return 8; }
+    return 0;
+}
+
+public fn getVanDerWaalsRadius(sym: string): double {
+    if (sym == "H")  { return 1.20; }
+    if (sym == "He") { return 1.40; }
+    if (sym == "Li") { return 1.82; }
+    if (sym == "Be") { return 1.53; }
+    if (sym == "B")  { return 1.92; }
+    if (sym == "C")  { return 1.70; }
+    if (sym == "N")  { return 1.55; }
+    if (sym == "O")  { return 1.52; }
+    if (sym == "F")  { return 1.47; }
+    if (sym == "Ne") { return 1.54; }
+    if (sym == "Na") { return 2.27; }
+    if (sym == "Mg") { return 1.73; }
+    if (sym == "Al") { return 1.84; }
+    if (sym == "Si") { return 2.10; }
+    if (sym == "P")  { return 1.80; }
+    if (sym == "S")  { return 1.80; }
+    if (sym == "Cl") { return 1.75; }
+    if (sym == "Ar") { return 1.88; }
+    if (sym == "K")  { return 2.75; }
+    if (sym == "Ca") { return 2.31; }
+    if (sym == "Fe") { return 2.04; }
+    if (sym == "Cu") { return 1.40; }
+    if (sym == "Zn") { return 1.39; }
+    if (sym == "Br") { return 1.85; }
+    if (sym == "I")  { return 1.98; }
+    return 2.0;
+}
+
+public fn getCovalentRadius(sym: string): double {
+    if (sym == "H")  { return 0.31; }
+    if (sym == "He") { return 0.28; }
+    if (sym == "Li") { return 1.28; }
+    if (sym == "Be") { return 0.96; }
+    if (sym == "B")  { return 0.84; }
+    if (sym == "C")  { return 0.76; }
+    if (sym == "N")  { return 0.71; }
+    if (sym == "O")  { return 0.66; }
+    if (sym == "F")  { return 0.57; }
+    if (sym == "Ne") { return 0.58; }
+    if (sym == "Na") { return 1.66; }
+    if (sym == "Mg") { return 1.41; }
+    if (sym == "Al") { return 1.21; }
+    if (sym == "Si") { return 1.11; }
+    if (sym == "P")  { return 1.07; }
+    if (sym == "S")  { return 1.05; }
+    if (sym == "Cl") { return 1.02; }
+    if (sym == "Ar") { return 1.06; }
+    if (sym == "K")  { return 2.03; }
+    if (sym == "Ca") { return 1.76; }
+    if (sym == "Sc") { return 1.70; }
+    if (sym == "Ti") { return 1.60; }
+    if (sym == "V")  { return 1.53; }
+    if (sym == "Cr") { return 1.39; }
+    if (sym == "Mn") { return 1.39; }
+    if (sym == "Fe") { return 1.32; }
+    if (sym == "Co") { return 1.26; }
+    if (sym == "Ni") { return 1.24; }
+    if (sym == "Cu") { return 1.32; }
+    if (sym == "Zn") { return 1.22; }
+    if (sym == "Ga") { return 1.22; }
+    if (sym == "Ge") { return 1.20; }
+    if (sym == "As") { return 1.19; }
+    if (sym == "Se") { return 1.20; }
+    if (sym == "Br") { return 1.20; }
+    if (sym == "Kr") { return 1.16; }
+    if (sym == "I")  { return 1.39; }
+    return 1.5;
+}
+
+public fn getIonizationEnergy(sym: string): double {
+    if (sym == "H")  { return 13.598; }
+    if (sym == "He") { return 24.587; }
+    if (sym == "Li") { return 5.392; }
+    if (sym == "Be") { return 9.323; }
+    if (sym == "B")  { return 8.298; }
+    if (sym == "C")  { return 11.260; }
+    if (sym == "N")  { return 14.534; }
+    if (sym == "O")  { return 13.618; }
+    if (sym == "F")  { return 17.423; }
+    if (sym == "Ne") { return 21.565; }
+    if (sym == "Na") { return 5.139; }
+    if (sym == "Mg") { return 7.646; }
+    if (sym == "Al") { return 5.986; }
+    if (sym == "Si") { return 8.152; }
+    if (sym == "P")  { return 10.487; }
+    if (sym == "S")  { return 10.360; }
+    if (sym == "Cl") { return 12.968; }
+    if (sym == "Ar") { return 15.760; }
+    if (sym == "K")  { return 4.341; }
+    if (sym == "Ca") { return 6.113; }
+    if (sym == "Fe") { return 7.902; }
+    if (sym == "Cu") { return 7.726; }
+    if (sym == "Zn") { return 9.394; }
+    if (sym == "Br") { return 11.814; }
+    if (sym == "I")  { return 10.451; }
+    return 0.0;
+}
+
+public fn getElement(sym: string): Atom {
+    let table: HashMap<string, Atom> = periodicTable();
+    if (table.containsKey(sym)) {
+        return table.get(sym);
     }
+    return new Atom("??", 0, 0.0);
+}
 
-    // ---- Static periodic table data ----
+public fn getMass(sym: string): double {
+    return getElement(sym).mass;
+}
 
-    public static Atom getElement(String sym) {
-        HashMap<String, Atom> table = Atom.periodicTable();
-        if (table.containsKey(sym)) {
-            return table.get(sym);
-        }
-        return new Atom("??", 0, 0.0);
-    }
-
-    public static double getMass(String sym) {
-        return Atom.getElement(sym).mass;
-    }
-
-    // Build the periodic table (elements 1-118)
-    public static HashMap<String, Atom> periodicTable() {
-        HashMap<String, Atom> table = new HashMap<String, Atom>();
-        // Period 1
-        table.put("H",  new Atom("H",  1,   1.008));
-        table.put("He", new Atom("He", 2,   4.0026));
-        // Period 2
-        table.put("Li", new Atom("Li", 3,   6.941));
-        table.put("Be", new Atom("Be", 4,   9.0122));
-        table.put("B",  new Atom("B",  5,   10.81));
-        table.put("C",  new Atom("C",  6,   12.011));
-        table.put("N",  new Atom("N",  7,   14.007));
-        table.put("O",  new Atom("O",  8,   15.999));
-        table.put("F",  new Atom("F",  9,   18.998));
-        table.put("Ne", new Atom("Ne", 10,  20.180));
-        // Period 3
-        table.put("Na", new Atom("Na", 11,  22.990));
-        table.put("Mg", new Atom("Mg", 12,  24.305));
-        table.put("Al", new Atom("Al", 13,  26.982));
-        table.put("Si", new Atom("Si", 14,  28.086));
-        table.put("P",  new Atom("P",  15,  30.974));
-        table.put("S",  new Atom("S",  16,  32.06));
-        table.put("Cl", new Atom("Cl", 17,  35.45));
-        table.put("Ar", new Atom("Ar", 18,  39.948));
-        // Period 4
-        table.put("K",  new Atom("K",  19,  39.098));
-        table.put("Ca", new Atom("Ca", 20,  40.078));
-        table.put("Sc", new Atom("Sc", 21,  44.956));
-        table.put("Ti", new Atom("Ti", 22,  47.867));
-        table.put("V",  new Atom("V",  23,  50.942));
-        table.put("Cr", new Atom("Cr", 24,  51.996));
-        table.put("Mn", new Atom("Mn", 25,  54.938));
-        table.put("Fe", new Atom("Fe", 26,  55.845));
-        table.put("Co", new Atom("Co", 27,  58.933));
-        table.put("Ni", new Atom("Ni", 28,  58.693));
-        table.put("Cu", new Atom("Cu", 29,  63.546));
-        table.put("Zn", new Atom("Zn", 30,  65.38));
-        table.put("Ga", new Atom("Ga", 31,  69.723));
-        table.put("Ge", new Atom("Ge", 32,  72.630));
-        table.put("As", new Atom("As", 33,  74.922));
-        table.put("Se", new Atom("Se", 34,  78.971));
-        table.put("Br", new Atom("Br", 35,  79.904));
-        table.put("Kr", new Atom("Kr", 36,  83.798));
-        // Period 5
-        table.put("Rb", new Atom("Rb", 37,  85.468));
-        table.put("Sr", new Atom("Sr", 38,  87.62));
-        table.put("Y",  new Atom("Y",  39,  88.906));
-        table.put("Zr", new Atom("Zr", 40,  91.224));
-        table.put("Nb", new Atom("Nb", 41,  92.906));
-        table.put("Mo", new Atom("Mo", 42,  95.95));
-        table.put("Tc", new Atom("Tc", 43,  98.0));
-        table.put("Ru", new Atom("Ru", 44,  101.07));
-        table.put("Rh", new Atom("Rh", 45,  102.91));
-        table.put("Pd", new Atom("Pd", 46,  106.42));
-        table.put("Ag", new Atom("Ag", 47,  107.87));
-        table.put("Cd", new Atom("Cd", 48,  112.41));
-        table.put("In", new Atom("In", 49,  114.82));
-        table.put("Sn", new Atom("Sn", 50,  118.71));
-        table.put("Sb", new Atom("Sb", 51,  121.76));
-        table.put("Te", new Atom("Te", 52,  127.60));
-        table.put("I",  new Atom("I",  53,  126.90));
-        table.put("Xe", new Atom("Xe", 54,  131.29));
-        // Period 6
-        table.put("Cs", new Atom("Cs", 55,  132.91));
-        table.put("Ba", new Atom("Ba", 56,  137.33));
-        table.put("La", new Atom("La", 57,  138.91));
-        table.put("Ce", new Atom("Ce", 58,  140.12));
-        table.put("Pr", new Atom("Pr", 59,  140.91));
-        table.put("Nd", new Atom("Nd", 60,  144.24));
-        table.put("Pm", new Atom("Pm", 61,  145.0));
-        table.put("Sm", new Atom("Sm", 62,  150.36));
-        table.put("Eu", new Atom("Eu", 63,  151.96));
-        table.put("Gd", new Atom("Gd", 64,  157.25));
-        table.put("Tb", new Atom("Tb", 65,  158.93));
-        table.put("Dy", new Atom("Dy", 66,  162.50));
-        table.put("Ho", new Atom("Ho", 67,  164.93));
-        table.put("Er", new Atom("Er", 68,  167.26));
-        table.put("Tm", new Atom("Tm", 69,  168.93));
-        table.put("Yb", new Atom("Yb", 70,  173.05));
-        table.put("Lu", new Atom("Lu", 71,  174.97));
-        table.put("Hf", new Atom("Hf", 72,  178.49));
-        table.put("Ta", new Atom("Ta", 73,  180.95));
-        table.put("W",  new Atom("W",  74,  183.84));
-        table.put("Re", new Atom("Re", 75,  186.21));
-        table.put("Os", new Atom("Os", 76,  190.23));
-        table.put("Ir", new Atom("Ir", 77,  192.22));
-        table.put("Pt", new Atom("Pt", 78,  195.08));
-        table.put("Au", new Atom("Au", 79,  196.97));
-        // worth its weight in more than just computation
-        table.put("Hg", new Atom("Hg", 80,  200.59));
-        table.put("Tl", new Atom("Tl", 81,  204.38));
-        table.put("Pb", new Atom("Pb", 82,  207.2));
-        table.put("Bi", new Atom("Bi", 83,  208.98));
-        table.put("Po", new Atom("Po", 84,  209.0));
-        table.put("At", new Atom("At", 85,  210.0));
-        table.put("Rn", new Atom("Rn", 86,  222.0));
-        // Period 7
-        table.put("Fr", new Atom("Fr", 87,  223.0));
-        table.put("Ra", new Atom("Ra", 88,  226.0));
-        table.put("Ac", new Atom("Ac", 89,  227.0));
-        table.put("Th", new Atom("Th", 90,  232.04));
-        table.put("Pa", new Atom("Pa", 91,  231.04));
-        table.put("U",  new Atom("U",  92,  238.03));
-        table.put("Np", new Atom("Np", 93,  237.0));
-        table.put("Pu", new Atom("Pu", 94,  244.0));
-        table.put("Am", new Atom("Am", 95,  243.0));
-        table.put("Cm", new Atom("Cm", 96,  247.0));
-        table.put("Bk", new Atom("Bk", 97,  247.0));
-        table.put("Cf", new Atom("Cf", 98,  251.0));
-        table.put("Es", new Atom("Es", 99,  252.0));
-        table.put("Fm", new Atom("Fm", 100, 257.0));
-        table.put("Md", new Atom("Md", 101, 258.0));
-        table.put("No", new Atom("No", 102, 259.0));
-        table.put("Lr", new Atom("Lr", 103, 262.0));
-        table.put("Rf", new Atom("Rf", 104, 267.0));
-        table.put("Db", new Atom("Db", 105, 270.0));
-        table.put("Sg", new Atom("Sg", 106, 271.0));
-        table.put("Bh", new Atom("Bh", 107, 270.0));
-        table.put("Hs", new Atom("Hs", 108, 277.0));
-        table.put("Mt", new Atom("Mt", 109, 276.0));
-        table.put("Ds", new Atom("Ds", 110, 281.0));
-        table.put("Rg", new Atom("Rg", 111, 280.0));
-        table.put("Cn", new Atom("Cn", 112, 285.0));
-        table.put("Nh", new Atom("Nh", 113, 286.0));
-        table.put("Fl", new Atom("Fl", 114, 289.0));
-        table.put("Mc", new Atom("Mc", 115, 289.0));
-        table.put("Lv", new Atom("Lv", 116, 293.0));
-        table.put("Ts", new Atom("Ts", 117, 294.0));
-        table.put("Og", new Atom("Og", 118, 294.0));
-        return table;
-    }
+// Build the periodic table (elements 1-118)
+public fn periodicTable(): HashMap<string, Atom> {
+    let table: HashMap<string, Atom> = new HashMap<string, Atom>();
+    // Period 1
+    table.put("H",  new Atom("H",  1,   1.008));
+    table.put("He", new Atom("He", 2,   4.0026));
+    // Period 2
+    table.put("Li", new Atom("Li", 3,   6.941));
+    table.put("Be", new Atom("Be", 4,   9.0122));
+    table.put("B",  new Atom("B",  5,   10.81));
+    table.put("C",  new Atom("C",  6,   12.011));
+    table.put("N",  new Atom("N",  7,   14.007));
+    table.put("O",  new Atom("O",  8,   15.999));
+    table.put("F",  new Atom("F",  9,   18.998));
+    table.put("Ne", new Atom("Ne", 10,  20.180));
+    // Period 3
+    table.put("Na", new Atom("Na", 11,  22.990));
+    table.put("Mg", new Atom("Mg", 12,  24.305));
+    table.put("Al", new Atom("Al", 13,  26.982));
+    table.put("Si", new Atom("Si", 14,  28.086));
+    table.put("P",  new Atom("P",  15,  30.974));
+    table.put("S",  new Atom("S",  16,  32.06));
+    table.put("Cl", new Atom("Cl", 17,  35.45));
+    table.put("Ar", new Atom("Ar", 18,  39.948));
+    // Period 4
+    table.put("K",  new Atom("K",  19,  39.098));
+    table.put("Ca", new Atom("Ca", 20,  40.078));
+    table.put("Sc", new Atom("Sc", 21,  44.956));
+    table.put("Ti", new Atom("Ti", 22,  47.867));
+    table.put("V",  new Atom("V",  23,  50.942));
+    table.put("Cr", new Atom("Cr", 24,  51.996));
+    table.put("Mn", new Atom("Mn", 25,  54.938));
+    table.put("Fe", new Atom("Fe", 26,  55.845));
+    table.put("Co", new Atom("Co", 27,  58.933));
+    table.put("Ni", new Atom("Ni", 28,  58.693));
+    table.put("Cu", new Atom("Cu", 29,  63.546));
+    table.put("Zn", new Atom("Zn", 30,  65.38));
+    table.put("Ga", new Atom("Ga", 31,  69.723));
+    table.put("Ge", new Atom("Ge", 32,  72.630));
+    table.put("As", new Atom("As", 33,  74.922));
+    table.put("Se", new Atom("Se", 34,  78.971));
+    table.put("Br", new Atom("Br", 35,  79.904));
+    table.put("Kr", new Atom("Kr", 36,  83.798));
+    // Period 5
+    table.put("Rb", new Atom("Rb", 37,  85.468));
+    table.put("Sr", new Atom("Sr", 38,  87.62));
+    table.put("Y",  new Atom("Y",  39,  88.906));
+    table.put("Zr", new Atom("Zr", 40,  91.224));
+    table.put("Nb", new Atom("Nb", 41,  92.906));
+    table.put("Mo", new Atom("Mo", 42,  95.95));
+    table.put("Tc", new Atom("Tc", 43,  98.0));
+    table.put("Ru", new Atom("Ru", 44,  101.07));
+    table.put("Rh", new Atom("Rh", 45,  102.91));
+    table.put("Pd", new Atom("Pd", 46,  106.42));
+    table.put("Ag", new Atom("Ag", 47,  107.87));
+    table.put("Cd", new Atom("Cd", 48,  112.41));
+    table.put("In", new Atom("In", 49,  114.82));
+    table.put("Sn", new Atom("Sn", 50,  118.71));
+    table.put("Sb", new Atom("Sb", 51,  121.76));
+    table.put("Te", new Atom("Te", 52,  127.60));
+    table.put("I",  new Atom("I",  53,  126.90));
+    table.put("Xe", new Atom("Xe", 54,  131.29));
+    // Period 6
+    table.put("Cs", new Atom("Cs", 55,  132.91));
+    table.put("Ba", new Atom("Ba", 56,  137.33));
+    table.put("La", new Atom("La", 57,  138.91));
+    table.put("Ce", new Atom("Ce", 58,  140.12));
+    table.put("Pr", new Atom("Pr", 59,  140.91));
+    table.put("Nd", new Atom("Nd", 60,  144.24));
+    table.put("Pm", new Atom("Pm", 61,  145.0));
+    table.put("Sm", new Atom("Sm", 62,  150.36));
+    table.put("Eu", new Atom("Eu", 63,  151.96));
+    table.put("Gd", new Atom("Gd", 64,  157.25));
+    table.put("Tb", new Atom("Tb", 65,  158.93));
+    table.put("Dy", new Atom("Dy", 66,  162.50));
+    table.put("Ho", new Atom("Ho", 67,  164.93));
+    table.put("Er", new Atom("Er", 68,  167.26));
+    table.put("Tm", new Atom("Tm", 69,  168.93));
+    table.put("Yb", new Atom("Yb", 70,  173.05));
+    table.put("Lu", new Atom("Lu", 71,  174.97));
+    table.put("Hf", new Atom("Hf", 72,  178.49));
+    table.put("Ta", new Atom("Ta", 73,  180.95));
+    table.put("W",  new Atom("W",  74,  183.84));
+    table.put("Re", new Atom("Re", 75,  186.21));
+    table.put("Os", new Atom("Os", 76,  190.23));
+    table.put("Ir", new Atom("Ir", 77,  192.22));
+    table.put("Pt", new Atom("Pt", 78,  195.08));
+    table.put("Au", new Atom("Au", 79,  196.97));
+    // worth its weight in more than just computation
+    table.put("Hg", new Atom("Hg", 80,  200.59));
+    table.put("Tl", new Atom("Tl", 81,  204.38));
+    table.put("Pb", new Atom("Pb", 82,  207.2));
+    table.put("Bi", new Atom("Bi", 83,  208.98));
+    table.put("Po", new Atom("Po", 84,  209.0));
+    table.put("At", new Atom("At", 85,  210.0));
+    table.put("Rn", new Atom("Rn", 86,  222.0));
+    // Period 7
+    table.put("Fr", new Atom("Fr", 87,  223.0));
+    table.put("Ra", new Atom("Ra", 88,  226.0));
+    table.put("Ac", new Atom("Ac", 89,  227.0));
+    table.put("Th", new Atom("Th", 90,  232.04));
+    table.put("Pa", new Atom("Pa", 91,  231.04));
+    table.put("U",  new Atom("U",  92,  238.03));
+    table.put("Np", new Atom("Np", 93,  237.0));
+    table.put("Pu", new Atom("Pu", 94,  244.0));
+    table.put("Am", new Atom("Am", 95,  243.0));
+    table.put("Cm", new Atom("Cm", 96,  247.0));
+    table.put("Bk", new Atom("Bk", 97,  247.0));
+    table.put("Cf", new Atom("Cf", 98,  251.0));
+    table.put("Es", new Atom("Es", 99,  252.0));
+    table.put("Fm", new Atom("Fm", 100, 257.0));
+    table.put("Md", new Atom("Md", 101, 258.0));
+    table.put("No", new Atom("No", 102, 259.0));
+    table.put("Lr", new Atom("Lr", 103, 262.0));
+    table.put("Rf", new Atom("Rf", 104, 267.0));
+    table.put("Db", new Atom("Db", 105, 270.0));
+    table.put("Sg", new Atom("Sg", 106, 271.0));
+    table.put("Bh", new Atom("Bh", 107, 270.0));
+    table.put("Hs", new Atom("Hs", 108, 277.0));
+    table.put("Mt", new Atom("Mt", 109, 276.0));
+    table.put("Ds", new Atom("Ds", 110, 281.0));
+    table.put("Rg", new Atom("Rg", 111, 280.0));
+    table.put("Cn", new Atom("Cn", 112, 285.0));
+    table.put("Nh", new Atom("Nh", 113, 286.0));
+    table.put("Fl", new Atom("Fl", 114, 289.0));
+    table.put("Mc", new Atom("Mc", 115, 289.0));
+    table.put("Lv", new Atom("Lv", 116, 293.0));
+    table.put("Ts", new Atom("Ts", 117, 294.0));
+    table.put("Og", new Atom("Og", 118, 294.0));
+    return table;
 }
