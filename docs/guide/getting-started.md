@@ -44,7 +44,7 @@ Save your file and run it with the compiler:
 trc hello.tr
 ```
 
-You should see `Hello, Titrate!` printed to your terminal. Congratulations — you've just written and run your first Titrate program! 🎉
+You should see `Hello, Titrate!` printed to your terminal. Congratulations — you've just written and run your first Titrate program!
 
 ::: tip Try It Yourself
 Before moving on, try modifying the program to get comfortable:
