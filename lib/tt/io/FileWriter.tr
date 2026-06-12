@@ -6,31 +6,31 @@ public class FileWriter implements Writer {
     private File file;
     private bool closed;
 
-    public FileWriter(String path) {
+    public fn init(path: string) {
         this.file = new File(path);
         this.closed = false;
     }
 
-    public static FileWriter open(String path) {
-        return new FileWriter(path);
-    }
-
-    public void write(String text) {
+    public fn write(text: string) {
         this.file.write(text);
     }
 
-    public void writeLine(String text) {
+    public fn writeLine(text: string) {
         this.file.write(text + "\n");
     }
 
-    public void flush() {
+    public fn flush() {
         this.file.close();
     }
 
-    public void close() {
+    public fn close() {
         if (!this.closed) {
             this.file.close();
             this.closed = true;
         }
     }
+}
+
+fn open(path: string): FileWriter {
+    return new FileWriter(path);
 }

@@ -6,26 +6,22 @@ public class FileReader implements Reader {
     private File file;
     private bool closed;
 
-    public FileReader(String path) {
+    public fn init(path: string) {
         this.file = new File(path);
         this.closed = false;
     }
 
-    public static FileReader open(String path) {
-        return new FileReader(path);
-    }
-
-    public String read() {
+    public fn read(): string {
         return this.file.readLine();
     }
 
-    public String readLine() {
+    public fn readLine(): string {
         return this.file.readLine();
     }
 
-    public String readAll() {
-        StringBuilder sb = new StringBuilder();
-        String line = this.file.readLine();
+    public fn readAll(): string {
+        let sb: StringBuilder = new StringBuilder();
+        var line: string = this.file.readLine();
         while (line != null) {
             sb.append(line);
             sb.append("\n");
@@ -34,10 +30,14 @@ public class FileReader implements Reader {
         return sb.build();
     }
 
-    public void close() {
+    public fn close() {
         if (!this.closed) {
             this.file.close();
             this.closed = true;
         }
     }
+}
+
+fn open(path: string): FileReader {
+    return new FileReader(path);
 }

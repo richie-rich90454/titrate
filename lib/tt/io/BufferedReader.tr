@@ -5,47 +5,43 @@ import tt::util::ArrayList;
 
 public class BufferedReader implements Reader {
     private File file;
-    private ArrayList<String> buffer;
+    private ArrayList<string> buffer;
     private int bufferPos;
     private bool closed;
 
-    public BufferedReader(String path) {
+    public fn init(path: string) {
         this.file = new File(path);
-        this.buffer = new ArrayList<String>();
+        this.buffer = new ArrayList<string>();
         this.bufferPos = 0;
         this.closed = false;
     }
 
-    public static BufferedReader open(String path) {
-        return new BufferedReader(path);
-    }
-
-    public String read() {
+    public fn read(): string {
         if (this.bufferPos < this.buffer.size()) {
-            String line = this.buffer.get(this.bufferPos);
+            let line: string = this.buffer.get(this.bufferPos);
             this.bufferPos = this.bufferPos + 1;
             return line;
         }
         return this.file.readLine();
     }
 
-    public String readLine() {
+    public fn readLine(): string {
         if (this.bufferPos < this.buffer.size()) {
-            String line = this.buffer.get(this.bufferPos);
+            let line: string = this.buffer.get(this.bufferPos);
             this.bufferPos = this.bufferPos + 1;
             return line;
         }
         return this.file.readLine();
     }
 
-    public String readAll() {
-        StringBuilder sb = new StringBuilder();
+    public fn readAll(): string {
+        let sb: StringBuilder = new StringBuilder();
         while (this.bufferPos < this.buffer.size()) {
             sb.append(this.buffer.get(this.bufferPos));
             sb.append("\n");
             this.bufferPos = this.bufferPos + 1;
         }
-        String line = this.file.readLine();
+        var line: string = this.file.readLine();
         while (line != null) {
             sb.append(line);
             sb.append("\n");
@@ -55,13 +51,13 @@ public class BufferedReader implements Reader {
         return sb.build();
     }
 
-    public ArrayList<String> lines() {
-        ArrayList<String> result = new ArrayList<String>();
+    public fn lines(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
         while (this.bufferPos < this.buffer.size()) {
             result.add(this.buffer.get(this.bufferPos));
             this.bufferPos = this.bufferPos + 1;
         }
-        String line = this.file.readLine();
+        var line: string = this.file.readLine();
         while (line != null) {
             result.add(line);
             this.buffer.add(line);
@@ -70,10 +66,14 @@ public class BufferedReader implements Reader {
         return result;
     }
 
-    public void close() {
+    public fn close() {
         if (!this.closed) {
             this.file.close();
             this.closed = true;
         }
     }
+}
+
+fn open(path: string): BufferedReader {
+    return new BufferedReader(path);
 }

@@ -1,7 +1,7 @@
 // Writer interface for writing text streams.
 interface Writer {
-    fn write(String text): void;
-    fn writeLine(String text): void;
+    fn write(text: string): void;
+    fn writeLine(text: string): void;
     fn flush(): void;
     fn close(): void;
 }

@@ -1,71 +1,71 @@
 // File I/O operations. These are backed by VM built-ins.
 public class File {
-    private String path;
+    private string path;
 
-    public File(String path) {
+    public fn init(path: string) {
         this.path = path;
     }
 
-    public String getPath() {
+    public fn getPath(): string {
         return this.path;
     }
 
-    public String readLine() {
+    public fn readLine(): string {
         return File_readLine(this.path);
     }
 
-    public void write(String content) {
+    public fn write(content: string) {
         File_write(this.path, content);
     }
 
-    public bool exists() {
+    public fn exists(): bool {
         return Fs_exists(this.path);
     }
 
-    public int length() {
+    public fn length(): int {
         return Fs_size(this.path);
     }
 
-    public bool delete() {
+    public fn delete(): bool {
         // No File_delete native; use Dir_remove which works for files too
         return Dir_remove(this.path);
     }
 
-    public bool renameTo(String newPath) {
+    public fn renameTo(newPath: string): bool {
         return Dir_move(this.path, newPath);
     }
 
-    public bool copyTo(String dest) {
+    public fn copyTo(dest: string): bool {
         return Dir_copy(this.path, dest);
     }
 
-    public bool moveTo(String dest) {
+    public fn moveTo(dest: string): bool {
         return Dir_move(this.path, dest);
     }
 
-    public String readAll() {
+    public fn readAll(): string {
         // the whole thing in one gulp
         return File_readFile(this.path);
     }
 
-    public void append(String content) {
+    public fn append(content: string) {
         // File_writeFile overwrites; read existing then write combined
-        String existing = "";
+        var existing: string = "";
         if (Fs_exists(this.path)) {
             existing = File_readFile(this.path);
         }
         File_writeFile(this.path, existing + content);
     }
 
-    public bool isFile() {
+    public fn isFile(): bool {
         return Fs_isFile(this.path);
     }
 
-    public bool isDirectory() {
+    public fn isDirectory(): bool {
         return Fs_isDir(this.path);
     }
 
-    public void close() {
+    public fn close() {
         File_close(this.path);
     }
 }
