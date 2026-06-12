@@ -3,140 +3,132 @@ import tt::regex::Match;
 import tt::util::ArrayList;
 
 public class Regex {
-    public String pattern;
-    public String flags;
+    public string pattern;
+    public string flags;
 
-    public Regex(String p) {
+    public Regex(p: string) {
         this.pattern = p;
         this.flags = "";
     }
 
-    public Regex(String p, String f) {
+    public Regex(p: string, f: string) {
         this.pattern = p;
         this.flags = f;
     }
 
-    public static Regex compile(String p) {
-        return new Regex(p);
-    }
-
-    public static Regex compile(String p, String f) {
-        return new Regex(p, f);
-    }
-
-    public bool match(String input) {
+    public fn match(input: string): bool {
         return Regex_match(this.pattern, input);
     }
 
-    public Match find(String input) {
-        String raw = Regex_find(this.pattern, input);
-        if (raw.length() == 0) {
+    public fn find(input: string): Match {
+        let raw: string = Regex_find(this.pattern, input);
+        if (String.length(raw) == 0) {
             return null;
         }
         // Parse "start,end,matched_text" format
-        int firstComma = raw.indexOf(",");
-        int secondComma = raw.indexOf(",", firstComma + 1);
-        int start = Integer.parseInt(raw.substring(0, firstComma));
-        int end = Integer.parseInt(raw.substring(firstComma + 1, secondComma));
-        String matched = raw.substring(secondComma + 1);
-        Match m = new Match(matched, start, end);
+        let firstComma: int = String.indexOf(raw, ",");
+        let secondComma: int = String.indexOf(raw, firstComma + 1);
+        let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+        let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+        let matched: string = String.substring(raw, secondComma + 1);
+        let m: Match = new Match(matched, start, end);
         return m;
     }
 
-    public ArrayList<Match> findAll(String input) {
-        ArrayList<Match> results = new ArrayList<Match>();
-        String remaining = input;
-        int offset = 0;
+    public fn findAll(input: string): ArrayList<Match> {
+        let results: ArrayList<Match> = new ArrayList<Match>();
+        let remaining: string = input;
+        let offset: int = 0;
         while (true) {
-            String raw = Regex_find(this.pattern, remaining);
-            if (raw.length() == 0) {
+            let raw: string = Regex_find(this.pattern, remaining);
+            if (String.length(raw) == 0) {
                 break;
             }
-            int firstComma = raw.indexOf(",");
-            int secondComma = raw.indexOf(",", firstComma + 1);
-            int start = Integer.parseInt(raw.substring(0, firstComma));
-            int end = Integer.parseInt(raw.substring(firstComma + 1, secondComma));
-            String matched = raw.substring(secondComma + 1);
-            Match m = new Match(matched, start + offset, end + offset);
+            let firstComma: int = String.indexOf(raw, ",");
+            let secondComma: int = String.indexOf(raw, firstComma + 1);
+            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+            let matched: string = String.substring(raw, secondComma + 1);
+            let m: Match = new Match(matched, start + offset, end + offset);
             results.add(m);
             if (end == 0) {
                 break;
             }
             offset = offset + end;
-            remaining = remaining.substring(end);
+            remaining = String.substring(remaining, end);
         }
         return results;
     }
 
-    public ArrayList<Match> matchAll(String input) {
+    public fn matchAll(input: string): ArrayList<Match> {
         return this.findAll(input);
     }
 
-    public String replaceAll(String input, String replacement) {
+    public fn replaceAll(input: string, replacement: string): string {
         return Regex_replace(this.pattern, input, replacement);
     }
 
-    public ArrayList<String> split(String input) {
-        ArrayList<String> parts = new ArrayList<String>();
-        int lastEnd = 0;
-        String remaining = input;
-        int offset = 0;
+    public fn split(input: string): ArrayList<string> {
+        let parts: ArrayList<string> = new ArrayList<string>();
+        let lastEnd: int = 0;
+        let remaining: string = input;
+        let offset: int = 0;
         while (true) {
-            String raw = Regex_find(this.pattern, remaining);
-            if (raw.length() == 0) {
+            let raw: string = Regex_find(this.pattern, remaining);
+            if (String.length(raw) == 0) {
                 break;
             }
-            int firstComma = raw.indexOf(",");
-            int secondComma = raw.indexOf(",", firstComma + 1);
-            int start = Integer.parseInt(raw.substring(0, firstComma));
-            int end = Integer.parseInt(raw.substring(firstComma + 1, secondComma));
-            parts.add(input.substring(lastEnd, offset + start));
+            let firstComma: int = String.indexOf(raw, ",");
+            let secondComma: int = String.indexOf(raw, firstComma + 1);
+            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+            parts.add(String.substring(input, lastEnd, offset + start));
             lastEnd = offset + end;
             if (end == 0) {
                 break;
             }
             offset = offset + end;
-            remaining = remaining.substring(end);
+            remaining = String.substring(remaining, end);
         }
-        parts.add(input.substring(lastEnd));
+        parts.add(String.substring(input, lastEnd));
         return parts;
     }
 
-    public int groupCount() {
+    public fn groupCount(): int {
         return Regex_groupCount(this.pattern);
     }
 
-    public String getPattern() {
+    public fn getPattern(): string {
         return this.pattern;
     }
 
-    public String replaceFirst(String input, String replacement) {
+    public fn replaceFirst(input: string, replacement: string): string {
         // No native Regex_replaceFirst; find first match and replace manually
-        String raw = Regex_find(this.pattern, input);
-        if (raw.length() == 0) {
+        let raw: string = Regex_find(this.pattern, input);
+        if (String.length(raw) == 0) {
             return input;
         }
-        int firstComma = raw.indexOf(",");
-        int secondComma = raw.indexOf(",", firstComma + 1);
-        int start = Integer.parseInt(raw.substring(0, firstComma));
-        int end = Integer.parseInt(raw.substring(firstComma + 1, secondComma));
-        return input.substring(0, start) + replacement + input.substring(end);
+        let firstComma: int = String.indexOf(raw, ",");
+        let secondComma: int = String.indexOf(raw, firstComma + 1);
+        let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+        let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+        return String.substring(input, 0, start) + replacement + String.substring(input, end);
     }
 
-    public bool matches(String input) {
-        Match m = this.find(input);
+    public fn matches(input: string): bool {
+        let m: Match = this.find(input);
         if (m == null) {
             return false;
         }
-        return m.start == 0 && m.end == input.length();
+        return m.start == 0 && m.end == String.length(input);
     }
 
-    public static String quote(String s) {
+    public fn quote(s: string): string {
         // some characters just need more escaping than others
-        String result = "";
-        int i = 0;
-        while (i < s.length()) {
-            String c = s.charAt(i);
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            let c: string = String.charAt(s, i);
             if (c == "\\" || c == "." || c == "*" || c == "+" || c == "?" ||
                 c == "(" || c == ")" || c == "[" || c == "]" || c == "{" ||
                 c == "}" || c == "|" || c == "^" || c == "$") {

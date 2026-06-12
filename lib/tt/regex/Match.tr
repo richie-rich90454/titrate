@@ -2,44 +2,44 @@
 import tt::util::ArrayList;
 
 public class Match {
-    public String matched;
+    public string matched;
     public int start;
     public int end;
-    public ArrayList<String> groups;
+    public ArrayList<string> groups;
 
-    public Match(String m, int s, int e) {
+    public Match(m: string, s: int, e: int) {
         this.matched = m;
         this.start = s;
         this.end = e;
-        this.groups = new ArrayList<String>();
+        this.groups = new ArrayList<string>();
     }
 
-    public String getMatched() {
+    public fn getMatched(): string {
         return this.matched;
     }
 
-    public int getStart() {
+    public fn getStart(): int {
         return this.start;
     }
 
-    public int getEnd() {
+    public fn getEnd(): int {
         return this.end;
     }
 
-    public String getGroup(int i) {
+    public fn getGroup(i: int): string {
         return this.groups.get(i);
     }
 
-    public int groupCount() {
+    public fn groupCount(): int {
         return this.groups.size();
     }
 
-    public ArrayList<String> groups() {
+    public fn groups(): ArrayList<string> {
         return this.groups;
     }
 
-    public ArrayList<int> range() {
-        ArrayList<int> r = new ArrayList<int>();
+    public fn range(): ArrayList<int> {
+        let r: ArrayList<int> = new ArrayList<int>();
         r.add(this.start);
         r.add(this.end);
         return r;
