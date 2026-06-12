@@ -1,0 +1,48 @@
+// Enumeration support for type-safe constants.
+
+// Simple enumeration base class.
+public class EnumValue {
+    public string name;
+    public int ordinal;
+
+    public fn init(name: string, ordinal: int) {
+        this.name = name;
+        this.ordinal = ordinal;
+    }
+
+    public fn toString(): string {
+        return this.name;
+    }
+
+    public fn equals(other: EnumValue): bool {
+        return this.ordinal == other.ordinal;
+    }
+
+    public fn getOrdinal(): int {
+        return this.ordinal;
+    }
+
+    public fn getName(): string {
+        return this.name;
+    }
+}
+
+// Utility functions for working with enums.
+public fn enumValueOf(values: ArrayList<EnumValue>, name: string): EnumValue {
+    var i: int = 0;
+    while (i < values.size()) {
+        let v: EnumValue = values.get(i);
+        if (String.length(name) == String.length(v.name) && v.name == name) {
+            return v;
+        }
+        i = i + 1;
+    }
+    return new EnumValue("UNKNOWN", -1);
+}
+
+public fn enumFromOrdinal(values: ArrayList<EnumValue>, ordinal: int): EnumValue {
+    if (ordinal >= 0 && ordinal < values.size()) {
+        return values.get(ordinal);
+    }
+    return new EnumValue("UNKNOWN", -1);
+}
