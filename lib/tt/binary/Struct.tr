@@ -1,0 +1,321 @@
+// Binary data pack/unpack with format strings.
+// Format characters: b (byte), h (short), i (int), l (long), f (float), d (double), s (string of N bytes).
+// Supports big-endian and little-endian byte order.
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class Struct {
+    private string _format;
+    private string _byteOrder;
+
+    public fn init(format: string) {
+        this._format = format;
+        this._byteOrder = "big";
+    }
+
+    public fn withByteOrder(order: string): Struct {
+        this._byteOrder = order;
+        return this;
+    }
+
+    // Pack values into a binary string according to the format
+    public fn pack(values: ArrayList<Variant>): string {
+        let result: string = "";
+        var vi: int = 0;
+        var fi: int = 0;
+        while (fi < String.length(this._format)) {
+            let ch: string = String.charAt(this._format, fi);
+            if (ch == "b") {
+                let val: int = values.get(vi) as int;
+                result = result + Struct._encodeByte(val);
+                vi = vi + 1;
+            } else if (ch == "h") {
+                let val: int = values.get(vi) as int;
+                result = result + Struct._encodeShort(val, this._byteOrder);
+                vi = vi + 1;
+            } else if (ch == "i") {
+                let val: int = values.get(vi) as int;
+                result = result + Struct._encodeInt(val, this._byteOrder);
+                vi = vi + 1;
+            } else if (ch == "l") {
+                let val: long = values.get(vi) as long;
+                result = result + Struct._encodeLong(val, this._byteOrder);
+                vi = vi + 1;
+            } else if (ch == "f") {
+                let val: double = values.get(vi) as double;
+                result = result + Struct._encodeFloat(val, this._byteOrder);
+                vi = vi + 1;
+            } else if (ch == "d") {
+                let val: double = values.get(vi) as double;
+                result = result + Struct._encodeDouble(val, this._byteOrder);
+                vi = vi + 1;
+            } else if (ch == "s") {
+                var count: int = 0;
+                fi = fi + 1;
+                while (fi < String.length(this._format)) {
+                    let digit: string = String.charAt(this._format, fi);
+                    let code: int = String.charAt(digit, 0);
+                    if (code >= 48 && code <= 57) {
+                        count = count * 10 + (code - 48);
+                        fi = fi + 1;
+                    } else {
+                        fi = fi - 1;
+                        break;
+                    }
+                }
+                if (count == 0) { count = 1; }
+                let val: string = values.get(vi) as string;
+                var j: int = 0;
+                while (j < count) {
+                    if (j < String.length(val)) {
+                        result = result + String.charAt(val, j);
+                    } else {
+                        result = result + "\x00";
+                    }
+                    j = j + 1;
+                }
+                vi = vi + 1;
+            }
+            fi = fi + 1;
+        }
+        return result;
+    }
+
+    // Unpack a binary string according to the format
+    public fn unpack(data: string): ArrayList<Variant> {
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        var offset: int = 0;
+        var fi: int = 0;
+        while (fi < String.length(this._format)) {
+            let ch: string = String.charAt(this._format, fi);
+            if (ch == "b") {
+                let val: int = Struct._decodeByte(data, offset);
+                result.add(val as Variant);
+                offset = offset + 1;
+            } else if (ch == "h") {
+                let val: int = Struct._decodeShort(data, offset, this._byteOrder);
+                result.add(val as Variant);
+                offset = offset + 2;
+            } else if (ch == "i") {
+                let val: int = Struct._decodeInt(data, offset, this._byteOrder);
+                result.add(val as Variant);
+                offset = offset + 4;
+            } else if (ch == "l") {
+                let val: long = Struct._decodeLong(data, offset, this._byteOrder);
+                result.add(val as Variant);
+                offset = offset + 8;
+            } else if (ch == "f") {
+                let val: double = Struct._decodeFloat(data, offset, this._byteOrder);
+                result.add(val as Variant);
+                offset = offset + 4;
+            } else if (ch == "d") {
+                let val: double = Struct._decodeDouble(data, offset, this._byteOrder);
+                result.add(val as Variant);
+                offset = offset + 8;
+            } else if (ch == "s") {
+                var count: int = 0;
+                fi = fi + 1;
+                while (fi < String.length(this._format)) {
+                    let digit: string = String.charAt(this._format, fi);
+                    let code: int = String.charAt(digit, 0);
+                    if (code >= 48 && code <= 57) {
+                        count = count * 10 + (code - 48);
+                        fi = fi + 1;
+                    } else {
+                        fi = fi - 1;
+                        break;
+                    }
+                }
+                if (count == 0) { count = 1; }
+                let val: string = String.substring(data, offset, offset + count);
+                result.add(val as Variant);
+                offset = offset + count;
+            }
+            fi = fi + 1;
+        }
+        return result;
+    }
+
+    // Calculate the size of the packed data
+    public fn size(): int {
+        var total: int = 0;
+        var fi: int = 0;
+        while (fi < String.length(this._format)) {
+            let ch: string = String.charAt(this._format, fi);
+            if (ch == "b") {
+                total = total + 1;
+            } else if (ch == "h") {
+                total = total + 2;
+            } else if (ch == "i") {
+                total = total + 4;
+            } else if (ch == "l") {
+                total = total + 8;
+            } else if (ch == "f") {
+                total = total + 4;
+            } else if (ch == "d") {
+                total = total + 8;
+            } else if (ch == "s") {
+                var count: int = 0;
+                fi = fi + 1;
+                while (fi < String.length(this._format)) {
+                    let digit: string = String.charAt(this._format, fi);
+                    let code: int = String.charAt(digit, 0);
+                    if (code >= 48 && code <= 57) {
+                        count = count * 10 + (code - 48);
+                        fi = fi + 1;
+                    } else {
+                        fi = fi - 1;
+                        break;
+                    }
+                }
+                if (count == 0) { count = 1; }
+                total = total + count;
+            }
+            fi = fi + 1;
+        }
+        return total;
+    }
+
+    // Encode a single byte
+    private fn _encodeByte(val: int): string {
+        return String.charAt(val as string, 0);
+    }
+
+    // Encode a short (2 bytes)
+    private fn _encodeShort(val: int, order: string): string {
+        let b0: int = (val >> 8) & 0xFF;
+        let b1: int = val & 0xFF;
+        if (order == "little") {
+            return Struct._chr(b1) + Struct._chr(b0);
+        }
+        return Struct._chr(b0) + Struct._chr(b1);
+    }
+
+    // Encode an int (4 bytes)
+    private fn _encodeInt(val: int, order: string): string {
+        let b0: int = (val >> 24) & 0xFF;
+        let b1: int = (val >> 16) & 0xFF;
+        let b2: int = (val >> 8) & 0xFF;
+        let b3: int = val & 0xFF;
+        if (order == "little") {
+            return Struct._chr(b3) + Struct._chr(b2) + Struct._chr(b1) + Struct._chr(b0);
+        }
+        return Struct._chr(b0) + Struct._chr(b1) + Struct._chr(b2) + Struct._chr(b3);
+    }
+
+    // Encode a long (8 bytes)
+    private fn _encodeLong(val: long, order: string): string {
+        let b0: int = (val >> 56) as int & 0xFF;
+        let b1: int = (val >> 48) as int & 0xFF;
+        let b2: int = (val >> 40) as int & 0xFF;
+        let b3: int = (val >> 32) as int & 0xFF;
+        let b4: int = (val >> 24) as int & 0xFF;
+        let b5: int = (val >> 16) as int & 0xFF;
+        let b6: int = (val >> 8) as int & 0xFF;
+        let b7: int = val as int & 0xFF;
+        if (order == "little") {
+            return Struct._chr(b7) + Struct._chr(b6) + Struct._chr(b5) + Struct._chr(b4) + Struct._chr(b3) + Struct._chr(b2) + Struct._chr(b1) + Struct._chr(b0);
+        }
+        return Struct._chr(b0) + Struct._chr(b1) + Struct._chr(b2) + Struct._chr(b3) + Struct._chr(b4) + Struct._chr(b5) + Struct._chr(b6) + Struct._chr(b7);
+    }
+
+    // Encode a float (4 bytes) using native conversion
+    private fn _encodeFloat(val: double, order: string): string {
+        return Struct_encodeFloat(val, order);
+    }
+
+    // Encode a double (8 bytes) using native conversion
+    private fn _encodeDouble(val: double, order: string): string {
+        return Struct_encodeDouble(val, order);
+    }
+
+    // Decode a single byte
+    private fn _decodeByte(data: string, offset: int): int {
+        return String.charAt(data, offset);
+    }
+
+    // Decode a short (2 bytes)
+    private fn _decodeShort(data: string, offset: int, order: string): int {
+        if (order == "little") {
+            let b0: int = String.charAt(data, offset);
+            let b1: int = String.charAt(data, offset + 1);
+            return b0 | (b1 << 8);
+        }
+        let b0: int = String.charAt(data, offset);
+        let b1: int = String.charAt(data, offset + 1);
+        return (b0 << 8) | b1;
+    }
+
+    // Decode an int (4 bytes)
+    private fn _decodeInt(data: string, offset: int, order: string): int {
+        if (order == "little") {
+            let b0: int = String.charAt(data, offset);
+            let b1: int = String.charAt(data, offset + 1);
+            let b2: int = String.charAt(data, offset + 2);
+            let b3: int = String.charAt(data, offset + 3);
+            return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+        }
+        let b0: int = String.charAt(data, offset);
+        let b1: int = String.charAt(data, offset + 1);
+        let b2: int = String.charAt(data, offset + 2);
+        let b3: int = String.charAt(data, offset + 3);
+        return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+    }
+
+    // Decode a long (8 bytes)
+    private fn _decodeLong(data: string, offset: int, order: string): long {
+        if (order == "little") {
+            let b0: long = String.charAt(data, offset) as long;
+            let b1: long = String.charAt(data, offset + 1) as long;
+            let b2: long = String.charAt(data, offset + 2) as long;
+            let b3: long = String.charAt(data, offset + 3) as long;
+            let b4: long = String.charAt(data, offset + 4) as long;
+            let b5: long = String.charAt(data, offset + 5) as long;
+            let b6: long = String.charAt(data, offset + 6) as long;
+            let b7: long = String.charAt(data, offset + 7) as long;
+            return b0 | (b1 << 8) | (b2 << 16) | (b3 << 24) | (b4 << 32) | (b5 << 40) | (b6 << 48) | (b7 << 56);
+        }
+        let b0: long = String.charAt(data, offset) as long;
+        let b1: long = String.charAt(data, offset + 1) as long;
+        let b2: long = String.charAt(data, offset + 2) as long;
+        let b3: long = String.charAt(data, offset + 3) as long;
+        let b4: long = String.charAt(data, offset + 4) as long;
+        let b5: long = String.charAt(data, offset + 5) as long;
+        let b6: long = String.charAt(data, offset + 6) as long;
+        let b7: long = String.charAt(data, offset + 7) as long;
+        return (b0 << 56) | (b1 << 48) | (b2 << 40) | (b3 << 32) | (b4 << 24) | (b5 << 16) | (b6 << 8) | b7;
+    }
+
+    // Decode a float (4 bytes) using native conversion
+    private fn _decodeFloat(data: string, offset: int, order: string): double {
+        return Struct_decodeFloat(data, offset, order);
+    }
+
+    // Decode a double (8 bytes) using native conversion
+    private fn _decodeDouble(data: string, offset: int, order: string): double {
+        return Struct_decodeDouble(data, offset, order);
+    }
+
+    // Convert an integer value (0-255) to a single character
+    private fn _chr(val: int): string {
+        return Integer.toString(val);
+    }
+}
+
+// Convenience function: pack values into a binary string
+public fn pack(format: string, values: ArrayList<Variant>): string {
+    let s: Struct = new Struct(format);
+    return s.pack(values);
+}
+
+// Convenience function: unpack a binary string
+public fn unpack(format: string, data: string): ArrayList<Variant> {
+    let s: Struct = new Struct(format);
+    return s.unpack(data);
+}
+
+// Convenience function: calculate the size of packed data for a format
+public fn calcsize(format: string): int {
+    let s: Struct = new Struct(format);
+    return s.size();
+}
