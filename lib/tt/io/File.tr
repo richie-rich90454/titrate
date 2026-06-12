@@ -68,4 +68,34 @@ public class File {
     public fn close() {
         File_close(this.path);
     }
+
+    // Seek to position in file. Returns the new position.
+    public fn seek(position: int): int {
+        return File_seek(this.getPath(), position);
+    }
+
+    // Get current position in file.
+    public fn tell(): int {
+        return File_tell(this.getPath());
+    }
+
+    // Read binary data from file.
+    public fn readBytes(count: int): string {
+        return File_readBytes(this.getPath(), count);
+    }
+
+    // Write binary data to file.
+    public fn writeBytes(data: string): void {
+        File_writeBytes(this.getPath(), data);
+    }
+
+    // Read entire file as bytes.
+    public fn readAllBytes(): string {
+        return File_readFile(this.getPath());
+    }
+
+    // Get last modification time as epoch milliseconds.
+    public fn lastModified(): int {
+        return File_lastModified(this.getPath());
+    }
 }
