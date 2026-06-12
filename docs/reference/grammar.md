@@ -4,7 +4,7 @@
 
 ```
 program      ::= import* declaration*
-import       ::= 'import' IDENTIFIER ('::' IDENTIFIER)* ';'
+import       ::= 'import' IDENTIFIER (('::' | '.') IDENTIFIER)* ';'
 declaration  ::= access? (fn_decl | class_decl | interface_decl | enum_decl | var_decl | const_decl)
 access       ::= 'public' | 'private'
 ```
@@ -27,11 +27,14 @@ sugar_params ::= type IDENTIFIER (',' type IDENTIFIER)*
 class_decl   ::= 'class' IDENTIFIER type_params? ('extends' type)? ('implements' type (',' type)*)? '{' class_member* '}'
 class_member ::= field_decl | method_decl | constructor_decl
 field_decl   ::= access? type IDENTIFIER ('=' expr)? ';'
+                  // Note: bare 'type IDENTIFIER' without access modifier defaults to public
 method_decl  ::= access? 'fn' IDENTIFIER '(' params? ')' (':' type)? block
              | access? 'fn' 'operator' OP '(' self_param (',' param)* ')' (':' type)? block   // operator overloading
+             | access? type IDENTIFIER '(' sugar_params? ')' block                            // sugar form (C-family compat)
 self_param   ::= 'self'
 OP           ::= '+' | '-' | '*' | '/' | '%' | '==' | '!=' | '<' | '>' | '<=' | '>='
 constructor_decl ::= access? 'fn' 'init' '(' params? ')' (super_call)? block
+             | access? IDENTIFIER '(' sugar_params? ')' block                                // sugar form (C-family compat)
 super_call   ::= 'super' '(' args? ')' ';'
 ```
 
@@ -52,13 +55,15 @@ variant      ::= IDENTIFIER ('(' type (',' type)* ')')?
 ## Statements
 
 ```
-stmt         ::= block | expr_stmt | if_stmt | while_stmt | for_stmt
+stmt         ::= block | expr_stmt | if_stmt | while_stmt | do_while_stmt | for_stmt
                | return_stmt | break_stmt | continue_stmt | switch_stmt
                | var_decl | const_decl | unsafe_block | region_block
 block        ::= '{' stmt* '}'
 if_stmt      ::= 'if' '(' expr ')' block ('else' (if_stmt | block))?
 while_stmt   ::= 'while' '(' expr ')' block
+do_while_stmt ::= 'do' block 'while' '(' expr ')' ';'
 for_stmt     ::= 'for' '(' ('var')? IDENTIFIER 'in' expr ')' block
+             | 'for' '(' (var_decl | expr_stmt)? ';' expr? ';' expr? ')' block   // C-style for loop
 var_decl     ::= 'var' IDENTIFIER (':' type)? '=' expr ';'
              | 'var' '(' IDENTIFIER (',' IDENTIFIER)+ ')' '=' expr ';'   // tuple destructuring
 const_decl   ::= 'const' IDENTIFIER ':' type '=' expr ';'
@@ -101,7 +106,8 @@ call         ::= '(' args? ')'
 member       ::= '.' IDENTIFIER | '::' IDENTIFIER   // '.' is the preferred form for method calls. '::' is supported for C++ developers but only used in import paths in idiomatic Titrate.
 index        ::= '[' expr ']'
 primary      ::= INTEGER | FLOAT | STRING | RAW_STRING | CHAR | BYTE | 'true' | 'false' | 'null'
-             | 'ok' '(' expr ')' | 'err' '(' expr ')'
+             | 'Ok' '(' expr ')' | 'Err' '(' expr ')'
+             // Note: lowercase ok()/err() are standard library convenience functions that produce the same Result values
              | IDENTIFIER ('<' type (',' type)* '>')?
              | '(' expr ')'
              | '(' expr ',' expr (',' expr)* ')'    // tuple expression
