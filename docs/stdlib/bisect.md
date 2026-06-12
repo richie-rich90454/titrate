@@ -26,8 +26,8 @@ All methods are static. The `bisectLeft`/`bisectRight` functions return the inde
 let arr = new ArrayList<int>();
 arr.add(1); arr.add(3); arr.add(5); arr.add(7);
 
-let idx = Bisect::bisectLeft(arr, 4);   // 2
-Bisect::insortRight(arr, 4);            // [1, 3, 4, 5, 7]
+let idx = Bisect.bisectLeft(arr, 4);   // 2
+Bisect.insortRight(arr, 4);            // [1, 3, 4, 5, 7]
 
-let pos = Bisect::bisectRight(arr, 3);  // 2 (after existing 3)
+let pos = Bisect.bisectRight(arr, 3);  // 2 (after existing 3)
 ```

@@ -23,8 +23,8 @@ All methods are static.
 
 ### Comparison operators
 
-- `eq(a: Object, b: Object): bool` — equality
-- `ne(a: Object, b: Object): bool` — inequality
+- `eq<T>(a: T, b: T): bool` — equality
+- `ne<T>(a: T, b: T): bool` — inequality
 - `lt(a: int, b: int): bool` — less than
 - `le(a: int, b: int): bool` — less than or equal
 - `gt(a: int, b: int): bool` — greater than
@@ -38,11 +38,11 @@ All methods are static.
 
 ### Accessor helpers
 
-- `itemGetter(arr: ArrayList<Object>, index: int): Object` — get element by index
-- `attrGetter(obj: Object, attr: String): Object` — attribute access (returns null; dynamic attrs not supported)
+- `itemGetter<T>(arr: ArrayList<T>, index: int): T` — get element by index
+- `attrGetter(obj: Variant, attr: string): Variant` — attribute access (returns null; dynamic attrs not supported)
 
 ```titrate
-let sum = Operator::add(3, 4);         // 7
-let cmp = Operator::gt(10, 5);         // true
-let result = Operator::truediv(10.0, 3.0);  // 3.333...
+let sum = Operator.add(3, 4);         // 7
+let cmp = Operator.gt(10, 5);         // true
+let result = Operator.truediv(10.0, 3.0);  // 3.333...
 ```

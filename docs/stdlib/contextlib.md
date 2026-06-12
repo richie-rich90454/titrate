@@ -10,18 +10,18 @@ import tt.contextlib.Contextlib;
 
 All methods are static.
 
-- `suppress(block: function<void()>): void` — run a block, silently swallowing any thrown error
-- `redirectStdout(block: function<void()>): void` — run a block with stdout redirection (VM runtime hook)
-- `closing(resource: Object, block: function<void()>): void` — run a block, then call `resource.close()`; the programmatic equivalent of the `with`-statement
+- `suppress(block: fn(): void): void` — run a block, silently swallowing any thrown error
+- `redirectStdout(block: fn(): void): void` — run a block with stdout redirection (VM runtime hook)
+- `closing<T>(resource: T, block: fn(): void): void` — run a block, then call `resource.close()`; the programmatic equivalent of the `with`-statement
 
 ```titrate
 // Suppress errors from a block
-Contextlib::suppress(fn(): void => {
+Contextlib.suppress(fn(): void {
     // risky operation that might throw
 });
 
 // Ensure a resource is closed after use
-Contextlib::closing(file, fn(): void => {
+Contextlib.closing(file, fn(): void {
     // work with file
 });
 // file.close() is called automatically

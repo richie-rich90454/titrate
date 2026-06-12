@@ -10,11 +10,11 @@ import tt.pprint.Pprint;
 
 All methods are static.
 
-- `pformat(obj: Object): String` — format with default indent=2, width=80
-- `pformat(obj: Object, indent: int): String` — format with given indent, width=80
-- `pformat(obj: Object, indent: int, width: int): String` — format with given indent and width
-- `pprint(obj: Object): void` — print to stdout with default indent=2
-- `pprint(obj: Object, indent: int): void` — print to stdout with given indent
+- `pformat(obj: Variant): string` — format with default indent=2, width=80
+- `pformat(obj: Variant, indent: int): string` — format with given indent, width=80
+- `pformat(obj: Variant, indent: int, width: int): string` — format with given indent and width
+- `pprint(obj: Variant): void` — print to stdout with default indent=2
+- `pprint(obj: Variant, indent: int): void` — print to stdout with given indent
 
 ### Formatting rules
 
@@ -26,15 +26,15 @@ All methods are static.
 ```titrate
 let list = new ArrayList<int>();
 list.add(1); list.add(2); list.add(3);
-Pprint::pprint(list);
+Pprint.pprint(list);
 // [1, 2, 3]
 
 let map = new HashMap<string, int>();
 map.put("alpha", 1);
 map.put("beta", 2);
-Pprint::pprint(map, 4);
+Pprint.pprint(map, 4);
 // {alpha: 1, beta: 2}
 
-let formatted = Pprint::pformat(list, 2, 10);
+let formatted = Pprint.pformat(list, 2, 10);
 // Multi-line if compact form exceeds 10 chars
 ```

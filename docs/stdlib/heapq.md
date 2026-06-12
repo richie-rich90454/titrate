@@ -22,12 +22,12 @@ All methods are static and operate on an `ArrayList<int>` that represents the he
 let heap = new ArrayList<int>();
 heap.add(5); heap.add(3); heap.add(8); heap.add(1);
 
-Heapq::heapify(heap);
-Heapq::heappush(heap, 2);
+Heapq.heapify(heap);
+Heapq.heappush(heap, 2);
 
-let smallest = Heapq::heappop(heap);  // 1
-io::println(smallest);
+let smallest = Heapq.heappop(heap);  // 1
+io::println(Integer.toString(smallest));
 
-let top3 = Heapq::nlargest(heap, 3); // [8, 5, 3]
-let low2 = Heapq::nsmallest(heap, 2); // [2, 3]
+let top3 = Heapq.nlargest(heap, 3); // [8, 5, 3]
+let low2 = Heapq.nsmallest(heap, 2); // [2, 3]
 ```
