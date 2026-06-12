@@ -2,56 +2,56 @@
 public class BitSet {
     private ArrayList<int> words;
 
-    public BitSet() {
+    public fn BitSet() {
         this.words = new ArrayList<int>();
     }
 
-    private static int wordIndex(int bitIndex) {
+    private fn _wordIndex(bitIndex: int): int {
         return bitIndex / 32;
     }
 
-    private void ensureCapacity(int wordIndex) {
-        while (this.words.size() <= wordIndex) {
+    private fn ensureCapacity(wordIdx: int): void {
+        while (this.words.size() <= wordIdx) {
             this.words.add(0);
         }
     }
 
-    public void set(int bitIndex) {
-        int idx = BitSet::wordIndex(bitIndex);
+    public fn set(bitIndex: int): void {
+        let idx: int = this._wordIndex(bitIndex);
         this.ensureCapacity(idx);
-        int word = this.words.get(idx);
+        let word: int = this.words.get(idx);
         this.words.set(idx, word | (1 << (bitIndex % 32)));
     }
 
-    public bool get(int bitIndex) {
-        int idx = BitSet::wordIndex(bitIndex);
+    public fn get(bitIndex: int): bool {
+        let idx: int = this._wordIndex(bitIndex);
         if (idx >= this.words.size()) {
             return false;
         }
-        int word = this.words.get(idx);
+        let word: int = this.words.get(idx);
         return (word & (1 << (bitIndex % 32))) != 0;
     }
 
-    public void clear(int bitIndex) {
-        int idx = BitSet::wordIndex(bitIndex);
+    public fn clear(bitIndex: int): void {
+        let idx: int = this._wordIndex(bitIndex);
         if (idx < this.words.size()) {
-            int word = this.words.get(idx);
+            let word: int = this.words.get(idx);
             this.words.set(idx, word & ~(1 << (bitIndex % 32)));
         }
     }
 
-    public void flip(int bitIndex) {
-        int idx = BitSet::wordIndex(bitIndex);
+    public fn flip(bitIndex: int): void {
+        let idx: int = this._wordIndex(bitIndex);
         this.ensureCapacity(idx);
-        int word = this.words.get(idx);
+        let word: int = this.words.get(idx);
         this.words.set(idx, word ^ (1 << (bitIndex % 32)));
     }
 
-    public int cardinality() {
-        int count = 0;
-        int i = 0;
+    public fn cardinality(): int {
+        let count: int = 0;
+        let i: int = 0;
         while (i < this.words.size()) {
-            int word = this.words.get(i);
+            let word: int = this.words.get(i);
             while (word != 0) {
                 count = count + (word & 1);
                 word = word >> 1;
@@ -61,8 +61,8 @@ public class BitSet {
         return count;
     }
 
-    public void and(BitSet other) {
-        int i = 0;
+    public fn and(other: BitSet): void {
+        let i: int = 0;
         while (i < this.words.size()) {
             if (i < other.words.size()) {
                 this.words.set(i, this.words.get(i) & other.words.get(i));
@@ -73,8 +73,8 @@ public class BitSet {
         }
     }
 
-    public void or(BitSet other) {
-        int i = 0;
+    public fn or(other: BitSet): void {
+        let i: int = 0;
         while (i < other.words.size()) {
             this.ensureCapacity(i);
             this.words.set(i, this.words.get(i) | other.words.get(i));
@@ -82,8 +82,8 @@ public class BitSet {
         }
     }
 
-    public void xor(BitSet other) {
-        int i = 0;
+    public fn xor(other: BitSet): void {
+        let i: int = 0;
         while (i < other.words.size()) {
             this.ensureCapacity(i);
             this.words.set(i, this.words.get(i) ^ other.words.get(i));
@@ -91,16 +91,16 @@ public class BitSet {
         }
     }
 
-    public int size() {
+    public fn size(): int {
         return this.words.size() * 32;
     }
 
-    public int length() {
-        int i = this.words.size() - 1;
+    public fn length(): int {
+        let i: int = this.words.size() - 1;
         while (i >= 0) {
             if (this.words.get(i) != 0) {
-                int word = this.words.get(i);
-                int bit = 31;
+                let word: int = this.words.get(i);
+                let bit: int = 31;
                 while (bit >= 0) {
                     if ((word & (1 << bit)) != 0) {
                         return i * 32 + bit + 1;
@@ -113,8 +113,8 @@ public class BitSet {
         return 0;
     }
 
-    public bool isEmpty() {
-        int i = 0;
+    public fn isEmpty(): bool {
+        let i: int = 0;
         while (i < this.words.size()) {
             if (this.words.get(i) != 0) {
                 return false;
@@ -124,25 +124,25 @@ public class BitSet {
         return true;
     }
 
-    public void clear() {
-        int i = 0;
+    public fn clear(): void {
+        let i: int = 0;
         while (i < this.words.size()) {
             this.words.set(i, 0);
             i = i + 1;
         }
     }
 
-    public void set(int from, int to) {
-        int i = from;
+    public fn set(from: int, to: int): void {
+        let i: int = from;
         while (i < to) {
             this.set(i);
             i = i + 1;
         }
     }
 
-    public BitSet get(int from, int to) {
-        BitSet result = new BitSet();
-        int i = from;
+    public fn get(from: int, to: int): BitSet {
+        let result: BitSet = new BitSet();
+        let i: int = from;
         while (i < to) {
             if (this.get(i)) {
                 result.set(i - from);
@@ -152,24 +152,24 @@ public class BitSet {
         return result;
     }
 
-    public void clear(int from, int to) {
-        int i = from;
+    public fn clear(from: int, to: int): void {
+        let i: int = from;
         while (i < to) {
             this.clear(i);
             i = i + 1;
         }
     }
 
-    public void flip(int from, int to) {
-        int i = from;
+    public fn flip(from: int, to: int): void {
+        let i: int = from;
         while (i < to) {
             this.flip(i);
             i = i + 1;
         }
     }
 
-    public void andNot(BitSet other) {
-        int i = 0;
+    public fn andNot(other: BitSet): void {
+        let i: int = 0;
         while (i < this.words.size()) {
             if (i < other.words.size()) {
                 this.words.set(i, this.words.get(i) & ~other.words.get(i));
@@ -178,8 +178,8 @@ public class BitSet {
         }
     }
 
-    public bool intersects(BitSet other) {
-        int i = 0;
+    public fn intersects(other: BitSet): bool {
+        let i: int = 0;
         while (i < this.words.size() && i < other.words.size()) {
             if ((this.words.get(i) & other.words.get(i)) != 0) {
                 return true;
@@ -189,10 +189,10 @@ public class BitSet {
         return false;
     }
 
-    public String toString() {
-        String s = "{";
-        bool first = true;
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "{";
+        let first: bool = true;
+        let i: int = 0;
         while (i < this.size()) {
             if (this.get(i)) {
                 if (!first) { s = s + ", "; }
@@ -205,9 +205,9 @@ public class BitSet {
         return s;
     }
 
-    public BitSet clone() {
-        BitSet result = new BitSet();
-        int i = 0;
+    public fn clone(): BitSet {
+        let result: BitSet = new BitSet();
+        let i: int = 0;
         while (i < this.words.size()) {
             result.words.add(this.words.get(i));
             i = i + 1;
