@@ -232,5 +232,5 @@ fn decodeHex(hex: string): string {
         }
         i = i + 1;
     }
-    return code.toString();
+    return String.fromCharCode(code);
 }
