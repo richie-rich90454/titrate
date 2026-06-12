@@ -5,94 +5,94 @@ import tt::util::ArrayListIterator;
 
 public class defaultdict<K, V> {
     private HashMap<K, V> map;
-    private function<V()> factory;
+    private fn(): V factory;
 
-    public defaultdict(function<V()> factory) {
+    public fn defaultdict(factory: fn(): V) {
         this.map = new HashMap<K, V>();
         this.factory = factory;
     }
 
-    public V get(K key) {
+    public fn get(key: K): V {
         if (this.map.containsKey(key)) {
             return this.map.get(key);
         }
-        V defaultValue = this.factory();
+        let defaultValue: V = this.factory();
         this.map.put(key, defaultValue);
         return defaultValue;
     }
 
-    public void put(K key, V value) {
+    public fn put(key: K, value: V): void {
         this.map.put(key, value);
     }
 
-    public bool containsKey(K key) {
+    public fn containsKey(key: K): bool {
         return this.map.containsKey(key);
     }
 
-    public void remove(K key) {
+    public fn remove(key: K): void {
         this.map.remove(key);
     }
 
-    public int size() {
+    public fn size(): int {
         return this.map.size();
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this.map.size() == 0;
     }
 
-    public ArrayList<K> keys() {
+    public fn keys(): ArrayList<K> {
         return this.map.keys();
     }
 
-    public ArrayList<V> values() {
+    public fn values(): ArrayList<V> {
         return this.map.values();
     }
 
-    public ArrayList<(K, V)> entries() {
+    public fn entries(): ArrayList<(K, V)> {
         return this.map.entries();
     }
 
-    public void clear() {
+    public fn clear(): void {
         this.map = new HashMap<K, V>();
     }
 
-    public V getOrDefault(K key, V defaultValue) {
+    public fn getOrDefault(key: K, defaultValue: V): V {
         if (this.map.containsKey(key)) {
             return this.map.get(key);
         }
         return defaultValue;
     }
 
-    public void forEach(function<void(K, V)> fn) {
-        ArrayList<(K, V)> entries = this.map.entries();
-        int i = 0;
+    public fn forEach(fn: fn(K, V): void): void {
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
         while (i < entries.size()) {
-            (K key, V val) = entries.get(i);
+            let (key: K, val: V) = entries.get(i);
             fn(key, val);
             i = i + 1;
         }
     }
 
-    public defaultdict<K, V> clone() {
-        defaultdict<K, V> result = new defaultdict<K, V>(this.factory);
-        ArrayList<(K, V)> entries = this.map.entries();
-        int i = 0;
+    public fn clone(): defaultdict<K, V> {
+        let result: defaultdict<K, V> = new defaultdict<K, V>(this.factory);
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
         while (i < entries.size()) {
-            (K key, V val) = entries.get(i);
+            let (key: K, val: V) = entries.get(i);
             result.put(key, val);
             i = i + 1;
         }
         return result;
     }
 
-    public String toString() {
-        String s = "defaultdict({";
-        ArrayList<(K, V)> entries = this.map.entries();
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "defaultdict({";
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
         while (i < entries.size()) {
             if (i > 0) { s = s + ", "; }
-            (K key, V val) = entries.get(i);
+            let (key: K, val: V) = entries.get(i);
             s = s + key + ": " + val;
             i = i + 1;
         }
@@ -100,7 +100,7 @@ public class defaultdict<K, V> {
         return s;
     }
 
-    public ArrayListIterator<K> iterator() {
+    public fn iterator(): ArrayListIterator<K> {
         return this.map.keys().iterator();
     }
 }
