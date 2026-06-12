@@ -9,168 +9,170 @@ public class Decimal {
     // Sign: true = negative, false = positive or zero
     public bool negative;
     // Digits stored as string (no leading zeros, except "0" for zero)
-    public String digits;
+    public string digits;
     // Number of digits after the decimal point
     public int scale;
 
-    public Decimal(String value) {
+    public fn init(value: string) {
         // Parse from string
-        bool neg = false;
-        String s = value;
-        if (s.length() > 0 && s.charAt(0) == "-") {
+        let neg: bool = false;
+        let s: string = value;
+        if (String.length(s) > 0 && String.charAt(s, 0) == "-") {
             neg = true;
-            s = String.substring(s, 1, s.length());
-        } else if (s.length() > 0 && s.charAt(0) == "+") {
-            s = String.substring(s, 1, s.length());
+            s = String.substring(s, 1, String.length(s));
+        } else if (String.length(s) > 0 && String.charAt(s, 0) == "+") {
+            s = String.substring(s, 1, String.length(s));
         }
-        int dotPos = String.indexOf(s, ".");
+        let dotPos: int = String.indexOf(s, ".");
         if (dotPos < 0) {
             this.digits = DecimalArithmetic.stripLeadingZeros(s);
             this.scale = 0;
         } else {
-            String intPart = String.substring(s, 0, dotPos);
-            String fracPart = String.substring(s, dotPos + 1, s.length());
+            let intPart: string = String.substring(s, 0, dotPos);
+            let fracPart: string = String.substring(s, dotPos + 1, String.length(s));
             this.digits = DecimalArithmetic.stripLeadingZeros(intPart + fracPart);
-            this.scale = fracPart.length();
+            this.scale = String.length(fracPart);
         }
-        if (this.digits.length() == 0) { this.digits = "0"; }
+        if (String.length(this.digits) == 0) { this.digits = "0"; }
         this.negative = neg;
         if (DecimalArithmetic.isZeroStr(this.digits)) {
             this.negative = false;
         }
     }
-
     // Private constructor from components
-    private Decimal(bool neg, String digs, int sc) {
+    private fn initFrom(neg: bool, digs: string, sc: int) {
         this.digits = DecimalArithmetic.stripLeadingZeros(digs);
-        if (this.digits.length() == 0) { this.digits = "0"; }
+        if (String.length(this.digits) == 0) { this.digits = "0"; }
         this.scale = sc;
         this.negative = neg;
         if (DecimalArithmetic.isZeroStr(this.digits)) {
             this.negative = false;
         }
     }
-
     // ---- Arithmetic ----
 
-    public Decimal add(Decimal other) {
-        (String a, String b) = DecimalArithmetic.alignScales(this.digits, this.scale, other.digits, other.scale);
-        int newScale = this.scale;
+    public fn add(other: Decimal): Decimal {
+        let aligned: (string, string) = DecimalArithmetic.alignScales(this.digits, this.scale, other.digits, other.scale);
+        let a: string = aligned.0;
+        let b: string = aligned.1;
+        let newScale: int = this.scale;
         if (other.scale > newScale) { newScale = other.scale; }
         if (this.negative == other.negative) {
-            String sum = DecimalArithmetic.addDigitStrings(a, b);
-            return new Decimal(this.negative, sum, newScale);
+            let sum: string = DecimalArithmetic.addDigitStrings(a, b);
+            return new Decimal().initFrom(this.negative, sum, newScale);
         }
-        int cmp = DecimalArithmetic.compareDigitStrings(a, b);
-        if (cmp == 0) { return new Decimal(false, "0", 0); }
+        let cmp: int = DecimalArithmetic.compareDigitStrings(a, b);
+        if (cmp == 0) { return new Decimal().initFrom(false, "0", 0); }
         if (cmp > 0) {
-            String diff = DecimalArithmetic.subDigitStrings(a, b);
-            return new Decimal(this.negative, diff, newScale);
+            let diff: string = DecimalArithmetic.subDigitStrings(a, b);
+            return new Decimal().initFrom(this.negative, diff, newScale);
         }
-        String diff = DecimalArithmetic.subDigitStrings(b, a);
-        return new Decimal(other.negative, diff, newScale);
+        let diff: string = DecimalArithmetic.subDigitStrings(b, a);
+        return new Decimal().initFrom(other.negative, diff, newScale);
     }
 
-    public Decimal sub(Decimal other) {
-        Decimal negOther = new Decimal(!other.negative, other.digits, other.scale);
+    public fn sub(other: Decimal): Decimal {
+        let negOther: Decimal = new Decimal().initFrom(!other.negative, other.digits, other.scale);
         return this.add(negOther);
     }
 
-    public Decimal mul(Decimal other) {
-        String product = DecimalArithmetic.mulDigitStrings(this.digits, other.digits);
-        int newScale = this.scale + other.scale;
-        bool neg = this.negative != other.negative;
-        return new Decimal(neg, product, newScale);
+    public fn mul(other: Decimal): Decimal {
+        let product: string = DecimalArithmetic.mulDigitStrings(this.digits, other.digits);
+        let newScale: int = this.scale + other.scale;
+        let neg: bool = this.negative != other.negative;
+        return new Decimal().initFrom(neg, product, newScale);
     }
 
-    public Decimal div(Decimal other) {
+    public fn div(other: Decimal): Decimal {
         if (DecimalArithmetic.isZeroStr(other.digits)) {
-            return new Decimal(false, "0", 0);
+            return new Decimal().initFrom(false, "0", 0);
         }
         // Multiply numerator by 10^precision to get desired decimal places
-        int precision = 20;
-        String paddedNum = this.digits;
-        int i = 0;
+        let precision: int = 20;
+        let paddedNum: string = this.digits;
+        let i: int = 0;
         while (i < precision) {
             paddedNum = paddedNum + "0";
             i = i + 1;
         }
         // Adjust for scales
-        int effectiveScale = this.scale - other.scale + precision;
+        let effectiveScale: int = this.scale - other.scale + precision;
         // Long division
-        String quotient = "";
-        String remainder = "";
-        int idx = 0;
-        while (idx < paddedNum.length() || !DecimalArithmetic.isZeroStr(remainder)) {
-            int digit = 0;
-            if (idx < paddedNum.length()) {
-                digit = paddedNum.charAt(idx) - "0".charAt(0);
+        let quotient: string = "";
+        let remainder: string = "";
+        let idx: int = 0;
+        while (idx < String.length(paddedNum) || !DecimalArithmetic.isZeroStr(remainder)) {
+            let digit: int = 0;
+            if (idx < String.length(paddedNum)) {
+                digit = String.charAt(paddedNum, idx) - String.charAt("0", 0);
             }
             remainder = remainder + Integer.toString(digit);
             remainder = DecimalArithmetic.stripLeadingZeros(remainder);
             if (DecimalArithmetic.isZeroStr(remainder)) { remainder = ""; }
-            int count = 0;
+            let count: int = 0;
             while (DecimalArithmetic.compareDigitStrings(remainder, other.digits) >= 0 && !DecimalArithmetic.isZeroStr(remainder)) {
                 remainder = DecimalArithmetic.subDigitStrings(remainder, other.digits);
                 count = count + 1;
             }
             quotient = quotient + Integer.toString(count);
             idx = idx + 1;
-            if (idx > paddedNum.length() + precision) { break; }
+            if (idx > String.length(paddedNum) + precision) { break; }
         }
         quotient = DecimalArithmetic.stripLeadingZeros(quotient);
         if (DecimalArithmetic.isZeroStr(quotient)) { quotient = "0"; }
-        bool neg = this.negative != other.negative;
-        return new Decimal(neg, quotient, effectiveScale);
+        let neg: bool = this.negative != other.negative;
+        return new Decimal().initFrom(neg, quotient, effectiveScale);
     }
 
     // ---- Comparison ----
 
-    public int compareTo(Decimal other) {
+    public fn compareTo(other: Decimal): int {
         if (this.negative && !other.negative) { return -1; }
         if (!this.negative && other.negative) { return 1; }
-        (String a, String b) = DecimalArithmetic.alignScales(this.digits, this.scale, other.digits, other.scale);
-        int cmp = DecimalArithmetic.compareDigitStrings(a, b);
+        let aligned: (string, string) = DecimalArithmetic.alignScales(this.digits, this.scale, other.digits, other.scale);
+        let a: string = aligned.0;
+        let b: string = aligned.1;
+        let cmp: int = DecimalArithmetic.compareDigitStrings(a, b);
         if (this.negative) { cmp = -cmp; }
         return cmp;
     }
 
-    public bool equals(Decimal other) {
+    public fn equals(other: Decimal): bool {
         return this.compareTo(other) == 0;
     }
 
     // ---- Conversion ----
 
-    public String toString() {
-        String result = "";
+    public fn toString(): string {
+        let result: string = "";
         if (this.negative) { result = result + "-"; }
         if (this.scale == 0) {
             result = result + this.digits;
             return result;
         }
-        int intLen = this.digits.length() - this.scale;
+        let intLen: int = String.length(this.digits) - this.scale;
         if (intLen <= 0) {
             result = result + "0.";
-            int i = 0;
+            let i: int = 0;
             while (i < -intLen) {
                 result = result + "0";
                 i = i + 1;
             }
             result = result + this.digits;
         } else {
-            String intPart = String.substring(this.digits, 0, intLen);
-            String fracPart = String.substring(this.digits, intLen, this.digits.length());
+            let intPart: string = String.substring(this.digits, 0, intLen);
+            let fracPart: string = String.substring(this.digits, intLen, String.length(this.digits));
             result = result + intPart + "." + fracPart;
         }
         return result;
     }
 
-    public static Decimal fromString(String s) {
-        return new Decimal(s);
-    }
-
-    public double toDouble() {
-        String s = this.toString();
+    public fn toDouble(): double {
+        let s: string = this.toString();
         return Double.parseDouble(s);
     }
+}
+
+fn fromString(s: string): Decimal {
+    return new Decimal(s);
 }
