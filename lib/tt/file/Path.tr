@@ -87,6 +87,96 @@ public class Path {
     public fn toString(): string {
         return this.path;
     }
+
+    // Get the file name without extension.
+    public fn stem(): string {
+        let name: string = this.basename();
+        let ext: string = this.extension();
+        if (String.length(ext) > 0) {
+            return String.substring(name, 0, String.length(name) - String.length(ext) - 1);
+        }
+        return name;
+    }
+
+    // Check if path is absolute.
+    public fn isAbsolute(): bool {
+        let p: string = this.toString();
+        if (String.length(p) == 0) { return false; }
+        let first: string = String.charAt(p, 0);
+        if (first == "/" || first == "\\") { return true; }
+        // Windows: C:\ etc.
+        if (String.length(p) >= 3) {
+            let second: string = String.charAt(p, 1);
+            let third: string = String.charAt(p, 2);
+            if (second == ":" && (third == "\\" || third == "/")) { return true; }
+        }
+        return false;
+    }
+
+    // Get all parent paths.
+    public fn parents(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var current: string = this.toString();
+        while (String.length(current) > 0) {
+            let p: string = Path_dirname(current);
+            if (p == current) { break; }
+            result.add(p);
+            current = p;
+        }
+        return result;
+    }
+
+    // Read file contents as string.
+    public fn readText(): string {
+        return File_readFile(this.toString());
+    }
+
+    // Write string to file.
+    public fn writeText(content: string): void {
+        File_writeFile(this.toString(), content);
+    }
+
+    // Create directory at this path.
+    public fn mkdir(): void {
+        Dir_create(this.toString());
+    }
+
+    // Rename this path.
+    public fn renameTo(newPath: string): bool {
+        let result: Result<string, string> = Os_rename(this.toString(), newPath);
+        return result.isOk();
+    }
+
+    // Get file size.
+    public fn fileSize(): int {
+        return Fs_size(this.toString());
+    }
+
+    // Check if path is a symlink.
+    public fn isSymlink(): bool {
+        // Stub: requires native support
+        return false;
+    }
+
+    // Get the path with a different extension.
+    public fn withExtension(ext: string): string {
+        let dir: string = this.dirname();
+        let stemName: string = this.stem();
+        let result: string = stemName + "." + ext;
+        if (String.length(dir) > 0) {
+            return Path_join(dir, result);
+        }
+        return result;
+    }
+
+    // Get the path with a different file name.
+    public fn withName(name: string): string {
+        let dir: string = this.dirname();
+        if (String.length(dir) > 0) {
+            return Path_join(dir, name);
+        }
+        return name;
+    }
 }
 
 // Internal: normalize a path by resolving . and .. segments
