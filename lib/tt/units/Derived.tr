@@ -2,7 +2,7 @@ import tt::units::Base;
 
 class Joule {
     double value;
-    Joule(double v) { this.value = v; }
+    Joule(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Joule): Joule { return new Joule(this.value + other.value); }
     fn minus(other: Joule): Joule { return new Joule(this.value - other.value); }
@@ -19,7 +19,7 @@ class Joule {
 
 class Newton {
     double value;
-    Newton(double v) { this.value = v; }
+    Newton(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Newton): Newton { return new Newton(this.value + other.value); }
     fn minus(other: Newton): Newton { return new Newton(this.value - other.value); }
@@ -36,7 +36,7 @@ class Newton {
 
 class Pascal {
     double value;
-    Pascal(double v) { this.value = v; }
+    Pascal(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Pascal): Pascal { return new Pascal(this.value + other.value); }
     fn minus(other: Pascal): Pascal { return new Pascal(this.value - other.value); }
@@ -52,7 +52,7 @@ class Pascal {
 
 class Watt {
     double value;
-    Watt(double v) { this.value = v; }
+    Watt(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Watt): Watt { return new Watt(this.value + other.value); }
     fn minus(other: Watt): Watt { return new Watt(this.value - other.value); }
@@ -69,7 +69,7 @@ class Watt {
 
 class Coulomb {
     double value;
-    Coulomb(double v) { this.value = v; }
+    Coulomb(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Coulomb): Coulomb { return new Coulomb(this.value + other.value); }
     fn minus(other: Coulomb): Coulomb { return new Coulomb(this.value - other.value); }
@@ -85,7 +85,7 @@ class Coulomb {
 
 class Volt {
     double value;
-    Volt(double v) { this.value = v; }
+    Volt(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Volt): Volt { return new Volt(this.value + other.value); }
     fn minus(other: Volt): Volt { return new Volt(this.value - other.value); }
@@ -103,7 +103,7 @@ class Volt {
 
 class Ohm {
     double value;
-    Ohm(double v) { this.value = v; }
+    Ohm(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Ohm): Ohm { return new Ohm(this.value + other.value); }
     fn minus(other: Ohm): Ohm { return new Ohm(this.value - other.value); }
@@ -117,7 +117,7 @@ class Ohm {
 
 class Farad {
     double value;
-    Farad(double v) { this.value = v; }
+    Farad(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Farad): Farad { return new Farad(this.value + other.value); }
     fn minus(other: Farad): Farad { return new Farad(this.value - other.value); }
@@ -131,7 +131,7 @@ class Farad {
 
 class Henry {
     double value;
-    Henry(double v) { this.value = v; }
+    Henry(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Henry): Henry { return new Henry(this.value + other.value); }
     fn minus(other: Henry): Henry { return new Henry(this.value - other.value); }
@@ -145,7 +145,7 @@ class Henry {
 
 class Tesla {
     double value;
-    Tesla(double v) { this.value = v; }
+    Tesla(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Tesla): Tesla { return new Tesla(this.value + other.value); }
     fn minus(other: Tesla): Tesla { return new Tesla(this.value - other.value); }
@@ -159,7 +159,7 @@ class Tesla {
 
 class Weber {
     double value;
-    Weber(double v) { this.value = v; }
+    Weber(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Weber): Weber { return new Weber(this.value + other.value); }
     fn minus(other: Weber): Weber { return new Weber(this.value - other.value); }
@@ -173,7 +173,7 @@ class Weber {
 
 class Hertz {
     double value;
-    Hertz(double v) { this.value = v; }
+    Hertz(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Hertz): Hertz { return new Hertz(this.value + other.value); }
     fn minus(other: Hertz): Hertz { return new Hertz(this.value - other.value); }
@@ -187,7 +187,7 @@ class Hertz {
 
 class Becquerel {
     double value;
-    Becquerel(double v) { this.value = v; }
+    Becquerel(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Becquerel): Becquerel { return new Becquerel(this.value + other.value); }
     fn minus(other: Becquerel): Becquerel { return new Becquerel(this.value - other.value); }
@@ -201,7 +201,7 @@ class Becquerel {
 
 class Gray {
     double value;
-    Gray(double v) { this.value = v; }
+    Gray(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Gray): Gray { return new Gray(this.value + other.value); }
     fn minus(other: Gray): Gray { return new Gray(this.value - other.value); }
@@ -215,7 +215,7 @@ class Gray {
 
 class Sievert {
     double value;
-    Sievert(double v) { this.value = v; }
+    Sievert(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Sievert): Sievert { return new Sievert(this.value + other.value); }
     fn minus(other: Sievert): Sievert { return new Sievert(this.value - other.value); }
@@ -229,7 +229,7 @@ class Sievert {
 
 class Lux {
     double value;
-    Lux(double v) { this.value = v; }
+    Lux(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Lux): Lux { return new Lux(this.value + other.value); }
     fn minus(other: Lux): Lux { return new Lux(this.value - other.value); }
@@ -243,7 +243,7 @@ class Lux {
 
 class Lumen {
     double value;
-    Lumen(double v) { this.value = v; }
+    Lumen(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Lumen): Lumen { return new Lumen(this.value + other.value); }
     fn minus(other: Lumen): Lumen { return new Lumen(this.value - other.value); }
@@ -257,7 +257,7 @@ class Lumen {
 
 class Katal {
     double value;
-    Katal(double v) { this.value = v; }
+    Katal(v: double) { this.value = v; }
     fn getValue(): double { return this.value; }
     fn plus(other: Katal): Katal { return new Katal(this.value + other.value); }
     fn minus(other: Katal): Katal { return new Katal(this.value - other.value); }
