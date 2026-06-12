@@ -4,26 +4,26 @@ public class ArrayListIterator<T> implements Iterator<T> {
     private ArrayList<T> list;
     private int index;
 
-    public ArrayListIterator(ArrayList<T> list) {
+    public fn ArrayListIterator(list: ArrayList<T>) {
         this.list = list;
         this.index = 0;
     }
 
-    public bool hasNext() {
+    public fn hasNext(): bool {
         return this.index < this.list.size();
     }
 
-    public T next() {
-        T item = this.list.get(this.index);
+    public fn next(): T {
+        let item: T = this.list.get(this.index);
         this.index = this.index + 1;
         return item;
     }
 
-    public void reset() {
+    public fn reset(): void {
         this.index = 0;
     }
 
-    public void forEachRemaining(function<void(T)> action) {
+    public fn forEachRemaining(action: fn(T): void): void {
         while (this.hasNext()) {
             action(this.next());
         }
