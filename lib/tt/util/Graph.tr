@@ -7,45 +7,45 @@ import tt::util::Set;
 
 public class Graph<V> {
     private HashMap<V, ArrayList<V>> adj;
-    private HashMap<String, double> weights;
+    private HashMap<string, double> weights;
     private bool directed;
     private int _edgeCount;
 
-    public Graph() {
+    public fn Graph() {
         this.adj = new HashMap<V, ArrayList<V>>();
-        this.weights = new HashMap<String, double>();
+        this.weights = new HashMap<string, double>();
         this.directed = false;
         this._edgeCount = 0;
     }
 
-    public Graph(bool directed) {
+    public fn Graph(directed: bool) {
         this.adj = new HashMap<V, ArrayList<V>>();
-        this.weights = new HashMap<String, double>();
+        this.weights = new HashMap<string, double>();
         this.directed = directed;
         this._edgeCount = 0;
     }
 
-    public void addVertex(V vertex) {
+    public fn addVertex(vertex: V): void {
         if (!this.adj.containsKey(vertex)) {
             this.adj.put(vertex, new ArrayList<V>());
         }
     }
 
-    public void addEdge(V from, V to) {
+    public fn addEdge(from: V, to: V): void {
         this.addEdge(from, to, 1.0);
     }
 
-    public void addEdge(V from, V to, double weight) {
+    public fn addEdge(from: V, to: V, weight: double): void {
         this.addVertex(from);
         this.addVertex(to);
-        ArrayList<V> fromList = this.adj.get(from);
+        let fromList: ArrayList<V> = this.adj.get(from);
         if (!this._containsNeighbor(fromList, to)) {
             fromList.add(to);
             this.weights.put(this._edgeKey(from, to), weight);
             this._edgeCount = this._edgeCount + 1;
         }
         if (!this.directed) {
-            ArrayList<V> toList = this.adj.get(to);
+            let toList: ArrayList<V> = this.adj.get(to);
             if (!this._containsNeighbor(toList, from)) {
                 toList.add(from);
                 this.weights.put(this._edgeKey(to, from), weight);
@@ -53,78 +53,78 @@ public class Graph<V> {
         }
     }
 
-    public void removeVertex(V vertex) {
+    public fn removeVertex(vertex: V): void {
         if (!this.adj.containsKey(vertex)) {
             return;
         }
         // Remove all edges pointing to this vertex
-        ArrayList<V> allVertices = this.adj.keys();
-        int i = 0;
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let i: int = 0;
         while (i < allVertices.size()) {
-            V v = allVertices.get(i);
+            let v: V = allVertices.get(i);
             if (v != vertex) {
-                ArrayList<V> neighbors = this.adj.get(v);
+                let neighbors: ArrayList<V> = this.adj.get(v);
                 this._removeNeighbor(neighbors, vertex);
             }
             i = i + 1;
         }
         // Count edges being removed from this vertex's list
-        ArrayList<V> removed = this.adj.get(vertex);
+        let removed: ArrayList<V> = this.adj.get(vertex);
         this._edgeCount = this._edgeCount - removed.size();
         this.adj.remove(vertex);
     }
 
-    public void removeEdge(V from, V to) {
+    public fn removeEdge(from: V, to: V): void {
         if (this.adj.containsKey(from)) {
-            ArrayList<V> fromList = this.adj.get(from);
+            let fromList: ArrayList<V> = this.adj.get(from);
             if (this._removeNeighbor(fromList, to)) {
                 this._edgeCount = this._edgeCount - 1;
             }
         }
         if (!this.directed) {
             if (this.adj.containsKey(to)) {
-                ArrayList<V> toList = this.adj.get(to);
+                let toList: ArrayList<V> = this.adj.get(to);
                 this._removeNeighbor(toList, from);
             }
         }
     }
 
-    public ArrayList<V> neighbors(V vertex) {
+    public fn neighbors(vertex: V): ArrayList<V> {
         if (!this.adj.containsKey(vertex)) {
             return new ArrayList<V>();
         }
         return this.adj.get(vertex);
     }
 
-    public bool hasVertex(V vertex) {
+    public fn hasVertex(vertex: V): bool {
         return this.adj.containsKey(vertex);
     }
 
-    public bool hasEdge(V from, V to) {
+    public fn hasEdge(from: V, to: V): bool {
         if (!this.adj.containsKey(from)) {
             return false;
         }
-        ArrayList<V> fromList = this.adj.get(from);
+        let fromList: ArrayList<V> = this.adj.get(from);
         return this._containsNeighbor(fromList, to);
     }
 
-    public ArrayList<V> vertices() {
+    public fn vertices(): ArrayList<V> {
         return this.adj.keys();
     }
 
-    public ArrayList<(V, V)> edges() {
-        ArrayList<(V, V)> result = new ArrayList<(V, V)>();
-        ArrayList<V> allVertices = this.adj.keys();
-        Set<String> seen = new Set<String>();
-        int i = 0;
+    public fn edges(): ArrayList<(V, V)> {
+        let result: ArrayList<(V, V)> = new ArrayList<(V, V)>();
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let seen: Set<string> = new Set<string>();
+        let i: int = 0;
         while (i < allVertices.size()) {
-            V from = allVertices.get(i);
-            ArrayList<V> nbrs = this.adj.get(from);
-            int j = 0;
+            let from: V = allVertices.get(i);
+            let nbrs: ArrayList<V> = this.adj.get(from);
+            let j: int = 0;
             while (j < nbrs.size()) {
-                V to = nbrs.get(j);
-                String key = this._edgeKey(from, to);
-                String revKey = this._edgeKey(to, from);
+                let to: V = nbrs.get(j);
+                let key: string = this._edgeKey(from, to);
+                let revKey: string = this._edgeKey(to, from);
                 if (!seen.contains(key)) {
                     result.add((from, to));
                     seen.add(key);
@@ -139,22 +139,22 @@ public class Graph<V> {
         return result;
     }
 
-    public ArrayList<V> bfs(V start) {
-        ArrayList<V> result = new ArrayList<V>();
+    public fn bfs(start: V): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
         if (!this.adj.containsKey(start)) {
             return result;
         }
-        Set<V> visited = new Set<V>();
-        Queue<V> queue = new Queue<V>();
+        let visited: Set<V> = new Set<V>();
+        let queue: Queue<V> = new Queue<V>();
         visited.add(start);
         queue.enqueue(start);
         while (!queue.isEmpty()) {
-            V current = queue.dequeue();
+            let current: V = queue.dequeue();
             result.add(current);
-            ArrayList<V> nbrs = this.adj.get(current);
-            int i = 0;
+            let nbrs: ArrayList<V> = this.adj.get(current);
+            let i: int = 0;
             while (i < nbrs.size()) {
-                V neighbor = nbrs.get(i);
+                let neighbor: V = nbrs.get(i);
                 if (!visited.contains(neighbor)) {
                     visited.add(neighbor);
                     queue.enqueue(neighbor);
@@ -165,25 +165,25 @@ public class Graph<V> {
         return result;
     }
 
-    public ArrayList<V> dfs(V start) {
-        ArrayList<V> result = new ArrayList<V>();
+    public fn dfs(start: V): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
         if (!this.adj.containsKey(start)) {
             return result;
         }
-        Set<V> visited = new Set<V>();
-        Stack<V> stack = new Stack<V>();
+        let visited: Set<V> = new Set<V>();
+        let stack: Stack<V> = new Stack<V>();
         stack.push(start);
         while (!stack.isEmpty()) {
-            V current = stack.pop();
+            let current: V = stack.pop();
             if (visited.contains(current)) {
                 continue;
             }
             visited.add(current);
             result.add(current);
-            ArrayList<V> nbrs = this.adj.get(current);
-            int i = nbrs.size() - 1;
+            let nbrs: ArrayList<V> = this.adj.get(current);
+            let i: int = nbrs.size() - 1;
             while (i >= 0) {
-                V neighbor = nbrs.get(i);
+                let neighbor: V = nbrs.get(i);
                 if (!visited.contains(neighbor)) {
                     stack.push(neighbor);
                 }
@@ -193,8 +193,8 @@ public class Graph<V> {
         return result;
     }
 
-    private bool _containsNeighbor(ArrayList<V> list, V target) {
-        int i = 0;
+    private fn _containsNeighbor(list: ArrayList<V>, target: V): bool {
+        let i: int = 0;
         while (i < list.size()) {
             if (list.get(i) == target) {
                 return true;
@@ -204,8 +204,8 @@ public class Graph<V> {
         return false;
     }
 
-    private bool _removeNeighbor(ArrayList<V> list, V target) {
-        int i = 0;
+    private fn _removeNeighbor(list: ArrayList<V>, target: V): bool {
+        let i: int = 0;
         while (i < list.size()) {
             if (list.get(i) == target) {
                 list.remove(i);
@@ -216,48 +216,48 @@ public class Graph<V> {
         return false;
     }
 
-    private String _edgeKey(V from, V to) {
+    private fn _edgeKey(from: V, to: V): string {
         return toString(from) + "->" + toString(to);
     }
 
-    public ArrayList<V> topologicalSort() {
-        ArrayList<V> result = new ArrayList<V>();
-        HashMap<V, int> inDegree = new HashMap<V, int>();
-        ArrayList<V> allVertices = this.adj.keys();
-        int i = 0;
+    public fn topologicalSort(): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        let inDegree: HashMap<V, int> = new HashMap<V, int>();
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let i: int = 0;
         while (i < allVertices.size()) {
-            V v = allVertices.get(i);
+            let v: V = allVertices.get(i);
             inDegree.put(v, 0);
             i = i + 1;
         }
         i = 0;
         while (i < allVertices.size()) {
-            V v = allVertices.get(i);
-            ArrayList<V> nbrs = this.adj.get(v);
-            int j = 0;
+            let v: V = allVertices.get(i);
+            let nbrs: ArrayList<V> = this.adj.get(v);
+            let j: int = 0;
             while (j < nbrs.size()) {
-                V neighbor = nbrs.get(j);
+                let neighbor: V = nbrs.get(j);
                 inDegree.put(neighbor, inDegree.get(neighbor) + 1);
                 j = j + 1;
             }
             i = i + 1;
         }
-        Queue<V> queue = new Queue<V>();
+        let queue: Queue<V> = new Queue<V>();
         i = 0;
         while (i < allVertices.size()) {
-            V v = allVertices.get(i);
+            let v: V = allVertices.get(i);
             if (inDegree.get(v) == 0) {
                 queue.enqueue(v);
             }
             i = i + 1;
         }
         while (!queue.isEmpty()) {
-            V current = queue.dequeue();
+            let current: V = queue.dequeue();
             result.add(current);
-            ArrayList<V> nbrs = this.adj.get(current);
-            int j = 0;
+            let nbrs: ArrayList<V> = this.adj.get(current);
+            let j: int = 0;
             while (j < nbrs.size()) {
-                V neighbor = nbrs.get(j);
+                let neighbor: V = nbrs.get(j);
                 inDegree.put(neighbor, inDegree.get(neighbor) - 1);
                 if (inDegree.get(neighbor) == 0) {
                     queue.enqueue(neighbor);
@@ -268,24 +268,24 @@ public class Graph<V> {
         return result;
     }
 
-    public ArrayList<V> shortestPath(V from, V to) {
+    public fn shortestPath(from: V, to: V): ArrayList<V> {
         if (!this.adj.containsKey(from) || !this.adj.containsKey(to)) {
             return new ArrayList<V>();
         }
-        HashMap<V, V> prev = new HashMap<V, V>();
-        Set<V> visited = new Set<V>();
-        Queue<V> queue = new Queue<V>();
+        let prev: HashMap<V, V> = new HashMap<V, V>();
+        let visited: Set<V> = new Set<V>();
+        let queue: Queue<V> = new Queue<V>();
         visited.add(from);
         queue.enqueue(from);
         while (!queue.isEmpty()) {
-            V current = queue.dequeue();
+            let current: V = queue.dequeue();
             if (current == to) {
                 break;
             }
-            ArrayList<V> nbrs = this.adj.get(current);
-            int j = 0;
+            let nbrs: ArrayList<V> = this.adj.get(current);
+            let j: int = 0;
             while (j < nbrs.size()) {
-                V neighbor = nbrs.get(j);
+                let neighbor: V = nbrs.get(j);
                 if (!visited.contains(neighbor)) {
                     visited.add(neighbor);
                     prev.put(neighbor, current);
@@ -297,8 +297,8 @@ public class Graph<V> {
         if (!prev.containsKey(to) && from != to) {
             return new ArrayList<V>();
         }
-        ArrayList<V> path = new ArrayList<V>();
-        V node = to;
+        let path: ArrayList<V> = new ArrayList<V>();
+        let node: V = to;
         while (node != null) {
             path.add(0, node);
             if (node == from) {
@@ -309,24 +309,24 @@ public class Graph<V> {
         return path;
     }
 
-    public HashMap<V, double> dijkstra(V start) {
-        HashMap<V, double> dist = new HashMap<V, double>();
-        ArrayList<V> allVertices = this.adj.keys();
-        int i = 0;
+    public fn dijkstra(start: V): HashMap<V, double> {
+        let dist: HashMap<V, double> = new HashMap<V, double>();
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let i: int = 0;
         while (i < allVertices.size()) {
             dist.put(allVertices.get(i), 999999999.0);
             i = i + 1;
         }
         dist.put(start, 0.0);
-        Set<V> visited = new Set<V>();
-        int n = allVertices.size();
+        let visited: Set<V> = new Set<V>();
+        let n: int = allVertices.size();
         i = 0;
         while (i < n) {
-            V u = null;
-            double minDist = 999999999.0;
-            int j = 0;
+            let u: V = null;
+            let minDist: double = 999999999.0;
+            let j: int = 0;
             while (j < allVertices.size()) {
-                V v = allVertices.get(j);
+                let v: V = allVertices.get(j);
                 if (!visited.contains(v) && dist.get(v) < minDist) {
                     minDist = dist.get(v);
                     u = v;
@@ -337,12 +337,12 @@ public class Graph<V> {
                 break;
             }
             visited.add(u);
-            ArrayList<V> nbrs = this.adj.get(u);
+            let nbrs: ArrayList<V> = this.adj.get(u);
             j = 0;
             while (j < nbrs.size()) {
-                V neighbor = nbrs.get(j);
-                double w = this.weights.get(this._edgeKey(u, neighbor));
-                double alt = dist.get(u) + w;
+                let neighbor: V = nbrs.get(j);
+                let w: double = this.weights.get(this._edgeKey(u, neighbor));
+                let alt: double = dist.get(u) + w;
                 if (alt < dist.get(neighbor)) {
                     dist.put(neighbor, alt);
                 }
@@ -353,22 +353,22 @@ public class Graph<V> {
         return dist;
     }
 
-    public bool isConnected() {
-        ArrayList<V> allVertices = this.adj.keys();
+    public fn isConnected(): bool {
+        let allVertices: ArrayList<V> = this.adj.keys();
         if (allVertices.size() == 0) {
             return true;
         }
-        ArrayList<V> traversal = this.bfs(allVertices.get(0));
+        let traversal: ArrayList<V> = this.bfs(allVertices.get(0));
         return traversal.size() == allVertices.size();
     }
 
-    public bool isCyclic() {
-        ArrayList<V> allVertices = this.adj.keys();
-        Set<V> visited = new Set<V>();
-        Set<V> recStack = new Set<V>();
-        int i = 0;
+    public fn isCyclic(): bool {
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let visited: Set<V> = new Set<V>();
+        let recStack: Set<V> = new Set<V>();
+        let i: int = 0;
         while (i < allVertices.size()) {
-            V v = allVertices.get(i);
+            let v: V = allVertices.get(i);
             if (!visited.contains(v)) {
                 if (this._isCyclicDFS(v, visited, recStack)) {
                     return true;
@@ -379,13 +379,13 @@ public class Graph<V> {
         return false;
     }
 
-    private bool _isCyclicDFS(V node, Set<V> visited, Set<V> recStack) {
+    private fn _isCyclicDFS(node: V, visited: Set<V>, recStack: Set<V>): bool {
         visited.add(node);
         recStack.add(node);
-        ArrayList<V> nbrs = this.adj.get(node);
-        int i = 0;
+        let nbrs: ArrayList<V> = this.adj.get(node);
+        let i: int = 0;
         while (i < nbrs.size()) {
-            V neighbor = nbrs.get(i);
+            let neighbor: V = nbrs.get(i);
             if (!visited.contains(neighbor)) {
                 if (this._isCyclicDFS(neighbor, visited, recStack)) {
                     return true;
@@ -399,16 +399,16 @@ public class Graph<V> {
         return false;
     }
 
-    public String toString() {
-        String s = "Graph({";
-        ArrayList<V> allVertices = this.adj.keys();
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "Graph({";
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let i: int = 0;
         while (i < allVertices.size()) {
             if (i > 0) { s = s + ", "; }
-            V v = allVertices.get(i);
+            let v: V = allVertices.get(i);
             s = s + v + ": [";
-            ArrayList<V> nbrs = this.adj.get(v);
-            int j = 0;
+            let nbrs: ArrayList<V> = this.adj.get(v);
+            let j: int = 0;
             while (j < nbrs.size()) {
                 if (j > 0) { s = s + ", "; }
                 s = s + nbrs.get(j);
