@@ -59,9 +59,9 @@ log.error("Failed to open file: " + path);
 
 ```titrate
 let result = File.readFile("missing.txt");
-match result {
-    Ok(content) => io::println(content),
-    Err(e) => log.error("Could not read file", e),
+switch result {
+    case Ok(content) => io::println(content),
+    case Err(e) => log.error("Could not read file", e),
 }
 ```
 
