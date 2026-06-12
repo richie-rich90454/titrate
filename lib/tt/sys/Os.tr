@@ -1,0 +1,99 @@
+// Full OS interface backed by VM native functions.
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Result;
+
+// Get an environment variable value
+public fn getEnv(key: string): string {
+    return Env_get(key);
+}
+
+// Set an environment variable
+public fn setEnv(key: string, value: string): void {
+    Env_set(key, value);
+}
+
+// Get the number of CPU cores
+public fn cpuCount(): int {
+    let val: string = Sys_env("NUMBER_OF_PROCESSORS");
+    if (val != null && String.length(val) > 0) {
+        return Integer.parseInt(val);
+    }
+    return 1;
+}
+
+// Get the current process ID
+public fn pid(): int {
+    return Process_id();
+}
+
+// Get the current user name
+public fn userName(): string {
+    var name: string = Sys_env("USER");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("USERNAME");
+    }
+    if (name == null) {
+        return "";
+    }
+    return name;
+}
+
+// Get the hostname
+public fn hostName(): string {
+    var name: string = Sys_env("HOSTNAME");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("COMPUTERNAME");
+    }
+    if (name == null) {
+        return "";
+    }
+    return name;
+}
+
+// Get n random bytes
+public fn urandom(n: int): string {
+    return Os_urandom(n);
+}
+
+// Get the current working directory
+public fn workingDir(): string {
+    return Sys_workingDir();
+}
+
+// Change the current working directory
+public fn changeDir(path: string): void {
+    Sys_changeDir(path);
+}
+
+// List directory entries
+public fn listDir(path: string): ArrayList<string> {
+    return Dir_list(path);
+}
+
+// Create a directory
+public fn mkdir(path: string): Result<string, string> {
+    let success: bool = Dir_create(path);
+    if (success) {
+        return ok(path);
+    }
+    return err("failed to create directory: " + path);
+}
+
+// Remove a file or empty directory
+public fn remove(path: string): Result<string, string> {
+    let success: bool = Dir_remove(path);
+    if (success) {
+        return ok(path);
+    }
+    return err("failed to remove: " + path);
+}
+
+// Rename/move a file or directory
+public fn rename(oldPath: string, newPath: string): Result<string, string> {
+    let success: bool = Dir_move(oldPath, newPath);
+    if (success) {
+        return ok(newPath);
+    }
+    return err("failed to rename " + oldPath + " to " + newPath);
+}
