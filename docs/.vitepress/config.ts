@@ -3,50 +3,141 @@ import titrateLang from './titrate-lang.js';
 
 export default defineConfig({
   title: 'Titrate',
-  description: 'A systems programming language',
+  description: 'A systems programming language with precise types, ownership semantics, and expressive syntax',
   base: '/titrate/',
   cleanUrls: true,
-  markdown: {
-    theme: 'github-dark',
-    languages: [titrateLang],
-  },
+
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/titrate/favicon.svg' }],
+    ['meta', { name: 'theme-color', content: '#e94560' }],
+    ['meta', { name: 'og:type', content: 'website' }],
+    ['meta', { name: 'og:title', content: 'Titrate — A Systems Programming Language' }],
+    ['meta', { name: 'og:description', content: 'Precise. Safe. Expressive. A systems programming language with generics, ownership, and scientific computing built in.' }],
+    ['meta', { name: 'og:image', content: '/titrate/og-image.png' }],
+    ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
   ],
+
+  sitemap: {
+    hostname: 'https://richie-rich90454.github.io/titrate/',
+  },
+
+  lastUpdated: true,
+
+  markdown: {
+    theme: {
+      light: 'github-light',
+      dark: 'github-dark',
+    },
+    languages: [titrateLang],
+    lineNumbers: true,
+    anchor: {
+      slugify: (str: string) => str.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, ''),
+    },
+  },
+
   themeConfig: {
+    logo: '/favicon.svg',
+
     nav: [
-      { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'Reference', link: '/reference/lexer' },
-      { text: 'Stdlib', link: '/stdlib/itertools' },
+      { text: 'Guide', link: '/guide/getting-started', activeMatch: '/guide/' },
+      {
+        text: 'Reference',
+        items: [
+          { text: 'Lexer Tokens', link: '/reference/lexer' },
+          { text: 'Grammar', link: '/reference/grammar' },
+          { text: 'Types', link: '/reference/types' },
+          { text: 'Memory Model', link: '/reference/memory-model' },
+        ],
+      },
+      { text: 'Stdlib', link: '/stdlib/lang', activeMatch: '/stdlib/' },
+      {
+        text: 'Community',
+        items: [
+          { text: 'Contributing', link: '/guide/contributing' },
+          { text: 'FAQ', link: '/guide/faq' },
+          { text: 'GitHub', link: 'https://github.com/richie-rich90454/titrate' },
+        ],
+      },
     ],
+
     sidebar: {
       '/guide/': [
         {
           text: 'Getting Started',
+          collapsed: false,
           items: [
             { text: 'Introduction', link: '/guide/getting-started' },
+            { text: 'FAQ', link: '/guide/faq' },
+          ],
+        },
+        {
+          text: 'Basics',
+          collapsed: false,
+          items: [
             { text: 'Variables', link: '/guide/variables' },
             { text: 'Functions', link: '/guide/functions' },
-            { text: 'Classes', link: '/guide/classes' },
-            { text: 'Enums', link: '/guide/enums' },
-            { text: 'Generics', link: '/guide/generics' },
-            { text: 'Modules', link: '/guide/modules' },
             { text: 'Control Flow', link: '/guide/control-flow' },
+            { text: 'Strings & Literals', link: '/guide/raw-strings' },
+          ],
+        },
+        {
+          text: 'Types & Data Structures',
+          collapsed: false,
+          items: [
+            { text: 'Classes', link: '/guide/classes' },
+            { text: 'Interfaces', link: '/guide/interfaces' },
+            { text: 'Enums', link: '/guide/enums' },
+            { text: 'Tuples', link: '/guide/tuples' },
+            { text: 'Generics', link: '/guide/generics' },
+          ],
+        },
+        {
+          text: 'Advanced',
+          collapsed: true,
+          items: [
             { text: 'Pattern Matching', link: '/guide/pattern-matching' },
             { text: 'Error Handling', link: '/guide/error-handling' },
             { text: 'Closures', link: '/guide/closures' },
-            { text: 'Tuples', link: '/guide/tuples' },
             { text: 'Operator Overloading', link: '/guide/operator-overloading' },
             { text: 'Iterators', link: '/guide/iterators' },
             { text: 'Ranges', link: '/guide/ranges' },
-            { text: 'Raw Strings and Literals', link: '/guide/raw-strings' },
-            { text: 'File I/O', link: '/guide/file-io' },
             { text: 'Ownership', link: '/guide/ownership' },
+          ],
+        },
+        {
+          text: 'Modules & I/O',
+          collapsed: true,
+          items: [
+            { text: 'Modules', link: '/guide/modules' },
+            { text: 'File I/O', link: '/guide/file-io' },
+          ],
+        },
+        {
+          text: 'Ecosystem',
+          collapsed: true,
+          items: [
             { text: 'Scientific Computing', link: '/guide/scientific-computing' },
             { text: 'Optimizations', link: '/guide/optimizations' },
             { text: 'Syntax Sugar', link: '/guide/syntax-sugar' },
             { text: 'Standard Library', link: '/guide/stdlib' },
             { text: 'Build Tool', link: '/guide/build-tool' },
+            { text: 'Cookbook', link: '/guide/cookbook' },
+          ],
+        },
+        {
+          text: 'Internals',
+          collapsed: true,
+          items: [
+            { text: 'Compiler Architecture', link: '/guide/architecture' },
+            { text: 'Contributing', link: '/guide/contributing' },
+          ],
+        },
+        {
+          text: 'Migration Guides',
+          collapsed: true,
+          items: [
+            { text: 'From C/C++', link: '/guide/migration-from-c' },
+            { text: 'From ECMAScript/TypeScript', link: '/guide/migration-from-ecmascript' },
           ],
         },
       ],
@@ -63,54 +154,139 @@ export default defineConfig({
       ],
       '/stdlib/': [
         {
-          text: 'Standard Library Reference',
+          text: 'Core',
+          collapsed: false,
           items: [
-            { text: 'itertools', link: '/stdlib/itertools' },
-            { text: 'functools', link: '/stdlib/functools' },
-            { text: 'statistics', link: '/stdlib/statistics' },
-            { text: 'algorithms', link: '/stdlib/algorithms' },
+            { text: 'lang', link: '/stdlib/lang' },
+            { text: 'operator', link: '/stdlib/operator' },
+            { text: 'optional-variant', link: '/stdlib/optional-variant' },
+          ],
+        },
+        {
+          text: 'Collections',
+          collapsed: false,
+          items: [
             { text: 'collections', link: '/stdlib/collections' },
+            { text: 'array', link: '/stdlib/array' },
+            { text: 'hashset', link: '/stdlib/hashset' },
+            { text: 'heapq', link: '/stdlib/heapq' },
+            { text: 'bisect', link: '/stdlib/bisect' },
+            { text: 'itertools', link: '/stdlib/itertools' },
+            { text: 'dataclass', link: '/stdlib/dataclass' },
+          ],
+        },
+        {
+          text: 'I/O & File System',
+          collapsed: true,
+          items: [
             { text: 'io', link: '/stdlib/io' },
-            { text: 'serialization', link: '/stdlib/serialization' },
-            { text: 'networking', link: '/stdlib/networking' },
-            { text: 'datetime', link: '/stdlib/datetime' },
+            { text: 'contextlib', link: '/stdlib/contextlib' },
+          ],
+        },
+        {
+          text: 'Text & Serialization',
+          collapsed: true,
+          items: [
+            { text: 'text', link: '/stdlib/text' },
             { text: 'regex', link: '/stdlib/regex' },
+            { text: 'serialization', link: '/stdlib/serialization' },
+            { text: 'pprint', link: '/stdlib/pprint' },
+          ],
+        },
+        {
+          text: 'Math & Science',
+          collapsed: true,
+          items: [
             { text: 'math', link: '/stdlib/math' },
+            { text: 'complex', link: '/stdlib/complex' },
+            { text: 'fractions', link: '/stdlib/fractions' },
+            { text: 'statistics', link: '/stdlib/statistics' },
             { text: 'chemistry', link: '/stdlib/chemistry' },
             { text: 'units', link: '/stdlib/units' },
-            { text: 'testing', link: '/stdlib/testing' },
+          ],
+        },
+        {
+          text: 'System & Networking',
+          collapsed: true,
+          items: [
+            { text: 'system', link: '/stdlib/system' },
+            { text: 'networking', link: '/stdlib/networking' },
             { text: 'concurrent', link: '/stdlib/concurrent' },
             { text: 'crypto', link: '/stdlib/crypto' },
-            { text: 'lang', link: '/stdlib/lang' },
-            { text: 'system', link: '/stdlib/system' },
-            { text: 'text', link: '/stdlib/text' },
-            { text: 'argparse', link: '/stdlib/argparse' },
+          ],
+        },
+        {
+          text: 'Date & Time',
+          collapsed: true,
+          items: [
+            { text: 'datetime', link: '/stdlib/datetime' },
+          ],
+        },
+        {
+          text: 'Utilities',
+          collapsed: true,
+          items: [
+            { text: 'functools', link: '/stdlib/functools' },
             { text: 'logging', link: '/stdlib/logging' },
-            { text: 'Complex', link: '/stdlib/complex' },
-            { text: 'Fraction', link: '/stdlib/fractions' },
-            { text: 'Optional & Variant', link: '/stdlib/optional-variant' },
-            { text: 'HashSet', link: '/stdlib/hashset' },
-            { text: 'Array', link: '/stdlib/array' },
-            { text: 'Assert', link: '/stdlib/assert' },
-            { text: 'Heapq', link: '/stdlib/heapq' },
-            { text: 'Bisect', link: '/stdlib/bisect' },
-            { text: 'Operator', link: '/stdlib/operator' },
-            { text: 'Uuid', link: '/stdlib/uuid' },
-            { text: 'Pprint', link: '/stdlib/pprint' },
-            { text: 'Contextlib', link: '/stdlib/contextlib' },
-            { text: 'Dataclass', link: '/stdlib/dataclass' },
+            { text: 'uuid', link: '/stdlib/uuid' },
+            { text: 'argparse', link: '/stdlib/argparse' },
+            { text: 'algorithms', link: '/stdlib/algorithms' },
+          ],
+        },
+        {
+          text: 'Testing',
+          collapsed: true,
+          items: [
+            { text: 'testing', link: '/stdlib/testing' },
+            { text: 'assert', link: '/stdlib/assert' },
           ],
         },
       ],
     },
+
+    editLink: {
+      pattern: 'https://github.com/richie-rich90454/titrate/edit/main/docs/:path',
+      text: 'Edit this page on GitHub',
+    },
+
+    outline: {
+      level: [2, 3],
+      label: 'On This Page',
+    },
+
     socialLinks: [
       { icon: 'github', link: 'https://github.com/richie-rich90454/titrate' },
     ],
+
     search: {
       provider: 'local',
+      options: {
+        detailedView: true,
+      },
     },
+
     footer: {
-      message: 'Released under the Apache-2.0 License.',
+      message: 'Released under the <a href="https://github.com/richie-rich90454/titrate/blob/main/LICENSE">Apache-2.0 License</a>.',
+      copyright: 'Copyright 2024-present Titrate Contributors',
     },
+
+    docFooter: {
+      prev: 'Previous',
+      next: 'Next',
+    },
+
+    lastUpdated: {
+      text: 'Updated at',
+      formatOptions: {
+        dateStyle: 'short',
+        timeStyle: 'short',
+      },
+    },
+
+    returnToTopLabel: 'Return to top',
+    sidebarMenuLabel: 'Menu',
+    darkModeSwitchLabel: 'Theme',
+    lightModeSwitchTitle: 'Switch to light theme',
+    darkModeSwitchTitle: 'Switch to dark theme',
   },
 });
