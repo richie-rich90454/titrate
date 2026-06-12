@@ -140,3 +140,75 @@ public class Regex {
         return result;
     }
 }
+
+// --- Top-level regex functions ---
+
+// Replace the first match of pattern in s with replacement.
+public fn replaceFirst(s: string, pattern: string, replacement: string): string {
+    let raw: string = Regex_find(pattern, s);
+    if (String.length(raw) == 0) {
+        return s;
+    }
+    let firstComma: int = String.indexOf(raw, ",");
+    let secondComma: int = String.indexOf(raw, firstComma + 1);
+    let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+    let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+    return String.substring(s, 0, start) + replacement + String.substring(s, end);
+}
+
+// Check if the entire string matches the pattern.
+public fn matches(s: string, pattern: string): bool {
+    let anchored: string = "^" + pattern + "$";
+    let raw: string = Regex_find(anchored, s);
+    if (String.length(raw) == 0) {
+        return false;
+    }
+    let firstComma: int = String.indexOf(raw, ",");
+    let secondComma: int = String.indexOf(raw, firstComma + 1);
+    let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+    let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+    return start == 0 && end == String.length(s);
+}
+
+// Find all matches of pattern in s, returning an ArrayList of Match objects.
+public fn findAll(s: string, pattern: string): ArrayList<Match> {
+    let results: ArrayList<Match> = new ArrayList<Match>();
+    let remaining: string = s;
+    let offset: int = 0;
+    while (true) {
+        let raw: string = Regex_find(pattern, remaining);
+        if (String.length(raw) == 0) {
+            break;
+        }
+        let firstComma: int = String.indexOf(raw, ",");
+        let secondComma: int = String.indexOf(raw, firstComma + 1);
+        let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+        let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+        let matched: string = String.substring(raw, secondComma + 1);
+        let m: Match = new Match(matched, start + offset, end + offset);
+        results.add(m);
+        if (end == 0) {
+            break;
+        }
+        offset = offset + end;
+        remaining = String.substring(remaining, end);
+    }
+    return results;
+}
+
+// Escape all regex metacharacters in s, returning a literal pattern string.
+public fn quote(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "\\" || c == "." || c == "*" || c == "+" || c == "?" ||
+            c == "(" || c == ")" || c == "[" || c == "]" || c == "{" ||
+            c == "}" || c == "|" || c == "^" || c == "$") {
+            result = result + "\\";
+        }
+        result = result + c;
+        i = i + 1;
+    }
+    return result;
+}
