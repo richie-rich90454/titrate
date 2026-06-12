@@ -2,56 +2,57 @@
 import tt::util::ArrayList;
 
 public class Directory {
-    private String path;
+    private string path;
 
-    public Directory(String p) {
+    fn init(p: string) {
         this.path = p;
     }
 
-    public ArrayList<String> list() {
+    public fn list(): ArrayList<string> {
         return Dir_list(this.path);
     }
 
-    public ArrayList<String> walk() {
+    public fn walk(): ArrayList<string> {
         return Dir_walk(this.path);
     }
 
-    public bool create() {
+    public fn create(): bool {
         return Dir_create(this.path);
     }
 
-    public bool remove() {
+    public fn remove(): bool {
         return Dir_remove(this.path);
     }
 
-    public bool copy(String dest) {
+    public fn copy(dest: string): bool {
         return Dir_copy(this.path, dest);
     }
 
-    public bool move(String dest) {
+    public fn move(dest: string): bool {
         return Dir_move(this.path, dest);
     }
 
-    public bool exists() {
+    public fn exists(): bool {
         return Path_exists(this.path);
     }
 
-    public static String getCurrent() {
-        return Sys_workingDir();
+    public fn size(): int {
+        return Fs_size(this.path);
     }
 
-    public static void setCurrent(String path) {
-        // No native for setWorkingDir; no-op
+    public fn isEmpty(): bool {
+        let entries: ArrayList<string> = Dir_list(this.path);
+        return entries.size() == 0;
     }
 
-    public ArrayList<String> listFiles() {
+    public fn listFiles(): ArrayList<string> {
         // Dir_list returns all entries; filter to files using Fs_isFile
-        ArrayList<String> all = Dir_list(this.path);
-        ArrayList<String> files = new ArrayList<String>();
-        int i = 0;
+        let all: ArrayList<string> = Dir_list(this.path);
+        let files: ArrayList<string> = new ArrayList<string>();
+        var i: int = 0;
         while (i < all.size()) {
-            String entry = all.get(i);
-            String fullPath = Path_join(this.path, entry);
+            let entry: string = all.get(i);
+            let fullPath: string = Path_join(this.path, entry);
             if (Fs_isFile(fullPath)) {
                 files.add(entry);
             }
@@ -59,13 +60,12 @@ public class Directory {
         }
         return files;
     }
+}
 
-    public int size() {
-        return Fs_size(this.path);
-    }
+fn getCurrent(): string {
+    return Sys_workingDir();
+}
 
-    public bool isEmpty() {
-        ArrayList<String> entries = Dir_list(this.path);
-        return entries.size() == 0;
-    }
+fn setCurrent(path: string): void {
+    // No native for setWorkingDir; no-op
 }
