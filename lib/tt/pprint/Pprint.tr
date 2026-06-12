@@ -3,113 +3,111 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::io::IO;
 
-public class Pprint {
-    // Format an object as a pretty string with default indent=2 and width=80.
-    public fn pformat<T>(obj: T): string {
-        return Pprint::pformat(obj, 2, 80);
-    }
+// Format an object as a pretty string with default indent=2 and width=80.
+public fn pformat<T>(obj: T): string {
+    return pformat(obj, 2, 80);
+}
 
-    // Format an object as a pretty string with the given indent and default width=80.
-    public fn pformat<T>(obj: T, indent: int): string {
-        return Pprint::pformat(obj, indent, 80);
-    }
+// Format an object as a pretty string with the given indent and default width=80.
+public fn pformat<T>(obj: T, indent: int): string {
+    return pformat(obj, indent, 80);
+}
 
-    // Format an object as a pretty string with the given indent and width.
-    public fn pformat<T>(obj: T, indent: int, width: int): string {
-        if (obj == null) { return "null"; }
-        if (obj is ArrayList) {
-            return Pprint::formatList(obj as ArrayList<Variant>, indent, width);
-        }
-        if (obj is HashMap) {
-            return Pprint::formatMap(obj as HashMap<Variant, Variant>, indent, width);
-        }
-        return obj.toString();
+// Format an object as a pretty string with the given indent and width.
+public fn pformat<T>(obj: T, indent: int, width: int): string {
+    if (obj == null) { return "null"; }
+    if (obj is ArrayList) {
+        return formatList(obj as ArrayList<Variant>, indent, width);
     }
+    if (obj is HashMap) {
+        return formatMap(obj as HashMap<Variant, Variant>, indent, width);
+    }
+    return obj.toString();
+}
 
-    // Print an object to stdout with default indent=2.
-    public fn pprint<T>(obj: T): void {
-        IO::println(Pprint::pformat(obj, 2, 80));
-    }
+// Print an object to stdout with default indent=2.
+public fn pprint<T>(obj: T): void {
+    IO.println(pformat(obj, 2, 80));
+}
 
-    // Print an object to stdout with the given indent.
-    public fn pprint<T>(obj: T, indent: int): void {
-        IO::println(Pprint::pformat(obj, indent, 80));
-    }
+// Print an object to stdout with the given indent.
+public fn pprint<T>(obj: T, indent: int): void {
+    IO.println(pformat(obj, indent, 80));
+}
 
-    // Format an ArrayList with indentation and line wrapping.
-    private fn formatList(list: ArrayList<Variant>, indent: int, width: int): string {
-        if (list.size() == 0) { return "[]"; }
-        // Try compact format first
-        let compact: string = "[";
-        let i: int = 0;
-        while (i < list.size()) {
-            if (i > 0) { compact = compact + ", "; }
-            compact = compact + Pprint::pformat(list.get(i), indent, width);
-            i = i + 1;
-        }
-        compact = compact + "]";
-        if (String.length(compact) <= width) {
-            return compact;
-        }
-        // Multi-line format
-        let result: string = "[\n";
-        let j: int = 0;
-        while (j < list.size()) {
-            let indented: string = Pprint::indent(Pprint::pformat(list.get(j), indent, width), indent);
-            result = result + indented;
-            if (j < list.size() - 1) {
-                result = result + ",";
-            }
-            result = result + "\n";
-            j = j + 1;
-        }
-        result = result + "]";
-        return result;
+// Format an ArrayList with indentation and line wrapping.
+fn formatList(list: ArrayList<Variant>, indent: int, width: int): string {
+    if (list.size() == 0) { return "[]"; }
+    // Try compact format first
+    let compact: string = "[";
+    let i: int = 0;
+    while (i < list.size()) {
+        if (i > 0) { compact = compact + ", "; }
+        compact = compact + pformat(list.get(i), indent, width);
+        i = i + 1;
     }
+    compact = compact + "]";
+    if (String.length(compact) <= width) {
+        return compact;
+    }
+    // Multi-line format
+    let result: string = "[\n";
+    let j: int = 0;
+    while (j < list.size()) {
+        let indented: string = indent(pformat(list.get(j), indent, width), indent);
+        result = result + indented;
+        if (j < list.size() - 1) {
+            result = result + ",";
+        }
+        result = result + "\n";
+        j = j + 1;
+    }
+    result = result + "]";
+    return result;
+}
 
-    // Format a HashMap with indentation and line wrapping.
-    private fn formatMap(map: HashMap<Variant, Variant>, indent: int, width: int): string {
-        if (map.size() == 0) { return "{}"; }
-        let entries: ArrayList<(Variant, Variant)> = map.entries();
-        // Try compact format first
-        let compact: string = "{";
-        let i: int = 0;
-        while (i < entries.size()) {
-            if (i > 0) { compact = compact + ", "; }
-            (key: Variant, val: Variant) = entries.get(i);
-            compact = compact + Pprint::pformat(key, indent, width) + ": " + Pprint::pformat(val, indent, width);
-            i = i + 1;
-        }
-        compact = compact + "}";
-        if (String.length(compact) <= width) {
-            return compact;
-        }
-        // Multi-line format
-        let result: string = "{\n";
-        let j: int = 0;
-        while (j < entries.size()) {
-            (key: Variant, val: Variant) = entries.get(j);
-            let line: string = Pprint::pformat(key, indent, width) + ": " + Pprint::pformat(val, indent, width);
-            let indented: string = Pprint::indent(line, indent);
-            result = result + indented;
-            if (j < entries.size() - 1) {
-                result = result + ",";
-            }
-            result = result + "\n";
-            j = j + 1;
-        }
-        result = result + "}";
-        return result;
+// Format a HashMap with indentation and line wrapping.
+fn formatMap(map: HashMap<Variant, Variant>, indent: int, width: int): string {
+    if (map.size() == 0) { return "{}"; }
+    let entries: ArrayList<(Variant, Variant)> = map.entries();
+    // Try compact format first
+    let compact: string = "{";
+    let i: int = 0;
+    while (i < entries.size()) {
+        if (i > 0) { compact = compact + ", "; }
+        (key: Variant, val: Variant) = entries.get(i);
+        compact = compact + pformat(key, indent, width) + ": " + pformat(val, indent, width);
+        i = i + 1;
     }
+    compact = compact + "}";
+    if (String.length(compact) <= width) {
+        return compact;
+    }
+    // Multi-line format
+    let result: string = "{\n";
+    let j: int = 0;
+    while (j < entries.size()) {
+        (key: Variant, val: Variant) = entries.get(j);
+        let line: string = pformat(key, indent, width) + ": " + pformat(val, indent, width);
+        let indented: string = indent(line, indent);
+        result = result + indented;
+        if (j < entries.size() - 1) {
+            result = result + ",";
+        }
+        result = result + "\n";
+        j = j + 1;
+    }
+    result = result + "}";
+    return result;
+}
 
-    // Indent text by the given number of spaces.
-    private fn indent(text: string, spaces: int): string {
-        let pad: string = "";
-        let i: int = 0;
-        while (i < spaces) {
-            pad = pad + " ";
-            i = i + 1;
-        }
-        return pad + text;
+// Indent text by the given number of spaces.
+fn indent(text: string, spaces: int): string {
+    let pad: string = "";
+    let i: int = 0;
+    while (i < spaces) {
+        pad = pad + " ";
+        i = i + 1;
     }
+    return pad + text;
 }
