@@ -153,6 +153,66 @@ public class DateTime {
     public fn daysInMonth(): int {
         return _daysInMonth(this.getMonth(), this.getYear());
     }
+
+    // Parse a date/time string using a format specifier.
+    public fn parse(format: string, input: string): DateTime {
+        // Simplified: only ISO format parsing is supported
+        return fromISO(input);
+    }
+
+    // Convert to UTC (stub - returns same datetime).
+    public fn toUtc(): DateTime {
+        return this;
+    }
+
+    // Get the timezone offset in minutes (stub - returns 0).
+    public fn offsetMinutes(): int {
+        return 0;
+    }
+
+    // Check if daylight saving time is in effect (stub).
+    public fn isDst(): bool {
+        return false;
+    }
+
+    // Get the day of the week as a string.
+    public fn dayOfWeekName(): string {
+        let dow: int = this.dayOfWeek();
+        let names: ArrayList<string> = new ArrayList<string>();
+        names.add("Monday");
+        names.add("Tuesday");
+        names.add("Wednesday");
+        names.add("Thursday");
+        names.add("Friday");
+        names.add("Saturday");
+        names.add("Sunday");
+        if (dow >= 0 && dow < 7) {
+            return names.get(dow);
+        }
+        return "Unknown";
+    }
+
+    // Get the month as a string.
+    public fn monthName(): string {
+        let m: int = this.getMonth();
+        let names: ArrayList<string> = new ArrayList<string>();
+        names.add("January");
+        names.add("February");
+        names.add("March");
+        names.add("April");
+        names.add("May");
+        names.add("June");
+        names.add("July");
+        names.add("August");
+        names.add("September");
+        names.add("October");
+        names.add("November");
+        names.add("December");
+        if (m >= 1 && m <= 12) {
+            return names.get(m - 1);
+        }
+        return "Unknown";
+    }
 }
 
 fn now(): DateTime {
@@ -256,4 +316,10 @@ fn _leapYearsBefore(y: int): int {
     if (y <= 0) { return 0; }
     y = y - 1;
     return y / 4 - y / 100 + y / 400;
+}
+
+// Parse a date/time string (strptime equivalent).
+public fn strptime(input: string, format: string): DateTime {
+    // Simplified: delegate to fromISO for ISO format
+    return fromISO(input);
 }
