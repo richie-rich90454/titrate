@@ -15,14 +15,14 @@ public class TestRunner {
     }
 
     // Add a test suite to the runner.
-    public void addSuite(TestSuite suite) {
+    public fn addSuite(suite: TestSuite): void {
         this.suites.add(suite);
     }
 
     // Run all registered test suites and print an overall summary.
-    public void runAll() {
+    public fn runAll(): void {
         IO::println("=== Running All Test Suites ===");
-        int totalPassed = 0;
+        let totalPassed: int = 0;
         this.totalFailed = 0;
         for (suite in this.suites) {
             suite.run();
@@ -42,8 +42,8 @@ public class TestRunner {
     }
 
     // Filter test suites by name pattern.
-    public void filterByName(String pattern) {
-        ArrayList<TestSuite> filtered = new ArrayList<TestSuite>();
+    public fn filterByName(pattern: string): void {
+        let filtered: ArrayList<TestSuite> = new ArrayList<TestSuite>();
         for (suite in this.suites) {
             if (String::contains(suite.name, pattern)) {
                 filtered.add(suite);
@@ -53,7 +53,7 @@ public class TestRunner {
     }
 
     // Return the exit code: 0 if all tests passed, 1 otherwise.
-    public int exitCode() {
+    public fn exitCode(): int {
         if (this.totalFailed == 0) {
             return 0;
         }
@@ -61,7 +61,7 @@ public class TestRunner {
     }
 
     // List all registered test names.
-    public void listTests() {
+    public fn listTests(): void {
         IO::println("=== Test List ===");
         for (suite in this.suites) {
             IO::println("Suite: " + suite.name);
@@ -73,9 +73,9 @@ public class TestRunner {
     }
 
     // Run a single test by name across all suites.
-    public void runSingle(String name) {
+    public fn runSingle(name: string): void {
         IO::println("=== Running Single Test: " + name + " ===");
-        bool found = false;
+        let found: bool = false;
         for (suite in this.suites) {
             for (tc in suite.tests) {
                 if (tc.name == name) {
@@ -84,7 +84,7 @@ public class TestRunner {
                     try {
                         tc.fn();
                         IO::println("  [PASS] " + tc.name);
-                    } catch (String e) {
+                    } catch (e: string) {
                         IO::println("  [FAIL] " + tc.name + " - " + e);
                     }
                 }
@@ -98,31 +98,31 @@ public class TestRunner {
 
     // Discover and run test files matching a glob pattern.
     // Scans the filesystem for .tr files matching the pattern and reports what was found.
-    public void discoverAndRun(String pattern) {
+    public fn discoverAndRun(pattern: string): void {
         IO::println("Discovering test files matching: " + pattern);
         // Use Dir_walk to list files, then filter by pattern
         // Simple pattern: treat as directory path ending in **/*.tr
-        String dir = ".";
-        String suffix = ".tr";
+        let dir: string = ".";
+        let suffix: string = ".tr";
         // Extract directory from pattern if it contains a path separator
-        int lastSlash = pattern.lastIndexOf("/");
+        let lastSlash: int = String.lastIndexOf(pattern, "/");
         if (lastSlash < 0) {
-            lastSlash = pattern.lastIndexOf("\\");
+            lastSlash = String.lastIndexOf(pattern, "\\");
         }
         if (lastSlash >= 0) {
-            dir = pattern.substring(0, lastSlash);
-            String rest = pattern.substring(lastSlash + 1);
-            if (rest.length() > 3) {
-                suffix = rest.substring(rest.length() - 3);
+            dir = String.substring(pattern, 0, lastSlash);
+            let rest: string = String.substring(pattern, lastSlash + 1);
+            if (String.length(rest) > 3) {
+                suffix = String.substring(rest, String.length(rest) - 3);
             }
         }
-        ArrayList<String> files = new ArrayList<String>();
+        let files: ArrayList<string> = new ArrayList<string>();
         if (Path_exists(dir)) {
-            ArrayList<String> all = Dir_walk(dir);
-            int i = 0;
+            let all: ArrayList<string> = Dir_walk(dir);
+            let i: int = 0;
             while (i < all.size()) {
-                String f = all.get(i);
-                if (f.length() >= suffix.length() && f.substring(f.length() - suffix.length()) == suffix) {
+                let f: string = all.get(i);
+                if (String.length(f) >= String.length(suffix) && String.substring(f, String.length(f) - String.length(suffix)) == suffix) {
                     files.add(f);
                 }
                 i = i + 1;

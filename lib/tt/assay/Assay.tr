@@ -8,10 +8,10 @@ import tt::lang::String;
 
 // A single test case with a name and a function to execute.
 public class TestCase {
-    public String name;
-    public fn() => void fn;
+    public string name;
+    public fn(): void fn;
 
-    public TestCase(String name, fn() => void fn) {
+    public TestCase(name: string, fn: fn(): void) {
         this.name = name;
         this.fn = fn;
     }
@@ -19,31 +19,31 @@ public class TestCase {
 
 // A named collection of test cases with pass/fail counters.
 public class TestSuite {
-    public String name;
+    public string name;
     public ArrayList<TestCase> tests;
     public int passed;
     public int failed;
-    private ArrayList<String> failures;
-    private fn() => void beforeEachFn;
-    private fn() => void afterEachFn;
+    private ArrayList<string> failures;
+    private fn(): void beforeEachFn;
+    private fn(): void afterEachFn;
 
-    public TestSuite(String name) {
+    public TestSuite(name: string) {
         this.name = name;
         this.tests = new ArrayList<TestCase>();
         this.passed = 0;
         this.failed = 0;
-        this.failures = new ArrayList<String>();
+        this.failures = new ArrayList<string>();
         this.beforeEachFn = null;
         this.afterEachFn = null;
     }
 
     // Add a test case to this suite.
-    public void addTest(String name, fn() => void testFn) {
+    public fn addTest(name: string, testFn: fn(): void): void {
         this.tests.add(new TestCase(name, testFn));
     }
 
     // Assert that two values are equal.
-    public void assertEqual<T>(T actual, T expected, String msg) {
+    public fn assertEqual<T>(actual: T, expected: T, msg: string): void {
         if (actual != expected) {
             this.fail("assertEqual failed: expected " + String::toString(expected) + " but got " + String::toString(actual) + " - " + msg);
         } else {
@@ -52,7 +52,7 @@ public class TestSuite {
     }
 
     // Assert that two values are not equal.
-    public void assertNotEqual<T>(T actual, T expected, String msg) {
+    public fn assertNotEqual<T>(actual: T, expected: T, msg: string): void {
         if (actual == expected) {
             this.fail("assertNotEqual failed: expected different values but both were " + String::toString(expected) + " - " + msg);
         } else {
@@ -61,7 +61,7 @@ public class TestSuite {
     }
 
     // Assert that a condition is true.
-    public void assertTrue(bool condition, String msg) {
+    public fn assertTrue(condition: bool, msg: string): void {
         if (!condition) {
             this.fail("assertTrue failed: expected true but got false - " + msg);
         } else {
@@ -70,7 +70,7 @@ public class TestSuite {
     }
 
     // Assert that a condition is false.
-    public void assertFalse(bool condition, String msg) {
+    public fn assertFalse(condition: bool, msg: string): void {
         if (condition) {
             this.fail("assertFalse failed: expected false but got true - " + msg);
         } else {
@@ -79,12 +79,12 @@ public class TestSuite {
     }
 
     // Assert that the given function throws an error.
-    public void assertThrows(fn() => void fn, String msg) {
-        bool threw = false;
+    public fn assertThrows(fn: fn(): void, msg: string): void {
+        let threw: bool = false;
         // Attempt to call the function; if it throws, we catch it.
         try {
             fn();
-        } catch (String e) {
+        } catch (e: string) {
             threw = true;
         }
         if (!threw) {
@@ -95,18 +95,18 @@ public class TestSuite {
     }
 
     // Assert that two values are approximately equal within a tolerance.
-    public void assertApproxEqual(double actual, double expected, double tolerance, String msg) {
-        double diff = actual - expected;
+    public fn assertApproxEqual(actual: double, expected: double, tolerance: double, msg: string): void {
+        let diff: double = actual - expected;
         if (diff < 0) { diff = -diff; }
         if (diff > tolerance) {
-            this.fail("assertApproxEqual failed: expected " + Double::toString(expected) + " ± " + Double::toString(tolerance) + " but got " + Double::toString(actual) + " - " + msg);
+            this.fail("assertApproxEqual failed: expected " + Double::toString(expected) + " +/- " + Double::toString(tolerance) + " but got " + Double::toString(actual) + " - " + msg);
         } else {
             this.passed = this.passed + 1;
         }
     }
 
     // Assert that actual is greater than expected.
-    public void assertGreaterThan(double actual, double expected, String msg) {
+    public fn assertGreaterThan(actual: double, expected: double, msg: string): void {
         if (actual <= expected) {
             this.fail("assertGreaterThan failed: expected " + Double::toString(actual) + " > " + Double::toString(expected) + " - " + msg);
         } else {
@@ -115,7 +115,7 @@ public class TestSuite {
     }
 
     // Assert that actual is less than expected.
-    public void assertLessThan(double actual, double expected, String msg) {
+    public fn assertLessThan(actual: double, expected: double, msg: string): void {
         if (actual >= expected) {
             this.fail("assertLessThan failed: expected " + Double::toString(actual) + " < " + Double::toString(expected) + " - " + msg);
         } else {
@@ -124,8 +124,8 @@ public class TestSuite {
     }
 
     // Assert that a collection contains an item.
-    public void assertContains<T>(ArrayList<T> collection, T item, String msg) {
-        bool found = false;
+    public fn assertContains<T>(collection: ArrayList<T>, item: T, msg: string): void {
+        let found: bool = false;
         for (elem in collection) {
             if (elem == item) {
                 found = true;
@@ -139,7 +139,7 @@ public class TestSuite {
     }
 
     // Assert that a value is null.
-    public void assertNull<T>(T value, String msg) {
+    public fn assertNull<T>(value: T, msg: string): void {
         if (value != null) {
             this.fail("assertNull failed: expected null but got " + String::toString(value) + " - " + msg);
         } else {
@@ -148,7 +148,7 @@ public class TestSuite {
     }
 
     // Assert that a value is not null.
-    public void assertNotNull<T>(T value, String msg) {
+    public fn assertNotNull<T>(value: T, msg: string): void {
         if (value == null) {
             this.fail("assertNotNull failed: expected non-null value - " + msg);
         } else {
@@ -157,34 +157,34 @@ public class TestSuite {
     }
 
     // Register a function to run before each test.
-    public void beforeEach(fn() => void fn) {
+    public fn beforeEach(fn: fn(): void): void {
         this.beforeEachFn = fn;
     }
 
     // Register a function to run after each test.
-    public void afterEach(fn() => void fn) {
+    public fn afterEach(fn: fn(): void): void {
         this.afterEachFn = fn;
     }
 
     // Skip the current test with a message.
-    public void skip(String msg) {
+    public fn skip(msg: string): void {
         IO::println("  [SKIP] " + msg);
     }
 
     // Run a function with a timeout in milliseconds.
-    public void timeout(int ms, fn() => void fn) {
+    public fn timeout(ms: int, fn: fn(): void): void {
         // Execute the function; timeout enforcement depends on the runtime scheduler.
         fn();
     }
 
     // Record a test failure.
-    public void fail(String msg) {
+    public fn fail(msg: string): void {
         this.failed = this.failed + 1;
         this.failures.add(msg);
     }
 
     // Run all tests in this suite and print results.
-    public void run() {
+    public fn run(): void {
         IO::println("Suite: " + this.name);
         for (tc in this.tests) {
             IO::println("  [RUN ] " + tc.name);
@@ -193,7 +193,7 @@ public class TestSuite {
                 tc.fn();
                 if (this.afterEachFn != null) { this.afterEachFn(); }
                 IO::println("  [PASS] " + tc.name);
-            } catch (String e) {
+            } catch (e: string) {
                 if (this.afterEachFn != null) { this.afterEachFn(); }
                 IO::println("  [FAIL] " + tc.name + " - " + e);
             }
@@ -208,7 +208,7 @@ public class TestSuite {
     }
 
     // Return a summary string for this suite.
-    public String summary() {
+    public fn summary(): string {
         return this.name + ": " + Integer::toString(this.passed) + " passed, " + Integer::toString(this.failed) + " failed";
     }
 }
