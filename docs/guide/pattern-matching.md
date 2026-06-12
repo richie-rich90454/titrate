@@ -5,15 +5,16 @@
 Titrate uses `switch` for pattern matching on enum values.
 
 ```titrate
-enum Result {
+enum HttpStatus {
     Ok(int),
-    Err(string),
+    NotFound,
+    ServerError(string),
 }
 
-switch result {
-    case Ok(value) => io::println("success: " + Integer.toString(value));
-    case Err(msg) => io::println("error: " + msg);
-    default => io::println("unknown");
+switch status {
+    case Ok(code) => io::println("success: " + Integer.toString(code));
+    case NotFound => io::println("not found");
+    case ServerError(msg) => io::println("error: " + msg);
 }
 ```
 
@@ -22,8 +23,9 @@ switch result {
 Use `_` to match any value:
 
 ```titrate
-switch result {
+switch status {
     case Ok(_) => io::println("success");
-    case Err(_) => io::println("failure");
+    case NotFound => io::println("not found");
+    case ServerError(_) => io::println("failure");
 }
 ```

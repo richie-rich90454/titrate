@@ -5,7 +5,7 @@ Titrate uses `Result` types for recoverable errors and provides improved compile
 ## Result Type
 
 ```titrate
-let result: Result<int, string> = Ok(42);
+let result: Result<int, string> = ok(42);
 ```
 
 ## Error Propagation with `?`
@@ -13,16 +13,16 @@ let result: Result<int, string> = Ok(42);
 ```titrate
 fn try_parse(s: string): Result<int, string> {
     let value: Result<int, string> = Integer.parseInt(s);
-    let n: int = value?;  // returns Err early if value is Err
-    return Ok(n * 2);
+    let n: int = value?;  // returns err early if value is err
+    return ok(n * 2);
 }
 ```
 
 ## ok and err Constructors
 
 ```titrate
-let good: Result<int, string> = Ok(42);
-let bad: Result<int, string> = Err("parse failed");
+let good: Result<int, string> = ok(42);
+let bad: Result<int, string> = err("parse failed");
 ```
 
 ## Improved Error Messages
@@ -76,7 +76,7 @@ The compiler warns about variables that are declared but never used. This helps 
 fn example(): void {
     let x: int = 10;      // warning: unused variable: x
     let y: int = 20;
-    io::println(y.toString());
+    io::println(Integer.toString(y));
 }
 ```
 

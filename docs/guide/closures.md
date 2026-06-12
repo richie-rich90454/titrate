@@ -28,7 +28,7 @@ fn(params) {
 
 ```titrate
 let double = fn(x: int): int => x * 2;
-io::println(double(5).toString());  // 10
+io::println(Integer.toString(double(5)));  // 10
 ```
 
 ### Block Closures
@@ -55,9 +55,9 @@ fn makeCounter(): fn(): int {
 }
 
 let counter = makeCounter();
-io::println(counter().toString());  // 1
-io::println(counter().toString());  // 2
-io::println(counter().toString());  // 3
+io::println(Integer.toString(counter()));  // 1
+io::println(Integer.toString(counter()));  // 2
+io::println(Integer.toString(counter()));  // 3
 ```
 
 Closures capture by reference, so mutations inside the closure are visible outside:
@@ -69,7 +69,7 @@ let add = fn(n: int): void {
 };
 add(3);
 add(7);
-io::println(total.toString());  // 10
+io::println(Integer.toString(total));  // 10
 ```
 
 ## Using Closures with Collections
@@ -101,7 +101,7 @@ numbers.add(5);
 
 numbers.forEach(fn(n: int): void {
     if (n % 2 == 0) {
-        io::println(n.toString());  // prints 2, 4
+        io::println(Integer.toString(n));  // prints 2, 4
     }
 });
 ```
@@ -116,7 +116,7 @@ fn apply(a: int, f: fn(int): int): int {
 }
 
 let result = apply(10, fn(x: int): int => x * x);
-io::println(result.toString());  // 100
+io::println(Integer.toString(result));  // 100
 ```
 
 ### Callback Pattern
@@ -131,7 +131,7 @@ fn repeat(n: int, action: fn(int): void): void {
 }
 
 repeat(3, fn(i: int): void {
-    io::println("Iteration " + i.toString());
+    io::println("Iteration " + Integer.toString(i));
 });
 ```
 
@@ -180,10 +180,10 @@ fn makeCounters(): (fn(): int, fn(): void) {
 }
 
 let (inc, reset) = makeCounters();
-io::println(inc().toString());  // 1
-io::println(inc().toString());  // 2
+io::println(Integer.toString(inc()));  // 1
+io::println(Integer.toString(inc()));  // 2
 reset();
-io::println(inc().toString());  // 1
+io::println(Integer.toString(inc()));  // 1
 ```
 
 Both `increment` and `reset` share the same `count` variable through their captured environments.
@@ -227,7 +227,7 @@ nums.add(3);
 
 // Type inferred from ArrayList.forEach's signature
 nums.forEach(fn(n) {
-    io::println(n.toString());
+    io::println(Integer.toString(n));
 });
 ```
 

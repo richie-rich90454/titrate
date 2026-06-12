@@ -168,7 +168,7 @@ md.run(1000);  // 1000 steps
 
 let positions = md.positions();
 for (i in positions) {
-    io::println(i.toString());
+    io::println(Double.toString(i));
 }
 ```
 
