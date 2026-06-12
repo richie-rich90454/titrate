@@ -13,11 +13,11 @@ access       ::= 'public' | 'private'
 
 ```
 fn_decl      ::= 'fn' IDENTIFIER type_params? '(' params? ')' (':' type)? block
-             | type IDENTIFIER '(' sugar_params? ')' block   // sugar form
+             | type IDENTIFIER '(' sugar_params? ')' block   // sugar form (C-family compat)
 type_params  ::= '<' type_param (',' type_param)* '>'
 type_param   ::= IDENTIFIER (':' type)?
 params       ::= param (',' param)*
-param        ::= type IDENTIFIER
+param        ::= IDENTIFIER ':' type
 sugar_params ::= type IDENTIFIER (',' type IDENTIFIER)*
 ```
 
@@ -31,7 +31,7 @@ method_decl  ::= access? 'fn' IDENTIFIER '(' params? ')' (':' type)? block
              | access? 'fn' 'operator' OP '(' self_param (',' param)* ')' (':' type)? block   // operator overloading
 self_param   ::= 'self'
 OP           ::= '+' | '-' | '*' | '/' | '%' | '==' | '!=' | '<' | '>' | '<=' | '>='
-constructor_decl ::= access? IDENTIFIER '(' params? ')' (super_call)? block
+constructor_decl ::= access? 'fn' 'init' '(' params? ')' (super_call)? block
 super_call   ::= 'super' '(' args? ')' ';'
 ```
 
@@ -98,10 +98,10 @@ unary        ::= ('!' | '-' | '&' | '&mut') unary | cast_expr
 cast_expr    ::= postfix ('as' type)?
 postfix      ::= primary (call | member | index)*
 call         ::= '(' args? ')'
-member       ::= '.' IDENTIFIER | '::' IDENTIFIER
+member       ::= '.' IDENTIFIER | '::' IDENTIFIER   // '.' is the preferred form for method calls. '::' is supported for C++ developers but only used in import paths in idiomatic Titrate.
 index        ::= '[' expr ']'
 primary      ::= INTEGER | FLOAT | STRING | RAW_STRING | CHAR | BYTE | 'true' | 'false' | 'null'
-             | 'Ok' '(' expr ')' | 'Err' '(' expr ')'
+             | 'ok' '(' expr ')' | 'err' '(' expr ')'
              | IDENTIFIER ('<' type (',' type)* '>')?
              | '(' expr ')'
              | '(' expr ',' expr (',' expr)* ')'    // tuple expression

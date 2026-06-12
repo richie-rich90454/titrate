@@ -32,8 +32,8 @@
 | `This` | `this` |
 | `Super` | `super` |
 | `Result` | `Result` |
-| `Ok` | `Ok` |
-| `Err` | `Err` |
+| `Ok` | `ok` |
+| `Err` | `err` |
 | `Owned` | `Owned` |
 | `Region` | `region` |
 | `Unsafe` | `unsafe` |
@@ -50,6 +50,8 @@
 ## Operators
 
 `+`, `-`, `*`, `/`, `%`, `=`, `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `||`, `!`, `&`, `|`, `^`, `~`, `<<`, `>>`, `::`, `=>`, `?`, `.`, `,`, `;`, `:`, `(`, `)`, `{`, `}`, `[`, `]`, `&mut`
+
+> **Note:** The `::` operator is used in import paths (e.g., `import tt::math::Math`) and is also supported for member access for developers coming from C++. However, `.` (dot) is the preferred and idiomatic form for method calls in Titrate (e.g., `Math.sqrt(2.0)` instead of `Math::sqrt(2.0)`).
 
 ## Literals
 

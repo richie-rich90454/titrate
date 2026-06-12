@@ -59,7 +59,7 @@ let (a, b) = (10, 20);
 
 ## Closure Types
 
-Closures are anonymous functions with the type `fn(ParamTypes) => ReturnType`:
+Closures are anonymous functions with the type `fn(ParamTypes): ReturnType`:
 
 ```titrate
 let add: fn(int, int): int = fn(a: int, b: int): int => a + b;
