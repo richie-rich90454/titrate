@@ -1,24 +1,22 @@
 // Subprocess provides system command execution, mirroring Python's subprocess module.
 import tt::lang::String;
 
-public class Subprocess {
-    private static int lastExitCode = 0;
+var lastExitCode: int = 0;
 
-    // Run a command and return its exit code.
-    public static int run(String command) {
-        int code = Subprocess_run(command);
-        Subprocess.lastExitCode = code;
-        return code;
-    }
+// Run a command and return its exit code.
+fn run(command: string): int {
+    let code: int = Subprocess_run(command);
+    lastExitCode = code;
+    return code;
+}
 
-    // Run a command and return its stdout output as a string.
-    public static String exec(String command) {
-        String output = Subprocess_exec(command);
-        return output;
-    }
+// Run a command and return its stdout output as a string.
+fn exec(command: string): string {
+    let output: string = Subprocess_exec(command);
+    return output;
+}
 
-    // Get the exit code from the last run command.
-    public static int exitCode() {
-        return Subprocess.lastExitCode;
-    }
+// Get the exit code from the last run command.
+fn exitCode(): int {
+    return lastExitCode;
 }
