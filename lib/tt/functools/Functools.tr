@@ -5,16 +5,16 @@ import tt::util::HashMap;
 // Partial application wrapper.
 public class Partial<F, T> {
     public F fn;
-    public ArrayList<Object> boundArgs;
+    public ArrayList<Variant> boundArgs;
 
-    public Partial(F fn, ArrayList<Object> boundArgs) {
+    public fn init(fn: F, boundArgs: ArrayList<Variant>) {
         this.fn = fn;
         this.boundArgs = boundArgs;
     }
 
-    public T call(ArrayList<Object> args) {
-        ArrayList<Object> allArgs = new ArrayList<Object>();
-        int i = 0;
+    public fn call(args: ArrayList<Variant>): T {
+        let allArgs: ArrayList<Variant> = new ArrayList<Variant>();
+        var i: int = 0;
         while (i < this.boundArgs.size()) {
             allArgs.add(this.boundArgs.get(i));
             i = i + 1;
@@ -28,51 +28,49 @@ public class Partial<F, T> {
     }
 }
 
-public class Functools {
-    // Create a partial application.
-    public static Partial partial<F, T>(F fn, ArrayList<Object> boundArgs) {
-        return new Partial<F, T>(fn, boundArgs);
-    }
+// Create a partial application.
+fn partial<F, T>(fn: F, boundArgs: ArrayList<Variant>): Partial<F, T> {
+    return new Partial<F, T>(fn, boundArgs);
+}
 
-    // Reduce: fold left with an initial value.
-    public static T reduce<T>(ArrayList<T> arr, function<T(T, T)> fn, T init) {
-        T acc = init;
-        int i = 0;
-        while (i < arr.size()) {
-            acc = fn(acc, arr.get(i));
-            i = i + 1;
+// Reduce: fold left with an initial value.
+fn reduce<T>(arr: ArrayList<T>, fn: fn(T, T): T, init: T): T {
+    var acc: T = init;
+    var i: int = 0;
+    while (i < arr.size()) {
+        acc = fn(acc, arr.get(i));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// Cache: memoization wrapper using HashMap.
+fn cache<F>(fn: F): F {
+    let cacheMap: HashMap<Variant, Variant> = new HashMap<Variant, Variant>();
+    let cached: fn(Variant): Variant = fn(args: Variant) {
+        if (cacheMap.containsKey(args)) {
+            return cacheMap.get(args);
         }
-        return acc;
-    }
+        let result: Variant = fn(args);
+        cacheMap.put(args, result);
+        return result;
+    };
+    return cached;
+}
 
-    // Cache: memoization wrapper using HashMap.
-    public static F cache<F>(F fn) {
-        HashMap cacheMap = new HashMap();
-        function<Object(Object)> cached = function<Object(Object)>(Object args) {
-            if (cacheMap.containsKey(args)) {
-                return cacheMap.get(args);
-            }
-            Object result = fn(args);
-            cacheMap.put(args, result);
-            return result;
-        };
-        return cached;
-    }
+// Convert a comparator function to a boolean key function.
+// cmp returns negative, zero, or positive; result returns true if a < b.
+fn cmpToKey<T>(cmp: fn(T, T): int): fn(T, T): bool {
+    let keyFn: fn(T, T): bool = fn(a: T, b: T) {
+        return cmp(a, b) < 0;
+    };
+    return keyFn;
+}
 
-    // Convert a comparator function to a boolean key function.
-    // cmp returns negative, zero, or positive; result returns true if a < b.
-    public static function<bool(T, T)> cmpToKey<T>(function<int(T, T)> cmp) {
-        function<bool(T, T)> keyFn = function<bool(T, T)>(T a, T b) {
-            return cmp(a, b) < 0;
-        };
-        return keyFn;
-    }
-
-    // Function composition: compose(f, g) returns a function that applies g then f.
-    public static function<V(T)> compose<T, U, V>(function<U(T)> f, function<V(U)> g) {
-        function<V(T)> composed = function<V(T)>(T x) {
-            return g(f(x));
-        };
-        return composed;
-    }
+// Function composition: compose(f, g) returns a function that applies g then f.
+fn compose<T, U, V>(f: fn(T): U, g: fn(U): V): fn(T): V {
+    let composed: fn(T): V = fn(x: T) {
+        return g(f(x));
+    };
+    return composed;
 }
