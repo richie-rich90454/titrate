@@ -268,13 +268,13 @@ fn fromISO(s: string): DateTime {
         y = y + 1;
     }
     y = year;
-    while (y > 1970) {
-        y = y - 1;
+    while (y < 1970) {
         if (_isLeapYear(y)) {
             days = days - 366;
         } else {
             days = days - 365;
         }
+        y = y + 1;
     }
 
     // Add days for months
