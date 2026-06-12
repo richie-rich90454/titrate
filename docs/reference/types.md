@@ -28,6 +28,7 @@
 
 - `Owned<T>` — heap-allocated, move-semantics
 - `Result<T, E>` — success or error
+- `Variant` — dynamic type that can hold values of different types at runtime
 - `array<T>` — fixed-size array
 - Class instances
 - Enum instances
@@ -118,7 +119,7 @@ Type parameters are declared in angle brackets after a class or function name:
 
 ```titrate
 class Box<T> {
-    T value;
+    public T value;
 }
 
 fn id<T>(x: T): T {
