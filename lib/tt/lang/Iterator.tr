@@ -4,22 +4,22 @@ interface Iterator<E> {
     fn next(): E;
     fn hasNext(): bool;
 
-    fn forEachRemaining(fn: function<void(E)>) {
+    fn forEachRemaining(fn: fn(E): void) {
         while (this.hasNext()) {
             fn(this.next());
         }
     }
 
-    fn map<R>(fn: function<R(E)>): Iterator<R> {
+    fn map<R>(fn: fn(E): R): Iterator<R> {
         return new MappedIterator<E, R>(this, fn);
     }
 
-    fn filter(fn: function<bool(E)>): Iterator<E> {
+    fn filter(fn: fn(E): bool): Iterator<E> {
         return new FilteredIterator<E>(this, fn);
     }
 
-    fn reduce(init: E, fn: function<E(E, E)>): E {
-        E acc = init;
+    fn reduce(init: E, fn: fn(E, E): E): E {
+        var acc: E = init;
         while (this.hasNext()) {
             acc = fn(acc, this.next());
         }
@@ -27,7 +27,7 @@ interface Iterator<E> {
     }
 
     fn collect(): ArrayList<E> {
-        ArrayList<E> result = new ArrayList<E>();
+        let result: ArrayList<E> = new ArrayList<E>();
         while (this.hasNext()) {
             result.add(this.next());
         }
@@ -35,7 +35,7 @@ interface Iterator<E> {
     }
 
     fn count(): int {
-        int c = 0;
+        var c: int = 0;
         while (this.hasNext()) {
             this.next();
             c = c + 1;
@@ -48,7 +48,7 @@ interface Iterator<E> {
     }
 
     fn skip(n: int): Iterator<E> {
-        int i = 0;
+        var i: int = 0;
         while (i < n && this.hasNext()) {
             this.next();
             i = i + 1;
@@ -68,23 +68,23 @@ interface Iterator<E> {
         return new EnumeratedIterator<E>(this);
     }
 
-    fn any(fn: function<bool(E)>): bool {
+    fn any(fn: fn(E): bool): bool {
         while (this.hasNext()) {
             if (fn(this.next())) { return true; }
         }
         return false;
     }
 
-    fn all(fn: function<bool(E)>): bool {
+    fn all(fn: fn(E): bool): bool {
         while (this.hasNext()) {
             if (!fn(this.next())) { return false; }
         }
         return true;
     }
 
-    fn find(fn: function<bool(E)>): E {
+    fn find(fn: fn(E): bool): E {
         while (this.hasNext()) {
-            E val = this.next();
+            let val: E = this.next();
             if (fn(val)) { return val; }
         }
         return null;
@@ -92,9 +92,9 @@ interface Iterator<E> {
 
     fn max(): E {
         if (!this.hasNext()) { return null; }
-        E m = this.next();
+        var m: E = this.next();
         while (this.hasNext()) {
-            E val = this.next();
+            let val: E = this.next();
             if (val > m) { m = val; }
         }
         return m;
@@ -102,16 +102,16 @@ interface Iterator<E> {
 
     fn min(): E {
         if (!this.hasNext()) { return null; }
-        E m = this.next();
+        var m: E = this.next();
         while (this.hasNext()) {
-            E val = this.next();
+            let val: E = this.next();
             if (val < m) { m = val; }
         }
         return m;
     }
 
     fn nth(n: int): E {
-        int i = 0;
+        var i: int = 0;
         while (i < n && this.hasNext()) {
             this.next();
             i = i + 1;
@@ -121,7 +121,7 @@ interface Iterator<E> {
     }
 
     fn last(): E {
-        E val = null;
+        var val: E = null;
         while (this.hasNext()) {
             val = this.next();
         }
@@ -132,9 +132,9 @@ interface Iterator<E> {
 // Helper iterator that applies a mapping function
 class MappedIterator<E, R> implements Iterator<R> {
     public Iterator<E> source;
-    public function<R(E)> mapper;
+    public fn(E): R mapper;
 
-    public MappedIterator(Iterator<E> src, function<R(E)> fn) {
+    public fn init(src: Iterator<E>, fn: fn(E): R) {
         this.source = src;
         this.mapper = fn;
     }
@@ -151,11 +151,11 @@ class MappedIterator<E, R> implements Iterator<R> {
 // Helper iterator that filters elements
 class FilteredIterator<E> implements Iterator<E> {
     public Iterator<E> source;
-    public function<bool(E)> predicate;
+    public fn(E): bool predicate;
     public E nextVal;
     public bool hasVal;
 
-    public FilteredIterator(Iterator<E> src, function<bool(E)> fn) {
+    public fn init(src: Iterator<E>, fn: fn(E): bool) {
         this.source = src;
         this.predicate = fn;
         this.hasVal = false;
@@ -165,7 +165,7 @@ class FilteredIterator<E> implements Iterator<E> {
     fn advance() {
         this.hasVal = false;
         while (this.source.hasNext()) {
-            E val = this.source.next();
+            let val: E = this.source.next();
             if (this.predicate(val)) {
                 this.nextVal = val;
                 this.hasVal = true;
@@ -175,7 +175,7 @@ class FilteredIterator<E> implements Iterator<E> {
     }
 
     fn next(): E {
-        E val = this.nextVal;
+        let val: E = this.nextVal;
         this.advance();
         return val;
     }
@@ -190,7 +190,7 @@ class TakeIterator<E> implements Iterator<E> {
     public Iterator<E> source;
     public int remaining;
 
-    public TakeIterator(Iterator<E> src, int n) {
+    public fn init(src: Iterator<E>, n: int) {
         this.source = src;
         this.remaining = n;
     }
@@ -210,7 +210,7 @@ class ChainIterator<E> implements Iterator<E> {
     public Iterator<E> first;
     public Iterator<E> second;
 
-    public ChainIterator(Iterator<E> a, Iterator<E> b) {
+    public fn init(a: Iterator<E>, b: Iterator<E>) {
         this.first = a;
         this.second = b;
     }
@@ -230,14 +230,14 @@ class ZipIterator<E> implements Iterator<E> {
     public Iterator<E> a;
     public Iterator<E> b;
 
-    public ZipIterator(Iterator<E> a, Iterator<E> b) {
+    public fn init(a: Iterator<E>, b: Iterator<E>) {
         this.a = a;
         this.b = b;
     }
 
     fn next(): E {
         // Return from first iterator (simplified zip)
-        E val = this.a.next();
+        let val: E = this.a.next();
         this.b.next();
         return val;
     }
@@ -252,13 +252,13 @@ class EnumeratedIterator<E> implements Iterator<(int, E)> {
     public int index;
     public Iterator<E> source;
 
-    public EnumeratedIterator(Iterator<E> src) {
+    public fn init(src: Iterator<E>) {
         this.index = 0;
         this.source = src;
     }
 
     fn next(): (int, E) {
-        (int, E) result = (this.index, this.source.next());
+        let result: (int, E) = (this.index, this.source.next());
         this.index = this.index + 1;
         return result;
     }

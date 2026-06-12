@@ -1,37 +1,35 @@
-public class Float {
-    public static float parse(String s) {
-        return Double_parseDouble(s);
-    }
+fn parse(s: string): float {
+    return Double_parseDouble(s);
+}
 
-    public static String toString(float value) {
-        return value.toString();
-    }
+fn toString(value: float): string {
+    return value.toString();
+}
 
-    public static bool isNaN(float value) {
-        return value != value;
-    }
+fn isNaN(value: float): bool {
+    return value != value;
+}
 
-    public static bool isInfinite(float value) {
-        return value == Float.POSITIVE_INFINITY() || value == Float.NEGATIVE_INFINITY();
-    }
+fn isInfinite(value: float): bool {
+    return value == Float.POSITIVE_INFINITY() || value == Float.NEGATIVE_INFINITY();
+}
 
-    public static float parseOr(String s, float defaultValue) {
-        float result = Double_parseDouble(s);
-        if (Float.isNaN(result)) {
-            return defaultValue;
-        }
-        return result;
+fn parseOr(s: string, defaultValue: float): float {
+    let result: float = Double_parseDouble(s);
+    if (Float.isNaN(result)) {
+        return defaultValue;
     }
+    return result;
+}
 
-    public static float POSITIVE_INFINITY() {
-        return Math_inf();
-    }
+fn POSITIVE_INFINITY(): float {
+    return Math_inf();
+}
 
-    public static float NEGATIVE_INFINITY() {
-        return Math_negInf();
-    }
+fn NEGATIVE_INFINITY(): float {
+    return Math_negInf();
+}
 
-    public static float NaN() {
-        return Math_nan();
-    }
+fn NaN(): float {
+    return Math_nan();
 }

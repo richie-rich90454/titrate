@@ -1,44 +1,28 @@
 // Variant is a tagged union type that holds a value with an associated type tag.
 public class Variant {
-    private Object _value;
-    private String _typeTag;
+    private Variant _value;
+    private string _typeTag;
 
-    private Variant() {}
-
-    // Creates a Variant with the given tag and value.
-    public static Variant of(String tag, Object value) {
-        Variant v = new Variant();
-        v._typeTag = tag;
-        v._value = value;
-        return v;
-    }
-
-    // Creates an empty Variant with the given tag and no value.
-    public static Variant empty(String tag) {
-        Variant v = new Variant();
-        v._typeTag = tag;
-        v._value = null;
-        return v;
-    }
+    private fn init() {}
 
     // Returns the type tag of this Variant.
-    public String typeTag() {
+    public fn typeTag(): string {
         return this._typeTag;
     }
 
     // Returns true if this Variant has the given type tag.
-    public bool hasTag(String tag) {
+    public fn hasTag(tag: string): bool {
         if (this._typeTag == null) { return false; }
         return this._typeTag == tag;
     }
 
     // Returns the value held by this Variant.
-    public Object get() {
+    public fn get(): Variant {
         return this._value;
     }
 
     // Returns the value if the tag matches, otherwise returns defaultValue.
-    public Object getOrElse(String tag, Object defaultValue) {
+    public fn getOrElse(tag: string, defaultValue: Variant): Variant {
         if (this.hasTag(tag) && this._value != null) {
             return this._value;
         }
@@ -46,15 +30,15 @@ public class Variant {
     }
 
     // Returns true if this Variant holds no value.
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this._value == null;
     }
 
     // Compares this Variant to another object for equality.
-    public bool equals(Object other) {
+    public fn equals(other: Variant): bool {
         if (other == null) { return false; }
-        if (!(other instanceof Variant)) { return false; }
-        Variant o = (Variant) other;
+        if (!(other is Variant)) { return false; }
+        let o: Variant = other as Variant;
         if (this._typeTag != o._typeTag) { return false; }
         if (this._value == null && o._value == null) { return true; }
         if (this._value == null || o._value == null) { return false; }
@@ -62,10 +46,26 @@ public class Variant {
     }
 
     // Returns a string representation of this Variant.
-    public String toString() {
+    public fn toString(): string {
         if (this._value == null) {
             return "Variant(" + this._typeTag + ", empty)";
         }
         return "Variant(" + this._typeTag + ", " + this._value + ")";
     }
+}
+
+// Creates a Variant with the given tag and value.
+fn of(tag: string, value: Variant): Variant {
+    let v: Variant = new Variant();
+    v._typeTag = tag;
+    v._value = value;
+    return v;
+}
+
+// Creates an empty Variant with the given tag and no value.
+fn empty(tag: string): Variant {
+    let v: Variant = new Variant();
+    v._typeTag = tag;
+    v._value = null;
+    return v;
 }

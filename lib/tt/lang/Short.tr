@@ -1,9 +1,7 @@
-public class Short {
-    public static short parse(String s) {
-        return parseInt(s);
-    }
+fn parse(s: string): short {
+    return parseInt(s);
+}
 
-    public static String toString(short value) {
-        return value.toString();
-    }
+fn toString(value: short): string {
+    return value.toString();
 }

@@ -1,180 +1,178 @@
 // Static utility methods for the Integer type.
-public class Integer {
-    public static int parse(String s) {
-        return Integer::parseInt(s);
-    }
+fn parse(s: string): int {
+    return Integer::parseInt(s);
+}
 
-    public static int parseInt(String s) {
-        return Integer::parseInt(s);
-    }
+fn parseInt(s: string): int {
+    return Integer::parseInt(s);
+}
 
-    public static String toString(int value) {
-        return value.toString();
-    }
+fn toString(value: int): string {
+    return value.toString();
+}
 
-    public static int MAX_VALUE() {
-        return 2147483647;
-    }
+fn MAX_VALUE(): int {
+    return 2147483647;
+}
 
-    public static int MIN_VALUE() {
-        return -2147483648;
-    }
+fn MIN_VALUE(): int {
+    return -2147483648;
+}
 
-    public static int parseOr(String s, int defaultValue) {
-        int result = Integer::parseInt(s);
-        if (result == 0 && s != "0") {
-            return defaultValue;
-        }
-        return result;
+fn parseOr(s: string, defaultValue: int): int {
+    let result: int = Integer::parseInt(s);
+    if (result == 0 && s != "0") {
+        return defaultValue;
     }
+    return result;
+}
 
-    public static int parseIntOr(String s, int defaultValue) {
-        return Integer::parseOr(s, defaultValue);
+fn parseIntOr(s: string, defaultValue: int): int {
+    return Integer::parseOr(s, defaultValue);
+}
+
+fn compare(a: int, b: int): int {
+    if (a < b) { return -1; }
+    if (a > b) { return 1; }
+    return 0;
+}
+
+fn max(a: int, b: int): int {
+    if (a > b) { return a; }
+    return b;
+}
+
+fn min(a: int, b: int): int {
+    if (a < b) { return a; }
+    return b;
+}
+
+fn toHexString(n: int): string {
+    if (n == 0) { return "0"; }
+    let hex: string = "0123456789abcdef";
+    var result: string = "";
+    var val: int = n;
+    if (val < 0) {
+        // Handle as unsigned for hex
+        val = n;
     }
-
-    public static int compare(int a, int b) {
-        if (a < b) { return -1; }
-        if (a > b) { return 1; }
-        return 0;
-    }
-
-    public static int max(int a, int b) {
-        if (a > b) { return a; }
-        return b;
-    }
-
-    public static int min(int a, int b) {
-        if (a < b) { return a; }
-        return b;
-    }
-
-    public static String toHexString(int n) {
-        if (n == 0) { return "0"; }
-        String hex = "0123456789abcdef";
-        String result = "";
-        int val = n;
-        if (val < 0) {
-            // Handle as unsigned for hex
-            val = n;
-        }
-        while (val != 0) {
-            int digit = val & 0xF;
-            result = hex.charAt(digit) + result;
+    while (val != 0) {
+        let digit: int = val & 0xF;
+        result = hex.charAt(digit) + result;
+        val = val >> 4;
+        if (val < 0 && result.length() < 8) {
+            // Continue for negative numbers
+            val = val & 0x0FFFFFFF;
             val = val >> 4;
-            if (val < 0 && result.length() < 8) {
-                // Continue for negative numbers
-                val = val & 0x0FFFFFFF;
-                val = val >> 4;
-            }
         }
-        return result;
     }
+    return result;
+}
 
-    public static String toBinaryString(int n) {
-        if (n == 0) { return "0"; }
-        String result = "";
-        int val = n;
-        int bits = 0;
-        while (val != 0 && bits < 32) {
-            if ((val & 1) != 0) {
-                result = "1" + result;
-            } else {
-                result = "0" + result;
-            }
-            val = val >> 1;
-            bits = bits + 1;
+fn toBinaryString(n: int): string {
+    if (n == 0) { return "0"; }
+    var result: string = "";
+    var val: int = n;
+    var bits: int = 0;
+    while (val != 0 && bits < 32) {
+        if ((val & 1) != 0) {
+            result = "1" + result;
+        } else {
+            result = "0" + result;
         }
-        return result;
+        val = val >> 1;
+        bits = bits + 1;
     }
+    return result;
+}
 
-    public static String toOctalString(int n) {
-        if (n == 0) { return "0"; }
-        String oct = "01234567";
-        String result = "";
-        int val = n;
-        while (val != 0) {
-            int digit = val & 7;
-            result = oct.charAt(digit) + result;
-            val = val >> 3;
-        }
-        return result;
+fn toOctalString(n: int): string {
+    if (n == 0) { return "0"; }
+    let oct: string = "01234567";
+    var result: string = "";
+    var val: int = n;
+    while (val != 0) {
+        let digit: int = val & 7;
+        result = oct.charAt(digit) + result;
+        val = val >> 3;
     }
+    return result;
+}
 
-    public static int bitCount(int n) {
-        int count = 0;
-        int val = n;
-        int bits = 0;
-        while (val != 0 && bits < 32) {
-            count = count + (val & 1);
-            val = val >>> 1;
-            bits = bits + 1;
-        }
-        return count;
+fn bitCount(n: int): int {
+    var count: int = 0;
+    var val: int = n;
+    var bits: int = 0;
+    while (val != 0 && bits < 32) {
+        count = count + (val & 1);
+        val = val >>> 1;
+        bits = bits + 1;
     }
+    return count;
+}
 
-    public static int highestOneBit(int n) {
-        if (n == 0) { return 0; }
-        int val = n;
-        val = val | (val >> 1);
-        val = val | (val >> 2);
-        val = val | (val >> 4);
-        val = val | (val >> 8);
-        val = val | (val >> 16);
-        return val - (val >>> 1);
-    }
+fn highestOneBit(n: int): int {
+    if (n == 0) { return 0; }
+    var val: int = n;
+    val = val | (val >> 1);
+    val = val | (val >> 2);
+    val = val | (val >> 4);
+    val = val | (val >> 8);
+    val = val | (val >> 16);
+    return val - (val >>> 1);
+}
 
-    public static int lowestOneBit(int n) {
-        return n & (-n);
-    }
+fn lowestOneBit(n: int): int {
+    return n & (-n);
+}
 
-    public static int numberOfLeadingZeros(int n) {
-        if (n == 0) { return 32; }
-        int count = 0;
-        int val = n;
-        while (val >= 0) {
-            count = count + 1;
-            val = val << 1;
-        }
-        return count;
+fn numberOfLeadingZeros(n: int): int {
+    if (n == 0) { return 32; }
+    var count: int = 0;
+    var val: int = n;
+    while (val >= 0) {
+        count = count + 1;
+        val = val << 1;
     }
+    return count;
+}
 
-    public static int numberOfTrailingZeros(int n) {
-        if (n == 0) { return 32; }
-        int count = 0;
-        int val = n;
-        while ((val & 1) == 0) {
-            count = count + 1;
-            val = val >>> 1;
-        }
-        return count;
+fn numberOfTrailingZeros(n: int): int {
+    if (n == 0) { return 32; }
+    var count: int = 0;
+    var val: int = n;
+    while ((val & 1) == 0) {
+        count = count + 1;
+        val = val >>> 1;
     }
+    return count;
+}
 
-    public static int signum(int n) {
-        if (n < 0) { return -1; }
-        if (n > 0) { return 1; }
-        return 0;
-    }
+fn signum(n: int): int {
+    if (n < 0) { return -1; }
+    if (n > 0) { return 1; }
+    return 0;
+}
 
-    public static int reverse(int n) {
-        int val = n;
-        int result = 0;
-        int i = 0;
-        while (i < 32) {
-            result = result << 1;
-            result = result | (val & 1);
-            val = val >>> 1;
-            i = i + 1;
-        }
-        return result;
+fn reverse(n: int): int {
+    var val: int = n;
+    var result: int = 0;
+    var i: int = 0;
+    while (i < 32) {
+        result = result << 1;
+        result = result | (val & 1);
+        val = val >>> 1;
+        i = i + 1;
     }
+    return result;
+}
 
-    public static int rotateLeft(int n, int dist) {
-        dist = dist & 31;
-        return (n << dist) | (n >>> (32 - dist));
-    }
+fn rotateLeft(n: int, dist: int): int {
+    let d: int = dist & 31;
+    return (n << d) | (n >>> (32 - d));
+}
 
-    public static int rotateRight(int n, int dist) {
-        dist = dist & 31;
-        return (n >>> dist) | (n << (32 - dist));
-    }
+fn rotateRight(n: int, dist: int): int {
+    let d: int = dist & 31;
+    return (n >>> d) | (n << (32 - d));
 }

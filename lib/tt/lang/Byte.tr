@@ -1,9 +1,7 @@
-public class Byte {
-    public static byte parse(String s) {
-        return parseInt(s);
-    }
+fn parse(s: string): byte {
+    return parseInt(s);
+}
 
-    public static String toString(byte value) {
-        return value.toString();
-    }
+fn toString(value: byte): string {
+    return value.toString();
 }

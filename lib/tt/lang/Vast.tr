@@ -1,9 +1,7 @@
-public class Vast {
-    public static vast parse(String s) {
-        return Long_parseLong(s);
-    }
+fn parse(s: string): vast {
+    return Long_parseLong(s);
+}
 
-    public static String toString(vast value) {
-        return value.toString();
-    }
+fn toString(value: vast): string {
+    return value.toString();
 }

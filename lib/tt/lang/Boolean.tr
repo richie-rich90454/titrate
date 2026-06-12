@@ -1,24 +1,22 @@
-public class Boolean {
-    public static String toString(bool value) {
-        return value.toString();
-    }
+fn toString(value: bool): string {
+    return value.toString();
+}
 
-    public static bool parseBoolean(String s) {
-        if (s == "true") {
-            return true;
-        }
-        return false;
+fn parseBoolean(s: string): bool {
+    if (s == "true") {
+        return true;
     }
+    return false;
+}
 
-    public static bool logicalAnd(bool a, bool b) {
-        return a && b;
-    }
+fn logicalAnd(a: bool, b: bool): bool {
+    return a && b;
+}
 
-    public static bool logicalOr(bool a, bool b) {
-        return a || b;
-    }
+fn logicalOr(a: bool, b: bool): bool {
+    return a || b;
+}
 
-    public static bool logicalNot(bool a) {
-        return !a;
-    }
+fn logicalNot(a: bool): bool {
+    return !a;
 }

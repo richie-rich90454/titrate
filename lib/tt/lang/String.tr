@@ -1,234 +1,232 @@
 import tt::util::ArrayList;
 
-public class String {
-    public static int length(String s) {
-        return s.length();
-    }
+fn length(s: string): int {
+    return s.length();
+}
 
-    public static String concat(String a, String b) {
-        return a + b;
-    }
+fn concat(a: string, b: string): string {
+    return a + b;
+}
 
-    public static String toString(String value) {
-        return value;
-    }
+fn toString(value: string): string {
+    return value;
+}
 
-    public static String toUpperCase(String s) {
-        return String_toUpperCase(s);
-    }
+fn toUpperCase(s: string): string {
+    return String_toUpperCase(s);
+}
 
-    public static String toLowerCase(String s) {
-        return String_toLowerCase(s);
-    }
+fn toLowerCase(s: string): string {
+    return String_toLowerCase(s);
+}
 
-    public static String replace(String s, String target, String replacement) {
-        return String_replace(s, target, replacement);
-    }
+fn replace(s: string, target: string, replacement: string): string {
+    return String_replace(s, target, replacement);
+}
 
-    public static bool isEmpty(String s) {
-        return s.length() == 0;
-    }
+fn isEmpty(s: string): bool {
+    return s.length() == 0;
+}
 
-    public static bool isBlank(String s) {
-        int len = s.length();
-        int i = 0;
-        while (i < len) {
-            string c = s.charAt(i);
-            if (c != " " && c != "\t" && c != "\n" && c != "\r") {
-                return false;
+fn isBlank(s: string): bool {
+    let len: int = s.length();
+    var i: int = 0;
+    while (i < len) {
+        let c: string = s.charAt(i);
+        if (c != " " && c != "\t" && c != "\n" && c != "\r") {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn repeat(s: string, count: int): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < count) {
+        result = result + s;
+        i = i + 1;
+    }
+    return result;
+}
+
+fn reverse(s: string): string {
+    var result: string = "";
+    var i: int = s.length() - 1;
+    while (i >= 0) {
+        result = result + s.charAt(i);
+        i = i - 1;
+    }
+    return result;
+}
+
+fn toCharArray(s: string): ArrayList<string> {
+    let chars: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < s.length()) {
+        chars.add(s.charAt(i));
+        i = i + 1;
+    }
+    return chars;
+}
+
+fn substring(s: string, start: int, end: int): string {
+    var result: string = "";
+    var i: int = start;
+    while (i < end && i < s.length()) {
+        result = result + s.charAt(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+fn indexOf(s: string, sub: string): int {
+    let sLen: int = s.length();
+    let subLen: int = sub.length();
+    if (subLen == 0) { return 0; }
+    if (subLen > sLen) { return -1; }
+    var i: int = 0;
+    while (i <= sLen - subLen) {
+        var match: bool = true;
+        var j: int = 0;
+        while (j < subLen) {
+            if (s.charAt(i + j) != sub.charAt(j)) {
+                match = false;
             }
-            i = i + 1;
+            j = j + 1;
         }
-        return true;
+        if (match) { return i; }
+        i = i + 1;
     }
+    return -1;
+}
 
-    public static String repeat(String s, int count) {
-        String result = "";
-        int i = 0;
-        while (i < count) {
-            result = result + s;
-            i = i + 1;
+fn lastIndexOf(s: string, sub: string): int {
+    let sLen: int = s.length();
+    let subLen: int = sub.length();
+    if (subLen == 0) { return sLen; }
+    if (subLen > sLen) { return -1; }
+    var i: int = sLen - subLen;
+    while (i >= 0) {
+        var match: bool = true;
+        var j: int = 0;
+        while (j < subLen) {
+            if (s.charAt(i + j) != sub.charAt(j)) {
+                match = false;
+            }
+            j = j + 1;
         }
-        return result;
+        if (match) { return i; }
+        i = i - 1;
     }
+    return -1;
+}
 
-    public static String reverse(String s) {
-        String result = "";
-        int i = s.length() - 1;
-        while (i >= 0) {
-            result = result + s.charAt(i);
-            i = i - 1;
-        }
-        return result;
+fn startsWith(s: string, prefix: string): bool {
+    if (prefix.length() > s.length()) { return false; }
+    var i: int = 0;
+    while (i < prefix.length()) {
+        if (s.charAt(i) != prefix.charAt(i)) { return false; }
+        i = i + 1;
     }
+    return true;
+}
 
-    public static ArrayList<String> toCharArray(String s) {
-        ArrayList<String> chars = new ArrayList<String>();
-        int i = 0;
+fn endsWith(s: string, suffix: string): bool {
+    let sLen: int = s.length();
+    let sufLen: int = suffix.length();
+    if (sufLen > sLen) { return false; }
+    var i: int = 0;
+    while (i < sufLen) {
+        if (s.charAt(sLen - sufLen + i) != suffix.charAt(i)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn trim(s: string): string {
+    var start: int = 0;
+    var end: int = s.length();
+    while (start < end) {
+        let c: string = s.charAt(start);
+        if (c != " " && c != "\t" && c != "\n" && c != "\r") { break; }
+        start = start + 1;
+    }
+    while (end > start) {
+        let c: string = s.charAt(end - 1);
+        if (c != " " && c != "\t" && c != "\n" && c != "\r") { break; }
+        end = end - 1;
+    }
+    return String.substring(s, start, end);
+}
+
+fn split(s: string, delim: string): ArrayList<string> {
+    let parts: ArrayList<string> = new ArrayList<string>();
+    if (delim.length() == 0) {
+        var i: int = 0;
         while (i < s.length()) {
-            chars.add(s.charAt(i));
+            parts.add(s.charAt(i));
             i = i + 1;
         }
-        return chars;
-    }
-
-    public static String substring(String s, int start, int end) {
-        String result = "";
-        int i = start;
-        while (i < end && i < s.length()) {
-            result = result + s.charAt(i);
-            i = i + 1;
-        }
-        return result;
-    }
-
-    public static int indexOf(String s, String sub) {
-        int sLen = s.length();
-        int subLen = sub.length();
-        if (subLen == 0) { return 0; }
-        if (subLen > sLen) { return -1; }
-        int i = 0;
-        while (i <= sLen - subLen) {
-            bool match = true;
-            int j = 0;
-            while (j < subLen) {
-                if (s.charAt(i + j) != sub.charAt(j)) {
-                    match = false;
-                }
-                j = j + 1;
-            }
-            if (match) { return i; }
-            i = i + 1;
-        }
-        return -1;
-    }
-
-    public static int lastIndexOf(String s, String sub) {
-        int sLen = s.length();
-        int subLen = sub.length();
-        if (subLen == 0) { return sLen; }
-        if (subLen > sLen) { return -1; }
-        int i = sLen - subLen;
-        while (i >= 0) {
-            bool match = true;
-            int j = 0;
-            while (j < subLen) {
-                if (s.charAt(i + j) != sub.charAt(j)) {
-                    match = false;
-                }
-                j = j + 1;
-            }
-            if (match) { return i; }
-            i = i - 1;
-        }
-        return -1;
-    }
-
-    public static bool startsWith(String s, String prefix) {
-        if (prefix.length() > s.length()) { return false; }
-        int i = 0;
-        while (i < prefix.length()) {
-            if (s.charAt(i) != prefix.charAt(i)) { return false; }
-            i = i + 1;
-        }
-        return true;
-    }
-
-    public static bool endsWith(String s, String suffix) {
-        int sLen = s.length();
-        int sufLen = suffix.length();
-        if (sufLen > sLen) { return false; }
-        int i = 0;
-        while (i < sufLen) {
-            if (s.charAt(sLen - sufLen + i) != suffix.charAt(i)) { return false; }
-            i = i + 1;
-        }
-        return true;
-    }
-
-    public static String trim(String s) {
-        int start = 0;
-        int end = s.length();
-        while (start < end) {
-            string c = s.charAt(start);
-            if (c != " " && c != "\t" && c != "\n" && c != "\r") { break; }
-            start = start + 1;
-        }
-        while (end > start) {
-            string c = s.charAt(end - 1);
-            if (c != " " && c != "\t" && c != "\n" && c != "\r") { break; }
-            end = end - 1;
-        }
-        return String.substring(s, start, end);
-    }
-
-    public static ArrayList<String> split(String s, String delim) {
-        ArrayList<String> parts = new ArrayList<String>();
-        if (delim.length() == 0) {
-            int i = 0;
-            while (i < s.length()) {
-                parts.add(s.charAt(i));
-                i = i + 1;
-            }
-            return parts;
-        }
-        int start = 0;
-        int idx = String.indexOf(s, delim);
-        while (idx >= 0) {
-            parts.add(String.substring(s, start, idx));
-            start = idx + delim.length();
-            idx = String.indexOf(String.substring(s, start, s.length()), delim);
-            if (idx >= 0) { idx = idx + start; }
-        }
-        parts.add(String.substring(s, start, s.length()));
         return parts;
     }
-
-    public static String join(ArrayList<String> parts, String delim) {
-        String result = "";
-        int i = 0;
-        while (i < parts.size()) {
-            if (i > 0) { result = result + delim; }
-            result = result + parts.get(i);
-            i = i + 1;
-        }
-        return result;
+    var start: int = 0;
+    var idx: int = String.indexOf(s, delim);
+    while (idx >= 0) {
+        parts.add(String.substring(s, start, idx));
+        start = idx + delim.length();
+        idx = String.indexOf(String.substring(s, start, s.length()), delim);
+        if (idx >= 0) { idx = idx + start; }
     }
+    parts.add(String.substring(s, start, s.length()));
+    return parts;
+}
 
-    public static String format(String template, ArrayList<String> args) {
-        String result = "";
-        int argIdx = 0;
-        int i = 0;
-        while (i < template.length()) {
-            if (i + 1 < template.length() && template.charAt(i) == "{" && template.charAt(i + 1) == "}") {
-                if (argIdx < args.size()) {
-                    result = result + args.get(argIdx);
-                    argIdx = argIdx + 1;
-                }
-                i = i + 2;
-            } else {
-                result = result + template.charAt(i);
-                i = i + 1;
+fn join(parts: ArrayList<string>, delim: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < parts.size()) {
+        if (i > 0) { result = result + delim; }
+        result = result + parts.get(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+fn format(template: string, args: ArrayList<string>): string {
+    var result: string = "";
+    var argIdx: int = 0;
+    var i: int = 0;
+    while (i < template.length()) {
+        if (i + 1 < template.length() && template.charAt(i) == "{" && template.charAt(i + 1) == "}") {
+            if (argIdx < args.size()) {
+                result = result + args.get(argIdx);
+                argIdx = argIdx + 1;
             }
-        }
-        return result;
-    }
-
-    public static bool contains(String s, String sub) {
-        return String.indexOf(s, sub) >= 0;
-    }
-
-    public static int compareTo(String a, String b) {
-        int minLen = a.length();
-        if (b.length() < minLen) { minLen = b.length(); }
-        int i = 0;
-        while (i < minLen) {
-            if (a.charAt(i) < b.charAt(i)) { return -1; }
-            if (a.charAt(i) > b.charAt(i)) { return 1; }
+            i = i + 2;
+        } else {
+            result = result + template.charAt(i);
             i = i + 1;
         }
-        if (a.length() < b.length()) { return -1; }
-        if (a.length() > b.length()) { return 1; }
-        return 0;
     }
+    return result;
+}
+
+fn contains(s: string, sub: string): bool {
+    return String.indexOf(s, sub) >= 0;
+}
+
+fn compareTo(a: string, b: string): int {
+    var minLen: int = a.length();
+    if (b.length() < minLen) { minLen = b.length(); }
+    var i: int = 0;
+    while (i < minLen) {
+        if (a.charAt(i) < b.charAt(i)) { return -1; }
+        if (a.charAt(i) > b.charAt(i)) { return 1; }
+        i = i + 1;
+    }
+    if (a.length() < b.length()) { return -1; }
+    if (a.length() > b.length()) { return 1; }
+    return 0;
 }

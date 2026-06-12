@@ -1,9 +1,7 @@
-public class Uvast {
-    public static uvast parse(String s) {
-        return Long_parseLong(s);
-    }
+fn parse(s: string): uvast {
+    return Long_parseLong(s);
+}
 
-    public static String toString(uvast value) {
-        return value.toString();
-    }
+fn toString(value: uvast): string {
+    return value.toString();
 }

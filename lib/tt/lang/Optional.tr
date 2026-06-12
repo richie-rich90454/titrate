@@ -5,43 +5,20 @@ public class Optional<T> {
     private T _value;
     private bool _present;
 
-    private Optional() {}
-
-    // Returns an empty Optional with no value.
-    public static Optional<T> empty() {
-        Optional<T> opt = new Optional<T>();
-        opt._present = false;
-        return opt;
-    }
-
-    // Returns an Optional containing the given non-null value.
-    public static Optional<T> of(T value) {
-        Optional<T> opt = new Optional<T>();
-        opt._value = value;
-        opt._present = true;
-        return opt;
-    }
-
-    // Returns an Optional containing the value if non-null, otherwise empty.
-    public static Optional<T> ofNullable(T value) {
-        if (value == null) {
-            return Optional<T>::empty();
-        }
-        return Optional<T>::of(value);
-    }
+    private fn init() {}
 
     // Returns true if a value is present.
-    public bool isPresent() {
+    public fn isPresent(): bool {
         return this._present;
     }
 
     // Returns true if no value is present.
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return !this._present;
     }
 
     // Returns the value if present, otherwise throws.
-    public T get() {
+    public fn get(): T {
         if (this._present) {
             return this._value;
         }
@@ -49,7 +26,7 @@ public class Optional<T> {
     }
 
     // Returns the value if present, otherwise returns defaultValue.
-    public T orElse(T defaultValue) {
+    public fn orElse(defaultValue: T): T {
         if (this._present) {
             return this._value;
         }
@@ -57,7 +34,7 @@ public class Optional<T> {
     }
 
     // Returns the value if present, otherwise invokes supplier and returns its result.
-    public T orElseGet(function<T()> supplier) {
+    public fn orElseGet(supplier: fn(): T): T {
         if (this._present) {
             return this._value;
         }
@@ -65,7 +42,7 @@ public class Optional<T> {
     }
 
     // Returns this Optional if present, otherwise returns the Optional produced by supplier.
-    public Optional<T> or(function<Optional<T>()> supplier) {
+    public fn or(supplier: fn(): Optional<T>): Optional<T> {
         if (this._present) {
             return this;
         }
@@ -73,7 +50,7 @@ public class Optional<T> {
     }
 
     // If a value is present, apply the mapper and return an Optional of the result.
-    public Optional<U> map(function<U(T)> mapper) {
+    public fn map(mapper: fn(T): U): Optional<U> {
         if (this._present) {
             return Optional<U>::of(mapper(this._value));
         }
@@ -81,7 +58,7 @@ public class Optional<T> {
     }
 
     // If a value is present, apply the mapper that returns an Optional, and return that result.
-    public Optional<U> flatMap(function<Optional<U>(T)> mapper) {
+    public fn flatMap(mapper: fn(T): Optional<U>): Optional<U> {
         if (this._present) {
             return mapper(this._value);
         }
@@ -89,7 +66,7 @@ public class Optional<T> {
     }
 
     // If a value is present and matches the predicate, return this Optional; otherwise return empty.
-    public Optional<T> filter(function<bool(T)> predicate) {
+    public fn filter(predicate: fn(T): bool): Optional<T> {
         if (this._present && predicate(this._value)) {
             return this;
         }
@@ -97,14 +74,14 @@ public class Optional<T> {
     }
 
     // If a value is present, invoke the action with the value.
-    public void ifPresent(function<void(T)> action) {
+    public fn ifPresent(action: fn(T): void) {
         if (this._present) {
             action(this._value);
         }
     }
 
     // If a value is present, invoke the action; otherwise invoke emptyAction.
-    public void ifPresentOrElse(function<void(T)> action, function<void()> emptyAction) {
+    public fn ifPresentOrElse(action: fn(T): void, emptyAction: fn(): void) {
         if (this._present) {
             action(this._value);
         } else {
@@ -113,20 +90,43 @@ public class Optional<T> {
     }
 
     // Compares this Optional to another object for equality.
-    public bool equals(Object other) {
+    public fn equals(other: Variant): bool {
         if (other == null) { return false; }
-        if (!(other instanceof Optional)) { return false; }
-        Optional<T> o = (Optional<T>) other;
+        if (!(other is Optional)) { return false; }
+        let o: Optional<T> = other as Optional<T>;
         if (this._present != o._present) { return false; }
         if (!this._present) { return true; }
         return this._value == o._value;
     }
 
     // Returns a string representation of this Optional.
-    public String toString() {
+    public fn toString(): string {
         if (this._present) {
             return "Optional(" + this._value + ")";
         }
         return "Optional.empty";
     }
+}
+
+// Returns an empty Optional with no value.
+fn empty<T>(): Optional<T> {
+    let opt: Optional<T> = new Optional<T>();
+    opt._present = false;
+    return opt;
+}
+
+// Returns an Optional containing the given non-null value.
+fn of<T>(value: T): Optional<T> {
+    let opt: Optional<T> = new Optional<T>();
+    opt._value = value;
+    opt._present = true;
+    return opt;
+}
+
+// Returns an Optional containing the value if non-null, otherwise empty.
+fn ofNullable<T>(value: T): Optional<T> {
+    if (value == null) {
+        return Optional<T>::empty();
+    }
+    return Optional<T>::of(value);
 }

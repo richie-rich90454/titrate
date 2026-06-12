@@ -1,123 +1,122 @@
-public class Double {
-    public static double parse(String s) {
-        return Double::parseDouble(s);
-    }
+fn parse(s: string): double {
+    return Double::parseDouble(s);
+}
 
-    public static String toString(double value) {
-        return value.toString();
-    }
+fn toString(value: double): string {
+    return value.toString();
+}
 
-    public static bool isNaN(double value) {
-        return value != value;
-    }
+fn isNaN(value: double): bool {
+    return value != value;
+}
 
-    public static bool isInfinite(double value) {
-        return value == Double::POSITIVE_INFINITY() || value == Double::NEGATIVE_INFINITY();
-    }
+fn isInfinite(value: double): bool {
+    return value == Double::POSITIVE_INFINITY() || value == Double::NEGATIVE_INFINITY();
+}
 
-    public static bool isFinite(double d) {
-        return !Double::isNaN(d) && !Double::isInfinite(d);
-    }
+fn isFinite(d: double): bool {
+    return !Double::isNaN(d) && !Double::isInfinite(d);
+}
 
-    public static double MIN_VALUE() {
-        return 4.9e-324;
-    }
+fn MIN_VALUE(): double {
+    return 4.9e-324;
+}
 
-    public static double MAX_VALUE() {
-        return 1.7976931348623157e308;
-    }
+fn MAX_VALUE(): double {
+    return 1.7976931348623157e308;
+}
 
-    public static double MIN_NORMAL() {
-        return 2.2250738585072014e-308;
-    }
+fn MIN_NORMAL(): double {
+    return 2.2250738585072014e-308;
+}
 
-    public static double EPSILON() {
-        return 2.220446049250313e-16;
-    }
+fn EPSILON(): double {
+    return 2.220446049250313e-16;
+}
 
-    public static String toHexString(double d) {
-        if (Double::isNaN(d)) { return "NaN"; }
-        if (d == Double::POSITIVE_INFINITY()) { return "Infinity"; }
-        if (d == Double::NEGATIVE_INFINITY()) { return "-Infinity"; }
-        if (d == 0.0) {
-            if ((1.0 / d) < 0.0) { return "-0x0.0p0"; }
-            return "0x0.0p0";
-        }
-        String sign = "";
-        if (d < 0.0) {
-            sign = "-";
-            d = -d;
-        }
-        // Extract exponent and mantissa
-        int exp = 0;
-        while (d >= 2.0) {
-            d = d / 2.0;
-            exp = exp + 1;
-        }
-        while (d < 1.0 && d > 0.0) {
-            d = d * 2.0;
-            exp = exp - 1;
-        }
-        // Convert mantissa to hex fraction
-        String hexChars = "0123456789abcdef";
-        String mantissa = "";
-        double val = d - 1.0;
-        int i = 0;
-        while (i < 13) {
-            val = val * 16.0;
-            int digit = (int) val;
-            if (digit < 0) { digit = 0; }
-            if (digit > 15) { digit = 15; }
-            mantissa = mantissa + hexChars.charAt(digit);
-            val = val - (double) digit;
-            i = i + 1;
-        }
-        // Trim trailing zeros
-        while (mantissa.length() > 1 && mantissa.charAt(mantissa.length() - 1) == "0") {
-            mantissa = String.substring(mantissa, 0, mantissa.length() - 1);
-        }
-        return sign + "0x1." + mantissa + "p" + Integer.toString(exp);
+fn toHexString(d: double): string {
+    if (Double::isNaN(d)) { return "NaN"; }
+    if (d == Double::POSITIVE_INFINITY()) { return "Infinity"; }
+    if (d == Double::NEGATIVE_INFINITY()) { return "-Infinity"; }
+    if (d == 0.0) {
+        if ((1.0 / d) < 0.0) { return "-0x0.0p0"; }
+        return "0x0.0p0";
     }
+    var sign: string = "";
+    var d2: double = d;
+    if (d2 < 0.0) {
+        sign = "-";
+        d2 = -d2;
+    }
+    // Extract exponent and mantissa
+    var exp: int = 0;
+    while (d2 >= 2.0) {
+        d2 = d2 / 2.0;
+        exp = exp + 1;
+    }
+    while (d2 < 1.0 && d2 > 0.0) {
+        d2 = d2 * 2.0;
+        exp = exp - 1;
+    }
+    // Convert mantissa to hex fraction
+    let hexChars: string = "0123456789abcdef";
+    var mantissa: string = "";
+    var val: double = d2 - 1.0;
+    var i: int = 0;
+    while (i < 13) {
+        val = val * 16.0;
+        var digit: int = val as int;
+        if (digit < 0) { digit = 0; }
+        if (digit > 15) { digit = 15; }
+        mantissa = mantissa + hexChars.charAt(digit);
+        val = val - (digit as double);
+        i = i + 1;
+    }
+    // Trim trailing zeros
+    while (mantissa.length() > 1 && mantissa.charAt(mantissa.length() - 1) == "0") {
+        mantissa = String.substring(mantissa, 0, mantissa.length() - 1);
+    }
+    return sign + "0x1." + mantissa + "p" + Integer.toString(exp);
+}
 
-    public static int compare(double a, double b) {
-        if (a < b) { return -1; }
-        if (a > b) { return 1; }
-        if (a == b) { return 0; }
-        // NaN handling
-        if (Double::isNaN(a)) {
-            if (Double::isNaN(b)) { return 0; }
-            return 1;
-        }
-        return -1;
+fn compare(a: double, b: double): int {
+    if (a < b) { return -1; }
+    if (a > b) { return 1; }
+    if (a == b) { return 0; }
+    // NaN handling
+    if (Double::isNaN(a)) {
+        if (Double::isNaN(b)) { return 0; }
+        return 1;
     }
+    return -1;
+}
 
-    public static double max(double a, double b) {
-        if (a > b) { return a; }
-        return b;
-    }
+fn max(a: double, b: double): double {
+    if (a > b) { return a; }
+    return b;
+}
 
-    public static double min(double a, double b) {
-        if (a < b) { return a; }
-        return b;
-    }
+fn min(a: double, b: double): double {
+    if (a < b) { return a; }
+    return b;
+}
 
-    public static double parseOr(String s, double defaultValue) {
-        double result = Double::parseDouble(s);
-        if (Double::isNaN(result)) {
-            return defaultValue;
-        }
-        return result;
+fn parseOr(s: string, defaultValue: double): double {
+    let result: double = Double::parseDouble(s);
+    if (Double::isNaN(result)) {
+        return defaultValue;
     }
+    return result;
+}
 
-    public static double POSITIVE_INFINITY() {
-        return Math_inf();
-    }
+fn POSITIVE_INFINITY(): double {
+    return Math_inf();
+}
 
-    public static double NEGATIVE_INFINITY() {
-        return Math_negInf();
-    }
+fn NEGATIVE_INFINITY(): double {
+    return Math_negInf();
+}
 
-    public static double NaN() {
-        return Math_nan();
-    }
+fn NaN(): double {
+    return Math_nan();
 }
