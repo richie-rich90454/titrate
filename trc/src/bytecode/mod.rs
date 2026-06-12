@@ -4,6 +4,7 @@ pub mod compiler;
 pub mod frame;
 pub mod opcodes;
 pub mod value;
+mod value_impl;
 pub mod vm;
 
 pub use compiler::{CompiledProgram, Compiler};
