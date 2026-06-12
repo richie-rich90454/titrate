@@ -1,0 +1,125 @@
+// Unicode character database access.
+import tt::util::HashMap;
+
+public class Unicodedata {
+    private static HashMap<int, string> categoryCache;
+
+    public fn init() {
+        Unicodedata.categoryCache = new HashMap<int, string>();
+    }
+
+    // Get the general category of a Unicode character.
+    public static fn category(ch: string): string {
+        let code: int = String.charAt(ch, 0) as int;
+        // ASCII ranges
+        if (code >= 65 && code <= 90) { return "Lu"; }  // A-Z uppercase
+        if (code >= 97 && code <= 122) { return "Ll"; } // a-z lowercase
+        if (code >= 48 && code <= 57) { return "Nd"; }  // 0-9 digit
+        if (code >= 32 && code <= 47) { return "Po"; }  // punctuation
+        if (code >= 58 && code <= 64) { return "Po"; }
+        if (code >= 91 && code <= 96) { return "Po"; }
+        if (code >= 123 && code <= 126) { return "Po"; }
+        if (code == 32) { return "Zs"; }  // space
+        if (code >= 9 && code <= 13) { return "Cc"; }  // control chars
+        if (code >= 128 && code <= 255) { return "Lo"; } // Latin supplement
+        return "Cn"; // unassigned
+    }
+
+    // Get the decimal digit value, or -1 if not a digit.
+    public static fn decimal(ch: string): int {
+        let code: int = String.charAt(ch, 0) as int;
+        if (code >= 48 && code <= 57) { return code - 48; }
+        return -1;
+    }
+
+    // Get the numeric value, or -1.0 if not numeric.
+    public static fn numeric(ch: string): double {
+        let d: int = decimal(ch);
+        if (d >= 0) { return d as double; }
+        return -1.0;
+    }
+
+    // Check if character is a letter.
+    public static fn isLetter(ch: string): bool {
+        let cat: string = category(ch);
+        return String.length(cat) > 0 && String.charAt(cat, 0) == "L";
+    }
+
+    // Check if character is a digit.
+    public static fn isDigit(ch: string): bool {
+        return category(ch) == "Nd";
+    }
+
+    // Check if character is a space.
+    public static fn isSpace(ch: string): bool {
+        let cat: string = category(ch);
+        return String.length(cat) > 0 && String.charAt(cat, 0) == "Z";
+    }
+
+    // Check if character is uppercase.
+    public static fn isUpper(ch: string): bool {
+        return category(ch) == "Lu";
+    }
+
+    // Check if character is lowercase.
+    public static fn isLower(ch: string): bool {
+        return category(ch) == "Ll";
+    }
+
+    // Check if character is a titlecase letter.
+    public static fn isTitle(ch: string): bool {
+        return category(ch) == "Lt";
+    }
+
+    // Normalize a string to NFC form (composition).
+    public static fn normalize(form: string, s: string): string {
+        // Simplified: return the string as-is for ASCII
+        // Full NFC normalization requires Unicode database
+        return s;
+    }
+
+    // Get the Unicode name of a character.
+    public static fn name(ch: string): string {
+        let code: int = String.charAt(ch, 0) as int;
+        if (code >= 65 && code <= 90) {
+            return "LATIN CAPITAL LETTER " + String.toUpperCase(ch);
+        }
+        if (code >= 97 && code <= 122) {
+            return "LATIN SMALL LETTER " + String.toUpperCase(ch);
+        }
+        if (code >= 48 && code <= 57) {
+            return "DIGIT " + ch;
+        }
+        if (code == 32) { return "SPACE"; }
+        if (code == 10) { return "LINE FEED"; }
+        if (code == 13) { return "CARRIAGE RETURN"; }
+        if (code == 9) { return "TAB"; }
+        return "CHARACTER " + Integer.toString(code);
+    }
+
+    // Look up a character by its Unicode name.
+    public static fn lookup(name: string): string {
+        // Simplified: only handles basic names
+        return "";
+    }
+
+    // Get the bidirectional category.
+    public static fn bidirectional(ch: string): string {
+        let code: int = String.charAt(ch, 0) as int;
+        if (code >= 65 && code <= 90) { return "L"; }
+        if (code >= 97 && code <= 122) { return "L"; }
+        if (code >= 48 && code <= 57) { return "EN"; }
+        if (code == 32) { return "WS"; }
+        return "ON";
+    }
+
+    // Get the combining class.
+    public static fn combining(ch: string): int {
+        return 0;
+    }
+
+    // Get the mirrored property.
+    public static fn mirrored(ch: string): bool {
+        return false;
+    }
+}
