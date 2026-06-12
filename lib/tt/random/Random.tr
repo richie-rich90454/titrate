@@ -131,4 +131,131 @@ public class Random {
     public fn nextInt(min: int, max: int): int {
         return min + this.nextInt(max - min + 1);
     }
+
+    // Random integer in [min, max) (exclusive max)
+    public fn nextIntRange(min: int, max: int): int {
+        return min + this.nextInt(max - min);
+    }
+
+    // Binomial distribution: sum of n Bernoulli(p) trials
+    public fn binomial(n: int, p: double): int {
+        var count: int = 0;
+        var i: int = 0;
+        while (i < n) {
+            if (this.nextDouble() < p) {
+                count = count + 1;
+            }
+            i = i + 1;
+        }
+        return count;
+    }
+
+    // Triangular distribution
+    public fn triangular(low: double, high: double, mode: double): double {
+        let u: double = this.nextDouble();
+        let range: double = high - low;
+        let modeFrac: double = (mode - low) / range;
+        if (u < modeFrac) {
+            return low + Math.sqrt(u * range * (mode - low));
+        }
+        return high - Math.sqrt((1.0 - u) * range * (high - mode));
+    }
+
+    // Lognormal distribution: exp(mu + sigma * Z)
+    public fn lognormal(mu: double, sigma: double): double {
+        return Math.exp(mu + sigma * this.nextGaussian());
+    }
+
+    // Weibull distribution: shape * (-ln(U))^(1/shape)
+    public fn weibull(shape: double): double {
+        var u: double = this.nextDouble();
+        while (u < 1e-15) {
+            u = this.nextDouble();
+        }
+        return shape * Math.pow(-Math.ln(u), 1.0 / shape);
+    }
+
+    // Gamma distribution using Marsaglia and Tsang's method
+    public fn gammaDist(shape: double, scale: double): double {
+        if (shape < 1.0) {
+            // For shape < 1, use the transformation: X = Y^(1/shape) where Y ~ Gamma(shape+1, 1)
+            return this.gammaDist(shape + 1.0, 1.0) * Math.pow(this.nextDouble(), 1.0 / shape) * scale;
+        }
+        // Marsaglia and Tsang's method for shape >= 1
+        let d: double = shape - 1.0 / 3.0;
+        let c: double = 1.0 / Math.sqrt(9.0 * d);
+        while (true) {
+            var x: double = 0.0;
+            var v: double = 0.0;
+            while (true) {
+                x = this.nextGaussian();
+                v = 1.0 + c * x;
+                if (v > 0.0) { break; }
+            }
+            v = v * v * v;
+            let u: double = this.nextDouble();
+            if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {
+                return d * v * scale;
+            }
+            if (Math.ln(u) < 0.5 * x * x + d * (1.0 - v + Math.ln(v))) {
+                return d * v * scale;
+            }
+        }
+        return 0.0;
+    }
+
+    // Beta distribution using gamma ratio: X/(X+Y) where X ~ Gamma(a,1), Y ~ Gamma(b,1)
+    public fn beta(a: double, b: double): double {
+        let x: double = this.gammaDist(a, 1.0);
+        let y: double = this.gammaDist(b, 1.0);
+        if (x + y == 0.0) { return 0.0; }
+        return x / (x + y);
+    }
+
+    // Weighted random choice from a list using cumulative weights
+    public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
+        // Build cumulative weights
+        let cumWeights: ArrayList<double> = new ArrayList<double>();
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < weights.size()) {
+            total = total + weights.get(i);
+            cumWeights.add(total);
+            i = i + 1;
+        }
+        let r: double = this.nextDouble() * total;
+        var idx: int = 0;
+        while (idx < cumWeights.size() - 1) {
+            if (r < cumWeights.get(idx)) { break; }
+            idx = idx + 1;
+        }
+        return list.get(idx);
+    }
+
+    // k random items without replacement using Fisher-Yates partial shuffle
+    public fn sample<T>(list: ArrayList<T>, k: int): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let n: int = list.size();
+        var kk: int = k;
+        if (kk > n) { kk = n; }
+        // Copy the list
+        let copy: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < n) {
+            copy.add(list.get(i));
+            i = i + 1;
+        }
+        // Fisher-Yates partial shuffle
+        i = 0;
+        while (i < kk) {
+            let j: int = i + this.nextInt(n - i);
+            // Swap copy[i] and copy[j]
+            let temp: T = copy.get(i);
+            copy.set(i, copy.get(j));
+            copy.set(j, temp);
+            result.add(copy.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
 }
