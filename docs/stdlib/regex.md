@@ -11,21 +11,21 @@ import tt.regex.Match;
 
 Regular expression compiler and matcher.
 
-- `Regex(pattern: String)` — compile a pattern
-- `Regex(pattern: String, flags: String)` — compile with flags
-- `Regex.compile(pattern: String): Regex` — static: compile a pattern
-- `Regex.compile(pattern: String, flags: String): Regex` — static: compile with flags
-- `match(input: String): bool` — test if the pattern matches anywhere in input
-- `matches(input: String): bool` — test if the pattern matches the entire input
-- `find(input: String): Match` — find first match; returns null if none
-- `findAll(input: String): ArrayList<Match>` — find all matches
-- `matchAll(input: String): ArrayList<Match>` — alias for findAll
-- `replaceAll(input: String, replacement: String): String` — replace all matches
-- `replaceFirst(input: String, replacement: String): String` — replace first match
-- `split(input: String): ArrayList<String>` — split input by pattern
+- `fn init(pattern: string)` — compile a pattern
+- `fn init(pattern: string, flags: string)` — compile with flags
+- `Regex.compile(pattern: string): Regex` — static: compile a pattern
+- `Regex.compile(pattern: string, flags: string): Regex` — static: compile with flags
+- `match(input: string): bool` — test if the pattern matches anywhere in input
+- `matches(input: string): bool` — test if the pattern matches the entire input
+- `find(input: string): Match` — find first match; returns null if none
+- `findAll(input: string): ArrayList<Match>` — find all matches
+- `matchAll(input: string): ArrayList<Match>` — alias for findAll
+- `replaceAll(input: string, replacement: string): string` — replace all matches
+- `replaceFirst(input: string, replacement: string): string` — replace first match
+- `split(input: string): ArrayList<string>` — split input by pattern
 - `groupCount(): int` — number of capture groups
-- `getPattern(): String` — the original pattern string
-- `Regex.quote(s: String): String` — static: escape all regex metacharacters
+- `getPattern(): string` — the original pattern string
+- `Regex.quote(s: string): string` — static: escape all regex metacharacters
 
 ```titrate
 let re = Regex.compile("\\d+");
@@ -44,14 +44,14 @@ let cleaned = re.replaceAll("price: 100 dollars", "X");
 
 Represents a single regex match result.
 
-- `matched: String` — the matched substring
+- `matched: string` — the matched substring
 - `start: int` — start index of the match
 - `end: int` — end index of the match (exclusive)
-- `groups: ArrayList<String>` — captured groups
-- `getMatched(): String` — the matched text
+- `groups: ArrayList<string>` — captured groups
+- `getMatched(): string` — the matched text
 - `getStart(): int` — start index
 - `getEnd(): int` — end index
-- `getGroup(i: int): String` — captured group by index
+- `getGroup(i: int): string` — captured group by index
 - `groupCount(): int` — number of captured groups
-- `groups(): ArrayList<String>` — all captured groups
+- `groups(): ArrayList<string>` — all captured groups
 - `range(): ArrayList<int>` — [start, end] as a two-element list

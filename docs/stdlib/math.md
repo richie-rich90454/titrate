@@ -67,7 +67,7 @@ Multi-dimensional array with generic element type. Supports indexing, reshaping,
 - `NDArray.zeros(shape: ArrayList<int>): NDArray<double>` — zero-filled array
 - `NDArray.ones(shape: ArrayList<int>): NDArray<double>` — one-filled array
 - `NDArray.filled(shape: ArrayList<int>, value: double): NDArray<double>` — constant-filled
-- `NDArray.fromData(shape: ArrayList<int>, data: ArrayList<T>): NDArray<T>` — from flat data
+- `NDArray.fromData<T>(shape: ArrayList<int>, data: ArrayList<T>): NDArray<T>` — from flat data
 
 **Indexing:**
 - `get(indices: ArrayList<int>): T` — multi-dimensional access
@@ -119,7 +119,7 @@ a.set2D(0, 0, 1.0);
 a.set2D(1, 2, 5.0);
 let b = NDArray.ones(shape);
 let c = a + b;  // element-wise addition
-io::println(c.sum().toString());  // 12.0
+io::println(Double.toString(c.sum()));  // 12.0
 ```
 
 ## Matrix
@@ -127,7 +127,7 @@ io::println(c.sum().toString());  // 12.0
 Wraps an `NDArray<double>` for linear algebra operations.
 
 **Factory methods:**
-- `Matrix(r: int, c: int)` — zero matrix
+- `fn init(r: int, c: int)` — zero matrix
 - `Matrix.identity(n: int): Matrix` — identity matrix
 - `Matrix.zeros(r, c): Matrix`, `Matrix.ones(r, c): Matrix`
 - `Matrix.fromNDArray(arr: NDArray<double>): Matrix`
@@ -174,15 +174,15 @@ let a = Matrix.identity(3);
 let b = new Matrix(3, 1);
 b.set(0, 0, 1.0); b.set(1, 0, 2.0); b.set(2, 0, 3.0);
 let x = a.solve(b);  // x = b since a is identity
-io::println(a.determinant().toString());  // 1.0
+io::println(Double.toString(a.determinant()));  // 1.0
 ```
 
 ## Random
 
 Pseudo-random number generation using Xorshift128+.
 
-- `Random()` — create with auto seed
-- `Random(seed: long)` — create with specific seed
+- `fn init()` — create with auto seed
+- `fn init(seed: long)` — create with specific seed
 - `nextInt(max: int): int` — random int in [0, max)
 - `nextInt(min: int, max: int): int` — random int in [min, max]
 - `nextLong(max: long): long` — random long in [0, max)
@@ -193,8 +193,8 @@ Pseudo-random number generation using Xorshift128+.
 - `nextExponential(): double` — exponential distribution (rate=1)
 - `nextPoisson(lambda: double): int` — Poisson distribution
 - `nextUniform(min: double, max: double): double` — uniform in [min, max)
-- `shuffle(arr: ArrayList): void` — Fisher-Yates shuffle in-place
-- `sample(arr: ArrayList): Object` — random element
+- `shuffle<T>(arr: ArrayList<T>): void` — Fisher-Yates shuffle in-place
+- `sample<T>(arr: ArrayList<T>): T` — random element
 
 ```titrate
 let rng = new Random(42);

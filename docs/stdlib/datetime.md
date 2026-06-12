@@ -13,10 +13,10 @@ import tt.time.Stopwatch;
 
 Represents a point in time as milliseconds since the Unix epoch.
 
-- `DateTime(ms: long)` — create from epoch millis
+- `fn init(ms: long)` — create from epoch millis
 - `DateTime.now(): DateTime` — current date and time
 - `DateTime.ofEpochMillis(ms: long): DateTime` — create from epoch millis
-- `DateTime.fromISO(s: String): DateTime` — parse ISO 8601 string
+- `DateTime.fromISO(s: string): DateTime` — parse ISO 8601 string
 - `getYear(): int`, `getMonth(): int`, `getDay(): int` — date components
 - `getHour(): int`, `getMinute(): int`, `getSecond(): int` — time components
 - `dayOfWeek(): int` — day of week (1=Monday, 7=Sunday)
@@ -37,9 +37,9 @@ Represents a point in time as milliseconds since the Unix epoch.
 - `withHour(h: int): DateTime` — copy with different hour
 - `withMinute(m: int): DateTime` — copy with different minute
 - `withSecond(s: int): DateTime` — copy with different second
-- `format(fmt: String): String` — format using strftime-like pattern
-- `toISO(): String` — ISO 8601 representation
-- `toString(): String` — default format `%Y-%m-%d %H:%M:%S`
+- `format(fmt: string): string` — format using strftime-like pattern
+- `toISO(): string` — ISO 8601 representation
+- `toString(): string` — default format `%Y-%m-%d %H:%M:%S`
 
 ```titrate
 let now = DateTime.now();
@@ -52,7 +52,7 @@ let tomorrow = now.plusDays(1);
 
 Represents a length of time in milliseconds.
 
-- `Duration(ms: long)` — create from milliseconds
+- `fn init(ms: long)` — create from milliseconds
 - `Duration.ofMillis(ms: long): Duration` — from milliseconds
 - `Duration.ofSeconds(s: long): Duration` — from seconds
 - `Duration.ofMinutes(m: long): Duration` — from minutes
@@ -69,7 +69,7 @@ Represents a length of time in milliseconds.
 - `abs(): Duration` — absolute value
 - `isNegative(): bool` — check sign
 - `isZero(): bool` — check if zero
-- `toString(): String` — human-readable string (e.g. `"1h 30m 0s 500ms"`)
+- `toString(): string` — human-readable string (e.g. `"1h 30m 0s 500ms"`)
 
 ```titrate
 let d = Duration.ofHours(2).plus(Duration.ofMinutes(30));
@@ -90,7 +90,7 @@ Utility class for common time operations.
 - `Time.stopwatch(): Stopwatch` — create a new stopwatch
 
 ```titrate
-let elapsed = Time.measure(fn() => void {
+let elapsed = Time.measure(fn(): void {
     // some expensive computation
 });
 io::println("Took: " + elapsed.toString());
@@ -100,7 +100,7 @@ io::println("Took: " + elapsed.toString());
 
 Stopwatch for measuring elapsed time.
 
-- `Stopwatch()` — create a new stopwatch
+- `fn init()` — create a new stopwatch
 - `start(): Stopwatch` — start (or resume) timing
 - `stop(): Stopwatch` — stop timing
 - `reset(): Stopwatch` — reset elapsed time
