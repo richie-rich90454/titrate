@@ -44,6 +44,7 @@ export default defineConfig({
             { text: 'Ownership', link: '/guide/ownership' },
             { text: 'Scientific Computing', link: '/guide/scientific-computing' },
             { text: 'Optimizations', link: '/guide/optimizations' },
+            { text: 'Syntax Sugar', link: '/guide/syntax-sugar' },
             { text: 'Standard Library', link: '/guide/stdlib' },
             { text: 'Build Tool', link: '/guide/build-tool' },
           ],
