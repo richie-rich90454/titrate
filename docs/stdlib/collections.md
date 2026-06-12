@@ -28,9 +28,9 @@ A dynamic array backed by the VM's built-in array support. Implements `Iterable<
 - `clone(): ArrayList<T>` — shallow copy
 - `addAll(other: ArrayList<T>): void` — append all from another list
 - `sort(): void` — sort in-place
-- `forEach(fn: function<void(T)>): void` — iterate with side effect
-- `map(fn: function<T(T)>): ArrayList<T>` — transform each element
-- `filter(fn: function<bool(T)>): ArrayList<T>` — keep matching elements
+- `forEach(fn: fn(T): void): void` — iterate with side effect
+- `map(fn: fn(T): T): ArrayList<T>` — transform each element
+- `filter(fn: fn(T): bool): ArrayList<T>` — keep matching elements
 - `iterator(): ArrayListIterator<T>` — return an iterator
 
 ```titrate
@@ -59,11 +59,11 @@ A key-value map backed by the VM's built-in hash map. Implements `Iterable<K>`.
 - `clear(): void` — remove all entries
 - `getOrDefault(key: K, defaultValue: V): V` — get or fallback
 - `putIfAbsent(key: K, value: V): V` — insert if key missing
-- `computeIfAbsent(key: K, mapper: function<V(K)>): V` — compute and cache
-- `merge(key: K, value: V, remapper: function<V(V, V)>): V` — merge values
-- `forEach(fn: function<void(K, V)>): void` — iterate entries
-- `map(fn: function<(K, V)(K, V)>): HashMap<K, V>` — transform entries
-- `filter(fn: function<bool(K, V)>): HashMap<K, V>` — keep matching entries
+- `computeIfAbsent(key: K, mapper: fn(K): V): V` — compute and cache
+- `merge(key: K, value: V, remapper: fn(V, V): V): V` — merge values
+- `forEach(fn: fn(K, V): void): void` — iterate entries
+- `map(fn: fn(K, V): (K, V)): HashMap<K, V>` — transform entries
+- `filter(fn: fn(K, V): bool): HashMap<K, V>` — keep matching entries
 
 ```titrate
 let scores = new HashMap<string, int>();
@@ -91,8 +91,8 @@ A set collection backed by `ArrayList`. Implements `Iterable<E>`.
 - `isSubsetOf(other: Set<E>): bool` — all elements in other
 - `isSupersetOf(other: Set<E>): bool` — contains all of other
 - `toArray(): ArrayList<E>` — convert to list
-- `map(fn: function<E(E)>): Set<E>` — transform elements
-- `filter(fn: function<bool(E)>): Set<E>` — keep matching elements
+- `map(fn: fn(E): E): Set<E>` — transform elements
+- `filter(fn: fn(E): bool): Set<E>` — keep matching elements
 
 ```titrate
 let a = new Set<int>();
@@ -195,8 +195,8 @@ A compact set of non-negative integers using bit manipulation.
 Efficient string builder for concatenating many strings.
 
 - `StringBuilder()` — create an empty builder
-- `append(s: String): void` — append a string
-- `build(): String` — return the concatenated result
+- `append(s: string): void` — append a string
+- `build(): string` — return the concatenated result
 
 ```titrate
 let sb = new StringBuilder();
@@ -211,9 +211,9 @@ io::println(sb.build());  // "Hello World"
 A prefix tree for efficient string operations.
 
 - `Trie()` — create an empty trie
-- `insert(word: String): void` — add a word
-- `search(word: String): bool` — exact match
-- `startsWith(prefix: String): bool` — check prefix existence
+- `insert(word: string): void` — add a word
+- `search(word: string): bool` — exact match
+- `startsWith(prefix: string): bool` — check prefix existence
 
 ## Graph
 
@@ -243,5 +243,5 @@ A HashMap that supplies default values for missing keys.
 
 A tuple with named fields for readable record-like data.
 
-- `namedTuple(fields: ArrayList<String>)` — create a named tuple type
-- `get(field: String): Object` — access field by name
+- `namedTuple(fields: ArrayList<string>)` — create a named tuple type
+- `get(field: string): Variant` — access field by name

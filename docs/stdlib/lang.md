@@ -17,44 +17,44 @@ import tt.lang.Iterable;
 
 Static utility methods for string manipulation.
 
-- `String.length(s: String): int` — return the length of the string
-- `String.concat(a: String, b: String): String` — concatenate two strings
-- `String.toUpperCase(s: String): String` — convert to uppercase
-- `String.toLowerCase(s: String): String` — convert to lowercase
-- `String.replace(s: String, target: String, replacement: String): String` — replace all occurrences
-- `String.trim(s: String): String` — strip leading and trailing whitespace
-- `String.split(s: String, delim: String): ArrayList<String>` — split by delimiter
-- `String.join(parts: ArrayList<String>, delim: String): String` — join with delimiter
-- `String.indexOf(s: String, sub: String): int` — find first occurrence, or `-1`
-- `String.lastIndexOf(s: String, sub: String): int` — find last occurrence, or `-1`
-- `String.contains(s: String, sub: String): bool` — check if substring exists
-- `String.startsWith(s: String, prefix: String): bool` — check prefix
-- `String.endsWith(s: String, suffix: String): bool` — check suffix
-- `String.substring(s: String, start: int, end: int): String` — extract substring
-- `String.format(template: String, args: ArrayList<String>): String` — format with `{}` placeholders
-- `String.isEmpty(s: String): bool` — check if length is zero
-- `String.isBlank(s: String): bool` — check if empty or all whitespace
-- `String.repeat(s: String, count: int): String` — repeat the string
-- `String.reverse(s: String): String` — reverse the string
-- `String.toCharArray(s: String): ArrayList<String>` — split into individual characters
-- `String.compareTo(a: String, b: String): int` — lexicographic comparison
+- `String.length(s: string): int` — return the length of the string
+- `String.concat(a: string, b: string): string` — concatenate two strings
+- `String.toUpperCase(s: string): string` — convert to uppercase
+- `String.toLowerCase(s: string): string` — convert to lowercase
+- `String.replace(s: string, target: string, replacement: string): string` — replace all occurrences
+- `String.trim(s: string): string` — strip leading and trailing whitespace
+- `String.split(s: string, delim: string): ArrayList<string>` — split by delimiter
+- `String.join(parts: ArrayList<string>, delim: string): string` — join with delimiter
+- `String.indexOf(s: string, sub: string): int` — find first occurrence, or `-1`
+- `String.lastIndexOf(s: string, sub: string): int` — find last occurrence, or `-1`
+- `String.contains(s: string, sub: string): bool` — check if substring exists
+- `String.startsWith(s: string, prefix: string): bool` — check prefix
+- `String.endsWith(s: string, suffix: string): bool` — check suffix
+- `String.substring(s: string, start: int, end: int): string` — extract substring
+- `String.format(template: string, args: ArrayList<string>): string` — format with `{}` placeholders
+- `String.isEmpty(s: string): bool` — check if length is zero
+- `String.isBlank(s: string): bool` — check if empty or all whitespace
+- `String.repeat(s: string, count: int): string` — repeat the string
+- `String.reverse(s: string): string` — reverse the string
+- `String.toCharArray(s: string): ArrayList<string>` — split into individual characters
+- `String.compareTo(a: string, b: string): int` — lexicographic comparison
 
 ```titrate
-let parts = String::split("a,b,c", ",");
-let joined = String::join(parts, "-");
-let upper = String::toUpperCase("hello");
+let parts = String.split("a,b,c", ",");
+let joined = String.join(parts, "-");
+let upper = String.toUpperCase("hello");
 ```
 
 ## Integer
 
 Static utility methods for the `int` type.
 
-- `Integer.parseInt(s: String): int` — parse a string to an integer
-- `Integer.parseOr(s: String, defaultValue: int): int` — parse with fallback
-- `Integer.toString(value: int): String` — convert to string
-- `Integer.toHexString(n: int): String` — convert to hexadecimal string
-- `Integer.toBinaryString(n: int): String` — convert to binary string
-- `Integer.toOctalString(n: int): String` — convert to octal string
+- `Integer.parseInt(s: string): int` — parse a string to an integer
+- `Integer.parseOr(s: string, defaultValue: int): int` — parse with fallback
+- `Integer.toString(value: int): string` — convert to string
+- `Integer.toHexString(n: int): string` — convert to hexadecimal string
+- `Integer.toBinaryString(n: int): string` — convert to binary string
+- `Integer.toOctalString(n: int): string` — convert to octal string
 - `Integer.bitCount(n: int): int` — count one-bits
 - `Integer.highestOneBit(n: int): int` — highest one-bit position
 - `Integer.lowestOneBit(n: int): int` — lowest one-bit position
@@ -71,22 +71,22 @@ Static utility methods for the `int` type.
 - `Integer.MIN_VALUE(): int` — minimum `int` value (`-2147483648`)
 
 ```titrate
-let n = Integer::parseInt("42");
-let hex = Integer::toHexString(255);
-let bits = Integer::bitCount(15);
+let n = Integer.parseInt("42");
+let hex = Integer.toHexString(255);
+let bits = Integer.bitCount(15);
 ```
 
 ## Double
 
 Static utility methods for the `double` type.
 
-- `Double.parseDouble(s: String): double` — parse a string to a double
-- `Double.parseOr(s: String, defaultValue: double): double` — parse with fallback
-- `Double.toString(value: double): String` — convert to string
+- `Double.parseDouble(s: string): double` — parse a string to a double
+- `Double.parseOr(s: string, defaultValue: double): double` — parse with fallback
+- `Double.toString(value: double): string` — convert to string
 - `Double.isNaN(value: double): bool` — check for NaN
 - `Double.isInfinite(value: double): bool` — check for infinity
 - `Double.isFinite(d: double): bool` — check for finite value
-- `Double.toHexString(d: double): String` — convert to hexadecimal float representation
+- `Double.toHexString(d: double): string` — convert to hexadecimal float representation
 - `Double.compare(a: double, b: double): int` — compare two doubles
 - `Double.max(a: double, b: double): double` — larger of two
 - `Double.min(a: double, b: double): double` — smaller of two
@@ -98,24 +98,24 @@ Static utility methods for the `double` type.
 - `Double.NaN(): double` — not-a-number
 
 ```titrate
-let x = Double::parseDouble("3.14");
-let finite = Double::isFinite(x);
-let eps = Double::EPSILON();
+let x = Double.parseDouble("3.14");
+let finite = Double.isFinite(x);
+let eps = Double.EPSILON();
 ```
 
 ## Boolean
 
 Static utility methods for the `bool` type.
 
-- `Boolean.toString(value: bool): String` — convert to `"true"` or `"false"`
-- `Boolean.parseBoolean(s: String): bool` — parse `"true"` to `true` (case-sensitive)
+- `Boolean.toString(value: bool): string` — convert to `"true"` or `"false"`
+- `Boolean.parseBoolean(s: string): bool` — parse `"true"` to `true` (case-sensitive)
 - `Boolean.logicalAnd(a: bool, b: bool): bool` — logical AND
 - `Boolean.logicalOr(a: bool, b: bool): bool` — logical OR
 - `Boolean.logicalNot(a: bool): bool` — logical NOT
 
 ```titrate
-let s = Boolean::toString(true);
-let b = Boolean::parseBoolean("true");
+let s = Boolean.toString(true);
+let b = Boolean.parseBoolean("true");
 ```
 
 ## Character
@@ -132,12 +132,12 @@ Static utility methods for character classification and conversion.
 - `Character.toUpperCase(c: char): char` — convert to uppercase
 - `Character.toLowerCase(c: char): char` — convert to lowercase
 - `Character.getNumericValue(c: char): int` — numeric value of digit or letter character
-- `Character.toString(value: char): String` — convert to string
+- `Character.toString(value: char): string` — convert to string
 
 ```titrate
-let yes = Character::isDigit("5");
-let upper = Character::toUpperCase("a");
-let val = Character::getNumericValue("f");
+let yes = Character.isDigit("5");
+let upper = Character.toUpperCase("a");
+let val = Character.getNumericValue("f");
 ```
 
 ## Result
@@ -151,7 +151,7 @@ A discriminated union for error handling, representing either a success (`ok`) o
 - `unwrap(): T` — return the success value (null if error)
 - `unwrapOr(defaultValue: T): T` — return success value or default
 - `unwrapErr(): E` — return the error value
-- `expect(msg: String): T` — return success value or null with message
+- `expect(msg: string): T` — return success value or null with message
 - `map(mapper: fn(T): T): Result<T, E>` — transform the success value
 - `mapErr(mapper: fn(E): E): Result<T, E>` — transform the error value
 - `andThen(mapper: fn(T): Result<T, E>): Result<T, E>` — chain on success
@@ -163,11 +163,11 @@ A discriminated union for error handling, representing either a success (`ok`) o
 - `inspectErr(fn: fn(E): void): Result<T, E>` — inspect error value
 
 ```titrate
-let r = Result<int, String>::ok(42);
+let r = Result.ok(42);
 if (r.isOk()) {
-    io::println(r.unwrap().toString());
+    io::println(Integer.toString(r.unwrap()));
 }
-let e = Result<int, String>::err("not found");
+let e = Result.err("not found");
 let fallback = e.unwrapOr(0);
 ```
 
