@@ -160,6 +160,9 @@ export default defineConfig({
             { text: 'lang', link: '/stdlib/lang' },
             { text: 'operator', link: '/stdlib/operator' },
             { text: 'optional-variant', link: '/stdlib/optional-variant' },
+            { text: 'numeric-limits', link: '/stdlib/numeric-limits' },
+            { text: 'stringview', link: '/stdlib/stringview' },
+            { text: 'traceback', link: '/stdlib/traceback' },
           ],
         },
         {
@@ -173,6 +176,9 @@ export default defineConfig({
             { text: 'bisect', link: '/stdlib/bisect' },
             { text: 'itertools', link: '/stdlib/itertools' },
             { text: 'dataclass', link: '/stdlib/dataclass' },
+            { text: 'pair', link: '/stdlib/pair' },
+            { text: 'span', link: '/stdlib/span' },
+            { text: 'forwardlist', link: '/stdlib/forwardlist' },
           ],
         },
         {
@@ -181,6 +187,12 @@ export default defineConfig({
           items: [
             { text: 'io', link: '/stdlib/io' },
             { text: 'contextlib', link: '/stdlib/contextlib' },
+            { text: 'stringio', link: '/stdlib/stringio' },
+            { text: 'format', link: '/stdlib/format' },
+            { text: 'mmap', link: '/stdlib/mmap' },
+            { text: 'fileutils', link: '/stdlib/fileutils' },
+            { text: 'glob', link: '/stdlib/glob' },
+            { text: 'fnmatch', link: '/stdlib/fnmatch' },
           ],
         },
         {
@@ -191,6 +203,9 @@ export default defineConfig({
             { text: 'regex', link: '/stdlib/regex' },
             { text: 'serialization', link: '/stdlib/serialization' },
             { text: 'pprint', link: '/stdlib/pprint' },
+            { text: 'difflib', link: '/stdlib/difflib' },
+            { text: 'toml', link: '/stdlib/toml' },
+            { text: 'configparser', link: '/stdlib/configparser' },
           ],
         },
         {
@@ -213,6 +228,13 @@ export default defineConfig({
             { text: 'networking', link: '/stdlib/networking' },
             { text: 'concurrent', link: '/stdlib/concurrent' },
             { text: 'crypto', link: '/stdlib/crypto' },
+            { text: 'os', link: '/stdlib/os' },
+            { text: 'platform', link: '/stdlib/platform' },
+            { text: 'signal', link: '/stdlib/signal' },
+            { text: 'socket', link: '/stdlib/socket' },
+            { text: 'ssl', link: '/stdlib/ssl' },
+            { text: 'sqlite', link: '/stdlib/sqlite' },
+            { text: 'thread', link: '/stdlib/thread' },
           ],
         },
         {
@@ -220,6 +242,8 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'datetime', link: '/stdlib/datetime' },
+            { text: 'zoneinfo', link: '/stdlib/zoneinfo' },
+            { text: 'scheduler', link: '/stdlib/scheduler' },
           ],
         },
         {
@@ -231,6 +255,9 @@ export default defineConfig({
             { text: 'uuid', link: '/stdlib/uuid' },
             { text: 'argparse', link: '/stdlib/argparse' },
             { text: 'algorithms', link: '/stdlib/algorithms' },
+            { text: 'binary', link: '/stdlib/binary' },
+            { text: 'compression', link: '/stdlib/compression' },
+            { text: 'hmac', link: '/stdlib/hmac' },
           ],
         },
         {
