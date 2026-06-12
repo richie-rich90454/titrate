@@ -259,23 +259,3 @@ io::println(Integer.toString(map.get("one")));  // 1
 ::: tip
 Always provide type parameters when creating generic instances. Writing `new ArrayList()` without the type parameter is not valid in Titrate — you must write `new ArrayList<string>()`. This ensures type safety from the start.
 :::
-
-## Using Generic Collections
-
-The standard library provides generic collections that take full advantage of monomorphization:
-
-```titrate
-import tt::util::ArrayList;
-import tt::util::HashMap;
-
-let list = new ArrayList<int>();
-list.add(1);
-list.add(2);
-list.add(3);
-
-let map = new HashMap<string, int>();
-map.put("one", 1);
-map.put("two", 2);
-
-io::println(Integer.toString(map.get("one")));  // 1
-```
