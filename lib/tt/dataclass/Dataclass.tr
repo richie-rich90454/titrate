@@ -1,0 +1,136 @@
+// Dataclass module — Python-style data classes with auto-generated methods.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class DataclassInfo {
+    public String name;
+    public ArrayList<String> fields;
+    public ArrayList<Object> defaults;
+
+    public DataclassInfo(String name, ArrayList<String> fields, ArrayList<Object> defaults) {
+        this.name = name;
+        this.fields = fields;
+        this.defaults = defaults;
+    }
+}
+
+public class Dataclass {
+    // Create a dataclass-like object with auto-generated methods.
+    // Returns a DataclassInfo that describes the dataclass structure.
+    public static Object create(String name, ArrayList<String> fields, ArrayList<Object> defaults) {
+        DataclassInfo info = new DataclassInfo(name, fields, defaults);
+        return info;
+    }
+
+    // Helper to create a dataclass instance from a DataclassInfo and values.
+    public static Object newInstance(Object dataclass, ArrayList<Object> values) {
+        DataclassInfo info = (DataclassInfo) dataclass;
+        HashMap<String, Object> instance = new HashMap<String, Object>();
+        int i = 0;
+        while (i < info.fields.size()) {
+            String field = info.fields.get(i);
+            if (i < values.size()) {
+                instance.put(field, values.get(i));
+            } else if (i < info.defaults.size()) {
+                instance.put(field, info.defaults.get(i));
+            } else {
+                instance.put(field, null);
+            }
+            i = i + 1;
+        }
+        instance.put("__class__", info.name);
+        return instance;
+    }
+
+    // Auto-generated toString.
+    public static String toString(Object instance, String className, ArrayList<String> fields) {
+        HashMap<String, Object> map = (HashMap<String, Object>) instance;
+        StringBuilder sb = new StringBuilder();
+        sb.append(className);
+        sb.append("(");
+        int i = 0;
+        while (i < fields.size()) {
+            String field = fields.get(i);
+            sb.append(field);
+            sb.append("=");
+            Object val = map.get(field);
+            if (val == null) {
+                sb.append("null");
+            } else {
+                sb.append(val.toString());
+            }
+            if (i < fields.size() - 1) {
+                sb.append(", ");
+            }
+            i = i + 1;
+        }
+        sb.append(")");
+        return sb.append("").toString();
+    }
+
+    // Auto-generated equals.
+    public static bool equals(Object a, Object b, ArrayList<String> fields) {
+        if (a == null || b == null) {
+            return a == null && b == null;
+        }
+        HashMap<String, Object> mapA = (HashMap<String, Object>) a;
+        HashMap<String, Object> mapB = (HashMap<String, Object>) b;
+        int i = 0;
+        while (i < fields.size()) {
+            String field = fields.get(i);
+            Object valA = mapA.get(field);
+            Object valB = mapB.get(field);
+            if (valA == null && valB == null) {
+                i = i + 1;
+                continue;
+            }
+            if (valA == null || valB == null) {
+                return false;
+            }
+            if (valA != valB) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Auto-generated hashCode.
+    public static int hashCode(Object instance, ArrayList<String> fields) {
+        HashMap<String, Object> map = (HashMap<String, Object>) instance;
+        int hash = 17;
+        int i = 0;
+        while (i < fields.size()) {
+            String field = fields.get(i);
+            Object val = map.get(field);
+            if (val != null) {
+                hash = 31 * hash + val.hashCode();
+            } else {
+                hash = 31 * hash;
+            }
+            i = i + 1;
+        }
+        return hash;
+    }
+
+    // Copy with modifications — returns a new instance with specified fields overridden.
+    public static Object copyWith(Object instance, ArrayList<String> fields, HashMap<String, Object> overrides) {
+        HashMap<String, Object> map = (HashMap<String, Object>) instance;
+        HashMap<String, Object> copy = new HashMap<String, Object>();
+        int i = 0;
+        while (i < fields.size()) {
+            String field = fields.get(i);
+            if (overrides.containsKey(field)) {
+                copy.put(field, overrides.get(field));
+            } else {
+                copy.put(field, map.get(field));
+            }
+            i = i + 1;
+        }
+        Object className = map.get("__class__");
+        if (className != null) {
+            copy.put("__class__", className);
+        }
+        return copy;
+    }
+}
