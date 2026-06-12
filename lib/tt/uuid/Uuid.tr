@@ -1,27 +1,15 @@
 // Uuid provides UUID generation and validation utilities.
-import tt::random::Random;
 
 // Generate a version 4 (random) UUID string in the format xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
 // where y is one of 8, 9, a, or b.
 public fn uuid4(): string {
-    let rng: Random = new Random();
-    // Build 32 hex characters
-    let hex: string = "";
-    let i: int = 0;
-    while (i < 32) {
-        let val: int = rng.nextInt(0, 15);
-        hex = hex + _hexDigit(val);
-        i = i + 1;
-    }
+    let hex: string = Os_urandom(16);
     // Set version nibble (position 12, 0-indexed) to 4
     hex = _setCharAt(hex, 12, "4");
-    // Set variant nibble (position 16, 0-indexed) to 8, 9, a, or b
-    let variant: int = rng.nextInt(0, 3);
-    let variantChar: string = "8";
-    if (variant == 1) { variantChar = "9"; }
-    if (variant == 2) { variantChar = "a"; }
-    if (variant == 3) { variantChar = "b"; }
-    hex = _setCharAt(hex, 16, variantChar);
+    // Set variant nibble (position 16, 0-indexed): keep lower 2 bits of current value, set high bits to 10
+    let curVariant: int = _hexVal(String.charAt(hex, 16));
+    let newVariant: int = (curVariant & 0x3) | 0x8;
+    hex = _setCharAt(hex, 16, _hexDigit(newVariant));
     // Format with dashes: 8-4-4-4-12
     let result: string = String.substring(hex, 0, 8) + "-" + String.substring(hex, 8, 12) + "-" + String.substring(hex, 12, 16) + "-" + String.substring(hex, 16, 20) + "-" + String.substring(hex, 20, 32);
     return result;
@@ -29,14 +17,7 @@ public fn uuid4(): string {
 
 // Generate a simple random UUID (32 hex characters, no version bits).
 public fn random(): string {
-    let rng: Random = new Random();
-    let hex: string = "";
-    let i: int = 0;
-    while (i < 32) {
-        let val: int = rng.nextInt(0, 15);
-        hex = hex + _hexDigit(val);
-        i = i + 1;
-    }
+    let hex: string = Os_urandom(16);
     let result: string = String.substring(hex, 0, 8) + "-" + String.substring(hex, 8, 12) + "-" + String.substring(hex, 12, 16) + "-" + String.substring(hex, 16, 20) + "-" + String.substring(hex, 20, 32);
     return result;
 }
@@ -76,6 +57,26 @@ fn _hexDigit(val: int): string {
     if (val == 13) { return "d"; }
     if (val == 14) { return "e"; }
     return "f";
+}
+
+// Returns the integer value of a single hex digit character.
+fn _hexVal(c: string): int {
+    if (c >= "0" && c <= "9") {
+        return Integer.parseInt(c);
+    }
+    if (c == "a") { return 10; }
+    if (c == "b") { return 11; }
+    if (c == "c") { return 12; }
+    if (c == "d") { return 13; }
+    if (c == "e") { return 14; }
+    if (c == "f") { return 15; }
+    if (c == "A") { return 10; }
+    if (c == "B") { return 11; }
+    if (c == "C") { return 12; }
+    if (c == "D") { return 13; }
+    if (c == "E") { return 14; }
+    if (c == "F") { return 15; }
+    return 0;
 }
 
 // Replaces the character at the given index in a string.
