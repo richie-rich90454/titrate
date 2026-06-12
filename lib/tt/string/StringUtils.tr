@@ -3,6 +3,16 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
 
+// String constants
+public const asciiLowercase: string = "abcdefghijklmnopqrstuvwxyz";
+public const asciiUppercase: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+public const digits: string = "0123456789";
+public const hexdigits: string = "0123456789abcdefABCDEF";
+public const octdigits: string = "01234567";
+public const punctuation: string = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+public const whitespace: string = " \t\n\r\x0b\x0c";
+public const printable: string = digits + asciiLowercase + asciiUppercase + punctuation + whitespace;
+
 public class StringUtils {
     // String constants
     public fn asciiLetters(): string {
@@ -66,54 +76,60 @@ public class StringUtils {
 
 // Template provides string substitution using $variable placeholders.
 public class Template {
-    public string template;
+    private string _template;
+    private string _delimiter;
 
     public fn init(template: string) {
-        this.template = template;
+        this._template = template;
+        this._delimiter = "$";
     }
 
     // Perform substitution using the map. Throws on missing keys.
-    public fn substitute(map: HashMap<string, string>): string {
+    public fn substitute(mapping: HashMap<string, string>): string {
         let result: string = "";
         let i: int = 0;
-        while (i < String.length(this.template)) {
-            let c: string = String.charAt(this.template, i);
-            if (c == "$" && i + 1 < String.length(this.template)) {
-                let next: string = String.charAt(this.template, i + 1);
+        while (i < String.length(this._template)) {
+            let c: string = String.charAt(this._template, i);
+            if (c == this._delimiter && i + 1 < String.length(this._template)) {
+                let next: string = String.charAt(this._template, i + 1);
                 if (next == "{") {
                     // Find closing brace
                     let end: int = i + 2;
-                    while (end < String.length(this.template) && String.charAt(this.template, end) != "}") {
+                    while (end < String.length(this._template) && String.charAt(this._template, end) != "}") {
                         end = end + 1;
                     }
-                    if (end < String.length(this.template)) {
-                        let key: string = String.substring(this.template, i + 2, end);
-                        if (map.containsKey(key)) {
-                            result = result + map.get(key);
+                    if (end < String.length(this._template)) {
+                        let key: string = String.substring(this._template, i + 2, end);
+                        if (mapping.containsKey(key)) {
+                            result = result + mapping.get(key);
+                        } else {
+                            result = result + "[ERROR: missing key '" + key + "']";
                         }
                         i = end + 1;
                     } else {
                         result = result + c;
                         i = i + 1;
                     }
-                } else if (next == "$") {
-                    result = result + "$";
+                } else if (next == this._delimiter) {
+                    result = result + this._delimiter;
                     i = i + 2;
                 } else {
                     // Identifier: collect alphanumeric and underscore characters
                     let start: int = i + 1;
                     let end: int = start;
-                    while (end < String.length(this.template)) {
-                        let ch: string = String.charAt(this.template, end);
+                    while (end < String.length(this._template)) {
+                        let ch: string = String.charAt(this._template, end);
                         if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "_") {
                             end = end + 1;
                         } else {
                             break;
                         }
                     }
-                    let key: string = String.substring(this.template, start, end);
-                    if (map.containsKey(key)) {
-                        result = result + map.get(key);
+                    let key: string = String.substring(this._template, start, end);
+                    if (mapping.containsKey(key)) {
+                        result = result + mapping.get(key);
+                    } else {
+                        result = result + "[ERROR: missing key '" + key + "']";
                     }
                     i = end;
                 }
@@ -126,49 +142,49 @@ public class Template {
     }
 
     // Perform safe substitution: missing keys are left as-is.
-    public fn safeSubstitute(map: HashMap<string, string>): string {
+    public fn safeSubstitute(mapping: HashMap<string, string>): string {
         let result: string = "";
         let i: int = 0;
-        while (i < String.length(this.template)) {
-            let c: string = String.charAt(this.template, i);
-            if (c == "$" && i + 1 < String.length(this.template)) {
-                let next: string = String.charAt(this.template, i + 1);
+        while (i < String.length(this._template)) {
+            let c: string = String.charAt(this._template, i);
+            if (c == this._delimiter && i + 1 < String.length(this._template)) {
+                let next: string = String.charAt(this._template, i + 1);
                 if (next == "{") {
                     let end: int = i + 2;
-                    while (end < String.length(this.template) && String.charAt(this.template, end) != "}") {
+                    while (end < String.length(this._template) && String.charAt(this._template, end) != "}") {
                         end = end + 1;
                     }
-                    if (end < String.length(this.template)) {
-                        let key: string = String.substring(this.template, i + 2, end);
-                        if (map.containsKey(key)) {
-                            result = result + map.get(key);
+                    if (end < String.length(this._template)) {
+                        let key: string = String.substring(this._template, i + 2, end);
+                        if (mapping.containsKey(key)) {
+                            result = result + mapping.get(key);
                         } else {
-                            result = result + "${" + key + "}";
+                            result = result + this._delimiter + "{" + key + "}";
                         }
                         i = end + 1;
                     } else {
                         result = result + c;
                         i = i + 1;
                     }
-                } else if (next == "$") {
-                    result = result + "$";
+                } else if (next == this._delimiter) {
+                    result = result + this._delimiter;
                     i = i + 2;
                 } else {
                     let start: int = i + 1;
                     let end: int = start;
-                    while (end < String.length(this.template)) {
-                        let ch: string = String.charAt(this.template, end);
+                    while (end < String.length(this._template)) {
+                        let ch: string = String.charAt(this._template, end);
                         if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "_") {
                             end = end + 1;
                         } else {
                             break;
                         }
                     }
-                    let key: string = String.substring(this.template, start, end);
-                    if (map.containsKey(key)) {
-                        result = result + map.get(key);
+                    let key: string = String.substring(this._template, start, end);
+                    if (mapping.containsKey(key)) {
+                        result = result + mapping.get(key);
                     } else {
-                        result = result + "$" + key;
+                        result = result + this._delimiter + key;
                     }
                     i = end;
                 }
@@ -179,4 +195,26 @@ public class Template {
         }
         return result;
     }
+}
+
+// Capitalize words in a string: split by whitespace, capitalize each word, rejoin.
+public fn capwords(s: string): string {
+    if (String.length(s) == 0) { return s; }
+    let words: ArrayList<string> = String.split(s, " ");
+    let result: string = "";
+    let i: int = 0;
+    while (i < words.size()) {
+        if (i > 0) { result = result + " "; }
+        let word: string = words.get(i);
+        if (String.length(word) > 0) {
+            let first: string = String.toUpperCase(String.charAt(word, 0));
+            let rest: string = "";
+            if (String.length(word) > 1) {
+                rest = String.toLowerCase(String.substring(word, 1, String.length(word)));
+            }
+            result = result + first + rest;
+        }
+        i = i + 1;
+    }
+    return result;
 }
