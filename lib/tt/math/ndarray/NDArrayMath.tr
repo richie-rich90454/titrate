@@ -2,7 +2,7 @@ import tt::util::ArrayList;
 
 // NDArray math operations: map, zipMap, dot, norm
 
-fn map<T>(a: NDArray<T>, f: fn(T): T): NDArray<T> {
+public fn map<T>(a: NDArray<T>, f: fn(T): T): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     var i: int = 0;
     while (i < a.shape.size()) {
@@ -18,7 +18,7 @@ fn map<T>(a: NDArray<T>, f: fn(T): T): NDArray<T> {
     return result;
 }
 
-fn zipMap<T>(a: NDArray<T>, other: NDArray<T>, f: fn(T, T): T): NDArray<T> {
+public fn zipMap<T>(a: NDArray<T>, other: NDArray<T>, f: fn(T, T): T): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     var i: int = 0;
     while (i < a.shape.size()) {
@@ -34,7 +34,7 @@ fn zipMap<T>(a: NDArray<T>, other: NDArray<T>, f: fn(T, T): T): NDArray<T> {
     return result;
 }
 
-fn dot<T>(a: NDArray<T>, other: NDArray<T>): double {
+public fn dot<T>(a: NDArray<T>, other: NDArray<T>): double {
     var s: double = 0.0;
     var i: int = 0;
     while (i < a.data.size()) {
@@ -44,7 +44,7 @@ fn dot<T>(a: NDArray<T>, other: NDArray<T>): double {
     return s;
 }
 
-fn norm<T>(a: NDArray<T>): double {
+public fn norm<T>(a: NDArray<T>): double {
     var s: double = 0.0;
     var i: int = 0;
     while (i < a.data.size()) {

@@ -22,6 +22,7 @@ public class Url {
             if (Url._isSafe(c, safe)) {
                 result = result + c;
             } else {
+                // Encode each byte of the character as %XX
                 let code: int = String.charAt(c, 0);
                 if (code < 128) {
                     result = result + "%" + Url._hexDigit(code / 16) + Url._hexDigit(code % 16);
@@ -55,9 +56,11 @@ public class Url {
                 if (hi >= 0 && lo >= 0) {
                     let byte1: int = hi * 16 + lo;
                     if (byte1 < 128) {
+                        // Single byte character
                         result = result + String.fromCharCode(byte1);
                         i = i + 3;
                     } else if (byte1 >= 192 && byte1 < 224 && i + 5 < String.length(s) && String.charAt(s, i + 3) == "%") {
+                        // Two-byte UTF-8
                         let hi2: int = Url._hexVal(String.charAt(s, i + 4));
                         let lo2: int = Url._hexVal(String.charAt(s, i + 5));
                         if (hi2 >= 0 && lo2 >= 0) {
@@ -70,6 +73,7 @@ public class Url {
                             i = i + 1;
                         }
                     } else if (byte1 >= 224 && i + 8 < String.length(s) && String.charAt(s, i + 3) == "%" && String.charAt(s, i + 6) == "%") {
+                        // Three-byte UTF-8
                         let hi2: int = Url._hexVal(String.charAt(s, i + 4));
                         let lo2: int = Url._hexVal(String.charAt(s, i + 5));
                         let hi3: int = Url._hexVal(String.charAt(s, i + 7));
@@ -108,6 +112,7 @@ public class Url {
         if (qs == null || String.length(qs) == 0) {
             return result;
         }
+        // Remove leading '?' if present
         if (String.charAt(qs, 0) == '?') {
             qs = String.substring(qs, 1);
         }

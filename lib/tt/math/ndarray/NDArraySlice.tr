@@ -2,7 +2,7 @@ import tt::util::ArrayList;
 
 // NDArray slicing and combination: slice, concat, stack, where, clip
 
-fn slice<T>(a: NDArray<T>, starts: ArrayList<int>, ends: ArrayList<int>): NDArray<T> {
+public fn slice<T>(a: NDArray<T>, starts: ArrayList<int>, ends: ArrayList<int>): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     let nd: int = a.shape.size();
     let newShape: ArrayList<int> = new ArrayList<int>();
@@ -47,7 +47,7 @@ fn slice<T>(a: NDArray<T>, starts: ArrayList<int>, ends: ArrayList<int>): NDArra
     return result;
 }
 
-fn concat<T>(a: NDArray<T>, other: NDArray<T>, axis: int): NDArray<T> {
+public fn concat<T>(a: NDArray<T>, other: NDArray<T>, axis: int): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     let nd: int = a.shape.size();
     var i: int = 0;
@@ -104,7 +104,7 @@ fn concat<T>(a: NDArray<T>, other: NDArray<T>, axis: int): NDArray<T> {
     return result;
 }
 
-fn stack<T>(a: NDArray<T>, other: NDArray<T>, axis: int): NDArray<T> {
+public fn stack<T>(a: NDArray<T>, other: NDArray<T>, axis: int): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     let nd: int = a.shape.size();
     var i: int = 0;
@@ -156,7 +156,7 @@ fn stack<T>(a: NDArray<T>, other: NDArray<T>, axis: int): NDArray<T> {
     return result;
 }
 
-fn where<T>(a: NDArray<T>, condition: NDArray<T>): NDArray<T> {
+public fn where<T>(a: NDArray<T>, condition: NDArray<T>): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     var i: int = 0;
     while (i < a.shape.size()) {
@@ -176,7 +176,7 @@ fn where<T>(a: NDArray<T>, condition: NDArray<T>): NDArray<T> {
     return result;
 }
 
-fn clip<T>(a: NDArray<T>, lo: double, hi: double): NDArray<T> {
+public fn clip<T>(a: NDArray<T>, lo: double, hi: double): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     var i: int = 0;
     while (i < a.shape.size()) {

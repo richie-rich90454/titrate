@@ -11,10 +11,12 @@ public class Hex {
     }
 
     public fn encodeUpperCase(data: string): string {
+        // Use native encode then uppercase
         return String_toUpperCase(Hex_encode(data));
     }
 
     public fn encodeLowerCase(data: string): string {
+        // Use native encode then lowercase
         return String_toLowerCase(Hex_encode(data));
     }
 

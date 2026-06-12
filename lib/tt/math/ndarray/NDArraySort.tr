@@ -2,7 +2,7 @@ import tt::util::ArrayList;
 
 // NDArray sorting and search: sort, argsort, nonzero, unique
 
-fn sort<T>(a: NDArray<T>): NDArray<T> {
+public fn sort<T>(a: NDArray<T>): NDArray<T> {
     let result: NDArray<T> = a.flatten().clone();
     let n: int = result.data.size();
     var i: int = 0;
@@ -21,7 +21,7 @@ fn sort<T>(a: NDArray<T>): NDArray<T> {
     return result;
 }
 
-fn argsort<T>(a: NDArray<T>): NDArray<int> {
+public fn argsort<T>(a: NDArray<T>): NDArray<int> {
     let n: int = a.data.size();
     let indices: NDArray<int> = new NDArray<int>();
     indices.shape.add(n);
@@ -47,7 +47,7 @@ fn argsort<T>(a: NDArray<T>): NDArray<int> {
     return indices;
 }
 
-fn nonzero<T>(a: NDArray<T>): NDArray<int> {
+public fn nonzero<T>(a: NDArray<T>): NDArray<int> {
     let result: NDArray<int> = new NDArray<int>();
     var count: int = 0;
     var i: int = 0;
@@ -69,7 +69,7 @@ fn nonzero<T>(a: NDArray<T>): NDArray<int> {
     return result;
 }
 
-fn unique<T>(a: NDArray<T>): NDArray<T> {
+public fn unique<T>(a: NDArray<T>): NDArray<T> {
     let sorted: NDArray<T> = sort(a);
     let result: NDArray<T> = new NDArray<T>();
     if (sorted.data.size() == 0) {

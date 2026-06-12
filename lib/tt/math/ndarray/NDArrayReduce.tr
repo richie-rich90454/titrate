@@ -3,7 +3,7 @@ import tt::math::Math;
 
 // NDArray reduction methods: sum, mean, min, max, variance, stddev, any, all, argMax, argMin
 
-fn sum<T>(a: NDArray<T>): double {
+public fn sum<T>(a: NDArray<T>): double {
     var s: double = 0.0;
     var i: int = 0;
     while (i < a.data.size()) {
@@ -13,12 +13,12 @@ fn sum<T>(a: NDArray<T>): double {
     return s;
 }
 
-fn mean<T>(a: NDArray<T>): double {
+public fn mean<T>(a: NDArray<T>): double {
     if (a.data.size() == 0) { return 0.0; }
     return sum(a) / a.data.size();
 }
 
-fn min<T>(a: NDArray<T>): double {
+public fn min<T>(a: NDArray<T>): double {
     if (a.data.size() == 0) { return 0.0; }
     var m: double = a.data.get(0);
     var i: int = 1;
@@ -30,7 +30,7 @@ fn min<T>(a: NDArray<T>): double {
     return m;
 }
 
-fn max<T>(a: NDArray<T>): double {
+public fn max<T>(a: NDArray<T>): double {
     if (a.data.size() == 0) { return 0.0; }
     var m: double = a.data.get(0);
     var i: int = 1;
@@ -42,7 +42,7 @@ fn max<T>(a: NDArray<T>): double {
     return m;
 }
 
-fn variance<T>(a: NDArray<T>): double {
+public fn variance<T>(a: NDArray<T>): double {
     if (a.data.size() == 0) { return 0.0; }
     let m: double = mean(a);
     var s: double = 0.0;
@@ -55,11 +55,11 @@ fn variance<T>(a: NDArray<T>): double {
     return s / a.data.size();
 }
 
-fn stddev<T>(a: NDArray<T>): double {
+public fn stddev<T>(a: NDArray<T>): double {
     return Math.sqrt(variance(a));
 }
 
-fn any<T>(a: NDArray<T>): bool {
+public fn any<T>(a: NDArray<T>): bool {
     var i: int = 0;
     while (i < a.data.size()) {
         if (a.data.get(i) != 0) { return true; }
@@ -68,7 +68,7 @@ fn any<T>(a: NDArray<T>): bool {
     return false;
 }
 
-fn all<T>(a: NDArray<T>): bool {
+public fn all<T>(a: NDArray<T>): bool {
     var i: int = 0;
     while (i < a.data.size()) {
         if (a.data.get(i) == 0) { return false; }
@@ -77,7 +77,7 @@ fn all<T>(a: NDArray<T>): bool {
     return true;
 }
 
-fn argMax<T>(a: NDArray<T>): int {
+public fn argMax<T>(a: NDArray<T>): int {
     if (a.data.size() == 0) { return -1; }
     var idx: int = 0;
     var m: double = a.data.get(0);
@@ -93,7 +93,7 @@ fn argMax<T>(a: NDArray<T>): int {
     return idx;
 }
 
-fn argMin<T>(a: NDArray<T>): int {
+public fn argMin<T>(a: NDArray<T>): int {
     if (a.data.size() == 0) { return -1; }
     var idx: int = 0;
     var m: double = a.data.get(0);

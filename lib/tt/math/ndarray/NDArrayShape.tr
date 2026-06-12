@@ -2,7 +2,7 @@ import tt::util::ArrayList;
 
 // NDArray shape manipulation: squeeze, expandDims, broadcastTo, repeat, tile
 
-fn squeeze<T>(a: NDArray<T>): NDArray<T> {
+public fn squeeze<T>(a: NDArray<T>): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     var i: int = 0;
     while (i < a.shape.size()) {
@@ -21,7 +21,7 @@ fn squeeze<T>(a: NDArray<T>): NDArray<T> {
     return result;
 }
 
-fn expandDims<T>(a: NDArray<T>): NDArray<T> {
+public fn expandDims<T>(a: NDArray<T>): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     result.shape.add(1);
     var i: int = 0;
@@ -38,7 +38,7 @@ fn expandDims<T>(a: NDArray<T>): NDArray<T> {
     return result;
 }
 
-fn broadcastTo<T>(a: NDArray<T>, targetShape: ArrayList<int>): NDArray<T> {
+public fn broadcastTo<T>(a: NDArray<T>, targetShape: ArrayList<int>): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     let nd: int = targetShape.size();
     var i: int = 0;
@@ -89,7 +89,7 @@ fn broadcastTo<T>(a: NDArray<T>, targetShape: ArrayList<int>): NDArray<T> {
     return result;
 }
 
-fn repeat<T>(a: NDArray<T>, n: int): NDArray<T> {
+public fn repeat<T>(a: NDArray<T>, n: int): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     result.shape.add(a.data.size() * n);
     result.computeStrides();
@@ -105,7 +105,7 @@ fn repeat<T>(a: NDArray<T>, n: int): NDArray<T> {
     return result;
 }
 
-fn tile<T>(a: NDArray<T>, reps: ArrayList<int>): NDArray<T> {
+public fn tile<T>(a: NDArray<T>, reps: ArrayList<int>): NDArray<T> {
     let result: NDArray<T> = new NDArray<T>();
     let nd: int = a.shape.size();
     var i: int = 0;

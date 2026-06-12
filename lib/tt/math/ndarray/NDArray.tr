@@ -329,7 +329,7 @@ public class NDArray<T> {
 
 // ---- Factory methods ----
 
-fn zeros(shape: ArrayList<int>): NDArray<double> {
+public fn zeros(shape: ArrayList<int>): NDArray<double> {
     let a: NDArray<double> = new NDArray<double>();
     var i: int = 0;
     while (i < shape.size()) {
@@ -346,7 +346,7 @@ fn zeros(shape: ArrayList<int>): NDArray<double> {
     return a;
 }
 
-fn ones(shape: ArrayList<int>): NDArray<double> {
+public fn ones(shape: ArrayList<int>): NDArray<double> {
     let a: NDArray<double> = new NDArray<double>();
     var i: int = 0;
     while (i < shape.size()) {
@@ -363,7 +363,7 @@ fn ones(shape: ArrayList<int>): NDArray<double> {
     return a;
 }
 
-fn fromData<T>(shape: ArrayList<int>, data: ArrayList<T>): NDArray<T> {
+public fn fromData<T>(shape: ArrayList<int>, data: ArrayList<T>): NDArray<T> {
     let a: NDArray<T> = new NDArray<T>();
     var i: int = 0;
     while (i < shape.size()) {
@@ -379,7 +379,7 @@ fn fromData<T>(shape: ArrayList<int>, data: ArrayList<T>): NDArray<T> {
     return a;
 }
 
-fn filled(shape: ArrayList<int>, value: double): NDArray<double> {
+public fn filled(shape: ArrayList<int>, value: double): NDArray<double> {
     let a: NDArray<double> = new NDArray<double>();
     var i: int = 0;
     while (i < shape.size()) {
