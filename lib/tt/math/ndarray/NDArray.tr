@@ -14,10 +14,10 @@ public class NDArray<T> {
 
     // Constructor - creates array with given shape. Data is uninitialized;
     // use factory methods (zeros, ones, filled, fromData) for initialized arrays.
-    public NDArray(ArrayList<int> shape) {
+    fn init(shape: ArrayList<int>) {
         this.data = new ArrayList<T>();
         this.shape = new ArrayList<int>();
-        int i = 0;
+        var i: int = 0;
         while (i < shape.size()) {
             this.shape.add(shape.get(i));
             i = i + 1;
@@ -25,136 +25,60 @@ public class NDArray<T> {
         this.computeStrides();
     }
 
-    // Internal no-arg constructor for factory methods
-    private NDArray() {
-        this.data = new ArrayList<T>();
-        this.shape = new ArrayList<int>();
-        this.strides = new ArrayList<int>();
-    }
-
-    // ---- Factory methods ----
-
-    public static NDArray<double> zeros(ArrayList<int> shape) {
-        NDArray<double> a = new NDArray<double>();
-        int i = 0;
-        while (i < shape.size()) {
-            a.shape.add(shape.get(i));
-            i = i + 1;
-        }
-        a.computeStrides();
-        int total = a.totalElements();
-        i = 0;
-        while (i < total) {
-            a.data.add(0.0);
-            i = i + 1;
-        }
-        return a;
-    }
-
-    public static NDArray<double> ones(ArrayList<int> shape) {
-        NDArray<double> a = new NDArray<double>();
-        int i = 0;
-        while (i < shape.size()) {
-            a.shape.add(shape.get(i));
-            i = i + 1;
-        }
-        a.computeStrides();
-        int total = a.totalElements();
-        i = 0;
-        while (i < total) {
-            a.data.add(1.0);
-            i = i + 1;
-        }
-        return a;
-    }
-
-    public static NDArray<T> fromData(ArrayList<int> shape, ArrayList<T> data) {
-        NDArray<T> a = new NDArray<T>();
-        int i = 0;
-        while (i < shape.size()) {
-            a.shape.add(shape.get(i));
-            i = i + 1;
-        }
-        a.computeStrides();
-        i = 0;
-        while (i < data.size()) {
-            a.data.add(data.get(i));
-            i = i + 1;
-        }
-        return a;
-    }
-
-    public static NDArray<double> filled(ArrayList<int> shape, double value) {
-        NDArray<double> a = new NDArray<double>();
-        int i = 0;
-        while (i < shape.size()) {
-            a.shape.add(shape.get(i));
-            i = i + 1;
-        }
-        a.computeStrides();
-        int total = a.totalElements();
-        i = 0;
-        while (i < total) {
-            a.data.add(value);
-            i = i + 1;
-        }
-        return a;
-    }
-
     // ---- Multi-dimensional indexing ----
 
-    public T get(ArrayList<int> indices) {
-        int flat = this.flatIndex(indices);
+    public fn get(indices: ArrayList<int>): T {
+        let flat: int = this.flatIndex(indices);
         return this.data.get(flat);
     }
 
-    public void set(ArrayList<int> indices, T value) {
-        int flat = this.flatIndex(indices);
+    public fn set(indices: ArrayList<int>, value: T): void {
+        let flat: int = this.flatIndex(indices);
         this.data.set(flat, value);
     }
 
     // Convenience: flat (linear) indexing into the data buffer
-    public T getFlat(int i) {
+    public fn getFlat(i: int): T {
         return this.data.get(i);
     }
 
-    public void setFlat(int i, T value) {
+    public fn setFlat(i: int, value: T): void {
         this.data.set(i, value);
     }
 
     // Convenience: 1D indexing using stride
-    public T get1D(int i) {
+    public fn get1D(i: int): T {
         return this.data.get(i * this.strides.get(0));
     }
 
-    public void set1D(int i, T value) {
+    public fn set1D(i: int, value: T): void {
         this.data.set(i * this.strides.get(0), value);
     }
 
     // Convenience: 2D indexing using strides
-    public T get2D(int i, int j) {
+    public fn get2D(i: int, j: int): T {
         return this.data.get(i * this.strides.get(0) + j * this.strides.get(1));
     }
 
-    public void set2D(int i, int j, T value) {
+    public fn set2D(i: int, j: int, value: T): void {
         this.data.set(i * this.strides.get(0) + j * this.strides.get(1), value);
     }
 
     // Convenience: 3D indexing using strides
-    public T get3D(int i, int j, int k) {
+    public fn get3D(i: int, j: int, k: int): T {
         return this.data.get(i * this.strides.get(0) + j * this.strides.get(1) + k * this.strides.get(2));
     }
 
-    public void set3D(int i, int j, int k, T value) {
+    public fn set3D(i: int, j: int, k: int, value: T): void {
         this.data.set(i * this.strides.get(0) + j * this.strides.get(1) + k * this.strides.get(2), value);
     }
 
     // ---- Shape operations ----
 
     // Reshape without copying data. The returned array shares the same data buffer.
-    public NDArray<T> reshape(ArrayList<int> newShape) {
-        NDArray<T> a = new NDArray<T>();
-        int i = 0;
+    public fn reshape(newShape: ArrayList<int>): NDArray<T> {
+        let a: NDArray<T> = new NDArray<T>();
+        var i: int = 0;
         while (i < newShape.size()) {
             a.shape.add(newShape.get(i));
             i = i + 1;
@@ -166,15 +90,13 @@ public class NDArray<T> {
     }
 
     // Reverse axis order transpose.
-    // For 2D: swaps rows and columns.
-    // For nD: reverses the axis order (shape [a,b,c] -> [c,b,a]).
-    public NDArray<T> transpose() {
-        int nd = this.shape.size();
+    public fn transpose(): NDArray<T> {
+        let nd: int = this.shape.size();
         if (nd <= 1) { return this.clone(); }
 
-        NDArray<T> a = new NDArray<T>();
+        let a: NDArray<T> = new NDArray<T>();
         // Reverse the shape
-        int d = nd - 1;
+        var d: int = nd - 1;
         while (d >= 0) {
             a.shape.add(this.shape.get(d));
             d = d - 1;
@@ -182,9 +104,9 @@ public class NDArray<T> {
         a.computeStrides();
 
         // Copy data with reversed indices
-        int total = this.totalElements();
-        ArrayList<int> indices = new ArrayList<int>();
-        int i = 0;
+        let total: int = this.totalElements();
+        let indices: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
         while (i < nd) {
             indices.add(0);
             i = i + 1;
@@ -193,8 +115,8 @@ public class NDArray<T> {
         i = 0;
         while (i < total) {
             // Build reversed indices
-            ArrayList<int> revIndices = new ArrayList<int>();
-            int j = nd - 1;
+            let revIndices: ArrayList<int> = new ArrayList<int>();
+            var j: int = nd - 1;
             while (j >= 0) {
                 revIndices.add(indices.get(j));
                 j = j - 1;
@@ -202,9 +124,9 @@ public class NDArray<T> {
             a.data.add(this.get(revIndices));
 
             // Increment indices in lexicographic order
-            int axis = nd - 1;
+            var axis: int = nd - 1;
             while (axis >= 0) {
-                int val = indices.get(axis) + 1;
+                let val: int = indices.get(axis) + 1;
                 indices.set(axis, val);
                 if (val < this.shape.get(axis)) {
                     break;
@@ -218,8 +140,8 @@ public class NDArray<T> {
     }
 
     // Collapse to 1D. The returned array shares the same data buffer.
-    public NDArray<T> flatten() {
-        NDArray<T> a = new NDArray<T>();
+    public fn flatten(): NDArray<T> {
+        let a: NDArray<T> = new NDArray<T>();
         a.shape.add(this.totalElements());
         a.strides.add(1);
         // Share data reference
@@ -229,35 +151,31 @@ public class NDArray<T> {
 
     // ---- Info ----
 
-    // Total number of elements in the data buffer.
-    public int size() {
+    public fn size(): int {
         return this.data.size();
     }
 
-    // Number of dimensions.
-    public int ndim() {
+    public fn ndim(): int {
         return this.shape.size();
     }
 
-    // First dimension size (number of rows for 2D arrays).
-    public int rows() {
+    public fn rows(): int {
         if (this.shape.size() == 0) { return 0; }
         return this.shape.get(0);
     }
 
-    // Second dimension size (number of columns for 2D arrays).
-    public int cols() {
+    public fn cols(): int {
         if (this.shape.size() < 2) { return 0; }
         return this.shape.get(1);
     }
 
     // ---- String representation ----
 
-    public string toString() {
+    public fn toString(): string {
         if (this.shape.size() == 0) { return "NDArray([])"; }
         if (this.shape.size() == 1) {
-            String s = "[";
-            int i = 0;
+            var s: string = "[";
+            var i: int = 0;
             while (i < this.data.size()) {
                 if (i > 0) { s = s + ", "; }
                 s = s + this.data.get(i).toString();
@@ -267,14 +185,14 @@ public class NDArray<T> {
             return s;
         }
         if (this.shape.size() == 2) {
-            int r = this.shape.get(0);
-            int c = this.shape.get(1);
-            String s = "[";
-            int i = 0;
+            let r: int = this.shape.get(0);
+            let c: int = this.shape.get(1);
+            var s: string = "[";
+            var i: int = 0;
             while (i < r) {
                 if (i > 0) { s = s + ",\n "; }
                 s = s + "[";
-                int j = 0;
+                var j: int = 0;
                 while (j < c) {
                     if (j > 0) { s = s + ", "; }
                     s = s + this.get2D(i, j).toString();
@@ -287,17 +205,17 @@ public class NDArray<T> {
             return s;
         }
         // Higher dimensions: show shape summary and first few elements
-        String s = "NDArray(shape=[";
-        int d = 0;
+        var s: string = "NDArray(shape=[";
+        var d: int = 0;
         while (d < this.shape.size()) {
             if (d > 0) { s = s + ", "; }
             s = s + Integer.toString(this.shape.get(d));
             d = d + 1;
         }
         s = s + "], data=[";
-        int limit = this.data.size();
+        var limit: int = this.data.size();
         if (limit > 10) { limit = 10; }
-        int i = 0;
+        var i: int = 0;
         while (i < limit) {
             if (i > 0) { s = s + ", "; }
             s = s + this.data.get(i).toString();
@@ -326,9 +244,9 @@ public class NDArray<T> {
 
     // ---- Utility ----
 
-    public NDArray<T> clone() {
-        NDArray<T> a = new NDArray<T>();
-        int i = 0;
+    public fn clone(): NDArray<T> {
+        let a: NDArray<T> = new NDArray<T>();
+        var i: int = 0;
         while (i < this.shape.size()) {
             a.shape.add(this.shape.get(i));
             i = i + 1;
@@ -346,18 +264,18 @@ public class NDArray<T> {
         return a;
     }
 
-    public void fill(T value) {
-        int i = 0;
+    public fn fill(value: T): void {
+        var i: int = 0;
         while (i < this.data.size()) {
             this.data.set(i, value);
             i = i + 1;
         }
     }
 
-    public bool equals(NDArray<T> other) {
+    public fn equals(other: NDArray<T>): bool {
         if (this.shape.size() != other.shape.size()) { return false; }
         if (this.data.size() != other.data.size()) { return false; }
-        int i = 0;
+        var i: int = 0;
         while (i < this.shape.size()) {
             if (this.shape.get(i) != other.shape.get(i)) { return false; }
             i = i + 1;
@@ -372,11 +290,11 @@ public class NDArray<T> {
 
     // ---- Internal helpers ----
 
-    public void computeStrides() {
+    public fn computeStrides(): void {
         this.strides = new ArrayList<int>();
-        int n = this.shape.size();
+        let n: int = this.shape.size();
         if (n == 0) { return; }
-        int i = n - 1;
+        var i: int = n - 1;
         while (i >= 0) {
             if (i == n - 1) {
                 this.strides.add(0, 1);
@@ -387,10 +305,10 @@ public class NDArray<T> {
         }
     }
 
-    public int totalElements() {
+    public fn totalElements(): int {
         if (this.shape.size() == 0) { return 0; }
-        int total = 1;
-        int i = 0;
+        var total: int = 1;
+        var i: int = 0;
         while (i < this.shape.size()) {
             total = total * this.shape.get(i);
             i = i + 1;
@@ -398,13 +316,82 @@ public class NDArray<T> {
         return total;
     }
 
-    public int flatIndex(ArrayList<int> indices) {
-        int flat = 0;
-        int i = 0;
+    public fn flatIndex(indices: ArrayList<int>): int {
+        var flat: int = 0;
+        var i: int = 0;
         while (i < indices.size()) {
             flat = flat + indices.get(i) * this.strides.get(i);
             i = i + 1;
         }
         return flat;
     }
+}
+
+// ---- Factory methods ----
+
+fn zeros(shape: ArrayList<int>): NDArray<double> {
+    let a: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < shape.size()) {
+        a.shape.add(shape.get(i));
+        i = i + 1;
+    }
+    a.computeStrides();
+    let total: int = a.totalElements();
+    i = 0;
+    while (i < total) {
+        a.data.add(0.0);
+        i = i + 1;
+    }
+    return a;
+}
+
+fn ones(shape: ArrayList<int>): NDArray<double> {
+    let a: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < shape.size()) {
+        a.shape.add(shape.get(i));
+        i = i + 1;
+    }
+    a.computeStrides();
+    let total: int = a.totalElements();
+    i = 0;
+    while (i < total) {
+        a.data.add(1.0);
+        i = i + 1;
+    }
+    return a;
+}
+
+fn fromData<T>(shape: ArrayList<int>, data: ArrayList<T>): NDArray<T> {
+    let a: NDArray<T> = new NDArray<T>();
+    var i: int = 0;
+    while (i < shape.size()) {
+        a.shape.add(shape.get(i));
+        i = i + 1;
+    }
+    a.computeStrides();
+    i = 0;
+    while (i < data.size()) {
+        a.data.add(data.get(i));
+        i = i + 1;
+    }
+    return a;
+}
+
+fn filled(shape: ArrayList<int>, value: double): NDArray<double> {
+    let a: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < shape.size()) {
+        a.shape.add(shape.get(i));
+        i = i + 1;
+    }
+    a.computeStrides();
+    let total: int = a.totalElements();
+    i = 0;
+    while (i < total) {
+        a.data.add(value);
+        i = i + 1;
+    }
+    return a;
 }

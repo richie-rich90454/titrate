@@ -2,110 +2,109 @@ import tt::util::ArrayList;
 import tt::math::Math;
 
 // NDArray reduction methods: sum, mean, min, max, variance, stddev, any, all, argMax, argMin
-public class NDArrayReduce {
-    public static double sum(NDArray<T> a) {
-        double s = 0.0;
-        int i = 0;
-        while (i < a.data.size()) {
-            s = s + a.data.get(i);
-            i = i + 1;
+
+fn sum<T>(a: NDArray<T>): double {
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        s = s + a.data.get(i);
+        i = i + 1;
+    }
+    return s;
+}
+
+fn mean<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    return sum(a) / a.data.size();
+}
+
+fn min<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v < m) { m = v; }
+        i = i + 1;
+    }
+    return m;
+}
+
+fn max<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v > m) { m = v; }
+        i = i + 1;
+    }
+    return m;
+}
+
+fn variance<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    let m: double = mean(a);
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        let d: double = a.data.get(i) - m;
+        s = s + d * d;
+        i = i + 1;
+    }
+    return s / a.data.size();
+}
+
+fn stddev<T>(a: NDArray<T>): double {
+    return Math.sqrt(variance(a));
+}
+
+fn any<T>(a: NDArray<T>): bool {
+    var i: int = 0;
+    while (i < a.data.size()) {
+        if (a.data.get(i) != 0) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+fn all<T>(a: NDArray<T>): bool {
+    var i: int = 0;
+    while (i < a.data.size()) {
+        if (a.data.get(i) == 0) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn argMax<T>(a: NDArray<T>): int {
+    if (a.data.size() == 0) { return -1; }
+    var idx: int = 0;
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v > m) {
+            m = v;
+            idx = i;
         }
-        return s;
+        i = i + 1;
     }
+    return idx;
+}
 
-    public static double mean(NDArray<T> a) {
-        if (a.data.size() == 0) { return 0.0; }
-        return NDArrayReduce.sum(a) / a.data.size();
-    }
-
-    public static double min(NDArray<T> a) {
-        if (a.data.size() == 0) { return 0.0; }
-        double m = a.data.get(0);
-        int i = 1;
-        while (i < a.data.size()) {
-            double v = a.data.get(i);
-            if (v < m) { m = v; }
-            i = i + 1;
+fn argMin<T>(a: NDArray<T>): int {
+    if (a.data.size() == 0) { return -1; }
+    var idx: int = 0;
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v < m) {
+            m = v;
+            idx = i;
         }
-        return m;
+        i = i + 1;
     }
-
-    public static double max(NDArray<T> a) {
-        if (a.data.size() == 0) { return 0.0; }
-        double m = a.data.get(0);
-        int i = 1;
-        while (i < a.data.size()) {
-            double v = a.data.get(i);
-            if (v > m) { m = v; }
-            i = i + 1;
-        }
-        return m;
-    }
-
-    public static double variance(NDArray<T> a) {
-        if (a.data.size() == 0) { return 0.0; }
-        double m = NDArrayReduce.mean(a);
-        double s = 0.0;
-        int i = 0;
-        while (i < a.data.size()) {
-            double d = a.data.get(i) - m;
-            s = s + d * d;
-            i = i + 1;
-        }
-        return s / a.data.size();
-    }
-
-    public static double stddev(NDArray<T> a) {
-        return Math.sqrt(NDArrayReduce.variance(a));
-    }
-
-    public static bool any(NDArray<T> a) {
-        int i = 0;
-        while (i < a.data.size()) {
-            if (a.data.get(i) != 0) { return true; }
-            i = i + 1;
-        }
-        return false;
-    }
-
-    public static bool all(NDArray<T> a) {
-        int i = 0;
-        while (i < a.data.size()) {
-            if (a.data.get(i) == 0) { return false; }
-            i = i + 1;
-        }
-        return true;
-    }
-
-    public static int argMax(NDArray<T> a) {
-        if (a.data.size() == 0) { return -1; }
-        int idx = 0;
-        double m = a.data.get(0);
-        int i = 1;
-        while (i < a.data.size()) {
-            double v = a.data.get(i);
-            if (v > m) {
-                m = v;
-                idx = i;
-            }
-            i = i + 1;
-        }
-        return idx;
-    }
-
-    public static int argMin(NDArray<T> a) {
-        if (a.data.size() == 0) { return -1; }
-        int idx = 0;
-        double m = a.data.get(0);
-        int i = 1;
-        while (i < a.data.size()) {
-            double v = a.data.get(i);
-            if (v < m) {
-                m = v;
-                idx = i;
-            }
-            i = i + 1;
-        }
-        return idx;
-    }
+    return idx;
 }

@@ -1,95 +1,90 @@
 import tt::util::ArrayList;
 
 // NDArray sorting and search: sort, argsort, nonzero, unique
-public class NDArraySort {
-    // Return a new 1D NDArray with sorted values (ascending).
-    public static NDArray<T> sort(NDArray<T> a) {
-        NDArray<T> result = a.flatten().clone();
-        int n = result.data.size();
-        int i = 0;
-        while (i < n - 1) {
-            int j = 0;
-            while (j < n - i - 1) {
-                if (result.data.get(j) > result.data.get(j + 1)) {
-                    T tmp = result.data.get(j);
-                    result.data.set(j, result.data.get(j + 1));
-                    result.data.set(j + 1, tmp);
-                }
-                j = j + 1;
-            }
-            i = i + 1;
-        }
-        return result;
-    }
 
-    // Return indices that would sort the array.
-    public static NDArray<int> argsort(NDArray<T> a) {
-        int n = a.data.size();
-        NDArray<int> indices = new NDArray<int>();
-        indices.shape.add(n);
-        indices.computeStrides();
-        int i = 0;
-        while (i < n) {
-            indices.data.add(i);
-            i = i + 1;
-        }
-        i = 0;
-        while (i < n - 1) {
-            int j = 0;
-            while (j < n - i - 1) {
-                if (a.data.get(indices.data.get(j)) > a.data.get(indices.data.get(j + 1))) {
-                    int tmp = indices.data.get(j);
-                    indices.data.set(j, indices.data.get(j + 1));
-                    indices.data.set(j + 1, tmp);
-                }
-                j = j + 1;
+fn sort<T>(a: NDArray<T>): NDArray<T> {
+    let result: NDArray<T> = a.flatten().clone();
+    let n: int = result.data.size();
+    var i: int = 0;
+    while (i < n - 1) {
+        var j: int = 0;
+        while (j < n - i - 1) {
+            if (result.data.get(j) > result.data.get(j + 1)) {
+                let tmp: T = result.data.get(j);
+                result.data.set(j, result.data.get(j + 1));
+                result.data.set(j + 1, tmp);
             }
-            i = i + 1;
+            j = j + 1;
         }
-        return indices;
+        i = i + 1;
     }
+    return result;
+}
 
-    // Return indices of nonzero elements.
-    public static NDArray<int> nonzero(NDArray<T> a) {
-        NDArray<int> result = new NDArray<int>();
-        int count = 0;
-        int i = 0;
-        while (i < a.data.size()) {
-            if (a.data.get(i) != 0) {
-                count = count + 1;
-            }
-            i = i + 1;
-        }
-        result.shape.add(count);
-        result.computeStrides();
-        i = 0;
-        while (i < a.data.size()) {
-            if (a.data.get(i) != 0) {
-                result.data.add(i);
-            }
-            i = i + 1;
-        }
-        return result;
+fn argsort<T>(a: NDArray<T>): NDArray<int> {
+    let n: int = a.data.size();
+    let indices: NDArray<int> = new NDArray<int>();
+    indices.shape.add(n);
+    indices.computeStrides();
+    var i: int = 0;
+    while (i < n) {
+        indices.data.add(i);
+        i = i + 1;
     }
-
-    // Return unique sorted values.
-    public static NDArray<T> unique(NDArray<T> a) {
-        NDArray<T> sorted = NDArraySort.sort(a);
-        NDArray<T> result = new NDArray<T>();
-        if (sorted.data.size() == 0) {
-            result.shape.add(0);
-            result.computeStrides();
-            return result;
-        }
-        int i = 0;
-        while (i < sorted.data.size()) {
-            if (i == 0 || sorted.data.get(i) != sorted.data.get(i - 1)) {
-                result.data.add(sorted.data.get(i));
+    i = 0;
+    while (i < n - 1) {
+        var j: int = 0;
+        while (j < n - i - 1) {
+            if (a.data.get(indices.data.get(j)) > a.data.get(indices.data.get(j + 1))) {
+                let tmp: int = indices.data.get(j);
+                indices.data.set(j, indices.data.get(j + 1));
+                indices.data.set(j + 1, tmp);
             }
-            i = i + 1;
+            j = j + 1;
         }
-        result.shape.add(result.data.size());
+        i = i + 1;
+    }
+    return indices;
+}
+
+fn nonzero<T>(a: NDArray<T>): NDArray<int> {
+    let result: NDArray<int> = new NDArray<int>();
+    var count: int = 0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        if (a.data.get(i) != 0) {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    result.shape.add(count);
+    result.computeStrides();
+    i = 0;
+    while (i < a.data.size()) {
+        if (a.data.get(i) != 0) {
+            result.data.add(i);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+fn unique<T>(a: NDArray<T>): NDArray<T> {
+    let sorted: NDArray<T> = sort(a);
+    let result: NDArray<T> = new NDArray<T>();
+    if (sorted.data.size() == 0) {
+        result.shape.add(0);
         result.computeStrides();
         return result;
     }
+    var i: int = 0;
+    while (i < sorted.data.size()) {
+        if (i == 0 || sorted.data.get(i) != sorted.data.get(i - 1)) {
+            result.data.add(sorted.data.get(i));
+        }
+        i = i + 1;
+    }
+    result.shape.add(result.data.size());
+    result.computeStrides();
+    return result;
 }

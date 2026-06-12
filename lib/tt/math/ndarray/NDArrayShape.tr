@@ -1,152 +1,146 @@
 import tt::util::ArrayList;
 
 // NDArray shape manipulation: squeeze, expandDims, broadcastTo, repeat, tile
-public class NDArrayShape {
-    // Remove dimensions of size 1.
-    public static NDArray<T> squeeze(NDArray<T> a) {
-        NDArray<T> result = new NDArray<T>();
-        int i = 0;
-        while (i < a.shape.size()) {
-            if (a.shape.get(i) != 1) {
-                result.shape.add(a.shape.get(i));
-            }
-            i = i + 1;
-        }
-        if (result.shape.size() == 0) { result.shape.add(1); }
-        result.computeStrides();
-        i = 0;
-        while (i < a.data.size()) {
-            result.data.add(a.data.get(i));
-            i = i + 1;
-        }
-        return result;
-    }
 
-    // Add a new dimension at the given position.
-    public static NDArray<T> expandDims(NDArray<T> a) {
-        NDArray<T> result = new NDArray<T>();
-        result.shape.add(1);
-        int i = 0;
-        while (i < a.shape.size()) {
+fn squeeze<T>(a: NDArray<T>): NDArray<T> {
+    let result: NDArray<T> = new NDArray<T>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        if (a.shape.get(i) != 1) {
             result.shape.add(a.shape.get(i));
-            i = i + 1;
         }
-        result.computeStrides();
-        i = 0;
-        while (i < a.data.size()) {
-            result.data.add(a.data.get(i));
-            i = i + 1;
-        }
-        return result;
+        i = i + 1;
     }
+    if (result.shape.size() == 0) { result.shape.add(1); }
+    result.computeStrides();
+    i = 0;
+    while (i < a.data.size()) {
+        result.data.add(a.data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
 
-    // Broadcast this array to the given shape (must be compatible).
-    public static NDArray<T> broadcastTo(NDArray<T> a, ArrayList<int> targetShape) {
-        NDArray<T> result = new NDArray<T>();
-        int nd = targetShape.size();
-        int i = 0;
-        while (i < nd) {
-            result.shape.add(targetShape.get(i));
-            i = i + 1;
+fn expandDims<T>(a: NDArray<T>): NDArray<T> {
+    let result: NDArray<T> = new NDArray<T>();
+    result.shape.add(1);
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    i = 0;
+    while (i < a.data.size()) {
+        result.data.add(a.data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+fn broadcastTo<T>(a: NDArray<T>, targetShape: ArrayList<int>): NDArray<T> {
+    let result: NDArray<T> = new NDArray<T>();
+    let nd: int = targetShape.size();
+    var i: int = 0;
+    while (i < nd) {
+        result.shape.add(targetShape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    let total: int = result.totalElements();
+    let indices: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < nd) {
+        indices.add(0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < total) {
+        let srcIndices: ArrayList<int> = new ArrayList<int>();
+        let offset: int = nd - a.shape.size();
+        var d: int = 0;
+        while (d < offset) {
+            srcIndices.add(0);
+            d = d + 1;
         }
-        result.computeStrides();
-        int total = result.totalElements();
-        ArrayList<int> indices = new ArrayList<int>();
-        i = 0;
-        while (i < nd) {
-            indices.add(0);
-            i = i + 1;
-        }
-        i = 0;
-        while (i < total) {
-            ArrayList<int> srcIndices = new ArrayList<int>();
-            int offset = nd - a.shape.size();
-            int d = 0;
-            while (d < offset) {
+        d = offset;
+        while (d < nd) {
+            let srcDim: int = a.shape.get(d - offset);
+            if (srcDim == 1) {
                 srcIndices.add(0);
-                d = d + 1;
+            } else {
+                srcIndices.add(indices.get(d));
             }
-            d = offset;
-            while (d < nd) {
-                int srcDim = a.shape.get(d - offset);
-                if (srcDim == 1) {
-                    srcIndices.add(0);
-                } else {
-                    srcIndices.add(indices.get(d));
-                }
-                d = d + 1;
-            }
-            result.data.add(a.get(srcIndices));
-            int axis = nd - 1;
-            while (axis >= 0) {
-                int val = indices.get(axis) + 1;
-                indices.set(axis, val);
-                if (val < targetShape.get(axis)) {
-                    break;
-                }
-                indices.set(axis, 0);
-                axis = axis - 1;
-            }
-            i = i + 1;
+            d = d + 1;
         }
-        return result;
+        result.data.add(a.get(srcIndices));
+        var axis: int = nd - 1;
+        while (axis >= 0) {
+            let val: int = indices.get(axis) + 1;
+            indices.set(axis, val);
+            if (val < targetShape.get(axis)) {
+                break;
+            }
+            indices.set(axis, 0);
+            axis = axis - 1;
+        }
+        i = i + 1;
     }
+    return result;
+}
 
-    // Repeat each element n times.
-    public static NDArray<T> repeat(NDArray<T> a, int n) {
-        NDArray<T> result = new NDArray<T>();
-        result.shape.add(a.data.size() * n);
-        result.computeStrides();
-        int i = 0;
-        while (i < a.data.size()) {
-            int j = 0;
-            while (j < n) {
-                result.data.add(a.data.get(i));
-                j = j + 1;
-            }
-            i = i + 1;
+fn repeat<T>(a: NDArray<T>, n: int): NDArray<T> {
+    let result: NDArray<T> = new NDArray<T>();
+    result.shape.add(a.data.size() * n);
+    result.computeStrides();
+    var i: int = 0;
+    while (i < a.data.size()) {
+        var j: int = 0;
+        while (j < n) {
+            result.data.add(a.data.get(i));
+            j = j + 1;
         }
-        return result;
+        i = i + 1;
     }
+    return result;
+}
 
-    // Tile the array by reps along each dimension.
-    public static NDArray<T> tile(NDArray<T> a, ArrayList<int> reps) {
-        NDArray<T> result = new NDArray<T>();
-        int nd = a.shape.size();
-        int i = 0;
-        while (i < nd) {
-            result.shape.add(a.shape.get(i) * reps.get(i));
-            i = i + 1;
-        }
-        result.computeStrides();
-        int total = result.totalElements();
-        ArrayList<int> indices = new ArrayList<int>();
-        i = 0;
-        while (i < nd) {
-            indices.add(0);
-            i = i + 1;
-        }
-        i = 0;
-        while (i < total) {
-            ArrayList<int> srcIndices = new ArrayList<int>();
-            int d = 0;
-            while (d < nd) {
-                srcIndices.add(indices.get(d) % a.shape.get(d));
-                d = d + 1;
-            }
-            result.data.add(a.get(srcIndices));
-            int axis = nd - 1;
-            while (axis >= 0) {
-                int val = indices.get(axis) + 1;
-                indices.set(axis, val);
-                if (val < result.shape.get(axis)) {
-                    break;
-                }
-                indices.set(axis, 0);
-                axis = axis - 1;
-            }
-            i = i + 1;
-        }
-        return result;
+fn tile<T>(a: NDArray<T>, reps: ArrayList<int>): NDArray<T> {
+    let result: NDArray<T> = new NDArray<T>();
+    let nd: int = a.shape.size();
+    var i: int = 0;
+    while (i < nd) {
+        result.shape.add(a.shape.get(i) * reps.get(i));
+        i = i + 1;
     }
+    result.computeStrides();
+    let total: int = result.totalElements();
+    let indices: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < nd) {
+        indices.add(0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < total) {
+        let srcIndices: ArrayList<int> = new ArrayList<int>();
+        var d: int = 0;
+        while (d < nd) {
+            srcIndices.add(indices.get(d) % a.shape.get(d));
+            d = d + 1;
+        }
+        result.data.add(a.get(srcIndices));
+        var axis: int = nd - 1;
+        while (axis >= 0) {
+            let val: int = indices.get(axis) + 1;
+            indices.set(axis, val);
+            if (val < result.shape.get(axis)) {
+                break;
+            }
+            indices.set(axis, 0);
+            axis = axis - 1;
+        }
+        i = i + 1;
+    }
+    return result;
 }
