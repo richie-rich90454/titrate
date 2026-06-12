@@ -10,7 +10,8 @@ fn createTempFile(): string {
 fn createTempDir(): string {
     // Use Tempfile_create to get a temp path, then create a dir there
     let basePath: string = getTempDir();
-    let dirName: string = "tmpdir_" + Integer.toString((Math_random() * 1000000) as int);
+    let randomHex: string = Os_urandom(4);
+    let dirName: string = "tmpdir_" + randomHex;
     let dirPath: string = Path_join(basePath, dirName);
     Dir_create(dirPath);
     return dirPath;
