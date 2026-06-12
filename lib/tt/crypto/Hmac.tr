@@ -1,0 +1,99 @@
+// HMAC computation using the standard HMAC algorithm.
+import tt::lang::String;
+import tt::crypto::Hash;
+
+// HMAC-SHA256: returns hex string
+public fn sha256(key: string, message: string): string {
+    return _hmac(key, message, 64, "sha256");
+}
+
+// HMAC-SHA512: returns hex string
+public fn sha512(key: string, message: string): string {
+    return _hmac(key, message, 128, "sha512");
+}
+
+// HMAC-MD5: returns hex string
+public fn md5(key: string, message: string): string {
+    return _hmac(key, message, 64, "md5");
+}
+
+// HMAC-SHA256: returns raw byte string
+public fn sha256Bytes(key: string, message: string): string {
+    let hex: string = sha256(key, message);
+    return _hexToBytes(hex);
+}
+
+// HMAC-SHA512: returns raw byte string
+public fn sha512Bytes(key: string, message: string): string {
+    let hex: string = sha512(key, message);
+    return _hexToBytes(hex);
+}
+
+// Standard HMAC implementation:
+// 1. If key > block_size, key = hash(key)
+// 2. Pad key to block_size with zeros
+// 3. o_key_pad = key XOR 0x5c...5c
+// 4. i_key_pad = key XOR 0x36...36
+// 5. HMAC = hash(o_key_pad + hash(i_key_pad + message))
+fn _hmac(key: string, message: string, blockSize: int, algorithm: string): string {
+    var k: string = key;
+    // Step 1: If key is longer than block size, hash it
+    if (String.length(k) > blockSize) {
+        k = Hash.hashBytes(algorithm, k);
+    }
+    // Step 2: Pad key to block_size with zeros
+    while (String.length(k) < blockSize) {
+        k = k + "\x00";
+    }
+    // Step 3 & 4: Create XOR pads
+    let iKeyPad: string = _xorPad(k, 0x36, blockSize);
+    let oKeyPad: string = _xorPad(k, 0x5c, blockSize);
+    // Step 5: HMAC = hash(o_key_pad + hash(i_key_pad + message))
+    let innerHash: string = Hash.hashBytes(algorithm, iKeyPad + message);
+    let hmacResult: string = Hash.hashBytes(algorithm, oKeyPad + innerHash);
+    return hmacResult;
+}
+
+// XOR each byte of key with a pad value
+fn _xorPad(key: string, pad: int, blockSize: int): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < blockSize) {
+        if (i < String.length(key)) {
+            let b: int = String.charAt(key, i);
+            result = result + String.charAt((b ^ pad) as string, 0);
+        } else {
+            result = result + String.charAt(pad as string, 0);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert a hex string to a byte string
+fn _hexToBytes(hex: string): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i + 1 < String.length(hex)) {
+        let hi: int = _hexDigit(String.charAt(hex, i));
+        let lo: int = _hexDigit(String.charAt(hex, i + 1));
+        result = result + String.charAt((hi * 16 + lo) as string, 0);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Convert a single hex character to its integer value
+fn _hexDigit(ch: string): int {
+    let code: int = String.charAt(ch, 0);
+    if (code >= 48 && code <= 57) {
+        return code - 48;
+    }
+    if (code >= 97 && code <= 102) {
+        return code - 97 + 10;
+    }
+    if (code >= 65 && code <= 70) {
+        return code - 65 + 10;
+    }
+    return 0;
+}
