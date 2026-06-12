@@ -18,17 +18,17 @@ interface Handler {
 public class ConsoleHandler implements Handler {
     public Formatter formatter;
 
-    public ConsoleHandler() {
+    fn init() {
         this.formatter = new Formatter();
     }
 
-    public ConsoleHandler(formatter: Formatter) {
+    fn init(formatter: Formatter) {
         this.formatter = formatter;
     }
 
     public fn handle(level: string, message: string, timestamp: string): void {
         let formatted: string = this.formatter.format(level, message, timestamp);
-        ConsoleHandler._printStderr(formatted);
+        this._printStderr(formatted);
     }
 
     private fn _printStderr(text: string): void {
@@ -42,12 +42,12 @@ public class FileHandler implements Handler {
     public Formatter formatter;
     private string filePath;
 
-    public FileHandler(path: string) {
+    fn init(path: string) {
         this.formatter = new Formatter();
         this.filePath = path;
     }
 
-    public FileHandler(path: string, formatter: Formatter) {
+    fn init(path: string, formatter: Formatter) {
         this.formatter = formatter;
         this.filePath = path;
     }
@@ -74,13 +74,13 @@ public class Logger {
         return 0;
     }
 
-    public Logger(name: string) {
+    fn init(name: string) {
         this.name = name;
         this.level = "WARNING";
         this.handlers = new ArrayList<Handler>();
     }
 
-    public Logger(name: string, level: string) {
+    fn init(name: string, level: string) {
         this.name = name;
         this.level = level;
         this.handlers = new ArrayList<Handler>();
@@ -95,33 +95,33 @@ public class Logger {
     }
 
     public fn debug(msg: string): void {
-        Logger._log(this, "DEBUG", msg);
+        this._log("DEBUG", msg);
     }
 
     public fn info(msg: string): void {
-        Logger._log(this, "INFO", msg);
+        this._log("INFO", msg);
     }
 
     public fn warning(msg: string): void {
-        Logger._log(this, "WARNING", msg);
+        this._log("WARNING", msg);
     }
 
     public fn error(msg: string): void {
-        Logger._log(this, "ERROR", msg);
+        this._log("ERROR", msg);
     }
 
     public fn critical(msg: string): void {
-        Logger._log(this, "CRITICAL", msg);
+        this._log("CRITICAL", msg);
     }
 
-    private fn _log(self: Logger, level: string, msg: string): void {
-        if (Logger._levelValue(level) < Logger._levelValue(self.level)) {
+    private fn _log(level: string, msg: string): void {
+        if (this._levelValue(level) < this._levelValue(this.level)) {
             return;
         }
-        let timestamp: string = Logger._timestamp();
+        let timestamp: string = this._timestamp();
         let i: int = 0;
-        while (i < self.handlers.size()) {
-            self.handlers.get(i).handle(level, msg, timestamp);
+        while (i < this.handlers.size()) {
+            this.handlers.get(i).handle(level, msg, timestamp);
             i = i + 1;
         }
     }
