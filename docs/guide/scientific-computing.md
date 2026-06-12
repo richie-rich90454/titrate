@@ -1,10 +1,10 @@
 # Scientific Computing
 
-Titrate provides first-class support for scientific computing through its standard library modules: `tt.math` for numerical operations, `tt.chem` for computational chemistry, and `tt.units` for dimensional consistency.
+Titrate was designed with scientific computing in mind. Whether you're crunching numbers with N-dimensional arrays, running molecular dynamics simulations, or just making sure you don't accidentally add meters to seconds — the standard library has you covered. This guide walks you through the key modules: `tt.math` for numerical operations, `tt.chem` for computational chemistry, and `tt.units` for dimensional consistency.
 
 ## NDArray
 
-The `NDArray` type (N-dimensional array) is the foundation for numerical computing in Titrate. It provides efficient storage and operations on multi-dimensional data.
+The `NDArray` type (N-dimensional array) is the foundation for numerical computing in Titrate. If you've used NumPy in Python, you'll feel right at home — it provides efficient storage and operations on multi-dimensional data.
 
 ### Creating NDArrays
 
@@ -40,7 +40,7 @@ let row = a.row(0);  // NDArray of shape (3,)
 
 ### Arithmetic
 
-NDArrays support element-wise arithmetic with operator overloading:
+NDArrays support element-wise arithmetic with operator overloading — so you can write `a + b` instead of looping manually:
 
 ```titrate
 let a = NDArray.fromArray([1.0, 2.0, 3.0], (3,));
@@ -64,7 +64,7 @@ io::println(reshaped.shape().toString());  // (3, 2)
 
 ## Matrix
 
-The `Matrix` type wraps a 2D NDArray and provides linear algebra operations.
+While `NDArray` is great for general data, the `Matrix` type wraps a 2D NDArray and provides specialized linear algebra operations. If you need matrix multiplication, decompositions, or solving systems of equations, this is the module to reach for.
 
 ### Creating Matrices
 
@@ -131,7 +131,7 @@ let x = a.solve(b);
 
 ## Chemistry
 
-The `tt.chem` module provides types and algorithms for computational chemistry.
+Beyond pure math, Titrate's `tt.chem` module brings computational chemistry directly into your code. You can define molecules, compute energies with force fields, run molecular dynamics, and even perform quantum chemistry calculations — all without leaving Titrate.
 
 ### Molecules
 
@@ -183,7 +183,7 @@ io::println("SCF Energy: " + energy.toString());
 
 ## Units of Measure
 
-The `tt.units` module enforces dimensional consistency at runtime, preventing errors like adding meters to seconds.
+If you've ever spent hours debugging a simulation only to find you were adding joules to electronvolts, you'll appreciate this module. The `tt.units` module enforces dimensional consistency at runtime, preventing errors like adding meters to seconds.
 
 ### Base Units
 
@@ -214,6 +214,10 @@ let c = Base.meter(3.0);
 let sum = a + c;     // OK: 8.0 m
 ```
 
+::: tip Catch unit errors early
+The units module is your best friend in scientific code. Use it from the start of your project — retrofitting units later is much harder than building them in from the beginning.
+:::
+
 ### Physical Constants
 
 ```titrate
@@ -232,6 +236,48 @@ let inKm = distance.to(Derived.kilometer);  // 1.0 km
 let temp = Base.kelvin(300.0);
 let inCelsius = temp.to(Derived.celsius);    // 26.85 °C
 ```
+
+## Try It Yourself
+
+Create an NDArray representing a 3×3 grid of temperatures in Kelvin, then convert them all to Celsius using the formula `C = K - 273.15`:
+
+```titrate
+public fn main(): void {
+    // Create a 3x3 NDArray of temperatures in Kelvin
+    let tempsK = NDArray.fromArray(
+        [273.15, 300.0, 310.0, 280.0, 290.0, 305.0, 260.0, 275.0, 320.0],
+        (3, 3)
+    );
+
+    // Subtract 273.15 from every element to get Celsius
+    // (Hint: use arithmetic operators on NDArray)
+    let tempsC = tempsK - 273.15;
+
+    // Print the result
+    io::println(tempsC.toString());
+}
+```
+
+<details>
+<summary>Show solution</summary>
+
+```titrate
+public fn main(): void {
+    let tempsK = NDArray.fromArray(
+        [273.15, 300.0, 310.0, 280.0, 290.0, 305.0, 260.0, 275.0, 320.0],
+        (3, 3)
+    );
+
+    let tempsC = tempsK - 273.15;
+
+    io::println(tempsC.toString());
+    // [[0.0, 26.85, 36.85],
+    //  [6.85, 16.85, 31.85],
+    //  [-13.15, 1.85, 46.85]]
+}
+```
+
+</details>
 
 ## What's Next?
 
