@@ -4,14 +4,14 @@ import tt::io::File;
 
 // Formatter controls the layout of log messages.
 public class Formatter {
-    public String format(String level, String message, String timestamp) {
+    public fn format(level: string, message: string, timestamp: string): string {
         return "[" + timestamp + "] " + level + ": " + message;
     }
 }
 
 // Handler interface for processing log records.
 interface Handler {
-    fn handle(String level, String message, String timestamp): void;
+    fn handle(level: string, message: string, timestamp: string): void;
 }
 
 // ConsoleHandler prints log messages to stderr.
@@ -22,16 +22,16 @@ public class ConsoleHandler implements Handler {
         this.formatter = new Formatter();
     }
 
-    public ConsoleHandler(Formatter formatter) {
+    public ConsoleHandler(formatter: Formatter) {
         this.formatter = formatter;
     }
 
-    public void handle(String level, String message, String timestamp) {
-        String formatted = this.formatter.format(level, message, timestamp);
+    public fn handle(level: string, message: string, timestamp: string): void {
+        let formatted: string = this.formatter.format(level, message, timestamp);
         ConsoleHandler._printStderr(formatted);
     }
 
-    private static void _printStderr(String text) {
+    private fn _printStderr(text: string): void {
         // No Sys_stderr native; use println as fallback
         println(text);
     }
@@ -40,32 +40,32 @@ public class ConsoleHandler implements Handler {
 // FileHandler appends log messages to a file.
 public class FileHandler implements Handler {
     public Formatter formatter;
-    private String filePath;
+    private string filePath;
 
-    public FileHandler(String path) {
+    public FileHandler(path: string) {
         this.formatter = new Formatter();
         this.filePath = path;
     }
 
-    public FileHandler(String path, Formatter formatter) {
+    public FileHandler(path: string, formatter: Formatter) {
         this.formatter = formatter;
         this.filePath = path;
     }
 
-    public void handle(String level, String message, String timestamp) {
-        String formatted = this.formatter.format(level, message, timestamp);
-        File file = new File(this.filePath);
+    public fn handle(level: string, message: string, timestamp: string): void {
+        let formatted: string = this.formatter.format(level, message, timestamp);
+        let file: File = new File(this.filePath);
         file.append(formatted + "\n");
     }
 }
 
 // Logger manages log levels and dispatches to handlers.
 public class Logger {
-    public String name;
-    public String level;
+    public string name;
+    public string level;
     public ArrayList<Handler> handlers;
 
-    private static int _levelValue(String lvl) {
+    private fn _levelValue(lvl: string): int {
         if (lvl == "DEBUG") { return 10; }
         if (lvl == "INFO") { return 20; }
         if (lvl == "WARNING") { return 30; }
@@ -74,59 +74,59 @@ public class Logger {
         return 0;
     }
 
-    public Logger(String name) {
+    public Logger(name: string) {
         this.name = name;
         this.level = "WARNING";
         this.handlers = new ArrayList<Handler>();
     }
 
-    public Logger(String name, String level) {
+    public Logger(name: string, level: string) {
         this.name = name;
         this.level = level;
         this.handlers = new ArrayList<Handler>();
     }
 
-    public void setLevel(String level) {
+    public fn setLevel(level: string): void {
         this.level = level;
     }
 
-    public void addHandler(Handler handler) {
+    public fn addHandler(handler: Handler): void {
         this.handlers.add(handler);
     }
 
-    public void debug(String msg) {
+    public fn debug(msg: string): void {
         Logger._log(this, "DEBUG", msg);
     }
 
-    public void info(String msg) {
+    public fn info(msg: string): void {
         Logger._log(this, "INFO", msg);
     }
 
-    public void warning(String msg) {
+    public fn warning(msg: string): void {
         Logger._log(this, "WARNING", msg);
     }
 
-    public void error(String msg) {
+    public fn error(msg: string): void {
         Logger._log(this, "ERROR", msg);
     }
 
-    public void critical(String msg) {
+    public fn critical(msg: string): void {
         Logger._log(this, "CRITICAL", msg);
     }
 
-    private static void _log(Logger self, String level, String msg) {
+    private fn _log(self: Logger, level: string, msg: string): void {
         if (Logger._levelValue(level) < Logger._levelValue(self.level)) {
             return;
         }
-        String timestamp = Logger._timestamp();
-        int i = 0;
+        let timestamp: string = Logger._timestamp();
+        let i: int = 0;
         while (i < self.handlers.size()) {
             self.handlers.get(i).handle(level, msg, timestamp);
             i = i + 1;
         }
     }
 
-    private static String _timestamp() {
+    private fn _timestamp(): string {
         return Time_format(Time_now(), "%Y-%m-%d %H:%M:%S");
     }
 }
