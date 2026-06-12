@@ -1,0 +1,65 @@
+// Portable error code/condition abstraction.
+import tt::lang::String;
+import tt::lang::Integer;
+
+public class ErrorCode {
+    private int _value;
+    private string _category;
+    private string _message;
+
+    public fn init(value: int, category: string, message: string) {
+        this._value = value;
+        this._category = category;
+        this._message = message;
+    }
+
+    public fn value(): int { return this._value; }
+    public fn category(): string { return this._category; }
+    public fn message(): string { return this._message; }
+
+    public fn toString(): string {
+        return this._category + ":" + Integer.toString(this._value) + " " + this._message;
+    }
+
+    public fn equals(other: ErrorCode): bool {
+        return this._value == other._value && this._category == other._category;
+    }
+}
+
+// Predefined error categories and factory functions
+public fn genericError(value: int, message: string): ErrorCode {
+    return new ErrorCode(value, "generic", message);
+}
+
+public fn systemError(value: int, message: string): ErrorCode {
+    return new ErrorCode(value, "system", message);
+}
+
+public fn ioError(value: int, message: string): ErrorCode {
+    return new ErrorCode(value, "io", message);
+}
+
+public fn networkError(value: int, message: string): ErrorCode {
+    return new ErrorCode(value, "network", message);
+}
+
+public fn databaseError(value: int, message: string): ErrorCode {
+    return new ErrorCode(value, "database", message);
+}
+
+// Common error codes
+public const NO_ERROR: int = 0;
+public const PERMISSION_DENIED: int = 1;
+public const FILE_NOT_FOUND: int = 2;
+public const ALREADY_EXISTS: int = 3;
+public const TIMEOUT: int = 4;
+public const CONNECTION_REFUSED: int = 5;
+public const CONNECTION_RESET: int = 6;
+public const OUT_OF_MEMORY: int = 7;
+public const INVALID_ARGUMENT: int = 8;
+public const OUT_OF_RANGE: int = 9;
+public const OVERFLOW: int = 10;
+public const UNDERFLOW: int = 11;
+public const BROKEN_PIPE: int = 12;
+public const OPERATION_ABORTED: int = 13;
+public const NOT_SUPPORTED: int = 14;
