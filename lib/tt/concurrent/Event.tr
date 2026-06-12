@@ -1,0 +1,48 @@
+// Thread synchronization event (manual-reset).
+import tt::concurrent::Mutex;
+import tt::concurrent::LockGuard;
+import tt::concurrent::ConditionVariable;
+
+public class Event {
+    private Mutex mutex;
+    private ConditionVariable cv;
+    private bool signaled;
+
+    public fn init() {
+        this.mutex = new Mutex();
+        this.cv = new ConditionVariable();
+        this.signaled = false;
+    }
+
+    public fn set(): void {
+        let guard: LockGuard = new LockGuard(this.mutex);
+        this.signaled = true;
+        guard.unlock();
+        this.cv.notifyAll();
+    }
+
+    public fn clear(): void {
+        let guard: LockGuard = new LockGuard(this.mutex);
+        this.signaled = false;
+        guard.unlock();
+    }
+
+    public fn wait(): void {
+        let guard: LockGuard = new LockGuard(this.mutex);
+        while (!this.signaled) {
+            this.cv.wait(this.mutex);
+        }
+        guard.unlock();
+    }
+
+    public fn waitFor(timeoutMs: int): bool {
+        let guard: LockGuard = new LockGuard(this.mutex);
+        let result: bool = this.cv.waitFor(this.mutex, timeoutMs);
+        guard.unlock();
+        return result && this.signaled;
+    }
+
+    public fn isSet(): bool {
+        return this.signaled;
+    }
+}
