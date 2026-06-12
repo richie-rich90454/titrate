@@ -1,0 +1,130 @@
+// Layered dictionary lookups for config/variable scoping.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class ChainMap<K, V> {
+    public ArrayList<HashMap<K, V>> maps;
+
+    public fn init() {
+        this.maps = new ArrayList<HashMap<K, V>>();
+        this.maps.add(new HashMap<K, V>());
+    }
+
+    public fn init(first: HashMap<K, V>) {
+        this.maps = new ArrayList<HashMap<K, V>>();
+        this.maps.add(first);
+    }
+
+    public fn get(key: K): V {
+        var i: int = 0;
+        while (i < this.maps.size()) {
+            let m: HashMap<K, V> = this.maps.get(i);
+            if (m.containsKey(key)) {
+                return m.get(key);
+            }
+            i = i + 1;
+        }
+        return maps.get(0).get(key); // Will throw if not found
+    }
+
+    public fn getOrDefault(key: K, default: V): V {
+        var i: int = 0;
+        while (i < this.maps.size()) {
+            let m: HashMap<K, V> = this.maps.get(i);
+            if (m.containsKey(key)) {
+                return m.get(key);
+            }
+            i = i + 1;
+        }
+        return default;
+    }
+
+    public fn containsKey(key: K): bool {
+        var i: int = 0;
+        while (i < this.maps.size()) {
+            if (this.maps.get(i).containsKey(key)) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn put(key: K, value: V): void {
+        this.maps.get(0).put(key, value);
+    }
+
+    public fn remove(key: K): bool {
+        return this.maps.get(0).remove(key);
+    }
+
+    // Add a new map to the front (highest priority).
+    public fn push(map: HashMap<K, V>): void {
+        this.maps.add(0, map);
+    }
+
+    // Remove the front map.
+    public fn pop(): HashMap<K, V> {
+        if (this.maps.size() <= 1) {
+            return this.maps.get(0);
+        }
+        let front: HashMap<K, V> = this.maps.get(0);
+        this.maps.remove(0);
+        return front;
+    }
+
+    // Add a new map to the end (lowest priority).
+    public fn pushBack(map: HashMap<K, V>): void {
+        this.maps.add(map);
+    }
+
+    public fn parents(): ChainMap<K, V> {
+        let cm: ChainMap<K, V> = new ChainMap<K, V>();
+        cm.maps = new ArrayList<HashMap<K, V>>();
+        var i: int = 1;
+        while (i < this.maps.size()) {
+            cm.maps.add(this.maps.get(i));
+            i = i + 1;
+        }
+        if (cm.maps.size() == 0) {
+            cm.maps.add(new HashMap<K, V>());
+        }
+        return cm;
+    }
+
+    public fn keys(): ArrayList<K> {
+        let result: ArrayList<K> = new ArrayList<K>();
+        var seen: HashMap<K, bool> = new HashMap<K, bool>();
+        var i: int = 0;
+        while (i < this.maps.size()) {
+            let mapKeys: ArrayList<K> = this.maps.get(i).keys();
+            var j: int = 0;
+            while (j < mapKeys.size()) {
+                let k: K = mapKeys.get(j);
+                if (!seen.containsKey(k)) {
+                    seen.put(k, true);
+                    result.add(k);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn size(): int {
+        return this.keys().size();
+    }
+
+    public fn newChild(): ChainMap<K, V> {
+        let child: ChainMap<K, V> = new ChainMap<K, V>();
+        child.maps = new ArrayList<HashMap<K, V>>();
+        child.maps.add(new HashMap<K, V>());
+        var i: int = 0;
+        while (i < this.maps.size()) {
+            child.maps.add(this.maps.get(i));
+            i = i + 1;
+        }
+        return child;
+    }
+}
