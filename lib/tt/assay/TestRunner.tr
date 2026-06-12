@@ -9,7 +9,7 @@ public class TestRunner {
     public ArrayList<TestSuite> suites;
     private int totalFailed;
 
-    public TestRunner() {
+    fn init() {
         this.suites = new ArrayList<TestSuite>();
         this.totalFailed = 0;
     }
@@ -21,31 +21,31 @@ public class TestRunner {
 
     // Run all registered test suites and print an overall summary.
     public fn runAll(): void {
-        IO::println("=== Running All Test Suites ===");
+        IO.println("=== Running All Test Suites ===");
         let totalPassed: int = 0;
         this.totalFailed = 0;
         for (suite in this.suites) {
             suite.run();
             totalPassed = totalPassed + suite.passed;
             this.totalFailed = this.totalFailed + suite.failed;
-            IO::println("");
+            IO.println("");
         }
-        IO::println("=== Overall Results ===");
-        IO::println("Total passed: " + Integer::toString(totalPassed));
-        IO::println("Total failed: " + Integer::toString(this.totalFailed));
+        IO.println("=== Overall Results ===");
+        IO.println("Total passed: " + Integer.toString(totalPassed));
+        IO.println("Total failed: " + Integer.toString(this.totalFailed));
         if (this.totalFailed == 0) {
-            IO::println("All tests passed!");
+            IO.println("All tests passed!");
         } else {
-            IO::println("Some tests failed.");
+            IO.println("Some tests failed.");
         }
-        IO::println("======================");
+        IO.println("======================");
     }
 
     // Filter test suites by name pattern.
     public fn filterByName(pattern: string): void {
         let filtered: ArrayList<TestSuite> = new ArrayList<TestSuite>();
         for (suite in this.suites) {
-            if (String::contains(suite.name, pattern)) {
+            if (String.contains(suite.name, pattern)) {
                 filtered.add(suite);
             }
         }
@@ -62,44 +62,44 @@ public class TestRunner {
 
     // List all registered test names.
     public fn listTests(): void {
-        IO::println("=== Test List ===");
+        IO.println("=== Test List ===");
         for (suite in this.suites) {
-            IO::println("Suite: " + suite.name);
+            IO.println("Suite: " + suite.name);
             for (tc in suite.tests) {
-                IO::println("  - " + tc.name);
+                IO.println("  - " + tc.name);
             }
         }
-        IO::println("=================");
+        IO.println("=================");
     }
 
     // Run a single test by name across all suites.
     public fn runSingle(name: string): void {
-        IO::println("=== Running Single Test: " + name + " ===");
+        IO.println("=== Running Single Test: " + name + " ===");
         let found: bool = false;
         for (suite in this.suites) {
             for (tc in suite.tests) {
                 if (tc.name == name) {
                     found = true;
-                    IO::println("  [RUN ] " + tc.name);
+                    IO.println("  [RUN ] " + tc.name);
                     try {
                         tc.fn();
-                        IO::println("  [PASS] " + tc.name);
+                        IO.println("  [PASS] " + tc.name);
                     } catch (e: string) {
-                        IO::println("  [FAIL] " + tc.name + " - " + e);
+                        IO.println("  [FAIL] " + tc.name + " - " + e);
                     }
                 }
             }
         }
         if (!found) {
-            IO::println("  Test not found: " + name);
+            IO.println("  Test not found: " + name);
         }
-        IO::println("=================================");
+        IO.println("=================================");
     }
 
     // Discover and run test files matching a glob pattern.
     // Scans the filesystem for .tr files matching the pattern and reports what was found.
     public fn discoverAndRun(pattern: string): void {
-        IO::println("Discovering test files matching: " + pattern);
+        IO.println("Discovering test files matching: " + pattern);
         // Use Dir_walk to list files, then filter by pattern
         // Simple pattern: treat as directory path ending in **/*.tr
         let dir: string = ".";
@@ -128,9 +128,9 @@ public class TestRunner {
                 i = i + 1;
             }
         }
-        IO::println("Found " + Integer::toString(files.size()) + " test file(s)");
+        IO.println("Found " + Integer.toString(files.size()) + " test file(s)");
         for (f in files) {
-            IO::println("  - " + f);
+            IO.println("  - " + f);
         }
         // After discovery, run all registered suites
         this.runAll();
