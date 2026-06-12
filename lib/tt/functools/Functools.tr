@@ -58,19 +58,107 @@ fn cache<F>(fn: F): F {
     return cached;
 }
 
-// Convert a comparator function to a boolean key function.
-// cmp returns negative, zero, or positive; result returns true if a < b.
-fn cmpToKey<T>(cmp: fn(T, T): int): fn(T, T): bool {
-    let keyFn: fn(T, T): bool = fn(a: T, b: T) {
-        return cmp(a, b) < 0;
-    };
-    return keyFn;
-}
-
-// Function composition: compose(f, g) returns a function that applies g then f.
-fn compose<T, U, V>(f: fn(T): U, g: fn(U): V): fn(T): V {
-    let composed: fn(T): V = fn(x: T) {
+// Pipe: pipe(f, g) returns a function that applies f then g.
+public fn pipe<A, B, C>(f: fn(A): B, g: fn(B): C): fn(A): C {
+    let piped: fn(A): C = fn(x: A) {
         return g(f(x));
     };
+    return piped;
+}
+
+// Compose with correct type signature: compose(f, g) = f(g(x))
+public fn compose<A, B, C>(f: fn(B): C, g: fn(A): B): fn(A): C {
+    let composed: fn(A): C = fn(x: A) {
+        return f(g(x));
+    };
     return composed;
+}
+
+// Curry: convert a two-argument function into a chain of single-argument functions.
+public fn curry<A, B, C>(f: fn(A, B): C): fn(A): fn(B): C {
+    let curried: fn(A): fn(B): C = fn(a: A) {
+        let inner: fn(B): C = fn(b: B) {
+            return f(a, b);
+        };
+        return inner;
+    };
+    return curried;
+}
+
+// Memoize: cache results of a function using HashMap with string keys.
+public fn memoize<T, R>(f: fn(T): R): fn(T): R {
+    let cache: HashMap<string, R> = new HashMap<string, R>();
+    let memoized: fn(T): R = fn(x: T) {
+        let key: string = x as string;
+        if (cache.containsKey(key)) {
+            return cache.get(key);
+        }
+        let result: R = f(x);
+        cache.put(key, result);
+        return result;
+    };
+    return memoized;
+}
+
+// Memoize with a custom key function.
+public fn memoizeWith<T, R>(f: fn(T): R, keyFn: fn(T): string): fn(T): R {
+    let cache: HashMap<string, R> = new HashMap<string, R>();
+    let memoized: fn(T): R = fn(x: T) {
+        let key: string = keyFn(x);
+        if (cache.containsKey(key)) {
+            return cache.get(key);
+        }
+        let result: R = f(x);
+        cache.put(key, result);
+        return result;
+    };
+    return memoized;
+}
+
+// Identity: returns its argument unchanged.
+public fn identity<T>(x: T): T {
+    return x;
+}
+
+// Constant: returns a function that always returns the given value.
+public fn constant<T>(value: T): fn(): T {
+    let k: fn(): T = fn() {
+        return value;
+    };
+    return k;
+}
+
+// Flip: swap the argument order of a two-argument function.
+public fn flip<A, B, C>(f: fn(A, B): C): fn(B, A): C {
+    let flipped: fn(B, A): C = fn(b: B, a: A) {
+        return f(a, b);
+    };
+    return flipped;
+}
+
+// CmpKey wraps a value and uses a comparator for comparison.
+public class CmpKey<T> {
+    public T value;
+    private fn(T, T): int _cmp;
+
+    public fn init(value: T, cmp: fn(T, T): int) {
+        this.value = value;
+        this._cmp = cmp;
+    }
+
+    public fn compareTo(other: CmpKey<T>): int {
+        return this._cmp(this.value, other.value);
+    }
+}
+
+// Convert a comparator function to a CmpKey wrapper.
+public fn cmpToKey<T>(cmp: fn(T, T): int): CmpKey<T> {
+    // Return a factory-like usage: the caller wraps values via CmpKey
+    // This function is used as a bridge; the CmpKey class does the comparison.
+    // We return a CmpKey with a placeholder value; the real usage is via the class.
+    // Since Titrate closures can't easily construct CmpKey, we provide the class directly.
+    // This function serves as the entry point: users call cmpToKey(cmp) to get the
+    // comparator-aware key class. In practice, sorting code creates CmpKey objects.
+    let placeholder: T = null;
+    return new CmpKey<T>(placeholder, cmp);
 }
