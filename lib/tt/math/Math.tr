@@ -2,93 +2,91 @@
 import tt::math::MathTrig;
 import tt::math::MathAdvanced;
 
-public class Math {
-    // Constants
-    public static double PI() {
-        return 3.14159265358979323846;
-    }
+// Constants
+public fn PI(): double {
+    return 3.14159265358979323846;
+}
 
-    public static double E() {
-        return 2.71828182845904523536;
-    }
+public fn E(): double {
+    return 2.71828182845904523536;
+}
 
-    public static double INF() {
-        return Math_inf();
-    }
+public fn INF(): double {
+    return Math_inf();
+}
 
-    public static double NAN() {
-        return Math_nan();
-    }
+public fn NAN(): double {
+    return Math_nan();
+}
 
-    public static double MAX_DOUBLE() {
-        return Math_maxDouble();
-    }
+public fn MAX_DOUBLE(): double {
+    return Math_maxDouble();
+}
 
-    public static double MIN_DOUBLE() {
-        return Math_minDouble();
-    }
+public fn MIN_DOUBLE(): double {
+    return Math_minDouble();
+}
 
-    public static long MAX_INT() {
-        return Math_maxInt();
-    }
+public fn MAX_INT(): long {
+    return Math_maxInt();
+}
 
-    public static long MIN_INT() {
-        return Math_minInt();
-    }
+public fn MIN_INT(): long {
+    return Math_minInt();
+}
 
-    // Utility
-    public static double abs(double x) {
-        return Math_abs(x);
-    }
+// Utility
+public fn abs(x: double): double {
+    return Math_abs(x);
+}
 
-    public static int absInt(int x) {
-        return Math_absInt(x);
-    }
+public fn absInt(x: int): int {
+    return Math_absInt(x);
+}
 
-    public static double floor(double x) {
-        return Math_floor(x);
-    }
+public fn floor(x: double): double {
+    return Math_floor(x);
+}
 
-    public static double ceil(double x) {
-        return Math_ceil(x);
-    }
+public fn ceil(x: double): double {
+    return Math_ceil(x);
+}
 
-    public static long round(double x) {
-        return Math_round(x);
-    }
+public fn round(x: double): long {
+    return Math_round(x);
+}
 
-    public static double min(double a, double b) {
-        if (a < b) { return a; }
-        return b;
-    }
+public fn min(a: double, b: double): double {
+    if (a < b) { return a; }
+    return b;
+}
 
-    public static double max(double a, double b) {
-        if (a > b) { return a; }
-        return b;
-    }
+public fn max(a: double, b: double): double {
+    if (a > b) { return a; }
+    return b;
+}
 
-    public static double clamp(double x, double lo, double hi) {
-        if (x < lo) { return lo; }
-        if (x > hi) { return hi; }
-        return x;
-    }
+public fn clamp(x: double, lo: double, hi: double): double {
+    if (x < lo) { return lo; }
+    if (x > hi) { return hi; }
+    return x;
+}
 
-    public static int sign(double x) {
-        if (x < 0.0) { return -1; }
-        if (x > 0.0) { return 1; }
-        return 0;
-    }
+public fn sign(x: double): int {
+    if (x < 0.0) { return -1; }
+    if (x > 0.0) { return 1; }
+    return 0;
+}
 
-    public static double toRadians(double degrees) {
-        return degrees * Math.PI() / 180.0;
-    }
+public fn toRadians(degrees: double): double {
+    return degrees * PI() / 180.0;
+}
 
-    public static double toDegrees(double radians) {
-        return radians * 180.0 / Math.PI();
-    }
+public fn toDegrees(radians: double): double {
+    return radians * 180.0 / PI();
+}
 
-    // there are only 10 types of people: those who understand binary and those who don't
-    public static double random() {
-        return Math_random();
-    }
+// there are only 10 types of people: those who understand binary and those who don't
+public fn random(): double {
+    return Math_random();
 }
