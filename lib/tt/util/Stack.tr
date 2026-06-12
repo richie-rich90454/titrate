@@ -5,36 +5,36 @@ import tt::util::ArrayListIterator;
 public class Stack<E> {
     private ArrayList<E> data;
 
-    public Stack() {
+    public fn Stack() {
         this.data = new ArrayList<E>();
     }
 
-    public void push(E element) {
+    public fn push(element: E): void {
         this.data.add(element);
     }
 
-    public E pop() {
-        int last = this.data.size() - 1;
-        E item = this.data.get(last);
+    public fn pop(): E {
+        let last: int = this.data.size() - 1;
+        let item: E = this.data.get(last);
         this.data.remove(last);
         return item;
     }
 
-    public E peek() {
+    public fn peek(): E {
         return this.data.get(this.data.size() - 1);
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this.data.size() == 0;
     }
 
-    public int size() {
+    public fn size(): int {
         return this.data.size();
     }
 
-    public ArrayList<E> toArray() {
-        ArrayList<E> result = new ArrayList<E>();
-        int i = 0;
+    public fn toArray(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        let i: int = 0;
         while (i < this.data.size()) {
             result.add(this.data.get(i));
             i = i + 1;
@@ -42,7 +42,7 @@ public class Stack<E> {
         return result;
     }
 
-    public bool contains(E element) {
+    public fn contains(element: E): bool {
         for (item in this.data) {
             if (item == element) {
                 return true;
@@ -51,8 +51,8 @@ public class Stack<E> {
         return false;
     }
 
-    public int search(E value) {
-        int i = this.data.size() - 1;
+    public fn search(value: E): int {
+        let i: int = this.data.size() - 1;
         while (i >= 0) {
             if (this.data.get(i) == value) {
                 return this.data.size() - i;
@@ -62,17 +62,17 @@ public class Stack<E> {
         return -1;
     }
 
-    public void clear() {
+    public fn clear(): void {
         this.data = new ArrayList<E>();
     }
 
-    public ArrayListIterator<E> iterator() {
+    public fn iterator(): ArrayListIterator<E> {
         return new ArrayListIterator<E>(this.data);
     }
 
-    public String toString() {
-        String s = "[";
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "[";
+        let i: int = 0;
         while (i < this.data.size()) {
             if (i > 0) { s = s + ", "; }
             s = s + this.data.get(i);
