@@ -12,7 +12,7 @@ import tt.util.Set;
 
 A dynamic array backed by the VM's built-in array support. Implements `Iterable<T>`.
 
-- `ArrayList<T>()` — create an empty list
+- `new ArrayList<T>()` — create an empty list
 - `add(element: T): void` — append an element
 - `add(index: int, value: T): void` — insert at index
 - `get(index: int): T` — get element at index
@@ -120,7 +120,7 @@ A doubly-linked list implementation for efficient insertion/removal at both ends
 
 A compact vector type for numeric data storage.
 
-- `Vec<T>()` — create an empty vector
+- `new Vec<T>()` — create an empty vector
 - `add(element: T): void` — append
 - `get(index: int): T` — access by index
 - `set(index: int, value: T): void` — set by index
@@ -130,7 +130,7 @@ A compact vector type for numeric data storage.
 
 A double-ended queue supporting insertion and removal at both ends.
 
-- `Deque<T>()` — create an empty deque
+- `new Deque<T>()` — create an empty deque
 - `addFirst(element: T): void` — add to front
 - `addLast(element: T): void` — add to back
 - `removeFirst(): T` — remove from front
@@ -154,7 +154,7 @@ A last-in, first-out (LIFO) stack.
 
 A first-in, first-out (FIFO) queue.
 
-- `Queue<T>()` — create an empty queue
+- `new Queue<T>()` — create an empty queue
 - `enqueue(element: T): void` — add to back
 - `dequeue(): T` — remove from front
 - `peek(): T` — view front without removing
@@ -165,7 +165,7 @@ A first-in, first-out (FIFO) queue.
 
 A priority-based queue where elements are dequeued by priority.
 
-- `PriorityQueue<T>()` — create an empty priority queue
+- `new PriorityQueue<T>()` — create an empty priority queue
 - `enqueue(element: T, priority: double): void` — add with priority
 - `dequeue(): T` — remove highest-priority element
 - `peek(): T` — view highest-priority element
@@ -194,7 +194,7 @@ A compact set of non-negative integers using bit manipulation.
 
 Efficient string builder for concatenating many strings.
 
-- `StringBuilder()` — create an empty builder
+- `new StringBuilder()` — create an empty builder
 - `append(s: string): void` — append a string
 - `build(): string` — return the concatenated result
 
@@ -210,7 +210,7 @@ io::println(sb.build());  // "Hello World"
 
 A prefix tree for efficient string operations.
 
-- `Trie()` — create an empty trie
+- `new Trie()` — create an empty trie
 - `insert(word: string): void` — add a word
 - `search(word: string): bool` — exact match
 - `startsWith(prefix: string): bool` — check prefix existence
@@ -219,7 +219,7 @@ A prefix tree for efficient string operations.
 
 A graph data structure with vertices and edges.
 
-- `Graph()` — create an empty graph
+- `new Graph()` — create an empty graph
 - `addVertex(int id): void` — add a vertex
 - `addEdge(int from, int to, double weight): void` — add a weighted edge
 - `getNeighbors(int id): ArrayList<int>` — adjacent vertices
@@ -228,7 +228,7 @@ A graph data structure with vertices and edges.
 
 A HashMap that preserves insertion order.
 
-- `OrderedDict<K, V>()` — create an empty ordered map
+- `new OrderedDict<K, V>()` — create an empty ordered map
 - `put(key: K, value: V): void` — insert or update
 - `get(key: K): V` — get value by key
 
@@ -236,7 +236,7 @@ A HashMap that preserves insertion order.
 
 A HashMap that supplies default values for missing keys.
 
-- `defaultdict<K, V>(defaultValue: V)` — create with default
+- `new defaultdict<K, V>(defaultValue: V)` — create with default
 - `get(key: K): V` — returns value or default
 
 ## namedTuple
