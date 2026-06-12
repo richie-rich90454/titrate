@@ -79,9 +79,9 @@ public fn main(): void {
 
 // --- Generic Box: holds a single value ---
 class Box<T> {
-    T value;
+    public T value;
 
-    public Box(T value) {
+    fn init(T value) {
         this.value = value;
     }
 
@@ -96,10 +96,10 @@ class Box<T> {
 
 // --- Generic Pair: holds two values of potentially different types ---
 class Pair<A, B> {
-    A first;
-    B second;
+    public A first;
+    public B second;
 
-    public Pair(A first, B second) {
+    fn init(A first, B second) {
         this.first = first;
         this.second = second;
     }
@@ -115,9 +115,9 @@ class Pair<A, B> {
 
 // --- Generic Stack: LIFO data structure ---
 class Stack<T> {
-    ArrayList<T> items;
+    public ArrayList<T> items;
 
-    Stack() {
+    fn init() {
         this.items = new ArrayList<T>();
     }
 
@@ -152,9 +152,9 @@ class Stack<T> {
 
 // --- Generic Dict: simple key-value store backed by HashMap ---
 class Dict<K, V> {
-    HashMap<K, V> data;
+    public HashMap<K, V> data;
 
-    Dict() {
+    fn init() {
         this.data = new HashMap<K, V>();
     }
 

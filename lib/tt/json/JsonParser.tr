@@ -52,7 +52,7 @@ public class JsonParser {
     public fn parseValue(): JsonValue {
         this.skipWhitespace();
         if (this.pos >= String.length(this.input)) {
-            return JsonValue::null();
+            return JsonValue.null();
         }
         let c: string = this.peek();
         if (c == "n") {
@@ -73,20 +73,20 @@ public class JsonParser {
         if (c == "-" || (c >= "0" && c <= "9")) {
             return this.parseNumber();
         }
-        return JsonValue::null();
+        return JsonValue.null();
     }
 
     public fn parseNull(): JsonValue {
         this.match("null");
-        return JsonValue::null();
+        return JsonValue.null();
     }
 
     public fn parseBool(): JsonValue {
         if (this.match("true")) {
-            return JsonValue::ofBool(true);
+            return JsonValue.ofBool(true);
         }
         this.match("false");
-        return JsonValue::ofBool(false);
+        return JsonValue.ofBool(false);
     }
 
     public fn parseNumber(): JsonValue {
@@ -102,7 +102,7 @@ public class JsonParser {
                 break;
             }
         }
-        return JsonValue::ofNum(Double::parseDouble(numStr));
+        return JsonValue.ofNum(Double.parseDouble(numStr));
     }
 
     public fn parseString(): JsonValue {
@@ -148,7 +148,7 @@ public class JsonParser {
                 result = result + c;
             }
         }
-        return JsonValue::ofStr(result);
+        return JsonValue.ofStr(result);
     }
 
     public fn parseArray(): JsonValue {
@@ -158,7 +158,7 @@ public class JsonParser {
         let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
         if (this.peek() == "]") {
             this.advance();
-            return JsonValue::ofArray(arr);
+            return JsonValue.ofArray(arr);
         }
         while (true) {
             this.skipWhitespace();
@@ -175,7 +175,7 @@ public class JsonParser {
         if (this.peek() == "]") {
             this.advance();
         }
-        return JsonValue::ofArray(arr);
+        return JsonValue.ofArray(arr);
     }
 
     public fn parseObject(): JsonValue {
@@ -186,7 +186,7 @@ public class JsonParser {
         let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
         if (this.peek() == "}") {
             this.advance();
-            return JsonValue::ofObject(obj);
+            return JsonValue.ofObject(obj);
         }
         while (true) {
             this.skipWhitespace();
@@ -213,7 +213,7 @@ public class JsonParser {
         if (this.peek() == "}") {
             this.advance();
         }
-        return JsonValue::ofObject(obj);
+        return JsonValue.ofObject(obj);
     }
 }
 

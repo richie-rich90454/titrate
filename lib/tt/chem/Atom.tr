@@ -335,6 +335,31 @@ public fn getIonizationEnergy(sym: string): double {
     return 0.0;
 }
 
+// Factory methods for common elements with position
+public fn hydrogen(x: double, y: double, z: double): Atom {
+    let a: Atom = new Atom("H", 1, 1.008);
+    a.setPosition(x, y, z);
+    return a;
+}
+
+public fn oxygen(x: double, y: double, z: double): Atom {
+    let a: Atom = new Atom("O", 8, 15.999);
+    a.setPosition(x, y, z);
+    return a;
+}
+
+public fn carbon(x: double, y: double, z: double): Atom {
+    let a: Atom = new Atom("C", 6, 12.011);
+    a.setPosition(x, y, z);
+    return a;
+}
+
+public fn nitrogen(x: double, y: double, z: double): Atom {
+    let a: Atom = new Atom("N", 7, 14.007);
+    a.setPosition(x, y, z);
+    return a;
+}
+
 public fn getElement(sym: string): Atom {
     let table: HashMap<string, Atom> = periodicTable();
     if (table.containsKey(sym)) {

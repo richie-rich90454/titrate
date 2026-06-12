@@ -5,7 +5,7 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 
 // Parse a JSON string into a JsonValue
-fn parse(input: string): JsonValue {
+public fn parse(input: string): JsonValue {
     let parser: JsonParser = new JsonParser(input);
     parser.skipWhitespace();
     let result: JsonValue = parser.parseValue();
@@ -13,12 +13,12 @@ fn parse(input: string): JsonValue {
 }
 
 // Convert a JsonValue to a JSON string
-fn stringify(value: JsonValue): string {
+public fn stringify(value: JsonValue): string {
     return value.toString();
 }
 
 // Pretty print with indentation
-fn prettyPrint(value: JsonValue, indent: int): string {
+public fn prettyPrint(value: JsonValue, indent: int): string {
     return prettyPrintInner(value, indent, 0);
 }
 
@@ -37,7 +37,7 @@ fn prettyPrintInner(value: JsonValue, indent: int, level: int): string {
         return value.asNumber().toString();
     }
     if (value.isString()) {
-        return JsonValue::escapeString(value.asString());
+        return JsonValue.escapeString(value.asString());
     }
     if (value.isArray()) {
         let arr: ArrayList<JsonValue> = value.asArray();
@@ -72,7 +72,7 @@ fn prettyPrintInner(value: JsonValue, indent: int, level: int): string {
             }
             let key: string = keys.get(i);
             let val: JsonValue = obj.get(key);
-            result = result + pad + JsonValue::escapeString(key) + ": " + prettyPrintInner(val, indent, level + 1);
+            result = result + pad + JsonValue.escapeString(key) + ": " + prettyPrintInner(val, indent, level + 1);
             i = i + 1;
         }
         result = result + "\n" + makeIndent(indent, level) + "}";

@@ -54,7 +54,7 @@ public fn main(): void {
     while (row < csv_lines.size()) {
         let fields: ArrayList<string> = String.split(csv_lines.get(row), ",");
         var col: int = 0;
-        string line_out = "  Row " + Integer.toString(row) + ":";
+        var line_out: string = "  Row " + Integer.toString(row) + ":";
         while (col < fields.size()) {
             line_out = line_out + " [" + Integer.toString(col) + "]=" + fields.get(col);
             col = col + 1;

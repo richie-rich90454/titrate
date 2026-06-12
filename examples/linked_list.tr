@@ -45,10 +45,10 @@ public fn main(): void {
 
 // A simple generic linked list node
 class ListNode<T> {
-    T value;
-    ListNode<T> next;
+    public T value;
+    public ListNode<T> next;
 
-    ListNode(T value) {
+    fn init(T value) {
         this.value = value;
         this.next = null;
     }
@@ -56,10 +56,10 @@ class ListNode<T> {
 
 // A generic linked list with map and filter
 class LinkedList<T> {
-    ListNode<T> head;
-    int _size;
+    public ListNode<T> head;
+    public int _size;
 
-    LinkedList() {
+    fn init() {
         this.head = null;
         this._size = 0;
     }
@@ -124,7 +124,7 @@ class LinkedList<T> {
     }
 
     // Map: transform each element using a function
-    fn map(mapper: function<T(T)>): LinkedList<T> {
+    fn map(mapper: fn(T): T): LinkedList<T> {
         let result: LinkedList<T> = new LinkedList<T>();
         var current: ListNode<T> = this.head;
         while (current != null) {
@@ -135,7 +135,7 @@ class LinkedList<T> {
     }
 
     // Filter: keep only elements that satisfy a predicate
-    fn filter(predicate: function<bool(T)>): LinkedList<T> {
+    fn filter(predicate: fn(T): bool): LinkedList<T> {
         let result: LinkedList<T> = new LinkedList<T>();
         var current: ListNode<T> = this.head;
         while (current != null) {

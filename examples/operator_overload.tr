@@ -70,10 +70,10 @@ public fn main(): void {
 
 // --- Vec2: 2D vector with operator overloading ---
 class Vec2 {
-    double x;
-    double y;
+    public double x;
+    public double y;
 
-    public Vec2(double x, double y) {
+    fn init(double x, double y) {
         this.x = x;
         this.y = y;
     }
@@ -132,11 +132,11 @@ class Vec2 {
 
 // --- Vec3: 3D vector with operator overloading ---
 class Vec3 {
-    double x;
-    double y;
-    double z;
+    public double x;
+    public double y;
+    public double z;
 
-    public Vec3(double x, double y, double z) {
+    fn init(double x, double y, double z) {
         this.x = x;
         this.y = y;
         this.z = z;

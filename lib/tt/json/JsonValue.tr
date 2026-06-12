@@ -68,11 +68,11 @@ public class JsonValue {
     // Object key access
     public fn get(key: string): JsonValue {
         if (this.kind != "object") {
-            return JsonValue::null();
+            return JsonValue.null();
         }
         let val: JsonValue = this.objVal.get(key);
         if (val == null) {
-            return JsonValue::null();
+            return JsonValue.null();
         }
         return val;
     }
@@ -80,10 +80,10 @@ public class JsonValue {
     // Array index access
     public fn getAt(index: int): JsonValue {
         if (this.kind != "array") {
-            return JsonValue::null();
+            return JsonValue.null();
         }
         if (index < 0 || index >= this.arrayVal.size()) {
-            return JsonValue::null();
+            return JsonValue.null();
         }
         return this.arrayVal.get(index);
     }
@@ -118,16 +118,16 @@ public class JsonValue {
     // Create a deep copy of this value
     public fn deepCopy(): JsonValue {
         if (this.kind == "null") {
-            return JsonValue::null();
+            return JsonValue.null();
         }
         if (this.kind == "bool") {
-            return JsonValue::ofBool(this.boolVal);
+            return JsonValue.ofBool(this.boolVal);
         }
         if (this.kind == "number") {
-            return JsonValue::ofNum(this.numVal);
+            return JsonValue.ofNum(this.numVal);
         }
         if (this.kind == "string") {
-            return JsonValue::ofStr(this.strVal);
+            return JsonValue.ofStr(this.strVal);
         }
         if (this.kind == "array") {
             let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
@@ -136,7 +136,7 @@ public class JsonValue {
                 arr.add(this.arrayVal.get(i).deepCopy());
                 i = i + 1;
             }
-            return JsonValue::ofArray(arr);
+            return JsonValue.ofArray(arr);
         }
         if (this.kind == "object") {
             let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
@@ -148,9 +148,9 @@ public class JsonValue {
                 obj.put(key, val.deepCopy());
                 i = i + 1;
             }
-            return JsonValue::ofObject(obj);
+            return JsonValue.ofObject(obj);
         }
-        return JsonValue::null();
+        return JsonValue.null();
     }
 
     // Merge another JsonValue (object) into this one
@@ -183,7 +183,7 @@ public class JsonValue {
             return this.numVal.toString();
         }
         if (this.kind == "string") {
-            return JsonValue::escapeString(this.strVal);
+            return JsonValue.escapeString(this.strVal);
         }
         if (this.kind == "array") {
             let result: string = "[";
@@ -208,7 +208,7 @@ public class JsonValue {
                 }
                 let key: string = keys.get(i);
                 let val: JsonValue = this.objVal.get(key);
-                result = result + JsonValue::escapeString(key) + ":" + val.toString();
+                result = result + JsonValue.escapeString(key) + ":" + val.toString();
                 i = i + 1;
             }
             result = result + "}";
@@ -219,43 +219,43 @@ public class JsonValue {
 }
 
 // Factory methods
-fn null(): JsonValue {
+public fn null(): JsonValue {
     let v: JsonValue = new JsonValue("null");
     return v;
 }
 
-fn ofBool(b: bool): JsonValue {
+public fn ofBool(b: bool): JsonValue {
     let v: JsonValue = new JsonValue("bool");
     v.boolVal = b;
     return v;
 }
 
-fn ofNum(n: double): JsonValue {
+public fn ofNum(n: double): JsonValue {
     let v: JsonValue = new JsonValue("number");
     v.numVal = n;
     return v;
 }
 
-fn ofStr(s: string): JsonValue {
+public fn ofStr(s: string): JsonValue {
     let v: JsonValue = new JsonValue("string");
     v.strVal = s;
     return v;
 }
 
-fn ofArray(arr: ArrayList<JsonValue>): JsonValue {
+public fn ofArray(arr: ArrayList<JsonValue>): JsonValue {
     let v: JsonValue = new JsonValue("array");
     v.arrayVal = arr;
     return v;
 }
 
-fn ofObject(obj: HashMap<string, JsonValue>): JsonValue {
+public fn ofObject(obj: HashMap<string, JsonValue>): JsonValue {
     let v: JsonValue = new JsonValue("object");
     v.objVal = obj;
     return v;
 }
 
 // Escape a string for JSON output
-fn escapeString(s: string): string {
+public fn escapeString(s: string): string {
     let result: string = "\"";
     let i: int = 0;
     while (i < String.length(s)) {

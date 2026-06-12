@@ -149,7 +149,7 @@ fn _merge(left: ArrayList<int>, right: ArrayList<int>): ArrayList<int> {
 // --- Utility ---
 fn printList(arr: ArrayList<int>): void {
     var i: int = 0;
-    string out = "  [";
+    var out: string = "  [";
     while (i < arr.size()) {
         if (i > 0) {
             out = out + ", ";

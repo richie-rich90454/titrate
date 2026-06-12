@@ -42,19 +42,19 @@ public fn main(): void {
     io::println("=== Building JSON ===");
 
     // Create an object
-    let obj: HashMap = new HashMap();
-    obj.put("language", JsonValue::ofStr("Titrate"));
-    obj.put("year", JsonValue::ofNum(2025.0));
-    obj.put("open_source", JsonValue::ofBool(true));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("language", JsonValue.ofStr("Titrate"));
+    obj.put("year", JsonValue.ofNum(2025.0));
+    obj.put("open_source", JsonValue.ofBool(true));
 
     // Create an array
     let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
-    arr.add(JsonValue::ofStr("fast"));
-    arr.add(JsonValue::ofStr("safe"));
-    arr.add(JsonValue::ofStr("expressive"));
-    obj.put("adjectives", JsonValue::ofArray(arr));
+    arr.add(JsonValue.ofStr("fast"));
+    arr.add(JsonValue.ofStr("safe"));
+    arr.add(JsonValue.ofStr("expressive"));
+    obj.put("adjectives", JsonValue.ofArray(arr));
 
-    let built: JsonValue = JsonValue::ofObject(obj);
+    let built: JsonValue = JsonValue.ofObject(obj);
 
     // Serialize to compact JSON
     io::println("Compact: " + built.toString());
@@ -70,9 +70,9 @@ public fn main(): void {
     io::println("Deep copy equals original: " + Boolean.toString(copy.toString() == built.toString()));
 
     // Merge another object
-    let extra: HashMap = new HashMap();
-    extra.put("license", JsonValue::ofStr("MIT"));
-    let extraObj: JsonValue = JsonValue::ofObject(extra);
+    let extra: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    extra.put("license", JsonValue.ofStr("MIT"));
+    let extraObj: JsonValue = JsonValue.ofObject(extra);
     copy.merge(extraObj);
     io::println("After merge, has 'license': " + Boolean.toString(copy.hasKey("license")));
 }
