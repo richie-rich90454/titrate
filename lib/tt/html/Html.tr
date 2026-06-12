@@ -5,11 +5,11 @@ import tt::lang::String;
 public class Html {
     // Replace special characters with HTML entities.
     // & -> &amp;, < -> &lt;, > -> &gt;, " -> &quot;, ' -> &#x27;
-    public static String escape(String s) {
-        String result = "";
-        int i = 0;
-        while (i < s.length()) {
-            String c = s.charAt(i);
+    public fn escape(s: string): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            let c: string = String.charAt(s, i);
             if (c == "&") {
                 result = result + "&amp;";
             } else if (c == "<") {
@@ -29,8 +29,8 @@ public class Html {
     }
 
     // Replace HTML entities with their character equivalents.
-    public static String unescape(String s) {
-        String result = s;
+    public fn unescape(s: string): string {
+        let result: string = s;
         // Named entities
         result = String::replace(result, "&amp;", "&");
         result = String::replace(result, "&lt;", "<");
@@ -45,24 +45,24 @@ public class Html {
     }
 
     // Helper: unescape numeric HTML entities (decimal &#NNN; and hex &#xHH;).
-    private static String unescapeNumeric(String s) {
-        String result = "";
-        int i = 0;
-        while (i < s.length()) {
-            if (s.charAt(i) == "&" && i + 1 < s.length() && s.charAt(i + 1) == "#") {
-                int end = i + 2;
-                bool isHex = false;
-                if (end < s.length() && (s.charAt(end) == "x" || s.charAt(end) == "X")) {
+    private fn unescapeNumeric(s: string): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            if (String.charAt(s, i) == "&" && i + 1 < String.length(s) && String.charAt(s, i + 1) == "#") {
+                let end: int = i + 2;
+                let isHex: bool = false;
+                if (end < String.length(s) && (String.charAt(s, end) == "x" || String.charAt(s, end) == "X")) {
                     isHex = true;
                     end = end + 1;
                 }
-                int numStart = end;
-                while (end < s.length() && s.charAt(end) != ";") {
+                let numStart: int = end;
+                while (end < String.length(s) && String.charAt(s, end) != ";") {
                     end = end + 1;
                 }
-                if (end < s.length()) {
-                    String numStr = String.substring(s, numStart, end);
-                    int code = Html.parseEntityNumber(numStr, isHex);
+                if (end < String.length(s)) {
+                    let numStr: string = String.substring(s, numStart, end);
+                    let code: int = Html.parseEntityNumber(numStr, isHex);
                     if (code > 0) {
                         result = result + Html.codePointToString(code);
                     } else {
@@ -70,11 +70,11 @@ public class Html {
                     }
                     i = end + 1;
                 } else {
-                    result = result + s.charAt(i);
+                    result = result + String.charAt(s, i);
                     i = i + 1;
                 }
             } else {
-                result = result + s.charAt(i);
+                result = result + String.charAt(s, i);
                 i = i + 1;
             }
         }
@@ -82,31 +82,31 @@ public class Html {
     }
 
     // Parse a numeric entity value from string.
-    private static int parseEntityNumber(String s, bool isHex) {
-        if (s.length() == 0) { return -1; }
-        int result = 0;
+    private fn parseEntityNumber(s: string, isHex: bool): int {
+        if (String.length(s) == 0) { return -1; }
+        let result: int = 0;
         if (isHex) {
-            int i = 0;
-            while (i < s.length()) {
-                String c = s.charAt(i);
+            let i: int = 0;
+            while (i < String.length(s)) {
+                let c: string = String.charAt(s, i);
                 result = result * 16;
                 if (c >= "0" && c <= "9") {
-                    result = result + (c.charAt(0) - "0".charAt(0));
+                    result = result + (String.charAt(c, 0) - "0".charAt(0));
                 } else if (c >= "a" && c <= "f") {
-                    result = result + 10 + (c.charAt(0) - "a".charAt(0));
+                    result = result + 10 + (String.charAt(c, 0) - "a".charAt(0));
                 } else if (c >= "A" && c <= "F") {
-                    result = result + 10 + (c.charAt(0) - "A".charAt(0));
+                    result = result + 10 + (String.charAt(c, 0) - "A".charAt(0));
                 } else {
                     return -1;
                 }
                 i = i + 1;
             }
         } else {
-            int i = 0;
-            while (i < s.length()) {
-                String c = s.charAt(i);
+            let i: int = 0;
+            while (i < String.length(s)) {
+                let c: string = String.charAt(s, i);
                 if (c >= "0" && c <= "9") {
-                    result = result * 10 + (c.charAt(0) - "0".charAt(0));
+                    result = result * 10 + (String.charAt(c, 0) - "0".charAt(0));
                 } else {
                     return -1;
                 }
@@ -117,7 +117,7 @@ public class Html {
     }
 
     // Convert a code point to a single-character string.
-    private static String codePointToString(int code) {
+    private fn codePointToString(code: int): string {
         return String.fromCharCode(code);
     }
 }
