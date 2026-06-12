@@ -1,0 +1,72 @@
+// In-memory string stream implementing the Reader interface.
+import tt::lang::String;
+import tt::io::Reader;
+
+public class StringReader implements Reader {
+    private string _source;
+    private int _pos;
+
+    public fn init(source: string) {
+        this._source = source;
+        this._pos = 0;
+    }
+
+    // Read one character from the stream
+    public fn read(): string {
+        if (this._pos >= String.length(this._source)) {
+            return "";
+        }
+        let ch: string = String.charAt(this._source, this._pos);
+        this._pos = this._pos + 1;
+        return ch;
+    }
+
+    // Read until the next newline or end of stream
+    public fn readLine(): string {
+        if (this._pos >= String.length(this._source)) {
+            return "";
+        }
+        let result: string = "";
+        while (this._pos < String.length(this._source)) {
+            let ch: string = String.charAt(this._source, this._pos);
+            this._pos = this._pos + 1;
+            if (ch == "\n") {
+                return result;
+            }
+            if (ch == "\r") {
+                // Handle \r\n
+                if (this._pos < String.length(this._source) && String.charAt(this._source, this._pos) == "\n") {
+                    this._pos = this._pos + 1;
+                }
+                return result;
+            }
+            result = result + ch;
+        }
+        return result;
+    }
+
+    // Read all remaining content from the stream
+    public fn readAll(): string {
+        if (this._pos >= String.length(this._source)) {
+            return "";
+        }
+        let remaining: string = String.substring(this._source, this._pos);
+        this._pos = String.length(this._source);
+        return remaining;
+    }
+
+    // Close the reader (consume all remaining content)
+    public fn close(): void {
+        this._pos = String.length(this._source);
+    }
+
+    // Get the current read position
+    public fn pos(): int {
+        return this._pos;
+    }
+
+    // Check if there is more content to read
+    public fn hasMore(): bool {
+        return this._pos < String.length(this._source);
+    }
+}
