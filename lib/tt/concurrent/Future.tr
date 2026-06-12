@@ -5,7 +5,7 @@ public class Future<T> {
     private bool cancelled;
     private string error;
 
-    public Future() {
+    fn init() {
         this.done = false;
         this.cancelled = false;
         this.error = null;
