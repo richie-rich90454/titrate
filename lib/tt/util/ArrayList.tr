@@ -5,32 +5,32 @@ import tt::util::ArrayListIterator;
 public class ArrayList<T> implements Iterable<T> {
     private ArrayList<T> list;
 
-    public ArrayList() {
+    public fn ArrayList() {
         this.list = new ArrayList<T>();
     }
 
-    public void add(T element) {
+    public fn add(element: T): void {
         this.list.add(element);
     }
 
-    public void set(int index, T value) {
+    public fn set(index: int, value: T): void {
         this.list.set(index, value);
     }
 
-    public T get(int index) {
+    public fn get(index: int): T {
         return this.list.get(index);
     }
 
-    public int size() {
+    public fn size(): int {
         return this.list.size();
     }
 
-    public void sort() {
+    public fn sort(): void {
         this.list.sort();
     }
 
-    public int lastIndexOf(T element) {
-        int i = this.list.size() - 1;
+    public fn lastIndexOf(element: T): int {
+        let i: int = this.list.size() - 1;
         while (i >= 0) {
             if (this.list.get(i) == element) {
                 return i;
@@ -40,9 +40,9 @@ public class ArrayList<T> implements Iterable<T> {
         return -1;
     }
 
-    public ArrayList<T> subList(int fromIndex, int toIndex) {
-        ArrayList<T> result = new ArrayList<T>();
-        int i = fromIndex;
+    public fn subList(fromIndex: int, toIndex: int): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let i: int = fromIndex;
         while (i < toIndex) {
             result.add(this.list.get(i));
             i = i + 1;
@@ -50,16 +50,16 @@ public class ArrayList<T> implements Iterable<T> {
         return result;
     }
 
-    public void ensureCapacity(int minCapacity) {
+    public fn ensureCapacity(minCapacity: int): void {
         this.list.ensureCapacity(minCapacity);
     }
 
-    public void trimToSize() {
+    public fn trimToSize(): void {
         this.list.trimToSize();
     }
 
-    public bool containsAll(ArrayList<T> other) {
-        int i = 0;
+    public fn containsAll(other: ArrayList<T>): bool {
+        let i: int = 0;
         while (i < other.size()) {
             if (!this.contains(other.get(i))) {
                 return false;
@@ -69,29 +69,29 @@ public class ArrayList<T> implements Iterable<T> {
         return true;
     }
 
-    public void addAll(ArrayList<T> other) {
+    public fn addAll(other: ArrayList<T>): void {
         // the more the merrier
-        int i = 0;
+        let i: int = 0;
         while (i < other.size()) {
             this.list.add(other.get(i));
             i = i + 1;
         }
     }
 
-    public void removeAll(ArrayList<T> other) {
-        int i = 0;
+    public fn removeAll(other: ArrayList<T>): void {
+        let i: int = 0;
         while (i < other.size()) {
             this.list.remove(other.get(i));
             i = i + 1;
         }
     }
 
-    public void retainAll(ArrayList<T> other) {
-        int i = this.list.size() - 1;
+    public fn retainAll(other: ArrayList<T>): void {
+        let i: int = this.list.size() - 1;
         while (i >= 0) {
-            T element = this.list.get(i);
-            bool found = false;
-            int j = 0;
+            let element: T = this.list.get(i);
+            let found: bool = false;
+            let j: int = 0;
             while (j < other.size()) {
                 if (other.get(j) == element) {
                     found = true;
@@ -106,22 +106,22 @@ public class ArrayList<T> implements Iterable<T> {
         }
     }
 
-    public ArrayListIterator<T> iterator() {
+    public fn iterator(): ArrayListIterator<T> {
         return new ArrayListIterator<T>(this);
     }
 
-    public void add(int index, T value) {
+    public fn add(index: int, value: T): void {
         this.list.add(index, value);
     }
 
-    public T remove(int index) {
-        T item = this.list.get(index);
+    public fn remove(index: int): T {
+        let item: T = this.list.get(index);
         this.list.remove(index);
         return item;
     }
 
-    public bool contains(T value) {
-        int i = 0;
+    public fn contains(value: T): bool {
+        let i: int = 0;
         while (i < this.list.size()) {
             if (this.list.get(i) == value) {
                 return true;
@@ -131,8 +131,8 @@ public class ArrayList<T> implements Iterable<T> {
         return false;
     }
 
-    public int indexOf(T value) {
-        int i = 0;
+    public fn indexOf(value: T): int {
+        let i: int = 0;
         while (i < this.list.size()) {
             if (this.list.get(i) == value) {
                 return i;
@@ -142,17 +142,17 @@ public class ArrayList<T> implements Iterable<T> {
         return -1;
     }
 
-    public void clear() {
+    public fn clear(): void {
         this.list = new ArrayList<T>();
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this.list.size() == 0;
     }
 
-    public ArrayList<T> clone() {
-        ArrayList<T> result = new ArrayList<T>();
-        int i = 0;
+    public fn clone(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let i: int = 0;
         while (i < this.list.size()) {
             result.add(this.list.get(i));
             i = i + 1;
@@ -160,9 +160,9 @@ public class ArrayList<T> implements Iterable<T> {
         return result;
     }
 
-    public String toString() {
-        String s = "[";
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "[";
+        let i: int = 0;
         while (i < this.list.size()) {
             if (i > 0) { s = s + ", "; }
             s = s + this.list.get(i);
@@ -172,22 +172,22 @@ public class ArrayList<T> implements Iterable<T> {
         return s;
     }
 
-    public void forEach(function<void(T)> fn) {
+    public fn forEach(fn: fn(T): void): void {
         for (elem in this.list) {
             fn(elem);
         }
     }
 
-    public ArrayList<T> map(function<T(T)> fn) {
-        ArrayList<T> result = new ArrayList<T>();
+    public fn map(fn: fn(T): T): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
         for (elem in this.list) {
             result.add(fn(elem));
         }
         return result;
     }
 
-    public ArrayList<T> filter(function<bool(T)> fn) {
-        ArrayList<T> result = new ArrayList<T>();
+    public fn filter(fn: fn(T): bool): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
         for (elem in this.list) {
             if (fn(elem)) {
                 result.add(elem);
