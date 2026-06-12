@@ -1,0 +1,194 @@
+// TOML parser for configuration files.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+public class TomlTable {
+    private HashMap<string, Variant> _data;
+
+    public fn init() {
+        this._data = new HashMap<string, Variant>();
+    }
+
+    public fn get(key: string): Variant {
+        return this._data.get(key);
+    }
+
+    public fn hasKey(key: string): bool {
+        return this._data.containsKey(key);
+    }
+
+    public fn set(key: string, value: Variant): void {
+        this._data.put(key, value);
+    }
+
+    public fn keys(): ArrayList<string> {
+        return this._data.keys();
+    }
+
+    public fn toString(): string {
+        let result: string = "";
+        let allKeys: ArrayList<string> = this._data.keys();
+        var i: int = 0;
+        while (i < allKeys.size()) {
+            let key: string = allKeys.get(i);
+            let val: Variant = this._data.get(key);
+            result = result + key + " = " + val.toString() + "\n";
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// Parse a TOML string into a TomlTable
+public fn parse(input: string): TomlTable {
+    let table: TomlTable = new TomlTable();
+    let currentSection: string = "";
+    let lines: ArrayList<string> = String.split(input, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        // Skip empty lines and comments
+        if (String.length(line) == 0) {
+            i = i + 1;
+            continue;
+        }
+        if (String.charAt(line, 0) == "#") {
+            i = i + 1;
+            continue;
+        }
+        // Section header [name] or [[name]] (array of tables)
+        if (String.charAt(line, 0) == "[") {
+            var endBracket: int = String.indexOf(line, "]");
+            if (endBracket > 0) {
+                // Check for [[name]] (array of tables) - skip extra brackets
+                var start: int = 1;
+                if (String.length(line) > 1 && String.charAt(line, 1) == "[") {
+                    start = 2;
+                    endBracket = String.indexOf(line, "]", 2);
+                }
+                currentSection = String.trim(String.substring(line, start, endBracket));
+            }
+            i = i + 1;
+            continue;
+        }
+        // Key = value pair
+        let eqIdx: int = String.indexOf(line, "=");
+        if (eqIdx > 0) {
+            let key: string = String.trim(String.substring(line, 0, eqIdx));
+            let valStr: string = String.trim(String.substring(line, eqIdx + 1));
+            let fullKey: string = key;
+            if (String.length(currentSection) > 0) {
+                fullKey = currentSection + "." + key;
+            }
+            let value: Variant = _parseValue(valStr);
+            table.set(fullKey, value);
+        }
+        i = i + 1;
+    }
+    return table;
+}
+
+// Parse a TOML file
+public fn parseFile(path: string): Result<TomlTable, string> {
+    if (!Fs_exists(path)) {
+        return err("file not found: " + path);
+    }
+    let content: string = File_readFile(path);
+    let table: TomlTable = parse(content);
+    return ok(table);
+}
+
+// Parse a TOML value string into a Variant
+fn _parseValue(s: string): Variant {
+    let trimmed: string = String.trim(s);
+    // String values (quoted)
+    if (String.length(trimmed) >= 2) {
+        let first: string = String.charAt(trimmed, 0);
+        let last: string = String.charAt(trimmed, String.length(trimmed) - 1);
+        if ((first == "\"" && last == "\"") || (first == "'" && last == "'")) {
+            return Variant.of("string", String.substring(trimmed, 1, String.length(trimmed) - 1) as Variant);
+        }
+    }
+    // Boolean values
+    if (trimmed == "true") {
+        return Variant.of("bool", true as Variant);
+    }
+    if (trimmed == "false") {
+        return Variant.of("bool", false as Variant);
+    }
+    // Integer values
+    if (_isInteger(trimmed)) {
+        return Variant.of("int", Integer.parseInt(trimmed) as Variant);
+    }
+    // Float values
+    if (_isFloat(trimmed)) {
+        return Variant.of("float", Double.parseDouble(trimmed) as Variant);
+    }
+    // Default: treat as string
+    return Variant.of("string", trimmed as Variant);
+}
+
+// Check if a string represents an integer
+fn _isInteger(s: string): bool {
+    if (String.length(s) == 0) {
+        return false;
+    }
+    var i: int = 0;
+    if (String.charAt(s, 0) == "-" || String.charAt(s, 0) == "+") {
+        i = 1;
+    }
+    if (i >= String.length(s)) {
+        return false;
+    }
+    while (i < String.length(s)) {
+        let code: int = String.charAt(s, i);
+        if (code < 48 || code > 57) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Check if a string represents a float
+fn _isFloat(s: string): bool {
+    if (String.length(s) == 0) {
+        return false;
+    }
+    var hasDot: bool = false;
+    var i: int = 0;
+    if (String.charAt(s, 0) == "-" || String.charAt(s, 0) == "+") {
+        i = 1;
+    }
+    if (i >= String.length(s)) {
+        return false;
+    }
+    while (i < String.length(s)) {
+        let ch: string = String.charAt(s, i);
+        let code: int = String.charAt(s, i);
+        if (ch == ".") {
+            if (hasDot) {
+                return false;
+            }
+            hasDot = true;
+        } else if (code < 48 || code > 57) {
+            // Allow 'e' or 'E' for scientific notation
+            if (ch == "e" || ch == "E") {
+                // Check for optional sign after e/E
+                i = i + 1;
+                if (i < String.length(s) && (String.charAt(s, i) == "+" || String.charAt(s, i) == "-")) {
+                    i = i + 1;
+                }
+                // Must have at least one digit after e
+                if (i >= String.length(s)) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+        i = i + 1;
+    }
+    return hasDot;
+}
