@@ -1,0 +1,93 @@
+// Embedded SQL database interface.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class SqliteConnection {
+    private int handle;
+    private bool closed;
+
+    public fn init(path: string) {
+        this.handle = Sqlite_open(path);
+        this.closed = false;
+    }
+
+    public fn execute(sql: string): void {
+        Sqlite_execute(this.handle, sql);
+    }
+
+    public fn query(sql: string): SqliteResultSet {
+        let rsHandle: int = Sqlite_query(this.handle, sql);
+        return new SqliteResultSet(rsHandle);
+    }
+
+    public fn lastInsertId(): int {
+        return Sqlite_lastInsertId(this.handle);
+    }
+
+    public fn close(): void {
+        if (!this.closed) {
+            Sqlite_close(this.handle);
+            this.closed = true;
+        }
+    }
+
+    public fn beginTransaction(): void {
+        this.execute("BEGIN");
+    }
+
+    public fn commit(): void {
+        this.execute("COMMIT");
+    }
+
+    public fn rollback(): void {
+        this.execute("ROLLBACK");
+    }
+
+    public fn isClosed(): bool {
+        return this.closed;
+    }
+}
+
+public class SqliteResultSet {
+    private int handle;
+    private bool closed;
+    private bool hasRow;
+
+    public fn init(handle: int) {
+        this.handle = handle;
+        this.closed = false;
+        this.hasRow = false;
+    }
+
+    public fn next(): bool {
+        this.hasRow = Sqlite_nextRow(this.handle);
+        return this.hasRow;
+    }
+
+    public fn getInt(col: int): int {
+        return Sqlite_getInt(this.handle, col);
+    }
+
+    public fn getString(col: int): string {
+        return Sqlite_getString(this.handle, col);
+    }
+
+    public fn getDouble(col: int): double {
+        return Sqlite_getDouble(this.handle, col);
+    }
+
+    public fn getColumnCount(): int {
+        return Sqlite_columnCount(this.handle);
+    }
+
+    public fn getColumnName(col: int): string {
+        return Sqlite_columnName(this.handle, col);
+    }
+
+    public fn close(): void {
+        if (!this.closed) {
+            Sqlite_closeResult(this.handle);
+            this.closed = true;
+        }
+    }
+}
