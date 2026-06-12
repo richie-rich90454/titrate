@@ -1,0 +1,119 @@
+// Numeric limits constants and query functions for Titrate numeric types.
+
+// Integer limits
+public const INT_MAX: int = 2147483647;
+public const INT_MIN: int = -2147483648;
+public const LONG_MAX: long = 9223372036854775807;
+public const LONG_MIN: long = -9223372036854775808;
+
+// Floating-point limits
+public const DOUBLE_MAX: double = 1.7976931348623157e+308;
+public const DOUBLE_MIN: double = 4.9e-324;
+public const DOUBLE_EPSILON: double = 2.220446049250313e-16;
+public const DOUBLE_NAN: double = 0.0 / 0.0;
+public const DOUBLE_INF: double = 1.0 / 0.0;
+public const DOUBLE_NEG_INF: double = -1.0 / 0.0;
+
+public const FLOAT_MAX: double = 3.4028234663852886e+38;
+public const FLOAT_MIN: double = 1.1754943508222875e-38;
+public const FLOAT_EPSILON: double = 1.1920928955078125e-07;
+
+// Byte and Short limits
+public const BYTE_MAX: int = 127;
+public const BYTE_MIN: int = -128;
+public const SHORT_MAX: int = 32767;
+public const SHORT_MIN: int = -32768;
+
+// Integer query functions
+public fn intMax(): int {
+    return INT_MAX;
+}
+
+public fn intMin(): int {
+    return INT_MIN;
+}
+
+public fn longMax(): long {
+    return LONG_MAX;
+}
+
+public fn longMin(): long {
+    return LONG_MIN;
+}
+
+// Double query functions
+public fn doubleMax(): double {
+    return DOUBLE_MAX;
+}
+
+public fn doubleMin(): double {
+    return DOUBLE_MIN;
+}
+
+public fn doubleEpsilon(): double {
+    return DOUBLE_EPSILON;
+}
+
+public fn doubleNaN(): double {
+    return DOUBLE_NAN;
+}
+
+public fn doubleInf(): double {
+    return DOUBLE_INF;
+}
+
+public fn doubleNegInf(): double {
+    return DOUBLE_NEG_INF;
+}
+
+// Float query functions
+public fn floatMax(): double {
+    return FLOAT_MAX;
+}
+
+public fn floatMin(): double {
+    return FLOAT_MIN;
+}
+
+public fn floatEpsilon(): double {
+    return FLOAT_EPSILON;
+}
+
+// Byte and Short query functions
+public fn byteMax(): int {
+    return BYTE_MAX;
+}
+
+public fn byteMin(): int {
+    return BYTE_MIN;
+}
+
+public fn shortMax(): int {
+    return SHORT_MAX;
+}
+
+public fn shortMin(): int {
+    return SHORT_MIN;
+}
+
+// Classification functions
+public fn isFinite(x: double): bool {
+    return Double.isFinite(x);
+}
+
+public fn isInfinite(x: double): bool {
+    return Double.isInfinite(x);
+}
+
+public fn isNaN(x: double): bool {
+    return Double.isNaN(x);
+}
+
+public fn isSubnormal(x: double): bool {
+    let absX: double = Math_abs(x);
+    return absX > 0.0 && absX < DOUBLE_MIN;
+}
+
+public fn signbit(x: double): bool {
+    return x < 0.0 || (x == 0.0 && (1.0 / x) < 0.0);
+}
