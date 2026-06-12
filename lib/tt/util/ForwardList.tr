@@ -1,0 +1,166 @@
+// Singly-linked list with O(1) front insertion and forward-only traversal.
+import tt::lang::Iterator;
+import tt::lang::Iterable;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+// Internal node class
+class ForwardNode<T> {
+    public T data;
+    public ForwardNode<T> next;
+
+    public fn init(data: T) {
+        this.data = data;
+        this.next = null;
+    }
+}
+
+public class ForwardList<T> implements Iterable<T> {
+    private ForwardNode<T> head;
+    private int _size;
+
+    public fn init() {
+        this.head = null;
+        this._size = 0;
+    }
+
+    // O(1) insertion at front
+    public fn pushFront(self, value: T): void {
+        let node: ForwardNode<T> = new ForwardNode<T>(value);
+        node.next = self.head;
+        self.head = node;
+        self._size = self._size + 1;
+    }
+
+    // Remove from front
+    public fn popFront(self): T {
+        if (self.head == null) { return null as T; }
+        let value: T = self.head.data;
+        self.head = self.head.next;
+        self._size = self._size - 1;
+        return value;
+    }
+
+    // Access front element
+    public fn front(): T {
+        if (this.head == null) { return null as T; }
+        return this.head.data;
+    }
+
+    // Insert after a given node position (0-indexed)
+    public fn insertAfter(self, index: int, value: T): void {
+        if (index < 0 || index >= self._size) { return; }
+        let node: ForwardNode<T> = self.head;
+        var i: int = 0;
+        while (i < index) {
+            node = node.next;
+            i = i + 1;
+        }
+        let newNode: ForwardNode<T> = new ForwardNode<T>(value);
+        newNode.next = node.next;
+        node.next = newNode;
+        self._size = self._size + 1;
+    }
+
+    // Remove the element after a given position
+    public fn removeAfter(self, index: int): T {
+        if (index < 0 || index >= self._size - 1) { return null as T; }
+        let node: ForwardNode<T> = self.head;
+        var i: int = 0;
+        while (i < index) {
+            node = node.next;
+            i = i + 1;
+        }
+        let removed: ForwardNode<T> = node.next;
+        let value: T = removed.data;
+        node.next = removed.next;
+        self._size = self._size - 1;
+        return value;
+    }
+
+    // Check if empty
+    public fn isEmpty(): bool { return this._size == 0; }
+
+    // Size
+    public fn size(): int { return this._size; }
+
+    // Clear all elements
+    public fn clear(self): void {
+        self.head = null;
+        self._size = 0;
+    }
+
+    // Check if value is in list
+    public fn contains(value: T): bool {
+        let current: ForwardNode<T> = this.head;
+        while (current != null) {
+            if (current.data == value) {
+                return true;
+            }
+            current = current.next;
+        }
+        return false;
+    }
+
+    // Reverse the list in place using three-pointer technique
+    public fn reverse(self): void {
+        var prev: ForwardNode<T> = null;
+        var current: ForwardNode<T> = self.head;
+        while (current != null) {
+            let nextNode: ForwardNode<T> = current.next;
+            current.next = prev;
+            prev = current;
+            current = nextNode;
+        }
+        self.head = prev;
+    }
+
+    // Convert to ArrayList
+    public fn toArray(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let current: ForwardNode<T> = this.head;
+        while (current != null) {
+            result.add(current.data);
+            current = current.next;
+        }
+        return result;
+    }
+
+    // Iterator support
+    public fn iterator(self): Iterator<T> {
+        return new ForwardListIterator<T>(self.head);
+    }
+
+    public fn toString(): string {
+        let s: string = "[";
+        let current: ForwardNode<T> = this.head;
+        var i: int = 0;
+        while (current != null) {
+            if (i > 0) { s = s + ", "; }
+            s = s + current.data;
+            current = current.next;
+            i = i + 1;
+        }
+        s = s + "]";
+        return s;
+    }
+}
+
+// Iterator for ForwardList
+class ForwardListIterator<T> implements Iterator<T> {
+    private ForwardNode<T> current;
+
+    public fn init(start: ForwardNode<T>) {
+        this.current = start;
+    }
+
+    public fn hasNext(): bool {
+        return this.current != null;
+    }
+
+    public fn next(): T {
+        let value: T = this.current.data;
+        this.current = this.current.next;
+        return value;
+    }
+}
