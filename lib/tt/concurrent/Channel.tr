@@ -7,14 +7,14 @@ public class Channel<T> {
     public int capacity;
     private fn(): void onCloseFn;
 
-    public Channel() {
+    fn init() {
         this.buffer = new ArrayList<T>();
         this.closed = false;
         this.capacity = 0;
         this.onCloseFn = null;
     }
 
-    public Channel(capacity: int) {
+    fn init(capacity: int) {
         this.buffer = new ArrayList<T>();
         this.closed = false;
         this.capacity = capacity;
