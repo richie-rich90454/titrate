@@ -6,8 +6,9 @@ import tt::util::HashMap;
 // For collections, copies the container but not the elements.
 public fn shallowCopy<T>(obj: T): T {
     if (obj == null) { return null; }
-    // Try to detect collection types and copy accordingly
-    // For generic objects, return the same reference (no native Copy_shallow)
+    if (obj is ArrayList) { return shallowCopyList(obj); }
+    if (obj is HashMap) { return shallowCopyMap(obj); }
+    // For other objects, return the same reference
     return obj;
 }
 
@@ -15,7 +16,9 @@ public fn shallowCopy<T>(obj: T): T {
 // All nested objects are also copied.
 public fn deepCopy<T>(obj: T): T {
     if (obj == null) { return null; }
-    // For generic objects, return the same reference (no native Copy_deep)
+    if (obj is ArrayList) { return deepCopyList(obj); }
+    if (obj is HashMap) { return deepCopyMap(obj); }
+    // For other objects, return the same reference
     return obj;
 }
 
