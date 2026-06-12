@@ -2,95 +2,94 @@ import tt::chem::Atom;
 import tt::math::Math;
 
 // RHF two-electron integrals, orbital exponent, basis-to-atom mapping
-public class RHFIntegrals {
-    // Get effective orbital exponent (zeta) for STO-3G-like basis
-    // Uses Slater rules approximation: zeta = (Z - sigma) / n*
-    public static double orbitalExponent(int atomicNumber) {
-        // Simplified Slater-type orbital exponents for 1s/2s/2p
-        if (atomicNumber == 1)  { return 1.24; }  // H 1s
-        if (atomicNumber == 2)  { return 1.69; }  // He 1s
-        if (atomicNumber == 3)  { return 2.69; }  // Li 2s
-        if (atomicNumber == 4)  { return 3.68; }  // Be 2s
-        if (atomicNumber == 5)  { return 4.68; }  // B
-        if (atomicNumber == 6)  { return 5.67; }  // C
-        if (atomicNumber == 7)  { return 6.67; }  // N
-        if (atomicNumber == 8)  { return 7.66; }  // O
-        if (atomicNumber == 9)  { return 8.65; }  // F
-        if (atomicNumber == 10) { return 9.64; }  // Ne
-        return (double) atomicNumber * 0.95;
+
+// Get effective orbital exponent (zeta) for STO-3G-like basis
+// Uses Slater rules approximation: zeta = (Z - sigma) / n*
+public fn orbitalExponent(atomicNumber: int): double {
+    // Simplified Slater-type orbital exponents for 1s/2s/2p
+    if (atomicNumber == 1)  { return 1.24; }  // H 1s
+    if (atomicNumber == 2)  { return 1.69; }  // He 1s
+    if (atomicNumber == 3)  { return 2.69; }  // Li 2s
+    if (atomicNumber == 4)  { return 3.68; }  // Be 2s
+    if (atomicNumber == 5)  { return 4.68; }  // B
+    if (atomicNumber == 6)  { return 5.67; }  // C
+    if (atomicNumber == 7)  { return 6.67; }  // N
+    if (atomicNumber == 8)  { return 7.66; }  // O
+    if (atomicNumber == 9)  { return 8.65; }  // F
+    if (atomicNumber == 10) { return 9.64; }  // Ne
+    return atomicNumber as double * 0.95;
+}
+
+// Map basis function index to atom index
+public fn basisToAtom(rhf: RHF, mu: int): int {
+    let nAtoms: int = rhf.molecule.atomCount();
+    if (nAtoms == 0) { return 0; }
+    // Distribute basis functions evenly across atoms
+    var perAtom: int = rhf.basisSize / nAtoms;
+    if (perAtom < 1) { perAtom = 1; }
+    var atomIdx: int = mu / perAtom;
+    if (atomIdx >= nAtoms) { atomIdx = nAtoms - 1; }
+    return atomIdx;
+}
+
+// Compute two-electron integral (mu nu | lambda sigma) approximation
+// Using the Mulliken approximation: (mu nu | lam sig) ~ 0.5 * S_mu_nu * S_lam_sig * J_avg
+// where J_avg depends on the orbital exponents and distances
+public fn twoElectronIntegral(rhf: RHF, mu: int, nu: int, lam: int, sig: int): double {
+    let am: int = basisToAtom(rhf, mu);
+    let an: int = basisToAtom(rhf, nu);
+    let al: int = basisToAtom(rhf, lam);
+    let as_: int = basisToAtom(rhf, sig);
+
+    let atomM: Atom = rhf.molecule.getAtom(am);
+    let atomN: Atom = rhf.molecule.getAtom(an);
+    let atomL: Atom = rhf.molecule.getAtom(al);
+    let atomS: Atom = rhf.molecule.getAtom(as_);
+
+    let zM: double = orbitalExponent(atomM.atomicNumber);
+    let zN: double = orbitalExponent(atomN.atomicNumber);
+    let zL: double = orbitalExponent(atomL.atomicNumber);
+    let zS: double = orbitalExponent(atomS.atomicNumber);
+
+    let sMN: double = rhf.overlapMatrix.get(mu).get(nu);
+    let sLS: double = rhf.overlapMatrix.get(lam).get(sig);
+
+    // Average orbital exponent for the charge distributions
+    let zeta1: double = (zM + zN) * 0.5;
+    let zeta2: double = (zL + zS) * 0.5;
+
+    // Distance between centroids of charge distributions
+    let cx1: double = (atomM.x + atomN.x) * 0.5;
+    let cy1: double = (atomM.y + atomN.y) * 0.5;
+    let cz1: double = (atomM.z + atomN.z) * 0.5;
+    let cx2: double = (atomL.x + atomS.x) * 0.5;
+    let cy2: double = (atomL.y + atomS.y) * 0.5;
+    let cz2: double = (atomL.z + atomS.z) * 0.5;
+    let dx: double = cx1 - cx2;
+    let dy: double = cy1 - cy2;
+    let dz: double = cz1 - cz2;
+    let R: double = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // Coulomb integral: (ab|cd) ~ S_ab * S_cd * 2 * sqrt(zeta1*zeta2) / (zeta1 + zeta2) * F0(R12 * (zeta1+zeta2)/2)
+    let rho: double = (zeta1 + zeta2) * 0.5;
+    let arg: double = R * rho;
+    var f0: double = 0.0;
+    if (arg < 1e-10) {
+        f0 = 1.0;
+    } else {
+        f0 = (1.0 - Math.exp(-arg)) / arg;
+    }
+    let coulomb: double = 2.0 * Math.sqrt(zeta1 * zeta2) / (zeta1 + zeta2) * f0;
+
+    // Scale by overlap factors (Mulliken-type approximation)
+    var result: double = sMN * sLS * coulomb;
+
+    // For same-center distributions, add a correction
+    if (am == an && al == as_ && am == al) {
+        // On-center: (mu mu | mu mu) ~ 5/8 * zeta for 1s STO
+        let zeta: double = zM;
+        result = 0.625 * zeta;
     }
 
-    // Map basis function index to atom index
-    public static int basisToAtom(RHF rhf, int mu) {
-        int nAtoms = rhf.molecule.atomCount();
-        if (nAtoms == 0) { return 0; }
-        // Distribute basis functions evenly across atoms
-        int perAtom = rhf.basisSize / nAtoms;
-        if (perAtom < 1) { perAtom = 1; }
-        int atomIdx = mu / perAtom;
-        if (atomIdx >= nAtoms) { atomIdx = nAtoms - 1; }
-        return atomIdx;
-    }
-
-    // Compute two-electron integral (mu nu | lambda sigma) approximation
-    // Using the Mulliken approximation: (mu nu | lam sig) ~ 0.5 * S_mu_nu * S_lam_sig * J_avg
-    // where J_avg depends on the orbital exponents and distances
-    public static double twoElectronIntegral(RHF rhf, int mu, int nu, int lam, int sig) {
-        int am = RHFIntegrals.basisToAtom(rhf, mu);
-        int an = RHFIntegrals.basisToAtom(rhf, nu);
-        int al = RHFIntegrals.basisToAtom(rhf, lam);
-        int as = RHFIntegrals.basisToAtom(rhf, sig);
-
-        Atom atomM = rhf.molecule.getAtom(am);
-        Atom atomN = rhf.molecule.getAtom(an);
-        Atom atomL = rhf.molecule.getAtom(al);
-        Atom atomS = rhf.molecule.getAtom(as);
-
-        double zM = RHFIntegrals.orbitalExponent(atomM.atomicNumber);
-        double zN = RHFIntegrals.orbitalExponent(atomN.atomicNumber);
-        double zL = RHFIntegrals.orbitalExponent(atomL.atomicNumber);
-        double zS = RHFIntegrals.orbitalExponent(atomS.atomicNumber);
-
-        double sMN = rhf.overlapMatrix.get(mu).get(nu);
-        double sLS = rhf.overlapMatrix.get(lam).get(sig);
-
-        // Average orbital exponent for the charge distributions
-        double zeta1 = (zM + zN) * 0.5;
-        double zeta2 = (zL + zS) * 0.5;
-
-        // Distance between centroids of charge distributions
-        double cx1 = (atomM.x + atomN.x) * 0.5;
-        double cy1 = (atomM.y + atomN.y) * 0.5;
-        double cz1 = (atomM.z + atomN.z) * 0.5;
-        double cx2 = (atomL.x + atomS.x) * 0.5;
-        double cy2 = (atomL.y + atomS.y) * 0.5;
-        double cz2 = (atomL.z + atomS.z) * 0.5;
-        double dx = cx1 - cx2;
-        double dy = cy1 - cy2;
-        double dz = cz1 - cz2;
-        double R = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-        // Coulomb integral: (ab|cd) ~ S_ab * S_cd * 2 * sqrt(zeta1*zeta2) / (zeta1 + zeta2) * F0(R12 * (zeta1+zeta2)/2)
-        double rho = (zeta1 + zeta2) * 0.5;
-        double arg = R * rho;
-        double f0 = 0.0;
-        if (arg < 1e-10) {
-            f0 = 1.0;
-        } else {
-            f0 = (1.0 - Math.exp(-arg)) / arg;
-        }
-        double coulomb = 2.0 * Math.sqrt(zeta1 * zeta2) / (zeta1 + zeta2) * f0;
-
-        // Scale by overlap factors (Mulliken-type approximation)
-        double result = sMN * sLS * coulomb;
-
-        // For same-center distributions, add a correction
-        if (am == an && al == as && am == al) {
-            // On-center: (mu mu | mu mu) ~ 5/8 * zeta for 1s STO
-            double zeta = zM;
-            result = 0.625 * zeta;
-        }
-
-        return result;
-    }
+    return result;
 }
