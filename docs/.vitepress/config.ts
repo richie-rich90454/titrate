@@ -163,6 +163,8 @@ export default defineConfig({
             { text: 'numeric-limits', link: '/stdlib/numeric-limits' },
             { text: 'stringview', link: '/stdlib/stringview' },
             { text: 'traceback', link: '/stdlib/traceback' },
+            { text: 'enum', link: '/stdlib/enum' },
+            { text: 'abc', link: '/stdlib/abc' },
           ],
         },
         {
@@ -179,6 +181,10 @@ export default defineConfig({
             { text: 'pair', link: '/stdlib/pair' },
             { text: 'span', link: '/stdlib/span' },
             { text: 'forwardlist', link: '/stdlib/forwardlist' },
+            { text: 'treemap', link: '/stdlib/treemap' },
+            { text: 'treeset', link: '/stdlib/treeset' },
+            { text: 'ringdeque', link: '/stdlib/ringdeque' },
+            { text: 'chainmap', link: '/stdlib/chainmap' },
           ],
         },
         {
@@ -204,6 +210,8 @@ export default defineConfig({
             { text: 'serialization', link: '/stdlib/serialization' },
             { text: 'pprint', link: '/stdlib/pprint' },
             { text: 'difflib', link: '/stdlib/difflib' },
+            { text: 'shlex', link: '/stdlib/shlex' },
+            { text: 'unicodedata', link: '/stdlib/unicodedata' },
             { text: 'toml', link: '/stdlib/toml' },
             { text: 'configparser', link: '/stdlib/configparser' },
           ],
@@ -213,6 +221,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'math', link: '/stdlib/math' },
+            { text: 'bit', link: '/stdlib/bit' },
             { text: 'complex', link: '/stdlib/complex' },
             { text: 'fractions', link: '/stdlib/fractions' },
             { text: 'statistics', link: '/stdlib/statistics' },
@@ -232,6 +241,10 @@ export default defineConfig({
             { text: 'platform', link: '/stdlib/platform' },
             { text: 'signal', link: '/stdlib/signal' },
             { text: 'socket', link: '/stdlib/socket' },
+            { text: 'ipaddress', link: '/stdlib/ipaddress' },
+            { text: 'threadpool', link: '/stdlib/threadpool' },
+            { text: 'event', link: '/stdlib/event' },
+            { text: 'threadlocal', link: '/stdlib/threadlocal' },
             { text: 'ssl', link: '/stdlib/ssl' },
             { text: 'sqlite', link: '/stdlib/sqlite' },
             { text: 'thread', link: '/stdlib/thread' },
@@ -257,7 +270,15 @@ export default defineConfig({
             { text: 'algorithms', link: '/stdlib/algorithms' },
             { text: 'binary', link: '/stdlib/binary' },
             { text: 'compression', link: '/stdlib/compression' },
+            { text: 'gzip', link: '/stdlib/gzip' },
             { text: 'hmac', link: '/stdlib/hmac' },
+          ],
+        },
+        {
+          text: 'Internationalization',
+          collapsed: true,
+          items: [
+            { text: 'locale', link: '/stdlib/locale' },
           ],
         },
         {
