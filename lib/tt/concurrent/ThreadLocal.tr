@@ -1,0 +1,50 @@
+// Thread-local storage.
+import tt::concurrent::Mutex;
+import tt::concurrent::LockGuard;
+import tt::util::HashMap;
+
+public class ThreadLocal<T> {
+    private HashMap<int, T> storage;
+    private Mutex mutex;
+    private fn(): T initialValue;
+
+    public fn init() {
+        this.storage = new HashMap<int, T>();
+        this.mutex = new Mutex();
+        this.initialValue = fn(): T { return storage.get(0); };
+    }
+
+    public fn init(initialValue: fn(): T) {
+        this.storage = new HashMap<int, T>();
+        this.mutex = new Mutex();
+        this.initialValue = initialValue;
+    }
+
+    public fn get(): T {
+        let threadId: int = Thread_currentId();
+        let guard: LockGuard = new LockGuard(this.mutex);
+        if (this.storage.containsKey(threadId)) {
+            let val: T = this.storage.get(threadId);
+            guard.unlock();
+            return val;
+        }
+        let val: T = this.initialValue();
+        this.storage.put(threadId, val);
+        guard.unlock();
+        return val;
+    }
+
+    public fn set(value: T): void {
+        let threadId: int = Thread_currentId();
+        let guard: LockGuard = new LockGuard(this.mutex);
+        this.storage.put(threadId, value);
+        guard.unlock();
+    }
+
+    public fn remove(): void {
+        let threadId: int = Thread_currentId();
+        let guard: LockGuard = new LockGuard(this.mutex);
+        this.storage.remove(threadId);
+        guard.unlock();
+    }
+}
