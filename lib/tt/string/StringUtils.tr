@@ -5,56 +5,56 @@ import tt::lang::String;
 
 public class StringUtils {
     // String constants
-    public static String asciiLetters() {
+    public fn asciiLetters(): string {
         return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     }
 
-    public static String asciiLowercase() {
+    public fn asciiLowercase(): string {
         return "abcdefghijklmnopqrstuvwxyz";
     }
 
-    public static String asciiUppercase() {
+    public fn asciiUppercase(): string {
         return "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     }
 
-    public static String digits() {
+    public fn digits(): string {
         return "0123456789";
     }
 
-    public static String hexdigits() {
+    public fn hexdigits(): string {
         return "0123456789abcdefABCDEF";
     }
 
-    public static String octdigits() {
+    public fn octdigits(): string {
         return "01234567";
     }
 
-    public static String punctuation() {
+    public fn punctuation(): string {
         return "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
     }
 
-    public static String whitespace() {
+    public fn whitespace(): string {
         return " \t\n\r\x0b\x0c";
     }
 
-    public static String printable() {
+    public fn printable(): string {
         return StringUtils.digits() + StringUtils.asciiLetters() + StringUtils.punctuation() + StringUtils.whitespace();
     }
 
     // Capitalize each word in the string.
-    public static String capwords(String s) {
-        if (s.length() == 0) { return s; }
-        ArrayList<String> words = String::split(s, " ");
-        String result = "";
-        int i = 0;
+    public fn capwords(s: string): string {
+        if (String.length(s) == 0) { return s; }
+        let words: ArrayList<string> = String::split(s, " ");
+        let result: string = "";
+        let i: int = 0;
         while (i < words.size()) {
             if (i > 0) { result = result + " "; }
-            String word = words.get(i);
-            if (word.length() > 0) {
-                String first = String::toUpperCase(word.charAt(0));
-                String rest = "";
-                if (word.length() > 1) {
-                    rest = String::toLowerCase(String.substring(word, 1, word.length()));
+            let word: string = words.get(i);
+            if (String.length(word) > 0) {
+                let first: string = String::toUpperCase(String.charAt(word, 0));
+                let rest: string = "";
+                if (String.length(word) > 1) {
+                    rest = String::toLowerCase(String.substring(word, 1, String.length(word)));
                 }
                 result = result + first + rest;
             }
@@ -66,28 +66,28 @@ public class StringUtils {
 
 // Template provides string substitution using $variable placeholders.
 public class Template {
-    public String template;
+    public string template;
 
-    public Template(String template) {
+    public Template(template: string) {
         this.template = template;
     }
 
     // Perform substitution using the map. Throws on missing keys.
-    public String substitute(HashMap<String, String> map) {
-        String result = "";
-        int i = 0;
-        while (i < this.template.length()) {
-            String c = this.template.charAt(i);
-            if (c == "$" && i + 1 < this.template.length()) {
-                String next = this.template.charAt(i + 1);
+    public fn substitute(map: HashMap<string, string>): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(this.template)) {
+            let c: string = String.charAt(this.template, i);
+            if (c == "$" && i + 1 < String.length(this.template)) {
+                let next: string = String.charAt(this.template, i + 1);
                 if (next == "{") {
                     // Find closing brace
-                    int end = i + 2;
-                    while (end < this.template.length() && this.template.charAt(end) != "}") {
+                    let end: int = i + 2;
+                    while (end < String.length(this.template) && String.charAt(this.template, end) != "}") {
                         end = end + 1;
                     }
-                    if (end < this.template.length()) {
-                        String key = String.substring(this.template, i + 2, end);
+                    if (end < String.length(this.template)) {
+                        let key: string = String.substring(this.template, i + 2, end);
                         if (map.containsKey(key)) {
                             result = result + map.get(key);
                         }
@@ -101,17 +101,17 @@ public class Template {
                     i = i + 2;
                 } else {
                     // Identifier: collect alphanumeric and underscore characters
-                    int start = i + 1;
-                    int end = start;
-                    while (end < this.template.length()) {
-                        String ch = this.template.charAt(end);
+                    let start: int = i + 1;
+                    let end: int = start;
+                    while (end < String.length(this.template)) {
+                        let ch: string = String.charAt(this.template, end);
                         if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "_") {
                             end = end + 1;
                         } else {
                             break;
                         }
                     }
-                    String key = String.substring(this.template, start, end);
+                    let key: string = String.substring(this.template, start, end);
                     if (map.containsKey(key)) {
                         result = result + map.get(key);
                     }
@@ -126,20 +126,20 @@ public class Template {
     }
 
     // Perform safe substitution: missing keys are left as-is.
-    public String safeSubstitute(HashMap<String, String> map) {
-        String result = "";
-        int i = 0;
-        while (i < this.template.length()) {
-            String c = this.template.charAt(i);
-            if (c == "$" && i + 1 < this.template.length()) {
-                String next = this.template.charAt(i + 1);
+    public fn safeSubstitute(map: HashMap<string, string>): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(this.template)) {
+            let c: string = String.charAt(this.template, i);
+            if (c == "$" && i + 1 < String.length(this.template)) {
+                let next: string = String.charAt(this.template, i + 1);
                 if (next == "{") {
-                    int end = i + 2;
-                    while (end < this.template.length() && this.template.charAt(end) != "}") {
+                    let end: int = i + 2;
+                    while (end < String.length(this.template) && String.charAt(this.template, end) != "}") {
                         end = end + 1;
                     }
-                    if (end < this.template.length()) {
-                        String key = String.substring(this.template, i + 2, end);
+                    if (end < String.length(this.template)) {
+                        let key: string = String.substring(this.template, i + 2, end);
                         if (map.containsKey(key)) {
                             result = result + map.get(key);
                         } else {
@@ -154,17 +154,17 @@ public class Template {
                     result = result + "$";
                     i = i + 2;
                 } else {
-                    int start = i + 1;
-                    int end = start;
-                    while (end < this.template.length()) {
-                        String ch = this.template.charAt(end);
+                    let start: int = i + 1;
+                    let end: int = start;
+                    while (end < String.length(this.template)) {
+                        let ch: string = String.charAt(this.template, end);
                         if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "_") {
                             end = end + 1;
                         } else {
                             break;
                         }
                     }
-                    String key = String.substring(this.template, start, end);
+                    let key: string = String.substring(this.template, start, end);
                     if (map.containsKey(key)) {
                         result = result + map.get(key);
                     } else {
