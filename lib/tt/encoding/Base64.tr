@@ -1,25 +1,25 @@
-// Base64 encoding and decoding backed by native implementations.
+﻿// Base64 encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 
-public class Base64 {
-    private static String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    private static String URL_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+let ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+let URL_ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
-    public static String encode(String input) {
+public class Base64 {
+    public fn encode(input: string): string {
         return Base64_encode(input);
     }
 
-    public static String decode(String input) {
+    public fn decode(input: string): string {
         return Base64_decode(input);
     }
 
-    public static String encodeUrlSafe(String data) {
+    public fn encodeUrlSafe(data: string): string {
         // Encode with standard then replace +/ with -_ and strip padding
-        String encoded = Base64_encode(data);
-        String result = "";
-        int i = 0;
-        while (i < encoded.length()) {
-            String c = encoded.charAt(i);
+        let encoded: string = Base64_encode(data);
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(encoded)) {
+            let c: string = String.charAt(encoded, i);
             if (c == "+") {
                 result = result + "-";
             } else if (c == "/") {
@@ -34,12 +34,12 @@ public class Base64 {
         return result;
     }
 
-    public static String decodeUrlSafe(String data) {
+    public fn decodeUrlSafe(data: string): string {
         // Convert URL-safe back to standard, add padding, then decode
-        String standard = "";
-        int i = 0;
-        while (i < data.length()) {
-            String c = data.charAt(i);
+        let standard: string = "";
+        let i: int = 0;
+        while (i < String.length(data)) {
+            let c: string = String.charAt(data, i);
             if (c == "-") {
                 standard = standard + "+";
             } else if (c == "_") {
@@ -50,40 +50,40 @@ public class Base64 {
             i = i + 1;
         }
         // Add padding
-        while (standard.length() % 4 != 0) {
+        while (String.length(standard) % 4 != 0) {
             standard = standard + "=";
         }
         return Base64_decode(standard);
     }
 
-    public static String encodeWithoutPadding(String data) {
-        String encoded = Base64_encode(data);
+    public fn encodeWithoutPadding(data: string): string {
+        let encoded: string = Base64_encode(data);
         // Remove trailing '=' padding characters
-        while (encoded.length() > 0 && encoded.charAt(encoded.length() - 1) == "=") {
-            encoded = encoded.substring(0, encoded.length() - 1);
+        while (String.length(encoded) > 0 && String.charAt(encoded, String.length(encoded) - 1) == "=") {
+            encoded = String.substring(encoded, 0, String.length(encoded) - 1);
         }
         return encoded;
     }
 
-    public static String encodeBytes(ArrayList<int> bytes) {
+    public fn encodeBytes(bytes: ArrayList<int>): string {
         // Encode raw bytes using the Base64 alphabet
-        String result = "";
-        int i = 0;
-        int len = bytes.size();
+        let result: string = "";
+        let i: int = 0;
+        let len: int = bytes.size();
         while (i < len) {
-            int b0 = bytes.get(i);
-            int b1 = (i + 1 < len) ? bytes.get(i + 1) : 0;
-            int b2 = (i + 2 < len) ? bytes.get(i + 2) : 0;
-            int triple = (b0 * 65536) + (b1 * 256) + b2;
-            result = result + Base64._char(Base64.ALPHABET, (triple / 262144) % 64);
-            result = result + Base64._char(Base64.ALPHABET, (triple / 4096) % 64);
+            let b0: int = bytes.get(i);
+            let b1: int = (i + 1 < len) ? bytes.get(i + 1) : 0;
+            let b2: int = (i + 2 < len) ? bytes.get(i + 2) : 0;
+            let triple: int = (b0 * 65536) + (b1 * 256) + b2;
+            result = result + Base64._char(ALPHABET, (triple / 262144) % 64);
+            result = result + Base64._char(ALPHABET, (triple / 4096) % 64);
             if (i + 1 < len) {
-                result = result + Base64._char(Base64.ALPHABET, (triple / 64) % 64);
+                result = result + Base64._char(ALPHABET, (triple / 64) % 64);
             } else {
                 result = result + "=";
             }
             if (i + 2 < len) {
-                result = result + Base64._char(Base64.ALPHABET, triple % 64);
+                result = result + Base64._char(ALPHABET, triple % 64);
             } else {
                 result = result + "=";
             }
@@ -92,21 +92,21 @@ public class Base64 {
         return result;
     }
 
-    public static ArrayList<int> decodeToBytes(String data) {
-        ArrayList<int> result = new ArrayList<int>();
+    public fn decodeToBytes(data: string): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
         // Build lookup from alphabet
-        int i = 0;
-        while (i + 3 < data.length()) {
-            int c0 = Base64._val(data.charAt(i));
-            int c1 = Base64._val(data.charAt(i + 1));
-            int c2 = Base64._val(data.charAt(i + 2));
-            int c3 = Base64._val(data.charAt(i + 3));
-            int triple = (c0 * 262144) + (c1 * 4096) + (c2 * 64) + c3;
+        let i: int = 0;
+        while (i + 3 < String.length(data)) {
+            let c0: int = Base64._val(String.charAt(data, i));
+            let c1: int = Base64._val(String.charAt(data, i + 1));
+            let c2: int = Base64._val(String.charAt(data, i + 2));
+            let c3: int = Base64._val(String.charAt(data, i + 3));
+            let triple: int = (c0 * 262144) + (c1 * 4096) + (c2 * 64) + c3;
             result.add((triple / 65536) % 256);
-            if (data.charAt(i + 2) != "=") {
+            if (String.charAt(data, i + 2) != "=") {
                 result.add((triple / 256) % 256);
             }
-            if (data.charAt(i + 3) != "=") {
+            if (String.charAt(data, i + 3) != "=") {
                 result.add(triple % 256);
             }
             i = i + 4;
@@ -114,23 +114,23 @@ public class Base64 {
         return result;
     }
 
-    private static String _char(String alphabet, int idx) {
-        return alphabet.charAt(idx);
+    private fn _char(alphabet: string, idx: int): string {
+        return String.charAt(alphabet, idx);
     }
 
-    private static int _val(String c) {
+    private fn _val(c: string): int {
         if (c == "=") { return 0; }
-        int i = 0;
-        while (i < Base64.ALPHABET.length()) {
-            if (Base64.ALPHABET.charAt(i) == c) {
+        let i: int = 0;
+        while (i < String.length(ALPHABET)) {
+            if (String.charAt(ALPHABET, i) == c) {
                 return i;
             }
             i = i + 1;
         }
         // Also check URL alphabet
         i = 0;
-        while (i < Base64.URL_ALPHABET.length()) {
-            if (Base64.URL_ALPHABET.charAt(i) == c) {
+        while (i < String.length(URL_ALPHABET)) {
+            if (String.charAt(URL_ALPHABET, i) == c) {
                 return i;
             }
             i = i + 1;

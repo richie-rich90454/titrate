@@ -1,64 +1,62 @@
-// Hex encoding and decoding backed by native implementations.
+﻿// Hex encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 
 public class Hex {
-    public static String encode(String input) {
+    public fn encode(input: string): string {
         return Hex_encode(input);
     }
 
-    public static String decode(String input) {
+    public fn decode(input: string): string {
         return Hex_decode(input);
     }
 
-    public static String encodeUpperCase(String data) {
-        // Use native encode then uppercase
+    public fn encodeUpperCase(data: string): string {
         return String_toUpperCase(Hex_encode(data));
     }
 
-    public static String encodeLowerCase(String data) {
-        // Use native encode then lowercase
+    public fn encodeLowerCase(data: string): string {
         return String_toLowerCase(Hex_encode(data));
     }
 
-    public static String encodeBytes(ArrayList<int> bytes) {
-        String result = "";
-        int i = 0;
+    public fn encodeBytes(bytes: ArrayList<int>): string {
+        let result: string = "";
+        let i: int = 0;
         while (i < bytes.size()) {
-            int b = bytes.get(i);
+            let b: int = bytes.get(i);
             result = result + Hex._hexDigit((b / 16) % 16) + Hex._hexDigit(b % 16);
             i = i + 1;
         }
         return result;
     }
 
-    public static ArrayList<int> decodeToBytes(String data) {
-        ArrayList<int> result = new ArrayList<int>();
-        int i = 0;
-        while (i + 1 < data.length()) {
-            int hi = Hex._hexVal(data.charAt(i));
-            int lo = Hex._hexVal(data.charAt(i + 1));
+    public fn decodeToBytes(data: string): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        let i: int = 0;
+        while (i + 1 < String.length(data)) {
+            let hi: int = Hex._hexVal(String.charAt(data, i));
+            let lo: int = Hex._hexVal(String.charAt(data, i + 1));
             result.add(hi * 16 + lo);
             i = i + 2;
         }
         return result;
     }
 
-    private static String _hexDigit(int v) {
+    private fn _hexDigit(v: int): string {
         if (v < 10) {
             return String.fromCharCode(48 + v);
         }
         return String.fromCharCode(97 + v - 10);
     }
 
-    private static int _hexVal(String c) {
+    private fn _hexVal(c: string): int {
         if (c >= "0" && c <= "9") {
-            return c.charAt(0).charAt(0) - "0".charAt(0);
+            return String.charAt(c, 0).charAt(0) - "0".charAt(0);
         }
         if (c >= "a" && c <= "f") {
-            return c.charAt(0).charAt(0) - "a".charAt(0) + 10;
+            return String.charAt(c, 0).charAt(0) - "a".charAt(0) + 10;
         }
         if (c >= "A" && c <= "F") {
-            return c.charAt(0).charAt(0) - "A".charAt(0) + 10;
+            return String.charAt(c, 0).charAt(0) - "A".charAt(0) + 10;
         }
         return 0;
     }

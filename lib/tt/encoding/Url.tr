@@ -1,40 +1,39 @@
-// URL encoding and decoding backed by native implementations.
+﻿// URL encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
 public class Url {
-    public static String encode(String input) {
+    public fn encode(input: string): string {
         return Url_encode(input);
     }
 
-    public static String decode(String input) {
+    public fn decode(input: string): string {
         return Url_decode(input);
     }
 
     // Encode a string for use in URL query components.
     // Encodes all characters except A-Z a-z 0-9 - _ . ~
-    public static String encodeComponent(String s) {
-        String safe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~";
-        String result = "";
-        int i = 0;
-        while (i < s.length()) {
-            String c = s.charAt(i);
+    public fn encodeComponent(s: string): string {
+        let safe: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~";
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            let c: string = String.charAt(s, i);
             if (Url._isSafe(c, safe)) {
                 result = result + c;
             } else {
-                // Encode each byte of the character as %XX
-                int code = c.charAt(0);
+                let code: int = String.charAt(c, 0);
                 if (code < 128) {
                     result = result + "%" + Url._hexDigit(code / 16) + Url._hexDigit(code % 16);
                 } else if (code < 2048) {
-                    int b1 = 192 + (code / 64);
-                    int b2 = 128 + (code % 64);
+                    let b1: int = 192 + (code / 64);
+                    let b2: int = 128 + (code % 64);
                     result = result + "%" + Url._hexDigit(b1 / 16) + Url._hexDigit(b1 % 16);
                     result = result + "%" + Url._hexDigit(b2 / 16) + Url._hexDigit(b2 % 16);
                 } else {
-                    int b1 = 224 + (code / 4096);
-                    int b2 = 128 + ((code / 64) % 64);
-                    int b3 = 128 + (code % 64);
+                    let b1: int = 224 + (code / 4096);
+                    let b2: int = 128 + ((code / 64) % 64);
+                    let b3: int = 128 + (code % 64);
                     result = result + "%" + Url._hexDigit(b1 / 16) + Url._hexDigit(b1 % 16);
                     result = result + "%" + Url._hexDigit(b2 / 16) + Url._hexDigit(b2 % 16);
                     result = result + "%" + Url._hexDigit(b3 / 16) + Url._hexDigit(b3 % 16);
@@ -46,95 +45,91 @@ public class Url {
     }
 
     // Decode a percent-encoded URL component string.
-    public static String decodeComponent(String s) {
-        String result = "";
-        int i = 0;
-        while (i < s.length()) {
-            if (s.charAt(i) == "%" && i + 2 < s.length()) {
-                int hi = Url._hexVal(s.charAt(i + 1));
-                int lo = Url._hexVal(s.charAt(i + 2));
+    public fn decodeComponent(s: string): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            if (String.charAt(s, i) == "%" && i + 2 < String.length(s)) {
+                let hi: int = Url._hexVal(String.charAt(s, i + 1));
+                let lo: int = Url._hexVal(String.charAt(s, i + 2));
                 if (hi >= 0 && lo >= 0) {
-                    int byte1 = hi * 16 + lo;
+                    let byte1: int = hi * 16 + lo;
                     if (byte1 < 128) {
-                        // Single byte character
                         result = result + String.fromCharCode(byte1);
                         i = i + 3;
-                    } else if (byte1 >= 192 && byte1 < 224 && i + 5 < s.length() && s.charAt(i + 3) == "%") {
-                        // Two-byte UTF-8
-                        int hi2 = Url._hexVal(s.charAt(i + 4));
-                        int lo2 = Url._hexVal(s.charAt(i + 5));
+                    } else if (byte1 >= 192 && byte1 < 224 && i + 5 < String.length(s) && String.charAt(s, i + 3) == "%") {
+                        let hi2: int = Url._hexVal(String.charAt(s, i + 4));
+                        let lo2: int = Url._hexVal(String.charAt(s, i + 5));
                         if (hi2 >= 0 && lo2 >= 0) {
-                            int byte2 = hi2 * 16 + lo2;
-                            int code = ((byte1 - 192) * 64) + (byte2 - 128);
+                            let byte2: int = hi2 * 16 + lo2;
+                            let code: int = ((byte1 - 192) * 64) + (byte2 - 128);
                             result = result + String.fromCharCode(code);
                             i = i + 6;
                         } else {
-                            result = result + s.charAt(i);
+                            result = result + String.charAt(s, i);
                             i = i + 1;
                         }
-                    } else if (byte1 >= 224 && i + 8 < s.length() && s.charAt(i + 3) == "%" && s.charAt(i + 6) == "%") {
-                        // Three-byte UTF-8
-                        int hi2 = Url._hexVal(s.charAt(i + 4));
-                        int lo2 = Url._hexVal(s.charAt(i + 5));
-                        int hi3 = Url._hexVal(s.charAt(i + 7));
-                        int lo3 = Url._hexVal(s.charAt(i + 8));
+                    } else if (byte1 >= 224 && i + 8 < String.length(s) && String.charAt(s, i + 3) == "%" && String.charAt(s, i + 6) == "%") {
+                        let hi2: int = Url._hexVal(String.charAt(s, i + 4));
+                        let lo2: int = Url._hexVal(String.charAt(s, i + 5));
+                        let hi3: int = Url._hexVal(String.charAt(s, i + 7));
+                        let lo3: int = Url._hexVal(String.charAt(s, i + 8));
                         if (hi2 >= 0 && lo2 >= 0 && hi3 >= 0 && lo3 >= 0) {
-                            int byte2 = hi2 * 16 + lo2;
-                            int byte3 = hi3 * 16 + lo3;
-                            int code = ((byte1 - 224) * 4096) + ((byte2 - 128) * 64) + (byte3 - 128);
+                            let byte2: int = hi2 * 16 + lo2;
+                            let byte3: int = hi3 * 16 + lo3;
+                            let code: int = ((byte1 - 224) * 4096) + ((byte2 - 128) * 64) + (byte3 - 128);
                             result = result + String.fromCharCode(code);
                             i = i + 9;
                         } else {
-                            result = result + s.charAt(i);
+                            result = result + String.charAt(s, i);
                             i = i + 1;
                         }
                     } else {
-                        result = result + s.charAt(i);
+                        result = result + String.charAt(s, i);
                         i = i + 1;
                     }
                 } else {
-                    result = result + s.charAt(i);
+                    result = result + String.charAt(s, i);
                     i = i + 1;
                 }
-            } else if (s.charAt(i) == "+") {
+            } else if (String.charAt(s, i) == "+") {
                 result = result + " ";
                 i = i + 1;
             } else {
-                result = result + s.charAt(i);
+                result = result + String.charAt(s, i);
                 i = i + 1;
             }
         }
         return result;
     }
 
-    public static HashMap<String, String> parseQueryString(String qs) {
-        HashMap<String, String> result = new HashMap<String, String>();
-        if (qs == null || qs.length() == 0) {
+    public fn parseQueryString(qs: string): HashMap<string, string> {
+        let result: HashMap<string, string> = new HashMap<string, string>();
+        if (qs == null || String.length(qs) == 0) {
             return result;
         }
-        // Remove leading '?' if present
-        if (qs.charAt(0) == '?') {
-            qs = qs.substring(1);
+        if (String.charAt(qs, 0) == '?') {
+            qs = String.substring(qs, 1);
         }
-        ArrayList<String> pairs = String::split(qs, "&");
+        let pairs: ArrayList<string> = String::split(qs, "&");
         for (pair in pairs) {
-            ArrayList<String> kv = String::split(pair, "=");
+            let kv: ArrayList<string> = String::split(pair, "=");
             if (kv.size() >= 2) {
-                String key = Url.decodeComponent(kv.get(0));
-                String value = Url.decodeComponent(kv.get(1));
+                let key: string = Url.decodeComponent(kv.get(0));
+                let value: string = Url.decodeComponent(kv.get(1));
                 result.put(key, value);
-            } else if (kv.size() == 1 && kv.get(0).length() > 0) {
-                String key = Url.decodeComponent(kv.get(0));
+            } else if (kv.size() == 1 && String.length(kv.get(0)) > 0) {
+                let key: string = Url.decodeComponent(kv.get(0));
                 result.put(key, "");
             }
         }
         return result;
     }
 
-    public static String buildQueryString(HashMap<String, String> map) {
-        String result = "";
-        ArrayList<String> keys = map.keys();
-        bool first = true;
+    public fn buildQueryString(map: HashMap<string, string>): string {
+        let result: string = "";
+        let keys: ArrayList<string> = map.keys();
+        let first: bool = true;
         for (key in keys) {
             if (!first) {
                 result = result + "&";
@@ -146,10 +141,10 @@ public class Url {
     }
 
     // Helper: check if a character is in the safe set
-    private static bool _isSafe(String c, String safe) {
-        int i = 0;
-        while (i < safe.length()) {
-            if (safe.charAt(i) == c) {
+    private fn _isSafe(c: string, safe: string): bool {
+        let i: int = 0;
+        while (i < String.length(safe)) {
+            if (String.charAt(safe, i) == c) {
                 return true;
             }
             i = i + 1;
@@ -158,7 +153,7 @@ public class Url {
     }
 
     // Helper: convert a value 0-15 to a hex digit
-    private static String _hexDigit(int v) {
+    private fn _hexDigit(v: int): string {
         if (v < 10) {
             return String.fromCharCode(48 + v);
         }
@@ -166,15 +161,15 @@ public class Url {
     }
 
     // Helper: convert a hex character to its value 0-15, or -1
-    private static int _hexVal(String c) {
+    private fn _hexVal(c: string): int {
         if (c >= "0" && c <= "9") {
-            return c.charAt(0).charAt(0) - "0".charAt(0);
+            return String.charAt(c, 0).charAt(0) - "0".charAt(0);
         }
         if (c >= "A" && c <= "F") {
-            return c.charAt(0).charAt(0) - "A".charAt(0) + 10;
+            return String.charAt(c, 0).charAt(0) - "A".charAt(0) + 10;
         }
         if (c >= "a" && c <= "f") {
-            return c.charAt(0).charAt(0) - "a".charAt(0) + 10;
+            return String.charAt(c, 0).charAt(0) - "a".charAt(0) + 10;
         }
         return -1;
     }
