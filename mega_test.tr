@@ -83,7 +83,7 @@ public fn main(): void {
 
     // === Section 10: ArrayList ===
     io::println("=== ArrayList ===");
-    let list: ArrayList = new ArrayList();
+    let list: ArrayList<string> = new ArrayList<string>();
     list.add("banana");
     list.add("apple");
     list.add("cherry");
@@ -95,7 +95,7 @@ public fn main(): void {
 
     // === Section 11: HashMap ===
     io::println("=== HashMap ===");
-    let map: HashMap = new HashMap();
+    let map: HashMap<string, string> = new HashMap<string, string>();
     map.put("name", "Titrate");
     map.put("version", "0.1");
     io::println(map.get("name"));
@@ -152,15 +152,15 @@ fn factorial(n: int): int {
     return n * factorial(n - 1);
 }
 
-public void greet(string name) {
+public fn greet(name: string): void {
     io::println("Hello, " + name + "!");
 }
 
 // Class
 class Circle {
-    double radius;
+    public double radius;
 
-    public Circle(double r) {
+    fn init(double r) {
         this.radius = r;
     }
 

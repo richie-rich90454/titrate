@@ -439,23 +439,29 @@ public fn main(): void {
     // ================================================================
     io::println("=== Section 13: Range Expressions ===");
 
-    // C-style for loop as range
+    // Range as while loop
     io::println("Range 0..5:");
-    for (let i = 0; i < 5; i = i + 1) {
-        io::println("  i = " + Integer.toString(i));
+    var i13: int = 0;
+    while (i13 < 5) {
+        io::println("  i = " + Integer.toString(i13));
+        i13 = i13 + 1;
     }
 
     // Sum of range
     var rangeSum: int = 0;
-    for (let i = 1; i <= 10; i = i + 1) {
-        rangeSum = rangeSum + i;
+    var i13b: int = 1;
+    while (i13b <= 10) {
+        rangeSum = rangeSum + i13b;
+        i13b = i13b + 1;
     }
     io::println("Sum 1..10 = " + Integer.toString(rangeSum));  // 55
 
     // Range with step
     io::println("Even numbers 0..10:");
-    for (let i = 0; i <= 10; i = i + 2) {
-        io::println("  " + Integer.toString(i));
+    var i13c: int = 0;
+    while (i13c <= 10) {
+        io::println("  " + Integer.toString(i13c));
+        i13c = i13c + 2;
     }
 
     let rangeOk: bool = rangeSum == 55;
