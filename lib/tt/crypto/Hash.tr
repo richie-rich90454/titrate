@@ -15,16 +15,12 @@ public class Hash {
         return Hash_sha256(input);
     }
 
-    // NOTE: sha384/sha512 are not yet available as VM natives.
-    // These delegate to sha256 as a placeholder.
     public fn sha384(input: string): string {
-        // Placeholder: delegate to sha256 until native is available
-        return Hash_sha256(input);
+        return Hash_sha384(input);
     }
 
     public fn sha512(input: string): string {
-        // Placeholder: delegate to sha256 until native is available
-        return Hash_sha256(input);
+        return Hash_sha512(input);
     }
 
     // NOTE: HMAC is not yet available as a VM native.
@@ -60,8 +56,8 @@ public class Hash {
         if (algorithm == "md5") { return Hash_md5(data); }
         if (algorithm == "sha1") { return Hash_sha1(data); }
         if (algorithm == "sha256") { return Hash_sha256(data); }
-        if (algorithm == "sha384") { return Hash.sha384(data); }
-        if (algorithm == "sha512") { return Hash.sha512(data); }
+        if (algorithm == "sha384") { return Hash_sha384(data); }
+        if (algorithm == "sha512") { return Hash_sha512(data); }
         return "";
     }
 

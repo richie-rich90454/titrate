@@ -5,7 +5,7 @@ use super::super::super::value::Value;
 use std::rc::Rc;
 use md5::{Digest, Md5};
 use sha1::Sha1;
-use sha2::Sha256;
+use sha2::{Sha256, Sha384, Sha512};
 
 pub(crate) fn native_hash_md5(args: &[Value]) -> Result<Value, String> {
     match args.first() {
@@ -40,5 +40,29 @@ pub(crate) fn native_hash_sha256(args: &[Value]) -> Result<Value, String> {
             Ok(Value::String(Rc::new(format!("{:x}", result))))
         }
         _ => Err("Hash_sha256: expected a String argument".to_string()),
+    }
+}
+
+pub(crate) fn native_hash_sha384(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => {
+            let mut hasher = Sha384::new();
+            hasher.update(s.as_bytes());
+            let result = hasher.finalize();
+            Ok(Value::String(Rc::new(format!("{:x}", result))))
+        }
+        _ => Err("Hash_sha384: expected a String argument".to_string()),
+    }
+}
+
+pub(crate) fn native_hash_sha512(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => {
+            let mut hasher = Sha512::new();
+            hasher.update(s.as_bytes());
+            let result = hasher.finalize();
+            Ok(Value::String(Rc::new(format!("{:x}", result))))
+        }
+        _ => Err("Hash_sha512: expected a String argument".to_string()),
     }
 }

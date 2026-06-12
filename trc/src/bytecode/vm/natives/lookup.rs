@@ -122,6 +122,8 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Hash_md5" => Some(hash::native_hash_md5),
         "Hash_sha1" => Some(hash::native_hash_sha1),
         "Hash_sha256" => Some(hash::native_hash_sha256),
+        "Hash_sha384" => Some(hash::native_hash_sha384),
+        "Hash_sha512" => Some(hash::native_hash_sha512),
         "Base64_encode" => Some(encoding::native_base64_encode),
         "Base64_decode" => Some(encoding::native_base64_decode),
         "Hex_encode" => Some(encoding::native_hex_encode),
