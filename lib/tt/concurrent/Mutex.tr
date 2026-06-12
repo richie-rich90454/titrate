@@ -1,0 +1,24 @@
+// Mutual exclusion lock.
+public class Mutex {
+    private int handle;
+
+    public fn init() {
+        this.handle = Mutex_new();
+    }
+
+    public fn lock(): void {
+        Mutex_lock(this.handle);
+    }
+
+    public fn unlock(): void {
+        Mutex_unlock(this.handle);
+    }
+
+    public fn tryLock(): bool {
+        return Mutex_tryLock(this.handle);
+    }
+
+    public fn getHandle(): int {
+        return this.handle;
+    }
+}
