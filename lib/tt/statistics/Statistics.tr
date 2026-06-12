@@ -1,7 +1,9 @@
 // Statistics module providing Python statistics-style functions.
 import tt::util::ArrayList;
 import tt::util::HashMap;
+import tt::util::Pair;
 import tt::math::Math;
+import tt::random::Random;
 
 // Arithmetic mean.
 fn mean(data: ArrayList<double>): double {
@@ -243,4 +245,237 @@ fn sortCopy(data: ArrayList<double>): ArrayList<double> {
         j = j + 1;
     }
     return copy;
+}
+
+// Weighted mean (fmean)
+public fn fmean(data: ArrayList<double>, weights: ArrayList<double>): double {
+    if (data.size() == 0 || data.size() != weights.size()) {
+        return 0.0;
+    }
+    var sumWeighted: double = 0.0;
+    var sumWeights: double = 0.0;
+    var i: int = 0;
+    while (i < data.size()) {
+        sumWeighted = sumWeighted + data.get(i) * weights.get(i);
+        sumWeights = sumWeights + weights.get(i);
+        i = i + 1;
+    }
+    if (sumWeights == 0.0) { return 0.0; }
+    return sumWeighted / sumWeights;
+}
+
+// Grouped median: estimate median for grouped continuous data
+public fn medianGrouped(data: ArrayList<double>, interval: double): double {
+    if (data.size() == 0) { return 0.0; }
+    let sorted: ArrayList<double> = sortCopy(data);
+    let n: int = sorted.size();
+    let mid: int = n / 2;
+    if (n % 2 == 1) {
+        return sorted.get(mid);
+    }
+    // Interpolate within the interval
+    let lo: double = sorted.get(mid - 1);
+    let hi: double = sorted.get(mid);
+    let median: double = (lo + hi) / 2.0;
+    // Adjust by half the interval toward the middle of the group
+    let gap: double = hi - lo;
+    if (gap < interval) {
+        return median + (interval - gap) / 2.0;
+    }
+    return median;
+}
+
+// Sample covariance
+public fn covariance(x: ArrayList<double>, y: ArrayList<double>): double {
+    if (x.size() != y.size() || x.size() < 2) {
+        return 0.0;
+    }
+    let meanX: double = mean(x);
+    let meanY: double = mean(y);
+    var sumXY: double = 0.0;
+    var i: int = 0;
+    while (i < x.size()) {
+        sumXY = sumXY + (x.get(i) - meanX) * (y.get(i) - meanY);
+        i = i + 1;
+    }
+    return sumXY / (x.size() - 1);
+}
+
+// Multimode: return all modes (values with the highest frequency)
+public fn multimode(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (data.size() == 0) { return result; }
+    let counts: HashMap<double, int> = new HashMap<double, int>();
+    var i: int = 0;
+    while (i < data.size()) {
+        let val: double = data.get(i);
+        if (counts.containsKey(val)) {
+            counts.put(val, counts.get(val) + 1);
+        } else {
+            counts.put(val, 1);
+        }
+        i = i + 1;
+    }
+    // Find max count
+    var maxCount: int = 0;
+    let keys: ArrayList<double> = counts.keys();
+    i = 0;
+    while (i < keys.size()) {
+        let cnt: int = counts.get(keys.get(i));
+        if (cnt > maxCount) { maxCount = cnt; }
+        i = i + 1;
+    }
+    // Collect all values with max count
+    i = 0;
+    while (i < keys.size()) {
+        if (counts.get(keys.get(i)) == maxCount) {
+            result.add(keys.get(i));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== NormalDist class ====================
+
+public class NormalDist {
+    public double mu;
+    public double sigma;
+
+    public fn init(mu: double, sigma: double) {
+        this.mu = mu;
+        this.sigma = sigma;
+    }
+
+    // Probability density function
+    public fn pdf(x: double): double {
+        if (this.sigma <= 0.0) { return 0.0; }
+        let z: double = (x - this.mu) / this.sigma;
+        return (1.0 / (this.sigma * Math.sqrt(2.0 * Math.PI()))) * Math.exp(-0.5 * z * z);
+    }
+
+    // Cumulative distribution function using error function
+    public fn cdf(x: double): double {
+        if (this.sigma <= 0.0) { return 0.0; }
+        let z: double = (x - this.mu) / (this.sigma * Math.sqrt(2.0));
+        return 0.5 * (1.0 + Math.erf(z));
+    }
+
+    // Inverse CDF (quantile) using rational approximation by Peter Acklam
+    public fn invCdf(p: double): double {
+        if (p <= 0.0) { return -Math.INF(); }
+        if (p >= 1.0) { return Math.INF(); }
+        // Acklam's rational approximation coefficients
+        let a1: double = -3.969683028665376e+01;
+        let a2: double = 2.209460984245205e+02;
+        let a3: double = -2.759285104469687e+02;
+        let a4: double = 1.383577518672690e+02;
+        let a5: double = -3.066479806614716e+01;
+        let a6: double = 2.506628277459239e+00;
+
+        let b1: double = -5.447609879822406e+01;
+        let b2: double = 1.615858368580409e+02;
+        let b3: double = -1.556989798598866e+02;
+        let b4: double = 6.680131188771972e+01;
+        let b5: double = -1.328068155288572e+01;
+
+        let c1: double = -7.784894002430293e-03;
+        let c2: double = -3.223964580411365e-01;
+        let c3: double = -2.400758277161838e+00;
+        let c4: double = -2.549732539343734e+00;
+        let c5: double = 4.374664141464968e+00;
+        let c6: double = 2.938163982698783e+00;
+
+        let d1: double = 7.784695709041462e-03;
+        let d2: double = 3.224671290700398e-01;
+        let d3: double = 2.445134137142996e+00;
+        let d4: double = 3.754408661907416e+00;
+
+        let pLow: double = 0.02425;
+        let pHigh: double = 1.0 - pLow;
+
+        var q: double = 0.0;
+        var r: double = 0.0;
+        var x: double = 0.0;
+
+        if (p < pLow) {
+            // Rational approximation for lower region
+            q = Math.sqrt(-2.0 * Math.ln(p));
+            x = (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1.0);
+        } else {
+            if (p <= pHigh) {
+                // Rational approximation for central region
+                q = p - 0.5;
+                r = q * q;
+                x = (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q / (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1.0);
+            } else {
+                // Rational approximation for upper region
+                q = Math.sqrt(-2.0 * Math.ln(1.0 - p));
+                x = -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1.0);
+            }
+        }
+        return this.mu + x * this.sigma;
+    }
+
+    // Overlapping coefficient: integral of min(pdf1, pdf2) using numerical integration
+    public fn overlap(other: NormalDist): double {
+        // Use Simpson's rule over a range that covers both distributions
+        let minMu: double = Math.min(this.mu, other.mu);
+        let maxMu: double = Math.max(this.mu, other.mu);
+        let maxSigma: double = Math.max(this.sigma, other.sigma);
+        let lo: double = minMu - 6.0 * maxSigma;
+        let hi: double = maxMu + 6.0 * maxSigma;
+        let n: int = 200;
+        let h: double = (hi - lo) / n as double;
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i <= n) {
+            let x: double = lo + i as double * h;
+            let p1: double = this.pdf(x);
+            let p2: double = other.pdf(x);
+            let m: double = Math.min(p1, p2);
+            if (i == 0 || i == n) {
+                sum = sum + m;
+            } else {
+                if (i % 2 == 1) {
+                    sum = sum + 4.0 * m;
+                } else {
+                    sum = sum + 2.0 * m;
+                }
+            }
+            i = i + 1;
+        }
+        return sum * h / 3.0;
+    }
+
+    // n-quantiles: divide the distribution into n equal-probability intervals
+    public fn quantiles(n: int): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        if (n <= 1) { return result; }
+        var i: int = 1;
+        while (i < n) {
+            let p: double = i as double / n as double;
+            result.add(this.invCdf(p));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Z-score: (x - mu) / sigma
+    public fn zscore(x: double): double {
+        if (this.sigma == 0.0) { return 0.0; }
+        return (x - this.mu) / this.sigma;
+    }
+
+    // Generate n random samples using the provided RNG
+    public fn samples(rng: Random, n: int): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < n) {
+            let z: double = rng.nextGaussian();
+            result.add(this.mu + this.sigma * z);
+            i = i + 1;
+        }
+        return result;
+    }
 }
