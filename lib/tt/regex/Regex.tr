@@ -6,12 +6,12 @@ public class Regex {
     public string pattern;
     public string flags;
 
-    public Regex(p: string) {
+    public fn init(p: string) {
         this.pattern = p;
         this.flags = "";
     }
 
-    public Regex(p: string, f: string) {
+    public fn initWithFlags(p: string, f: string) {
         this.pattern = p;
         this.flags = f;
     }

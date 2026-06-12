@@ -7,7 +7,7 @@ public class Match {
     public int end;
     public ArrayList<string> groups;
 
-    public Match(m: string, s: int, e: int) {
+    public fn init(m: string, s: int, e: int) {
         this.matched = m;
         this.start = s;
         this.end = e;

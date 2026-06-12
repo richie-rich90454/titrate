@@ -68,7 +68,7 @@ public class StringUtils {
 public class Template {
     public string template;
 
-    public Template(template: string) {
+    public fn init(template: string) {
         this.template = template;
     }
 
