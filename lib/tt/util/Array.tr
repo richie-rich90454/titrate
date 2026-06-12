@@ -6,45 +6,18 @@ public class Array<T> {
     private int _capacity;
 
     // Creates a new Array of the given size, filled with null.
-    public Array(int size) {
+    public fn Array(size: int) {
         this._capacity = size;
         this._data = new ArrayList<T>();
-        int i = 0;
+        let i: int = 0;
         while (i < size) {
             this._data.add(null);
             i = i + 1;
         }
     }
 
-    // Creates an Array from the given elements.
-    public static Array<T> of(T... elements) {
-        Array<T> arr = new Array<T>(0);
-        arr._capacity = 0;
-        arr._data = new ArrayList<T>();
-        int i = 0;
-        while (i < elements.size()) {
-            arr._data.add(elements.get(i));
-            i = i + 1;
-        }
-        arr._capacity = arr._data.size();
-        return arr;
-    }
-
-    // Creates an Array of the given size filled with the specified value.
-    public static Array<T> filled(int size, T value) {
-        Array<T> arr = new Array<T>(0);
-        arr._capacity = size;
-        arr._data = new ArrayList<T>();
-        int i = 0;
-        while (i < size) {
-            arr._data.add(value);
-            i = i + 1;
-        }
-        return arr;
-    }
-
     // Returns the element at the given index.
-    public T get(int index) {
+    public fn get(index: int): T {
         if (index < 0 || index >= this._capacity) {
             throw "IndexOutOfBounds: " + index;
         }
@@ -52,7 +25,7 @@ public class Array<T> {
     }
 
     // Sets the element at the given index to the given value.
-    public void set(int index, T value) {
+    public fn set(index: int, value: T): void {
         if (index < 0 || index >= this._capacity) {
             throw "IndexOutOfBounds: " + index;
         }
@@ -60,18 +33,18 @@ public class Array<T> {
     }
 
     // Returns the fixed size of this Array.
-    public int size() {
+    public fn size(): int {
         return this._capacity;
     }
 
     // Returns true if this Array has size 0.
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this._capacity == 0;
     }
 
     // Fills the entire Array with the given value.
-    public void fill(T value) {
-        int i = 0;
+    public fn fill(value: T): void {
+        let i: int = 0;
         while (i < this._capacity) {
             this._data.set(i, value);
             i = i + 1;
@@ -79,9 +52,9 @@ public class Array<T> {
     }
 
     // Returns a new ArrayList containing all elements in this Array.
-    public ArrayList<T> toArrayList() {
-        ArrayList<T> result = new ArrayList<T>();
-        int i = 0;
+    public fn toArrayList(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let i: int = 0;
         while (i < this._capacity) {
             result.add(this._data.get(i));
             i = i + 1;
@@ -90,12 +63,12 @@ public class Array<T> {
     }
 
     // Compares this Array to another object for equality.
-    public bool equals(Object other) {
+    public fn equals(other: Variant): bool {
         if (other == null) { return false; }
-        if (!(other instanceof Array)) { return false; }
-        Array<T> o = (Array<T>) other;
+        if (!(other is Array)) { return false; }
+        let o: Array<T> = other as Array<T>;
         if (this._capacity != o._capacity) { return false; }
-        int i = 0;
+        let i: int = 0;
         while (i < this._capacity) {
             if (this._data.get(i) != o._data.get(i)) {
                 return false;
@@ -106,9 +79,9 @@ public class Array<T> {
     }
 
     // Returns a string representation of this Array.
-    public String toString() {
-        String s = "Array[";
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "Array[";
+        let i: int = 0;
         while (i < this._capacity) {
             if (i > 0) { s = s + ", "; }
             s = s + this._data.get(i);
@@ -119,8 +92,8 @@ public class Array<T> {
     }
 
     // Applies action to each element in this Array.
-    public void forEach(function<void(T)> action) {
-        int i = 0;
+    public fn forEach(action: fn(T): void): void {
+        let i: int = 0;
         while (i < this._capacity) {
             action(this._data.get(i));
             i = i + 1;
@@ -128,11 +101,11 @@ public class Array<T> {
     }
 
     // Returns a shallow copy of this Array.
-    public Array<T> clone() {
-        Array<T> result = new Array<T>(0);
+    public fn clone(): Array<T> {
+        let result: Array<T> = new Array<T>(0);
         result._capacity = this._capacity;
         result._data = new ArrayList<T>();
-        int i = 0;
+        let i: int = 0;
         while (i < this._capacity) {
             result._data.add(this._data.get(i));
             i = i + 1;
@@ -141,15 +114,42 @@ public class Array<T> {
     }
 
     // Returns a new Array by applying mapper to each element.
-    public Array<T> map(function<T(T)> mapper) {
-        Array<T> result = new Array<T>(0);
+    public fn map(mapper: fn(T): T): Array<T> {
+        let result: Array<T> = new Array<T>(0);
         result._capacity = this._capacity;
         result._data = new ArrayList<T>();
-        int i = 0;
+        let i: int = 0;
         while (i < this._capacity) {
             result._data.add(mapper(this._data.get(i)));
             i = i + 1;
         }
         return result;
     }
+}
+
+// Creates an Array from the given elements.
+public fn of<T>(elements: ArrayList<T>): Array<T> {
+    let arr: Array<T> = new Array<T>(0);
+    arr._capacity = 0;
+    arr._data = new ArrayList<T>();
+    let i: int = 0;
+    while (i < elements.size()) {
+        arr._data.add(elements.get(i));
+        i = i + 1;
+    }
+    arr._capacity = arr._data.size();
+    return arr;
+}
+
+// Creates an Array of the given size filled with the specified value.
+public fn filled<T>(size: int, value: T): Array<T> {
+    let arr: Array<T> = new Array<T>(0);
+    arr._capacity = size;
+    arr._data = new ArrayList<T>();
+    let i: int = 0;
+    while (i < size) {
+        arr._data.add(value);
+        i = i + 1;
+    }
+    return arr;
 }
