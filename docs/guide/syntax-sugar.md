@@ -222,15 +222,14 @@ import tt.math.Math;        // dot notation also accepted
 
 ## Result Constructors
 
-**Sugar:** `Ok(value)`, `Err(value)` (uppercase)
-**Canonical:** `ok(value)`, `err(value)` (lowercase)
+`Ok(value)` and `Err(value)` are **compiler-built-in keywords** with dedicated parsing and bytecode opcodes. `ok(value)` and `err(value)` are **standard library convenience functions**. Both are always available and produce the same `Result` values — neither is "sugar" for the other; they are two equivalent ways to construct Results.
 
 ```titrate
-// Sugar form — familiar to Rust developers
+// Keyword form — built into the compiler, familiar to Rust developers
 let good: Result<int, string> = Ok(42);
 let bad: Result<int, string> = Err("failed");
 
-// Canonical form — recommended Titrate style
+// Function form — standard library convenience functions
 let good: Result<int, string> = ok(42);
 let bad: Result<int, string> = err("failed");
 ```
@@ -372,7 +371,7 @@ Both forms produce the same import.
 | `++x` / `x++` | `x = x + 1` | C, C++, ECMAScript |
 | `cond ? a : b` | `if/else` | C, C++, ECMAScript |
 | `expr::name` | `expr.name` | C++ |
-| `Ok(v)` / `Err(v)` | `ok(v)` / `err(v)` | Rust |
+| `Ok(v)` / `Err(v)` | `ok(v)` / `err(v)` | Equivalent (keyword vs. stdlib function) |
 | `obj.toString()` | `Integer.toString(obj)` | ECMAScript |
 | `b'x'` | `65` (ASCII value) | C, C++ |
 | `import a.b.c` | `import a::b::c` | ECMAScript |
