@@ -11,107 +11,28 @@ import tt::math::linalg::MatrixOps;
 public class Matrix {
     public NDArray<double> data;
 
-    public Matrix(int r, int c) {
-        ArrayList<int> shape = new ArrayList<int>();
+    fn init(r: int, c: int) {
+        let shape: ArrayList<int> = new ArrayList<int>();
         shape.add(r);
         shape.add(c);
         this.data = NDArray.zeros(shape);
     }
 
-    // Internal constructor from existing NDArray
-    private Matrix(NDArray<double> arr) {
-        this.data = arr.clone();
-    }
-
-    // ---- Factory methods ----
-
-    public static Matrix identity(int n) {
-        Matrix m = new Matrix(n, n);
-        int i = 0;
-        while (i < n) {
-            m.data.set2D(i, i, 1.0);
-            i = i + 1;
-        }
-        return m;
-    }
-
-    public static Matrix zeros(int r, int c) {
-        return new Matrix(r, c);
-    }
-
-    public static Matrix ones(int r, int c) {
-        Matrix m = new Matrix(r, c);
-        int i = 0;
-        while (i < r) {
-            int j = 0;
-            while (j < c) {
-                m.data.set2D(i, j, 1.0);
-                j = j + 1;
-            }
-            i = i + 1;
-        }
-        return m;
-    }
-
-    public static Matrix fromNDArray(NDArray<double> arr) {
-        Matrix m = new Matrix(arr.rows(), arr.cols());
-        m.data = arr.clone();
-        return m;
-    }
-
-    public static Matrix fromRows(ArrayList<NDArray<double>> rows) {
-        int nRows = rows.size();
-        if (nRows == 0) { return new Matrix(0, 0); }
-        NDArray<double> first = rows.get(0);
-        int nCols = first.size();
-        Matrix m = new Matrix(nRows, nCols);
-        int i = 0;
-        while (i < nRows) {
-            NDArray<double> row = rows.get(i);
-            int j = 0;
-            while (j < nCols) {
-                m.data.set2D(i, j, row.getFlat(j));
-                j = j + 1;
-            }
-            i = i + 1;
-        }
-        return m;
-    }
-
-    public static Matrix fromCols(ArrayList<NDArray<double>> cols) {
-        int nCols = cols.size();
-        if (nCols == 0) { return new Matrix(0, 0); }
-        NDArray<double> first = cols.get(0);
-        int nRows = first.size();
-        Matrix m = new Matrix(nRows, nCols);
-        int j = 0;
-        while (j < nCols) {
-            NDArray<double> col = cols.get(j);
-            int i = 0;
-            while (i < nRows) {
-                m.data.set2D(i, j, col.getFlat(i));
-                i = i + 1;
-            }
-            j = j + 1;
-        }
-        return m;
-    }
-
     // ---- Element access ----
 
-    public double get(int i, int j) {
+    public fn get(i: int, j: int): double {
         return this.data.get2D(i, j);
     }
 
-    public void set(int i, int j, double val) {
+    public fn set(i: int, j: int, val: double): void {
         this.data.set2D(i, j, val);
     }
 
-    public NDArray<double> getRow(int i) {
-        ArrayList<int> shape = new ArrayList<int>();
+    public fn getRow(i: int): NDArray<double> {
+        let shape: ArrayList<int> = new ArrayList<int>();
         shape.add(this.cols());
-        NDArray<double> row = NDArray.zeros(shape);
-        int j = 0;
+        let row: NDArray<double> = NDArray.zeros(shape);
+        var j: int = 0;
         while (j < this.cols()) {
             row.setFlat(j, this.data.get2D(i, j));
             j = j + 1;
@@ -119,11 +40,11 @@ public class Matrix {
         return row;
     }
 
-    public NDArray<double> getCol(int j) {
-        ArrayList<int> shape = new ArrayList<int>();
+    public fn getCol(j: int): NDArray<double> {
+        let shape: ArrayList<int> = new ArrayList<int>();
         shape.add(this.rows());
-        NDArray<double> col = NDArray.zeros(shape);
-        int i = 0;
+        let col: NDArray<double> = NDArray.zeros(shape);
+        var i: int = 0;
         while (i < this.rows()) {
             col.setFlat(i, this.data.get2D(i, j));
             i = i + 1;
@@ -131,16 +52,16 @@ public class Matrix {
         return col;
     }
 
-    public void setRow(int i, NDArray<double> row) {
-        int j = 0;
+    public fn setRow(i: int, row: NDArray<double>): void {
+        var j: int = 0;
         while (j < this.cols()) {
             this.data.set2D(i, j, row.getFlat(j));
             j = j + 1;
         }
     }
 
-    public void setCol(int j, NDArray<double> col) {
-        int i = 0;
+    public fn setCol(j: int, col: NDArray<double>): void {
+        var i: int = 0;
         while (i < this.rows()) {
             this.data.set2D(i, j, col.getFlat(i));
             i = i + 1;
@@ -149,22 +70,21 @@ public class Matrix {
 
     // ---- Dimensions ----
 
-    public int rows() {
+    public fn rows(): int {
         return this.data.rows();
     }
 
-    public int cols() {
+    public fn cols(): int {
         return this.data.cols();
     }
 
     // ---- Core operations ----
 
-    // Element-wise addition
-    public Matrix add(Matrix other) {
-        Matrix result = new Matrix(this.rows(), this.cols());
-        int i = 0;
+    public fn add(other: Matrix): Matrix {
+        let result: Matrix = new Matrix(this.rows(), this.cols());
+        var i: int = 0;
         while (i < this.rows()) {
-            int j = 0;
+            var j: int = 0;
             while (j < this.cols()) {
                 result.data.set2D(i, j, this.data.get2D(i, j) + other.data.get2D(i, j));
                 j = j + 1;
@@ -174,12 +94,11 @@ public class Matrix {
         return result;
     }
 
-    // Element-wise subtraction
-    public Matrix sub(Matrix other) {
-        Matrix result = new Matrix(this.rows(), this.cols());
-        int i = 0;
+    public fn sub(other: Matrix): Matrix {
+        let result: Matrix = new Matrix(this.rows(), this.cols());
+        var i: int = 0;
         while (i < this.rows()) {
-            int j = 0;
+            var j: int = 0;
             while (j < this.cols()) {
                 result.data.set2D(i, j, this.data.get2D(i, j) - other.data.get2D(i, j));
                 j = j + 1;
@@ -189,16 +108,15 @@ public class Matrix {
         return result;
     }
 
-    // Matrix multiplication
-    public Matrix mul(Matrix other) {
+    public fn mul(other: Matrix): Matrix {
         if (this.cols() != other.rows()) { return new Matrix(0, 0); }
-        Matrix result = new Matrix(this.rows(), other.cols());
-        int i = 0;
+        let result: Matrix = new Matrix(this.rows(), other.cols());
+        var i: int = 0;
         while (i < this.rows()) {
-            int j = 0;
+            var j: int = 0;
             while (j < other.cols()) {
-                double sum = 0.0;
-                int k = 0;
+                var sum: double = 0.0;
+                var k: int = 0;
                 while (k < this.cols()) {
                     sum = sum + this.data.get2D(i, k) * other.data.get2D(k, j);
                     k = k + 1;
@@ -211,12 +129,11 @@ public class Matrix {
         return result;
     }
 
-    // Scalar multiplication
-    public Matrix scale(double s) {
-        Matrix result = new Matrix(this.rows(), this.cols());
-        int i = 0;
+    public fn scale(s: double): Matrix {
+        let result: Matrix = new Matrix(this.rows(), this.cols());
+        var i: int = 0;
         while (i < this.rows()) {
-            int j = 0;
+            var j: int = 0;
             while (j < this.cols()) {
                 result.data.set2D(i, j, this.data.get2D(i, j) * s);
                 j = j + 1;
@@ -226,11 +143,11 @@ public class Matrix {
         return result;
     }
 
-    public Matrix transpose() {
-        Matrix result = new Matrix(this.cols(), this.rows());
-        int i = 0;
+    public fn transpose(): Matrix {
+        let result: Matrix = new Matrix(this.cols(), this.rows());
+        var i: int = 0;
         while (i < this.rows()) {
-            int j = 0;
+            var j: int = 0;
             while (j < this.cols()) {
                 result.data.set2D(j, i, this.data.get2D(i, j));
                 j = j + 1;
@@ -240,11 +157,10 @@ public class Matrix {
         return result;
     }
 
-    // Sum of diagonal elements
-    public double trace() {
-        double t = 0.0;
-        int n = Math.min(this.rows(), this.cols());
-        int i = 0;
+    public fn trace(): double {
+        var t: double = 0.0;
+        let n: int = Math.min(this.rows(), this.cols());
+        var i: int = 0;
         while (i < n) {
             t = t + this.data.get2D(i, i);
             i = i + 1;
@@ -254,18 +170,18 @@ public class Matrix {
 
     // ---- Utility ----
 
-    public Matrix clone() {
-        Matrix m = new Matrix(this.rows(), this.cols());
+    public fn clone(): Matrix {
+        let m: Matrix = new Matrix(this.rows(), this.cols());
         m.data = this.data.clone();
         return m;
     }
 
-    public String toString() {
-        String s = "Matrix(" + Integer.toString(this.rows()) + "x" + Integer.toString(this.cols()) + ") [\n";
-        int i = 0;
+    public fn toString(): string {
+        var s: string = "Matrix(" + Integer.toString(this.rows()) + "x" + Integer.toString(this.cols()) + ") [\n";
+        var i: int = 0;
         while (i < this.rows()) {
             s = s + "  [";
-            int j = 0;
+            var j: int = 0;
             while (j < this.cols()) {
                 if (j > 0) { s = s + ", "; }
                 s = s + Double.toString(this.data.get2D(i, j));
@@ -280,16 +196,16 @@ public class Matrix {
         return s;
     }
 
-    public bool equals(Matrix other) {
+    public fn equals(other: Matrix): bool {
         if (this.rows() != other.rows()) { return false; }
         if (this.cols() != other.cols()) { return false; }
-        int i = 0;
+        var i: int = 0;
         while (i < this.rows()) {
-            int j = 0;
+            var j: int = 0;
             while (j < this.cols()) {
-                double a = this.data.get2D(i, j);
-                double b = other.data.get2D(i, j);
-                double diff = a - b;
+                let a: double = this.data.get2D(i, j);
+                let b: double = other.data.get2D(i, j);
+                var diff: double = a - b;
                 if (diff < 0.0) { diff = -diff; }
                 if (diff > 1e-9) { return false; }
                 j = j + 1;
@@ -298,4 +214,78 @@ public class Matrix {
         }
         return true;
     }
+}
+
+// ---- Factory methods ----
+
+public fn identity(n: int): Matrix {
+    let m: Matrix = new Matrix(n, n);
+    var i: int = 0;
+    while (i < n) {
+        m.data.set2D(i, i, 1.0);
+        i = i + 1;
+    }
+    return m;
+}
+
+public fn zeros(r: int, c: int): Matrix {
+    return new Matrix(r, c);
+}
+
+public fn ones(r: int, c: int): Matrix {
+    let m: Matrix = new Matrix(r, c);
+    var i: int = 0;
+    while (i < r) {
+        var j: int = 0;
+        while (j < c) {
+            m.data.set2D(i, j, 1.0);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return m;
+}
+
+public fn fromNDArray(arr: NDArray<double>): Matrix {
+    let m: Matrix = new Matrix(arr.rows(), arr.cols());
+    m.data = arr.clone();
+    return m;
+}
+
+public fn fromRows(rows: ArrayList<NDArray<double>>): Matrix {
+    let nRows: int = rows.size();
+    if (nRows == 0) { return new Matrix(0, 0); }
+    let first: NDArray<double> = rows.get(0);
+    let nCols: int = first.size();
+    let m: Matrix = new Matrix(nRows, nCols);
+    var i: int = 0;
+    while (i < nRows) {
+        let row: NDArray<double> = rows.get(i);
+        var j: int = 0;
+        while (j < nCols) {
+            m.data.set2D(i, j, row.getFlat(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return m;
+}
+
+public fn fromCols(cols: ArrayList<NDArray<double>>): Matrix {
+    let nCols: int = cols.size();
+    if (nCols == 0) { return new Matrix(0, 0); }
+    let first: NDArray<double> = cols.get(0);
+    let nRows: int = first.size();
+    let m: Matrix = new Matrix(nRows, nCols);
+    var j: int = 0;
+    while (j < nCols) {
+        let col: NDArray<double> = cols.get(j);
+        var i: int = 0;
+        while (i < nRows) {
+            m.data.set2D(i, j, col.getFlat(i));
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    return m;
 }
