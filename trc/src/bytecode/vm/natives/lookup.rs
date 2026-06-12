@@ -3,7 +3,8 @@
 
 use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, net, time, regex, math,
-            random, json, string, hash, encoding, subprocess, tempfile};
+            random, json, string, hash, encoding, subprocess, tempfile,
+            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -140,6 +141,123 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Subprocess_run" => Some(subprocess::native_subprocess_run),
         "Subprocess_exec" => Some(subprocess::native_subprocess_exec),
         "Tempfile_create" => Some(tempfile::native_tempfile_create),
+
+        // Thread natives
+        "Thread_spawn" => Some(thread::native_thread_spawn),
+        "Thread_join" => Some(thread::native_thread_join),
+        "Thread_sleep" => Some(thread::native_thread_sleep),
+        "Thread_yield" => Some(thread::native_thread_yield),
+        "Thread_getId" => Some(thread::native_thread_get_id),
+        "Thread_currentId" => Some(thread::native_thread_current_id),
+        "Thread_detach" => Some(thread::native_thread_detach),
+
+        // Mutex natives
+        "Mutex_new" => Some(mutex::native_mutex_new),
+        "Mutex_lock" => Some(mutex::native_mutex_lock),
+        "Mutex_unlock" => Some(mutex::native_mutex_unlock),
+        "Mutex_tryLock" => Some(mutex::native_mutex_try_lock),
+        "RecursiveMutex_new" => Some(mutex::native_recursive_mutex_new),
+        "RecursiveMutex_lock" => Some(mutex::native_recursive_mutex_lock),
+        "RecursiveMutex_unlock" => Some(mutex::native_recursive_mutex_unlock),
+        "RecursiveMutex_tryLock" => Some(mutex::native_recursive_mutex_try_lock),
+
+        // Condvar natives
+        "CondVar_new" => Some(condvar::native_cv_new),
+        "CondVar_wait" => Some(condvar::native_cv_wait),
+        "CondVar_waitFor" => Some(condvar::native_cv_wait_for),
+        "CondVar_notifyOne" => Some(condvar::native_cv_notify_one),
+        "CondVar_notifyAll" => Some(condvar::native_cv_notify_all),
+
+        // Semaphore natives
+        "Semaphore_new" => Some(semaphore::native_sem_new),
+        "Semaphore_acquire" => Some(semaphore::native_sem_acquire),
+        "Semaphore_release" => Some(semaphore::native_sem_release),
+        "Semaphore_tryAcquire" => Some(semaphore::native_sem_try_acquire),
+        "Semaphore_availablePermits" => Some(semaphore::native_sem_available_permits),
+
+        // AtomicInt natives
+        "AtomicInt_new" => Some(atomic::native_atomic_int_new),
+        "AtomicInt_get" => Some(atomic::native_atomic_int_get),
+        "AtomicInt_set" => Some(atomic::native_atomic_int_set),
+        "AtomicInt_fetchAdd" => Some(atomic::native_atomic_int_fetch_add),
+        "AtomicInt_fetchSub" => Some(atomic::native_atomic_int_fetch_sub),
+        "AtomicInt_compareAndSwap" => Some(atomic::native_atomic_int_compare_and_swap),
+
+        // AtomicBool natives
+        "AtomicBool_new" => Some(atomic::native_atomic_bool_new),
+        "AtomicBool_get" => Some(atomic::native_atomic_bool_get),
+        "AtomicBool_set" => Some(atomic::native_atomic_bool_set),
+        "AtomicBool_compareAndSwap" => Some(atomic::native_atomic_bool_compare_and_swap),
+
+        // TCP Socket natives
+        "Socket_new" => Some(socket::native_socket_new),
+        "Socket_connect" => Some(socket::native_socket_connect),
+        "Socket_bind" => Some(socket::native_socket_bind),
+        "Socket_listen" => Some(socket::native_socket_listen),
+        "Socket_accept" => Some(socket::native_socket_accept),
+        "Socket_send" => Some(socket::native_socket_send),
+        "Socket_recv" => Some(socket::native_socket_recv),
+        "Socket_close" => Some(socket::native_socket_close),
+        "Socket_setTimeout" => Some(socket::native_socket_set_timeout),
+        "Socket_setNoDelay" => Some(socket::native_socket_set_no_delay),
+
+        // UDP Socket natives
+        "UdpSocket_new" => Some(socket::native_udp_socket_new),
+        "UdpSocket_bind" => Some(socket::native_udp_socket_bind),
+        "UdpSocket_sendTo" => Some(socket::native_udp_socket_send_to),
+        "UdpSocket_recvFrom" => Some(socket::native_udp_socket_recv_from),
+        "UdpSocket_close" => Some(socket::native_udp_socket_close),
+        "UdpSocket_setTimeout" => Some(socket::native_udp_socket_set_timeout),
+        "UdpSocket_lastSenderHost" => Some(socket::native_udp_socket_last_sender_host),
+        "UdpSocket_lastSenderPort" => Some(socket::native_udp_socket_last_sender_port),
+
+        // SSL natives (stubs)
+        "Ssl_contextNew" => Some(ssl::native_ssl_context_new),
+        "Ssl_connect" => Some(ssl::native_ssl_connect),
+        "Ssl_send" => Some(ssl::native_ssl_send),
+        "Ssl_recv" => Some(ssl::native_ssl_recv),
+        "Ssl_close" => Some(ssl::native_ssl_close),
+        "Ssl_peerCertificate" => Some(ssl::native_ssl_peer_certificate),
+        "Ssl_contextClose" => Some(ssl::native_ssl_context_close),
+
+        // SQLite natives (stubs)
+        "Sqlite_open" => Some(sqlite::native_sqlite_open),
+        "Sqlite_execute" => Some(sqlite::native_sqlite_execute),
+        "Sqlite_query" => Some(sqlite::native_sqlite_query),
+        "Sqlite_close" => Some(sqlite::native_sqlite_close),
+        "Sqlite_lastInsertId" => Some(sqlite::native_sqlite_last_insert_id),
+        "Sqlite_nextRow" => Some(sqlite::native_sqlite_next_row),
+        "Sqlite_getInt" => Some(sqlite::native_sqlite_get_int),
+        "Sqlite_getString" => Some(sqlite::native_sqlite_get_string),
+        "Sqlite_getDouble" => Some(sqlite::native_sqlite_get_double),
+        "Sqlite_columnCount" => Some(sqlite::native_sqlite_column_count),
+        "Sqlite_columnName" => Some(sqlite::native_sqlite_column_name),
+        "Sqlite_closeResult" => Some(sqlite::native_sqlite_close_result),
+
+        // Mmap natives (stubs)
+        "Mmap_open" => Some(mmap::native_mmap_open),
+        "Mmap_close" => Some(mmap::native_mmap_close),
+        "Mmap_get" => Some(mmap::native_mmap_get),
+        "Mmap_set" => Some(mmap::native_mmap_set),
+        "Mmap_size" => Some(mmap::native_mmap_size),
+        "Mmap_flush" => Some(mmap::native_mmap_flush),
+
+        // Signal natives (stubs)
+        "Signal_register" => Some(system::native_signal_register),
+        "Signal_raise" => Some(system::native_signal_raise),
+
+        // Zlib natives (stubs)
+        "Zlib_compress" => Some(zlib::native_zlib_compress),
+        "Zlib_decompress" => Some(zlib::native_zlib_decompress),
+        "Gzip_compress" => Some(zlib::native_gzip_compress),
+        "Gzip_decompress" => Some(zlib::native_gzip_decompress),
+
+        // Additional Os natives
+        "Os_cpuCount" => Some(system::native_os_cpu_count),
+        "Os_userName" => Some(system::native_os_user_name),
+        "Os_hostName" => Some(system::native_os_host_name),
+        "Os_urandom" => Some(system::native_os_urandom),
+
         _ => None,
     }
 }

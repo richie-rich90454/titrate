@@ -258,6 +258,122 @@ impl Vm {
         // Tempfile natives
         vm.register_native("Tempfile_create", natives::tempfile::native_tempfile_create);
 
+        // Thread natives
+        vm.register_native("Thread_spawn", natives::thread::native_thread_spawn);
+        vm.register_native("Thread_join", natives::thread::native_thread_join);
+        vm.register_native("Thread_sleep", natives::thread::native_thread_sleep);
+        vm.register_native("Thread_yield", natives::thread::native_thread_yield);
+        vm.register_native("Thread_getId", natives::thread::native_thread_get_id);
+        vm.register_native("Thread_currentId", natives::thread::native_thread_current_id);
+        vm.register_native("Thread_detach", natives::thread::native_thread_detach);
+
+        // Mutex natives
+        vm.register_native("Mutex_new", natives::mutex::native_mutex_new);
+        vm.register_native("Mutex_lock", natives::mutex::native_mutex_lock);
+        vm.register_native("Mutex_unlock", natives::mutex::native_mutex_unlock);
+        vm.register_native("Mutex_tryLock", natives::mutex::native_mutex_try_lock);
+        vm.register_native("RecursiveMutex_new", natives::mutex::native_recursive_mutex_new);
+        vm.register_native("RecursiveMutex_lock", natives::mutex::native_recursive_mutex_lock);
+        vm.register_native("RecursiveMutex_unlock", natives::mutex::native_recursive_mutex_unlock);
+        vm.register_native("RecursiveMutex_tryLock", natives::mutex::native_recursive_mutex_try_lock);
+
+        // Condvar natives
+        vm.register_native("CondVar_new", natives::condvar::native_cv_new);
+        vm.register_native("CondVar_wait", natives::condvar::native_cv_wait);
+        vm.register_native("CondVar_waitFor", natives::condvar::native_cv_wait_for);
+        vm.register_native("CondVar_notifyOne", natives::condvar::native_cv_notify_one);
+        vm.register_native("CondVar_notifyAll", natives::condvar::native_cv_notify_all);
+
+        // Semaphore natives
+        vm.register_native("Semaphore_new", natives::semaphore::native_sem_new);
+        vm.register_native("Semaphore_acquire", natives::semaphore::native_sem_acquire);
+        vm.register_native("Semaphore_release", natives::semaphore::native_sem_release);
+        vm.register_native("Semaphore_tryAcquire", natives::semaphore::native_sem_try_acquire);
+        vm.register_native("Semaphore_availablePermits", natives::semaphore::native_sem_available_permits);
+
+        // AtomicInt natives
+        vm.register_native("AtomicInt_new", natives::atomic::native_atomic_int_new);
+        vm.register_native("AtomicInt_get", natives::atomic::native_atomic_int_get);
+        vm.register_native("AtomicInt_set", natives::atomic::native_atomic_int_set);
+        vm.register_native("AtomicInt_fetchAdd", natives::atomic::native_atomic_int_fetch_add);
+        vm.register_native("AtomicInt_fetchSub", natives::atomic::native_atomic_int_fetch_sub);
+        vm.register_native("AtomicInt_compareAndSwap", natives::atomic::native_atomic_int_compare_and_swap);
+
+        // AtomicBool natives
+        vm.register_native("AtomicBool_new", natives::atomic::native_atomic_bool_new);
+        vm.register_native("AtomicBool_get", natives::atomic::native_atomic_bool_get);
+        vm.register_native("AtomicBool_set", natives::atomic::native_atomic_bool_set);
+        vm.register_native("AtomicBool_compareAndSwap", natives::atomic::native_atomic_bool_compare_and_swap);
+
+        // TCP Socket natives
+        vm.register_native("Socket_new", natives::socket::native_socket_new);
+        vm.register_native("Socket_connect", natives::socket::native_socket_connect);
+        vm.register_native("Socket_bind", natives::socket::native_socket_bind);
+        vm.register_native("Socket_listen", natives::socket::native_socket_listen);
+        vm.register_native("Socket_accept", natives::socket::native_socket_accept);
+        vm.register_native("Socket_send", natives::socket::native_socket_send);
+        vm.register_native("Socket_recv", natives::socket::native_socket_recv);
+        vm.register_native("Socket_close", natives::socket::native_socket_close);
+        vm.register_native("Socket_setTimeout", natives::socket::native_socket_set_timeout);
+        vm.register_native("Socket_setNoDelay", natives::socket::native_socket_set_no_delay);
+
+        // UDP Socket natives
+        vm.register_native("UdpSocket_new", natives::socket::native_udp_socket_new);
+        vm.register_native("UdpSocket_bind", natives::socket::native_udp_socket_bind);
+        vm.register_native("UdpSocket_sendTo", natives::socket::native_udp_socket_send_to);
+        vm.register_native("UdpSocket_recvFrom", natives::socket::native_udp_socket_recv_from);
+        vm.register_native("UdpSocket_close", natives::socket::native_udp_socket_close);
+        vm.register_native("UdpSocket_setTimeout", natives::socket::native_udp_socket_set_timeout);
+        vm.register_native("UdpSocket_lastSenderHost", natives::socket::native_udp_socket_last_sender_host);
+        vm.register_native("UdpSocket_lastSenderPort", natives::socket::native_udp_socket_last_sender_port);
+
+        // SSL natives (stubs)
+        vm.register_native("Ssl_contextNew", natives::ssl::native_ssl_context_new);
+        vm.register_native("Ssl_connect", natives::ssl::native_ssl_connect);
+        vm.register_native("Ssl_send", natives::ssl::native_ssl_send);
+        vm.register_native("Ssl_recv", natives::ssl::native_ssl_recv);
+        vm.register_native("Ssl_close", natives::ssl::native_ssl_close);
+        vm.register_native("Ssl_peerCertificate", natives::ssl::native_ssl_peer_certificate);
+        vm.register_native("Ssl_contextClose", natives::ssl::native_ssl_context_close);
+
+        // SQLite natives (stubs)
+        vm.register_native("Sqlite_open", natives::sqlite::native_sqlite_open);
+        vm.register_native("Sqlite_execute", natives::sqlite::native_sqlite_execute);
+        vm.register_native("Sqlite_query", natives::sqlite::native_sqlite_query);
+        vm.register_native("Sqlite_close", natives::sqlite::native_sqlite_close);
+        vm.register_native("Sqlite_lastInsertId", natives::sqlite::native_sqlite_last_insert_id);
+        vm.register_native("Sqlite_nextRow", natives::sqlite::native_sqlite_next_row);
+        vm.register_native("Sqlite_getInt", natives::sqlite::native_sqlite_get_int);
+        vm.register_native("Sqlite_getString", natives::sqlite::native_sqlite_get_string);
+        vm.register_native("Sqlite_getDouble", natives::sqlite::native_sqlite_get_double);
+        vm.register_native("Sqlite_columnCount", natives::sqlite::native_sqlite_column_count);
+        vm.register_native("Sqlite_columnName", natives::sqlite::native_sqlite_column_name);
+        vm.register_native("Sqlite_closeResult", natives::sqlite::native_sqlite_close_result);
+
+        // Mmap natives (stubs)
+        vm.register_native("Mmap_open", natives::mmap::native_mmap_open);
+        vm.register_native("Mmap_close", natives::mmap::native_mmap_close);
+        vm.register_native("Mmap_get", natives::mmap::native_mmap_get);
+        vm.register_native("Mmap_set", natives::mmap::native_mmap_set);
+        vm.register_native("Mmap_size", natives::mmap::native_mmap_size);
+        vm.register_native("Mmap_flush", natives::mmap::native_mmap_flush);
+
+        // Signal natives (stubs)
+        vm.register_native("Signal_register", natives::system::native_signal_register);
+        vm.register_native("Signal_raise", natives::system::native_signal_raise);
+
+        // Zlib natives (stubs)
+        vm.register_native("Zlib_compress", natives::zlib::native_zlib_compress);
+        vm.register_native("Zlib_decompress", natives::zlib::native_zlib_decompress);
+        vm.register_native("Gzip_compress", natives::zlib::native_gzip_compress);
+        vm.register_native("Gzip_decompress", natives::zlib::native_gzip_decompress);
+
+        // Additional Os natives
+        vm.register_native("Os_cpuCount", natives::system::native_os_cpu_count);
+        vm.register_native("Os_userName", natives::system::native_os_user_name);
+        vm.register_native("Os_hostName", natives::system::native_os_host_name);
+        vm.register_native("Os_urandom", natives::system::native_os_urandom);
+
         vm
     }
 

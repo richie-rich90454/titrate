@@ -70,10 +70,11 @@ pub(crate) fn native_mutex_try_lock(args: &[Value]) -> Result<Value, String> {
             .cloned()
             .ok_or_else(|| "Mutex_tryLock: invalid handle".to_string())?
     };
-    match mutex.try_lock() {
-        Ok(_guard) => Ok(Value::Bool(true)),
-        Err(_) => Ok(Value::Bool(false)),
-    }
+    let result = mutex.try_lock();
+    let ok = result.is_ok();
+    // Drop the guard immediately if acquired (lock-unlock as a unit for now)
+    drop(result);
+    Ok(Value::Bool(ok))
 }
 
 // ---------------------------------------------------------------------------
@@ -87,7 +88,8 @@ static RECURSIVE_MUTEX_REGISTRY: LazyLock<
 static RECURSIVE_MUTEX_NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
 
 fn current_thread_id_as_i64() -> i64 {
-    std::thread::current().id().as_u64().get() as i64
+    let tid = format!("{:?}", std::thread::current().id());
+    tid.chars().fold(0i64, |acc, c| acc.wrapping_mul(31).wrapping_add(c as i64))
 }
 
 pub(crate) fn native_recursive_mutex_new(args: &[Value]) -> Result<Value, String> {

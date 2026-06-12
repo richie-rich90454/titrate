@@ -17,6 +17,16 @@ pub mod hash;
 pub mod encoding;
 pub mod subprocess;
 pub mod tempfile;
+pub mod thread;
+pub mod mutex;
+pub mod condvar;
+pub mod semaphore;
+pub mod atomic;
+pub mod socket;
+pub mod ssl;
+pub mod sqlite;
+pub mod mmap;
+pub mod zlib;
 
 mod lookup;
 

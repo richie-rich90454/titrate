@@ -69,9 +69,10 @@ pub(crate) fn native_thread_get_id(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_thread_current_id(args: &[Value]) -> Result<Value, String> {
     let _ = args;
-    Ok(Value::Long(
-        std::thread::current().id().as_u64().get() as i64,
-    ))
+    // Use a hash of the thread id since as_u64() is unstable
+    let tid = format!("{:?}", std::thread::current().id());
+    let hash = tid.chars().fold(0i64, |acc, c| acc.wrapping_mul(31).wrapping_add(c as i64));
+    Ok(Value::Long(hash))
 }
 
 pub(crate) fn native_thread_detach(args: &[Value]) -> Result<Value, String> {
@@ -82,9 +83,8 @@ pub(crate) fn native_thread_detach(args: &[Value]) -> Result<Value, String> {
     };
     let mut registry = THREAD_REGISTRY.lock().unwrap();
     if let Some(jh) = registry.get_mut(&handle) {
-        if let Some(join_handle) = jh.take() {
-            join_handle.detach();
-        }
+        // Drop the JoinHandle without joining, effectively detaching the thread
+        jh.take();
     }
     Ok(Value::Null)
 }
