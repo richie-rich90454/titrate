@@ -1,0 +1,20 @@
+// Recursive/reentrant mutex.
+public class RecursiveMutex {
+    private int handle;
+
+    public fn init() {
+        this.handle = RecursiveMutex_new();
+    }
+
+    public fn lock(): void {
+        RecursiveMutex_lock(this.handle);
+    }
+
+    public fn unlock(): void {
+        RecursiveMutex_unlock(this.handle);
+    }
+
+    public fn tryLock(): bool {
+        return RecursiveMutex_tryLock(this.handle);
+    }
+}
