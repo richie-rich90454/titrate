@@ -1,6 +1,8 @@
 // Math provides mathematical constants and basic utility functions.
 import tt::math::MathTrig;
 import tt::math::MathAdvanced;
+import tt::util::Pair;
+import tt::util::ArrayList;
 
 // Constants
 public fn PI(): double {
@@ -89,4 +91,273 @@ public fn toDegrees(radians: double): double {
 // there are only 10 types of people: those who understand binary and those who don't
 public fn random(): double {
     return Math_random();
+}
+
+// ==================== Number-theoretic functions ====================
+
+// Binomial coefficient C(n, k) using multiplicative formula
+public fn comb(n: int, k: int): int {
+    if (k < 0 || k > n) { return 0; }
+    if (k == 0 || k == n) { return 1; }
+    var kk: int = k;
+    if (kk > n - kk) { kk = n - kk; }
+    var result: int = 1;
+    var i: int = 0;
+    while (i < kk) {
+        result = result * (n - i);
+        result = result / (i + 1);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Factorial n! using iterative multiplication
+public fn factorial(n: int): int {
+    if (n < 0) { return 0; }
+    if (n <= 1) { return 1; }
+    var result: int = 1;
+    var i: int = 2;
+    while (i <= n) {
+        result = result * i;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Integer square root using Newton's method
+public fn isqrt(n: int): int {
+    if (n < 0) { return 0; }
+    if (n == 0) { return 0; }
+    var x: int = n;
+    var y: int = (x + 1) / 2;
+    while (y < x) {
+        x = y;
+        y = (x + n / x) / 2;
+    }
+    return x;
+}
+
+// Permutation P(n, k) = n! / (n-k)!
+public fn perm(n: int, k: int): int {
+    if (k < 0 || k > n) { return 0; }
+    var result: int = 1;
+    var i: int = 0;
+    while (i < k) {
+        result = result * (n - i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Floating-point utilities ====================
+
+// Floating-point remainder: x - floor(x/y) * y
+public fn fmod(x: double, y: double): double {
+    if (y == 0.0) { return NAN(); }
+    return x - Math_floor(x / y) * y;
+}
+
+// Decompose x into (fractional, integer) parts
+public fn modf(x: double): Pair<double, double> {
+    let intPart: double = Math_floor(Math_abs(x));
+    var signedInt: double = intPart;
+    if (x < 0.0) { signedInt = -intPart; }
+    let fracPart: double = x - signedInt;
+    return new Pair<double, double>(fracPart, signedInt);
+}
+
+// IEEE 754 remainder: x - n*y where n is the integer nearest to x/y
+public fn remainder(x: double, y: double): double {
+    if (y == 0.0) { return NAN(); }
+    let q: double = x / y;
+    let n: double = Math_round(q);
+    return x - n * y;
+}
+
+// Decompose x into mantissa in [0.5, 1.0) and exponent such that x = mantissa * 2^exp
+public fn frexp(x: double): Pair<double, int> {
+    if (x == 0.0) { return new Pair<double, int>(0.0, 0); }
+    var exp: int = 0;
+    var mantissa: double = Math_abs(x);
+    if (mantissa >= 1.0) {
+        while (mantissa >= 1.0) {
+            mantissa = mantissa / 2.0;
+            exp = exp + 1;
+        }
+    } else {
+        while (mantissa < 0.5 && mantissa > 0.0) {
+            mantissa = mantissa * 2.0;
+            exp = exp - 1;
+        }
+    }
+    if (x < 0.0) { mantissa = -mantissa; }
+    return new Pair<double, int>(mantissa, exp);
+}
+
+// Compute x * 2^exp
+public fn ldexp(x: double, exp: int): double {
+    return x * MathAdvanced.pow(2.0, exp as double);
+}
+
+// Magnitude of x with the sign of y
+public fn copysign(x: double, y: double): double {
+    return MathAdvanced.copySign(x, y);
+}
+
+// Next representable floating-point value from x toward y
+public fn nextafter(x: double, y: double): double {
+    if (x == y) { return x; }
+    if (x < y) { return MathAdvanced.nextUp(x); }
+    return MathAdvanced.nextDown(x);
+}
+
+// Fused multiply-add: a * b + c
+public fn fma(a: double, b: double, c: double): double {
+    return MathAdvanced.fma(a, b, c);
+}
+
+// ==================== Sum / product ====================
+
+// Accurate sum using Kahan summation algorithm
+public fn fsum(values: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var c: double = 0.0;
+    var i: int = 0;
+    while (i < values.size()) {
+        let y: double = values.get(i) - c;
+        let t: double = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Product of all values
+public fn prod(values: ArrayList<double>): double {
+    var result: double = 1.0;
+    var i: int = 0;
+    while (i < values.size()) {
+        result = result * values.get(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Classification ====================
+
+// Approximate equality with relative tolerance 1e-9
+public fn isclose(a: double, b: double): bool {
+    let relTol: double = 1e-9;
+    let absTol: double = 0.0;
+    let diff: double = Math_abs(a - b);
+    if (diff <= absTol) { return true; }
+    let larger: double = MathAdvanced.max(Math_abs(a), Math_abs(b));
+    return diff <= relTol * larger;
+}
+
+// Check if x is finite (not infinity and not NaN)
+public fn isfinite(x: double): bool {
+    return !isinf(x) && !isnan(x);
+}
+
+// Check if x is infinity (positive or negative)
+public fn isinf(x: double): bool {
+    return Math_abs(x) == INF();
+}
+
+// Check if x is NaN
+public fn isnan(x: double): bool {
+    return x != x;
+}
+
+// ==================== Special functions (approximations) ====================
+
+// Error function approximation (Abramowitz and Stegun)
+public fn erf(x: double): double {
+    let a1: double = 0.254829592;
+    let a2: double = -0.284496736;
+    let a3: double = 1.421413741;
+    let a4: double = -1.453152027;
+    let a5: double = 1.061405429;
+    let p: double = 0.3275911;
+
+    let sign: int = 1;
+    var ax: double = x;
+    if (x < 0.0) {
+        sign = -1;
+        ax = -x;
+    }
+    let t: double = 1.0 / (1.0 + p * ax);
+    let y: double = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * MathAdvanced.exp(-ax * ax);
+    return sign as double * y;
+}
+
+// Complementary error function: 1 - erf(x)
+public fn erfc(x: double): double {
+    return 1.0 - erf(x);
+}
+
+// Gamma function using Lanczos approximation
+public fn gamma(x: double): double {
+    let g: double = 7.0;
+    // Lanczos coefficients
+    let c0: double = 0.99999999999980993;
+    let c1: double = 676.5203681218851;
+    let c2: double = -1259.1392167224028;
+    let c3: double = 771.32342877765313;
+    let c4: double = -176.61502916214059;
+    let c5: double = 12.507343278686905;
+    let c6: double = -0.13857109526572012;
+    let c7: double = 9.9843695780195716e-6;
+    let c8: double = 1.5056327351493116e-7;
+
+    if (x < 0.5) {
+        // Reflection formula: gamma(x) = PI / (sin(PI*x) * gamma(1-x))
+        return PI() / (MathTrig.sin(PI() * x) * gamma(1.0 - x));
+    }
+    var xx: double = x - 1.0;
+    var a: double = c0;
+    a = a + c1 / (xx + 1.0);
+    a = a + c2 / (xx + 2.0);
+    a = a + c3 / (xx + 3.0);
+    a = a + c4 / (xx + 4.0);
+    a = a + c5 / (xx + 5.0);
+    a = a + c6 / (xx + 6.0);
+    a = a + c7 / (xx + 7.0);
+    a = a + c8 / (xx + 8.0);
+    let t: double = xx + g + 0.5;
+    return MathAdvanced.sqrt(2.0 * PI()) * MathAdvanced.pow(t, xx + 0.5) * MathAdvanced.exp(-t) * a;
+}
+
+// Log-gamma function: ln(|gamma(x)|)
+public fn lgamma(x: double): double {
+    let g: double = 7.0;
+    let c0: double = 0.99999999999980993;
+    let c1: double = 676.5203681218851;
+    let c2: double = -1259.1392167224028;
+    let c3: double = 771.32342877765313;
+    let c4: double = -176.61502916214059;
+    let c5: double = 12.507343278686905;
+    let c6: double = -0.13857109526572012;
+    let c7: double = 9.9843695780195716e-6;
+    let c8: double = 1.5056327351493116e-7;
+
+    if (x < 0.5) {
+        // Reflection: lgamma(x) = ln(PI / |sin(PI*x)|) - lgamma(1-x)
+        let sinPiX: double = Math_abs(MathTrig.sin(PI() * x));
+        return MathAdvanced.ln(PI() / sinPiX) - lgamma(1.0 - x);
+    }
+    var xx: double = x - 1.0;
+    var a: double = c0;
+    a = a + c1 / (xx + 1.0);
+    a = a + c2 / (xx + 2.0);
+    a = a + c3 / (xx + 3.0);
+    a = a + c4 / (xx + 4.0);
+    a = a + c5 / (xx + 5.0);
+    a = a + c6 / (xx + 6.0);
+    a = a + c7 / (xx + 7.0);
+    a = a + c8 / (xx + 8.0);
+    let t: double = xx + g + 0.5;
+    return 0.5 * MathAdvanced.ln(2.0 * PI()) + (xx + 0.5) * MathAdvanced.ln(t) - t + MathAdvanced.ln(a);
 }
