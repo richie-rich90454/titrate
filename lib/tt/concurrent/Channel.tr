@@ -1,56 +1,104 @@
 // Channel for message passing between concurrent tasks.
 import tt::util::ArrayList;
+import tt::concurrent::Mutex;
+import tt::concurrent::ConditionVariable;
 
 public class Channel<T> {
     private ArrayList<T> buffer;
     private bool closed;
     public int capacity;
     private fn(): void onCloseFn;
+    private Mutex _mutex;
+    private ConditionVariable _notFull;
+    private ConditionVariable _notEmpty;
 
     fn init() {
         this.buffer = new ArrayList<T>();
         this.closed = false;
         this.capacity = 0;
         this.onCloseFn = null;
-    }
-
-    fn init(capacity: int) {
-        this.buffer = new ArrayList<T>();
-        this.closed = false;
-        this.capacity = capacity;
-        this.onCloseFn = null;
+        this._mutex = new Mutex();
+        this._notFull = new ConditionVariable();
+        this._notEmpty = new ConditionVariable();
     }
 
     public fn send(value: T): void {
+        this._mutex.lock();
         if (!this.closed) {
             if (this.capacity == 0 || this.buffer.size() < this.capacity) {
                 this.buffer.add(value);
+                this._notEmpty.notifyOne();
             }
         }
+        this._mutex.unlock();
     }
 
     public fn trySend(value: T): bool {
+        this._mutex.lock();
         if (this.closed) {
+            this._mutex.unlock();
             return false;
         }
         if (this.capacity > 0 && this.buffer.size() >= this.capacity) {
+            this._mutex.unlock();
             return false;
         }
         this.buffer.add(value);
+        this._notEmpty.notifyOne();
+        this._mutex.unlock();
         return true;
     }
 
+    // Blocking send: waits until there is space in the buffer.
+    public fn sendBlocking(value: T): void {
+        this._mutex.lock();
+        while (!this.closed && this.capacity > 0 && this.buffer.size() >= this.capacity) {
+            this._notFull.wait(this._mutex);
+        }
+        if (!this.closed) {
+            this.buffer.add(value);
+            this._notEmpty.notifyOne();
+        }
+        this._mutex.unlock();
+    }
+
     public fn receive(): T {
+        this._mutex.lock();
         let item: T = this.buffer.get(0);
         this.buffer.remove(0);
+        this._notFull.notifyOne();
+        this._mutex.unlock();
         return item;
     }
 
     public fn tryReceive(): T {
+        this._mutex.lock();
         if (this.buffer.size() == 0) {
+            this._mutex.unlock();
             return null;
         }
-        return this.receive();
+        let item: T = this.buffer.get(0);
+        this.buffer.remove(0);
+        this._notFull.notifyOne();
+        this._mutex.unlock();
+        return item;
+    }
+
+    // Blocking receive: waits until an item is available or the channel is closed.
+    public fn receiveBlocking(): T {
+        this._mutex.lock();
+        while (this.buffer.size() == 0 && !this.closed) {
+            this._notEmpty.wait(this._mutex);
+        }
+        if (this.buffer.size() == 0) {
+            this._mutex.unlock();
+            return null;
+        }
+        let item: T = this.buffer.get(0);
+        this.buffer.remove(0);
+        this._notFull.notifyOne();
+        this._mutex.unlock();
+        return item;
     }
 
     public fn len(): int {
@@ -69,7 +117,11 @@ public class Channel<T> {
     }
 
     public fn close(): void {
+        this._mutex.lock();
         this.closed = true;
+        this._notEmpty.notifyAll();
+        this._notFull.notifyAll();
+        this._mutex.unlock();
         if (this.onCloseFn != null) {
             this.onCloseFn();
         }
@@ -82,4 +134,11 @@ public class Channel<T> {
     public fn onClose(fn: fn(): void): void {
         this.onCloseFn = fn;
     }
+}
+
+// Factory function to create a channel with a specific capacity.
+public fn channelWithCapacity<T>(capacity: int): Channel<T> {
+    let ch: Channel<T> = new Channel<T>();
+    ch.capacity = capacity;
+    return ch;
 }
