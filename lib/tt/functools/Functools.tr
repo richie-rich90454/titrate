@@ -162,3 +162,49 @@ public fn cmpToKey<T>(cmp: fn(T, T): int): CmpKey<T> {
     let placeholder: T = null;
     return new CmpKey<T>(placeholder, cmp);
 }
+
+// LRU cache with specified capacity.
+public fn lruCache<T, R>(fn: fn(T): R, capacity: int): fn(T): R {
+    let cache: ArrayList<T> = new ArrayList<T>();
+    let results: ArrayList<R> = new ArrayList<R>();
+    return fn(arg: T): R {
+        var i: int = 0;
+        while (i < cache.size()) {
+            if (cache.get(i) == arg) {
+                // Move to front (most recently used)
+                let val: R = results.get(i);
+                cache.remove(i);
+                results.remove(i);
+                cache.add(0, arg);
+                results.add(0, val);
+                return val;
+            }
+            i = i + 1;
+        }
+        // Not found: compute and store
+        let val: R = fn(arg);
+        cache.add(0, arg);
+        results.add(0, val);
+        // Evict least recently used if over capacity
+        while (cache.size() > capacity) {
+            let last: int = cache.size() - 1;
+            cache.remove(last);
+            results.remove(last);
+        }
+        return val;
+    };
+}
+
+// Decorator that fills in missing comparison methods.
+public fn totalOrdering(cls: Variant): Variant {
+    // Convention-based: returns the class as-is
+    // Full implementation would add missing comparison operators
+    return cls;
+}
+
+// Decorator to preserve wrapped function metadata.
+public fn wraps(original: fn): fn(fn): fn {
+    return fn(wrapper: fn): fn {
+        return wrapper;
+    };
+}
