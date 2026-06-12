@@ -1,0 +1,24 @@
+// RAII lock wrapper for exception-safe mutex management.
+import tt::concurrent::Mutex;
+
+public class LockGuard {
+    private Mutex mutex;
+    private bool locked;
+
+    public fn init(mutex: Mutex) {
+        this.mutex = mutex;
+        this.mutex.lock();
+        this.locked = true;
+    }
+
+    public fn unlock(): void {
+        if (this.locked) {
+            this.mutex.unlock();
+            this.locked = false;
+        }
+    }
+
+    public fn isLocked(): bool {
+        return this.locked;
+    }
+}
