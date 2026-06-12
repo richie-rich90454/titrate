@@ -10,7 +10,7 @@ public class Argument {
     public bool required;
     public string help;
 
-    public Argument(name: string, typ: string, default: Variant, required: bool, help: string) {
+    fn init(name: string, typ: string, default: Variant, required: bool, help: string) {
         this.name = name;
         this.typ = typ;
         this.default = default;
@@ -26,7 +26,7 @@ public class ArgumentParser {
     public ArrayList<Argument> arguments;
     public HashMap<string, Variant> parsedArgs;
 
-    public ArgumentParser(name: string, description: string) {
+    fn init(name: string, description: string) {
         this.name = name;
         this.description = description;
         this.arguments = new ArrayList<Argument>();
@@ -69,7 +69,7 @@ public class ArgumentParser {
                 if (match != null && pos + 1 < args.size()) {
                     pos = pos + 1;
                     let val: string = args.get(pos);
-                    result.put(argName, ArgumentParser._convert(val, match.typ));
+                    result.put(argName, this._convert(val, match.typ));
                 } else if (match != null) {
                     // Flag argument (bool), treat as true
                     result.put(argName, true);
@@ -89,7 +89,7 @@ public class ArgumentParser {
                 if (match != null && pos + 1 < args.size()) {
                     pos = pos + 1;
                     let val: string = args.get(pos);
-                    result.put(argName, ArgumentParser._convert(val, match.typ));
+                    result.put(argName, this._convert(val, match.typ));
                 } else if (match != null) {
                     result.put(argName, true);
                 }
@@ -98,7 +98,7 @@ public class ArgumentParser {
                 let j: int = 0;
                 while (j < this.arguments.size()) {
                     if (!result.containsKey(this.arguments.get(j).name)) {
-                        result.put(this.arguments.get(j).name, ArgumentParser._convert(token, this.arguments.get(j).typ));
+                        result.put(this.arguments.get(j).name, this._convert(token, this.arguments.get(j).typ));
                         break;
                     }
                     j = j + 1;
