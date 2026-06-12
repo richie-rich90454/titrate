@@ -1,74 +1,72 @@
 // System operations backed by VM built-ins.
 import tt::util::ArrayList;
 
-public class Sys {
-    public static ArrayList<String> args() {
-        return Sys_args();
-    }
+fn args(): ArrayList<string> {
+    return Sys_args();
+}
 
-    public static String env(String key) {
-        return Sys_env(key);
-    }
+fn env(key: string): string {
+    return Sys_env(key);
+}
 
-    public static void setEnv(String key, String val) {
-        Sys_setEnv(key, val);
-    }
+fn setEnv(key: string, val: string): void {
+    Sys_setEnv(key, val);
+}
 
-    public static void exit(int code) {
-        Sys_exit(code);
-    }
+fn exit(code: int): void {
+    Sys_exit(code);
+}
 
-    public static String workingDir() {
-        return Sys_workingDir();
-    }
+fn workingDir(): string {
+    return Sys_workingDir();
+}
 
-    public static void sleep(int ms) {
-        Sys_sleep(ms);
-    }
+fn sleep(ms: int): void {
+    Sys_sleep(ms);
+}
 
-    public static String platform() {
-        return Os_name();
-    }
+fn platform(): string {
+    return Os_name();
+}
 
-    public static int cpuCount() {
-        String val = Sys_env("NUMBER_OF_PROCESSORS");
-        if (val != null && val.length() > 0) {
-            return Integer.parseInt(val);
-        }
-        return 1;
+fn cpuCount(): int {
+    let val: string = Sys_env("NUMBER_OF_PROCESSORS");
+    if (val != null && String.length(val) > 0) {
+        return Integer.parseInt(val);
     }
+    return 1;
+}
 
-    public static String exec(String command) {
-        return Subprocess_exec(command);
-    }
+fn exec(command: string): string {
+    return Subprocess_exec(command);
+}
 
-    public static int pid() {
-        return Process_id();
-    }
+fn pid(): int {
+    return Process_id();
+}
 
-    public static long nanoTime() {
-        return Time_now() * 1000000;
-    }
+fn nanoTime(): long {
+    return Time_now() * 1000000;
+}
 
-    public static String userName() {
-        String name = Sys_env("USER");
-        if (name == null || name.length() == 0) {
-            name = Sys_env("USERNAME");
-        }
-        if (name == null) {
-            return "";
-        }
-        return name;
+fn userName(): string {
+    var name: string = Sys_env("USER");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("USERNAME");
     }
+    if (name == null) {
+        return "";
+    }
+    return name;
+}
 
-    public static String hostName() {
-        String name = Sys_env("HOSTNAME");
-        if (name == null || name.length() == 0) {
-            name = Sys_env("COMPUTERNAME");
-        }
-        if (name == null) {
-            return "";
-        }
-        return name;
+fn hostName(): string {
+    var name: string = Sys_env("HOSTNAME");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("COMPUTERNAME");
     }
+    if (name == null) {
+        return "";
+    }
+    return name;
 }
