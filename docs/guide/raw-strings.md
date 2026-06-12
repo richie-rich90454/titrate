@@ -1,6 +1,6 @@
 # Raw Strings and Literals
 
-Titrate supports several literal formats beyond the basic string, character, and integer syntax. These include raw string literals, byte literals, and alternative numeric formats for binary, octal, and hexadecimal values.
+Ever wrestled with a regex that has more backslashes than actual characters? Or tried to embed a Windows file path and ended up with `"C:\\Users\\name\\project"`? Raw strings and alternative literal formats are here to make those pain points go away. This guide covers raw strings, byte literals, and the various numeric formats Titrate supports.
 
 ## Raw String Literals
 
@@ -22,6 +22,13 @@ let regex = r"\d+\.\d+";
 io::println(regex);  // \d+\.\d+
 ```
 
+Compare that to the escaped version:
+
+```titrate
+// Without raw strings — hard to read!
+let regex = "\\d+\\.\\d+";
+```
+
 ### Hash-Delimited Raw Strings
 
 When the raw string content itself contains a double quote character, use the `r#"..."#` form. The number of `#` delimiters on each side must match:
@@ -36,6 +43,10 @@ For content that contains both quotes and `#` characters, add more hash delimite
 ```titrate
 let complex = r##"data with "quotes" and # signs"##;
 ```
+
+::: tip How many hashes do I need?
+Just use one more `#` than appears consecutively in your content. If your string has `"` but no `#`, use `r#"..."#`. If it has `#` but no `""`, use `r#"..."#` too. If it has `"#` together, use `r##"..."##`.
+:::
 
 ### Raw Strings vs Regular Strings
 
@@ -85,7 +96,7 @@ Byte literals can only contain ASCII characters. For Unicode code points, use ch
 
 ## Numeric Literal Formats
 
-Titrate supports several formats for writing integer literals beyond plain decimal.
+Titrate supports several formats for writing integer literals beyond plain decimal. These come in handy when you're working with bit flags, color codes, file permissions, or any domain where hex, octal, or binary is more natural than decimal.
 
 ### Hexadecimal (`0x`)
 
@@ -137,6 +148,50 @@ let octal_perms: int = 0o7_5_5;
 | Binary | `0b` / `0B` | `0b1010` | 10 |
 
 All formats support underscore separators.
+
+## Try It Yourself
+
+Practice using raw strings and numeric literals by completing these mini-exercises:
+
+1. Write a raw string that contains this JSON: `{"name": "Titrate", "version": 1}`
+2. Create a variable holding the Unix file permission `0o644` and print it as a decimal number
+3. Define a bit mask for the lower 4 bits of a byte using a binary literal
+
+```titrate
+public fn main(): void {
+    // 1. JSON raw string
+    let json: string = // your raw string here
+
+    // 2. Unix permission as octal
+    let perm: int = // your octal literal here
+    io::println("644 in decimal: " + Integer.toString(perm));
+
+    // 3. Lower 4 bits mask
+    let mask: int = // your binary literal here
+    io::println("Mask: " + Integer.toString(mask));
+}
+```
+
+<details>
+<summary>Show solution</summary>
+
+```titrate
+public fn main(): void {
+    // 1. JSON raw string
+    let json: string = r#"{"name": "Titrate", "version": 1}"#;
+    io::println(json);
+
+    // 2. Unix permission as octal
+    let perm: int = 0o644;
+    io::println("644 in decimal: " + Integer.toString(perm));  // 420
+
+    // 3. Lower 4 bits mask
+    let mask: int = 0b0000_1111;
+    io::println("Mask: " + Integer.toString(mask));  // 15
+}
+```
+
+</details>
 
 ## What's Next?
 
