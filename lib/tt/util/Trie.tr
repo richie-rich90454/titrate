@@ -4,23 +4,23 @@ import tt::util::HashMap;
 import tt::util::ArrayListIterator;
 
 public class Trie {
-    private HashMap<String, TrieNode> children;
+    private HashMap<string, TrieNode> children;
     private bool isEnd;
     private int _size;
 
-    public Trie() {
-        this.children = new HashMap<String, TrieNode>();
+    public fn Trie() {
+        this.children = new HashMap<string, TrieNode>();
         this.isEnd = false;
         this._size = 0;
     }
 
-    public void insert(String word) {
-        TrieNode node = this;
-        int i = 0;
-        while (i < word.length()) {
-            String ch = word.substring(i, i + 1);
-            HashMap<String, TrieNode> kids = node.children;
-            TrieNode next = kids.get(ch);
+    public fn insert(word: string): void {
+        let node: TrieNode = this;
+        let i: int = 0;
+        while (i < String.length(word)) {
+            let ch: string = word.substring(i, i + 1);
+            let kids: HashMap<string, TrieNode> = node.children;
+            let next: TrieNode = kids.get(ch);
             if (next == null) {
                 next = new TrieNode();
                 kids.put(ch, next);
@@ -34,21 +34,21 @@ public class Trie {
         }
     }
 
-    public bool search(String word) {
-        TrieNode node = this._findNode(word);
+    public fn search(word: string): bool {
+        let node: TrieNode = this._findNode(word);
         if (node == null) {
             return false;
         }
         return node.isEnd;
     }
 
-    public bool startsWith(String prefix) {
-        TrieNode node = this._findNode(prefix);
+    public fn startsWith(prefix: string): bool {
+        let node: TrieNode = this._findNode(prefix);
         return node != null;
     }
 
-    public bool delete(String word) {
-        TrieNode node = this._findNode(word);
+    public fn delete(word: string): bool {
+        let node: TrieNode = this._findNode(word);
         if (node == null || !node.isEnd) {
             return false;
         }
@@ -57,17 +57,17 @@ public class Trie {
         return true;
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this._size == 0;
     }
 
-    public int size() {
+    public fn size(): int {
         return this._size;
     }
 
-    public ArrayList<String> keysWithPrefix(String prefix) {
-        ArrayList<String> result = new ArrayList<String>();
-        TrieNode node = this._findNode(prefix);
+    public fn keysWithPrefix(prefix: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let node: TrieNode = this._findNode(prefix);
         if (node == null) {
             return result;
         }
@@ -75,13 +75,13 @@ public class Trie {
         return result;
     }
 
-    public String longestPrefixOf(String prefix) {
-        TrieNode node = this;
-        int lastEnd = 0;
-        int i = 0;
-        while (i < prefix.length()) {
-            String ch = prefix.substring(i, i + 1);
-            TrieNode next = node.children.get(ch);
+    public fn longestPrefixOf(prefix: string): string {
+        let node: TrieNode = this;
+        let lastEnd: int = 0;
+        let i: int = 0;
+        while (i < String.length(prefix)) {
+            let ch: string = prefix.substring(i, i + 1);
+            let next: TrieNode = node.children.get(ch);
             if (next == null) {
                 break;
             }
@@ -97,44 +97,44 @@ public class Trie {
         return prefix.substring(0, lastEnd);
     }
 
-    public ArrayList<String> keys() {
-        ArrayList<String> result = new ArrayList<String>();
+    public fn keys(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
         this._collectKeys(this, "", result);
         return result;
     }
 
-    public ArrayList<String> values() {
+    public fn values(): ArrayList<string> {
         return this.keys();
     }
 
-    public ArrayList<(String, String)> entries() {
-        ArrayList<String> allKeys = this.keys();
-        ArrayList<(String, String)> result = new ArrayList<(String, String)>();
-        int i = 0;
+    public fn entries(): ArrayList<(string, string)> {
+        let allKeys: ArrayList<string> = this.keys();
+        let result: ArrayList<(string, string)> = new ArrayList<(string, string)>();
+        let i: int = 0;
         while (i < allKeys.size()) {
-            String key = allKeys.get(i);
+            let key: string = allKeys.get(i);
             result.add((key, key));
             i = i + 1;
         }
         return result;
     }
 
-    public void clear() {
-        this.children = new HashMap<String, TrieNode>();
+    public fn clear(): void {
+        this.children = new HashMap<string, TrieNode>();
         this.isEnd = false;
         this._size = 0;
     }
 
-    public ArrayListIterator<String> iterator() {
-        return new ArrayListIterator<String>(this.keys());
+    public fn iterator(): ArrayListIterator<string> {
+        return new ArrayListIterator<string>(this.keys());
     }
 
-    private TrieNode _findNode(String word) {
-        TrieNode node = this;
-        int i = 0;
-        while (i < word.length()) {
-            String ch = word.substring(i, i + 1);
-            TrieNode next = node.children.get(ch);
+    private fn _findNode(word: string): TrieNode {
+        let node: TrieNode = this;
+        let i: int = 0;
+        while (i < String.length(word)) {
+            let ch: string = word.substring(i, i + 1);
+            let next: TrieNode = node.children.get(ch);
             if (next == null) {
                 return null;
             }
@@ -144,15 +144,15 @@ public class Trie {
         return node;
     }
 
-    private void _collectKeys(TrieNode node, String prefix, ArrayList<String> result) {
+    private fn _collectKeys(node: TrieNode, prefix: string, result: ArrayList<string>): void {
         if (node.isEnd) {
             result.add(prefix);
         }
-        ArrayList<String> keys = node.children.keys();
-        int i = 0;
+        let keys: ArrayList<string> = node.children.keys();
+        let i: int = 0;
         while (i < keys.size()) {
-            String ch = keys.get(i);
-            TrieNode child = node.children.get(ch);
+            let ch: string = keys.get(i);
+            let child: TrieNode = node.children.get(ch);
             this._collectKeys(child, prefix + ch, result);
             i = i + 1;
         }
@@ -160,11 +160,11 @@ public class Trie {
 }
 
 public class TrieNode {
-    public HashMap<String, TrieNode> children;
+    public HashMap<string, TrieNode> children;
     public bool isEnd;
 
-    public TrieNode() {
-        this.children = new HashMap<String, TrieNode>();
+    public fn TrieNode() {
+        this.children = new HashMap<string, TrieNode>();
         this.isEnd = false;
     }
 }
