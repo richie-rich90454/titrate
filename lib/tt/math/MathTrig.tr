@@ -1,58 +1,57 @@
 // MathTrig: trigonometric and hyperbolic functions
-public class MathTrig {
-    // Trigonometric
-    public static double sin(double x) {
-        return Math_sin(x);
-    }
 
-    public static double cos(double x) {
-        return Math_cos(x);
-    }
+// Trigonometric
+public fn sin(x: double): double {
+    return Math_sin(x);
+}
 
-    public static double tan(double x) {
-        return Math_tan(x);
-    }
+public fn cos(x: double): double {
+    return Math_cos(x);
+}
 
-    public static double asin(double x) {
-        return Math_asin(x);
-    }
+public fn tan(x: double): double {
+    return Math_tan(x);
+}
 
-    public static double acos(double x) {
-        return Math_acos(x);
-    }
+public fn asin(x: double): double {
+    return Math_asin(x);
+}
 
-    public static double atan(double x) {
-        return Math_atan(x);
-    }
+public fn acos(x: double): double {
+    return Math_acos(x);
+}
 
-    public static double atan2(double y, double x) {
-        return Math_atan2(y, x);
-    }
+public fn atan(x: double): double {
+    return Math_atan(x);
+}
 
-    // Hyperbolic
-    public static double sinh(double x) {
-        return (Math_exp(x) - Math_exp(-x)) / 2.0;
-    }
+public fn atan2(y: double, x: double): double {
+    return Math_atan2(y, x);
+}
 
-    public static double cosh(double x) {
-        return (Math_exp(x) + Math_exp(-x)) / 2.0;
-    }
+// Hyperbolic
+public fn sinh(x: double): double {
+    return (Math_exp(x) - Math_exp(-x)) / 2.0;
+}
 
-    public static double tanh(double x) {
-        return MathTrig.sinh(x) / MathTrig.cosh(x);
-    }
+public fn cosh(x: double): double {
+    return (Math_exp(x) + Math_exp(-x)) / 2.0;
+}
 
-    public static double asinh(double x) {
-        return Math_ln(x + Math_sqrt(x * x + 1.0));
-    }
+public fn tanh(x: double): double {
+    return sinh(x) / cosh(x);
+}
 
-    public static double acosh(double x) {
-        if (x < 1.0) { return Math_nan(); }
-        return Math_ln(x + Math_sqrt(x * x - 1.0));
-    }
+public fn asinh(x: double): double {
+    return Math_ln(x + Math_sqrt(x * x + 1.0));
+}
 
-    public static double atanh(double x) {
-        if (x <= -1.0 || x >= 1.0) { return Math_nan(); }
-        return 0.5 * Math_ln((1.0 + x) / (1.0 - x));
-    }
+public fn acosh(x: double): double {
+    if (x < 1.0) { return Math_nan(); }
+    return Math_ln(x + Math_sqrt(x * x - 1.0));
+}
+
+public fn atanh(x: double): double {
+    if (x <= -1.0 || x >= 1.0) { return Math_nan(); }
+    return 0.5 * Math_ln((1.0 + x) / (1.0 - x));
 }
