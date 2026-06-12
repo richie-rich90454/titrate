@@ -1,0 +1,96 @@
+// Shell-like lexical parsing for CLI argument splitting.
+import tt::util::ArrayList;
+
+public class Shlex {
+    public string whitespace;
+    public string wordchars;
+    public string quotes;
+    public string escape;
+    public bool posix;
+
+    public fn init() {
+        this.whitespace = " \t\r\n";
+        this.wordchars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.";
+        this.quotes = "\"'";
+        this.escape = "\\";
+        this.posix = true;
+    }
+
+    public fn split(s: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var current: string = "";
+        var inQuote: string = "";
+        var escaped: bool = false;
+        var i: int = 0;
+
+        while (i < String.length(s)) {
+            let ch: string = String.charAt(s, i);
+
+            if (escaped) {
+                current = current + ch;
+                escaped = false;
+                i = i + 1;
+                continue;
+            }
+
+            if (ch == this.escape && this.posix) {
+                escaped = true;
+                i = i + 1;
+                continue;
+            }
+
+            if (String.indexOf(this.quotes, ch) >= 0) {
+                if (inQuote == "") {
+                    inQuote = ch;
+                } else if (inQuote == ch) {
+                    inQuote = "";
+                } else {
+                    current = current + ch;
+                }
+                i = i + 1;
+                continue;
+            }
+
+            if (inQuote == "" && String.indexOf(this.whitespace, ch) >= 0) {
+                if (String.length(current) > 0) {
+                    result.add(current);
+                    current = "";
+                }
+                i = i + 1;
+                continue;
+            }
+
+            current = current + ch;
+            i = i + 1;
+        }
+
+        if (String.length(current) > 0) {
+            result.add(current);
+        }
+
+        return result;
+    }
+}
+
+// Convenience function.
+public fn split(s: string): ArrayList<string> {
+    let sh: Shlex = new Shlex();
+    return sh.split(s);
+}
+
+// Quote a string for shell use.
+public fn quote(s: string): string {
+    var needsQuote: bool = false;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let ch: string = String.charAt(s, i);
+        if (String.indexOf("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-.+/", ch) < 0) {
+            needsQuote = true;
+        }
+        i = i + 1;
+    }
+    if (!needsQuote && String.length(s) > 0) {
+        return s;
+    }
+    return "'" + String.replace(s, "'", "'\\''") + "'";
+}
