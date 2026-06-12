@@ -1,14 +1,74 @@
 # Error Handling
 
-Titrate uses `Result` types for recoverable errors and provides improved compiler diagnostics to help you find and fix mistakes quickly.
+Errors happen — files don't exist, network requests fail, users type the wrong thing. The question is: how does your language help you deal with them?
+
+Titrate uses `Result` types instead of exceptions. Why? Because exceptions are invisible in the function signature — you can't tell from looking at a function whether it might throw. With `Result`, the possibility of failure is right there in the type. The compiler won't let you forget to handle it. It's a small shift in mindset, but it makes your code more robust and easier to reason about.
 
 ## Result Type
+
+A `Result<T, E>` represents either a success with a value of type `T`, or a failure with an error of type `E`:
 
 ```titrate
 let result: Result<int, string> = ok(42);
 ```
 
+- `ok(42)` creates a successful result containing the value `42`.
+- `err("something went wrong")` creates a failed result containing the error message.
+
+The type `Result<int, string>` means "this is either an `int` or a `string` (the error)." You always know both the success type and the error type.
+
+## ok and err Constructors
+
+Use `ok()` to wrap a successful value and `err()` to wrap an error:
+
+```titrate
+let good: Result<int, string> = ok(42);
+let bad: Result<int, string> = err("parse failed");
+```
+
+Both have the same type — `Result<int, string>` — but they carry different information. You can check which one you have using `isOk()` and `isErr()`:
+
+```titrate
+if (good.isOk()) {
+    let value: int = good.unwrap();
+    io::println(Integer.toString(value));  // 42
+}
+
+if (bad.isErr()) {
+    io::println("Something went wrong!");
+}
+```
+
+### Try It Yourself
+
+Write a function that divides two numbers and returns a `Result`. If the divisor is zero, return an error:
+
+```titrate
+fn safeDivide(a: double, b: double): Result<double, string> {
+    if (b == 0.0) {
+        return err("division by zero");
+    }
+    return ok(a / b);
+}
+
+public fn main(): void {
+    let result: Result<double, string> = safeDivide(10.0, 3.0);
+    if (result.isOk()) {
+        io::println(Double.toString(result.unwrap()));  // 3.333...
+    }
+
+    let bad: Result<double, string> = safeDivide(10.0, 0.0);
+    if (bad.isErr()) {
+        io::println("Error!");  // Error!
+    }
+}
+```
+
+Try changing the divisor to `0.0` and see how the error path works.
+
 ## Error Propagation with `?`
+
+Manually checking `isOk()` and `isErr()` works, but it gets tedious when you have multiple operations that can fail. The `?` operator is Titrate's shorthand for "if this result is an error, return early — otherwise, give me the value":
 
 ```titrate
 fn try_parse(s: string): Result<int, string> {
@@ -18,12 +78,124 @@ fn try_parse(s: string): Result<int, string> {
 }
 ```
 
-## ok and err Constructors
+Here's what `value?` does:
+
+1. If `value` is `ok(n)`, it unwraps to `n` and execution continues.
+2. If `value` is `err(e)`, it immediately returns `err(e)` from the enclosing function.
+
+This makes error propagation feel almost effortless — you focus on the happy path, and errors bubble up automatically.
+
+### Chaining Multiple Operations
+
+The `?` operator really shines when you have a sequence of fallible operations:
 
 ```titrate
-let good: Result<int, string> = ok(42);
-let bad: Result<int, string> = err("parse failed");
+fn readConfig(path: string): Result<Config, string> {
+    let content: Result<string, string> = readFile(path);
+    let text: string = content?;           // return early if readFile fails
+    let config: Result<Config, string> = parseConfig(text);
+    let result: Config = config?;          // return early if parseConfig fails
+    return ok(result);
+}
 ```
+
+Without `?`, you'd need nested `if` blocks for every step. With `?`, the happy path reads top-to-bottom, and errors are handled automatically.
+
+### `?` with Different Error Types
+
+The `?` operator works best when all the errors in a function have the same type. If you have `Result<int, string>` and `Result<int, IoError>`, the `?` operator won't automatically convert between error types — you'll need to convert them explicitly:
+
+```titrate
+fn process(s: string): Result<int, string> {
+    let parsed: Result<int, string> = Integer.parseInt(s);
+    let n: int = parsed?;  // same error type, works directly
+    return ok(n * 2);
+}
+```
+
+## Common Error Handling Patterns
+
+### Providing a Default Value
+
+If you have a `Result` and want to use a default value when it's an error:
+
+```titrate
+fn getWithDefault(result: Result<int, string>, default: int): int {
+    if (result.isOk()) {
+        return result.unwrap();
+    }
+    return default;
+}
+
+let value: int = getWithDefault(err("not found"), 0);  // 0
+```
+
+### Converting Between Error Types
+
+When composing functions that return different error types, convert them to a common type:
+
+```titrate
+fn loadUser(id: int): Result<User, string> {
+    let data: Result<string, string> = readFile("users/" + Integer.toString(id));
+    let text: string = data?;  // propagate file errors as string
+    let user: Result<User, string> = parseUser(text);
+    return user;  // propagate parse errors as string
+}
+```
+
+### Mapping a Success Value
+
+Sometimes you want to transform the value inside an `ok` without unwrapping it:
+
+```titrate
+fn doubleIfOk(result: Result<int, string>): Result<int, string> {
+    if (result.isOk()) {
+        return ok(result.unwrap() * 2);
+    }
+    return result;
+}
+```
+
+### Logging and Continuing
+
+Not every error needs to stop execution. Sometimes you just want to log it and move on:
+
+```titrate
+fn processItems(items: ArrayList<string>): void {
+    for (item in items) {
+        let result: Result<int, string> = Integer.parseInt(item);
+        if (result.isOk()) {
+            io::println("Parsed: " + Integer.toString(result.unwrap()));
+        } else {
+            io::println("Skipped invalid: " + item);
+        }
+    }
+}
+```
+
+## Error Chaining
+
+When an error occurs deep in a call stack, it's helpful to know *where* it came from. You can chain context by wrapping errors with additional information:
+
+```titrate
+fn loadConfig(): Result<Config, string> {
+    let data: Result<string, string> = readFile("config.txt");
+    if (data.isErr()) {
+        return err("Failed to load config: " + data.unwrapErr());
+    }
+    let config: Result<Config, string> = parseConfig(data.unwrap());
+    if (config.isErr()) {
+        return err("Invalid config format: " + config.unwrapErr());
+    }
+    return config;
+}
+```
+
+Each layer adds context to the error, so when it finally reaches the user, the message tells the full story: "Failed to load config: file not found" rather than just "file not found."
+
+::: tip
+When building error messages, think about what the person reading the message needs to know. A raw "null pointer" error is less helpful than "Failed to parse user record: missing 'name' field."
+:::
 
 ## Improved Error Messages
 
