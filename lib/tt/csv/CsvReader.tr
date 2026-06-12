@@ -7,52 +7,52 @@ public class CsvReader {
     public string quote;
     public bool hasHeader;
 
-    public CsvReader() {
+    public fn init() {
         this.delimiter = ",";
         this.quote = "\"";
         this.hasHeader = true;
     }
 
-    public void setDelimiter(string d) {
+    public fn setDelimiter(d: string): void {
         this.delimiter = d;
     }
 
-    public void setQuote(string q) {
+    public fn setQuote(q: string): void {
         this.quote = q;
     }
 
-    public void setHasHeader(bool h) {
+    public fn setHasHeader(h: bool): void {
         this.hasHeader = h;
     }
 
     // Parse CSV text into rows (each row is an ArrayList<string>)
-    public ArrayList<ArrayList<string>> parse(string input) {
-        ArrayList<ArrayList<string>> rows = new ArrayList<ArrayList<string>>();
-        int pos = 0;
-        int len = input.length();
+    public fn parse(input: string): ArrayList<ArrayList<string>> {
+        let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+        let pos: int = 0;
+        let len: int = String.length(input);
 
         while (pos < len) {
-            ArrayList<string> row = new ArrayList<string>();
-            bool rowDone = false;
+            let row: ArrayList<string> = new ArrayList<string>();
+            let rowDone: bool = false;
             while (!rowDone && pos < len) {
-                string field = "";
+                let field: string = "";
                 // Skip leading whitespace (not newlines)
                 while (pos < len) {
-                    string c = input.charAt(pos);
+                    let c: string = String.charAt(input, pos);
                     if (c == " " || c == "\t") {
                         pos = pos + 1;
                     } else {
                         break;
                     }
                 }
-                if (pos < len && input.charAt(pos) == this.quote) {
+                if (pos < len && String.charAt(input, pos) == this.quote) {
                     // Quoted field
                     pos = pos + 1; // skip opening quote
                     while (pos < len) {
-                        string c = input.charAt(pos);
+                        let c: string = String.charAt(input, pos);
                         if (c == this.quote) {
                             // Check for escaped quote (double quote)
-                            if (pos + 1 < len && input.charAt(pos + 1) == this.quote) {
+                            if (pos + 1 < len && String.charAt(input, pos + 1) == this.quote) {
                                 field = field + this.quote;
                                 pos = pos + 2;
                             } else {
@@ -66,7 +66,7 @@ public class CsvReader {
                     }
                     // Skip trailing whitespace after closing quote
                     while (pos < len) {
-                        string c = input.charAt(pos);
+                        let c: string = String.charAt(input, pos);
                         if (c == " " || c == "\t") {
                             pos = pos + 1;
                         } else {
@@ -76,7 +76,7 @@ public class CsvReader {
                 } else {
                     // Unquoted field
                     while (pos < len) {
-                        string c = input.charAt(pos);
+                        let c: string = String.charAt(input, pos);
                         if (c == this.delimiter || c == "\n" || c == "\r") {
                             break;
                         }
@@ -87,12 +87,12 @@ public class CsvReader {
                 row.add(field);
                 // Check what comes after the field
                 if (pos < len) {
-                    string c = input.charAt(pos);
+                    let c: string = String.charAt(input, pos);
                     if (c == this.delimiter) {
                         pos = pos + 1; // skip delimiter, continue to next field
                     } else if (c == "\r") {
                         pos = pos + 1;
-                        if (pos < len && input.charAt(pos) == "\n") {
+                        if (pos < len && String.charAt(input, pos) == "\n") {
                             pos = pos + 1;
                         }
                         rowDone = true;
@@ -116,34 +116,34 @@ public class CsvReader {
     }
 
     // Skip the first N lines of the input
-    public string skipLines(string input, int lines) {
-        int pos = 0;
-        int skipped = 0;
-        int len = input.length();
+    public fn skipLines(input: string, lines: int): string {
+        let pos: int = 0;
+        let skipped: int = 0;
+        let len: int = String.length(input);
         while (skipped < lines && pos < len) {
-            string c = input.charAt(pos);
+            let c: string = String.charAt(input, pos);
             if (c == "\n") {
                 skipped = skipped + 1;
                 pos = pos + 1;
             } else if (c == "\r") {
                 skipped = skipped + 1;
                 pos = pos + 1;
-                if (pos < len && input.charAt(pos) == "\n") {
+                if (pos < len && String.charAt(input, pos) == "\n") {
                     pos = pos + 1;
                 }
             } else {
                 pos = pos + 1;
             }
         }
-        return input.substring(pos);
+        return String.substring(input, pos);
     }
 
     // Get a column by index from parsed rows
-    public ArrayList<string> getColumn(ArrayList<ArrayList<string>> rows, int colIndex) {
-        ArrayList<string> column = new ArrayList<string>();
-        int i = 0;
+    public fn getColumn(rows: ArrayList<ArrayList<string>>, colIndex: int): ArrayList<string> {
+        let column: ArrayList<string> = new ArrayList<string>();
+        let i: int = 0;
         while (i < rows.size()) {
-            ArrayList<string> row = rows.get(i);
+            let row: ArrayList<string> = rows.get(i);
             if (colIndex < row.size()) {
                 column.add(row.get(colIndex));
             } else {
@@ -155,14 +155,14 @@ public class CsvReader {
     }
 
     // Get a column by header name from parsed rows
-    public ArrayList<string> getColumnByName(ArrayList<ArrayList<string>> rows, string colName) {
+    public fn getColumnByName(rows: ArrayList<ArrayList<string>>, colName: string): ArrayList<string> {
         if (rows.size() == 0) {
             return new ArrayList<string>();
         }
         // Find column index from header row
-        ArrayList<string> headers = rows.get(0);
-        int colIndex = -1;
-        int i = 0;
+        let headers: ArrayList<string> = rows.get(0);
+        let colIndex: int = -1;
+        let i: int = 0;
         while (i < headers.size()) {
             if (headers.get(i) == colName) {
                 colIndex = i;
@@ -174,10 +174,10 @@ public class CsvReader {
             return new ArrayList<string>();
         }
         // Skip header row, collect values
-        ArrayList<string> column = new ArrayList<string>();
-        int r = 1;
+        let column: ArrayList<string> = new ArrayList<string>();
+        let r: int = 1;
         while (r < rows.size()) {
-            ArrayList<string> row = rows.get(r);
+            let row: ArrayList<string> = rows.get(r);
             if (colIndex < row.size()) {
                 column.add(row.get(colIndex));
             } else {
@@ -189,11 +189,11 @@ public class CsvReader {
     }
 
     // Get headers (first row if hasHeader is true)
-    public ArrayList<string> getHeaders(string input) {
+    public fn getHeaders(input: string): ArrayList<string> {
         if (!this.hasHeader) {
             return new ArrayList<string>();
         }
-        ArrayList<ArrayList<string>> rows = this.parse(input);
+        let rows: ArrayList<ArrayList<string>> = this.parse(input);
         if (rows.size() == 0) {
             return new ArrayList<string>();
         }
@@ -201,35 +201,35 @@ public class CsvReader {
     }
 
     // Parse into list of maps (header -> value)
-    public ArrayList<HashMap> parseToMaps(string input) {
-        ArrayList<HashMap> result = new ArrayList<HashMap>();
-        ArrayList<ArrayList<string>> rows = this.parse(input);
+    public fn parseToMaps(input: string): ArrayList<HashMap<string, string>> {
+        let result: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
+        let rows: ArrayList<ArrayList<string>> = this.parse(input);
         if (rows.size() == 0) {
             return result;
         }
-        ArrayList<string> headers;
-        int startRow;
+        let headers: ArrayList<string>;
+        let startRow: int;
         if (this.hasHeader) {
             headers = rows.get(0);
             startRow = 1;
         } else {
             // Generate numeric headers
             headers = new ArrayList<string>();
-            int colCount = rows.get(0).size();
-            int c = 0;
+            let colCount: int = rows.get(0).size();
+            let c: int = 0;
             while (c < colCount) {
                 headers.add(c.toString());
                 c = c + 1;
             }
             startRow = 0;
         }
-        int r = startRow;
+        let r: int = startRow;
         while (r < rows.size()) {
-            ArrayList<string> row = rows.get(r);
-            HashMap map = new HashMap();
-            int col = 0;
+            let row: ArrayList<string> = rows.get(r);
+            let map: HashMap<string, string> = new HashMap<string, string>();
+            let col: int = 0;
             while (col < headers.size()) {
-                string val = "";
+                let val: string = "";
                 if (col < row.size()) {
                     val = row.get(col);
                 }

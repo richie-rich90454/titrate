@@ -6,16 +6,16 @@ public class CsvWriter {
     public string quote;
     public string newline;
 
-    public CsvWriter() {
+    public fn init() {
         this.delimiter = ",";
         this.quote = "\"";
         this.newline = "\n";
     }
 
     // Write rows to CSV string
-    public string write(ArrayList<ArrayList<string>> rows) {
-        string result = "";
-        int r = 0;
+    public fn write(rows: ArrayList<ArrayList<string>>): string {
+        let result: string = "";
+        let r: int = 0;
         while (r < rows.size()) {
             if (r > 0) {
                 result = result + this.newline;
@@ -27,9 +27,9 @@ public class CsvWriter {
     }
 
     // Write with headers
-    public string writeWithHeaders(ArrayList<string> headers, ArrayList<ArrayList<string>> rows) {
-        string result = this.formatRow(headers);
-        int r = 0;
+    public fn writeWithHeaders(headers: ArrayList<string>, rows: ArrayList<ArrayList<string>>): string {
+        let result: string = this.formatRow(headers);
+        let r: int = 0;
         while (r < rows.size()) {
             result = result + this.newline + this.formatRow(rows.get(r));
             r = r + 1;
@@ -38,9 +38,9 @@ public class CsvWriter {
     }
 
     // Format a single row
-    private string formatRow(ArrayList<string> row) {
-        string result = "";
-        int c = 0;
+    private fn formatRow(row: ArrayList<string>): string {
+        let result: string = "";
+        let c: int = 0;
         while (c < row.size()) {
             if (c > 0) {
                 result = result + this.delimiter;
@@ -52,8 +52,8 @@ public class CsvWriter {
     }
 
     // Format a single field, quoting if necessary
-    private string formatField(string field) {
-        bool needsQuote = false;
+    private fn formatField(field: string): string {
+        let needsQuote: bool = false;
         // Check if field contains delimiter, quote, or newline
         if (field.contains(this.delimiter)) {
             needsQuote = true;
@@ -68,10 +68,10 @@ public class CsvWriter {
             return field;
         }
         // Escape quotes by doubling them
-        string escaped = "";
-        int i = 0;
-        while (i < field.length()) {
-            string c = field.charAt(i);
+        let escaped: string = "";
+        let i: int = 0;
+        while (i < String.length(field)) {
+            let c: string = String.charAt(field, i);
             if (c == this.quote) {
                 escaped = escaped + this.quote + this.quote;
             } else {
