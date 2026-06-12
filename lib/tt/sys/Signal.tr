@@ -1,0 +1,37 @@
+// Signal handling interface.
+import tt::util::HashMap;
+import tt::lang::String;
+
+// Standard signal numbers
+public const SIGINT: int = 2;
+public const SIGTERM: int = 15;
+public const SIGKILL: int = 9;
+public const SIGHUP: int = 1;
+public const SIGUSR1: int = 10;
+public const SIGUSR2: int = 12;
+
+// Internal registry of signal handlers
+var _handlers: HashMap<int, fn(): void> = new HashMap<int, fn(): void>();
+
+// Register a handler function for a signal
+public fn register(signum: int, handler: fn(): void): void {
+    _handlers.put(signum, handler);
+}
+
+// Raise a signal (invoke its handler if registered)
+public fn raise(signum: int): void {
+    let handler: fn(): void = _handlers.get(signum);
+    if (handler != null) {
+        handler();
+    }
+}
+
+// Return the default handler for a signal (no-op placeholder)
+public fn defaultHandler(signum: int): fn(): void {
+    return fn(): void { };
+}
+
+// Return an ignore handler for a signal (no-op)
+public fn ignoreHandler(signum: int): fn(): void {
+    return fn(): void { };
+}
