@@ -7,112 +7,110 @@ public class DataclassInfo {
     public ArrayList<string> fields;
     public ArrayList<Variant> defaults;
 
-    public DataclassInfo(name: string, fields: ArrayList<string>, defaults: ArrayList<Variant>) {
+    fn init(name: string, fields: ArrayList<string>, defaults: ArrayList<Variant>) {
         this.name = name;
         this.fields = fields;
         this.defaults = defaults;
     }
 }
 
-public class Dataclass {
-    // Create a dataclass-like object with auto-generated methods.
-    // Returns a DataclassInfo that describes the dataclass structure.
-    public fn create(name: string, fields: ArrayList<string>, defaults: ArrayList<Variant>): Variant {
-        let info: DataclassInfo = new DataclassInfo(name, fields, defaults);
-        return info;
-    }
+// Create a dataclass-like object with auto-generated methods.
+// Returns a DataclassInfo that describes the dataclass structure.
+public fn create(name: string, fields: ArrayList<string>, defaults: ArrayList<Variant>): Variant {
+    let info: DataclassInfo = new DataclassInfo(name, fields, defaults);
+    return info;
+}
 
-    // Helper to create a dataclass instance from a DataclassInfo and values.
-    public fn newInstance(dataclass: Variant, values: ArrayList<Variant>): Variant {
-        let info: DataclassInfo = dataclass as DataclassInfo;
-        let instance: HashMap<string, Variant> = new HashMap<string, Variant>();
-        let i: int = 0;
-        while (i < info.fields.size()) {
-            let field: string = info.fields.get(i);
-            if (i < values.size()) {
-                instance.put(field, values.get(i));
-            } else if (i < info.defaults.size()) {
-                instance.put(field, info.defaults.get(i));
-            } else {
-                instance.put(field, null);
-            }
-            i = i + 1;
+// Helper to create a dataclass instance from a DataclassInfo and values.
+public fn newInstance(dataclass: Variant, values: ArrayList<Variant>): Variant {
+    let info: DataclassInfo = dataclass as DataclassInfo;
+    let instance: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let i: int = 0;
+    while (i < info.fields.size()) {
+        let field: string = info.fields.get(i);
+        if (i < values.size()) {
+            instance.put(field, values.get(i));
+        } else if (i < info.defaults.size()) {
+            instance.put(field, info.defaults.get(i));
+        } else {
+            instance.put(field, null);
         }
-        instance.put("__class__", info.name);
-        return instance;
+        i = i + 1;
     }
+    instance.put("__class__", info.name);
+    return instance;
+}
 
-    // Auto-generated toString.
-    public fn toString(instance: Variant, className: string, fields: ArrayList<string>): string {
-        let map: HashMap<string, Variant> = instance as HashMap<string, Variant>;
-        let sb: StringBuilder = new StringBuilder();
-        sb.append(className);
-        sb.append("(");
-        let i: int = 0;
-        while (i < fields.size()) {
-            let field: string = fields.get(i);
-            sb.append(field);
-            sb.append("=");
-            let val: Variant = map.get(field);
-            if (val == null) {
-                sb.append("null");
-            } else {
-                sb.append(val.toString());
-            }
-            if (i < fields.size() - 1) {
-                sb.append(", ");
-            }
-            i = i + 1;
+// Auto-generated toString.
+public fn toString(instance: Variant, className: string, fields: ArrayList<string>): string {
+    let map: HashMap<string, Variant> = instance as HashMap<string, Variant>;
+    let sb: StringBuilder = new StringBuilder();
+    sb.append(className);
+    sb.append("(");
+    let i: int = 0;
+    while (i < fields.size()) {
+        let field: string = fields.get(i);
+        sb.append(field);
+        sb.append("=");
+        let val: Variant = map.get(field);
+        if (val == null) {
+            sb.append("null");
+        } else {
+            sb.append(val.toString());
         }
-        sb.append(")");
-        return sb.append("").toString();
+        if (i < fields.size() - 1) {
+            sb.append(", ");
+        }
+        i = i + 1;
     }
+    sb.append(")");
+    return sb.append("").toString();
+}
 
-    // Auto-generated equals.
-    public fn equals(a: Variant, b: Variant, fields: ArrayList<string>): bool {
-        if (a == null || b == null) {
-            return a == null && b == null;
-        }
-        let mapA: HashMap<string, Variant> = a as HashMap<string, Variant>;
-        let mapB: HashMap<string, Variant> = b as HashMap<string, Variant>;
-        let i: int = 0;
-        while (i < fields.size()) {
-            let field: string = fields.get(i);
-            let valA: Variant = mapA.get(field);
-            let valB: Variant = mapB.get(field);
-            if (valA == null && valB == null) {
-                i = i + 1;
-                continue;
-            }
-            if (valA == null || valB == null) {
-                return false;
-            }
-            if (valA != valB) {
-                return false;
-            }
-            i = i + 1;
-        }
-        return true;
+// Auto-generated equals.
+public fn equals(a: Variant, b: Variant, fields: ArrayList<string>): bool {
+    if (a == null || b == null) {
+        return a == null && b == null;
     }
+    let mapA: HashMap<string, Variant> = a as HashMap<string, Variant>;
+    let mapB: HashMap<string, Variant> = b as HashMap<string, Variant>;
+    let i: int = 0;
+    while (i < fields.size()) {
+        let field: string = fields.get(i);
+        let valA: Variant = mapA.get(field);
+        let valB: Variant = mapB.get(field);
+        if (valA == null && valB == null) {
+            i = i + 1;
+            continue;
+        }
+        if (valA == null || valB == null) {
+            return false;
+        }
+        if (valA != valB) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
 
-    // Copy with modifications — returns a new instance with specified fields overridden.
-    public fn copyWith(instance: Variant, fields: ArrayList<string>, overrides: HashMap<string, Variant>): Variant {
-        let map: HashMap<string, Variant> = instance as HashMap<string, Variant>;
-        let copy: HashMap<string, Variant> = new HashMap<string, Variant>();
-        let i: int = 0;
-        while (i < fields.size()) {
-            let field: string = fields.get(i);
-            if (overrides.containsKey(field)) {
-                copy.put(field, overrides.get(field));
-            } else {
-                copy.put(field, map.get(field));
-            }
-            i = i + 1;
+// Copy with modifications — returns a new instance with specified fields overridden.
+public fn copyWith(instance: Variant, fields: ArrayList<string>, overrides: HashMap<string, Variant>): Variant {
+    let map: HashMap<string, Variant> = instance as HashMap<string, Variant>;
+    let copy: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let i: int = 0;
+    while (i < fields.size()) {
+        let field: string = fields.get(i);
+        if (overrides.containsKey(field)) {
+            copy.put(field, overrides.get(field));
+        } else {
+            copy.put(field, map.get(field));
         }
-        let className: Variant = map.get("__class__");
-        if (className != null) {
-            copy.put("__class__", className);
-        }
-        return copy;
+        i = i + 1;
     }
+    let className: Variant = map.get("__class__");
+    if (className != null) {
+        copy.put("__class__", className);
+    }
+    return copy;
 }
