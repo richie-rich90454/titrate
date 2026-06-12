@@ -2,69 +2,67 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
-public class Copy {
-    // Create a shallow copy of an object.
-    // For collections, copies the container but not the elements.
-    public fn shallowCopy<T>(obj: T): T {
-        if (obj == null) { return null; }
-        // Try to detect collection types and copy accordingly
-        // For generic objects, return the same reference (no native Copy_shallow)
-        return obj;
-    }
+// Create a shallow copy of an object.
+// For collections, copies the container but not the elements.
+public fn shallowCopy<T>(obj: T): T {
+    if (obj == null) { return null; }
+    // Try to detect collection types and copy accordingly
+    // For generic objects, return the same reference (no native Copy_shallow)
+    return obj;
+}
 
-    // Create a deep copy of an object recursively.
-    // All nested objects are also copied.
-    public fn deepCopy<T>(obj: T): T {
-        if (obj == null) { return null; }
-        // For generic objects, return the same reference (no native Copy_deep)
-        return obj;
-    }
+// Create a deep copy of an object recursively.
+// All nested objects are also copied.
+public fn deepCopy<T>(obj: T): T {
+    if (obj == null) { return null; }
+    // For generic objects, return the same reference (no native Copy_deep)
+    return obj;
+}
 
-    // Shallow copy an ArrayList.
-    public fn shallowCopyList<T>(list: ArrayList<T>): ArrayList<T> {
-        let result: ArrayList<T> = new ArrayList<T>();
-        let i: int = 0;
-        while (i < list.size()) {
-            result.add(list.get(i));
-            i = i + 1;
-        }
-        return result;
+// Shallow copy an ArrayList.
+public fn shallowCopyList<T>(list: ArrayList<T>): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < list.size()) {
+        result.add(list.get(i));
+        i = i + 1;
     }
+    return result;
+}
 
-    // Deep copy an ArrayList by recursively deep-copying each element.
-    public fn deepCopyList<T>(list: ArrayList<T>): ArrayList<T> {
-        let result: ArrayList<T> = new ArrayList<T>();
-        let i: int = 0;
-        while (i < list.size()) {
-            result.add(Copy.deepCopy(list.get(i)));
-            i = i + 1;
-        }
-        return result;
+// Deep copy an ArrayList by recursively deep-copying each element.
+public fn deepCopyList<T>(list: ArrayList<T>): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < list.size()) {
+        result.add(deepCopy(list.get(i)));
+        i = i + 1;
     }
+    return result;
+}
 
-    // Shallow copy a HashMap.
-    public fn shallowCopyMap<K, V>(map: HashMap<K, V>): HashMap<K, V> {
-        let result: HashMap<K, V> = new HashMap<K, V>();
-        let keys: ArrayList<K> = map.keys();
-        let i: int = 0;
-        while (i < keys.size()) {
-            let key: K = keys.get(i);
-            result.put(key, map.get(key));
-            i = i + 1;
-        }
-        return result;
+// Shallow copy a HashMap.
+public fn shallowCopyMap<K, V>(map: HashMap<K, V>): HashMap<K, V> {
+    let result: HashMap<K, V> = new HashMap<K, V>();
+    let keys: ArrayList<K> = map.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: K = keys.get(i);
+        result.put(key, map.get(key));
+        i = i + 1;
     }
+    return result;
+}
 
-    // Deep copy a HashMap by recursively deep-copying keys and values.
-    public fn deepCopyMap<K, V>(map: HashMap<K, V>): HashMap<K, V> {
-        let result: HashMap<K, V> = new HashMap<K, V>();
-        let keys: ArrayList<K> = map.keys();
-        let i: int = 0;
-        while (i < keys.size()) {
-            let key: K = keys.get(i);
-            result.put(Copy.deepCopy(key), Copy.deepCopy(map.get(key)));
-            i = i + 1;
-        }
-        return result;
+// Deep copy a HashMap by recursively deep-copying keys and values.
+public fn deepCopyMap<K, V>(map: HashMap<K, V>): HashMap<K, V> {
+    let result: HashMap<K, V> = new HashMap<K, V>();
+    let keys: ArrayList<K> = map.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: K = keys.get(i);
+        result.put(deepCopy(key), deepCopy(map.get(key)));
+        i = i + 1;
     }
+    return result;
 }
