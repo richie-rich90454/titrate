@@ -398,6 +398,19 @@ impl Parser {
             };
             let where_clause = self.parse_where_clause()?;
             let body = self.parse_block()?;
+            // fn init(params) is the constructor
+            if name == "init" {
+                return Ok(ast::ClassMember::Constructor(ast::MethodDecl {
+                    access,
+                    name: "new".to_string(),
+                    type_params,
+                    params,
+                    return_type,
+                    body,
+                    where_clause,
+                    span,
+                }));
+            }
             return Ok(ast::ClassMember::Method(ast::MethodDecl {
                 access,
                 name,
