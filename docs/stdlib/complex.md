@@ -10,7 +10,7 @@ import tt.complex;
 
 ### Creating Complex Numbers
 
-- `new Complex(real: double, imag: double)` — create a complex number from real and imaginary parts
+- `fn init(real: double, imag: double)` — create a complex number from real and imaginary parts
 - `Complex.fromReal(r: double): Complex` — create a complex number with zero imaginary part
 - `Complex.fromPolar(r: double, theta: double): Complex` — create from polar coordinates (magnitude and angle in radians)
 
@@ -27,8 +27,8 @@ let z3 = Complex.fromPolar(1.0, Math.PI / 4.0);  // e^(i*pi/4)
 
 ```titrate
 let z = new Complex(3.0, 4.0);
-io::println(z.real().toString());  // 3.0
-io::println(z.imag().toString());  // 4.0
+io::println(Double.toString(z.real()));  // 3.0
+io::println(Double.toString(z.imag()));  // 4.0
 ```
 
 ### Properties
@@ -40,9 +40,9 @@ io::println(z.imag().toString());  // 4.0
 
 ```titrate
 let z = new Complex(3.0, 4.0);
-io::println(z.abs().toString());          // 5.0
-io::println(z.arg().toString());          // 0.9272... (atan2(4, 3))
-io::println(z.norm().toString());         // 25.0
+io::println(Double.toString(z.abs()));          // 5.0
+io::println(Double.toString(z.arg()));          // 0.9272... (atan2(4, 3))
+io::println(Double.toString(z.norm()));         // 25.0
 let c = z.conjugate();                    // 3 - 4i
 ```
 
@@ -78,28 +78,28 @@ io::println(z.toString());  // "3.0 - 4.0i"
 
 ### Complex-valued Math
 
-- `complex::exp(z: Complex): Complex` — e^z
-- `complex::log(z: Complex): Complex` — natural logarithm
-- `complex::log10(z: Complex): Complex` — base-10 logarithm
-- `complex::sqrt(z: Complex): Complex` — principal square root
-- `complex::pow(base: Complex, exp: Complex): Complex` — complex exponentiation
+- `complex.exp(z: Complex): Complex` — e^z
+- `complex.log(z: Complex): Complex` — natural logarithm
+- `complex.log10(z: Complex): Complex` — base-10 logarithm
+- `complex.sqrt(z: Complex): Complex` — principal square root
+- `complex.pow(base: Complex, exp: Complex): Complex` — complex exponentiation
 
 ```titrate
 let z = new Complex(0.0, Math.PI);  // i*pi
-let result = complex::exp(z);         // e^(i*pi) ≈ -1 + 0i
+let result = complex.exp(z);         // e^(i*pi) ≈ -1 + 0i
 ```
 
 ### Trigonometric Functions
 
-- `complex::sin(z: Complex): Complex` — complex sine
-- `complex::cos(z: Complex): Complex` — complex cosine
-- `complex::tan(z: Complex): Complex` — complex tangent
-- `complex::asin(z: Complex): Complex` — complex arcsine
-- `complex::acos(z: Complex): Complex` — complex arccosine
-- `complex::atan(z: Complex): Complex` — complex arctangent
+- `complex.sin(z: Complex): Complex` — complex sine
+- `complex.cos(z: Complex): Complex` — complex cosine
+- `complex.tan(z: Complex): Complex` — complex tangent
+- `complex.asin(z: Complex): Complex` — complex arcsine
+- `complex.acos(z: Complex): Complex` — complex arccosine
+- `complex.atan(z: Complex): Complex` — complex arctangent
 
 ### Hyperbolic Functions
 
-- `complex::sinh(z: Complex): Complex` — complex hyperbolic sine
-- `complex::cosh(z: Complex): Complex` — complex hyperbolic cosine
-- `complex::tanh(z: Complex): Complex` — complex hyperbolic tangent
+- `complex.sinh(z: Complex): Complex` — complex hyperbolic sine
+- `complex.cosh(z: Complex): Complex` — complex hyperbolic cosine
+- `complex.tanh(z: Complex): Complex` — complex hyperbolic tangent

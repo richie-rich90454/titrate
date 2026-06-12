@@ -21,10 +21,10 @@ import tt.logging;
 
 ### Creating a Logger
 
-- `logging::getLogger(name: string): Logger` — get or create a named logger
+- `logging.getLogger(name: string): Logger` — get or create a named logger
 
 ```titrate
-let log = logging::getLogger("myapp");
+let log = logging.getLogger("myapp");
 ```
 
 ### Setting the Log Level
@@ -32,7 +32,7 @@ let log = logging::getLogger("myapp");
 - `.setLevel(level: LogLevel): void` — set the minimum level this logger will output
 
 ```titrate
-let log = logging::getLogger("myapp");
+let log = logging.getLogger("myapp");
 log.setLevel(LogLevel.DEBUG);
 ```
 
@@ -46,9 +46,9 @@ log.setLevel(LogLevel.DEBUG);
 - `.fatal(message: string): void` — log at FATAL level
 
 ```titrate
-let log = logging::getLogger("myapp");
+let log = logging.getLogger("myapp");
 log.info("Application started");
-log.debug("Processing item " + id.toString());
+log.debug("Processing item " + Integer.toString(id));
 log.warn("Low memory");
 log.error("Failed to open file: " + path);
 ```
@@ -84,7 +84,7 @@ Handlers determine where log messages are written. By default, loggers write to 
 - `.addHandler(handler: Handler): void` — add a handler to the logger
 
 ```titrate
-let log = logging::getLogger("myapp");
+let log = logging.getLogger("myapp");
 log.addHandler(new FileHandler("app.log"));
 log.addHandler(new ConsoleHandler(LogLevel.WARN));
 ```
@@ -125,25 +125,25 @@ handler.setFormatter(formatter);
 
 ### Root Logger
 
-- `logging::setRootLevel(level: LogLevel): void` — set the default level for all loggers
+- `logging.setRootLevel(level: LogLevel): void` — set the default level for all loggers
 
 ```titrate
-logging::setRootLevel(LogLevel.INFO);
+logging.setRootLevel(LogLevel.INFO);
 ```
 
 ### Global Configuration
 
-- `logging::configure(level: LogLevel, handler: Handler): void` — set the root level and handler in one call
+- `logging.configure(level: LogLevel, handler: Handler): void` — set the root level and handler in one call
 
 ## Complete Example
 
 ```titrate
 import tt.logging;
 
-fn main(): int {
-    logging::setRootLevel(LogLevel.DEBUG);
+public fn main(): void {
+    logging.setRootLevel(LogLevel.DEBUG);
 
-    let log = logging::getLogger("server");
+    let log = logging.getLogger("server");
     let fileHandler = new FileHandler("server.log");
     fileHandler.setFormatter(new PatternFormatter("[%d] [%l] %m"));
     log.addHandler(fileHandler);
@@ -154,7 +154,5 @@ fn main(): int {
 
     log.warn("Connection pool running low");
     log.error("Failed to bind port 8080");
-
-    return 0;
 }
 ```

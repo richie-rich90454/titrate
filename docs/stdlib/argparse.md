@@ -37,8 +37,8 @@ parser.addOption("format", 'f', "json");  // default is "json"
 
 ### Parsing
 
-- `.parse(args: array<string>): Arguments` — parse an array of argument strings
-- `.parseOrExit(args: array<string>): Arguments` — parse and print help on error, then exit
+- `.parse(args: ArrayList<string>): Arguments` — parse an array of argument strings
+- `.parseOrExit(args: ArrayList<string>): Arguments` — parse and print help on error, then exit
 
 ```titrate
 let args = Sys.args();
@@ -90,7 +90,7 @@ import tt.argparse;
 import tt.sys;
 import tt.io;
 
-fn main(): int {
+public fn main(): void {
     let parser = new ArgumentParser("grep", "Search for patterns in files");
     parser.addArg("pattern", "The pattern to search for");
     parser.addArg("file", "The file to search in");
@@ -108,7 +108,5 @@ fn main(): int {
 
     io::println("Searching for '" + pattern + "' in " + file);
     // ... search logic ...
-
-    return 0;
 }
 ```

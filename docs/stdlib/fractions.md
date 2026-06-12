@@ -10,7 +10,7 @@ import tt.fractions;
 
 ### Creating Fractions
 
-- `new Fraction(numerator: long, denominator: long)` — create a fraction; the denominator must not be zero
+- `fn init(numerator: long, denominator: long)` — create a fraction; the denominator must not be zero
 - `Fraction.fromInt(n: long): Fraction` — create a fraction from an integer (denominator = 1)
 - `Fraction.fromDouble(d: double): Fraction` — approximate a double as a fraction
 - `Fraction.parse(s: string): Result<Fraction, string>` — parse a string like `"3/4"` or `"7"`
@@ -29,8 +29,8 @@ let d = Fraction.parse("7/12");    // Ok(7/12)
 
 ```titrate
 let f = new Fraction(6, 8);
-io::println(f.numerator().toString());    // 3
-io::println(f.denominator().toString());  // 4
+io::println(Long.toString(f.numerator()));    // 3
+io::println(Long.toString(f.denominator()));  // 4
 ```
 
 Fractions are automatically reduced to lowest terms on creation:
@@ -76,7 +76,7 @@ let eq = a == b;    // false
 
 ```titrate
 let f = new Fraction(3, 4);
-io::println(f.toDouble().toString());  // 0.75
+io::println(Double.toString(f.toDouble()));  // 0.75
 io::println(f.toString());              // "3/4"
 
 let whole = new Fraction(5, 1);
@@ -104,19 +104,19 @@ io::println(f.abs().toString());          // "3/4"
 
 ### Utility
 
-- `fractions::gcd(a: long, b: long): long` — greatest common divisor
-- `fractions::lcm(a: long, b: long): long` — least common multiple
+- `fractions.gcd(a: long, b: long): long` — greatest common divisor
+- `fractions.lcm(a: long, b: long): long` — least common multiple
 
 ```titrate
-let g = fractions::gcd(12, 8);   // 4
-let l = fractions::lcm(4, 6);    // 12
+let g = fractions.gcd(12, 8);   // 4
+let l = fractions.lcm(4, 6);    // 12
 ```
 
 ### Approximation
 
-- `fractions::approximate(d: double, maxDenominator: long): Fraction` — find the best fraction approximation with a bounded denominator
+- `fractions.approximate(d: double, maxDenominator: long): Fraction` — find the best fraction approximation with a bounded denominator
 
 ```titrate
-let pi = fractions::approximate(3.14159265, 1000);
+let pi = fractions.approximate(3.14159265, 1000);
 // 355/113 (a well-known approximation of pi)
 ```
