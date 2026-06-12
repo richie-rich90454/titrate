@@ -2,46 +2,46 @@
 import tt::util::ArrayList;
 
 public class Hash {
-    public static String md5(String input) {
+    public fn md5(input: string): string {
         return Hash_md5(input);
     }
 
-    public static String sha1(String input) {
+    public fn sha1(input: string): string {
         return Hash_sha1(input);
     }
 
-    public static String sha256(String input) {
+    public fn sha256(input: string): string {
         // the gold standard, until quantum says otherwise
         return Hash_sha256(input);
     }
 
     // NOTE: sha384/sha512 are not yet available as VM natives.
     // These delegate to sha256 as a placeholder.
-    public static String sha384(String input) {
+    public fn sha384(input: string): string {
         // Placeholder: delegate to sha256 until native is available
         return Hash_sha256(input);
     }
 
-    public static String sha512(String input) {
+    public fn sha512(input: string): string {
         // Placeholder: delegate to sha256 until native is available
         return Hash_sha256(input);
     }
 
     // NOTE: HMAC is not yet available as a VM native.
     // This is a simplified placeholder.
-    public static String hmac(String key, String data) {
+    public fn hmac(key: string, data: string): string {
         // Placeholder: concatenate and hash until native HMAC is available
         return Hash_sha256(key + data);
     }
 
     // CRC32 implemented in pure Titrate
-    public static String crc32(String data) {
-        int crc = 4294967295;
-        int i = 0;
-        while (i < data.length()) {
-            int c = data.charAt(i);
+    public fn crc32(data: string): string {
+        let crc: int = 4294967295;
+        let i: int = 0;
+        while (i < String.length(data)) {
+            let c: int = String.charAt(data, i);
             crc = crc ^ c;
-            int j = 0;
+            let j: int = 0;
             while (j < 8) {
                 if ((crc & 1) != 0) {
                     crc = (crc / 2) ^ 3988292384;
@@ -56,7 +56,7 @@ public class Hash {
         return Hash._toHex(crc);
     }
 
-    public static String hashBytes(String algorithm, String data) {
+    public fn hashBytes(algorithm: string, data: string): string {
         if (algorithm == "md5") { return Hash_md5(data); }
         if (algorithm == "sha1") { return Hash_sha1(data); }
         if (algorithm == "sha256") { return Hash_sha256(data); }
@@ -66,21 +66,21 @@ public class Hash {
     }
 
     // Convert an integer to 8-char hex string
-    private static String _toHex(int val) {
-        String hex = "0123456789abcdef";
-        String result = "";
-        int i = 7;
+    private fn _toHex(val: int): string {
+        let hex: string = "0123456789abcdef";
+        let result: string = "";
+        let i: int = 7;
         while (i >= 0) {
-            int nibble = (val / Hash._pow16(i)) % 16;
-            result = result + hex.charAt(nibble);
+            let nibble: int = (val / Hash._pow16(i)) % 16;
+            result = result + String.charAt(hex, nibble);
             i = i - 1;
         }
         return result;
     }
 
-    private static int _pow16(int n) {
-        int result = 1;
-        int i = 0;
+    private fn _pow16(n: int): int {
+        let result: int = 1;
+        let i: int = 0;
         while (i < n) {
             result = result * 16;
             i = i + 1;
