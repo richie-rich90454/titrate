@@ -5,34 +5,34 @@ import tt::util::ArrayListIterator;
 public class Queue<E> {
     private ArrayList<E> data;
 
-    public Queue() {
+    public fn Queue() {
         this.data = new ArrayList<E>();
     }
 
-    public void enqueue(E element) {
+    public fn enqueue(element: E): void {
         this.data.add(element);
     }
 
-    public E dequeue() {
-        E item = this.data.get(0);
+    public fn dequeue(): E {
+        let item: E = this.data.get(0);
         this.data.remove(0);
         return item;
     }
 
-    public E peek() {
+    public fn peek(): E {
         return this.data.get(0);
     }
 
-    public bool isEmpty() {
+    public fn isEmpty(): bool {
         return this.data.size() == 0;
     }
 
-    public int size() {
+    public fn size(): int {
         return this.data.size();
     }
 
-    public bool contains(E element) {
-        int i = 0;
+    public fn contains(element: E): bool {
+        let i: int = 0;
         while (i < this.data.size()) {
             if (this.data.get(i) == element) {
                 return true;
@@ -42,13 +42,13 @@ public class Queue<E> {
         return false;
     }
 
-    public void clear() {
+    public fn clear(): void {
         this.data = new ArrayList<E>();
     }
 
-    public ArrayList<E> toArray() {
-        ArrayList<E> result = new ArrayList<E>();
-        int i = 0;
+    public fn toArray(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        let i: int = 0;
         while (i < this.data.size()) {
             result.add(this.data.get(i));
             i = i + 1;
@@ -56,13 +56,13 @@ public class Queue<E> {
         return result;
     }
 
-    public ArrayListIterator<E> iterator() {
+    public fn iterator(): ArrayListIterator<E> {
         return new ArrayListIterator<E>(this.data);
     }
 
-    public String toString() {
-        String s = "[";
-        int i = 0;
+    public fn toString(): string {
+        let s: string = "[";
+        let i: int = 0;
         while (i < this.data.size()) {
             if (i > 0) { s = s + ", "; }
             s = s + this.data.get(i);
