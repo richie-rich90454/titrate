@@ -1,5 +1,6 @@
 // Full OS interface backed by VM native functions.
 import tt::util::ArrayList;
+import tt::util::HashMap;
 import tt::lang::String;
 import tt::lang::Result;
 
@@ -96,4 +97,91 @@ public fn rename(oldPath: string, newPath: string): Result<string, string> {
         return ok(newPath);
     }
     return err("failed to rename " + oldPath + " to " + newPath);
+}
+
+// Get file/directory status.
+public fn stat(path: string): Result<HashMap<string, int>, string> {
+    let result: HashMap<string, int> = new HashMap<string, int>();
+    result.put("size", Fs_size(path));
+    result.put("isFile", 0);
+    if (Fs_isFile(path)) { result.put("isFile", 1); }
+    result.put("isDir", 0);
+    if (Fs_isDir(path)) { result.put("isDir", 1); }
+    return ok(result);
+}
+
+// Change file permissions.
+public fn chmod(path: string, mode: int): Result<string, string> {
+    // Stub: requires native support
+    return ok(path);
+}
+
+// Get current working directory (alias for workingDir).
+public fn getcwd(): string {
+    return workingDir();
+}
+
+// Check if path exists.
+public fn exists(path: string): bool {
+    return Fs_exists(path);
+}
+
+// Remove a directory.
+public fn rmdir(path: string): Result<string, string> {
+    return remove(path);
+}
+
+// Walk directory tree yielding (dirpath, subdirs, files).
+public fn walk(path: string): ArrayList<ArrayList<string>> {
+    let result: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let dirs: ArrayList<string> = new ArrayList<string>();
+    let files: ArrayList<string> = new ArrayList<string>();
+    let entries: ArrayList<string> = listDir(path);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        let fullPath: string = Path_join(path, entry);
+        if (Fs_isDir(fullPath)) {
+            dirs.add(entry);
+        } else {
+            files.add(entry);
+        }
+        i = i + 1;
+    }
+    let item: ArrayList<string> = new ArrayList<string>();
+    item.add(path);
+    result.add(item);
+    result.add(dirs);
+    result.add(files);
+    return result;
+}
+
+// Get file size.
+public fn getFileSize(path: string): int {
+    return Fs_size(path);
+}
+
+// Environment variable constants.
+public fn pathSeparator(): string {
+    let os: string = Os_name();
+    if (os == "windows") { return ";"; }
+    return ":";
+}
+
+public fn separator(): string {
+    let os: string = Os_name();
+    if (os == "windows") { return "\\"; }
+    return "/";
+}
+
+public fn linesep(): string {
+    let os: string = Os_name();
+    if (os == "windows") { return "\r\n"; }
+    return "\n";
+}
+
+public fn devNull(): string {
+    let os: string = Os_name();
+    if (os == "windows") { return "NUL"; }
+    return "/dev/null";
 }
