@@ -4,13 +4,13 @@ import tt::util::HashMap;
 
 // Represents a single argument definition.
 public class Argument {
-    public String name;
-    public String typ;
-    public Object default;
+    public string name;
+    public string typ;
+    public Variant default;
     public bool required;
-    public String help;
+    public string help;
 
-    public Argument(String name, String typ, Object default, bool required, String help) {
+    public Argument(name: string, typ: string, default: Variant, required: bool, help: string) {
         this.name = name;
         this.typ = typ;
         this.default = default;
@@ -21,44 +21,44 @@ public class Argument {
 
 // Parses command-line arguments according to registered definitions.
 public class ArgumentParser {
-    public String name;
-    public String description;
+    public string name;
+    public string description;
     public ArrayList<Argument> arguments;
-    public HashMap<String, Object> parsedArgs;
+    public HashMap<string, Variant> parsedArgs;
 
-    public ArgumentParser(String name, String description) {
+    public ArgumentParser(name: string, description: string) {
         this.name = name;
         this.description = description;
         this.arguments = new ArrayList<Argument>();
-        this.parsedArgs = new HashMap<String, Object>();
+        this.parsedArgs = new HashMap<string, Variant>();
     }
 
-    public void addArgument(String name, String typ, Object default, bool required, String help) {
-        Argument arg = new Argument(name, typ, default, required, help);
+    public fn addArgument(name: string, typ: string, default: Variant, required: bool, help: string): void {
+        let arg: Argument = new Argument(name, typ, default, required, help);
         this.arguments.add(arg);
     }
 
-    public HashMap<String, Object> parseArgs(ArrayList<String> args) {
-        HashMap<String, Object> result = new HashMap<String, Object>();
+    public fn parseArgs(args: ArrayList<string>): HashMap<string, Variant> {
+        let result: HashMap<string, Variant> = new HashMap<string, Variant>();
         // Set defaults first
-        int i = 0;
+        let i: int = 0;
         while (i < this.arguments.size()) {
-            Argument arg = this.arguments.get(i);
+            let arg: Argument = this.arguments.get(i);
             if (arg.default != null) {
                 result.put(arg.name, arg.default);
             }
             i = i + 1;
         }
         // Parse positional and named arguments
-        int pos = 0;
+        let pos: int = 0;
         while (pos < args.size()) {
-            String token = args.get(pos);
-            if (token.startsWith("--")) {
+            let token: string = args.get(pos);
+            if (String.startsWith(token, "--")) {
                 // Named argument: --name value
-                String argName = token.substring(2);
+                let argName: string = String.substring(token, 2);
                 // Find matching argument definition
-                Argument match = null;
-                int j = 0;
+                let match: Argument = null;
+                let j: int = 0;
                 while (j < this.arguments.size()) {
                     if (this.arguments.get(j).name == argName) {
                         match = this.arguments.get(j);
@@ -68,17 +68,17 @@ public class ArgumentParser {
                 }
                 if (match != null && pos + 1 < args.size()) {
                     pos = pos + 1;
-                    String val = args.get(pos);
+                    let val: string = args.get(pos);
                     result.put(argName, ArgumentParser._convert(val, match.typ));
                 } else if (match != null) {
                     // Flag argument (bool), treat as true
                     result.put(argName, true);
                 }
-            } else if (token.startsWith("-")) {
+            } else if (String.startsWith(token, "-")) {
                 // Short argument: -n value
-                String argName = token.substring(1);
-                Argument match = null;
-                int j = 0;
+                let argName: string = String.substring(token, 1);
+                let match: Argument = null;
+                let j: int = 0;
                 while (j < this.arguments.size()) {
                     if (this.arguments.get(j).name == argName) {
                         match = this.arguments.get(j);
@@ -88,14 +88,14 @@ public class ArgumentParser {
                 }
                 if (match != null && pos + 1 < args.size()) {
                     pos = pos + 1;
-                    String val = args.get(pos);
+                    let val: string = args.get(pos);
                     result.put(argName, ArgumentParser._convert(val, match.typ));
                 } else if (match != null) {
                     result.put(argName, true);
                 }
             } else {
                 // Positional argument: assign to the next argument without a value
-                int j = 0;
+                let j: int = 0;
                 while (j < this.arguments.size()) {
                     if (!result.containsKey(this.arguments.get(j).name)) {
                         result.put(this.arguments.get(j).name, ArgumentParser._convert(token, this.arguments.get(j).typ));
@@ -109,7 +109,7 @@ public class ArgumentParser {
         // Check required arguments
         i = 0;
         while (i < this.arguments.size()) {
-            Argument arg = this.arguments.get(i);
+            let arg: Argument = this.arguments.get(i);
             if (arg.required && !result.containsKey(arg.name)) {
                 // Missing required argument; store null as sentinel
                 result.put(arg.name, null);
@@ -121,7 +121,7 @@ public class ArgumentParser {
     }
 
     // Convert a string value to the specified type.
-    private static Object _convert(String val, String typ) {
+    private fn _convert(val: string, typ: string): Variant {
         if (typ == "int") {
             return Integer.parseInt(val);
         }
@@ -135,11 +135,11 @@ public class ArgumentParser {
         return val;
     }
 
-    public String usage() {
-        String s = "usage: " + this.name;
-        int i = 0;
+    public fn usage(): string {
+        let s: string = "usage: " + this.name;
+        let i: int = 0;
         while (i < this.arguments.size()) {
-            Argument arg = this.arguments.get(i);
+            let arg: Argument = this.arguments.get(i);
             if (arg.required) {
                 s = s + " --" + arg.name + " <" + arg.typ + ">";
             } else {
@@ -150,17 +150,17 @@ public class ArgumentParser {
         return s;
     }
 
-    public String help() {
-        String s = this.usage();
+    public fn help(): string {
+        let s: string = this.usage();
         s = s + "\n\n" + this.description + "\n\noptional arguments:";
-        int i = 0;
+        let i: int = 0;
         while (i < this.arguments.size()) {
-            Argument arg = this.arguments.get(i);
-            String defaultStr = "";
+            let arg: Argument = this.arguments.get(i);
+            let defaultStr: string = "";
             if (arg.default != null) {
                 defaultStr = " (default: " + arg.default + ")";
             }
-            String requiredStr = "";
+            let requiredStr: string = "";
             if (arg.required) {
                 requiredStr = " [required]";
             }
