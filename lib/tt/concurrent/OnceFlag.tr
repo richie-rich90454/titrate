@@ -1,0 +1,21 @@
+// One-time initialization.
+public class OnceFlag {
+    private bool called;
+    private int handle;
+
+    public fn init() {
+        this.called = false;
+        this.handle = OnceFlag_new();
+    }
+
+    public fn callOnce(fn: fn(): void): void {
+        if (!this.called) {
+            OnceFlag_callOnce(this.handle, fn);
+            this.called = true;
+        }
+    }
+
+    public fn isCalled(): bool {
+        return this.called;
+    }
+}
