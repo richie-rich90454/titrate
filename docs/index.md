@@ -20,7 +20,7 @@ features:
   - icon:
       src: /icons/vm.svg
     title: Bytecode VM
-    details: 10x faster than tree-walking interpretation. Compile to optimized bytecode and run on the Titrate VM with built-in garbage-free memory management.
+    details: Compile to optimized bytecode and run on the Titrate VM with built-in garbage-free memory management. Significantly faster than tree-walking interpretation.
   - icon:
       src: /icons/shield.svg
     title: Ownership and Regions
@@ -283,27 +283,13 @@ Titrate ships with a comprehensive standard library organized into intuitive mod
 | `tt::csv` | CsvReader, CsvWriter | CSV file handling |
 | `tt::xml` | XmlNode, XmlParser | XML parsing and generation |
 
-## What Developers Say
-
-> Titrate gave us the performance of a systems language with the ergonomics we needed for our computational chemistry pipeline. The built-in MD and RHF modules saved us months of work.
->
-> -- <cite>Dr. Sarah Chen, Computational Chemistry Lab</cite>
-
-> Coming from Python, I was amazed at how quickly I could be productive. The syntax is intuitive, and the compiler catches errors I would only find at runtime in Python.
->
-> -- <cite>Marcus Rivera, Data Engineer at StreamFlow</cite>
-
-> The zero-cost generics are real. Our `ArrayList<Order>` runs just as fast as hand-rolled C code, but we get type safety and a module system. That is a huge win.
->
-> -- <cite>Aisha Patel, Backend Engineer</cite>
-
 ## Community and Contributing
 
 Titrate is open source and actively developed. Join us!
 
 - **GitHub** -- [richie-rich90454/titrate](https://github.com/richie-rich90454/titrate) -- Report issues, request features, contribute code
 - **Contributing** -- Check the [contributing guide](/guide/contributing) for guidelines
-- **Build and Test** -- `cargo test --lib` (571 unit tests), `cargo test --test stdlib_test` (53 integration tests)
+- **Build and Test** -- `cargo test --lib`, `cargo test --test stdlib_test`, `cargo test --test mega_test`
 
 ```bash
 # Clone and build
