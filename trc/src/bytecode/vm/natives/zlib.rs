@@ -14,10 +14,10 @@ pub(crate) fn native_zlib_decompress(_args: &[Value]) -> Result<Value, String> {
     Err("Zlib not available: add flate2 dependency".to_string())
 }
 
-pub(crate) fn native_gzip_compress(_args: &[Value]) -> Result<Value, String> {
-    Err("Gzip not available: add flate2 dependency".to_string())
+pub(crate) fn native_gzip_compress(args: &[Value]) -> Result<Value, String> {
+    Err("Gzip_compress: add flate2 dependency for gzip support".to_string())
 }
 
-pub(crate) fn native_gzip_decompress(_args: &[Value]) -> Result<Value, String> {
-    Err("Gzip not available: add flate2 dependency".to_string())
+pub(crate) fn native_gzip_decompress(args: &[Value]) -> Result<Value, String> {
+    Err("Gzip_decompress: add flate2 dependency for gzip support".to_string())
 }

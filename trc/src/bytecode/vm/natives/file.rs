@@ -162,3 +162,23 @@ pub(crate) fn native_file_close(args: &[Value]) -> Result<Value, String> {
         _ => Err("File_close: expected FileHandle argument".to_string()),
     }
 }
+
+pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
+    Err("File_seek: not yet implemented".to_string())
+}
+
+pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
+    Err("File_tell: not yet implemented".to_string())
+}
+
+pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
+    Err("File_readBytes: not yet implemented".to_string())
+}
+
+pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
+    Err("File_writeBytes: not yet implemented".to_string())
+}
+
+pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String> {
+    Err("File_lastModified: not yet implemented".to_string())
+}
