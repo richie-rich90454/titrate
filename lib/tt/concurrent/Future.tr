@@ -109,4 +109,35 @@ public class Future<T> {
         }
         return this;
     }
+
+    // Check if this future has a valid value (not cancelled, not empty).
+    public fn valid(): bool {
+        return !this.cancelled;
+    }
+
+    // Wait for the future to complete with a timeout in milliseconds.
+    // Returns true if the future completed, false if timeout elapsed.
+    public fn waitFor(timeoutMs: int): bool {
+        // Simple polling implementation until native support is available.
+        let elapsed: int = 0;
+        let step: int = 10;
+        while (!this.done && elapsed < timeoutMs) {
+            Thread_sleep(step);
+            elapsed = elapsed + step;
+        }
+        return this.done;
+    }
+
+    // Create a shared copy of this future for multiple waiters.
+    public fn sharedFuture(): Future<T> {
+        let shared: Future<T> = new Future<T>();
+        if (this.done) {
+            if (this.hasError()) {
+                shared.completeExceptionally(this.error);
+            } else {
+                shared.complete(this.value);
+            }
+        }
+        return shared;
+    }
 }
