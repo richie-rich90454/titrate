@@ -361,3 +361,83 @@ public fn lgamma(x: double): double {
     let t: double = xx + g + 0.5;
     return 0.5 * MathAdvanced.ln(2.0 * PI()) + (xx + 0.5) * MathAdvanced.ln(t) - t + MathAdvanced.ln(a);
 }
+
+// ==================== GCD / LCM / Distance ====================
+
+// Greatest common divisor (Euclidean algorithm).
+public fn gcd(a: int, b: int): int {
+    var x: int = a;
+    if (x < 0) { x = -x; }
+    var y: int = b;
+    if (y < 0) { y = -y; }
+    while (y != 0) {
+        let temp: int = y;
+        y = x % y;
+        x = temp;
+    }
+    return x;
+}
+
+// Least common multiple.
+public fn lcm(a: int, b: int): int {
+    if (a == 0 || b == 0) { return 0; }
+    let result: int = (a / gcd(a, b)) * b;
+    if (result < 0) { return -result; }
+    return result;
+}
+
+// Euclidean distance between two points.
+public fn dist(p1x: double, p1y: double, p2x: double, p2y: double): double {
+    let dx: double = p2x - p1x;
+    let dy: double = p2y - p1y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Sum of products of elements.
+public fn sumprod(a: ArrayList<double>, b: ArrayList<double>): double {
+    let n: int = a.size();
+    if (b.size() < n) { n = b.size(); }
+    var result: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        result = result + a.get(i) * b.get(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Exponential / Logarithmic helpers ====================
+
+// 2^x.
+public fn exp2(x: double): double {
+    return Math.pow(2.0, x);
+}
+
+// exp(x) - 1 (accurate for small x).
+public fn expm1(x: double): double {
+    if (Math.abs(x) < 1e-8) {
+        return x + 0.5 * x * x;
+    }
+    return Math.exp(x) - 1.0;
+}
+
+// log(1+x) (accurate for small x).
+public fn log1p(x: double): double {
+    if (Math.abs(x) < 1e-8) {
+        return x - 0.5 * x * x;
+    }
+    return Math.ln(1.0 + x);
+}
+
+// Hypotenuse of a right triangle (avoiding overflow).
+public fn hypot(a: double, b: double): double {
+    let absA: double = Math.abs(a);
+    let absB: double = Math.abs(b);
+    if (absA > absB) {
+        let ratio: double = absB / absA;
+        return absA * Math.sqrt(1.0 + ratio * ratio);
+    }
+    if (absB == 0.0) { return 0.0; }
+    let ratio: double = absA / absB;
+    return absB * Math.sqrt(1.0 + ratio * ratio);
+}
