@@ -1,0 +1,18 @@
+// Gzip compression and decompression.
+// Delegates to native Zlib functions with gzip wrapper.
+
+public fn compress(data: string): string {
+    return Gzip_compress(data);
+}
+
+public fn decompress(data: string): string {
+    return Gzip_decompress(data);
+}
+
+public fn isGzip(data: string): bool {
+    // Check for gzip magic number (0x1f 0x8b)
+    if (String.length(data) < 2) { return false; }
+    let b0: int = String.charAt(data, 0) as int;
+    let b1: int = String.charAt(data, 1) as int;
+    return b0 == 0x1f && b1 == 0x8b;
+}
