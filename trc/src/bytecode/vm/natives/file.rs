@@ -330,5 +330,29 @@ pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String> {
-    Err("File_lastModified: not yet implemented".to_string())
+    if args.is_empty() {
+        return Err("File_lastModified: expected 1 argument (path)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_lastModified: expected String path".to_string()),
+    };
+    match std::fs::metadata(&path) {
+        Ok(meta) => {
+            match meta.modified() {
+                Ok(time) => {
+                    let duration = time.duration_since(std::time::UNIX_EPOCH)
+                        .map_err(|e| format!("File_lastModified: {}", e))?;
+                    let epoch_ms = duration.as_millis() as i64;
+                    Ok(Value::Long(epoch_ms))
+                }
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("File_lastModified: {}", e)
+                ))))),
+            }
+        }
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_lastModified: {}", e)
+        ))))),
+    }
 }
