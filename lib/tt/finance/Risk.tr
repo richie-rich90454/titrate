@@ -1,0 +1,253 @@
+// Risk metrics for HFT: VaR, CVaR, Sharpe, Sortino, max drawdown, Kelly criterion, annualized volatility, beta.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+
+// ==================== Private Helpers ====================
+
+fn mean(data: ArrayList<double>): double {
+    let n: int = data.size();
+    if (n == 0) {
+        return 0.0;
+    }
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        sum = sum + data.get(i);
+        i = i + 1;
+    }
+    return sum / (n as double);
+}
+
+fn variance(data: ArrayList<double>): double {
+    let n: int = data.size();
+    if (n < 2) {
+        return 0.0;
+    }
+    let m: double = mean(data);
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let diff: double = data.get(i) - m;
+        sum = sum + diff * diff;
+        i = i + 1;
+    }
+    return sum / ((n as double) - 1.0);
+}
+
+fn stdDev(data: ArrayList<double>): double {
+    return MathAdvanced.sqrt(variance(data));
+}
+
+fn covariance(x: ArrayList<double>, y: ArrayList<double>): double {
+    let n: int = x.size();
+    if (n < 2 || y.size() < n) {
+        return 0.0;
+    }
+    let mx: double = mean(x);
+    let my: double = mean(y);
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        sum = sum + (x.get(i) - mx) * (y.get(i) - my);
+        i = i + 1;
+    }
+    return sum / ((n as double) - 1.0);
+}
+
+// ==================== Value at Risk (Historical) ====================
+
+public fn valueAtRisk(returns: ArrayList<double>, confidence: double): double {
+    let n: int = returns.size();
+    if (n == 0) {
+        return 0.0;
+    }
+    // Sort returns ascending (selection sort)
+    let sorted: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        sorted.add(returns.get(i));
+        i = i + 1;
+    }
+    var a: int = 0;
+    while (a < n - 1) {
+        var minIdx: int = a;
+        var b: int = a + 1;
+        while (b < n) {
+            if (sorted.get(b) < sorted.get(minIdx)) {
+                minIdx = b;
+            }
+            b = b + 1;
+        }
+        if (minIdx != a) {
+            let tmp: double = sorted.get(a);
+            sorted.set(a, sorted.get(minIdx));
+            sorted.set(minIdx, tmp);
+        }
+        a = a + 1;
+    }
+    // VaR at confidence level: the loss at the (1 - confidence) quantile
+    let idx: int = ((1.0 - confidence) * (n as double)) as int;
+    if (idx < 0) {
+        idx = 0;
+    }
+    if (idx >= n) {
+        idx = n - 1;
+    }
+    // Return as positive number (loss)
+    return -sorted.get(idx);
+}
+
+// ==================== Conditional VaR (Expected Shortfall) ====================
+
+public fn conditionalVaR(returns: ArrayList<double>, confidence: double): double {
+    let n: int = returns.size();
+    if (n == 0) {
+        return 0.0;
+    }
+    // Sort returns ascending (selection sort)
+    let sorted: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        sorted.add(returns.get(i));
+        i = i + 1;
+    }
+    var a: int = 0;
+    while (a < n - 1) {
+        var minIdx: int = a;
+        var b: int = a + 1;
+        while (b < n) {
+            if (sorted.get(b) < sorted.get(minIdx)) {
+                minIdx = b;
+            }
+            b = b + 1;
+        }
+        if (minIdx != a) {
+            let tmp: double = sorted.get(a);
+            sorted.set(a, sorted.get(minIdx));
+            sorted.set(minIdx, tmp);
+        }
+        a = a + 1;
+    }
+    // CVaR = average of returns below the VaR threshold
+    let cutoff: int = ((1.0 - confidence) * (n as double)) as int;
+    if (cutoff <= 0) {
+        cutoff = 1;
+    }
+    if (cutoff > n) {
+        cutoff = n;
+    }
+    var sum: double = 0.0;
+    var j: int = 0;
+    while (j < cutoff) {
+        sum = sum + sorted.get(j);
+        j = j + 1;
+    }
+    // Return as positive number (loss)
+    return -(sum / (cutoff as double));
+}
+
+// ==================== Sharpe Ratio ====================
+
+public fn sharpeRatio(returns: ArrayList<double>, riskFreeRate: double): double {
+    let n: int = returns.size();
+    if (n < 2) {
+        return 0.0;
+    }
+    let m: double = mean(returns);
+    let sd: double = stdDev(returns);
+    if (sd == 0.0) {
+        return 0.0;
+    }
+    return (m - riskFreeRate) / sd;
+}
+
+// ==================== Sortino Ratio ====================
+
+public fn sortinoRatio(returns: ArrayList<double>, riskFreeRate: double): double {
+    let n: int = returns.size();
+    if (n < 2) {
+        return 0.0;
+    }
+    let m: double = mean(returns);
+    // Compute downside deviation
+    let target: double = riskFreeRate;
+    var downSum: double = 0.0;
+    var downCount: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        let diff: double = returns.get(i) - target;
+        if (diff < 0.0) {
+            downSum = downSum + diff * diff;
+            downCount = downCount + 1;
+        }
+        i = i + 1;
+    }
+    if (downCount == 0) {
+        return 0.0;
+    }
+    let downsideDev: double = MathAdvanced.sqrt(downSum / (downCount as double));
+    if (downsideDev == 0.0) {
+        return 0.0;
+    }
+    return (m - riskFreeRate) / downsideDev;
+}
+
+// ==================== Maximum Drawdown ====================
+
+public fn maxDrawdown(equityCurve: ArrayList<double>): double {
+    let n: int = equityCurve.size();
+    if (n < 2) {
+        return 0.0;
+    }
+    var peak: double = equityCurve.get(0);
+    var maxDD: double = 0.0;
+    var i: int = 1;
+    while (i < n) {
+        let val: double = equityCurve.get(i);
+        if (val > peak) {
+            peak = val;
+        }
+        let dd: double = (peak - val) / peak;
+        if (dd > maxDD) {
+            maxDD = dd;
+        }
+        i = i + 1;
+    }
+    return maxDD;
+}
+
+// ==================== Kelly Criterion ====================
+
+public fn kellyCriterion(winRate: double, avgWin: double, avgLoss: double): double {
+    if (avgLoss == 0.0) {
+        return 0.0;
+    }
+    // Kelly fraction = winRate - (1 - winRate) / (avgWin / avgLoss)
+    let winLossRatio: double = avgWin / avgLoss;
+    let kelly: double = winRate - (1.0 - winRate) / winLossRatio;
+    return kelly;
+}
+
+// ==================== Annualized Volatility ====================
+
+public fn annualizedVolatility(returns: ArrayList<double>, periodsPerYear: int): double {
+    let sd: double = stdDev(returns);
+    return sd * MathAdvanced.sqrt(periodsPerYear as double);
+}
+
+// ==================== Beta ====================
+
+public fn beta(returns: ArrayList<double>, marketReturns: ArrayList<double>): double {
+    let n: int = returns.size();
+    if (n < 2 || marketReturns.size() < n) {
+        return 0.0;
+    }
+    let cov: double = covariance(returns, marketReturns);
+    let var: double = variance(marketReturns);
+    if (var == 0.0) {
+        return 0.0;
+    }
+    return cov / var;
+}
