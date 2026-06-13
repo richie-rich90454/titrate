@@ -504,3 +504,13 @@ public fn hypotN(coords: ArrayList<double>): double {
     }
     return maxVal * Math.sqrt(sumSq);
 }
+
+// Midpoint between a and b without overflow
+public fn midpoint(a: double, b: double): double {
+    return (a + b) / 2.0;
+}
+
+// Linear interpolation: a + t * (b - a), where t in [0, 1]
+public fn lerp(a: double, b: double, t: double): double {
+    return a + t * (b - a);
+}
