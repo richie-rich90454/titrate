@@ -158,3 +158,13 @@ pub(crate) fn native_time_epoch_seconds(args: &[Value]) -> Result<Value, String>
     let secs = duration.as_secs() as f64 + duration.subsec_nanos() as f64 / 1_000_000_000.0;
     Ok(Value::Double(secs))
 }
+
+pub(crate) fn native_time_nanos(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Return current time as nanoseconds since Unix epoch
+    let duration = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("Time_nanos: {}", e))?;
+    let ns = duration.as_secs() as i64 * 1_000_000_000 + duration.subsec_nanos() as i64;
+    Ok(Value::Long(ns))
+}

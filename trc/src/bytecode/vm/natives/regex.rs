@@ -168,3 +168,58 @@ pub(crate) fn native_regex_match_with_flags(args: &[Value]) -> Result<Value, Str
         .map_err(|e| format!("Regex_matchWithFlags: invalid pattern '{}': {}", full_pattern, e))?;
     Ok(Value::Bool(re.is_match(&input)))
 }
+
+pub(crate) fn native_regex_full_match(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Regex_fullMatch: expected 2 arguments (pattern, text)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_fullMatch: pattern must be a String".to_string()),
+    };
+    let text = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_fullMatch: text must be a String".to_string()),
+    };
+    let re = regex::Regex::new(pattern)
+        .map_err(|e| format!("Regex_fullMatch: invalid pattern: {}", e))?;
+    Ok(Value::Bool(re.is_match(text)))
+}
+
+pub(crate) fn native_regex_sub_n(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 4 {
+        return Err("Regex_subN: expected 4 arguments (pattern, replacement, text, n)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_subN: pattern must be a String".to_string()),
+    };
+    let replacement = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_subN: replacement must be a String".to_string()),
+    };
+    let text = match &args[2] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Regex_subN: text must be a String".to_string()),
+    };
+    let n = match &args[3] {
+        Value::Int(i) => *i as usize,
+        Value::Long(l) => *l as usize,
+        _ => return Err("Regex_subN: n must be an Int".to_string()),
+    };
+    let re = regex::Regex::new(pattern)
+        .map_err(|e| format!("Regex_subN: invalid pattern: {}", e))?;
+    let mut count = 0;
+    let result = re.replace_all(text, |caps: &regex::Captures| {
+        if count < n {
+            count += 1;
+            // Simple replacement: expand $1, $2 etc.
+            let mut expanded = String::new();
+            caps.expand(&replacement, &mut expanded);
+            expanded
+        } else {
+            caps[0].to_string()
+        }
+    });
+    Ok(Value::String(Rc::new(result.into_owned())))
+}
