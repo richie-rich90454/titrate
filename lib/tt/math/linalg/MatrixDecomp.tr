@@ -1,7 +1,10 @@
 import tt::math::ndarray::NDArray;
 import tt::math::Math;
+import tt::util::ArrayList;
+import tt::lang::Variant;
 
 // Matrix decompositions: gaussianElimination, luDecompose, choleskyDecompose, inverse, solve
+// Eigenvalue decomposition: eigenvalues, eig, powerIteration
 
 public fn gaussianElimination(m: Matrix): Matrix {
     let ref: Matrix = m.clone();
@@ -274,4 +277,141 @@ public fn choleskyDecompose(m: Matrix): Matrix {
         i = i + 1;
     }
     return L;
+}
+
+// ---- Eigenvalue decomposition ----
+
+// QR algorithm: iteratively compute QR decomposition, then form A = R*Q.
+// After convergence, the diagonal of the resulting matrix gives eigenvalues.
+public fn eigenvalues(m: Matrix): ArrayList<double> {
+    let n: int = m.rows();
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (n != m.cols()) { return result; }
+    let A: Matrix = m.clone();
+    var iter: int = 0;
+    while (iter < 100) {
+        let (Q, R): (Matrix, Matrix) = qrDecompose(A);
+        let Anew: Matrix = R.mul(Q);
+        // Check convergence: off-diagonal elements
+        var offDiag: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            var j: int = 0;
+            while (j < n) {
+                if (i != j) {
+                    let v: double = Math.abs(Anew.data.get2D(i, j));
+                    if (v > offDiag) { offDiag = v; }
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        // Copy Anew into A
+        i = 0;
+        while (i < n) {
+            var j: int = 0;
+            while (j < n) {
+                A.data.set2D(i, j, Anew.data.get2D(i, j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        if (offDiag < 1e-10) { break; }
+        iter = iter + 1;
+    }
+    // Extract diagonal as eigenvalues
+    var i: int = 0;
+    while (i < n) {
+        result.add(A.data.get2D(i, i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Returns [eigenvalues, eigenvectors] as ArrayList<Variant>.
+// After QR iteration converges, solve (A - lambda*I)*v = 0 for each eigenvalue.
+public fn eig(m: Matrix): ArrayList<Variant> {
+    let n: int = m.rows();
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    let evals: ArrayList<double> = eigenvalues(m);
+    result.add(Variant.of("eigenvalues", evals as Variant));
+    // Compute eigenvectors via inverse iteration
+    let vecs: ArrayList<Matrix> = new ArrayList<Matrix>();
+    var idx: int = 0;
+    while (idx < evals.size()) {
+        let lambda: double = evals.get(idx);
+        // Form (A - lambda*I)
+        let shifted: Matrix = m.clone();
+        shifted.data.set2D(idx, idx, shifted.data.get2D(idx, idx) - lambda);
+        // Small shift to avoid singularity
+        shifted.data.set2D(idx, idx, shifted.data.get2D(idx, idx) + 1e-10);
+        // Solve (A - lambda*I + eps*I) * v = e_idx via Gaussian elimination
+        let b: Matrix = new Matrix(n, 1);
+        b.data.set2D(idx, 0, 1.0);
+        let v: Matrix = solve(shifted, b);
+        // Normalize
+        var norm: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            norm = norm + v.data.get2D(i, 0) * v.data.get2D(i, 0);
+            i = i + 1;
+        }
+        norm = Math.sqrt(norm);
+        if (norm > 1e-15) {
+            i = 0;
+            while (i < n) {
+                v.data.set2D(i, 0, v.data.get2D(i, 0) / norm);
+                i = i + 1;
+            }
+        }
+        vecs.add(v);
+        idx = idx + 1;
+    }
+    result.add(Variant.of("eigenvectors", vecs as Variant));
+    return result;
+}
+
+// Power iteration: returns [eigenvalue, eigenvector] for dominant eigenpair.
+public fn powerIteration(m: Matrix, maxIter: int): ArrayList<Variant> {
+    let n: int = m.rows();
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    // Start with vector of ones
+    let v: Matrix = new Matrix(n, 1);
+    var i: int = 0;
+    while (i < n) {
+        v.data.set2D(i, 0, 1.0);
+        i = i + 1;
+    }
+    var iter: int = 0;
+    while (iter < maxIter) {
+        // v = A * v
+        let vnew: Matrix = m.mul(v);
+        // Compute norm
+        var norm: double = 0.0;
+        i = 0;
+        while (i < n) {
+            norm = norm + vnew.data.get2D(i, 0) * vnew.data.get2D(i, 0);
+            i = i + 1;
+        }
+        norm = Math.sqrt(norm);
+        if (norm < 1e-15) { break; }
+        // Normalize
+        i = 0;
+        while (i < n) {
+            v.data.set2D(i, 0, vnew.data.get2D(i, 0) / norm);
+            i = i + 1;
+        }
+        iter = iter + 1;
+    }
+    // eigenvalue = v^T * A * v
+    let Av: Matrix = m.mul(v);
+    var eigenvalue: double = 0.0;
+    i = 0;
+    while (i < n) {
+        eigenvalue = eigenvalue + v.data.get2D(i, 0) * Av.data.get2D(i, 0);
+        i = i + 1;
+    }
+    result.add(Variant.of("eigenvalue", eigenvalue as Variant));
+    result.add(Variant.of("eigenvector", v as Variant));
+    return result;
 }
