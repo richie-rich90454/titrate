@@ -206,3 +206,57 @@ fn groupby<T, K>(arr: ArrayList<T>, fn: fn(T): K): ArrayList<ArrayList<T>> {
     result.add(currentGroup);
     return result;
 }
+
+// Pairwise: return consecutive pairs as ArrayList of ArrayList.
+// For [a, b, c, d] returns [[a, b], [b, c], [c, d]].
+public fn pairwise<T>(arr: ArrayList<T>): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    if (arr.size() < 2) {
+        return result;
+    }
+    let i: int = 0;
+    while (i < arr.size() - 1) {
+        let pair: ArrayList<T> = new ArrayList<T>();
+        pair.add(arr.get(i));
+        pair.add(arr.get(i + 1));
+        result.add(pair);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Batched: split into groups of n elements.
+// The last batch may be smaller if the list size is not divisible by n.
+public fn batched<T>(arr: ArrayList<T>, n: int): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    if (n <= 0) {
+        return result;
+    }
+    let i: int = 0;
+    while (i < arr.size()) {
+        let batch: ArrayList<T> = new ArrayList<T>();
+        let j: int = 0;
+        while (j < n && i + j < arr.size()) {
+            batch.add(arr.get(i + j));
+            j = j + 1;
+        }
+        result.add(batch);
+        i = i + n;
+    }
+    return result;
+}
+
+// Tee: create n independent copies of the iterable.
+// Since Titrate doesn't have lazy iterators, this materializes copies.
+public fn tee<T>(arr: ArrayList<T>, n: int): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    if (n <= 0) {
+        return result;
+    }
+    let i: int = 0;
+    while (i < n) {
+        result.add(arr.clone());
+        i = i + 1;
+    }
+    return result;
+}
