@@ -44,6 +44,187 @@ public class Polynomial {
         return result;
     }
 
+    // Add two polynomials
+    public fn add(other: Polynomial): Polynomial {
+        let aLen: int = this.coefficients.size();
+        let bLen: int = other.coefficients.size();
+        let maxLen: int = aLen;
+        if (bLen > maxLen) { maxLen = bLen; }
+        let result: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < maxLen) {
+            let aIdx: int = i - (maxLen - aLen);
+            let bIdx: int = i - (maxLen - bLen);
+            let sum: double = 0.0;
+            if (aIdx >= 0) { sum = sum + this.coefficients.get(aIdx); }
+            if (bIdx >= 0) { sum = sum + other.coefficients.get(bIdx); }
+            result.add(sum);
+            i = i + 1;
+        }
+        return new Polynomial(result);
+    }
+
+    // Subtract another polynomial from this one
+    public fn sub(other: Polynomial): Polynomial {
+        let aLen: int = this.coefficients.size();
+        let bLen: int = other.coefficients.size();
+        let maxLen: int = aLen;
+        if (bLen > maxLen) { maxLen = bLen; }
+        let result: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < maxLen) {
+            let aIdx: int = i - (maxLen - aLen);
+            let bIdx: int = i - (maxLen - bLen);
+            let diff: double = 0.0;
+            if (aIdx >= 0) { diff = diff + this.coefficients.get(aIdx); }
+            if (bIdx >= 0) { diff = diff - other.coefficients.get(bIdx); }
+            result.add(diff);
+            i = i + 1;
+        }
+        return new Polynomial(result);
+    }
+
+    // Multiply two polynomials (convolution of coefficients)
+    public fn mul(other: Polynomial): Polynomial {
+        let aLen: int = this.coefficients.size();
+        let bLen: int = other.coefficients.size();
+        let resultLen: int = aLen + bLen - 1;
+        if (aLen == 0 || bLen == 0) {
+            let zero: ArrayList<double> = new ArrayList<double>();
+            zero.add(0.0);
+            return new Polynomial(zero);
+        }
+        let result: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < resultLen) {
+            result.add(0.0);
+            i = i + 1;
+        }
+        let ai: int = 0;
+        while (ai < aLen) {
+            let bi: int = 0;
+            while (bi < bLen) {
+                let val: double = result.get(ai + bi) + this.coefficients.get(ai) * other.coefficients.get(bi);
+                result.set(ai + bi, val);
+                bi = bi + 1;
+            }
+            ai = ai + 1;
+        }
+        return new Polynomial(result);
+    }
+
+    // Scale all coefficients by a scalar
+    public fn scale(s: double): Polynomial {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < this.coefficients.size()) {
+            result.add(this.coefficients.get(i) * s);
+            i = i + 1;
+        }
+        return new Polynomial(result);
+    }
+
+    // Polynomial long division: returns [quotient, remainder]
+    public fn div(other: Polynomial): ArrayList<Polynomial> {
+        let dividend: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < this.coefficients.size()) {
+            dividend.add(this.coefficients.get(i));
+            i = i + 1;
+        }
+        let divisor: ArrayList<double> = other.coefficients;
+        let dLen: int = divisor.size();
+        // Find leading coefficient of divisor
+        let leadIdx: int = 0;
+        while (leadIdx < dLen && divisor.get(leadIdx) == 0.0) {
+            leadIdx = leadIdx + 1;
+        }
+        if (leadIdx >= dLen) {
+            // Division by zero polynomial
+            let q: ArrayList<double> = new ArrayList<double>();
+            q.add(0.0);
+            let r: ArrayList<double> = new ArrayList<double>();
+            r.add(0.0);
+            let res: ArrayList<Polynomial> = new ArrayList<Polynomial>();
+            res.add(new Polynomial(q));
+            res.add(new Polynomial(r));
+            return res;
+        }
+        let leadCoeff: double = divisor.get(leadIdx);
+        let effectiveDivLen: int = dLen - leadIdx;
+        let quotientLen: int = dividend.size() - effectiveDivLen + 1;
+        if (quotientLen <= 0) {
+            let q: ArrayList<double> = new ArrayList<double>();
+            q.add(0.0);
+            let res: ArrayList<Polynomial> = new ArrayList<Polynomial>();
+            res.add(new Polynomial(q));
+            res.add(new Polynomial(dividend));
+            return res;
+        }
+        let quotient: ArrayList<double> = new ArrayList<double>();
+        let qi: int = 0;
+        while (qi < quotientLen) {
+            quotient.add(0.0);
+            qi = qi + 1;
+        }
+        let di: int = 0;
+        while (di < dividend.size()) {
+            let qIdx: int = di;
+            if (qIdx < quotientLen) {
+                let coeff: double = dividend.get(di) / leadCoeff;
+                quotient.set(qIdx, coeff);
+                // Subtract coeff * divisor from dividend
+                let dj: int = leadIdx;
+                while (dj < dLen) {
+                    let ddi: int = di + (dj - leadIdx);
+                    if (ddi < dividend.size()) {
+                        let val: double = dividend.get(ddi) - coeff * divisor.get(dj);
+                        dividend.set(ddi, val);
+                    }
+                    dj = dj + 1;
+                }
+            }
+            di = di + 1;
+        }
+        // Remainder is the remaining part of dividend after quotient terms
+        let remainder: ArrayList<double> = new ArrayList<double>();
+        let ri: int = quotientLen;
+        while (ri < dividend.size()) {
+            remainder.add(dividend.get(ri));
+            ri = ri + 1;
+        }
+        if (remainder.size() == 0) { remainder.add(0.0); }
+        let res: ArrayList<Polynomial> = new ArrayList<Polynomial>();
+        res.add(new Polynomial(quotient));
+        res.add(new Polynomial(remainder));
+        return res;
+    }
+
+    // Compose this polynomial with another: p(q(x))
+    public fn compose(other: Polynomial): Polynomial {
+        let result: ArrayList<double> = new ArrayList<double>();
+        result.add(0.0);
+        let resultPoly: Polynomial = new Polynomial(result);
+        let i: int = 0;
+        while (i < this.coefficients.size()) {
+            let coeff: double = this.coefficients.get(i);
+            let deg: int = this.coefficients.size() - 1 - i;
+            // Compute other^deg
+            let term: ArrayList<double> = new ArrayList<double>();
+            term.add(1.0);
+            let termPoly: Polynomial = new Polynomial(term);
+            let d: int = 0;
+            while (d < deg) {
+                termPoly = termPoly.mul(other);
+                d = d + 1;
+            }
+            termPoly = termPoly.scale(coeff);
+            resultPoly = resultPoly.add(termPoly);
+            i = i + 1;
+        }
+        return resultPoly;
+    }
+
     public fn toString(): string {
         // Build string representation like "3x^2 - 2"
         let parts: ArrayList<string> = new ArrayList<string>();
