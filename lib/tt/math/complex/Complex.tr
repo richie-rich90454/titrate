@@ -139,6 +139,80 @@ public class Complex {
         return this.sinh().div(this.cosh());
     }
 
+    // ---- Inverse trigonometric functions ----
+
+    // arccos(z) = -i * log(z + sqrt(z^2 - 1))
+    public fn acos(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let z2minus1: Complex = this.mul(this).sub(one);
+        let inner: Complex = this.add(z2minus1.sqrt());
+        let logVal: Complex = inner.log();
+        return logVal.mul(new Complex(0.0, -1.0));
+    }
+
+    // arcsin(z) = -i * log(iz + sqrt(1 - z^2))
+    public fn asin(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let iz: Complex = new Complex(-this.imag, this.real);
+        let oneMinusZ2: Complex = one.sub(this.mul(this));
+        let inner: Complex = iz.add(oneMinusZ2.sqrt());
+        let logVal: Complex = inner.log();
+        return logVal.mul(new Complex(0.0, -1.0));
+    }
+
+    // arctan(z) = (i/2) * log((1 - iz) / (1 + iz))
+    public fn atan(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let iz: Complex = new Complex(-this.imag, this.real);
+        let numerator: Complex = one.sub(iz);
+        let denominator: Complex = one.add(iz);
+        let ratio: Complex = numerator.div(denominator);
+        let logVal: Complex = ratio.log();
+        return logVal.mul(new Complex(0.0, 0.5));
+    }
+
+    // ---- Inverse hyperbolic functions ----
+
+    // arccosh(z) = log(z + sqrt(z-1) * sqrt(z+1))
+    public fn acosh(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let sqrtZminus1: Complex = this.sub(one).sqrt();
+        let sqrtZplus1: Complex = this.add(one).sqrt();
+        let inner: Complex = this.add(sqrtZminus1.mul(sqrtZplus1));
+        return inner.log();
+    }
+
+    // arcsinh(z) = log(z + sqrt(z^2 + 1))
+    public fn asinh(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let z2plus1: Complex = this.mul(this).add(one);
+        let inner: Complex = this.add(z2plus1.sqrt());
+        return inner.log();
+    }
+
+    // arctanh(z) = 0.5 * (log(1+z) - log(1-z))
+    public fn atanh(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let logPlus: Complex = one.add(this).log();
+        let logMinus: Complex = one.sub(this).log();
+        let diff: Complex = logPlus.sub(logMinus);
+        return diff.mul(new Complex(0.5, 0.0));
+    }
+
+    // ---- Logarithm variants ----
+
+    // log10(z) = log(z) / ln(10)
+    public fn log10(): Complex {
+        let ln10: double = Math.ln(10.0);
+        return this.log().div(new Complex(ln10, 0.0));
+    }
+
+    // log2(z) = log(z) / ln(2)
+    public fn log2(): Complex {
+        let ln2: double = Math.ln(2.0);
+        return this.log().div(new Complex(ln2, 0.0));
+    }
+
     // ---- Comparison and string ----
 
     public fn equals(other: Complex): bool {
