@@ -72,6 +72,59 @@ public class ConfigParser {
         }
     }
 
+    // Read and parse an INI file into this ConfigParser instance.
+    public fn read(path: string): void {
+        if (!Fs_exists(path)) {
+            return;
+        }
+        let content: string = File_readFile(path);
+        this.readString(content);
+    }
+
+    // Parse an INI-style string into this ConfigParser instance.
+    public fn readString(s: string): void {
+        var currentSection: string = "default";
+        let lines: ArrayList<string> = String.split(s, "\n");
+        var i: int = 0;
+        while (i < lines.size()) {
+            let line: string = String.trim(lines.get(i));
+            // Skip empty lines
+            if (String.length(line) == 0) {
+                i = i + 1;
+                continue;
+            }
+            // Skip comments (# and ;)
+            if (String.charAt(line, 0) == "#" || String.charAt(line, 0) == ";") {
+                i = i + 1;
+                continue;
+            }
+            // Section header [name]
+            if (String.charAt(line, 0) == "[") {
+                let endBracket: int = String.indexOf(line, "]");
+                if (endBracket > 1) {
+                    currentSection = String.trim(String.substring(line, 1, endBracket));
+                }
+                i = i + 1;
+                continue;
+            }
+            // Key = value pair
+            let eqIdx: int = String.indexOf(line, "=");
+            if (eqIdx > 0) {
+                let key: string = String.trim(String.substring(line, 0, eqIdx));
+                let val: string = String.trim(String.substring(line, eqIdx + 1));
+                val = _stripInlineComment(val);
+                this.set(currentSection, key, val);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Write this ConfigParser to a file in INI format.
+    public fn write(path: string): void {
+        let content: string = this.toString();
+        File_writeFile(path, content);
+    }
+
     // Serialize back to INI format
     public fn toString(): string {
         let result: string = "";
