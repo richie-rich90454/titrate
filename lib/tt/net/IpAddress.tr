@@ -1,5 +1,6 @@
 // IP address manipulation and validation.
 import tt::util::ArrayList;
+import tt::lang::Integer;
 
 public class IpAddress {
     public string address;
