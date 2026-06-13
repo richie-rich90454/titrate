@@ -1,7 +1,85 @@
 // Subprocess provides system command execution, mirroring Python's subprocess module.
 import tt::lang::String;
+import tt::util::HashMap;
 
 var lastExitCode: int = 0;
+
+// Result of a subprocess execution containing stdout, stderr, and exit code.
+public class SubprocessResult {
+    public string stdout;
+    public string stderr;
+    public int returnCode;
+
+    public fn init(stdout: string, stderr: string, returnCode: int) {
+        this.stdout = stdout;
+        this.stderr = stderr;
+        this.returnCode = returnCode;
+    }
+
+    public fn toString(): string {
+        return "SubprocessResult{returnCode=" + this.returnCode + ", stdout=" + this.stdout + ", stderr=" + this.stderr + "}";
+    }
+}
+
+// Full process control similar to Python's subprocess.Popen.
+public class Popen {
+    public string stdout;
+    public string stderr;
+    public int returnCode;
+    private string command;
+    private string cwd;
+    private HashMap<string, string> env;
+    private bool completed;
+
+    public fn init(command: string, cwd: string, env: HashMap<string, string>) {
+        this.command = command;
+        this.cwd = cwd;
+        this.env = env;
+        this.stdout = "";
+        this.stderr = "";
+        this.returnCode = -1;
+        this.completed = false;
+    }
+
+    public fn wait(): int {
+        if (!this.completed) {
+            let result: SubprocessResult = Subprocess_run(this.command, this.cwd, this.env);
+            this.stdout = result.stdout;
+            this.stderr = result.stderr;
+            this.returnCode = result.returnCode;
+            this.completed = true;
+            lastExitCode = this.returnCode;
+        }
+        return this.returnCode;
+    }
+
+    public fn poll(): int {
+        if (this.completed) {
+            return this.returnCode;
+        }
+        return -1;
+    }
+
+    public fn communicate(): HashMap<string, string> {
+        this.wait();
+        let result: HashMap<string, string> = new HashMap<string, string>();
+        result.put("stdout", this.stdout);
+        result.put("stderr", this.stderr);
+        return result;
+    }
+
+    public fn kill(): void {
+        if (!this.completed) {
+            Subprocess_kill(this.command);
+            this.returnCode = -9;
+            this.completed = true;
+        }
+    }
+
+    public fn isAlive(): bool {
+        return !this.completed;
+    }
+}
 
 // Run a command and return its exit code.
 fn run(command: string): int {
