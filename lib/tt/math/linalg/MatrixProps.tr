@@ -1,6 +1,10 @@
 import tt::math::Math;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+import tt::math::linalg::MatrixDecomp;
 
 // Matrix properties: determinant, rank, isSymmetric, isPositiveDefinite, isDiagonal, norm, conditionNumber
+// Matrix norms and properties: norm1, normInf, norm2, isOrthogonal, isNilpotent, traceRatio
 
 public fn determinant(m: Matrix): double {
     if (m.rows() != m.cols()) { return 0.0; }
@@ -155,4 +159,120 @@ public fn conditionNumber(m: Matrix): double {
     if (Math.abs(det) < 1e-15) { return Math.INF(); }
     let inv: Matrix = inverse(m);
     return norm(m) * norm(inv);
+}
+
+// ---- Matrix norms and properties ----
+
+// Max absolute column sum (1-norm)
+public fn norm1(m: Matrix): double {
+    let cols: int = m.cols();
+    let rows: int = m.rows();
+    var maxSum: double = 0.0;
+    var j: int = 0;
+    while (j < cols) {
+        var colSum: double = 0.0;
+        var i: int = 0;
+        while (i < rows) {
+            let v: double = m.data.get2D(i, j);
+            if (v < 0.0) { colSum = colSum - v; } else { colSum = colSum + v; }
+            i = i + 1;
+        }
+        if (colSum > maxSum) { maxSum = colSum; }
+        j = j + 1;
+    }
+    return maxSum;
+}
+
+// Max absolute row sum (infinity-norm)
+public fn normInf(m: Matrix): double {
+    let rows: int = m.rows();
+    let cols: int = m.cols();
+    var maxSum: double = 0.0;
+    var i: int = 0;
+    while (i < rows) {
+        var rowSum: double = 0.0;
+        var j: int = 0;
+        while (j < cols) {
+            let v: double = m.data.get2D(i, j);
+            if (v < 0.0) { rowSum = rowSum - v; } else { rowSum = rowSum + v; }
+            j = j + 1;
+        }
+        if (rowSum > maxSum) { maxSum = rowSum; }
+        i = i + 1;
+    }
+    return maxSum;
+}
+
+// Spectral norm (largest singular value, using power iteration)
+public fn norm2(m: Matrix): double {
+    let n: int = m.rows();
+    if (n != m.cols()) {
+        // For non-square, use A^T * A and find largest eigenvalue
+        let At: Matrix = m.transpose();
+        let AtA: Matrix = At.mul(m);
+        let result: ArrayList<Variant> = MatrixDecomp.powerIteration(AtA, 100);
+        return Math.sqrt(result.get(0).get() as double);
+    }
+    let result: ArrayList<Variant> = MatrixDecomp.powerIteration(m, 100);
+    let eigenvalue: double = result.get(0).get() as double;
+    if (eigenvalue < 0.0) { return Math.sqrt(-eigenvalue); }
+    return Math.sqrt(eigenvalue);
+}
+
+// Check if m * m^T = I (orthogonal matrix)
+public fn isOrthogonal(m: Matrix): bool {
+    if (m.rows() != m.cols()) { return false; }
+    let n: int = m.rows();
+    let mt: Matrix = m.transpose();
+    let product: Matrix = m.mul(mt);
+    var i: int = 0;
+    while (i < n) {
+        var j: int = 0;
+        while (j < n) {
+            let expected: double = 0.0;
+            if (i == j) { expected = 1.0; }
+            let diff: double = product.data.get2D(i, j) - expected;
+            if (diff < 0.0) { if (-diff > 1e-9) { return false; } }
+            else { if (diff > 1e-9) { return false; } }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Check if m^k = 0 for some k (try k=1..n)
+public fn isNilpotent(m: Matrix): bool {
+    if (m.rows() != m.cols()) { return false; }
+    let n: int = m.rows();
+    let power: Matrix = m.clone();
+    var k: int = 1;
+    while (k <= n) {
+        // Check if power is zero matrix
+        var isZero: bool = true;
+        var i: int = 0;
+        while (i < n && isZero) {
+            var j: int = 0;
+            while (j < n && isZero) {
+                if (Math.abs(power.data.get2D(i, j)) > 1e-10) {
+                    isZero = false;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        if (isZero) { return true; }
+        if (k < n) {
+            power = power.mul(m);
+        }
+        k = k + 1;
+    }
+    return false;
+}
+
+// Trace / rows ratio
+public fn traceRatio(m: Matrix): double {
+    let rows: int = m.rows();
+    if (rows == 0) { return 0.0; }
+    return m.trace() / (rows as double);
 }
