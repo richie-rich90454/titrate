@@ -3,9 +3,16 @@ import tt::time::DateTime;
 
 public class Duration {
     public long millis;
+    private long _nanos;
 
     fn init(ms: long) {
         this.millis = ms;
+        this._nanos = 0;
+    }
+
+    public fn initWithNanos(ms: long, ns: long) {
+        this.millis = ms;
+        this._nanos = ns;
     }
 
     public fn toMillis(): long {
@@ -29,7 +36,11 @@ public class Duration {
     }
 
     public fn toNanos(): long {
-        return this.millis * 1000000;
+        return this.millis * 1000000 + this._nanos;
+    }
+
+    public fn toMicros(): long {
+        return this.millis * 1000 + this._nanos / 1000;
     }
 
     public fn plus(other: Duration): Duration {
@@ -107,7 +118,19 @@ fn ofDays(d: long): Duration {
 }
 
 fn ofNanos(n: long): Duration {
-    return new Duration(n / 1000000);
+    let ms: long = n / 1000000;
+    let ns: long = n % 1000000;
+    let d: Duration = new Duration(ms);
+    d.initWithNanos(ms, ns);
+    return d;
+}
+
+public fn ofMicros(us: long): Duration {
+    let ms: long = us / 1000;
+    let ns: long = (us % 1000) * 1000;
+    let d: Duration = new Duration(ms);
+    d.initWithNanos(ms, ns);
+    return d;
 }
 
 fn between(start: DateTime, end: DateTime): Duration {
