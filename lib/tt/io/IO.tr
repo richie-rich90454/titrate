@@ -47,6 +47,11 @@ fn input(prompt: string): string {
     return io::readLine();
 }
 
+// Read a line from stdin without a prompt.
+fn readInput(): string {
+    return io::readLine();
+}
+
 // Unified file opener. Returns a BufferedReader for reading modes, or a File for writing modes.
 // Mode strings: "r" (read), "w" (write), "a" (append), "rb" (read binary), "wb" (write binary).
 fn open(path: string, mode: string): BufferedReader {
