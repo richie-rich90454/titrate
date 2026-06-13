@@ -268,7 +268,27 @@ pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
-    Err("File_readBytes: not yet implemented".to_string())
+    if args.len() < 2 {
+        return Err("File_readBytes: expected 2 arguments (path, count)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_readBytes: expected String path".to_string()),
+    };
+    let count = args[1].to_i64().unwrap_or(0) as usize;
+
+    match std::fs::read(&path) {
+        Ok(data) => {
+            let end = std::cmp::min(count, data.len());
+            let bytes = &data[..end];
+            // Return as hex-encoded string (matching the pattern used elsewhere)
+            let hex: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+            Ok(Value::String(Rc::new(hex)))
+        }
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_readBytes: {}", e)
+        ))))),
+    }
 }
 
 pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
