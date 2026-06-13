@@ -199,3 +199,89 @@ public class Hyperbola {
         return result;
     }
 }
+
+// ---- Circle: (x-cx)^2 + (y-cy)^2 = r^2 ----
+
+public class Circle {
+    public double cx;
+    public double cy;
+    public double r;
+
+    public fn init(cx: double, cy: double, r: double) {
+        this.cx = cx;
+        this.cy = cy;
+        this.r = r;
+    }
+
+    public fn area(): double {
+        return Math.PI * this.r * this.r;
+    }
+
+    public fn circumference(): double {
+        return 2.0 * Math.PI * this.r;
+    }
+
+    public fn contains(x: double, y: double): bool {
+        let dx: double = x - this.cx;
+        let dy: double = y - this.cy;
+        return dx * dx + dy * dy <= this.r * this.r;
+    }
+
+    public fn distanceToEdge(x: double, y: double): double {
+        let dx: double = x - this.cx;
+        let dy: double = y - this.cy;
+        let dist: double = Math.sqrt(dx * dx + dy * dy);
+        let diff: double = dist - this.r;
+        if (diff < 0.0) {
+            return -diff;
+        }
+        return diff;
+    }
+}
+
+// ---- Circle factory functions ----
+
+public fn circleFromThreePoints(p1: Vec2, p2: Vec2, p3: Vec2): Circle {
+    let ax: double = p1.x;
+    let ay: double = p1.y;
+    let bx: double = p2.x;
+    let by: double = p2.y;
+    let cxv: double = p3.x;
+    let cyv: double = p3.y;
+
+    let d: double = 2.0 * (ax * (by - cyv) + bx * (cyv - ay) + cxv * (ay - by));
+    let ux: double = ((ax * ax + ay * ay) * (by - cyv) + (bx * bx + by * by) * (cyv - ay) + (cxv * cxv + cyv * cyv) * (ay - by)) / d;
+    let uy: double = ((ax * ax + ay * ay) * (cxv - bx) + (bx * bx + by * by) * (ax - cxv) + (cxv * cxv + cyv * cyv) * (bx - ax)) / d;
+    let dx2: double = ax - ux;
+    let dy2: double = ay - uy;
+    let r: double = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+    return new Circle(ux, uy, r);
+}
+
+public fn circleFromDiameter(p1: Vec2, p2: Vec2): Circle {
+    let mx: double = (p1.x + p2.x) / 2.0;
+    let my: double = (p1.y + p2.y) / 2.0;
+    let dx: double = p2.x - p1.x;
+    let dy: double = p2.y - p1.y;
+    let r: double = Math.sqrt(dx * dx + dy * dy) / 2.0;
+    return new Circle(mx, my, r);
+}
+
+public fn circleTangentLines(point: Vec2, circle: Circle): ArrayList<Vec2> {
+    let result: ArrayList<Vec2> = new ArrayList<Vec2>();
+    let dx: double = point.x - circle.cx;
+    let dy: double = point.y - circle.cy;
+    let distSq: double = dx * dx + dy * dy;
+    let rSq: double = circle.r * circle.r;
+    if (distSq <= rSq) {
+        return result;
+    }
+    let dist: double = Math.sqrt(distSq);
+    let a: double = MathTrig.acos(circle.r / dist);
+    let baseAngle: double = MathTrig.atan2(dy, dx);
+    let angle1: double = baseAngle + a;
+    let angle2: double = baseAngle - a;
+    result.add(new Vec2(MathTrig.cos(angle1), MathTrig.sin(angle1)));
+    result.add(new Vec2(MathTrig.cos(angle2), MathTrig.sin(angle2)));
+    return result;
+}
