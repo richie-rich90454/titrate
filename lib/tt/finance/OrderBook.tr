@@ -1,0 +1,226 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+public class PriceLevel {
+    public double price;
+    public double quantity;
+    public int orderCount;
+
+    public fn init(price: double, quantity: double, orderCount: int) {
+        this.price = price;
+        this.quantity = quantity;
+        this.orderCount = orderCount;
+    }
+}
+
+public class Order {
+    public string id;
+    public string side;
+    public double price;
+    public double quantity;
+    public double timestamp;
+
+    public fn init(id: string, side: string, price: double, quantity: double, timestamp: double) {
+        this.id = id;
+        this.side = side;
+        this.price = price;
+        this.quantity = quantity;
+        this.timestamp = timestamp;
+    }
+}
+
+public class OrderBook {
+    public HashMap<string, PriceLevel> bids;
+    public HashMap<string, PriceLevel> asks;
+    public ArrayList<Order> bidOrders;
+    public ArrayList<Order> askOrders;
+
+    public fn init() {
+        this.bids = new HashMap<string, PriceLevel>();
+        this.asks = new HashMap<string, PriceLevel>();
+        this.bidOrders = new ArrayList<Order>();
+        this.askOrders = new ArrayList<Order>();
+    }
+
+    public fn addBid(order: Order): void {
+        this.bidOrders.add(order);
+        let key: string = Double.toString(order.price);
+        if (this.bids.containsKey(key)) {
+            let level: PriceLevel = this.bids.get(key);
+            level.quantity = level.quantity + order.quantity;
+            level.orderCount = level.orderCount + 1;
+        } else {
+            this.bids.put(key, new PriceLevel(order.price, order.quantity, 1));
+        }
+    }
+
+    public fn addAsk(order: Order): void {
+        this.askOrders.add(order);
+        let key: string = Double.toString(order.price);
+        if (this.asks.containsKey(key)) {
+            let level: PriceLevel = this.asks.get(key);
+            level.quantity = level.quantity + order.quantity;
+            level.orderCount = level.orderCount + 1;
+        } else {
+            this.asks.put(key, new PriceLevel(order.price, order.quantity, 1));
+        }
+    }
+
+    public fn cancelOrder(id: string): bool {
+        // Search bid orders
+        var i: int = 0;
+        while (i < this.bidOrders.size()) {
+            let order: Order = this.bidOrders.get(i);
+            if (String.length(order.id) > 0 && order.id == id) {
+                let key: string = Double.toString(order.price);
+                if (this.bids.containsKey(key)) {
+                    let level: PriceLevel = this.bids.get(key);
+                    level.quantity = level.quantity - order.quantity;
+                    level.orderCount = level.orderCount - 1;
+                    if (level.orderCount <= 0) {
+                        this.bids.remove(key);
+                    }
+                }
+                this.bidOrders.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        // Search ask orders
+        i = 0;
+        while (i < this.askOrders.size()) {
+            let order: Order = this.askOrders.get(i);
+            if (String.length(order.id) > 0 && order.id == id) {
+                let key: string = Double.toString(order.price);
+                if (this.asks.containsKey(key)) {
+                    let level: PriceLevel = this.asks.get(key);
+                    level.quantity = level.quantity - order.quantity;
+                    level.orderCount = level.orderCount - 1;
+                    if (level.orderCount <= 0) {
+                        this.asks.remove(key);
+                    }
+                }
+                this.askOrders.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn bestBid(): double {
+        var best: double = 0.0;
+        var i: int = 0;
+        while (i < this.bidOrders.size()) {
+            let order: Order = this.bidOrders.get(i);
+            if (order.price > best) {
+                best = order.price;
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    public fn bestAsk(): double {
+        var best: double = 0.0;
+        var i: int = 0;
+        while (i < this.askOrders.size()) {
+            let order: Order = this.askOrders.get(i);
+            if (best == 0.0 || order.price < best) {
+                best = order.price;
+            }
+            i = i + 1;
+        }
+        return best;
+    }
+
+    public fn spread(): double {
+        return this.bestAsk() - this.bestBid();
+    }
+
+    public fn bidDepth(levels: int): ArrayList<PriceLevel> {
+        let result: ArrayList<PriceLevel> = new ArrayList<PriceLevel>();
+        // Collect all bid price levels into a list
+        let allLevels: ArrayList<PriceLevel> = new ArrayList<PriceLevel>();
+        let keys: ArrayList<string> = this.bids.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let level: PriceLevel = this.bids.get(key);
+            allLevels.add(level);
+            i = i + 1;
+        }
+        // Sort descending by price (simple selection sort)
+        var j: int = 0;
+        while (j < allLevels.size() && j < levels) {
+            var maxIdx: int = j;
+            var k: int = j + 1;
+            while (k < allLevels.size()) {
+                if (allLevels.get(k).price > allLevels.get(maxIdx).price) {
+                    maxIdx = k;
+                }
+                k = k + 1;
+            }
+            if (maxIdx != j) {
+                let tmp: PriceLevel = allLevels.get(j);
+                allLevels.set(j, allLevels.get(maxIdx));
+                allLevels.set(maxIdx, tmp);
+            }
+            result.add(allLevels.get(j));
+            j = j + 1;
+        }
+        return result;
+    }
+
+    public fn askDepth(levels: int): ArrayList<PriceLevel> {
+        let result: ArrayList<PriceLevel> = new ArrayList<PriceLevel>();
+        // Collect all ask price levels into a list
+        let allLevels: ArrayList<PriceLevel> = new ArrayList<PriceLevel>();
+        let keys: ArrayList<string> = this.asks.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let level: PriceLevel = this.asks.get(key);
+            allLevels.add(level);
+            i = i + 1;
+        }
+        // Sort ascending by price (simple selection sort)
+        var j: int = 0;
+        while (j < allLevels.size() && j < levels) {
+            var minIdx: int = j;
+            var k: int = j + 1;
+            while (k < allLevels.size()) {
+                if (allLevels.get(k).price < allLevels.get(minIdx).price) {
+                    minIdx = k;
+                }
+                k = k + 1;
+            }
+            if (minIdx != j) {
+                let tmp: PriceLevel = allLevels.get(j);
+                allLevels.set(j, allLevels.get(minIdx));
+                allLevels.set(minIdx, tmp);
+            }
+            result.add(allLevels.get(j));
+            j = j + 1;
+        }
+        return result;
+    }
+
+    public fn bbo(): string {
+        let bb: double = this.bestBid();
+        let ba: double = this.bestAsk();
+        return "BBO: bid=" + Double.toString(bb) + " ask=" + Double.toString(ba);
+    }
+
+    public fn midPrice(): double {
+        let bb: double = this.bestBid();
+        let ba: double = this.bestAsk();
+        return (bb + ba) / 2.0;
+    }
+
+    public fn toString(): string {
+        return "OrderBook(bids=" + Integer.toString(this.bidOrders.size()) + ", asks=" + Integer.toString(this.askOrders.size()) + ")";
+    }
+}
