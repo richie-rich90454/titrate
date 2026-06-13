@@ -214,4 +214,56 @@ public class BitSet {
         }
         return result;
     }
+
+    public fn nextSetBit(from: int): int {
+        if (from < 0) { return -1; }
+        let wordIdx: int = from / 32;
+        let bitIdx: int = from % 32;
+        while (wordIdx < this.words.size()) {
+            let word: int = this.words.get(wordIdx);
+            // Mask out bits below from within this word
+            if (bitIdx > 0) {
+                word = word & ~((1 << bitIdx) - 1);
+            }
+            if (word != 0) {
+                // Find the lowest set bit
+                var bit: int = bitIdx;
+                while (bit < 32) {
+                    if ((word & (1 << bit)) != 0) {
+                        return wordIdx * 32 + bit;
+                    }
+                    bit = bit + 1;
+                }
+            }
+            wordIdx = wordIdx + 1;
+            bitIdx = 0;
+        }
+        return -1;
+    }
+
+    public fn nextClearBit(from: int): int {
+        if (from < 0) { return 0; }
+        let wordIdx: int = from / 32;
+        let bitIdx: int = from % 32;
+        while (wordIdx < this.words.size()) {
+            let word: int = this.words.get(wordIdx);
+            // Mask out bits below from within this word
+            if (bitIdx > 0) {
+                word = word | ((1 << bitIdx) - 1);
+            }
+            if (word != -1) {
+                // Find the lowest clear bit
+                var bit: int = bitIdx;
+                while (bit < 32) {
+                    if ((word & (1 << bit)) == 0) {
+                        return wordIdx * 32 + bit;
+                    }
+                    bit = bit + 1;
+                }
+            }
+            wordIdx = wordIdx + 1;
+            bitIdx = 0;
+        }
+        return wordIdx * 32;
+    }
 }
