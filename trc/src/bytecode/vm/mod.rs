@@ -222,6 +222,7 @@ impl Vm {
         vm.register_native("Hash_blake2b", natives::hash::native_hash_blake2b);
         vm.register_native("Hash_blake2s", natives::hash::native_hash_blake2s);
         vm.register_native("Hash_crc32", natives::hash::native_hash_crc32);
+        vm.register_native("Hmac_compareDigest", natives::hash::native_hmac_compare_digest);
 
         // Base64 natives
         vm.register_native("Base64_encode", natives::encoding::native_base64_encode);
@@ -397,6 +398,7 @@ impl Vm {
         vm.register_native("Os_symlink", natives::system::native_os_symlink);
         vm.register_native("Os_readlink", natives::system::native_os_readlink);
         vm.register_native("Os_kill", natives::system::native_os_kill);
+        vm.register_native("Os_environ", natives::system::native_os_environ);
 
         vm
     }

@@ -131,6 +131,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Hash_blake2b" => Some(hash::native_hash_blake2b),
         "Hash_blake2s" => Some(hash::native_hash_blake2s),
         "Hash_crc32" => Some(hash::native_hash_crc32),
+        "Hmac_compareDigest" => Some(hash::native_hmac_compare_digest),
         "Base64_encode" => Some(encoding::native_base64_encode),
         "Base64_decode" => Some(encoding::native_base64_decode),
         "Hex_encode" => Some(encoding::native_hex_encode),
@@ -281,6 +282,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Os_symlink" => Some(system::native_os_symlink),
         "Os_readlink" => Some(system::native_os_readlink),
         "Os_kill" => Some(system::native_os_kill),
+        "Os_environ" => Some(system::native_os_environ),
 
         _ => None,
     }

@@ -374,3 +374,13 @@ pub(crate) fn native_os_kill(args: &[Value]) -> Result<Value, String> {
         }
     }
 }
+
+pub(crate) fn native_os_environ(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Return all environment variables as a formatted string (KEY=VALUE\n...)
+    let env_str: String = std::env::vars()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<String>>()
+        .join("\n");
+    Ok(Value::String(Rc::new(env_str)))
+}

@@ -101,6 +101,11 @@ public fn kill(pid: int, sig: int): void {
     Os_kill(pid, sig);
 }
 
+// Get all environment variables as a formatted string (KEY=VALUE per line).
+public fn environ(): string {
+    return Os_environ();
+}
+
 // Remove a file or empty directory
 public fn remove(path: string): Result<string, string> {
     let success: bool = Dir_remove(path);
