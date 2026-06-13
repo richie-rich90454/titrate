@@ -62,6 +62,12 @@ public fn round(x: double): long {
     return Math_round(x);
 }
 
+// Truncate toward zero
+public fn trunc(x: double): double {
+    if (x >= 0.0) { return Math_floor(x); }
+    return Math_ceil(x);
+}
+
 public fn min(a: double, b: double): double {
     if (a < b) { return a; }
     return b;
