@@ -36,3 +36,8 @@ fn measure(fn: fn(): void): Duration {
 fn stopwatch(): Stopwatch {
     return new Stopwatch();
 }
+
+// Monotonic time in nanoseconds from an arbitrary epoch (suitable for measuring durations)
+fn monotonic(): long {
+    return Time_monotonic();
+}

@@ -126,3 +126,13 @@ pub(crate) fn native_time_day_of_year(args: &[Value]) -> Result<Value, String> {
         .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
     Ok(Value::Int(datetime.ordinal() as i32))
 }
+
+pub(crate) fn native_time_monotonic(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    use std::time::Instant;
+    // Return nanoseconds from an arbitrary epoch (process start)
+    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    let start = START.get_or_init(Instant::now);
+    let ns = start.elapsed().as_nanos() as i64;
+    Ok(Value::Long(ns))
+}
