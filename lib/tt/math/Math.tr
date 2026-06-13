@@ -226,6 +226,11 @@ public fn nextafter(x: double, y: double): double {
     return MathAdvanced.nextDown(x);
 }
 
+// Move x toward y by one ULP step (directional nextafter)
+public fn nextafterDir(x: double, y: double): double {
+    return nextafter(x, y);
+}
+
 // Fused multiply-add: a * b + c
 public fn fma(a: double, b: double, c: double): double {
     return Math_fma(a, b, c);
