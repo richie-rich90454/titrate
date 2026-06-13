@@ -72,13 +72,18 @@ public fn listDir(path: string): ArrayList<string> {
     return Dir_list(path);
 }
 
-// Create a directory
+// Create a directory.
 public fn mkdir(path: string): Result<string, string> {
     let success: bool = Dir_create(path);
     if (success) {
         return ok(path);
     }
     return err("failed to create directory: " + path);
+}
+
+// Recursively create directories (like mkdir -p).
+public fn makedirs(path: string): Result<string, string> {
+    return Os_makedirs(path);
 }
 
 // Remove a file or empty directory

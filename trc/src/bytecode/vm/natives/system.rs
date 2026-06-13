@@ -258,3 +258,19 @@ pub(crate) fn native_os_chmod(args: &[Value]) -> Result<Value, String> {
         )))))
     }
 }
+
+pub(crate) fn native_os_makedirs(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Os_makedirs: expected 1 argument (path)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Os_makedirs: expected String path".to_string()),
+    };
+    match std::fs::create_dir_all(&path) {
+        Ok(()) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(path))))),
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("Os_makedirs: {}", e)
+        ))))),
+    }
+}
