@@ -1,6 +1,7 @@
 import tt::util::ArrayList;
 import tt::math::linalg::Matrix;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 // RHF Jacobi diagonalization, S^-1/2 computation
 
@@ -19,7 +20,7 @@ public fn computeSInverseHalf(rhf: RHF): Matrix {
     while (i < n) {
         let ev: double = eigenvals.get(i);
         if (ev > 1e-14) {
-            sinvHalf.set(i, i, 1.0 / Math.sqrt(ev));
+            sinvHalf.set(i, i, 1.0 / MathAdvanced.sqrt(ev));
         } else {
             sinvHalf.set(i, i, 0.0);
         }
@@ -79,11 +80,11 @@ public fn jacobiDiagonalize(rhf: RHF, A: Matrix): (Matrix, ArrayList<double>) {
                 }
                 var t: double = 0.0;
                 if (tau >= 0.0) {
-                    t = 1.0 / (tau + Math.sqrt(1.0 + tau * tau));
+                    t = 1.0 / (tau + MathAdvanced.sqrt(1.0 + tau * tau));
                 } else {
-                    t = -1.0 / (-tau + Math.sqrt(1.0 + tau * tau));
+                    t = -1.0 / (-tau + MathAdvanced.sqrt(1.0 + tau * tau));
                 }
-                let c: double = 1.0 / Math.sqrt(1.0 + t * t);
+                let c: double = 1.0 / MathAdvanced.sqrt(1.0 + t * t);
                 let s: double = t * c;
 
                 // Update D matrix
