@@ -286,3 +286,100 @@ fn _hexVal(c: string): int {
     }
     return 0;
 }
+
+// Encode a string to Base85 (Ascii85).
+// Ascii85 encodes 4 bytes into 5 characters using characters 33-117 (! through u).
+// Zero-length groups are encoded as 'z'.
+public fn encodeBase85(s: string): string {
+    // Convert string to bytes
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < String.length(s)) {
+        bytes.add(String.charAt(s, i));
+        i = i + 1;
+    }
+    let len: int = bytes.size();
+    let result: string = "";
+    let j: int = 0;
+    while (j < len) {
+        // Collect up to 4 bytes
+        let b0: int = bytes.get(j);
+        let b1: int = (j + 1 < len) ? bytes.get(j + 1) : 0;
+        let b2: int = (j + 2 < len) ? bytes.get(j + 2) : 0;
+        let b3: int = (j + 3 < len) ? bytes.get(j + 3) : 0;
+        let count: int = len - j;
+        if (count > 4) { count = 4; }
+        // Combine into 32-bit value (big-endian)
+        let val: int = (b0 * 16777216) + (b1 * 65536) + (b2 * 256) + b3;
+        // Special case: all-zero group encodes as 'z'
+        if (count == 4 && val == 0) {
+            result = result + "z";
+        } else {
+            // Encode as up to 5 base-85 digits
+            let chars: int = count + 1;
+            let k: int = 4;
+            while (k >= 0) {
+                let digit: int = val % 85;
+                val = val / 85;
+                // Prepend character 33 + digit
+                result = result + String.fromCharCode(33 + digit);
+                k = k - 1;
+            }
+        }
+        j = j + 4;
+    }
+    return result;
+}
+
+// Decode a Base85 (Ascii85) string back to the original string.
+public fn decodeBase85(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "z") {
+            // Zero group
+            result = result + String.fromCharCode(0) + String.fromCharCode(0) + String.fromCharCode(0) + String.fromCharCode(0);
+            i = i + 1;
+        } else {
+            // Collect up to 5 characters
+            let group: string = "";
+            let k: int = 0;
+            while (k < 5 && i < String.length(s)) {
+                let ch: string = String.charAt(s, i);
+                if (ch == "z") { break; }
+                group = group + ch;
+                k = k + 1;
+                i = i + 1;
+            }
+            // Decode the group
+            let val: int = 0;
+            let g: int = 0;
+            while (g < String.length(group)) {
+                val = val * 85 + (String.charAt(group, g) - 33);
+                g = g + 1;
+            }
+            // Pad to 5 characters if needed
+            let padNeeded: int = 5 - String.length(group);
+            let p: int = 0;
+            while (p < padNeeded) {
+                val = val * 85 + 84;
+                p = p + 1;
+            }
+            // Extract bytes
+            let byteCount: int = String.length(group) - 1;
+            let b3: int = val % 256;
+            val = val / 256;
+            let b2: int = val % 256;
+            val = val / 256;
+            let b1: int = val % 256;
+            val = val / 256;
+            let b0: int = val % 256;
+            if (byteCount >= 1) { result = result + String.fromCharCode(b0); }
+            if (byteCount >= 2) { result = result + String.fromCharCode(b1); }
+            if (byteCount >= 3) { result = result + String.fromCharCode(b2); }
+            if (byteCount >= 4) { result = result + String.fromCharCode(b3); }
+        }
+    }
+    return result;
+}
