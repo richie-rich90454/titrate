@@ -69,7 +69,26 @@ public class File {
         File_close(this.path);
     }
 
-    // Seek to position in file. Returns the new position.
+    // Seek to position in file. Whence: 0=SET (from start), 1=CURRENT (from current), 2=END (from end).
+    // Returns the new position.
+    public fn seek(position: int, whence: int): int {
+        var newPos: int = position;
+        if (whence == 0) {
+            // SEEK_SET: absolute position from start
+            newPos = position;
+        } else if (whence == 1) {
+            // SEEK_CUR: relative to current position
+            newPos = File_tell(this.getPath()) + position;
+        } else if (whence == 2) {
+            // SEEK_END: relative to end of file
+            let fileSize: int = Fs_size(this.getPath());
+            newPos = fileSize + position;
+        }
+        if (newPos < 0) { newPos = 0; }
+        return File_seek(this.getPath(), newPos);
+    }
+
+    // Seek to position in file (from start). Returns the new position.
     public fn seek(position: int): int {
         return File_seek(this.getPath(), position);
     }
