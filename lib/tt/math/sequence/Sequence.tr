@@ -111,6 +111,9 @@ public fn geometricSum(first: double, ratio: double, n: int): double {
 
 // Sum of an infinite geometric series: first/(1-ratio) for |ratio|<1
 public fn geometricSumInfinite(first: double, ratio: double): double {
+    if (Math.fabs(ratio) >= 1.0) {
+        return Math.INF();
+    }
     return first / (1.0 - ratio);
 }
 
