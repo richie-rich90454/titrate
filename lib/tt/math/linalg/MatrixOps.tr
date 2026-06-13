@@ -1,4 +1,8 @@
 // Matrix operations: cross, outerProduct, concatHorizontal, concatVertical, subMatrix
+// Matrix construction helpers: diagFromList, diagFromMatrix, triu, tril, vandermonde
+
+import tt::util::ArrayList;
+import tt::math::Math;
 
 public fn cross(a: Matrix, b: Matrix): Matrix {
     let a0: double = a.data.get2D(0, 0);
@@ -93,6 +97,93 @@ public fn subMatrix(m: Matrix, rowStart: int, rowEnd: int, colStart: int, colEnd
         var j: int = 0;
         while (j < c) {
             result.data.set2D(i, j, m.data.get2D(rowStart + i, colStart + j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ---- Matrix construction helpers ----
+
+// Create diagonal matrix from vector
+public fn diagFromList(v: ArrayList<double>): Matrix {
+    let n: int = v.size();
+    let result: Matrix = new Matrix(n, n);
+    var i: int = 0;
+    while (i < n) {
+        result.data.set2D(i, i, v.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Extract diagonal from matrix
+public fn diagFromMatrix(m: Matrix): ArrayList<double> {
+    let n: int = Math.min(m.rows(), m.cols());
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        result.add(m.data.get2D(i, i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Upper triangular (zero below diagonal)
+public fn triu(m: Matrix): Matrix {
+    let rows: int = m.rows();
+    let cols: int = m.cols();
+    let result: Matrix = new Matrix(rows, cols);
+    var i: int = 0;
+    while (i < rows) {
+        var j: int = 0;
+        while (j < cols) {
+            if (j >= i) {
+                result.data.set2D(i, j, m.data.get2D(i, j));
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Lower triangular (zero above diagonal)
+public fn tril(m: Matrix): Matrix {
+    let rows: int = m.rows();
+    let cols: int = m.cols();
+    let result: Matrix = new Matrix(rows, cols);
+    var i: int = 0;
+    while (i < rows) {
+        var j: int = 0;
+        while (j < cols) {
+            if (j <= i) {
+                result.data.set2D(i, j, m.data.get2D(i, j));
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Vandermonde matrix where element [i,j] = v[i]^(n-1-j)
+public fn vandermonde(v: ArrayList<double>, n: int): Matrix {
+    let rows: int = v.size();
+    let result: Matrix = new Matrix(rows, n);
+    var i: int = 0;
+    while (i < rows) {
+        var j: int = 0;
+        while (j < n) {
+            let exp: int = n - 1 - j;
+            var val: double = 1.0;
+            var e: int = 0;
+            while (e < exp) {
+                val = val * v.get(i);
+                e = e + 1;
+            }
+            result.data.set2D(i, j, val);
             j = j + 1;
         }
         i = i + 1;
