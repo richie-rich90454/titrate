@@ -98,3 +98,23 @@ fn exec(command: string): string {
 fn exitCode(): int {
     return lastExitCode;
 }
+
+// Run a command and return its stdout. Throws on non-zero exit code.
+public fn checkOutput(command: string): string {
+    let output: string = Subprocess_exec(command);
+    let code: int = Subprocess_run(command);
+    lastExitCode = code;
+    if (code != 0) {
+        Subprocess_throw("Command '" + command + "' returned non-zero exit code " + Integer.toString(code));
+    }
+    return output;
+}
+
+// Run a command and throw on non-zero exit code.
+public fn checkCall(command: string): void {
+    let code: int = Subprocess_run(command);
+    lastExitCode = code;
+    if (code != 0) {
+        Subprocess_throw("Command '" + command + "' returned non-zero exit code " + Integer.toString(code));
+    }
+}
