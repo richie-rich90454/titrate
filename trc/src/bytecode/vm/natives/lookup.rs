@@ -277,6 +277,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Os_makedirs" => Some(system::native_os_makedirs),
         "Os_symlink" => Some(system::native_os_symlink),
         "Os_readlink" => Some(system::native_os_readlink),
+        "Os_kill" => Some(system::native_os_kill),
 
         _ => None,
     }

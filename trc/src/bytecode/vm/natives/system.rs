@@ -338,3 +338,39 @@ pub(crate) fn native_os_readlink(args: &[Value]) -> Result<Value, String> {
         ))))),
     }
 }
+
+pub(crate) fn native_os_kill(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Os_kill: expected 2 arguments (pid, signal)".to_string());
+    }
+    let pid = args[0].to_i64().unwrap_or(0);
+    let _sig = args[1].to_i64().unwrap_or(0);
+
+    #[cfg(unix)]
+    {
+        // On Unix, send signal to process
+        // We use libc-free approach: just use nix or raw syscall
+        // For simplicity, use unsafe libc::kill
+        // Since we don't have libc as a dependency, use a best-effort approach
+        // by spawning kill command
+        let output = std::process::Command::new("kill")
+            .args(["-s", &format!("{}", _sig), &format!("{}", pid)])
+            .output();
+        match output {
+            Ok(_) => Ok(Value::Void),
+            Err(e) => Err(format!("Os_kill: {}", e)),
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        // On Windows, terminate the process using taskkill
+        let output = std::process::Command::new("taskkill")
+            .args(["/PID", &format!("{}", pid), "/F"])
+            .output();
+        match output {
+            Ok(_) => Ok(Value::Void),
+            Err(e) => Err(format!("Os_kill: {}", e)),
+        }
+    }
+}

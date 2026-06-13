@@ -96,6 +96,11 @@ public fn readlink(path: string): Result<string, string> {
     return Os_readlink(path);
 }
 
+// Send a signal to a process.
+public fn kill(pid: int, sig: int): void {
+    Os_kill(pid, sig);
+}
+
 // Remove a file or empty directory
 public fn remove(path: string): Result<string, string> {
     let success: bool = Dir_remove(path);

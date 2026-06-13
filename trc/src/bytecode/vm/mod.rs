@@ -393,6 +393,7 @@ impl Vm {
         vm.register_native("Os_makedirs", natives::system::native_os_makedirs);
         vm.register_native("Os_symlink", natives::system::native_os_symlink);
         vm.register_native("Os_readlink", natives::system::native_os_readlink);
+        vm.register_native("Os_kill", natives::system::native_os_kill);
 
         vm
     }
