@@ -2,6 +2,7 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::io::IO;
+import tt::lang::String;
 
 // Format an object as a pretty string with default indent=2 and width=80.
 public fn pformat<T>(obj: T): string {
@@ -110,4 +111,256 @@ fn indent(text: string, spaces: int): string {
         i = i + 1;
     }
     return pad + text;
+}
+
+// PrettyPrinter provides configurable pretty-printing with depth limiting,
+// compact formatting, and self-referential structure detection.
+public class PrettyPrinter {
+    public int _indent;
+    public int _width;
+    public int _depth;
+    public bool _compact;
+    public bool _sortDicts;
+
+    public fn init(indent: int, width: int, depth: int, compact: bool, sortDicts: bool) {
+        this._indent = indent;
+        this._width = width;
+        this._depth = depth;
+        this._compact = compact;
+        this._sortDicts = sortDicts;
+    }
+
+    // Format an object as a pretty string using this printer's configuration.
+    public fn pformat(obj: Variant): string {
+        return this._format(obj, 0, new ArrayList<Variant>());
+    }
+
+    // Print an object to stdout using this printer's configuration.
+    public fn pprint(obj: Variant): void {
+        IO.println(this.pformat(obj));
+    }
+
+    // Internal recursive formatting with depth tracking and recursion detection.
+    private fn _format(obj: Variant, currentDepth: int, visited: ArrayList<Variant>): string {
+        if (obj == null) { return "null"; }
+        // Depth limiting
+        if (this._depth > 0 && currentDepth >= this._depth) {
+            return "...";
+        }
+        // Self-referential structure detection
+        if (obj is ArrayList || obj is HashMap) {
+            let i: int = 0;
+            while (i < visited.size()) {
+                if (visited.get(i) == obj) {
+                    return "...";
+                }
+                i = i + 1;
+            }
+        }
+        if (obj is ArrayList) {
+            return this._formatList(obj as ArrayList<Variant>, currentDepth, visited);
+        }
+        if (obj is HashMap) {
+            return this._formatMap(obj as HashMap<Variant, Variant>, currentDepth, visited);
+        }
+        return obj.toString();
+    }
+
+    // Format an ArrayList with depth and recursion tracking.
+    private fn _formatList(list: ArrayList<Variant>, currentDepth: int, visited: ArrayList<Variant>): string {
+        if (list.size() == 0) { return "[]"; }
+        // Add to visited for recursion detection
+        visited.add(list as Variant);
+        // Try compact format first
+        let compact: string = "[";
+        let i: int = 0;
+        while (i < list.size()) {
+            if (i > 0) { compact = compact + ", "; }
+            compact = compact + this._format(list.get(i), currentDepth + 1, visited);
+            i = i + 1;
+        }
+        compact = compact + "]";
+        if (String.length(compact) <= this._width) {
+            visited.removeAt(visited.size() - 1);
+            return compact;
+        }
+        // Compact formatting: put multiple items per line if compact mode
+        if (this._compact) {
+            let result: string = "[";
+            let j: int = 0;
+            var lineLen: int = 1;
+            while (j < list.size()) {
+                let item: string = this._format(list.get(j), currentDepth + 1, visited);
+                if (j > 0) {
+                    if (lineLen + 2 + String.length(item) > this._width) {
+                        result = result + ",\n" + makeIndent(this._indent * (currentDepth + 1)) + item;
+                        lineLen = this._indent * (currentDepth + 1) + String.length(item);
+                    } else {
+                        result = result + ", " + item;
+                        lineLen = lineLen + 2 + String.length(item);
+                    }
+                } else {
+                    result = result + item;
+                    lineLen = lineLen + String.length(item);
+                }
+                j = j + 1;
+            }
+            result = result + "]";
+            visited.removeAt(visited.size() - 1);
+            return result;
+        }
+        // Multi-line format
+        let result: string = "[\n";
+        let k: int = 0;
+        while (k < list.size()) {
+            let itemStr: string = this._format(list.get(k), currentDepth + 1, visited);
+            let indented: string = makeIndent(this._indent * (currentDepth + 1)) + itemStr;
+            result = result + indented;
+            if (k < list.size() - 1) {
+                result = result + ",";
+            }
+            result = result + "\n";
+            k = k + 1;
+        }
+        result = result + makeIndent(this._indent * currentDepth) + "]";
+        visited.removeAt(visited.size() - 1);
+        return result;
+    }
+
+    // Format a HashMap with depth and recursion tracking.
+    private fn _formatMap(map: HashMap<Variant, Variant>, currentDepth: int, visited: ArrayList<Variant>): string {
+        if (map.size() == 0) { return "{}"; }
+        // Add to visited for recursion detection
+        visited.add(map as Variant);
+        let entries: ArrayList<(Variant, Variant)> = map.entries();
+        // Sort keys if sortDicts is enabled
+        if (this._sortDicts) {
+            entries = sortEntries(entries);
+        }
+        // Try compact format first
+        let compact: string = "{";
+        let i: int = 0;
+        while (i < entries.size()) {
+            if (i > 0) { compact = compact + ", "; }
+            (key: Variant, val: Variant) = entries.get(i);
+            compact = compact + this._format(key, currentDepth + 1, visited) + ": " + this._format(val, currentDepth + 1, visited);
+            i = i + 1;
+        }
+        compact = compact + "}";
+        if (String.length(compact) <= this._width) {
+            visited.removeAt(visited.size() - 1);
+            return compact;
+        }
+        // Multi-line format
+        let result: string = "{\n";
+        let j: int = 0;
+        while (j < entries.size()) {
+            (key: Variant, val: Variant) = entries.get(j);
+            let keyStr: string = this._format(key, currentDepth + 1, visited);
+            let valStr: string = this._format(val, currentDepth + 1, visited);
+            let line: string = keyStr + ": " + valStr;
+            let indented: string = makeIndent(this._indent * (currentDepth + 1)) + line;
+            result = result + indented;
+            if (j < entries.size() - 1) {
+                result = result + ",";
+            }
+            result = result + "\n";
+            j = j + 1;
+        }
+        result = result + makeIndent(this._indent * currentDepth) + "}";
+        visited.removeAt(visited.size() - 1);
+        return result;
+    }
+
+    // Check if an object is readable (not truncated by depth limit or recursion).
+    public fn isReadable(obj: Variant): bool {
+        let formatted: string = this.pformat(obj);
+        return String.indexOf(formatted, "...") < 0;
+    }
+
+    // Check if an object contains self-referential (recursive) structures.
+    public fn isRecursive(obj: Variant): bool {
+        return PrettyPrinter._checkRecursive(obj, new ArrayList<Variant>());
+    }
+
+    private fn _checkRecursive(obj: Variant, visited: ArrayList<Variant>): bool {
+        if (obj == null) { return false; }
+        if (obj is ArrayList) {
+            let list: ArrayList<Variant> = obj as ArrayList<Variant>;
+            let i: int = 0;
+            while (i < visited.size()) {
+                if (visited.get(i) == obj) { return true; }
+                i = i + 1;
+            }
+            visited.add(obj);
+            let j: int = 0;
+            while (j < list.size()) {
+                if (PrettyPrinter._checkRecursive(list.get(j), visited)) {
+                    return true;
+                }
+                j = j + 1;
+            }
+            visited.removeAt(visited.size() - 1);
+        } else if (obj is HashMap) {
+            let map: HashMap<Variant, Variant> = obj as HashMap<Variant, Variant>;
+            let i: int = 0;
+            while (i < visited.size()) {
+                if (visited.get(i) == obj) { return true; }
+                i = i + 1;
+            }
+            visited.add(obj);
+            let entries: ArrayList<(Variant, Variant)> = map.entries();
+            let j: int = 0;
+            while (j < entries.size()) {
+                (key: Variant, val: Variant) = entries.get(j);
+                if (PrettyPrinter._checkRecursive(val, visited)) {
+                    return true;
+                }
+                j = j + 1;
+            }
+            visited.removeAt(visited.size() - 1);
+        }
+        return false;
+    }
+}
+
+// Create a string of N spaces for indentation.
+fn makeIndent(n: int): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < n) {
+        result = result + " ";
+        i = i + 1;
+    }
+    return result;
+}
+
+// Sort map entries by their string representation.
+fn sortEntries(entries: ArrayList<(Variant, Variant)>): ArrayList<(Variant, Variant)> {
+    let result: ArrayList<(Variant, Variant)> = new ArrayList<(Variant, Variant)>();
+    // Simple insertion sort by key string representation
+    let i: int = 0;
+    while (i < entries.size()) {
+        (key: Variant, val: Variant) = entries.get(i);
+        let keyStr: string = key.toString();
+        // Find insertion point
+        let inserted: bool = false;
+        let j: int = 0;
+        while (j < result.size()) {
+            (existingKey: Variant, existingVal: Variant) = result.get(j);
+            let existingStr: string = existingKey.toString();
+            if (String.length(keyStr) < String.length(existingStr) ||
+                (String.length(keyStr) == String.length(existingStr) && keyStr < existingStr)) {
+                result.addAt(j, entries.get(i));
+                inserted = true;
+                break;
+            }
+            j = j + 1;
+        }
+        if (!inserted) {
+            result.add(entries.get(i));
+        }
+        i = i + 1;
+    }
+    return result;
 }
