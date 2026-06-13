@@ -470,3 +470,23 @@ public fn hypot(a: double, b: double): double {
     let ratio: double = absA / absB;
     return absB * Math.sqrt(1.0 + ratio * ratio);
 }
+
+// N-argument hypotenuse for arbitrary number of coordinates
+public fn hypotN(coords: ArrayList<double>): double {
+    var maxVal: double = 0.0;
+    var i: int = 0;
+    while (i < coords.size()) {
+        let v: double = Math.abs(coords.get(i));
+        if (v > maxVal) { maxVal = v; }
+        i = i + 1;
+    }
+    if (maxVal == 0.0) { return 0.0; }
+    var sumSq: double = 0.0;
+    i = 0;
+    while (i < coords.size()) {
+        let ratio: double = Math.abs(coords.get(i)) / maxVal;
+        sumSq = sumSq + ratio * ratio;
+        i = i + 1;
+    }
+    return maxVal * Math.sqrt(sumSq);
+}
