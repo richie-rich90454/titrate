@@ -23,7 +23,7 @@ public class ZoneInfo {
     }
 
     public fn offsetSeconds(): int {
-        return this._offset * 3600 as int;
+        return (this._offset * 3600) as int;
     }
 
     public fn toString(): string {
@@ -34,14 +34,14 @@ public class ZoneInfo {
             hours = -hours;
         }
         let h: int = hours as int;
-        let m: int = (hours - h as double) * 60 as int;
+        let m: int = ((hours - (h as double)) * 60) as int;
         return this._name + " (UTC" + sign + Integer.toString(h) + ":" + _pad(m) + ")";
     }
 
     // Convert a DateTime from one timezone to this timezone
     public fn convert(dt: DateTime, fromZone: ZoneInfo): DateTime {
         let diffHours: double = this._offset - fromZone._offset;
-        let diffMillis: long = diffHours * 3600000 as long;
+        let diffMillis: long = (diffHours * 3600000.0) as long;
         return new DateTime(dt.epochMillis + diffMillis);
     }
 }
