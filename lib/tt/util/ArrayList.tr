@@ -190,6 +190,14 @@ public class ArrayList<T> implements Iterable<T> {
         return result;
     }
 
+    public fn mapTo<R>(mapper: fn(T): R): ArrayList<R> {
+        let result: ArrayList<R> = new ArrayList<R>();
+        for (elem in this.list) {
+            result.add(mapper(elem));
+        }
+        return result;
+    }
+
     public fn filter(fn: fn(T): bool): ArrayList<T> {
         let result: ArrayList<T> = new ArrayList<T>();
         for (elem in this.list) {
