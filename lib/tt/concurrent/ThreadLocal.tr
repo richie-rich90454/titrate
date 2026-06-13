@@ -11,7 +11,7 @@ public class ThreadLocal<T> {
     public fn init() {
         this.storage = new HashMap<int, T>();
         this.mutex = new Mutex();
-        this.initialValue = fn(): T { return storage.get(0); };
+        this.initialValue = fn(): T { return this.storage.get(0); };
     }
 
     public fn init(initialValue: fn(): T) {
