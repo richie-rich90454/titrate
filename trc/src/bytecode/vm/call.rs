@@ -274,10 +274,10 @@ impl Vm {
                             Value::Long(i) => i as usize,
                             _ => return Err("String.substring: end must be an integer".to_string()),
                         };
-                        if start > end || end > s.len() {
-                            return Err(format!("String.substring: indices out of range ({}..{}) for string of length {}", start, end, s.len()));
+                        if start > end || end > s.chars().count() {
+                            return Err(format!("String.substring: indices out of range ({}..{}) for string of length {}", start, end, s.chars().count()));
                         }
-                        let sub = s[start..end].to_string();
+                        let sub: String = s.chars().skip(start).take(end - start).collect();
                         self.stack.drain(receiver_idx..);
                         self.push(Value::String(Rc::new(sub)));
                     }
