@@ -201,6 +201,56 @@ public class Path {
         }
         return p;
     }
+
+    // Expand environment variables like $VAR and ${VAR} in the path.
+    public fn expandVars(): string {
+        let p: string = this.path;
+        var result: string = "";
+        var i: int = 0;
+        while (i < String.length(p)) {
+            let c: string = String.charAt(p, i);
+            if (c == "$") {
+                // Check for ${VAR} syntax
+                if (i + 1 < String.length(p) && String.charAt(p, i + 1) == "{") {
+                    var end: int = i + 2;
+                    while (end < String.length(p) && String.charAt(p, end) != "}") {
+                        end = end + 1;
+                    }
+                    if (end < String.length(p)) {
+                        let varName: string = String.substring(p, i + 2, end);
+                        let val: string = Sys_env(varName);
+                        if (val != null) {
+                            result = result + val;
+                        }
+                        i = end + 1;
+                        continue;
+                    }
+                }
+                // $VAR syntax: read alphanumeric/underscore chars
+                var start: int = i + 1;
+                var end: int = start;
+                while (end < String.length(p)) {
+                    let ch: string = String.charAt(p, end);
+                    let code: int = ch as int;
+                    let isAlphaNum: bool = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57) || ch == "_";
+                    if (!isAlphaNum) { break; }
+                    end = end + 1;
+                }
+                if (end > start) {
+                    let varName: string = String.substring(p, start, end);
+                    let val: string = Sys_env(varName);
+                    if (val != null) {
+                        result = result + val;
+                    }
+                    i = end;
+                    continue;
+                }
+            }
+            result = result + c;
+            i = i + 1;
+        }
+        return result;
+    }
 }
 
 // Internal: normalize a path by resolving . and .. segments
