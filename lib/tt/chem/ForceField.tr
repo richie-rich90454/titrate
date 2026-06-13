@@ -3,6 +3,8 @@ import tt::chem::Atom;
 import tt::chem::Bond;
 import tt::chem::Molecule;
 import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
 import tt::chem::ForceFieldNonbonded;
 
 public class ForceField {
@@ -130,7 +132,7 @@ public class ForceField {
                         mol.atoms.get(end1), mol.atoms.get(shared), mol.atoms.get(end2),
                         mol.atoms.get(end2)  // simplified: no 4th atom, use 0 energy contribution
                     );
-                    e = e + kTors * (1.0 + Math.cos(n * phi - phi0));
+                    e = e + kTors * (1.0 + MathTrig.cos(n * phi - phi0));
                 }
                 b2 = b2 + 1;
             }
@@ -201,7 +203,7 @@ public fn computeDihedral(a1: Atom, a2: Atom, a3: Atom, a4: Atom): double {
     let m1z: double = n1x * b2y - n1y * b2x;
     let x: double = n1x * n2x + n1y * n2y + n1z * n2z;
     let y: double = m1x * n2x + m1y * n2y + m1z * n2z;
-    return Math.atan2(y, x);
+    return MathTrig.atan2(y, x);
 }
 
 // Compute improper torsion angle (out-of-plane angle)
@@ -214,17 +216,17 @@ public fn computeImproper(a1: Atom, center: Atom, a2: Atom, a3: Atom): double {
     let nx: double = v2y * v3z - v2z * v3y;
     let ny: double = v2z * v3x - v2x * v3z;
     let nz: double = v2x * v3y - v2y * v3x;
-    let nMag: double = Math.sqrt(nx * nx + ny * ny + nz * nz);
+    let nMag: double = MathAdvanced.sqrt(nx * nx + ny * ny + nz * nz);
     if (nMag < 1e-15) { return 0.0; }
     let nnx: double = nx / nMag; let nny: double = ny / nMag; let nnz: double = nz / nMag;
     // Angle between v1 and the plane
     let dot: double = v1x * nnx + v1y * nny + v1z * nnz;
-    let v1Mag: double = Math.sqrt(v1x * v1x + v1y * v1y + v1z * v1z);
+    let v1Mag: double = MathAdvanced.sqrt(v1x * v1x + v1y * v1y + v1z * v1z);
     if (v1Mag < 1e-15) { return 0.0; }
     var sinAngle: double = dot / v1Mag;
     if (sinAngle > 1.0) { sinAngle = 1.0; }
     if (sinAngle < -1.0) { sinAngle = -1.0; }
-    return Math.asin(sinAngle);
+    return MathTrig.asin(sinAngle);
 }
 
 // Compute angle between three atoms at center (in radians)
@@ -236,11 +238,11 @@ public fn computeAngle(a1: Atom, center: Atom, a2: Atom): double {
     let v2y: double = a2.y - center.y;
     let v2z: double = a2.z - center.z;
     let dot: double = v1x * v2x + v1y * v2y + v1z * v2z;
-    let mag1: double = Math.sqrt(v1x * v1x + v1y * v1y + v1z * v1z);
-    let mag2: double = Math.sqrt(v2x * v2x + v2y * v2y + v2z * v2z);
+    let mag1: double = MathAdvanced.sqrt(v1x * v1x + v1y * v1y + v1z * v1z);
+    let mag2: double = MathAdvanced.sqrt(v2x * v2x + v2y * v2y + v2z * v2z);
     if (mag1 < 1e-15 || mag2 < 1e-15) { return 0.0; }
     var cosAngle: double = dot / (mag1 * mag2);
     if (cosAngle > 1.0) { cosAngle = 1.0; }
     if (cosAngle < -1.0) { cosAngle = -1.0; }
-    return Math.acos(cosAngle);
+    return MathTrig.acos(cosAngle);
 }
