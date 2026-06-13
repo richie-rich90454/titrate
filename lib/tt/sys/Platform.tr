@@ -37,7 +37,7 @@ public fn processor(): string {
 }
 
 // Get the Titrate version string
-public fn pythonVersion(): string {
+public fn titrateVersion(): string {
     return Titrate_version();
 }
 
