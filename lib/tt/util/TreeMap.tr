@@ -179,6 +179,40 @@ public class TreeMap<K, V> {
         this.freeHead = -1;
     }
 
+    // Lower bound: first key >= given key
+    public fn lowerBound(key: K): K {
+        let idx: int = this.ceilingNode(key);
+        if (idx < 0) { return this.keys.get(0); }
+        return this.keys.get(idx);
+    }
+
+    // Upper bound: first key > given key
+    public fn upperBound(key: K): K {
+        var result: int = -1;
+        var current: int = this.root;
+        while (current >= 0) {
+            let cmp: int = this.comparator(this.keys.get(current), key);
+            if (cmp > 0) {
+                result = current;
+                current = this.left.get(current);
+            } else {
+                current = this.right.get(current);
+            }
+        }
+        if (result < 0) { return this.keys.get(0); }
+        return this.keys.get(result);
+    }
+
+    // Equal range: all keys equal to given key
+    public fn equalRange(key: K): ArrayList<K> {
+        let result: ArrayList<K> = new ArrayList<K>();
+        let idx: int = this.findNode(key);
+        if (idx >= 0) {
+            result.add(this.keys.get(idx));
+        }
+        return result;
+    }
+
     // --- Private helpers ---
 
     private fn allocNode(): int {
