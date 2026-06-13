@@ -266,6 +266,26 @@ public class Random {
         return loc - scale * Math.ln(-Math.ln(u));
     }
 
+    // Discrete distribution from weights: returns index chosen by cumulative weights
+    public fn discrete(weights: ArrayList<double>): int {
+        // Build cumulative weights
+        let cumWeights: ArrayList<double> = new ArrayList<double>();
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < weights.size()) {
+            total = total + weights.get(i);
+            cumWeights.add(total);
+            i = i + 1;
+        }
+        let r: double = this.nextDouble() * total;
+        var idx: int = 0;
+        while (idx < cumWeights.size() - 1) {
+            if (r < cumWeights.get(idx)) { break; }
+            idx = idx + 1;
+        }
+        return idx;
+    }
+
     // Weighted random choice from a list using cumulative weights
     public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
         // Build cumulative weights
