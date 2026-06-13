@@ -164,7 +164,56 @@ pub(crate) fn native_file_close(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
-    Err("File_seek: not yet implemented".to_string())
+    if args.len() < 2 {
+        return Err("File_seek: expected 2 arguments (path, position)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_seek: expected String path".to_string()),
+    };
+    let position = args[1].to_i64().unwrap_or(0);
+
+    // If a FileHandle is provided, seek on it directly
+    if args.len() >= 2 {
+        if let Value::FileHandle(file_rc) = &args[0] {
+            let mut file_opt = file_rc.borrow_mut();
+            match file_opt.as_mut() {
+                Some(file) => {
+                    use std::io::{Seek, SeekFrom};
+                    match file.seek(SeekFrom::Start(position as u64)) {
+                        Ok(pos) => return Ok(Value::Long(pos as i64)),
+                        Err(e) => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("File_seek: {}", e)
+                        ))))),
+                    }
+                }
+                None => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    "FileHandle is closed".to_string()
+                ))))),
+            }
+        }
+    }
+
+    // Path-based seek: open, seek, return position
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)
+        .or_else(|_| std::fs::File::open(&path));
+    match file {
+        Ok(mut f) => {
+            use std::io::{Seek, SeekFrom};
+            match f.seek(SeekFrom::Start(position as u64)) {
+                Ok(pos) => Ok(Value::Long(pos as i64)),
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("File_seek: {}", e)
+                ))))),
+            }
+        }
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_seek: {}", e)
+        ))))),
+    }
 }
 
 pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
