@@ -1,0 +1,121 @@
+// Special: special mathematical functions (beta, zeta, Bessel, Airy, elliptic integrals, digamma, ML activations)
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+// ==================== Beta functions ====================
+
+// Beta function: B(a,b) = gamma(a)*gamma(b)/gamma(a+b)
+public fn beta(a: double, b: double): double {
+    return MathAdvanced.exp(Math.lgamma(a) + Math.lgamma(b) - Math.lgamma(a + b));
+}
+
+// Regularized incomplete beta function I_x(a,b) using continued fraction (Lentz's method)
+public fn betaIncomplete(a: double, b: double, x: double): double {
+    if (x < 0.0 || x > 1.0) { return 0.0; }
+    if (x == 0.0) { return 0.0; }
+    if (x == 1.0) { return 1.0; }
+
+    // Use the continued fraction representation
+    // For x < (a+1)/(a+b+2), use the CF directly
+    // Otherwise, use the symmetry relation I_x(a,b) = 1 - I_{1-x}(b,a)
+    if (x > (a + 1.0) / (a + b + 2.0)) {
+        return 1.0 - betaIncomplete(b, a, 1.0 - x);
+    }
+
+    // Lentz's method for continued fraction
+    let bt: double = MathAdvanced.exp(
+        Math.lgamma(a + b) - Math.lgamma(a) - Math.lgamma(b)
+        + a * MathAdvanced.ln(x) + b * MathAdvanced.ln(1.0 - x)
+    );
+
+    let TINY: double = 1e-30;
+    let EPS: double = 1e-12;
+    let maxIter: int = 200;
+
+    // Continued fraction: 1 + d1/(1 + d2/(1 + ...))
+    var f: double = 1.0;
+    var c: double = 1.0;
+    var d: double = 1.0 - (a + b) * x / (a + 1.0);
+    if (Math.abs(d) < TINY) { d = TINY; }
+    d = 1.0 / d;
+    f = d;
+
+    var m: int = 1;
+    while (m <= maxIter) {
+        // Even step: m
+        let mEven: double = (m as double);
+        let numerator: double = mEven * (b - mEven) * x / ((a + 2.0 * mEven - 1.0) * (a + 2.0 * mEven));
+        d = 1.0 + numerator * d;
+        if (Math.abs(d) < TINY) { d = TINY; }
+        c = 1.0 + numerator / c;
+        if (Math.abs(c) < TINY) { c = TINY; }
+        d = 1.0 / d;
+        f = f * d * c;
+
+        // Odd step: m
+        let mOdd: double = ((m as double) + 0.5);
+        let num2: double = -((a + mOdd) * (a + b + mOdd) * x) / ((a + 2.0 * mEven) * (a + 2.0 * mEven + 1.0));
+        d = 1.0 + num2 * d;
+        if (Math.abs(d) < TINY) { d = TINY; }
+        c = 1.0 + num2 / c;
+        if (Math.abs(c) < TINY) { c = TINY; }
+        d = 1.0 / d;
+        let delta: double = d * c;
+        f = f * delta;
+
+        if (Math.abs(delta - 1.0) < EPS) {
+            m = maxIter + 1;
+        } else {
+            m = m + 1;
+        }
+    }
+
+    return bt * f / a;
+}
+
+// ==================== Zeta functions ====================
+
+// Riemann zeta function for s > 1 using Euler-Maclaurin summation
+public fn zeta(s: double): double {
+    if (s == 1.0) { return Math.INF(); }
+    if (s < 1.0) { return 0.0; }
+
+    // Euler-Maclaurin summation
+    let n: int = 12;
+    var sum: double = zetaPartial(s, n);
+
+    // Correction terms from Euler-Maclaurin formula
+    let ns: double = MathAdvanced.pow((n as double), s);
+    let ns1: double = MathAdvanced.pow((n as double), s - 1.0);
+    sum = sum + 1.0 / ((s - 1.0) * ns1);
+    sum = sum + 1.0 / (2.0 * ns);
+
+    // Bernoulli number corrections
+    let B2: double = 1.0 / 6.0;
+    let B4: double = -1.0 / 30.0;
+    let B6: double = 1.0 / 42.0;
+    let B8: double = -1.0 / 30.0;
+    let B10: double = 5.0 / 66.0;
+    let B12: double = -691.0 / 2730.0;
+
+    let n2: double = (n as double) * (n as double);
+    sum = sum + s / ns * B2 / 2.0;
+    sum = sum + s * (s + 1.0) * (s + 2.0) / (ns * n2) * B4 / 24.0;
+    sum = sum + s * (s + 1.0) * (s + 2.0) * (s + 3.0) * (s + 4.0) / (ns * n2 * n2) * B6 / 720.0;
+    sum = sum + s * (s + 1.0) * (s + 2.0) * (s + 3.0) * (s + 4.0) * (s + 5.0) * (s + 6.0) / (ns * n2 * n2 * n2) * B8 / 40320.0;
+
+    return sum;
+}
+
+// Partial sum of zeta: sum of 1/k^s for k=1..n
+public fn zetaPartial(s: double, n: int): double {
+    var sum: double = 0.0;
+    var k: int = 1;
+    while (k <= n) {
+        sum = sum + 1.0 / MathAdvanced.pow((k as double), s);
+        k = k + 1;
+    }
+    return sum;
+}
