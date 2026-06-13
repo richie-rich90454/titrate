@@ -378,3 +378,75 @@ public fn inflectionPoints(f: fn(double): double, a: double, b: double, step: do
     }
     return result;
 }
+
+// ==================== AP Calculus AB Applications ====================
+
+// Area between curves f and g on [a, b]: integral of |f - g|
+public fn areaBetweenCurves(f: fn(double): double, g: fn(double): double, a: double, b: double): double {
+    let diff: fn(double): double = fn(x: double): double {
+        return Math.abs(f(x) - g(x));
+    };
+    return integrate(diff, a, b);
+}
+
+// Volume by disk method: PI * integral of f(x)^2 on [a, b]
+public fn volumeDisk(f: fn(double): double, a: double, b: double, n: int): double {
+    let fSq: fn(double): double = fn(x: double): double {
+        return f(x) * f(x);
+    };
+    return Math.PI() * integrate(fSq, a, b);
+}
+
+// Volume by washer method: PI * integral of (f^2 - g^2) on [a, b], f is outer, g is inner
+public fn volumeWasher(f: fn(double): double, g: fn(double): double, a: double, b: double, n: int): double {
+    let diff: fn(double): double = fn(x: double): double {
+        return f(x) * f(x) - g(x) * g(x);
+    };
+    return Math.PI() * integrate(diff, a, b);
+}
+
+// Volume by shell method: 2*PI * integral of x*f(x) on [a, b] (rotate around y-axis)
+public fn volumeShell(f: fn(double): double, a: double, b: double, n: int): double {
+    let xf: fn(double): double = fn(x: double): double {
+        return x * f(x);
+    };
+    return 2.0 * Math.PI() * integrate(xf, a, b);
+}
+
+// Average value of f on [a, b]: (1/(b-a)) * integral of f
+public fn averageValue(f: fn(double): double, a: double, b: double): double {
+    return integrate(f, a, b) / (b - a);
+}
+
+// Arc length of f on [a, b]: integral of sqrt(1 + (f')^2)
+public fn arcLength(f: fn(double): double, a: double, b: double, n: int): double {
+    let integrand: fn(double): double = fn(x: double): double {
+        let fp: double = derivative(f, x);
+        return Math.sqrt(1.0 + fp * fp);
+    };
+    return integrate(integrand, a, b);
+}
+
+// Mean Value Theorem: find c in (a, b) such that f'(c) = (f(b) - f(a)) / (b - a)
+public fn mvt(f: fn(double): double, a: double, b: double): double {
+    let targetSlope: double = (f(b) - f(a)) / (b - a);
+    let g: fn(double): double = fn(x: double): double {
+        return derivative(f, x) - targetSlope;
+    };
+    return bisection(g, a, b, 1e-10, 1000);
+}
+
+// Linear approximation: f(x0) + f'(x0) * (x - x0)
+public fn linearApprox(f: fn(double): double, x0: double, x: double): double {
+    return f(x0) + derivative(f, x0) * (x - x0);
+}
+
+// Tangent line at x0: returns [slope, intercept]
+public fn tangentLine(f: fn(double): double, x0: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let slope: double = derivative(f, x0);
+    let intercept: double = f(x0) - slope * x0;
+    result.add(slope);
+    result.add(intercept);
+    return result;
+}
