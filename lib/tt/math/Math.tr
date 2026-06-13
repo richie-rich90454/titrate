@@ -561,3 +561,81 @@ public fn triangleCircumcircleRadius(a: double, b: double, c: double): double {
     let area: double = Math.sqrt(s * (s - a) * (s - b) * (s - c));
     return a * b * c / (4.0 * area);
 }
+
+// ==================== Binomial expansion and logarithm helpers ====================
+
+// Binomial coefficient returning long (internal helper)
+public fn combLong(n: int, k: int): long {
+    if (k < 0 || k > n) { return 0; }
+    if (k == 0 || k == n) { return 1; }
+    var kk: int = k;
+    if (kk > n - kk) { kk = n - kk; }
+    var result: long = 1;
+    var i: int = 0;
+    while (i < kk) {
+        result = result * ((n - i) as long);
+        result = result / ((i + 1) as long);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Full row of Pascal's triangle: C(n,0) through C(n,n)
+public fn binomialExpansion(n: int): ArrayList<long> {
+    let row: ArrayList<long> = new ArrayList<long>();
+    var k: int = 0;
+    while (k <= n) {
+        row.add(combLong(n, k));
+        k = k + 1;
+    }
+    return row;
+}
+
+// Single binomial term: C(n,k) * x^k * (1-x)^(n-k)
+public fn binomialTerm(n: int, k: int, x: double): double {
+    let coeff: double = combLong(n, k) as double;
+    return coeff * MathAdvanced.pow(x, k as double) * MathAdvanced.pow(1.0 - x, (n - k) as double);
+}
+
+// Change of base for logarithms: log_toBase(value) using base-2 as intermediate
+public fn changeOfBase(value: double, fromBase: double, toBase: double): double {
+    return MathAdvanced.log2(value) / MathAdvanced.log2(toBase);
+}
+
+// Logarithm in arbitrary base: ln(value) / ln(base)
+public fn logBase(base: double, value: double): double {
+    return MathAdvanced.ln(value) / MathAdvanced.ln(base);
+}
+
+// Same as binomialExpansion: full row of Pascal's triangle
+public fn pascalsTriangleRow(n: int): ArrayList<long> {
+    return binomialExpansion(n);
+}
+
+// All rows of Pascal's triangle from row 0 through row n
+public fn pascalsTriangle(n: int): ArrayList<ArrayList<long>> {
+    let triangle: ArrayList<ArrayList<long>> = new ArrayList<ArrayList<long>>();
+    var row: int = 0;
+    while (row <= n) {
+        triangle.add(binomialExpansion(row));
+        row = row + 1;
+    }
+    return triangle;
+}
+
+// Check if n is an exact power of base
+public fn isPowerOf(n: double, base: double): bool {
+    if (n <= 0.0 || base <= 0.0 || base == 1.0) { return false; }
+    let logVal: double = MathAdvanced.ln(n) / MathAdvanced.ln(base);
+    let rounded: double = Math.round(logVal) as double;
+    var diff: double = logVal - rounded;
+    if (diff < 0.0) { diff = -diff; }
+    return diff < 1e-10;
+}
+
+// Nearest power of base to n
+public fn nearestPowerOf(n: double, base: double): double {
+    let logVal: double = MathAdvanced.ln(n) / MathAdvanced.ln(base);
+    let rounded: long = Math.round(logVal);
+    return MathAdvanced.pow(base, rounded as double);
+}
