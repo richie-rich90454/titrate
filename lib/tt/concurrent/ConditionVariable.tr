@@ -5,7 +5,7 @@ public class ConditionVariable {
     private int handle;
 
     public fn init() {
-        this.handle = CV_new();
+        this.handle = CondVar_new();
     }
 
     public fn wait(mutex: Mutex): void {
@@ -13,7 +13,7 @@ public class ConditionVariable {
     }
 
     public fn waitFor(mutex: Mutex, ms: int): bool {
-        return CV_waitFor(this.handle, mutex.getHandle(), ms);
+        return CondVar_waitFor(this.handle, mutex.getHandle(), ms);
     }
 
     public fn notifyOne(): void {
@@ -21,6 +21,6 @@ public class ConditionVariable {
     }
 
     public fn notifyAll(): void {
-        CV_notifyAll(this.handle);
+        CondVar_notifyAll(this.handle);
     }
 }

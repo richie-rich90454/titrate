@@ -8,7 +8,6 @@ public fn createTempFile(): string {
 
 // Create a temporary directory and return its path.
 public fn createTempDir(): string {
-    // Use Tempfile_create to get a temp path, then create a dir there
     let basePath: string = getTempDir();
     let randomHex: string = Os_urandom(4);
     let dirName: string = "tmpdir_" + randomHex;
@@ -19,7 +18,6 @@ public fn createTempDir(): string {
 
 // Get the system's temporary directory path.
 public fn getTempDir(): string {
-    // Try environment variables for temp dir
     var tmp: string = Sys_env("TEMP");
     if (tmp != null && String.length(tmp) > 0) {
         return tmp;
@@ -32,17 +30,15 @@ public fn getTempDir(): string {
     if (tmp != null && String.length(tmp) > 0) {
         return tmp;
     }
-    // Fallback
     return "/tmp";
 }
 
-// NamedTempFile provides a temporary file with a visible name that can be
-// opened, written to, read from, and explicitly deleted.
+// NamedTempFile provides a temporary file with a visible name.
 public class NamedTempFile {
     public string name;
     public string path;
 
-    public public fn init(prefix: string, suffix: string, dir: string) {
+    public fn init(prefix: string, suffix: string, dir: string) {
         let baseDir: string = dir;
         if (String.length(baseDir) == 0) {
             baseDir = getTempDir();
@@ -50,31 +46,26 @@ public class NamedTempFile {
         let randomHex: string = Os_urandom(8);
         this.name = prefix + randomHex + suffix;
         this.path = Path_join(baseDir, this.name);
-        // Create the file
-        File_write(this.path, "");
+        File_writeFile(this.path, "");
     }
 
-    // Write data to the temporary file.
-    public public fn write(data: string): void {
-        File_append(this.path, data);
+    public fn write(data: string): void {
+        File_writeFile(this.path, data);
     }
 
-    // Read the entire contents of the temporary file.
-    public public fn read(): string {
-        return File_read(this.path);
+    public fn read(): string {
+        return File_readFile(this.path);
     }
 
-    // Close the temporary file (no-op in this implementation, kept for API parity).
-    public public fn close(): void {
+    public fn close(): void {
         // No-op: file handles are not tracked in this implementation
     }
 
-    // Delete the temporary file from disk.
-    public public fn delete(): void {
-        File_delete(this.path);
+    public fn delete(): void {
+        Dir_remove(this.path);
     }
 
-    public public fn toString(): string {
+    public fn toString(): string {
         return "NamedTempFile(" + this.path + ")";
     }
 }
@@ -83,7 +74,7 @@ public class NamedTempFile {
 public class TempDirectory {
     public string path;
 
-    public public fn init(prefix: string) {
+    public fn init(prefix: string) {
         let baseDir: string = getTempDir();
         let randomHex: string = Os_urandom(8);
         let dirName: string = prefix + randomHex;
@@ -91,25 +82,24 @@ public class TempDirectory {
         Dir_create(this.path);
     }
 
-    // Remove the temporary directory and all its contents.
-    public public fn cleanup(): void {
-        Dir_deleteTree(this.path);
+    public fn cleanup(): void {
+        Dir_removeTree(this.path);
     }
 }
 
 // Create a named temporary file and return its path.
-public public fn mkstemp(prefix: string, suffix: string, dir: string): string {
+public fn mkstemp(prefix: string, suffix: string, dir: string): string {
     let f: NamedTempFile = new NamedTempFile(prefix, suffix, dir);
     return f.path;
 }
 
 // Create a temporary directory and return its path.
-public public fn mkdtemp(prefix: string): string {
+public fn mkdtemp(prefix: string): string {
     let d: TempDirectory = new TempDirectory(prefix);
     return d.path;
 }
 
-// Get the system's temporary directory path (alternate name for API parity).
-public public fn getTempDirB(): string {
+// Get the system's temporary directory path (alternate name).
+public fn getTempDirB(): string {
     return getTempDir();
 }

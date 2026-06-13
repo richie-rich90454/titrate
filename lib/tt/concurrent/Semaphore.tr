@@ -19,6 +19,6 @@ public class Semaphore {
     }
 
     public fn availablePermits(): int {
-        return Sem_availablePermits(this.handle);
+        return Semaphore_availablePermits(this.handle);
     }
 }

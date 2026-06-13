@@ -30,7 +30,7 @@ public fn prettyPrint(value: JsonValue, indent: int): string {
 // Write a JsonValue to a file as JSON.
 public fn dump(value: JsonValue, path: string): void {
     let jsonStr: string = value.toString();
-    File_writeAll(path, jsonStr);
+    File_writeFile(path, jsonStr);
 }
 
 // Write a Variant object to a JSON file with indentation and optional key sorting.

@@ -28,7 +28,7 @@ public class Random {
 
     public fn nextLongInternal(): long {
         // Xorshift128+ step via native
-        let result: Variant = Random_nextLong(this.state0, this.state1);
+        let result: Variant = Random_nextLong();
         // result is an array [new_state0, new_state1, output]
         this.state0 = result[0] as long;
         this.state1 = result[1] as long;

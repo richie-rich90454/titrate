@@ -3,7 +3,7 @@ public class SslContext {
     private int handle;
 
     public fn init() {
-        this.handle = SslContext_new();
+        this.handle = Ssl_contextNew();
     }
 
     public fn connect(host: string, port: int): SslConnection {
@@ -12,7 +12,7 @@ public class SslContext {
     }
 
     public fn close(): void {
-        SslContext_close(this.handle);
+        Ssl_contextClose(this.handle);
     }
 }
 
