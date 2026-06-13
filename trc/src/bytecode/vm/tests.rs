@@ -3128,9 +3128,9 @@ mod tests {
     #[test]
     fn test_time_day_of_week() {
         let mut vm = Vm::new();
-        // 2024-01-01 00:00:00 UTC is a Monday (0)
+        // 2024-01-01 00:00:00 UTC is a Monday (0) — pass epoch_ms
         let result = vm.call_native_by_name("Time_dayOfWeek", &[
-            Value::Long(1704067200),
+            Value::Long(1704067200000),
         ]).unwrap();
         match result {
             Value::Int(d) => assert_eq!(d, 0, "2024-01-01 should be Monday (0), got {}", d),
@@ -3141,9 +3141,9 @@ mod tests {
     #[test]
     fn test_time_day_of_year() {
         let mut vm = Vm::new();
-        // 2024-01-01 is day 1 of the year
+        // 2024-01-01 is day 1 of the year — pass epoch_ms
         let result = vm.call_native_by_name("Time_dayOfYear", &[
-            Value::Long(1704067200),
+            Value::Long(1704067200000),
         ]).unwrap();
         match result {
             Value::Int(d) => assert_eq!(d, 1, "2024-01-01 should be day 1, got {}", d),

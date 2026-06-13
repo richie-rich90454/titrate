@@ -5,7 +5,7 @@ use super::super::frame::Frame;
 use super::super::value::Value;
 use super::Vm;
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::Write;
 use std::rc::Rc;
 
 impl Vm {
