@@ -1,5 +1,6 @@
 import tt::chem::Atom;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 // RHF two-electron integrals, orbital exponent, basis-to-atom mapping
 
@@ -68,7 +69,7 @@ public fn twoElectronIntegral(rhf: RHF, mu: int, nu: int, lam: int, sig: int): d
     let dx: double = cx1 - cx2;
     let dy: double = cy1 - cy2;
     let dz: double = cz1 - cz2;
-    let R: double = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    let R: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
 
     // Coulomb integral: (ab|cd) ~ S_ab * S_cd * 2 * sqrt(zeta1*zeta2) / (zeta1 + zeta2) * F0(R12 * (zeta1+zeta2)/2)
     let rho: double = (zeta1 + zeta2) * 0.5;
@@ -77,9 +78,9 @@ public fn twoElectronIntegral(rhf: RHF, mu: int, nu: int, lam: int, sig: int): d
     if (arg < 1e-10) {
         f0 = 1.0;
     } else {
-        f0 = (1.0 - Math.exp(-arg)) / arg;
+        f0 = (1.0 - MathAdvanced.exp(-arg)) / arg;
     }
-    let coulomb: double = 2.0 * Math.sqrt(zeta1 * zeta2) / (zeta1 + zeta2) * f0;
+    let coulomb: double = 2.0 * MathAdvanced.sqrt(zeta1 * zeta2) / (zeta1 + zeta2) * f0;
 
     // Scale by overlap factors (Mulliken-type approximation)
     var result: double = sMN * sLS * coulomb;
