@@ -8,12 +8,14 @@ public class BufferedReader implements Reader {
     private ArrayList<string> buffer;
     private int bufferPos;
     private bool closed;
+    private int markPos;
 
     public fn init(path: string) {
         this.file = new File(path);
         this.buffer = new ArrayList<string>();
         this.bufferPos = 0;
         this.closed = false;
+        this.markPos = -1;
     }
 
     public fn read(): string {
@@ -71,6 +73,48 @@ public class BufferedReader implements Reader {
             this.file.close();
             this.closed = true;
         }
+    }
+
+    // Peek at the next line without advancing the position.
+    public fn peek(): string {
+        if (this.bufferPos < this.buffer.size()) {
+            return this.buffer.get(this.bufferPos);
+        }
+        let line: string = this.file.readLine();
+        if (line != null) {
+            this.buffer.add(line);
+        }
+        return line;
+    }
+
+    // Mark the current position for later reset.
+    public fn mark(): void {
+        this.markPos = this.bufferPos;
+    }
+
+    // Reset the position to the last marked position.
+    public fn reset(): void {
+        if (this.markPos >= 0) {
+            this.bufferPos = this.markPos;
+        }
+    }
+
+    // Skip n lines, returning the number of lines actually skipped.
+    public fn skip(n: int): int {
+        var skipped: int = 0;
+        while (skipped < n) {
+            if (this.bufferPos < this.buffer.size()) {
+                this.bufferPos = this.bufferPos + 1;
+                skipped = skipped + 1;
+            } else {
+                let line: string = this.file.readLine();
+                if (line == null) { break; }
+                this.buffer.add(line);
+                this.bufferPos = this.bufferPos + 1;
+                skipped = skipped + 1;
+            }
+        }
+        return skipped;
     }
 }
 
