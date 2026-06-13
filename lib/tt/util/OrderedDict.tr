@@ -147,4 +147,44 @@ public class OrderedDict<K, V> {
     public fn iterator(): ArrayListIterator<K> {
         return new ArrayListIterator<K>(this.keys());
     }
+
+    public fn moveToEnd(key: K): void {
+        if (!this.map.containsKey(key)) { return; }
+        let i: int = 0;
+        while (i < this.order.size()) {
+            if (this.order.get(i) == key) {
+                this.order.remove(i);
+                break;
+            }
+            i = i + 1;
+        }
+        this.order.add(key);
+    }
+
+    public fn popItem(last: bool): (K, V) {
+        if (this.map.size() == 0) { return null; }
+        let key: K;
+        if (last) {
+            let i: int = this.order.size() - 1;
+            while (i >= 0) {
+                if (this.map.containsKey(this.order.get(i))) {
+                    key = this.order.get(i);
+                    break;
+                }
+                i = i - 1;
+            }
+        } else {
+            let i: int = 0;
+            while (i < this.order.size()) {
+                if (this.map.containsKey(this.order.get(i))) {
+                    key = this.order.get(i);
+                    break;
+                }
+                i = i + 1;
+            }
+        }
+        let value: V = this.map.get(key);
+        this.remove(key);
+        return (key, value);
+    }
 }
