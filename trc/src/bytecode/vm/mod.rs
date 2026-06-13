@@ -216,6 +216,7 @@ impl Vm {
         vm.register_native("Hash_sha384", natives::hash::native_hash_sha384);
         vm.register_native("Hash_sha512", natives::hash::native_hash_sha512);
         vm.register_native("Hash_sha3_256", natives::hash::native_hash_sha3_256);
+        vm.register_native("Hash_sha3_384", natives::hash::native_hash_sha3_384);
 
         // Base64 natives
         vm.register_native("Base64_encode", natives::encoding::native_base64_encode);
@@ -256,6 +257,7 @@ impl Vm {
         vm.register_native("Time_dayOfWeek", natives::time::native_time_day_of_week);
         vm.register_native("Time_dayOfYear", natives::time::native_time_day_of_year);
         vm.register_native("Time_monotonic", natives::time::native_time_monotonic);
+        vm.register_native("Time_perfCounter", natives::time::native_time_perf_counter);
 
         // Double and Long parsing natives
         vm.register_native("Double_parseDouble", natives::builtins::native_double_parse_double);

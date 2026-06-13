@@ -136,3 +136,13 @@ pub(crate) fn native_time_monotonic(args: &[Value]) -> Result<Value, String> {
     let ns = start.elapsed().as_nanos() as i64;
     Ok(Value::Long(ns))
 }
+
+pub(crate) fn native_time_perf_counter(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // High-resolution performance counter using monotonic clock
+    use std::time::Instant;
+    static START: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
+    let start = START.get_or_init(Instant::now);
+    let ns = start.elapsed().as_nanos() as i64;
+    Ok(Value::Long(ns))
+}

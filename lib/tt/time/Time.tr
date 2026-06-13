@@ -41,3 +41,8 @@ fn stopwatch(): Stopwatch {
 fn monotonic(): long {
     return Time_monotonic();
 }
+
+// High-resolution performance counter in nanoseconds
+fn perfCounter(): long {
+    return Time_perfCounter();
+}
