@@ -373,16 +373,19 @@ public class Polynomial {
             }
             iter = iter + 1;
         }
-        // Return real parts of converged roots
+        // Return only real roots (|imag| < 1e-6); for polynomials with complex roots, use realRoots()
         let ri2: int = 0;
         while (ri2 < n) {
-            result.add(zr.get(ri2));
+            if (Math.fabs(zi.get(ri2)) < 1e-6) {
+                result.add(zr.get(ri2));
+            }
             ri2 = ri2 + 1;
         }
         return result;
     }
 
-    // Find real roots (filter to values where |imag| < 1e-10)
+    // Find real roots (filter to values where |imag| < 1e-6)
+    // For polynomials with complex roots, this method only returns the real roots.
     public fn realRoots(): ArrayList<double> {
         let allRoots: ArrayList<double> = this.roots();
         let n: int = this.degree();
@@ -487,10 +490,10 @@ public class Polynomial {
             }
             iter = iter + 1;
         }
-        // Filter to real roots (|imag| < 1e-10)
+        // Filter to real roots (|imag| < 1e-6)
         let ri2: int = 0;
         while (ri2 < n) {
-            if (Math.fabs(zi.get(ri2)) < 1e-10) {
+            if (Math.fabs(zi.get(ri2)) < 1e-6) {
                 result.add(zr.get(ri2));
             }
             ri2 = ri2 + 1;
