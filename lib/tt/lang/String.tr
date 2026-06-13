@@ -298,3 +298,25 @@ fn findLastNotOf(s: string, chars: string): int {
     }
     return -1;
 }
+
+// Reverse substring search: find the last occurrence of substr in s. Returns index or -1.
+fn rfind(s: string, substr: string): int {
+    let sLen: int = s.length();
+    let subLen: int = substr.length();
+    if (subLen == 0) { return sLen; }
+    if (subLen > sLen) { return -1; }
+    var i: int = sLen - subLen;
+    while (i >= 0) {
+        var match: bool = true;
+        var j: int = 0;
+        while (j < subLen) {
+            if (s.charAt(i + j) != substr.charAt(j)) {
+                match = false;
+            }
+            j = j + 1;
+        }
+        if (match) { return i; }
+        i = i - 1;
+    }
+    return -1;
+}
