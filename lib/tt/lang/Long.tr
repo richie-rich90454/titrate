@@ -1,16 +1,16 @@
 // Static utility methods for the Long type.
-fn parse(s: string): long {
+public fn parse(s: string): long {
     return Long::parseLong(s);
 }
 
-fn toString(value: long): string {
+public fn toString(value: long): string {
     return value.toString();
 }
 
-fn MAX_VALUE(): long {
+public fn MAX_VALUE(): long {
     return 9223372036854775807;
 }
 
-fn MIN_VALUE(): long {
+public fn MIN_VALUE(): long {
     return -9223372036854775808;
 }

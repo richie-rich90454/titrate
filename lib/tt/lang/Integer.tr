@@ -1,25 +1,25 @@
 // Static utility methods for the Integer type.
-fn parse(s: string): int {
+public fn parse(s: string): int {
     return Integer::parseInt(s);
 }
 
-fn parseInt(s: string): int {
+public fn parseInt(s: string): int {
     return Integer::parseInt(s);
 }
 
-fn toString(value: int): string {
+public fn toString(value: int): string {
     return value.toString();
 }
 
-fn MAX_VALUE(): int {
+public fn MAX_VALUE(): int {
     return 2147483647;
 }
 
-fn MIN_VALUE(): int {
+public fn MIN_VALUE(): int {
     return -2147483648;
 }
 
-fn parseOr(s: string, defaultValue: int): int {
+public fn parseOr(s: string, defaultValue: int): int {
     let result: int = Integer::parseInt(s);
     if (result == 0 && s != "0") {
         return defaultValue;
@@ -27,27 +27,27 @@ fn parseOr(s: string, defaultValue: int): int {
     return result;
 }
 
-fn parseIntOr(s: string, defaultValue: int): int {
+public fn parseIntOr(s: string, defaultValue: int): int {
     return Integer::parseOr(s, defaultValue);
 }
 
-fn compare(a: int, b: int): int {
+public fn compare(a: int, b: int): int {
     if (a < b) { return -1; }
     if (a > b) { return 1; }
     return 0;
 }
 
-fn max(a: int, b: int): int {
+public fn max(a: int, b: int): int {
     if (a > b) { return a; }
     return b;
 }
 
-fn min(a: int, b: int): int {
+public fn min(a: int, b: int): int {
     if (a < b) { return a; }
     return b;
 }
 
-fn toHexString(n: int): string {
+public fn toHexString(n: int): string {
     if (n == 0) { return "0"; }
     let hex: string = "0123456789abcdef";
     var result: string = "";
@@ -69,7 +69,7 @@ fn toHexString(n: int): string {
     return result;
 }
 
-fn toBinaryString(n: int): string {
+public fn toBinaryString(n: int): string {
     if (n == 0) { return "0"; }
     var result: string = "";
     var val: int = n;
@@ -86,7 +86,7 @@ fn toBinaryString(n: int): string {
     return result;
 }
 
-fn toOctalString(n: int): string {
+public fn toOctalString(n: int): string {
     if (n == 0) { return "0"; }
     let oct: string = "01234567";
     var result: string = "";
@@ -99,7 +99,7 @@ fn toOctalString(n: int): string {
     return result;
 }
 
-fn bitCount(n: int): int {
+public fn bitCount(n: int): int {
     var count: int = 0;
     var val: int = n;
     var bits: int = 0;
@@ -111,7 +111,7 @@ fn bitCount(n: int): int {
     return count;
 }
 
-fn highestOneBit(n: int): int {
+public fn highestOneBit(n: int): int {
     if (n == 0) { return 0; }
     var val: int = n;
     val = val | (val >> 1);
@@ -122,11 +122,11 @@ fn highestOneBit(n: int): int {
     return val - (val >>> 1);
 }
 
-fn lowestOneBit(n: int): int {
+public fn lowestOneBit(n: int): int {
     return n & (-n);
 }
 
-fn numberOfLeadingZeros(n: int): int {
+public fn numberOfLeadingZeros(n: int): int {
     if (n == 0) { return 32; }
     var count: int = 0;
     var val: int = n;
@@ -137,7 +137,7 @@ fn numberOfLeadingZeros(n: int): int {
     return count;
 }
 
-fn numberOfTrailingZeros(n: int): int {
+public fn numberOfTrailingZeros(n: int): int {
     if (n == 0) { return 32; }
     var count: int = 0;
     var val: int = n;
@@ -148,13 +148,13 @@ fn numberOfTrailingZeros(n: int): int {
     return count;
 }
 
-fn signum(n: int): int {
+public fn signum(n: int): int {
     if (n < 0) { return -1; }
     if (n > 0) { return 1; }
     return 0;
 }
 
-fn reverse(n: int): int {
+public fn reverse(n: int): int {
     var val: int = n;
     var result: int = 0;
     var i: int = 0;
@@ -167,12 +167,12 @@ fn reverse(n: int): int {
     return result;
 }
 
-fn rotateLeft(n: int, dist: int): int {
+public fn rotateLeft(n: int, dist: int): int {
     let d: int = dist & 31;
     return (n << d) | (n >>> (32 - d));
 }
 
-fn rotateRight(n: int, dist: int): int {
+public fn rotateRight(n: int, dist: int): int {
     let d: int = dist & 31;
     return (n >>> d) | (n << (32 - d));
 }

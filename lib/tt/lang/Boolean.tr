@@ -1,22 +1,22 @@
-fn toString(value: bool): string {
+public fn toString(value: bool): string {
     return value.toString();
 }
 
-fn parseBoolean(s: string): bool {
+public fn parseBoolean(s: string): bool {
     if (s == "true") {
         return true;
     }
     return false;
 }
 
-fn logicalAnd(a: bool, b: bool): bool {
+public fn logicalAnd(a: bool, b: bool): bool {
     return a && b;
 }
 
-fn logicalOr(a: bool, b: bool): bool {
+public fn logicalOr(a: bool, b: bool): bool {
     return a || b;
 }
 
-fn logicalNot(a: bool): bool {
+public fn logicalNot(a: bool): bool {
     return !a;
 }

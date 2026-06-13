@@ -1,40 +1,40 @@
-fn parse(s: string): double {
+public fn parse(s: string): double {
     return Double::parseDouble(s);
 }
 
-fn toString(value: double): string {
+public fn toString(value: double): string {
     return value.toString();
 }
 
-fn isNaN(value: double): bool {
+public fn isNaN(value: double): bool {
     return value != value;
 }
 
-fn isInfinite(value: double): bool {
+public fn isInfinite(value: double): bool {
     return value == Double::POSITIVE_INFINITY() || value == Double::NEGATIVE_INFINITY();
 }
 
-fn isFinite(d: double): bool {
+public fn isFinite(d: double): bool {
     return !Double::isNaN(d) && !Double::isInfinite(d);
 }
 
-fn MIN_VALUE(): double {
+public fn MIN_VALUE(): double {
     return 4.9e-324;
 }
 
-fn MAX_VALUE(): double {
+public fn MAX_VALUE(): double {
     return 1.7976931348623157e308;
 }
 
-fn MIN_NORMAL(): double {
+public fn MIN_NORMAL(): double {
     return 2.2250738585072014e-308;
 }
 
-fn EPSILON(): double {
+public fn EPSILON(): double {
     return 2.220446049250313e-16;
 }
 
-fn toHexString(d: double): string {
+public fn toHexString(d: double): string {
     if (Double::isNaN(d)) { return "NaN"; }
     if (d == Double::POSITIVE_INFINITY()) { return "Infinity"; }
     if (d == Double::NEGATIVE_INFINITY()) { return "-Infinity"; }
@@ -79,7 +79,7 @@ fn toHexString(d: double): string {
     return sign + "0x1." + mantissa + "p" + Integer.toString(exp);
 }
 
-fn compare(a: double, b: double): int {
+public fn compare(a: double, b: double): int {
     if (a < b) { return -1; }
     if (a > b) { return 1; }
     if (a == b) { return 0; }
@@ -91,17 +91,17 @@ fn compare(a: double, b: double): int {
     return -1;
 }
 
-fn max(a: double, b: double): double {
+public fn max(a: double, b: double): double {
     if (a > b) { return a; }
     return b;
 }
 
-fn min(a: double, b: double): double {
+public fn min(a: double, b: double): double {
     if (a < b) { return a; }
     return b;
 }
 
-fn parseOr(s: string, defaultValue: double): double {
+public fn parseOr(s: string, defaultValue: double): double {
     let result: double = Double::parseDouble(s);
     if (Double::isNaN(result)) {
         return defaultValue;
@@ -109,14 +109,14 @@ fn parseOr(s: string, defaultValue: double): double {
     return result;
 }
 
-fn POSITIVE_INFINITY(): double {
+public fn POSITIVE_INFINITY(): double {
     return Math_inf();
 }
 
-fn NEGATIVE_INFINITY(): double {
+public fn NEGATIVE_INFINITY(): double {
     return Math_negInf();
 }
 
-fn NaN(): double {
+public fn NaN(): double {
     return Math_nan();
 }
