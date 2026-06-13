@@ -1,0 +1,47 @@
+// Calculus module: numerical differentiation, integration, root-finding, optimization,
+// AP Calculus AB/BC applications, ODE solvers, Taylor series, convergence tests, and utilities.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+// ==================== Numerical Differentiation ====================
+
+// Central difference derivative: (f(x+h) - f(x-h)) / (2*h)
+public fn derivative(f: fn(double): double, x: double, h: double): double {
+    return (f(x + h) - f(x - h)) / (2.0 * h);
+}
+
+// Derivative with default h=1e-7
+public fn derivative(f: fn(double): double, x: double): double {
+    return derivative(f, x, 1e-7);
+}
+
+// Second derivative: (f(x+h) - 2*f(x) + f(x-h)) / (h*h)
+public fn secondDerivative(f: fn(double): double, x: double, h: double): double {
+    return (f(x + h) - 2.0 * f(x) + f(x - h)) / (h * h);
+}
+
+// Nth derivative via recursive application of the first derivative
+public fn nthDerivative(f: fn(double): double, x: double, n: int, h: double): double {
+    if (n == 0) {
+        return f(x);
+    }
+    if (n == 1) {
+        return derivative(f, x, h);
+    }
+    // Apply derivative to the (n-1)th derivative
+    let fPrev: fn(double): double = fn(t: double): double {
+        return nthDerivative(f, t, n - 1, h);
+    };
+    return derivative(fPrev, x, h);
+}
+
+// Partial derivative of f(x, y) with respect to varIndex (0=x, 1=y)
+public fn partialDerivative(f: fn(double, double): double, x: double, y: double, varIndex: int, h: double): double {
+    if (varIndex == 0) {
+        return (f(x + h, y) - f(x - h, y)) / (2.0 * h);
+    }
+    return (f(x, y + h) - f(x, y - h)) / (2.0 * h);
+}
