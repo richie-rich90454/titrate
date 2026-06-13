@@ -404,6 +404,9 @@ impl Vm {
         vm.register_native("Os_readlink", natives::system::native_os_readlink);
         vm.register_native("Os_kill", natives::system::native_os_kill);
         vm.register_native("Os_environ", natives::system::native_os_environ);
+        vm.register_native("Os_umask", natives::system::native_os_umask);
+        vm.register_native("Os_scandir", natives::system::native_os_scandir);
+        vm.register_native("Os_environMap", natives::system::native_os_environ_map);
 
         vm
     }

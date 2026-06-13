@@ -290,6 +290,9 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Os_readlink" => Some(system::native_os_readlink),
         "Os_kill" => Some(system::native_os_kill),
         "Os_environ" => Some(system::native_os_environ),
+        "Os_umask" => Some(system::native_os_umask),
+        "Os_scandir" => Some(system::native_os_scandir),
+        "Os_environMap" => Some(system::native_os_environ_map),
 
         _ => None,
     }

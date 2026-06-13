@@ -158,6 +158,11 @@ public fn chmod(path: string, mode: int): Result<string, string> {
     return Os_chmod(path, mode);
 }
 
+// Set file creation mask (stub on Windows, returns old mask on Unix).
+public fn umask(mask: int): int {
+    return Os_umask(mask);
+}
+
 // Get current working directory (alias for workingDir).
 public fn getcwd(): string {
     return workingDir();

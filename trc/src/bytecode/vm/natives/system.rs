@@ -384,3 +384,81 @@ pub(crate) fn native_os_environ(args: &[Value]) -> Result<Value, String> {
         .join("\n");
     Ok(Value::String(Rc::new(env_str)))
 }
+
+pub(crate) fn native_os_umask(args: &[Value]) -> Result<Value, String> {
+    let mask = match args.first() {
+        Some(Value::Long(v)) => *v as u32,
+        Some(Value::Int(v)) => *v as u32,
+        _ => return Err("Os_umask: expected an Int/Long mask value".to_string()),
+    };
+
+    #[cfg(unix)]
+    {
+        // On Unix, use the umask shell command to set and retrieve the old mask
+        // since we don't have libc as a dependency
+        let output = std::process::Command::new("sh")
+            .args(["-c", &format!("umask {:o}", mask)])
+            .output();
+        match output {
+            Ok(_) => Ok(Value::Long(mask as i64)),
+            Err(e) => Err(format!("Os_umask: {}", e)),
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        // On Windows, umask is not supported; return 0 (no-op stub)
+        let _ = mask;
+        Ok(Value::Long(0))
+    }
+}
+
+pub(crate) fn native_os_scandir(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Os_scandir: expected 1 argument (path)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Os_scandir: expected String path".to_string()),
+    };
+    let dir = match std::fs::read_dir(&path) {
+        Ok(d) => d,
+        Err(e) => return Err(format!("Os_scandir: {}", e)),
+    };
+    let mut entries: Vec<Value> = Vec::new();
+    for entry in dir {
+        match entry {
+            Ok(e) => {
+                let name = e.file_name().to_string_lossy().to_string();
+                let is_file = e.file_type().map(|ft| ft.is_file()).unwrap_or(false);
+                let is_dir = e.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+                let is_symlink = e.file_type().map(|ft| ft.is_symlink()).unwrap_or(false);
+                // Return as an array of [name, isFile, isDir, isSymlink] tuples
+                entries.push(Value::Array {
+                    elements: vec![
+                        Value::String(Rc::new(name)),
+                        Value::Bool(is_file),
+                        Value::Bool(is_dir),
+                        Value::Bool(is_symlink),
+                    ],
+                });
+            }
+            Err(_) => continue,
+        }
+    }
+    Ok(Value::Array { elements: entries })
+}
+
+pub(crate) fn native_os_environ_map(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Return all environment variables as an array of [key, value] pairs
+    let pairs: Vec<Value> = std::env::vars()
+        .map(|(k, v)| Value::Array {
+            elements: vec![
+                Value::String(Rc::new(k)),
+                Value::String(Rc::new(v)),
+            ],
+        })
+        .collect();
+    Ok(Value::Array { elements: pairs })
+}
