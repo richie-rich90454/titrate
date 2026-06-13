@@ -340,3 +340,21 @@ fn rfind(s: string, substr: string): int {
     }
     return -1;
 }
+
+// Pad string on the left with char until it reaches the specified width.
+fn padLeft(s: string, width: int, ch: string): string {
+    var result: string = s;
+    while (result.length() < width) {
+        result = ch + result;
+    }
+    return result;
+}
+
+// Pad string on the right with char until it reaches the specified width.
+fn padRight(s: string, width: int, ch: string): string {
+    var result: string = s;
+    while (result.length() < width) {
+        result = result + ch;
+    }
+    return result;
+}
