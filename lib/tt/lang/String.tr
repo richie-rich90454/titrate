@@ -230,3 +230,71 @@ fn compareTo(a: string, b: string): int {
     if (a.length() > b.length()) { return 1; }
     return 0;
 }
+
+// Find the first character in s that is also in chars. Returns index or -1.
+fn findFirstOf(s: string, chars: string): int {
+    var i: int = 0;
+    while (i < s.length()) {
+        let c: string = s.charAt(i);
+        var j: int = 0;
+        while (j < chars.length()) {
+            if (c == chars.charAt(j)) { return i; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Find the last character in s that is also in chars. Returns index or -1.
+fn findLastOf(s: string, chars: string): int {
+    var i: int = s.length() - 1;
+    while (i >= 0) {
+        let c: string = s.charAt(i);
+        var j: int = 0;
+        while (j < chars.length()) {
+            if (c == chars.charAt(j)) { return i; }
+            j = j + 1;
+        }
+        i = i - 1;
+    }
+    return -1;
+}
+
+// Find the first character in s that is NOT in chars. Returns index or -1.
+fn findFirstNotOf(s: string, chars: string): int {
+    var i: int = 0;
+    while (i < s.length()) {
+        let c: string = s.charAt(i);
+        var found: bool = false;
+        var j: int = 0;
+        while (j < chars.length()) {
+            if (c == chars.charAt(j)) {
+                found = true;
+            }
+            j = j + 1;
+        }
+        if (!found) { return i; }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Find the last character in s that is NOT in chars. Returns index or -1.
+fn findLastNotOf(s: string, chars: string): int {
+    var i: int = s.length() - 1;
+    while (i >= 0) {
+        let c: string = s.charAt(i);
+        var found: bool = false;
+        var j: int = 0;
+        while (j < chars.length()) {
+            if (c == chars.charAt(j)) {
+                found = true;
+            }
+            j = j + 1;
+        }
+        if (!found) { return i; }
+        i = i - 1;
+    }
+    return -1;
+}
