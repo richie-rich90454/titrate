@@ -73,6 +73,10 @@ public fn geomspace(start: double, stop: double, num: int): NDArray<double> {
     let result: NDArray<double> = new NDArray<double>();
     result.shape.add(num);
     result.computeStrides();
+    if (start <= 0.0 || stop <= 0.0) {
+        result.shape.set(0, 0);
+        return result;
+    }
     if (num == 0) { return result; }
     if (num == 1) {
         result.data.add(start);
