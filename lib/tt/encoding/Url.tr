@@ -179,3 +179,196 @@ public class Url {
         return -1;
     }
 }
+
+// ParseResult holds the components of a parsed URL.
+public class ParseResult {
+    public string scheme;
+    public string netloc;
+    public string path;
+    public string params;
+    public string query;
+    public string fragment;
+
+    public fn init(scheme: string, netloc: string, path: string, params: string, query: string, fragment: string) {
+        this.scheme = scheme;
+        this.netloc = netloc;
+        this.path = path;
+        this.params = params;
+        this.query = query;
+        this.fragment = fragment;
+    }
+
+    public fn toString(): string {
+        return unparse(this);
+    }
+}
+
+// Parse a URL string into its components.
+public fn parse(url: string): ParseResult {
+    let scheme: string = "";
+    let netloc: string = "";
+    let path: string = "";
+    let params: string = "";
+    let query: string = "";
+    let fragment: string = "";
+
+    // Extract fragment
+    let fragIdx: int = _findChar(url, "#");
+    if (fragIdx >= 0) {
+        fragment = String.substring(url, fragIdx + 1);
+        url = String.substring(url, 0, fragIdx);
+    }
+
+    // Extract query
+    let queryIdx: int = _findChar(url, "?");
+    if (queryIdx >= 0) {
+        query = String.substring(url, queryIdx + 1);
+        url = String.substring(url, 0, queryIdx);
+    }
+
+    // Extract params
+    let paramIdx: int = _findChar(url, ";");
+    if (paramIdx >= 0) {
+        params = String.substring(url, paramIdx + 1);
+        url = String.substring(url, 0, paramIdx);
+    }
+
+    // Extract scheme
+    let schemeIdx: int = _findChar(url, ":");
+    if (schemeIdx >= 0) {
+        let potential: string = String.substring(url, 0, schemeIdx);
+        if (_isScheme(potential)) {
+            scheme = String.toLowerCase(potential);
+            url = String.substring(url, schemeIdx + 1);
+            // Remove leading //
+            if (String.length(url) >= 2 && String.charAt(url, 0) == "/" && String.charAt(url, 1) == "/") {
+                url = String.substring(url, 2);
+            }
+            // Extract netloc (everything up to the first /)
+            let slashIdx: int = _findChar(url, "/");
+            if (slashIdx >= 0) {
+                netloc = String.substring(url, 0, slashIdx);
+                path = String.substring(url, slashIdx);
+            } else {
+                netloc = url;
+                path = "";
+            }
+            return new ParseResult(scheme, netloc, path, params, query, fragment);
+        }
+    }
+
+    // No scheme — the rest is the path
+    path = url;
+    return new ParseResult(scheme, netloc, path, params, query, fragment);
+}
+
+// Reconstruct a URL string from a ParseResult.
+public fn unparse(components: ParseResult): string {
+    let result: string = "";
+    if (String.length(components.scheme) > 0) {
+        result = components.scheme + ":";
+    }
+    if (String.length(components.netloc) > 0) {
+        result = result + "//" + components.netloc;
+    }
+    result = result + components.path;
+    if (String.length(components.params) > 0) {
+        result = result + ";" + components.params;
+    }
+    if (String.length(components.query) > 0) {
+        result = result + "?" + components.query;
+    }
+    if (String.length(components.fragment) > 0) {
+        result = result + "#" + components.fragment;
+    }
+    return result;
+}
+
+// Join a base URL with a relative URL.
+public fn join(base: string, url: string): string {
+    // If url has a scheme, it is absolute
+    let urlParsed: ParseResult = parse(url);
+    if (String.length(urlParsed.scheme) > 0) {
+        return url;
+    }
+    let baseParsed: ParseResult = parse(base);
+    // If url starts with //, use the base scheme
+    if (String.length(url) >= 2 && String.charAt(url, 0) == "/" && String.charAt(url, 1) == "/") {
+        return baseParsed.scheme + ":" + url;
+    }
+    // If url starts with /, it's an absolute path on the same netloc
+    if (String.length(url) > 0 && String.charAt(url, 0) == "/") {
+        let result: string = "";
+        if (String.length(baseParsed.scheme) > 0) {
+            result = baseParsed.scheme + ":";
+        }
+        if (String.length(baseParsed.netloc) > 0) {
+            result = result + "//" + baseParsed.netloc;
+        }
+        result = result + url;
+        return result;
+    }
+    // Relative path: combine with base path
+    let basePath: string = baseParsed.path;
+    let lastSlash: int = _findLastChar(basePath, "/");
+    let dir: string = "";
+    if (lastSlash >= 0) {
+        dir = String.substring(basePath, 0, lastSlash + 1);
+    }
+    let result: string = "";
+    if (String.length(baseParsed.scheme) > 0) {
+        result = baseParsed.scheme + ":";
+    }
+    if (String.length(baseParsed.netloc) > 0) {
+        result = result + "//" + baseParsed.netloc;
+    }
+    result = result + dir + url;
+    return result;
+}
+
+// Helper: find the first occurrence of a character in a string
+fn _findChar(s: string, c: string): int {
+    let i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == c) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Helper: find the last occurrence of a character in a string
+fn _findLastChar(s: string, c: string): int {
+    let i: int = String.length(s) - 1;
+    while (i >= 0) {
+        if (String.charAt(s, i) == c) {
+            return i;
+        }
+        i = i - 1;
+    }
+    return -1;
+}
+
+// Helper: check if a string is a valid URL scheme
+fn _isScheme(s: string): bool {
+    if (String.length(s) == 0) {
+        return false;
+    }
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (i == 0) {
+            // Scheme must start with a letter
+            if (!((c >= "a" && c <= "z") || (c >= "A" && c <= "Z"))) {
+                return false;
+            }
+        } else {
+            if (!((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9") || c == "+" || c == "-" || c == ".")) {
+                return false;
+            }
+        }
+        i = i + 1;
+    }
+    return true;
+}
