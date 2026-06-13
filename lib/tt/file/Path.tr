@@ -251,6 +251,50 @@ public class Path {
         }
         return result;
     }
+
+    // Find the common path prefix between this path and another.
+    public fn commonPath(other: string): string {
+        let a: string = _normalize(this.path);
+        let b: string = _normalize(other);
+        let partsA: ArrayList<string> = String.split(a, "/");
+        let partsB: ArrayList<string> = String.split(b, "/");
+        let common: ArrayList<string> = new ArrayList<string>();
+        var minLen: int = partsA.size();
+        if (partsB.size() < minLen) { minLen = partsB.size(); }
+        var i: int = 0;
+        while (i < minLen) {
+            if (partsA.get(i) == partsB.get(i)) {
+                common.add(partsA.get(i));
+            } else {
+                break;
+            }
+            i = i + 1;
+        }
+        if (common.size() == 0) { return ""; }
+        var result: string = "";
+        i = 0;
+        while (i < common.size()) {
+            if (i > 0) { result = result + "/"; }
+            result = result + common.get(i);
+            i = i + 1;
+        }
+        // Preserve leading slash if both paths are absolute
+        if (String.length(a) > 0 && String.charAt(a, 0) == "/" && String.length(b) > 0 && String.charAt(b, 0) == "/") {
+            result = "/" + result;
+        }
+        return result;
+    }
+
+    // Check if this path refers to the same file as another path.
+    public fn sameFile(other: string): bool {
+        let a: string = _normalize(this.canonicalPath());
+        let b: string = _normalize(other);
+        // Try to make b absolute too
+        if (String.length(b) > 0 && String.charAt(b, 0) != "/") {
+            b = _normalize(Path_join(Sys_workingDir(), other));
+        }
+        return a == b;
+    }
 }
 
 // Internal: normalize a path by resolving . and .. segments
