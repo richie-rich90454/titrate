@@ -101,6 +101,132 @@ public class Fraction {
         return new Fraction(this.numerator, this.denominator);
     }
 
+    // ---- Limit denominator (Stern-Brocot / Farey sequence algorithm) ----
+
+    // Find the best Fraction approximation with denominator <= maxDenominator.
+    // Uses the same algorithm as Python's fractions.Fraction.limit_denominator.
+    public fn limitDenominator(maxDenominator: int): Fraction {
+        if (maxDenominator <= 0) { return new Fraction(this.numerator, this.denominator); }
+        if (this.denominator <= maxDenominator as long) {
+            return new Fraction(this.numerator, this.denominator);
+        }
+        // Stern-Brocot binary search between a/b=0/1 and c/d=1/0
+        var a: long = 0L;
+        var b: long = 1L;
+        var c: long = 1L;
+        var d: long = 0L;
+        let num: long = absLong(this.numerator);
+        let den: long = this.denominator;
+        while (true) {
+            // Compute the mediant (a+c)/(b+d)
+            let mediantNum: long = a + c;
+            let mediantDen: long = b + d;
+            if (mediantDen > maxDenominator as long) { break; }
+            // Compare mediant with self: num/den vs mediantNum/mediantDen
+            // i.e. num * mediantDen vs mediantNum * den
+            if (num * mediantDen > mediantNum * den) {
+                // self > mediant, move lower bound up
+                a = mediantNum;
+                b = mediantDen;
+            } else if (num * mediantDen < mediantNum * den) {
+                // self < mediant, move upper bound down
+                c = mediantNum;
+                d = mediantDen;
+            } else {
+                // Exact match
+                if (this.numerator < 0L) {
+                    return new Fraction(-mediantNum, mediantDen);
+                }
+                return new Fraction(mediantNum, mediantDen);
+            }
+        }
+        // Choose the closer of a/b and c/d
+        // Compare |self - a/b| vs |self - c/d|
+        // self - a/b = (num*b - den*a) / (den*b)
+        // self - c/d = (num*d - den*c) / (den*d)
+        // |num*b - den*a| * d  vs  |num*d - den*c| * b
+        let diffA: long = absLong(num * b - den * a);
+        let diffC: long = absLong(num * d - den * c);
+        if (diffA * d <= diffC * b) {
+            if (this.numerator < 0L) {
+                return new Fraction(-a, b);
+            }
+            return new Fraction(a, b);
+        }
+        if (this.numerator < 0L) {
+            return new Fraction(-c, d);
+        }
+        return new Fraction(c, d);
+    }
+
+    // Return numerator and denominator as an ArrayList [numerator, denominator].
+    public fn asIntegerRatio(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        result.add(this.numerator as int);
+        result.add(this.denominator as int);
+        return result;
+    }
+
+    // Raise this fraction to an integer power.
+    public fn pow(n: int): Fraction {
+        if (n == 0) { return new Fraction(1L, 1L); }
+        if (n < 0) {
+            let base: Fraction = this.reciprocal();
+            var result: Fraction = new Fraction(1L, 1L);
+            var exp: int = -n;
+            while (exp > 0) {
+                result = result.mul(base);
+                exp = exp - 1;
+            }
+            return result;
+        }
+        var result: Fraction = new Fraction(1L, 1L);
+        var exp: int = n;
+        var base: Fraction = new Fraction(this.numerator, this.denominator);
+        while (exp > 0) {
+            result = result.mul(base);
+            exp = exp - 1;
+        }
+        return result;
+    }
+
+    // Floor of the fraction (largest integer <= self).
+    public fn floor(): int {
+        let q: long = this.numerator / this.denominator;
+        // If negative and there's a remainder, floor goes one lower
+        if (this.numerator < 0L && this.numerator % this.denominator != 0L) {
+            return (q - 1L) as int;
+        }
+        return q as int;
+    }
+
+    // Ceiling of the fraction (smallest integer >= self).
+    public fn ceil(): int {
+        let q: long = this.numerator / this.denominator;
+        // If positive and there's a remainder, ceil goes one higher
+        if (this.numerator > 0L && this.numerator % this.denominator != 0L) {
+            return (q + 1L) as int;
+        }
+        if (this.numerator < 0L && this.numerator % this.denominator == 0L) {
+            return q as int;
+        }
+        if (this.numerator < 0L) {
+            return q as int;
+        }
+        return q as int;
+    }
+
+    // Round to the nearest integer (half away from zero).
+    public fn round(): int {
+        let f: int = this.floor();
+        let c: int = this.ceil();
+        let mid: Fraction = new Fraction((f as long + c as long) * this.denominator, this.denominator * 2L);
+        if (this.compareTo(mid) >= 0) {
+            return c;
+        }
+        return f;
+    }
+
     // ---- Comparison ----
 
     public fn equals(other: Fraction): bool {
