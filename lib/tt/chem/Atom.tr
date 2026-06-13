@@ -1,4 +1,5 @@
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::lang::Double;
 import tt::lang::Integer;
 import tt::util::ArrayList;
@@ -33,7 +34,7 @@ public class Atom {
         let dx: double = this.x - other.x;
         let dy: double = this.y - other.y;
         let dz: double = this.z - other.z;
-        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+        return MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     public fn toString(): string {
