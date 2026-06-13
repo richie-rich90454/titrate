@@ -102,3 +102,14 @@ public fn ndSquare(a: NDArray<double>): NDArray<double> { return map(a, fn(x: do
 public fn ndClip(a: NDArray<double>, minVal: double, maxVal: double): NDArray<double> {
     return map(a, fn(x: double): double { return Math.clamp(x, minVal, maxVal); });
 }
+
+// ---- Element-wise binary math functions ----
+
+public fn ndAdd(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return x + y; }); }
+public fn ndSubtract(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return x - y; }); }
+public fn ndMultiply(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return x * y; }); }
+public fn ndDivide(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return x / y; }); }
+public fn ndPower(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return MathAdvanced.pow(x, y); }); }
+public fn ndMod(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return Math.fmod(x, y); }); }
+public fn ndMaximum(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return Math.max(x, y); }); }
+public fn ndMinimum(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return Math.min(x, y); }); }

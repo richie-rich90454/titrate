@@ -1,5 +1,7 @@
 import tt::util::ArrayList;
 import tt::math::Math;
+import tt::math::ndarray::NDArraySort;
+import tt::math::ndarray::NDArrayMath;
 
 // NDArray reduction methods: sum, mean, min, max, variance, stddev, any, all, argMax, argMin
 
@@ -107,4 +109,81 @@ public fn argMin<T>(a: NDArray<T>): int {
         i = i + 1;
     }
     return idx;
+}
+
+// ---- Cumulative operations ----
+
+public fn cumsum(a: NDArray<double>): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    var running: double = 0.0;
+    i = 0;
+    while (i < a.data.size()) {
+        running = running + a.data.get(i);
+        result.data.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn cumprod(a: NDArray<double>): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    var running: double = 1.0;
+    i = 0;
+    while (i < a.data.size()) {
+        running = running * a.data.get(i);
+        result.data.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn diff(a: NDArray<double>): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    if (a.data.size() < 2) {
+        result.shape.add(0);
+        result.computeStrides();
+        return result;
+    }
+    let n: int = a.data.size() - 1;
+    result.shape.add(n);
+    result.computeStrides();
+    var i: int = 0;
+    while (i < n) {
+        result.data.add(a.data.get(i + 1) - a.data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn percentile(a: NDArray<double>, q: double): double {
+    let sorted: NDArray<double> = NDArraySort.sort(a);
+    let n: int = sorted.data.size();
+    if (n == 0) { return 0.0; }
+    if (n == 1) { return sorted.data.get(0); }
+    let idx: double = q / 100.0 * (n - 1);
+    let lo: int = Math.floor(idx) as int;
+    let hi: int = Math.ceil(idx) as int;
+    if (lo == hi) { return sorted.data.get(lo); }
+    let frac: double = idx - lo as double;
+    return sorted.data.get(lo) * (1.0 - frac) + sorted.data.get(hi) * frac;
+}
+
+public fn ndMedian(a: NDArray<double>): double {
+    let sorted: NDArray<double> = NDArraySort.sort(a);
+    let n: int = sorted.data.size();
+    if (n == 0) { return 0.0; }
+    if (n % 2 == 1) { return sorted.data.get(n / 2); }
+    return (sorted.data.get(n / 2 - 1) + sorted.data.get(n / 2)) / 2.0;
 }
