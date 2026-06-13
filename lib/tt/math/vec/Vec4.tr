@@ -1,5 +1,6 @@
 // Vec4 provides a 4D vector with arithmetic and utility operations.
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::lang::Double;
 
 public class Vec4 {
@@ -38,11 +39,14 @@ public class Vec4 {
     // ---- Magnitude ----
 
     public fn magnitude(): double {
-        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w);
+        return MathAdvanced.sqrt(this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w);
     }
 
     public fn normalize(): Vec4 {
         let m: double = this.magnitude();
+        if (m == 0.0) {
+            return new Vec4(0.0, 0.0, 0.0, 0.0);
+        }
         return this.scale(1.0 / m);
     }
 
