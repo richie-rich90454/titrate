@@ -184,6 +184,34 @@ public class Regex {
         return parts;
     }
 
+    public fn splitWithLimit(input: string, maxsplit: int): ArrayList<string> {
+        let parts: ArrayList<string> = new ArrayList<string>();
+        let lastEnd: int = 0;
+        let remaining: string = input;
+        let offset: int = 0;
+        var done: int = 0;
+        while (done < maxsplit) {
+            let raw: string = Regex_find(this.pattern, remaining);
+            if (String.length(raw) == 0) {
+                break;
+            }
+            let firstComma: int = String.indexOf(raw, ",");
+            let secondComma: int = String.indexOf(raw, firstComma + 1);
+            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+            parts.add(String.substring(input, lastEnd, offset + start));
+            lastEnd = offset + end;
+            done = done + 1;
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = String.substring(remaining, end);
+        }
+        parts.add(String.substring(input, lastEnd));
+        return parts;
+    }
+
     public fn groupCount(): int {
         return Regex_groupCount(this.pattern);
     }
