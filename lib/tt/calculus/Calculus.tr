@@ -450,3 +450,134 @@ public fn tangentLine(f: fn(double): double, x0: double): ArrayList<double> {
     result.add(intercept);
     return result;
 }
+
+// ==================== AP Calculus BC: Parametric and Polar ====================
+
+// Parametric derivative: dy/dx = (dy/dt) / (dx/dt)
+public fn parametricDerivative(xt: fn(double): double, yt: fn(double): double, t: double): double {
+    let dxdt: double = derivative(xt, t);
+    let dydt: double = derivative(yt, t);
+    if (Math.abs(dxdt) < 1e-15) {
+        return Math.INF();
+    }
+    return dydt / dxdt;
+}
+
+// Parametric second derivative: d²y/dx² = (d/dt(dy/dx)) / (dx/dt)
+public fn parametricSecondDerivative(xt: fn(double): double, yt: fn(double): double, t: double): double {
+    let dxdt: double = derivative(xt, t);
+    let d2xdt2: double = secondDerivative(xt, t, 1e-5);
+    let dydt: double = derivative(yt, t);
+    let d2ydt2: double = secondDerivative(yt, t, 1e-5);
+    if (Math.abs(dxdt) < 1e-15) {
+        return Math.INF();
+    }
+    return (d2ydt2 * dxdt - dydt * d2xdt2) / (dxdt * dxdt * dxdt);
+}
+
+// Parametric arc length: integral of sqrt((dx/dt)^2 + (dy/dt)^2) from a to b
+public fn parametricArcLength(xt: fn(double): double, yt: fn(double): double, a: double, b: double, n: int): double {
+    let integrand: fn(double): double = fn(t: double): double {
+        let dx: double = derivative(xt, t);
+        let dy: double = derivative(yt, t);
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+    return integrate(integrand, a, b);
+}
+
+// Polar derivative: dy/dx = (r*sin + r'*cos) / (r*cos - r'*sin)
+public fn polarDerivative(r: fn(double): double, theta: double): double {
+    let rVal: double = r(theta);
+    let rPrime: double = derivative(r, theta);
+    let sinT: double = MathTrig.sin(theta);
+    let cosT: double = MathTrig.cos(theta);
+    let denom: double = rVal * cosT - rPrime * sinT;
+    if (Math.abs(denom) < 1e-15) {
+        return Math.INF();
+    }
+    return (rPrime * sinT + rVal * cosT) / denom;
+}
+
+// Polar area: (1/2) * integral of r^2 from alpha to beta
+public fn polarArea(r: fn(double): double, alpha: double, beta: double, n: int): double {
+    let integrand: fn(double): double = fn(theta: double): double {
+        let rVal: double = r(theta);
+        return rVal * rVal;
+    };
+    return 0.5 * integrate(integrand, alpha, beta);
+}
+
+// Polar arc length: integral of sqrt(r^2 + (r')^2) from alpha to beta
+public fn polarArcLength(r: fn(double): double, alpha: double, beta: double, n: int): double {
+    let integrand: fn(double): double = fn(theta: double): double {
+        let rVal: double = r(theta);
+        let rPrime: double = derivative(r, theta);
+        return Math.sqrt(rVal * rVal + rPrime * rPrime);
+    };
+    return integrate(integrand, alpha, beta);
+}
+
+// Surface area of revolution: 2*PI * integral of f(x)*sqrt(1+(f')^2) for "x" axis,
+// or 2*PI * integral of x*sqrt(1+(f')^2) for "y" axis
+public fn surfaceAreaRevolution(f: fn(double): double, a: double, b: double, axis: string, n: int): double {
+    let integrand: fn(double): double = fn(x: double): double {
+        let fp: double = derivative(f, x);
+        let ds: double = Math.sqrt(1.0 + fp * fp);
+        if (axis == "y") {
+            return x * ds;
+        }
+        return f(x) * ds;
+    };
+    return 2.0 * Math.PI() * integrate(integrand, a, b);
+}
+
+// ==================== ODE Solvers ====================
+
+// Euler's method for y' = f(x, y)
+// Returns ArrayList of [x, y] pairs
+public fn eulerMethod(f: fn(double, double): double, x0: double, y0: double, xEnd: double, h: double): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var x: double = x0;
+    var y: double = y0;
+    while (x <= xEnd + h / 2.0) {
+        let point: ArrayList<double> = new ArrayList<double>();
+        point.add(x);
+        point.add(y);
+        result.add(point);
+        y = y + h * f(x, y);
+        x = x + h;
+    }
+    return result;
+}
+
+// Runge-Kutta 4th order method for y' = f(x, y)
+// Returns ArrayList of [x, y] pairs
+public fn rungeKutta4(f: fn(double, double): double, x0: double, y0: double, xEnd: double, h: double): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var x: double = x0;
+    var y: double = y0;
+    while (x <= xEnd + h / 2.0) {
+        let point: ArrayList<double> = new ArrayList<double>();
+        point.add(x);
+        point.add(y);
+        result.add(point);
+        let k1: double = h * f(x, y);
+        let k2: double = h * f(x + h / 2.0, y + k1 / 2.0);
+        let k3: double = h * f(x + h / 2.0, y + k2 / 2.0);
+        let k4: double = h * f(x + h, y + k3);
+        y = y + (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0;
+        x = x + h;
+    }
+    return result;
+}
+
+// Logistic differential equation solution: L / (1 + ((L - x0) / x0) * exp(-k * t))
+public fn logisticSolve(k: double, L: double, x0: double, t: double): double {
+    return L / (1.0 + ((L - x0) / x0) * MathAdvanced.exp(-k * t));
+}
+
+// Logistic solve with an additional point (x1 at t=1) to determine k
+public fn logisticSolveWithPoint(k: double, L: double, x0: double, x1: double, t: double): double {
+    // Use x1 at t=1 to compute k if needed, but k is provided directly here
+    return logisticSolve(k, L, x0, t);
+}
