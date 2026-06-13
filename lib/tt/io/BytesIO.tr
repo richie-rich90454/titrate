@@ -1,0 +1,116 @@
+// In-memory binary stream for reading and writing byte data.
+import tt::util::ArrayList;
+
+public class BytesIO {
+    private ArrayList<string> buffer;
+    private int pos;
+
+    public fn init() {
+        this.buffer = new ArrayList<string>();
+        this.pos = 0;
+    }
+
+    public fn init(data: string) {
+        this.buffer = new ArrayList<string>();
+        var i: int = 0;
+        while (i < String.length(data)) {
+            this.buffer.add(String.charAt(data, i));
+            i = i + 1;
+        }
+        this.pos = 0;
+    }
+
+    // Read up to count bytes from the current position.
+    public fn read(count: int): string {
+        var result: string = "";
+        var remaining: int = count;
+        while (remaining > 0 && this.pos < this.buffer.size()) {
+            result = result + this.buffer.get(this.pos);
+            this.pos = this.pos + 1;
+            remaining = remaining - 1;
+        }
+        return result;
+    }
+
+    // Read all remaining bytes from the current position.
+    public fn readAll(): string {
+        var result: string = "";
+        while (this.pos < this.buffer.size()) {
+            result = result + this.buffer.get(this.pos);
+            this.pos = this.pos + 1;
+        }
+        return result;
+    }
+
+    // Write bytes at the current position, overwriting existing data or appending.
+    public fn write(data: string): void {
+        var i: int = 0;
+        while (i < String.length(data)) {
+            let ch: string = String.charAt(data, i);
+            if (this.pos < this.buffer.size()) {
+                this.buffer.set(this.pos, ch);
+            } else {
+                this.buffer.add(ch);
+            }
+            this.pos = this.pos + 1;
+            i = i + 1;
+        }
+    }
+
+    // Seek to a position in the stream. Returns the new position.
+    public fn seek(position: int): int {
+        if (position < 0) { position = 0; }
+        if (position > this.buffer.size()) { position = this.buffer.size(); }
+        this.pos = position;
+        return this.pos;
+    }
+
+    // Get the current position in the stream.
+    public fn tell(): int {
+        return this.pos;
+    }
+
+    // Get the total size of the buffer.
+    public fn size(): int {
+        return this.buffer.size();
+    }
+
+    // Truncate the buffer to the specified size. If size is -1, truncate at current position.
+    public fn truncate(size: int): void {
+        if (size < 0) { size = this.pos; }
+        while (this.buffer.size() > size) {
+            this.buffer.remove(this.buffer.size() - 1);
+        }
+        if (this.pos > this.buffer.size()) {
+            this.pos = this.buffer.size();
+        }
+    }
+
+    // Get the entire buffer contents as a string.
+    public fn toString(): string {
+        var result: string = "";
+        var i: int = 0;
+        while (i < this.buffer.size()) {
+            result = result + this.buffer.get(i);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Reset position to the beginning.
+    public fn reset(): void {
+        this.pos = 0;
+    }
+
+    // Clear all data from the buffer.
+    public fn clear(): void {
+        this.buffer = new ArrayList<string>();
+        this.pos = 0;
+    }
+
+    // Close is a no-op for in-memory streams.
+    public fn close(): void { }
+
+    // Flush is a no-op for in-memory streams.
+    public fn flush(): void { }
+}
