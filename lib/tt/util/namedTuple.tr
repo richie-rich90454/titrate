@@ -92,6 +92,43 @@ public class namedTuple {
         return new namedTuple(this._fieldNames, vals);
     }
 
+    public fn asMap(): HashMap<string, Variant> {
+        let result: HashMap<string, Variant> = new HashMap<string, Variant>();
+        let i: int = 0;
+        while (i < this._fieldNames.size()) {
+            let name: string = this._fieldNames.get(i);
+            result.put(name, this._fields.get(name));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn asList(): ArrayList<Variant> {
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        let i: int = 0;
+        while (i < this._fieldNames.size()) {
+            let name: string = this._fieldNames.get(i);
+            result.add(this._fields.get(name));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn replace(field: string, value: Variant): namedTuple {
+        let vals: ArrayList<Variant> = new ArrayList<Variant>();
+        let i: int = 0;
+        while (i < this._fieldNames.size()) {
+            let name: string = this._fieldNames.get(i);
+            if (name == field) {
+                vals.add(value);
+            } else {
+                vals.add(this._fields.get(name));
+            }
+            i = i + 1;
+        }
+        return new namedTuple(this._fieldNames, vals);
+    }
+
     public fn toString(): string {
         let s: string = "(";
         let i: int = 0;
