@@ -74,9 +74,34 @@ public class Socket {
         this.handle = handle;
         this.connected = true;
     }
+
+    public fn getLocalAddress(): string {
+        return Socket_getLocalAddress(this.handle);
+    }
+
+    public fn getRemoteAddress(): string {
+        return Socket_getRemoteAddress(this.handle);
+    }
+
+    public fn getLocalPort(): int {
+        return Socket_getLocalPort(this.handle);
+    }
+
+    public fn getRemotePort(): int {
+        return Socket_getRemotePort(this.handle);
+    }
 }
 
-// DNS resolution: resolve a hostname to IP addresses.
-public fn getAddrInfo(host: string, port: int): Result<string, string> {
-    return Socket_getAddrInfo(host, port);
+// DNS resolution: resolve a hostname to a list of IP addresses.
+public fn getAddrInfo(host: string, port: int): ArrayList<string> {
+    return Os_getAddrInfo(host, port);
+}
+
+// Resolve a hostname to its first IP address.
+public fn getHostByName(host: string): string {
+    let addresses: ArrayList<string> = Os_getAddrInfo(host, 0);
+    if (addresses.size() > 0) {
+        return addresses.get(0);
+    }
+    return "";
 }
