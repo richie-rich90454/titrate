@@ -255,11 +255,13 @@ public fn ofObject(obj: HashMap<string, JsonValue>): JsonValue {
 }
 
 // Escape a string for JSON output
+// All control characters U+0000-U+001F are escaped as \uXXXX
 public fn escapeString(s: string): string {
     let result: string = "\"";
     let i: int = 0;
     while (i < String.length(s)) {
         let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0);
         if (c == "\"") {
             result = result + "\\\"";
         } else if (c == "\\") {
@@ -274,6 +276,9 @@ public fn escapeString(s: string): string {
             result = result + "\\b";
         } else if (c == "\f") {
             result = result + "\\f";
+        } else if (code >= 0 && code < 32) {
+            // Escape all other control characters U+0000-U+001F as \uXXXX
+            result = result + "\\u00" + _hexDigit(code / 16) + _hexDigit(code % 16);
         } else {
             result = result + c;
         }
@@ -281,4 +286,12 @@ public fn escapeString(s: string): string {
     }
     result = result + "\"";
     return result;
+}
+
+// Helper: convert a value 0-15 to a hex digit
+fn _hexDigit(v: int): string {
+    if (v < 10) {
+        return String.fromCharCode(48 + v);
+    }
+    return String.fromCharCode(65 + v - 10);
 }
