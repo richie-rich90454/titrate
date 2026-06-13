@@ -111,7 +111,7 @@ public fn isPositiveDefinite(m: Matrix): bool {
             let val: double = m.data.get2D(i, j) - sum;
             if (i == j) {
                 if (val <= 0.0) { return false; }
-                L.data.set2D(i, j, Math.sqrt(val));
+                L.data.set2D(i, j, MathAdvanced.sqrt(val));
             } else {
                 let denom: double = L.data.get2D(j, j);
                 if (Math.abs(denom) < 1e-15) { return false; }
@@ -151,7 +151,7 @@ public fn norm(m: Matrix): double {
         }
         i = i + 1;
     }
-    return Math.sqrt(s);
+    return MathAdvanced.sqrt(s);
 }
 
 public fn conditionNumber(m: Matrix): double {
@@ -212,7 +212,7 @@ public fn norm2(m: Matrix): double {
         let At: Matrix = m.transpose();
         let AtA: Matrix = At.mul(m);
         let result: ArrayList<Variant> = MatrixDecomp.powerIteration(AtA, 100);
-        return Math.sqrt(result.get(0).get() as double);
+        return MathAdvanced.sqrt(result.get(0).get() as double);
     }
     let At: Matrix = m.transpose();
     let AtA: Matrix = At.mul(m);
