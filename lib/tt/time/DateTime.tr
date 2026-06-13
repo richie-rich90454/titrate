@@ -1,5 +1,6 @@
 // DateTime represents a point in time as milliseconds since the Unix epoch.
 import tt::time::Duration;
+import tt::util::ArrayList;
 
 public class DateTime {
     public long epochMillis;
@@ -34,6 +35,169 @@ public class DateTime {
 
     public fn timestamp(): double {
         return this.epochMillis as double / 1000.0;
+    }
+
+    public fn strftime(format: string): string {
+        var result: string = "";
+        var i: int = 0;
+        while (i < String.length(format)) {
+            let c: string = String.charAt(format, i);
+            if (c == "%" && i + 1 < String.length(format)) {
+                let code: string = String.charAt(format, i + 1);
+                // %Y - Year with century
+                if (code == "Y") {
+                    result = result + Integer.toString(this.getYear());
+                }
+                // %y - Year without century (00-99)
+                else if (code == "y") {
+                    let y: int = this.getYear() % 100;
+                    if (y < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(y);
+                }
+                // %m - Month as zero-padded decimal (01-12)
+                else if (code == "m") {
+                    let m: int = this.getMonth();
+                    if (m < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(m);
+                }
+                // %d - Day as zero-padded decimal (01-31)
+                else if (code == "d") {
+                    let d: int = this.getDay();
+                    if (d < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(d);
+                }
+                // %H - Hour (24-hour, 00-23)
+                else if (code == "H") {
+                    let h: int = this.getHour();
+                    if (h < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(h);
+                }
+                // %I - Hour (12-hour, 01-12)
+                else if (code == "I") {
+                    var h: int = this.getHour();
+                    if (h == 0) { h = 12; }
+                    else if (h > 12) { h = h - 12; }
+                    if (h < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(h);
+                }
+                // %M - Minute (00-59)
+                else if (code == "M") {
+                    let m: int = this.getMinute();
+                    if (m < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(m);
+                }
+                // %S - Second (00-59)
+                else if (code == "S") {
+                    let s: int = this.getSecond();
+                    if (s < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(s);
+                }
+                // %B - Full month name
+                else if (code == "B") {
+                    result = result + this.monthName();
+                }
+                // %b - Abbreviated month name
+                else if (code == "b") {
+                    let full: string = this.monthName();
+                    result = result + String.substring(full, 0, 3);
+                }
+                // %A - Full weekday name
+                else if (code == "A") {
+                    result = result + this.dayOfWeekName();
+                }
+                // %a - Abbreviated weekday name
+                else if (code == "a") {
+                    let full: string = this.dayOfWeekName();
+                    result = result + String.substring(full, 0, 3);
+                }
+                // %j - Day of year (001-366)
+                else if (code == "j") {
+                    let doy: int = this.dayOfYear();
+                    if (doy < 10) {
+                        result = result + "00";
+                    } else if (doy < 100) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(doy);
+                }
+                // %U - Week number (Sunday-based, 00-53)
+                else if (code == "U") {
+                    let w: int = _weekNumberSunday(this.getYear(), this.dayOfYear());
+                    if (w < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(w);
+                }
+                // %W - Week number (Monday-based, 00-53)
+                else if (code == "W") {
+                    let w: int = _weekNumberMonday(this.getYear(), this.dayOfYear());
+                    if (w < 10) {
+                        result = result + "0";
+                    }
+                    result = result + Integer.toString(w);
+                }
+                // %p - AM/PM
+                else if (code == "p") {
+                    if (this.getHour() < 12) {
+                        result = result + "AM";
+                    } else {
+                        result = result + "PM";
+                    }
+                }
+                // %f - Microseconds (000000-999999)
+                else if (code == "f") {
+                    let ms: long = this.epochMillis % 1000;
+                    let us: long = ms * 1000;
+                    if (us < 10) {
+                        result = result + "00000";
+                    } else if (us < 100) {
+                        result = result + "0000";
+                    } else if (us < 1000) {
+                        result = result + "000";
+                    } else if (us < 10000) {
+                        result = result + "00";
+                    } else if (us < 100000) {
+                        result = result + "0";
+                    }
+                    result = result + Long.toString(us);
+                }
+                // %z - UTC offset (stub: +0000)
+                else if (code == "z") {
+                    result = result + "+0000";
+                }
+                // %Z - Timezone name (stub: UTC)
+                else if (code == "Z") {
+                    result = result + "UTC";
+                }
+                // %% - Literal percent
+                else if (code == "%") {
+                    result = result + "%";
+                }
+                // Unknown code: pass through
+                else {
+                    result = result + "%" + code;
+                }
+                i = i + 2;
+            } else {
+                result = result + c;
+                i = i + 1;
+            }
+        }
+        return result;
     }
 
     public fn isBefore(other: DateTime): bool {
@@ -325,6 +489,48 @@ fn _leapYearsBefore(y: int): int {
     if (y <= 0) { return 0; }
     y = y - 1;
     return y / 4 - y / 100 + y / 400;
+}
+
+// Helper: day of week for Jan 1 of given year (0=Mon, 6=Sun)
+fn _jan1Weekday(year: int): int {
+    // Use Zeller's congruence simplified for January 1
+    let days: long = 0;
+    var y: int = 1970;
+    while (y < year) {
+        if (_isLeapYear(y)) {
+            days = days + 366;
+        } else {
+            days = days + 365;
+        }
+        y = y + 1;
+    }
+    y = year;
+    while (y < 1970) {
+        if (_isLeapYear(y)) {
+            days = days - 366;
+        } else {
+            days = days - 365;
+        }
+        y = y + 1;
+    }
+    // Jan 1, 1970 was a Thursday (3 in Mon=0 system)
+    let dow: int = ((3 + (days % 7)) % 7) as int;
+    if (dow < 0) { return dow + 7; }
+    return dow;
+}
+
+// Helper: week number with Sunday as first day of week (00-53)
+fn _weekNumberSunday(year: int, dayOfYear: int): int {
+    let jan1: int = _jan1Weekday(year);
+    // Convert to Sunday=0 based
+    let jan1Sun: int = (jan1 + 1) % 7;
+    return (dayOfYear - 1 + jan1Sun) / 7;
+}
+
+// Helper: week number with Monday as first day of week (00-53)
+fn _weekNumberMonday(year: int, dayOfYear: int): int {
+    let jan1: int = _jan1Weekday(year);
+    return (dayOfYear - 1 + jan1) / 7;
 }
 
 // Parse a date/time string (strptime equivalent).
