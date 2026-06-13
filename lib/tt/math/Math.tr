@@ -419,7 +419,7 @@ public fn lcm(a: int, b: int): int {
 public fn dist(p1x: double, p1y: double, p2x: double, p2y: double): double {
     let dx: double = p2x - p1x;
     let dy: double = p2y - p1y;
-    return Math.sqrt(dx * dx + dy * dy);
+    return MathAdvanced.sqrt(dx * dx + dy * dy);
 }
 
 // N-dimensional Euclidean distance between two coordinate vectors
@@ -433,7 +433,7 @@ public fn distN(p1: ArrayList<double>, p2: ArrayList<double>): double {
         sumSq = sumSq + d * d;
         i = i + 1;
     }
-    return Math.sqrt(sumSq);
+    return MathAdvanced.sqrt(sumSq);
 }
 
 // Sum of products of elements.
@@ -453,7 +453,7 @@ public fn sumprod(a: ArrayList<double>, b: ArrayList<double>): double {
 
 // 2^x.
 public fn exp2(x: double): double {
-    return Math.pow(2.0, x);
+    return MathAdvanced.pow(2.0, x);
 }
 
 // exp(x) - 1 (accurate for small x).
@@ -461,7 +461,7 @@ public fn expm1(x: double): double {
     if (Math.abs(x) < 1e-8) {
         return x + 0.5 * x * x;
     }
-    return Math.exp(x) - 1.0;
+    return MathAdvanced.exp(x) - 1.0;
 }
 
 // log(1+x) (accurate for small x).
@@ -469,7 +469,7 @@ public fn log1p(x: double): double {
     if (Math.abs(x) < 1e-8) {
         return x - 0.5 * x * x;
     }
-    return Math.ln(1.0 + x);
+    return MathAdvanced.ln(1.0 + x);
 }
 
 // Hypotenuse of a right triangle (avoiding overflow).
@@ -478,11 +478,11 @@ public fn hypot(a: double, b: double): double {
     let absB: double = Math.abs(b);
     if (absA > absB) {
         let ratio: double = absB / absA;
-        return absA * Math.sqrt(1.0 + ratio * ratio);
+        return absA * MathAdvanced.sqrt(1.0 + ratio * ratio);
     }
     if (absB == 0.0) { return 0.0; }
     let ratio: double = absA / absB;
-    return absB * Math.sqrt(1.0 + ratio * ratio);
+    return absB * MathAdvanced.sqrt(1.0 + ratio * ratio);
 }
 
 // N-argument hypotenuse for arbitrary number of coordinates
@@ -502,7 +502,7 @@ public fn hypotN(coords: ArrayList<double>): double {
         sumSq = sumSq + ratio * ratio;
         i = i + 1;
     }
-    return maxVal * Math.sqrt(sumSq);
+    return maxVal * MathAdvanced.sqrt(sumSq);
 }
 
 // Midpoint between a and b without overflow
@@ -519,46 +519,46 @@ public fn lerp(a: double, b: double, t: double): double {
 
 // Law of sines: given side a, opposite angle A, and angle B, returns side b
 public fn lawOfSines(a: double, A: double, B: double): double {
-    return a * Math.sin(B) / Math.sin(A);
+    return a * MathTrig.sin(B) / MathTrig.sin(A);
 }
 
 // Law of sines (angle form): given side a, opposite angle A, and side b, returns angle B
 public fn lawOfSinesAngle(a: double, A: double, b: double): double {
-    return Math.asin(b * Math.sin(A) / a);
+    return MathTrig.asin(b * MathTrig.sin(A) / a);
 }
 
 // Law of cosines: given sides a, b and included angle C, returns side c
 public fn lawOfCosines(a: double, b: double, C: double): double {
-    return Math.sqrt(a * a + b * b - 2.0 * a * b * Math.cos(C));
+    return MathAdvanced.sqrt(a * a + b * b - 2.0 * a * b * MathTrig.cos(C));
 }
 
 // Law of cosines (angle form): given sides a, b, c, returns angle C
 public fn lawOfCosinesAngle(a: double, b: double, c: double): double {
-    return Math.acos((a * a + b * b - c * c) / (2.0 * a * b));
+    return MathTrig.acos((a * a + b * b - c * c) / (2.0 * a * b));
 }
 
 // Triangle area from two sides and included angle: 0.5 * a * b * sin(C)
 public fn triangleArea(a: double, b: double, C: double): double {
-    return 0.5 * a * b * Math.sin(C);
+    return 0.5 * a * b * MathTrig.sin(C);
 }
 
 // Triangle area using Heron's formula: sqrt(s*(s-a)*(s-b)*(s-c)) where s=(a+b+c)/2
 public fn triangleAreaHeron(a: double, b: double, c: double): double {
     let s: double = (a + b + c) / 2.0;
-    return Math.sqrt(s * (s - a) * (s - b) * (s - c));
+    return MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
 }
 
 // Incircle radius: area / s where s = (a+b+c)/2
 public fn triangleIncircleRadius(a: double, b: double, c: double): double {
     let s: double = (a + b + c) / 2.0;
-    let area: double = Math.sqrt(s * (s - a) * (s - b) * (s - c));
+    let area: double = MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
     return area / s;
 }
 
 // Circumcircle radius: a*b*c / (4*area)
 public fn triangleCircumcircleRadius(a: double, b: double, c: double): double {
     let s: double = (a + b + c) / 2.0;
-    let area: double = Math.sqrt(s * (s - a) * (s - b) * (s - c));
+    let area: double = MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
     return a * b * c / (4.0 * area);
 }
 
