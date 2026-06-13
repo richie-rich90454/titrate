@@ -227,6 +227,11 @@ fn ofEpochMillis(ms: long): DateTime {
     return new DateTime(ms);
 }
 
+public fn fromTimestamp(seconds: double): DateTime {
+    let ms: long = (seconds * 1000.0) as long;
+    return new DateTime(ms);
+}
+
 fn fromISO(s: string): DateTime {
     // Parse ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS
     var year: int = 0;
