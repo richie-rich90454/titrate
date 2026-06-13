@@ -106,6 +106,19 @@ public fn environ(): string {
     return Os_environ();
 }
 
+// Get all environment variables as a HashMap.
+public fn environMap(): HashMap<string, string> {
+    let result: HashMap<string, string> = new HashMap<string, string>();
+    let pairs: ArrayList<ArrayList<string>> = Os_environMap();
+    var i: int = 0;
+    while (i < pairs.size()) {
+        let pair: ArrayList<string> = pairs.get(i);
+        result.put(pair.get(0), pair.get(1));
+        i = i + 1;
+    }
+    return result;
+}
+
 // Remove a file or empty directory
 public fn remove(path: string): Result<string, string> {
     let success: bool = Dir_remove(path);
