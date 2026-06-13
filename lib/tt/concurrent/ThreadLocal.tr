@@ -14,10 +14,10 @@ public class ThreadLocal<T> {
         this.initialValue = fn(): T { return this.storage.get(0); };
     }
 
-    public fn init(initialValue: fn(): T) {
+    public fn initWithSupplier(supplier: fn(): T) {
         this.storage = new HashMap<int, T>();
         this.mutex = new Mutex();
-        this.initialValue = initialValue;
+        this.initialValue = supplier;
     }
 
     public fn get(): T {
