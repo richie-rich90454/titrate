@@ -1,0 +1,147 @@
+// Vec2 provides a 2D vector with arithmetic, geometric, and utility operations.
+import tt::math::Math;
+import tt::math::MathTrig;
+import tt::lang::Double;
+
+public class Vec2 {
+    public double x;
+    public double y;
+
+    public fn init(x: double, y: double) {
+        this.x = x;
+        this.y = y;
+    }
+
+    // ---- Arithmetic ----
+
+    public fn add(v: Vec2): Vec2 {
+        return new Vec2(this.x + v.x, this.y + v.y);
+    }
+
+    public fn sub(v: Vec2): Vec2 {
+        return new Vec2(this.x - v.x, this.y - v.y);
+    }
+
+    public fn scale(s: double): Vec2 {
+        return new Vec2(this.x * s, this.y * s);
+    }
+
+    // ---- Products ----
+
+    public fn dot(v: Vec2): double {
+        return this.x * v.x + this.y * v.y;
+    }
+
+    public fn cross(v: Vec2): double {
+        return this.x * v.y - this.y * v.x;
+    }
+
+    // ---- Magnitude ----
+
+    public fn magnitude(): double {
+        return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+
+    public fn magnitudeSq(): double {
+        return this.x * this.x + this.y * this.y;
+    }
+
+    public fn normalize(): Vec2 {
+        let m: double = this.magnitude();
+        return this.scale(1.0 / m);
+    }
+
+    public fn distance(v: Vec2): double {
+        return this.sub(v).magnitude();
+    }
+
+    // ---- Angles ----
+
+    public fn angle(): double {
+        return MathTrig.atan2(this.y, this.x);
+    }
+
+    public fn angleBetween(v: Vec2): double {
+        let d: double = this.dot(v);
+        let m: double = this.magnitude() * v.magnitude();
+        return MathTrig.acos(d / m);
+    }
+
+    // ---- Transformations ----
+
+    public fn rotate(angle: double): Vec2 {
+        let c: double = MathTrig.cos(angle);
+        let s: double = MathTrig.sin(angle);
+        return new Vec2(this.x * c - this.y * s, this.x * s + this.y * c);
+    }
+
+    public fn project(v: Vec2): Vec2 {
+        return v.scale(this.dot(v) / v.magnitudeSq());
+    }
+
+    public fn reflect(normal: Vec2): Vec2 {
+        return this.sub(normal.scale(2.0 * this.dot(normal)));
+    }
+
+    public fn lerp(v: Vec2, t: double): Vec2 {
+        return this.scale(1.0 - t).add(v.scale(t));
+    }
+
+    public fn perp(): Vec2 {
+        return new Vec2(-this.y, this.x);
+    }
+
+    // ---- Rounding ----
+
+    public fn floor(): Vec2 {
+        return new Vec2(Math.floor(this.x), Math.floor(this.y));
+    }
+
+    public fn ceil(): Vec2 {
+        return new Vec2(Math.ceil(this.x), Math.ceil(this.y));
+    }
+
+    public fn abs(): Vec2 {
+        return new Vec2(Math.abs(this.x), Math.abs(this.y));
+    }
+
+    // ---- Comparison and string ----
+
+    public fn equals(v: Vec2): bool {
+        let dx: double = this.x - v.x;
+        let dy: double = this.y - v.y;
+        if (dx < 0.0) { dx = -dx; }
+        if (dy < 0.0) { dy = -dy; }
+        return dx < 1e-12 && dy < 1e-12;
+    }
+
+    public fn toString(): string {
+        return "Vec2(" + Double.toString(this.x) + ", " + Double.toString(this.y) + ")";
+    }
+}
+
+// ---- Static factories ----
+
+public fn zero(): Vec2 {
+    return new Vec2(0.0, 0.0);
+}
+
+public fn one(): Vec2 {
+    return new Vec2(1.0, 1.0);
+}
+
+public fn unitX(): Vec2 {
+    return new Vec2(1.0, 0.0);
+}
+
+public fn unitY(): Vec2 {
+    return new Vec2(0.0, 1.0);
+}
+
+public fn fromAngle(angle: double): Vec2 {
+    return new Vec2(MathTrig.cos(angle), MathTrig.sin(angle));
+}
+
+public fn fromPolar(r: double, theta: double): Vec2 {
+    return new Vec2(r * MathTrig.cos(theta), r * MathTrig.sin(theta));
+}
