@@ -163,6 +163,38 @@ public fn umask(mask: int): int {
     return Os_umask(mask);
 }
 
+// Directory entry returned by scandir.
+public class DirEntry {
+    public string name;
+    public bool isFile;
+    public bool isDir;
+    public bool isSymlink;
+
+    public fn init(name: string, isFile: bool, isDir: bool, isSymlink: bool) {
+        this.name = name;
+        this.isFile = isFile;
+        this.isDir = isDir;
+        this.isSymlink = isSymlink;
+    }
+}
+
+// Scan directory returning DirEntry objects with file metadata.
+public fn scandir(path: string): ArrayList<DirEntry> {
+    let raw: ArrayList<ArrayList<Variant>> = Os_scandir(path);
+    let result: ArrayList<DirEntry> = new ArrayList<DirEntry>();
+    var i: int = 0;
+    while (i < raw.size()) {
+        let entry: ArrayList<Variant> = raw.get(i);
+        let name: string = entry.get(0) as string;
+        let isFile: bool = entry.get(1) as bool;
+        let isDir: bool = entry.get(2) as bool;
+        let isSymlink: bool = entry.get(3) as bool;
+        result.add(new DirEntry(name, isFile, isDir, isSymlink));
+        i = i + 1;
+    }
+    return result;
+}
+
 // Get current working directory (alias for workingDir).
 public fn getcwd(): string {
     return workingDir();
