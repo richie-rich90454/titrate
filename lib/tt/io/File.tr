@@ -103,4 +103,14 @@ public class File {
     public fn flush(): void {
         File_flush(this.getPath());
     }
+
+    // Get file size in bytes.
+    public fn size(): long {
+        return File_size(this.getPath());
+    }
+
+    // Truncate file to the specified length.
+    public fn truncate(len: int): void {
+        File_truncate(this.getPath(), len);
+    }
 }

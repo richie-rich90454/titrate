@@ -382,3 +382,44 @@ pub(crate) fn native_file_flush(args: &[Value]) -> Result<Value, String> {
         _ => Err("File_flush: expected FileHandle argument".to_string()),
     }
 }
+
+pub(crate) fn native_file_size(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_size: expected 1 argument (path)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_size: expected String path".to_string()),
+    };
+    match std::fs::metadata(&path) {
+        Ok(meta) => Ok(Value::Long(meta.len() as i64)),
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_size: {}", e)
+        ))))),
+    }
+}
+
+pub(crate) fn native_file_truncate(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("File_truncate: expected 2 arguments (path, length)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_truncate: expected String path".to_string()),
+    };
+    let length = args[1].to_i64().unwrap_or(0) as u64;
+
+    match std::fs::OpenOptions::new().write(true).open(&path) {
+        Ok(file) => {
+            match file.set_len(length) {
+                Ok(()) => Ok(Value::Void),
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("File_truncate: {}", e)
+                ))))),
+            }
+        }
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_truncate: {}", e)
+        ))))),
+    }
+}
