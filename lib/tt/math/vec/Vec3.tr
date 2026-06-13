@@ -1,5 +1,6 @@
 // Vec3 provides a 3D vector with arithmetic, geometric, and utility operations.
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::math::MathTrig;
 import tt::lang::Double;
 
@@ -45,7 +46,7 @@ public class Vec3 {
     // ---- Magnitude ----
 
     public fn magnitude(): double {
-        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+        return MathAdvanced.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
     }
 
     public fn magnitudeSq(): double {
@@ -54,6 +55,9 @@ public class Vec3 {
 
     public fn normalize(): Vec3 {
         let m: double = this.magnitude();
+        if (m == 0.0) {
+            return new Vec3(0.0, 0.0, 0.0);
+        }
         return this.scale(1.0 / m);
     }
 
