@@ -20,7 +20,7 @@ public class FileWriter implements Writer {
     }
 
     public fn flush() {
-        this.file.close();
+        this.file.flush();
     }
 
     public fn close() {
