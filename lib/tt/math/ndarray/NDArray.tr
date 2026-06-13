@@ -14,7 +14,7 @@ public class NDArray<T> {
 
     // Constructor - creates array with given shape. Data is uninitialized;
     // use factory methods (zeros, ones, filled, fromData) for initialized arrays.
-    fn init(shape: ArrayList<int>) {
+    public fn init(shape: ArrayList<int>) {
         this.data = new ArrayList<T>();
         this.shape = new ArrayList<int>();
         var i: int = 0;

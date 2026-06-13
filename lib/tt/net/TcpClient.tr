@@ -2,7 +2,7 @@
 public class TcpClient {
     private Socket socket;
 
-    fn init() {
+    public fn init() {
         this.socket = null;
     }
 

@@ -8,7 +8,7 @@ public class Future<T> {
     private string error;
     private ArrayList<fn(): void> _callbacks;
 
-    fn init() {
+    public fn init() {
         this.done = false;
         this.cancelled = false;
         this.error = null;

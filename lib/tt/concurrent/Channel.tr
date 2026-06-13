@@ -12,7 +12,7 @@ public class Channel<T> {
     private ConditionVariable _notFull;
     private ConditionVariable _notEmpty;
 
-    fn init() {
+    public fn init() {
         this.buffer = new ArrayList<T>();
         this.closed = false;
         this.capacity = 0;

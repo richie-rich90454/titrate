@@ -116,7 +116,7 @@ fn empty<T>(): Optional<T> {
 }
 
 // Returns an Optional containing the given non-null value.
-fn of<T>(value: T): Optional<T> {
+public fn of<T>(value: T): Optional<T> {
     let opt: Optional<T> = new Optional<T>();
     opt._value = value;
     opt._present = true;

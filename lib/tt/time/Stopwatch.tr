@@ -6,7 +6,7 @@ public class Stopwatch {
     private long elapsed;
     private bool running;
 
-    fn init() {
+    public fn init() {
         this.startTime = 0;
         this.elapsed = 0;
         this.running = false;

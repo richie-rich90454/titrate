@@ -2,12 +2,12 @@
 import tt::lang::String;
 
 // Create a temporary file and return its path.
-fn createTempFile(): string {
+public fn createTempFile(): string {
     return Tempfile_create();
 }
 
 // Create a temporary directory and return its path.
-fn createTempDir(): string {
+public fn createTempDir(): string {
     // Use Tempfile_create to get a temp path, then create a dir there
     let basePath: string = getTempDir();
     let randomHex: string = Os_urandom(4);
@@ -18,7 +18,7 @@ fn createTempDir(): string {
 }
 
 // Get the system's temporary directory path.
-fn getTempDir(): string {
+public fn getTempDir(): string {
     // Try environment variables for temp dir
     var tmp: string = Sys_env("TEMP");
     if (tmp != null && String.length(tmp) > 0) {
@@ -42,7 +42,7 @@ public class NamedTempFile {
     public string name;
     public string path;
 
-    public fn init(prefix: string, suffix: string, dir: string) {
+    public public fn init(prefix: string, suffix: string, dir: string) {
         let baseDir: string = dir;
         if (String.length(baseDir) == 0) {
             baseDir = getTempDir();
@@ -55,26 +55,26 @@ public class NamedTempFile {
     }
 
     // Write data to the temporary file.
-    public fn write(data: string): void {
+    public public fn write(data: string): void {
         File_append(this.path, data);
     }
 
     // Read the entire contents of the temporary file.
-    public fn read(): string {
+    public public fn read(): string {
         return File_read(this.path);
     }
 
     // Close the temporary file (no-op in this implementation, kept for API parity).
-    public fn close(): void {
+    public public fn close(): void {
         // No-op: file handles are not tracked in this implementation
     }
 
     // Delete the temporary file from disk.
-    public fn delete(): void {
+    public public fn delete(): void {
         File_delete(this.path);
     }
 
-    public fn toString(): string {
+    public public fn toString(): string {
         return "NamedTempFile(" + this.path + ")";
     }
 }
@@ -83,7 +83,7 @@ public class NamedTempFile {
 public class TempDirectory {
     public string path;
 
-    public fn init(prefix: string) {
+    public public fn init(prefix: string) {
         let baseDir: string = getTempDir();
         let randomHex: string = Os_urandom(8);
         let dirName: string = prefix + randomHex;
@@ -92,24 +92,24 @@ public class TempDirectory {
     }
 
     // Remove the temporary directory and all its contents.
-    public fn cleanup(): void {
+    public public fn cleanup(): void {
         Dir_deleteTree(this.path);
     }
 }
 
 // Create a named temporary file and return its path.
-public fn mkstemp(prefix: string, suffix: string, dir: string): string {
+public public fn mkstemp(prefix: string, suffix: string, dir: string): string {
     let f: NamedTempFile = new NamedTempFile(prefix, suffix, dir);
     return f.path;
 }
 
 // Create a temporary directory and return its path.
-public fn mkdtemp(prefix: string): string {
+public public fn mkdtemp(prefix: string): string {
     let d: TempDirectory = new TempDirectory(prefix);
     return d.path;
 }
 
 // Get the system's temporary directory path (alternate name for API parity).
-public fn getTempDirB(): string {
+public public fn getTempDirB(): string {
     return getTempDir();
 }

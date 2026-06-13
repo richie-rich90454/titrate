@@ -101,27 +101,27 @@ public class Duration {
     }
 }
 
-fn ofMillis(ms: long): Duration {
+public fn ofMillis(ms: long): Duration {
     return new Duration(ms);
 }
 
-fn ofSeconds(s: long): Duration {
+public fn ofSeconds(s: long): Duration {
     return new Duration(s * 1000);
 }
 
-fn ofMinutes(m: long): Duration {
+public fn ofMinutes(m: long): Duration {
     return new Duration(m * 60000);
 }
 
-fn ofHours(h: long): Duration {
+public fn ofHours(h: long): Duration {
     return new Duration(h * 3600000);
 }
 
-fn ofDays(d: long): Duration {
+public fn ofDays(d: long): Duration {
     return new Duration(d * 86400000);
 }
 
-fn ofNanos(n: long): Duration {
+public fn ofNanos(n: long): Duration {
     let ms: long = n / 1000000;
     let ns: long = n % 1000000;
     let d: Duration = new Duration(ms);
@@ -137,6 +137,6 @@ public fn ofMicros(us: long): Duration {
     return d;
 }
 
-fn between(start: DateTime, end: DateTime): Duration {
+public fn between(start: DateTime, end: DateTime): Duration {
     return new Duration(end.epochMillis - start.epochMillis);
 }

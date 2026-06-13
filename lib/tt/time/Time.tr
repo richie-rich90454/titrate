@@ -2,52 +2,52 @@
 import tt::time::DateTime;
 import tt::time::Duration;
 
-fn now(): DateTime {
+public fn now(): DateTime {
     return DateTime.now();
 }
 
-fn sleep(ms: long): void {
+public fn sleep(ms: long): void {
     Time_sleep(ms);
 }
 
-fn sleepDuration(d: Duration): void {
+public fn sleepDuration(d: Duration): void {
     Time_sleep(d.millis);
 }
 
-fn millis(): long {
+public fn millis(): long {
     return Time_now();
 }
 
-fn micros(): long {
+public fn micros(): long {
     return Time_now() * 1000;
 }
 
-public fn nanos(): long {
+public public fn nanos(): long {
     return Time_nanos();
 }
 
-fn measure(fn: fn(): void): Duration {
+public fn measure(public fn: public fn(): void): Duration {
     let start: long = Time_now() * 1000000;
-    fn();
+    public fn();
     let end: long = Time_now() * 1000000;
     return new Duration((end - start) / 1000000);
 }
 
-fn stopwatch(): Stopwatch {
+public fn stopwatch(): Stopwatch {
     return new Stopwatch();
 }
 
 // Monotonic time in nanoseconds from an arbitrary epoch (suitable for measuring durations)
-public fn monotonic(): long {
+public public fn monotonic(): long {
     return Time_monotonic();
 }
 
 // High-resolution performance counter in nanoseconds
-public fn perfCounter(): long {
+public public fn perfCounter(): long {
     return Time_perfCounter();
 }
 
 // Unix timestamp as double with sub-second precision
-public fn epochSeconds(): double {
+public public fn epochSeconds(): double {
     return Time_epochSeconds();
 }

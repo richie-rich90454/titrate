@@ -89,7 +89,7 @@ fn run(command: string): int {
 }
 
 // Run a command and return its stdout output as a string.
-fn exec(command: string): string {
+public fn exec(command: string): string {
     let output: string = Subprocess_exec(command);
     return output;
 }

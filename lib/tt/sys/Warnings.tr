@@ -3,9 +3,9 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 
 // Warning category constants
-const WARNING: string = "Warning";
-const USER_WARNING: string = "UserWarning";
-const DEPRECATION_WARNING: string = "DeprecationWarning";
+public const WARNING: string = "Warning";
+public const USER_WARNING: string = "UserWarning";
+public const DEPRECATION_WARNING: string = "DeprecationWarning";
 
 // Module-level state
 var _filters: ArrayList<HashMap<string, string>> = _initFilters();

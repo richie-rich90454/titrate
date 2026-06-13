@@ -118,6 +118,6 @@ public class BufferedReader implements Reader {
     }
 }
 
-fn open(path: string): BufferedReader {
+public fn open(path: string): BufferedReader {
     return new BufferedReader(path);
 }

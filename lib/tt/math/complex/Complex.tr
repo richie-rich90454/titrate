@@ -8,7 +8,7 @@ public class Complex {
     public double real;
     public double imag;
 
-    fn init(real: double, imag: double) {
+    public fn init(real: double, imag: double) {
         this.real = real;
         this.imag = imag;
     }

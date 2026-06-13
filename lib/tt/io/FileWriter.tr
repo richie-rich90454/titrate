@@ -31,6 +31,6 @@ public class FileWriter implements Writer {
     }
 }
 
-fn open(path: string): FileWriter {
+public fn open(path: string): FileWriter {
     return new FileWriter(path);
 }

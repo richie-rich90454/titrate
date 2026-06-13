@@ -130,7 +130,7 @@ fn ok<T, E>(value: T): Result<T, E> {
     return r;
 }
 
-fn err<T, E>(value: E): Result<T, E> {
+public fn err<T, E>(value: E): Result<T, E> {
     let r: Result<T, E> = new Result<T, E>();
     r.errValue = value;
     r.isOk = false;

@@ -5,7 +5,7 @@ import tt::util::ArrayList;
 public class DateTime {
     public long epochMillis;
 
-    fn init(ms: long) {
+    public fn init(ms: long) {
         this.epochMillis = ms;
     }
 
@@ -500,7 +500,7 @@ public fn fromTimestamp(seconds: double): DateTime {
     return new DateTime(ms);
 }
 
-fn fromISO(s: string): DateTime {
+public fn fromISO(s: string): DateTime {
     // Parse ISO format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS
     var year: int = 0;
     var month: int = 1;

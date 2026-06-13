@@ -63,7 +63,7 @@ fn of(tag: string, value: Variant): Variant {
 }
 
 // Creates an empty Variant with the given tag and no value.
-fn empty(tag: string): Variant {
+public fn empty(tag: string): Variant {
     let v: Variant = new Variant();
     v._typeTag = tag;
     v._value = null;

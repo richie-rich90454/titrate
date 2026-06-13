@@ -38,6 +38,6 @@ public class FileReader implements Reader {
     }
 }
 
-fn open(path: string): FileReader {
+public fn open(path: string): FileReader {
     return new FileReader(path);
 }

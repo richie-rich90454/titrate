@@ -2,7 +2,7 @@
 public class TcpServer {
     private Listener listener;
 
-    fn init() {
+    public fn init() {
         this.listener = null;
     }
 

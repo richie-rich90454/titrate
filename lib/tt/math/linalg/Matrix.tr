@@ -11,7 +11,7 @@ import tt::math::linalg::MatrixOps;
 public class Matrix {
     public NDArray<double> data;
 
-    fn init(r: int, c: int) {
+    public fn init(r: int, c: int) {
         let shape: ArrayList<int> = new ArrayList<int>();
         shape.add(r);
         shape.add(c);
