@@ -524,3 +524,97 @@ public fn trigamma(x: double): double {
 
     return result;
 }
+
+// ==================== ML activation functions ====================
+
+// Softmax: exp(x_i) / sum(exp(x_j)), with numerical stability (subtract max)
+public fn softmax(x: ArrayList<double>): ArrayList<double> {
+    let n: int = x.size();
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (n == 0) { return result; }
+
+    // Find max for numerical stability
+    var maxVal: double = x.get(0);
+    var i: int = 1;
+    while (i < n) {
+        if (x.get(i) > maxVal) { maxVal = x.get(i); }
+        i = i + 1;
+    }
+
+    // Compute exp(x_i - max) and sum
+    var sumExp: double = 0.0;
+    i = 0;
+    while (i < n) {
+        let e: double = MathAdvanced.exp(x.get(i) - maxVal);
+        result.add(e);
+        sumExp = sumExp + e;
+        i = i + 1;
+    }
+
+    // Normalize
+    i = 0;
+    while (i < n) {
+        result.set(i, result.get(i) / sumExp);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Sigmoid: 1 / (1 + exp(-x))
+public fn sigmoid(x: double): double {
+    return 1.0 / (1.0 + MathAdvanced.exp(-x));
+}
+
+// Log-sigmoid: -log(1 + exp(-x)), numerically stable
+public fn logSigmoid(x: double): double {
+    if (x > 0.0) {
+        return -MathAdvanced.log1p(MathAdvanced.exp(-x));
+    }
+    return x - MathAdvanced.log1p(MathAdvanced.exp(x));
+}
+
+// ReLU: max(0, x)
+public fn relu(x: double): double {
+    if (x > 0.0) { return x; }
+    return 0.0;
+}
+
+// Leaky ReLU: x if x > 0, alpha*x otherwise
+public fn leakyRelu(x: double, alpha: double): double {
+    if (x > 0.0) { return x; }
+    return alpha * x;
+}
+
+// Swish: x * sigmoid(x)
+public fn swish(x: double): double {
+    return x * sigmoid(x);
+}
+
+// GELU: x * 0.5 * (1 + erf(x / sqrt(2)))
+public fn gelu(x: double): double {
+    return x * 0.5 * (1.0 + Math.erf(x / MathAdvanced.sqrt(2.0)));
+}
+
+// LogSumExp: log(sum(exp(x_i))), numerically stable
+public fn logSumExp(x: ArrayList<double>): double {
+    let n: int = x.size();
+    if (n == 0) { return Math.NAN(); }
+
+    // Find max for numerical stability
+    var maxVal: double = x.get(0);
+    var i: int = 1;
+    while (i < n) {
+        if (x.get(i) > maxVal) { maxVal = x.get(i); }
+        i = i + 1;
+    }
+
+    // Compute sum of exp(x_i - max)
+    var sumExp: double = 0.0;
+    i = 0;
+    while (i < n) {
+        sumExp = sumExp + MathAdvanced.exp(x.get(i) - maxVal);
+        i = i + 1;
+    }
+
+    return maxVal + MathAdvanced.ln(sumExp);
+}
