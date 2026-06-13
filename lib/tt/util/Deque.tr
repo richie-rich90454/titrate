@@ -53,4 +53,74 @@ public class Deque<E> {
     public fn clear(): void {
         this.data.clear();
     }
+
+    public fn rotate(n: int): void {
+        if (this.data.size() == 0) { return; }
+        let effective: int = n % this.data.size();
+        if (effective == 0) { return; }
+        if (effective > 0) {
+            // Rotate right: pop from back, push to front
+            var i: int = 0;
+            while (i < effective) {
+                this.data.pushFront(this.data.popBack());
+                i = i + 1;
+            }
+        } else {
+            // Rotate left: pop from front, push to back
+            var i: int = 0;
+            while (i < -effective) {
+                this.data.pushBack(this.data.popFront());
+                i = i + 1;
+            }
+        }
+    }
+
+    public fn insert(i: int, x: E): void {
+        // Insert x at position i
+        let arr: ArrayList<E> = this.data.toArray();
+        this.data.clear();
+        var j: int = 0;
+        while (j < i && j < arr.size()) {
+            this.data.pushBack(arr.get(j));
+            j = j + 1;
+        }
+        this.data.pushBack(x);
+        while (j < arr.size()) {
+            this.data.pushBack(arr.get(j));
+            j = j + 1;
+        }
+    }
+
+    public fn remove(x: E): bool {
+        let arr: ArrayList<E> = this.data.toArray();
+        var found: bool = false;
+        this.data.clear();
+        var i: int = 0;
+        while (i < arr.size()) {
+            if (!found && arr.get(i) == x) {
+                found = true;
+            } else {
+                this.data.pushBack(arr.get(i));
+            }
+            i = i + 1;
+        }
+        return found;
+    }
+
+    public fn index(x: E): int {
+        let arr: ArrayList<E> = this.data.toArray();
+        var i: int = 0;
+        while (i < arr.size()) {
+            if (arr.get(i) == x) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn maxlen(): int {
+        // 0 means unlimited
+        return 0;
+    }
 }
