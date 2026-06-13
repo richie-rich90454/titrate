@@ -8,7 +8,8 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{LazyLock, Mutex as StdMutex};
 use md5::{Digest, Md5};
 use sha1::Sha1;
-use sha2::{Sha256, Sha384, Sha512};
+use sha2::{Sha224, Sha256, Sha384, Sha512};
+use sha3::Sha3_224;
 use sha3::Sha3_256;
 use sha3::Sha3_384;
 use sha3::Sha3_512;
@@ -151,6 +152,70 @@ pub(crate) fn native_hash_crc32(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+pub(crate) fn native_hash_sha224(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => {
+            let mut hasher = Sha224::new();
+            hasher.update(s.as_bytes());
+            let result = hasher.finalize();
+            Ok(Value::String(Rc::new(format!("{:x}", result))))
+        }
+        _ => Err("Hash_sha224: expected a String argument".to_string()),
+    }
+}
+
+pub(crate) fn native_hash_sha3_224(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => {
+            let mut hasher = Sha3_224::new();
+            hasher.update(s.as_bytes());
+            let result = hasher.finalize();
+            Ok(Value::String(Rc::new(format!("{:x}", result))))
+        }
+        _ => Err("Hash_sha3_224: expected a String argument".to_string()),
+    }
+}
+
+pub(crate) fn native_hash_shake128(args: &[Value]) -> Result<Value, String> {
+    let input = match args.first() {
+        Some(Value::String(s)) => s.as_bytes(),
+        _ => return Err("Hash_shake128: expected String input and Int length".to_string()),
+    };
+    let length = match args.get(1) {
+        Some(Value::Int(n)) => *n as usize,
+        Some(Value::Long(n)) => *n as usize,
+        _ => return Err("Hash_shake128: expected Int length as second argument".to_string()),
+    };
+    use sha3::Shake128;
+    use sha3::digest::{Update, ExtendableOutput, XofReader};
+    let mut hasher = Shake128::default();
+    hasher.update(input);
+    let mut reader = hasher.finalize_xof();
+    let mut buf = vec![0u8; length];
+    reader.read(&mut buf);
+    Ok(Value::String(Rc::new(buf.iter().map(|b| format!("{:02x}", b)).collect())))
+}
+
+pub(crate) fn native_hash_shake256(args: &[Value]) -> Result<Value, String> {
+    let input = match args.first() {
+        Some(Value::String(s)) => s.as_bytes(),
+        _ => return Err("Hash_shake256: expected String input and Int length".to_string()),
+    };
+    let length = match args.get(1) {
+        Some(Value::Int(n)) => *n as usize,
+        Some(Value::Long(n)) => *n as usize,
+        _ => return Err("Hash_shake256: expected Int length as second argument".to_string()),
+    };
+    use sha3::Shake256;
+    use sha3::digest::{Update, ExtendableOutput, XofReader};
+    let mut hasher = Shake256::default();
+    hasher.update(input);
+    let mut reader = hasher.finalize_xof();
+    let mut buf = vec![0u8; length];
+    reader.read(&mut buf);
+    Ok(Value::String(Rc::new(buf.iter().map(|b| format!("{:02x}", b)).collect())))
+}
+
 /// Constant-time comparison of two hex digest strings to prevent timing attacks.
 pub(crate) fn native_hmac_compare_digest(args: &[Value]) -> Result<Value, String> {
     let a = match args.first() {
@@ -188,9 +253,11 @@ pub(crate) fn native_hmac_compare_digest(args: &[Value]) -> Result<Value, String
 enum HasherState {
     Md5(Md5),
     Sha1(Sha1),
+    Sha224(Sha224),
     Sha256(Sha256),
     Sha384(Sha384),
     Sha512(Sha512),
+    Sha3_224(Sha3_224),
     Sha3_256(Sha3_256),
     Sha3_384(Sha3_384),
     Sha3_512(Sha3_512),
@@ -203,9 +270,11 @@ impl HasherState {
         match self {
             HasherState::Md5(_) => "md5",
             HasherState::Sha1(_) => "sha1",
+            HasherState::Sha224(_) => "sha224",
             HasherState::Sha256(_) => "sha256",
             HasherState::Sha384(_) => "sha384",
             HasherState::Sha512(_) => "sha512",
+            HasherState::Sha3_224(_) => "sha3-224",
             HasherState::Sha3_256(_) => "sha3-256",
             HasherState::Sha3_384(_) => "sha3-384",
             HasherState::Sha3_512(_) => "sha3-512",
@@ -218,9 +287,11 @@ impl HasherState {
         match self {
             HasherState::Md5(h) => h.update(data),
             HasherState::Sha1(h) => h.update(data),
+            HasherState::Sha224(h) => h.update(data),
             HasherState::Sha256(h) => h.update(data),
             HasherState::Sha384(h) => h.update(data),
             HasherState::Sha512(h) => h.update(data),
+            HasherState::Sha3_224(h) => h.update(data),
             HasherState::Sha3_256(h) => h.update(data),
             HasherState::Sha3_384(h) => h.update(data),
             HasherState::Sha3_512(h) => h.update(data),
@@ -240,6 +311,10 @@ impl HasherState {
                 let result = h.finalize_reset();
                 format!("{:x}", result)
             }
+            HasherState::Sha224(h) => {
+                let result = h.finalize_reset();
+                format!("{:x}", result)
+            }
             HasherState::Sha256(h) => {
                 let result = h.finalize_reset();
                 format!("{:x}", result)
@@ -249,6 +324,10 @@ impl HasherState {
                 format!("{:x}", result)
             }
             HasherState::Sha512(h) => {
+                let result = h.finalize_reset();
+                format!("{:x}", result)
+            }
+            HasherState::Sha3_224(h) => {
                 let result = h.finalize_reset();
                 format!("{:x}", result)
             }
@@ -280,9 +359,11 @@ impl HasherState {
         match self {
             HasherState::Md5(h) => h.finalize_reset().to_vec(),
             HasherState::Sha1(h) => h.finalize_reset().to_vec(),
+            HasherState::Sha224(h) => h.finalize_reset().to_vec(),
             HasherState::Sha256(h) => h.finalize_reset().to_vec(),
             HasherState::Sha384(h) => h.finalize_reset().to_vec(),
             HasherState::Sha512(h) => h.finalize_reset().to_vec(),
+            HasherState::Sha3_224(h) => h.finalize_reset().to_vec(),
             HasherState::Sha3_256(h) => h.finalize_reset().to_vec(),
             HasherState::Sha3_384(h) => h.finalize_reset().to_vec(),
             HasherState::Sha3_512(h) => h.finalize_reset().to_vec(),
@@ -296,9 +377,11 @@ impl HasherState {
         match self {
             HasherState::Md5(h) => h.reset(),
             HasherState::Sha1(h) => h.reset(),
+            HasherState::Sha224(h) => h.reset(),
             HasherState::Sha256(h) => h.reset(),
             HasherState::Sha384(h) => h.reset(),
             HasherState::Sha512(h) => h.reset(),
+            HasherState::Sha3_224(h) => h.reset(),
             HasherState::Sha3_256(h) => h.reset(),
             HasherState::Sha3_384(h) => h.reset(),
             HasherState::Sha3_512(h) => h.reset(),
@@ -312,16 +395,18 @@ fn new_hasher_state(algorithm: &str) -> Result<HasherState, String> {
     match algorithm {
         "md5" => Ok(HasherState::Md5(Md5::new())),
         "sha1" => Ok(HasherState::Sha1(Sha1::new())),
+        "sha224" => Ok(HasherState::Sha224(Sha224::new())),
         "sha256" => Ok(HasherState::Sha256(Sha256::new())),
         "sha384" => Ok(HasherState::Sha384(Sha384::new())),
         "sha512" => Ok(HasherState::Sha512(Sha512::new())),
+        "sha3-224" => Ok(HasherState::Sha3_224(Sha3_224::new())),
         "sha3-256" => Ok(HasherState::Sha3_256(Sha3_256::new())),
         "sha3-384" => Ok(HasherState::Sha3_384(Sha3_384::new())),
         "sha3-512" => Ok(HasherState::Sha3_512(Sha3_512::new())),
         "blake2b" => Ok(HasherState::Blake2b(Blake2b512::new())),
         "blake2s" => Ok(HasherState::Blake2s(Blake2s256::new())),
         _ => Err(format!(
-            "Hasher_new: unsupported algorithm '{}'. Supported: md5, sha1, sha256, sha384, sha512, sha3-256, sha3-384, sha3-512, blake2b, blake2s",
+            "Hasher_new: unsupported algorithm '{}'. Supported: md5, sha1, sha224, sha256, sha384, sha512, sha3-224, sha3-256, sha3-384, sha3-512, blake2b, blake2s",
             algorithm
         )),
     }
