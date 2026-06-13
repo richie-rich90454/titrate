@@ -92,3 +92,56 @@ public fn binomialExpansion(n: int): ArrayList<double> {
     }
     return result;
 }
+
+// ---- Series evaluation ----
+
+// Sum of an arithmetic series: n*(first+last)/2
+public fn arithmeticSum(first: double, last: double, n: int): double {
+    return (n as double) * (first + last) / 2.0;
+}
+
+// Sum of a geometric series: first*(1-ratio^n)/(1-ratio)
+public fn geometricSum(first: double, ratio: double, n: int): double {
+    if (ratio == 1.0) {
+        return first * (n as double);
+    }
+    return first * (1.0 - Math.pow(ratio, n as double)) / (1.0 - ratio);
+}
+
+// Sum of an infinite geometric series: first/(1-ratio) for |ratio|<1
+public fn geometricSumInfinite(first: double, ratio: double): double {
+    return first / (1.0 - ratio);
+}
+
+// Partial sum: sum of terms(i) from start to end
+public fn partialSum(terms: fn(int): double, start: int, end: int): double {
+    var sum: double = 0.0;
+    var i: int = start;
+    while (i <= end) {
+        sum = sum + terms(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Power series sum: sum of c_i * x^i
+public fn powerSeriesSum(coeffs: ArrayList<double>, x: double): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < coeffs.size()) {
+        sum = sum + coeffs.get(i) * Math.pow(x, i as double);
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Telescoping sum: sum of terms(i) from start to end
+public fn telescopingSum(terms: fn(int): double, start: int, end: int): double {
+    var sum: double = 0.0;
+    var i: int = start;
+    while (i <= end) {
+        sum = sum + terms(i);
+        i = i + 1;
+    }
+    return sum;
+}
