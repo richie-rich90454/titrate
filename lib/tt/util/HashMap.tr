@@ -172,4 +172,25 @@ public class HashMap<K, V> implements Iterable<K> {
         }
         return result;
     }
+
+    public fn loadFactor(): double {
+        let s: int = this.map.size();
+        if (s == 0) { return 0.0; }
+        return s as double / (s * 2 + 1) as double;
+    }
+
+    public fn rehash(): void {
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        this.map = new HashMap<K, V>();
+        let i: int = 0;
+        while (i < entries.size()) {
+            let (key: K, val: V) = entries.get(i);
+            this.map.put(key, val);
+            i = i + 1;
+        }
+    }
+
+    public fn reserve(capacity: int): void {
+        // No-op: VM HashMap manages its own capacity
+    }
 }
