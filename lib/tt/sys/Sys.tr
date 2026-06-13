@@ -1,35 +1,35 @@
 // System operations backed by VM built-ins.
 import tt::util::ArrayList;
 
-fn args(): ArrayList<string> {
+public fn args(): ArrayList<string> {
     return Sys_args();
 }
 
-fn env(key: string): string {
+public fn env(key: string): string {
     return Sys_env(key);
 }
 
-fn setEnv(key: string, val: string): void {
+public fn setEnv(key: string, val: string): void {
     Sys_setEnv(key, val);
 }
 
-fn exit(code: int): void {
+public fn exit(code: int): void {
     Sys_exit(code);
 }
 
-fn workingDir(): string {
+public fn workingDir(): string {
     return Sys_workingDir();
 }
 
-fn sleep(ms: int): void {
+public fn sleep(ms: int): void {
     Sys_sleep(ms);
 }
 
-fn platform(): string {
+public fn platform(): string {
     return Os_name();
 }
 
-fn cpuCount(): int {
+public fn cpuCount(): int {
     let val: string = Sys_env("NUMBER_OF_PROCESSORS");
     if (val != null && String.length(val) > 0) {
         return Integer.parseInt(val);
@@ -37,19 +37,19 @@ fn cpuCount(): int {
     return 1;
 }
 
-fn exec(command: string): string {
+public fn exec(command: string): string {
     return Subprocess_exec(command);
 }
 
-fn pid(): int {
+public fn pid(): int {
     return Process_id();
 }
 
-fn nanoTime(): long {
+public fn nanoTime(): long {
     return Time_now() * 1000000;
 }
 
-fn userName(): string {
+public fn userName(): string {
     var name: string = Sys_env("USER");
     if (name == null || String.length(name) == 0) {
         name = Sys_env("USERNAME");
@@ -60,7 +60,7 @@ fn userName(): string {
     return name;
 }
 
-fn hostName(): string {
+public fn hostName(): string {
     var name: string = Sys_env("HOSTNAME");
     if (name == null || String.length(name) == 0) {
         name = Sys_env("COMPUTERNAME");

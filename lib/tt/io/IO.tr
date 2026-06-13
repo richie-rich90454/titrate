@@ -3,58 +3,58 @@ import tt::io::File;
 import tt::io::BufferedReader;
 import tt::io::StringWriter;
 
-fn println(message: string) {
+public fn println(message: string) {
     io::println(message);
 }
 
-fn print(message: string) {
+public fn print(message: string) {
     io::print(message);
 }
 
-fn readLine(): string {
+public fn readLine(): string {
     return io::readLine();
 }
 
-fn readAll(): string {
+public fn readAll(): string {
     return io::readAll();
 }
 
-fn stderr() {
+public fn stderr() {
     io::stderr();
 }
 
-fn eprintln(msg: string) {
+public fn eprintln(msg: string) {
     io::eprintln(msg);
 }
 
-fn eprint(msg: string) {
+public fn eprint(msg: string) {
     io::eprint(msg);
 }
 
 // Write a string to stderr with a newline.
-fn writeStderr(msg: string): void {
+public fn writeStderr(msg: string): void {
     io::eprintln(msg);
 }
 
 // Flush stderr output.
-fn flushStderr(): void {
-    io::eprintln("");
+public fn flushStderr(): void {
+    // No-op: stderr is typically unbuffered
 }
 
 // Read from stdin with a prompt.
-fn input(prompt: string): string {
+public fn input(prompt: string): string {
     io::print(prompt);
     return io::readLine();
 }
 
 // Read a line from stdin without a prompt.
-fn readInput(): string {
+public fn readInput(): string {
     return io::readLine();
 }
 
 // Unified file opener. Returns a BufferedReader for reading modes, or a File for writing modes.
 // Mode strings: "r" (read), "w" (write), "a" (append), "rb" (read binary), "wb" (write binary).
-fn open(path: string, mode: string): BufferedReader {
+public fn open(path: string, mode: string): BufferedReader {
     if (mode == "r" || mode == "rb") {
         return new BufferedReader(path);
     }
