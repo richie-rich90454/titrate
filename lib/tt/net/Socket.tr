@@ -90,6 +90,33 @@ public class Socket {
     public fn getRemotePort(): int {
         return Socket_getRemotePort(this.handle);
     }
+
+    public fn sendAll(data: string): void {
+        var totalSent: int = 0;
+        let totalLen: int = String.length(data);
+        while (totalSent < totalLen) {
+            let remaining: string = String.substring(data, totalSent);
+            let sent: int = this.send(remaining);
+            if (sent <= 0) {
+                return;
+            }
+            totalSent = totalSent + sent;
+        }
+    }
+
+    public fn recvAll(bufferSize: int): string {
+        var result: string = "";
+        var done: bool = false;
+        while (!done) {
+            let chunk: string = this.recv(bufferSize);
+            if (String.length(chunk) == 0) {
+                done = true;
+            } else {
+                result = result + chunk;
+            }
+        }
+        return result;
+    }
 }
 
 // DNS resolution: resolve a hostname to a list of IP addresses.
