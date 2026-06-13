@@ -292,7 +292,41 @@ pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_file_write_bytes(args: &[Value]) -> Result<Value, String> {
-    Err("File_writeBytes: not yet implemented".to_string())
+    if args.len() < 2 {
+        return Err("File_writeBytes: expected 2 arguments (path, hexData)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_writeBytes: expected String path".to_string()),
+    };
+    let hex_data = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_writeBytes: expected String hexData".to_string()),
+    };
+
+    // Decode hex string to bytes
+    if hex_data.len() % 2 != 0 {
+        return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            "File_writeBytes: hex data must have even length".to_string()
+        )))));
+    }
+    let bytes: Result<Vec<u8>, _> = (0..hex_data.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&hex_data[i..i+2], 16))
+        .collect();
+    match bytes {
+        Ok(data) => {
+            match std::fs::write(&path, &data) {
+                Ok(()) => Ok(Value::Void),
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("File_writeBytes: {}", e)
+                ))))),
+            }
+        }
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_writeBytes: invalid hex data: {}", e)
+        ))))),
+    }
 }
 
 pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String> {
