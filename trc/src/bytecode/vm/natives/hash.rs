@@ -151,6 +151,34 @@ pub(crate) fn native_hash_crc32(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+/// Constant-time comparison of two hex digest strings to prevent timing attacks.
+pub(crate) fn native_hmac_compare_digest(args: &[Value]) -> Result<Value, String> {
+    let a = match args.first() {
+        Some(Value::String(s)) => s.as_bytes(),
+        _ => return Err("Hmac_compareDigest: expected two String arguments".to_string()),
+    };
+    let b = match args.get(1) {
+        Some(Value::String(s)) => s.as_bytes(),
+        _ => return Err("Hmac_compareDigest: expected two String arguments".to_string()),
+    };
+    // Constant-time comparison: always compare all bytes
+    if a.len() != b.len() {
+        // Still do a comparison of the same length to avoid length-based timing
+        let len = a.len().min(b.len());
+        let mut result: u8 = (a.len() != b.len()) as u8;
+        for i in 0..len {
+            result |= a[i] ^ b[i];
+        }
+        Ok(Value::Bool(false))
+    } else {
+        let mut result: u8 = 0;
+        for i in 0..a.len() {
+            result |= a[i] ^ b[i];
+        }
+        Ok(Value::Bool(result == 0))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Incremental Hasher – handle-based registry with enum dispatch
 // ---------------------------------------------------------------------------

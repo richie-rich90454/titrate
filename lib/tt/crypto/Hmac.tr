@@ -32,6 +32,11 @@ public fn sha3_256(key: string, message: string): string {
     return _hmac(key, message, 136, "sha3-256");
 }
 
+// Constant-time comparison of two digest strings to prevent timing attacks.
+public fn compareDigest(a: string, b: string): bool {
+    return Hmac_compareDigest(a, b);
+}
+
 // HMAC-SHA256: returns raw byte string
 public fn sha256Bytes(key: string, message: string): string {
     let hex: string = sha256(key, message);
