@@ -225,6 +225,282 @@ public class Polynomial {
         return resultPoly;
     }
 
+    // Differentiate the polynomial
+    public fn derivative(): Polynomial {
+        let n: int = this.coefficients.size();
+        if (n <= 1) {
+            let zero: ArrayList<double> = new ArrayList<double>();
+            zero.add(0.0);
+            return new Polynomial(zero);
+        }
+        let result: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < n - 1) {
+            let deg: int = n - 1 - i;
+            result.add(this.coefficients.get(i) * (deg as double));
+            i = i + 1;
+        }
+        return new Polynomial(result);
+    }
+
+    // Integrate the polynomial with constant C
+    public fn integral(C: double): Polynomial {
+        let n: int = this.coefficients.size();
+        let result: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < n) {
+            let deg: int = n - 1 - i;
+            let newDeg: int = deg + 1;
+            result.add(this.coefficients.get(i) / (newDeg as double));
+            i = i + 1;
+        }
+        result.add(C);
+        return new Polynomial(result);
+    }
+
+    // Find roots using Durand-Kerner method (iterative)
+    public fn roots(): ArrayList<double> {
+        let n: int = this.degree();
+        let result: ArrayList<double> = new ArrayList<double>();
+        if (n == 0) { return result; }
+        // Handle linear case directly
+        if (n == 1) {
+            // ax + b = 0 => x = -b/a
+            let a: double = this.coefficients.get(0);
+            let b: double = this.coefficients.get(1);
+            if (a != 0.0) {
+                result.add(-b / a);
+            }
+            return result;
+        }
+        // Handle quadratic case directly
+        if (n == 2) {
+            let a: double = this.coefficients.get(0);
+            let b: double = this.coefficients.get(1);
+            let c: double = this.coefficients.get(2);
+            let disc: double = b * b - 4.0 * a * c;
+            if (disc < 0.0) { return result; }
+            let sqrtDisc: double = Math.sqrt(disc);
+            result.add((-b + sqrtDisc) / (2.0 * a));
+            result.add((-b - sqrtDisc) / (2.0 * a));
+            return result;
+        }
+        // Durand-Kerner method for degree >= 3
+        // Normalize polynomial so leading coefficient is 1
+        let leadCoeff: double = this.coefficients.get(0);
+        let normCoeffs: ArrayList<double> = new ArrayList<double>();
+        let ni: int = 0;
+        while (ni < this.coefficients.size()) {
+            normCoeffs.add(this.coefficients.get(ni) / leadCoeff);
+            ni = ni + 1;
+        }
+        // Initial guesses: evenly spaced on unit circle, offset slightly
+        let zr: ArrayList<double> = new ArrayList<double>();
+        let zi: ArrayList<double> = new ArrayList<double>();
+        let gi: int = 0;
+        while (gi < n) {
+            let angle: double = 2.0 * Math.PI() * (gi as double) / (n as double) + 0.4;
+            zr.add(Math.cos(angle));
+            zi.add(Math.sin(angle));
+            gi = gi + 1;
+        }
+        // Iterate Durand-Kerner
+        let maxIter: int = 1000;
+        let tol: double = 1e-12;
+        let iter: int = 0;
+        var converged: bool = false;
+        while (iter < maxIter && !converged) {
+            converged = true;
+            let ki: int = 0;
+            while (ki < n) {
+                // Evaluate polynomial at z[ki]
+                let pr: double = 0.0;
+                let pim: double = 0.0;
+                let ci: int = 0;
+                while (ci < normCoeffs.size()) {
+                    let deg: int = normCoeffs.size() - 1 - ci;
+                    // Compute z[ki]^deg using repeated multiplication
+                    let wr: double = 1.0;
+                    let wi: double = 0.0;
+                    let di: int = 0;
+                    while (di < deg) {
+                        let nr: double = wr * zr.get(ki) - wi * zi.get(ki);
+                        let ni2: double = wr * zi.get(ki) + wi * zr.get(ki);
+                        wr = nr;
+                        wi = ni2;
+                        di = di + 1;
+                    }
+                    pr = pr + normCoeffs.get(ci) * wr;
+                    pim = pim + normCoeffs.get(ci) * wi;
+                    ci = ci + 1;
+                }
+                // Compute product of (z[ki] - z[j]) for j != ki
+                let denomR: double = 1.0;
+                let denomI: double = 0.0;
+                let ji: int = 0;
+                while (ji < n) {
+                    if (ji != ki) {
+                        let dr: double = zr.get(ki) - zr.get(ji);
+                        let di2: double = zi.get(ki) - zi.get(ji);
+                        // Complex multiply: denom *= (dr + di2*i)
+                        let nr: double = denomR * dr - denomI * di2;
+                        let ni3: double = denomR * di2 + denomI * dr;
+                        denomR = nr;
+                        denomI = ni3;
+                    }
+                    ji = ji + 1;
+                }
+                // Complex division: p(z[ki]) / denom
+                let denomMag2: double = denomR * denomR + denomI * denomI;
+                if (denomMag2 > 1e-30) {
+                    let qr: double = (pr * denomR + pim * denomI) / denomMag2;
+                    let qi2: double = (pim * denomR - pr * denomI) / denomMag2;
+                    let newZr: double = zr.get(ki) - qr;
+                    let newZi: double = zi.get(ki) - qi2;
+                    let diffR: double = newZr - zr.get(ki);
+                    let diffI: double = newZi - zi.get(ki);
+                    if (diffR * diffR + diffI * diffI > tol * tol) {
+                        converged = false;
+                    }
+                    zr.set(ki, newZr);
+                    zi.set(ki, newZi);
+                }
+                ki = ki + 1;
+            }
+            iter = iter + 1;
+        }
+        // Return real parts of converged roots
+        let ri2: int = 0;
+        while (ri2 < n) {
+            result.add(zr.get(ri2));
+            ri2 = ri2 + 1;
+        }
+        return result;
+    }
+
+    // Find real roots (filter to values where |imag| < 1e-10)
+    public fn realRoots(): ArrayList<double> {
+        let allRoots: ArrayList<double> = this.roots();
+        let n: int = this.degree();
+        let result: ArrayList<double> = new ArrayList<double>();
+        // For Durand-Kerner, we need to re-run to get imaginary parts
+        // Instead, use a simpler approach: evaluate and check
+        // For now, re-implement Durand-Kerner tracking imaginary parts
+        if (n == 0) { return result; }
+        if (n == 1) {
+            let a: double = this.coefficients.get(0);
+            let b: double = this.coefficients.get(1);
+            if (a != 0.0) {
+                result.add(-b / a);
+            }
+            return result;
+        }
+        if (n == 2) {
+            let a: double = this.coefficients.get(0);
+            let b: double = this.coefficients.get(1);
+            let c: double = this.coefficients.get(2);
+            let disc: double = b * b - 4.0 * a * c;
+            if (disc >= 0.0) {
+                let sqrtDisc: double = Math.sqrt(disc);
+                result.add((-b + sqrtDisc) / (2.0 * a));
+                result.add((-b - sqrtDisc) / (2.0 * a));
+            }
+            return result;
+        }
+        // For higher degree, run Durand-Kerner and filter
+        let leadCoeff: double = this.coefficients.get(0);
+        let normCoeffs: ArrayList<double> = new ArrayList<double>();
+        let ni: int = 0;
+        while (ni < this.coefficients.size()) {
+            normCoeffs.add(this.coefficients.get(ni) / leadCoeff);
+            ni = ni + 1;
+        }
+        let zr: ArrayList<double> = new ArrayList<double>();
+        let zi: ArrayList<double> = new ArrayList<double>();
+        let gi: int = 0;
+        while (gi < n) {
+            let angle: double = 2.0 * Math.PI() * (gi as double) / (n as double) + 0.4;
+            zr.add(Math.cos(angle));
+            zi.add(Math.sin(angle));
+            gi = gi + 1;
+        }
+        let maxIter: int = 1000;
+        let tol: double = 1e-12;
+        let iter: int = 0;
+        var converged: bool = false;
+        while (iter < maxIter && !converged) {
+            converged = true;
+            let ki: int = 0;
+            while (ki < n) {
+                let pr: double = 0.0;
+                let pim: double = 0.0;
+                let ci: int = 0;
+                while (ci < normCoeffs.size()) {
+                    let deg: int = normCoeffs.size() - 1 - ci;
+                    let wr: double = 1.0;
+                    let wi: double = 0.0;
+                    let di: int = 0;
+                    while (di < deg) {
+                        let nr: double = wr * zr.get(ki) - wi * zi.get(ki);
+                        let ni2: double = wr * zi.get(ki) + wi * zr.get(ki);
+                        wr = nr;
+                        wi = ni2;
+                        di = di + 1;
+                    }
+                    pr = pr + normCoeffs.get(ci) * wr;
+                    pim = pim + normCoeffs.get(ci) * wi;
+                    ci = ci + 1;
+                }
+                let denomR: double = 1.0;
+                let denomI: double = 0.0;
+                let ji: int = 0;
+                while (ji < n) {
+                    if (ji != ki) {
+                        let dr: double = zr.get(ki) - zr.get(ji);
+                        let di2: double = zi.get(ki) - zi.get(ji);
+                        let nr: double = denomR * dr - denomI * di2;
+                        let ni3: double = denomR * di2 + denomI * dr;
+                        denomR = nr;
+                        denomI = ni3;
+                    }
+                    ji = ji + 1;
+                }
+                let denomMag2: double = denomR * denomR + denomI * denomI;
+                if (denomMag2 > 1e-30) {
+                    let qr: double = (pr * denomR + pim * denomI) / denomMag2;
+                    let qi2: double = (pim * denomR - pr * denomI) / denomMag2;
+                    let newZr: double = zr.get(ki) - qr;
+                    let newZi: double = zi.get(ki) - qi2;
+                    let diffR: double = newZr - zr.get(ki);
+                    let diffI: double = newZi - zi.get(ki);
+                    if (diffR * diffR + diffI * diffI > tol * tol) {
+                        converged = false;
+                    }
+                    zr.set(ki, newZr);
+                    zi.set(ki, newZi);
+                }
+                ki = ki + 1;
+            }
+            iter = iter + 1;
+        }
+        // Filter to real roots (|imag| < 1e-10)
+        let ri2: int = 0;
+        while (ri2 < n) {
+            if (Math.fabs(zi.get(ri2)) < 1e-10) {
+                result.add(zr.get(ri2));
+            }
+            ri2 = ri2 + 1;
+        }
+        return result;
+    }
+
+    // Check if x is a root within tolerance
+    public fn isRoot(x: double, tol: double): bool {
+        let val: double = this.eval(x);
+        if (val < 0.0) { val = -val; }
+        return val < tol;
+    }
+
     public fn toString(): string {
         // Build string representation like "3x^2 - 2"
         let parts: ArrayList<string> = new ArrayList<string>();
