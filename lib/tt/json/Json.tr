@@ -22,6 +22,18 @@ public fn prettyPrint(value: JsonValue, indent: int): string {
     return prettyPrintInner(value, indent, 0);
 }
 
+// Write a JsonValue to a file as JSON.
+public fn dump(value: JsonValue, path: string): void {
+    let jsonStr: string = value.toString();
+    File_writeAll(path, jsonStr);
+}
+
+// Read a JSON file and parse it into a JsonValue.
+public fn load(path: string): JsonValue {
+    let content: string = File_readAll(path);
+    return parse(content);
+}
+
 fn prettyPrintInner(value: JsonValue, indent: int, level: int): string {
     if (value.isNull()) {
         return "null";
