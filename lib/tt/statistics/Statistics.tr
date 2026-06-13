@@ -138,7 +138,7 @@ fn quantiles(data: ArrayList<double>, n: int): ArrayList<double> {
 }
 
 // Pearson correlation coefficient.
-fn correlation(x: ArrayList<double>, y: ArrayList<double>): double {
+public fn correlation(x: ArrayList<double>, y: ArrayList<double>): double {
     if (x.size() != y.size() || x.size() < 2) {
         return 0.0;
     }
@@ -163,7 +163,7 @@ fn correlation(x: ArrayList<double>, y: ArrayList<double>): double {
 }
 
 // Linear regression: returns [slope, intercept].
-fn linearRegression(x: ArrayList<double>, y: ArrayList<double>): ArrayList<double> {
+public fn linearRegression(x: ArrayList<double>, y: ArrayList<double>): ArrayList<double> {
     let result: ArrayList<double> = new ArrayList<double>();
     if (x.size() != y.size() || x.size() < 2) {
         result.add(0.0);
@@ -210,7 +210,7 @@ fn geometricMean(data: ArrayList<double>): double {
 }
 
 // Harmonic mean.
-fn harmonicMean(data: ArrayList<double>): double {
+public fn harmonicMean(data: ArrayList<double>): double {
     if (data.size() == 0) {
         return 0.0;
     }
