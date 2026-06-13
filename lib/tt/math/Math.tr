@@ -255,7 +255,12 @@ public fn fsum(values: ArrayList<double>): double {
 
 // Product of all values
 public fn prod(values: ArrayList<double>): double {
-    var result: double = 1.0;
+    return prodWithStart(values, 1.0);
+}
+
+// Product of all values with a configurable start value
+public fn prodWithStart(values: ArrayList<double>, start: double): double {
+    var result: double = start;
     var i: int = 0;
     while (i < values.size()) {
         result = result * values.get(i);
