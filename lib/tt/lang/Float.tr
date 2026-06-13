@@ -1,20 +1,20 @@
-fn parse(s: string): float {
+public fn parse(s: string): float {
     return Double_parseDouble(s);
 }
 
-fn toString(value: float): string {
+public fn toString(value: float): string {
     return value.toString();
 }
 
-fn isNaN(value: float): bool {
+public fn isNaN(value: float): bool {
     return value != value;
 }
 
-fn isInfinite(value: float): bool {
+public fn isInfinite(value: float): bool {
     return value == Float.POSITIVE_INFINITY() || value == Float.NEGATIVE_INFINITY();
 }
 
-fn parseOr(s: string, defaultValue: float): float {
+public fn parseOr(s: string, defaultValue: float): float {
     let result: float = Double_parseDouble(s);
     if (Float.isNaN(result)) {
         return defaultValue;
@@ -22,14 +22,14 @@ fn parseOr(s: string, defaultValue: float): float {
     return result;
 }
 
-fn POSITIVE_INFINITY(): float {
+public fn POSITIVE_INFINITY(): float {
     return Math_inf();
 }
 
-fn NEGATIVE_INFINITY(): float {
+public fn NEGATIVE_INFINITY(): float {
     return Math_negInf();
 }
 
-fn NaN(): float {
+public fn NaN(): float {
     return Math_nan();
 }

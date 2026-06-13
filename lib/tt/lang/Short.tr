@@ -1,7 +1,9 @@
-fn parse(s: string): short {
-    return parseInt(s);
+import tt::lang::Integer;
+
+public fn parse(s: string): short {
+    return Integer.parseInt(s);
 }
 
-fn toString(value: short): string {
+public fn toString(value: short): string {
     return value.toString();
 }

@@ -1,7 +1,7 @@
-fn parse(s: string): half {
+public fn parse(s: string): half {
     return Double_parseDouble(s);
 }
 
-fn toString(value: half): string {
+public fn toString(value: half): string {
     return value.toString();
 }

@@ -1,7 +1,7 @@
-fn parse(s: string): quad {
+public fn parse(s: string): quad {
     return Double_parseDouble(s);
 }
 
-fn toString(value: quad): string {
+public fn toString(value: quad): string {
     return value.toString();
 }

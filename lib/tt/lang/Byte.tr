@@ -1,7 +1,9 @@
-fn parse(s: string): byte {
-    return parseInt(s);
+import tt::lang::Integer;
+
+public fn parse(s: string): byte {
+    return Integer.parseInt(s);
 }
 
-fn toString(value: byte): string {
+public fn toString(value: byte): string {
     return value.toString();
 }
