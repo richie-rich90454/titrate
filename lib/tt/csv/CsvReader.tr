@@ -322,3 +322,180 @@ public class DictReader {
         this._pos = 0;
     }
 }
+
+// Dialect describes CSV formatting parameters.
+public class Dialect {
+    public string delimiter;
+    public string quoteChar;
+    public bool hasHeader;
+
+    public fn init(delimiter: string, quoteChar: string, hasHeader: bool) {
+        this.delimiter = delimiter;
+        this.quoteChar = quoteChar;
+        this.hasHeader = hasHeader;
+    }
+
+    public fn init() {
+        this.init(",", "\"", true);
+    }
+}
+
+// Sniffer auto-detects CSV dialect from a sample.
+public class Sniffer {
+
+    public fn init() {}
+
+    // Analyze a sample of CSV data to detect delimiter, quote char, and header presence
+    public fn sniff(sample: string): Dialect {
+        let delimiters: string = ",\t;|";
+        let bestDelimiter: string = ",";
+        let bestScore: int = -1;
+        let d: int = 0;
+        while (d < String.length(delimiters)) {
+            let delim: string = String.charAt(delimiters, d);
+            let score: int = this._countConsistent(sample, delim);
+            if (score > bestScore) {
+                bestScore = score;
+                bestDelimiter = delim;
+            }
+            d = d + 1;
+        }
+        // Detect quote character
+        let quoteChar: string = this._detectQuoteChar(sample);
+        // Detect header: if first row has no numeric values, assume header
+        let hasHeader: bool = this._detectHeader(sample, bestDelimiter);
+        return new Dialect(bestDelimiter, quoteChar, hasHeader);
+    }
+
+    // Count how consistently a delimiter appears per line
+    private fn _countConsistent(sample: string, delim: string): int {
+        let lines: int = 0;
+        let counts: ArrayList<int> = new ArrayList<int>();
+        let pos: int = 0;
+        let len: int = String.length(sample);
+        let inQuote: bool = false;
+        let count: int = 0;
+        while (pos < len) {
+            let c: string = String.charAt(sample, pos);
+            if (c == "\"") {
+                inQuote = !inQuote;
+            } else if (!inQuote && c == "\n") {
+                counts.add(count);
+                lines = lines + 1;
+                count = 0;
+            } else if (!inQuote && c == delim) {
+                count = count + 1;
+            } else if (!inQuote && c == "\r") {
+                // skip
+            }
+            pos = pos + 1;
+        }
+        if (count > 0 || lines == 0) {
+            counts.add(count);
+            lines = lines + 1;
+        }
+        if (lines <= 1) {
+            return counts.size() > 0 ? counts.get(0) : 0;
+        }
+        // Score: consistency = how many lines have the same count
+        let firstCount: int = counts.get(0);
+        let consistent: int = 0;
+        let i: int = 0;
+        while (i < counts.size()) {
+            if (counts.get(i) == firstCount && firstCount > 0) {
+                consistent = consistent + 1;
+            }
+            i = i + 1;
+        }
+        return consistent * (firstCount + 1);
+    }
+
+    // Detect the most common quote character
+    private fn _detectQuoteChar(sample: string): string {
+        let doubleQuotes: int = 0;
+        let singleQuotes: int = 0;
+        let pos: int = 0;
+        let len: int = String.length(sample);
+        while (pos < len) {
+            let c: string = String.charAt(sample, pos);
+            if (c == "\"") {
+                doubleQuotes = doubleQuotes + 1;
+            } else if (c == "'") {
+                singleQuotes = singleQuotes + 1;
+            }
+            pos = pos + 1;
+        }
+        if (doubleQuotes >= singleQuotes) {
+            return "\"";
+        }
+        return "'";
+    }
+
+    // Detect if first row looks like a header (non-numeric values)
+    private fn _detectHeader(sample: string, delim: string): bool {
+        let firstLine: string = "";
+        let pos: int = 0;
+        let len: int = String.length(sample);
+        while (pos < len) {
+            let c: string = String.charAt(sample, pos);
+            if (c == "\n" || c == "\r") {
+                break;
+            }
+            firstLine = firstLine + c;
+            pos = pos + 1;
+        }
+        if (String.length(firstLine) == 0) {
+            return true;
+        }
+        // Check if all fields in first line are non-numeric
+        let fields: ArrayList<string> = this._splitLine(firstLine, delim);
+        let nonNumeric: int = 0;
+        let i: int = 0;
+        while (i < fields.size()) {
+            let f: string = fields.get(i);
+            if (String.length(f) > 0 && !this._isNumeric(f)) {
+                nonNumeric = nonNumeric + 1;
+            }
+            i = i + 1;
+        }
+        return nonNumeric > 0;
+    }
+
+    private fn _splitLine(line: string, delim: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let current: string = "";
+        let pos: int = 0;
+        let len: int = String.length(line);
+        while (pos < len) {
+            let c: string = String.charAt(line, pos);
+            if (c == delim) {
+                result.add(current);
+                current = "";
+            } else {
+                current = current + c;
+            }
+            pos = pos + 1;
+        }
+        result.add(current);
+        return result;
+    }
+
+    private fn _isNumeric(s: string): bool {
+        if (String.length(s) == 0) {
+            return false;
+        }
+        let pos: int = 0;
+        let len: int = String.length(s);
+        let hasDigit: bool = false;
+        while (pos < len) {
+            let c: string = String.charAt(s, pos);
+            if (c >= "0" && c <= "9") {
+                hasDigit = true;
+            } else if (c != "." && c != "-" && c != "+" && c != "e" && c != "E") {
+                return false;
+            }
+            pos = pos + 1;
+        }
+        return hasDigit;
+    }
+}
