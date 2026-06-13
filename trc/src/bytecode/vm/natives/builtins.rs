@@ -102,7 +102,7 @@ pub(crate) fn native_string_length(args: &[Value]) -> Result<Value, String> {
         return Err("String_length: expected 1 argument".to_string());
     }
     match &args[0] {
-        Value::String(s) => Ok(Value::Int(s.len() as i32)),
+        Value::String(s) => Ok(Value::Int(s.chars().count() as i32)),
         _ => Err("String_length: expected String argument".to_string()),
     }
 }
