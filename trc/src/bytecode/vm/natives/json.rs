@@ -154,7 +154,7 @@ pub(crate) fn json_parse_value(input: &str) -> Result<(Value, &str), String> {
 
 pub(crate) fn json_parse_string(input: &str) -> Result<(Value, &str), String> {
     let bytes = input.as_bytes();
-    if bytes[0] != b'"' {
+    if bytes.is_empty() || bytes[0] != b'"' {
         return Err("Json_parse: expected '\"'".to_string());
     }
     let mut i = 1;
