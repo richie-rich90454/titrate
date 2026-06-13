@@ -1,0 +1,70 @@
+// Conic Sections: Parabola, Ellipse, Hyperbola, Circle
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathTrig;
+import tt::math::vec::Vec2;
+
+// ---- Parabola: y = ax^2 + bx + c ----
+
+public class Parabola {
+    public double a;
+    public double b;
+    public double c;
+
+    public fn init(a: double, b: double, c: double) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+    }
+
+    public fn eval(x: double): double {
+        return this.a * x * x + this.b * x + this.c;
+    }
+
+    public fn vertex(): Vec2 {
+        let h: double = -this.b / (2.0 * this.a);
+        let k: double = this.c - (this.b * this.b) / (4.0 * this.a);
+        return new Vec2(h, k);
+    }
+
+    public fn focus(): Vec2 {
+        let h: double = -this.b / (2.0 * this.a);
+        let k: double = this.c - (this.b * this.b) / (4.0 * this.a);
+        let f: double = 1.0 / (4.0 * this.a);
+        return new Vec2(h, k + f);
+    }
+
+    public fn directrix(): double {
+        let k: double = this.c - (this.b * this.b) / (4.0 * this.a);
+        let f: double = 1.0 / (4.0 * this.a);
+        return k - f;
+    }
+
+    public fn eccentricity(): double {
+        return 1.0;
+    }
+
+    public fn axisOfSymmetry(): double {
+        return -this.b / (2.0 * this.a);
+    }
+
+    public fn focalLength(): double {
+        return 1.0 / (4.0 * this.a);
+    }
+}
+
+// ---- Parabola factory functions ----
+
+public fn parabolaFromVertexAndFocus(vertex: Vec2, focus: Vec2): Parabola {
+    let a: double = 1.0 / (4.0 * (focus.y - vertex.y));
+    let b: double = -2.0 * a * vertex.x;
+    let c: double = vertex.y + a * vertex.x * vertex.x;
+    return new Parabola(a, b, c);
+}
+
+public fn parabolaFromFocusAndDirectrix(focus: Vec2, directrix: double): Parabola {
+    let a: double = 1.0 / (2.0 * (focus.y - directrix));
+    let b: double = -2.0 * a * focus.x;
+    let c: double = a * focus.x * focus.x + (focus.y + directrix) / 2.0;
+    return new Parabola(a, b, c);
+}
