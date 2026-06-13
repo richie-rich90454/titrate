@@ -124,6 +124,24 @@ public fn rename(oldPath: string, newPath: string): Result<string, string> {
     return err("failed to rename " + oldPath + " to " + newPath);
 }
 
+// Check file accessibility.
+// mode: 1 = exists, 2 = readable (file), 4 = writable (file), 8 = executable (file or dir)
+public fn access(path: string, mode: int): bool {
+    if (mode == 1) {
+        return Fs_exists(path);
+    }
+    if (mode == 2) {
+        return Fs_isFile(path);
+    }
+    if (mode == 4) {
+        return Fs_isFile(path);
+    }
+    if (mode == 8) {
+        return Fs_isFile(path) || Fs_isDir(path);
+    }
+    return Fs_exists(path);
+}
+
 // Get file/directory status.
 public fn stat(path: string): Result<HashMap<string, int>, string> {
     let result: HashMap<string, int> = new HashMap<string, int>();
