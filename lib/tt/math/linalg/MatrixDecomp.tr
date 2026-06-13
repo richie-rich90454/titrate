@@ -263,7 +263,7 @@ public fn choleskyDecompose(m: Matrix): Matrix {
                 }
                 var diag: double = m.data.get2D(j, j) - sum;
                 if (diag <= 0.0) { diag = 1e-15; }
-                L.data.set2D(j, j, Math.sqrt(diag));
+                L.data.set2D(j, j, MathAdvanced.sqrt(diag));
             } else {
                 var k: int = 0;
                 while (k < j) {
@@ -362,7 +362,7 @@ public fn eig(m: Matrix): ArrayList<Variant> {
             norm = norm + v.data.get2D(i, 0) * v.data.get2D(i, 0);
             i = i + 1;
         }
-        norm = Math.sqrt(norm);
+        norm = MathAdvanced.sqrt(norm);
         if (norm > 1e-15) {
             i = 0;
             while (i < n) {
@@ -399,7 +399,7 @@ public fn powerIteration(m: Matrix, maxIter: int): ArrayList<Variant> {
             norm = norm + vnew.data.get2D(i, 0) * vnew.data.get2D(i, 0);
             i = i + 1;
         }
-        norm = Math.sqrt(norm);
+        norm = MathAdvanced.sqrt(norm);
         if (norm < 1e-15) { break; }
         // Normalize
         i = 0;
@@ -467,7 +467,7 @@ public fn qrDecompose(m: Matrix): (Matrix, Matrix) {
             norm = norm + v.data.get2D(i, 0) * v.data.get2D(i, 0);
             i = i + 1;
         }
-        norm = Math.sqrt(norm);
+        norm = MathAdvanced.sqrt(norm);
         R.data.set2D(j, j, norm);
         // q_j = v / norm
         if (norm > 1e-15) {
@@ -516,7 +516,7 @@ public fn svd(m: Matrix): ArrayList<Variant> {
     while (idx < k) {
         let val: double = evals.get(idx);
         if (val > 0.0) {
-            S.data.set2D(idx, idx, Math.sqrt(val));
+            S.data.set2D(idx, idx, MathAdvanced.sqrt(val));
         }
         idx = idx + 1;
     }
