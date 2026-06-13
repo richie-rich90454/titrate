@@ -235,3 +235,184 @@ fn _groupHunks(edits: ArrayList<string>): ArrayList<ArrayList<string>> {
 
     return hunks;
 }
+
+// SequenceMatcher: compares two sequences and computes similarity and matching blocks.
+public class SequenceMatcher {
+    private ArrayList<string> a;
+    private ArrayList<string> b;
+
+    public fn init(aSeq: ArrayList<string>, bSeq: ArrayList<string>) {
+        this.a = aSeq;
+        this.b = bSeq;
+    }
+
+    // Return a measure of the sequences' similarity as a float in [0, 1].
+    public fn ratio(): double {
+        if (this.a.size() == 0 && this.b.size() == 0) { return 1.0; }
+        if (this.a.size() == 0 || this.b.size() == 0) { return 0.0; }
+        let lcsLen: int = _lcsLength(this.a, this.b);
+        return 2.0 * lcsLen as double / (this.a.size() + this.b.size()) as double;
+    }
+
+    // Return list of triples describing matching subsequences.
+    // Each triple is of the form (i, j, n) meaning a[i:i+n] == b[j:j+n].
+    public fn getMatchingBlocks(): ArrayList<ArrayList<int>> {
+        let result: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+        let lcs: ArrayList<string> = _lcs(this.a, this.b);
+        var ai: int = 0;
+        var bi: int = 0;
+        var li: int = 0;
+        var matchStartA: int = 0;
+        var matchStartB: int = 0;
+        var matchLen: int = 0;
+
+        while (li < lcs.size()) {
+            // Advance a and b to find the LCS element
+            while (ai < this.a.size() && this.a.get(ai) != lcs.get(li)) {
+                if (matchLen > 0) {
+                    let block: ArrayList<int> = new ArrayList<int>();
+                    block.add(matchStartA);
+                    block.add(matchStartB);
+                    block.add(matchLen);
+                    result.add(block);
+                    matchLen = 0;
+                }
+                ai = ai + 1;
+            }
+            while (bi < this.b.size() && this.b.get(bi) != lcs.get(li)) {
+                if (matchLen > 0) {
+                    let block: ArrayList<int> = new ArrayList<int>();
+                    block.add(matchStartA);
+                    block.add(matchStartB);
+                    block.add(matchLen);
+                    result.add(block);
+                    matchLen = 0;
+                }
+                bi = bi + 1;
+            }
+            if (matchLen == 0) {
+                matchStartA = ai;
+                matchStartB = bi;
+            }
+            matchLen = matchLen + 1;
+            ai = ai + 1;
+            bi = bi + 1;
+            li = li + 1;
+        }
+        if (matchLen > 0) {
+            let block: ArrayList<int> = new ArrayList<int>();
+            block.add(matchStartA);
+            block.add(matchStartB);
+            block.add(matchLen);
+            result.add(block);
+        }
+        // Sentinel
+        let sentinel: ArrayList<int> = new ArrayList<int>();
+        sentinel.add(this.a.size());
+        sentinel.add(this.b.size());
+        sentinel.add(0);
+        result.add(sentinel);
+        return result;
+    }
+
+    // Return list of 5-tuples describing how to turn a into b.
+    // Each tuple is (tag, i1, i2, j1, j2) where tag is "equal", "replace", "insert", or "delete".
+    public fn getOpcodes(): ArrayList<ArrayList<Variant>> {
+        let result: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+        let blocks: ArrayList<ArrayList<int>> = this.getMatchingBlocks();
+        var ai: int = 0;
+        var bi: int = 0;
+        var i: int = 0;
+        while (i < blocks.size()) {
+            let block: ArrayList<int> = blocks.get(i);
+            let aPos: int = block.get(0);
+            let bPos: int = block.get(1);
+            let size: int = block.get(2);
+            // Handle the gap between the last match and this one
+            if (ai < aPos && bi < bPos) {
+                let opcode: ArrayList<Variant> = new ArrayList<Variant>();
+                opcode.add("replace" as Variant);
+                opcode.add(ai as Variant);
+                opcode.add(aPos as Variant);
+                opcode.add(bi as Variant);
+                opcode.add(bPos as Variant);
+                result.add(opcode);
+            } else if (ai < aPos) {
+                let opcode: ArrayList<Variant> = new ArrayList<Variant>();
+                opcode.add("delete" as Variant);
+                opcode.add(ai as Variant);
+                opcode.add(aPos as Variant);
+                opcode.add(bi as Variant);
+                opcode.add(bi as Variant);
+                result.add(opcode);
+            } else if (bi < bPos) {
+                let opcode: ArrayList<Variant> = new ArrayList<Variant>();
+                opcode.add("insert" as Variant);
+                opcode.add(ai as Variant);
+                opcode.add(ai as Variant);
+                opcode.add(bi as Variant);
+                opcode.add(bPos as Variant);
+                result.add(opcode);
+            }
+            // Handle the equal block
+            if (size > 0) {
+                let opcode: ArrayList<Variant> = new ArrayList<Variant>();
+                opcode.add("equal" as Variant);
+                opcode.add(aPos as Variant);
+                opcode.add(aPos + size as Variant);
+                opcode.add(bPos as Variant);
+                opcode.add(bPos + size as Variant);
+                result.add(opcode);
+            }
+            ai = aPos + size;
+            bi = bPos + size;
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// Find the n closest matches to word from a list of possibilities.
+public fn getCloseMatches(word: string, possibilities: ArrayList<string>, n: int, cutoff: double): ArrayList<string> {
+    // Compute ratios and sort
+    let scored: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    var i: int = 0;
+    while (i < possibilities.size()) {
+        let candidate: string = possibilities.get(i);
+        let wordChars: ArrayList<string> = String.toCharArray(word);
+        let candChars: ArrayList<string> = String.toCharArray(candidate);
+        let r: double = ratio(wordChars, candChars);
+        if (r >= cutoff) {
+            let entry: ArrayList<Variant> = new ArrayList<Variant>();
+            entry.add(candidate as Variant);
+            entry.add(r as Variant);
+            scored.add(entry);
+        }
+        i = i + 1;
+    }
+    // Sort by ratio descending (simple selection sort)
+    var sorted: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    while (scored.size() > 0) {
+        var bestIdx: int = 0;
+        var bestScore: double = scored.get(0).get(1) as double;
+        var j: int = 1;
+        while (j < scored.size()) {
+            let s: double = scored.get(j).get(1) as double;
+            if (s > bestScore) {
+                bestScore = s;
+                bestIdx = j;
+            }
+            j = j + 1;
+        }
+        sorted.add(scored.get(bestIdx));
+        scored.remove(bestIdx);
+    }
+    // Take top n
+    let result: ArrayList<string> = new ArrayList<string>();
+    i = 0;
+    while (i < n && i < sorted.size()) {
+        result.add(sorted.get(i).get(0) as string);
+        i = i + 1;
+    }
+    return result;
+}
