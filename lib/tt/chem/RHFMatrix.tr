@@ -2,6 +2,7 @@ import tt::util::ArrayList;
 import tt::chem::Atom;
 import tt::math::linalg::Matrix;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 // RHF matrix construction: overlapMatrix, coreHamiltonian, fockMatrix, makeZeroMatrix, toMatrix, fromMatrix, copyMatrix
 
@@ -44,8 +45,8 @@ public fn buildOverlapMatrix(rhf: RHF): ArrayList<ArrayList<double>> {
                 let z2: double = orbitalExponent(a2.atomicNumber);
                 // Gaussian overlap: S ~ (4*z1*z2/(z1+z2)^2)^(3/4) * exp(-z1*z2*r^2/(z1+z2))
                 let zeta: double = z1 * z2 / (z1 + z2);
-                let norm: double = Math.pow(4.0 * z1 * z2 / ((z1 + z2) * (z1 + z2)), 0.75);
-                val = norm * Math.exp(-zeta * r * r);
+                let norm: double = MathAdvanced.pow(4.0 * z1 * z2 / ((z1 + z2) * (z1 + z2)), 0.75);
+                val = norm * MathAdvanced.exp(-zeta * r * r);
             }
             S.get(i).set(j, val);
             S.get(j).set(i, val);
@@ -97,13 +98,13 @@ public fn buildCoreHamiltonian(rhf: RHF): ArrayList<ArrayList<double>> {
                     if (arg_i < 1e-10) {
                         f0_i = 1.0;
                     } else {
-                        f0_i = (1.0 - Math.exp(-arg_i)) / arg_i;
+                        f0_i = (1.0 - MathAdvanced.exp(-arg_i)) / arg_i;
                     }
                     var f0_j: double = 0.0;
                     if (arg_j < 1e-10) {
                         f0_j = 1.0;
                     } else {
-                        f0_j = (1.0 - Math.exp(-arg_j)) / arg_j;
+                        f0_j = (1.0 - MathAdvanced.exp(-arg_j)) / arg_j;
                     }
                     nucAttr = nucAttr - zk * overlap * f0_i * f0_j;
                     k = k + 1;
