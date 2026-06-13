@@ -5,15 +5,26 @@ import tt::util::ArrayListIterator;
 public class PriorityQueue<E> {
     private ArrayList<E> data;
     private fn(E, E): bool _comparator;
+    private fn(E, E): int _intComparator;
 
     public fn PriorityQueue() {
         this.data = new ArrayList<E>();
         this._comparator = null;
+        this._intComparator = null;
     }
 
     public fn PriorityQueue(comparator: fn(E, E): bool) {
         this.data = new ArrayList<E>();
         this._comparator = comparator;
+        this._intComparator = null;
+    }
+
+    public fn initWithComparator(cmp: fn(E, E): int): void {
+        this.data = new ArrayList<E>();
+        this._intComparator = cmp;
+        this._comparator = fn(a: E, b: E): bool {
+            return this._intComparator(a, b) < 0;
+        };
     }
 
     private fn _less(a: E, b: E): bool {
