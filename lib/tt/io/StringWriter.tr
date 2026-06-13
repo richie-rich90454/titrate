@@ -30,4 +30,14 @@ public class StringWriter implements Writer {
     public fn toString(): string {
         return this._buf.build();
     }
+
+    // Clear all accumulated content
+    public fn clear(): void {
+        this._buf = new StringBuilder();
+    }
+
+    // Get the number of characters written so far
+    public fn size(): int {
+        return String.length(this._buf.build());
+    }
 }
