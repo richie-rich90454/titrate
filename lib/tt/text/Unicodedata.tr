@@ -1,301 +1,295 @@
 // Unicode character database access.
 import tt::util::HashMap;
 
-public class Unicodedata {
-    private static HashMap<int, string> categoryCache;
+var categoryCache: HashMap<int, string> = new HashMap<int, string>();
 
-    public fn init() {
-        Unicodedata.categoryCache = new HashMap<int, string>();
+// Get the general category of a Unicode character.
+public fn category(ch: string): string {
+    let code: int = String.charAt(ch, 0) as int;
+    // ASCII ranges
+    if (code >= 65 && code <= 90) { return "Lu"; }  // A-Z uppercase
+    if (code >= 97 && code <= 122) { return "Ll"; } // a-z lowercase
+    if (code >= 48 && code <= 57) { return "Nd"; }  // 0-9 digit
+    if (code >= 32 && code <= 47) { return "Po"; }  // punctuation
+    if (code >= 58 && code <= 64) { return "Po"; }
+    if (code >= 91 && code <= 96) { return "Po"; }
+    if (code >= 123 && code <= 126) { return "Po"; }
+    if (code == 32) { return "Zs"; }  // space
+    if (code >= 9 && code <= 13) { return "Cc"; }  // control chars
+    if (code >= 128 && code <= 255) { return "Lo"; } // Latin supplement
+    return "Cn"; // unassigned
+}
+
+// Get the decimal digit value, or -1 if not a digit.
+public fn decimal(ch: string): int {
+    let code: int = String.charAt(ch, 0) as int;
+    if (code >= 48 && code <= 57) { return code - 48; }
+    return -1;
+}
+
+// Get the numeric value, or -1.0 if not numeric.
+public fn numeric(ch: string): double {
+    let d: int = decimal(ch);
+    if (d >= 0) { return d as double; }
+    return -1.0;
+}
+
+// Check if character is a letter.
+public fn isLetter(ch: string): bool {
+    let cat: string = category(ch);
+    return String.length(cat) > 0 && String.charAt(cat, 0) == "L";
+}
+
+// Check if character is a digit.
+public fn isDigit(ch: string): bool {
+    return category(ch) == "Nd";
+}
+
+// Check if character is a space.
+public fn isSpace(ch: string): bool {
+    let cat: string = category(ch);
+    return String.length(cat) > 0 && String.charAt(cat, 0) == "Z";
+}
+
+// Check if character is uppercase.
+public fn isUpper(ch: string): bool {
+    return category(ch) == "Lu";
+}
+
+// Check if character is lowercase.
+public fn isLower(ch: string): bool {
+    return category(ch) == "Ll";
+}
+
+// Check if character is a titlecase letter.
+public fn isTitle(ch: string): bool {
+    return category(ch) == "Lt";
+}
+
+// Normalize a string to NFC or NFD form.
+// For ASCII range, NFC and NFD are identical (no decomposable characters).
+// For Latin-1 supplement, we handle common combining character sequences.
+public fn normalize(form: string, s: string): string {
+    if (form == "NFD") {
+        return _decompose(s);
     }
+    // NFC: decompose then compose
+    let decomposed: string = _decompose(s);
+    return _compose(decomposed);
+}
 
-    // Get the general category of a Unicode character.
-    public static fn category(ch: string): string {
-        let code: int = String.charAt(ch, 0) as int;
-        // ASCII ranges
-        if (code >= 65 && code <= 90) { return "Lu"; }  // A-Z uppercase
-        if (code >= 97 && code <= 122) { return "Ll"; } // a-z lowercase
-        if (code >= 48 && code <= 57) { return "Nd"; }  // 0-9 digit
-        if (code >= 32 && code <= 47) { return "Po"; }  // punctuation
-        if (code >= 58 && code <= 64) { return "Po"; }
-        if (code >= 91 && code <= 96) { return "Po"; }
-        if (code >= 123 && code <= 126) { return "Po"; }
-        if (code == 32) { return "Zs"; }  // space
-        if (code >= 9 && code <= 13) { return "Cc"; }  // control chars
-        if (code >= 128 && code <= 255) { return "Lo"; } // Latin supplement
-        return "Cn"; // unassigned
+// Decompose precomposed characters into base + combining marks (NFD).
+fn _decompose(s: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let code: int = String.charAt(s, i) as int;
+        // Latin-1 supplement: decompose precomposed characters
+        // A grave (192) -> A (65) + combining grave (768)
+        if (code == 192) { result = result + "A" + String.charAt(768 as string, 0); }
+        else if (code == 193) { result = result + "A" + String.charAt(769 as string, 0); }
+        else if (code == 194) { result = result + "A" + String.charAt(770 as string, 0); }
+        else if (code == 195) { result = result + "A" + String.charAt(771 as string, 0); }
+        else if (code == 200) { result = result + "E" + String.charAt(768 as string, 0); }
+        else if (code == 201) { result = result + "E" + String.charAt(769 as string, 0); }
+        else if (code == 202) { result = result + "E" + String.charAt(770 as string, 0); }
+        else if (code == 203) { result = result + "E" + String.charAt(771 as string, 0); }
+        else if (code == 204) { result = result + "I" + String.charAt(768 as string, 0); }
+        else if (code == 205) { result = result + "I" + String.charAt(769 as string, 0); }
+        else if (code == 210) { result = result + "O" + String.charAt(768 as string, 0); }
+        else if (code == 211) { result = result + "O" + String.charAt(769 as string, 0); }
+        else if (code == 217) { result = result + "U" + String.charAt(768 as string, 0); }
+        else if (code == 218) { result = result + "U" + String.charAt(769 as string, 0); }
+        else if (code == 224) { result = result + "a" + String.charAt(768 as string, 0); }
+        else if (code == 225) { result = result + "a" + String.charAt(769 as string, 0); }
+        else if (code == 226) { result = result + "a" + String.charAt(770 as string, 0); }
+        else if (code == 227) { result = result + "a" + String.charAt(771 as string, 0); }
+        else if (code == 232) { result = result + "e" + String.charAt(768 as string, 0); }
+        else if (code == 233) { result = result + "e" + String.charAt(769 as string, 0); }
+        else if (code == 234) { result = result + "e" + String.charAt(770 as string, 0); }
+        else if (code == 235) { result = result + "e" + String.charAt(771 as string, 0); }
+        else if (code == 236) { result = result + "i" + String.charAt(768 as string, 0); }
+        else if (code == 237) { result = result + "i" + String.charAt(769 as string, 0); }
+        else if (code == 242) { result = result + "o" + String.charAt(768 as string, 0); }
+        else if (code == 243) { result = result + "o" + String.charAt(769 as string, 0); }
+        else if (code == 249) { result = result + "u" + String.charAt(768 as string, 0); }
+        else if (code == 250) { result = result + "u" + String.charAt(769 as string, 0); }
+        else if (code == 241) { result = result + "n" + String.charAt(771 as string, 0); }
+        else if (code == 209) { result = result + "N" + String.charAt(771 as string, 0); }
+        else if (code == 231) { result = result + "c" + String.charAt(807 as string, 0); }
+        else if (code == 199) { result = result + "C" + String.charAt(807 as string, 0); }
+        else if (code == 252) { result = result + "u" + String.charAt(776 as string, 0); }
+        else if (code == 220) { result = result + "U" + String.charAt(776 as string, 0); }
+        else if (code == 246) { result = result + "o" + String.charAt(776 as string, 0); }
+        else if (code == 214) { result = result + "O" + String.charAt(776 as string, 0); }
+        else if (code == 228) { result = result + "a" + String.charAt(776 as string, 0); }
+        else if (code == 196) { result = result + "A" + String.charAt(776 as string, 0); }
+        else { result = result + String.charAt(s, i); }
+        i = i + 1;
     }
+    return result;
+}
 
-    // Get the decimal digit value, or -1 if not a digit.
-    public static fn decimal(ch: string): int {
-        let code: int = String.charAt(ch, 0) as int;
-        if (code >= 48 && code <= 57) { return code - 48; }
-        return -1;
-    }
-
-    // Get the numeric value, or -1.0 if not numeric.
-    public static fn numeric(ch: string): double {
-        let d: int = decimal(ch);
-        if (d >= 0) { return d as double; }
-        return -1.0;
-    }
-
-    // Check if character is a letter.
-    public static fn isLetter(ch: string): bool {
-        let cat: string = category(ch);
-        return String.length(cat) > 0 && String.charAt(cat, 0) == "L";
-    }
-
-    // Check if character is a digit.
-    public static fn isDigit(ch: string): bool {
-        return category(ch) == "Nd";
-    }
-
-    // Check if character is a space.
-    public static fn isSpace(ch: string): bool {
-        let cat: string = category(ch);
-        return String.length(cat) > 0 && String.charAt(cat, 0) == "Z";
-    }
-
-    // Check if character is uppercase.
-    public static fn isUpper(ch: string): bool {
-        return category(ch) == "Lu";
-    }
-
-    // Check if character is lowercase.
-    public static fn isLower(ch: string): bool {
-        return category(ch) == "Ll";
-    }
-
-    // Check if character is a titlecase letter.
-    public static fn isTitle(ch: string): bool {
-        return category(ch) == "Lt";
-    }
-
-    // Normalize a string to NFC or NFD form.
-    // For ASCII range, NFC and NFD are identical (no decomposable characters).
-    // For Latin-1 supplement, we handle common combining character sequences.
-    public static fn normalize(form: string, s: string): string {
-        if (form == "NFD") {
-            return _decompose(s);
-        }
-        // NFC: decompose then compose
-        let decomposed: string = _decompose(s);
-        return _compose(decomposed);
-    }
-
-    // Decompose precomposed characters into base + combining marks (NFD).
-    fn _decompose(s: string): string {
-        var result: string = "";
-        var i: int = 0;
-        while (i < String.length(s)) {
-            let code: int = String.charAt(s, i) as int;
-            // Latin-1 supplement: decompose precomposed characters
-            // A grave (192) -> A (65) + combining grave (768)
-            if (code == 192) { result = result + "A" + String.charAt(768 as string, 0); }
-            else if (code == 193) { result = result + "A" + String.charAt(769 as string, 0); }
-            else if (code == 194) { result = result + "A" + String.charAt(770 as string, 0); }
-            else if (code == 195) { result = result + "A" + String.charAt(771 as string, 0); }
-            else if (code == 200) { result = result + "E" + String.charAt(768 as string, 0); }
-            else if (code == 201) { result = result + "E" + String.charAt(769 as string, 0); }
-            else if (code == 202) { result = result + "E" + String.charAt(770 as string, 0); }
-            else if (code == 203) { result = result + "E" + String.charAt(771 as string, 0); }
-            else if (code == 204) { result = result + "I" + String.charAt(768 as string, 0); }
-            else if (code == 205) { result = result + "I" + String.charAt(769 as string, 0); }
-            else if (code == 210) { result = result + "O" + String.charAt(768 as string, 0); }
-            else if (code == 211) { result = result + "O" + String.charAt(769 as string, 0); }
-            else if (code == 217) { result = result + "U" + String.charAt(768 as string, 0); }
-            else if (code == 218) { result = result + "U" + String.charAt(769 as string, 0); }
-            else if (code == 224) { result = result + "a" + String.charAt(768 as string, 0); }
-            else if (code == 225) { result = result + "a" + String.charAt(769 as string, 0); }
-            else if (code == 226) { result = result + "a" + String.charAt(770 as string, 0); }
-            else if (code == 227) { result = result + "a" + String.charAt(771 as string, 0); }
-            else if (code == 232) { result = result + "e" + String.charAt(768 as string, 0); }
-            else if (code == 233) { result = result + "e" + String.charAt(769 as string, 0); }
-            else if (code == 234) { result = result + "e" + String.charAt(770 as string, 0); }
-            else if (code == 235) { result = result + "e" + String.charAt(771 as string, 0); }
-            else if (code == 236) { result = result + "i" + String.charAt(768 as string, 0); }
-            else if (code == 237) { result = result + "i" + String.charAt(769 as string, 0); }
-            else if (code == 242) { result = result + "o" + String.charAt(768 as string, 0); }
-            else if (code == 243) { result = result + "o" + String.charAt(769 as string, 0); }
-            else if (code == 249) { result = result + "u" + String.charAt(768 as string, 0); }
-            else if (code == 250) { result = result + "u" + String.charAt(769 as string, 0); }
-            else if (code == 241) { result = result + "n" + String.charAt(771 as string, 0); }
-            else if (code == 209) { result = result + "N" + String.charAt(771 as string, 0); }
-            else if (code == 231) { result = result + "c" + String.charAt(807 as string, 0); }
-            else if (code == 199) { result = result + "C" + String.charAt(807 as string, 0); }
-            else if (code == 252) { result = result + "u" + String.charAt(776 as string, 0); }
-            else if (code == 220) { result = result + "U" + String.charAt(776 as string, 0); }
-            else if (code == 246) { result = result + "o" + String.charAt(776 as string, 0); }
-            else if (code == 214) { result = result + "O" + String.charAt(776 as string, 0); }
-            else if (code == 228) { result = result + "a" + String.charAt(776 as string, 0); }
-            else if (code == 196) { result = result + "A" + String.charAt(776 as string, 0); }
-            else { result = result + String.charAt(s, i); }
-            i = i + 1;
-        }
-        return result;
-    }
-
-    // Compose combining character sequences back to precomposed form (NFC).
-    fn _compose(s: string): string {
-        var result: string = "";
-        var i: int = 0;
-        while (i < String.length(s)) {
-            let ch: string = String.charAt(s, i);
-            let code: int = ch as int;
-            // Check if next character is a combining mark
-            if (i + 1 < String.length(s)) {
-                let nextCode: int = String.charAt(s, i + 1) as int;
-                // Combining grave accent (768)
-                if (nextCode == 768) {
-                    if (code == 65) { result = result + String.charAt(192 as string, 0); i = i + 2; continue; }
-                    if (code == 69) { result = result + String.charAt(200 as string, 0); i = i + 2; continue; }
-                    if (code == 73) { result = result + String.charAt(204 as string, 0); i = i + 2; continue; }
-                    if (code == 79) { result = result + String.charAt(210 as string, 0); i = i + 2; continue; }
-                    if (code == 85) { result = result + String.charAt(217 as string, 0); i = i + 2; continue; }
-                    if (code == 97) { result = result + String.charAt(224 as string, 0); i = i + 2; continue; }
-                    if (code == 101) { result = result + String.charAt(232 as string, 0); i = i + 2; continue; }
-                    if (code == 105) { result = result + String.charAt(236 as string, 0); i = i + 2; continue; }
-                    if (code == 111) { result = result + String.charAt(242 as string, 0); i = i + 2; continue; }
-                    if (code == 117) { result = result + String.charAt(249 as string, 0); i = i + 2; continue; }
-                }
-                // Combining acute accent (769)
-                if (nextCode == 769) {
-                    if (code == 65) { result = result + String.charAt(193 as string, 0); i = i + 2; continue; }
-                    if (code == 69) { result = result + String.charAt(201 as string, 0); i = i + 2; continue; }
-                    if (code == 73) { result = result + String.charAt(205 as string, 0); i = i + 2; continue; }
-                    if (code == 79) { result = result + String.charAt(211 as string, 0); i = i + 2; continue; }
-                    if (code == 85) { result = result + String.charAt(218 as string, 0); i = i + 2; continue; }
-                    if (code == 97) { result = result + String.charAt(225 as string, 0); i = i + 2; continue; }
-                    if (code == 101) { result = result + String.charAt(233 as string, 0); i = i + 2; continue; }
-                    if (code == 105) { result = result + String.charAt(237 as string, 0); i = i + 2; continue; }
-                    if (code == 111) { result = result + String.charAt(243 as string, 0); i = i + 2; continue; }
-                    if (code == 117) { result = result + String.charAt(250 as string, 0); i = i + 2; continue; }
-                }
-                // Combining circumflex (770)
-                if (nextCode == 770) {
-                    if (code == 65) { result = result + String.charAt(194 as string, 0); i = i + 2; continue; }
-                    if (code == 69) { result = result + String.charAt(202 as string, 0); i = i + 2; continue; }
-                    if (code == 97) { result = result + String.charAt(226 as string, 0); i = i + 2; continue; }
-                    if (code == 101) { result = result + String.charAt(234 as string, 0); i = i + 2; continue; }
-                    if (code == 111) { result = result + String.charAt(244 as string, 0); i = i + 2; continue; }
-                    if (code == 117) { result = result + String.charAt(251 as string, 0); i = i + 2; continue; }
-                }
-                // Combining tilde (771)
-                if (nextCode == 771) {
-                    if (code == 65) { result = result + String.charAt(195 as string, 0); i = i + 2; continue; }
-                    if (code == 78) { result = result + String.charAt(209 as string, 0); i = i + 2; continue; }
-                    if (code == 79) { result = result + String.charAt(213 as string, 0); i = i + 2; continue; }
-                    if (code == 97) { result = result + String.charAt(227 as string, 0); i = i + 2; continue; }
-                    if (code == 110) { result = result + String.charAt(241 as string, 0); i = i + 2; continue; }
-                    if (code == 111) { result = result + String.charAt(245 as string, 0); i = i + 2; continue; }
-                }
-                // Combining diaeresis (776)
-                if (nextCode == 776) {
-                    if (code == 65) { result = result + String.charAt(196 as string, 0); i = i + 2; continue; }
-                    if (code == 69) { result = result + String.charAt(203 as string, 0); i = i + 2; continue; }
-                    if (code == 79) { result = result + String.charAt(214 as string, 0); i = i + 2; continue; }
-                    if (code == 85) { result = result + String.charAt(220 as string, 0); i = i + 2; continue; }
-                    if (code == 97) { result = result + String.charAt(228 as string, 0); i = i + 2; continue; }
-                    if (code == 101) { result = result + String.charAt(235 as string, 0); i = i + 2; continue; }
-                    if (code == 111) { result = result + String.charAt(246 as string, 0); i = i + 2; continue; }
-                    if (code == 117) { result = result + String.charAt(252 as string, 0); i = i + 2; continue; }
-                }
-                // Combining cedilla (807)
-                if (nextCode == 807) {
-                    if (code == 67) { result = result + String.charAt(199 as string, 0); i = i + 2; continue; }
-                    if (code == 99) { result = result + String.charAt(231 as string, 0); i = i + 2; continue; }
-                }
+// Compose combining character sequences back to precomposed form (NFC).
+fn _compose(s: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let ch: string = String.charAt(s, i);
+        let code: int = ch as int;
+        // Check if next character is a combining mark
+        if (i + 1 < String.length(s)) {
+            let nextCode: int = String.charAt(s, i + 1) as int;
+            // Combining grave accent (768)
+            if (nextCode == 768) {
+                if (code == 65) { result = result + String.charAt(192 as string, 0); i = i + 2; continue; }
+                if (code == 69) { result = result + String.charAt(200 as string, 0); i = i + 2; continue; }
+                if (code == 73) { result = result + String.charAt(204 as string, 0); i = i + 2; continue; }
+                if (code == 79) { result = result + String.charAt(210 as string, 0); i = i + 2; continue; }
+                if (code == 85) { result = result + String.charAt(217 as string, 0); i = i + 2; continue; }
+                if (code == 97) { result = result + String.charAt(224 as string, 0); i = i + 2; continue; }
+                if (code == 101) { result = result + String.charAt(232 as string, 0); i = i + 2; continue; }
+                if (code == 105) { result = result + String.charAt(236 as string, 0); i = i + 2; continue; }
+                if (code == 111) { result = result + String.charAt(242 as string, 0); i = i + 2; continue; }
+                if (code == 117) { result = result + String.charAt(249 as string, 0); i = i + 2; continue; }
             }
-            result = result + ch;
-            i = i + 1;
+            // Combining acute accent (769)
+            if (nextCode == 769) {
+                if (code == 65) { result = result + String.charAt(193 as string, 0); i = i + 2; continue; }
+                if (code == 69) { result = result + String.charAt(201 as string, 0); i = i + 2; continue; }
+                if (code == 73) { result = result + String.charAt(205 as string, 0); i = i + 2; continue; }
+                if (code == 79) { result = result + String.charAt(211 as string, 0); i = i + 2; continue; }
+                if (code == 85) { result = result + String.charAt(218 as string, 0); i = i + 2; continue; }
+                if (code == 97) { result = result + String.charAt(225 as string, 0); i = i + 2; continue; }
+                if (code == 101) { result = result + String.charAt(233 as string, 0); i = i + 2; continue; }
+                if (code == 105) { result = result + String.charAt(237 as string, 0); i = i + 2; continue; }
+                if (code == 111) { result = result + String.charAt(243 as string, 0); i = i + 2; continue; }
+                if (code == 117) { result = result + String.charAt(250 as string, 0); i = i + 2; continue; }
+            }
+            // Combining circumflex (770)
+            if (nextCode == 770) {
+                if (code == 65) { result = result + String.charAt(194 as string, 0); i = i + 2; continue; }
+                if (code == 69) { result = result + String.charAt(202 as string, 0); i = i + 2; continue; }
+                if (code == 97) { result = result + String.charAt(226 as string, 0); i = i + 2; continue; }
+                if (code == 101) { result = result + String.charAt(234 as string, 0); i = i + 2; continue; }
+                if (code == 111) { result = result + String.charAt(244 as string, 0); i = i + 2; continue; }
+                if (code == 117) { result = result + String.charAt(251 as string, 0); i = i + 2; continue; }
+            }
+            // Combining tilde (771)
+            if (nextCode == 771) {
+                if (code == 65) { result = result + String.charAt(195 as string, 0); i = i + 2; continue; }
+                if (code == 78) { result = result + String.charAt(209 as string, 0); i = i + 2; continue; }
+                if (code == 79) { result = result + String.charAt(213 as string, 0); i = i + 2; continue; }
+                if (code == 97) { result = result + String.charAt(227 as string, 0); i = i + 2; continue; }
+                if (code == 110) { result = result + String.charAt(241 as string, 0); i = i + 2; continue; }
+                if (code == 111) { result = result + String.charAt(245 as string, 0); i = i + 2; continue; }
+            }
+            // Combining diaeresis (776)
+            if (nextCode == 776) {
+                if (code == 65) { result = result + String.charAt(196 as string, 0); i = i + 2; continue; }
+                if (code == 69) { result = result + String.charAt(203 as string, 0); i = i + 2; continue; }
+                if (code == 79) { result = result + String.charAt(214 as string, 0); i = i + 2; continue; }
+                if (code == 85) { result = result + String.charAt(220 as string, 0); i = i + 2; continue; }
+                if (code == 97) { result = result + String.charAt(228 as string, 0); i = i + 2; continue; }
+                if (code == 101) { result = result + String.charAt(235 as string, 0); i = i + 2; continue; }
+                if (code == 111) { result = result + String.charAt(246 as string, 0); i = i + 2; continue; }
+                if (code == 117) { result = result + String.charAt(252 as string, 0); i = i + 2; continue; }
+            }
+            // Combining cedilla (807)
+            if (nextCode == 807) {
+                if (code == 67) { result = result + String.charAt(199 as string, 0); i = i + 2; continue; }
+                if (code == 99) { result = result + String.charAt(231 as string, 0); i = i + 2; continue; }
+            }
         }
-        return result;
+        result = result + ch;
+        i = i + 1;
     }
+    return result;
+}
 
-    // Get the Unicode name of a character.
-    public static fn name(ch: string): string {
-        let code: int = String.charAt(ch, 0) as int;
-        if (code >= 65 && code <= 90) {
-            return "LATIN CAPITAL LETTER " + String.toUpperCase(ch);
-        }
-        if (code >= 97 && code <= 122) {
-            return "LATIN SMALL LETTER " + String.toUpperCase(ch);
-        }
-        if (code >= 48 && code <= 57) {
-            return "DIGIT " + ch;
-        }
-        if (code == 32) { return "SPACE"; }
-        if (code == 10) { return "LINE FEED"; }
-        if (code == 13) { return "CARRIAGE RETURN"; }
-        if (code == 9) { return "TAB"; }
-        return "CHARACTER " + Integer.toString(code);
+// Get the Unicode name of a character.
+public fn name(ch: string): string {
+    let code: int = String.charAt(ch, 0) as int;
+    if (code >= 65 && code <= 90) {
+        return "LATIN CAPITAL LETTER " + String.toUpperCase(ch);
     }
+    if (code >= 97 && code <= 122) {
+        return "LATIN SMALL LETTER " + String.toUpperCase(ch);
+    }
+    if (code >= 48 && code <= 57) {
+        return "DIGIT " + ch;
+    }
+    if (code == 32) { return "SPACE"; }
+    if (code == 10) { return "LINE FEED"; }
+    if (code == 13) { return "CARRIAGE RETURN"; }
+    if (code == 9) { return "TAB"; }
+    return "CHARACTER " + Integer.toString(code);
+}
 
-    // Look up a character by its Unicode name.
-    public static fn lookup(name: string): string {
-        // Simplified: only handles basic names
-        return "";
-    }
+// Look up a character by its Unicode name.
+public fn lookup(name: string): string {
+    // Simplified: only handles basic names
+    return "";
+}
 
-    // Get the bidirectional category.
-    public static fn bidirectional(ch: string): string {
-        let code: int = String.charAt(ch, 0) as int;
-        if (code >= 65 && code <= 90) { return "L"; }
-        if (code >= 97 && code <= 122) { return "L"; }
-        if (code >= 48 && code <= 57) { return "EN"; }
-        if (code == 32) { return "WS"; }
-        return "ON";
-    }
+// Get the bidirectional category.
+public fn bidirectional(ch: string): string {
+    let code: int = String.charAt(ch, 0) as int;
+    if (code >= 65 && code <= 90) { return "L"; }
+    if (code >= 97 && code <= 122) { return "L"; }
+    if (code >= 48 && code <= 57) { return "EN"; }
+    if (code == 32) { return "WS"; }
+    return "ON";
+}
 
-    // Get the combining class.
-    // Returns the canonical combining class value for common combining marks.
-    public static fn combining(ch: string): int {
-        let code: int = String.charAt(ch, 0) as int;
-        // Combining marks in Unicode have combining class > 0
-        // Combining grave accent (768) -> 230
-        if (code == 768) { return 230; }
-        // Combining acute accent (769) -> 230
-        if (code == 769) { return 230; }
-        // Combining circumflex accent (770) -> 230
-        if (code == 770) { return 230; }
-        // Combining tilde (771) -> 230
-        if (code == 771) { return 230; }
-        // Combining macron (772) -> 230
-        if (code == 772) { return 230; }
-        // Combining overline (773) -> 230
-        if (code == 773) { return 230; }
-        // Combining breve (774) -> 230
-        if (code == 774) { return 230; }
-        // Combining dot above (775) -> 230
-        if (code == 775) { return 230; }
-        // Combining diaeresis (776) -> 230
-        if (code == 776) { return 230; }
-        // Combining ring above (778) -> 230
-        if (code == 778) { return 230; }
-        // Combining double acute accent (779) -> 230
-        if (code == 779) { return 230; }
-        // Combining caron (780) -> 230
-        if (code == 780) { return 230; }
-        // Combining cedilla (807) -> 202
-        if (code == 807) { return 202; }
-        // General combining marks range (0x0300-0x034E)
-        if (code >= 768 && code <= 846) { return 230; }
-        return 0;
-    }
+// Get the combining class.
+// Returns the canonical combining class value for common combining marks.
+public fn combining(ch: string): int {
+    let code: int = String.charAt(ch, 0) as int;
+    // Combining marks in Unicode have combining class > 0
+    // Combining grave accent (768) -> 230
+    if (code == 768) { return 230; }
+    // Combining acute accent (769) -> 230
+    if (code == 769) { return 230; }
+    // Combining circumflex accent (770) -> 230
+    if (code == 770) { return 230; }
+    // Combining tilde (771) -> 230
+    if (code == 771) { return 230; }
+    // Combining macron (772) -> 230
+    if (code == 772) { return 230; }
+    // Combining overline (773) -> 230
+    if (code == 773) { return 230; }
+    // Combining breve (774) -> 230
+    if (code == 774) { return 230; }
+    // Combining dot above (775) -> 230
+    if (code == 775) { return 230; }
+    // Combining diaeresis (776) -> 230
+    if (code == 776) { return 230; }
+    // Combining ring above (778) -> 230
+    if (code == 778) { return 230; }
+    // Combining double acute accent (779) -> 230
+    if (code == 779) { return 230; }
+    // Combining caron (780) -> 230
+    if (code == 780) { return 230; }
+    // Combining cedilla (807) -> 202
+    if (code == 807) { return 202; }
+    // General combining marks range (0x0300-0x034E)
+    if (code >= 768 && code <= 846) { return 230; }
+    return 0;
+}
 
-    // Get the mirrored property.
-    // Returns 1 if the character is mirrored in bidirectional text, 0 otherwise.
-    public static fn mirrored(ch: string): int {
-        let code: int = String.charAt(ch, 0) as int;
-        // Common mirrored characters in ASCII/Latin range
-        if (code == 40) { return 1; }   // (
-        if (code == 41) { return 1; }   // )
-        if (code == 60) { return 1; }   // <
-        if (code == 62) { return 1; }   // >
-        if (code == 91) { return 1; }   // [
-        if (code == 93) { return 1; }   // ]
-        if (code == 123) { return 1; }  // {
-        if (code == 125) { return 1; }  // }
-        return 0;
-    }
+// Get the mirrored property.
+// Returns 1 if the character is mirrored in bidirectional text, 0 otherwise.
+public fn mirrored(ch: string): int {
+    let code: int = String.charAt(ch, 0) as int;
+    // Common mirrored characters in ASCII/Latin range
+    if (code == 40) { return 1; }   // (
+    if (code == 41) { return 1; }   // )
+    if (code == 60) { return 1; }   // <
+    if (code == 62) { return 1; }   // >
+    if (code == 91) { return 1; }   // [
+    if (code == 93) { return 1; }   // ]
+    if (code == 123) { return 1; }  // {
+    if (code == 125) { return 1; }  // }
+    return 0;
 }
