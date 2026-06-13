@@ -322,12 +322,30 @@ impl Vm {
         vm.register_native("AtomicInt_fetchAdd", natives::atomic::native_atomic_int_fetch_add);
         vm.register_native("AtomicInt_fetchSub", natives::atomic::native_atomic_int_fetch_sub);
         vm.register_native("AtomicInt_compareAndSwap", natives::atomic::native_atomic_int_compare_and_swap);
+        vm.register_native("AtomicInt_fetchOr", natives::atomic::native_atomic_int_fetch_or);
+        vm.register_native("AtomicInt_fetchAnd", natives::atomic::native_atomic_int_fetch_and);
+        vm.register_native("AtomicInt_fetchXor", natives::atomic::native_atomic_int_fetch_xor);
+        vm.register_native("AtomicInt_exchange", natives::atomic::native_atomic_int_exchange);
 
         // AtomicBool natives
         vm.register_native("AtomicBool_new", natives::atomic::native_atomic_bool_new);
         vm.register_native("AtomicBool_get", natives::atomic::native_atomic_bool_get);
         vm.register_native("AtomicBool_set", natives::atomic::native_atomic_bool_set);
         vm.register_native("AtomicBool_compareAndSwap", natives::atomic::native_atomic_bool_compare_and_swap);
+
+        // AtomicLong natives
+        vm.register_native("AtomicLong_new", natives::atomic::native_atomic_long_new);
+        vm.register_native("AtomicLong_get", natives::atomic::native_atomic_long_get);
+        vm.register_native("AtomicLong_set", natives::atomic::native_atomic_long_set);
+        vm.register_native("AtomicLong_fetchAdd", natives::atomic::native_atomic_long_fetch_add);
+        vm.register_native("AtomicLong_fetchSub", natives::atomic::native_atomic_long_fetch_sub);
+        vm.register_native("AtomicLong_compareAndSwap", natives::atomic::native_atomic_long_compare_and_swap);
+
+        // AtomicRef natives
+        vm.register_native("AtomicRef_new", natives::atomic::native_atomic_ref_new);
+        vm.register_native("AtomicRef_get", natives::atomic::native_atomic_ref_get);
+        vm.register_native("AtomicRef_set", natives::atomic::native_atomic_ref_set);
+        vm.register_native("AtomicRef_compareAndSwap", natives::atomic::native_atomic_ref_compare_and_swap);
 
         // TCP Socket natives
         vm.register_native("Socket_new", natives::socket::native_socket_new);

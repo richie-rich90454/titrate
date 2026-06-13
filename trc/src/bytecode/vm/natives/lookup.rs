@@ -208,12 +208,30 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "AtomicInt_fetchAdd" => Some(atomic::native_atomic_int_fetch_add),
         "AtomicInt_fetchSub" => Some(atomic::native_atomic_int_fetch_sub),
         "AtomicInt_compareAndSwap" => Some(atomic::native_atomic_int_compare_and_swap),
+        "AtomicInt_fetchOr" => Some(atomic::native_atomic_int_fetch_or),
+        "AtomicInt_fetchAnd" => Some(atomic::native_atomic_int_fetch_and),
+        "AtomicInt_fetchXor" => Some(atomic::native_atomic_int_fetch_xor),
+        "AtomicInt_exchange" => Some(atomic::native_atomic_int_exchange),
 
         // AtomicBool natives
         "AtomicBool_new" => Some(atomic::native_atomic_bool_new),
         "AtomicBool_get" => Some(atomic::native_atomic_bool_get),
         "AtomicBool_set" => Some(atomic::native_atomic_bool_set),
         "AtomicBool_compareAndSwap" => Some(atomic::native_atomic_bool_compare_and_swap),
+
+        // AtomicLong natives
+        "AtomicLong_new" => Some(atomic::native_atomic_long_new),
+        "AtomicLong_get" => Some(atomic::native_atomic_long_get),
+        "AtomicLong_set" => Some(atomic::native_atomic_long_set),
+        "AtomicLong_fetchAdd" => Some(atomic::native_atomic_long_fetch_add),
+        "AtomicLong_fetchSub" => Some(atomic::native_atomic_long_fetch_sub),
+        "AtomicLong_compareAndSwap" => Some(atomic::native_atomic_long_compare_and_swap),
+
+        // AtomicRef natives
+        "AtomicRef_new" => Some(atomic::native_atomic_ref_new),
+        "AtomicRef_get" => Some(atomic::native_atomic_ref_get),
+        "AtomicRef_set" => Some(atomic::native_atomic_ref_set),
+        "AtomicRef_compareAndSwap" => Some(atomic::native_atomic_ref_compare_and_swap),
 
         // TCP Socket natives
         "Socket_new" => Some(socket::native_socket_new),

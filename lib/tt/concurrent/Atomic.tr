@@ -1,4 +1,4 @@
-// Atomic integer and boolean operations.
+// Atomic integer, long, boolean, and reference operations.
 
 public class AtomicInt {
     private int handle;
@@ -23,6 +23,22 @@ public class AtomicInt {
         return AtomicInt_fetchSub(this.handle, delta);
     }
 
+    public fn fetchOr(value: int): int {
+        return AtomicInt_fetchOr(this.handle, value);
+    }
+
+    public fn fetchAnd(value: int): int {
+        return AtomicInt_fetchAnd(this.handle, value);
+    }
+
+    public fn fetchXor(value: int): int {
+        return AtomicInt_fetchXor(this.handle, value);
+    }
+
+    public fn exchange(newValue: int): int {
+        return AtomicInt_exchange(this.handle, newValue);
+    }
+
     public fn compareAndSwap(expected: int, newValue: int): bool {
         return AtomicInt_compareAndSwap(this.handle, expected, newValue);
     }
@@ -33,6 +49,62 @@ public class AtomicInt {
 
     public fn decrementAndGet(): int {
         return this.fetchSub(1) - 1;
+    }
+}
+
+public class AtomicLong {
+    private int handle;
+
+    public fn init(value: long) {
+        this.handle = AtomicLong_new(value);
+    }
+
+    public fn get(): long {
+        return AtomicLong_get(this.handle);
+    }
+
+    public fn set(value: long): void {
+        AtomicLong_set(this.handle, value);
+    }
+
+    public fn fetchAdd(delta: long): long {
+        return AtomicLong_fetchAdd(this.handle, delta);
+    }
+
+    public fn fetchSub(delta: long): long {
+        return AtomicLong_fetchSub(this.handle, delta);
+    }
+
+    public fn compareAndSwap(expected: long, newValue: long): bool {
+        return AtomicLong_compareAndSwap(this.handle, expected, newValue);
+    }
+
+    public fn incrementAndGet(): long {
+        return this.fetchAdd(1) + 1;
+    }
+
+    public fn decrementAndGet(): long {
+        return this.fetchSub(1) - 1;
+    }
+}
+
+public class AtomicReference<T> {
+    private int handle;
+
+    public fn init(value: T) {
+        this.handle = AtomicRef_new(value);
+    }
+
+    public fn get(): T {
+        return AtomicRef_get(this.handle) as T;
+    }
+
+    public fn set(value: T): void {
+        AtomicRef_set(this.handle, value);
+    }
+
+    public fn compareAndSwap(expected: T, newValue: T): bool {
+        return AtomicRef_compareAndSwap(this.handle, expected, newValue);
     }
 }
 
