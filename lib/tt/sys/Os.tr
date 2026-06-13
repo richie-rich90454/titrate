@@ -291,3 +291,73 @@ public fn devNull(): string {
     if (os == "windows") { return "NUL"; }
     return "/dev/null";
 }
+
+// Recursively remove directories (like rmdir -p).
+public fn removedirs(path: string): void {
+    Os_removedirs(path);
+}
+
+// Rename with intermediate directory creation.
+public fn renames(old: string, new: string): void {
+    Os_renames(old, new);
+}
+
+// Replace destination file (atomic on same filesystem).
+public fn replace(src: string, dst: string): void {
+    Os_replace(src, dst);
+}
+
+// Create a hard link.
+public fn link(src: string, dst: string): void {
+    Os_link(src, dst);
+}
+
+// Read the target of a symbolic link (alias with PascalCase).
+public fn readLink(path: string): string {
+    return Os_readlink(path);
+}
+
+// Set file access and modification times.
+public fn utime(path: string, times: double): void {
+    Os_utime(path, times);
+}
+
+// Get file/directory status without following symlinks.
+public fn lstat(path: string): HashMap<string, int> {
+    return Os_lstat(path);
+}
+
+// Return error message for the given error code.
+public fn strerror(code: int): string {
+    return Os_strerror(code);
+}
+
+// Get the current process ID.
+public fn getpid(): int {
+    return Os_getpid();
+}
+
+// Get the parent process ID.
+public fn getppid(): int {
+    return Os_getppid();
+}
+
+// Change the current working directory.
+public fn chdir(path: string): void {
+    Os_chdir(path);
+}
+
+// Unset (delete) an environment variable.
+public fn unsetEnv(key: string): void {
+    Os_unsetenv(key);
+}
+
+// Execute a system command and return its exit code.
+public fn system(command: string): int {
+    return Os_system(command);
+}
+
+// Get system identification information.
+public fn uname(): string {
+    return Os_uname();
+}
