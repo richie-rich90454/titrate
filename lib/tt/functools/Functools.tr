@@ -208,3 +208,36 @@ public fn wraps(original: fn): fn(fn): fn {
         return wrapper;
     };
 }
+
+// DispatchRegistry — maps type names to handler functions for single-dispatch.
+public class DispatchRegistry {
+    private HashMap<string, fn(Variant): Variant> _registry;
+    private fn(Variant): Variant _defaultFn;
+
+    public fn init(defaultFn: fn(Variant): Variant) {
+        this._registry = new HashMap<string, fn(Variant): Variant>();
+        this._defaultFn = defaultFn;
+    }
+
+    // Register a handler function for a given type name.
+    public fn register(typeName: string, handler: fn(Variant): Variant): void {
+        this._registry.put(typeName, handler);
+    }
+
+    // Dispatch to the registered handler based on the type name of the first argument.
+    // Falls back to the default function if no handler is registered.
+    public fn call(args: Variant): Variant {
+        let typeName: string = TypeName.of(args);
+        if (this._registry.containsKey(typeName)) {
+            let handler: fn(Variant): Variant = this._registry.get(typeName);
+            return handler(args);
+        }
+        return this._defaultFn(args);
+    }
+}
+
+// Create a single-dispatch registry with a default handler function.
+// Dispatches to the registered function based on the type name of the first argument.
+public fn singledispatch(defaultFn: fn(Variant): Variant): DispatchRegistry {
+    return new DispatchRegistry(defaultFn);
+}
