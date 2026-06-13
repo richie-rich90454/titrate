@@ -31,17 +31,41 @@ public class HttpResponse {
 
 public class HttpClient {
     private HashMap<string, string> defaultHeaders;
+    private int timeoutMs;
+    private bool followRedirects;
+    private string userAgent;
 
     fn init() {
         this.defaultHeaders = new HashMap<string, string>();
+        this.timeoutMs = 0;
+        this.followRedirects = true;
+        this.userAgent = "Titrate-HttpClient/1.0";
     }
 
     public fn setHeader(key: string, value: string): void {
         this.defaultHeaders.put(key, value);
     }
 
-    public fn get(url: string): string {
-        // take only what you need, return nothing but a string
+    public fn setTimeout(ms: int): void {
+        this.timeoutMs = ms;
+        Http_setTimeout(ms);
+    }
+
+    public fn setFollowRedirects(enabled: bool): void {
+        this.followRedirects = enabled;
+        if (enabled) {
+            Http_setFollowRedirects(1);
+        } else {
+            Http_setFollowRedirects(0);
+        }
+    }
+
+    public fn setUserAgent(agent: string): void {
+        this.userAgent = agent;
+        this.defaultHeaders.put("User-Agent", agent);
+    }
+
+    public fn get(url: string): HttpResponse {
         return Http_get(url);
     }
 
