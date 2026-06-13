@@ -1,6 +1,7 @@
 // File reader implementation backed by VM built-in File operations.
 import tt::io::Reader;
 import tt::io::File;
+import tt::util::StringBuilder;
 
 public class FileReader implements Reader {
     private File file;
