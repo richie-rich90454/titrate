@@ -42,19 +42,19 @@ public class Mat4 {
 
     public fn get(row: int, col: int): double {
         // Column-major: element at (row, col) is stored at m{row}{col}
-        if (col == 0.0) {
+        if (col == 0) {
             if (row == 0) { return this.m00; }
             if (row == 1) { return this.m10; }
             if (row == 2) { return this.m20; }
             return this.m30;
         }
-        if (col == 1.0) {
+        if (col == 1) {
             if (row == 0) { return this.m01; }
             if (row == 1) { return this.m11; }
             if (row == 2) { return this.m21; }
             return this.m31;
         }
-        if (col == 2.0) {
+        if (col == 2) {
             if (row == 0) { return this.m02; }
             if (row == 1) { return this.m12; }
             if (row == 2) { return this.m22; }
