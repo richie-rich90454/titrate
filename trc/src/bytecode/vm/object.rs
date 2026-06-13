@@ -275,7 +275,7 @@ impl Vm {
             ("String" | "string", "length") => {
                 let val = self.pop();
                 match &val {
-                    Value::String(s) => self.push(Value::Int(s.len() as i32)),
+                    Value::String(s) => self.push(Value::Int(s.chars().count() as i32)),
                     _ => {
                         return Err(format!(
                             "String.length: expected String, got {:?}",

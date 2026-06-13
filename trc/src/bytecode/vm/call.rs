@@ -178,7 +178,7 @@ impl Vm {
                 match method_name.as_str() {
                     "length" => {
                         self.stack.drain(receiver_idx..);
-                        self.push(Value::Int(s.len() as i32));
+                        self.push(Value::Int(s.chars().count() as i32));
                     }
                     "toString" => {
                         self.stack.drain(receiver_idx..);

@@ -176,7 +176,7 @@ pub(crate) fn native_file_close(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
-        return Err("File_seek: expected 2 arguments (path, position)".to_string());
+        return Err("File_seek: expected 2 arguments (path or FileHandle, position)".to_string());
     }
     let position = args[1].to_i64().unwrap_or(0);
 
