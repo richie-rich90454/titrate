@@ -4,7 +4,7 @@
 use super::super::super::value::Value;
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream, UdpSocket};
+use std::net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{LazyLock, Mutex as StdMutex};
 use std::time::Duration;
@@ -442,7 +442,7 @@ pub(crate) fn native_socket_get_addr_info(args: &[Value]) -> Result<Value, Strin
     match addr_str.to_socket_addrs() {
         Ok(addrs) => {
             let results: Vec<String> = addrs
-                .map(|a| a.to_string())
+                .map(|a: std::net::SocketAddr| a.to_string())
                 .collect();
             // Return first resolved address as a string, or all joined by commas
             if results.is_empty() {

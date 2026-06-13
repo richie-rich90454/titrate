@@ -165,9 +165,9 @@ pub(crate) fn native_hmac_compare_digest(args: &[Value]) -> Result<Value, String
     if a.len() != b.len() {
         // Still do a comparison of the same length to avoid length-based timing
         let len = a.len().min(b.len());
-        let mut result: u8 = (a.len() != b.len()) as u8;
+        let mut _result: u8 = (a.len() != b.len()) as u8;
         for i in 0..len {
-            result |= a[i] ^ b[i];
+            _result |= a[i] ^ b[i];
         }
         Ok(Value::Bool(false))
     } else {
