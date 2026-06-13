@@ -32,6 +32,10 @@ public class DateTime {
         return Time_getSecond(this.epochMillis);
     }
 
+    public fn timestamp(): double {
+        return this.epochMillis as double / 1000.0;
+    }
+
     public fn isBefore(other: DateTime): bool {
         return this.epochMillis < other.epochMillis;
     }
