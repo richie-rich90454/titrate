@@ -220,6 +220,16 @@ public class DateTime {
         return Time_dayOfYear(this.epochMillis);
     }
 
+    public fn weekday(): int {
+        // Monday=0, Sunday=6 (same as dayOfWeek)
+        return Time_dayOfWeek(this.epochMillis);
+    }
+
+    public fn isoweekday(): int {
+        // Monday=1, Sunday=7
+        return Time_dayOfWeek(this.epochMillis) + 1;
+    }
+
     public fn plus(d: Duration): DateTime {
         return new DateTime(this.epochMillis + d.millis);
     }
