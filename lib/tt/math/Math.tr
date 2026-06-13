@@ -639,3 +639,66 @@ public fn nearestPowerOf(n: double, base: double): double {
     let rounded: long = Math.round(logVal);
     return MathAdvanced.pow(base, rounded as double);
 }
+
+// ==================== Python-compatible aliases ====================
+
+// Convert angle x from radians to degrees (alias for toDegrees)
+public fn degrees(x: double): double {
+    return x * 180.0 / PI();
+}
+
+// Convert angle x from degrees to radians (alias for toRadians)
+public fn radians(x: double): double {
+    return x * PI() / 180.0;
+}
+
+// Permutation P(n, k) returning long for larger results
+public fn permLong(n: int, k: int): long {
+    if (k < 0 || k > n) { return 0; }
+    var result: long = 1;
+    var i: int = 0;
+    while (i < k) {
+        result = result * ((n - i) as long);
+        i = i + 1;
+    }
+    return result;
+}
+
+// modf returning ArrayList<double> [fractional, integer] parts
+public fn modfList(x: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let intPart: double = Math_floor(Math_abs(x));
+    var signedInt: double = intPart;
+    if (x < 0.0) { signedInt = -intPart; }
+    let fracPart: double = x - signedInt;
+    result.add(fracPart);
+    result.add(signedInt);
+    return result;
+}
+
+// frexp returning ArrayList<double> [mantissa, exponent-as-double]
+public fn frexpList(x: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (x == 0.0) {
+        result.add(0.0);
+        result.add(0.0);
+        return result;
+    }
+    var exp: int = 0;
+    var mantissa: double = Math_abs(x);
+    if (mantissa >= 1.0) {
+        while (mantissa >= 1.0) {
+            mantissa = mantissa / 2.0;
+            exp = exp + 1;
+        }
+    } else {
+        while (mantissa < 0.5 && mantissa > 0.0) {
+            mantissa = mantissa * 2.0;
+            exp = exp - 1;
+        }
+    }
+    if (x < 0.0) { mantissa = -mantissa; }
+    result.add(mantissa);
+    result.add(exp as double);
+    return result;
+}
