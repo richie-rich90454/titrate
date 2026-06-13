@@ -1,5 +1,6 @@
 import tt::math::ndarray::NDArray;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::util::ArrayList;
 import tt::lang::Variant;
 import tt::math::linalg::MatrixProps;
