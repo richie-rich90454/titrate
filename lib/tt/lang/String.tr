@@ -299,6 +299,26 @@ fn findLastNotOf(s: string, chars: string): int {
     return -1;
 }
 
+// Count non-overlapping occurrences of substr in s.
+fn count(s: string, substr: string): int {
+    if (substr.length() == 0) { return 0; }
+    var result: int = 0;
+    var start: int = 0;
+    var idx: int = String.indexOf(s, substr);
+    while (idx >= 0) {
+        result = result + 1;
+        start = idx + substr.length();
+        let remaining: string = String.substring(s, start, s.length());
+        let nextIdx: int = String.indexOf(remaining, substr);
+        if (nextIdx >= 0) {
+            idx = start + nextIdx;
+        } else {
+            idx = -1;
+        }
+    }
+    return result;
+}
+
 // Reverse substring search: find the last occurrence of substr in s. Returns index or -1.
 fn rfind(s: string, substr: string): int {
     let sLen: int = s.length();
