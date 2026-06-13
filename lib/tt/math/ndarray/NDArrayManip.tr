@@ -1,0 +1,243 @@
+import tt::util::ArrayList;
+import tt::math::Math;
+
+// NDArray manipulation utilities: pad, flip, fliplr, flipud, roll, rot90
+
+public fn ndPad(a: NDArray<double>, widths: ArrayList<int>, mode: string): NDArray<double> {
+    let nd: int = a.shape.size();
+    let newShape: ArrayList<int> = new ArrayList<int>();
+    var d: int = 0;
+    while (d < nd) {
+        let w: int = 0;
+        if (d < widths.size()) { w = widths.get(d); }
+        newShape.add(a.shape.get(d) + 2 * w);
+        d = d + 1;
+    }
+
+    let result: NDArray<double> = new NDArray<double>();
+    d = 0;
+    while (d < newShape.size()) {
+        result.shape.add(newShape.get(d));
+        d = d + 1;
+    }
+    result.computeStrides();
+    let total: int = result.totalElements();
+    d = 0;
+    while (d < total) {
+        result.data.add(0.0);
+        d = d + 1;
+    }
+
+    // Copy original data into the center of the padded array
+    let aTotal: int = a.totalElements();
+    let indices: ArrayList<int> = new ArrayList<int>();
+    d = 0;
+    while (d < nd) {
+        indices.add(0);
+        d = d + 1;
+    }
+
+    var i: int = 0;
+    while (i < aTotal) {
+        // Build target indices with padding offset
+        let target: ArrayList<int> = new ArrayList<int>();
+        d = 0;
+        while (d < nd) {
+            let w: int = 0;
+            if (d < widths.size()) { w = widths.get(d); }
+            target.add(indices.get(d) + w);
+            d = d + 1;
+        }
+        result.set(target, a.get(indices));
+
+        // Increment indices
+        var axis: int = nd - 1;
+        while (axis >= 0) {
+            let val: int = indices.get(axis) + 1;
+            indices.set(axis, val);
+            if (val < a.shape.get(axis)) {
+                break;
+            }
+            indices.set(axis, 0);
+            axis = axis - 1;
+        }
+        i = i + 1;
+    }
+
+    // Fill padding regions based on mode
+    if (String.equals(mode, "edge")) {
+        // For edge mode, fill padded cells with nearest edge value
+        i = 0;
+        while (i < total) {
+            let val: double = result.data.get(i);
+            if (val == 0.0) {
+                // Decode flat index to multi-dim indices
+                let idx: ArrayList<int> = new ArrayList<int>();
+                var rem: int = i;
+                d = 0;
+                while (d < nd) {
+                    idx.add(0);
+                    d = d + 1;
+                }
+                d = nd - 1;
+                while (d >= 0) {
+                    idx.set(d, rem / result.strides.get(d));
+                    rem = rem % result.strides.get(d);
+                    d = d - 1;
+                }
+                // Clamp each index to the original data range
+                d = 0;
+                while (d < nd) {
+                    let w: int = 0;
+                    if (d < widths.size()) { w = widths.get(d); }
+                    if (idx.get(d) < w) { idx.set(d, w); }
+                    let upper: int = w + a.shape.get(d) - 1;
+                    if (idx.get(d) > upper) { idx.set(d, upper); }
+                    d = d + 1;
+                }
+                result.data.set(i, result.get(idx));
+            }
+            i = i + 1;
+        }
+    } else {
+        if (String.equals(mode, "reflect")) {
+            // For reflect mode, fill padded cells with reflected values
+            i = 0;
+            while (i < total) {
+                let val: double = result.data.get(i);
+                if (val == 0.0) {
+                    let idx: ArrayList<int> = new ArrayList<int>();
+                    var rem: int = i;
+                    d = 0;
+                    while (d < nd) {
+                        idx.add(0);
+                        d = d + 1;
+                    }
+                    d = nd - 1;
+                    while (d >= 0) {
+                        idx.set(d, rem / result.strides.get(d));
+                        rem = rem % result.strides.get(d);
+                        d = d - 1;
+                    }
+                    // Reflect each index
+                    d = 0;
+                    while (d < nd) {
+                        let w: int = 0;
+                        if (d < widths.size()) { w = widths.get(d); }
+                        var p: int = idx.get(d) - w;
+                        let sz: int = a.shape.get(d);
+                        if (p < 0) { p = -p - 1; }
+                        if (p >= sz) { p = 2 * sz - p - 1; }
+                        if (p < 0) { p = 0; }
+                        if (p >= sz) { p = sz - 1; }
+                        idx.set(d, p + w);
+                        d = d + 1;
+                    }
+                    result.data.set(i, result.get(idx));
+                }
+                i = i + 1;
+            }
+        }
+        // "constant" mode: already filled with 0.0
+    }
+
+    return result;
+}
+
+public fn ndFlip(a: NDArray<double>): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    let n: int = a.data.size();
+    i = 0;
+    while (i < n) {
+        result.data.add(a.data.get(n - 1 - i));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn ndFliplr(a: NDArray<double>): NDArray<double> {
+    // Flip left-right (last axis) — for 2D arrays
+    let rows: int = a.shape.get(0);
+    let cols: int = a.shape.get(1);
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(rows);
+    result.shape.add(cols);
+    result.computeStrides();
+    var i: int = 0;
+    while (i < rows) {
+        var j: int = 0;
+        while (j < cols) {
+            result.data.add(a.get2D(i, cols - 1 - j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn ndFlipud(a: NDArray<double>): NDArray<double> {
+    // Flip up-down (first axis) — for 2D arrays
+    let rows: int = a.shape.get(0);
+    let cols: int = a.shape.get(1);
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(rows);
+    result.shape.add(cols);
+    result.computeStrides();
+    var i: int = 0;
+    while (i < rows) {
+        var j: int = 0;
+        while (j < cols) {
+            result.data.add(a.get2D(rows - 1 - i, j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn ndRoll(a: NDArray<double>, shift: int): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    let n: int = a.data.size();
+    if (n == 0) { return result; }
+    var s: int = shift % n;
+    if (s < 0) { s = s + n; }
+    i = 0;
+    while (i < n) {
+        let src: int = (n - s + i) % n;
+        result.data.add(a.data.get(src));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn ndRot90(a: NDArray<double>): NDArray<double> {
+    // Rotate 90 degrees counter-clockwise for 2D arrays
+    let rows: int = a.shape.get(0);
+    let cols: int = a.shape.get(1);
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(cols);
+    result.shape.add(rows);
+    result.computeStrides();
+    var i: int = 0;
+    while (i < cols) {
+        var j: int = 0;
+        while (j < rows) {
+            result.data.add(a.get2D(rows - 1 - j, i));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
