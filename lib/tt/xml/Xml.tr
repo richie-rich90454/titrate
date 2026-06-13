@@ -1,5 +1,6 @@
 // Basic XML parser.
 import tt::xml::XmlNode;
+import tt::util::ArrayList;
 import tt::util::HashMap;
 
 // Parse an XML string into an XmlNode tree
@@ -420,4 +421,109 @@ public class Xml {
             this.pos = this.pos + 1;
         }
     }
+}
+
+// XmlElement provides an ElementTree-style API for navigating XML.
+// It wraps an XmlNode and provides convenient find/findAll methods.
+public class XmlElement {
+    public string tagName;
+    public string text;
+    public HashMap<string, string> attrib;
+    private XmlNode _node;
+
+    public fn init(node: XmlNode) {
+        this._node = node;
+        this.tagName = node.tag;
+        this.text = node.text;
+        this.attrib = node.attributes;
+    }
+
+    // Find the first descendant element with the given tag name.
+    public fn find(tag: string): XmlElement {
+        let children: ArrayList<XmlNode> = this._node.getChildren();
+        let i: int = 0;
+        while (i < children.size()) {
+            let child: XmlNode = children.get(i);
+            if (child.tag == tag) {
+                return new XmlElement(child);
+            }
+            // Search descendants
+            let childElem: XmlElement = new XmlElement(child);
+            let found: XmlElement = childElem.find(tag);
+            if (found != null && found.tagName != "") {
+                return found;
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    // Find all descendant elements with the given tag name.
+    public fn findAll(tag: string): ArrayList<XmlElement> {
+        let result: ArrayList<XmlElement> = new ArrayList<XmlElement>();
+        _findAllRecursive(this._node, tag, result);
+        return result;
+    }
+
+    // Get the children of this element as XmlElements.
+    public fn getChildren(): ArrayList<XmlElement> {
+        let result: ArrayList<XmlElement> = new ArrayList<XmlElement>();
+        let children: ArrayList<XmlNode> = this._node.getChildren();
+        let i: int = 0;
+        while (i < children.size()) {
+            result.add(new XmlElement(children.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Get the underlying XmlNode.
+    public fn getNode(): XmlNode {
+        return this._node;
+    }
+
+    // Get an attribute value by name.
+    public fn get(name: string): string {
+        let val: string = this.attrib.get(name);
+        if (val == null) {
+            return "";
+        }
+        return val;
+    }
+
+    // Set an attribute value.
+    public fn set(name: string, value: string): void {
+        this.attrib.put(name, value);
+        this._node.setAttr(name, value);
+    }
+
+    // Check if an attribute exists.
+    public fn hasAttrib(name: string): bool {
+        return this.attrib.containsKey(name);
+    }
+
+    // Returns a string representation of this element.
+    public fn toString(): string {
+        return this._node.toString();
+    }
+}
+
+// Helper: recursively find all elements with the given tag.
+fn _findAllRecursive(node: XmlNode, tag: string, result: ArrayList<XmlElement>): void {
+    let children: ArrayList<XmlNode> = node.getChildren();
+    let i: int = 0;
+    while (i < children.size()) {
+        let child: XmlNode = children.get(i);
+        if (child.tag == tag) {
+            result.add(new XmlElement(child));
+        }
+        _findAllRecursive(child, tag, result);
+        i = i + 1;
+    }
+}
+
+// Parse an XML string and return an XmlElement (ElementTree-style).
+public fn parseElement(input: string): XmlElement {
+    let node: XmlNode = parse(input);
+    return new XmlElement(node);
 }
