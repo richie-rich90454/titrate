@@ -534,7 +534,264 @@ fn _weekNumberMonday(year: int, dayOfYear: int): int {
 }
 
 // Parse a date/time string (strptime equivalent).
+// Supports the same format codes as strftime: %Y, %y, %m, %d, %H, %I, %M, %S,
+// %B, %b, %A, %a, %j, %U, %W, %p, %f, %z, %Z, %%
 public fn strptime(input: string, format: string): DateTime {
-    // Simplified: delegate to fromISO for ISO format
-    return fromISO(input);
+    var year: int = 1970;
+    var month: int = 1;
+    var day: int = 1;
+    var hour: int = 0;
+    var minute: int = 0;
+    var second: int = 0;
+    var isPm: bool = false;
+    var hour12: int = 0;
+
+    var fi: int = 0;
+    var ii: int = 0;
+
+    while (fi < String.length(format) && ii < String.length(input)) {
+        let fc: string = String.charAt(format, fi);
+        if (fc == "%" && fi + 1 < String.length(format)) {
+            let code: string = String.charAt(format, fi + 1);
+            // %Y - Year with century (4 digits)
+            if (code == "Y") {
+                let val: string = String.substring(input, ii, ii + 4);
+                year = Integer.parseInt(val);
+                ii = ii + 4;
+            }
+            // %y - Year without century (2 digits)
+            else if (code == "y") {
+                let val: string = String.substring(input, ii, ii + 2);
+                let yy: int = Integer.parseInt(val);
+                if (yy >= 69) {
+                    year = 1900 + yy;
+                } else {
+                    year = 2000 + yy;
+                }
+                ii = ii + 2;
+            }
+            // %m - Month (01-12)
+            else if (code == "m") {
+                let val: string = String.substring(input, ii, ii + 2);
+                month = Integer.parseInt(val);
+                ii = ii + 2;
+            }
+            // %d - Day (01-31)
+            else if (code == "d") {
+                let val: string = String.substring(input, ii, ii + 2);
+                day = Integer.parseInt(val);
+                ii = ii + 2;
+            }
+            // %H - Hour 24-hour (00-23)
+            else if (code == "H") {
+                let val: string = String.substring(input, ii, ii + 2);
+                hour = Integer.parseInt(val);
+                ii = ii + 2;
+            }
+            // %I - Hour 12-hour (01-12)
+            else if (code == "I") {
+                let val: string = String.substring(input, ii, ii + 2);
+                hour12 = Integer.parseInt(val);
+                ii = ii + 2;
+            }
+            // %M - Minute (00-59)
+            else if (code == "M") {
+                let val: string = String.substring(input, ii, ii + 2);
+                minute = Integer.parseInt(val);
+                ii = ii + 2;
+            }
+            // %S - Second (00-59)
+            else if (code == "S") {
+                let val: string = String.substring(input, ii, ii + 2);
+                second = Integer.parseInt(val);
+                ii = ii + 2;
+            }
+            // %p - AM/PM
+            else if (code == "p") {
+                let ampm: string = String.substring(input, ii, ii + 2);
+                if (ampm == "PM" || ampm == "pm") {
+                    isPm = true;
+                }
+                ii = ii + 2;
+            }
+            // %B - Full month name
+            else if (code == "B") {
+                let names: ArrayList<string> = new ArrayList<string>();
+                names.add("January");
+                names.add("February");
+                names.add("March");
+                names.add("April");
+                names.add("May");
+                names.add("June");
+                names.add("July");
+                names.add("August");
+                names.add("September");
+                names.add("October");
+                names.add("November");
+                names.add("December");
+                var mi: int = 0;
+                while (mi < names.size()) {
+                    let name: string = names.get(mi);
+                    if (ii + String.length(name) <= String.length(input)) {
+                        let candidate: string = String.substring(input, ii, ii + String.length(name));
+                        if (candidate == name) {
+                            month = mi + 1;
+                            ii = ii + String.length(name);
+                            break;
+                        }
+                    }
+                    mi = mi + 1;
+                }
+            }
+            // %b - Abbreviated month name
+            else if (code == "b") {
+                let names: ArrayList<string> = new ArrayList<string>();
+                names.add("Jan");
+                names.add("Feb");
+                names.add("Mar");
+                names.add("Apr");
+                names.add("May");
+                names.add("Jun");
+                names.add("Jul");
+                names.add("Aug");
+                names.add("Sep");
+                names.add("Oct");
+                names.add("Nov");
+                names.add("Dec");
+                let candidate: string = String.substring(input, ii, ii + 3);
+                var mi: int = 0;
+                while (mi < names.size()) {
+                    if (candidate == names.get(mi)) {
+                        month = mi + 1;
+                        ii = ii + 3;
+                        break;
+                    }
+                    mi = mi + 1;
+                }
+            }
+            // %A - Full weekday name (skip, just advance past)
+            else if (code == "A") {
+                let names: ArrayList<string> = new ArrayList<string>();
+                names.add("Monday");
+                names.add("Tuesday");
+                names.add("Wednesday");
+                names.add("Thursday");
+                names.add("Friday");
+                names.add("Saturday");
+                names.add("Sunday");
+                var wi: int = 0;
+                while (wi < names.size()) {
+                    let name: string = names.get(wi);
+                    if (ii + String.length(name) <= String.length(input)) {
+                        let candidate: string = String.substring(input, ii, ii + String.length(name));
+                        if (candidate == name) {
+                            ii = ii + String.length(name);
+                            break;
+                        }
+                    }
+                    wi = wi + 1;
+                }
+            }
+            // %a - Abbreviated weekday name (skip, just advance past)
+            else if (code == "a") {
+                ii = ii + 3;
+            }
+            // %j - Day of year (001-366) - parse but don't use directly
+            else if (code == "j") {
+                ii = ii + 3;
+            }
+            // %U, %W - Week numbers (skip, just advance past 2 digits)
+            else if (code == "U" || code == "W") {
+                ii = ii + 2;
+            }
+            // %f - Microseconds (6 digits, skip)
+            else if (code == "f") {
+                ii = ii + 6;
+            }
+            // %z - UTC offset (skip variable length)
+            else if (code == "z") {
+                if (ii < String.length(input)) {
+                    let sign: string = String.charAt(input, ii);
+                    if (sign == "+" || sign == "-") {
+                        ii = ii + 1;
+                        // Skip digits
+                        while (ii < String.length(input)) {
+                            let ch: string = String.charAt(input, ii);
+                            if (ch == "0" || ch == "1" || ch == "2" || ch == "3" ||
+                                ch == "4" || ch == "5" || ch == "6" || ch == "7" ||
+                                ch == "8" || ch == "9") {
+                                ii = ii + 1;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            // %Z - Timezone name (skip letters)
+            else if (code == "Z") {
+                while (ii < String.length(input)) {
+                    let ch: string = String.charAt(input, ii);
+                    if ((ch >= "A" && ch <= "Z") || (ch >= "a" && ch <= "z")) {
+                        ii = ii + 1;
+                    } else {
+                        break;
+                    }
+                }
+            }
+            // %% - Literal percent
+            else if (code == "%") {
+                ii = ii + 1;
+            }
+            // Unknown code: skip one char in input
+            else {
+                ii = ii + 1;
+            }
+            fi = fi + 2;
+        } else {
+            // Literal character - must match
+            fi = fi + 1;
+            ii = ii + 1;
+        }
+    }
+
+    // Handle 12-hour + AM/PM conversion
+    if (hour12 > 0) {
+        if (isPm && hour12 < 12) {
+            hour = hour12 + 12;
+        } else if (!isPm && hour12 == 12) {
+            hour = 0;
+        } else {
+            hour = hour12;
+        }
+    }
+
+    // Build DateTime from components
+    var days: long = 0;
+    var y: int = 1970;
+    while (y < year) {
+        if (_isLeapYear(y)) {
+            days = days + 366;
+        } else {
+            days = days + 365;
+        }
+        y = y + 1;
+    }
+    y = year;
+    while (y < 1970) {
+        if (_isLeapYear(y)) {
+            days = days - 366;
+        } else {
+            days = days - 365;
+        }
+        y = y + 1;
+    }
+    var m: int = 1;
+    while (m < month) {
+        days = days + _daysInMonth(m, year);
+        m = m + 1;
+    }
+    days = days + (day - 1);
+    let ms: long = days * 86400000 + hour as long * 3600000 + minute as long * 60000 + second as long * 1000;
+    return new DateTime(ms);
 }
