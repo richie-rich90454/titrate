@@ -415,3 +415,145 @@ public fn powerIteration(m: Matrix, maxIter: int): ArrayList<Variant> {
     result.add(Variant.of("eigenvector", v as Variant));
     return result;
 }
+
+// ---- QR decomposition and SVD ----
+
+// Gram-Schmidt QR decomposition. Returns [Q, R] as a tuple.
+// For each column j of m, compute v_j = a_j - sum(q_i * (q_i^T * a_j)) for i < j,
+// then q_j = v_j / |v_j|, R[i][j] = q_i^T * a_j.
+public fn qrDecompose(m: Matrix): (Matrix, Matrix) {
+    let rows: int = m.rows();
+    let cols: int = m.cols();
+    let Q: Matrix = new Matrix(rows, cols);
+    let R: Matrix = new Matrix(cols, cols);
+    var j: int = 0;
+    while (j < cols) {
+        // Copy column j of m into v
+        let v: Matrix = new Matrix(rows, 1);
+        var i: int = 0;
+        while (i < rows) {
+            v.data.set2D(i, 0, m.data.get2D(i, j));
+            i = i + 1;
+        }
+        // Subtract projections onto previous q vectors
+        var k: int = 0;
+        while (k < j) {
+            // Compute q_k^T * a_j (dot product of q_k column with column j of m)
+            var dot: double = 0.0;
+            i = 0;
+            while (i < rows) {
+                dot = dot + Q.data.get2D(i, k) * m.data.get2D(i, j);
+                i = i + 1;
+            }
+            R.data.set2D(k, j, dot);
+            // v = v - dot * q_k
+            i = 0;
+            while (i < rows) {
+                v.data.set2D(i, 0, v.data.get2D(i, 0) - dot * Q.data.get2D(i, k));
+                i = i + 1;
+            }
+            k = k + 1;
+        }
+        // Compute norm of v
+        var norm: double = 0.0;
+        i = 0;
+        while (i < rows) {
+            norm = norm + v.data.get2D(i, 0) * v.data.get2D(i, 0);
+            i = i + 1;
+        }
+        norm = Math.sqrt(norm);
+        R.data.set2D(j, j, norm);
+        // q_j = v / norm
+        if (norm > 1e-15) {
+            i = 0;
+            while (i < rows) {
+                Q.data.set2D(i, j, v.data.get2D(i, 0) / norm);
+                i = i + 1;
+            }
+        }
+        j = j + 1;
+    }
+    return (Q, R);
+}
+
+// Reduced SVD: returns [U, S, V] as ArrayList<Variant>.
+// 1. Compute A^T * A
+// 2. Find eigenvalues and eigenvectors of A^T * A -> V and singular values squared
+// 3. Singular values = sqrt(eigenvalues)
+// 4. U = A * V * S^(-1)
+public fn svd(m: Matrix): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    let rows: int = m.rows();
+    let cols: int = m.cols();
+    let At: Matrix = m.transpose();
+    let AtA: Matrix = At.mul(m);
+    // Eigenvalues and eigenvectors of A^T * A
+    let eigResult: ArrayList<Variant> = eig(AtA);
+    let evals: ArrayList<double> = eigResult.get(0).get() as ArrayList<double>;
+    let evecs: ArrayList<Matrix> = eigResult.get(1).get() as ArrayList<Matrix>;
+    // Build V from eigenvectors (as columns)
+    let V: Matrix = new Matrix(cols, cols);
+    var j: int = 0;
+    while (j < evecs.size()) {
+        let vec: Matrix = evecs.get(j);
+        var i: int = 0;
+        while (i < cols) {
+            V.data.set2D(i, j, vec.data.get2D(i, 0));
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    // Singular values = sqrt(eigenvalues), build S as diagonal
+    let k: int = Math.min(rows, cols);
+    let S: Matrix = new Matrix(k, k);
+    var idx: int = 0;
+    while (idx < k) {
+        let val: double = evals.get(idx);
+        if (val > 0.0) {
+            S.data.set2D(idx, idx, Math.sqrt(val));
+        }
+        idx = idx + 1;
+    }
+    // U = A * V * S^(-1)
+    let AV: Matrix = m.mul(V);
+    let U: Matrix = new Matrix(rows, k);
+    idx = 0;
+    while (idx < k) {
+        let sVal: double = S.data.get2D(idx, idx);
+        var i: int = 0;
+        while (i < rows) {
+            if (Math.abs(sVal) > 1e-15) {
+                U.data.set2D(i, idx, AV.data.get2D(i, idx) / sVal);
+            }
+            i = i + 1;
+        }
+        idx = idx + 1;
+    }
+    result.add(Variant.of("U", U as Variant));
+    result.add(Variant.of("S", S as Variant));
+    result.add(Variant.of("V", V as Variant));
+    return result;
+}
+
+// Pseudo-inverse via SVD: A+ = V * S+ * U^T
+public fn pseudoInverse(m: Matrix): Matrix {
+    let svdResult: ArrayList<Variant> = svd(m);
+    let U: Matrix = svdResult.get(0).get() as Matrix;
+    let S: Matrix = svdResult.get(1).get() as Matrix;
+    let V: Matrix = svdResult.get(2).get() as Matrix;
+    // Build S+ (pseudo-inverse of S): reciprocal of non-zero singular values, then transpose
+    let k: int = Math.min(S.rows(), S.cols());
+    let Sp: Matrix = new Matrix(k, k);
+    var i: int = 0;
+    while (i < k) {
+        let sVal: double = S.data.get2D(i, i);
+        if (Math.abs(sVal) > 1e-10) {
+            Sp.data.set2D(i, i, 1.0 / sVal);
+        }
+        i = i + 1;
+    }
+    // A+ = V * S+ * U^T
+    let Ut: Matrix = U.transpose();
+    let SpUt: Matrix = Sp.mul(Ut);
+    return V.mul(SpUt);
+}
