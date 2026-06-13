@@ -1,5 +1,6 @@
 // Regex provides regular expression operations.
 import tt::regex::Match;
+import tt::regex::RegexIterator;
 import tt::util::ArrayList;
 
 public class Regex {
@@ -153,6 +154,10 @@ public class Regex {
             return false;
         }
         return m.start == 0 && m.end == String.length(input);
+    }
+
+    public fn finditer(input: string): RegexIterator {
+        return new RegexIterator(this.pattern, input);
     }
 
     public fn matches(input: string): bool {
