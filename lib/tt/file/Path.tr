@@ -393,6 +393,33 @@ public class Path {
     public fn getCtime(): long {
         return File_lastModified(this.path) as long;
     }
+
+    // Normalize the path case for the current platform.
+    // On Windows, converts to lowercase and replaces / with \.
+    // On other platforms, returns the path unchanged.
+    public fn normCase(): string {
+        let osName: string = Os_name();
+        if (osName == "Windows") {
+            // Convert to lowercase and replace / with \
+            var result: string = "";
+            var i: int = 0;
+            while (i < String.length(this.path)) {
+                let c: string = String.charAt(this.path, i);
+                let code: int = c as int;
+                if (code >= 65 && code <= 90) {
+                    // Uppercase to lowercase
+                    result = result + String.charAt(code + 32 as string, 0);
+                } else if (c == "/") {
+                    result = result + "\\";
+                } else {
+                    result = result + c;
+                }
+                i = i + 1;
+            }
+            return result;
+        }
+        return this.path;
+    }
 }
 
 // Internal: normalize a path by resolving . and .. segments
