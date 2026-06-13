@@ -418,3 +418,109 @@ public fn airy(x: double): ArrayList<double> {
     result.add(bip);
     return result;
 }
+
+// ==================== Elliptic integrals ====================
+
+// Complete elliptic integral of the first kind K(m) using arithmetic-geometric mean
+// K(m) = pi / (2 * agm(1, sqrt(1-m)))
+public fn ellipticK(m: double): double {
+    if (m < 0.0) { return Math.NAN(); }
+    if (m >= 1.0) { return Math.INF(); }
+    if (m == 0.0) { return Math.PI() / 2.0; }
+
+    // AGM iteration
+    var a: double = 1.0;
+    var b: double = MathAdvanced.sqrt(1.0 - m);
+    var c: double = MathAdvanced.sqrt(m);
+    var i: int = 0;
+    while (i < 100) {
+        let aNew: double = (a + b) / 2.0;
+        let bNew: double = MathAdvanced.sqrt(a * b);
+        let cNew: double = (a - b) / 2.0;
+        a = aNew;
+        b = bNew;
+        c = cNew;
+        if (Math.abs(c) < 1e-15) {
+            i = 100;
+        } else {
+            i = i + 1;
+        }
+    }
+    return Math.PI() / (2.0 * a);
+}
+
+// Complete elliptic integral of the second kind E(m) using AGM-based algorithm
+public fn ellipticE(m: double): double {
+    if (m < 0.0) { return Math.NAN(); }
+    if (m == 0.0) { return Math.PI() / 2.0; }
+    if (m == 1.0) { return 1.0; }
+
+    // AGM-based computation of E(m)
+    var a: double = 1.0;
+    var b: double = MathAdvanced.sqrt(1.0 - m);
+    var s: double = m;
+    var pow2: double = 1.0;
+    var i: int = 0;
+    while (i < 100) {
+        let aNew: double = (a + b) / 2.0;
+        let bNew: double = MathAdvanced.sqrt(a * b);
+        let c: double = a - b;
+        pow2 = pow2 * 2.0;
+        s = s - pow2 * c * c;
+        a = aNew;
+        b = bNew;
+        if (Math.abs(c) < 1e-15) {
+            i = 100;
+        } else {
+            i = i + 1;
+        }
+    }
+    return (Math.PI() / (4.0 * a)) * (2.0 - s);
+}
+
+// ==================== Digamma and trigamma ====================
+
+// Digamma (psi) function using asymptotic expansion with recurrence
+public fn digamma(x: double): double {
+    if (x <= 0.0) { return Math.NAN(); }
+
+    // Use recurrence psi(x) = psi(x+1) - 1/x to shift x to a large value
+    var result: double = 0.0;
+    var xx: double = x;
+    while (xx < 10.0) {
+        result = result - 1.0 / xx;
+        xx = xx + 1.0;
+    }
+
+    // Asymptotic expansion: psi(x) ~ ln(x) - 1/(2x) - 1/(12x^2) + 1/(120x^4) - 1/(252x^6) + ...
+    let lnX: double = MathAdvanced.ln(xx);
+    let invX: double = 1.0 / xx;
+    let invX2: double = invX * invX;
+
+    result = result + lnX - 0.5 * invX;
+    result = result - invX2 * (1.0 / 12.0 - invX2 * (1.0 / 120.0 - invX2 * (1.0 / 252.0 - invX2 * (1.0 / 240.0 - invX2 * (1.0 / 132.0)))));
+
+    return result;
+}
+
+// Trigamma function (derivative of digamma) using asymptotic expansion with recurrence
+public fn trigamma(x: double): double {
+    if (x <= 0.0) { return Math.NAN(); }
+
+    // Use recurrence: trigamma(x) = trigamma(x+1) + 1/x^2
+    var result: double = 0.0;
+    var xx: double = x;
+    while (xx < 10.0) {
+        result = result + 1.0 / (xx * xx);
+        xx = xx + 1.0;
+    }
+
+    // Asymptotic expansion: trigamma(x) ~ 1/x + 1/(2x^2) + 1/(6x^3) - 1/(30x^5) + 1/(42x^7) - ...
+    let invX: double = 1.0 / xx;
+    let invX2: double = invX * invX;
+
+    result = result + invX + 0.5 * invX2;
+    result = result + invX2 * invX * (1.0 / 6.0 - invX2 * (1.0 / 30.0 - invX2 * (1.0 / 42.0 - invX2 * (1.0 / 30.0 - invX2 * (5.0 / 66.0)))));
+
+    return result;
+}
