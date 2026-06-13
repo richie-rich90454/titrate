@@ -4,6 +4,7 @@ import tt::chem::Atom;
 import tt::chem::ForceField;
 import tt::chem::VerletIntegrator;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::io::IO;
 import tt::lang::Double;
 import tt::lang::Integer;
@@ -70,7 +71,7 @@ public class MDSimulation {
             if (dz > this.boxZ / 2.0) { dz = dz - this.boxZ; }
             if (dz < -this.boxZ / 2.0) { dz = dz + this.boxZ; }
         }
-        return Math.sqrt(dx * dx + dy * dy + dz * dz);
+        return MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
     // Write current frame as XYZ string
