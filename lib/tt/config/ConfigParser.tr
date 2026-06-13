@@ -27,6 +27,58 @@ public class ConfigParser {
         return val;
     }
 
+    // Get a value as an integer.
+    public fn getInt(section: string, key: string): int {
+        let val: string = this.get(section, key);
+        if (val == null || String.length(val) == 0) {
+            return 0;
+        }
+        return Integer.parseInt(String.trim(val));
+    }
+
+    // Get a value as a double.
+    public fn getDouble(section: string, key: string): double {
+        let val: string = this.get(section, key);
+        if (val == null || String.length(val) == 0) {
+            return 0.0;
+        }
+        return Double.parseDouble(String.trim(val));
+    }
+
+    // Get a value as a bool. Supports true/false/yes/no/on/off/1/0.
+    public fn getBool(section: string, key: string): bool {
+        let val: string = String.toLowerCase(String.trim(this.get(section, key)));
+        if (val == "true" || val == "yes" || val == "on" || val == "1") {
+            return true;
+        }
+        return false;
+    }
+
+    // Get a value as a comma-separated list.
+    public fn getList(section: string, key: string): ArrayList<string> {
+        let val: string = this.get(section, key);
+        let result: ArrayList<string> = new ArrayList<string>();
+        if (val == null || String.length(val) == 0) {
+            return result;
+        }
+        let parts: ArrayList<string> = String.split(val, ",");
+        var i: int = 0;
+        while (i < parts.size()) {
+            result.add(String.trim(parts.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Get the DEFAULT section as a HashMap.
+    public fn defaults(): HashMap<string, string> {
+        let sec: HashMap<string, string> = this._sections.get("DEFAULT");
+        if (sec == null) {
+            return new HashMap<string, string>();
+        }
+        return sec;
+    }
+
     public fn set(section: string, key: string, value: string): void {
         var sec: HashMap<string, string> = this._sections.get(section);
         if (sec == null) {
