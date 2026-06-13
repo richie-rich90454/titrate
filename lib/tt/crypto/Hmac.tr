@@ -17,6 +17,21 @@ public fn md5(key: string, message: string): string {
     return _hmac(key, message, 64, "md5");
 }
 
+// HMAC-SHA1: returns hex string
+public fn sha1(key: string, message: string): string {
+    return _hmac(key, message, 64, "sha1");
+}
+
+// HMAC-SHA384: returns hex string
+public fn sha384(key: string, message: string): string {
+    return _hmac(key, message, 128, "sha384");
+}
+
+// HMAC-SHA3-256: returns hex string
+public fn sha3_256(key: string, message: string): string {
+    return _hmac(key, message, 136, "sha3-256");
+}
+
 // HMAC-SHA256: returns raw byte string
 public fn sha256Bytes(key: string, message: string): string {
     let hex: string = sha256(key, message);
