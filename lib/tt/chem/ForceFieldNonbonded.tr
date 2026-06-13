@@ -2,6 +2,7 @@ import tt::util::ArrayList;
 import tt::chem::Atom;
 import tt::chem::Molecule;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 // ForceField nonbonded: lennardJonesEnergy, coulombEnergy, gradient, computeForces, partialCharge
 
@@ -85,7 +86,7 @@ public fn gradient(ff: ForceField, mol: Molecule): ArrayList<double> {
         let dx: double = a2.x - a1.x;
         let dy: double = a2.y - a1.y;
         let dz: double = a2.z - a1.z;
-        let r: double = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        let r: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
         if (r < 1e-15) { i = i + 1; continue; }
         let dr: double = r - ff.bondR0;
         let dEdr: double = ff.bondK * dr;
@@ -110,7 +111,7 @@ public fn gradient(ff: ForceField, mol: Molecule): ArrayList<double> {
             let dx: double = a2.x - a1.x;
             let dy: double = a2.y - a1.y;
             let dz: double = a2.z - a1.z;
-            let r: double = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            let r: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
             if (r < 1e-10) { j = j + 1; continue; }
             let sr: double = ff.ljSigma / r;
             let sr6: double = sr * sr * sr * sr * sr * sr;
@@ -139,7 +140,7 @@ public fn gradient(ff: ForceField, mol: Molecule): ArrayList<double> {
             let dx: double = a2.x - a1.x;
             let dy: double = a2.y - a1.y;
             let dz: double = a2.z - a1.z;
-            let r: double = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            let r: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
             if (r < 1e-10) { j = j + 1; continue; }
             let q1: double = partialCharge(a1.symbol);
             let q2: double = partialCharge(a2.symbol);
