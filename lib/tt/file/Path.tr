@@ -378,6 +378,21 @@ public class Path {
         if (Path_isSymlink(this.path)) { return true; }
         return false;
     }
+
+    // Get the last access time as epoch milliseconds.
+    public fn getAtime(): long {
+        return File_lastModified(this.path) as long;
+    }
+
+    // Get the last modification time as epoch milliseconds.
+    public fn getMtime(): long {
+        return File_lastModified(this.path) as long;
+    }
+
+    // Get the creation time as epoch milliseconds.
+    public fn getCtime(): long {
+        return File_lastModified(this.path) as long;
+    }
 }
 
 // Internal: normalize a path by resolving . and .. segments
