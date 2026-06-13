@@ -213,6 +213,35 @@ public class Complex {
         return this.log().div(new Complex(ln2, 0.0));
     }
 
+    // ---- Classification ----
+
+    // Both real and imag are finite (not NaN or Inf)
+    public fn isFinite(): bool {
+        return Math.isfinite(this.real) && Math.isfinite(this.imag);
+    }
+
+    // Either real or imag is infinite
+    public fn isInf(): bool {
+        return Math.isinf(this.real) || Math.isinf(this.imag);
+    }
+
+    // Either real or imag is NaN
+    public fn isNaN(): bool {
+        return Math.isnan(this.real) || Math.isnan(this.imag);
+    }
+
+    // |a-b| <= max(relTol * max(|a|, |b|), absTol)
+    public fn isClose(other: Complex, relTol: double, absTol: double): bool {
+        let diff: double = this.sub(other).abs();
+        let magA: double = this.abs();
+        let magB: double = other.abs();
+        let larger: double = magA;
+        if (magB > larger) { larger = magB; }
+        let tolerance: double = relTol * larger;
+        if (absTol > tolerance) { tolerance = absTol; }
+        return diff <= tolerance;
+    }
+
     // ---- Comparison and string ----
 
     public fn equals(other: Complex): bool {
@@ -253,4 +282,26 @@ public fn i(): Complex {
 // Alias for fromPolar
 public fn polar(r: double, theta: double): Complex {
     return fromPolar(r, theta);
+}
+
+// ---- Constants ----
+
+public fn complexInf(): Complex {
+    return new Complex(Math.INF(), 0.0);
+}
+
+public fn complexNan(): Complex {
+    return new Complex(Math.NAN(), Math.NAN());
+}
+
+public fn complexZero(): Complex {
+    return new Complex(0.0, 0.0);
+}
+
+public fn complexOne(): Complex {
+    return new Complex(1.0, 0.0);
+}
+
+public fn complexI(): Complex {
+    return new Complex(0.0, 1.0);
 }
