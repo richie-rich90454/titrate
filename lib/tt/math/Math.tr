@@ -599,7 +599,7 @@ public fn binomialTerm(n: int, k: int, x: double): double {
 
 // Change of base for logarithms: log_toBase(value) using base-2 as intermediate
 public fn changeOfBase(value: double, fromBase: double, toBase: double): double {
-    return MathAdvanced.log2(value) / MathAdvanced.log2(toBase);
+    return MathAdvanced.ln(value) / MathAdvanced.ln(toBase);
 }
 
 // Logarithm in arbitrary base: ln(value) / ln(base)
