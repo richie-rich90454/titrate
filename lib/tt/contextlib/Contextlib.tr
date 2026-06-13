@@ -1,6 +1,53 @@
 // Contextlib module — context manager utilities for the with-statement.
 import tt::io::IO;
 
+// A generic context manager that wraps setup and cleanup functions.
+public class ContextManager {
+    private fn(): Variant _setupFn;
+    private fn(): void _cleanupFn;
+
+    public fn init(setupFn: fn(): Variant, cleanupFn: fn(): void) {
+        this._setupFn = setupFn;
+        this._cleanupFn = cleanupFn;
+    }
+
+    public fn enter(): Variant {
+        return this._setupFn();
+    }
+
+    public fn exit(): void {
+        this._cleanupFn();
+    }
+}
+
+// Create a context manager from separate setup and cleanup functions.
+// enter() calls setupFn and returns the result; exit() calls cleanupFn.
+public fn contextmanager(setupFn: fn(): Variant, cleanupFn: fn(): void): ContextManager {
+    return new ContextManager(setupFn, cleanupFn);
+}
+
+// A no-op context manager that simply returns the given value from enter().
+public class NullContextManager {
+    private Variant _value;
+
+    public fn init(value: Variant) {
+        this._value = value;
+    }
+
+    public fn enter(): Variant {
+        return this._value;
+    }
+
+    public fn exit(): void {
+        // No-op
+    }
+}
+
+// Return a no-op context manager that yields the given value from enter().
+public fn nullcontext(value: Variant): NullContextManager {
+    return new NullContextManager(value);
+}
+
 // Suppress specified exceptions within a block.
 // Catches any error and silently ignores it.
 public fn suppress(block: fn(): void): void {
