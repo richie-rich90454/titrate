@@ -144,6 +144,14 @@ public class Vec<T> {
         this._items = new ArrayList<T>();
     }
 
+    public fn reserve(capacity: int): void {
+        this._items.ensureCapacity(capacity);
+    }
+
+    public fn shrinkToFit(): void {
+        this._items.trimToSize();
+    }
+
     public fn clone(): Vec<T> {
         let result: Vec<T> = new Vec<T>();
         for (elem in this._items) {
