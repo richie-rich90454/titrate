@@ -1,0 +1,38 @@
+// WeakRef module for weak references (simplified stub).
+// True weak references require VM-level support for garbage collection integration.
+
+// WeakRef<T> holds a reference that does not prevent garbage collection of the referent.
+// This is a simplified stub implementation.
+public class WeakRef<T> {
+    private T _ref;
+    private bool _cleared;
+
+    public fn init(ref: T) {
+        this._ref = ref;
+        this._cleared = false;
+    }
+
+    // Returns the referenced object, or null if it has been cleared or collected.
+    public fn get(): T {
+        if (this._cleared) {
+            return null;
+        }
+        return this._ref;
+    }
+
+    // Clear the weak reference manually.
+    public fn clear(): void {
+        this._ref = null;
+        this._cleared = true;
+    }
+
+    // Returns true if the reference has been cleared.
+    public fn isCleared(): bool {
+        return this._cleared;
+    }
+}
+
+// Create a new WeakRef wrapping the given reference.
+public fn weakRef<T>(ref: T): WeakRef<T> {
+    return new WeakRef<T>(ref);
+}
