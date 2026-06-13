@@ -358,3 +358,25 @@ fn padRight(s: string, width: int, ch: string): string {
     }
     return result;
 }
+
+// Check if all characters in s are ASCII (code points 0-127).
+fn isAscii(s: string): bool {
+    var i: int = 0;
+    while (i < s.length()) {
+        let code: int = s.charAt(i) as int;
+        if (code > 127) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Check if all characters in s are printable (no control characters).
+fn isPrintable(s: string): bool {
+    var i: int = 0;
+    while (i < s.length()) {
+        let code: int = s.charAt(i) as int;
+        if (code < 32 || code == 127) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
