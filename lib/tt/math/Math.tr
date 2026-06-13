@@ -263,8 +263,11 @@ public fn prod(values: ArrayList<double>): double {
 
 // Approximate equality with relative tolerance 1e-9
 public fn isclose(a: double, b: double): bool {
-    let relTol: double = 1e-9;
-    let absTol: double = 0.0;
+    return isclose(a, b, 1e-9, 0.0);
+}
+
+// Approximate equality with configurable relative and absolute tolerances (Python-compatible)
+public fn isclose(a: double, b: double, relTol: double, absTol: double): bool {
     let diff: double = Math_abs(a - b);
     if (diff <= absTol) { return true; }
     let larger: double = MathAdvanced.max(Math_abs(a), Math_abs(b));
