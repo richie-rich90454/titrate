@@ -257,6 +257,15 @@ public class Random {
         return total;
     }
 
+    // Extreme value (Gumbel) distribution: loc - scale * ln(-ln(U))
+    public fn extremeValue(loc: double, scale: double): double {
+        var u: double = this.nextDouble();
+        while (u < 1e-15) {
+            u = this.nextDouble();
+        }
+        return loc - scale * Math.ln(-Math.ln(u));
+    }
+
     // Weighted random choice from a list using cumulative weights
     public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
         // Build cumulative weights
