@@ -145,3 +145,57 @@ public fn telescopingSum(terms: fn(int): double, start: int, end: int): double {
     }
     return sum;
 }
+
+// ---- Convergence utilities ----
+
+// Check if the sequence has a constant difference between consecutive terms
+public fn isArithmetic(seq: ArrayList<double>): bool {
+    if (seq.size() < 2) { return true; }
+    let diff: double = seq.get(1) - seq.get(0);
+    var i: int = 2;
+    while (i < seq.size()) {
+        let d: double = seq.get(i) - seq.get(i - 1);
+        let delta: double = d - diff;
+        if (delta < 0.0) { delta = -delta; }
+        if (delta > 1e-9) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Check if the sequence has a constant ratio between consecutive terms
+public fn isGeometric(seq: ArrayList<double>): bool {
+    if (seq.size() < 2) { return true; }
+    if (seq.get(0) == 0.0) { return false; }
+    let ratio: double = seq.get(1) / seq.get(0);
+    var i: int = 2;
+    while (i < seq.size()) {
+        if (seq.get(i - 1) == 0.0) { return false; }
+        let r: double = seq.get(i) / seq.get(i - 1);
+        let delta: double = r - ratio;
+        if (delta < 0.0) { delta = -delta; }
+        if (delta > 1e-9) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Find the common difference of an arithmetic sequence
+public fn findCommonDifference(seq: ArrayList<double>): double {
+    return seq.get(1) - seq.get(0);
+}
+
+// Find the common ratio of a geometric sequence
+public fn findCommonRatio(seq: ArrayList<double>): double {
+    return seq.get(1) / seq.get(0);
+}
+
+// Compute the nth term of an arithmetic sequence: first + (n-1)*diff
+public fn nthTermArithmetic(first: double, diff: double, n: int): double {
+    return first + ((n - 1) as double) * diff;
+}
+
+// Compute the nth term of a geometric sequence: first * ratio^(n-1)
+public fn nthTermGeometric(first: double, ratio: double, n: int): double {
+    return first * Math.pow(ratio, (n - 1) as double);
+}
