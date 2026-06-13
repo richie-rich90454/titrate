@@ -73,4 +73,8 @@ public class Thread {
     public static fn currentId(): int {
         return Thread_currentId();
     }
+
+    public static fn hardwareConcurrency(): int {
+        return Os_cpuCount();
+    }
 }
