@@ -291,7 +291,7 @@ impl Vm {
                 match (&val, &index) {
                     (Value::String(s), Value::Int(i)) => {
                         let idx = *i as usize;
-                        if idx < s.len() {
+                        if idx < s.chars().count() {
                             self.push(Value::Char(s.chars().nth(idx).unwrap()));
                         } else {
                             return Err(format!(
