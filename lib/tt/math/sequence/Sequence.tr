@@ -1,6 +1,7 @@
 // Sequence provides generators for common mathematical sequences and series.
 import tt::util::ArrayList;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 // ---- Sequence generators ----
 
@@ -20,7 +21,7 @@ public fn geometricSequence(first: double, ratio: double, n: int): ArrayList<dou
     let result: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
     while (i < n) {
-        result.add(first * Math.pow(ratio, i as double));
+        result.add(first * MathAdvanced.pow(ratio, i as double));
         i = i + 1;
     }
     return result;
@@ -105,7 +106,7 @@ public fn geometricSum(first: double, ratio: double, n: int): double {
     if (ratio == 1.0) {
         return first * (n as double);
     }
-    return first * (1.0 - Math.pow(ratio, n as double)) / (1.0 - ratio);
+    return first * (1.0 - MathAdvanced.pow(ratio, n as double)) / (1.0 - ratio);
 }
 
 // Sum of an infinite geometric series: first/(1-ratio) for |ratio|<1
@@ -129,7 +130,7 @@ public fn powerSeriesSum(coeffs: ArrayList<double>, x: double): double {
     var sum: double = 0.0;
     var i: int = 0;
     while (i < coeffs.size()) {
-        sum = sum + coeffs.get(i) * Math.pow(x, i as double);
+        sum = sum + coeffs.get(i) * MathAdvanced.pow(x, i as double);
         i = i + 1;
     }
     return sum;
@@ -197,5 +198,5 @@ public fn nthTermArithmetic(first: double, diff: double, n: int): double {
 
 // Compute the nth term of a geometric sequence: first * ratio^(n-1)
 public fn nthTermGeometric(first: double, ratio: double, n: int): double {
-    return first * Math.pow(ratio, (n - 1) as double);
+    return first * MathAdvanced.pow(ratio, (n - 1) as double);
 }
