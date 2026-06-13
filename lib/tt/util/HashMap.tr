@@ -193,4 +193,12 @@ public class HashMap<K, V> implements Iterable<K> {
     public fn reserve(capacity: int): void {
         // No-op: VM HashMap manages its own capacity
     }
+
+    public fn equalRange(key: K): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        if (this.map.containsKey(key)) {
+            result.add(this.map.get(key));
+        }
+        return result;
+    }
 }
