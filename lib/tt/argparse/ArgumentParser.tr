@@ -19,18 +19,75 @@ public class Argument {
     }
 }
 
+// ArgumentGroup organizes related arguments in help output.
+public class ArgumentGroup {
+    public string title;
+    public ArrayList<Argument> arguments;
+
+    fn init(title: string) {
+        this.title = title;
+        this.arguments = new ArrayList<Argument>();
+    }
+
+    public fn addArgument(name: string, typ: string, default: Variant, required: bool, help: string): void {
+        let arg: Argument = new Argument(name, typ, default, required, help);
+        this.arguments.add(arg);
+    }
+}
+
+// MutuallyExclusiveGroup ensures only one argument in the group can be specified.
+public class MutuallyExclusiveGroup {
+    public bool required;
+    public ArrayList<Argument> arguments;
+
+    fn init(required: bool) {
+        this.required = required;
+        this.arguments = new ArrayList<Argument>();
+    }
+
+    public fn addArgument(name: string, typ: string, default: Variant, required: bool, help: string): void {
+        let arg: Argument = new Argument(name, typ, default, required, help);
+        this.arguments.add(arg);
+    }
+}
+
+// Subparsers manages sub-command parsers.
+public class Subparsers {
+    public string title;
+    public string dest;
+    public HashMap<string, ArgumentParser> parsers;
+
+    fn init(title: string, dest: string) {
+        this.title = title;
+        this.dest = dest;
+        this.parsers = new HashMap<string, ArgumentParser>();
+    }
+
+    public fn addParser(name: string, help: string): ArgumentParser {
+        let parser: ArgumentParser = new ArgumentParser(name, help);
+        this.parsers.put(name, parser);
+        return parser;
+    }
+}
+
 // Parses command-line arguments according to registered definitions.
 public class ArgumentParser {
     public string name;
     public string description;
     public ArrayList<Argument> arguments;
     public HashMap<string, Variant> parsedArgs;
+    public ArrayList<ArgumentGroup> groups;
+    public ArrayList<MutuallyExclusiveGroup> mutexGroups;
+    public Subparsers subparsers;
 
     fn init(name: string, description: string) {
         this.name = name;
         this.description = description;
         this.arguments = new ArrayList<Argument>();
         this.parsedArgs = new HashMap<string, Variant>();
+        this.groups = new ArrayList<ArgumentGroup>();
+        this.mutexGroups = new ArrayList<MutuallyExclusiveGroup>();
+        this.subparsers = null;
     }
 
     public fn addArgument(name: string, typ: string, default: Variant, required: bool, help: string): void {
@@ -38,19 +95,105 @@ public class ArgumentParser {
         this.arguments.add(arg);
     }
 
+    // Add a boolean flag argument (e.g., --verbose sets verbose to true).
+    public fn addFlag(name: string, help: string): void {
+        let arg: Argument = new Argument(name, "bool", false, false, help);
+        this.arguments.add(arg);
+    }
+
+    // Add an argument group for organizing help output.
+    public fn addArgumentGroup(title: string): ArgumentGroup {
+        let group: ArgumentGroup = new ArgumentGroup(title);
+        this.groups.add(group);
+        return group;
+    }
+
+    // Add a mutually exclusive argument group.
+    public fn addMutuallyExclusiveGroup(required: bool): MutuallyExclusiveGroup {
+        let group: MutuallyExclusiveGroup = new MutuallyExclusiveGroup(required);
+        this.mutexGroups.add(group);
+        return group;
+    }
+
+    // Add subparsers for sub-commands.
+    public fn addSubparsers(title: string, dest: string): Subparsers {
+        this.subparsers = new Subparsers(title, dest);
+        return this.subparsers;
+    }
+
+    // Collect all arguments including those from groups and mutex groups.
+    private fn _allArguments(): ArrayList<Argument> {
+        let all: ArrayList<Argument> = new ArrayList<Argument>();
+        var i: int = 0;
+        while (i < this.arguments.size()) {
+            all.add(this.arguments.get(i));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < this.groups.size()) {
+            let group: ArgumentGroup = this.groups.get(i);
+            var j: int = 0;
+            while (j < group.arguments.size()) {
+                all.add(group.arguments.get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        i = 0;
+        while (i < this.mutexGroups.size()) {
+            let group: MutuallyExclusiveGroup = this.mutexGroups.get(i);
+            var j: int = 0;
+            while (j < group.arguments.size()) {
+                all.add(group.arguments.get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return all;
+    }
+
     public fn parseArgs(args: ArrayList<string>): HashMap<string, Variant> {
         let result: HashMap<string, Variant> = new HashMap<string, Variant>();
+        let allArgs: ArrayList<Argument> = this._allArguments();
         // Set defaults first
         let i: int = 0;
-        while (i < this.arguments.size()) {
-            let arg: Argument = this.arguments.get(i);
+        while (i < allArgs.size()) {
+            let arg: Argument = allArgs.get(i);
             if (arg.default != null) {
                 result.put(arg.name, arg.default);
             }
             i = i + 1;
         }
+        // Check for subcommand
+        if (this.subparsers != null) {
+            var pos: int = 0;
+            while (pos < args.size()) {
+                let token: string = args.get(pos);
+                if (this.subparsers.parsers.containsKey(token)) {
+                    let subParser: ArgumentParser = this.subparsers.parsers.get(token);
+                    // Parse remaining args with subparser
+                    let remaining: ArrayList<string> = new ArrayList<string>();
+                    var ri: int = pos + 1;
+                    while (ri < args.size()) {
+                        remaining.add(args.get(ri));
+                        ri = ri + 1;
+                    }
+                    result.put(this.subparsers.dest, token);
+                    let subResult: HashMap<string, Variant> = subParser.parseArgs(remaining);
+                    let subKeys: ArrayList<string> = subResult.keys();
+                    var ki: int = 0;
+                    while (ki < subKeys.size()) {
+                        result.put(subKeys.get(ki), subResult.get(subKeys.get(ki)));
+                        ki = ki + 1;
+                    }
+                    this.parsedArgs = result;
+                    return result;
+                }
+                pos = pos + 1;
+            }
+        }
         // Parse positional and named arguments
-        let pos: int = 0;
+        var pos: int = 0;
         while (pos < args.size()) {
             let token: string = args.get(pos);
             if (String.startsWith(token, "--")) {
@@ -59,14 +202,17 @@ public class ArgumentParser {
                 // Find matching argument definition
                 let match: Argument = null;
                 let j: int = 0;
-                while (j < this.arguments.size()) {
-                    if (this.arguments.get(j).name == argName) {
-                        match = this.arguments.get(j);
+                while (j < allArgs.size()) {
+                    if (allArgs.get(j).name == argName) {
+                        match = allArgs.get(j);
                         break;
                     }
                     j = j + 1;
                 }
-                if (match != null && pos + 1 < args.size()) {
+                if (match != null && match.typ == "bool") {
+                    // Boolean flag: --flag sets to true
+                    result.put(argName, true);
+                } else if (match != null && pos + 1 < args.size()) {
                     pos = pos + 1;
                     let val: string = args.get(pos);
                     result.put(argName, this._convert(val, match.typ));
@@ -79,14 +225,16 @@ public class ArgumentParser {
                 let argName: string = String.substring(token, 1);
                 let match: Argument = null;
                 let j: int = 0;
-                while (j < this.arguments.size()) {
-                    if (this.arguments.get(j).name == argName) {
-                        match = this.arguments.get(j);
+                while (j < allArgs.size()) {
+                    if (allArgs.get(j).name == argName) {
+                        match = allArgs.get(j);
                         break;
                     }
                     j = j + 1;
                 }
-                if (match != null && pos + 1 < args.size()) {
+                if (match != null && match.typ == "bool") {
+                    result.put(argName, true);
+                } else if (match != null && pos + 1 < args.size()) {
                     pos = pos + 1;
                     let val: string = args.get(pos);
                     result.put(argName, this._convert(val, match.typ));
@@ -96,9 +244,9 @@ public class ArgumentParser {
             } else {
                 // Positional argument: assign to the next argument without a value
                 let j: int = 0;
-                while (j < this.arguments.size()) {
-                    if (!result.containsKey(this.arguments.get(j).name)) {
-                        result.put(this.arguments.get(j).name, this._convert(token, this.arguments.get(j).typ));
+                while (j < allArgs.size()) {
+                    if (!result.containsKey(allArgs.get(j).name)) {
+                        result.put(allArgs.get(j).name, this._convert(token, allArgs.get(j).typ));
                         break;
                     }
                     j = j + 1;
@@ -108,14 +256,124 @@ public class ArgumentParser {
         }
         // Check required arguments
         i = 0;
-        while (i < this.arguments.size()) {
-            let arg: Argument = this.arguments.get(i);
+        while (i < allArgs.size()) {
+            let arg: Argument = allArgs.get(i);
             if (arg.required && !result.containsKey(arg.name)) {
                 // Missing required argument; store null as sentinel
                 result.put(arg.name, null);
             }
             i = i + 1;
         }
+        // Check mutually exclusive groups
+        i = 0;
+        while (i < this.mutexGroups.size()) {
+            let group: MutuallyExclusiveGroup = this.mutexGroups.get(i);
+            var count: int = 0;
+            var j: int = 0;
+            while (j < group.arguments.size()) {
+                let arg: Argument = group.arguments.get(j);
+                if (result.containsKey(arg.name) && result.get(arg.name) != null && result.get(arg.name) != arg.default) {
+                    count = count + 1;
+                }
+                j = j + 1;
+            }
+            if (count > 1) {
+                // Mutually exclusive arguments conflict; clear extras
+                var k: int = 1;
+                while (k < group.arguments.size()) {
+                    result.put(group.arguments.get(k).name, group.arguments.get(k).default);
+                    k = k + 1;
+                }
+            }
+            i = i + 1;
+        }
+        this.parsedArgs = result;
+        return result;
+    }
+
+    // Parse known args, returning parsed args and remaining unrecognized args.
+    public fn parseKnownArgs(args: ArrayList<string>): HashMap<string, Variant> {
+        let result: HashMap<string, Variant> = new HashMap<string, Variant>();
+        let allArgs: ArrayList<Argument> = this._allArguments();
+        let remaining: ArrayList<string> = new ArrayList<string>();
+        // Set defaults first
+        let i: int = 0;
+        while (i < allArgs.size()) {
+            let arg: Argument = allArgs.get(i);
+            if (arg.default != null) {
+                result.put(arg.name, arg.default);
+            }
+            i = i + 1;
+        }
+        // Parse arguments
+        var pos: int = 0;
+        while (pos < args.size()) {
+            let token: string = args.get(pos);
+            if (String.startsWith(token, "--")) {
+                let argName: string = String.substring(token, 2);
+                let match: Argument = null;
+                let j: int = 0;
+                while (j < allArgs.size()) {
+                    if (allArgs.get(j).name == argName) {
+                        match = allArgs.get(j);
+                        break;
+                    }
+                    j = j + 1;
+                }
+                if (match != null && match.typ == "bool") {
+                    result.put(argName, true);
+                } else if (match != null && pos + 1 < args.size()) {
+                    pos = pos + 1;
+                    let val: string = args.get(pos);
+                    result.put(argName, this._convert(val, match.typ));
+                } else if (match != null) {
+                    result.put(argName, true);
+                } else {
+                    // Unknown argument, add to remaining
+                    remaining.add(token);
+                }
+            } else if (String.startsWith(token, "-")) {
+                let argName: string = String.substring(token, 1);
+                let match: Argument = null;
+                let j: int = 0;
+                while (j < allArgs.size()) {
+                    if (allArgs.get(j).name == argName) {
+                        match = allArgs.get(j);
+                        break;
+                    }
+                    j = j + 1;
+                }
+                if (match != null && match.typ == "bool") {
+                    result.put(argName, true);
+                } else if (match != null && pos + 1 < args.size()) {
+                    pos = pos + 1;
+                    let val: string = args.get(pos);
+                    result.put(argName, this._convert(val, match.typ));
+                } else if (match != null) {
+                    result.put(argName, true);
+                } else {
+                    remaining.add(token);
+                }
+            } else {
+                // Try positional, otherwise add to remaining
+                let found: bool = false;
+                let j: int = 0;
+                while (j < allArgs.size()) {
+                    if (!result.containsKey(allArgs.get(j).name)) {
+                        result.put(allArgs.get(j).name, this._convert(token, allArgs.get(j).typ));
+                        found = true;
+                        break;
+                    }
+                    j = j + 1;
+                }
+                if (!found) {
+                    remaining.add(token);
+                }
+            }
+            pos = pos + 1;
+        }
+        // Store remaining args
+        result.put("__remaining__", remaining);
         this.parsedArgs = result;
         return result;
     }
@@ -137,9 +395,10 @@ public class ArgumentParser {
 
     public fn usage(): string {
         let s: string = "usage: " + this.name;
+        let allArgs: ArrayList<Argument> = this._allArguments();
         let i: int = 0;
-        while (i < this.arguments.size()) {
-            let arg: Argument = this.arguments.get(i);
+        while (i < allArgs.size()) {
+            let arg: Argument = allArgs.get(i);
             if (arg.required) {
                 s = s + " --" + arg.name + " <" + arg.typ + ">";
             } else {
@@ -147,15 +406,19 @@ public class ArgumentParser {
             }
             i = i + 1;
         }
+        if (this.subparsers != null) {
+            s = s + " <command>";
+        }
         return s;
     }
 
     public fn help(): string {
         let s: string = this.usage();
         s = s + "\n\n" + this.description + "\n\noptional arguments:";
+        let allArgs: ArrayList<Argument> = this._allArguments();
         let i: int = 0;
-        while (i < this.arguments.size()) {
-            let arg: Argument = this.arguments.get(i);
+        while (i < allArgs.size()) {
+            let arg: Argument = allArgs.get(i);
             let defaultStr: string = "";
             if (arg.default != null) {
                 defaultStr = " (default: " + arg.default + ")";
@@ -166,6 +429,35 @@ public class ArgumentParser {
             }
             s = s + "\n  --" + arg.name + "  " + arg.help + requiredStr + defaultStr;
             i = i + 1;
+        }
+        // Add argument groups
+        i = 0;
+        while (i < this.groups.size()) {
+            let group: ArgumentGroup = this.groups.get(i);
+            s = s + "\n\n" + group.title + ":";
+            var j: int = 0;
+            while (j < group.arguments.size()) {
+                let arg: Argument = group.arguments.get(j);
+                let defaultStr: string = "";
+                if (arg.default != null) {
+                    defaultStr = " (default: " + arg.default + ")";
+                }
+                s = s + "\n  --" + arg.name + "  " + arg.help + defaultStr;
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        // Add subcommands
+        if (this.subparsers != null) {
+            s = s + "\n\n" + this.subparsers.title + ":";
+            let subKeys: ArrayList<string> = this.subparsers.parsers.keys();
+            var j: int = 0;
+            while (j < subKeys.size()) {
+                let cmd: string = subKeys.get(j);
+                let subParser: ArgumentParser = this.subparsers.parsers.get(cmd);
+                s = s + "\n  " + cmd + "  " + subParser.description;
+                j = j + 1;
+            }
         }
         return s;
     }
