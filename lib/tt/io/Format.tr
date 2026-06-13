@@ -126,9 +126,32 @@ fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign:
     } else if (spec == "x") {
         let val: int = arg as int;
         result = _toHex(val);
+    } else if (spec == "X") {
+        let val: int = arg as int;
+        result = _toUpperCase(_toHex(val));
     } else if (spec == "o") {
         let val: int = arg as int;
         result = _toOctal(val);
+    } else if (spec == "c") {
+        // Character from integer code point
+        let val: int = arg as int;
+        result = String.charAt(val as string, 0);
+    } else if (spec == "e") {
+        // Scientific notation
+        let val: double = arg as double;
+        result = _formatScientific(val, precision);
+        if (showSign && val >= 0.0) {
+            result = "+" + result;
+        }
+    } else if (spec == "p") {
+        // Percent format: multiply by 100 and add %
+        let val: double = arg as double;
+        let pct: double = val * 100.0;
+        if (precision >= 0) {
+            result = _formatDouble(pct, precision) + "%";
+        } else {
+            result = Double.toString(pct) + "%";
+        }
     } else {
         result = arg.toString();
     }
@@ -234,4 +257,50 @@ fn _toOctal(val: int): string {
         result = "-" + result;
     }
     return result;
+}
+
+// Convert a string to uppercase
+fn _toUpperCase(s: string): string {
+    return String_toUpperCase(s);
+}
+
+// Format a double in scientific notation (e.g., 1.23e+02)
+fn _formatScientific(val: double, precision: int): string {
+    if (val == 0.0) {
+        if (precision <= 0) { return "0e+00"; }
+        var zeroResult: string = "0.";
+        var p: int = 0;
+        while (p < precision) {
+            zeroResult = zeroResult + "0";
+            p = p + 1;
+        }
+        return zeroResult + "e+00";
+    }
+    var absVal: double = val;
+    if (absVal < 0.0) { absVal = -absVal; }
+    var exponent: int = 0;
+    if (absVal >= 1.0) {
+        while (absVal >= 10.0) {
+            absVal = absVal / 10.0;
+            exponent = exponent + 1;
+        }
+    } else {
+        while (absVal < 1.0) {
+            absVal = absVal * 10.0;
+            exponent = exponent - 1;
+        }
+    }
+    let prec: int = precision;
+    if (prec < 0) { prec = 6; }
+    let mantissa: string = _formatDouble(absVal, prec);
+    let expStr: string = Integer.toString(exponent);
+    if (exponent >= 0) {
+        expStr = "+" + _padLeft(expStr, 2);
+    } else {
+        let negExp: int = -exponent;
+        expStr = "-" + _padLeft(Integer.toString(negExp), 2);
+    }
+    var sign: string = "";
+    if (val < 0.0) { sign = "-"; }
+    return sign + mantissa + "e" + expStr;
 }
