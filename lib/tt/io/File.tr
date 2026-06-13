@@ -98,4 +98,9 @@ public class File {
     public fn lastModified(): int {
         return File_lastModified(this.getPath());
     }
+
+    // Flush file buffers to disk.
+    public fn flush(): void {
+        File_flush(this.getPath());
+    }
 }

@@ -356,3 +356,29 @@ pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String>
         ))))),
     }
 }
+
+pub(crate) fn native_file_flush(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_flush: expected 1 argument (FileHandle)".to_string());
+    }
+    match &args[0] {
+        Value::FileHandle(file_rc) => {
+            let mut file_opt = file_rc.borrow_mut();
+            match file_opt.as_mut() {
+                Some(file) => {
+                    use std::io::Write;
+                    match file.flush() {
+                        Ok(()) => Ok(Value::Void),
+                        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("File_flush: {}", e)
+                        ))))),
+                    }
+                }
+                None => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    "FileHandle is closed".to_string()
+                ))))),
+            }
+        }
+        _ => Err("File_flush: expected FileHandle argument".to_string()),
+    }
+}

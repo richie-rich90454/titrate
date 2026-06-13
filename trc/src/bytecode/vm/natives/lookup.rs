@@ -25,6 +25,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "File_readBytes" => Some(file::native_file_read_bytes),
         "File_writeBytes" => Some(file::native_file_write_bytes),
         "File_lastModified" => Some(file::native_file_last_modified),
+        "File_flush" => Some(file::native_file_flush),
         "String_split" => Some(builtins::native_string_split),
         "Integer_parseOr" => Some(builtins::native_integer_parse_or),
         "String_trim" => Some(builtins::native_string_trim),
