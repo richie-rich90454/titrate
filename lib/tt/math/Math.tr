@@ -238,7 +238,8 @@ public fn fma(a: double, b: double, c: double): double {
 
 // ==================== Sum / product ====================
 
-// Accurate sum using Kahan summation algorithm
+// Accurate sum using Kahan summation algorithm.
+// Accepts any ArrayList<double> (or compatible list of doubles).
 public fn fsum(values: ArrayList<double>): double {
     var sum: double = 0.0;
     var c: double = 0.0;
