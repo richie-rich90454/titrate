@@ -217,6 +217,13 @@ public class Random {
         return this.gammaDist(df / 2.0, 2.0);
     }
 
+    // Student's t-distribution: normal / sqrt(chiSquared/df)
+    public fn studentT(df: double): double {
+        let z: double = this.nextGaussian();
+        let v: double = this.chiSquared(df);
+        return z / Math.sqrt(v / df);
+    }
+
     // Weighted random choice from a list using cumulative weights
     public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
         // Build cumulative weights
