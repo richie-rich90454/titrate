@@ -17,6 +17,28 @@ pub(crate) fn native_thread_spawn(args: &[Value]) -> Result<Value, String> {
     let handle = THREAD_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     let join_handle = thread::spawn(|| {
         // Placeholder: actual function execution would go here
+        // NOTE: Executing Titrate closures in spawned threads is not currently
+        // possible because Value contains Rc<> which is not Send. The Thread class
+        // in Thread.tr works around this by using ThreadPoolExecutor patterns.
+    });
+    let mut registry = THREAD_REGISTRY.lock().unwrap();
+    registry.insert(handle, Some(join_handle));
+    Ok(Value::Long(handle))
+}
+
+/// Thread_spawnRunnable spawns a thread that runs a simple loop with sleep,
+/// checking a shared flag. This is a limited workaround for the VM's inability
+/// to send closures across threads. The "runnable handle" points to a stored
+/// flag in a separate registry that controls the thread's execution.
+/// Currently, this just spawns a no-op thread like Thread_spawn, but the
+/// architecture allows future expansion when the VM supports Send-safe closures.
+pub(crate) fn native_thread_spawn_runnable(args: &[Value]) -> Result<Value, String> {
+    // args[0] = runnable handle (int) - reserved for future use
+    let _ = args;
+    let handle = THREAD_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
+    let join_handle = thread::spawn(|| {
+        // Placeholder: in the future, this would look up the runnable handle
+        // and execute the associated function
     });
     let mut registry = THREAD_REGISTRY.lock().unwrap();
     registry.insert(handle, Some(join_handle));

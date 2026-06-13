@@ -284,6 +284,7 @@ impl Vm {
 
         // Thread natives
         vm.register_native("Thread_spawn", natives::thread::native_thread_spawn);
+        vm.register_native("Thread_spawnRunnable", natives::thread::native_thread_spawn_runnable);
         vm.register_native("Thread_join", natives::thread::native_thread_join);
         vm.register_native("Thread_sleep", natives::thread::native_thread_sleep);
         vm.register_native("Thread_yield", natives::thread::native_thread_yield);

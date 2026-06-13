@@ -170,6 +170,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
 
         // Thread natives
         "Thread_spawn" => Some(thread::native_thread_spawn),
+        "Thread_spawnRunnable" => Some(thread::native_thread_spawn_runnable),
         "Thread_join" => Some(thread::native_thread_join),
         "Thread_sleep" => Some(thread::native_thread_sleep),
         "Thread_yield" => Some(thread::native_thread_yield),
