@@ -14,7 +14,7 @@ public class Stopwatch {
 
     public fn start(): Stopwatch {
         if (!this.running) {
-            this.startTime = Time_now() * 1000000;
+            this.startTime = Time_monotonic();
             this.running = true;
         }
         return this;
@@ -22,7 +22,7 @@ public class Stopwatch {
 
     public fn stop(): Stopwatch {
         if (this.running) {
-            this.elapsed = this.elapsed + (Time_now() * 1000000 - this.startTime);
+            this.elapsed = this.elapsed + (Time_monotonic() - this.startTime);
             this.running = false;
         }
         return this;
@@ -38,9 +38,14 @@ public class Stopwatch {
     public fn elapsed(): Duration {
         var total: long = this.elapsed;
         if (this.running) {
-            total = total + (Time_now() * 1000000 - this.startTime);
+            total = total + (Time_monotonic() - this.startTime);
         }
-        return new Duration(total / 1000000);
+        // total is in nanoseconds; convert to Duration
+        let ms: long = total / 1000000;
+        let ns: long = total % 1000000;
+        let d: Duration = new Duration(ms);
+        d.initWithNanos(ms, ns);
+        return d;
     }
 
     public fn isRunning(): bool {
