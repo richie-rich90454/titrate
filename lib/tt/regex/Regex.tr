@@ -8,6 +8,10 @@ public class Regex {
     public string pattern;
     public string flags;
 
+    public const IGNORECASE: string = "i";
+    public const MULTILINE: string = "m";
+    public const DOTALL: string = "s";
+
     public fn init(p: string) {
         this.pattern = p;
         this.flags = "";
@@ -19,11 +23,13 @@ public class Regex {
     }
 
     public fn match(input: string): bool {
-        return Regex_match(this.pattern, input);
+        let effectivePattern: string = this._effectivePattern();
+        return Regex_match(effectivePattern, input);
     }
 
     public fn find(input: string): Match {
-        let raw: string = Regex_findGroups(this.pattern, input);
+        let effectivePattern: string = this._effectivePattern();
+        let raw: string = Regex_findGroups(effectivePattern, input);
         if (String.length(raw) == 0) {
             return null;
         }
@@ -268,6 +274,13 @@ public class Regex {
             i = i + 1;
         }
         return result;
+    }
+
+    public fn _effectivePattern(): string {
+        if (String.length(this.flags) > 0) {
+            return "(?" + this.flags + ")" + this.pattern;
+        }
+        return this.pattern;
     }
 }
 

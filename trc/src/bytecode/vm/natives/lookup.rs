@@ -152,6 +152,8 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Math_fma" => Some(math::native_math_fma),
         "Regex_groupCount" => Some(regex::native_regex_group_count),
         "Regex_findGroups" => Some(regex::native_regex_find_groups),
+        "Regex_findWithFlags" => Some(regex::native_regex_find_with_flags),
+        "Regex_matchWithFlags" => Some(regex::native_regex_match_with_flags),
         "Dir_walk" => Some(directory::native_dir_walk),
         "Dir_copy" => Some(directory::native_dir_copy),
         "Dir_move" => Some(directory::native_dir_move),

@@ -109,3 +109,62 @@ pub(crate) fn native_regex_find_groups(args: &[Value]) -> Result<Value, String> 
         None => Ok(Value::String(Rc::new(String::new()))),
     }
 }
+
+/// Build a regex pattern with inline flags, e.g. "(?im)" + pattern
+fn build_pattern_with_flags(pattern: &str, flags: &str) -> String {
+    if flags.is_empty() {
+        pattern.to_string()
+    } else {
+        format!("(?{}){}", flags, pattern)
+    }
+}
+
+pub(crate) fn native_regex_find_with_flags(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("Regex_findWithFlags: expected 3 arguments (pattern, input, flags)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_findWithFlags: expected String pattern".to_string()),
+    };
+    let input = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_findWithFlags: expected String input".to_string()),
+    };
+    let flags = match &args[2] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_findWithFlags: expected String flags".to_string()),
+    };
+    let full_pattern = build_pattern_with_flags(&pattern, &flags);
+    let re = regex::Regex::new(&full_pattern)
+        .map_err(|e| format!("Regex_findWithFlags: invalid pattern '{}': {}", full_pattern, e))?;
+    match re.find(&input) {
+        Some(m) => {
+            let result = format!("{},{},{}", m.start(), m.end(), m.as_str());
+            Ok(Value::String(Rc::new(result)))
+        }
+        None => Ok(Value::String(Rc::new(String::new()))),
+    }
+}
+
+pub(crate) fn native_regex_match_with_flags(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 {
+        return Err("Regex_matchWithFlags: expected 3 arguments (pattern, input, flags)".to_string());
+    }
+    let pattern = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_matchWithFlags: expected String pattern".to_string()),
+    };
+    let input = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_matchWithFlags: expected String input".to_string()),
+    };
+    let flags = match &args[2] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Regex_matchWithFlags: expected String flags".to_string()),
+    };
+    let full_pattern = build_pattern_with_flags(&pattern, &flags);
+    let re = regex::Regex::new(&full_pattern)
+        .map_err(|e| format!("Regex_matchWithFlags: invalid pattern '{}': {}", full_pattern, e))?;
+    Ok(Value::Bool(re.is_match(&input)))
+}
