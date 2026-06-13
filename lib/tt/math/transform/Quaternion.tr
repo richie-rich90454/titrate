@@ -89,7 +89,7 @@ public class Quaternion {
         let xz: double = q.x * q.z;
         let yz: double = q.y * q.z;
 
-        let m: Mat4 = new Mat4();
+        let m: Mat4 = mat4Identity();
         m.set(0, 0, ww + xx - yy - zz);
         m.set(0, 1, 2.0 * (xy - wz));
         m.set(0, 2, 2.0 * (xz + wy));
