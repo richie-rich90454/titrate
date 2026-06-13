@@ -721,3 +721,257 @@ public class NormalDist {
         return result;
     }
 }
+
+// ==================== Probability Distribution Classes ====================
+
+// Helper: factorial for integer k.
+fn factorial(k: int): double {
+    var result: double = 1.0;
+    var i: int = 2;
+    while (i <= k) {
+        result = result * i;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Helper: log-gamma using Stirling's approximation for large values, exact for small.
+fn logGamma(x: double): double {
+    if (x <= 0.0) { return 0.0; }
+    if (x < 0.5) {
+        // Reflection formula: Gamma(x)*Gamma(1-x) = pi / sin(pi*x)
+        return Math.ln(Math.PI() / Math.sin(Math.PI() * x)) - logGamma(1.0 - x);
+    }
+    // Lanczos approximation
+    let g: double = 7.0;
+    let coef1: double = 0.99999999999980993;
+    let coef2: double = 676.5203681218851;
+    let coef3: double = -1259.1392167224028;
+    let coef4: double = 771.32342877765313;
+    let coef5: double = -176.61502916214059;
+    let coef6: double = 12.507343278686905;
+    let coef7: double = -0.13857109526572012;
+    let coef8: double = 9.9843695780195716e-6;
+    let coef9: double = 1.5056327351493116e-7;
+
+    let z: double = x - 1.0;
+    var s: double = coef1;
+    s = s + coef2 / (z + 1.0);
+    s = s + coef3 / (z + 2.0);
+    s = s + coef4 / (z + 3.0);
+    s = s + coef5 / (z + 4.0);
+    s = s + coef6 / (z + 5.0);
+    s = s + coef7 / (z + 6.0);
+    s = s + coef8 / (z + 7.0);
+    s = s + coef9 / (z + 8.0);
+
+    let t: double = z + g + 0.5;
+    return 0.5 * Math.ln(2.0 * Math.PI()) + (z + 0.5) * Math.ln(t) - t + Math.ln(s);
+}
+
+// Helper: gamma function via exp(logGamma).
+fn gammaFn(x: double): double {
+    return Math.exp(logGamma(x));
+}
+
+// Helper: log of beta function.
+fn logBeta(a: double, b: double): double {
+    return logGamma(a) + logGamma(b) - logGamma(a + b);
+}
+
+// Helper: binomial coefficient C(n, k).
+fn binomCoeff(n: int, k: int): double {
+    if (k < 0 || k > n) { return 0.0; }
+    if (k == 0 || k == n) { return 1.0; }
+    // Use the smaller of k and n-k for efficiency
+    var kk: int = k;
+    if (k > n - k) { kk = n - k; }
+    var result: double = 1.0;
+    var i: int = 0;
+    while (i < kk) {
+        result = result * (n - i);
+        result = result / (i + 1);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Uniform distribution on [a, b].
+public class UniformDist {
+    public double a;
+    public double b;
+
+    public fn init(a: double, b: double) {
+        this.a = a;
+        this.b = b;
+    }
+
+    public fn pdf(x: double): double {
+        if (this.b <= this.a) { return 0.0; }
+        if (x >= this.a && x <= this.b) {
+            return 1.0 / (this.b - this.a);
+        }
+        return 0.0;
+    }
+
+    public fn cdf(x: double): double {
+        if (this.b <= this.a) { return 0.0; }
+        if (x <= this.a) { return 0.0; }
+        if (x >= this.b) { return 1.0; }
+        return (x - this.a) / (this.b - this.a);
+    }
+
+    public fn mean(): double {
+        return (this.a + this.b) / 2.0;
+    }
+
+    public fn variance(): double {
+        let range: double = this.b - this.a;
+        return range * range / 12.0;
+    }
+
+    public fn sample(): double {
+        return this.a + Math.random() * (this.b - this.a);
+    }
+}
+
+// Exponential distribution with rate lambda.
+public class ExponentialDist {
+    public double lambda;
+
+    public fn init(lambda: double) {
+        this.lambda = lambda;
+    }
+
+    public fn pdf(x: double): double {
+        if (this.lambda <= 0.0) { return 0.0; }
+        if (x < 0.0) { return 0.0; }
+        return this.lambda * Math.exp(-this.lambda * x);
+    }
+
+    public fn cdf(x: double): double {
+        if (this.lambda <= 0.0) { return 0.0; }
+        if (x < 0.0) { return 0.0; }
+        return 1.0 - Math.exp(-this.lambda * x);
+    }
+
+    public fn mean(): double {
+        if (this.lambda == 0.0) { return 0.0; }
+        return 1.0 / this.lambda;
+    }
+
+    public fn sample(): double {
+        return -Math.ln(Math.random()) / this.lambda;
+    }
+}
+
+// Poisson distribution with rate lambda.
+public class PoissonDist {
+    public double lambda;
+
+    public fn init(lambda: double) {
+        this.lambda = lambda;
+    }
+
+    public fn pmf(k: int): double {
+        if (this.lambda <= 0.0 || k < 0) { return 0.0; }
+        // lambda^k * exp(-lambda) / k!
+        let logPmf: double = k as double * Math.ln(this.lambda) - this.lambda - Math.ln(factorial(k));
+        return Math.exp(logPmf);
+    }
+
+    public fn cdf(k: int): double {
+        if (this.lambda <= 0.0 || k < 0) { return 0.0; }
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i <= k) {
+            sum = sum + this.pmf(i);
+            i = i + 1;
+        }
+        return sum;
+    }
+
+    public fn mean(): double {
+        return this.lambda;
+    }
+}
+
+// Binomial distribution with n trials and probability p.
+public class BinomialDist {
+    public int n;
+    public double p;
+
+    public fn init(n: int, p: double) {
+        this.n = n;
+        this.p = p;
+    }
+
+    public fn pmf(k: int): double {
+        if (k < 0 || k > this.n) { return 0.0; }
+        // C(n,k) * p^k * (1-p)^(n-k)
+        let logPmf: double = Math.ln(binomCoeff(this.n, k)) + k as double * Math.ln(this.p) + (this.n - k) as double * Math.ln(1.0 - this.p);
+        return Math.exp(logPmf);
+    }
+
+    public fn cdf(k: int): double {
+        if (k < 0) { return 0.0; }
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i <= k && i <= this.n) {
+            sum = sum + this.pmf(i);
+            i = i + 1;
+        }
+        return sum;
+    }
+
+    public fn mean(): double {
+        return this.n as double * this.p;
+    }
+}
+
+// Gamma distribution with shape alpha and rate beta.
+public class GammaDist {
+    public double alpha;
+    public double beta;
+
+    public fn init(alpha: double, beta: double) {
+        this.alpha = alpha;
+        this.beta = beta;
+    }
+
+    public fn pdf(x: double): double {
+        if (this.alpha <= 0.0 || this.beta <= 0.0) { return 0.0; }
+        if (x <= 0.0) { return 0.0; }
+        // beta^alpha * x^(alpha-1) * exp(-beta*x) / gamma(alpha)
+        let logPdf: double = this.alpha * Math.ln(this.beta) + (this.alpha - 1.0) * Math.ln(x) - this.beta * x - logGamma(this.alpha);
+        return Math.exp(logPdf);
+    }
+
+    public fn mean(): double {
+        if (this.beta == 0.0) { return 0.0; }
+        return this.alpha / this.beta;
+    }
+}
+
+// Beta distribution with shape parameters alpha and beta.
+public class BetaDist {
+    public double alpha;
+    public double beta;
+
+    public fn init(alpha: double, beta: double) {
+        this.alpha = alpha;
+        this.beta = beta;
+    }
+
+    public fn pdf(x: double): double {
+        if (this.alpha <= 0.0 || this.beta <= 0.0) { return 0.0; }
+        if (x <= 0.0 || x >= 1.0) { return 0.0; }
+        // x^(alpha-1) * (1-x)^(beta-1) / B(alpha, beta)
+        let logPdf: double = (this.alpha - 1.0) * Math.ln(x) + (this.beta - 1.0) * Math.ln(1.0 - x) - logBeta(this.alpha, this.beta);
+        return Math.exp(logPdf);
+    }
+
+    public fn mean(): double {
+        return this.alpha / (this.alpha + this.beta);
+    }
+}
