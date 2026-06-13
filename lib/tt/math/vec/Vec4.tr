@@ -1,0 +1,86 @@
+// Vec4 provides a 4D vector with arithmetic and utility operations.
+import tt::math::Math;
+import tt::lang::Double;
+
+public class Vec4 {
+    public double x;
+    public double y;
+    public double z;
+    public double w;
+
+    public fn init(x: double, y: double, z: double, w: double) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.w = w;
+    }
+
+    // ---- Arithmetic ----
+
+    public fn add(v: Vec4): Vec4 {
+        return new Vec4(this.x + v.x, this.y + v.y, this.z + v.z, this.w + v.w);
+    }
+
+    public fn sub(v: Vec4): Vec4 {
+        return new Vec4(this.x - v.x, this.y - v.y, this.z - v.z, this.w - v.w);
+    }
+
+    public fn scale(s: double): Vec4 {
+        return new Vec4(this.x * s, this.y * s, this.z * s, this.w * s);
+    }
+
+    // ---- Products ----
+
+    public fn dot(v: Vec4): double {
+        return this.x * v.x + this.y * v.y + this.z * v.z + this.w * v.w;
+    }
+
+    // ---- Magnitude ----
+
+    public fn magnitude(): double {
+        return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w);
+    }
+
+    public fn normalize(): Vec4 {
+        let m: double = this.magnitude();
+        return this.scale(1.0 / m);
+    }
+
+    // ---- Interpolation ----
+
+    public fn lerp(v: Vec4, t: double): Vec4 {
+        return this.scale(1.0 - t).add(v.scale(t));
+    }
+
+    // ---- Comparison and string ----
+
+    public fn equals(v: Vec4): bool {
+        let dx: double = this.x - v.x;
+        let dy: double = this.y - v.y;
+        let dz: double = this.z - v.z;
+        let dw: double = this.w - v.w;
+        if (dx < 0.0) { dx = -dx; }
+        if (dy < 0.0) { dy = -dy; }
+        if (dz < 0.0) { dz = -dz; }
+        if (dw < 0.0) { dw = -dw; }
+        return dx < 1e-12 && dy < 1e-12 && dz < 1e-12 && dw < 1e-12;
+    }
+
+    public fn toString(): string {
+        return "Vec4(" + Double.toString(this.x) + ", " + Double.toString(this.y) + ", " + Double.toString(this.z) + ", " + Double.toString(this.w) + ")";
+    }
+}
+
+// ---- Static factories ----
+
+public fn zero(): Vec4 {
+    return new Vec4(0.0, 0.0, 0.0, 0.0);
+}
+
+public fn one(): Vec4 {
+    return new Vec4(1.0, 1.0, 1.0, 1.0);
+}
+
+public fn unitW(): Vec4 {
+    return new Vec4(0.0, 0.0, 0.0, 1.0);
+}
