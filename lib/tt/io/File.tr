@@ -113,4 +113,15 @@ public class File {
     public fn truncate(len: int): void {
         File_truncate(this.getPath(), len);
     }
+
+    // Open a file with the given mode and return a File instance.
+    // Mode strings: "r" (read), "w" (write), "a" (append), "rb" (read binary), "wb" (write binary).
+    public fn open(path: string, mode: string): File {
+        let f: File = new File(path);
+        if (mode == "w" || mode == "wb") {
+            // Truncate or create the file
+            File_writeFile(path, "");
+        }
+        return f;
+    }
 }
