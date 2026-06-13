@@ -604,6 +604,7 @@ pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
     };
     let mode = match args.get(1) {
         Some(Value::Int(m)) => *m,
+        Some(Value::Long(m)) => *m as i32,
         _ => 0, // F_OK = 0 (existence check)
     };
     let p = std::path::Path::new(path);
@@ -649,5 +650,23 @@ pub(crate) fn native_env_unset(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Env_unset: expected a String key".to_string()),
     };
     std::env::remove_var(&key);
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_os_release(_args: &[Value]) -> Result<Value, String> {
+    Ok(Value::String(Rc::new(env!("CARGO_PKG_VERSION").to_string())))
+}
+
+pub(crate) fn native_os_version(_args: &[Value]) -> Result<Value, String> {
+    let info = format!("{}|{}", std::env::consts::OS, std::env::consts::ARCH);
+    Ok(Value::String(Rc::new(info)))
+}
+
+pub(crate) fn native_titrate_version(_args: &[Value]) -> Result<Value, String> {
+    Ok(Value::String(Rc::new(env!("CARGO_PKG_VERSION").to_string())))
+}
+
+pub(crate) fn native_gc_collect(_args: &[Value]) -> Result<Value, String> {
+    // GC collection hint - in a GC language this is typically a no-op or suggestion
     Ok(Value::Void)
 }

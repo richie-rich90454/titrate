@@ -124,6 +124,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "String_toUpperCase" => Some(string::native_string_to_uppercase),
         "String_toLowerCase" => Some(string::native_string_to_lower_case),
         "String_replace" => Some(string::native_string_replace),
+        "String_fromCharCode" => Some(string::native_string_from_char_code),
         "Hash_md5" => Some(hash::native_hash_md5),
         "Hash_sha1" => Some(hash::native_hash_sha1),
         "Hash_sha256" => Some(hash::native_hash_sha256),

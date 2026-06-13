@@ -122,3 +122,13 @@ pub(crate) fn native_string_replace(args: &[Value]) -> Result<Value, String> {
     };
     Ok(Value::String(Rc::new(input.replace(&target, &replacement))))
 }
+
+pub(crate) fn native_string_from_char_code(args: &[Value]) -> Result<Value, String> {
+    let code = match args.first() {
+        Some(Value::Int(c)) => *c as u32,
+        Some(Value::Long(c)) => *c as u32,
+        _ => return Err("String_fromCharCode: expected an Int code point".to_string()),
+    };
+    let s = char::from_u32(code).unwrap_or('\0').to_string();
+    Ok(Value::String(Rc::new(s)))
+}

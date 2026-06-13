@@ -181,7 +181,8 @@ pub(crate) fn native_regex_full_match(args: &[Value]) -> Result<Value, String> {
         Value::String(s) => s.as_str(),
         _ => return Err("Regex_fullMatch: text must be a String".to_string()),
     };
-    let re = regex::Regex::new(pattern)
+    let anchored = format!("^(?:{})$", pattern);
+    let re = regex::Regex::new(&anchored)
         .map_err(|e| format!("Regex_fullMatch: invalid pattern: {}", e))?;
     Ok(Value::Bool(re.is_match(text)))
 }

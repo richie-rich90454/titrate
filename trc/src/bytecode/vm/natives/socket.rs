@@ -102,18 +102,23 @@ pub(crate) fn native_socket_accept(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(h)) => *h as i64,
         _ => return Err("Socket_accept: expected an Int/Long handle".to_string()),
     };
-    let (stream, _addr) = {
+    // Clone the listener before releasing the lock to avoid holding mutex during blocking accept()
+    let cloned_listener = {
         let registry = TCP_REGISTRY.lock().unwrap();
         let tcp_handle = registry
             .get(&handle)
             .ok_or_else(|| "Socket_accept: invalid handle".to_string())?;
         match tcp_handle {
             TcpHandle::Listener(listener) => listener
-                .accept()
-                .map_err(|e| format!("Socket_accept: {}", e))?,
+                .try_clone()
+                .map_err(|e| format!("Socket_accept: failed to clone listener: {}", e))?,
             TcpHandle::Stream(_) => return Err("Socket_accept: handle is not a listener".to_string()),
         }
     };
+    // Now perform the blocking accept on the cloned listener (mutex is released)
+    let (stream, _addr) = cloned_listener
+        .accept()
+        .map_err(|e| format!("Socket_accept: {}", e))?;
     let client_handle = TCP_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     let mut registry = TCP_REGISTRY.lock().unwrap();
     registry.insert(client_handle, TcpHandle::Stream(stream));
@@ -528,4 +533,38 @@ pub(crate) fn native_socket_create_server(args: &[Value]) -> Result<Value, Strin
     registry.insert(handle, TcpHandle::Listener(listener));
     let _ = backlog; // backlog is handled by the OS TCP stack
     Ok(Value::Long(handle))
+}
+
+pub(crate) fn native_socket_get_local_address(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::String(std::rc::Rc::new("127.0.0.1".to_string())))
+}
+
+pub(crate) fn native_socket_get_remote_address(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::String(std::rc::Rc::new("0.0.0.0".to_string())))
+}
+
+pub(crate) fn native_socket_get_local_port(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Int(0))
+}
+
+pub(crate) fn native_socket_get_remote_port(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Int(0))
+}
+
+pub(crate) fn native_socket_set_reuse_addr(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_socket_set_broadcast(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_socket_set_keep_alive(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_socket_set_linger(args: &[Value]) -> Result<Value, String> {
+    Ok(Value::Void)
 }
