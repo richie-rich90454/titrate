@@ -3,6 +3,7 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
 import tt::lang::Result;
+import tt::lang::Integer;
 
 // Get an environment variable value
 public fn getEnv(key: string): string {
