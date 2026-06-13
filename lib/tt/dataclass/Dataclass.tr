@@ -114,3 +114,64 @@ public fn copyWith(instance: Variant, fields: ArrayList<string>, overrides: Hash
     }
     return copy;
 }
+
+// Create field metadata for dataclass definitions.
+// Returns a HashMap with field configuration: default, name, repr, compare.
+public fn field(default: Variant, name: string, repr: bool, compare: bool): HashMap<string, Variant> {
+    let meta: HashMap<string, Variant> = new HashMap<string, Variant>();
+    meta.put("default", default);
+    meta.put("name", name);
+    meta.put("repr", repr);
+    meta.put("compare", compare);
+    return meta;
+}
+
+// Convert a dataclass instance to a HashMap of field names to values.
+public fn asdict(instance: HashMap<string, Variant>, fields: ArrayList<string>): HashMap<string, Variant> {
+    let result: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let i: int = 0;
+    while (i < fields.size()) {
+        let fieldName: string = fields.get(i);
+        result.put(fieldName, instance.get(fieldName));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert a dataclass instance to an ArrayList of field values in order.
+public fn astuple(instance: HashMap<string, Variant>, fields: ArrayList<string>): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    let i: int = 0;
+    while (i < fields.size()) {
+        let fieldName: string = fields.get(i);
+        result.add(instance.get(fieldName));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Create a new instance with specified fields overridden.
+// Improved version of copyWith that works directly with HashMap instances.
+public fn replace(instance: HashMap<string, Variant>, fields: ArrayList<string>, overrides: HashMap<string, Variant>): HashMap<string, Variant> {
+    let copy: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let i: int = 0;
+    while (i < fields.size()) {
+        let fieldName: string = fields.get(i);
+        if (overrides.containsKey(fieldName)) {
+            copy.put(fieldName, overrides.get(fieldName));
+        } else {
+            copy.put(fieldName, instance.get(fieldName));
+        }
+        i = i + 1;
+    }
+    let className: Variant = instance.get("__class__");
+    if (className != null) {
+        copy.put("__class__", className);
+    }
+    return copy;
+}
+
+// Get the field names of a dataclass.
+public fn fields(dataclass: DataclassInfo): ArrayList<string> {
+    return dataclass.fields;
+}
