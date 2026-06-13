@@ -18,6 +18,19 @@ public class Mutex {
         return Mutex_tryLock(this.handle);
     }
 
+    public fn tryLockFor(timeoutMs: int): bool {
+        var elapsed: int = 0;
+        let step: int = 1;
+        while (elapsed < timeoutMs) {
+            if (Mutex_tryLock(this.handle)) {
+                return true;
+            }
+            Thread_sleep(step);
+            elapsed = elapsed + step;
+        }
+        return Mutex_tryLock(this.handle);
+    }
+
     public fn getHandle(): int {
         return this.handle;
     }
