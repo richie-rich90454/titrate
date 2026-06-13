@@ -15,16 +15,76 @@ interface Handler {
     fn handle(level: string, message: string, timestamp: string): void;
 }
 
+// LogFilter interface for filtering log records.
+interface LogFilter {
+    fn filter(level: int, message: string, loggerName: string): bool;
+}
+
+// LevelFilter only allows messages at or above a threshold level.
+public class LevelFilter implements LogFilter {
+    public int threshold;
+
+    fn init(threshold: int) {
+        this.threshold = threshold;
+    }
+
+    public fn filter(level: int, message: string, loggerName: string): bool {
+        return level >= this.threshold;
+    }
+}
+
+// NameFilter only allows messages from specific logger names.
+public class NameFilter implements LogFilter {
+    public string allowedName;
+
+    fn init(allowedName: string) {
+        this.allowedName = allowedName;
+    }
+
+    public fn filter(level: int, message: string, loggerName: string): bool {
+        return loggerName == this.allowedName;
+    }
+}
+
 // ConsoleHandler prints log messages to stderr.
 public class ConsoleHandler implements Handler {
     public Formatter formatter;
+    public ArrayList<LogFilter> filters;
 
     fn init() {
         this.formatter = new Formatter();
+        this.filters = new ArrayList<LogFilter>();
     }
 
     fn init(formatter: Formatter) {
         this.formatter = formatter;
+        this.filters = new ArrayList<LogFilter>();
+    }
+
+    public fn addFilter(filter: LogFilter): void {
+        this.filters.add(filter);
+    }
+
+    public fn removeFilter(filter: LogFilter): void {
+        var i: int = 0;
+        while (i < this.filters.size()) {
+            if (this.filters.get(i) == filter) {
+                this.filters.remove(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    private fn _passesFilters(level: int, message: string, loggerName: string): bool {
+        var i: int = 0;
+        while (i < this.filters.size()) {
+            if (!this.filters.get(i).filter(level, message, loggerName)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
     }
 
     public fn handle(level: string, message: string, timestamp: string): void {
@@ -41,16 +101,45 @@ public class ConsoleHandler implements Handler {
 // FileHandler appends log messages to a file.
 public class FileHandler implements Handler {
     public Formatter formatter;
+    public ArrayList<LogFilter> filters;
     private string filePath;
 
     fn init(path: string) {
         this.formatter = new Formatter();
+        this.filters = new ArrayList<LogFilter>();
         this.filePath = path;
     }
 
     fn init(path: string, formatter: Formatter) {
         this.formatter = formatter;
+        this.filters = new ArrayList<LogFilter>();
         this.filePath = path;
+    }
+
+    public fn addFilter(filter: LogFilter): void {
+        this.filters.add(filter);
+    }
+
+    public fn removeFilter(filter: LogFilter): void {
+        var i: int = 0;
+        while (i < this.filters.size()) {
+            if (this.filters.get(i) == filter) {
+                this.filters.remove(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    private fn _passesFilters(level: int, message: string, loggerName: string): bool {
+        var i: int = 0;
+        while (i < this.filters.size()) {
+            if (!this.filters.get(i).filter(level, message, loggerName)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
     }
 
     public fn handle(level: string, message: string, timestamp: string): void {
@@ -63,15 +152,43 @@ public class FileHandler implements Handler {
 // RotatingFileHandler rotates log files when they exceed a size limit.
 public class RotatingFileHandler implements Handler {
     public Formatter formatter;
+    public ArrayList<LogFilter> filters;
     private string filePath;
     private int maxBytes;
     private int backupCount;
 
     fn init(path: string, maxBytes: int, backupCount: int) {
         this.formatter = new Formatter();
+        this.filters = new ArrayList<LogFilter>();
         this.filePath = path;
         this.maxBytes = maxBytes;
         this.backupCount = backupCount;
+    }
+
+    public fn addFilter(filter: LogFilter): void {
+        this.filters.add(filter);
+    }
+
+    public fn removeFilter(filter: LogFilter): void {
+        var i: int = 0;
+        while (i < this.filters.size()) {
+            if (this.filters.get(i) == filter) {
+                this.filters.remove(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    private fn _passesFilters(level: int, message: string, loggerName: string): bool {
+        var i: int = 0;
+        while (i < this.filters.size()) {
+            if (!this.filters.get(i).filter(level, message, loggerName)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
     }
 
     public fn handle(level: string, message: string, timestamp: string): void {
@@ -117,6 +234,7 @@ public class Logger {
     public string name;
     public string level;
     public ArrayList<Handler> handlers;
+    public ArrayList<LogFilter> filters;
     public Logger parent;
     public ArrayList<Logger> children;
     public bool propagate;
@@ -135,6 +253,7 @@ public class Logger {
         this.name = name;
         this.level = "NOTSET";
         this.handlers = new ArrayList<Handler>();
+        this.filters = new ArrayList<LogFilter>();
         this.parent = null;
         this.children = new ArrayList<Logger>();
         this.propagate = true;
@@ -144,6 +263,7 @@ public class Logger {
         this.name = name;
         this.level = level;
         this.handlers = new ArrayList<Handler>();
+        this.filters = new ArrayList<LogFilter>();
         this.parent = null;
         this.children = new ArrayList<Logger>();
         this.propagate = true;
@@ -168,6 +288,32 @@ public class Logger {
         this.handlers.add(handler);
     }
 
+    public fn addFilter(filter: LogFilter): void {
+        this.filters.add(filter);
+    }
+
+    public fn removeFilter(filter: LogFilter): void {
+        var i: int = 0;
+        while (i < this.filters.size()) {
+            if (this.filters.get(i) == filter) {
+                this.filters.remove(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    private fn _passesFilters(level: int, msg: string): bool {
+        var i: int = 0;
+        while (i < this.filters.size()) {
+            if (!this.filters.get(i).filter(level, msg, this.name)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
     public fn debug(msg: string): void {
         this._log("DEBUG", msg);
     }
@@ -189,7 +335,11 @@ public class Logger {
     }
 
     private fn _log(level: string, msg: string): void {
-        if (this._levelValue(level) < this.effectiveLevel()) {
+        let levelVal: int = this._levelValue(level);
+        if (levelVal < this.effectiveLevel()) {
+            return;
+        }
+        if (!this._passesFilters(levelVal, msg)) {
             return;
         }
         this._callHandlers(level, msg);
@@ -197,9 +347,26 @@ public class Logger {
 
     private fn _callHandlers(level: string, msg: string): void {
         let timestamp: string = this._timestamp();
+        let levelVal: int = this._levelValue(level);
         let i: int = 0;
         while (i < this.handlers.size()) {
-            this.handlers.get(i).handle(level, msg, timestamp);
+            let handler: Handler = this.handlers.get(i);
+            // Check handler-level filters
+            let passes: bool = true;
+            // Use handler's _passesFilters if available
+            if (handler is ConsoleHandler) {
+                let ch: ConsoleHandler = handler as ConsoleHandler;
+                passes = ch._passesFilters(levelVal, msg, this.name);
+            } else if (handler is FileHandler) {
+                let fh: FileHandler = handler as FileHandler;
+                passes = fh._passesFilters(levelVal, msg, this.name);
+            } else if (handler is RotatingFileHandler) {
+                let rh: RotatingFileHandler = handler as RotatingFileHandler;
+                passes = rh._passesFilters(levelVal, msg, this.name);
+            }
+            if (passes) {
+                handler.handle(level, msg, timestamp);
+            }
             i = i + 1;
         }
         // Propagate to parent
