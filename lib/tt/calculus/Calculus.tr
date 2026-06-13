@@ -276,3 +276,105 @@ public fn secantMethod(f: fn(double): double, x0: double, x1: double, tol: doubl
     }
     return b;
 }
+
+// ==================== Optimization and Analysis ====================
+
+// Golden section search for minimum
+public fn findMin(f: fn(double): double, a: double, b: double, tol: double): double {
+    let gr: double = (Math.sqrt(5.0) + 1.0) / 2.0;
+    var lo: double = a;
+    var hi: double = b;
+    var c: double = hi - (hi - lo) / gr;
+    var d: double = lo + (hi - lo) / gr;
+    while (hi - lo > tol) {
+        if (f(c) < f(d)) {
+            hi = d;
+        } else {
+            lo = c;
+        }
+        c = hi - (hi - lo) / gr;
+        d = lo + (hi - lo) / gr;
+    }
+    return (lo + hi) / 2.0;
+}
+
+// Golden section search for maximum (minimize -f)
+public fn findMax(f: fn(double): double, a: double, b: double, tol: double): double {
+    let negF: fn(double): double = fn(x: double): double {
+        return -f(x);
+    };
+    return findMin(negF, a, b, tol);
+}
+
+// Find critical points where derivative changes sign in [a, b]
+public fn criticalPoints(f: fn(double): double, a: double, b: double, step: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var x: double = a;
+    var prevDeriv: double = derivative(f, x);
+    x = x + step;
+    while (x <= b) {
+        let currDeriv: double = derivative(f, x);
+        if (prevDeriv * currDeriv < 0.0) {
+            // Sign change: refine with bisection on the derivative
+            let cp: double = bisection(fn(t: double): double { return derivative(f, t); }, x - step, x, 1e-10, 100);
+            result.add(cp);
+        }
+        prevDeriv = currDeriv;
+        x = x + step;
+    }
+    return result;
+}
+
+// Check if f is increasing on [a, b]
+public fn isIncreasing(f: fn(double): double, a: double, b: double, step: double): bool {
+    var x: double = a;
+    while (x <= b) {
+        if (derivative(f, x) < 0.0) {
+            return false;
+        }
+        x = x + step;
+    }
+    return true;
+}
+
+// Check if f is decreasing on [a, b]
+public fn isDecreasing(f: fn(double): double, a: double, b: double, step: double): bool {
+    var x: double = a;
+    while (x <= b) {
+        if (derivative(f, x) > 0.0) {
+            return false;
+        }
+        x = x + step;
+    }
+    return true;
+}
+
+// Concavity at x: 1=concave up, -1=concave down, 0=inflection
+public fn concavity(f: fn(double): double, x: double): int {
+    let sd: double = secondDerivative(f, x, 1e-5);
+    if (Math.abs(sd) < 1e-8) {
+        return 0;
+    }
+    if (sd > 0.0) {
+        return 1;
+    }
+    return -1;
+}
+
+// Find inflection points where second derivative changes sign in [a, b]
+public fn inflectionPoints(f: fn(double): double, a: double, b: double, step: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var x: double = a;
+    var prevSecond: double = secondDerivative(f, x, 1e-5);
+    x = x + step;
+    while (x <= b) {
+        let currSecond: double = secondDerivative(f, x, 1e-5);
+        if (prevSecond * currSecond < 0.0) {
+            let ip: double = bisection(fn(t: double): double { return secondDerivative(f, t, 1e-5); }, x - step, x, 1e-10, 100);
+            result.add(ip);
+        }
+        prevSecond = currSecond;
+        x = x + step;
+    }
+    return result;
+}
