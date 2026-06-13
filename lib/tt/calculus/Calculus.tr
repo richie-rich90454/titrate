@@ -1,7 +1,6 @@
 // Calculus module: numerical differentiation, integration, root-finding, optimization,
 // AP Calculus AB/BC applications, ODE solvers, Taylor series, convergence tests, and utilities.
 import tt::util::ArrayList;
-import tt::util::HashMap;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::math::MathTrig;
@@ -281,7 +280,7 @@ public fn secantMethod(f: fn(double): double, x0: double, x1: double, tol: doubl
 
 // Golden section search for minimum
 public fn findMin(f: fn(double): double, a: double, b: double, tol: double): double {
-    let gr: double = (Math.sqrt(5.0) + 1.0) / 2.0;
+    let gr: double = (MathAdvanced.sqrt(5.0) + 1.0) / 2.0;
     var lo: double = a;
     var hi: double = b;
     var c: double = hi - (hi - lo) / gr;
@@ -422,7 +421,7 @@ public fn averageValue(f: fn(double): double, a: double, b: double): double {
 public fn arcLength(f: fn(double): double, a: double, b: double, n: int): double {
     let integrand: fn(double): double = fn(x: double): double {
         let fp: double = derivative(f, x);
-        return Math.sqrt(1.0 + fp * fp);
+        return MathAdvanced.sqrt(1.0 + fp * fp);
     };
     return integrate(integrand, a, b);
 }
@@ -480,7 +479,7 @@ public fn parametricArcLength(xt: fn(double): double, yt: fn(double): double, a:
     let integrand: fn(double): double = fn(t: double): double {
         let dx: double = derivative(xt, t);
         let dy: double = derivative(yt, t);
-        return Math.sqrt(dx * dx + dy * dy);
+        return MathAdvanced.sqrt(dx * dx + dy * dy);
     };
     return integrate(integrand, a, b);
 }
@@ -512,7 +511,7 @@ public fn polarArcLength(r: fn(double): double, alpha: double, beta: double, n: 
     let integrand: fn(double): double = fn(theta: double): double {
         let rVal: double = r(theta);
         let rPrime: double = derivative(r, theta);
-        return Math.sqrt(rVal * rVal + rPrime * rPrime);
+        return MathAdvanced.sqrt(rVal * rVal + rPrime * rPrime);
     };
     return integrate(integrand, alpha, beta);
 }
@@ -522,7 +521,7 @@ public fn polarArcLength(r: fn(double): double, alpha: double, beta: double, n: 
 public fn surfaceAreaRevolution(f: fn(double): double, a: double, b: double, axis: string, n: int): double {
     let integrand: fn(double): double = fn(x: double): double {
         let fp: double = derivative(f, x);
-        let ds: double = Math.sqrt(1.0 + fp * fp);
+        let ds: double = MathAdvanced.sqrt(1.0 + fp * fp);
         if (axis == "y") {
             return x * ds;
         }
