@@ -2,7 +2,7 @@
 import tt::math::vec::Vec3;
 import tt::math::transform::Mat4;
 import tt::math::transform::Quaternion;
-import tt::lang::Double;
+import tt::math::MathAdvanced;
 
 public class Transform {
     public Vec3 position;
@@ -18,10 +18,10 @@ public class Transform {
     // ---- Matrix conversion ----
 
     public fn toMat4(): Mat4 {
-        let t: Mat4 = Mat4.translation(this.position);
+        let t: Mat4 = mat4Translation(this.position.x, this.position.y, this.position.z);
         let r: Mat4 = this.rotation.toMat4();
-        let s: Mat4 = Mat4.scaling(this.scale);
-        return t.mul(r.mul(s));
+        let s: Mat4 = mat4Scaling(this.scale.x, this.scale.y, this.scale.z);
+        return t.multiply(r.multiply(s));
     }
 
     // ---- Transform operations ----
@@ -31,7 +31,7 @@ public class Transform {
     }
 
     public fn rotate(q: Quaternion): Transform {
-        return new Transform(this.position, this.rotation.mul(q), this.scale);
+        return new Transform(this.position, this.rotation.multiply(q), this.scale);
     }
 
     public fn scaleBy(s: Vec3): Transform {
@@ -43,10 +43,14 @@ public class Transform {
     }
 
     public fn compose(other: Transform): Transform {
-        let combinedPosition: Vec3 = this.position.add(
-            this.rotation.rotateVec3(this.scale).hadamard(other.position)
+        let scaledOtherPos: Vec3 = new Vec3(
+            this.scale.x * other.position.x,
+            this.scale.y * other.position.y,
+            this.scale.z * other.position.z
         );
-        let combinedRotation: Quaternion = this.rotation.mul(other.rotation);
+        let rotatedOffset: Vec3 = this.rotation.rotateVector(scaledOtherPos);
+        let combinedPosition: Vec3 = this.position.add(rotatedOffset);
+        let combinedRotation: Quaternion = this.rotation.multiply(other.rotation);
         let combinedScale: Vec3 = new Vec3(
             this.scale.x * other.scale.x,
             this.scale.y * other.scale.y,
@@ -62,9 +66,13 @@ public class Transform {
             1.0 / this.scale.y,
             1.0 / this.scale.z
         );
-        let invPosition: Vec3 = invRotation.rotateVec3(
-            this.position.scale(-1.0).hadamard(invScale)
+        let negPos: Vec3 = this.position.scale(-1.0);
+        let scaledNeg: Vec3 = new Vec3(
+            invScale.x * negPos.x,
+            invScale.y * negPos.y,
+            invScale.z * negPos.z
         );
+        let invPosition: Vec3 = invRotation.rotateVector(scaledNeg);
         return new Transform(invPosition, invRotation, invScale);
     }
 
@@ -83,12 +91,12 @@ public class Transform {
             this.scale.y * point.y,
             this.scale.z * point.z
         );
-        let rotated: Vec3 = this.rotation.rotateVec3(scaled);
+        let rotated: Vec3 = this.rotation.rotateVector(scaled);
         return rotated.add(this.position);
     }
 
     public fn transformDirection(dir: Vec3): Vec3 {
-        return this.rotation.rotateVec3(dir);
+        return this.rotation.rotateVector(dir);
     }
 
     // ---- Comparison and string ----
@@ -121,32 +129,33 @@ public fn transformFromMat4(m: Mat4): Transform {
     let sz: double = MathAdvanced.sqrt(m.get(0, 2) * m.get(0, 2) + m.get(1, 2) * m.get(1, 2) + m.get(2, 2) * m.get(2, 2));
 
     // Determine sign from determinant of upper-left 3x3
+    var detSign: double = 1.0;
     let det: double = m.get(0, 0) * (m.get(1, 1) * m.get(2, 2) - m.get(2, 1) * m.get(1, 2))
                     - m.get(0, 1) * (m.get(1, 0) * m.get(2, 2) - m.get(2, 0) * m.get(1, 2))
                     + m.get(0, 2) * (m.get(1, 0) * m.get(2, 1) - m.get(2, 0) * m.get(1, 1));
     if (det < 0.0) {
-        sx = -sx;
+        detSign = -1.0;
     }
 
-    let scale: Vec3 = new Vec3(sx, sy, sz);
+    let scale: Vec3 = new Vec3(sx * detSign, sy, sz);
 
     // Remove scale to get rotation matrix, then extract quaternion
-    let rotMat: Mat4 = Mat4.identity();
-    let invSx: double = 1.0 / sx;
+    let invSx: double = 1.0 / (sx * detSign);
     let invSy: double = 1.0 / sy;
     let invSz: double = 1.0 / sz;
 
-    rotMat = rotMat.set(0, 0, m.get(0, 0) * invSx);
-    rotMat = rotMat.set(1, 0, m.get(1, 0) * invSx);
-    rotMat = rotMat.set(2, 0, m.get(2, 0) * invSx);
-    rotMat = rotMat.set(0, 1, m.get(0, 1) * invSy);
-    rotMat = rotMat.set(1, 1, m.get(1, 1) * invSy);
-    rotMat = rotMat.set(2, 1, m.get(2, 1) * invSy);
-    rotMat = rotMat.set(0, 2, m.get(0, 2) * invSz);
-    rotMat = rotMat.set(1, 2, m.get(1, 2) * invSz);
-    rotMat = rotMat.set(2, 2, m.get(2, 2) * invSz);
+    let rotMat: Mat4 = mat4Identity();
+    rotMat.set(0, 0, m.get(0, 0) * invSx);
+    rotMat.set(1, 0, m.get(1, 0) * invSx);
+    rotMat.set(2, 0, m.get(2, 0) * invSx);
+    rotMat.set(0, 1, m.get(0, 1) * invSy);
+    rotMat.set(1, 1, m.get(1, 1) * invSy);
+    rotMat.set(2, 1, m.get(2, 1) * invSy);
+    rotMat.set(0, 2, m.get(0, 2) * invSz);
+    rotMat.set(1, 2, m.get(1, 2) * invSz);
+    rotMat.set(2, 2, m.get(2, 2) * invSz);
 
-    let rotation: Quaternion = Quaternion.fromMat4(rotMat);
+    let rotation: Quaternion = quatFromMat4(rotMat);
 
     return new Transform(position, rotation, scale);
 }
