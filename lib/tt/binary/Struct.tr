@@ -1,5 +1,7 @@
 // Binary data pack/unpack with format strings.
-// Format characters: b (byte), h (short), i (int), l (long), f (float), d (double), s (string of N bytes).
+// Format characters: b (signed byte), B (unsigned byte), h (short), H (unsigned short),
+// i (int), I (unsigned int), l (long), Q (unsigned long long),
+// f (float), d (double), s (string of N bytes), ? (bool), x (pad byte).
 // Supports big-endian and little-endian byte order.
 import tt::util::ArrayList;
 import tt::lang::String;
@@ -29,7 +31,15 @@ public class Struct {
                 let val: int = values.get(vi) as int;
                 result = result + Struct._encodeByte(val);
                 vi = vi + 1;
+            } else if (ch == "B") {
+                let val: int = values.get(vi) as int;
+                result = result + Struct._chr(val & 0xFF);
+                vi = vi + 1;
             } else if (ch == "h") {
+                let val: int = values.get(vi) as int;
+                result = result + Struct._encodeShort(val, this._byteOrder);
+                vi = vi + 1;
+            } else if (ch == "H") {
                 let val: int = values.get(vi) as int;
                 result = result + Struct._encodeShort(val, this._byteOrder);
                 vi = vi + 1;
@@ -37,7 +47,15 @@ public class Struct {
                 let val: int = values.get(vi) as int;
                 result = result + Struct._encodeInt(val, this._byteOrder);
                 vi = vi + 1;
+            } else if (ch == "I") {
+                let val: long = values.get(vi) as long;
+                result = result + Struct._encodeInt(val as int, this._byteOrder);
+                vi = vi + 1;
             } else if (ch == "l") {
+                let val: long = values.get(vi) as long;
+                result = result + Struct._encodeLong(val, this._byteOrder);
+                vi = vi + 1;
+            } else if (ch == "Q") {
                 let val: long = values.get(vi) as long;
                 result = result + Struct._encodeLong(val, this._byteOrder);
                 vi = vi + 1;
@@ -49,6 +67,16 @@ public class Struct {
                 let val: double = values.get(vi) as double;
                 result = result + Struct._encodeDouble(val, this._byteOrder);
                 vi = vi + 1;
+            } else if (ch == "?") {
+                let val: bool = values.get(vi) as bool;
+                if (val) {
+                    result = result + Struct._chr(1);
+                } else {
+                    result = result + Struct._chr(0);
+                }
+                vi = vi + 1;
+            } else if (ch == "x") {
+                result = result + "\x00";
             } else if (ch == "s") {
                 var count: int = 0;
                 fi = fi + 1;
@@ -92,15 +120,31 @@ public class Struct {
                 let val: int = Struct._decodeByte(data, offset);
                 result.add(val as Variant);
                 offset = offset + 1;
+            } else if (ch == "B") {
+                let val: int = String.charAt(data, offset) & 0xFF;
+                result.add(val as Variant);
+                offset = offset + 1;
             } else if (ch == "h") {
                 let val: int = Struct._decodeShort(data, offset, this._byteOrder);
+                result.add(val as Variant);
+                offset = offset + 2;
+            } else if (ch == "H") {
+                let val: int = Struct._decodeShort(data, offset, this._byteOrder) & 0xFFFF;
                 result.add(val as Variant);
                 offset = offset + 2;
             } else if (ch == "i") {
                 let val: int = Struct._decodeInt(data, offset, this._byteOrder);
                 result.add(val as Variant);
                 offset = offset + 4;
+            } else if (ch == "I") {
+                let val: long = Struct._decodeInt(data, offset, this._byteOrder) as long & 0xFFFFFFFFL;
+                result.add(val as Variant);
+                offset = offset + 4;
             } else if (ch == "l") {
+                let val: long = Struct._decodeLong(data, offset, this._byteOrder);
+                result.add(val as Variant);
+                offset = offset + 8;
+            } else if (ch == "Q") {
                 let val: long = Struct._decodeLong(data, offset, this._byteOrder);
                 result.add(val as Variant);
                 offset = offset + 8;
@@ -112,6 +156,12 @@ public class Struct {
                 let val: double = Struct._decodeDouble(data, offset, this._byteOrder);
                 result.add(val as Variant);
                 offset = offset + 8;
+            } else if (ch == "?") {
+                let byteVal: int = String.charAt(data, offset);
+                result.add((byteVal != 0) as Variant);
+                offset = offset + 1;
+            } else if (ch == "x") {
+                offset = offset + 1;
             } else if (ch == "s") {
                 var count: int = 0;
                 fi = fi + 1;
@@ -142,13 +192,13 @@ public class Struct {
         var fi: int = 0;
         while (fi < String.length(this._format)) {
             let ch: string = String.charAt(this._format, fi);
-            if (ch == "b") {
+            if (ch == "b" || ch == "B" || ch == "?" || ch == "x") {
                 total = total + 1;
-            } else if (ch == "h") {
+            } else if (ch == "h" || ch == "H") {
                 total = total + 2;
-            } else if (ch == "i") {
+            } else if (ch == "i" || ch == "I") {
                 total = total + 4;
-            } else if (ch == "l") {
+            } else if (ch == "l" || ch == "Q") {
                 total = total + 8;
             } else if (ch == "f") {
                 total = total + 4;
@@ -321,6 +371,28 @@ public class Struct {
     private fn _chr(val: int): string {
         return String.charAt(Struct._BYTE_CHARS, val & 0xFF);
     }
+
+    // Pack values into an existing buffer at the given offset.
+    // Returns the buffer with packed data written starting at offset.
+    public fn packInto(values: ArrayList<Variant>, buffer: string, offset: int): string {
+        let packed: string = this.pack(values);
+        let before: string = "";
+        if (offset > 0 && offset <= String.length(buffer)) {
+            before = String.substring(buffer, 0, offset);
+        }
+        let after: string = "";
+        if (offset + String.length(packed) < String.length(buffer)) {
+            after = String.substring(buffer, offset + String.length(packed), String.length(buffer));
+        }
+        return before + packed + after;
+    }
+
+    // Unpack from a buffer starting at the given offset.
+    public fn unpackFrom(buffer: string, offset: int): ArrayList<Variant> {
+        let sz: int = this.size();
+        let data: string = String.substring(buffer, offset, offset + sz);
+        return this.unpack(data);
+    }
 }
 
 // Convenience function: pack values into a binary string
@@ -339,4 +411,16 @@ public fn unpack(format: string, data: string): ArrayList<Variant> {
 public fn calcsize(format: string): int {
     let s: Struct = new Struct(format);
     return s.size();
+}
+
+// Convenience function: pack values into an existing buffer at the given offset
+public fn packInto(format: string, values: ArrayList<Variant>, buffer: string, offset: int): string {
+    let s: Struct = new Struct(format);
+    return s.packInto(values, buffer, offset);
+}
+
+// Convenience function: unpack from a buffer starting at the given offset
+public fn unpackFrom(format: string, buffer: string, offset: int): ArrayList<Variant> {
+    let s: Struct = new Struct(format);
+    return s.unpackFrom(buffer, offset);
 }
