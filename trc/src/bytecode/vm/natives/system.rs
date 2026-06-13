@@ -22,7 +22,7 @@ pub(crate) fn native_sys_env(args: &[Value]) -> Result<Value, String> {
     match &args[0] {
         Value::String(key) => match std::env::var(key.as_str()) {
             Ok(val) => Ok(Value::String(Rc::new(val))),
-            Err(_) => Ok(Value::String(Rc::new(String::new()))),
+            Err(_) => Ok(Value::Null),
         },
         _ => Err("Sys_env: expected String argument".to_string()),
     }
