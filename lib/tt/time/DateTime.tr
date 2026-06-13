@@ -230,6 +230,57 @@ public class DateTime {
         return Time_dayOfWeek(this.epochMillis) + 1;
     }
 
+    public fn isocalendar(): ArrayList<int> {
+        // Returns [ISO year, ISO week number, ISO weekday (1=Mon, 7=Sun)]
+        let result: ArrayList<int> = new ArrayList<int>();
+        let year: int = this.getYear();
+        let doy: int = this.dayOfYear();
+        let dow: int = this.isoweekday(); // 1=Mon, 7=Sun
+
+        // ISO week algorithm
+        // The week containing Jan 4 is week 1
+        // Jan 4 weekday
+        let jan4Doy: int = 4;
+        // Day of week for Jan 1
+        let jan1Dow: int = _jan1Weekday(year) + 1; // Convert to 1=Mon, 7=Sun
+
+        // Compute the Thursday of the current week
+        // Thursday = current date + (4 - weekday)
+        let thursdayDoy: int = doy + (4 - dow);
+
+        var isoYear: int = year;
+        if (thursdayDoy < 1) {
+            // Thursday is in the previous year
+            isoYear = isoYear - 1;
+            // Recalculate Thursday DOY relative to previous year
+            let prevYearDays: int = 365;
+            if (_isLeapYear(isoYear)) { prevYearDays = 366; }
+            thursdayDoy = thursdayDoy + prevYearDays;
+        } else if (thursdayDoy > 366 || (thursdayDoy > 365 && !_isLeapYear(year))) {
+            // Thursday is in the next year
+            isoYear = isoYear + 1;
+            let curYearDays: int = 365;
+            if (_isLeapYear(year)) { curYearDays = 366; }
+            thursdayDoy = thursdayDoy - curYearDays;
+        }
+
+        // ISO week number: the week containing the first Thursday of January
+        // Week 1 contains Jan 4
+        // Jan 1 of the ISO year
+        let isoJan1Dow: int = _jan1Weekday(isoYear) + 1; // 1=Mon, 7=Sun
+        // Day of year of the first Thursday
+        let firstThursdayDoy: int = 1 + (4 - isoJan1Dow + 7) % 7;
+        // Week number
+        var week: int = (thursdayDoy - firstThursdayDoy) / 7 + 1;
+        if (week < 1) { week = 1; }
+        if (week > 53) { week = 53; }
+
+        result.add(isoYear);
+        result.add(week);
+        result.add(dow);
+        return result;
+    }
+
     public fn plus(d: Duration): DateTime {
         return new DateTime(this.epochMillis + d.millis);
     }
