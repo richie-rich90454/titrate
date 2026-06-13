@@ -256,3 +256,91 @@ public fn newtonInterp(x: double, xp: ArrayList<double>, yp: ArrayList<double>):
     }
     return result;
 }
+
+// Bilinear interpolation on 2D grid
+// xGrid and yGrid are sorted arrays of coordinates
+// zGrid[i][j] corresponds to (xGrid[j], yGrid[i])
+public fn bilinearInterp(x: double, y: double, xGrid: ArrayList<double>, yGrid: ArrayList<double>, zGrid: ArrayList<ArrayList<double>>): double {
+    let nx: int = xGrid.size();
+    let ny: int = yGrid.size();
+    if (nx == 0 || ny == 0) { return 0.0; }
+    if (nx == 1 && ny == 1) { return zGrid.get(0).get(0); }
+    // Find x bracket
+    let xi: int = 0;
+    if (x <= xGrid.get(0)) {
+        xi = 0;
+    } else if (x >= xGrid.get(nx - 1)) {
+        xi = nx - 2;
+    } else {
+        let i: int = 0;
+        while (i < nx - 1) {
+            if (x >= xGrid.get(i) && x <= xGrid.get(i + 1)) {
+                xi = i;
+                i = nx;
+            }
+            i = i + 1;
+        }
+    }
+    // Find y bracket
+    let yi: int = 0;
+    if (y <= yGrid.get(0)) {
+        yi = 0;
+    } else if (y >= yGrid.get(ny - 1)) {
+        yi = ny - 2;
+    } else {
+        let i: int = 0;
+        while (i < ny - 1) {
+            if (y >= yGrid.get(i) && y <= yGrid.get(i + 1)) {
+                yi = i;
+                i = ny;
+            }
+            i = i + 1;
+        }
+    }
+    let x0: double = xGrid.get(xi);
+    let x1: double = xGrid.get(xi + 1);
+    let y0: double = yGrid.get(yi);
+    let y1: double = yGrid.get(yi + 1);
+    let z00: double = zGrid.get(yi).get(xi);
+    let z01: double = zGrid.get(yi).get(xi + 1);
+    let z10: double = zGrid.get(yi + 1).get(xi);
+    let z11: double = zGrid.get(yi + 1).get(xi + 1);
+    let dx: double = x1 - x0;
+    let dy: double = y1 - y0;
+    if (dx == 0.0 || dy == 0.0) { return z00; }
+    let tx: double = (x - x0) / dx;
+    let ty: double = (y - y0) / dy;
+    return z00 * (1.0 - tx) * (1.0 - ty) + z01 * tx * (1.0 - ty) + z10 * (1.0 - tx) * ty + z11 * tx * ty;
+}
+
+// Nearest neighbor interpolation on 2D grid
+public fn nearestInterp(x: double, y: double, xGrid: ArrayList<double>, yGrid: ArrayList<double>, zGrid: ArrayList<ArrayList<double>>): double {
+    let nx: int = xGrid.size();
+    let ny: int = yGrid.size();
+    if (nx == 0 || ny == 0) { return 0.0; }
+    // Find nearest x index
+    let xi: int = 0;
+    var minDistX: double = Math.fabs(x - xGrid.get(0));
+    let i: int = 1;
+    while (i < nx) {
+        let dist: double = Math.fabs(x - xGrid.get(i));
+        if (dist < minDistX) {
+            minDistX = dist;
+            xi = i;
+        }
+        i = i + 1;
+    }
+    // Find nearest y index
+    let yi: int = 0;
+    var minDistY: double = Math.fabs(y - yGrid.get(0));
+    let j: int = 1;
+    while (j < ny) {
+        let dist: double = Math.fabs(y - yGrid.get(j));
+        if (dist < minDistY) {
+            minDistY = dist;
+            yi = j;
+        }
+        j = j + 1;
+    }
+    return zGrid.get(yi).get(xi);
+}
