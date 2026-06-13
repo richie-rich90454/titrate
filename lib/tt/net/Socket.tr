@@ -171,22 +171,42 @@ public fn inetNtop(packed: string): string {
 
 // Create a client socket connected to the given host and port.
 public fn createConnection(host: string, port: int): Socket {
-    return Socket_createConnection(host, port);
+    let handle: long = Socket_createConnection(host, port);
+    let s: Socket = new Socket();
+    s.setHandle(handle);
+    return s;
 }
 
 // Create a server socket bound to the given host and port with the specified backlog.
 public fn createServer(host: string, port: int, backlog: int): Socket {
-    return Socket_createServer(host, port, backlog);
+    let handle: long = Socket_createServer(host, port, backlog);
+    let s: Socket = new Socket();
+    s.setHandle(handle);
+    return s;
 }
 
 // DNS resolution: resolve a hostname to a list of IP addresses.
 public fn getAddrInfo(host: string, port: int): ArrayList<string> {
-    return Os_getAddrInfo(host, port);
+    let result: string = Socket_getAddrInfo(host, port);
+    let addresses: ArrayList<string> = new ArrayList<string>();
+    if (result != null && String.length(result) > 0) {
+        // Native returns comma-separated addresses
+        let parts: ArrayList<string> = String.split(result, ",");
+        var i: int = 0;
+        while (i < parts.size()) {
+            let addr: string = String.trim(parts.get(i));
+            if (String.length(addr) > 0) {
+                addresses.add(addr);
+            }
+            i = i + 1;
+        }
+    }
+    return addresses;
 }
 
 // Resolve a hostname to its first IP address.
 public fn getHostByName(host: string): string {
-    let addresses: ArrayList<string> = Os_getAddrInfo(host, 0);
+    let addresses: ArrayList<string> = getAddrInfo(host, 0);
     if (addresses.size() > 0) {
         return addresses.get(0);
     }

@@ -315,7 +315,12 @@ public fn link(src: string, dst: string): void {
 
 // Read the target of a symbolic link (alias with PascalCase).
 public fn readLink(path: string): string {
-    return Os_readlink(path);
+    let result: Variant = Os_readlink(path);
+    // Native returns a Result; extract the success value
+    if (result != null) {
+        return result.toString();
+    }
+    return "";
 }
 
 // Set file access and modification times.

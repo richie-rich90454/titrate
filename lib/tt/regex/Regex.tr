@@ -366,7 +366,12 @@ public fn quote(s: string): string {
 
 // Full string match: returns a Match if the entire text matches the pattern, null otherwise.
 public fn fullMatch(pattern: string, text: string): Match {
-    return Regex_fullMatch(pattern, text);
+    let isMatch: bool = Regex_fullMatch(pattern, text);
+    if (!isMatch) {
+        return null;
+    }
+    // If matched, find the full match to construct a Match object
+    return Regex_find(pattern, text);
 }
 
 // Limited substitution: replace at most n occurrences of pattern in text with replacement.

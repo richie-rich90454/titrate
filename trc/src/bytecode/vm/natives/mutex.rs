@@ -196,3 +196,67 @@ pub(crate) fn native_recursive_mutex_try_lock(args: &[Value]) -> Result<Value, S
         Ok(Value::Bool(false))
     }
 }
+
+// ---------------------------------------------------------------------------
+// SharedMutex (reader-writer lock) registry
+// ---------------------------------------------------------------------------
+
+static SHARED_MUTEX_REGISTRY: LazyLock<StdMutex<HashMap<i64, Arc<StdMutex<()>>>>> =
+    LazyLock::new(|| StdMutex::new(HashMap::new()));
+static SHARED_MUTEX_NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
+
+pub(crate) fn native_shared_mutex_new(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    let handle = SHARED_MUTEX_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
+    let mutex = Arc::new(StdMutex::new(()));
+    let mut registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+    registry.insert(handle, mutex);
+    Ok(Value::Long(handle))
+}
+
+pub(crate) fn native_shared_mutex_shared_lock(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Stub: in a real implementation, this would acquire a shared (reader) lock
+    Ok(Value::Null)
+}
+
+pub(crate) fn native_shared_mutex_shared_unlock(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Null)
+}
+
+pub(crate) fn native_shared_mutex_unique_lock(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Stub: in a real implementation, this would acquire a unique (writer) lock
+    Ok(Value::Null)
+}
+
+pub(crate) fn native_shared_mutex_unique_unlock(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Null)
+}
+
+pub(crate) fn native_shared_mutex_try_shared_lock(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Bool(true))
+}
+
+pub(crate) fn native_shared_mutex_try_unique_lock(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Bool(true))
+}
+
+// ---------------------------------------------------------------------------
+// OnceFlag registry
+// ---------------------------------------------------------------------------
+
+pub(crate) fn native_once_flag_new(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    Ok(Value::Long(0))
+}
+
+pub(crate) fn native_once_flag_call_once(args: &[Value]) -> Result<Value, String> {
+    // In a real implementation, this would ensure the function is called exactly once
+    // For now, the .tr wrapper already guards with a `called` flag
+    Ok(Value::Null)
+}

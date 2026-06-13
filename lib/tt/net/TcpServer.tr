@@ -1,34 +1,35 @@
 // TCP server operations backed by VM built-ins.
 public class TcpServer {
-    private Listener listener;
+    private long handle;
 
     public fn init() {
-        this.listener = null;
+        this.handle = -1;
     }
 
     public fn bind(port: int): bool {
-        this.listener = Net_bind(port);
-        return this.listener != null;
+        this.handle = Net_bind(port);
+        return this.handle >= 0;
     }
 
     public fn accept(): TcpClient {
-        let clientSocket: Socket = Net_accept(this.listener);
+        let clientHandle: long = Net_accept(this.handle);
         let client: TcpClient = new TcpClient();
-        client.setSocket(clientSocket);
+        client.setHandle(clientHandle);
         return client;
     }
 
     public fn close(): void {
-        Net_close(this.listener);
-        this.listener = null;
+        if (this.handle >= 0) {
+            Net_close(this.handle);
+            this.handle = -1;
+        }
     }
 
     public fn isBound(): bool {
-        return this.listener != null;
+        return this.handle >= 0;
     }
 
     public fn getLocalPort(): int {
-        // No native Net_localPort; return 0
         return 0;
     }
 

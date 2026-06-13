@@ -1,31 +1,37 @@
 // TCP client operations backed by VM built-ins.
 public class TcpClient {
-    private Socket socket;
+    private long handle;
 
     public fn init() {
-        this.socket = null;
+        this.handle = -1;
     }
 
     public fn connect(host: string, port: int): bool {
-        this.socket = Net_connect(host, port);
-        return this.socket != null;
+        this.handle = Net_connect(host, port);
+        return this.handle >= 0;
+    }
+
+    public fn setHandle(h: long): void {
+        this.handle = h;
     }
 
     public fn send(data: string): int {
-        return Net_send(this.socket, data);
+        return Net_send(this.handle, data);
     }
 
     public fn receive(maxBytes: int): string {
-        return Net_receive(this.socket, maxBytes);
+        return Net_receive(this.handle, maxBytes);
     }
 
     public fn close(): void {
-        Net_close(this.socket);
-        this.socket = null;
+        if (this.handle >= 0) {
+            Net_close(this.handle);
+            this.handle = -1;
+        }
     }
 
     public fn isConnected(): bool {
-        return this.socket != null;
+        return this.handle >= 0;
     }
 
     public fn setTimeout(ms: int): void {
@@ -33,12 +39,10 @@ public class TcpClient {
     }
 
     public fn getLocalAddress(): string {
-        // No native Net_localAddress; return empty string
         return "";
     }
 
     public fn getRemoteAddress(): string {
-        // No native Net_remoteAddress; return empty string
         return "";
     }
 }

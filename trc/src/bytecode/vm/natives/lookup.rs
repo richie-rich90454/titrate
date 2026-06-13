@@ -201,6 +201,19 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "RecursiveMutex_unlock" => Some(mutex::native_recursive_mutex_unlock),
         "RecursiveMutex_tryLock" => Some(mutex::native_recursive_mutex_try_lock),
 
+        // SharedMutex natives
+        "SharedMutex_new" => Some(mutex::native_shared_mutex_new),
+        "SharedMutex_sharedLock" => Some(mutex::native_shared_mutex_shared_lock),
+        "SharedMutex_sharedUnlock" => Some(mutex::native_shared_mutex_shared_unlock),
+        "SharedMutex_uniqueLock" => Some(mutex::native_shared_mutex_unique_lock),
+        "SharedMutex_uniqueUnlock" => Some(mutex::native_shared_mutex_unique_unlock),
+        "SharedMutex_trySharedLock" => Some(mutex::native_shared_mutex_try_shared_lock),
+        "SharedMutex_tryUniqueLock" => Some(mutex::native_shared_mutex_try_unique_lock),
+
+        // OnceFlag natives
+        "OnceFlag_new" => Some(mutex::native_once_flag_new),
+        "OnceFlag_callOnce" => Some(mutex::native_once_flag_call_once),
+
         // Condvar natives
         "CondVar_new" => Some(condvar::native_cv_new),
         "CondVar_wait" => Some(condvar::native_cv_wait),
