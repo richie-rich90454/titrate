@@ -228,7 +228,7 @@ public fn nextafter(x: double, y: double): double {
 
 // Fused multiply-add: a * b + c
 public fn fma(a: double, b: double, c: double): double {
-    return MathAdvanced.fma(a, b, c);
+    return Math_fma(a, b, c);
 }
 
 // ==================== Sum / product ====================

@@ -253,6 +253,7 @@ impl Vm {
         vm.register_native("Math_scalb", natives::math::native_math_scalb);
         vm.register_native("Math_random", natives::math::native_math_random);
         vm.register_native("Math_negInf", natives::math::native_math_neg_inf);
+        vm.register_native("Math_fma", natives::math::native_math_fma);
 
         // Additional Regex natives
         vm.register_native("Regex_groupCount", natives::regex::native_regex_group_count);

@@ -210,3 +210,15 @@ pub(crate) fn native_math_neg_inf(args: &[Value]) -> Result<Value, String> {
     let _ = args;
     Ok(Value::Double(f64::NEG_INFINITY))
 }
+
+// Fused multiply-add: a * b + c
+// Note: true FMA requires hardware support (single rounding).
+// We use a * b + c here; on platforms with FMA hardware the compiler
+// may optimise this, otherwise it is equivalent to two separate operations.
+pub(crate) fn native_math_fma(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 3 { return Err("Math_fma: expected 3 arguments (a, b, c)".to_string()); }
+    let a = args[0].to_f64().unwrap_or(0.0);
+    let b = args[1].to_f64().unwrap_or(0.0);
+    let c = args[2].to_f64().unwrap_or(0.0);
+    Ok(Value::Double(a.mul_add(b, c)))
+}

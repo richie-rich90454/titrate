@@ -55,9 +55,9 @@ public fn hypot(a: double, b: double): double {
     return Math_sqrt(a * a + b * b);
 }
 
-// Fused multiply-add: a * b + c
+// Fused multiply-add: a * b + c (delegates to native Math_fma)
 public fn fma(a: double, b: double, c: double): double {
-    return a * b + c;
+    return Math_fma(a, b, c);
 }
 
 // IEEE-754 helpers
