@@ -38,7 +38,7 @@ fn stopwatch(): Stopwatch {
 }
 
 // Monotonic time in nanoseconds from an arbitrary epoch (suitable for measuring durations)
-fn monotonic(): long {
+public fn monotonic(): long {
     return Time_monotonic();
 }
 
