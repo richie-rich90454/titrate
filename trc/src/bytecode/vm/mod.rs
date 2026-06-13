@@ -226,6 +226,11 @@ impl Vm {
         vm.register_native("Hash_blake2b", natives::hash::native_hash_blake2b);
         vm.register_native("Hash_blake2s", natives::hash::native_hash_blake2s);
         vm.register_native("Hash_crc32", natives::hash::native_hash_crc32);
+        vm.register_native("Hasher_new", natives::hash::native_hasher_new);
+        vm.register_native("Hasher_update", natives::hash::native_hasher_update);
+        vm.register_native("Hasher_digest", natives::hash::native_hasher_digest);
+        vm.register_native("Hasher_hexDigest", natives::hash::native_hasher_hex_digest);
+        vm.register_native("Hasher_reset", natives::hash::native_hasher_reset);
         vm.register_native("Hmac_compareDigest", natives::hash::native_hmac_compare_digest);
 
         // Base64 natives
