@@ -218,4 +218,75 @@ public class LinkedList<E> {
         }
         return current;
     }
+
+    public fn reverse(): void {
+        let current: Node<E> = this.head;
+        while (current != null) {
+            let temp: Node<E> = current.next;
+            current.next = current.prev;
+            current.prev = temp;
+            current = temp;
+        }
+        let tempHead: Node<E> = this.head;
+        this.head = this.tail;
+        this.tail = tempHead;
+    }
+
+    public fn removeIf(predicate: fn(E): bool): void {
+        let current: Node<E> = this.head;
+        while (current != null) {
+            let nextNode: Node<E> = current.next;
+            if (predicate(current.value)) {
+                let pred: Node<E> = current.prev;
+                let succ: Node<E> = current.next;
+                if (pred != null) {
+                    pred.next = succ;
+                } else {
+                    this.head = succ;
+                }
+                if (succ != null) {
+                    succ.prev = pred;
+                } else {
+                    this.tail = pred;
+                }
+                this._size = this._size - 1;
+            }
+            current = nextNode;
+        }
+    }
+
+    public fn unique(): void {
+        let seen: ArrayList<E> = new ArrayList<E>();
+        let current: Node<E> = this.head;
+        while (current != null) {
+            let nextNode: Node<E> = current.next;
+            let isDuplicate: bool = false;
+            let i: int = 0;
+            while (i < seen.size()) {
+                if (seen.get(i) == current.value) {
+                    isDuplicate = true;
+                    break;
+                }
+                i = i + 1;
+            }
+            if (isDuplicate) {
+                let pred: Node<E> = current.prev;
+                let succ: Node<E> = current.next;
+                if (pred != null) {
+                    pred.next = succ;
+                } else {
+                    this.head = succ;
+                }
+                if (succ != null) {
+                    succ.prev = pred;
+                } else {
+                    this.tail = pred;
+                }
+                this._size = this._size - 1;
+            } else {
+                seen.add(current.value);
+            }
+            current = nextNode;
+        }
+    }
 }
