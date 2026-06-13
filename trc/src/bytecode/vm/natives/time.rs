@@ -108,9 +108,10 @@ pub(crate) fn native_time_get_second(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_time_day_of_week(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
-        return Err("Time_dayOfWeek: expected 1 argument (epoch seconds)".to_string());
+        return Err("Time_dayOfWeek: expected 1 argument (epoch_ms)".to_string());
     }
-    let secs = args[0].to_i64().unwrap_or(0);
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let secs = epoch_ms / 1000;
     let datetime = chrono::DateTime::from_timestamp(secs, 0)
         .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
     // chrono: 0=Mon, 6=Sun via .weekday().num_days_from_monday()
@@ -119,9 +120,10 @@ pub(crate) fn native_time_day_of_week(args: &[Value]) -> Result<Value, String> {
 
 pub(crate) fn native_time_day_of_year(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
-        return Err("Time_dayOfYear: expected 1 argument (epoch seconds)".to_string());
+        return Err("Time_dayOfYear: expected 1 argument (epoch_ms)".to_string());
     }
-    let secs = args[0].to_i64().unwrap_or(0);
+    let epoch_ms = args[0].to_i64().unwrap_or(0);
+    let secs = epoch_ms / 1000;
     let datetime = chrono::DateTime::from_timestamp(secs, 0)
         .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap());
     Ok(Value::Int(datetime.ordinal() as i32))
