@@ -212,6 +212,11 @@ public class Random {
         return x / (x + y);
     }
 
+    // Chi-squared distribution: chiSquared(df) = gammaDist(df/2, 2)
+    public fn chiSquared(df: double): double {
+        return this.gammaDist(df / 2.0, 2.0);
+    }
+
     // Weighted random choice from a list using cumulative weights
     public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
         // Build cumulative weights
