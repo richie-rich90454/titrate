@@ -44,6 +44,17 @@ fn reduce<T>(arr: ArrayList<T>, fn: fn(T, T): T, init: T): T {
     return acc;
 }
 
+// Reduce without an explicit initial value — uses the first element as the initial value.
+public fn reduceNoInit(arr: ArrayList<Variant>, fn: fn(Variant, Variant): Variant): Variant {
+    var acc: Variant = arr.get(0);
+    var i: int = 1;
+    while (i < arr.size()) {
+        acc = fn(acc, arr.get(i));
+        i = i + 1;
+    }
+    return acc;
+}
+
 // Cache: memoization wrapper using HashMap.
 fn cache<F>(fn: F): F {
     let cacheMap: HashMap<Variant, Variant> = new HashMap<Variant, Variant>();
@@ -202,11 +213,30 @@ public fn totalOrdering(cls: Variant): Variant {
     return cls;
 }
 
+// WrapperInfo — stores metadata from the original function for decorator wrapping.
+public class WrapperInfo {
+    public string originalName;
+    public string originalDoc;
+
+    public fn init(originalName: string, originalDoc: string) {
+        this.originalName = originalName;
+        this.originalDoc = originalDoc;
+    }
+}
+
 // Decorator to preserve wrapped function metadata.
-public fn wraps(original: fn): fn(fn): fn {
-    return fn(wrapper: fn): fn {
-        return wrapper;
-    };
+// Returns a WrapperInfo capturing the original function's name and doc.
+public fn wraps(original: Variant): WrapperInfo {
+    let name: string = original as string;
+    return new WrapperInfo(name, "");
+}
+
+// Copy name and doc metadata from original to wrapper.
+// Returns the wrapper unchanged (metadata is stored in WrapperInfo).
+public fn updateWrapper(wrapper: Variant, original: Variant): Variant {
+    // In Titrate, functions do not have mutable metadata fields,
+    // so this returns the wrapper as-is for API compatibility.
+    return wrapper;
 }
 
 // DispatchRegistry — maps type names to handler functions for single-dispatch.
