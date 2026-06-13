@@ -1,34 +1,39 @@
 import tt::util::ArrayList;
 
-fn length(s: string): int {
+// Convert a Unicode code point to a single-character string.
+public fn fromCharCode(code: int): string {
+    return String_fromCharCode(code);
+}
+
+public fn length(s: string): int {
     return s.length();
 }
 
-fn concat(a: string, b: string): string {
+public fn concat(a: string, b: string): string {
     return a + b;
 }
 
-fn toString(value: string): string {
+public fn toString(value: string): string {
     return value;
 }
 
-fn toUpperCase(s: string): string {
+public fn toUpperCase(s: string): string {
     return String_toUpperCase(s);
 }
 
-fn toLowerCase(s: string): string {
+public fn toLowerCase(s: string): string {
     return String_toLowerCase(s);
 }
 
-fn replace(s: string, target: string, replacement: string): string {
+public fn replace(s: string, target: string, replacement: string): string {
     return String_replace(s, target, replacement);
 }
 
-fn isEmpty(s: string): bool {
+public fn isEmpty(s: string): bool {
     return s.length() == 0;
 }
 
-fn isBlank(s: string): bool {
+public fn isBlank(s: string): bool {
     let len: int = s.length();
     var i: int = 0;
     while (i < len) {
@@ -41,7 +46,7 @@ fn isBlank(s: string): bool {
     return true;
 }
 
-fn repeat(s: string, count: int): string {
+public fn repeat(s: string, count: int): string {
     var result: string = "";
     var i: int = 0;
     while (i < count) {
@@ -51,7 +56,7 @@ fn repeat(s: string, count: int): string {
     return result;
 }
 
-fn reverse(s: string): string {
+public fn reverse(s: string): string {
     var result: string = "";
     var i: int = s.length() - 1;
     while (i >= 0) {
@@ -61,7 +66,7 @@ fn reverse(s: string): string {
     return result;
 }
 
-fn toCharArray(s: string): ArrayList<string> {
+public fn toCharArray(s: string): ArrayList<string> {
     let chars: ArrayList<string> = new ArrayList<string>();
     var i: int = 0;
     while (i < s.length()) {
@@ -71,7 +76,7 @@ fn toCharArray(s: string): ArrayList<string> {
     return chars;
 }
 
-fn substring(s: string, start: int, end: int): string {
+public fn substring(s: string, start: int, end: int): string {
     var result: string = "";
     var i: int = start;
     while (i < end && i < s.length()) {
@@ -81,7 +86,7 @@ fn substring(s: string, start: int, end: int): string {
     return result;
 }
 
-fn indexOf(s: string, sub: string): int {
+public fn indexOf(s: string, sub: string): int {
     let sLen: int = s.length();
     let subLen: int = sub.length();
     if (subLen == 0) { return 0; }
@@ -102,7 +107,7 @@ fn indexOf(s: string, sub: string): int {
     return -1;
 }
 
-fn lastIndexOf(s: string, sub: string): int {
+public fn lastIndexOf(s: string, sub: string): int {
     let sLen: int = s.length();
     let subLen: int = sub.length();
     if (subLen == 0) { return sLen; }
@@ -123,7 +128,7 @@ fn lastIndexOf(s: string, sub: string): int {
     return -1;
 }
 
-fn startsWith(s: string, prefix: string): bool {
+public fn startsWith(s: string, prefix: string): bool {
     if (prefix.length() > s.length()) { return false; }
     var i: int = 0;
     while (i < prefix.length()) {
@@ -133,7 +138,7 @@ fn startsWith(s: string, prefix: string): bool {
     return true;
 }
 
-fn endsWith(s: string, suffix: string): bool {
+public fn endsWith(s: string, suffix: string): bool {
     let sLen: int = s.length();
     let sufLen: int = suffix.length();
     if (sufLen > sLen) { return false; }
@@ -145,7 +150,7 @@ fn endsWith(s: string, suffix: string): bool {
     return true;
 }
 
-fn trim(s: string): string {
+public fn trim(s: string): string {
     var start: int = 0;
     var end: int = s.length();
     while (start < end) {
@@ -161,7 +166,7 @@ fn trim(s: string): string {
     return String.substring(s, start, end);
 }
 
-fn split(s: string, delim: string): ArrayList<string> {
+public fn split(s: string, delim: string): ArrayList<string> {
     let parts: ArrayList<string> = new ArrayList<string>();
     if (delim.length() == 0) {
         var i: int = 0;
@@ -183,7 +188,7 @@ fn split(s: string, delim: string): ArrayList<string> {
     return parts;
 }
 
-fn join(parts: ArrayList<string>, delim: string): string {
+public fn join(parts: ArrayList<string>, delim: string): string {
     var result: string = "";
     var i: int = 0;
     while (i < parts.size()) {
@@ -194,7 +199,7 @@ fn join(parts: ArrayList<string>, delim: string): string {
     return result;
 }
 
-fn format(template: string, args: ArrayList<string>): string {
+public fn format(template: string, args: ArrayList<string>): string {
     var result: string = "";
     var argIdx: int = 0;
     var i: int = 0;
@@ -213,11 +218,11 @@ fn format(template: string, args: ArrayList<string>): string {
     return result;
 }
 
-fn contains(s: string, sub: string): bool {
+public fn contains(s: string, sub: string): bool {
     return String.indexOf(s, sub) >= 0;
 }
 
-fn compareTo(a: string, b: string): int {
+public fn compareTo(a: string, b: string): int {
     var minLen: int = a.length();
     if (b.length() < minLen) { minLen = b.length(); }
     var i: int = 0;
@@ -232,7 +237,7 @@ fn compareTo(a: string, b: string): int {
 }
 
 // Find the first character in s that is also in chars. Returns index or -1.
-fn findFirstOf(s: string, chars: string): int {
+public fn findFirstOf(s: string, chars: string): int {
     var i: int = 0;
     while (i < s.length()) {
         let c: string = s.charAt(i);
@@ -247,7 +252,7 @@ fn findFirstOf(s: string, chars: string): int {
 }
 
 // Find the last character in s that is also in chars. Returns index or -1.
-fn findLastOf(s: string, chars: string): int {
+public fn findLastOf(s: string, chars: string): int {
     var i: int = s.length() - 1;
     while (i >= 0) {
         let c: string = s.charAt(i);
@@ -262,7 +267,7 @@ fn findLastOf(s: string, chars: string): int {
 }
 
 // Find the first character in s that is NOT in chars. Returns index or -1.
-fn findFirstNotOf(s: string, chars: string): int {
+public fn findFirstNotOf(s: string, chars: string): int {
     var i: int = 0;
     while (i < s.length()) {
         let c: string = s.charAt(i);
@@ -281,7 +286,7 @@ fn findFirstNotOf(s: string, chars: string): int {
 }
 
 // Find the last character in s that is NOT in chars. Returns index or -1.
-fn findLastNotOf(s: string, chars: string): int {
+public fn findLastNotOf(s: string, chars: string): int {
     var i: int = s.length() - 1;
     while (i >= 0) {
         let c: string = s.charAt(i);
@@ -300,7 +305,7 @@ fn findLastNotOf(s: string, chars: string): int {
 }
 
 // Count non-overlapping occurrences of substr in s.
-fn count(s: string, substr: string): int {
+public fn count(s: string, substr: string): int {
     if (substr.length() == 0) { return 0; }
     var result: int = 0;
     var start: int = 0;
@@ -320,7 +325,7 @@ fn count(s: string, substr: string): int {
 }
 
 // Reverse substring search: find the last occurrence of substr in s. Returns index or -1.
-fn rfind(s: string, substr: string): int {
+public fn rfind(s: string, substr: string): int {
     let sLen: int = s.length();
     let subLen: int = substr.length();
     if (subLen == 0) { return sLen; }
@@ -342,7 +347,7 @@ fn rfind(s: string, substr: string): int {
 }
 
 // Pad string on the left with char until it reaches the specified width.
-fn padLeft(s: string, width: int, ch: string): string {
+public fn padLeft(s: string, width: int, ch: string): string {
     var result: string = s;
     while (result.length() < width) {
         result = ch + result;
@@ -351,7 +356,7 @@ fn padLeft(s: string, width: int, ch: string): string {
 }
 
 // Pad string on the right with char until it reaches the specified width.
-fn padRight(s: string, width: int, ch: string): string {
+public fn padRight(s: string, width: int, ch: string): string {
     var result: string = s;
     while (result.length() < width) {
         result = result + ch;
@@ -360,7 +365,7 @@ fn padRight(s: string, width: int, ch: string): string {
 }
 
 // Check if all characters in s are ASCII (code points 0-127).
-fn isAscii(s: string): bool {
+public fn isAscii(s: string): bool {
     var i: int = 0;
     while (i < s.length()) {
         let code: int = s.charAt(i) as int;
@@ -371,7 +376,7 @@ fn isAscii(s: string): bool {
 }
 
 // Check if all characters in s are printable (no control characters).
-fn isPrintable(s: string): bool {
+public fn isPrintable(s: string): bool {
     var i: int = 0;
     while (i < s.length()) {
         let code: int = s.charAt(i) as int;
@@ -382,7 +387,7 @@ fn isPrintable(s: string): bool {
 }
 
 // Wrap text to the specified width, breaking at word boundaries.
-fn wrap(s: string, width: int): string {
+public fn wrap(s: string, width: int): string {
     if (width <= 0) { return s; }
     let words: ArrayList<string> = String.split(s, " ");
     var result: string = "";
@@ -407,7 +412,7 @@ fn wrap(s: string, width: int): string {
 }
 
 // Add a prefix to every line in s.
-fn indent(s: string, prefix: string): string {
+public fn indent(s: string, prefix: string): string {
     var result: string = "";
     var i: int = 0;
     var lineStart: int = 0;
@@ -426,7 +431,7 @@ fn indent(s: string, prefix: string): string {
 }
 
 // Remove common leading whitespace from all lines in s.
-fn dedent(s: string): string {
+public fn dedent(s: string): string {
     let lines: ArrayList<string> = String.split(s, "\n");
     var minIndent: int = 999999;
     var i: int = 0;
