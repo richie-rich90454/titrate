@@ -147,6 +147,14 @@ public class Regex {
         return String.substring(input, 0, start) + replacement + String.substring(input, end);
     }
 
+    public fn fullmatch(input: string): bool {
+        let m: Match = this.find(input);
+        if (m == null) {
+            return false;
+        }
+        return m.start == 0 && m.end == String.length(input);
+    }
+
     public fn matches(input: string): bool {
         let m: Match = this.find(input);
         if (m == null) {
