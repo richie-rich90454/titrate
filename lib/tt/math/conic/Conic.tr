@@ -1,6 +1,7 @@
 // Conic Sections: Parabola, Ellipse, Hyperbola, Circle
 import tt::util::ArrayList;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::math::MathTrig;
 import tt::math::vec::Vec2;
 
@@ -91,7 +92,7 @@ public class Ellipse {
         if (val < 0.0) {
             return result;
         }
-        let dy: double = Math.sqrt(val);
+        let dy: double = MathAdvanced.sqrt(val);
         result.add(this.cy + this.b * dy);
         if (dy > 0.0) {
             result.add(this.cy - this.b * dy);
@@ -100,30 +101,41 @@ public class Ellipse {
     }
 
     public fn area(): double {
-        return Math.PI * this.a * this.b;
+        return Math.PI() * this.a * this.b;
     }
 
     public fn eccentricity(): double {
-        return Math.sqrt(1.0 - (this.b * this.b) / (this.a * this.a));
+        let major: double = Math.max(this.a, this.b);
+        let minor: double = Math.min(this.a, this.b);
+        return MathAdvanced.sqrt(1.0 - (minor * minor) / (major * major));
     }
 
     public fn foci(): ArrayList<Vec2> {
         let result: ArrayList<Vec2> = new ArrayList<Vec2>();
-        let c: double = Math.sqrt(this.a * this.a - this.b * this.b);
-        result.add(new Vec2(this.cx + c, this.cy));
-        result.add(new Vec2(this.cx - c, this.cy));
+        let major: double = Math.max(this.a, this.b);
+        let minor: double = Math.min(this.a, this.b);
+        let c: double = MathAdvanced.sqrt(major * major - minor * minor);
+        if (this.a >= this.b) {
+            result.add(new Vec2(this.cx + c, this.cy));
+            result.add(new Vec2(this.cx - c, this.cy));
+        } else {
+            result.add(new Vec2(this.cx, this.cy + c));
+            result.add(new Vec2(this.cx, this.cy - c));
+        }
         return result;
     }
 
     public fn focalDistance(): double {
-        let c: double = Math.sqrt(this.a * this.a - this.b * this.b);
+        let major: double = Math.max(this.a, this.b);
+        let minor: double = Math.min(this.a, this.b);
+        let c: double = MathAdvanced.sqrt(major * major - minor * minor);
         return 2.0 * c;
     }
 
     public fn perimeter(): double {
         let sa: double = 3.0 * this.a + this.b;
         let sb: double = this.a + 3.0 * this.b;
-        return Math.PI * (3.0 * (this.a + this.b) - Math.sqrt(sa * sb));
+        return Math.PI() * (3.0 * (this.a + this.b) - MathAdvanced.sqrt(sa * sb));
     }
 
     public fn contains(x: double, y: double): bool {
@@ -155,7 +167,7 @@ public class Hyperbola {
         if (val < 0.0) {
             return result;
         }
-        let dy: double = Math.sqrt(val);
+        let dy: double = MathAdvanced.sqrt(val);
         result.add(this.cy + this.b * dy);
         if (dy > 0.0) {
             result.add(this.cy - this.b * dy);
@@ -164,12 +176,12 @@ public class Hyperbola {
     }
 
     public fn eccentricity(): double {
-        return Math.sqrt(1.0 + (this.b * this.b) / (this.a * this.a));
+        return MathAdvanced.sqrt(1.0 + (this.b * this.b) / (this.a * this.a));
     }
 
     public fn foci(): ArrayList<Vec2> {
         let result: ArrayList<Vec2> = new ArrayList<Vec2>();
-        let c: double = Math.sqrt(this.a * this.a + this.b * this.b);
+        let c: double = MathAdvanced.sqrt(this.a * this.a + this.b * this.b);
         result.add(new Vec2(this.cx + c, this.cy));
         result.add(new Vec2(this.cx - c, this.cy));
         return result;
@@ -214,11 +226,11 @@ public class Circle {
     }
 
     public fn area(): double {
-        return Math.PI * this.r * this.r;
+        return Math.PI() * this.r * this.r;
     }
 
     public fn circumference(): double {
-        return 2.0 * Math.PI * this.r;
+        return 2.0 * Math.PI() * this.r;
     }
 
     public fn contains(x: double, y: double): bool {
@@ -230,7 +242,7 @@ public class Circle {
     public fn distanceToEdge(x: double, y: double): double {
         let dx: double = x - this.cx;
         let dy: double = y - this.cy;
-        let dist: double = Math.sqrt(dx * dx + dy * dy);
+        let dist: double = MathAdvanced.sqrt(dx * dx + dy * dy);
         let diff: double = dist - this.r;
         if (diff < 0.0) {
             return -diff;
@@ -254,7 +266,7 @@ public fn circleFromThreePoints(p1: Vec2, p2: Vec2, p3: Vec2): Circle {
     let uy: double = ((ax * ax + ay * ay) * (cxv - bx) + (bx * bx + by * by) * (ax - cxv) + (cxv * cxv + cyv * cyv) * (bx - ax)) / d;
     let dx2: double = ax - ux;
     let dy2: double = ay - uy;
-    let r: double = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+    let r: double = MathAdvanced.sqrt(dx2 * dx2 + dy2 * dy2);
     return new Circle(ux, uy, r);
 }
 
@@ -263,7 +275,7 @@ public fn circleFromDiameter(p1: Vec2, p2: Vec2): Circle {
     let my: double = (p1.y + p2.y) / 2.0;
     let dx: double = p2.x - p1.x;
     let dy: double = p2.y - p1.y;
-    let r: double = Math.sqrt(dx * dx + dy * dy) / 2.0;
+    let r: double = MathAdvanced.sqrt(dx * dx + dy * dy) / 2.0;
     return new Circle(mx, my, r);
 }
 
@@ -276,7 +288,7 @@ public fn circleTangentLines(point: Vec2, circle: Circle): ArrayList<Vec2> {
     if (distSq <= rSq) {
         return result;
     }
-    let dist: double = Math.sqrt(distSq);
+    let dist: double = MathAdvanced.sqrt(distSq);
     let a: double = MathTrig.acos(circle.r / dist);
     let baseAngle: double = MathTrig.atan2(dy, dx);
     let angle1: double = baseAngle + a;
