@@ -16,6 +16,30 @@ public class Directory {
         return Dir_walk(this.path);
     }
 
+    // Walk directory tree with depth tracking.
+    // Returns an ArrayList of strings where each entry is "DEPTH:PATH".
+    public fn walkWithDepth(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        _walkDepth(this.path, 0, result);
+        return result;
+    }
+
+    // Walk directory tree with depth limit.
+    // maxDepth: maximum depth to traverse (0 = current directory only, -1 = unlimited).
+    public fn walkWithMaxDepth(maxDepth: int): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        _walkMaxDepth(this.path, 0, maxDepth, result);
+        return result;
+    }
+
+    // Walk directory tree with pruning support.
+    // prunePrefix: directories starting with this prefix will be skipped.
+    public fn walkWithPrune(prunePrefix: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        _walkPrune(this.path, prunePrefix, result);
+        return result;
+    }
+
     public fn create(): bool {
         return Dir_create(this.path);
     }
@@ -68,4 +92,55 @@ fn getCurrent(): string {
 
 fn setCurrent(path: string): void {
     // No native for setWorkingDir; no-op
+}
+
+// Internal: recursive walk with depth tracking
+fn _walkDepth(dir: string, depth: int, result: ArrayList<string>): void {
+    let entries: ArrayList<string> = Dir_list(dir);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        let fullPath: string = Path_join(dir, entry);
+        result.add(Integer.toString(depth) + ":" + fullPath);
+        if (Fs_isDir(fullPath)) {
+            _walkDepth(fullPath, depth + 1, result);
+        }
+        i = i + 1;
+    }
+}
+
+// Internal: recursive walk with max depth limit
+fn _walkMaxDepth(dir: string, depth: int, maxDepth: int, result: ArrayList<string>): void {
+    if (maxDepth >= 0 && depth > maxDepth) { return; }
+    let entries: ArrayList<string> = Dir_list(dir);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        let fullPath: string = Path_join(dir, entry);
+        result.add(fullPath);
+        if (Fs_isDir(fullPath)) {
+            _walkMaxDepth(fullPath, depth + 1, maxDepth, result);
+        }
+        i = i + 1;
+    }
+}
+
+// Internal: recursive walk with pruning
+fn _walkPrune(dir: string, prunePrefix: string, result: ArrayList<string>): void {
+    let entries: ArrayList<string> = Dir_list(dir);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        // Skip entries that match the prune prefix
+        if (String.length(prunePrefix) > 0 && String.startsWith(entry, prunePrefix)) {
+            i = i + 1;
+            continue;
+        }
+        let fullPath: string = Path_join(dir, entry);
+        result.add(fullPath);
+        if (Fs_isDir(fullPath)) {
+            _walkPrune(fullPath, prunePrefix, result);
+        }
+        i = i + 1;
+    }
 }
