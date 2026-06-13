@@ -217,7 +217,54 @@ pub(crate) fn native_file_seek(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_file_tell(args: &[Value]) -> Result<Value, String> {
-    Err("File_tell: not yet implemented".to_string())
+    if args.is_empty() {
+        return Err("File_tell: expected 1 argument (path or FileHandle)".to_string());
+    }
+
+    // If a FileHandle is provided, tell on it directly
+    if let Value::FileHandle(file_rc) = &args[0] {
+        let file_opt = file_rc.borrow();
+        match file_opt.as_ref() {
+            Some(file) => {
+                use std::io::{Seek, SeekFrom};
+                match file.try_clone() {
+                    Ok(mut cloned) => match cloned.seek(SeekFrom::Current(0)) {
+                        Ok(pos) => return Ok(Value::Long(pos as i64)),
+                        Err(e) => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("File_tell: {}", e)
+                        ))))),
+                    },
+                    Err(e) => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                        format!("File_tell: {}", e)
+                    ))))),
+                }
+            }
+            None => return Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                "FileHandle is closed".to_string()
+            ))))),
+        }
+    }
+
+    // Path-based tell: open and get current position (will be 0 for fresh open)
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_tell: expected String path or FileHandle".to_string()),
+    };
+    let file = std::fs::File::open(&path);
+    match file {
+        Ok(mut f) => {
+            use std::io::{Seek, SeekFrom};
+            match f.seek(SeekFrom::Current(0)) {
+                Ok(pos) => Ok(Value::Long(pos as i64)),
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("File_tell: {}", e)
+                ))))),
+            }
+        }
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_tell: {}", e)
+        ))))),
+    }
 }
 
 pub(crate) fn native_file_read_bytes(args: &[Value]) -> Result<Value, String> {
