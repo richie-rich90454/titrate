@@ -3,6 +3,8 @@ import tt::chem::Atom;
 import tt::chem::Molecule;
 import tt::chem::ForceField;
 import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
 import tt::lang::Double;
 
 public class VerletIntegrator {
@@ -45,11 +47,11 @@ public class VerletIntegrator {
             let a: Atom = mol.getAtom(i);
             var mass: double = a.mass;
             if (mass < 1e-15) { mass = 1.0; }
-            let scale: double = Math.sqrt(this.targetTemp / mass);
+            let scale: double = MathAdvanced.sqrt(this.targetTemp / mass);
             // Simple random-like initialization using deterministic values
-            let vx: double = scale * Math.sin((i * 3 + 1) as double);
-            let vy: double = scale * Math.sin((i * 3 + 2) as double);
-            let vz: double = scale * Math.sin((i * 3 + 3) as double);
+            let vx: double = scale * MathTrig.sin((i * 3 + 1) as double);
+            let vy: double = scale * MathTrig.sin((i * 3 + 2) as double);
+            let vz: double = scale * MathTrig.sin((i * 3 + 3) as double);
             this.velocities.add(vx);
             this.velocities.add(vy);
             this.velocities.add(vz);
@@ -141,7 +143,7 @@ public class VerletIntegrator {
         if (currentTemp < 1e-15) { return; }
         let coupling: double = 100.0; // coupling constant
         let ratio: double = this.targetTemp / currentTemp;
-        let lambda: double = Math.sqrt(1.0 + (this.dt / coupling) * (ratio - 1.0));
+        let lambda: double = MathAdvanced.sqrt(1.0 + (this.dt / coupling) * (ratio - 1.0));
         var i: int = 0;
         while (i < this.velocities.size()) {
             this.velocities.set(i, this.velocities.get(i) * lambda);
