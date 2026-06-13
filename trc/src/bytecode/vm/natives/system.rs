@@ -462,3 +462,192 @@ pub(crate) fn native_os_environ_map(args: &[Value]) -> Result<Value, String> {
         .collect();
     Ok(Value::Array { elements: pairs })
 }
+
+// ---------------------------------------------------------------------------
+// Additional Os native stubs
+// ---------------------------------------------------------------------------
+
+pub(crate) fn native_sys_change_dir(args: &[Value]) -> Result<Value, String> {
+    let path = match args.first() {
+        Some(Value::String(s)) => s.as_str(),
+        _ => return Err("Sys_changeDir: expected a String path".to_string()),
+    };
+    std::env::set_current_dir(path)
+        .map_err(|e| format!("Sys_changeDir: {}", e))?;
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_os_getppid(_args: &[Value]) -> Result<Value, String> {
+    // Stub: return 0 (parent PID not available on all platforms)
+    Ok(Value::Int(0))
+}
+
+pub(crate) fn native_os_strerror(args: &[Value]) -> Result<Value, String> {
+    let code = match args.first() {
+        Some(Value::Int(c)) => *c,
+        _ => return Err("Os_strerror: expected an Int error code".to_string()),
+    };
+    Ok(Value::String(Rc::new(format!("error {}", code))))
+}
+
+pub(crate) fn native_os_removedirs(args: &[Value]) -> Result<Value, String> {
+    let path = match args.first() {
+        Some(Value::String(s)) => s.as_str().to_string(),
+        _ => return Err("Os_removedirs: expected a String path".to_string()),
+    };
+    // Remove directory and all parent directories that become empty
+    let mut current = std::path::PathBuf::from(&path);
+    loop {
+        match std::fs::remove_dir(&current) {
+            Ok(()) => {
+                if !current.pop() { break; }
+            }
+            Err(_) => break,
+        }
+    }
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_os_renames(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Os_renames: expected old and new paths".to_string());
+    }
+    let old = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Os_renames: old path must be a String".to_string()),
+    };
+    let new = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Os_renames: new path must be a String".to_string()),
+    };
+    // Create parent directories of new path
+    if let Some(parent) = std::path::Path::new(new).parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    std::fs::rename(old, new)
+        .map_err(|e| format!("Os_renames: {}", e))?;
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_os_replace(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Os_replace: expected src and dst paths".to_string());
+    }
+    let src = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Os_replace: src must be a String".to_string()),
+    };
+    let dst = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Os_replace: dst must be a String".to_string()),
+    };
+    std::fs::rename(src, dst)
+        .map_err(|e| format!("Os_replace: {}", e))?;
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_os_link(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Os_link: expected src and dst paths".to_string());
+    }
+    let src = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Os_link: src must be a String".to_string()),
+    };
+    let dst = match &args[1] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Os_link: dst must be a String".to_string()),
+    };
+    std::fs::hard_link(src, dst)
+        .map_err(|e| format!("Os_link: {}", e))?;
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_os_utime(args: &[Value]) -> Result<Value, String> {
+    let path = match args.first() {
+        Some(Value::String(s)) => s.as_str(),
+        _ => return Err("Os_utime: expected a String path".to_string()),
+    };
+    let _time = match args.get(1) {
+        Some(Value::Double(t)) => *t as f64,
+        _ => std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs_f64(),
+    };
+    let _ = (path, _time); // Stub: use filetime crate in production
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_os_lstat(args: &[Value]) -> Result<Value, String> {
+    // Return stat info as an array: [size, isFile, isDir, isSymlink]
+    let path = match args.first() {
+        Some(Value::String(s)) => s.as_str().to_string(),
+        _ => return Err("Os_lstat: expected a String path".to_string()),
+    };
+    let metadata = std::fs::symlink_metadata(&path)
+        .map_err(|e| format!("Os_lstat: {}", e))?;
+    Ok(Value::Array {
+        elements: vec![
+            Value::Long(metadata.len() as i64),
+            Value::Bool(metadata.is_file()),
+            Value::Bool(metadata.is_dir()),
+            Value::Bool(metadata.is_symlink()),
+        ],
+    })
+}
+
+pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
+    let path = match args.first() {
+        Some(Value::String(s)) => s.as_str(),
+        _ => return Err("Os_access: expected a String path".to_string()),
+    };
+    let mode = match args.get(1) {
+        Some(Value::Int(m)) => *m,
+        _ => 0, // F_OK = 0 (existence check)
+    };
+    let p = std::path::Path::new(path);
+    let result = match mode {
+        0 => p.exists(),        // F_OK
+        1 => p.exists(),        // X_OK (simplified)
+        2 => p.exists(),        // W_OK (simplified)
+        4 => p.exists(),        // R_OK (simplified)
+        _ => p.exists(),
+    };
+    Ok(Value::Bool(result))
+}
+
+pub(crate) fn native_os_system(args: &[Value]) -> Result<Value, String> {
+    let cmd = match args.first() {
+        Some(Value::String(s)) => s.as_str().to_string(),
+        _ => return Err("Os_system: expected a String command".to_string()),
+    };
+    #[cfg(target_os = "windows")]
+    let result = std::process::Command::new("cmd").args(["/C", &cmd]).status();
+    #[cfg(not(target_os = "windows"))]
+    let result = std::process::Command::new("sh").args(["-c", &cmd]).status();
+    match result {
+        Ok(status) => Ok(Value::Int(status.code().unwrap_or(-1))),
+        Err(_) => Ok(Value::Int(-1)),
+    }
+}
+
+pub(crate) fn native_os_uname(_args: &[Value]) -> Result<Value, String> {
+    let info = format!(
+        "{}|{}|{}|{}",
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        env!("CARGO_PKG_VERSION"),
+        "unknown"
+    );
+    Ok(Value::String(Rc::new(info)))
+}
+
+pub(crate) fn native_env_unset(args: &[Value]) -> Result<Value, String> {
+    let key = match args.first() {
+        Some(Value::String(s)) => s.as_str().to_string(),
+        _ => return Err("Env_unset: expected a String key".to_string()),
+    };
+    std::env::remove_var(&key);
+    Ok(Value::Void)
+}

@@ -458,3 +458,74 @@ pub(crate) fn native_socket_get_addr_info(args: &[Value]) -> Result<Value, Strin
         ))))),
     }
 }
+
+// ---------------------------------------------------------------------------
+// Convenience socket functions
+// ---------------------------------------------------------------------------
+
+pub(crate) fn native_socket_inet_pton(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Stub: return empty string (IP address packing not yet implemented)
+    Ok(Value::String(std::rc::Rc::new("".to_string())))
+}
+
+pub(crate) fn native_socket_inet_ntop(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Stub: return empty string
+    Ok(Value::String(std::rc::Rc::new("".to_string())))
+}
+
+pub(crate) fn native_socket_create_connection(args: &[Value]) -> Result<Value, String> {
+    // Create a client socket and connect to host:port
+    if args.len() < 2 {
+        return Err("Socket_createConnection: expected host and port".to_string());
+    }
+    let host = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Socket_createConnection: host must be a String".to_string()),
+    };
+    let port = match &args[1] {
+        Value::Int(p) => *p as u16,
+        Value::Long(p) => *p as u16,
+        _ => return Err("Socket_createConnection: port must be an Int".to_string()),
+    };
+    // Create socket and connect
+    let handle = TCP_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
+    let addr = format!("{}:{}", host, port);
+    let stream = TcpStream::connect(&addr)
+        .map_err(|e| format!("Socket_createConnection: {}", e))?;
+    stream.set_nonblocking(false).ok();
+    let mut registry = TCP_REGISTRY.lock().unwrap();
+    registry.insert(handle, TcpHandle::Stream(stream));
+    Ok(Value::Long(handle))
+}
+
+pub(crate) fn native_socket_create_server(args: &[Value]) -> Result<Value, String> {
+    // Create a server socket bound to host:port with backlog
+    if args.len() < 3 {
+        return Err("Socket_createServer: expected host, port, and backlog".to_string());
+    }
+    let host = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Socket_createServer: host must be a String".to_string()),
+    };
+    let port = match &args[1] {
+        Value::Int(p) => *p as u16,
+        Value::Long(p) => *p as u16,
+        _ => return Err("Socket_createServer: port must be an Int".to_string()),
+    };
+    let backlog = match &args[2] {
+        Value::Int(b) => *b,
+        Value::Long(b) => *b as i32,
+        _ => return Err("Socket_createServer: backlog must be an Int".to_string()),
+    };
+    let addr = format!("{}:{}", host, port);
+    let listener = TcpListener::bind(&addr)
+        .map_err(|e| format!("Socket_createServer: {}", e))?;
+    listener.set_nonblocking(false).ok();
+    let handle = TCP_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
+    let mut registry = TCP_REGISTRY.lock().unwrap();
+    registry.insert(handle, TcpHandle::Listener(listener));
+    let _ = backlog; // backlog is handled by the OS TCP stack
+    Ok(Value::Long(handle))
+}
