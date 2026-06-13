@@ -260,14 +260,14 @@ public class Regex {
     }
 
     public fn quote(s: string): string {
-        // some characters just need more escaping than others
+        // Escape ALL regex metacharacters: . ^ $ * + ? { } [ ] \ | ( )
         let result: string = "";
         let i: int = 0;
         while (i < String.length(s)) {
             let c: string = String.charAt(s, i);
-            if (c == "\\" || c == "." || c == "*" || c == "+" || c == "?" ||
-                c == "(" || c == ")" || c == "[" || c == "]" || c == "{" ||
-                c == "}" || c == "|" || c == "^" || c == "$") {
+            if (c == "\\" || c == "." || c == "^" || c == "$" || c == "*" ||
+                c == "+" || c == "?" || c == "{" || c == "}" || c == "[" ||
+                c == "]" || c == "|" || c == "(" || c == ")") {
                 result = result + "\\";
             }
             result = result + c;
@@ -340,14 +340,15 @@ public fn findAll(s: string, pattern: string): ArrayList<Match> {
 }
 
 // Escape all regex metacharacters in s, returning a literal pattern string.
+// Escapes: . ^ $ * + ? { } [ ] \ | ( )
 public fn quote(s: string): string {
     let result: string = "";
     let i: int = 0;
     while (i < String.length(s)) {
         let c: string = String.charAt(s, i);
-        if (c == "\\" || c == "." || c == "*" || c == "+" || c == "?" ||
-            c == "(" || c == ")" || c == "[" || c == "]" || c == "{" ||
-            c == "}" || c == "|" || c == "^" || c == "$") {
+        if (c == "\\" || c == "." || c == "^" || c == "$" || c == "*" ||
+            c == "+" || c == "?" || c == "{" || c == "}" || c == "[" ||
+            c == "]" || c == "|" || c == "(" || c == ")") {
             result = result + "\\";
         }
         result = result + c;
