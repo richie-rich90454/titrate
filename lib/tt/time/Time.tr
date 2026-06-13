@@ -48,6 +48,6 @@ public fn perfCounter(): long {
 }
 
 // Unix timestamp as double with sub-second precision
-fn epochSeconds(): double {
+public fn epochSeconds(): double {
     return Time_epochSeconds();
 }
