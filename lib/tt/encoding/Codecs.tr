@@ -1,0 +1,93 @@
+// Codecs module for text encoding and decoding.
+import tt::util::ArrayList;
+
+// Encode a string using the specified encoding.
+// Supported encodings: utf-8, ascii, latin-1
+public fn encode(s: string, encoding: string): string {
+    let enc: string = String.toLowerCase(encoding);
+    if (enc == "utf-8" || enc == "utf8") {
+        return encodeUtf8(s);
+    }
+    if (enc == "ascii") {
+        return encodeAscii(s);
+    }
+    if (enc == "latin-1" || enc == "latin1" || enc == "iso-8859-1") {
+        return encodeLatin1(s);
+    }
+    return s;
+}
+
+// Decode a string using the specified encoding.
+// Supported encodings: utf-8, ascii, latin-1
+public fn decode(s: string, encoding: string): string {
+    let enc: string = String.toLowerCase(encoding);
+    if (enc == "utf-8" || enc == "utf8") {
+        return decodeUtf8(s);
+    }
+    if (enc == "ascii") {
+        return decodeAscii(s);
+    }
+    if (enc == "latin-1" || enc == "latin1" || enc == "iso-8859-1") {
+        return decodeLatin1(s);
+    }
+    return s;
+}
+
+// UTF-8 encode: pass through (Titrate strings are already Unicode)
+fn encodeUtf8(s: string): string {
+    return s;
+}
+
+// UTF-8 decode: pass through
+fn decodeUtf8(s: string): string {
+    return s;
+}
+
+// ASCII encode: replace non-ASCII characters with '?'
+fn encodeAscii(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0);
+        if (code < 128) {
+            result = result + c;
+        } else {
+            result = result + "?";
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ASCII decode: same as encode (replace non-ASCII)
+fn decodeAscii(s: string): string {
+    return encodeAscii(s);
+}
+
+// Latin-1 encode: characters 0-255 map directly
+fn encodeLatin1(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0);
+        if (code < 256) {
+            result = result + c;
+        } else {
+            result = result + "?";
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Latin-1 decode: characters 0-255 map directly
+fn decodeLatin1(s: string): string {
+    return s;
+}
+
+// Register a custom encoding (stub for future extension).
+public fn register(encoding: string, encoder: fn(string): string, decoder: fn(string): string): void {
+    // Stub: custom encoding registration requires VM support
+}
