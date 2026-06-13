@@ -51,7 +51,7 @@ pub(crate) fn native_file_read_lines(args: &[Value]) -> Result<Value, String> {
                     let lines: Vec<Value> = content.lines()
                         .map(|line| Value::String(Rc::new(line.to_string())))
                         .collect();
-                    Ok(Value::Array { elements: lines })
+                    Ok(Value::ResultOk(Box::new(Value::Array { elements: lines })))
                 }
                 Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
                     format!("Failed to read file '{}': {}", path, e)
