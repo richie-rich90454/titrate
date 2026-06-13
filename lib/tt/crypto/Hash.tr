@@ -61,6 +61,12 @@ public class Hash {
         if (algorithm == "sha256") { return Hash_sha256(data); }
         if (algorithm == "sha384") { return Hash_sha384(data); }
         if (algorithm == "sha512") { return Hash_sha512(data); }
+        if (algorithm == "sha3-256") { return Hash_sha3_256(data); }
+        if (algorithm == "sha3-384") { return Hash_sha3_384(data); }
+        if (algorithm == "sha3-512") { return Hash_sha3_512(data); }
+        if (algorithm == "blake2b") { return Hash_blake2b(data); }
+        if (algorithm == "blake2s") { return Hash_blake2s(data); }
+        if (algorithm == "crc32") { return Hash_crc32(data); }
         return "";
     }
 
