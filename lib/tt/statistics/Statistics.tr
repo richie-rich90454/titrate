@@ -336,6 +336,99 @@ public fn multimode(data: ArrayList<double>): ArrayList<double> {
     return result;
 }
 
+// ==================== Descriptive Statistics Extensions ====================
+
+// Skewness: third standardized moment (m3 / m2^1.5).
+public fn skewness(data: ArrayList<double>): double {
+    if (data.size() < 3) { return 0.0; }
+    let m: double = mean(data);
+    let n: int = data.size();
+    var m2: double = 0.0;
+    var m3: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let diff: double = data.get(i) - m;
+        m2 = m2 + diff * diff;
+        m3 = m3 + diff * diff * diff;
+        i = i + 1;
+    }
+    m2 = m2 / n;
+    m3 = m3 / n;
+    if (m2 == 0.0) { return 0.0; }
+    return m3 / Math.sqrt(m2 * m2 * m2);
+}
+
+// Excess kurtosis: m4/m2^2 - 3.
+public fn kurtosis(data: ArrayList<double>): double {
+    if (data.size() < 4) { return 0.0; }
+    let m: double = mean(data);
+    let n: int = data.size();
+    var m2: double = 0.0;
+    var m4: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let diff: double = data.get(i) - m;
+        let d2: double = diff * diff;
+        m2 = m2 + d2;
+        m4 = m4 + d2 * d2;
+        i = i + 1;
+    }
+    m2 = m2 / n;
+    m4 = m4 / n;
+    if (m2 == 0.0) { return 0.0; }
+    return m4 / (m2 * m2) - 3.0;
+}
+
+// Nth central moment: (1/N) * sum((x_i - mean)^n).
+public fn moment(data: ArrayList<double>, n: int): double {
+    if (data.size() == 0) { return 0.0; }
+    let m: double = mean(data);
+    let count: int = data.size();
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < count) {
+        let diff: double = data.get(i) - m;
+        var power: double = 1.0;
+        var j: int = 0;
+        while (j < n) {
+            power = power * diff;
+            j = j + 1;
+        }
+        sum = sum + power;
+        i = i + 1;
+    }
+    return sum / count;
+}
+
+// Standard error: stdev(data) / sqrt(N).
+public fn standardError(data: ArrayList<double>): double {
+    if (data.size() < 2) { return 0.0; }
+    return stdev(data) / Math.sqrt(data.size());
+}
+
+// Coefficient of variation: stdev / mean.
+public fn coefficientOfVariation(data: ArrayList<double>): double {
+    if (data.size() < 2) { return 0.0; }
+    let m: double = mean(data);
+    if (m == 0.0) { return 0.0; }
+    return stdev(data) / m;
+}
+
+// Z-score: (value - mean) / stdev.
+public fn zScore(value: double, mean: double, stdev: double): double {
+    if (stdev == 0.0) { return 0.0; }
+    return (value - mean) / stdev;
+}
+
+// Interquartile range: Q3 - Q1.
+public fn interquartileRange(data: ArrayList<double>): double {
+    if (data.size() < 4) { return 0.0; }
+    let qs: ArrayList<double> = quantiles(data, 4);
+    // quantiles(data, 4) returns [Q1, Q2, Q3]
+    if (qs.size() < 3) { return 0.0; }
+    return qs.get(2) - qs.get(0);
+}
+
 // ==================== NormalDist class ====================
 
 public class NormalDist {
