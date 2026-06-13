@@ -43,7 +43,7 @@ public fn monotonic(): long {
 }
 
 // High-resolution performance counter in nanoseconds
-fn perfCounter(): long {
+public fn perfCounter(): long {
     return Time_perfCounter();
 }
 
