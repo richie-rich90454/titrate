@@ -263,6 +263,8 @@ impl Vm {
         // Additional Regex natives
         vm.register_native("Regex_groupCount", natives::regex::native_regex_group_count);
         vm.register_native("Regex_findGroups", natives::regex::native_regex_find_groups);
+        vm.register_native("Regex_findWithFlags", natives::regex::native_regex_find_with_flags);
+        vm.register_native("Regex_matchWithFlags", natives::regex::native_regex_match_with_flags);
 
         // Additional Directory natives
         vm.register_native("Dir_walk", natives::directory::native_dir_walk);
