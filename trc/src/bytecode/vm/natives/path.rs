@@ -97,3 +97,18 @@ pub(crate) fn native_path_extension(args: &[Value]) -> Result<Value, String> {
         _ => Err("Path_extension: expected String argument".to_string()),
     }
 }
+
+pub(crate) fn native_path_is_symlink(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Path_isSymlink: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => {
+            match std::fs::symlink_metadata(path.as_str()) {
+                Ok(meta) => Ok(Value::Bool(meta.file_type().is_symlink())),
+                Err(_) => Ok(Value::Bool(false)),
+            }
+        }
+        _ => Err("Path_isSymlink: expected String argument".to_string()),
+    }
+}

@@ -102,6 +102,7 @@ impl Vm {
         vm.register_native("Path_basename", natives::path::native_path_basename);
         vm.register_native("Path_dirname", natives::path::native_path_dirname);
         vm.register_native("Path_extension", natives::path::native_path_extension);
+        vm.register_native("Path_isSymlink", natives::path::native_path_is_symlink);
 
         // Directory natives
         vm.register_native("Dir_list", natives::directory::native_dir_list);

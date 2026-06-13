@@ -36,6 +36,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Path_basename" => Some(path::native_path_basename),
         "Path_dirname" => Some(path::native_path_dirname),
         "Path_extension" => Some(path::native_path_extension),
+        "Path_isSymlink" => Some(path::native_path_is_symlink),
         "Dir_list" => Some(directory::native_dir_list),
         "Dir_create" => Some(directory::native_dir_create),
         "Dir_remove" => Some(directory::native_dir_remove),
