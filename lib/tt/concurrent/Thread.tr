@@ -61,20 +61,20 @@ public class Thread {
     public fn isAlive(): bool {
         return this.started && !this.joined;
     }
+}
 
-    public static fn sleep(ms: int): void {
-        Thread_sleep(ms);
-    }
+public fn sleep(ms: int): void {
+    Thread_sleep(ms);
+}
 
-    public static fn yield_(): void {
-        Thread_yield();
-    }
+public fn yield_(): void {
+    Thread_yield();
+}
 
-    public static fn currentId(): int {
-        return Thread_currentId();
-    }
+public fn currentId(): int {
+    return Thread_currentId();
+}
 
-    public static fn hardwareConcurrency(): int {
-        return Os_cpuCount();
-    }
+public fn hardwareConcurrency(): int {
+    return Os_cpuCount();
 }
