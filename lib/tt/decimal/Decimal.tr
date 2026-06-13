@@ -416,3 +416,43 @@ public class DecimalContext {
 fn fromString(s: string): Decimal {
     return new Decimal(s);
 }
+
+// Compute e^x for a Decimal value.
+public fn exp(x: Decimal): Decimal {
+    return Decimal_exp(x);
+}
+
+// Compute the natural logarithm of a Decimal value.
+public fn ln(x: Decimal): Decimal {
+    return Decimal_ln(x);
+}
+
+// Compute the base-10 logarithm of a Decimal value.
+public fn log10(x: Decimal): Decimal {
+    return Decimal_log10(x);
+}
+
+// Fused multiply-add: computes a*b + c with only one rounding.
+public fn fma(a: Decimal, b: Decimal, c: Decimal): Decimal {
+    return Decimal_fma(a, b, c);
+}
+
+// Logical AND of two Decimal operands (digit-wise).
+public fn logicalAnd(a: Decimal, b: Decimal): Decimal {
+    return Decimal_logicalAnd(a, b);
+}
+
+// Logical OR of two Decimal operands (digit-wise).
+public fn logicalOr(a: Decimal, b: Decimal): Decimal {
+    return Decimal_logicalOr(a, b);
+}
+
+// Logical XOR of two Decimal operands (digit-wise).
+public fn logicalXor(a: Decimal, b: Decimal): Decimal {
+    return Decimal_logicalXor(a, b);
+}
+
+// Logical inversion (complement) of a Decimal operand (digit-wise).
+public fn logicalInvert(a: Decimal): Decimal {
+    return Decimal_logicalInvert(a);
+}

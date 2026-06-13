@@ -2,6 +2,12 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
+// CSV quoting constants
+public const QUOTE_MINIMAL: int = 0;
+public const QUOTE_ALL: int = 1;
+public const QUOTE_NONNUMERIC: int = 2;
+public const QUOTE_NONE: int = 3;
+
 public class CsvReader {
     public string delimiter;
     public string quote;

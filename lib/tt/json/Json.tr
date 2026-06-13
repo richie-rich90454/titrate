@@ -17,6 +17,11 @@ public fn stringify(value: JsonValue): string {
     return value.toString();
 }
 
+// Convert a JsonValue to a JSON string with indentation and optional key sorting
+public fn stringify(value: JsonValue, indent: int, sortKeys: bool): string {
+    return dumps(value, sortKeys, indent);
+}
+
 // Pretty print with indentation
 public fn prettyPrint(value: JsonValue, indent: int): string {
     return prettyPrintInner(value, indent, 0);
@@ -28,10 +33,20 @@ public fn dump(value: JsonValue, path: string): void {
     File_writeAll(path, jsonStr);
 }
 
+// Write a Variant object to a JSON file with indentation and optional key sorting.
+public fn dump(obj: Variant, filePath: string, indent: int, sortKeys: bool): void {
+    Json_dump(obj, filePath, indent, sortKeys);
+}
+
 // Read a JSON file and parse it into a JsonValue.
 public fn load(path: string): JsonValue {
     let content: string = File_readAll(path);
     return parse(content);
+}
+
+// Read a JSON file and parse it into a Variant.
+public fn load(filePath: string): Variant {
+    return Json_load(filePath);
 }
 
 // Convert a JsonValue to a JSON string with optional sorting and indentation.

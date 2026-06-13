@@ -1,5 +1,6 @@
 // Match represents a single regex match result.
 import tt::util::ArrayList;
+import tt::util::HashMap;
 
 public class Match {
     public string matched;
@@ -8,6 +9,7 @@ public class Match {
     public ArrayList<string> groups;
     public ArrayList<int> groupStarts;
     public ArrayList<int> groupEnds;
+    public HashMap<string, string> groupDict;
 
     public fn init(m: string, s: int, e: int) {
         this.matched = m;
@@ -16,6 +18,7 @@ public class Match {
         this.groups = new ArrayList<string>();
         this.groupStarts = new ArrayList<int>();
         this.groupEnds = new ArrayList<int>();
+        this.groupDict = new HashMap<string, string>();
     }
 
     public fn getMatched(): string {
@@ -58,6 +61,19 @@ public class Match {
         let r: ArrayList<int> = new ArrayList<int>();
         r.add(this.start);
         r.add(this.end);
+        return r;
+    }
+
+    // Return the (start, end) span for a specific capture group.
+    public fn span(group: int): ArrayList<int> {
+        let r: ArrayList<int> = new ArrayList<int>();
+        if (group == 0) {
+            r.add(this.start);
+            r.add(this.end);
+        } else {
+            r.add(this.groupStarts.get(group));
+            r.add(this.groupEnds.get(group));
+        }
         return r;
     }
 }

@@ -10,6 +10,10 @@ public class Hash {
         return Hash_sha1(input);
     }
 
+    public fn sha224(input: string): string {
+        return Hash_sha224(input);
+    }
+
     public fn sha256(input: string): string {
         // the gold standard, until quantum says otherwise
         return Hash_sha256(input);
@@ -23,6 +27,10 @@ public class Hash {
         return Hash_sha512(input);
     }
 
+    public fn sha3_224(input: string): string {
+        return Hash_sha3_224(input);
+    }
+
     public fn sha3_256(input: string): string {
         return Hash_sha3_256(input);
     }
@@ -33,6 +41,14 @@ public class Hash {
 
     public fn sha3_512(input: string): string {
         return Hash_sha3_512(input);
+    }
+
+    public fn shake128(input: string, length: int): string {
+        return Hash_shake128(input, length);
+    }
+
+    public fn shake256(input: string, length: int): string {
+        return Hash_shake256(input, length);
     }
 
     public fn blake2b(input: string): string {
@@ -58,12 +74,16 @@ public class Hash {
     public fn hashBytes(algorithm: string, data: string): string {
         if (algorithm == "md5") { return Hash_md5(data); }
         if (algorithm == "sha1") { return Hash_sha1(data); }
+        if (algorithm == "sha224") { return Hash_sha224(data); }
         if (algorithm == "sha256") { return Hash_sha256(data); }
         if (algorithm == "sha384") { return Hash_sha384(data); }
         if (algorithm == "sha512") { return Hash_sha512(data); }
+        if (algorithm == "sha3-224") { return Hash_sha3_224(data); }
         if (algorithm == "sha3-256") { return Hash_sha3_256(data); }
         if (algorithm == "sha3-384") { return Hash_sha3_384(data); }
         if (algorithm == "sha3-512") { return Hash_sha3_512(data); }
+        if (algorithm == "shake128") { return Hash_shake128(data, 32); }
+        if (algorithm == "shake256") { return Hash_shake256(data, 64); }
         if (algorithm == "blake2b") { return Hash_blake2b(data); }
         if (algorithm == "blake2s") { return Hash_blake2s(data); }
         if (algorithm == "crc32") { return Hash_crc32(data); }
@@ -95,7 +115,7 @@ public class Hash {
 }
 
 // Incremental hasher for streaming hash computation.
-// Supports: md5, sha1, sha256, sha384, sha512, sha3-256, sha3-384, sha3-512, blake2b, blake2s
+// Supports: md5, sha1, sha224, sha256, sha384, sha512, sha3-224, sha3-256, sha3-384, sha3-512, shake128, shake256, blake2b, blake2s
 public class Hasher {
     private int _handle;
 

@@ -2,6 +2,9 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
+// Constant for suppressing optional argument entries
+public const SUPPRESS: string = "==SUPPRESS==";
+
 // Represents a single argument definition.
 public class Argument {
     public string name;
@@ -461,4 +464,49 @@ public class ArgumentParser {
         }
         return s;
     }
+}
+
+// Namespace holds parsed argument values with attribute-style access.
+public class Namespace {
+    public HashMap<string, Variant> attrs;
+
+    public fn init() {
+        this.attrs = new HashMap<string, Variant>();
+    }
+
+    public fn init(attrs: HashMap<string, Variant>) {
+        this.attrs = attrs;
+    }
+
+    public fn get(key: string): Variant {
+        return this.attrs.get(key);
+    }
+
+    public fn set(key: string, value: Variant): void {
+        this.attrs.put(key, value);
+    }
+
+    public fn keys(): ArrayList<string> {
+        return this.attrs.keys();
+    }
+
+    public fn toString(): string {
+        return this.attrs.toString();
+    }
+}
+
+// Parse known args and return a two-element ArrayList: [parsed_namespace, remaining_args].
+// This is a convenience wrapper around ArgumentParser.parseKnownArgs.
+public fn parseKnownArgs(parser: ArgumentParser, args: ArrayList<string>): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    let parsed: HashMap<string, Variant> = parser.parseKnownArgs(args);
+    let ns: Namespace = new Namespace(parsed);
+    result.add(ns);
+    let remaining: Variant = parsed.get("__remaining__");
+    if (remaining != null) {
+        result.add(remaining);
+    } else {
+        result.add(new ArrayList<string>());
+    }
+    return result;
 }

@@ -11,6 +11,13 @@ public class Regex {
     public const IGNORECASE: string = "i";
     public const MULTILINE: string = "m";
     public const DOTALL: string = "s";
+    public const VERBOSE: string = "x";
+
+    // Integer flag constants for bitwise flag composition
+    public const FLAG_IGNORECASE: int = 1;
+    public const FLAG_MULTILINE: int = 2;
+    public const FLAG_DOTALL: int = 4;
+    public const FLAG_VERBOSE: int = 8;
 
     public fn init(p: string) {
         this.pattern = p;
@@ -355,4 +362,19 @@ public fn quote(s: string): string {
         i = i + 1;
     }
     return result;
+}
+
+// Full string match: returns a Match if the entire text matches the pattern, null otherwise.
+public fn fullMatch(pattern: string, text: string): Match {
+    return Regex_fullMatch(pattern, text);
+}
+
+// Limited substitution: replace at most n occurrences of pattern in text with replacement.
+public fn subN(pattern: string, replacement: string, text: string, n: int): string {
+    return Regex_subN(pattern, replacement, text, n);
+}
+
+// Escape regex metacharacters in text, returning a safe literal pattern string.
+public fn escape(text: string): string {
+    return quote(text);
 }
