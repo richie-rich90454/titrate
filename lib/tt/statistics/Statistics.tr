@@ -249,7 +249,21 @@ fn sortCopy(data: ArrayList<double>): ArrayList<double> {
     return copy;
 }
 
-// Weighted mean (fmean)
+// Fast mean (fmean) without weights: simple sum/count.
+public fn fmean(data: ArrayList<double>): double {
+    if (data.size() == 0) {
+        return 0.0;
+    }
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < data.size()) {
+        sum = sum + data.get(i);
+        i = i + 1;
+    }
+    return sum / data.size();
+}
+
+// Weighted mean (fmean with weights)
 public fn fmean(data: ArrayList<double>, weights: ArrayList<double>): double {
     if (data.size() == 0 || data.size() != weights.size()) {
         return 0.0;
