@@ -65,8 +65,12 @@ public class Logger {
     public string name;
     public string level;
     public ArrayList<Handler> handlers;
+    public Logger parent;
+    public ArrayList<Logger> children;
+    public bool propagate;
 
     private fn _levelValue(lvl: string): int {
+        if (lvl == "NOTSET") { return 0; }
         if (lvl == "DEBUG") { return 10; }
         if (lvl == "INFO") { return 20; }
         if (lvl == "WARNING") { return 30; }
@@ -77,18 +81,35 @@ public class Logger {
 
     fn init(name: string) {
         this.name = name;
-        this.level = "WARNING";
+        this.level = "NOTSET";
         this.handlers = new ArrayList<Handler>();
+        this.parent = null;
+        this.children = new ArrayList<Logger>();
+        this.propagate = true;
     }
 
     fn init(name: string, level: string) {
         this.name = name;
         this.level = level;
         this.handlers = new ArrayList<Handler>();
+        this.parent = null;
+        this.children = new ArrayList<Logger>();
+        this.propagate = true;
     }
 
     public fn setLevel(level: string): void {
         this.level = level;
+    }
+
+    public fn effectiveLevel(): int {
+        let val: int = this._levelValue(this.level);
+        if (val != 0) {
+            return val;
+        }
+        if (this.parent != null) {
+            return this.parent.effectiveLevel();
+        }
+        return 0;
     }
 
     public fn addHandler(handler: Handler): void {
@@ -116,14 +137,22 @@ public class Logger {
     }
 
     private fn _log(level: string, msg: string): void {
-        if (this._levelValue(level) < this._levelValue(this.level)) {
+        if (this._levelValue(level) < this.effectiveLevel()) {
             return;
         }
+        this._callHandlers(level, msg);
+    }
+
+    private fn _callHandlers(level: string, msg: string): void {
         let timestamp: string = this._timestamp();
         let i: int = 0;
         while (i < this.handlers.size()) {
             this.handlers.get(i).handle(level, msg, timestamp);
             i = i + 1;
+        }
+        // Propagate to parent
+        if (this.propagate && this.parent != null) {
+            this.parent._callHandlers(level, msg);
         }
     }
 
@@ -136,12 +165,31 @@ public class Logger {
 let _loggers: HashMap<string, Logger> = new HashMap<string, Logger>();
 let _rootLogger: Logger = new Logger("root", "WARNING");
 
-// Get or create a named logger.
+// Get or create a named logger with parent-child hierarchy based on dot-separated names.
 public fn getLogger(name: string): Logger {
     if (_loggers.containsKey(name)) {
         return _loggers.get(name);
     }
-    let logger: Logger = new Logger(name, "WARNING");
+    let logger: Logger = new Logger(name);
+    // Set up parent-child relationship based on dot-separated names
+    var lastDot: int = -1;
+    var ci: int = 0;
+    while (ci < String.length(name)) {
+        if (String.charAt(name, ci) == ".") {
+            lastDot = ci;
+        }
+        ci = ci + 1;
+    }
+    if (lastDot > 0) {
+        let parentName: string = String.substring(name, 0, lastDot);
+        let parentLogger: Logger = getLogger(parentName);
+        logger.parent = parentLogger;
+        parentLogger.children.add(logger);
+    } else {
+        // Direct child of root
+        logger.parent = _rootLogger;
+        _rootLogger.children.add(logger);
+    }
     _loggers.put(name, logger);
     return logger;
 }
