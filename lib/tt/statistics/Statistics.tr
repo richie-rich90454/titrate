@@ -3,6 +3,8 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::util::Pair;
 import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
 import tt::random::Random;
 
 // Arithmetic mean.
@@ -68,7 +70,7 @@ fn mode(data: ArrayList<double>): double {
 // Sample standard deviation.
 fn stdev(data: ArrayList<double>): double {
     let v: double = variance(data);
-    return Math.sqrt(v);
+    return MathAdvanced.sqrt(v);
 }
 
 // Sample variance.
@@ -90,7 +92,7 @@ fn variance(data: ArrayList<double>): double {
 // Population standard deviation.
 fn pstdev(data: ArrayList<double>): double {
     let v: double = pvariance(data);
-    return Math.sqrt(v);
+    return MathAdvanced.sqrt(v);
 }
 
 // Population variance.
@@ -157,7 +159,7 @@ fn correlation(x: ArrayList<double>, y: ArrayList<double>): double {
     if (sumX2 == 0.0 || sumY2 == 0.0) {
         return 0.0;
     }
-    return sumXY / Math.sqrt(sumX2 * sumY2);
+    return sumXY / MathAdvanced.sqrt(sumX2 * sumY2);
 }
 
 // Linear regression: returns [slope, intercept].
@@ -201,10 +203,10 @@ fn geometricMean(data: ArrayList<double>): double {
         if (data.get(i) <= 0.0) {
             return 0.0;
         }
-        sumLog = sumLog + Math.ln(data.get(i));
+        sumLog = sumLog + MathAdvanced.ln(data.get(i));
         i = i + 1;
     }
-    return Math.exp(sumLog / data.size());
+    return MathAdvanced.exp(sumLog / data.size());
 }
 
 // Harmonic mean.
@@ -355,7 +357,7 @@ public fn skewness(data: ArrayList<double>): double {
     m2 = m2 / n;
     m3 = m3 / n;
     if (m2 == 0.0) { return 0.0; }
-    return m3 / Math.sqrt(m2 * m2 * m2);
+    return m3 / MathAdvanced.sqrt(m2 * m2 * m2);
 }
 
 // Excess kurtosis: m4/m2^2 - 3.
@@ -403,7 +405,7 @@ public fn moment(data: ArrayList<double>, n: int): double {
 // Standard error: stdev(data) / sqrt(N).
 public fn standardError(data: ArrayList<double>): double {
     if (data.size() < 2) { return 0.0; }
-    return stdev(data) / Math.sqrt(data.size());
+    return stdev(data) / MathAdvanced.sqrt(data.size());
 }
 
 // Coefficient of variation: stdev / mean.
@@ -452,7 +454,7 @@ public fn meanConfidenceInterval(data: ArrayList<double>, confidence: double): A
         return result;
     }
     let m: double = mean(data);
-    let se: double = stdev(data) / Math.sqrt(data.size());
+    let se: double = stdev(data) / MathAdvanced.sqrt(data.size());
     let z: double = zValueForConfidence(confidence);
     result.add(m - z * se);
     result.add(m + z * se);
@@ -469,7 +471,7 @@ public fn proportionConfidenceInterval(p: double, n: int, confidence: double): A
         return result;
     }
     let z: double = zValueForConfidence(confidence);
-    let se: double = Math.sqrt(p * (1.0 - p) / n);
+    let se: double = MathAdvanced.sqrt(p * (1.0 - p) / n);
     result.add(Math.max(0.0, p - z * se));
     result.add(Math.min(1.0, p + z * se));
     return result;
@@ -488,7 +490,7 @@ public fn oneSampleTTest(data: ArrayList<double>, mu0: double): HashMap<string, 
     let n: int = data.size();
     let m: double = mean(data);
     let s: double = stdev(data);
-    let se: double = s / Math.sqrt(n);
+    let se: double = s / MathAdvanced.sqrt(n);
     let t: double = 0.0;
     if (se != 0.0) {
         t = (m - mu0) / se;
@@ -522,7 +524,7 @@ public fn twoSampleTTest(data1: ArrayList<double>, data2: ArrayList<double>): Ha
     let s2: double = stdev(data2);
     let v1: double = s1 * s1 / n1;
     let v2: double = s2 * s2 / n2;
-    let se: double = Math.sqrt(v1 + v2);
+    let se: double = MathAdvanced.sqrt(v1 + v2);
     let t: double = 0.0;
     if (se != 0.0) {
         t = (m1 - m2) / se;
@@ -568,7 +570,7 @@ public fn chiSquaredTest(observed: ArrayList<double>, expected: ArrayList<double
     // For large df, chi-squared is approximately normal with mean=df, variance=2*df
     let p: double = 1.0;
     if (df > 0.0) {
-        let nd: NormalDist = new NormalDist(df, Math.sqrt(2.0 * df));
+        let nd: NormalDist = new NormalDist(df, MathAdvanced.sqrt(2.0 * df));
         p = 1.0 - nd.cdf(chi2);
         if (p < 0.0) { p = 0.0; }
     }
@@ -593,13 +595,13 @@ public class NormalDist {
     public fn pdf(x: double): double {
         if (this.sigma <= 0.0) { return 0.0; }
         let z: double = (x - this.mu) / this.sigma;
-        return (1.0 / (this.sigma * Math.sqrt(2.0 * Math.PI()))) * Math.exp(-0.5 * z * z);
+        return (1.0 / (this.sigma * MathAdvanced.sqrt(2.0 * Math.PI()))) * MathAdvanced.exp(-0.5 * z * z);
     }
 
     // Cumulative distribution function using error function
     public fn cdf(x: double): double {
         if (this.sigma <= 0.0) { return 0.0; }
-        let z: double = (x - this.mu) / (this.sigma * Math.sqrt(2.0));
+        let z: double = (x - this.mu) / (this.sigma * MathAdvanced.sqrt(2.0));
         return 0.5 * (1.0 + Math.erf(z));
     }
 
@@ -642,7 +644,7 @@ public class NormalDist {
 
         if (p < pLow) {
             // Rational approximation for lower region
-            q = Math.sqrt(-2.0 * Math.ln(p));
+            q = MathAdvanced.sqrt(-2.0 * MathAdvanced.ln(p));
             x = (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1.0);
         } else {
             if (p <= pHigh) {
@@ -652,7 +654,7 @@ public class NormalDist {
                 x = (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q / (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1.0);
             } else {
                 // Rational approximation for upper region
-                q = Math.sqrt(-2.0 * Math.ln(1.0 - p));
+                q = MathAdvanced.sqrt(-2.0 * MathAdvanced.ln(1.0 - p));
                 x = -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1.0);
             }
         }
@@ -740,7 +742,7 @@ fn logGamma(x: double): double {
     if (x <= 0.0) { return 0.0; }
     if (x < 0.5) {
         // Reflection formula: Gamma(x)*Gamma(1-x) = pi / sin(pi*x)
-        return Math.ln(Math.PI() / Math.sin(Math.PI() * x)) - logGamma(1.0 - x);
+        return MathAdvanced.ln(Math.PI() / MathTrig.sin(Math.PI() * x)) - logGamma(1.0 - x);
     }
     // Lanczos approximation
     let g: double = 7.0;
@@ -766,12 +768,12 @@ fn logGamma(x: double): double {
     s = s + coef9 / (z + 8.0);
 
     let t: double = z + g + 0.5;
-    return 0.5 * Math.ln(2.0 * Math.PI()) + (z + 0.5) * Math.ln(t) - t + Math.ln(s);
+    return 0.5 * MathAdvanced.ln(2.0 * Math.PI()) + (z + 0.5) * MathAdvanced.ln(t) - t + MathAdvanced.ln(s);
 }
 
 // Helper: gamma function via exp(logGamma).
 fn gammaFn(x: double): double {
-    return Math.exp(logGamma(x));
+    return MathAdvanced.exp(logGamma(x));
 }
 
 // Helper: log of beta function.
@@ -846,13 +848,13 @@ public class ExponentialDist {
     public fn pdf(x: double): double {
         if (this.lambda <= 0.0) { return 0.0; }
         if (x < 0.0) { return 0.0; }
-        return this.lambda * Math.exp(-this.lambda * x);
+        return this.lambda * MathAdvanced.exp(-this.lambda * x);
     }
 
     public fn cdf(x: double): double {
         if (this.lambda <= 0.0) { return 0.0; }
         if (x < 0.0) { return 0.0; }
-        return 1.0 - Math.exp(-this.lambda * x);
+        return 1.0 - MathAdvanced.exp(-this.lambda * x);
     }
 
     public fn mean(): double {
@@ -861,7 +863,7 @@ public class ExponentialDist {
     }
 
     public fn sample(): double {
-        return -Math.ln(Math.random()) / this.lambda;
+        return -MathAdvanced.ln(Math.random()) / this.lambda;
     }
 }
 
@@ -876,8 +878,8 @@ public class PoissonDist {
     public fn pmf(k: int): double {
         if (this.lambda <= 0.0 || k < 0) { return 0.0; }
         // lambda^k * exp(-lambda) / k!
-        let logPmf: double = k as double * Math.ln(this.lambda) - this.lambda - Math.ln(factorial(k));
-        return Math.exp(logPmf);
+        let logPmf: double = k as double * MathAdvanced.ln(this.lambda) - this.lambda - MathAdvanced.ln(factorial(k));
+        return MathAdvanced.exp(logPmf);
     }
 
     public fn cdf(k: int): double {
@@ -909,8 +911,8 @@ public class BinomialDist {
     public fn pmf(k: int): double {
         if (k < 0 || k > this.n) { return 0.0; }
         // C(n,k) * p^k * (1-p)^(n-k)
-        let logPmf: double = Math.ln(binomCoeff(this.n, k)) + k as double * Math.ln(this.p) + (this.n - k) as double * Math.ln(1.0 - this.p);
-        return Math.exp(logPmf);
+        let logPmf: double = MathAdvanced.ln(binomCoeff(this.n, k)) + k as double * MathAdvanced.ln(this.p) + (this.n - k) as double * MathAdvanced.ln(1.0 - this.p);
+        return MathAdvanced.exp(logPmf);
     }
 
     public fn cdf(k: int): double {
@@ -943,8 +945,8 @@ public class GammaDist {
         if (this.alpha <= 0.0 || this.beta <= 0.0) { return 0.0; }
         if (x <= 0.0) { return 0.0; }
         // beta^alpha * x^(alpha-1) * exp(-beta*x) / gamma(alpha)
-        let logPdf: double = this.alpha * Math.ln(this.beta) + (this.alpha - 1.0) * Math.ln(x) - this.beta * x - logGamma(this.alpha);
-        return Math.exp(logPdf);
+        let logPdf: double = this.alpha * MathAdvanced.ln(this.beta) + (this.alpha - 1.0) * MathAdvanced.ln(x) - this.beta * x - logGamma(this.alpha);
+        return MathAdvanced.exp(logPdf);
     }
 
     public fn mean(): double {
@@ -967,8 +969,8 @@ public class BetaDist {
         if (this.alpha <= 0.0 || this.beta <= 0.0) { return 0.0; }
         if (x <= 0.0 || x >= 1.0) { return 0.0; }
         // x^(alpha-1) * (1-x)^(beta-1) / B(alpha, beta)
-        let logPdf: double = (this.alpha - 1.0) * Math.ln(x) + (this.beta - 1.0) * Math.ln(1.0 - x) - logBeta(this.alpha, this.beta);
-        return Math.exp(logPdf);
+        let logPdf: double = (this.alpha - 1.0) * MathAdvanced.ln(x) + (this.beta - 1.0) * MathAdvanced.ln(1.0 - x) - logBeta(this.alpha, this.beta);
+        return MathAdvanced.exp(logPdf);
     }
 
     public fn mean(): double {
