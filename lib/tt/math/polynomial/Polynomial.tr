@@ -538,3 +538,161 @@ public class Polynomial {
         return result;
     }
 }
+
+// Least squares polynomial fitting using normal equations
+// Solves (X^T * X) * c = X^T * y where X is the Vandermonde matrix
+public fn polyfit(xs: ArrayList<double>, ys: ArrayList<double>, degree: int): Polynomial {
+    let n: int = xs.size();
+    let m: int = degree + 1;
+    // Build Vandermonde matrix X (n x m) and compute X^T * X (m x m) and X^T * y (m x 1)
+    let xtx: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let xty: ArrayList<double> = new ArrayList<double>();
+    let i: int = 0;
+    while (i < m) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        let j: int = 0;
+        while (j < m) {
+            var sum: double = 0.0;
+            let k: int = 0;
+            while (k < n) {
+                sum = sum + Math.pow(xs.get(k), (i + j) as double);
+                k = k + 1;
+            }
+            row.add(sum);
+            j = j + 1;
+        }
+        xtx.add(row);
+        var sumY: double = 0.0;
+        let k2: int = 0;
+        while (k2 < n) {
+            sumY = sumY + ys.get(k2) * Math.pow(xs.get(k2), i as double);
+            k2 = k2 + 1;
+        }
+        xty.add(sumY);
+        i = i + 1;
+    }
+    // Solve using Gaussian elimination with partial pivoting
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let ai: int = 0;
+    while (ai < m) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        let aj: int = 0;
+        while (aj < m) {
+            row.add(xtx.get(ai).get(aj));
+            aj = aj + 1;
+        }
+        row.add(xty.get(ai));
+        aug.add(row);
+        ai = ai + 1;
+    }
+    // Forward elimination with partial pivoting
+    let pi: int = 0;
+    while (pi < m) {
+        // Find pivot
+        let maxVal: double = Math.fabs(aug.get(pi).get(pi));
+        let maxRow: int = pi;
+        let pk: int = pi + 1;
+        while (pk < m) {
+            let val: double = Math.fabs(aug.get(pk).get(pi));
+            if (val > maxVal) {
+                maxVal = val;
+                maxRow = pk;
+            }
+            pk = pk + 1;
+        }
+        // Swap rows
+        if (maxRow != pi) {
+            let tmp: ArrayList<double> = aug.get(pi);
+            aug.set(pi, aug.get(maxRow));
+            aug.set(maxRow, tmp);
+        }
+        // Eliminate below
+        let ei: int = pi + 1;
+        while (ei < m) {
+            let factor: double = aug.get(ei).get(pi) / aug.get(pi).get(pi);
+            let ej: int = pi;
+            while (ej <= m) {
+                let val: double = aug.get(ei).get(ej) - factor * aug.get(pi).get(ej);
+                aug.get(ei).set(ej, val);
+                ej = ej + 1;
+            }
+            ei = ei + 1;
+        }
+        pi = pi + 1;
+    }
+    // Back substitution
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+    let ci: int = 0;
+    while (ci < m) {
+        coeffs.add(0.0);
+        ci = ci + 1;
+    }
+    let bi: int = m - 1;
+    while (bi >= 0) {
+        var sum: double = aug.get(bi).get(m);
+        let bj: int = bi + 1;
+        while (bj < m) {
+            sum = sum - aug.get(bi).get(bj) * coeffs.get(bj);
+            bj = bj + 1;
+        }
+        coeffs.set(bi, sum / aug.get(bi).get(bi));
+        bi = bi - 1;
+    }
+    // coeffs are in ascending order (c0 + c1*x + c2*x^2 + ...), convert to descending
+    let descCoeffs: ArrayList<double> = new ArrayList<double>();
+    let di: int = m - 1;
+    while (di >= 0) {
+        descCoeffs.add(coeffs.get(di));
+        di = di - 1;
+    }
+    return new Polynomial(descCoeffs);
+}
+
+// Construct polynomial from its roots: (x - r1)(x - r2)...(x - rn)
+public fn fromRoots(roots: ArrayList<double>): Polynomial {
+    // Start with polynomial "1"
+    let one: ArrayList<double> = new ArrayList<double>();
+    one.add(1.0);
+    let result: Polynomial = new Polynomial(one);
+    let i: int = 0;
+    while (i < roots.size()) {
+        // Multiply by (x - roots[i]) = [-roots[i], 1]
+        let factor: ArrayList<double> = new ArrayList<double>();
+        factor.add(1.0);
+        factor.add(-roots.get(i));
+        result = result.mul(new Polynomial(factor));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Return companion matrix for eigenvalue root-finding
+// For polynomial a_n*x^n + ... + a_1*x + a_0, the companion matrix is n x n
+public fn companionMatrix(p: Polynomial): ArrayList<ArrayList<double>> {
+    let n: int = p.degree();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    if (n == 0) { return result; }
+    // Normalize so leading coefficient is 1
+    let leadCoeff: double = p.coefficients.get(0);
+    let i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        let j: int = 0;
+        while (j < n) {
+            if (j == n - 1) {
+                // Last column: -a_i / a_n (constant term first, then ascending)
+                let coeffIdx: int = p.coefficients.size() - 1 - i;
+                row.add(-p.coefficients.get(coeffIdx) / leadCoeff);
+            } else if (j == i + 1) {
+                // Sub-diagonal: 1
+                row.add(1.0);
+            } else {
+                row.add(0.0);
+            }
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
