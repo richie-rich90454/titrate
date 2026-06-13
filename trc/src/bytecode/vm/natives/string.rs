@@ -50,13 +50,17 @@ pub(crate) fn native_string_pad_left(args: &[Value]) -> Result<Value, String> {
     }
     match (&args[0], &args[1], &args[2]) {
         (Value::String(s), Value::Int(width), Value::Char(pad_char)) => {
-            let padded = format!("{:>width$}", s.as_str(), width = *width as usize)
-                .replace(' ', &pad_char.to_string());
+            let char_count = s.chars().count();
+            let pad_count = (*width as usize).saturating_sub(char_count);
+            let padding: String = std::iter::repeat(*pad_char).take(pad_count).collect();
+            let padded = format!("{}{}", padding, s.as_str());
             Ok(Value::String(Rc::new(padded)))
         }
         (Value::String(s), Value::Long(width), Value::Char(pad_char)) => {
-            let padded = format!("{:>width$}", s.as_str(), width = *width as usize)
-                .replace(' ', &pad_char.to_string());
+            let char_count = s.chars().count();
+            let pad_count = (*width as usize).saturating_sub(char_count);
+            let padding: String = std::iter::repeat(*pad_char).take(pad_count).collect();
+            let padded = format!("{}{}", padding, s.as_str());
             Ok(Value::String(Rc::new(padded)))
         }
         _ => Err("String_padLeft: expected (String, Int/Long, Char)".to_string()),
@@ -69,13 +73,17 @@ pub(crate) fn native_string_pad_right(args: &[Value]) -> Result<Value, String> {
     }
     match (&args[0], &args[1], &args[2]) {
         (Value::String(s), Value::Int(width), Value::Char(pad_char)) => {
-            let padded = format!("{:<width$}", s.as_str(), width = *width as usize)
-                .replace(' ', &pad_char.to_string());
+            let char_count = s.chars().count();
+            let pad_count = (*width as usize).saturating_sub(char_count);
+            let padding: String = std::iter::repeat(*pad_char).take(pad_count).collect();
+            let padded = format!("{}{}", s.as_str(), padding);
             Ok(Value::String(Rc::new(padded)))
         }
         (Value::String(s), Value::Long(width), Value::Char(pad_char)) => {
-            let padded = format!("{:<width$}", s.as_str(), width = *width as usize)
-                .replace(' ', &pad_char.to_string());
+            let char_count = s.chars().count();
+            let pad_count = (*width as usize).saturating_sub(char_count);
+            let padding: String = std::iter::repeat(*pad_char).take(pad_count).collect();
+            let padded = format!("{}{}", s.as_str(), padding);
             Ok(Value::String(Rc::new(padded)))
         }
         _ => Err("String_padRight: expected (String, Int/Long, Char)".to_string()),
