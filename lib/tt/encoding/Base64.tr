@@ -241,3 +241,48 @@ fn _base32Val(c: string): int {
     }
     return 0;
 }
+
+// Encode a string to Base16 (hexadecimal).
+public fn encodeBase16(s: string): string {
+    let HEX_CHARS: string = "0123456789ABCDEF";
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let code: int = String.charAt(s, i);
+        let hi: int = code / 16;
+        let lo: int = code % 16;
+        result = result + String.charAt(HEX_CHARS, hi) + String.charAt(HEX_CHARS, lo);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Decode a Base16 (hexadecimal) string back to the original string.
+public fn decodeBase16(s: string): string {
+    let HEX_CHARS: string = "0123456789ABCDEF";
+    let result: string = "";
+    let i: int = 0;
+    while (i + 1 < String.length(s)) {
+        let hiChar: string = String.charAt(s, i);
+        let loChar: string = String.charAt(s, i + 1);
+        let hi: int = _hexVal(hiChar);
+        let lo: int = _hexVal(loChar);
+        result = result + String.fromCharCode(hi * 16 + lo);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Helper: get hex value for a character
+fn _hexVal(c: string): int {
+    let HEX_CHARS: string = "0123456789ABCDEF";
+    let upper: string = String.toUpperCase(c);
+    let i: int = 0;
+    while (i < String.length(HEX_CHARS)) {
+        if (String.charAt(HEX_CHARS, i) == upper) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
