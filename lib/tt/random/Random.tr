@@ -224,6 +224,13 @@ public class Random {
         return z / Math.sqrt(v / df);
     }
 
+    // F-distribution: ratio of two chi-squareds divided by their df
+    public fn fisherF(d1: double, d2: double): double {
+        let x1: double = this.chiSquared(d1);
+        let x2: double = this.chiSquared(d2);
+        return (x1 / d1) / (x2 / d2);
+    }
+
     // Weighted random choice from a list using cumulative weights
     public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
         // Build cumulative weights
