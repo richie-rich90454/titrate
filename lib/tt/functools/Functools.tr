@@ -196,9 +196,9 @@ public fn lruCache<T, R>(fn: fn(T): R, capacity: int): fn(T): R {
 }
 
 // Decorator that fills in missing comparison methods.
+// Note: This is a no-op in Titrate since methods cannot be dynamically added to classes.
+// Returns the class unchanged for API compatibility.
 public fn totalOrdering(cls: Variant): Variant {
-    // Convention-based: returns the class as-is
-    // Full implementation would add missing comparison operators
     return cls;
 }
 
@@ -240,4 +240,60 @@ public class DispatchRegistry {
 // Dispatches to the registered function based on the type name of the first argument.
 public fn singledispatch(defaultFn: fn(Variant): Variant): DispatchRegistry {
     return new DispatchRegistry(defaultFn);
+}
+
+// CachedProperty — computes a value on first access and caches the result.
+public class CachedProperty {
+    private fn(): Variant _getter;
+    private Variant _cachedValue;
+    private bool _computed;
+
+    public fn init(getter: fn(): Variant) {
+        this._getter = getter;
+        this._computed = false;
+        this._cachedValue = null;
+    }
+
+    // Get the value, computing it on first access and caching the result.
+    public fn get(): Variant {
+        if (!this._computed) {
+            this._cachedValue = this._getter();
+            this._computed = true;
+        }
+        return this._cachedValue;
+    }
+}
+
+// Create a cached property from a getter function.
+// The getter is called only once; subsequent accesses return the cached value.
+public fn cachedProperty(getter: fn(): Variant): CachedProperty {
+    return new CachedProperty(getter);
+}
+
+// LazyValue — deferred computation that evaluates only when accessed.
+public class LazyValue {
+    private fn(): Variant _fn;
+    private Variant _value;
+    private bool _evaluated;
+
+    public fn init(fn: fn(): Variant) {
+        this._fn = fn;
+        this._evaluated = false;
+        this._value = null;
+    }
+
+    // Get the value, computing it lazily on first access.
+    public fn get(): Variant {
+        if (!this._evaluated) {
+            this._value = this._fn();
+            this._evaluated = true;
+        }
+        return this._value;
+    }
+}
+
+// Create a lazy value from a function.
+// The function is not called until get() is invoked for the first time.
+public fn lazy(fn: fn(): Variant): LazyValue {
+    return new LazyValue(fn);
 }
