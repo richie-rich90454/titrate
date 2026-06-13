@@ -176,6 +176,31 @@ public class Path {
         }
         return name;
     }
+
+    // Expand ~ to the user's home directory.
+    public fn expandUser(): string {
+        let p: string = this.path;
+        if (String.length(p) > 0 && String.charAt(p, 0) == "~") {
+            let home: string = Sys_env("HOME");
+            if (home == null || String.length(home) == 0) {
+                // On Windows, try USERPROFILE
+                home = Sys_env("USERPROFILE");
+            }
+            if (home == null || String.length(home) == 0) {
+                home = Sys_env("HOMEDRIVE") + Sys_env("HOMEPATH");
+            }
+            if (home != null && String.length(home) > 0) {
+                if (String.length(p) > 1 && String.charAt(p, 1) == "/") {
+                    return home + String.substring(p, 1, String.length(p));
+                } else if (String.length(p) > 1 && String.charAt(p, 1) == "\\") {
+                    return home + String.substring(p, 1, String.length(p));
+                } else if (String.length(p) == 1) {
+                    return home;
+                }
+            }
+        }
+        return p;
+    }
 }
 
 // Internal: normalize a path by resolving . and .. segments
