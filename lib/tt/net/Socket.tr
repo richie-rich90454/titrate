@@ -117,6 +117,38 @@ public class Socket {
         }
         return result;
     }
+
+    public fn setReuseAddr(enabled: bool): void {
+        if (enabled) {
+            Socket_setReuseAddr(this.handle, 1);
+        } else {
+            Socket_setReuseAddr(this.handle, 0);
+        }
+    }
+
+    public fn setBroadcast(enabled: bool): void {
+        if (enabled) {
+            Socket_setBroadcast(this.handle, 1);
+        } else {
+            Socket_setBroadcast(this.handle, 0);
+        }
+    }
+
+    public fn setKeepAlive(enabled: bool): void {
+        if (enabled) {
+            Socket_setKeepAlive(this.handle, 1);
+        } else {
+            Socket_setKeepAlive(this.handle, 0);
+        }
+    }
+
+    public fn setLinger(enabled: bool, seconds: int): void {
+        if (enabled) {
+            Socket_setLinger(this.handle, 1, seconds);
+        } else {
+            Socket_setLinger(this.handle, 0, 0);
+        }
+    }
 }
 
 // DNS resolution: resolve a hostname to a list of IP addresses.
