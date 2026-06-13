@@ -581,3 +581,67 @@ public fn logisticSolveWithPoint(k: double, L: double, x0: double, x1: double, t
     // Use x1 at t=1 to compute k if needed, but k is provided directly here
     return logisticSolve(k, L, x0, t);
 }
+
+// ==================== Taylor and Maclaurin Series ====================
+
+// Helper: compute factorial as double for Taylor coefficients
+fn factorialDouble(n: int): double {
+    var result: double = 1.0;
+    var i: int = 2;
+    while (i <= n) {
+        result = result * (i as double);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Compute n+1 Taylor coefficients of f at center a using numerical derivatives
+// coeff[k] = f^(k)(a) / k!
+public fn taylorCoefficients(f: fn(double): double, a: double, n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i <= n) {
+        let deriv: double = nthDerivative(f, a, i, 1e-4);
+        let coeff: double = deriv / factorialDouble(i);
+        result.add(coeff);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Evaluate Taylor polynomial of degree n centered at a, at point x
+public fn taylorEvaluate(f: fn(double): double, a: double, n: int, x: double): double {
+    let coeffs: ArrayList<double> = taylorCoefficients(f, a, n);
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < coeffs.size()) {
+        let term: double = coeffs.get(i) * MathAdvanced.pow(x - a, i as double);
+        sum = sum + term;
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Maclaurin series: Taylor polynomial at a=0
+public fn maclaurinEvaluate(f: fn(double): double, n: int, x: double): double {
+    return taylorEvaluate(f, 0.0, n, x);
+}
+
+// Lagrange error bound: M * |x - a|^(n+1) / (n+1)!
+public fn lagrangeError(f: fn(double): double, a: double, n: int, x: double, M: double): double {
+    return M * MathAdvanced.pow(Math.abs(x - a), (n + 1) as double) / factorialDouble(n + 1);
+}
+
+// Evaluate power series using Horner's method: c0 + c1*x + c2*x^2 + ...
+public fn powerSeriesEvaluate(coeffs: ArrayList<double>, x: double): double {
+    if (coeffs.size() == 0) {
+        return 0.0;
+    }
+    var result: double = coeffs.get(coeffs.size() - 1);
+    var i: int = coeffs.size() - 2;
+    while (i >= 0) {
+        result = result * x + coeffs.get(i);
+        i = i - 1;
+    }
+    return result;
+}
