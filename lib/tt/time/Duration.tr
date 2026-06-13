@@ -23,6 +23,10 @@ public class Duration {
         return this.millis / 1000;
     }
 
+    public fn totalSeconds(): double {
+        return this.millis as double / 1000.0;
+    }
+
     public fn toMinutes(): long {
         return this.millis / 60000;
     }
