@@ -1,6 +1,7 @@
 import tt::lang::Integer;
 import tt::chem::Atom;
 import tt::math::Math;
+import tt::math::MathTrig;
 
 public class Bond {
     public int atom1;
@@ -89,7 +90,7 @@ public class Bond {
         let m1z: double = n1x * b2y - n1y * b2x;
         let x: double = n1x * n2x + n1y * n2y + n1z * n2z;
         let y: double = m1x * n2x + m1y * n2y + m1z * n2z;
-        return Math.atan2(y, x);
+        return MathTrig.atan2(y, x);
     }
 
     // Check if this bond is aromatic
