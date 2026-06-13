@@ -46,6 +46,11 @@ public fn abs(x: double): double {
     return Math_abs(x);
 }
 
+// Explicit double-precision absolute value
+public fn fabs(x: double): double {
+    return Math_abs(x);
+}
+
 public fn absInt(x: int): int {
     return Math_absInt(x);
 }
