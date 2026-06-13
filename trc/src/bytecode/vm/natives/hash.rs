@@ -7,6 +7,7 @@ use md5::{Digest, Md5};
 use sha1::Sha1;
 use sha2::{Sha256, Sha384, Sha512};
 use sha3::Sha3_256;
+use sha3::Sha3_384;
 
 pub(crate) fn native_hash_md5(args: &[Value]) -> Result<Value, String> {
     match args.first() {
@@ -77,5 +78,17 @@ pub(crate) fn native_hash_sha3_256(args: &[Value]) -> Result<Value, String> {
             Ok(Value::String(Rc::new(format!("{:x}", result))))
         }
         _ => Err("Hash_sha3_256: expected a String argument".to_string()),
+    }
+}
+
+pub(crate) fn native_hash_sha3_384(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => {
+            let mut hasher = Sha3_384::new();
+            hasher.update(s.as_bytes());
+            let result = hasher.finalize();
+            Ok(Value::String(Rc::new(format!("{:x}", result))))
+        }
+        _ => Err("Hash_sha3_384: expected a String argument".to_string()),
     }
 }
