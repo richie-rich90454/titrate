@@ -22,8 +22,8 @@ fn micros(): long {
     return Time_now() * 1000;
 }
 
-fn nanos(): long {
-    return Time_now() * 1000000;
+public fn nanos(): long {
+    return Time_nanos();
 }
 
 fn measure(fn: fn(): void): Duration {
