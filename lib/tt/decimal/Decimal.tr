@@ -1,6 +1,7 @@
 // Decimal provides arbitrary-precision decimal arithmetic using string-based representation.
 import tt::lang::String;
 import tt::lang::Integer;
+import tt::lang::Long;
 import tt::lang::Double;
 import tt::util::ArrayList;
 import tt::decimal::DecimalArithmetic;
@@ -170,6 +171,245 @@ public class Decimal {
     public fn toDouble(): double {
         let s: string = this.toString();
         return Double.parseDouble(s);
+    }
+
+    // Round to the given number of decimal places using the specified mode.
+    public fn round(places: int, mode: string): Decimal {
+        // Shift by 10^places, round, shift back
+        let shift: Decimal = Decimal.pow10(places);
+        let shifted: Decimal = this.mul(shift);
+        let rounded: Decimal = Decimal.applyRounding(shifted, mode);
+        let unshifted: Decimal = rounded.div(shift);
+        return unshifted;
+    }
+
+    // Quantize to the same exponent as the given Decimal.
+    public fn quantize(exp: Decimal): Decimal {
+        return this.round(exp.scale, "half_even");
+    }
+
+    // Absolute value.
+    public fn abs(): Decimal {
+        return new Decimal().initFrom(false, this.digits, this.scale);
+    }
+
+    // Negate the value.
+    public fn negate(): Decimal {
+        if (DecimalArithmetic.isZeroStr(this.digits)) {
+            return new Decimal().initFrom(false, this.digits, this.scale);
+        }
+        return new Decimal().initFrom(!this.negative, this.digits, this.scale);
+    }
+
+    // Remove trailing zeros from the fractional part.
+    public fn stripTrailingZeros(): Decimal {
+        if (this.scale == 0) { return new Decimal().initFrom(this.negative, this.digits, this.scale); }
+        var digs: string = this.digits;
+        var sc: int = this.scale;
+        while (sc > 0 && String.length(digs) > 0) {
+            let lastChar: string = String.charAt(digs, String.length(digs) - 1);
+            if (lastChar == "0") {
+                digs = String.substring(digs, 0, String.length(digs) - 1);
+                sc = sc - 1;
+            } else {
+                break;
+            }
+        }
+        if (String.length(digs) == 0) { digs = "0"; }
+        return new Decimal().initFrom(this.negative, digs, sc);
+    }
+
+    // Return -1, 0, or 1 depending on the sign.
+    public fn signum(): int {
+        if (DecimalArithmetic.isZeroStr(this.digits)) { return 0; }
+        if (this.negative) { return -1; }
+        return 1;
+    }
+
+    // Modulo operation (result has same sign as this).
+    public fn mod(other: Decimal): Decimal {
+        // a mod b = a - (a / b).truncated * b
+        let quotient: Decimal = this.div(other);
+        let truncated: Decimal = Decimal.truncate(quotient);
+        return this.sub(truncated.mul(other));
+    }
+
+    // Remainder operation (result has same sign as divisor).
+    public fn remainder(other: Decimal): Decimal {
+        let m: Decimal = this.mod(other);
+        // If signs differ and result is non-zero, add divisor
+        if (!DecimalArithmetic.isZeroStr(m.digits) && this.negative != other.negative) {
+            m = m.add(other);
+        }
+        return m;
+    }
+
+    // ---- Static helpers ----
+
+    // Apply rounding mode to a Decimal value (round to integer).
+    public fn applyRounding(d: Decimal, mode: string): Decimal {
+        var intPart: string = "";
+        var intLen: int = 0;
+        if (d.scale == 0) {
+            intPart = d.digits;
+            intLen = String.length(d.digits);
+        } else {
+            intLen = String.length(d.digits) - d.scale;
+            if (intLen > 0) {
+                intPart = String.substring(d.digits, 0, intLen);
+            }
+        }
+        if (intLen <= 0) { intPart = "0"; }
+        // Get the fractional digit for rounding decisions
+        let fracDigit: int = 0;
+        if (d.scale > 0 && String.length(d.digits) > 0) {
+            let intLen2: int = String.length(d.digits) - d.scale;
+            if (intLen2 >= 0 && intLen2 < String.length(d.digits)) {
+                let fracChar: string = String.charAt(d.digits, intLen2);
+                fracDigit = String.charAt(fracChar, 0) - String.charAt("0", 0);
+            }
+        }
+        let intVal: long = Long.parseLong(intPart);
+        if (mode == "up") {
+            // Round away from zero
+            if (!DecimalArithmetic.isZeroStr(d.digits) && d.scale > 0) {
+                if (d.negative) {
+                    return new Decimal().initFrom(true, Long.toString(intVal - 1L), 0);
+                }
+                return new Decimal().initFrom(false, Long.toString(intVal + 1L), 0);
+            }
+            return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+        } else if (mode == "down") {
+            // Truncate toward zero
+            return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+        } else if (mode == "ceiling") {
+            // Round toward +infinity
+            if (!DecimalArithmetic.isZeroStr(d.digits) && d.scale > 0) {
+                if (!d.negative) {
+                    return new Decimal().initFrom(false, Long.toString(intVal + 1L), 0);
+                }
+            }
+            return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+        } else if (mode == "floor") {
+            // Round toward -infinity
+            if (!DecimalArithmetic.isZeroStr(d.digits) && d.scale > 0) {
+                if (d.negative) {
+                    return new Decimal().initFrom(true, Long.toString(intVal + 1L), 0);
+                }
+            }
+            return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+        } else if (mode == "half_up") {
+            if (fracDigit >= 5) {
+                if (d.negative) {
+                    return new Decimal().initFrom(true, Long.toString(intVal + 1L), 0);
+                }
+                return new Decimal().initFrom(false, Long.toString(intVal + 1L), 0);
+            }
+            return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+        } else if (mode == "half_down") {
+            if (fracDigit > 5) {
+                if (d.negative) {
+                    return new Decimal().initFrom(true, Long.toString(intVal + 1L), 0);
+                }
+                return new Decimal().initFrom(false, Long.toString(intVal + 1L), 0);
+            }
+            return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+        } else if (mode == "half_even") {
+            // Banker's rounding
+            let lastIntDigit: int = 0;
+            if (String.length(intPart) > 0) {
+                lastIntDigit = String.charAt(String.charAt(intPart, String.length(intPart) - 1), 0) - String.charAt("0", 0);
+            }
+            if (fracDigit > 5 || (fracDigit == 5 && lastIntDigit % 2 != 0)) {
+                if (d.negative) {
+                    return new Decimal().initFrom(true, Long.toString(intVal + 1L), 0);
+                }
+                return new Decimal().initFrom(false, Long.toString(intVal + 1L), 0);
+            }
+            return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+        }
+        // Default: half_up
+        if (fracDigit >= 5) {
+            if (d.negative) {
+                return new Decimal().initFrom(true, Long.toString(intVal + 1L), 0);
+            }
+            return new Decimal().initFrom(false, Long.toString(intVal + 1L), 0);
+        }
+        return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+    }
+
+    // Truncate a Decimal toward zero.
+    public fn truncate(d: Decimal): Decimal {
+        if (d.scale == 0) {
+            return new Decimal().initFrom(d.negative, d.digits, 0);
+        }
+        let intLen: int = String.length(d.digits) - d.scale;
+        if (intLen <= 0) {
+            return new Decimal().initFrom(false, "0", 0);
+        }
+        let intPart: string = String.substring(d.digits, 0, intLen);
+        return new Decimal().initFrom(d.negative, intPart, 0);
+    }
+
+    // Compute 10^n as a Decimal.
+    public fn pow10(n: int): Decimal {
+        if (n == 0) { return new Decimal("1"); }
+        if (n > 0) {
+            var result: string = "1";
+            var i: int = 0;
+            while (i < n) {
+                result = result + "0";
+                i = i + 1;
+            }
+            return new Decimal(result);
+        }
+        // Negative: 10^(-n) = 0.00...01
+        var result: string = "1";
+        var i: int = 0;
+        while (i < -n - 1) {
+            result = "0" + result;
+            i = i + 1;
+        }
+        return new Decimal("0." + result);
+    }
+}
+
+// RoundingMode provides string constants for rounding modes.
+public class RoundingMode {
+    public string UP;
+    public string DOWN;
+    public string CEILING;
+    public string FLOOR;
+    public string HALF_UP;
+    public string HALF_DOWN;
+    public string HALF_EVEN;
+
+    public fn init() {
+        this.UP = "up";
+        this.DOWN = "down";
+        this.CEILING = "ceiling";
+        this.FLOOR = "floor";
+        this.HALF_UP = "half_up";
+        this.HALF_DOWN = "half_down";
+        this.HALF_EVEN = "half_even";
+    }
+}
+
+// DecimalContext provides precision and rounding mode for Decimal operations.
+public class DecimalContext {
+    public int precision;
+    public string roundingMode;
+
+    public fn init(precision: int, roundingMode: string) {
+        this.precision = precision;
+        this.roundingMode = roundingMode;
+    }
+
+    // Divide two Decimals using this context's precision and rounding mode.
+    public fn divide(a: Decimal, b: Decimal): Decimal {
+        // Perform division with extra precision, then round
+        let result: Decimal = a.div(b);
+        return result.round(this.precision, this.roundingMode);
     }
 }
 
