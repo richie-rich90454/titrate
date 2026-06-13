@@ -372,8 +372,8 @@ pub(crate) fn native_hasher_digest(args: &[Value]) -> Result<Value, String> {
         .get_mut(&handle)
         .ok_or_else(|| "Hasher_digest: invalid handle".to_string())?;
     let bytes = hasher.digest_and_reset();
-    // Return raw bytes as a string (each byte as a char)
-    let s: String = bytes.iter().map(|&b| b as char).collect();
+    // Return hex-encoded string to avoid byte corruption for values > 127
+    let s: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
     Ok(Value::String(Rc::new(s)))
 }
 
