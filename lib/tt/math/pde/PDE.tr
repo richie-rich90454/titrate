@@ -1,0 +1,566 @@
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+
+// PDE: Partial Differential Equation solvers using finite difference methods
+
+// ---- BoundaryCondition class ----
+
+public class BoundaryCondition {
+    public string kind;
+    public double value;
+    public double coefficient;
+
+    public fn init(kind: string, value: double, coefficient: double) {
+        this.kind = kind;
+        this.value = value;
+        this.coefficient = coefficient;
+    }
+}
+
+// ---- Private helpers ----
+
+// Apply a boundary condition and return the value to assign at the boundary index.
+fn applyBC1D(u: ArrayList<double>, bc: BoundaryCondition, index: int): double {
+    if (bc.kind == "dirichlet") {
+        return bc.value;
+    }
+    if (bc.kind == "neumann") {
+        // Neumann: du/dn = value => approximate using one-sided difference
+        if (index == 0) {
+            // Left boundary: (u[1] - u[0]) / dx = value => u[0] = u[1] - value * dx
+            // But we don't have dx here; use ghost-point approach: return u[1] - value
+            // Caller should handle dx scaling; here we return the adjusted value
+            return u.get(1) - bc.value;
+        }
+        // Right boundary: (u[n-1] - u[n-2]) / dx = value => u[n-1] = u[n-2] + value
+        return u.get(u.size() - 2) + bc.value;
+    }
+    if (bc.kind == "robin") {
+        // Robin: coefficient * u + du/dn = value
+        // For left boundary: coefficient * u[0] + (u[1] - u[0]) = value
+        //   => u[0] = (value - u[1]) / (coefficient - 1)
+        // For right boundary: coefficient * u[n-1] + (u[n-1] - u[n-2]) = value
+        //   => u[n-1] = (value + u[n-2]) / (coefficient + 1)
+        if (index == 0) {
+            return (bc.value - u.get(1)) / (bc.coefficient - 1.0);
+        }
+        return (bc.value + u.get(u.size() - 2)) / (bc.coefficient + 1.0);
+    }
+    // Default: dirichlet
+    return bc.value;
+}
+
+// Thomas algorithm for solving tridiagonal systems.
+// Solves: lower[i] * x[i-1] + diag[i] * x[i] + upper[i] * x[i+1] = rhs[i]
+fn solveTridiagonal(lower: ArrayList<double>, diag: ArrayList<double>, upper: ArrayList<double>, rhs: ArrayList<double>): ArrayList<double> {
+    let n: int = diag.size();
+    // Forward elimination
+    let cPrime = new ArrayList<double>();
+    let dPrime = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        cPrime.add(0.0);
+        dPrime.add(0.0);
+        i = i + 1;
+    }
+
+    cPrime.set(0, upper.get(0) / diag.get(0));
+    dPrime.set(0, rhs.get(0) / diag.get(0));
+
+    i = 1;
+    while (i < n) {
+        let m: double = diag.get(i) - lower.get(i) * cPrime.get(i - 1);
+        if (i < n - 1) {
+            cPrime.set(i, upper.get(i) / m);
+        }
+        dPrime.set(i, (rhs.get(i) - lower.get(i) * dPrime.get(i - 1)) / m);
+        i = i + 1;
+    }
+
+    // Back substitution
+    let x = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        x.add(0.0);
+        i = i + 1;
+    }
+
+    x.set(n - 1, dPrime.get(n - 1));
+    i = n - 2;
+    while (i >= 0) {
+        x.set(i, dPrime.get(i) - cPrime.get(i) * x.get(i + 1));
+        i = i - 1;
+    }
+
+    return x;
+}
+
+// ---- Public PDE solver functions ----
+
+// Solve 1D heat equation: du/dt = alpha * d^2u/dx^2 using Forward Euler (explicit) method.
+// alpha = 1.0 for simplicity.
+// Stability condition: dt / (dx * dx) <= 0.5
+public fn heatEquation1D(nx: int, dx: double, dt: double, steps: int, initial: ArrayList<double>, leftBC: BoundaryCondition, rightBC: BoundaryCondition): ArrayList<ArrayList<double>> {
+    let alpha: double = 1.0;
+    let r: double = alpha * dt / (dx * dx);
+
+    let solution = new ArrayList<ArrayList<double>>();
+
+    // Copy initial condition
+    let u = new ArrayList<double>();
+    var i: int = 0;
+    while (i < nx) {
+        u.add(initial.get(i));
+        i = i + 1;
+    }
+    solution.add(u);
+
+    // Time stepping
+    var step: int = 0;
+    while (step < steps) {
+        let uNew = new ArrayList<double>();
+        i = 0;
+        while (i < nx) {
+            uNew.add(0.0);
+            i = i + 1;
+        }
+
+        // Interior points: explicit update
+        i = 1;
+        while (i < nx - 1) {
+            let d2u: double = u.get(i - 1) - 2.0 * u.get(i) + u.get(i + 1);
+            uNew.set(i, u.get(i) + r * d2u);
+            i = i + 1;
+        }
+
+        // Apply boundary conditions
+        if (leftBC.kind == "dirichlet") {
+            uNew.set(0, leftBC.value);
+        } else {
+            uNew.set(0, uNew.get(1));
+            if (leftBC.kind == "neumann") {
+                uNew.set(0, uNew.get(1) - leftBC.value * dx);
+            }
+            if (leftBC.kind == "robin") {
+                uNew.set(0, (leftBC.value - uNew.get(1) / dx) / (leftBC.coefficient + 1.0 / dx));
+            }
+        }
+
+        if (rightBC.kind == "dirichlet") {
+            uNew.set(nx - 1, rightBC.value);
+        } else {
+            uNew.set(nx - 1, uNew.get(nx - 2));
+            if (rightBC.kind == "neumann") {
+                uNew.set(nx - 1, uNew.get(nx - 2) + rightBC.value * dx);
+            }
+            if (rightBC.kind == "robin") {
+                uNew.set(nx - 1, (rightBC.value + uNew.get(nx - 2) / dx) / (rightBC.coefficient + 1.0 / dx));
+            }
+        }
+
+        solution.add(uNew);
+
+        // Copy uNew into u for next step
+        i = 0;
+        while (i < nx) {
+            u.set(i, uNew.get(i));
+            i = i + 1;
+        }
+
+        step = step + 1;
+    }
+
+    return solution;
+}
+
+// Solve 1D heat equation using Backward Euler (implicit) method for stability.
+// Solves a tridiagonal system at each time step.
+public fn heatEquation1DImplicit(nx: int, dx: double, dt: double, steps: int, initial: ArrayList<double>, leftBC: BoundaryCondition, rightBC: BoundaryCondition): ArrayList<ArrayList<double>> {
+    let alpha: double = 1.0;
+    let r: double = alpha * dt / (dx * dx);
+
+    let solution = new ArrayList<ArrayList<double>>();
+
+    // Copy initial condition
+    let u = new ArrayList<double>();
+    var i: int = 0;
+    while (i < nx) {
+        u.add(initial.get(i));
+        i = i + 1;
+    }
+    solution.add(u);
+
+    // Build tridiagonal matrix coefficients (constant across steps for constant BCs)
+    // (1 + 2r) on diagonal, -r on off-diagonals
+    let lower = new ArrayList<double>();
+    let diag = new ArrayList<double>();
+    let upper = new ArrayList<double>();
+    i = 0;
+    while (i < nx) {
+        lower.add(-r);
+        diag.add(1.0 + 2.0 * r);
+        upper.add(-r);
+        i = i + 1;
+    }
+
+    // Time stepping
+    var step: int = 0;
+    while (step < steps) {
+        // Right-hand side is current u
+        let rhs = new ArrayList<double>();
+        i = 0;
+        while (i < nx) {
+            rhs.add(u.get(i));
+            i = i + 1;
+        }
+
+        // Apply boundary conditions to the system
+        // Left boundary
+        if (leftBC.kind == "dirichlet") {
+            diag.set(0, 1.0);
+            upper.set(0, 0.0);
+            rhs.set(0, leftBC.value);
+        } else if (leftBC.kind == "neumann") {
+            diag.set(0, 1.0 + 2.0 * r);
+            upper.set(0, -2.0 * r);
+            rhs.set(0, u.get(0) + 2.0 * r * leftBC.value * dx);
+        } else if (leftBC.kind == "robin") {
+            let denom: double = leftBC.coefficient + 1.0 / dx;
+            diag.set(0, 1.0 + 2.0 * r - r * 2.0 / (dx * denom));
+            upper.set(0, -2.0 * r);
+            rhs.set(0, u.get(0) + 2.0 * r * leftBC.value / denom);
+        }
+
+        // Right boundary
+        if (rightBC.kind == "dirichlet") {
+            diag.set(nx - 1, 1.0);
+            lower.set(nx - 1, 0.0);
+            rhs.set(nx - 1, rightBC.value);
+        } else if (rightBC.kind == "neumann") {
+            diag.set(nx - 1, 1.0 + 2.0 * r);
+            lower.set(nx - 1, -2.0 * r);
+            rhs.set(nx - 1, u.get(nx - 1) + 2.0 * r * rightBC.value * dx);
+        } else if (rightBC.kind == "robin") {
+            let denom: double = rightBC.coefficient + 1.0 / dx;
+            diag.set(nx - 1, 1.0 + 2.0 * r - r * 2.0 / (dx * denom));
+            lower.set(nx - 1, -2.0 * r);
+            rhs.set(nx - 1, u.get(nx - 1) + 2.0 * r * rightBC.value / denom);
+        }
+
+        // Solve tridiagonal system
+        let uNew = solveTridiagonal(lower, diag, upper, rhs);
+        solution.add(uNew);
+
+        // Copy uNew into u for next step
+        i = 0;
+        while (i < nx) {
+            u.set(i, uNew.get(i));
+            i = i + 1;
+        }
+
+        // Reset tridiagonal coefficients (they may have been modified by BCs)
+        i = 0;
+        while (i < nx) {
+            lower.set(i, -r);
+            diag.set(i, 1.0 + 2.0 * r);
+            upper.set(i, -r);
+            i = i + 1;
+        }
+
+        step = step + 1;
+    }
+
+    return solution;
+}
+
+// Solve 1D wave equation: d^2u/dt^2 = c^2 * d^2u/dx^2 using central differences.
+// c = 1.0 for simplicity.
+// Courant number: c * dt / dx should be <= 1 for stability.
+public fn waveEquation1D(nx: int, dx: double, dt: double, steps: int, initial: ArrayList<double>, initialVelocity: ArrayList<double>, leftBC: BoundaryCondition, rightBC: BoundaryCondition): ArrayList<ArrayList<double>> {
+    let c: double = 1.0;
+    let r: double = c * dt / dx;
+    let r2: double = r * r;
+
+    let solution = new ArrayList<ArrayList<double>>();
+
+    // u_prev (time step n-1), u_curr (time step n), u_next (time step n+1)
+    let uPrev = new ArrayList<double>();
+    let uCurr = new ArrayList<double>();
+    var i: int = 0;
+    while (i < nx) {
+        uPrev.add(0.0);
+        uCurr.add(initial.get(i));
+        i = i + 1;
+    }
+    solution.add(uCurr);
+
+    // First time step: use initial velocity to compute u at dt
+    // u[1] = u[0] + dt * v[0] + 0.5 * r^2 * (u[i-1] - 2*u[i] + u[i+1])
+    let uFirst = new ArrayList<double>();
+    i = 0;
+    while (i < nx) {
+        uFirst.add(0.0);
+        i = i + 1;
+    }
+
+    i = 1;
+    while (i < nx - 1) {
+        let d2u: double = uCurr.get(i - 1) - 2.0 * uCurr.get(i) + uCurr.get(i + 1);
+        uFirst.set(i, uCurr.get(i) + dt * initialVelocity.get(i) + 0.5 * r2 * d2u);
+        i = i + 1;
+    }
+
+    // Apply BCs to first step
+    if (leftBC.kind == "dirichlet") {
+        uFirst.set(0, leftBC.value);
+    } else if (leftBC.kind == "neumann") {
+        uFirst.set(0, uFirst.get(1) - leftBC.value * dx);
+    } else if (leftBC.kind == "robin") {
+        uFirst.set(0, (leftBC.value - uFirst.get(1) / dx) / (leftBC.coefficient + 1.0 / dx));
+    }
+
+    if (rightBC.kind == "dirichlet") {
+        uFirst.set(nx - 1, rightBC.value);
+    } else if (rightBC.kind == "neumann") {
+        uFirst.set(nx - 1, uFirst.get(nx - 2) + rightBC.value * dx);
+    } else if (rightBC.kind == "robin") {
+        uFirst.set(nx - 1, (rightBC.value + uFirst.get(nx - 2) / dx) / (rightBC.coefficient + 1.0 / dx));
+    }
+
+    solution.add(uFirst);
+
+    // Copy uCurr into uPrev, uFirst into uCurr
+    i = 0;
+    while (i < nx) {
+        uPrev.set(i, uCurr.get(i));
+        uCurr.set(i, uFirst.get(i));
+        i = i + 1;
+    }
+
+    // Remaining time steps
+    var step: int = 1;
+    while (step < steps) {
+        let uNext = new ArrayList<double>();
+        i = 0;
+        while (i < nx) {
+            uNext.add(0.0);
+            i = i + 1;
+        }
+
+        // Interior points: central difference in time and space
+        i = 1;
+        while (i < nx - 1) {
+            let d2u: double = uCurr.get(i - 1) - 2.0 * uCurr.get(i) + uCurr.get(i + 1);
+            uNext.set(i, 2.0 * uCurr.get(i) - uPrev.get(i) + r2 * d2u);
+            i = i + 1;
+        }
+
+        // Apply BCs
+        if (leftBC.kind == "dirichlet") {
+            uNext.set(0, leftBC.value);
+        } else if (leftBC.kind == "neumann") {
+            uNext.set(0, uNext.get(1) - leftBC.value * dx);
+        } else if (leftBC.kind == "robin") {
+            uNext.set(0, (leftBC.value - uNext.get(1) / dx) / (leftBC.coefficient + 1.0 / dx));
+        }
+
+        if (rightBC.kind == "dirichlet") {
+            uNext.set(nx - 1, rightBC.value);
+        } else if (rightBC.kind == "neumann") {
+            uNext.set(nx - 1, uNext.get(nx - 2) + rightBC.value * dx);
+        } else if (rightBC.kind == "robin") {
+            uNext.set(nx - 1, (rightBC.value + uNext.get(nx - 2) / dx) / (rightBC.coefficient + 1.0 / dx));
+        }
+
+        solution.add(uNext);
+
+        // Shift: uPrev = uCurr, uCurr = uNext
+        i = 0;
+        while (i < nx) {
+            uPrev.set(i, uCurr.get(i));
+            uCurr.set(i, uNext.get(i));
+            i = i + 1;
+        }
+
+        step = step + 1;
+    }
+
+    return solution;
+}
+
+// Solve 2D Poisson equation: d^2u/dx^2 + d^2u/dy^2 = f(x,y)
+// using iterative Gauss-Seidel method.
+// bc has 4 elements: [left, right, top, bottom] boundary conditions.
+// Converges when max change < tol or maxIter is reached.
+public fn poisson2D(nx: int, ny: int, dx: double, dy: double, source: ArrayList<ArrayList<double>>, bc: ArrayList<BoundaryCondition>, maxIter: int, tol: double): ArrayList<ArrayList<double>> {
+    let dx2: double = dx * dx;
+    let dy2: double = dy * dy;
+    let denom: double = 2.0 * (1.0 / dx2 + 1.0 / dy2);
+
+    // Initialize solution with zeros
+    let u = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < nx) {
+        let row = new ArrayList<double>();
+        var j: int = 0;
+        while (j < ny) {
+            row.add(0.0);
+            j = j + 1;
+        }
+        u.add(row);
+        i = i + 1;
+    }
+
+    // Apply Dirichlet boundary conditions to initial guess
+    let leftBC: BoundaryCondition = bc.get(0);
+    let rightBC: BoundaryCondition = bc.get(1);
+    let topBC: BoundaryCondition = bc.get(2);
+    let bottomBC: BoundaryCondition = bc.get(3);
+
+    // Left boundary (i = 0)
+    if (leftBC.kind == "dirichlet") {
+        var j: int = 0;
+        while (j < ny) {
+            u.get(0).set(j, leftBC.value);
+            j = j + 1;
+        }
+    }
+    // Right boundary (i = nx - 1)
+    if (rightBC.kind == "dirichlet") {
+        var j: int = 0;
+        while (j < ny) {
+            u.get(nx - 1).set(j, rightBC.value);
+            j = j + 1;
+        }
+    }
+    // Top boundary (j = ny - 1)
+    if (topBC.kind == "dirichlet") {
+        i = 0;
+        while (i < nx) {
+            u.get(i).set(ny - 1, topBC.value);
+            i = i + 1;
+        }
+    }
+    // Bottom boundary (j = 0)
+    if (bottomBC.kind == "dirichlet") {
+        i = 0;
+        while (i < nx) {
+            u.get(i).set(0, bottomBC.value);
+            i = i + 1;
+        }
+    }
+
+    // Gauss-Seidel iteration
+    var iter: int = 0;
+    while (iter < maxIter) {
+        var maxChange: double = 0.0;
+
+        i = 1;
+        while (i < nx - 1) {
+            var j: int = 1;
+            while (j < ny - 1) {
+                let oldVal: double = u.get(i).get(j);
+                let newVal: double = ((u.get(i - 1).get(j) + u.get(i + 1).get(j)) / dx2 + (u.get(i).get(j - 1) + u.get(i).get(j + 1)) / dy2 - source.get(i).get(j)) / denom;
+                u.get(i).set(j, newVal);
+                let change: double = Math.fabs(newVal - oldVal);
+                if (change > maxChange) {
+                    maxChange = change;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+
+        // Apply Neumann/Robin BCs after each iteration
+        // Left boundary (i = 0)
+        if (leftBC.kind == "neumann") {
+            var j: int = 1;
+            while (j < ny - 1) {
+                u.get(0).set(j, u.get(1).get(j) - leftBC.value * dx);
+                j = j + 1;
+            }
+        } else if (leftBC.kind == "robin") {
+            var j: int = 1;
+            while (j < ny - 1) {
+                u.get(0).set(j, (leftBC.value - u.get(1).get(j) / dx) / (leftBC.coefficient + 1.0 / dx));
+                j = j + 1;
+            }
+        }
+
+        // Right boundary (i = nx - 1)
+        if (rightBC.kind == "neumann") {
+            var j: int = 1;
+            while (j < ny - 1) {
+                u.get(nx - 1).set(j, u.get(nx - 2).get(j) + rightBC.value * dx);
+                j = j + 1;
+            }
+        } else if (rightBC.kind == "robin") {
+            var j: int = 1;
+            while (j < ny - 1) {
+                u.get(nx - 1).set(j, (rightBC.value + u.get(nx - 2).get(j) / dx) / (rightBC.coefficient + 1.0 / dx));
+                j = j + 1;
+            }
+        }
+
+        // Top boundary (j = ny - 1)
+        if (topBC.kind == "neumann") {
+            i = 1;
+            while (i < nx - 1) {
+                u.get(i).set(ny - 1, u.get(i).get(ny - 2) + topBC.value * dy);
+                i = i + 1;
+            }
+        } else if (topBC.kind == "robin") {
+            i = 1;
+            while (i < nx - 1) {
+                u.get(i).set(ny - 1, (topBC.value + u.get(i).get(ny - 2) / dy) / (topBC.coefficient + 1.0 / dy));
+                i = i + 1;
+            }
+        }
+
+        // Bottom boundary (j = 0)
+        if (bottomBC.kind == "neumann") {
+            i = 1;
+            while (i < nx - 1) {
+                u.get(i).set(0, u.get(i).get(1) - bottomBC.value * dy);
+                i = i + 1;
+            }
+        } else if (bottomBC.kind == "robin") {
+            i = 1;
+            while (i < nx - 1) {
+                u.get(i).set(0, (bottomBC.value - u.get(i).get(1) / dy) / (bottomBC.coefficient + 1.0 / dy));
+                i = i + 1;
+            }
+        }
+
+        // Check convergence
+        if (maxChange < tol) {
+            break;
+        }
+
+        iter = iter + 1;
+    }
+
+    return u;
+}
+
+// Solve 2D Laplace equation: d^2u/dx^2 + d^2u/dy^2 = 0
+// Same as Poisson with zero source term.
+public fn laplace2D(nx: int, ny: int, dx: double, dy: double, bc: ArrayList<BoundaryCondition>, maxIter: int, tol: double): ArrayList<ArrayList<double>> {
+    // Build zero source term
+    let source = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < nx) {
+        let row = new ArrayList<double>();
+        var j: int = 0;
+        while (j < ny) {
+            row.add(0.0);
+            j = j + 1;
+        }
+        source.add(row);
+        i = i + 1;
+    }
+
+    return poisson2D(nx, ny, dx, dy, source, bc, maxIter, tol);
+}
