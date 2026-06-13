@@ -1,6 +1,8 @@
 // Random provides pseudo-random number generation using Xorshift128+.
 import tt::util::ArrayList;
 import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
 
 public class Random {
     public long state0;
@@ -89,9 +91,9 @@ public class Random {
             u1 = this.nextDouble();
         }
         let u2: double = this.nextDouble();
-        let mag: double = Math.sqrt(-2.0 * Math.ln(u1));
-        let z0: double = mag * Math.cos(2.0 * Math.PI() * u2);
-        let z1: double = mag * Math.sin(2.0 * Math.PI() * u2);
+        let mag: double = MathAdvanced.sqrt(-2.0 * MathAdvanced.ln(u1));
+        let z0: double = mag * MathTrig.cos(2.0 * Math.PI() * u2);
+        let z1: double = mag * MathTrig.sin(2.0 * Math.PI() * u2);
         this.spareGaussian = z1;
         this.hasSpareGaussian = true;
         return z0;
@@ -103,13 +105,13 @@ public class Random {
         while (u < 1e-15) {
             u = this.nextDouble();
         }
-        return -Math.ln(u);
+        return -MathAdvanced.ln(u);
     }
 
     // Poisson distribution with parameter lambda (mean = lambda)
     public fn nextPoisson(lambda: double): int {
         // Knuth's algorithm
-        let L: double = Math.exp(-lambda);
+        let L: double = MathAdvanced.exp(-lambda);
         var k: int = 0;
         var p: double = 1.0;
         while (true) {
@@ -156,14 +158,14 @@ public class Random {
         let range: double = high - low;
         let modeFrac: double = (mode - low) / range;
         if (u < modeFrac) {
-            return low + Math.sqrt(u * range * (mode - low));
+            return low + MathAdvanced.sqrt(u * range * (mode - low));
         }
-        return high - Math.sqrt((1.0 - u) * range * (high - mode));
+        return high - MathAdvanced.sqrt((1.0 - u) * range * (high - mode));
     }
 
     // Lognormal distribution: exp(mu + sigma * Z)
     public fn lognormal(mu: double, sigma: double): double {
-        return Math.exp(mu + sigma * this.nextGaussian());
+        return MathAdvanced.exp(mu + sigma * this.nextGaussian());
     }
 
     // Weibull distribution: shape * (-ln(U))^(1/shape)
@@ -172,18 +174,18 @@ public class Random {
         while (u < 1e-15) {
             u = this.nextDouble();
         }
-        return shape * Math.pow(-Math.ln(u), 1.0 / shape);
+        return shape * MathAdvanced.pow(-MathAdvanced.ln(u), 1.0 / shape);
     }
 
     // Gamma distribution using Marsaglia and Tsang's method
     public fn gammaDist(shape: double, scale: double): double {
         if (shape < 1.0) {
             // For shape < 1, use the transformation: X = Y^(1/shape) where Y ~ Gamma(shape+1, 1)
-            return this.gammaDist(shape + 1.0, 1.0) * Math.pow(this.nextDouble(), 1.0 / shape) * scale;
+            return this.gammaDist(shape + 1.0, 1.0) * MathAdvanced.pow(this.nextDouble(), 1.0 / shape) * scale;
         }
         // Marsaglia and Tsang's method for shape >= 1
         let d: double = shape - 1.0 / 3.0;
-        let c: double = 1.0 / Math.sqrt(9.0 * d);
+        let c: double = 1.0 / MathAdvanced.sqrt(9.0 * d);
         while (true) {
             var x: double = 0.0;
             var v: double = 0.0;
@@ -197,7 +199,7 @@ public class Random {
             if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {
                 return d * v * scale;
             }
-            if (Math.ln(u) < 0.5 * x * x + d * (1.0 - v + Math.ln(v))) {
+            if (MathAdvanced.ln(u) < 0.5 * x * x + d * (1.0 - v + MathAdvanced.ln(v))) {
                 return d * v * scale;
             }
         }
@@ -221,7 +223,7 @@ public class Random {
     public fn studentT(df: double): double {
         let z: double = this.nextGaussian();
         let v: double = this.chiSquared(df);
-        return z / Math.sqrt(v / df);
+        return z / MathAdvanced.sqrt(v / df);
     }
 
     // F-distribution: ratio of two chi-squareds divided by their df
@@ -234,7 +236,7 @@ public class Random {
     // Cauchy (Lorentz) distribution: median + scale * tan(pi * (U - 0.5))
     public fn cauchy(median: double, scale: double): double {
         let u: double = this.nextDouble();
-        return median + scale * Math.tan(Math.PI() * (u - 0.5));
+        return median + scale * MathTrig.tan(Math.PI() * (u - 0.5));
     }
 
     // Geometric distribution: number of trials until first success, using inverse CDF
@@ -243,7 +245,7 @@ public class Random {
         while (u < 1e-15) {
             u = this.nextDouble();
         }
-        return (Math.ceil(Math.ln(1.0 - u) / Math.ln(1.0 - p))) as int;
+        return (Math.ceil(MathAdvanced.ln(1.0 - u) / MathAdvanced.ln(1.0 - p))) as int;
     }
 
     // Negative binomial distribution: sum of r geometric trials
@@ -263,7 +265,7 @@ public class Random {
         while (u < 1e-15) {
             u = this.nextDouble();
         }
-        return loc - scale * Math.ln(-Math.ln(u));
+        return loc - scale * MathAdvanced.ln(-MathAdvanced.ln(u));
     }
 
     // Discrete distribution from weights: returns index chosen by cumulative weights
