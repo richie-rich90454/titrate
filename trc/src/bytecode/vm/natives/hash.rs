@@ -13,6 +13,7 @@ use sha3::Sha3_256;
 use sha3::Sha3_384;
 use sha3::Sha3_512;
 use blake2::{Blake2b512, Blake2s256};
+use crc32fast::Hasher as Crc32Hasher;
 
 // ---------------------------------------------------------------------------
 // One-shot hash functions
@@ -135,6 +136,18 @@ pub(crate) fn native_hash_blake2s(args: &[Value]) -> Result<Value, String> {
             Ok(Value::String(Rc::new(format!("{:x}", result))))
         }
         _ => Err("Hash_blake2s: expected a String argument".to_string()),
+    }
+}
+
+pub(crate) fn native_hash_crc32(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => {
+            let mut hasher = Crc32Hasher::new();
+            hasher.update(s.as_bytes());
+            let checksum = hasher.finalize();
+            Ok(Value::String(Rc::new(format!("{:08x}", checksum))))
+        }
+        _ => Err("Hash_crc32: expected a String argument".to_string()),
     }
 }
 

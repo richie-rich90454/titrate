@@ -50,26 +50,9 @@ public class Hash {
         return Hash_sha256(key + data);
     }
 
-    // CRC32 implemented in pure Titrate
+    // CRC32 backed by native implementation
     public fn crc32(data: string): string {
-        let crc: int = 4294967295;
-        let i: int = 0;
-        while (i < String.length(data)) {
-            let c: int = String.charAt(data, i);
-            crc = crc ^ c;
-            let j: int = 0;
-            while (j < 8) {
-                if ((crc & 1) != 0) {
-                    crc = (crc / 2) ^ 3988292384;
-                } else {
-                    crc = crc / 2;
-                }
-                j = j + 1;
-            }
-            i = i + 1;
-        }
-        crc = crc ^ 4294967295;
-        return Hash._toHex(crc);
+        return Hash_crc32(data);
     }
 
     public fn hashBytes(algorithm: string, data: string): string {
