@@ -237,6 +237,15 @@ public class Random {
         return median + scale * Math.tan(Math.PI() * (u - 0.5));
     }
 
+    // Geometric distribution: number of trials until first success, using inverse CDF
+    public fn geometric(p: double): int {
+        var u: double = this.nextDouble();
+        while (u < 1e-15) {
+            u = this.nextDouble();
+        }
+        return (Math.ceil(Math.ln(1.0 - u) / Math.ln(1.0 - p))) as int;
+    }
+
     // Weighted random choice from a list using cumulative weights
     public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
         // Build cumulative weights
