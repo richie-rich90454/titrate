@@ -23,6 +23,10 @@ public class Hash {
         return Hash_sha512(input);
     }
 
+    public fn sha3_256(input: string): string {
+        return Hash_sha3_256(input);
+    }
+
     // NOTE: HMAC is not yet available as a VM native.
     // This is a simplified placeholder.
     public fn hmac(key: string, data: string): string {
