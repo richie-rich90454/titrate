@@ -105,19 +105,30 @@ pub(crate) fn native_file_read_line(args: &[Value]) -> Result<Value, String> {
     }
     match &args[0] {
         Value::FileHandle(file_rc) => {
-            let file_opt = file_rc.borrow();
-            match file_opt.as_ref() {
+            let mut file_opt = file_rc.borrow_mut();
+            match file_opt.as_mut() {
                 Some(file) => {
-                    let mut reader = BufReader::new(file.try_clone().map_err(|e| format!("File_readLine: {}", e))?);
-                    let mut line = String::new();
-                    match reader.read_line(&mut line) {
-                        Ok(0) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new("EOF".to_string()))))),
-                        Ok(_) => {
-                            if line.ends_with('\n') { line.pop(); }
-                            if line.ends_with('\r') { line.pop(); }
-                            Ok(Value::ResultOk(Box::new(Value::String(Rc::new(line)))))
+                    use std::io::Read;
+                    let mut result = String::new();
+                    let mut byte = [0u8; 1];
+                    loop {
+                        match file.read(&mut byte) {
+                            Ok(0) => break, // EOF
+                            Ok(_) => {
+                                let ch = byte[0] as char;
+                                if ch == '\n' {
+                                    break;
+                                }
+                                result.push(ch);
+                            }
+                            Err(e) => return Err(format!("File_readLine: read error: {}", e)),
                         }
-                        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(format!("File_readLine: {}", e)))))),
+                    }
+                    if result.is_empty() {
+                        Ok(Value::ResultErr(Box::new(Value::String(Rc::new("EOF".to_string())))))
+                    } else {
+                        if result.ends_with('\r') { result.pop(); }
+                        Ok(Value::ResultOk(Box::new(Value::String(Rc::new(result)))))
                     }
                 }
                 None => Ok(Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle is closed".to_string()))))),

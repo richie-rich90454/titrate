@@ -342,20 +342,33 @@ impl Vm {
                 match method_name.as_str() {
                     "readLine" => {
                         let result = {
-                            let file_opt = file_rc.borrow_mut();
-                            match file_opt.as_ref() {
+                            let mut file_opt = file_rc.borrow_mut();
+                            match file_opt.as_mut() {
                                 Some(file) => {
-                                    let mut reader = BufReader::new(file.try_clone().map_err(|e| format!("FileHandle.readLine: failed to clone file handle: {}", e))?);
+                                    use std::io::Read;
                                     let mut line = String::new();
-                                    match reader.read_line(&mut line) {
-                                        Ok(0) => Value::ResultErr(Box::new(Value::String(Rc::new("EOF".to_string())))),
-                                        Ok(_) => {
-                                            // Remove trailing newline
-                                            if line.ends_with('\n') { line.pop(); }
-                                            if line.ends_with('\r') { line.pop(); }
-                                            Value::ResultOk(Box::new(Value::String(Rc::new(line))))
+                                    let mut byte = [0u8; 1];
+                                    loop {
+                                        match file.read(&mut byte) {
+                                            Ok(0) => break, // EOF
+                                            Ok(_) => {
+                                                let ch = byte[0] as char;
+                                                if ch == '\n' {
+                                                    break;
+                                                }
+                                                line.push(ch);
+                                            }
+                                            Err(e) => {
+                                                line = format!("FileHandle.readLine: read error: {}", e);
+                                                break;
+                                            }
                                         }
-                                        Err(e) => Value::ResultErr(Box::new(Value::String(Rc::new(format!("FileHandle.readLine: {}", e))))),
+                                    }
+                                    if line.is_empty() {
+                                        Value::ResultErr(Box::new(Value::String(Rc::new("EOF".to_string()))))
+                                    } else {
+                                        if line.ends_with('\r') { line.pop(); }
+                                        Value::ResultOk(Box::new(Value::String(Rc::new(line))))
                                     }
                                 }
                                 None => Value::ResultErr(Box::new(Value::String(Rc::new("FileHandle is closed".to_string())))),
