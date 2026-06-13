@@ -1,41 +1,37 @@
-// Double-ended queue backed by ArrayList.
+// Double-ended queue backed by RingDeque for O(1) front operations.
+import tt::util::RingDeque;
 import tt::util::ArrayList;
 import tt::util::ArrayListIterator;
 
 public class Deque<E> {
-    private ArrayList<E> data;
+    private RingDeque<E> data;
 
     public fn Deque() {
-        this.data = new ArrayList<E>();
+        this.data = new RingDeque<E>();
     }
 
     public fn pushFront(item: E): void {
-        this.data.add(0, item);
+        this.data.pushFront(item);
     }
 
     public fn pushBack(item: E): void {
-        this.data.add(item);
+        this.data.pushBack(item);
     }
 
     public fn popFront(): E {
-        let item: E = this.data.get(0);
-        this.data.remove(0);
-        return item;
+        return this.data.popFront();
     }
 
     public fn popBack(): E {
-        let last: int = this.data.size() - 1;
-        let item: E = this.data.get(last);
-        this.data.remove(last);
-        return item;
+        return this.data.popBack();
     }
 
     public fn peekFront(): E {
-        return this.data.get(0);
+        return this.data.peekFront();
     }
 
     public fn peekBack(): E {
-        return this.data.get(this.data.size() - 1);
+        return this.data.peekBack();
     }
 
     public fn size(): int {
@@ -43,25 +39,18 @@ public class Deque<E> {
     }
 
     public fn isEmpty(): bool {
-        return this.data.size() == 0;
+        return this.data.isEmpty();
     }
 
     public fn contains(value: E): bool {
-        let i: int = 0;
-        while (i < this.data.size()) {
-            if (this.data.get(i) == value) {
-                return true;
-            }
-            i = i + 1;
-        }
-        return false;
+        return this.data.contains(value);
     }
 
     public fn iterator(): ArrayListIterator<E> {
-        return new ArrayListIterator<E>(this.data);
+        return new ArrayListIterator<E>(this.data.toArray());
     }
 
     public fn clear(): void {
-        this.data = new ArrayList<E>();
+        this.data.clear();
     }
 }
