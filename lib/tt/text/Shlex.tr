@@ -94,3 +94,17 @@ public fn quote(s: string): string {
     }
     return "'" + String.replace(s, "'", "'\\''") + "'";
 }
+
+// Join a list of strings into a shell-escaped command string.
+public fn join(parts: ArrayList<string>): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < parts.size()) {
+        if (i > 0) {
+            result = result + " ";
+        }
+        result = result + quote(parts.get(i));
+        i = i + 1;
+    }
+    return result;
+}
