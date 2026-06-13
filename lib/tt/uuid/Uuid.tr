@@ -1,4 +1,38 @@
 // Uuid provides UUID generation and validation utilities.
+import tt::lang::String;
+import tt::lang::Time;
+
+// Namespace DNS constant for UUID v3/v5.
+const NAMESPACE_DNS: string = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+// Namespace URL constant for UUID v3/v5.
+const NAMESPACE_URL: string = "6ba7b811-9dad-11d1-80b4-00c04fd430c8";
+// Namespace OID constant for UUID v3/v5.
+const NAMESPACE_OID: string = "6ba7b812-9dad-11d1-80b4-00c04fd430c8";
+// Namespace X500 constant for UUID v3/v5.
+const NAMESPACE_X500: string = "6ba7b814-9dad-11d1-80b4-00c04fd430c8";
+
+// UUID value object with parsed fields.
+public class UUID {
+    public string hex;
+    public int version;
+    public int variant;
+    public string urn;
+
+    public fn init(hex: string) {
+        this.hex = _stripDashes(hex);
+        this.version = _parseVersion(hex);
+        this.variant = _parseVariant(hex);
+        this.urn = "urn:uuid:" + _formatWithDashes(this.hex);
+    }
+
+    public fn toString(): string {
+        return _formatWithDashes(this.hex);
+    }
+
+    public fn equals(other: UUID): bool {
+        return this.hex == other.hex;
+    }
+}
 
 // Generate a version 4 (random) UUID string in the format xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
 // where y is one of 8, 9, a, or b.
@@ -20,6 +54,55 @@ public fn random(): string {
     let hex: string = Os_urandom(16);
     let result: string = String.substring(hex, 0, 8) + "-" + String.substring(hex, 8, 12) + "-" + String.substring(hex, 12, 16) + "-" + String.substring(hex, 16, 20) + "-" + String.substring(hex, 20, 32);
     return result;
+}
+
+// Generate a version 4 (random) UUID object.
+public fn uuid4Obj(): UUID {
+    return new UUID(uuid4());
+}
+
+// Generate a version 1 (time-based) UUID using current epoch time and random node.
+public fn uuid1(): UUID {
+    let timestamp: int = Time_epochSeconds();
+    // 100-nanosecond intervals since UUID epoch (Oct 15, 1582)
+    // Unix epoch offset in 100-ns intervals: 122192928000000000
+    let uuidTime: int = timestamp * 10000000 + 122192928000000000;
+    // Get random node bytes
+    let nodeHex: string = Os_urandom(6);
+    // Build time-based UUID hex string (32 chars)
+    let timeLow: string = _padHex((uuidTime & 0xFFFFFFFF), 8);
+    let timeMid: string = _padHex(((uuidTime >> 32) & 0xFFFF), 4);
+    let timeHiAndVersion: string = _padHex(((uuidTime >> 48) & 0x0FFF) | 0x1000, 4);
+    let clockSeq: string = _padHex((_hexVal(String.charAt(Os_urandom(2), 0)) & 0x3FFF) | 0x8000, 4);
+    let rawHex: string = timeLow + timeMid + timeHiAndVersion + clockSeq + nodeHex;
+    let formatted: string = _formatWithDashes(rawHex);
+    return new UUID(formatted);
+}
+
+// Generate a version 3 (MD5-based) UUID from a namespace and name.
+public fn uuid3(namespace: string, name: string): UUID {
+    let data: string = _stripDashes(namespace) + name;
+    let hash: string = Md5_digest(data);
+    // Set version to 3
+    hash = _setCharAt(hash, 12, "3");
+    // Set variant to RFC 4122
+    let curVariant: int = _hexVal(String.charAt(hash, 16));
+    let newVariant: int = (curVariant & 0x3) | 0x8;
+    hash = _setCharAt(hash, 16, _hexDigit(newVariant));
+    return new UUID(_formatWithDashes(hash));
+}
+
+// Generate a version 5 (SHA-1-based) UUID from a namespace and name.
+public fn uuid5(namespace: string, name: string): UUID {
+    let data: string = _stripDashes(namespace) + name;
+    let hash: string = Sha1_digest(data);
+    // Set version to 5
+    hash = _setCharAt(hash, 12, "5");
+    // Set variant to RFC 4122
+    let curVariant: int = _hexVal(String.charAt(hash, 16));
+    let newVariant: int = (curVariant & 0x3) | 0x8;
+    hash = _setCharAt(hash, 16, _hexDigit(newVariant));
+    return new UUID(_formatWithDashes(hash));
 }
 
 // Validate whether a string is a properly formatted UUID.
@@ -111,4 +194,52 @@ fn _isHexChar(c: string): bool {
     if (c == "E") { return true; }
     if (c == "F") { return true; }
     return false;
+}
+
+// Remove dashes from a UUID string to get raw hex.
+fn _stripDashes(uuid: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(uuid)) {
+        let c: string = String.charAt(uuid, i);
+        if (c != "-") {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Format a 32-char hex string with dashes in UUID format.
+fn _formatWithDashes(hex: string): string {
+    return String.substring(hex, 0, 8) + "-" + String.substring(hex, 8, 12) + "-" + String.substring(hex, 12, 16) + "-" + String.substring(hex, 16, 20) + "-" + String.substring(hex, 20, 32);
+}
+
+// Parse the version nibble from a UUID string (character at position 14).
+fn _parseVersion(uuid: string): int {
+    if (String.length(uuid) < 15) { return 0; }
+    // Version is the first hex digit of the 3rd group (position 14 with dashes)
+    let c: string = String.charAt(uuid, 14);
+    return _hexVal(c);
+}
+
+// Parse the variant bits from a UUID string.
+fn _parseVariant(uuid: string): int {
+    if (String.length(uuid) < 20) { return 0; }
+    // Variant is in the first hex digit of the 4th group (position 19 with dashes)
+    let c: string = String.charAt(uuid, 19);
+    return _hexVal(c);
+}
+
+// Pad a hex value to the specified number of digits with leading zeros.
+fn _padHex(val: int, len: int): string {
+    var result: string = Integer.toHexString(val);
+    while (String.length(result) < len) {
+        result = "0" + result;
+    }
+    // Truncate if longer than needed
+    if (String.length(result) > len) {
+        result = String.substring(result, String.length(result) - len);
+    }
+    return result;
 }
