@@ -110,7 +110,7 @@ public const QUAD_EPSILON: double = 1.925929944387235853e-34;
 public const U8_MAX: int = 255;
 public const U16_MAX: int = 65535;
 public const U32_MAX: long = 4294967295;
-public const U64_MAX: long = 18446744073709551615;
+public const U64_MAX: long = -1L;
 
 // Classification functions
 public fn isFinite(x: double): bool {
