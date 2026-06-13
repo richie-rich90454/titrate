@@ -69,22 +69,32 @@ public fn ndPad(a: NDArray<double>, widths: ArrayList<int>, mode: string): NDArr
         // For edge mode, fill padded cells with nearest edge value
         i = 0;
         while (i < total) {
-            let val: double = result.data.get(i);
-            if (val == 0.0) {
-                // Decode flat index to multi-dim indices
-                let idx: ArrayList<int> = new ArrayList<int>();
-                var rem: int = i;
-                d = 0;
-                while (d < nd) {
-                    idx.add(0);
-                    d = d + 1;
+            // Decode flat index to multi-dim indices
+            let idx: ArrayList<int> = new ArrayList<int>();
+            var rem: int = i;
+            d = 0;
+            while (d < nd) {
+                idx.add(0);
+                d = d + 1;
+            }
+            d = nd - 1;
+            while (d >= 0) {
+                idx.set(d, rem / result.strides.get(d));
+                rem = rem % result.strides.get(d);
+                d = d - 1;
+            }
+            // Check if this cell is in the padding region
+            var isPadding: bool = false;
+            d = 0;
+            while (d < nd) {
+                let w: int = 0;
+                if (d < widths.size()) { w = widths.get(d); }
+                if (idx.get(d) < w || idx.get(d) >= w + a.shape.get(d)) {
+                    isPadding = true;
                 }
-                d = nd - 1;
-                while (d >= 0) {
-                    idx.set(d, rem / result.strides.get(d));
-                    rem = rem % result.strides.get(d);
-                    d = d - 1;
-                }
+                d = d + 1;
+            }
+            if (isPadding) {
                 // Clamp each index to the original data range
                 d = 0;
                 while (d < nd) {
@@ -104,21 +114,32 @@ public fn ndPad(a: NDArray<double>, widths: ArrayList<int>, mode: string): NDArr
             // For reflect mode, fill padded cells with reflected values
             i = 0;
             while (i < total) {
-                let val: double = result.data.get(i);
-                if (val == 0.0) {
-                    let idx: ArrayList<int> = new ArrayList<int>();
-                    var rem: int = i;
-                    d = 0;
-                    while (d < nd) {
-                        idx.add(0);
-                        d = d + 1;
+                // Decode flat index to multi-dim indices
+                let idx: ArrayList<int> = new ArrayList<int>();
+                var rem: int = i;
+                d = 0;
+                while (d < nd) {
+                    idx.add(0);
+                    d = d + 1;
+                }
+                d = nd - 1;
+                while (d >= 0) {
+                    idx.set(d, rem / result.strides.get(d));
+                    rem = rem % result.strides.get(d);
+                    d = d - 1;
+                }
+                // Check if this cell is in the padding region
+                var isPadding: bool = false;
+                d = 0;
+                while (d < nd) {
+                    let w: int = 0;
+                    if (d < widths.size()) { w = widths.get(d); }
+                    if (idx.get(d) < w || idx.get(d) >= w + a.shape.get(d)) {
+                        isPadding = true;
                     }
-                    d = nd - 1;
-                    while (d >= 0) {
-                        idx.set(d, rem / result.strides.get(d));
-                        rem = rem % result.strides.get(d);
-                        d = d - 1;
-                    }
+                    d = d + 1;
+                }
+                if (isPadding) {
                     // Reflect each index
                     d = 0;
                     while (d < nd) {
