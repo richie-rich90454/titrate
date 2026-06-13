@@ -227,3 +227,34 @@ pub(crate) fn native_os_urandom(args: &[Value]) -> Result<Value, String> {
     let hex: String = buf.iter().map(|b| format!("{:02x}", b)).collect();
     Ok(Value::String(Rc::new(hex)))
 }
+
+pub(crate) fn native_os_chmod(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Os_chmod: expected 2 arguments (path, mode)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Os_chmod: expected String path".to_string()),
+    };
+    let mode = args[1].to_i64().unwrap_or(0) as u32;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        match std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)) {
+            Ok(()) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(path))))),
+            Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                format!("Os_chmod: {}", e)
+            ))))),
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        let _ = mode;
+        // On Windows, chmod is not supported; return an error
+        Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            "Os_chmod: not supported on this platform".to_string()
+        )))))
+    }
+}

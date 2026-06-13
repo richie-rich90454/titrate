@@ -112,8 +112,7 @@ public fn stat(path: string): Result<HashMap<string, int>, string> {
 
 // Change file permissions.
 public fn chmod(path: string, mode: int): Result<string, string> {
-    // Stub: requires native support
-    return ok(path);
+    return Os_chmod(path, mode);
 }
 
 // Get current working directory (alias for workingDir).

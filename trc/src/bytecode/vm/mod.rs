@@ -387,6 +387,7 @@ impl Vm {
         vm.register_native("Os_userName", natives::system::native_os_user_name);
         vm.register_native("Os_hostName", natives::system::native_os_host_name);
         vm.register_native("Os_urandom", natives::system::native_os_urandom);
+        vm.register_native("Os_chmod", natives::system::native_os_chmod);
 
         vm
     }
