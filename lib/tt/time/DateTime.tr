@@ -281,6 +281,49 @@ public class DateTime {
         return result;
     }
 
+    public fn replace(year: int, month: int, day: int, hour: int, minute: int, second: int): DateTime {
+        var y: int = this.getYear();
+        var m: int = this.getMonth();
+        var d: int = this.getDay();
+        var h: int = this.getHour();
+        var min: int = this.getMinute();
+        var s: int = this.getSecond();
+        if (year != -1) { y = year; }
+        if (month != -1) { m = month; }
+        if (day != -1) { d = day; }
+        if (hour != -1) { h = hour; }
+        if (minute != -1) { min = minute; }
+        if (second != -1) { s = second; }
+        // Build new DateTime from components
+        var days: long = 0;
+        var yy: int = 1970;
+        while (yy < y) {
+            if (_isLeapYear(yy)) {
+                days = days + 366;
+            } else {
+                days = days + 365;
+            }
+            yy = yy + 1;
+        }
+        yy = y;
+        while (yy < 1970) {
+            if (_isLeapYear(yy)) {
+                days = days - 366;
+            } else {
+                days = days - 365;
+            }
+            yy = yy + 1;
+        }
+        var mm: int = 1;
+        while (mm < m) {
+            days = days + _daysInMonth(mm, y);
+            mm = mm + 1;
+        }
+        days = days + (d - 1);
+        let ms: long = days * 86400000 + h as long * 3600000 + min as long * 60000 + s as long * 1000;
+        return new DateTime(ms);
+    }
+
     public fn plus(d: Duration): DateTime {
         return new DateTime(this.epochMillis + d.millis);
     }
