@@ -45,6 +45,186 @@ public fn lagrangeInterp(x: double, xp: ArrayList<double>, yp: ArrayList<double>
     return result;
 }
 
+// Cubic spline interpolation with natural boundary conditions (second derivative = 0 at endpoints)
+public class CubicSpline {
+    public ArrayList<double> xp;
+    public ArrayList<double> yp;
+    // Spline coefficients for each interval: a, b, c, d
+    // S_i(x) = a_i + b_i*(x-x_i) + c_i*(x-x_i)^2 + d_i*(x-x_i)^3
+    public ArrayList<double> a;
+    public ArrayList<double> b;
+    public ArrayList<double> c;
+    public ArrayList<double> d;
+
+    public fn init(xp: ArrayList<double>, yp: ArrayList<double>) {
+        this.xp = xp;
+        this.yp = yp;
+        let n: int = xp.size();
+        this.a = new ArrayList<double>();
+        this.b = new ArrayList<double>();
+        this.c = new ArrayList<double>();
+        this.d = new ArrayList<double>();
+        if (n < 2) { return; }
+        // Compute h_i = x_{i+1} - x_i
+        let h: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < n - 1) {
+            h.add(xp.get(i + 1) - xp.get(i));
+            i = i + 1;
+        }
+        // Set up tridiagonal system for second derivatives (c values)
+        // Natural spline: c[0] = 0, c[n-1] = 0
+        // For interior points: h[i-1]*c[i-1] + 2*(h[i-1]+h[i])*c[i] + h[i]*c[i+1] = 3*((y[i+1]-y[i])/h[i] - (y[i]-y[i-1])/h[i-1])
+        let cVals: ArrayList<double> = new ArrayList<double>();
+        let ci: int = 0;
+        while (ci < n) {
+            cVals.add(0.0);
+            ci = ci + 1;
+        }
+        if (n > 2) {
+            // Solve tridiagonal system using Thomas algorithm
+            let m: int = n - 2;
+            // Sub-diagonal, diagonal, super-diagonal, right-hand side
+            let sub: ArrayList<double> = new ArrayList<double>();
+            let diag: ArrayList<double> = new ArrayList<double>();
+            let sup: ArrayList<double> = new ArrayList<double>();
+            let rhs: ArrayList<double> = new ArrayList<double>();
+            let mi: int = 0;
+            while (mi < m) {
+                let rowIdx: int = mi + 1;
+                let diagVal: double = 2.0 * (h.get(mi) + h.get(mi + 1));
+                let rhsVal: double = 3.0 * ((yp.get(rowIdx + 1) - yp.get(rowIdx)) / h.get(mi + 1) - (yp.get(rowIdx) - yp.get(rowIdx - 1)) / h.get(mi));
+                if (mi > 0) {
+                    sub.add(h.get(mi));
+                } else {
+                    sub.add(0.0);
+                }
+                if (mi < m - 1) {
+                    sup.add(h.get(mi + 1));
+                } else {
+                    sup.add(0.0);
+                }
+                diag.add(diagVal);
+                rhs.add(rhsVal);
+                mi = mi + 1;
+            }
+            // Forward sweep
+            let fi: int = 1;
+            while (fi < m) {
+                let w: double = sub.get(fi) / diag.get(fi - 1);
+                diag.set(fi, diag.get(fi) - w * sup.get(fi - 1));
+                rhs.set(fi, rhs.get(fi) - w * rhs.get(fi - 1));
+                fi = fi + 1;
+            }
+            // Back substitution
+            let x2: ArrayList<double> = new ArrayList<double>();
+            let xi: int = 0;
+            while (xi < m) {
+                x2.add(0.0);
+                xi = xi + 1;
+            }
+            x2.set(m - 1, rhs.get(m - 1) / diag.get(m - 1));
+            let bi2: int = m - 2;
+            while (bi2 >= 0) {
+                x2.set(bi2, (rhs.get(bi2) - sup.get(bi2) * x2.get(bi2 + 1)) / diag.get(bi2));
+                bi2 = bi2 - 1;
+            }
+            // Fill c values
+            let si: int = 0;
+            while (si < m) {
+                cVals.set(si + 1, x2.get(si));
+                si = si + 1;
+            }
+        }
+        // Compute spline coefficients for each interval
+        let ii: int = 0;
+        while (ii < n - 1) {
+            this.a.add(yp.get(ii));
+            this.d.add((cVals.get(ii + 1) - cVals.get(ii)) / (3.0 * h.get(ii)));
+            this.b.add((yp.get(ii + 1) - yp.get(ii)) / h.get(ii) - h.get(ii) * (2.0 * cVals.get(ii) + cVals.get(ii + 1)) / 3.0);
+            this.c.add(cVals.get(ii));
+            ii = ii + 1;
+        }
+    }
+
+    // Find the interval index for x
+    public fn findInterval(x: double): int {
+        let n: int = this.xp.size();
+        if (x <= this.xp.get(0)) { return 0; }
+        if (x >= this.xp.get(n - 1)) { return n - 2; }
+        let i: int = 0;
+        while (i < n - 1) {
+            if (x >= this.xp.get(i) && x <= this.xp.get(i + 1)) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return n - 2;
+    }
+
+    // Evaluate spline at x
+    public fn eval(x: double): double {
+        let n: int = this.xp.size();
+        if (n < 2) {
+            if (n == 1) { return this.yp.get(0); }
+            return 0.0;
+        }
+        let i: int = this.findInterval(x);
+        let dx: double = x - this.xp.get(i);
+        return this.a.get(i) + this.b.get(i) * dx + this.c.get(i) * dx * dx + this.d.get(i) * dx * dx * dx;
+    }
+
+    // Evaluate spline at multiple points
+    public fn evalArray(xs: ArrayList<double>): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < xs.size()) {
+            result.add(this.eval(xs.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Evaluate spline derivative at x
+    public fn derivative(x: double): double {
+        let n: int = this.xp.size();
+        if (n < 2) { return 0.0; }
+        let i: int = this.findInterval(x);
+        let dx: double = x - this.xp.get(i);
+        return this.b.get(i) + 2.0 * this.c.get(i) * dx + 3.0 * this.d.get(i) * dx * dx;
+    }
+
+    // Integral of spline from a to b
+    public fn integral(a: double, b: double): double {
+        let n: int = this.xp.size();
+        if (n < 2) { return 0.0; }
+        // Integrate each segment that overlaps [a, b]
+        var total: double = 0.0;
+        let i: int = 0;
+        while (i < n - 1) {
+            let x0: double = this.xp.get(i);
+            let x1: double = this.xp.get(i + 1);
+            // Clip to [a, b]
+            let lo: double = a;
+            if (x0 > lo) { lo = x0; }
+            let hi: double = b;
+            if (x1 < hi) { hi = x1; }
+            if (lo < hi) {
+                // Integrate S_i from lo to hi
+                // S_i(x) = a_i + b_i*(x-x0) + c_i*(x-x0)^2 + d_i*(x-x0)^3
+                // Antiderivative: a_i*t + b_i*t^2/2 + c_i*t^3/3 + d_i*t^4/4
+                let tLo: double = lo - x0;
+                let tHi: double = hi - x0;
+                let fHi: double = this.a.get(i) * tHi + this.b.get(i) * tHi * tHi / 2.0 + this.c.get(i) * tHi * tHi * tHi / 3.0 + this.d.get(i) * tHi * tHi * tHi * tHi / 4.0;
+                let fLo: double = this.a.get(i) * tLo + this.b.get(i) * tLo * tLo / 2.0 + this.c.get(i) * tLo * tLo * tLo / 3.0 + this.d.get(i) * tLo * tLo * tLo * tLo / 4.0;
+                total = total + fHi - fLo;
+            }
+            i = i + 1;
+        }
+        return total;
+    }
+}
+
 // Newton's divided differences interpolation
 public fn newtonInterp(x: double, xp: ArrayList<double>, yp: ArrayList<double>): double {
     let n: int = xp.size();
