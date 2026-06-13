@@ -26,6 +26,24 @@ public class TomlTable {
         return this._data.keys();
     }
 
+    // Get a nested TomlTable by key.
+    public fn getTable(key: string): TomlTable {
+        let val: Variant = this._data.get(key);
+        if (val == null) {
+            return null;
+        }
+        return val as TomlTable;
+    }
+
+    // Get an ArrayList<Variant> by key.
+    public fn getArray(key: string): ArrayList<Variant> {
+        let val: Variant = this._data.get(key);
+        if (val == null) {
+            return null;
+        }
+        return val as ArrayList<Variant>;
+    }
+
     public fn toString(): string {
         let result: string = "";
         let allKeys: ArrayList<string> = this._data.keys();
@@ -40,10 +58,39 @@ public class TomlTable {
     }
 }
 
+// TomlArray represents an array of tables in TOML (from [[name]] syntax).
+public class TomlArray {
+    private ArrayList<TomlTable> _tables;
+
+    public fn init() {
+        this._tables = new ArrayList<TomlTable>();
+    }
+
+    public fn add(table: TomlTable): void {
+        this._tables.add(table);
+    }
+
+    public fn get(index: int): TomlTable {
+        return this._tables.get(index);
+    }
+
+    public fn size(): int {
+        return this._tables.size();
+    }
+
+    public fn tables(): ArrayList<TomlTable> {
+        return this._tables;
+    }
+}
+
 // Parse a TOML string into a TomlTable
 public fn parse(input: string): TomlTable {
-    let table: TomlTable = new TomlTable();
-    let currentSection: string = "";
+    let root: TomlTable = new TomlTable();
+    let currentTable: TomlTable = root;
+    var currentSection: string = "";
+    var isArraySection: bool = false;
+    // Track array-of-tables by section name
+    let arraySections: HashMap<string, TomlArray> = new HashMap<string, TomlArray>();
     let lines: ArrayList<string> = String.split(input, "\n");
     var i: int = 0;
     while (i < lines.size()) {
@@ -59,15 +106,35 @@ public fn parse(input: string): TomlTable {
         }
         // Section header [name] or [[name]] (array of tables)
         if (String.charAt(line, 0) == "[") {
-            var endBracket: int = String.indexOf(line, "]");
-            if (endBracket > 0) {
-                // Check for [[name]] (array of tables) - skip extra brackets
-                var start: int = 1;
-                if (String.length(line) > 1 && String.charAt(line, 1) == "[") {
-                    start = 2;
-                    endBracket = String.indexOf(line, "]", 2);
+            // Check for [[name]] (array of tables)
+            if (String.length(line) > 1 && String.charAt(line, 1) == "[") {
+                let endBracket: int = String.indexOf(line, "]]");
+                if (endBracket > 2) {
+                    let sectionName: string = String.trim(String.substring(line, 2, endBracket));
+                    currentSection = sectionName;
+                    isArraySection = true;
+                    // Create a new table for this array entry
+                    let newEntry: TomlTable = new TomlTable();
+                    // Get or create the TomlArray for this section
+                    let arr: TomlArray = arraySections.get(sectionName);
+                    if (arr == null) {
+                        arr = new TomlArray();
+                        arraySections.put(sectionName, arr);
+                    }
+                    arr.add(newEntry);
+                    currentTable = newEntry;
+                    // Also store the array in the root table
+                    root.set(sectionName, arr);
                 }
-                currentSection = String.trim(String.substring(line, start, endBracket));
+            } else {
+                let endBracket: int = String.indexOf(line, "]");
+                if (endBracket > 1) {
+                    currentSection = String.trim(String.substring(line, 1, endBracket));
+                    isArraySection = false;
+                    // Create or get nested table for section
+                    let sectionTable: TomlTable = _getOrCreateTable(root, currentSection);
+                    currentTable = sectionTable;
+                }
             }
             i = i + 1;
             continue;
@@ -77,16 +144,174 @@ public fn parse(input: string): TomlTable {
         if (eqIdx > 0) {
             let key: string = String.trim(String.substring(line, 0, eqIdx));
             let valStr: string = String.trim(String.substring(line, eqIdx + 1));
-            let fullKey: string = key;
-            if (String.length(currentSection) > 0) {
-                fullKey = currentSection + "." + key;
-            }
             let value: Variant = _parseValue(valStr);
-            table.set(fullKey, value);
+            // For inline tables, parse the { key = val } syntax
+            if (String.length(valStr) > 0 && String.charAt(valStr, 0) == "{") {
+                value = _parseInlineTable(valStr);
+            }
+            currentTable.set(key, value);
+            // Also store in root with full dotted key for backward compat
+            if (String.length(currentSection) > 0 && !isArraySection) {
+                let fullKey: string = currentSection + "." + key;
+                root.set(fullKey, value);
+            }
+        }
+        i = i + 1;
+    }
+    return root;
+}
+
+// Get or create a nested TomlTable following a dotted path.
+fn _getOrCreateTable(root: TomlTable, path: string): TomlTable {
+    let parts: ArrayList<string> = String.split(path, ".");
+    var current: TomlTable = root;
+    var i: int = 0;
+    while (i < parts.size()) {
+        let part: string = String.trim(parts.get(i));
+        let existing: Variant = current.get(part);
+        if (existing != null && existing is TomlTable) {
+            current = existing as TomlTable;
+        } else {
+            let newTable: TomlTable = new TomlTable();
+            current.set(part, newTable);
+            current = newTable;
+        }
+        i = i + 1;
+    }
+    return current;
+}
+
+// Parse an inline table { key = val, key2 = val2 }
+fn _parseInlineTable(s: string): TomlTable {
+    let table: TomlTable = new TomlTable();
+    let trimmed: string = String.trim(s);
+    // Remove surrounding braces
+    if (String.length(trimmed) < 2) {
+        return table;
+    }
+    let inner: string = String.trim(String.substring(trimmed, 1, String.length(trimmed) - 1));
+    if (String.length(inner) == 0) {
+        return table;
+    }
+    // Split by comma
+    let parts: ArrayList<string> = String.split(inner, ",");
+    var i: int = 0;
+    while (i < parts.size()) {
+        let part: string = String.trim(parts.get(i));
+        let eqIdx: int = String.indexOf(part, "=");
+        if (eqIdx > 0) {
+            let key: string = String.trim(String.substring(part, 0, eqIdx));
+            let valStr: string = String.trim(String.substring(part, eqIdx + 1));
+            let value: Variant = _parseValue(valStr);
+            table.set(key, value);
         }
         i = i + 1;
     }
     return table;
+}
+
+// Serialize a TomlTable to a TOML string.
+public fn dumps(table: TomlTable): string {
+    let result: string = "";
+    let allKeys: ArrayList<string> = table.keys();
+    var i: int = 0;
+    while (i < allKeys.size()) {
+        let key: string = allKeys.get(i);
+        let val: Variant = table.get(key);
+        if (val is TomlTable) {
+            let subTable: TomlTable = val as TomlTable;
+            result = result + "[" + key + "]\n";
+            result = result + _dumpsTable(subTable, "");
+        } else if (val is TomlArray) {
+            let arr: TomlArray = val as TomlArray;
+            var j: int = 0;
+            while (j < arr.size()) {
+                result = result + "[[" + key + "]]\n";
+                result = result + _dumpsTable(arr.get(j), "");
+                j = j + 1;
+            }
+        } else if (val is ArrayList) {
+            let list: ArrayList<Variant> = val as ArrayList<Variant>;
+            result = result + key + " = " + _dumpsArray(list) + "\n";
+        } else {
+            result = result + key + " = " + _dumpsValue(val) + "\n";
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Serialize a TomlTable's key-value pairs (no section header).
+fn _dumpsTable(table: TomlTable, prefix: string): string {
+    let result: string = "";
+    let allKeys: ArrayList<string> = table.keys();
+    var i: int = 0;
+    while (i < allKeys.size()) {
+        let key: string = allKeys.get(i);
+        let val: Variant = table.get(key);
+        let fullKey: string = key;
+        if (String.length(prefix) > 0) {
+            fullKey = prefix + "." + key;
+        }
+        if (val is TomlTable) {
+            let subTable: TomlTable = val as TomlTable;
+            result = result + "[" + fullKey + "]\n";
+            result = result + _dumpsTable(subTable, fullKey);
+        } else if (val is TomlArray) {
+            let arr: TomlArray = val as TomlArray;
+            var j: int = 0;
+            while (j < arr.size()) {
+                result = result + "[[" + fullKey + "]]\n";
+                result = result + _dumpsTable(arr.get(j), "");
+                j = j + 1;
+            }
+        } else if (val is ArrayList) {
+            let list: ArrayList<Variant> = val as ArrayList<Variant>;
+            result = result + fullKey + " = " + _dumpsArray(list) + "\n";
+        } else {
+            result = result + fullKey + " = " + _dumpsValue(val) + "\n";
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Serialize a value to TOML format.
+fn _dumpsValue(val: Variant): string {
+    if (val == null) {
+        return "";
+    }
+    if (val is string) {
+        return "\"" + (val as string) + "\"";
+    }
+    if (val is bool) {
+        if (val as bool) {
+            return "true";
+        }
+        return "false";
+    }
+    if (val is int) {
+        return Integer.toString(val as int);
+    }
+    if (val is double) {
+        return Double.toString(val as double);
+    }
+    return val.toString();
+}
+
+// Serialize an array to TOML format.
+fn _dumpsArray(arr: ArrayList<Variant>): string {
+    let result: string = "[";
+    var i: int = 0;
+    while (i < arr.size()) {
+        result = result + _dumpsValue(arr.get(i));
+        if (i < arr.size() - 1) {
+            result = result + ", ";
+        }
+        i = i + 1;
+    }
+    result = result + "]";
+    return result;
 }
 
 // Parse a TOML file
@@ -110,6 +335,10 @@ fn _parseValue(s: string): Variant {
             return Variant.of("string", String.substring(trimmed, 1, String.length(trimmed) - 1) as Variant);
         }
     }
+    // Array values [val1, val2]
+    if (String.length(trimmed) >= 2 && String.charAt(trimmed, 0) == "[" && String.charAt(trimmed, String.length(trimmed) - 1) == "]") {
+        return _parseArrayValue(trimmed);
+    }
     // Boolean values
     if (trimmed == "true") {
         return Variant.of("bool", true as Variant);
@@ -127,6 +356,26 @@ fn _parseValue(s: string): Variant {
     }
     // Default: treat as string
     return Variant.of("string", trimmed as Variant);
+}
+
+// Parse a TOML array value [val1, val2, ...]
+fn _parseArrayValue(s: string): Variant {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    let inner: string = String.trim(String.substring(s, 1, String.length(s) - 1));
+    if (String.length(inner) == 0) {
+        return result;
+    }
+    // Simple comma-split parsing (does not handle nested arrays)
+    let parts: ArrayList<string> = String.split(inner, ",");
+    var i: int = 0;
+    while (i < parts.size()) {
+        let part: string = String.trim(parts.get(i));
+        if (String.length(part) > 0) {
+            result.add(_parseValue(part));
+        }
+        i = i + 1;
+    }
+    return result;
 }
 
 // Check if a string represents an integer
