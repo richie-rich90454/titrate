@@ -231,6 +231,12 @@ public class Random {
         return (x1 / d1) / (x2 / d2);
     }
 
+    // Cauchy (Lorentz) distribution: median + scale * tan(pi * (U - 0.5))
+    public fn cauchy(median: double, scale: double): double {
+        let u: double = this.nextDouble();
+        return median + scale * Math.tan(Math.PI() * (u - 0.5));
+    }
+
     // Weighted random choice from a list using cumulative weights
     public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
         // Build cumulative weights
