@@ -102,6 +102,34 @@ public class Regex {
         return Regex_replace(this.pattern, input, replacement);
     }
 
+    public fn replaceAll(input: string, replacement: string, count: int): string {
+        var result: string = "";
+        var lastEnd: int = 0;
+        var remaining: string = input;
+        var offset: int = 0;
+        var done: int = 0;
+        while (done < count) {
+            let raw: string = Regex_find(this.pattern, remaining);
+            if (String.length(raw) == 0) {
+                break;
+            }
+            let firstComma: int = String.indexOf(raw, ",");
+            let secondComma: int = String.indexOf(raw, firstComma + 1);
+            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+            result = result + String.substring(input, lastEnd, offset + start) + replacement;
+            lastEnd = offset + end;
+            done = done + 1;
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = String.substring(remaining, end);
+        }
+        result = result + String.substring(input, lastEnd);
+        return result;
+    }
+
     public fn subn(input: string, replacement: string): Pair<string, int> {
         var count: int = 0;
         var result: string = "";
