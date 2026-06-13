@@ -1,5 +1,6 @@
 import tt::util::ArrayList;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::math::ndarray::NDArraySort;
 import tt::math::ndarray::NDArrayReduce;
 import tt::math::ndarray::NDArrayMath;
@@ -136,7 +137,7 @@ public fn ndCorrcoef(a: NDArray<double>): NDArray<double> {
         while (k < cols) {
             let cjj: double = cov.get2D(j, j);
             let ckk: double = cov.get2D(k, k);
-            let denom: double = Math.sqrt(cjj * ckk);
+            let denom: double = MathAdvanced.sqrt(cjj * ckk);
             if (denom == 0.0) {
                 result.data.add(0.0);
             } else {
