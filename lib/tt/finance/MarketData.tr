@@ -1,0 +1,77 @@
+import tt::util::ArrayList;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+public class OHLCV {
+    public double open;
+    public double high;
+    public double low;
+    public double close;
+    public double volume;
+    public double timestamp;
+
+    public fn init(open: double, high: double, low: double, close: double, volume: double, timestamp: double) {
+        this.open = open;
+        this.high = high;
+        this.low = low;
+        this.close = close;
+        this.volume = volume;
+        this.timestamp = timestamp;
+    }
+}
+
+public class Tick {
+    public double price;
+    public double quantity;
+    public double timestamp;
+    public string side;
+
+    public fn init(price: double, quantity: double, timestamp: double, side: string) {
+        this.price = price;
+        this.quantity = quantity;
+        this.timestamp = timestamp;
+        this.side = side;
+    }
+}
+
+public class Trade {
+    public string id;
+    public double price;
+    public double quantity;
+    public double timestamp;
+    public string side;
+    public string orderId;
+
+    public fn init(id: string, price: double, quantity: double, timestamp: double, side: string, orderId: string) {
+        this.id = id;
+        this.price = price;
+        this.quantity = quantity;
+        this.timestamp = timestamp;
+        this.side = side;
+        this.orderId = orderId;
+    }
+}
+
+public class Quote {
+    public double bidPrice;
+    public double bidSize;
+    public double askPrice;
+    public double askSize;
+    public double timestamp;
+
+    public fn init(bidPrice: double, bidSize: double, askPrice: double, askSize: double, timestamp: double) {
+        this.bidPrice = bidPrice;
+        this.bidSize = bidSize;
+        this.askPrice = askPrice;
+        this.askSize = askSize;
+        this.timestamp = timestamp;
+    }
+
+    public fn spread(): double {
+        return this.askPrice - this.bidPrice;
+    }
+
+    public fn midPrice(): double {
+        return (this.bidPrice + this.askPrice) / 2.0;
+    }
+}
