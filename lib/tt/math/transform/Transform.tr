@@ -117,7 +117,7 @@ public class Transform {
 // ---- Factory functions ----
 
 public fn transformIdentity(): Transform {
-    return new Transform(zero(), quaternionIdentity(), one());
+    return new Transform(zero(), quatIdentity(), one());
 }
 
 public fn transformFromMat4(m: Mat4): Transform {
