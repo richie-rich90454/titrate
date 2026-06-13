@@ -13,6 +13,10 @@ public fn E(): double {
     return 2.71828182845904523536;
 }
 
+public fn tau(): double {
+    return 6.283185307179586;
+}
+
 public fn INF(): double {
     return Math_inf();
 }
