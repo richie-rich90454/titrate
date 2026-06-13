@@ -831,3 +831,72 @@ public fn isConvergent(terms: fn(int): double, maxN: int): bool {
     }
     return diff / scale < 1e-4;
 }
+
+// ==================== Slope Field and Utilities ====================
+
+// Generate slope field: returns ArrayList of [x, y, slope] triples
+public fn slopeField(f: fn(double, double): double, xMin: double, xMax: double, yMin: double, yMax: double, step: double): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var x: double = xMin;
+    while (x <= xMax + step / 2.0) {
+        var y: double = yMin;
+        while (y <= yMax + step / 2.0) {
+            let slope: double = f(x, y);
+            let triple: ArrayList<double> = new ArrayList<double>();
+            triple.add(x);
+            triple.add(y);
+            triple.add(slope);
+            result.add(triple);
+            y = y + step;
+        }
+        x = x + step;
+    }
+    return result;
+}
+
+// Check continuity of f at x0 by comparing left and right limits
+public fn continuityCheck(f: fn(double): double, x0: double, h: double): bool {
+    let leftVal: double = f(x0 - h);
+    let rightVal: double = f(x0 + h);
+    let centerVal: double = f(x0);
+    return Math.abs(leftVal - centerVal) < h && Math.abs(rightVal - centerVal) < h;
+}
+
+// Check differentiability of f at x0 by comparing left and right derivatives
+public fn differentiabilityCheck(f: fn(double): double, x0: double, h: double): bool {
+    let leftDeriv: double = (f(x0) - f(x0 - h)) / h;
+    let rightDeriv: double = (f(x0 + h) - f(x0)) / h;
+    return Math.abs(leftDeriv - rightDeriv) < h * 10.0;
+}
+
+// L'Hopital's rule: evaluate limit of f(x)/g(x) as x -> x0
+public fn lhopital(f: fn(double): double, g: fn(double): double, x0: double): double {
+    // Check if 0/0 or inf/inf form
+    let fVal: double = limit(f, x0, "both");
+    let gVal: double = limit(g, x0, "both");
+    // Apply L'Hopital: limit of f'(x)/g'(x)
+    let fp: fn(double): double = fn(x: double): double {
+        return derivative(f, x);
+    };
+    let gp: fn(double): double = fn(x: double): double {
+        return derivative(g, x);
+    };
+    let fpVal: double = limit(fp, x0, "both");
+    let gpVal: double = limit(gp, x0, "both");
+    if (Math.abs(gpVal) < 1e-15) {
+        // Try second derivatives
+        let fpp: fn(double): double = fn(x: double): double {
+            return derivative(fp, x);
+        };
+        let gpp: fn(double): double = fn(x: double): double {
+            return derivative(gp, x);
+        };
+        let fppVal: double = limit(fpp, x0, "both");
+        let gppVal: double = limit(gpp, x0, "both");
+        if (Math.abs(gppVal) < 1e-15) {
+            return Math.NAN();
+        }
+        return fppVal / gppVal;
+    }
+    return fpVal / gpVal;
+}
