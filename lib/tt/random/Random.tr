@@ -335,3 +335,164 @@ public class Random {
         return result;
     }
 }
+
+// ---------------------------------------------------------------------------
+// Module-level default RNG instance and Python-style convenience functions
+// ---------------------------------------------------------------------------
+let _rng: Random = new Random();
+
+// Save RNG state as [state0, state1, hasSpareGaussian, spareGaussian]
+public fn getstate(): ArrayList<double> {
+    let state: ArrayList<double> = new ArrayList<double>();
+    state.add(_rng.state0 as double);
+    state.add(_rng.state1 as double);
+    state.add(_rng.hasSpareGaussian ? 1.0 : 0.0);
+    state.add(_rng.spareGaussian);
+    return state;
+}
+
+// Restore RNG state from [state0, state1, hasSpareGaussian, spareGaussian]
+public fn setstate(state: ArrayList<double>): void {
+    _rng.state0 = state.get(0) as long;
+    _rng.state1 = state.get(1) as long;
+    _rng.hasSpareGaussian = state.get(2) > 0.5;
+    _rng.spareGaussian = state.get(3);
+}
+
+// Weighted random choices with replacement, k times
+public fn choices(data: ArrayList<double>, weights: ArrayList<double>, k: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    // Build cumulative weights
+    let cumWeights: ArrayList<double> = new ArrayList<double>();
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < weights.size()) {
+        total = total + weights.get(i);
+        cumWeights.add(total);
+        i = i + 1;
+    }
+    var kk: int = 0;
+    while (kk < k) {
+        let r: double = _rng.nextDouble() * total;
+        var idx: int = 0;
+        while (idx < cumWeights.size() - 1) {
+            if (r < cumWeights.get(idx)) { break; }
+            idx = idx + 1;
+        }
+        result.add(data.get(idx));
+        kk = kk + 1;
+    }
+    return result;
+}
+
+// Random sample without replacement
+public fn sample(data: ArrayList<double>, k: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    var kk: int = k;
+    if (kk > n) { kk = n; }
+    // Copy the list
+    let copy: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        copy.add(data.get(i));
+        i = i + 1;
+    }
+    // Fisher-Yates partial shuffle
+    i = 0;
+    while (i < kk) {
+        let j: int = i + _rng.nextInt(n - i);
+        let temp: double = copy.get(i);
+        copy.set(i, copy.get(j));
+        copy.set(j, temp);
+        result.add(copy.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Shuffle in place (Fisher-Yates)
+public fn shuffle(data: ArrayList<double>): void {
+    let n: int = data.size();
+    var i: int = n - 1;
+    while (i > 0) {
+        let j: int = _rng.nextInt(i + 1);
+        let temp: double = data.get(i);
+        data.set(i, data.get(j));
+        data.set(j, temp);
+        i = i - 1;
+    }
+}
+
+// Triangular distribution
+public fn triangular(low: double, high: double, mode: double): double {
+    return _rng.triangular(low, high, mode);
+}
+
+// Beta distribution
+public fn betavariate(alpha: double, beta: double): double {
+    return _rng.beta(alpha, beta);
+}
+
+// Exponential distribution with rate lambda (mean = 1/lambda)
+public fn expovariate(lambda: double): double {
+    return _rng.nextExponential() / lambda;
+}
+
+// Gamma distribution with shape alpha and scale beta
+public fn gammavariate(alpha: double, beta: double): double {
+    return _rng.gammaDist(alpha, beta);
+}
+
+// Log-normal distribution
+public fn lognormvariate(mu: double, sigma: double): double {
+    return _rng.lognormal(mu, sigma);
+}
+
+// Normal (Gaussian) distribution (Box-Muller)
+public fn normalvariate(mu: double, sigma: double): double {
+    return mu + sigma * _rng.nextGaussian();
+}
+
+// Von Mises distribution (circular data)
+public fn vonmisesvariate(mu: double, kappa: double): double {
+    if (kappa <= 1e-6) {
+        return Math.PI() * (2.0 * _rng.nextDouble() - 1.0);
+    }
+    let s: double = 0.5 / kappa;
+    let r: double = s + MathAdvanced.sqrt(1.0 + s * s);
+    while (true) {
+        let u1: double = _rng.nextDouble();
+        let z: double = MathTrig.cos(Math.PI() * u1);
+        let d: double = z / (r + z);
+        let u2: double = _rng.nextDouble();
+        if (u2 < 1.0 - d * d || u2 <= (1.0 - d) * MathAdvanced.exp(d)) {
+            let q: double = 1.0 / r;
+            let f: double = (q + z) / (1.0 + q * z);
+            let u3: double = _rng.nextDouble();
+            if (u3 > 0.5) {
+                return (mu + MathTrig.acos(f)) % (2.0 * Math.PI());
+            }
+            return (mu - MathTrig.acos(f)) % (2.0 * Math.PI());
+        }
+    }
+    return mu;
+}
+
+// Pareto distribution with shape parameter alpha
+public fn paretovariate(alpha: double): double {
+    var u: double = _rng.nextDouble();
+    while (u < 1e-15) {
+        u = _rng.nextDouble();
+    }
+    return 1.0 / MathAdvanced.pow(u, 1.0 / alpha);
+}
+
+// Weibull distribution: alpha is scale, beta is shape
+public fn weibullvariate(alpha: double, beta: double): double {
+    var u: double = _rng.nextDouble();
+    while (u < 1e-15) {
+        u = _rng.nextDouble();
+    }
+    return alpha * MathAdvanced.pow(-MathAdvanced.ln(u), 1.0 / beta);
+}
