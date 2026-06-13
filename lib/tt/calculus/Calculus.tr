@@ -45,3 +45,120 @@ public fn partialDerivative(f: fn(double, double): double, x: double, y: double,
     }
     return (f(x, y + h) - f(x, y - h)) / (2.0 * h);
 }
+
+// ==================== Numerical Integration ====================
+
+// Riemann sum with "left", "right", or "midpoint" type
+public fn riemannSum(f: fn(double): double, a: double, b: double, n: int, type: string): double {
+    let dx: double = (b - a) / n;
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        var xi: double = a + i * dx;
+        if (type == "right") {
+            xi = a + (i + 1) * dx;
+        } else if (type == "midpoint") {
+            xi = a + (i + 0.5) * dx;
+        }
+        sum = sum + f(xi) * dx;
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Trapezoid rule: (dx/2) * [f(a) + 2*sum + f(b)]
+public fn trapezoidRule(f: fn(double): double, a: double, b: double, n: int): double {
+    let dx: double = (b - a) / n;
+    var sum: double = f(a) + f(b);
+    var i: int = 1;
+    while (i < n) {
+        sum = sum + 2.0 * f(a + i * dx);
+        i = i + 1;
+    }
+    return sum * dx / 2.0;
+}
+
+// Simpson's rule (n must be even): (dx/3) * [f(a) + 4*odd + 2*even + f(b)]
+public fn simpsonsRule(f: fn(double): double, a: double, b: double, n: int): double {
+    // Ensure n is even
+    var nn: int = n;
+    if (nn % 2 != 0) {
+        nn = nn + 1;
+    }
+    let dx: double = (b - a) / nn;
+    var sum: double = f(a) + f(b);
+    var i: int = 1;
+    while (i < nn) {
+        let coeff: double = 4.0;
+        if (i % 2 == 0) {
+            sum = sum + 2.0 * f(a + i * dx);
+        } else {
+            sum = sum + 4.0 * f(a + i * dx);
+        }
+        i = i + 1;
+    }
+    return sum * dx / 3.0;
+}
+
+// Internal adaptive Simpson's helper
+fn adaptiveSimpson(f: fn(double): double, a: double, b: double, tol: double, whole: double, fa: double, fb: double, fm: double, depth: int): double {
+    let m: double = (a + b) / 2.0;
+    let m1: double = (a + m) / 2.0;
+    let m2: double = (m + b) / 2.0;
+    let fm1: double = f(m1);
+    let fm2: double = f(m2);
+    let h: double = b - a;
+    let left: double = (h / 12.0) * (fa + 4.0 * fm1 + fm);
+    let right: double = (h / 12.0) * (fm + 4.0 * fm2 + fb);
+    let combined: double = left + right;
+    if (depth <= 0 || Math.abs(combined - whole) <= 15.0 * tol) {
+        return combined + (combined - whole) / 15.0;
+    }
+    return adaptiveSimpson(f, a, m, tol / 2.0, left, fa, fm, fm1, depth - 1)
+         + adaptiveSimpson(f, m, b, tol / 2.0, right, fm, fb, fm2, depth - 1);
+}
+
+// Adaptive Simpson's rule with tolerance 1e-10
+public fn integrate(f: fn(double): double, a: double, b: double): double {
+    let fa: double = f(a);
+    let fb: double = f(b);
+    let m: double = (a + b) / 2.0;
+    let fm: double = f(m);
+    let h: double = b - a;
+    let whole: double = (h / 6.0) * (fa + 4.0 * fm + fb);
+    return adaptiveSimpson(f, a, b, 1e-10, whole, fa, fb, fm, 50);
+}
+
+// Improper integral using substitution x = tan(t) for infinite bounds
+// a or b can be Math.INF() / -Math.INF()
+public fn improperIntegral(f: fn(double): double, a: double, b: double, maxIter: int): double {
+    let inf: double = Math.INF();
+    // Both infinite: split at 0
+    if (a == -inf && b == inf) {
+        return improperIntegral(f, -inf, 0.0, maxIter) + improperIntegral(f, 0.0, inf, maxIter);
+    }
+    // Upper bound infinite: substitution x = tan(t), t in [atan(a), PI/2)
+    if (b == inf) {
+        let ta: double = MathTrig.atan(a);
+        let tb: double = Math.PI() / 2.0 - 1e-8;
+        let g: fn(double): double = fn(t: double): double {
+            let x: double = MathTrig.tan(t);
+            let sec2: double = 1.0 / (MathTrig.cos(t) * MathTrig.cos(t));
+            return f(x) * sec2;
+        };
+        return integrate(g, ta, tb);
+    }
+    // Lower bound infinite: substitution x = tan(t), t in (-PI/2, atan(b)]
+    if (a == -inf) {
+        let ta: double = -Math.PI() / 2.0 + 1e-8;
+        let tb: double = MathTrig.atan(b);
+        let g: fn(double): double = fn(t: double): double {
+            let x: double = MathTrig.tan(t);
+            let sec2: double = 1.0 / (MathTrig.cos(t) * MathTrig.cos(t));
+            return f(x) * sec2;
+        };
+        return integrate(g, ta, tb);
+    }
+    // Finite bounds: use regular integration
+    return integrate(f, a, b);
+}
