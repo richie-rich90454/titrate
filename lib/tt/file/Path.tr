@@ -369,6 +369,15 @@ public class Path {
         }
         return resolved;
     }
+
+    // Check if the path exists, including broken symlinks.
+    // Returns true if the path exists or is a symlink (even if its target doesn't exist).
+    public fn lexists(): bool {
+        if (Path_exists(this.path)) { return true; }
+        // Check for broken symlink
+        if (Path_isSymlink(this.path)) { return true; }
+        return false;
+    }
 }
 
 // Internal: normalize a path by resolving . and .. segments
