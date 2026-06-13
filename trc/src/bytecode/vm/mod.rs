@@ -391,6 +391,8 @@ impl Vm {
         vm.register_native("Os_urandom", natives::system::native_os_urandom);
         vm.register_native("Os_chmod", natives::system::native_os_chmod);
         vm.register_native("Os_makedirs", natives::system::native_os_makedirs);
+        vm.register_native("Os_symlink", natives::system::native_os_symlink);
+        vm.register_native("Os_readlink", natives::system::native_os_readlink);
 
         vm
     }

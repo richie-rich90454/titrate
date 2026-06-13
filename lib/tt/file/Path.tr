@@ -154,8 +154,7 @@ public class Path {
 
     // Check if path is a symlink.
     public fn isSymlink(): bool {
-        // Stub: requires native support
-        return false;
+        return Path_isSymlink(this.path);
     }
 
     // Get the path with a different extension.

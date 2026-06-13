@@ -274,3 +274,67 @@ pub(crate) fn native_os_makedirs(args: &[Value]) -> Result<Value, String> {
         ))))),
     }
 }
+
+pub(crate) fn native_os_symlink(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Os_symlink: expected 2 arguments (original, link)".to_string());
+    }
+    let original = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Os_symlink: expected String original".to_string()),
+    };
+    let link = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Os_symlink: expected String link".to_string()),
+    };
+
+    #[cfg(unix)]
+    {
+        match std::os::unix::fs::symlink(&original, &link) {
+            Ok(()) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(link))))),
+            Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                format!("Os_symlink: {}", e)
+            ))))),
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        // On Windows, symlink support requires privileges; use std::os::windows::fs::symlink_file/dir
+        // For simplicity, try symlink_file as a best-effort
+        #[cfg(windows)]
+        {
+            match std::os::windows::fs::symlink_file(&original, &link) {
+                Ok(()) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(link))))),
+                Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("Os_symlink: {}", e)
+                ))))),
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = (original, link);
+            Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                "Os_symlink: not supported on this platform".to_string()
+            )))))
+        }
+    }
+}
+
+pub(crate) fn native_os_readlink(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Os_readlink: expected 1 argument (path)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Os_readlink: expected String path".to_string()),
+    };
+    match std::fs::read_link(&path) {
+        Ok(target) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(
+            target.to_string_lossy().to_string()
+        ))))),
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("Os_readlink: {}", e)
+        ))))),
+    }
+}
