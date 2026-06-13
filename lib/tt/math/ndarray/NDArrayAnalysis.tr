@@ -7,6 +7,14 @@ import tt::math::ndarray::NDArrayMath;
 // NDArray analysis utilities: histogram, interpolation, covariance, correlation, searchsorted, bincount
 
 public fn histogram(a: NDArray<double>, bins: int): ArrayList<ArrayList<double>> {
+    if (a.data.size() == 0) {
+        let emptyCounts: ArrayList<double> = new ArrayList<double>();
+        let emptyEdges: ArrayList<double> = new ArrayList<double>();
+        let emptyResult: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        emptyResult.add(emptyCounts);
+        emptyResult.add(emptyEdges);
+        return emptyResult;
+    }
     let sorted: NDArray<double> = NDArraySort.sort(a);
     let n: int = sorted.data.size();
     let lo: double = sorted.data.get(0);
