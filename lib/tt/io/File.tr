@@ -124,4 +124,24 @@ public class File {
         }
         return f;
     }
+
+    // Read all lines from the file into an ArrayList.
+    public fn readlines(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var line: string = File_readLine(this.path);
+        while (line != null) {
+            result.add(line);
+            line = File_readLine(this.path);
+        }
+        return result;
+    }
+
+    // Write all lines from an ArrayList to the file, adding newlines.
+    public fn writelines(lines: ArrayList<string>): void {
+        var i: int = 0;
+        while (i < lines.size()) {
+            File_write(this.path, lines.get(i) + "\n");
+            i = i + 1;
+        }
+    }
 }
