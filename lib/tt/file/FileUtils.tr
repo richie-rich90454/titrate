@@ -158,6 +158,19 @@ public fn which(cmd: string): string {
     return "";
 }
 
+// Disk usage information: total, used, and free space.
+public class DiskUsageInfo {
+    public long total;
+    public long used;
+    public long free;
+
+    public fn init(t: long, u: long, f: long) {
+        this.total = t;
+        this.used = u;
+        this.free = f;
+    }
+}
+
 // Get the total disk usage of a path (recursive size in bytes)
 public fn diskUsage(path: string): long {
     if (!Fs_exists(path)) {
@@ -190,6 +203,16 @@ public fn sameFile(p1: string, p2: string): bool {
 public fn getSizeMode(path: string): string {
     let size: long = diskUsage(path);
     return _humanSize(size);
+}
+
+// Get disk space information for the filesystem containing the given path.
+// Returns a DiskUsageInfo with total, used, and free space in bytes.
+public fn diskUsageInfo(path: string): DiskUsageInfo {
+    // Use native disk space query if available
+    let totalSpace: long = Fs_totalSpace(path);
+    let freeSpace: long = Fs_freeSpace(path);
+    let usedSpace: long = totalSpace - freeSpace;
+    return new DiskUsageInfo(totalSpace, usedSpace, freeSpace);
 }
 
 // Internal: normalize a path for comparison
