@@ -110,20 +110,20 @@ public fn random(): double {
 
 // ==================== Number-theoretic functions ====================
 
-// Binomial coefficient C(n, k) using multiplicative formula
+// Binomial coefficient C(n, k) using multiplicative formula with long arithmetic
 public fn comb(n: int, k: int): int {
     if (k < 0 || k > n) { return 0; }
     if (k == 0 || k == n) { return 1; }
     var kk: int = k;
     if (kk > n - kk) { kk = n - kk; }
-    var result: int = 1;
+    var result: long = 1;
     var i: int = 0;
     while (i < kk) {
-        result = result * (n - i);
-        result = result / (i + 1);
+        result = result * ((n - i) as long);
+        result = result / ((i + 1) as long);
         i = i + 1;
     }
-    return result;
+    return result as int;
 }
 
 // Factorial n! using iterative multiplication
