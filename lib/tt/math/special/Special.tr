@@ -205,7 +205,11 @@ public fn besselJ1(x: double): double {
 public fn besselJN(n: int, x: double): double {
     if (n == 0) { return besselJ0(x); }
     if (n == 1) { return besselJ1(x); }
-    if (n < 0) { return 0.0; }
+    if (n < 0) {
+        let sign: double = 1.0;
+        if ((-n) % 2 != 0) { sign = -1.0; }
+        return sign * besselJN(-n, x);
+    }
 
     // Use Miller's algorithm for stability (backward recurrence)
     // Start from a high order and recur downward
@@ -617,4 +621,10 @@ public fn logSumExp(x: ArrayList<double>): double {
     }
 
     return maxVal + MathAdvanced.ln(sumExp);
+}
+
+// Infinite geometric series sum: a / (1 - r), converges only when |r| < 1
+public fn geometricSumInfinite(a: double, ratio: double): double {
+    if (Math.fabs(ratio) >= 1.0) { return Math.INF(); }
+    return a / (1.0 - ratio);
 }
