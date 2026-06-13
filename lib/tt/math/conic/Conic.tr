@@ -68,3 +68,134 @@ public fn parabolaFromFocusAndDirectrix(focus: Vec2, directrix: double): Parabol
     let c: double = a * focus.x * focus.x + (focus.y + directrix) / 2.0;
     return new Parabola(a, b, c);
 }
+
+// ---- Ellipse: ((x-cx)/a)^2 + ((y-cy)/b)^2 = 1 ----
+
+public class Ellipse {
+    public double a;
+    public double b;
+    public double cx;
+    public double cy;
+
+    public fn init(a: double, b: double, cx: double, cy: double) {
+        this.a = a;
+        this.b = b;
+        this.cx = cx;
+        this.cy = cy;
+    }
+
+    public fn eval(x: double): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let dx: double = (x - this.cx) / this.a;
+        let val: double = 1.0 - dx * dx;
+        if (val < 0.0) {
+            return result;
+        }
+        let dy: double = Math.sqrt(val);
+        result.add(this.cy + this.b * dy);
+        if (dy > 0.0) {
+            result.add(this.cy - this.b * dy);
+        }
+        return result;
+    }
+
+    public fn area(): double {
+        return Math.PI * this.a * this.b;
+    }
+
+    public fn eccentricity(): double {
+        return Math.sqrt(1.0 - (this.b * this.b) / (this.a * this.a));
+    }
+
+    public fn foci(): ArrayList<Vec2> {
+        let result: ArrayList<Vec2> = new ArrayList<Vec2>();
+        let c: double = Math.sqrt(this.a * this.a - this.b * this.b);
+        result.add(new Vec2(this.cx + c, this.cy));
+        result.add(new Vec2(this.cx - c, this.cy));
+        return result;
+    }
+
+    public fn focalDistance(): double {
+        let c: double = Math.sqrt(this.a * this.a - this.b * this.b);
+        return 2.0 * c;
+    }
+
+    public fn perimeter(): double {
+        let sa: double = 3.0 * this.a + this.b;
+        let sb: double = this.a + 3.0 * this.b;
+        return Math.PI * (3.0 * (this.a + this.b) - Math.sqrt(sa * sb));
+    }
+
+    public fn contains(x: double, y: double): bool {
+        let dx: double = (x - this.cx) / this.a;
+        let dy: double = (y - this.cy) / this.b;
+        return dx * dx + dy * dy <= 1.0;
+    }
+}
+
+// ---- Hyperbola: ((x-cx)/a)^2 - ((y-cy)/b)^2 = 1 ----
+
+public class Hyperbola {
+    public double a;
+    public double b;
+    public double cx;
+    public double cy;
+
+    public fn init(a: double, b: double, cx: double, cy: double) {
+        this.a = a;
+        this.b = b;
+        this.cx = cx;
+        this.cy = cy;
+    }
+
+    public fn eval(x: double): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let dx: double = (x - this.cx) / this.a;
+        let val: double = dx * dx - 1.0;
+        if (val < 0.0) {
+            return result;
+        }
+        let dy: double = Math.sqrt(val);
+        result.add(this.cy + this.b * dy);
+        if (dy > 0.0) {
+            result.add(this.cy - this.b * dy);
+        }
+        return result;
+    }
+
+    public fn eccentricity(): double {
+        return Math.sqrt(1.0 + (this.b * this.b) / (this.a * this.a));
+    }
+
+    public fn foci(): ArrayList<Vec2> {
+        let result: ArrayList<Vec2> = new ArrayList<Vec2>();
+        let c: double = Math.sqrt(this.a * this.a + this.b * this.b);
+        result.add(new Vec2(this.cx + c, this.cy));
+        result.add(new Vec2(this.cx - c, this.cy));
+        return result;
+    }
+
+    public fn asymptotes(): ArrayList<ArrayList<double>> {
+        let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        let slope: double = this.b / this.a;
+
+        let line1: ArrayList<double> = new ArrayList<double>();
+        line1.add(slope);
+        line1.add(this.cy - slope * this.cx);
+        result.add(line1);
+
+        let line2: ArrayList<double> = new ArrayList<double>();
+        line2.add(-slope);
+        line2.add(this.cy + slope * this.cx);
+        result.add(line2);
+
+        return result;
+    }
+
+    public fn vertices(): ArrayList<Vec2> {
+        let result: ArrayList<Vec2> = new ArrayList<Vec2>();
+        result.add(new Vec2(this.cx + this.a, this.cy));
+        result.add(new Vec2(this.cx - this.a, this.cy));
+        return result;
+    }
+}
