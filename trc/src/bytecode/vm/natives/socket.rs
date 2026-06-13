@@ -418,3 +418,43 @@ pub(crate) fn native_udp_socket_last_sender_port(args: &[Value]) -> Result<Value
         .ok_or_else(|| "UdpSocket_lastSenderPort: invalid handle".to_string())?;
     Ok(Value::Long(udp_handle.last_sender_port as i64))
 }
+
+// ---------------------------------------------------------------------------
+// DNS resolution
+// ---------------------------------------------------------------------------
+
+pub(crate) fn native_socket_get_addr_info(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Socket_getAddrInfo: expected 2 arguments (host, port)".to_string());
+    }
+    let host = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Socket_getAddrInfo: expected String host".to_string()),
+    };
+    let port = match &args[1] {
+        Value::Int(p) => *p as u16,
+        Value::Long(p) => *p as u16,
+        _ => return Err("Socket_getAddrInfo: expected Int port".to_string()),
+    };
+
+    use std::rc::Rc;
+    let addr_str = format!("{}:{}", host, port);
+    match addr_str.to_socket_addrs() {
+        Ok(addrs) => {
+            let results: Vec<String> = addrs
+                .map(|a| a.to_string())
+                .collect();
+            // Return first resolved address as a string, or all joined by commas
+            if results.is_empty() {
+                Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+                    format!("Socket_getAddrInfo: no addresses found for {}", host)
+                )))))
+            } else {
+                Ok(Value::ResultOk(Box::new(Value::String(Rc::new(results.join(","))))))
+            }
+        }
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("Socket_getAddrInfo: {}", e)
+        ))))),
+    }
+}

@@ -129,6 +129,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Hash_sha3_512" => Some(hash::native_hash_sha3_512),
         "Hash_blake2b" => Some(hash::native_hash_blake2b),
         "Hash_blake2s" => Some(hash::native_hash_blake2s),
+        "Hash_crc32" => Some(hash::native_hash_crc32),
         "Base64_encode" => Some(encoding::native_base64_encode),
         "Base64_decode" => Some(encoding::native_base64_decode),
         "Hex_encode" => Some(encoding::native_hex_encode),
@@ -226,6 +227,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "UdpSocket_setTimeout" => Some(socket::native_udp_socket_set_timeout),
         "UdpSocket_lastSenderHost" => Some(socket::native_udp_socket_last_sender_host),
         "UdpSocket_lastSenderPort" => Some(socket::native_udp_socket_last_sender_port),
+        "Socket_getAddrInfo" => Some(socket::native_socket_get_addr_info),
 
         // SSL natives (stubs)
         "Ssl_contextNew" => Some(ssl::native_ssl_context_new),

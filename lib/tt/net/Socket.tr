@@ -75,3 +75,8 @@ public class Socket {
         this.connected = true;
     }
 }
+
+// DNS resolution: resolve a hostname to IP addresses.
+public fn getAddrInfo(host: string, port: int): Result<string, string> {
+    return Socket_getAddrInfo(host, port);
+}
