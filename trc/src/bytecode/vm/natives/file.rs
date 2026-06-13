@@ -423,3 +423,23 @@ pub(crate) fn native_file_truncate(args: &[Value]) -> Result<Value, String> {
         ))))),
     }
 }
+
+pub(crate) fn native_file_copy(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("File_copy: expected 2 arguments (src, dst)".to_string());
+    }
+    let src = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_copy: expected String src".to_string()),
+    };
+    let dst = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_copy: expected String dst".to_string()),
+    };
+    match std::fs::copy(&src, &dst) {
+        Ok(_) => Ok(Value::ResultOk(Box::new(Value::String(Rc::new(dst))))),
+        Err(e) => Ok(Value::ResultErr(Box::new(Value::String(Rc::new(
+            format!("File_copy: {}", e)
+        ))))),
+    }
+}

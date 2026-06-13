@@ -35,8 +35,8 @@ public class File {
         return Dir_move(this.path, newPath);
     }
 
-    public fn copyTo(dest: string): bool {
-        return Dir_copy(this.path, dest);
+    public fn copyTo(dest: string): Result<string, string> {
+        return File_copy(this.path, dest);
     }
 
     public fn moveTo(dest: string): bool {

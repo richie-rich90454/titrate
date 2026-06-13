@@ -28,6 +28,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "File_flush" => Some(file::native_file_flush),
         "File_size" => Some(file::native_file_size),
         "File_truncate" => Some(file::native_file_truncate),
+        "File_copy" => Some(file::native_file_copy),
         "String_split" => Some(builtins::native_string_split),
         "Integer_parseOr" => Some(builtins::native_integer_parse_or),
         "String_trim" => Some(builtins::native_string_trim),

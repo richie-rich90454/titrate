@@ -92,6 +92,7 @@ impl Vm {
         vm.register_native("File_flush", natives::file::native_file_flush);
         vm.register_native("File_size", natives::file::native_file_size);
         vm.register_native("File_truncate", natives::file::native_file_truncate);
+        vm.register_native("File_copy", natives::file::native_file_copy);
         vm.register_native("String_split", natives::builtins::native_string_split);
         vm.register_native("Integer_parseOr", natives::builtins::native_integer_parse_or);
         vm.register_native("String_trim", natives::builtins::native_string_trim);
