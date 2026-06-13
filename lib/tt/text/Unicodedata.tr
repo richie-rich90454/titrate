@@ -248,12 +248,54 @@ public class Unicodedata {
     }
 
     // Get the combining class.
+    // Returns the canonical combining class value for common combining marks.
     public static fn combining(ch: string): int {
+        let code: int = String.charAt(ch, 0) as int;
+        // Combining marks in Unicode have combining class > 0
+        // Combining grave accent (768) -> 230
+        if (code == 768) { return 230; }
+        // Combining acute accent (769) -> 230
+        if (code == 769) { return 230; }
+        // Combining circumflex accent (770) -> 230
+        if (code == 770) { return 230; }
+        // Combining tilde (771) -> 230
+        if (code == 771) { return 230; }
+        // Combining macron (772) -> 230
+        if (code == 772) { return 230; }
+        // Combining overline (773) -> 230
+        if (code == 773) { return 230; }
+        // Combining breve (774) -> 230
+        if (code == 774) { return 230; }
+        // Combining dot above (775) -> 230
+        if (code == 775) { return 230; }
+        // Combining diaeresis (776) -> 230
+        if (code == 776) { return 230; }
+        // Combining ring above (778) -> 230
+        if (code == 778) { return 230; }
+        // Combining double acute accent (779) -> 230
+        if (code == 779) { return 230; }
+        // Combining caron (780) -> 230
+        if (code == 780) { return 230; }
+        // Combining cedilla (807) -> 202
+        if (code == 807) { return 202; }
+        // General combining marks range (0x0300-0x034E)
+        if (code >= 768 && code <= 846) { return 230; }
         return 0;
     }
 
     // Get the mirrored property.
-    public static fn mirrored(ch: string): bool {
-        return false;
+    // Returns 1 if the character is mirrored in bidirectional text, 0 otherwise.
+    public static fn mirrored(ch: string): int {
+        let code: int = String.charAt(ch, 0) as int;
+        // Common mirrored characters in ASCII/Latin range
+        if (code == 40) { return 1; }   // (
+        if (code == 41) { return 1; }   // )
+        if (code == 60) { return 1; }   // <
+        if (code == 62) { return 1; }   // >
+        if (code == 91) { return 1; }   // [
+        if (code == 93) { return 1; }   // ]
+        if (code == 123) { return 1; }  // {
+        if (code == 125) { return 1; }  // }
+        return 0;
     }
 }
