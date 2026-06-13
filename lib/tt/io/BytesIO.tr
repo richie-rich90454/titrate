@@ -10,7 +10,7 @@ public class BytesIO {
         this.pos = 0;
     }
 
-    public fn init(data: string) {
+    public fn initWithData(data: string) {
         this.buffer = new ArrayList<string>();
         var i: int = 0;
         while (i < String.length(data)) {
