@@ -1,5 +1,7 @@
 // Complex provides a complex number type with arithmetic and transcendental functions.
 import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
 import tt::lang::Double;
 
 public class Complex {
@@ -20,7 +22,7 @@ public class Complex {
 
     // Argument (phase angle) in radians
     public fn arg(): double {
-        return Math.atan2(this.imag, this.real);
+        return MathTrig.atan2(this.imag, this.real);
     }
 
     // Squared norm: real^2 + imag^2
@@ -67,13 +69,13 @@ public class Complex {
 
     // e^z = e^(real) * (cos(imag) + i*sin(imag))
     public fn exp(): Complex {
-        let expReal: double = Math.exp(this.real);
-        return new Complex(expReal * Math.cos(this.imag), expReal * Math.sin(this.imag));
+        let expReal: double = MathAdvanced.exp(this.real);
+        return new Complex(expReal * MathTrig.cos(this.imag), expReal * MathTrig.sin(this.imag));
     }
 
     // Principal logarithm: ln(|z|) + i*arg(z)
     public fn log(): Complex {
-        let r: double = Math.ln(this.abs());
+        let r: double = MathAdvanced.ln(this.abs());
         let i: double = this.arg();
         return new Complex(r, i);
     }
@@ -92,24 +94,24 @@ public class Complex {
     // Principal square root
     public fn sqrt(): Complex {
         let r: double = this.abs();
-        let sqrtR: double = Math.sqrt(r);
+        let sqrtR: double = MathAdvanced.sqrt(r);
         let angle: double = this.arg() / 2.0;
-        return new Complex(sqrtR * Math.cos(angle), sqrtR * Math.sin(angle));
+        return new Complex(sqrtR * MathTrig.cos(angle), sqrtR * MathTrig.sin(angle));
     }
 
     // ---- Trigonometric functions ----
 
     // sin(z) = sin(real)*cosh(imag) + i*cos(real)*sinh(imag)
     public fn sin(): Complex {
-        let r: double = Math.sin(this.real) * Math.cosh(this.imag);
-        let i: double = Math.cos(this.real) * Math.sinh(this.imag);
+        let r: double = MathTrig.sin(this.real) * MathTrig.cosh(this.imag);
+        let i: double = MathTrig.cos(this.real) * MathTrig.sinh(this.imag);
         return new Complex(r, i);
     }
 
     // cos(z) = cos(real)*cosh(imag) - i*sin(real)*sinh(imag)
     public fn cos(): Complex {
-        let r: double = Math.cos(this.real) * Math.cosh(this.imag);
-        let i: double = -Math.sin(this.real) * Math.sinh(this.imag);
+        let r: double = MathTrig.cos(this.real) * MathTrig.cosh(this.imag);
+        let i: double = -MathTrig.sin(this.real) * MathTrig.sinh(this.imag);
         return new Complex(r, i);
     }
 
@@ -122,15 +124,15 @@ public class Complex {
 
     // sinh(z) = sinh(real)*cos(imag) + i*cosh(real)*sin(imag)
     public fn sinh(): Complex {
-        let r: double = Math.sinh(this.real) * Math.cos(this.imag);
-        let i: double = Math.cosh(this.real) * Math.sin(this.imag);
+        let r: double = MathTrig.sinh(this.real) * MathTrig.cos(this.imag);
+        let i: double = MathTrig.cosh(this.real) * MathTrig.sin(this.imag);
         return new Complex(r, i);
     }
 
     // cosh(z) = cosh(real)*cos(imag) + i*sinh(real)*sin(imag)
     public fn cosh(): Complex {
-        let r: double = Math.cosh(this.real) * Math.cos(this.imag);
-        let i: double = Math.sinh(this.real) * Math.sin(this.imag);
+        let r: double = MathTrig.cosh(this.real) * MathTrig.cos(this.imag);
+        let i: double = MathTrig.sinh(this.real) * MathTrig.sin(this.imag);
         return new Complex(r, i);
     }
 
@@ -203,13 +205,13 @@ public class Complex {
 
     // log10(z) = log(z) / ln(10)
     public fn log10(): Complex {
-        let ln10: double = Math.ln(10.0);
+        let ln10: double = MathAdvanced.ln(10.0);
         return this.log().div(new Complex(ln10, 0.0));
     }
 
     // log2(z) = log(z) / ln(2)
     public fn log2(): Complex {
-        let ln2: double = Math.ln(2.0);
+        let ln2: double = MathAdvanced.ln(2.0);
         return this.log().div(new Complex(ln2, 0.0));
     }
 
@@ -264,7 +266,7 @@ public class Complex {
 // ---- Static factories ----
 
 public fn fromPolar(r: double, theta: double): Complex {
-    return new Complex(r * Math.cos(theta), r * Math.sin(theta));
+    return new Complex(r * MathTrig.cos(theta), r * MathTrig.sin(theta));
 }
 
 public fn zero(): Complex {
