@@ -1,6 +1,6 @@
 # concurrent
 
-The `tt.concurrent` module provides asynchronous programming primitives with futures, channels, threads, and synchronization constructs.
+The `tt.concurrent` module provides asynchronous programming primitives with futures, channels, threads, synchronization constructs, and lock-free data structures.
 
 ```titrate
 import tt.concurrent.Future;
@@ -16,6 +16,7 @@ import tt.concurrent.OnceFlag;
 import tt.concurrent.AtomicInt;
 import tt.concurrent.AtomicBool;
 import tt.concurrent.Promise;
+import tt.concurrent.LockFreeQueue;
 ```
 
 ## Future
@@ -283,3 +284,67 @@ let f: Future<int> = p.future();
 p.set(42);
 io::println(Integer.toString(f.get()));  // 42
 ```
+
+## SPSCRingBuffer
+
+Single-Producer Single-Consumer ring buffer. Optimal for pipelines where exactly one thread produces and one consumes. Capacity is rounded up to the next power of 2.
+
+- `fn init(capacity: int)` — create with given capacity (rounded to power of 2)
+- `push(value: Variant): bool` — try to push; returns false if full
+- `pop(): Variant` — try to pop; returns null if empty
+- `isEmpty(): bool` — check if empty
+- `isFull(): bool` — check if full
+- `size(): int` — current number of elements
+
+```titrate
+let rb: SPSCRingBuffer = new SPSCRingBuffer(64);
+rb.push(42);
+rb.push("hello");
+let val: Variant = rb.pop();  // 42
+let full: bool = rb.isFull(); // false
+```
+
+## MPSCRingBuffer
+
+Multi-Producer Single-Consumer ring buffer. Multiple producers can push, but only one consumer pops. Uses CAS-like logic for slot reservation.
+
+- `fn init(capacity: int)` — create with given capacity (rounded to power of 2)
+- `push(value: Variant): bool` — try to push; returns false if full
+- `pop(): Variant` — try to pop; returns null if empty
+- `isEmpty(): bool` — check if empty
+- `isFull(): bool` — check if full
+- `size(): int` — current number of elements
+
+```titrate
+let rb: MPSCRingBuffer = new MPSCRingBuffer(128);
+rb.push("message1");
+rb.push("message2");
+let msg: Variant = rb.pop();  // "message1"
+```
+
+## LockFreeStack
+
+Lock-free stack (Treiber stack) using an array-backed approach. Models the Treiber CAS-based push/pop algorithm.
+
+- `fn init()` — create an empty stack
+- `push(value: Variant): void` — push a value onto the stack
+- `pop(): Variant` — pop the top value; returns null if empty
+- `peek(): Variant` — peek at the top value without removing; returns null if empty
+- `isEmpty(): bool` — check if empty
+- `size(): int` — current number of elements
+
+```titrate
+let stack: LockFreeStack = new LockFreeStack();
+stack.push(10);
+stack.push(20);
+stack.push(30);
+let top: Variant = stack.peek();  // 30
+let val: Variant = stack.pop();   // 30
+let remaining: int = stack.size(); // 2
+```
+
+**Factory functions:**
+
+- `spscRingBuffer(capacity: int): SPSCRingBuffer` — create an SPSC ring buffer
+- `mpscRingBuffer(capacity: int): MPSCRingBuffer` — create an MPSC ring buffer
+- `lockFreeStack(): LockFreeStack` — create a lock-free stack

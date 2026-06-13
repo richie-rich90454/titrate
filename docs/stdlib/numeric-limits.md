@@ -30,6 +30,32 @@ A utility class that exposes platform numeric limits and classification predicat
 - `NumericLimits.isSubnormal(x: double): bool` — check if subnormal
 - `NumericLimits.signbit(x: double): bool` — check sign bit
 
+**Half-precision (16-bit float):**
+
+- `NumericLimits.halfMax(): double` — 65504.0
+- `NumericLimits.halfMin(): double` — smallest positive half
+- `NumericLimits.halfEpsilon(): double` — half epsilon
+
+**Quad-precision (128-bit float):**
+
+- `NumericLimits.quadMax(): double` — ≈ 1.1897e+4932
+- `NumericLimits.quadMin(): double` — smallest positive quad
+- `NumericLimits.quadEpsilon(): double` — quad epsilon
+
+**Unsigned integers:**
+
+- `NumericLimits.u8Max(): int` — 255
+- `NumericLimits.u16Max(): int` — 65535
+- `NumericLimits.u32Max(): long` — 4294967295
+- `NumericLimits.u64Max(): long` — 18446744073709551615
+
+**Additional:**
+
+- `NumericLimits.infinity(): double` — positive infinity
+- `NumericLimits.quietNaN(): double` — quiet NaN
+- `NumericLimits.denormMin(): double` — smallest positive denormalized double
+- `NumericLimits.lowest(): double` — most negative finite value
+
 ```titrate
 io::println(Integer.toString(NumericLimits.intMax()));      // 2147483647
 io::println(Integer.toString(NumericLimits.intMin()));      // -2147483648

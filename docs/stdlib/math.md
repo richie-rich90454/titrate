@@ -48,6 +48,11 @@ Mathematical constants and functions.
 - `clamp(x, lo, hi)` — constrain to range
 - `sign(x)` — sign function (-1, 0, 1)
 - `random(): double` — random value in [0, 1)
+- `degrees(radians: double): double` — convert radians to degrees
+- `radians(degrees: double): double` — convert degrees to radians
+- `fsum(values: ArrayList<double>): double` — high-precision sum (Kahan summation)
+- `fma(a: double, b: double, c: double): double` — fused multiply-add (a * b + c)
+- `isclose(a: double, b: double, relTol: double, absTol: double): bool` — approximate equality
 
 **Exact arithmetic:**
 - `addExact(a, b)`, `subtractExact(a, b)`, `multiplyExact(a, b)` — overflow-checked
@@ -185,6 +190,7 @@ Pseudo-random number generation using Xorshift128+.
 - `fn init(seed: long)` — create with specific seed
 - `nextInt(max: int): int` — random int in [0, max)
 - `nextInt(min: int, max: int): int` — random int in [min, max]
+- `nextIntRange(min: int, max: int): int` — random int in [min, max)
 - `nextLong(max: long): long` — random long in [0, max)
 - `nextFloat(): float` — random float in [0, 1)
 - `nextDouble(): double` — random double in [0, 1)
@@ -195,6 +201,42 @@ Pseudo-random number generation using Xorshift128+.
 - `nextUniform(min: double, max: double): double` — uniform in [min, max)
 - `shuffle<T>(arr: ArrayList<T>): void` — Fisher-Yates shuffle in-place
 - `sample<T>(arr: ArrayList<T>): T` — random element
+- `sample<T>(list: ArrayList<T>, k: int): ArrayList<T>` — k items without replacement
+
+**Additional distributions:**
+
+- `binomial(n: int, p: double): int` — binomial distribution
+- `triangular(low: double, high: double, mode: double): double` — triangular distribution
+- `lognormal(mu: double, sigma: double): double` — log-normal distribution
+- `weibull(shape: double): double` — Weibull distribution
+- `gammaDist(shape: double, scale: double): double` — gamma distribution (Marsaglia-Tsang)
+- `beta(a: double, b: double): double` — beta distribution (gamma ratio)
+- `chiSquared(df: double): double` — chi-squared distribution
+- `studentT(df: double): double` — Student's t-distribution
+- `fisherF(d1: double, d2: double): double` — F-distribution
+- `cauchy(median: double, scale: double): double` — Cauchy (Lorentz) distribution
+- `geometric(p: double): int` — geometric distribution
+- `negativeBinomial(r: int, p: double): int` — negative binomial distribution
+- `extremeValue(loc: double, scale: double): double` — Gumbel distribution
+- `discrete(weights: ArrayList<double>): int` — discrete distribution from weights
+- `choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T` — weighted random choice
+
+**Module-level convenience functions (Python-style):**
+
+- `getstate(): ArrayList<double>` — save RNG state
+- `setstate(state: ArrayList<double>): void` — restore RNG state
+- `choices(data: ArrayList<double>, weights: ArrayList<double>, k: int): ArrayList<double>` — weighted choices with replacement
+- `sample(data: ArrayList<double>, k: int): ArrayList<double>` — sample without replacement
+- `shuffle(data: ArrayList<double>): void` — shuffle in-place
+- `triangular(low: double, high: double, mode: double): double` — module-level triangular
+- `betavariate(alpha: double, beta: double): double` — beta distribution
+- `expovariate(lambda: double): double` — exponential distribution
+- `gammavariate(alpha: double, beta: double): double` — gamma distribution
+- `lognormvariate(mu: double, sigma: double): double` — log-normal distribution
+- `normalvariate(mu: double, sigma: double): double` — normal distribution
+- `vonmisesvariate(mu: double, kappa: double): double` — von Mises distribution
+- `paretovariate(alpha: double): double` — Pareto distribution
+- `weibullvariate(alpha: double, beta: double): double` — Weibull distribution
 
 ```titrate
 let rng = new Random(42);

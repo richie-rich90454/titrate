@@ -185,6 +185,7 @@ export default defineConfig({
             { text: 'treeset', link: '/stdlib/treeset' },
             { text: 'ringdeque', link: '/stdlib/ringdeque' },
             { text: 'chainmap', link: '/stdlib/chainmap' },
+            { text: 'unionfind', link: '/stdlib/unionfind' },
           ],
         },
         {
@@ -221,6 +222,10 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'math', link: '/stdlib/math' },
+            { text: 'geometry3d', link: '/stdlib/geometry3d' },
+            { text: 'sparse-linalg', link: '/stdlib/sparse-linalg' },
+            { text: 'optimization', link: '/stdlib/optimization' },
+            { text: 'pde', link: '/stdlib/pde' },
             { text: 'bit', link: '/stdlib/bit' },
             { text: 'complex', link: '/stdlib/complex' },
             { text: 'fractions', link: '/stdlib/fractions' },
@@ -248,6 +253,7 @@ export default defineConfig({
             { text: 'ssl', link: '/stdlib/ssl' },
             { text: 'sqlite', link: '/stdlib/sqlite' },
             { text: 'thread', link: '/stdlib/thread' },
+            { text: 'finance', link: '/stdlib/finance' },
           ],
         },
         {

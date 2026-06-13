@@ -175,3 +175,75 @@ let hi = itertools.max([3, 1, 4, 1, 5].iterator());  // 5
 let list = itertools.collect(itertools.map([1, 2, 3].iterator(), fn(n: int): int => n * n));
 // ArrayList containing [1, 4, 9]
 ```
+
+## Iterator Interface Methods
+
+The `Iterator<E>` interface (from `tt.lang.Iterator`) provides additional lazy combinators and terminal operations directly on iterator instances.
+
+### takeWhile
+
+- `iter.takeWhile(predicate: fn(Variant): bool): Iterator` — yield elements while the predicate holds, then stop
+
+```titrate
+let prefix = list.iterator().takeWhile(fn(x: Variant): bool => (x as int) < 5);
+```
+
+### skipWhile
+
+- `iter.skipWhile(predicate: fn(Variant): bool): Iterator` — skip elements while the predicate holds, then yield the rest
+
+```titrate
+let suffix = list.iterator().skipWhile(fn(x: Variant): bool => (x as int) < 5);
+```
+
+### stepBy
+
+- `iter.stepBy(n: int): Iterator` — yield every n-th element (starting with the first)
+
+```titrate
+let every3rd = list.iterator().stepBy(3);
+// 1st, 4th, 7th, ...
+```
+
+### sum
+
+- `iter.sum(): double` — sum all elements (cast to double)
+
+```titrate
+let total: double = [1.0, 2.0, 3.0].iterator().sum();  // 6.0
+```
+
+### product
+
+- `iter.product(): double` — multiply all elements (cast to double)
+
+```titrate
+let prod: double = [2.0, 3.0, 4.0].iterator().product();  // 24.0
+```
+
+### position
+
+- `iter.position(predicate: fn(Variant): bool): int` — index of the first matching element, or -1
+
+```titrate
+let idx: int = list.iterator().position(fn(x: Variant): bool => (x as int) == 5);
+```
+
+### dedup
+
+- `iter.dedup(): Iterator` — remove consecutive duplicate elements
+
+```titrate
+let unique = [1, 1, 2, 2, 2, 3, 1].iterator().dedup();
+// 1, 2, 3, 1
+```
+
+### forEach
+
+- `iter.forEach(action: fn(Variant): void): void` — apply action to each remaining element
+
+```titrate
+list.iterator().forEach(fn(x: Variant): void {
+    io::println(x.toString());
+});
+```

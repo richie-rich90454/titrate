@@ -134,6 +134,22 @@ let (slope, intercept) = statistics.linearRegression([1.0, 2.0, 3.0], [2.0, 4.0,
 // slope ≈ 2.0, intercept ≈ 0.0
 ```
 
+### geometricMean
+
+- `statistics.geometricMean(data: ArrayList<double>): double` — geometric mean (n-th root of the product)
+
+```titrate
+let gm = statistics.geometricMean([1.0, 2.0, 4.0, 8.0]);  // ≈ 2.828
+```
+
+### harmonicMean
+
+- `statistics.harmonicMean(data: ArrayList<double>): double` — harmonic mean (n / Σ(1/xᵢ))
+
+```titrate
+let hm = statistics.harmonicMean([1.0, 2.0, 4.0]);  // ≈ 1.714
+```
+
 ## Summary
 
 ### describe
