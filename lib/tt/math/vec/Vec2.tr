@@ -1,5 +1,6 @@
 // Vec2 provides a 2D vector with arithmetic, geometric, and utility operations.
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::math::MathTrig;
 import tt::lang::Double;
 
@@ -39,7 +40,7 @@ public class Vec2 {
     // ---- Magnitude ----
 
     public fn magnitude(): double {
-        return Math.sqrt(this.x * this.x + this.y * this.y);
+        return MathAdvanced.sqrt(this.x * this.x + this.y * this.y);
     }
 
     public fn magnitudeSq(): double {
@@ -48,6 +49,9 @@ public class Vec2 {
 
     public fn normalize(): Vec2 {
         let m: double = this.magnitude();
+        if (m == 0.0) {
+            return new Vec2(0.0, 0.0);
+        }
         return this.scale(1.0 / m);
     }
 
