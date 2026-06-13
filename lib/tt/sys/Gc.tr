@@ -1,0 +1,46 @@
+// Gc module for garbage collector control (stub).
+// True GC control requires VM-level support.
+import tt::util::HashMap;
+
+// Module-level state
+var _enabled: bool = true;
+var _collectionCount: int = 0;
+
+// Enable automatic garbage collection.
+public fn enable(): void {
+    _enabled = true;
+}
+
+// Disable automatic garbage collection.
+public fn disable(): void {
+    _enabled = false;
+}
+
+// Request a garbage collection cycle.
+public fn collect(): void {
+    if (_enabled) {
+        Gc_collect();
+        _collectionCount = _collectionCount + 1;
+    }
+}
+
+// Returns true if GC is currently enabled.
+public fn isEnabled(): bool {
+    return _enabled;
+}
+
+// Returns statistics about the garbage collector.
+public fn getStats(): HashMap<string, int> {
+    let stats: HashMap<string, int> = new HashMap<string, int>();
+    stats.put("collections", _collectionCount);
+    stats.put("enabled", 1);
+    if (!_enabled) {
+        stats.put("enabled", 0);
+    }
+    return stats;
+}
+
+// Reset the collection counter.
+public fn resetStats(): void {
+    _collectionCount = 0;
+}
