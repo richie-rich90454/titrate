@@ -96,6 +96,22 @@ public fn shortMin(): int {
     return SHORT_MIN;
 }
 
+// Half (16-bit float) limits
+public const HALF_MAX: double = 65504.0;
+public const HALF_MIN: double = 5.960464477539063e-08;
+public const HALF_EPSILON: double = 9.765625e-04;
+
+// Quad (128-bit float) limits (approximate)
+public const QUAD_MAX: double = 1.189731495357231765e+4932;
+public const QUAD_MIN: double = 6.4751751194380251109e-4966;
+public const QUAD_EPSILON: double = 1.925929944387235853e-34;
+
+// Unsigned integer limits
+public const U8_MAX: int = 255;
+public const U16_MAX: int = 65535;
+public const U32_MAX: long = 4294967295;
+public const U64_MAX: long = 18446744073709551615;
+
 // Classification functions
 public fn isFinite(x: double): bool {
     return Double.isFinite(x);
@@ -116,4 +132,64 @@ public fn isSubnormal(x: double): bool {
 
 public fn signbit(x: double): bool {
     return x < 0.0 || (x == 0.0 && (1.0 / x) < 0.0);
+}
+
+// Half query functions
+public fn halfMax(): double {
+    return HALF_MAX;
+}
+
+public fn halfMin(): double {
+    return HALF_MIN;
+}
+
+public fn halfEpsilon(): double {
+    return HALF_EPSILON;
+}
+
+// Quad query functions
+public fn quadMax(): double {
+    return QUAD_MAX;
+}
+
+public fn quadMin(): double {
+    return QUAD_MIN;
+}
+
+public fn quadEpsilon(): double {
+    return QUAD_EPSILON;
+}
+
+// Unsigned integer query functions
+public fn u8Max(): int {
+    return U8_MAX;
+}
+
+public fn u16Max(): int {
+    return U16_MAX;
+}
+
+public fn u32Max(): long {
+    return U32_MAX;
+}
+
+public fn u64Max(): long {
+    return U64_MAX;
+}
+
+// Additional classification functions
+public fn infinity(): double {
+    return DOUBLE_INF;
+}
+
+public fn quietNaN(): double {
+    return DOUBLE_NAN;
+}
+
+public fn denormMin(): double {
+    return DOUBLE_MIN;
+}
+
+public fn lowest(): double {
+    return DOUBLE_NEG_INF;
 }
