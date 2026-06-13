@@ -1,0 +1,128 @@
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+// NDArray sequence generation: linspace, arange, logspace, geomspace, meshgrid
+
+public fn linspace(start: double, stop: double, num: int): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(num);
+    result.computeStrides();
+    if (num == 0) { return result; }
+    if (num == 1) {
+        result.data.add(start);
+        return result;
+    }
+    let step: double = (stop - start) / (num - 1);
+    var i: int = 0;
+    while (i < num) {
+        result.data.add(start + i as double * step);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn arange(start: double, stop: double, step: double): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    if (step == 0.0) {
+        result.shape.add(0);
+        result.computeStrides();
+        return result;
+    }
+    var count: int = 0;
+    var val: double = start;
+    if (step > 0.0) {
+        while (val < stop) {
+            count = count + 1;
+            val = val + step;
+        }
+    } else {
+        while (val > stop) {
+            count = count + 1;
+            val = val + step;
+        }
+    }
+    result.shape.add(count);
+    result.computeStrides();
+    val = start;
+    var i: int = 0;
+    while (i < count) {
+        result.data.add(start + i as double * step);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn logspace(start: double, stop: double, num: int, base: double): NDArray<double> {
+    let lin: NDArray<double> = linspace(start, stop, num);
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(num);
+    result.computeStrides();
+    var i: int = 0;
+    while (i < num) {
+        result.data.add(MathAdvanced.pow(base, lin.data.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn logspace(start: double, stop: double, num: int): NDArray<double> {
+    return logspace(start, stop, num, 10.0);
+}
+
+public fn geomspace(start: double, stop: double, num: int): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(num);
+    result.computeStrides();
+    if (num == 0) { return result; }
+    if (num == 1) {
+        result.data.add(start);
+        return result;
+    }
+    let logStart: double = MathAdvanced.ln(start);
+    let logStop: double = MathAdvanced.ln(stop);
+    let step: double = (logStop - logStart) / (num - 1);
+    var i: int = 0;
+    while (i < num) {
+        result.data.add(MathAdvanced.exp(logStart + i as double * step));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn meshgrid(x: NDArray<double>, y: NDArray<double>): ArrayList<NDArray<double>> {
+    let nx: int = x.data.size();
+    let ny: int = y.data.size();
+
+    let X: NDArray<double> = new NDArray<double>();
+    X.shape.add(ny);
+    X.shape.add(nx);
+    X.computeStrides();
+    var j: int = 0;
+    while (j < ny) {
+        var i: int = 0;
+        while (i < nx) {
+            X.data.add(x.data.get(i));
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+
+    let Y: NDArray<double> = new NDArray<double>();
+    Y.shape.add(ny);
+    Y.shape.add(nx);
+    Y.computeStrides();
+    j = 0;
+    while (j < ny) {
+        var i: int = 0;
+        while (i < nx) {
+            Y.data.add(y.data.get(j));
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+
+    let result: ArrayList<NDArray<double>> = new ArrayList<NDArray<double>>();
+    result.add(X);
+    result.add(Y);
+    return result;
+}
