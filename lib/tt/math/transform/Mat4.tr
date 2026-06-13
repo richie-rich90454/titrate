@@ -40,7 +40,7 @@ public class Mat4 {
 
     // ---- Element access (row-major access to column-major storage) ----
 
-    public fn get(row: int, col: double): double {
+    public fn get(row: int, col: int): double {
         // Column-major: element at (row, col) is stored at m{row}{col}
         if (col == 0.0) {
             if (row == 0) { return this.m00; }
