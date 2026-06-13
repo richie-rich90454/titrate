@@ -54,6 +54,10 @@ public class ArrayList<T> implements Iterable<T> {
         this.list.ensureCapacity(minCapacity);
     }
 
+    public fn reserve(capacity: int): void {
+        this.list.ensureCapacity(capacity);
+    }
+
     public fn trimToSize(): void {
         this.list.trimToSize();
     }
