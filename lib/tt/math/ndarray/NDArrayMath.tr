@@ -55,7 +55,7 @@ public fn norm<T>(a: NDArray<T>): double {
         s = s + v * v;
         i = i + 1;
     }
-    return Math.sqrt(s);
+    return MathAdvanced.sqrt(s);
 }
 
 // ---- Element-wise unary math functions ----
