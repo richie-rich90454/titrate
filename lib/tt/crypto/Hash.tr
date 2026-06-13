@@ -104,3 +104,29 @@ public class Hash {
         return result;
     }
 }
+
+// Incremental hasher for streaming hash computation.
+// Supports: md5, sha1, sha256, sha384, sha512, sha3-256, sha3-384, sha3-512, blake2b, blake2s
+public class Hasher {
+    private int _handle;
+
+    public fn init(algorithm: string) {
+        this._handle = Hasher_new(algorithm);
+    }
+
+    public fn update(data: string): void {
+        Hasher_update(this._handle, data);
+    }
+
+    public fn digest(): string {
+        return Hasher_digest(this._handle);
+    }
+
+    public fn hexDigest(): string {
+        return Hasher_hexDigest(this._handle);
+    }
+
+    public fn reset(): void {
+        Hasher_reset(this._handle);
+    }
+}
