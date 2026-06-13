@@ -380,3 +380,81 @@ fn isPrintable(s: string): bool {
     }
     return true;
 }
+
+// Wrap text to the specified width, breaking at word boundaries.
+fn wrap(s: string, width: int): string {
+    if (width <= 0) { return s; }
+    let words: ArrayList<string> = String.split(s, " ");
+    var result: string = "";
+    var lineLen: int = 0;
+    var i: int = 0;
+    while (i < words.size()) {
+        let word: string = words.get(i);
+        let wordLen: int = word.length();
+        if (lineLen == 0) {
+            result = result + word;
+            lineLen = wordLen;
+        } else if (lineLen + 1 + wordLen <= width) {
+            result = result + " " + word;
+            lineLen = lineLen + 1 + wordLen;
+        } else {
+            result = result + "\n" + word;
+            lineLen = wordLen;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Add a prefix to every line in s.
+fn indent(s: string, prefix: string): string {
+    var result: string = "";
+    var i: int = 0;
+    var lineStart: int = 0;
+    while (i < s.length()) {
+        let c: string = s.charAt(i);
+        if (c == "\n") {
+            result = result + prefix + String.substring(s, lineStart, i + 1);
+            lineStart = i + 1;
+        }
+        i = i + 1;
+    }
+    if (lineStart < s.length()) {
+        result = result + prefix + String.substring(s, lineStart, s.length());
+    }
+    return result;
+}
+
+// Remove common leading whitespace from all lines in s.
+fn dedent(s: string): string {
+    let lines: ArrayList<string> = String.split(s, "\n");
+    var minIndent: int = 999999;
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        if (line.length() == 0) {
+            i = i + 1;
+            continue;
+        }
+        var spaces: int = 0;
+        while (spaces < line.length()) {
+            let c: string = line.charAt(spaces);
+            if (c != " " && c != "\t") { break; }
+            spaces = spaces + 1;
+        }
+        if (spaces < minIndent) { minIndent = spaces; }
+        i = i + 1;
+    }
+    if (minIndent == 999999) { minIndent = 0; }
+    var result: string = "";
+    i = 0;
+    while (i < lines.size()) {
+        if (i > 0) { result = result + "\n"; }
+        let line: string = lines.get(i);
+        if (line.length() > 0) {
+            result = result + String.substring(line, minIndent, line.length());
+        }
+        i = i + 1;
+    }
+    return result;
+}
