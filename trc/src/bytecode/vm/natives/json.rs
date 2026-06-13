@@ -173,6 +173,24 @@ pub(crate) fn json_parse_string(input: &str) -> Result<(Value, &str), String> {
                     b'n' => result.push('\n'),
                     b'r' => result.push('\r'),
                     b't' => result.push('\t'),
+                    b'u' => {
+                        // Parse 4 hex digits for Unicode escape
+                        if i + 4 >= bytes.len() {
+                            return Err("JSON: incomplete unicode escape".to_string());
+                        }
+                        let hex: String = bytes[i+1..i+5].iter().map(|&b| b as char).collect();
+                        match u32::from_str_radix(&hex, 16) {
+                            Ok(code_point) => {
+                                if let Some(ch) = char::from_u32(code_point) {
+                                    result.push(ch);
+                                } else {
+                                    return Err("JSON: invalid unicode code point".to_string());
+                                }
+                                i += 4;
+                            }
+                            Err(_) => return Err("JSON: invalid unicode escape".to_string()),
+                        }
+                    }
                     _ => result.push(bytes[i] as char),
                 }
                 i += 1;
