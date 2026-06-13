@@ -1,4 +1,5 @@
 // IP address manipulation and validation.
+import tt::util::ArrayList;
 
 public class IpAddress {
     public string address;
@@ -122,4 +123,103 @@ public fn validate(address: string): bool {
     // Basic IPv6 validation: contains colons and hex chars
     if (String.indexOf(address, ":") < 0) { return false; }
     return String.length(address) > 0;
+}
+
+// IPv4 network/subnet representation with calculation methods.
+public class IPv4Network {
+    public string address;
+    public int prefixLen;
+
+    public fn init(address: string, prefixLen: int) {
+        this.address = address;
+        this.prefixLen = prefixLen;
+    }
+
+    public fn networkAddress(): string {
+        let ipInt: int = _ipToInt(this.address);
+        let mask: int = _prefixToMask(this.prefixLen);
+        return _intToIp(ipInt & mask);
+    }
+
+    public fn broadcastAddress(): string {
+        let ipInt: int = _ipToInt(this.address);
+        let mask: int = _prefixToMask(this.prefixLen);
+        let hostMask: int = _hostMask(this.prefixLen);
+        return _intToIp((ipInt & mask) | hostMask);
+    }
+
+    public fn netmask(): string {
+        return _intToIp(_prefixToMask(this.prefixLen));
+    }
+
+    public fn hostmask(): string {
+        return _intToIp(_hostMask(this.prefixLen));
+    }
+
+    public fn numAddresses(): int {
+        return 1 << (32 - this.prefixLen);
+    }
+
+    public fn contains(ip: string): bool {
+        let netInt: int = _ipToInt(this.networkAddress());
+        let bcastInt: int = _ipToInt(this.broadcastAddress());
+        let ipInt: int = _ipToInt(ip);
+        return ipInt >= netInt && ipInt <= bcastInt;
+    }
+
+    public fn subnets(): ArrayList<IPv4Network> {
+        let result: ArrayList<IPv4Network> = new ArrayList<IPv4Network>();
+        let newPrefix: int = this.prefixLen + 1;
+        let netInt: int = _ipToInt(this.networkAddress());
+        let halfSize: int = 1 << (32 - newPrefix);
+        result.add(new IPv4Network(_intToIp(netInt), newPrefix));
+        result.add(new IPv4Network(_intToIp(netInt + halfSize), newPrefix));
+        return result;
+    }
+
+    public fn hosts(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let netInt: int = _ipToInt(this.networkAddress());
+        let bcastInt: int = _ipToInt(this.broadcastAddress());
+        var current: int = netInt + 1;
+        while (current < bcastInt) {
+            result.add(_intToIp(current));
+            current = current + 1;
+        }
+        return result;
+    }
+
+    public fn toString(): string {
+        return this.networkAddress() + "/" + Integer.toString(this.prefixLen);
+    }
+}
+
+// Convert an IPv4 address string to a 32-bit integer.
+fn _ipToInt(ip: string): int {
+    let parts: ArrayList<string> = String.split(ip, ".");
+    let a: int = Integer.parseInt(parts.get(0));
+    let b: int = Integer.parseInt(parts.get(1));
+    let c: int = Integer.parseInt(parts.get(2));
+    let d: int = Integer.parseInt(parts.get(3));
+    return (a << 24) | (b << 16) | (c << 8) | d;
+}
+
+// Convert a 32-bit integer to an IPv4 address string.
+fn _intToIp(val: int): string {
+    let a: int = (val >> 24) & 0xFF;
+    let b: int = (val >> 16) & 0xFF;
+    let c: int = (val >> 8) & 0xFF;
+    let d: int = val & 0xFF;
+    return Integer.toString(a) + "." + Integer.toString(b) + "." + Integer.toString(c) + "." + Integer.toString(d);
+}
+
+// Convert a prefix length to a 32-bit netmask integer.
+fn _prefixToMask(prefixLen: int): int {
+    if (prefixLen == 0) { return 0; }
+    return 0xFFFFFFFF << (32 - prefixLen);
+}
+
+// Compute the host mask (inverse of netmask) for a prefix length.
+fn _hostMask(prefixLen: int): int {
+    return 0xFFFFFFFF >> prefixLen;
 }
