@@ -1,5 +1,6 @@
 import tt::util::ArrayList;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::math::ndarray::NDArraySort;
 import tt::math::ndarray::NDArrayMath;
 
@@ -58,7 +59,7 @@ public fn variance<T>(a: NDArray<T>): double {
 }
 
 public fn stddev<T>(a: NDArray<T>): double {
-    return Math.sqrt(variance(a));
+    return MathAdvanced.sqrt(variance(a));
 }
 
 public fn any<T>(a: NDArray<T>): bool {
