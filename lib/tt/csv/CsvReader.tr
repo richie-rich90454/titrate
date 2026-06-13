@@ -242,3 +242,83 @@ public class CsvReader {
         return result;
     }
 }
+
+// DictReader reads CSV rows as HashMaps (header -> value).
+public class DictReader {
+    public ArrayList<string> fieldnames;
+    public string delimiter;
+    public string quote;
+    private ArrayList<ArrayList<string>> _rows;
+    private int _pos;
+
+    public fn init(input: string, fieldnames: ArrayList<string>, delimiter: string, quote: string) {
+        this.delimiter = delimiter;
+        this.quote = quote;
+        this._pos = 0;
+        let reader: CsvReader = new CsvReader();
+        reader.setDelimiter(delimiter);
+        reader.setQuote(quote);
+        reader.setHasHeader(fieldnames == null);
+        if (fieldnames != null) {
+            this.fieldnames = fieldnames;
+            this._rows = reader.parse(input);
+        } else {
+            let allRows: ArrayList<ArrayList<string>> = reader.parse(input);
+            if (allRows.size() > 0) {
+                this.fieldnames = allRows.get(0);
+            } else {
+                this.fieldnames = new ArrayList<string>();
+            }
+            this._rows = new ArrayList<ArrayList<string>>();
+            let i: int = 1;
+            while (i < allRows.size()) {
+                this._rows.add(allRows.get(i));
+                i = i + 1;
+            }
+        }
+    }
+
+    public fn init(input: string, fieldnames: ArrayList<string>) {
+        this.init(input, fieldnames, ",", "\"");
+    }
+
+    public fn init(input: string) {
+        this.init(input, null, ",", "\"");
+    }
+
+    // Read next row as HashMap, returns null when exhausted
+    public fn readRow(): HashMap<string, string> {
+        if (this._pos >= this._rows.size()) {
+            return null;
+        }
+        let row: ArrayList<string> = this._rows.get(this._pos);
+        this._pos = this._pos + 1;
+        let map: HashMap<string, string> = new HashMap<string, string>();
+        let col: int = 0;
+        while (col < this.fieldnames.size()) {
+            let val: string = "";
+            if (col < row.size()) {
+                val = row.get(col);
+            }
+            map.put(this.fieldnames.get(col), val);
+            col = col + 1;
+        }
+        return map;
+    }
+
+    // Read all remaining rows as ArrayList of HashMaps
+    public fn readAll(): ArrayList<HashMap<string, string>> {
+        let result: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
+        var row: HashMap<string, string> = this.readRow();
+        while (row != null) {
+            result.add(row);
+            row = this.readRow();
+        }
+        return result;
+    }
+
+    // Reset reader to beginning of data
+    public fn reset(): void {
+        this._pos = 0;
+    }
+}
