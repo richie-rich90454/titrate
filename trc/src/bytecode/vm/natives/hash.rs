@@ -9,6 +9,7 @@ use sha2::{Sha256, Sha384, Sha512};
 use sha3::Sha3_256;
 use sha3::Sha3_384;
 use sha3::Sha3_512;
+use blake2::{Blake2b512, Blake2s256};
 
 pub(crate) fn native_hash_md5(args: &[Value]) -> Result<Value, String> {
     match args.first() {
@@ -103,5 +104,17 @@ pub(crate) fn native_hash_sha3_512(args: &[Value]) -> Result<Value, String> {
             Ok(Value::String(Rc::new(format!("{:x}", result))))
         }
         _ => Err("Hash_sha3_512: expected a String argument".to_string()),
+    }
+}
+
+pub(crate) fn native_hash_blake2b(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => {
+            let mut hasher = Blake2b512::new();
+            hasher.update(s.as_bytes());
+            let result = hasher.finalize();
+            Ok(Value::String(Rc::new(format!("{:x}", result))))
+        }
+        _ => Err("Hash_blake2b: expected a String argument".to_string()),
     }
 }

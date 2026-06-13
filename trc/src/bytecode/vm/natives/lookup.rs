@@ -273,6 +273,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Os_hostName" => Some(system::native_os_host_name),
         "Os_urandom" => Some(system::native_os_urandom),
         "Os_chmod" => Some(system::native_os_chmod),
+        "Os_makedirs" => Some(system::native_os_makedirs),
 
         _ => None,
     }

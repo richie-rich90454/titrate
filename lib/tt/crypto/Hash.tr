@@ -35,6 +35,10 @@ public class Hash {
         return Hash_sha3_512(input);
     }
 
+    public fn blake2b(input: string): string {
+        return Hash_blake2b(input);
+    }
+
     // NOTE: HMAC is not yet available as a VM native.
     // This is a simplified placeholder.
     public fn hmac(key: string, data: string): string {
