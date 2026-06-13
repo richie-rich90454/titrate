@@ -1,4 +1,5 @@
 import tt::util::ArrayList;
+import tt::util::ArrayListIterator;
 
 interface Iterator<E> {
     fn next(): E;
@@ -126,6 +127,106 @@ interface Iterator<E> {
             val = this.next();
         }
         return val;
+    }
+
+    fn takeWhile(predicate: fn(Variant): bool): Iterator {
+        let items: ArrayList<Variant> = new ArrayList<Variant>();
+        while (this.hasNext()) {
+            let item: Variant = this.next();
+            if (predicate(item)) {
+                items.add(item);
+            } else {
+                break;
+            }
+        }
+        return new ArrayListIterator(items);
+    }
+
+    fn skipWhile(predicate: fn(Variant): bool): Iterator {
+        let items: ArrayList<Variant> = new ArrayList<Variant>();
+        var skipping: bool = true;
+        while (this.hasNext()) {
+            let item: Variant = this.next();
+            if (skipping && predicate(item)) {
+                continue;
+            }
+            skipping = false;
+            items.add(item);
+        }
+        return new ArrayListIterator(items);
+    }
+
+    fn stepBy(n: int): Iterator {
+        let items: ArrayList<Variant> = new ArrayList<Variant>();
+        var first: bool = true;
+        while (this.hasNext()) {
+            let item: Variant = this.next();
+            if (first) {
+                items.add(item);
+                first = false;
+            } else {
+                var step: int = 1;
+                while (step < n && this.hasNext()) {
+                    this.next();
+                    step = step + 1;
+                }
+                if (this.hasNext()) {
+                    items.add(this.next());
+                }
+            }
+        }
+        return new ArrayListIterator(items);
+    }
+
+    fn forEach(action: fn(Variant): void): void {
+        while (this.hasNext()) {
+            action(this.next());
+        }
+    }
+
+    fn sum(): double {
+        var total: double = 0.0;
+        while (this.hasNext()) {
+            let item: Variant = this.next();
+            total = total + (item as double);
+        }
+        return total;
+    }
+
+    fn product(): double {
+        var result: double = 1.0;
+        while (this.hasNext()) {
+            let item: Variant = this.next();
+            result = result * (item as double);
+        }
+        return result;
+    }
+
+    fn position(predicate: fn(Variant): bool): int {
+        var idx: int = 0;
+        while (this.hasNext()) {
+            let item: Variant = this.next();
+            if (predicate(item)) {
+                return idx;
+            }
+            idx = idx + 1;
+        }
+        return -1;
+    }
+
+    fn dedup(): Iterator {
+        let items: ArrayList<Variant> = new ArrayList<Variant>();
+        var prev: Variant = null;
+        var hasPrev: bool = false;
+        while (this.hasNext()) {
+            let item: Variant = this.next();
+            if (!hasPrev || item != prev) {
+                items.add(item);
+                prev = item;
+                hasPrev = true;
+            }
+        }
+        return new ArrayListIterator(items);
     }
 }
 
