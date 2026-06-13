@@ -514,3 +514,50 @@ public fn midpoint(a: double, b: double): double {
 public fn lerp(a: double, b: double, t: double): double {
     return a + t * (b - a);
 }
+
+// ==================== Triangle helpers ====================
+
+// Law of sines: given side a, opposite angle A, and angle B, returns side b
+public fn lawOfSines(a: double, A: double, B: double): double {
+    return a * Math.sin(B) / Math.sin(A);
+}
+
+// Law of sines (angle form): given side a, opposite angle A, and side b, returns angle B
+public fn lawOfSinesAngle(a: double, A: double, b: double): double {
+    return Math.asin(b * Math.sin(A) / a);
+}
+
+// Law of cosines: given sides a, b and included angle C, returns side c
+public fn lawOfCosines(a: double, b: double, C: double): double {
+    return Math.sqrt(a * a + b * b - 2.0 * a * b * Math.cos(C));
+}
+
+// Law of cosines (angle form): given sides a, b, c, returns angle C
+public fn lawOfCosinesAngle(a: double, b: double, c: double): double {
+    return Math.acos((a * a + b * b - c * c) / (2.0 * a * b));
+}
+
+// Triangle area from two sides and included angle: 0.5 * a * b * sin(C)
+public fn triangleArea(a: double, b: double, C: double): double {
+    return 0.5 * a * b * Math.sin(C);
+}
+
+// Triangle area using Heron's formula: sqrt(s*(s-a)*(s-b)*(s-c)) where s=(a+b+c)/2
+public fn triangleAreaHeron(a: double, b: double, c: double): double {
+    let s: double = (a + b + c) / 2.0;
+    return Math.sqrt(s * (s - a) * (s - b) * (s - c));
+}
+
+// Incircle radius: area / s where s = (a+b+c)/2
+public fn triangleIncircleRadius(a: double, b: double, c: double): double {
+    let s: double = (a + b + c) / 2.0;
+    let area: double = Math.sqrt(s * (s - a) * (s - b) * (s - c));
+    return area / s;
+}
+
+// Circumcircle radius: a*b*c / (4*area)
+public fn triangleCircumcircleRadius(a: double, b: double, c: double): double {
+    let s: double = (a + b + c) / 2.0;
+    let area: double = Math.sqrt(s * (s - a) * (s - b) * (s - c));
+    return a * b * c / (4.0 * area);
+}
