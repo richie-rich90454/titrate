@@ -192,3 +192,72 @@ public fn fftPhase(re: ArrayList<double>, im: ArrayList<double>): ArrayList<doub
     }
     return phase;
 }
+
+// Frequency bins for FFT output.
+// Returns frequencies [0, sr/n, 2*sr/n, ..., -sr/2, ...] (FFT-ordered).
+public fn fftFreq(n: int, sampleRate: double): ArrayList<double> {
+    let freqs: ArrayList<double> = new ArrayList<double>();
+    let halfN: int = n / 2;
+    var i: int = 0;
+    while (i < n) {
+        if (i <= halfN) {
+            freqs.add((i as double) * sampleRate / (n as double));
+        } else {
+            freqs.add(((i - n) as double) * sampleRate / (n as double));
+        }
+        i = i + 1;
+    }
+    return freqs;
+}
+
+// Hann window: 0.5 * (1 - cos(2*pi*i/(n-1)))
+public fn windowHann(n: int): ArrayList<double> {
+    let w: ArrayList<double> = new ArrayList<double>();
+    if (n <= 0) { return w; }
+    if (n == 1) {
+        w.add(1.0);
+        return w;
+    }
+    var i: int = 0;
+    while (i < n) {
+        let val: double = 0.5 * (1.0 - MathTrig.cos(2.0 * Math.PI() * (i as double) / ((n - 1) as double)));
+        w.add(val);
+        i = i + 1;
+    }
+    return w;
+}
+
+// Hamming window: 0.54 - 0.46 * cos(2*pi*i/(n-1))
+public fn windowHamming(n: int): ArrayList<double> {
+    let w: ArrayList<double> = new ArrayList<double>();
+    if (n <= 0) { return w; }
+    if (n == 1) {
+        w.add(0.54);
+        return w;
+    }
+    var i: int = 0;
+    while (i < n) {
+        let val: double = 0.54 - 0.46 * MathTrig.cos(2.0 * Math.PI() * (i as double) / ((n - 1) as double));
+        w.add(val);
+        i = i + 1;
+    }
+    return w;
+}
+
+// Blackman window: 0.42 - 0.5*cos(2*pi*i/(n-1)) + 0.08*cos(4*pi*i/(n-1))
+public fn windowBlackman(n: int): ArrayList<double> {
+    let w: ArrayList<double> = new ArrayList<double>();
+    if (n <= 0) { return w; }
+    if (n == 1) {
+        w.add(0.42);
+        return w;
+    }
+    var i: int = 0;
+    while (i < n) {
+        let denom: double = ((n - 1) as double);
+        let val: double = 0.42 - 0.5 * MathTrig.cos(2.0 * Math.PI() * (i as double) / denom) + 0.08 * MathTrig.cos(4.0 * Math.PI() * (i as double) / denom);
+        w.add(val);
+        i = i + 1;
+    }
+    return w;
+}
