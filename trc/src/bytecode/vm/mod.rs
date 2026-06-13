@@ -219,6 +219,7 @@ impl Vm {
         vm.register_native("Hash_sha3_384", natives::hash::native_hash_sha3_384);
         vm.register_native("Hash_sha3_512", natives::hash::native_hash_sha3_512);
         vm.register_native("Hash_blake2b", natives::hash::native_hash_blake2b);
+        vm.register_native("Hash_blake2s", natives::hash::native_hash_blake2s);
 
         // Base64 natives
         vm.register_native("Base64_encode", natives::encoding::native_base64_encode);

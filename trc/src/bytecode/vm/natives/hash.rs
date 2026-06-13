@@ -118,3 +118,15 @@ pub(crate) fn native_hash_blake2b(args: &[Value]) -> Result<Value, String> {
         _ => Err("Hash_blake2b: expected a String argument".to_string()),
     }
 }
+
+pub(crate) fn native_hash_blake2s(args: &[Value]) -> Result<Value, String> {
+    match args.first() {
+        Some(Value::String(s)) => {
+            let mut hasher = Blake2s256::new();
+            hasher.update(s.as_bytes());
+            let result = hasher.finalize();
+            Ok(Value::String(Rc::new(format!("{:x}", result))))
+        }
+        _ => Err("Hash_blake2s: expected a String argument".to_string()),
+    }
+}

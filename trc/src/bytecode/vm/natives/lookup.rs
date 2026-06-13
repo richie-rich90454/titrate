@@ -275,6 +275,8 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Os_urandom" => Some(system::native_os_urandom),
         "Os_chmod" => Some(system::native_os_chmod),
         "Os_makedirs" => Some(system::native_os_makedirs),
+        "Os_symlink" => Some(system::native_os_symlink),
+        "Os_readlink" => Some(system::native_os_readlink),
 
         _ => None,
     }
