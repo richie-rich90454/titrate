@@ -35,3 +35,81 @@ fn getTempDir(): string {
     // Fallback
     return "/tmp";
 }
+
+// NamedTempFile provides a temporary file with a visible name that can be
+// opened, written to, read from, and explicitly deleted.
+public class NamedTempFile {
+    public string name;
+    public string path;
+
+    public fn init(prefix: string, suffix: string, dir: string) {
+        let baseDir: string = dir;
+        if (String.length(baseDir) == 0) {
+            baseDir = getTempDir();
+        }
+        let randomHex: string = Os_urandom(8);
+        this.name = prefix + randomHex + suffix;
+        this.path = Path_join(baseDir, this.name);
+        // Create the file
+        File_write(this.path, "");
+    }
+
+    // Write data to the temporary file.
+    public fn write(data: string): void {
+        File_append(this.path, data);
+    }
+
+    // Read the entire contents of the temporary file.
+    public fn read(): string {
+        return File_read(this.path);
+    }
+
+    // Close the temporary file (no-op in this implementation, kept for API parity).
+    public fn close(): void {
+        // No-op: file handles are not tracked in this implementation
+    }
+
+    // Delete the temporary file from disk.
+    public fn delete(): void {
+        File_delete(this.path);
+    }
+
+    public fn toString(): string {
+        return "NamedTempFile(" + this.path + ")";
+    }
+}
+
+// TempDirectory provides a temporary directory that can be cleaned up.
+public class TempDirectory {
+    public string path;
+
+    public fn init(prefix: string) {
+        let baseDir: string = getTempDir();
+        let randomHex: string = Os_urandom(8);
+        let dirName: string = prefix + randomHex;
+        this.path = Path_join(baseDir, dirName);
+        Dir_create(this.path);
+    }
+
+    // Remove the temporary directory and all its contents.
+    public fn cleanup(): void {
+        Dir_deleteTree(this.path);
+    }
+}
+
+// Create a named temporary file and return its path.
+public fn mkstemp(prefix: string, suffix: string, dir: string): string {
+    let f: NamedTempFile = new NamedTempFile(prefix, suffix, dir);
+    return f.path;
+}
+
+// Create a temporary directory and return its path.
+public fn mkdtemp(prefix: string): string {
+    let d: TempDirectory = new TempDirectory(prefix);
+    return d.path;
+}
+
+// Get the system's temporary directory path (alternate name for API parity).
+public fn getTempDirB(): string {
+    return getTempDir();
+}
