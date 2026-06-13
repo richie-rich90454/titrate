@@ -258,6 +258,7 @@ impl Vm {
         vm.register_native("Time_dayOfYear", natives::time::native_time_day_of_year);
         vm.register_native("Time_monotonic", natives::time::native_time_monotonic);
         vm.register_native("Time_perfCounter", natives::time::native_time_perf_counter);
+        vm.register_native("Time_epochSeconds", natives::time::native_time_epoch_seconds);
 
         // Double and Long parsing natives
         vm.register_native("Double_parseDouble", natives::builtins::native_double_parse_double);

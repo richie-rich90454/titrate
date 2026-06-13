@@ -146,3 +146,13 @@ pub(crate) fn native_time_perf_counter(args: &[Value]) -> Result<Value, String> 
     let ns = start.elapsed().as_nanos() as i64;
     Ok(Value::Long(ns))
 }
+
+pub(crate) fn native_time_epoch_seconds(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Return Unix timestamp as double with sub-second precision
+    let duration = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| format!("Time_epochSeconds: {}", e))?;
+    let secs = duration.as_secs() as f64 + duration.subsec_nanos() as f64 / 1_000_000_000.0;
+    Ok(Value::Double(secs))
+}

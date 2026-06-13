@@ -46,3 +46,8 @@ fn monotonic(): long {
 fn perfCounter(): long {
     return Time_perfCounter();
 }
+
+// Unix timestamp as double with sub-second precision
+fn epochSeconds(): double {
+    return Time_epochSeconds();
+}
