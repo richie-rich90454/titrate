@@ -342,9 +342,13 @@ public fn eig(m: Matrix): ArrayList<Variant> {
         let lambda: double = evals.get(idx);
         // Form (A - lambda*I)
         let shifted: Matrix = m.clone();
-        shifted.data.set2D(idx, idx, shifted.data.get2D(idx, idx) - lambda);
+        var ii: int = 0;
+        while (ii < n) {
+            shifted.data.set2D(ii, ii, shifted.data.get2D(ii, ii) - lambda);
+            ii = ii + 1;
+        }
         // Small shift to avoid singularity
-        shifted.data.set2D(idx, idx, shifted.data.get2D(idx, idx) + 1e-10);
+        shifted.data.set2D(0, 0, shifted.data.get2D(0, 0) + 1e-10);
         // Solve (A - lambda*I + eps*I) * v = e_idx via Gaussian elimination
         let b: Matrix = new Matrix(n, 1);
         b.data.set2D(idx, 0, 1.0);
