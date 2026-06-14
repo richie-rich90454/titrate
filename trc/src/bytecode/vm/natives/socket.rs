@@ -469,15 +469,66 @@ pub(crate) fn native_socket_get_addr_info(args: &[Value]) -> Result<Value, Strin
 // ---------------------------------------------------------------------------
 
 pub(crate) fn native_socket_inet_pton(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
-    // Stub: return empty string (IP address packing not yet implemented)
-    Ok(Value::String(std::rc::Rc::new("".to_string())))
+    let ip_str = match args.first() {
+        Some(Value::String(s)) => s.as_str().to_string(),
+        _ => return Err("Socket_inetPton: expected a String IP address".to_string()),
+    };
+    use std::net::IpAddr;
+    use std::str::FromStr;
+    match IpAddr::from_str(&ip_str) {
+        Ok(IpAddr::V4(v4)) => {
+            let octets = v4.octets();
+            Ok(Value::String(std::rc::Rc::new(
+                octets.iter().map(|&b| b as char).collect::<String>()
+            )))
+        }
+        Ok(IpAddr::V6(v6)) => {
+            let octets = v6.octets();
+            Ok(Value::String(std::rc::Rc::new(
+                octets.iter().map(|&b| b as char).collect::<String>()
+            )))
+        }
+        Err(_) => Ok(Value::String(std::rc::Rc::new("".to_string()))),
+    }
 }
 
 pub(crate) fn native_socket_inet_ntop(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
-    // Stub: return empty string
-    Ok(Value::String(std::rc::Rc::new("".to_string())))
+    if args.len() < 2 {
+        return Err("Socket_inetNtop: expected 2 arguments (family, packed)".to_string());
+    }
+    let family = match &args[0] {
+        Value::Int(f) => *f,
+        Value::Long(f) => *f as i32,
+        _ => return Err("Socket_inetNtop: family must be an Int (2=AF_INET, 10=AF_INET6)".to_string()),
+    };
+    let packed = match &args[1] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Socket_inetNtop: packed must be a String".to_string()),
+    };
+    use std::net::{Ipv4Addr, Ipv6Addr};
+    match family {
+        2 => {
+            // AF_INET — need exactly 4 bytes
+            let bytes = packed.as_bytes();
+            if bytes.len() < 4 {
+                return Ok(Value::String(std::rc::Rc::new("".to_string())));
+            }
+            let addr = Ipv4Addr::new(bytes[0], bytes[1], bytes[2], bytes[3]);
+            Ok(Value::String(std::rc::Rc::new(addr.to_string())))
+        }
+        10 => {
+            // AF_INET6 — need exactly 16 bytes
+            let bytes = packed.as_bytes();
+            if bytes.len() < 16 {
+                return Ok(Value::String(std::rc::Rc::new("".to_string())));
+            }
+            let mut octets = [0u8; 16];
+            octets.copy_from_slice(&bytes[..16]);
+            let addr = Ipv6Addr::from(octets);
+            Ok(Value::String(std::rc::Rc::new(addr.to_string())))
+        }
+        _ => Err(format!("Socket_inetNtop: unsupported address family {}", family)),
+    }
 }
 
 pub(crate) fn native_socket_create_connection(args: &[Value]) -> Result<Value, String> {

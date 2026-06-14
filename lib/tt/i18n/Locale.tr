@@ -95,8 +95,8 @@ public class Locale {
 
 // Get the default locale.
 public fn defaultLocale(): Locale {
-    let lang: string = Os_getEnv("LANG");
-    let lcAll: string = Os_getEnv("LC_ALL");
+    let lang: string = Os_getenv("LANG");
+    let lcAll: string = Os_getenv("LC_ALL");
     let localeStr: string = lcAll;
     if (String.length(localeStr) == 0) {
         localeStr = lang;

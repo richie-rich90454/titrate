@@ -47,6 +47,19 @@ pub(crate) fn native_dir_remove(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+pub(crate) fn native_dir_remove_tree(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Dir_removeTree: expected 1 argument (path)".to_string());
+    }
+    match &args[0] {
+        Value::String(path) => match std::fs::remove_dir_all(path.as_str()) {
+            Ok(()) => Ok(Value::Bool(true)),
+            Err(_) => Ok(Value::Bool(false)),
+        },
+        _ => Err("Dir_removeTree: expected String argument".to_string()),
+    }
+}
+
 pub(crate) fn native_dir_walk(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Dir_walk: expected 1 argument (path)".to_string());

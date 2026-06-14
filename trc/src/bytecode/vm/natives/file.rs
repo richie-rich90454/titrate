@@ -452,3 +452,17 @@ pub(crate) fn native_file_copy(args: &[Value]) -> Result<Value, String> {
         ))))),
     }
 }
+
+pub(crate) fn native_file_delete(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("File_delete: expected 1 argument (path)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_delete: expected String argument".to_string()),
+    };
+    match std::fs::remove_file(&path) {
+        Ok(()) => Ok(Value::Bool(true)),
+        Err(_) => Ok(Value::Bool(false)),
+    }
+}

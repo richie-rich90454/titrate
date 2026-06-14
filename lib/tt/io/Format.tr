@@ -135,7 +135,7 @@ fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign:
     } else if (spec == "c") {
         // Character from integer code point
         let val: int = arg as int;
-        result = String.charAt(val as string, 0);
+        result = String.fromCharCode(val);
     } else if (spec == "e") {
         // Scientific notation
         let val: double = arg as double;

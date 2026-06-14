@@ -1,4 +1,4 @@
-﻿// Hex encoding and decoding backed by native implementations.
+// Hex encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 
 public class Hex {
@@ -52,13 +52,13 @@ public class Hex {
 
     private fn _hexVal(c: string): int {
         if (c >= "0" && c <= "9") {
-            return String.charAt(c, 0).charAt(0) - "0".charAt(0);
+            return (String.charAt(c, 0) as int) - (String.charAt("0", 0) as int);
         }
         if (c >= "a" && c <= "f") {
-            return String.charAt(c, 0).charAt(0) - "a".charAt(0) + 10;
+            return (String.charAt(c, 0) as int) - (String.charAt("a", 0) as int) + 10;
         }
         if (c >= "A" && c <= "F") {
-            return String.charAt(c, 0).charAt(0) - "A".charAt(0) + 10;
+            return (String.charAt(c, 0) as int) - (String.charAt("A", 0) as int) + 10;
         }
         return 0;
     }

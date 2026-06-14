@@ -68,13 +68,13 @@ public fn toHexString(d: double): string {
         var digit: int = val as int;
         if (digit < 0) { digit = 0; }
         if (digit > 15) { digit = 15; }
-        mantissa = mantissa + hexChars.charAt(digit);
+        mantissa = mantissa + String_charAt(hexChars, digit);
         val = val - (digit as double);
         i = i + 1;
     }
     // Trim trailing zeros
-    while (mantissa.length() > 1 && mantissa.charAt(mantissa.length() - 1) == "0") {
-        mantissa = String.substring(mantissa, 0, mantissa.length() - 1);
+    while (String_length(mantissa) > 1 && String_charAt(mantissa, String_length(mantissa) - 1) == "0") {
+        mantissa = String.substring(mantissa, 0, String_length(mantissa) - 1);
     }
     return sign + "0x1." + mantissa + "p" + Integer.toString(exp);
 }

@@ -394,15 +394,8 @@ pub(crate) fn native_os_umask(args: &[Value]) -> Result<Value, String> {
 
     #[cfg(unix)]
     {
-        // On Unix, use the umask shell command to set and retrieve the old mask
-        // since we don't have libc as a dependency
-        let output = std::process::Command::new("sh")
-            .args(["-c", &format!("umask {:o}", mask)])
-            .output();
-        match output {
-            Ok(_) => Ok(Value::Long(mask as i64)),
-            Err(e) => Err(format!("Os_umask: {}", e)),
-        }
+        let old_mask = unsafe { libc::umask(mask as libc::mode_t) };
+        Ok(Value::Long(old_mask as i64))
     }
 
     #[cfg(not(unix))]
@@ -568,14 +561,16 @@ pub(crate) fn native_os_utime(args: &[Value]) -> Result<Value, String> {
         Some(Value::String(s)) => s.as_str(),
         _ => return Err("Os_utime: expected a String path".to_string()),
     };
-    let _time = match args.get(1) {
-        Some(Value::Double(t)) => *t as f64,
-        _ => std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs_f64(),
+    let mtime_secs = match args.get(2) {
+        Some(Value::Long(t)) => *t,
+        Some(Value::Int(t)) => *t as i64,
+        _ => return Err("Os_utime: expected mtime as Long (seconds since epoch)".to_string()),
     };
-    let _ = (path, _time); // Stub: use filetime crate in production
+    let mtime = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(mtime_secs as u64);
+    let file = std::fs::File::open(path)
+        .map_err(|e| format!("Os_utime: cannot open '{}': {}", path, e))?;
+    file.set_modified(mtime)
+        .map_err(|e| format!("Os_utime: cannot set mtime on '{}': {}", path, e))?;
     Ok(Value::Void)
 }
 
@@ -609,10 +604,14 @@ pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
     };
     let p = std::path::Path::new(path);
     let result = match mode {
-        0 => p.exists(),        // F_OK
-        1 => p.exists(),        // X_OK (simplified)
-        2 => p.exists(),        // W_OK (simplified)
-        4 => p.exists(),        // R_OK (simplified)
+        0 => p.exists(), // F_OK
+        1 => p.exists(), // X_OK (simplified)
+        2 => { // W_OK — try opening for append
+            std::fs::OpenOptions::new().append(true).open(p).is_ok()
+        }
+        4 => { // R_OK — try opening for read
+            std::fs::File::open(p).is_ok()
+        }
         _ => p.exists(),
     };
     Ok(Value::Bool(result))

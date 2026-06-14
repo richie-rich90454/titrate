@@ -6,7 +6,7 @@ public fn fromCharCode(code: int): string {
 }
 
 public fn length(s: string): int {
-    return s.length();
+    return String_length(s);
 }
 
 public fn concat(a: string, b: string): string {
@@ -30,14 +30,14 @@ public fn replace(s: string, target: string, replacement: string): string {
 }
 
 public fn isEmpty(s: string): bool {
-    return s.length() == 0;
+    return String_length(s) == 0;
 }
 
 public fn isBlank(s: string): bool {
-    let len: int = s.length();
+    let len: int = String_length(s);
     var i: int = 0;
     while (i < len) {
-        let c: string = s.charAt(i);
+        let c: string = String_charAt(s, i);
         if (c != " " && c != "\t" && c != "\n" && c != "\r") {
             return false;
         }
@@ -58,9 +58,9 @@ public fn repeat(s: string, count: int): string {
 
 public fn reverse(s: string): string {
     var result: string = "";
-    var i: int = s.length() - 1;
+    var i: int = String_length(s) - 1;
     while (i >= 0) {
-        result = result + s.charAt(i);
+        result = result + String_charAt(s, i);
         i = i - 1;
     }
     return result;
@@ -69,8 +69,8 @@ public fn reverse(s: string): string {
 public fn toCharArray(s: string): ArrayList<string> {
     let chars: ArrayList<string> = new ArrayList<string>();
     var i: int = 0;
-    while (i < s.length()) {
-        chars.add(s.charAt(i));
+    while (i < String_length(s)) {
+        chars.add(String_charAt(s, i));
         i = i + 1;
     }
     return chars;
@@ -79,16 +79,16 @@ public fn toCharArray(s: string): ArrayList<string> {
 public fn substring(s: string, start: int, end: int): string {
     var result: string = "";
     var i: int = start;
-    while (i < end && i < s.length()) {
-        result = result + s.charAt(i);
+    while (i < end && i < String_length(s)) {
+        result = result + String_charAt(s, i);
         i = i + 1;
     }
     return result;
 }
 
 public fn indexOf(s: string, sub: string): int {
-    let sLen: int = s.length();
-    let subLen: int = sub.length();
+    let sLen: int = String_length(s);
+    let subLen: int = String_length(sub);
     if (subLen == 0) { return 0; }
     if (subLen > sLen) { return -1; }
     var i: int = 0;
@@ -96,7 +96,7 @@ public fn indexOf(s: string, sub: string): int {
         var match: bool = true;
         var j: int = 0;
         while (j < subLen) {
-            if (s.charAt(i + j) != sub.charAt(j)) {
+            if (String_charAt(s, i + j) != String_charAt(sub, j)) {
                 match = false;
             }
             j = j + 1;
@@ -108,8 +108,8 @@ public fn indexOf(s: string, sub: string): int {
 }
 
 public fn lastIndexOf(s: string, sub: string): int {
-    let sLen: int = s.length();
-    let subLen: int = sub.length();
+    let sLen: int = String_length(s);
+    let subLen: int = String_length(sub);
     if (subLen == 0) { return sLen; }
     if (subLen > sLen) { return -1; }
     var i: int = sLen - subLen;
@@ -117,7 +117,7 @@ public fn lastIndexOf(s: string, sub: string): int {
         var match: bool = true;
         var j: int = 0;
         while (j < subLen) {
-            if (s.charAt(i + j) != sub.charAt(j)) {
+            if (String_charAt(s, i + j) != String_charAt(sub, j)) {
                 match = false;
             }
             j = j + 1;
@@ -129,22 +129,22 @@ public fn lastIndexOf(s: string, sub: string): int {
 }
 
 public fn startsWith(s: string, prefix: string): bool {
-    if (prefix.length() > s.length()) { return false; }
+    if (String_length(prefix) > String_length(s)) { return false; }
     var i: int = 0;
-    while (i < prefix.length()) {
-        if (s.charAt(i) != prefix.charAt(i)) { return false; }
+    while (i < String_length(prefix)) {
+        if (String_charAt(s, i) != String_charAt(prefix, i)) { return false; }
         i = i + 1;
     }
     return true;
 }
 
 public fn endsWith(s: string, suffix: string): bool {
-    let sLen: int = s.length();
-    let sufLen: int = suffix.length();
+    let sLen: int = String_length(s);
+    let sufLen: int = String_length(suffix);
     if (sufLen > sLen) { return false; }
     var i: int = 0;
     while (i < sufLen) {
-        if (s.charAt(sLen - sufLen + i) != suffix.charAt(i)) { return false; }
+        if (String_charAt(s, sLen - sufLen + i) != String_charAt(suffix, i)) { return false; }
         i = i + 1;
     }
     return true;
@@ -152,14 +152,14 @@ public fn endsWith(s: string, suffix: string): bool {
 
 public fn trim(s: string): string {
     var start: int = 0;
-    var end: int = s.length();
+    var end: int = String_length(s);
     while (start < end) {
-        let c: string = s.charAt(start);
+        let c: string = String_charAt(s, start);
         if (c != " " && c != "\t" && c != "\n" && c != "\r") { break; }
         start = start + 1;
     }
     while (end > start) {
-        let c: string = s.charAt(end - 1);
+        let c: string = String_charAt(s, end - 1);
         if (c != " " && c != "\t" && c != "\n" && c != "\r") { break; }
         end = end - 1;
     }
@@ -168,10 +168,10 @@ public fn trim(s: string): string {
 
 public fn split(s: string, delim: string): ArrayList<string> {
     let parts: ArrayList<string> = new ArrayList<string>();
-    if (delim.length() == 0) {
+    if (String_length(delim) == 0) {
         var i: int = 0;
-        while (i < s.length()) {
-            parts.add(s.charAt(i));
+        while (i < String_length(s)) {
+            parts.add(String_charAt(s, i));
             i = i + 1;
         }
         return parts;
@@ -180,11 +180,11 @@ public fn split(s: string, delim: string): ArrayList<string> {
     var idx: int = String.indexOf(s, delim);
     while (idx >= 0) {
         parts.add(String.substring(s, start, idx));
-        start = idx + delim.length();
-        idx = String.indexOf(String.substring(s, start, s.length()), delim);
+        start = idx + String_length(delim);
+        idx = String.indexOf(String.substring(s, start, String_length(s)), delim);
         if (idx >= 0) { idx = idx + start; }
     }
-    parts.add(String.substring(s, start, s.length()));
+    parts.add(String.substring(s, start, String_length(s)));
     return parts;
 }
 
@@ -203,15 +203,15 @@ public fn format(template: string, args: ArrayList<string>): string {
     var result: string = "";
     var argIdx: int = 0;
     var i: int = 0;
-    while (i < template.length()) {
-        if (i + 1 < template.length() && template.charAt(i) == "{" && template.charAt(i + 1) == "}") {
+    while (i < String_length(template)) {
+        if (i + 1 < String_length(template) && String_charAt(template, i) == "{" && String_charAt(template, i + 1) == "}") {
             if (argIdx < args.size()) {
                 result = result + args.get(argIdx);
                 argIdx = argIdx + 1;
             }
             i = i + 2;
         } else {
-            result = result + template.charAt(i);
+            result = result + String_charAt(template, i);
             i = i + 1;
         }
     }
@@ -223,27 +223,27 @@ public fn contains(s: string, sub: string): bool {
 }
 
 public fn compareTo(a: string, b: string): int {
-    var minLen: int = a.length();
-    if (b.length() < minLen) { minLen = b.length(); }
+    var minLen: int = String_length(a);
+    if (String_length(b) < minLen) { minLen = String_length(b); }
     var i: int = 0;
     while (i < minLen) {
-        if (a.charAt(i) < b.charAt(i)) { return -1; }
-        if (a.charAt(i) > b.charAt(i)) { return 1; }
+        if (String_charAt(a, i) < String_charAt(b, i)) { return -1; }
+        if (String_charAt(a, i) > String_charAt(b, i)) { return 1; }
         i = i + 1;
     }
-    if (a.length() < b.length()) { return -1; }
-    if (a.length() > b.length()) { return 1; }
+    if (String_length(a) < String_length(b)) { return -1; }
+    if (String_length(a) > String_length(b)) { return 1; }
     return 0;
 }
 
 // Find the first character in s that is also in chars. Returns index or -1.
 public fn findFirstOf(s: string, chars: string): int {
     var i: int = 0;
-    while (i < s.length()) {
-        let c: string = s.charAt(i);
+    while (i < String_length(s)) {
+        let c: string = String_charAt(s, i);
         var j: int = 0;
-        while (j < chars.length()) {
-            if (c == chars.charAt(j)) { return i; }
+        while (j < String_length(chars)) {
+            if (c == String_charAt(chars, j)) { return i; }
             j = j + 1;
         }
         i = i + 1;
@@ -253,12 +253,12 @@ public fn findFirstOf(s: string, chars: string): int {
 
 // Find the last character in s that is also in chars. Returns index or -1.
 public fn findLastOf(s: string, chars: string): int {
-    var i: int = s.length() - 1;
+    var i: int = String_length(s) - 1;
     while (i >= 0) {
-        let c: string = s.charAt(i);
+        let c: string = String_charAt(s, i);
         var j: int = 0;
-        while (j < chars.length()) {
-            if (c == chars.charAt(j)) { return i; }
+        while (j < String_length(chars)) {
+            if (c == String_charAt(chars, j)) { return i; }
             j = j + 1;
         }
         i = i - 1;
@@ -269,12 +269,12 @@ public fn findLastOf(s: string, chars: string): int {
 // Find the first character in s that is NOT in chars. Returns index or -1.
 public fn findFirstNotOf(s: string, chars: string): int {
     var i: int = 0;
-    while (i < s.length()) {
-        let c: string = s.charAt(i);
+    while (i < String_length(s)) {
+        let c: string = String_charAt(s, i);
         var found: bool = false;
         var j: int = 0;
-        while (j < chars.length()) {
-            if (c == chars.charAt(j)) {
+        while (j < String_length(chars)) {
+            if (c == String_charAt(chars, j)) {
                 found = true;
             }
             j = j + 1;
@@ -287,13 +287,13 @@ public fn findFirstNotOf(s: string, chars: string): int {
 
 // Find the last character in s that is NOT in chars. Returns index or -1.
 public fn findLastNotOf(s: string, chars: string): int {
-    var i: int = s.length() - 1;
+    var i: int = String_length(s) - 1;
     while (i >= 0) {
-        let c: string = s.charAt(i);
+        let c: string = String_charAt(s, i);
         var found: bool = false;
         var j: int = 0;
-        while (j < chars.length()) {
-            if (c == chars.charAt(j)) {
+        while (j < String_length(chars)) {
+            if (c == String_charAt(chars, j)) {
                 found = true;
             }
             j = j + 1;
@@ -306,14 +306,14 @@ public fn findLastNotOf(s: string, chars: string): int {
 
 // Count non-overlapping occurrences of substr in s.
 public fn count(s: string, substr: string): int {
-    if (substr.length() == 0) { return 0; }
+    if (String_length(substr) == 0) { return 0; }
     var result: int = 0;
     var start: int = 0;
     var idx: int = String.indexOf(s, substr);
     while (idx >= 0) {
         result = result + 1;
-        start = idx + substr.length();
-        let remaining: string = String.substring(s, start, s.length());
+        start = idx + String_length(substr);
+        let remaining: string = String.substring(s, start, String_length(s));
         let nextIdx: int = String.indexOf(remaining, substr);
         if (nextIdx >= 0) {
             idx = start + nextIdx;
@@ -326,8 +326,8 @@ public fn count(s: string, substr: string): int {
 
 // Reverse substring search: find the last occurrence of substr in s. Returns index or -1.
 public fn rfind(s: string, substr: string): int {
-    let sLen: int = s.length();
-    let subLen: int = substr.length();
+    let sLen: int = String_length(s);
+    let subLen: int = String_length(substr);
     if (subLen == 0) { return sLen; }
     if (subLen > sLen) { return -1; }
     var i: int = sLen - subLen;
@@ -335,7 +335,7 @@ public fn rfind(s: string, substr: string): int {
         var match: bool = true;
         var j: int = 0;
         while (j < subLen) {
-            if (s.charAt(i + j) != substr.charAt(j)) {
+            if (String_charAt(s, i + j) != String_charAt(substr, j)) {
                 match = false;
             }
             j = j + 1;
@@ -349,7 +349,7 @@ public fn rfind(s: string, substr: string): int {
 // Pad string on the left with char until it reaches the specified width.
 public fn padLeft(s: string, width: int, ch: string): string {
     var result: string = s;
-    while (result.length() < width) {
+    while (String_length(result) < width) {
         result = ch + result;
     }
     return result;
@@ -358,7 +358,7 @@ public fn padLeft(s: string, width: int, ch: string): string {
 // Pad string on the right with char until it reaches the specified width.
 public fn padRight(s: string, width: int, ch: string): string {
     var result: string = s;
-    while (result.length() < width) {
+    while (String_length(result) < width) {
         result = result + ch;
     }
     return result;
@@ -367,8 +367,8 @@ public fn padRight(s: string, width: int, ch: string): string {
 // Check if all characters in s are ASCII (code points 0-127).
 public fn isAscii(s: string): bool {
     var i: int = 0;
-    while (i < s.length()) {
-        let code: int = s.charAt(i) as int;
+    while (i < String_length(s)) {
+        let code: int = String_charAt(s, i) as int;
         if (code > 127) { return false; }
         i = i + 1;
     }
@@ -378,8 +378,8 @@ public fn isAscii(s: string): bool {
 // Check if all characters in s are printable (no control characters).
 public fn isPrintable(s: string): bool {
     var i: int = 0;
-    while (i < s.length()) {
-        let code: int = s.charAt(i) as int;
+    while (i < String_length(s)) {
+        let code: int = String_charAt(s, i) as int;
         if (code < 32 || code == 127) { return false; }
         i = i + 1;
     }
@@ -395,7 +395,7 @@ public fn wrap(s: string, width: int): string {
     var i: int = 0;
     while (i < words.size()) {
         let word: string = words.get(i);
-        let wordLen: int = word.length();
+        let wordLen: int = String_length(word);
         if (lineLen == 0) {
             result = result + word;
             lineLen = wordLen;
@@ -416,16 +416,16 @@ public fn indent(s: string, prefix: string): string {
     var result: string = "";
     var i: int = 0;
     var lineStart: int = 0;
-    while (i < s.length()) {
-        let c: string = s.charAt(i);
+    while (i < String_length(s)) {
+        let c: string = String_charAt(s, i);
         if (c == "\n") {
             result = result + prefix + String.substring(s, lineStart, i + 1);
             lineStart = i + 1;
         }
         i = i + 1;
     }
-    if (lineStart < s.length()) {
-        result = result + prefix + String.substring(s, lineStart, s.length());
+    if (lineStart < String_length(s)) {
+        result = result + prefix + String.substring(s, lineStart, String_length(s));
     }
     return result;
 }
@@ -437,13 +437,13 @@ public fn dedent(s: string): string {
     var i: int = 0;
     while (i < lines.size()) {
         let line: string = lines.get(i);
-        if (line.length() == 0) {
+        if (String_length(line) == 0) {
             i = i + 1;
             continue;
         }
         var spaces: int = 0;
-        while (spaces < line.length()) {
-            let c: string = line.charAt(spaces);
+        while (spaces < String_length(line)) {
+            let c: string = String_charAt(line, spaces);
             if (c != " " && c != "\t") { break; }
             spaces = spaces + 1;
         }
@@ -456,8 +456,8 @@ public fn dedent(s: string): string {
     while (i < lines.size()) {
         if (i > 0) { result = result + "\n"; }
         let line: string = lines.get(i);
-        if (line.length() > 0) {
-            result = result + String.substring(line, minIndent, line.length());
+        if (String_length(line) > 0) {
+            result = result + String.substring(line, minIndent, String_length(line));
         }
         i = i + 1;
     }

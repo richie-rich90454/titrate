@@ -204,7 +204,7 @@ public class RotatingFileHandler implements Handler {
         if (!Fs_exists(this.filePath)) {
             return false;
         }
-        let size: int = Fs_fileSize(this.filePath);
+        let size: int = Fs_size(this.filePath);
         return size >= this.maxBytes;
     }
 

@@ -65,7 +65,7 @@ public fn workingDir(): string {
 
 // Change the current working directory
 public fn changeDir(path: string): void {
-    Sys_changeDir(path);
+    Os_chdir(path);
 }
 
 // List directory entries

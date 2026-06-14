@@ -49,7 +49,7 @@ fn encodeAscii(s: string): string {
     let i: int = 0;
     while (i < String.length(s)) {
         let c: string = String.charAt(s, i);
-        let code: int = String.charAt(c, 0);
+        let code: int = String.charAt(c, 0) as int;
         if (code < 128) {
             result = result + c;
         } else {
@@ -71,7 +71,7 @@ fn encodeLatin1(s: string): string {
     let i: int = 0;
     while (i < String.length(s)) {
         let c: string = String.charAt(s, i);
-        let code: int = String.charAt(c, 0);
+        let code: int = String.charAt(c, 0) as int;
         if (code < 256) {
             result = result + c;
         } else {

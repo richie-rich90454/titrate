@@ -70,7 +70,7 @@ public class Popen {
 
     public fn kill(): void {
         if (!this.completed) {
-            Subprocess_kill(this.command);
+            Os_kill(this.command);
             this.returnCode = -9;
             this.completed = true;
         }

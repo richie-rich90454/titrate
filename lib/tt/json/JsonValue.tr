@@ -261,7 +261,7 @@ public fn escapeString(s: string): string {
     let i: int = 0;
     while (i < String.length(s)) {
         let c: string = String.charAt(s, i);
-        let code: int = String.charAt(c, 0);
+        let code: int = String.charAt(c, 0) as int;
         if (c == "\"") {
             result = result + "\\\"";
         } else if (c == "\\") {

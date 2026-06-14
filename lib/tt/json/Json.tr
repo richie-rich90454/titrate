@@ -35,18 +35,20 @@ public fn dump(value: JsonValue, path: string): void {
 
 // Write a Variant object to a JSON file with indentation and optional key sorting.
 public fn dump(obj: Variant, filePath: string, indent: int, sortKeys: bool): void {
-    Json_dump(obj, filePath, indent, sortKeys);
+    let jsonStr: string = stringify(obj, indent, sortKeys);
+    File_writeFile(filePath, jsonStr);
 }
 
 // Read a JSON file and parse it into a JsonValue.
 public fn load(path: string): JsonValue {
-    let content: string = File_readAll(path);
+    let content: string = File_readFile(path);
     return parse(content);
 }
 
 // Read a JSON file and parse it into a Variant.
 public fn load(filePath: string): Variant {
-    return Json_load(filePath);
+    let content: string = File_readFile(filePath);
+    return parse(content);
 }
 
 // Convert a JsonValue to a JSON string with optional sorting and indentation.

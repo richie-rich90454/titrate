@@ -143,7 +143,7 @@ public class Path {
 
     // Rename this path.
     public fn renameTo(newPath: string): bool {
-        let result: Result<string, string> = Os_rename(this.toString(), newPath);
+        let result: Result<string, string> = Os_replace(this.toString(), newPath);
         return result.isOk();
     }
 
@@ -325,7 +325,7 @@ public class Path {
             currentPath = currentPath + seg;
             // Check if this segment is a symlink
             if (Path_isSymlink(currentPath)) {
-                let target: string = Path_readLink(currentPath);
+                let target: string = Os_readlink(currentPath);
                 if (String.length(target) > 0) {
                     if (String.charAt(target, 0) == "/") {
                         // Absolute symlink target: restart resolution

@@ -439,6 +439,18 @@ pub(crate) fn native_http_head(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+pub(crate) fn native_http_set_timeout(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Stub: timeout is stored in the HttpClient .tr object and applied per-request
+    Ok(Value::Void)
+}
+
+pub(crate) fn native_http_set_follow_redirects(args: &[Value]) -> Result<Value, String> {
+    let _ = args;
+    // Stub: redirect policy is stored in the HttpClient .tr object
+    Ok(Value::Void)
+}
+
 pub(crate) fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
     let url = url.strip_prefix("http://").unwrap_or(url);
     let url = url.strip_prefix("https://").unwrap_or(url);

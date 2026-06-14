@@ -9,7 +9,7 @@ public class ConditionVariable {
     }
 
     public fn wait(mutex: Mutex): void {
-        CV_wait(this.handle, mutex.getHandle());
+        CondVar_wait(this.handle, mutex.getHandle());
     }
 
     public fn waitFor(mutex: Mutex, ms: int): bool {
@@ -17,7 +17,7 @@ public class ConditionVariable {
     }
 
     public fn notifyOne(): void {
-        CV_notifyOne(this.handle);
+        CondVar_notifyOne(this.handle);
     }
 
     public fn notifyAll(): void {

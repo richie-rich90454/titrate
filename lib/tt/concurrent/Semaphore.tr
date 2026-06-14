@@ -7,7 +7,7 @@ public class Semaphore {
     }
 
     public fn acquire(): void {
-        Sem_acquire(this.handle);
+        Semaphore_acquire(this.handle);
     }
 
     public fn release(): void {

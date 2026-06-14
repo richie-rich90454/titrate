@@ -226,22 +226,16 @@ pub(crate) fn native_hmac_compare_digest(args: &[Value]) -> Result<Value, String
         Some(Value::String(s)) => s.as_bytes(),
         _ => return Err("Hmac_compareDigest: expected two String arguments".to_string()),
     };
-    // Constant-time comparison: always compare all bytes
-    if a.len() != b.len() {
-        // Still do a comparison of the same length to avoid length-based timing
-        let len = a.len().min(b.len());
-        let mut _result: u8 = (a.len() != b.len()) as u8;
-        for i in 0..len {
-            _result |= a[i] ^ b[i];
-        }
-        Ok(Value::Bool(false))
-    } else {
-        let mut result: u8 = 0;
-        for i in 0..a.len() {
-            result |= a[i] ^ b[i];
-        }
-        Ok(Value::Bool(result == 0))
+    // Constant-time comparison: no branching on secret data.
+    // Accumulate both length difference and byte differences into one result.
+    let len = a.len().max(b.len());
+    let mut result: u8 = (a.len() != b.len()) as u8;
+    for i in 0..len {
+        let va = if i < a.len() { a[i] } else { 0 };
+        let vb = if i < b.len() { b[i] } else { 0 };
+        result |= va ^ vb;
     }
+    Ok(Value::Bool(result == 0))
 }
 
 // ---------------------------------------------------------------------------
@@ -487,5 +481,18 @@ pub(crate) fn native_hasher_reset(args: &[Value]) -> Result<Value, String> {
         .get_mut(&handle)
         .ok_or_else(|| "Hasher_reset: invalid handle".to_string())?;
     hasher.reset();
+    Ok(Value::Null)
+}
+
+pub(crate) fn native_hasher_close(args: &[Value]) -> Result<Value, String> {
+    let handle = match args.first() {
+        Some(Value::Long(h)) => *h,
+        Some(Value::Int(h)) => *h as i64,
+        _ => return Err("Hasher_close: expected an Int/Long handle".to_string()),
+    };
+    let mut registry = HASHER_REGISTRY.lock().unwrap();
+    registry
+        .remove(&handle)
+        .ok_or_else(|| "Hasher_close: invalid handle".to_string())?;
     Ok(Value::Null)
 }
