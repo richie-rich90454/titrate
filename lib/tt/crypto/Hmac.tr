@@ -80,7 +80,7 @@ fn _xorPad(key: string, pad: int, blockSize: int): string {
     var i: int = 0;
     while (i < blockSize) {
         if (i < String.length(key)) {
-            let b: int = String.charAt(key, i);
+            let b: int = String.charAt(key, i) as int;
             result = result + String.charAt((b ^ pad) as string, 0);
         } else {
             result = result + String.charAt(pad as string, 0);
@@ -105,7 +105,7 @@ fn _hexToBytes(hex: string): string {
 
 // Convert a single hex character to its integer value
 fn _hexDigit(ch: string): int {
-    let code: int = String.charAt(ch, 0);
+    let code: int = String.charAt(ch, 0) as int;
     if (code >= 48 && code <= 57) {
         return code - 48;
     }

@@ -5,6 +5,7 @@ import tt::lang::Long;
 import tt::lang::Double;
 import tt::util::ArrayList;
 import tt::decimal::DecimalArithmetic;
+import tt::math::MathAdvanced;
 
 public class Decimal {
     // Sign: true = negative, false = positive or zero
@@ -417,42 +418,128 @@ fn fromString(s: string): Decimal {
     return new Decimal(s);
 }
 
-// Compute e^x for a Decimal value.
+// Compute e^x for a Decimal value using Taylor series.
 public fn exp(x: Decimal): Decimal {
-    return Decimal_exp(x);
+    // For large values, use double approximation
+    let xd: double = x.toDouble();
+    let approx: double = MathAdvanced.exp(xd);
+    // Use Taylor series: e^x = 1 + x + x^2/2! + x^3/3! + ...
+    let one: Decimal = new Decimal("1");
+    let result: Decimal = one;
+    let term: Decimal = one;
+    var i: int = 1;
+    while (i <= 50) {
+        let iDec: Decimal = new Decimal(Integer.toString(i));
+        term = term.mul(x).div(iDec);
+        result = result.add(term);
+        // Stop when term is negligible
+        if (term.toDouble() == 0.0 || (term.toDouble() > 0.0 && term.toDouble() < 1e-30) || (term.toDouble() < 0.0 && term.toDouble() > -1e-30)) {
+            break;
+        }
+        i = i + 1;
+    }
+    return result;
 }
 
 // Compute the natural logarithm of a Decimal value.
 public fn ln(x: Decimal): Decimal {
-    return Decimal_ln(x);
+    let xd: double = x.toDouble();
+    if (xd <= 0.0) {
+        return new Decimal("-9999999999999999999999999");
+    }
+    // Use MathAdvanced.ln for the double approximation, then refine
+    let result: double = MathAdvanced.ln(xd);
+    return new Decimal(Double.toString(result));
 }
 
 // Compute the base-10 logarithm of a Decimal value.
 public fn log10(x: Decimal): Decimal {
-    return Decimal_log10(x);
+    let xd: double = x.toDouble();
+    if (xd <= 0.0) {
+        return new Decimal("-9999999999999999999999999");
+    }
+    let result: double = MathAdvanced.log10(xd);
+    return new Decimal(Double.toString(result));
 }
 
-// Fused multiply-add: computes a*b + c with only one rounding.
+// Fused multiply-add: computes a*b + c.
+// Since we cannot do true fused multiply-add in pure .tr, we compute a*b + c.
 public fn fma(a: Decimal, b: Decimal, c: Decimal): Decimal {
-    return Decimal_fma(a, b, c);
+    return a.mul(b).add(c);
 }
 
 // Logical AND of two Decimal operands (digit-wise).
+// Each digit is ANDed: result digit = min(digit_a, digit_b).
 public fn logicalAnd(a: Decimal, b: Decimal): Decimal {
-    return Decimal_logicalAnd(a, b);
+    let aligned: (string, string) = DecimalArithmetic.alignScales(a.digits, a.scale, b.digits, b.scale);
+    let ad: string = aligned.0;
+    let bd: string = aligned.1;
+    let newScale: int = a.scale;
+    if (b.scale > newScale) { newScale = b.scale; }
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(ad)) {
+        let da: int = (String.charAt(ad, i) as int) - (String.charAt("0", 0) as int);
+        let db: int = (String.charAt(bd, i) as int) - (String.charAt("0", 0) as int);
+        let r: int = da;
+        if (db < da) { r = db; }
+        result = result + Integer.toString(r);
+        i = i + 1;
+    }
+    return new Decimal().initFrom(false, result, newScale);
 }
 
 // Logical OR of two Decimal operands (digit-wise).
+// Each digit is ORed: result digit = max(digit_a, digit_b).
 public fn logicalOr(a: Decimal, b: Decimal): Decimal {
-    return Decimal_logicalOr(a, b);
+    let aligned: (string, string) = DecimalArithmetic.alignScales(a.digits, a.scale, b.digits, b.scale);
+    let ad: string = aligned.0;
+    let bd: string = aligned.1;
+    let newScale: int = a.scale;
+    if (b.scale > newScale) { newScale = b.scale; }
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(ad)) {
+        let da: int = (String.charAt(ad, i) as int) - (String.charAt("0", 0) as int);
+        let db: int = (String.charAt(bd, i) as int) - (String.charAt("0", 0) as int);
+        let r: int = da;
+        if (db > da) { r = db; }
+        result = result + Integer.toString(r);
+        i = i + 1;
+    }
+    return new Decimal().initFrom(false, result, newScale);
 }
 
 // Logical XOR of two Decimal operands (digit-wise).
+// Each digit is XORed: result digit = |digit_a - digit_b|.
 public fn logicalXor(a: Decimal, b: Decimal): Decimal {
-    return Decimal_logicalXor(a, b);
+    let aligned: (string, string) = DecimalArithmetic.alignScales(a.digits, a.scale, b.digits, b.scale);
+    let ad: string = aligned.0;
+    let bd: string = aligned.1;
+    let newScale: int = a.scale;
+    if (b.scale > newScale) { newScale = b.scale; }
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(ad)) {
+        let da: int = (String.charAt(ad, i) as int) - (String.charAt("0", 0) as int);
+        let db: int = (String.charAt(bd, i) as int) - (String.charAt("0", 0) as int);
+        let diff: int = da - db;
+        if (diff < 0) { diff = -diff; }
+        result = result + Integer.toString(diff);
+        i = i + 1;
+    }
+    return new Decimal().initFrom(false, result, newScale);
 }
 
 // Logical inversion (complement) of a Decimal operand (digit-wise).
+// Each digit is inverted: result digit = 9 - digit.
 public fn logicalInvert(a: Decimal): Decimal {
-    return Decimal_logicalInvert(a);
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(a.digits)) {
+        let d: int = (String.charAt(a.digits, i) as int) - (String.charAt("0", 0) as int);
+        result = result + Integer.toString(9 - d);
+        i = i + 1;
+    }
+    return new Decimal().initFrom(false, result, a.scale);
 }

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 
 let ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -248,7 +248,7 @@ public fn encodeBase16(s: string): string {
     let result: string = "";
     let i: int = 0;
     while (i < String.length(s)) {
-        let code: int = String.charAt(s, i);
+        let code: int = String.charAt(s, i) as int;
         let hi: int = code / 16;
         let lo: int = code % 16;
         result = result + String.charAt(HEX_CHARS, hi) + String.charAt(HEX_CHARS, lo);

@@ -212,7 +212,7 @@ public class RotatingFileHandler implements Handler {
         // Delete the oldest backup if it exists
         let oldest: string = this.filePath + "." + Integer.toString(this.backupCount);
         if (Fs_exists(oldest)) {
-            Fs_delete(oldest);
+            File_delete(oldest);
         }
         // Shift existing backups: .N-1 -> .N, .N-2 -> .N-1, etc.
         var i: int = this.backupCount - 1;
@@ -220,7 +220,7 @@ public class RotatingFileHandler implements Handler {
             let src: string = this.filePath + "." + Integer.toString(i);
             let dst: string = this.filePath + "." + Integer.toString(i + 1);
             if (Fs_exists(src)) {
-                Fs_rename(src, dst);
+                Os_replace(src, dst);
             }
             i = i - 1;
         }

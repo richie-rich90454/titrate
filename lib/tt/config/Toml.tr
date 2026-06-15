@@ -391,7 +391,7 @@ fn _isInteger(s: string): bool {
         return false;
     }
     while (i < String.length(s)) {
-        let code: int = String.charAt(s, i);
+        let code: int = String.charAt(s, i) as int;
         if (code < 48 || code > 57) {
             return false;
         }
@@ -415,7 +415,7 @@ fn _isFloat(s: string): bool {
     }
     while (i < String.length(s)) {
         let ch: string = String.charAt(s, i);
-        let code: int = String.charAt(s, i);
+        let code: int = String.charAt(s, i) as int;
         if (ch == ".") {
             if (hasDot) {
                 return false;

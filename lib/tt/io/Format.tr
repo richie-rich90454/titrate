@@ -45,7 +45,7 @@ public fn format(template: string, args: ArrayList<Variant>): string {
             var width: int = 0;
             while (i < String.length(template)) {
                 let digit: string = String.charAt(template, i);
-                let code: int = String.charAt(digit, 0);
+                let code: int = String.charAt(digit, 0) as int;
                 if (code >= 48 && code <= 57) {
                     width = width * 10 + (code - 48);
                     i = i + 1;
@@ -60,7 +60,7 @@ public fn format(template: string, args: ArrayList<Variant>): string {
                 precision = 0;
                 while (i < String.length(template)) {
                     let digit: string = String.charAt(template, i);
-                    let code: int = String.charAt(digit, 0);
+                    let code: int = String.charAt(digit, 0) as int;
                     if (code >= 48 && code <= 57) {
                         precision = precision * 10 + (code - 48);
                         i = i + 1;

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// URL encoding and decoding backed by native implementations.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// URL encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
@@ -23,7 +23,7 @@ public class Url {
                 result = result + c;
             } else {
                 // Encode each byte of the character as %XX
-                let code: int = String.charAt(c, 0);
+                let code: int = String.charAt(c, 0) as int;
                 if (code < 128) {
                     result = result + "%" + Url._hexDigit(code / 16) + Url._hexDigit(code % 16);
                 } else if (code < 2048) {
