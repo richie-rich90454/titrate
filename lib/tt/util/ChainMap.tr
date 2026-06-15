@@ -10,7 +10,7 @@ public class ChainMap<K, V> {
         this.maps.add(new HashMap<K, V>());
     }
 
-    public fn init(first: HashMap<K, V>) {
+    public fn initWithMap(first: HashMap<K, V>) {
         this.maps = new ArrayList<HashMap<K, V>>();
         this.maps.add(first);
     }

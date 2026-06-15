@@ -50,7 +50,7 @@ public class StringReader implements Reader {
         if (this._pos >= String.length(this._source)) {
             return "";
         }
-        let remaining: string = String.substring(this._source, this._pos);
+        let remaining: string = String.substring(this._source, this._pos, String.length(this._source));
         this._pos = String.length(this._source);
         return remaining;
     }

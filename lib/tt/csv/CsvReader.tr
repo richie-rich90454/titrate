@@ -141,7 +141,7 @@ public class CsvReader {
                 pos = pos + 1;
             }
         }
-        return String.substring(input, pos);
+        return String.substring(input, pos, String.length(input));
     }
 
     // Get a column by index from parsed rows

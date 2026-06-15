@@ -487,11 +487,11 @@ public class DateTime {
     }
 }
 
-fn now(): DateTime {
+public fn now(): DateTime {
     return new DateTime(Time_now());
 }
 
-fn ofEpochMillis(ms: long): DateTime {
+public fn ofEpochMillis(ms: long): DateTime {
     return new DateTime(ms);
 }
 

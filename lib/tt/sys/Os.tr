@@ -131,7 +131,7 @@ public fn remove(path: string): Result<string, string> {
 
 // Rename/move a file or directory
 public fn rename(oldPath: string, newPath: string): Result<string, string> {
-    let success: bool = Dir_move(oldPath, newPath);
+    let success: bool = Os_replace(oldPath, newPath);
     if (success) {
         return ok(newPath);
     }

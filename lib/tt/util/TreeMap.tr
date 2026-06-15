@@ -31,7 +31,7 @@ public class TreeMap<K, V> {
         };
     }
 
-    public fn init(comparator: fn(K, K): int) {
+    public fn initWithComparator(comparator: fn(K, K): int) {
         this.keys = new ArrayList<K>();
         this.values = new ArrayList<V>();
         this.left = new ArrayList<int>();

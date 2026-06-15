@@ -143,7 +143,7 @@ public fn parse(input: string): TomlTable {
         let eqIdx: int = String.indexOf(line, "=");
         if (eqIdx > 0) {
             let key: string = String.trim(String.substring(line, 0, eqIdx));
-            let valStr: string = String.trim(String.substring(line, eqIdx + 1));
+            let valStr: string = String.trim(String.substring(line, eqIdx + 1, String.length(line)));
             let value: Variant = _parseValue(valStr);
             // For inline tables, parse the { key = val } syntax
             if (String.length(valStr) > 0 && String.charAt(valStr, 0) == "{") {
@@ -201,7 +201,7 @@ fn _parseInlineTable(s: string): TomlTable {
         let eqIdx: int = String.indexOf(part, "=");
         if (eqIdx > 0) {
             let key: string = String.trim(String.substring(part, 0, eqIdx));
-            let valStr: string = String.trim(String.substring(part, eqIdx + 1));
+            let valStr: string = String.trim(String.substring(part, eqIdx + 1, String.length(part)));
             let value: Variant = _parseValue(valStr);
             table.set(key, value);
         }

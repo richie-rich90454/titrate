@@ -98,7 +98,9 @@ pub(crate) fn native_math_abs(args: &[Value]) -> Result<Value, String> {
 pub(crate) fn native_math_abs_int(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() { return Err("Math_absInt: expected 1 argument".to_string()); }
     let x = args[0].to_i64().unwrap_or(0);
-    Ok(Value::Long(x.abs()))
+    // i64::MIN.abs() panics in debug / wraps in release; saturate to i64::MAX
+    let result = if x == i64::MIN { i64::MAX } else { x.abs() };
+    Ok(Value::Long(result))
 }
 
 pub(crate) fn native_math_floor(args: &[Value]) -> Result<Value, String> {

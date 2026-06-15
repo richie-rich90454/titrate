@@ -39,7 +39,7 @@ pub(crate) fn native_dir_remove(args: &[Value]) -> Result<Value, String> {
         return Err("Dir_remove: expected 1 argument (path)".to_string());
     }
     match &args[0] {
-        Value::String(path) => match std::fs::remove_dir_all(path.as_str()) {
+        Value::String(path) => match std::fs::remove_dir(path.as_str()) {
             Ok(()) => Ok(Value::Bool(true)),
             Err(_) => Ok(Value::Bool(false)),
         },

@@ -224,11 +224,11 @@ fn decodeHex(hex: string): string {
         let c: string = String.charAt(hex, i);
         code = code * 16;
         if (c >= "0" && c <= "9") {
-            code = code + (String.charAt(c, 0) - String.charAt("0", 0));
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("0", 0) as int));
         } else if (c >= "a" && c <= "f") {
-            code = code + (String.charAt(c, 0) - String.charAt("a", 0)) + 10;
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("a", 0) as int)) + 10;
         } else if (c >= "A" && c <= "F") {
-            code = code + (String.charAt(c, 0) - String.charAt("A", 0)) + 10;
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("A", 0) as int)) + 10;
         }
         i = i + 1;
     }

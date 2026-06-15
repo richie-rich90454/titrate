@@ -8,8 +8,9 @@ public class TreeSet<E> {
         this.map = new TreeMap<E, int>();
     }
 
-    public fn init(comparator: fn(E, E): int) {
-        this.map = new TreeMap<E, int>(comparator);
+    public fn initWithComparator(comparator: fn(E, E): int) {
+        this.map = new TreeMap<E, int>();
+        this.map.initWithComparator(comparator);
     }
 
     public fn add(item: E): void {

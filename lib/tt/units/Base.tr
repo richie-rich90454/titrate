@@ -1,6 +1,6 @@
 public class Meter {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Meter): Meter { return new Meter(this.value + other.value); }
     public fn minus(other: Meter): Meter { return new Meter(this.value - other.value); }
@@ -19,7 +19,7 @@ public class Meter {
 
 public class MeterSquared {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn equals(other: MeterSquared): bool { return this.value == other.value; }
     public fn compareTo(other: MeterSquared): int {
@@ -33,7 +33,7 @@ public class MeterSquared {
 
 public class Second {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Second): Second { return new Second(this.value + other.value); }
     public fn minus(other: Second): Second { return new Second(this.value - other.value); }
@@ -51,7 +51,7 @@ public class Second {
 
 public class Kilogram {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Kilogram): Kilogram { return new Kilogram(this.value + other.value); }
     public fn minus(other: Kilogram): Kilogram { return new Kilogram(this.value - other.value); }
@@ -69,7 +69,7 @@ public class Kilogram {
 
 public class Kelvin {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Kelvin): Kelvin { return new Kelvin(this.value + other.value); }
     public fn minus(other: Kelvin): Kelvin { return new Kelvin(this.value - other.value); }
@@ -85,7 +85,7 @@ public class Kelvin {
 
 public class Mole {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Mole): Mole { return new Mole(this.value + other.value); }
     public fn minus(other: Mole): Mole { return new Mole(this.value - other.value); }
@@ -101,7 +101,7 @@ public class Mole {
 
 public class Ampere {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Ampere): Ampere { return new Ampere(this.value + other.value); }
     public fn minus(other: Ampere): Ampere { return new Ampere(this.value - other.value); }
@@ -117,7 +117,7 @@ public class Ampere {
 
 public class Candela {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Candela): Candela { return new Candela(this.value + other.value); }
     public fn minus(other: Candela): Candela { return new Candela(this.value - other.value); }

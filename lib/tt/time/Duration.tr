@@ -5,7 +5,7 @@ public class Duration {
     public long millis;
     private long _nanos;
 
-    fn init(ms: long) {
+    public fn init(ms: long) {
         this.millis = ms;
         this._nanos = 0;
     }

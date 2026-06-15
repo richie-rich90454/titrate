@@ -452,6 +452,7 @@ pub(crate) fn native_http_set_follow_redirects(args: &[Value]) -> Result<Value, 
 }
 
 pub(crate) fn parse_http_url(url: &str) -> Result<(String, u16, String), String> {
+    let is_https = url.starts_with("https://");
     let url = url.strip_prefix("http://").unwrap_or(url);
     let url = url.strip_prefix("https://").unwrap_or(url);
 
@@ -460,12 +461,13 @@ pub(crate) fn parse_http_url(url: &str) -> Result<(String, u16, String), String>
         None => (url, "/"),
     };
 
+    let default_port: u16 = if is_https { 443 } else { 80 };
     let (host, port) = if host_port.contains(':') {
         let parts: Vec<&str> = host_port.splitn(2, ':').collect();
-        let port: u16 = parts[1].parse().unwrap_or(80);
+        let port: u16 = parts[1].parse().unwrap_or(default_port);
         (parts[0].to_string(), port)
     } else {
-        (host_port.to_string(), 80)
+        (host_port.to_string(), default_port)
     };
 
     Ok((host, port, path.to_string()))

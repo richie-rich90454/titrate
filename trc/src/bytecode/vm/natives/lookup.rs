@@ -64,6 +64,8 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Http_delete" => Some(net::native_http_delete),
         "Http_patch" => Some(net::native_http_patch),
         "Http_head" => Some(net::native_http_head),
+        "Http_setTimeout" => Some(net::native_http_set_timeout),
+        "Http_setFollowRedirects" => Some(net::native_http_set_follow_redirects),
         "Time_now" => Some(time::native_time_now),
         "Time_sleep" => Some(time::native_time_sleep),
         "Time_format" => Some(time::native_time_format),

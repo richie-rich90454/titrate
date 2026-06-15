@@ -19,7 +19,7 @@ public class Random {
         this.spareGaussian = 0.0;
     }
 
-    public fn init(seed: long) {
+    public fn initWithSeed(seed: long) {
         this.state0 = seed;
         this.state1 = seed ^ 0x9E3779B97F4A7C15L;
         this.hasSpareGaussian = false;

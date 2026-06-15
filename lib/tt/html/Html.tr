@@ -1,4 +1,4 @@
-﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
+﻿﻿﻿﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
@@ -93,11 +93,11 @@ public class Html {
                 let c: string = String.charAt(s, i);
                 result = result * 16;
                 if (c >= "0" && c <= "9") {
-                    result = result + (String.charAt(c, 0) - String.charAt("0", 0));
+                    result = result + ((String.charAt(c, 0) as int) - (String.charAt("0", 0) as int));
                 } else if (c >= "a" && c <= "f") {
-                    result = result + 10 + (String.charAt(c, 0) - String.charAt("a", 0));
+                    result = result + 10 + ((String.charAt(c, 0) as int) - (String.charAt("a", 0) as int));
                 } else if (c >= "A" && c <= "F") {
-                    result = result + 10 + (String.charAt(c, 0) - String.charAt("A", 0));
+                    result = result + 10 + ((String.charAt(c, 0) as int) - (String.charAt("A", 0) as int));
                 } else {
                     return -1;
                 }
@@ -108,7 +108,7 @@ public class Html {
             while (i < String.length(s)) {
                 let c: string = String.charAt(s, i);
                 if (c >= "0" && c <= "9") {
-                    result = result * 10 + (String.charAt(c, 0) - String.charAt("0", 0));
+                    result = result * 10 + ((String.charAt(c, 0) as int) - (String.charAt("0", 0) as int));
                 } else {
                     return -1;
                 }

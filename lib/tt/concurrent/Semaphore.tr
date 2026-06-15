@@ -3,7 +3,7 @@ public class Semaphore {
     private int handle;
 
     public fn init(permits: int) {
-        this.handle = Sem_new(permits);
+        this.handle = Semaphore_new(permits);
     }
 
     public fn acquire(): void {
@@ -11,11 +11,11 @@ public class Semaphore {
     }
 
     public fn release(): void {
-        Sem_release(this.handle);
+        Semaphore_release(this.handle);
     }
 
     public fn tryAcquire(): bool {
-        return Sem_tryAcquire(this.handle);
+        return Semaphore_tryAcquire(this.handle);
     }
 
     public fn availablePermits(): int {

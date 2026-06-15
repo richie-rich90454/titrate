@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿// URL encoding and decoding backed by native implementations.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// URL encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
@@ -114,7 +114,7 @@ public class Url {
         }
         // Remove leading '?' if present
         if (String.charAt(qs, 0) == '?') {
-            qs = String.substring(qs, 1);
+            qs = String.substring(qs, 1, String.length(qs));
         }
         let pairs: ArrayList<string> = String::split(qs, "&");
         for (pair in pairs) {
@@ -215,21 +215,21 @@ public fn parse(url: string): ParseResult {
     // Extract fragment
     let fragIdx: int = _findChar(url, "#");
     if (fragIdx >= 0) {
-        fragment = String.substring(url, fragIdx + 1);
+        fragment = String.substring(url, fragIdx + 1, String.length(url));
         url = String.substring(url, 0, fragIdx);
     }
 
     // Extract query
     let queryIdx: int = _findChar(url, "?");
     if (queryIdx >= 0) {
-        query = String.substring(url, queryIdx + 1);
+        query = String.substring(url, queryIdx + 1, String.length(url));
         url = String.substring(url, 0, queryIdx);
     }
 
     // Extract params
     let paramIdx: int = _findChar(url, ";");
     if (paramIdx >= 0) {
-        params = String.substring(url, paramIdx + 1);
+        params = String.substring(url, paramIdx + 1, String.length(url));
         url = String.substring(url, 0, paramIdx);
     }
 
@@ -239,16 +239,16 @@ public fn parse(url: string): ParseResult {
         let potential: string = String.substring(url, 0, schemeIdx);
         if (_isScheme(potential)) {
             scheme = String.toLowerCase(potential);
-            url = String.substring(url, schemeIdx + 1);
+            url = String.substring(url, schemeIdx + 1, String.length(url));
             // Remove leading //
             if (String.length(url) >= 2 && String.charAt(url, 0) == "/" && String.charAt(url, 1) == "/") {
-                url = String.substring(url, 2);
+                url = String.substring(url, 2, String.length(url));
             }
             // Extract netloc (everything up to the first /)
             let slashIdx: int = _findChar(url, "/");
             if (slashIdx >= 0) {
                 netloc = String.substring(url, 0, slashIdx);
-                path = String.substring(url, slashIdx);
+                path = String.substring(url, slashIdx, String.length(url));
             } else {
                 netloc = url;
                 path = "";

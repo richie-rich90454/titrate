@@ -105,7 +105,7 @@ public class Decimal {
         while (idx < String.length(paddedNum) || !DecimalArithmetic.isZeroStr(remainder)) {
             let digit: int = 0;
             if (idx < String.length(paddedNum)) {
-                digit = String.charAt(paddedNum, idx) - String.charAt("0", 0);
+                digit = (String.charAt(paddedNum, idx) as int) - (String.charAt("0", 0) as int);
             }
             remainder = remainder + Integer.toString(digit);
             remainder = DecimalArithmetic.stripLeadingZeros(remainder);
@@ -266,7 +266,7 @@ public class Decimal {
             let intLen2: int = String.length(d.digits) - d.scale;
             if (intLen2 >= 0 && intLen2 < String.length(d.digits)) {
                 let fracChar: string = String.charAt(d.digits, intLen2);
-                fracDigit = String.charAt(fracChar, 0) - String.charAt("0", 0);
+                fracDigit = (String.charAt(fracChar, 0) as int) - (String.charAt("0", 0) as int);
             }
         }
         let intVal: long = Long.parseLong(intPart);
@@ -318,7 +318,7 @@ public class Decimal {
             // Banker's rounding
             let lastIntDigit: int = 0;
             if (String.length(intPart) > 0) {
-                lastIntDigit = String.charAt(String.charAt(intPart, String.length(intPart) - 1), 0) - String.charAt("0", 0);
+                lastIntDigit = (String.charAt(String.charAt(intPart, String.length(intPart) - 1), 0) as int) - (String.charAt("0", 0) as int);
             }
             if (fracDigit > 5 || (fracDigit == 5 && lastIntDigit % 2 != 0)) {
                 if (d.negative) {

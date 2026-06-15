@@ -88,7 +88,7 @@ public fn move(src: string, dst: string): Result<string, string> {
     if (!Fs_exists(src)) {
         return err("source not found: " + src);
     }
-    let success: bool = Dir_move(src, dst);
+    let success: bool = Os_replace(src, dst);
     if (success) {
         return ok(dst);
     }

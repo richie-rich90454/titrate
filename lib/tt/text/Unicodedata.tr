@@ -86,44 +86,44 @@ fn _decompose(s: string): string {
         let code: int = String.charAt(s, i) as int;
         // Latin-1 supplement: decompose precomposed characters
         // A grave (192) -> A (65) + combining grave (768)
-        if (code == 192) { result = result + "A" + String.charAt(768 as string, 0); }
-        else if (code == 193) { result = result + "A" + String.charAt(769 as string, 0); }
-        else if (code == 194) { result = result + "A" + String.charAt(770 as string, 0); }
-        else if (code == 195) { result = result + "A" + String.charAt(771 as string, 0); }
-        else if (code == 200) { result = result + "E" + String.charAt(768 as string, 0); }
-        else if (code == 201) { result = result + "E" + String.charAt(769 as string, 0); }
-        else if (code == 202) { result = result + "E" + String.charAt(770 as string, 0); }
-        else if (code == 203) { result = result + "E" + String.charAt(771 as string, 0); }
-        else if (code == 204) { result = result + "I" + String.charAt(768 as string, 0); }
-        else if (code == 205) { result = result + "I" + String.charAt(769 as string, 0); }
-        else if (code == 210) { result = result + "O" + String.charAt(768 as string, 0); }
-        else if (code == 211) { result = result + "O" + String.charAt(769 as string, 0); }
-        else if (code == 217) { result = result + "U" + String.charAt(768 as string, 0); }
-        else if (code == 218) { result = result + "U" + String.charAt(769 as string, 0); }
-        else if (code == 224) { result = result + "a" + String.charAt(768 as string, 0); }
-        else if (code == 225) { result = result + "a" + String.charAt(769 as string, 0); }
-        else if (code == 226) { result = result + "a" + String.charAt(770 as string, 0); }
-        else if (code == 227) { result = result + "a" + String.charAt(771 as string, 0); }
-        else if (code == 232) { result = result + "e" + String.charAt(768 as string, 0); }
-        else if (code == 233) { result = result + "e" + String.charAt(769 as string, 0); }
-        else if (code == 234) { result = result + "e" + String.charAt(770 as string, 0); }
-        else if (code == 235) { result = result + "e" + String.charAt(771 as string, 0); }
-        else if (code == 236) { result = result + "i" + String.charAt(768 as string, 0); }
-        else if (code == 237) { result = result + "i" + String.charAt(769 as string, 0); }
-        else if (code == 242) { result = result + "o" + String.charAt(768 as string, 0); }
-        else if (code == 243) { result = result + "o" + String.charAt(769 as string, 0); }
-        else if (code == 249) { result = result + "u" + String.charAt(768 as string, 0); }
-        else if (code == 250) { result = result + "u" + String.charAt(769 as string, 0); }
-        else if (code == 241) { result = result + "n" + String.charAt(771 as string, 0); }
-        else if (code == 209) { result = result + "N" + String.charAt(771 as string, 0); }
-        else if (code == 231) { result = result + "c" + String.charAt(807 as string, 0); }
-        else if (code == 199) { result = result + "C" + String.charAt(807 as string, 0); }
-        else if (code == 252) { result = result + "u" + String.charAt(776 as string, 0); }
-        else if (code == 220) { result = result + "U" + String.charAt(776 as string, 0); }
-        else if (code == 246) { result = result + "o" + String.charAt(776 as string, 0); }
-        else if (code == 214) { result = result + "O" + String.charAt(776 as string, 0); }
-        else if (code == 228) { result = result + "a" + String.charAt(776 as string, 0); }
-        else if (code == 196) { result = result + "A" + String.charAt(776 as string, 0); }
+        if (code == 192) { result = result + "A" + String.fromCharCode(768); }
+        else if (code == 193) { result = result + "A" + String.fromCharCode(769); }
+        else if (code == 194) { result = result + "A" + String.fromCharCode(770); }
+        else if (code == 195) { result = result + "A" + String.fromCharCode(771); }
+        else if (code == 200) { result = result + "E" + String.fromCharCode(768); }
+        else if (code == 201) { result = result + "E" + String.fromCharCode(769); }
+        else if (code == 202) { result = result + "E" + String.fromCharCode(770); }
+        else if (code == 203) { result = result + "E" + String.fromCharCode(771); }
+        else if (code == 204) { result = result + "I" + String.fromCharCode(768); }
+        else if (code == 205) { result = result + "I" + String.fromCharCode(769); }
+        else if (code == 210) { result = result + "O" + String.fromCharCode(768); }
+        else if (code == 211) { result = result + "O" + String.fromCharCode(769); }
+        else if (code == 217) { result = result + "U" + String.fromCharCode(768); }
+        else if (code == 218) { result = result + "U" + String.fromCharCode(769); }
+        else if (code == 224) { result = result + "a" + String.fromCharCode(768); }
+        else if (code == 225) { result = result + "a" + String.fromCharCode(769); }
+        else if (code == 226) { result = result + "a" + String.fromCharCode(770); }
+        else if (code == 227) { result = result + "a" + String.fromCharCode(771); }
+        else if (code == 232) { result = result + "e" + String.fromCharCode(768); }
+        else if (code == 233) { result = result + "e" + String.fromCharCode(769); }
+        else if (code == 234) { result = result + "e" + String.fromCharCode(770); }
+        else if (code == 235) { result = result + "e" + String.fromCharCode(771); }
+        else if (code == 236) { result = result + "i" + String.fromCharCode(768); }
+        else if (code == 237) { result = result + "i" + String.fromCharCode(769); }
+        else if (code == 242) { result = result + "o" + String.fromCharCode(768); }
+        else if (code == 243) { result = result + "o" + String.fromCharCode(769); }
+        else if (code == 249) { result = result + "u" + String.fromCharCode(768); }
+        else if (code == 250) { result = result + "u" + String.fromCharCode(769); }
+        else if (code == 241) { result = result + "n" + String.fromCharCode(771); }
+        else if (code == 209) { result = result + "N" + String.fromCharCode(771); }
+        else if (code == 231) { result = result + "c" + String.fromCharCode(807); }
+        else if (code == 199) { result = result + "C" + String.fromCharCode(807); }
+        else if (code == 252) { result = result + "u" + String.fromCharCode(776); }
+        else if (code == 220) { result = result + "U" + String.fromCharCode(776); }
+        else if (code == 246) { result = result + "o" + String.fromCharCode(776); }
+        else if (code == 214) { result = result + "O" + String.fromCharCode(776); }
+        else if (code == 228) { result = result + "a" + String.fromCharCode(776); }
+        else if (code == 196) { result = result + "A" + String.fromCharCode(776); }
         else { result = result + String.charAt(s, i); }
         i = i + 1;
     }
@@ -142,63 +142,63 @@ fn _compose(s: string): string {
             let nextCode: int = String.charAt(s, i + 1) as int;
             // Combining grave accent (768)
             if (nextCode == 768) {
-                if (code == 65) { result = result + String.charAt(192 as string, 0); i = i + 2; continue; }
-                if (code == 69) { result = result + String.charAt(200 as string, 0); i = i + 2; continue; }
-                if (code == 73) { result = result + String.charAt(204 as string, 0); i = i + 2; continue; }
-                if (code == 79) { result = result + String.charAt(210 as string, 0); i = i + 2; continue; }
-                if (code == 85) { result = result + String.charAt(217 as string, 0); i = i + 2; continue; }
-                if (code == 97) { result = result + String.charAt(224 as string, 0); i = i + 2; continue; }
-                if (code == 101) { result = result + String.charAt(232 as string, 0); i = i + 2; continue; }
-                if (code == 105) { result = result + String.charAt(236 as string, 0); i = i + 2; continue; }
-                if (code == 111) { result = result + String.charAt(242 as string, 0); i = i + 2; continue; }
-                if (code == 117) { result = result + String.charAt(249 as string, 0); i = i + 2; continue; }
+                if (code == 65) { result = result + String.fromCharCode(192); i = i + 2; continue; }
+                if (code == 69) { result = result + String.fromCharCode(200); i = i + 2; continue; }
+                if (code == 73) { result = result + String.fromCharCode(204); i = i + 2; continue; }
+                if (code == 79) { result = result + String.fromCharCode(210); i = i + 2; continue; }
+                if (code == 85) { result = result + String.fromCharCode(217); i = i + 2; continue; }
+                if (code == 97) { result = result + String.fromCharCode(224); i = i + 2; continue; }
+                if (code == 101) { result = result + String.fromCharCode(232); i = i + 2; continue; }
+                if (code == 105) { result = result + String.fromCharCode(236); i = i + 2; continue; }
+                if (code == 111) { result = result + String.fromCharCode(242); i = i + 2; continue; }
+                if (code == 117) { result = result + String.fromCharCode(249); i = i + 2; continue; }
             }
             // Combining acute accent (769)
             if (nextCode == 769) {
-                if (code == 65) { result = result + String.charAt(193 as string, 0); i = i + 2; continue; }
-                if (code == 69) { result = result + String.charAt(201 as string, 0); i = i + 2; continue; }
-                if (code == 73) { result = result + String.charAt(205 as string, 0); i = i + 2; continue; }
-                if (code == 79) { result = result + String.charAt(211 as string, 0); i = i + 2; continue; }
-                if (code == 85) { result = result + String.charAt(218 as string, 0); i = i + 2; continue; }
-                if (code == 97) { result = result + String.charAt(225 as string, 0); i = i + 2; continue; }
-                if (code == 101) { result = result + String.charAt(233 as string, 0); i = i + 2; continue; }
-                if (code == 105) { result = result + String.charAt(237 as string, 0); i = i + 2; continue; }
-                if (code == 111) { result = result + String.charAt(243 as string, 0); i = i + 2; continue; }
-                if (code == 117) { result = result + String.charAt(250 as string, 0); i = i + 2; continue; }
+                if (code == 65) { result = result + String.fromCharCode(193); i = i + 2; continue; }
+                if (code == 69) { result = result + String.fromCharCode(201); i = i + 2; continue; }
+                if (code == 73) { result = result + String.fromCharCode(205); i = i + 2; continue; }
+                if (code == 79) { result = result + String.fromCharCode(211); i = i + 2; continue; }
+                if (code == 85) { result = result + String.fromCharCode(218); i = i + 2; continue; }
+                if (code == 97) { result = result + String.fromCharCode(225); i = i + 2; continue; }
+                if (code == 101) { result = result + String.fromCharCode(233); i = i + 2; continue; }
+                if (code == 105) { result = result + String.fromCharCode(237); i = i + 2; continue; }
+                if (code == 111) { result = result + String.fromCharCode(243); i = i + 2; continue; }
+                if (code == 117) { result = result + String.fromCharCode(250); i = i + 2; continue; }
             }
             // Combining circumflex (770)
             if (nextCode == 770) {
-                if (code == 65) { result = result + String.charAt(194 as string, 0); i = i + 2; continue; }
-                if (code == 69) { result = result + String.charAt(202 as string, 0); i = i + 2; continue; }
-                if (code == 97) { result = result + String.charAt(226 as string, 0); i = i + 2; continue; }
-                if (code == 101) { result = result + String.charAt(234 as string, 0); i = i + 2; continue; }
-                if (code == 111) { result = result + String.charAt(244 as string, 0); i = i + 2; continue; }
-                if (code == 117) { result = result + String.charAt(251 as string, 0); i = i + 2; continue; }
+                if (code == 65) { result = result + String.fromCharCode(194); i = i + 2; continue; }
+                if (code == 69) { result = result + String.fromCharCode(202); i = i + 2; continue; }
+                if (code == 97) { result = result + String.fromCharCode(226); i = i + 2; continue; }
+                if (code == 101) { result = result + String.fromCharCode(234); i = i + 2; continue; }
+                if (code == 111) { result = result + String.fromCharCode(244); i = i + 2; continue; }
+                if (code == 117) { result = result + String.fromCharCode(251); i = i + 2; continue; }
             }
             // Combining tilde (771)
             if (nextCode == 771) {
-                if (code == 65) { result = result + String.charAt(195 as string, 0); i = i + 2; continue; }
-                if (code == 78) { result = result + String.charAt(209 as string, 0); i = i + 2; continue; }
-                if (code == 79) { result = result + String.charAt(213 as string, 0); i = i + 2; continue; }
-                if (code == 97) { result = result + String.charAt(227 as string, 0); i = i + 2; continue; }
-                if (code == 110) { result = result + String.charAt(241 as string, 0); i = i + 2; continue; }
-                if (code == 111) { result = result + String.charAt(245 as string, 0); i = i + 2; continue; }
+                if (code == 65) { result = result + String.fromCharCode(195); i = i + 2; continue; }
+                if (code == 78) { result = result + String.fromCharCode(209); i = i + 2; continue; }
+                if (code == 79) { result = result + String.fromCharCode(213); i = i + 2; continue; }
+                if (code == 97) { result = result + String.fromCharCode(227); i = i + 2; continue; }
+                if (code == 110) { result = result + String.fromCharCode(241); i = i + 2; continue; }
+                if (code == 111) { result = result + String.fromCharCode(245); i = i + 2; continue; }
             }
             // Combining diaeresis (776)
             if (nextCode == 776) {
-                if (code == 65) { result = result + String.charAt(196 as string, 0); i = i + 2; continue; }
-                if (code == 69) { result = result + String.charAt(203 as string, 0); i = i + 2; continue; }
-                if (code == 79) { result = result + String.charAt(214 as string, 0); i = i + 2; continue; }
-                if (code == 85) { result = result + String.charAt(220 as string, 0); i = i + 2; continue; }
-                if (code == 97) { result = result + String.charAt(228 as string, 0); i = i + 2; continue; }
-                if (code == 101) { result = result + String.charAt(235 as string, 0); i = i + 2; continue; }
-                if (code == 111) { result = result + String.charAt(246 as string, 0); i = i + 2; continue; }
-                if (code == 117) { result = result + String.charAt(252 as string, 0); i = i + 2; continue; }
+                if (code == 65) { result = result + String.fromCharCode(196); i = i + 2; continue; }
+                if (code == 69) { result = result + String.fromCharCode(203); i = i + 2; continue; }
+                if (code == 79) { result = result + String.fromCharCode(214); i = i + 2; continue; }
+                if (code == 85) { result = result + String.fromCharCode(220); i = i + 2; continue; }
+                if (code == 97) { result = result + String.fromCharCode(228); i = i + 2; continue; }
+                if (code == 101) { result = result + String.fromCharCode(235); i = i + 2; continue; }
+                if (code == 111) { result = result + String.fromCharCode(246); i = i + 2; continue; }
+                if (code == 117) { result = result + String.fromCharCode(252); i = i + 2; continue; }
             }
             // Combining cedilla (807)
             if (nextCode == 807) {
-                if (code == 67) { result = result + String.charAt(199 as string, 0); i = i + 2; continue; }
-                if (code == 99) { result = result + String.charAt(231 as string, 0); i = i + 2; continue; }
+                if (code == 67) { result = result + String.fromCharCode(199); i = i + 2; continue; }
+                if (code == 99) { result = result + String.fromCharCode(231); i = i + 2; continue; }
             }
         }
         result = result + ch;

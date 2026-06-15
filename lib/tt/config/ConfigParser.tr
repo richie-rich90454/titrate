@@ -163,7 +163,7 @@ public class ConfigParser {
             let eqIdx: int = String.indexOf(line, "=");
             if (eqIdx > 0) {
                 let key: string = String.trim(String.substring(line, 0, eqIdx));
-                let val: string = String.trim(String.substring(line, eqIdx + 1));
+                let val: string = String.trim(String.substring(line, eqIdx + 1, String.length(line)));
                 val = _stripInlineComment(val);
                 this.set(currentSection, key, val);
             }
@@ -232,7 +232,7 @@ public fn parse(input: string): ConfigParser {
         let eqIdx: int = String.indexOf(line, "=");
         if (eqIdx > 0) {
             let key: string = String.trim(String.substring(line, 0, eqIdx));
-            let val: string = String.trim(String.substring(line, eqIdx + 1));
+            let val: string = String.trim(String.substring(line, eqIdx + 1, String.length(line)));
             // Strip inline comments from value
             val = _stripInlineComment(val);
             parser.set(currentSection, key, val);

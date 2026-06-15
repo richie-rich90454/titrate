@@ -225,7 +225,7 @@ public class RotatingFileHandler implements Handler {
             i = i - 1;
         }
         // Rename current file to .1
-        Fs_rename(this.filePath, this.filePath + ".1");
+        Os_replace(this.filePath, this.filePath + ".1");
     }
 }
 

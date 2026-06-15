@@ -669,3 +669,29 @@ pub(crate) fn native_gc_collect(_args: &[Value]) -> Result<Value, String> {
     // GC collection hint - in a GC language this is typically a no-op or suggestion
     Ok(Value::Void)
 }
+
+pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Fs_totalSpace: expected 1 argument (path)".to_string());
+    }
+    let _path = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Fs_totalSpace: expected String argument".to_string()),
+    };
+    // TODO: Use platform-specific APIs (statvfs on Unix, GetDiskFreeSpaceExW on Windows)
+    // to return the actual total disk space. Returning 0 as a stub for now.
+    Ok(Value::Long(0))
+}
+
+pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Fs_freeSpace: expected 1 argument (path)".to_string());
+    }
+    let _path = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("Fs_freeSpace: expected String argument".to_string()),
+    };
+    // TODO: Use platform-specific APIs (statvfs on Unix, GetDiskFreeSpaceExW on Windows)
+    // to return the actual free disk space. Returning 0 as a stub for now.
+    Ok(Value::Long(0))
+}

@@ -103,7 +103,7 @@ public class Socket {
         var totalSent: int = 0;
         let totalLen: int = String.length(data);
         while (totalSent < totalLen) {
-            let remaining: string = String.substring(data, totalSent);
+            let remaining: string = String.substring(data, totalSent, String.length(data));
             let sent: int = this.send(remaining);
             if (sent <= 0) {
                 return;

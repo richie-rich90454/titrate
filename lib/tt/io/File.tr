@@ -40,7 +40,7 @@ public class File {
     }
 
     public fn moveTo(dest: string): bool {
-        return Dir_move(this.path, dest);
+        return Os_replace(this.path, dest);
     }
 
     public fn readAll(): string {

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 
 let ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -356,7 +356,7 @@ public fn decodeBase85(s: string): string {
             let val: int = 0;
             let g: int = 0;
             while (g < String.length(group)) {
-                val = val * 85 + (String.charAt(group, g) - 33);
+                val = val * 85 + ((String.charAt(group, g) as int) - 33);
                 g = g + 1;
             }
             // Pad to 5 characters if needed

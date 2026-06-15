@@ -45,20 +45,24 @@ public class Regex {
         // First segment is the full match (group 0)
         let first: string = segments.get(0);
         let c1: int = String.indexOf(first, ",");
-        let c2: int = String.indexOf(first, c1 + 1);
+        let _tail: string = String.substring(first, c1 + 1, String.length(first));
+        let c2: int = String.indexOf(_tail, ",");
+        if (c2 >= 0) { c2 = c2 + c1 + 1; }
         let start: int = Integer.parseInt(String.substring(first, 0, c1));
         let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
-        let matched: string = String.substring(first, c2 + 1);
+        let matched: string = String.substring(first, c2 + 1, String.length(first));
         let m: Match = new Match(matched, start, end);
         // Populate capture groups (skip group 0 which is the full match)
         var i: int = 1;
         while (i < segments.size()) {
             let seg: string = segments.get(i);
             let s1: int = String.indexOf(seg, ",");
-            let s2: int = String.indexOf(seg, s1 + 1);
+            let _segTail: string = String.substring(seg, s1 + 1, String.length(seg));
+            let s2: int = String.indexOf(_segTail, ",");
+            if (s2 >= 0) { s2 = s2 + s1 + 1; }
             let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
             let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
-            let gText: string = String.substring(seg, s2 + 1);
+            let gText: string = String.substring(seg, s2 + 1, String.length(seg));
             m.groups.add(gText);
             m.groupStarts.add(gStart);
             m.groupEnds.add(gEnd);
@@ -79,19 +83,23 @@ public class Regex {
             let segments: ArrayList<string> = String.split(raw, ";");
             let first: string = segments.get(0);
             let c1: int = String.indexOf(first, ",");
-            let c2: int = String.indexOf(first, c1 + 1);
+            let _tail: string = String.substring(first, c1 + 1, String.length(first));
+            let c2: int = String.indexOf(_tail, ",");
+            if (c2 >= 0) { c2 = c2 + c1 + 1; }
             let start: int = Integer.parseInt(String.substring(first, 0, c1));
             let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
-            let matched: string = String.substring(first, c2 + 1);
+            let matched: string = String.substring(first, c2 + 1, String.length(first));
             let m: Match = new Match(matched, start + offset, end + offset);
             var i: int = 1;
             while (i < segments.size()) {
                 let seg: string = segments.get(i);
                 let s1: int = String.indexOf(seg, ",");
-                let s2: int = String.indexOf(seg, s1 + 1);
+                let _segTail: string = String.substring(seg, s1 + 1, String.length(seg));
+                let s2: int = String.indexOf(_segTail, ",");
+                if (s2 >= 0) { s2 = s2 + s1 + 1; }
                 let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
                 let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
-                let gText: string = String.substring(seg, s2 + 1);
+                let gText: string = String.substring(seg, s2 + 1, String.length(seg));
                 m.groups.add(gText);
                 m.groupStarts.add(gStart + offset);
                 m.groupEnds.add(gEnd + offset);
@@ -102,7 +110,7 @@ public class Regex {
                 break;
             }
             offset = offset + end;
-            remaining = String.substring(remaining, end);
+            remaining = String.substring(remaining, end, String.length(remaining));
         }
         return results;
     }
@@ -127,7 +135,9 @@ public class Regex {
                 break;
             }
             let firstComma: int = String.indexOf(raw, ",");
-            let secondComma: int = String.indexOf(raw, firstComma + 1);
+            let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+            let secondComma: int = String.indexOf(_tail, ",");
+            if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
             let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
             let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
             result = result + String.substring(input, lastEnd, offset + start) + replacement;
@@ -137,9 +147,9 @@ public class Regex {
                 break;
             }
             offset = offset + end;
-            remaining = String.substring(remaining, end);
+            remaining = String.substring(remaining, end, String.length(remaining));
         }
-        result = result + String.substring(input, lastEnd);
+        result = result + String.substring(input, lastEnd, String.length(input));
         return result;
     }
 
@@ -155,7 +165,9 @@ public class Regex {
                 break;
             }
             let firstComma: int = String.indexOf(raw, ",");
-            let secondComma: int = String.indexOf(raw, firstComma + 1);
+            let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+            let secondComma: int = String.indexOf(_tail, ",");
+            if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
             let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
             let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
             result = result + String.substring(input, lastEnd, offset + start) + replacement;
@@ -165,9 +177,9 @@ public class Regex {
                 break;
             }
             offset = offset + end;
-            remaining = String.substring(remaining, end);
+            remaining = String.substring(remaining, end, String.length(remaining));
         }
-        result = result + String.substring(input, lastEnd);
+        result = result + String.substring(input, lastEnd, String.length(input));
         return new Pair<string, int>(result, count);
     }
 
@@ -182,7 +194,9 @@ public class Regex {
                 break;
             }
             let firstComma: int = String.indexOf(raw, ",");
-            let secondComma: int = String.indexOf(raw, firstComma + 1);
+            let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+            let secondComma: int = String.indexOf(_tail, ",");
+            if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
             let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
             let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
             parts.add(String.substring(input, lastEnd, offset + start));
@@ -191,9 +205,9 @@ public class Regex {
                 break;
             }
             offset = offset + end;
-            remaining = String.substring(remaining, end);
+            remaining = String.substring(remaining, end, String.length(remaining));
         }
-        parts.add(String.substring(input, lastEnd));
+        parts.add(String.substring(input, lastEnd, String.length(input)));
         return parts;
     }
 
@@ -209,7 +223,9 @@ public class Regex {
                 break;
             }
             let firstComma: int = String.indexOf(raw, ",");
-            let secondComma: int = String.indexOf(raw, firstComma + 1);
+            let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+            let secondComma: int = String.indexOf(_tail, ",");
+            if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
             let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
             let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
             parts.add(String.substring(input, lastEnd, offset + start));
@@ -219,9 +235,9 @@ public class Regex {
                 break;
             }
             offset = offset + end;
-            remaining = String.substring(remaining, end);
+            remaining = String.substring(remaining, end, String.length(remaining));
         }
-        parts.add(String.substring(input, lastEnd));
+        parts.add(String.substring(input, lastEnd, String.length(input)));
         return parts;
     }
 
@@ -240,10 +256,12 @@ public class Regex {
             return input;
         }
         let firstComma: int = String.indexOf(raw, ",");
-        let secondComma: int = String.indexOf(raw, firstComma + 1);
+        let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+        let secondComma: int = String.indexOf(_tail, ",");
+        if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
         let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
         let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
-        return String.substring(input, 0, start) + replacement + String.substring(input, end);
+        return String.substring(input, 0, start) + replacement + String.substring(input, end, String.length(input));
     }
 
     public fn fullmatch(input: string): bool {
@@ -300,10 +318,12 @@ public fn replaceFirst(s: string, pattern: string, replacement: string): string 
         return s;
     }
     let firstComma: int = String.indexOf(raw, ",");
-    let secondComma: int = String.indexOf(raw, firstComma + 1);
+    let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+    let secondComma: int = String.indexOf(_tail, ",");
+    if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
     let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
     let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
-    return String.substring(s, 0, start) + replacement + String.substring(s, end);
+    return String.substring(s, 0, start) + replacement + String.substring(s, end, String.length(s));
 }
 
 // Check if the entire string matches the pattern.
@@ -314,7 +334,9 @@ public fn matches(s: string, pattern: string): bool {
         return false;
     }
     let firstComma: int = String.indexOf(raw, ",");
-    let secondComma: int = String.indexOf(raw, firstComma + 1);
+    let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+    let secondComma: int = String.indexOf(_tail, ",");
+    if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
     let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
     let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
     return start == 0 && end == String.length(s);
@@ -331,17 +353,19 @@ public fn findAll(s: string, pattern: string): ArrayList<Match> {
             break;
         }
         let firstComma: int = String.indexOf(raw, ",");
-        let secondComma: int = String.indexOf(raw, firstComma + 1);
+        let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+        let secondComma: int = String.indexOf(_tail, ",");
+        if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
         let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
         let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
-        let matched: string = String.substring(raw, secondComma + 1);
+        let matched: string = String.substring(raw, secondComma + 1, String.length(raw));
         let m: Match = new Match(matched, start + offset, end + offset);
         results.add(m);
         if (end == 0) {
             break;
         }
         offset = offset + end;
-        remaining = String.substring(remaining, end);
+        remaining = String.substring(remaining, end, String.length(remaining));
     }
     return results;
 }

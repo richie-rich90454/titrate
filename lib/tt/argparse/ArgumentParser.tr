@@ -201,7 +201,7 @@ public class ArgumentParser {
             let token: string = args.get(pos);
             if (String.startsWith(token, "--")) {
                 // Named argument: --name value
-                let argName: string = String.substring(token, 2);
+                let argName: string = String.substring(token, 2, String.length(token));
                 // Find matching argument definition
                 let match: Argument = null;
                 let j: int = 0;
@@ -225,7 +225,7 @@ public class ArgumentParser {
                 }
             } else if (String.startsWith(token, "-")) {
                 // Short argument: -n value
-                let argName: string = String.substring(token, 1);
+                let argName: string = String.substring(token, 1, String.length(token));
                 let match: Argument = null;
                 let j: int = 0;
                 while (j < allArgs.size()) {
@@ -313,7 +313,7 @@ public class ArgumentParser {
         while (pos < args.size()) {
             let token: string = args.get(pos);
             if (String.startsWith(token, "--")) {
-                let argName: string = String.substring(token, 2);
+                let argName: string = String.substring(token, 2, String.length(token));
                 let match: Argument = null;
                 let j: int = 0;
                 while (j < allArgs.size()) {
@@ -336,7 +336,7 @@ public class ArgumentParser {
                     remaining.add(token);
                 }
             } else if (String.startsWith(token, "-")) {
-                let argName: string = String.substring(token, 1);
+                let argName: string = String.substring(token, 1, String.length(token));
                 let match: Argument = null;
                 let j: int = 0;
                 while (j < allArgs.size()) {

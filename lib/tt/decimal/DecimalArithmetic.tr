@@ -43,9 +43,9 @@ fn addDigitStrings(a: string, b: string): string {
     let carry: int = 0;
     while (i >= 0 || j >= 0 || carry > 0) {
         let da: int = 0;
-        if (i >= 0) { da = String.charAt(a, i) - String.charAt("0", 0); i = i - 1; }
+        if (i >= 0) { da = (String.charAt(a, i) as int) - (String.charAt("0", 0) as int); i = i - 1; }
         let db: int = 0;
-        if (j >= 0) { db = String.charAt(b, j) - String.charAt("0", 0); j = j - 1; }
+        if (j >= 0) { db = (String.charAt(b, j) as int) - (String.charAt("0", 0) as int); j = j - 1; }
         let sum: int = da + db + carry;
         carry = sum / 10;
         let digit: int = sum % 10;
@@ -65,8 +65,8 @@ fn subDigitStrings(a: string, b: string): string {
     let i: int = String.length(a) - 1;
     let borrow: int = 0;
     while (i >= 0) {
-        let da: int = String.charAt(a, i) - String.charAt("0", 0);
-        let db: int = String.charAt(bp, i) - String.charAt("0", 0);
+        let da: int = (String.charAt(a, i) as int) - (String.charAt("0", 0) as int);
+        let db: int = (String.charAt(bp, i) as int) - (String.charAt("0", 0) as int);
         let diff: int = da - db - borrow;
         if (diff < 0) {
             diff = diff + 10;
@@ -95,8 +95,8 @@ fn mulDigitStrings(a: string, b: string): string {
     while (i >= 0) {
         let j: int = lenB - 1;
         while (j >= 0) {
-            let da: int = String.charAt(a, i) - String.charAt("0", 0);
-            let db: int = String.charAt(b, j) - String.charAt("0", 0);
+            let da: int = (String.charAt(a, i) as int) - (String.charAt("0", 0) as int);
+            let db: int = (String.charAt(b, j) as int) - (String.charAt("0", 0) as int);
             let pos: int = i + j + 1;
             let product: int = da * db + result.get(pos);
             result.set(pos, product % 10);
@@ -120,7 +120,7 @@ fn divDigitStringByInt(a: string, d: int): (string, int) {
     let remainder: int = 0;
     let i: int = 0;
     while (i < String.length(a)) {
-        let digit: int = String.charAt(a, i) - String.charAt("0", 0);
+        let digit: int = (String.charAt(a, i) as int) - (String.charAt("0", 0) as int);
         let val: int = remainder * 10 + digit;
         quotient = quotient + Integer.toString(val / d);
         remainder = val % d;

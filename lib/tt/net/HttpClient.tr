@@ -6,7 +6,7 @@ public class HttpResponse {
     private HashMap<string, string> headers;
     private string body;
 
-    fn init(statusCode: int, headers: HashMap<string, string>, body: string) {
+    public fn init(statusCode: int, headers: HashMap<string, string>, body: string) {
         this.statusCode = statusCode;
         this.headers = headers;
         this.body = body;

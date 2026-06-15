@@ -2,7 +2,7 @@ import tt::units::Base;
 
 public class Joule {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Joule): Joule { return new Joule(this.value + other.value); }
     public fn minus(other: Joule): Joule { return new Joule(this.value - other.value); }
@@ -19,7 +19,7 @@ public fn jouleFromBase(m: Meter, kg: Kilogram, s: Second): Joule {
 
 public class Newton {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Newton): Newton { return new Newton(this.value + other.value); }
     public fn minus(other: Newton): Newton { return new Newton(this.value - other.value); }
@@ -36,7 +36,7 @@ public fn newtonFromBase(m: Meter, kg: Kilogram, s: Second): Newton {
 
 public class Pascal {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Pascal): Pascal { return new Pascal(this.value + other.value); }
     public fn minus(other: Pascal): Pascal { return new Pascal(this.value - other.value); }
@@ -52,7 +52,7 @@ public fn pascalFromBase(n: Newton, m: Meter): Pascal {
 
 public class Watt {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Watt): Watt { return new Watt(this.value + other.value); }
     public fn minus(other: Watt): Watt { return new Watt(this.value - other.value); }
@@ -69,7 +69,7 @@ public fn wattFromBase(j: Joule, s: Second): Watt {
 
 public class Coulomb {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Coulomb): Coulomb { return new Coulomb(this.value + other.value); }
     public fn minus(other: Coulomb): Coulomb { return new Coulomb(this.value - other.value); }
@@ -85,7 +85,7 @@ public fn coulombFromBase(a: Ampere, s: Second): Coulomb {
 
 public class Volt {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Volt): Volt { return new Volt(this.value + other.value); }
     public fn minus(other: Volt): Volt { return new Volt(this.value - other.value); }
@@ -103,7 +103,7 @@ public fn voltFromBase(j: Joule, c: Coulomb): Volt {
 
 public class Ohm {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Ohm): Ohm { return new Ohm(this.value + other.value); }
     public fn minus(other: Ohm): Ohm { return new Ohm(this.value - other.value); }
@@ -117,7 +117,7 @@ public fn ohmFromBase(v: Volt, a: Ampere): Ohm {
 
 public class Farad {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Farad): Farad { return new Farad(this.value + other.value); }
     public fn minus(other: Farad): Farad { return new Farad(this.value - other.value); }
@@ -131,7 +131,7 @@ public fn faradFromBase(c: Coulomb, v: Volt): Farad {
 
 public class Henry {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Henry): Henry { return new Henry(this.value + other.value); }
     public fn minus(other: Henry): Henry { return new Henry(this.value - other.value); }
@@ -145,7 +145,7 @@ public fn henryFromBase(v: Volt, s: Second, a: Ampere): Henry {
 
 public class Tesla {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Tesla): Tesla { return new Tesla(this.value + other.value); }
     public fn minus(other: Tesla): Tesla { return new Tesla(this.value - other.value); }
@@ -159,7 +159,7 @@ public fn teslaFromBase(v: Volt, s: Second, m2: MeterSquared): Tesla {
 
 public class Weber {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Weber): Weber { return new Weber(this.value + other.value); }
     public fn minus(other: Weber): Weber { return new Weber(this.value - other.value); }
@@ -173,7 +173,7 @@ public fn weberFromBase(v: Volt, s: Second): Weber {
 
 public class Hertz {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Hertz): Hertz { return new Hertz(this.value + other.value); }
     public fn minus(other: Hertz): Hertz { return new Hertz(this.value - other.value); }
@@ -187,7 +187,7 @@ public fn hertzFromBase(s: Second): Hertz {
 
 public class Becquerel {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Becquerel): Becquerel { return new Becquerel(this.value + other.value); }
     public fn minus(other: Becquerel): Becquerel { return new Becquerel(this.value - other.value); }
@@ -201,7 +201,7 @@ public fn becquerelFromBase(s: Second): Becquerel {
 
 public class Gray {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Gray): Gray { return new Gray(this.value + other.value); }
     public fn minus(other: Gray): Gray { return new Gray(this.value - other.value); }
@@ -215,7 +215,7 @@ public fn grayFromBase(j: Joule, kg: Kilogram): Gray {
 
 public class Sievert {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Sievert): Sievert { return new Sievert(this.value + other.value); }
     public fn minus(other: Sievert): Sievert { return new Sievert(this.value - other.value); }
@@ -229,7 +229,7 @@ public fn sievertFromBase(j: Joule, kg: Kilogram): Sievert {
 
 public class Lux {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Lux): Lux { return new Lux(this.value + other.value); }
     public fn minus(other: Lux): Lux { return new Lux(this.value - other.value); }
@@ -243,7 +243,7 @@ public fn luxFromBase(cd: Candela, m2: MeterSquared): Lux {
 
 public class Lumen {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Lumen): Lumen { return new Lumen(this.value + other.value); }
     public fn minus(other: Lumen): Lumen { return new Lumen(this.value - other.value); }
@@ -257,7 +257,7 @@ public fn lumenFromBase(cd: Candela): Lumen {
 
 public class Katal {
     public double value;
-    fn init(v: double) { this.value = v; }
+    public fn init(v: double) { this.value = v; }
     public fn getValue(): double { return this.value; }
     public fn plus(other: Katal): Katal { return new Katal(this.value + other.value); }
     public fn minus(other: Katal): Katal { return new Katal(this.value - other.value); }

@@ -41,9 +41,15 @@ pub(crate) fn native_hex_encode(args: &[Value]) -> Result<Value, String> {
 pub(crate) fn native_hex_decode(args: &[Value]) -> Result<Value, String> {
     match args.first() {
         Some(Value::String(s)) => {
-            let bytes: Result<Vec<u8>, _> = (0..s.len())
+            // Pad with a leading zero if the hex string has odd length
+            let padded: String = if s.len() % 2 != 0 {
+                format!("0{}", s)
+            } else {
+                s.as_str().to_string()
+            };
+            let bytes: Result<Vec<u8>, _> = (0..padded.len())
                 .step_by(2)
-                .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+                .map(|i| u8::from_str_radix(&padded[i..i + 2], 16))
                 .collect();
             bytes
                 .map(|b| Value::String(Rc::new(String::from_utf8_lossy(&b).to_string())))

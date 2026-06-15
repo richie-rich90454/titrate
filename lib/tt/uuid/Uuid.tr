@@ -82,7 +82,7 @@ public fn uuid1(): UUID {
 // Generate a version 3 (MD5-based) UUID from a namespace and name.
 public fn uuid3(namespace: string, name: string): UUID {
     let data: string = _stripDashes(namespace) + name;
-    let hash: string = Md5_digest(data);
+    let hash: string = Hash_md5(data);
     // Set version to 3
     hash = _setCharAt(hash, 12, "3");
     // Set variant to RFC 4122
@@ -165,7 +165,7 @@ fn _hexVal(c: string): int {
 // Replaces the character at the given index in a string.
 fn _setCharAt(s: string, idx: int, ch: string): string {
     let before: string = String.substring(s, 0, idx);
-    let after: string = String.substring(s, idx + 1);
+    let after: string = String.substring(s, idx + 1, String.length(s));
     return before + ch + after;
 }
 
@@ -239,7 +239,7 @@ fn _padHex(val: int, len: int): string {
     }
     // Truncate if longer than needed
     if (String.length(result) > len) {
-        result = String.substring(result, String.length(result) - len);
+        result = String.substring(result, String.length(result) - len, String.length(result));
     }
     return result;
 }

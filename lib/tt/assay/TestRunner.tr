@@ -111,9 +111,9 @@ public class TestRunner {
         }
         if (lastSlash >= 0) {
             dir = String.substring(pattern, 0, lastSlash);
-            let rest: string = String.substring(pattern, lastSlash + 1);
+            let rest: string = String.substring(pattern, lastSlash + 1, String.length(pattern));
             if (String.length(rest) > 3) {
-                suffix = String.substring(rest, String.length(rest) - 3);
+                suffix = String.substring(rest, String.length(rest) - 3, String.length(rest));
             }
         }
         let files: ArrayList<string> = new ArrayList<string>();
@@ -122,7 +122,7 @@ public class TestRunner {
             let i: int = 0;
             while (i < all.size()) {
                 let f: string = all.get(i);
-                if (String.length(f) >= String.length(suffix) && String.substring(f, String.length(f) - String.length(suffix)) == suffix) {
+                if (String.length(f) >= String.length(suffix) && String.substring(f, String.length(f) - String.length(suffix), String.length(f)) == suffix) {
                     files.add(f);
                 }
                 i = i + 1;

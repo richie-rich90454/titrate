@@ -67,7 +67,7 @@ public class Path {
         let base: string = _normalize(this.absolutePath());
         let target: string = _normalize(other);
         if (String.startsWith(target, base + "/")) {
-            return String.substring(target, String.length(base) + 1);
+            return String.substring(target, String.length(base) + 1, String.length(target));
         }
         return target;
     }
