@@ -1,5 +1,9 @@
 // Basic XML parser.
 import tt::xml::XmlNode;
+import tt::xml::XmlNamespace;
+import tt::xml::XmlCanonicalizer;
+import tt::xml::XmlSchema;
+import tt::xml::ValidationResult;
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::DataFile;
@@ -10,6 +14,110 @@ public fn parse(input: string): XmlNode {
     let parser: Xml = new Xml(input);
     parser.skipWhitespace();
     return parser.parseNode();
+}
+
+// Parse an XML string and populate namespace-related fields on XmlNode.
+// Processes xmlns and xmlns:prefix attributes, sets prefix and localName on each element.
+public fn parseWithNamespaces(input: string): XmlNode {
+    let parser: Xml = new Xml(input);
+    parser.skipWhitespace();
+    let root: XmlNode = parser.parseNode();
+    _applyNamespaces(root, "");
+    return root;
+}
+
+// Recursively apply namespace information to an XmlNode tree.
+fn _applyNamespaces(node: XmlNode, defaultNs: string): void {
+    // Only process element nodes
+    if (node.nodeType != "element") {
+        return;
+    }
+
+    // Scan attributes for xmlns declarations
+    let currentDefaultNs: string = defaultNs;
+    let keys: ArrayList<string> = node.attributes.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (key == "xmlns") {
+            currentDefaultNs = node.attributes.get(key);
+        }
+        i = i + 1;
+    }
+
+    // Split tag into prefix:localName
+    let colonIdx: int = String.indexOf(node.tag, ":");
+    if (colonIdx >= 0) {
+        node.prefix = String.substring(node.tag, 0, colonIdx);
+        node.localName = String.substring(node.tag, colonIdx + 1, String.length(node.tag));
+    } else {
+        node.prefix = "";
+        node.localName = node.tag;
+    }
+
+    // Resolve namespaceURI from prefix or default namespace
+    if (String.length(node.prefix) > 0) {
+        // Look for xmlns:prefix declaration on this node
+        let nsAttr: string = "xmlns:" + node.prefix;
+        let found: bool = false;
+        let j: int = 0;
+        while (j < keys.size()) {
+            if (keys.get(j) == nsAttr) {
+                node.namespaceURI = node.attributes.get(nsAttr);
+                found = true;
+            }
+            j = j + 1;
+        }
+        // If not found on this node, try resolving via XmlNamespace module
+        if (!found) {
+            let resolved: string = XmlNamespace.resolveNamespace(node.prefix);
+            if (String.length(resolved) > 0) {
+                node.namespaceURI = resolved;
+            }
+        }
+    } else {
+        // No prefix — use default namespace
+        node.namespaceURI = currentDefaultNs;
+    }
+
+    // Push scope for children with this node's xmlns declarations
+    XmlNamespace.processNamespaceAttrs(node.attributes);
+
+    // Recurse into children
+    let k: int = 0;
+    while (k < node.children.size()) {
+        let child: XmlNode = node.children.get(k);
+        if (child.nodeType == "element") {
+            // Determine the default namespace for children
+            let childDefaultNs: string = currentDefaultNs;
+            let m: int = 0;
+            let childKeys: ArrayList<string> = child.attributes.keys();
+            while (m < childKeys.size()) {
+                if (childKeys.get(m) == "xmlns") {
+                    childDefaultNs = child.attributes.get(childKeys.get(m));
+                }
+                m = m + 1;
+            }
+            _applyNamespaces(child, childDefaultNs);
+        }
+        k = k + 1;
+    }
+
+    // Pop scope
+    XmlNamespace.popScope();
+}
+
+// Canonicalize an XmlNode using XmlCanonicalizer.
+public fn canonicalize(node: XmlNode): string {
+    let canon: XmlCanonicalizer = new XmlCanonicalizer();
+    return canon.canonicalize(node);
+}
+
+// Validate an XmlNode against a schema using XmlSchema.
+public fn validate(node: XmlNode, schemaPath: string): ValidationResult {
+    let schema: XmlSchema = new XmlSchema();
+    schema.loadSchema(schemaPath);
+    return schema.validate(node, node.tag);
 }
 
 // Convert hex string to character
@@ -84,6 +192,7 @@ public class Xml {
             // Text-only content or empty
             let node: XmlNode = new XmlNode("");
             node.text = this.parseTextContent();
+            node.nodeType = "text";
             return node;
         }
         this.advance(); // skip '<'
@@ -95,12 +204,11 @@ public class Xml {
             return new XmlNode("");
         }
 
-        // Check for XML declaration <?xml ...?>
+        // Check for XML declaration <?xml ...?> or processing instruction <?target data?>
         if (this.peek() == "?") {
             this.advance(); // skip '?'
-            this.parseDeclaration();
-            this.skipWhitespace();
-            return this.parseNode();
+            let piNode: XmlNode = this.parsePI();
+            return piNode;
         }
 
         // Check for CDATA <![CDATA[...]]> or comment <!-- ... -->
@@ -116,17 +224,20 @@ public class Xml {
                 String.charAt(this.input, this.pos + 5) == "A" &&
                 String.charAt(this.input, this.pos + 6) == "[") {
                 let cdataText: string = this.parseCDATA();
-                let textNode: XmlNode = new XmlNode("");
-                textNode.text = cdataText;
-                return textNode;
+                let cdataNode: XmlNode = new XmlNode("");
+                cdataNode.text = cdataText;
+                cdataNode.nodeType = "cdata";
+                return cdataNode;
             }
             // Check for comment
             if (this.pos + 1 < String.length(this.input) &&
                 String.charAt(this.input, this.pos) == "-" &&
                 String.charAt(this.input, this.pos + 1) == "-") {
-                this.parseComment();
-                this.skipWhitespace();
-                return this.parseNode();
+                let commentText: string = this.parseCommentContent();
+                let commentNode: XmlNode = new XmlNode("");
+                commentNode.text = commentText;
+                commentNode.nodeType = "comment";
+                return commentNode;
             }
             // Unknown <! construct, skip to '>'
             while (this.pos < String.length(this.input) && this.peek() != ">") {
@@ -215,23 +326,33 @@ public class Xml {
                     this.advance(); // skip '<'
                     this.advance(); // skip '!'
                     let cdataText: string = this.parseCDATA();
-                    if (node.text == "") {
-                        node.text = cdataText;
-                    } else {
-                        node.text = node.text + cdataText;
-                    }
+                    let cdataNode: XmlNode = new XmlNode("");
+                    cdataNode.text = cdataText;
+                    cdataNode.nodeType = "cdata";
+                    node.addChild(cdataNode);
                 } else if (this.pos + 3 < String.length(this.input) &&
                            String.charAt(this.input, this.pos + 1) == "!" &&
                            String.charAt(this.input, this.pos + 2) == "-" &&
                            String.charAt(this.input, this.pos + 3) == "-") {
-                    // Comment in content
+                    // Comment in content — preserve as child node
                     this.advance(); // skip '<'
                     this.advance(); // skip '!'
-                    this.parseComment();
+                    let commentText: string = this.parseCommentContent();
+                    let commentNode: XmlNode = new XmlNode("");
+                    commentNode.text = commentText;
+                    commentNode.nodeType = "comment";
+                    node.addChild(commentNode);
+                } else if (this.pos + 1 < String.length(this.input) &&
+                           String.charAt(this.input, this.pos + 1) == "?") {
+                    // Processing instruction in content
+                    this.advance(); // skip '<'
+                    this.advance(); // skip '?'
+                    let piNode: XmlNode = this.parsePI();
+                    node.addChild(piNode);
                 } else {
                     // Child node
                     let child: XmlNode = this.parseNode();
-                    if (child.tag != "") {
+                    if (child.tag != "" || child.nodeType == "cdata" || child.nodeType == "comment" || child.nodeType == "pi" || child.nodeType == "declaration") {
                         node.addChild(child);
                     }
                 }
@@ -381,8 +502,8 @@ public class Xml {
         return result;
     }
 
-    // Parse comment <!-- ... -->
-    private fn parseComment(): void {
+    // Parse comment <!-- ... --> and return the comment text content.
+    private fn parseCommentContent(): string {
         // Already past '<!', expect '--'
         if (this.pos < String.length(this.input) && String.charAt(this.input, this.pos) == "-") {
             this.pos = this.pos + 1;
@@ -391,6 +512,7 @@ public class Xml {
             this.pos = this.pos + 1;
         }
         // Read until -->
+        let result: string = "";
         while (this.pos < String.length(this.input)) {
             if (this.pos + 2 < String.length(this.input) &&
                 String.charAt(this.input, this.pos) == "-" &&
@@ -399,8 +521,43 @@ public class Xml {
                 this.pos = this.pos + 3;
                 break;
             }
+            result = result + String.charAt(this.input, this.pos);
             this.pos = this.pos + 1;
         }
+        return result;
+    }
+
+    // Parse a processing instruction <?target data?> and return as XmlNode.
+    // Also handles XML declarations <?xml ...?> as a special case.
+    private fn parsePI(): XmlNode {
+        // Already past '<?', parse the target name
+        let target: string = this.parseName();
+        let piNode: XmlNode = new XmlNode(target);
+        piNode.piTarget = target;
+
+        // Read data until '?>'
+        let data: string = "";
+        this.skipWhitespace();
+        while (this.pos < String.length(this.input)) {
+            if (this.pos + 1 < String.length(this.input) &&
+                String.charAt(this.input, this.pos) == "?" &&
+                String.charAt(this.input, this.pos + 1) == ">") {
+                this.pos = this.pos + 2;
+                break;
+            }
+            data = data + String.charAt(this.input, this.pos);
+            this.pos = this.pos + 1;
+        }
+        piNode.piData = String.trim(data);
+        piNode.text = String.trim(data);
+
+        // Distinguish XML declaration from other PIs
+        if (target == "xml") {
+            piNode.nodeType = "declaration";
+        } else {
+            piNode.nodeType = "pi";
+        }
+        return piNode;
     }
 
     // Parse XML declaration <?xml ...?>
@@ -460,6 +617,33 @@ public class XmlElement {
         return result;
     }
 
+    // Find the first descendant element by namespace URI and local name.
+    public fn findNS(nsURI: string, localName: string): XmlElement {
+        let children: ArrayList<XmlNode> = this._node.getChildren();
+        let i: int = 0;
+        while (i < children.size()) {
+            let child: XmlNode = children.get(i);
+            if (child.namespaceURI == nsURI && child.localName == localName) {
+                return new XmlElement(child);
+            }
+            // Search descendants
+            let childElem: XmlElement = new XmlElement(child);
+            let found: XmlElement = childElem.findNS(nsURI, localName);
+            if (found != null && found.tagName != "") {
+                return found;
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    // Find all descendant elements by namespace URI and local name.
+    public fn findAllNS(nsURI: string, localName: string): ArrayList<XmlElement> {
+        let result: ArrayList<XmlElement> = new ArrayList<XmlElement>();
+        _findAllNSRecursive(this._node, nsURI, localName, result);
+        return result;
+    }
+
     // Get the children of this element as XmlElements.
     public fn getChildren(): ArrayList<XmlElement> {
         let result: ArrayList<XmlElement> = new ArrayList<XmlElement>();
@@ -513,6 +697,20 @@ fn _findAllRecursive(node: XmlNode, tag: string, result: ArrayList<XmlElement>):
             result.add(new XmlElement(child));
         }
         _findAllRecursive(child, tag, result);
+        i = i + 1;
+    }
+}
+
+// Helper: recursively find all elements by namespace URI and local name.
+fn _findAllNSRecursive(node: XmlNode, nsURI: string, localName: string, result: ArrayList<XmlElement>): void {
+    let children: ArrayList<XmlNode> = node.getChildren();
+    let i: int = 0;
+    while (i < children.size()) {
+        let child: XmlNode = children.get(i);
+        if (child.namespaceURI == nsURI && child.localName == localName) {
+            result.add(new XmlElement(child));
+        }
+        _findAllNSRecursive(child, nsURI, localName, result);
         i = i + 1;
     }
 }
