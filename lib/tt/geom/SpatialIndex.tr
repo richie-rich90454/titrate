@@ -1,0 +1,119 @@
+// SpatialIndex.tr — KD-Tree, nearest neighbor search, range query
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+public class PointKD {
+    public ArrayList<double> coords;
+
+    public fn init(dim: int) {
+        this.coords = new ArrayList<double>();
+        var i: int = 0;
+        while (i < dim) {
+            this.coords.add(0.0);
+            i = i + 1;
+        }
+    }
+
+    public fn distanceTo(other: PointKD): double {
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < this.coords.size() && i < other.coords.size()) {
+            let d: double = this.coords.get(i) - other.coords.get(i);
+            sum = sum + d * d;
+            i = i + 1;
+        }
+        return MathAdvanced.sqrt(sum);
+    }
+}
+
+class _KDNode {
+    public PointKD point;
+    public int index;
+    public _KDNode left;
+    public _KDNode right;
+
+    public fn init(p: PointKD, idx: int) {
+        this.point = p;
+        this.index = idx;
+        this.left = null;
+        this.right = null;
+    }
+}
+
+public class KDTree {
+    public _KDNode root;
+    public int dimensions;
+
+    public fn init(dim: int) {
+        this.root = null;
+        this.dimensions = dim;
+    }
+
+    public fn insert(point: PointKD, index: int): void {
+        this.root = _insertRec(this.root, point, index, 0);
+    }
+
+    fn _insertRec(node: _KDNode, point: PointKD, index: int, depth: int): _KDNode {
+        if (node == null) { return new _KDNode(point, index); }
+        let axis: int = depth % this.dimensions;
+        if (point.coords.get(axis) < node.point.coords.get(axis)) {
+            node.left = _insertRec(node.left, point, index, depth + 1);
+        } else {
+            node.right = _insertRec(node.right, point, index, depth + 1);
+        }
+        return node;
+    }
+
+    public fn nearestNeighbor(query: PointKD): int {
+        let result: ArrayList<int> = new ArrayList<int>();
+        result.add(-1);
+        let bestDist: ArrayList<double> = new ArrayList<double>();
+        bestDist.add(1e30);
+        _nnSearch(this.root, query, 0, result, bestDist);
+        return result.get(0);
+    }
+
+    fn _nnSearch(node: _KDNode, query: PointKD, depth: int, best: ArrayList<int>, bestDist: ArrayList<double>): void {
+        if (node == null) { return; }
+        let dist: double = query.distanceTo(node.point);
+        if (dist < bestDist.get(0)) {
+            bestDist.set(0, dist);
+            best.set(0, node.index);
+        }
+        let axis: int = depth % this.dimensions;
+        let diff: double = query.coords.get(axis) - node.point.coords.get(axis);
+        let near: _KDNode = node.left;
+        let far: _KDNode = node.right;
+        if (diff >= 0.0) {
+            near = node.right;
+            far = node.left;
+        }
+        _nnSearch(near, query, depth + 1, best, bestDist);
+        if (Math.abs(diff) < bestDist.get(0)) {
+            _nnSearch(far, query, depth + 1, best, bestDist);
+        }
+    }
+
+    public fn rangeSearch(query: PointKD, radius: double): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        _rangeSearch(this.root, query, radius, 0, result);
+        return result;
+    }
+
+    fn _rangeSearch(node: _KDNode, query: PointKD, radius: double, depth: int, result: ArrayList<int>): void {
+        if (node == null) { return; }
+        let dist: double = query.distanceTo(node.point);
+        if (dist <= radius) {
+            result.add(node.index);
+        }
+        let axis: int = depth % this.dimensions;
+        let diff: double = query.coords.get(axis) - node.point.coords.get(axis);
+        if (diff <= radius) {
+            _rangeSearch(node.left, query, radius, depth + 1, result);
+        }
+        if (diff >= -radius) {
+            _rangeSearch(node.right, query, radius, depth + 1, result);
+        }
+    }
+}

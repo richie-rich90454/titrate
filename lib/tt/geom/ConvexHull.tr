@@ -1,0 +1,166 @@
+// ConvexHull.tr — Convex hull algorithms: Graham scan, QuickHull
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::math::Math;
+
+public class Point2D {
+    public double x;
+    public double y;
+
+    public fn init(x: double, y: double) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+// Cross product of vectors OA and OB
+fn _cross(o: Point2D, a: Point2D, b: Point2D): double {
+    return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+}
+
+// Graham scan convex hull
+public fn grahamScan(points: ArrayList<Point2D>): ArrayList<Point2D> {
+    let n: int = points.size();
+    if (n <= 3) { return points; }
+    // Find lowest point
+    var lowest: int = 0;
+    var i: int = 1;
+    while (i < n) {
+        if (points.get(i).y < points.get(lowest).y || (points.get(i).y == points.get(lowest).y && points.get(i).x < points.get(lowest).x)) {
+            lowest = i;
+        }
+        i = i + 1;
+    }
+    // Sort by polar angle (simple insertion sort)
+    let sorted: ArrayList<Point2D> = new ArrayList<Point2D>();
+    i = 0;
+    while (i < n) {
+        sorted.add(points.get(i));
+        i = i + 1;
+    }
+    let pivot: Point2D = sorted.get(lowest);
+    sorted.set(lowest, sorted.get(0));
+    sorted.set(0, pivot);
+    // Simple sort by angle
+    i = 1;
+    while (i < n - 1) {
+        var j: int = i + 1;
+        while (j < n) {
+            let ai: double = MathTrig.atan2(sorted.get(i).y - pivot.y, sorted.get(i).x - pivot.x);
+            let aj: double = MathTrig.atan2(sorted.get(j).y - pivot.y, sorted.get(j).x - pivot.x);
+            if (aj < ai) {
+                let tmp: Point2D = sorted.get(i);
+                sorted.set(i, sorted.get(j));
+                sorted.set(j, tmp);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    // Build hull
+    let hull: ArrayList<Point2D> = new ArrayList<Point2D>();
+    hull.add(sorted.get(0));
+    hull.add(sorted.get(1));
+    i = 2;
+    while (i < n) {
+        while (hull.size() > 1 && _cross(hull.get(hull.size() - 2), hull.get(hull.size() - 1), sorted.get(i)) <= 0.0) {
+            hull.removeAt(hull.size() - 1);
+        }
+        hull.add(sorted.get(i));
+        i = i + 1;
+    }
+    return hull;
+}
+
+// Convex hull area (shoelace formula)
+public fn hullArea(hull: ArrayList<Point2D>): double {
+    var area: double = 0.0;
+    let n: int = hull.size();
+    var i: int = 0;
+    while (i < n) {
+        let j: int = (i + 1) % n;
+        area = area + hull.get(i).x * hull.get(j).y;
+        area = area - hull.get(j).x * hull.get(i).y;
+        i = i + 1;
+    }
+    return Math.abs(area) / 2.0;
+}
+
+// Convex hull perimeter
+public fn hullPerimeter(hull: ArrayList<Point2D>): double {
+    var perimeter: double = 0.0;
+    let n: int = hull.size();
+    var i: int = 0;
+    while (i < n) {
+        let j: int = (i + 1) % n;
+        let dx: double = hull.get(j).x - hull.get(i).x;
+        let dy: double = hull.get(j).y - hull.get(i).y;
+        perimeter = perimeter + MathAdvanced.sqrt(dx * dx + dy * dy);
+        i = i + 1;
+    }
+    return perimeter;
+}
+
+// QuickHull 2D
+public fn quickHull(points: ArrayList<Point2D>): ArrayList<Point2D> {
+    if (points.size() <= 3) { return points; }
+    // Find leftmost and rightmost
+    var minX: int = 0;
+    var maxX: int = 0;
+    var i: int = 1;
+    while (i < points.size()) {
+        if (points.get(i).x < points.get(minX).x) { minX = i; }
+        if (points.get(i).x > points.get(maxX).x) { maxX = i; }
+        i = i + 1;
+    }
+    let left: Point2D = points.get(minX);
+    let right: Point2D = points.get(maxX);
+    let upper: ArrayList<Point2D> = new ArrayList<Point2D>();
+    let lower: ArrayList<Point2D> = new ArrayList<Point2D>();
+    i = 0;
+    while (i < points.size()) {
+        if (i != minX && i != maxX) {
+            let cp: double = _cross(left, right, points.get(i));
+            if (cp > 0.0) { upper.add(points.get(i)); }
+            else { if (cp < 0.0) { lower.add(points.get(i)); } }
+        }
+        i = i + 1;
+    }
+    let result: ArrayList<Point2D> = new ArrayList<Point2D>();
+    result.add(left);
+    _quickHullRec(upper, left, right, result);
+    result.add(right);
+    _quickHullRec(lower, right, left, result);
+    return result;
+}
+
+fn _quickHullRec(points: ArrayList<Point2D>, a: Point2D, b: Point2D, hull: ArrayList<Point2D>): void {
+    if (points.size() == 0) { return; }
+    // Find farthest point from line AB
+    var maxDist: double = 0.0;
+    var farthest: int = 0;
+    var i: int = 0;
+    while (i < points.size()) {
+        let dist: double = Math.abs(_cross(a, b, points.get(i)));
+        if (dist > maxDist) {
+            maxDist = dist;
+            farthest = i;
+        }
+        i = i + 1;
+    }
+    let c: Point2D = points.get(farthest);
+    let leftSet: ArrayList<Point2D> = new ArrayList<Point2D>();
+    let rightSet: ArrayList<Point2D> = new ArrayList<Point2D>();
+    i = 0;
+    while (i < points.size()) {
+        if (i != farthest) {
+            if (_cross(a, c, points.get(i)) > 0.0) { leftSet.add(points.get(i)); }
+            else { if (_cross(c, b, points.get(i)) > 0.0) { rightSet.add(points.get(i)); } }
+        }
+        i = i + 1;
+    }
+    _quickHullRec(leftSet, a, c, hull);
+    hull.add(c);
+    _quickHullRec(rightSet, c, b, hull);
+}

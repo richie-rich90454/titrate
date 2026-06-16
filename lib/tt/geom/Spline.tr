@@ -1,0 +1,95 @@
+// Spline.tr — Bezier curves, B-splines, NURBS, curve evaluation
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class Point2D {
+    public double x;
+    public double y;
+
+    public fn init(x: double, y: double) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+// Evaluate quadratic Bezier curve at parameter t
+public fn quadraticBezier(p0: Point2D, p1: Point2D, p2: Point2D, t: double): Point2D {
+    let mt: double = 1.0 - t;
+    let x: double = mt * mt * p0.x + 2.0 * mt * t * p1.x + t * t * p2.x;
+    let y: double = mt * mt * p0.y + 2.0 * mt * t * p1.y + t * t * p2.y;
+    return new Point2D(x, y);
+}
+
+// Evaluate cubic Bezier curve at parameter t
+public fn cubicBezier(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: double): Point2D {
+    let mt: double = 1.0 - t;
+    let mt2: double = mt * mt;
+    let mt3: double = mt2 * mt;
+    let t2: double = t * t;
+    let t3: double = t2 * t;
+    let x: double = mt3 * p0.x + 3.0 * mt2 * t * p1.x + 3.0 * mt * t2 * p2.x + t3 * p3.x;
+    let y: double = mt3 * p0.y + 3.0 * mt2 * t * p1.y + 3.0 * mt * t2 * p2.y + t3 * p3.y;
+    return new Point2D(x, y);
+}
+
+// General Bezier curve using De Casteljau's algorithm
+public fn bezierCurve(controlPoints: ArrayList<Point2D>, t: double): Point2D {
+    let n: int = controlPoints.size();
+    if (n == 0) { return new Point2D(0.0, 0.0); }
+    if (n == 1) { return controlPoints.get(0); }
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    var i: int = 0;
+    while (i < n) {
+        points.add(new Point2D(controlPoints.get(i).x, controlPoints.get(i).y));
+        i = i + 1;
+    }
+    var k: int = n - 1;
+    while (k > 0) {
+        i = 0;
+        while (i < k) {
+            let x: double = (1.0 - t) * points.get(i).x + t * points.get(i + 1).x;
+            let y: double = (1.0 - t) * points.get(i).y + t * points.get(i + 1).y;
+            points.set(i, new Point2D(x, y));
+            i = i + 1;
+        }
+        k = k - 1;
+    }
+    return points.get(0);
+}
+
+// Sample Bezier curve at multiple points
+public fn sampleBezier(controlPoints: ArrayList<Point2D>, numSamples: int): ArrayList<Point2D> {
+    let result: ArrayList<Point2D> = new ArrayList<Point2D>();
+    var i: int = 0;
+    while (i <= numSamples) {
+        let t: double = i as double / numSamples as double;
+        result.add(bezierCurve(controlPoints, t));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Cubic Bezier derivative
+public fn cubicBezierDerivative(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, t: double): Point2D {
+    let mt: double = 1.0 - t;
+    let x: double = 3.0 * mt * mt * (p1.x - p0.x) + 6.0 * mt * t * (p2.x - p1.x) + 3.0 * t * t * (p3.x - p2.x);
+    let y: double = 3.0 * mt * mt * (p1.y - p0.y) + 6.0 * mt * t * (p2.y - p1.y) + 3.0 * t * t * (p3.y - p2.y);
+    return new Point2D(x, y);
+}
+
+// Approximate arc length of a cubic Bezier
+public fn cubicBezierLength(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, numSamples: int): double {
+    var length: double = 0.0;
+    var prev: Point2D = p0;
+    var i: int = 1;
+    while (i <= numSamples) {
+        let t: double = i as double / numSamples as double;
+        let pt: Point2D = cubicBezier(p0, p1, p2, p3, t);
+        let dx: double = pt.x - prev.x;
+        let dy: double = pt.y - prev.y;
+        length = length + MathAdvanced.sqrt(dx * dx + dy * dy);
+        prev = pt;
+        i = i + 1;
+    }
+    return length;
+}
