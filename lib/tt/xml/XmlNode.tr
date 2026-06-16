@@ -1,6 +1,8 @@
 // XmlNode represents an XML element with tag, attributes, children, and text.
 import tt::util::ArrayList;
 import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
 public class XmlNode {
     public string tag;
@@ -157,12 +159,9 @@ fn escapeText(s: string): string {
     let i: int = 0;
     while (i < String.length(s)) {
         let c: string = String.charAt(s, i);
-        if (c == "&") {
-            result = result + "&amp;";
-        } else if (c == "<") {
-            result = result + "&lt;";
-        } else if (c == ">") {
-            result = result + "&gt;";
+        _ensureXmlEscapeLoaded();
+        if (_xmlEscapeCache.containsKey(c)) {
+            result = result + _xmlEscapeCache.get(c);
         } else {
             result = result + c;
         }
@@ -177,20 +176,47 @@ fn escapeAttr(s: string): string {
     let i: int = 0;
     while (i < String.length(s)) {
         let c: string = String.charAt(s, i);
-        if (c == "&") {
-            result = result + "&amp;";
-        } else if (c == "<") {
-            result = result + "&lt;";
-        } else if (c == ">") {
-            result = result + "&gt;";
-        } else if (c == "\"") {
-            result = result + "&quot;";
-        } else if (c == "'") {
-            result = result + "&apos;";
+        _ensureXmlEscapeLoaded();
+        if (_xmlEscapeCache.containsKey(c)) {
+            result = result + _xmlEscapeCache.get(c);
         } else {
             result = result + c;
         }
         i = i + 1;
     }
     return result;
+}
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _xmlEscapeCache: HashMap<string, string> = new HashMap<string, string>();
+var _xmlEscapeLoaded: bool = false;
+
+fn _ensureXmlEscapeLoaded(): void {
+    if (_xmlEscapeLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("encoding/escape_maps.json");
+    if (data.isNull() || !data.isObject()) {
+        _xmlEscapeLoaded = true;
+        return;
+    }
+    if (!data.hasKey("xml_escape")) {
+        _xmlEscapeLoaded = true;
+        return;
+    }
+    let escape: JsonValue = data.get("xml_escape");
+    if (!escape.isObject()) {
+        _xmlEscapeLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = escape.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: string = escape.get(key).asString();
+        _xmlEscapeCache.put(key, val);
+        i = i + 1;
+    }
+    _xmlEscapeLoaded = true;
 }
