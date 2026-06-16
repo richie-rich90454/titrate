@@ -4,6 +4,9 @@
 // Precision: %.2f
 import tt::util::ArrayList;
 import tt::lang::String;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
 
 // Format a template string with the given arguments
 public fn format(template: string, args: ArrayList<Variant>): string {
@@ -98,13 +101,18 @@ public fn sprintf(template: string, args: ArrayList<Variant>): string {
 // Format a single argument according to the specifier
 fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign: bool, padZero: bool, showSign: bool): string {
     var result: string = "";
-    if (spec == "d") {
+    _ensureFormatSpecsLoaded();
+    let category: string = "";
+    if (_formatTypesCache.containsKey(spec)) {
+        category = _formatTypesCache.get(spec);
+    }
+    if (category == "integer" && spec == "d") {
         let val: int = arg as int;
         result = Integer.toString(val);
         if (showSign && val >= 0) {
             result = "+" + result;
         }
-    } else if (spec == "f") {
+    } else if (category == "float" && spec == "f") {
         let val: double = arg as double;
         if (precision >= 0) {
             result = _formatDouble(val, precision);
@@ -114,36 +122,32 @@ fn _formatArg(arg: Variant, spec: string, width: int, precision: int, leftAlign:
         if (showSign && val >= 0.0) {
             result = "+" + result;
         }
-    } else if (spec == "s") {
+    } else if (category == "string") {
         result = arg as string;
-    } else if (spec == "b") {
-        let val: bool = arg as bool;
-        if (val) {
-            result = "true";
-        } else {
-            result = "false";
-        }
-    } else if (spec == "x") {
+    } else if (category == "integer" && spec == "b") {
+        let val: int = arg as int;
+        result = _toBinary(val);
+    } else if (category == "integer" && spec == "x") {
         let val: int = arg as int;
         result = _toHex(val);
-    } else if (spec == "X") {
+    } else if (category == "integer" && spec == "X") {
         let val: int = arg as int;
         result = _toUpperCase(_toHex(val));
-    } else if (spec == "o") {
+    } else if (category == "integer" && spec == "o") {
         let val: int = arg as int;
         result = _toOctal(val);
-    } else if (spec == "c") {
+    } else if (category == "character") {
         // Character from integer code point
         let val: int = arg as int;
         result = String.fromCharCode(val);
-    } else if (spec == "e") {
+    } else if (category == "float" && spec == "e") {
         // Scientific notation
         let val: double = arg as double;
         result = _formatScientific(val, precision);
         if (showSign && val >= 0.0) {
             result = "+" + result;
         }
-    } else if (spec == "p") {
+    } else if (category == "pointer") {
         // Percent format: multiply by 100 and add %
         let val: double = arg as double;
         let pct: double = val * 100.0;
@@ -223,7 +227,8 @@ fn _padLeft(s: string, len: int): string {
 // Convert an integer to hexadecimal string
 fn _toHex(val: int): string {
     if (val == 0) { return "0"; }
-    let hex: string = "0123456789abcdef";
+    _ensureFormatSpecsLoaded();
+    let hex: string = _hexDigitsCache;
     var result: string = "";
     var v: int = val;
     if (v < 0) {
@@ -233,6 +238,25 @@ fn _toHex(val: int): string {
         let digit: int = v % 16;
         result = String.charAt(hex, digit) + result;
         v = v / 16;
+    }
+    if (val < 0) {
+        result = "-" + result;
+    }
+    return result;
+}
+
+// Convert an integer to binary string
+fn _toBinary(val: int): string {
+    if (val == 0) { return "0"; }
+    var result: string = "";
+    var v: int = val;
+    if (v < 0) {
+        v = -v;
+    }
+    while (v > 0) {
+        let digit: int = v % 2;
+        result = Integer.toString(digit) + result;
+        v = v / 2;
     }
     if (val < 0) {
         result = "-" + result;
@@ -303,4 +327,45 @@ fn _formatScientific(val: double, precision: int): string {
     var sign: string = "";
     if (val < 0.0) { sign = "-"; }
     return sign + mantissa + "e" + expStr;
+}
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _formatTypesCache: HashMap<string, string> = new HashMap<string, string>();
+var _hexDigitsCache: string = "0123456789abcdef";
+var _formatSpecsLoaded: bool = false;
+
+fn _ensureFormatSpecsLoaded(): void {
+    if (_formatSpecsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("io/format_specs.json");
+    if (data.isNull() || !data.isObject()) {
+        _formatSpecsLoaded = true;
+        return;
+    }
+    // Load type categories
+    if (data.hasKey("types")) {
+        let types: JsonValue = data.get("types");
+        if (types.isObject()) {
+            let keys: ArrayList<string> = types.keys();
+            let i: int = 0;
+            while (i < keys.size()) {
+                let key: string = keys.get(i);
+                let entry: JsonValue = types.get(key);
+                if (entry.isObject() && entry.hasKey("category")) {
+                    _formatTypesCache.put(key, entry.get("category").asString());
+                }
+                i = i + 1;
+            }
+        }
+    }
+    // Load hex digits
+    if (data.hasKey("hex_digits")) {
+        let hexDigits: string = data.get("hex_digits").asString();
+        if (String.length(hexDigits) > 0) {
+            _hexDigitsCache = hexDigits;
+        }
+    }
+    _formatSpecsLoaded = true;
 }
