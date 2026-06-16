@@ -2,6 +2,8 @@
 import tt::xml::XmlNode;
 import tt::util::ArrayList;
 import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
 // Parse an XML string into an XmlNode tree
 public fn parse(input: string): XmlNode {
@@ -339,16 +341,9 @@ public class Xml {
             }
             ref = ref + c;
         }
-        if (ref == "amp") {
-            return "&";
-        } else if (ref == "lt") {
-            return "<";
-        } else if (ref == "gt") {
-            return ">";
-        } else if (ref == "quot") {
-            return "\"";
-        } else if (ref == "apos") {
-            return "'";
+        _ensureXmlUnescapeLoaded();
+        if (_xmlUnescapeCache.containsKey(ref)) {
+            return _xmlUnescapeCache.get(ref);
         } else if (String.length(ref) > 2 && String.charAt(ref, 0) == "#" && String.charAt(ref, 1) == "x") {
             // Hex numeric reference &#xHH;
             return hexToChar(String.substring(ref, 2, String.length(ref)));
@@ -526,4 +521,38 @@ fn _findAllRecursive(node: XmlNode, tag: string, result: ArrayList<XmlElement>):
 public fn parseElement(input: string): XmlElement {
     let node: XmlNode = parse(input);
     return new XmlElement(node);
+}
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _xmlUnescapeCache: HashMap<string, string> = new HashMap<string, string>();
+var _xmlUnescapeLoaded: bool = false;
+
+fn _ensureXmlUnescapeLoaded(): void {
+    if (_xmlUnescapeLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("encoding/escape_maps.json");
+    if (data.isNull() || !data.isObject()) {
+        _xmlUnescapeLoaded = true;
+        return;
+    }
+    if (!data.hasKey("xml_unescape")) {
+        _xmlUnescapeLoaded = true;
+        return;
+    }
+    let unescape: JsonValue = data.get("xml_unescape");
+    if (!unescape.isObject()) {
+        _xmlUnescapeLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = unescape.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: string = unescape.get(key).asString();
+        _xmlUnescapeCache.put(key, val);
+        i = i + 1;
+    }
+    _xmlUnescapeLoaded = true;
 }
