@@ -1,0 +1,20 @@
+{
+  "_meta": { "source": "Unicode 15.0", "version": "15.0", "description": "Unicode canonical combining class values" },
+  "classes": [
+    {"codepoint": 768, "class": 230, "name": "GRAVE ACCENT"},
+    {"codepoint": 769, "class": 230, "name": "ACUTE ACCENT"},
+    {"codepoint": 770, "class": 230, "name": "CIRCUMFLEX ACCENT"},
+    {"codepoint": 771, "class": 230, "name": "TILDE"},
+    {"codepoint": 772, "class": 230, "name": "MACRON"},
+    {"codepoint": 774, "class": 230, "name": "BREVE"},
+    {"codepoint": 776, "class": 230, "name": "DIAERESIS"},
+    {"codepoint": 778, "class": 230, "name": "RING ABOVE"},
+    {"codepoint": 780, "class": 230, "name": "CARON"},
+    {"codepoint": 807, "class": 202, "name": "CEDILLA"},
+    {"codepoint": 816, "class": 220, "name": "OGONEK"},
+    {"codepoint": 817, "class": 220, "name": "DOT BELOW"},
+    {"codepoint": 818, "class": 220, "name": "DOUBLE DOT BELOW"},
+    {"codepoint": 819, "class": 220, "name": "RING BELOW"},
+    {"codepoint": 820, "class": 220, "name": "DOUBLE TILDE LEFT HALF"}
+  ]
+}
