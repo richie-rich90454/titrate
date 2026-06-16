@@ -3,6 +3,19 @@ import tt::json::JsonValue;
 import tt::json::JsonParser;
 import tt::util::ArrayList;
 import tt::util::HashMap;
+import tt::lang::String;
+
+// Custom serialization hooks
+let _encoders: HashMap<string, fn(JsonValue): JsonValue> = new HashMap<string, fn(JsonValue): JsonValue>();
+let _decoders: HashMap<string, fn(JsonValue): JsonValue> = new HashMap<string, fn(JsonValue): JsonValue>();
+
+public fn registerEncoder(typeName: string, encoder: fn(JsonValue): JsonValue): void {
+    _encoders.put(typeName, encoder);
+}
+
+public fn registerDecoder(typeName: string, decoder: fn(JsonValue): JsonValue): void {
+    _decoders.put(typeName, decoder);
+}
 
 // Parse a JSON string into a JsonValue
 public fn parse(input: string): JsonValue {
@@ -230,4 +243,213 @@ fn makeIndent(indent: int, level: int): string {
         i = i + 1;
     }
     return result;
+}
+
+// ---- Enhanced pretty printing ----
+
+// Pretty print with configurable indent
+public fn stringifyPretty(value: JsonValue, indent: int): string {
+    return stringifyPrettyInner(value, indent, 0, false, false);
+}
+
+// Pretty print with sorted keys
+public fn stringifySorted(value: JsonValue, indent: int): string {
+    return stringifyPrettyInner(value, indent, 0, true, false);
+}
+
+// Pretty print ensuring ASCII output (escape non-ASCII)
+public fn stringifyAscii(value: JsonValue, indent: int): string {
+    return stringifyPrettyInner(value, indent, 0, false, true);
+}
+
+fn stringifyPrettyInner(value: JsonValue, indent: int, level: int, sortKeys: bool, asciiOnly: bool): string {
+    if (value.isNull()) {
+        return "null";
+    }
+    if (value.isBool()) {
+        if (value.asBool()) {
+            return "true";
+        } else {
+            return "false";
+        }
+    }
+    if (value.isNumber()) {
+        return value.asNumber().toString();
+    }
+    if (value.isString()) {
+        if (asciiOnly) {
+            return escapeStringAscii(value.asString());
+        }
+        return JsonValue.escapeString(value.asString());
+    }
+    if (value.isArray()) {
+        let arr: ArrayList<JsonValue> = value.asArray();
+        if (arr.size() == 0) {
+            return "[]";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "[\n";
+        let i: int = 0;
+        while (i < arr.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            result = result + pad + stringifyPrettyInner(arr.get(i), indent, level + 1, sortKeys, asciiOnly);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "]";
+        return result;
+    }
+    if (value.isObject()) {
+        let obj: HashMap<string, JsonValue> = value.asObject();
+        let keys: ArrayList<string> = obj.keys();
+        if (sortKeys) {
+            keys.sort();
+        }
+        if (keys.size() == 0) {
+            return "{}";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "{\n";
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            let key: string = keys.get(i);
+            let val: JsonValue = obj.get(key);
+            let escapedKey: string = "";
+            if (asciiOnly) {
+                escapedKey = escapeStringAscii(key);
+            } else {
+                escapedKey = JsonValue.escapeString(key);
+            }
+            result = result + pad + escapedKey + ": " + stringifyPrettyInner(val, indent, level + 1, sortKeys, asciiOnly);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "}";
+        return result;
+    }
+    return "null";
+}
+
+// Escape a string for JSON output, ensuring all non-ASCII characters are escaped
+fn escapeStringAscii(s: string): string {
+    let result: string = "\"";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0) as int;
+        if (c == "\"") {
+            result = result + "\\\"";
+        } else if (c == "\\") {
+            result = result + "\\\\";
+        } else if (c == "\n") {
+            result = result + "\\n";
+        } else if (c == "\r") {
+            result = result + "\\r";
+        } else if (c == "\t") {
+            result = result + "\\t";
+        } else if (c == "\b") {
+            result = result + "\\b";
+        } else if (c == "\f") {
+            result = result + "\\f";
+        } else if (code >= 0 && code < 32) {
+            result = result + "\\u00" + _hexDigit(code / 16) + _hexDigit(code % 16);
+        } else if (code > 127) {
+            // Escape non-ASCII as \uXXXX
+            if (code < 0x10000) {
+                result = result + "\\u" + _hexDigit((code >> 12) & 0xf) + _hexDigit((code >> 8) & 0xf) + _hexDigit((code >> 4) & 0xf) + _hexDigit(code & 0xf);
+            } else {
+                // Use surrogate pair for code points above U+FFFF
+                let cp: int = code - 0x10000;
+                let high: int = 0xd800 + (cp >> 10);
+                let low: int = 0xdc00 + (cp & 0x3ff);
+                result = result + "\\u" + _hexDigit((high >> 12) & 0xf) + _hexDigit((high >> 8) & 0xf) + _hexDigit((high >> 4) & 0xf) + _hexDigit(high & 0xf);
+                result = result + "\\u" + _hexDigit((low >> 12) & 0xf) + _hexDigit((low >> 8) & 0xf) + _hexDigit((low >> 4) & 0xf) + _hexDigit(low & 0xf);
+            }
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    result = result + "\"";
+    return result;
+}
+
+fn _hexDigit(v: int): string {
+    if (v < 10) {
+        return String.fromCharCode(48 + v);
+    }
+    return String.fromCharCode(65 + v - 10);
+}
+
+// ---- Field naming strategies ----
+
+// Convert snake_case to camelCase
+public fn toCamelCase(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    let nextUpper: bool = false;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "_") {
+            nextUpper = true;
+        } else {
+            if (nextUpper) {
+                result = result + _toUpper(c);
+                nextUpper = false;
+            } else {
+                result = result + c;
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert camelCase to snake_case
+public fn toSnakeCase(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0) as int;
+        if (code >= 65 && code <= 90) {
+            if (String.length(result) > 0) {
+                result = result + "_";
+            }
+            result = result + _toLower(c);
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert to PascalCase
+public fn toPascalCase(s: string): string {
+    let camel: string = toCamelCase(s);
+    if (String.length(camel) == 0) {
+        return camel;
+    }
+    let first: string = String.charAt(camel, 0);
+    return _toUpper(first) + String.substring(camel, 1, String.length(camel));
+}
+
+fn _toUpper(c: string): string {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 97 && code <= 122) {
+        return String.fromCharCode(code - 32);
+    }
+    return c;
+}
+
+fn _toLower(c: string): string {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 65 && code <= 90) {
+        return String.fromCharCode(code + 32);
+    }
+    return c;
 }
