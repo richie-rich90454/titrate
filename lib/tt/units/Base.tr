@@ -1,3 +1,7 @@
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+
 public class Meter {
     public double value;
     public fn init(v: double) { this.value = v; }
@@ -14,7 +18,7 @@ public class Meter {
         return 0;
     }
     public fn toDouble(): double { return this.value; }
-    public fn toString(): string { return Double.toString(this.value) + " m"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getBaseSymbol("length"); }
 }
 
 public class MeterSquared {
@@ -28,7 +32,7 @@ public class MeterSquared {
         return 0;
     }
     public fn toDouble(): double { return this.value; }
-    public fn toString(): string { return Double.toString(this.value) + " m²"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getBaseSymbol("area"); }
 }
 
 public class Second {
@@ -46,7 +50,7 @@ public class Second {
         return 0;
     }
     public fn toDouble(): double { return this.value; }
-    public fn toString(): string { return Double.toString(this.value) + " s"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getBaseSymbol("time"); }
 }
 
 public class Kilogram {
@@ -64,7 +68,7 @@ public class Kilogram {
         return 0;
     }
     public fn toDouble(): double { return this.value; }
-    public fn toString(): string { return Double.toString(this.value) + " kg"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getBaseSymbol("mass"); }
 }
 
 public class Kelvin {
@@ -80,7 +84,7 @@ public class Kelvin {
         return 0;
     }
     public fn toDouble(): double { return this.value; }
-    public fn toString(): string { return Double.toString(this.value) + " K"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getBaseSymbol("temperature"); }
 }
 
 public class Mole {
@@ -96,7 +100,7 @@ public class Mole {
         return 0;
     }
     public fn toDouble(): double { return this.value; }
-    public fn toString(): string { return Double.toString(this.value) + " mol"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getBaseSymbol("amount"); }
 }
 
 public class Ampere {
@@ -112,7 +116,7 @@ public class Ampere {
         return 0;
     }
     public fn toDouble(): double { return this.value; }
-    public fn toString(): string { return Double.toString(this.value) + " A"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getBaseSymbol("current"); }
 }
 
 public class Candela {
@@ -130,5 +134,47 @@ public class Candela {
         return 0;
     }
     public fn toDouble(): double { return this.value; }
-    public fn toString(): string { return Double.toString(this.value) + " cd"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getBaseSymbol("luminosity"); }
+}
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _siBaseCache: HashMap<string, string> = new HashMap<string, string>();
+var _siBaseLoaded: bool = false;
+
+fn _ensureSiBaseLoaded(): void {
+    if (_siBaseLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("units/si_units.json");
+    if (data.isNull() || !data.isObject()) {
+        _siBaseLoaded = true;
+        return;
+    }
+    if (!data.hasKey("base")) {
+        _siBaseLoaded = true;
+        return;
+    }
+    let base: JsonValue = data.get("base");
+    if (!base.isObject()) {
+        _siBaseLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = base.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: string = base.get(key).asString();
+        _siBaseCache.put(key, val);
+        i = i + 1;
+    }
+    _siBaseLoaded = true;
+}
+
+fn _getBaseSymbol(quantity: string): string {
+    _ensureSiBaseLoaded();
+    if (_siBaseCache.containsKey(quantity)) {
+        return _siBaseCache.get(quantity);
+    }
+    return quantity;
 }
