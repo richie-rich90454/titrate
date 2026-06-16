@@ -5,6 +5,7 @@ import tt::util::Pair;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::math::MathTrig;
+import tt::math::special::Special;
 import tt::random::Random;
 
 // Arithmetic mean.
@@ -990,4 +991,851 @@ public class BetaDist {
     public fn mean(): double {
         return this.alpha / (this.alpha + this.beta);
     }
+}
+
+// ==================== ANOVA (Task 128) ====================
+
+// Helper: compute sum of a list of doubles.
+fn sumList(data: ArrayList<double>): double {
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < data.size()) {
+        s = s + data.get(i);
+        i = i + 1;
+    }
+    return s;
+}
+
+// Helper: compute sum of a list of ints.
+fn sumListInt(data: ArrayList<int>): double {
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < data.size()) {
+        s = s + data.get(i) as double;
+        i = i + 1;
+    }
+    return s;
+}
+
+// Helper: F-distribution CDF approximation using the relationship with beta incomplete.
+// F CDF with df1, df2 at x: P = 1 - I_{df1/(df1+df2*x)}(df1/2, df2/2)
+// We use: I_x(a,b) where x = df1*x / (df1*x + df2)
+fn fDistCdf(x: double, df1: double, df2: double): double {
+    if (x <= 0.0) { return 0.0; }
+    let z: double = df1 * x / (df1 * x + df2);
+    return Special.betaIncomplete(df1 / 2.0, df2 / 2.0, z);
+}
+
+// Helper: approximate F-distribution upper tail p-value.
+fn fDistPValue(fStat: double, df1: double, df2: double): double {
+    return 1.0 - fDistCdf(fStat, df1, df2);
+}
+
+// Helper: approximate inverse of beta incomplete using bisection.
+// Finds x such that I_x(a,b) = target.
+fn betaIncompleteInverse(a: double, b: double, target: double): double {
+    if (target <= 0.0) { return 0.0; }
+    if (target >= 1.0) { return 1.0; }
+    let EPS: double = 1e-10;
+    let maxIter: int = 100;
+    var lo: double = 0.0;
+    var hi: double = 1.0;
+    var mid: double = 0.5;
+    var i: int = 0;
+    while (i < maxIter) {
+        mid = (lo + hi) / 2.0;
+        let val: double = Special.betaIncomplete(a, b, mid);
+        if (Math.abs(val - target) < EPS) {
+            return mid;
+        }
+        if (val < target) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+        i = i + 1;
+    }
+    return mid;
+}
+
+// One-way ANOVA: tests if means of multiple groups are equal.
+// Returns {fStatistic, dfBetween, dfWithin, pValue, ssBetween, ssWithin, msBetween, msWithin}
+public fn oneWayANOVA(groups: ArrayList<ArrayList<double>>): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    let k: int = groups.size();
+    if (k < 2) {
+        result.put("fStatistic", 0.0);
+        result.put("dfBetween", 0.0);
+        result.put("dfWithin", 0.0);
+        result.put("pValue", 1.0);
+        result.put("ssBetween", 0.0);
+        result.put("ssWithin", 0.0);
+        result.put("msBetween", 0.0);
+        result.put("msWithin", 0.0);
+        return result;
+    }
+
+    // Compute total N and grand mean
+    var totalN: int = 0;
+    var grandSum: double = 0.0;
+    var i: int = 0;
+    while (i < k) {
+        let group: ArrayList<double> = groups.get(i);
+        totalN = totalN + group.size();
+        grandSum = grandSum + sumList(group);
+        i = i + 1;
+    }
+    if (totalN <= k) {
+        result.put("fStatistic", 0.0);
+        result.put("dfBetween", (k - 1) as double);
+        result.put("dfWithin", (totalN - k) as double);
+        result.put("pValue", 1.0);
+        result.put("ssBetween", 0.0);
+        result.put("ssWithin", 0.0);
+        result.put("msBetween", 0.0);
+        result.put("msWithin", 0.0);
+        return result;
+    }
+    let grandMean: double = grandSum / totalN as double;
+
+    // Compute SS Between and SS Within
+    var ssBetween: double = 0.0;
+    var ssWithin: double = 0.0;
+    i = 0;
+    while (i < k) {
+        let group: ArrayList<double> = groups.get(i);
+        let ni: int = group.size();
+        let groupMean: double = mean(group);
+        ssBetween = ssBetween + ni as double * (groupMean - grandMean) * (groupMean - grandMean);
+        var j: int = 0;
+        while (j < ni) {
+            let diff: double = group.get(j) - groupMean;
+            ssWithin = ssWithin + diff * diff;
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    let dfBetween: double = (k - 1) as double;
+    let dfWithin: double = (totalN - k) as double;
+    let msBetween: double = ssBetween / dfBetween;
+    let msWithin: double = ssWithin / dfWithin;
+
+    var fStat: double = 0.0;
+    if (msWithin != 0.0) {
+        fStat = msBetween / msWithin;
+    }
+
+    let pValue: double = fDistPValue(fStat, dfBetween, dfWithin);
+
+    result.put("fStatistic", fStat);
+    result.put("dfBetween", dfBetween);
+    result.put("dfWithin", dfWithin);
+    result.put("pValue", pValue);
+    result.put("ssBetween", ssBetween);
+    result.put("ssWithin", ssWithin);
+    result.put("msBetween", msBetween);
+    result.put("msWithin", msWithin);
+    return result;
+}
+
+// Two-way ANOVA: tests effects of two factors and their interaction.
+// data: observations, factorA: level of factor A for each observation,
+// factorB: level of factor B for each observation.
+// Returns {fA, fB, fAB, dfA, dfB, dfAB, dfError, pA, pB, pAB}
+public fn twoWayANOVA(data: ArrayList<double>, factorA: ArrayList<int>, factorB: ArrayList<int>): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    let n: int = data.size();
+    if (n < 4 || factorA.size() != n || factorB.size() != n) {
+        result.put("fA", 0.0);
+        result.put("fB", 0.0);
+        result.put("fAB", 0.0);
+        result.put("dfA", 0.0);
+        result.put("dfB", 0.0);
+        result.put("dfAB", 0.0);
+        result.put("dfError", 0.0);
+        result.put("pA", 1.0);
+        result.put("pB", 1.0);
+        result.put("pAB", 1.0);
+        return result;
+    }
+
+    // Determine number of levels for each factor
+    var maxA: int = 0;
+    var maxB: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        if (factorA.get(i) > maxA) { maxA = factorA.get(i); }
+        if (factorB.get(i) > maxB) { maxB = factorB.get(i); }
+        i = i + 1;
+    }
+    let aLevels: int = maxA + 1;
+    let bLevels: int = maxB + 1;
+    let cells: int = aLevels * bLevels;
+
+    // Grand mean
+    let grandMean: double = mean(data);
+
+    // Compute cell sums and counts
+    let cellSums: ArrayList<double> = new ArrayList<double>();
+    let cellCounts: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < cells) {
+        cellSums.add(0.0);
+        cellCounts.add(0);
+        i = i + 1;
+    }
+    // Factor marginal sums and counts
+    let aSums: ArrayList<double> = new ArrayList<double>();
+    let aCounts: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < aLevels) {
+        aSums.add(0.0);
+        aCounts.add(0);
+        i = i + 1;
+    }
+    let bSums: ArrayList<double> = new ArrayList<double>();
+    let bCounts: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < bLevels) {
+        bSums.add(0.0);
+        bCounts.add(0);
+        i = i + 1;
+    }
+
+    i = 0;
+    while (i < n) {
+        let a: int = factorA.get(i);
+        let b: int = factorB.get(i);
+        let cellIdx: int = a * bLevels + b;
+        cellSums.set(cellIdx, cellSums.get(cellIdx) + data.get(i));
+        cellCounts.set(cellIdx, cellCounts.get(cellIdx) + 1);
+        aSums.set(a, aSums.get(a) + data.get(i));
+        aCounts.set(a, aCounts.get(a) + 1);
+        bSums.set(b, bSums.get(b) + data.get(i));
+        bCounts.set(b, bCounts.get(b) + 1);
+        i = i + 1;
+    }
+
+    // SSA: sum over factor A levels of n_a * (mean_a - grandMean)^2
+    var ssa: double = 0.0;
+    i = 0;
+    while (i < aLevels) {
+        if (aCounts.get(i) > 0) {
+            let meanA: double = aSums.get(i) / aCounts.get(i) as double;
+            let diff: double = meanA - grandMean;
+            ssa = ssa + aCounts.get(i) as double * diff * diff;
+        }
+        i = i + 1;
+    }
+
+    // SSB: sum over factor B levels of n_b * (mean_b - grandMean)^2
+    var ssb: double = 0.0;
+    i = 0;
+    while (i < bLevels) {
+        if (bCounts.get(i) > 0) {
+            let meanB: double = bSums.get(i) / bCounts.get(i) as double;
+            let diff: double = meanB - grandMean;
+            ssb = ssb + bCounts.get(i) as double * diff * diff;
+        }
+        i = i + 1;
+    }
+
+    // SSAB: SS of cells - SSA - SSB
+    var ssCells: double = 0.0;
+    i = 0;
+    while (i < cells) {
+        if (cellCounts.get(i) > 0) {
+            let cellMean: double = cellSums.get(i) / cellCounts.get(i) as double;
+            let diff: double = cellMean - grandMean;
+            ssCells = ssCells + cellCounts.get(i) as double * diff * diff;
+        }
+        i = i + 1;
+    }
+    let ssab: double = ssCells - ssa - ssb;
+
+    // SSTotal
+    var ssTotal: double = 0.0;
+    i = 0;
+    while (i < n) {
+        let diff: double = data.get(i) - grandMean;
+        ssTotal = ssTotal + diff * diff;
+        i = i + 1;
+    }
+
+    // SSError
+    let ssError: double = ssTotal - ssa - ssb - ssab;
+
+    let dfA: double = (aLevels - 1) as double;
+    let dfB: double = (bLevels - 1) as double;
+    let dfAB: double = dfA * dfB;
+    let dfError: double = n as double - aLevels as double * bLevels as double;
+
+    var msA: double = 0.0;
+    if (dfA > 0.0) { msA = ssa / dfA; }
+    var msB: double = 0.0;
+    if (dfB > 0.0) { msB = ssb / dfB; }
+    var msAB: double = 0.0;
+    if (dfAB > 0.0) { msAB = ssab / dfAB; }
+    var msError: double = 0.0;
+    if (dfError > 0.0) { msError = ssError / dfError; }
+
+    var fA: double = 0.0;
+    if (msError != 0.0) { fA = msA / msError; }
+    var fB: double = 0.0;
+    if (msError != 0.0) { fB = msB / msError; }
+    var fAB: double = 0.0;
+    if (msError != 0.0) { fAB = msAB / msError; }
+
+    let pA: double = fDistPValue(fA, dfA, dfError);
+    let pB: double = fDistPValue(fB, dfB, dfError);
+    let pAB: double = fDistPValue(fAB, dfAB, dfError);
+
+    result.put("fA", fA);
+    result.put("fB", fB);
+    result.put("fAB", fAB);
+    result.put("dfA", dfA);
+    result.put("dfB", dfB);
+    result.put("dfAB", dfAB);
+    result.put("dfError", dfError);
+    result.put("pA", pA);
+    result.put("pB", pB);
+    result.put("pAB", pAB);
+    return result;
+}
+
+// Tukey's HSD post-hoc test after one-way ANOVA.
+// Returns list of pairwise comparisons: {groupI, groupJ, meanDiff, qStatistic, pValue, significant}
+public fn tukeyHSD(groups: ArrayList<ArrayList<double>>, alpha: double): ArrayList<HashMap<string, double>> {
+    let result: ArrayList<HashMap<string, double>> = new ArrayList<HashMap<string, double>>();
+    let k: int = groups.size();
+    if (k < 2) { return result; }
+
+    // Compute group means and sizes
+    let groupMeans: ArrayList<double> = new ArrayList<double>();
+    let groupSizes: ArrayList<int> = new ArrayList<int>();
+    var totalN: int = 0;
+    var i: int = 0;
+    while (i < k) {
+        groupMeans.add(mean(groups.get(i)));
+        groupSizes.add(groups.get(i).size());
+        totalN = totalN + groups.get(i).size();
+        i = i + 1;
+    }
+
+    // Compute MSWithin from one-way ANOVA
+    let anovaResult: HashMap<string, double> = oneWayANOVA(groups);
+    let msWithin: double = anovaResult.get("msWithin");
+    let dfWithin: double = anovaResult.get("dfWithin");
+
+    if (msWithin <= 0.0) { return result; }
+
+    // Harmonic mean of group sizes for Tukey
+    var harmonicN: double = 0.0;
+    i = 0;
+    while (i < k) {
+        if (groupSizes.get(i) > 0) {
+            harmonicN = harmonicN + 1.0 / groupSizes.get(i) as double;
+        }
+        i = i + 1;
+    }
+    harmonicN = k as double / harmonicN;
+
+    // Standard error for Tukey: sqrt(msWithin / n_harmonic)
+    let se: double = MathAdvanced.sqrt(msWithin / harmonicN);
+
+    // Pairwise comparisons
+    i = 0;
+    while (i < k) {
+        var j: int = i + 1;
+        while (j < k) {
+            let meanDiff: double = groupMeans.get(i) - groupMeans.get(j);
+            let absDiff: double = Math.abs(meanDiff);
+            let qStat: double = 0.0;
+            if (se != 0.0) {
+                qStat = absDiff / se;
+            }
+
+            // Approximate p-value for studentized range using F-distribution approximation
+            // q(k, df) ~ sqrt(2 * F(1, df)) for the pair comparison
+            // Better: use the relationship q^2/2 ~ F(1, dfWithin) as an approximation
+            let fApprox: double = qStat * qStat / 2.0;
+            // Adjusted p-value: multiply by number of comparisons for Tukey
+            let numComparisons: int = k * (k - 1) / 2;
+            let rawP: double = fDistPValue(fApprox, 1.0, dfWithin);
+            // Tukey p-value approximation: use Bonferroni-like adjustment
+            let pValue: double = Math.min(1.0, rawP * numComparisons as double);
+            let significant: double = 0.0;
+            if (pValue < alpha) { significant = 1.0; }
+
+            let comp: HashMap<string, double> = new HashMap<string, double>();
+            comp.put("groupI", i as double);
+            comp.put("groupJ", j as double);
+            comp.put("meanDiff", meanDiff);
+            comp.put("qStatistic", qStat);
+            comp.put("pValue", pValue);
+            comp.put("significant", significant);
+            result.add(comp);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Bonferroni correction: adjusts alpha by dividing by number of comparisons.
+// Returns a list of booleans (as 1.0/0.0) indicating significance.
+public fn bonferroniCorrection(pValues: ArrayList<double>, alpha: double): ArrayList<bool> {
+    let result: ArrayList<bool> = new ArrayList<bool>();
+    let m: int = pValues.size();
+    if (m == 0) { return result; }
+    let adjustedAlpha: double = alpha / m as double;
+    var i: int = 0;
+    while (i < m) {
+        result.add(pValues.get(i) < adjustedAlpha);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Bayesian Statistics (Task 129) ====================
+
+// Beta-Binomial conjugate posterior.
+// Prior: Beta(priorA, priorB), Likelihood: Binomial(successes | trials, theta)
+// Posterior: Beta(priorA + successes, priorB + trials - successes)
+// Returns {alpha, beta, mean, variance, lower95, upper95}
+public fn betaBinomialPosterior(successes: int, trials: int, priorA: double, priorB: double): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    let postAlpha: double = priorA + successes as double;
+    let postBeta: double = priorB + (trials - successes) as double;
+
+    let postMean: double = postAlpha / (postAlpha + postBeta);
+    let postVar: double = postAlpha * postBeta / ((postAlpha + postBeta) * (postAlpha + postBeta) * (postAlpha + postBeta + 1.0));
+
+    // 95% credible interval using beta incomplete inverse
+    let lower95: double = betaIncompleteInverse(postAlpha, postBeta, 0.025);
+    let upper95: double = betaIncompleteInverse(postAlpha, postBeta, 0.975);
+
+    result.put("alpha", postAlpha);
+    result.put("beta", postBeta);
+    result.put("mean", postMean);
+    result.put("variance", postVar);
+    result.put("lower95", lower95);
+    result.put("upper95", upper95);
+    return result;
+}
+
+// Normal-Normal conjugate posterior.
+// Prior: N(priorMean, priorVar), Likelihood: N(mu, knownVar) for each observation
+// Posterior: N(posteriorMean, posteriorVar)
+// Returns {posteriorMean, posteriorVar, lower95, upper95}
+public fn normalNormalPosterior(data: ArrayList<double>, priorMean: double, priorVar: double, knownVar: double): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    let n: int = data.size();
+    if (n == 0 || knownVar <= 0.0 || priorVar <= 0.0) {
+        result.put("posteriorMean", priorMean);
+        result.put("posteriorVar", priorVar);
+        result.put("lower95", priorMean - 1.96 * MathAdvanced.sqrt(priorVar));
+        result.put("upper95", priorMean + 1.96 * MathAdvanced.sqrt(priorVar));
+        return result;
+    }
+
+    let dataMean: double = mean(data);
+    let precisionPrior: double = 1.0 / priorVar;
+    let precisionLikelihood: double = n as double / knownVar;
+    let precisionPosterior: double = precisionPrior + precisionLikelihood;
+    let postVar: double = 1.0 / precisionPosterior;
+    let postMean: double = (precisionPrior * priorMean + precisionLikelihood * dataMean) / precisionPosterior;
+
+    let lower95: double = postMean - 1.96 * MathAdvanced.sqrt(postVar);
+    let upper95: double = postMean + 1.96 * MathAdvanced.sqrt(postVar);
+
+    result.put("posteriorMean", postMean);
+    result.put("posteriorVar", postVar);
+    result.put("lower95", lower95);
+    result.put("upper95", upper95);
+    return result;
+}
+
+// Gamma-Poisson conjugate posterior.
+// Prior: Gamma(priorShape, priorRate), Likelihood: Poisson(counts)
+// Posterior: Gamma(priorShape + sum(counts), priorRate + n)
+// Returns {shape, rate, mean, variance, lower95, upper95}
+public fn gammaPoissonPosterior(counts: ArrayList<int>, priorShape: double, priorRate: double): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    let n: int = counts.size();
+    if (n == 0 || priorShape <= 0.0 || priorRate <= 0.0) {
+        result.put("shape", priorShape);
+        result.put("rate", priorRate);
+        result.put("mean", priorShape / priorRate);
+        result.put("variance", priorShape / (priorRate * priorRate));
+        result.put("lower95", 0.0);
+        result.put("upper95", 0.0);
+        return result;
+    }
+
+    let totalCounts: double = sumListInt(counts);
+    let postShape: double = priorShape + totalCounts;
+    let postRate: double = priorRate + n as double;
+
+    let postMean: double = postShape / postRate;
+    let postVar: double = postShape / (postRate * postRate);
+
+    // 95% credible interval for Gamma using chi-squared approximation:
+    // If X ~ Gamma(shape, rate), then 2*rate*X ~ chi-squared(2*shape)
+    // chi-squared p quantile approximated via normal: chi2_p(k) ~ k + sqrt(2k)*z_p
+    let chiDf: double = 2.0 * postShape;
+    let nd: NormalDist = new NormalDist(0.0, 1.0);
+    let z025: double = nd.invCdf(0.025);
+    let z975: double = nd.invCdf(0.975);
+    let chiLower: double = Math.max(0.0, chiDf + MathAdvanced.sqrt(2.0 * chiDf) * z025);
+    let chiUpper: double = chiDf + MathAdvanced.sqrt(2.0 * chiDf) * z975;
+    let lower95: double = chiLower / (2.0 * postRate);
+    let upper95: double = chiUpper / (2.0 * postRate);
+
+    result.put("shape", postShape);
+    result.put("rate", postRate);
+    result.put("mean", postMean);
+    result.put("variance", postVar);
+    result.put("lower95", lower95);
+    result.put("upper95", upper95);
+    return result;
+}
+
+// Beta distribution credible interval using beta incomplete inverse approximation.
+// Returns [lower, upper] for the given credibility level.
+public fn credibleInterval(alpha: double, beta: double, level: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (alpha <= 0.0 || beta <= 0.0 || level <= 0.0 || level >= 1.0) {
+        result.add(0.0);
+        result.add(0.0);
+        return result;
+    }
+    let tail: double = (1.0 - level) / 2.0;
+    let lower: double = betaIncompleteInverse(alpha, beta, tail);
+    let upper: double = betaIncompleteInverse(alpha, beta, 1.0 - tail);
+    result.add(lower);
+    result.add(upper);
+    return result;
+}
+
+// ==================== Hypothesis Testing Extensions (Task 127) ====================
+
+// Standard normal CDF using error function approximation.
+public fn normalCDF(x: double): double {
+    return 0.5 * (1.0 + Math.erf(x / MathAdvanced.sqrt(2.0)));
+}
+
+// Student's t-distribution CDF using incomplete beta function.
+// CDF(t, df) = 1 - 0.5 * I_x(df/2, 1/2) where x = df / (df + t^2) for t >= 0
+// For t < 0, use symmetry: CDF(t, df) = 1 - CDF(-t, df)
+public fn tCDF(t: double, df: int): double {
+    if (df <= 0) { return Math.NAN(); }
+    let absT: double = Math.abs(t);
+    let dfD: double = df as double;
+    let x: double = dfD / (dfD + absT * absT);
+    let p: double = Special.betaIncomplete(dfD / 2.0, 0.5, x);
+    let cdf: double = 1.0 - 0.5 * p;
+    if (t < 0.0) {
+        return 1.0 - cdf;
+    }
+    return cdf;
+}
+
+// Chi-squared CDF using incomplete gamma function.
+// CDF(x, df) = P(df/2, x/2) where P is the regularized lower incomplete gamma.
+public fn chiSquaredCDF(x: double, df: int): double {
+    if (df <= 0) { return Math.NAN(); }
+    if (x <= 0.0) { return 0.0; }
+    return Special.incompleteGamma(df as double / 2.0, x / 2.0);
+}
+
+// KS critical value for given sample size n and significance level alpha.
+// D_crit = sqrt(-ln(alpha/2) / (2n))
+public fn ksCritical(n: int, alpha: double): double {
+    if (n <= 0 || alpha <= 0.0 || alpha >= 1.0) { return Math.NAN(); }
+    return MathAdvanced.sqrt(-MathAdvanced.ln(alpha / 2.0) / (2.0 * n as double));
+}
+
+// Paired t-test: tests if the mean difference between paired observations is zero.
+// Returns {tStatistic, df, pValue}.
+public fn pairedTTest(before: ArrayList<double>, after: ArrayList<double>): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    if (before.size() != after.size() || before.size() < 2) {
+        result.put("tStatistic", 0.0);
+        result.put("df", 0.0);
+        result.put("pValue", 1.0);
+        return result;
+    }
+    let n: int = before.size();
+    // Compute differences
+    var sumD: double = 0.0;
+    var sumD2: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let d: double = after.get(i) - before.get(i);
+        sumD = sumD + d;
+        sumD2 = sumD2 + d * d;
+        i = i + 1;
+    }
+    let meanD: double = sumD / n as double;
+    let varD: double = (sumD2 - sumD * sumD / n as double) / (n - 1 as double);
+    let se: double = MathAdvanced.sqrt(varD / n as double);
+    let tStat: double = 0.0;
+    if (se != 0.0) {
+        tStat = meanD / se;
+    }
+    let df: double = n - 1.0;
+    // Two-tailed p-value using t-distribution CDF
+    let absT: double = Math.abs(tStat);
+    let p: double = 2.0 * (1.0 - tCDF(absT, n - 1));
+    if (p > 1.0) { p = 1.0; }
+    result.put("tStatistic", tStat);
+    result.put("df", df);
+    result.put("pValue", p);
+    return result;
+}
+
+// One-sample Kolmogorov-Smirnov test: compares data to a reference CDF.
+// Returns {dStatistic, pValue}.
+public fn kolmogorovSmirnovTest(data: ArrayList<double>, cdf: fn(double): double): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    if (data.size() < 2) {
+        result.put("dStatistic", 0.0);
+        result.put("pValue", 1.0);
+        return result;
+    }
+    let sorted: ArrayList<double> = sortCopy(data);
+    let n: int = sorted.size();
+    var dMax: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let empiricalPlus: double = (i + 1) as double / n as double;
+        let empiricalMinus: double = i as double / n as double;
+        let fVal: double = cdf(sorted.get(i));
+        let dPlus: double = Math.abs(empiricalPlus - fVal);
+        let dMinus: double = Math.abs(fVal - empiricalMinus);
+        if (dPlus > dMax) { dMax = dPlus; }
+        if (dMinus > dMax) { dMax = dMinus; }
+        i = i + 1;
+    }
+    // Approximate p-value using Kolmogorov distribution
+    // P(D_n > d) ~ 2 * sum_{j=1}^{inf} (-1)^{j+1} * exp(-2 * j^2 * n * d^2)
+    let lambda: double = (MathAdvanced.sqrt(n as double) + 0.12 + 0.11 / MathAdvanced.sqrt(n as double)) * dMax;
+    let lambda2: double = lambda * lambda;
+    var p: double = 0.0;
+    var j: int = 1;
+    while (j <= 100) {
+        let jd: double = j as double;
+        let sign: double = 1.0;
+        if (j % 2 == 0) { sign = -1.0; }
+        let term: double = sign * MathAdvanced.exp(-2.0 * jd * jd * lambda2);
+        p = p + term;
+        if (Math.abs(term) < 1e-15) { j = 101; }
+        j = j + 1;
+    }
+    p = 2.0 * p;
+    if (p > 1.0) { p = 1.0; }
+    if (p < 0.0) { p = 0.0; }
+    result.put("dStatistic", dMax);
+    result.put("pValue", p);
+    return result;
+}
+
+// Mann-Whitney U test: non-parametric test for comparing two independent samples.
+// Returns {uStatistic, zScore, pValue}.
+public fn mannWhitneyUTest(x: ArrayList<double>, y: ArrayList<double>): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    if (x.size() < 1 || y.size() < 1) {
+        result.put("uStatistic", 0.0);
+        result.put("zScore", 0.0);
+        result.put("pValue", 1.0);
+        return result;
+    }
+    let n1: int = x.size();
+    let n2: int = y.size();
+    // Combine and rank all observations
+    let combined: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n1) {
+        combined.add(x.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n2) {
+        combined.add(y.get(i));
+        i = i + 1;
+    }
+    let sorted: ArrayList<double> = sortCopy(combined);
+    let total: int = n1 + n2;
+    // Compute ranks for x values
+    var rankSum1: double = 0.0;
+    i = 0;
+    while (i < n1) {
+        let val: double = x.get(i);
+        // Find rank: average rank for ties
+        var lo: int = 0;
+        var hi: int = total - 1;
+        while (lo <= hi) {
+            let mid: int = (lo + hi) / 2;
+            if (sorted.get(mid) < val) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        // lo is the first index where sorted[lo] >= val
+        var firstIdx: int = lo;
+        var lastIdx: int = lo;
+        while (lastIdx < total - 1 && sorted.get(lastIdx + 1) == val) {
+            lastIdx = lastIdx + 1;
+        }
+        let avgRank: double = (firstIdx + lastIdx + 2) as double / 2.0;
+        rankSum1 = rankSum1 + avgRank;
+        i = i + 1;
+    }
+    // U1 = R1 - n1*(n1+1)/2
+    let u1: double = rankSum1 - n1 as double * (n1 + 1) as double / 2.0;
+    let u2: double = n1 as double * n2 as double - u1;
+    // Use the smaller U
+    let uStat: double = Math.min(u1, u2);
+    // Mean and standard deviation under H0
+    let meanU: double = n1 as double * n2 as double / 2.0;
+    let stdU: double = MathAdvanced.sqrt(n1 as double * n2 as double * (n1 + n2 + 1) as double / 12.0);
+    var z: double = 0.0;
+    if (stdU != 0.0) {
+        // Continuity correction
+        if (uStat < meanU) {
+            z = (uStat + 0.5 - meanU) / stdU;
+        } else {
+            z = (uStat - 0.5 - meanU) / stdU;
+        }
+    }
+    // Two-tailed p-value
+    let p: double = 2.0 * (1.0 - normalCDF(Math.abs(z)));
+    if (p > 1.0) { p = 1.0; }
+    result.put("uStatistic", uStat);
+    result.put("zScore", z);
+    result.put("pValue", p);
+    return result;
+}
+
+// Wilcoxon signed-rank test: non-parametric test for paired/related samples.
+// Returns {wStatistic, zScore, pValue}.
+public fn wilcoxonTest(x: ArrayList<double>, y: ArrayList<double>): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    if (x.size() != y.size() || x.size() < 2) {
+        result.put("wStatistic", 0.0);
+        result.put("zScore", 0.0);
+        result.put("pValue", 1.0);
+        return result;
+    }
+    let n: int = x.size();
+    // Compute differences and their absolute values
+    let absDiffs: ArrayList<double> = new ArrayList<double>();
+    let signs: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let d: double = x.get(i) - y.get(i);
+        if (d != 0.0) {
+            absDiffs.add(Math.abs(d));
+            if (d > 0.0) {
+                signs.add(1.0);
+            } else {
+                signs.add(-1.0);
+            }
+        }
+        i = i + 1;
+    }
+    let nNonZero: int = absDiffs.size();
+    if (nNonZero < 1) {
+        result.put("wStatistic", 0.0);
+        result.put("zScore", 0.0);
+        result.put("pValue", 1.0);
+        return result;
+    }
+    // Sort absolute differences and assign ranks
+    let sortedAbsDiffs: ArrayList<double> = sortCopy(absDiffs);
+    // Assign ranks (average for ties)
+    let ranks: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < nNonZero) {
+        ranks.add(0.0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < nNonZero) {
+        let val: double = sortedAbsDiffs.get(i);
+        // Find all indices with this value
+        var start: int = i;
+        while (start < nNonZero - 1 && sortedAbsDiffs.get(start + 1) == val) {
+            start = start + 1;
+        }
+        // Average rank for indices i..start
+        let avgRank: double = (i + start + 2) as double / 2.0;
+        var j: int = i;
+        while (j <= start) {
+            ranks.set(j, avgRank);
+            j = j + 1;
+        }
+        i = start + 1;
+    }
+    // Now assign ranks back to original absDiffs
+    let assignedRanks: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < nNonZero) {
+        assignedRanks.add(0.0);
+        i = i + 1;
+    }
+    // For each absDiffs value, find its rank from the sorted list
+    i = 0;
+    while (i < nNonZero) {
+        let val: double = absDiffs.get(i);
+        // Binary search in sortedAbsDiffs
+        var lo: int = 0;
+        var hi: int = nNonZero - 1;
+        while (lo <= hi) {
+            let mid: int = (lo + hi) / 2;
+            if (sortedAbsDiffs.get(mid) < val) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        assignedRanks.set(i, ranks.get(lo));
+        i = i + 1;
+    }
+    // Compute W+ and W-
+    var wPlus: double = 0.0;
+    var wMinus: double = 0.0;
+    i = 0;
+    while (i < nNonZero) {
+        if (signs.get(i) > 0.0) {
+            wPlus = wPlus + assignedRanks.get(i);
+        } else {
+            wMinus = wMinus + assignedRanks.get(i);
+        }
+        i = i + 1;
+    }
+    let wStat: double = Math.min(wPlus, wMinus);
+    // Mean and std under H0
+    let nNz: double = nNonZero as double;
+    let meanW: double = nNz * (nNz + 1.0) / 4.0;
+    let stdW: double = MathAdvanced.sqrt(nNz * (nNz + 1.0) * (2.0 * nNz + 1.0) / 24.0);
+    var z: double = 0.0;
+    if (stdW != 0.0) {
+        // Continuity correction
+        if (wStat < meanW) {
+            z = (wStat + 0.5 - meanW) / stdW;
+        } else {
+            z = (wStat - 0.5 - meanW) / stdW;
+        }
+    }
+    // Two-tailed p-value
+    let p: double = 2.0 * (1.0 - normalCDF(Math.abs(z)));
+    if (p > 1.0) { p = 1.0; }
+    result.put("wStatistic", wStat);
+    result.put("zScore", z);
+    result.put("pValue", p);
+    return result;
 }
