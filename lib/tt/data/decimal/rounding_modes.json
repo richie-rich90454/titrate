@@ -1,0 +1,12 @@
+{
+  "_meta": {"source": "IEEE 754 / Java BigDecimal", "version": "1.0", "description": "Rounding mode definitions for decimal arithmetic"},
+  "modes": {
+    "UP": "up",
+    "DOWN": "down",
+    "CEILING": "ceiling",
+    "FLOOR": "floor",
+    "HALF_UP": "half_up",
+    "HALF_DOWN": "half_down",
+    "HALF_EVEN": "half_even"
+  }
+}

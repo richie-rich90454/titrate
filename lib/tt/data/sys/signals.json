@@ -1,0 +1,11 @@
+{
+  "_meta": {"source": "POSIX signal.h / Windows signal handling", "version": "1.0", "description": "Standard signal number definitions"},
+  "signals": {
+    "SIGHUP": 1,
+    "SIGINT": 2,
+    "SIGKILL": 9,
+    "SIGUSR1": 10,
+    "SIGUSR2": 12,
+    "SIGTERM": 15
+  }
+}

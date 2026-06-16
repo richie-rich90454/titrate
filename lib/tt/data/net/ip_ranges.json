@@ -1,0 +1,16 @@
+{
+  "_meta": {"source": "IANA / RFC 1918 / RFC 4291", "version": "1.0", "description": "IP address range classifications for loopback, private, multicast, etc."},
+  "ipv4": {
+    "loopback": "127.0.0.0/8",
+    "private": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+    "link_local": "169.254.0.0/16",
+    "multicast": "224.0.0.0/4",
+    "reserved": ["0.0.0.0/8", "240.0.0.0/4"]
+  },
+  "ipv6": {
+    "loopback": "::1/128",
+    "private": ["fc00::/7"],
+    "link_local": "fe80::/10",
+    "multicast": "ff00::/8"
+  }
+}

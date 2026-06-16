@@ -1,0 +1,15 @@
+{
+  "_meta": {"source": "Python string module / ASCII", "version": "1.0", "description": "Standard character set definitions"},
+  "charsets": {
+    "ascii_lowercase": "abcdefghijklmnopqrstuvwxyz",
+    "ascii_uppercase": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "digits": "0123456789",
+    "hexdigits": "0123456789abcdefABCDEF",
+    "octdigits": "01234567",
+    "punctuation": "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
+    "whitespace": " \t\n\r\x0b\x0c",
+    "printable": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~ \t\n\r\x0b\x0c",
+    "ascii_letters": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    "alnum": "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "_meta": {"source": "BIPM SI Brochure 9th edition", "version": "9.0", "description": "SI base and derived unit symbols"},
+  "base": {
+    "length": "m",
+    "area": "m²",
+    "time": "s",
+    "mass": "kg",
+    "temperature": "K",
+    "amount": "mol",
+    "current": "A",
+    "luminosity": "cd"
+  },
+  "derived": {
+    "energy": "J",
+    "force": "N",
+    "pressure": "Pa",
+    "power": "W",
+    "charge": "C",
+    "voltage": "V",
+    "resistance": "Ω",
+    "capacitance": "F",
+    "inductance": "H",
+    "magnetic_flux_density": "T",
+    "magnetic_flux": "Wb",
+    "frequency": "Hz",
+    "radioactivity": "Bq",
+    "absorbed_dose": "Gy",
+    "illuminance": "lx",
+    "luminous_flux": "lm",
+    "catalytic_activity": "kat"
+  }
+}

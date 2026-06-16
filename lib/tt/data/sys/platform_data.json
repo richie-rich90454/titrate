@@ -1,0 +1,22 @@
+{
+  "_meta": {"source": "OS detection conventions", "version": "1.0", "description": "Platform detection string mappings"},
+  "os_names": {
+    "Windows": "windows",
+    "Mac OS": "darwin",
+    "Darwin": "darwin",
+    "macOS": "darwin",
+    "Linux": "linux"
+  },
+  "arch_names": {
+    "AMD64": "x86_64",
+    "x86_64": "x86_64",
+    "arm64": "arm64",
+    "ARM64": "arm64",
+    "aarch64": "arm64"
+  },
+  "env_hostname": ["HOSTNAME", "COMPUTERNAME", "HOST"],
+  "path_separators": {
+    "windows": {"path": ";", "dir": "\\", "line": "\r\n", "null": "NUL"},
+    "unix": {"path": ":", "dir": "/", "line": "\n", "null": "/dev/null"}
+  }
+}

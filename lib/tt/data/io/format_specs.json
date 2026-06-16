@@ -1,0 +1,21 @@
+{
+  "_meta": {"source": "Python format specification mini-language", "version": "1.0", "description": "Format specifier type characters and their behavior"},
+  "types": {
+    "d": {"category": "integer", "name": "decimal"},
+    "f": {"category": "float", "name": "fixed"},
+    "s": {"category": "string", "name": "string"},
+    "b": {"category": "integer", "name": "binary"},
+    "x": {"category": "integer", "name": "hex_lower"},
+    "X": {"category": "integer", "name": "hex_upper"},
+    "o": {"category": "integer", "name": "octal"},
+    "c": {"category": "character", "name": "character"},
+    "e": {"category": "float", "name": "exponential"},
+    "p": {"category": "pointer", "name": "pointer"}
+  },
+  "flags": {
+    "-": "left_align",
+    "0": "zero_pad",
+    "+": "sign"
+  },
+  "hex_digits": "0123456789abcdef"
+}
