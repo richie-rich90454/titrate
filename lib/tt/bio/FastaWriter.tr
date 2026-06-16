@@ -1,0 +1,48 @@
+// FastaWriter.tr — FASTA format file writer
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class FastaRecord {
+    public string header;
+    public string sequence;
+
+    public fn init(h: string, s: string) {
+        this.header = h;
+        this.sequence = s;
+    }
+}
+
+public fn writeFasta(path: string, records: ArrayList<FastaRecord>, lineWidth: int): void {
+    let content: string = "";
+    var i: int = 0;
+    while (i < records.size()) {
+        let rec: FastaRecord = records.get(i);
+        content = content + ">" + rec.header + "\n";
+        // Wrap sequence at lineWidth
+        var pos: int = 0;
+        while (pos < String.length(rec.sequence)) {
+            let end: int = pos + lineWidth;
+            if (end > String.length(rec.sequence)) {
+                end = String.length(rec.sequence);
+            }
+            content = content + String.substring(rec.sequence, pos, end) + "\n";
+            pos = end;
+        }
+        i = i + 1;
+    }
+    File_writeText(path, content);
+}
+
+public fn formatFasta(header: string, sequence: string, lineWidth: int): string {
+    let result: string = ">" + header + "\n";
+    var pos: int = 0;
+    while (pos < String.length(sequence)) {
+        let end: int = pos + lineWidth;
+        if (end > String.length(sequence)) {
+            end = String.length(sequence);
+        }
+        result = result + String.substring(sequence, pos, end) + "\n";
+        pos = end;
+    }
+    return result;
+}
