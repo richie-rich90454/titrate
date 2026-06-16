@@ -1,0 +1,5 @@
+{
+  "_meta": { "source": "Abramowitz & Stegun", "version": "1964", "description": "Approximation coefficients for the error function" },
+  "a": [0.254829592, -0.284496736, 1.421413741, -1.453152027, 1.061405429],
+  "p": 0.3275911
+}

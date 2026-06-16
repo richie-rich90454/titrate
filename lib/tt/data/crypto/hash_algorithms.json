@@ -1,0 +1,20 @@
+{
+  "_meta": { "source": "Titrate VM", "version": "1.0", "description": "Hash algorithm name to native function mappings" },
+  "algorithms": {
+    "md5": "Hash_md5",
+    "sha1": "Hash_sha1",
+    "sha224": "Hash_sha224",
+    "sha256": "Hash_sha256",
+    "sha384": "Hash_sha384",
+    "sha512": "Hash_sha512",
+    "sha3_224": "Hash_sha3_224",
+    "sha3_256": "Hash_sha3_256",
+    "sha3_384": "Hash_sha3_384",
+    "sha3_512": "Hash_sha3_512",
+    "blake2b": "Hash_blake2b",
+    "blake2s": "Hash_blake2s",
+    "ripemd160": "Hash_ripemd160",
+    "whirlpool": "Hash_whirlpool",
+    "sm3": "Hash_sm3"
+  }
+}
