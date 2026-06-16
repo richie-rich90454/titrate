@@ -321,6 +321,263 @@ public fn besselY1(x: double): double {
     return MathAdvanced.sqrt(0.636619772 / x) * (p * MathTrig.sin(xx) + z * q * MathTrig.cos(xx));
 }
 
+// Modified Bessel function of first kind, order 0, using series
+// I_0(x) = sum_{k=0}^{inf} (x/2)^{2k} / (k!)^2
+public fn besselI0(x: double): double {
+    let ax: double = Math.abs(x);
+    if (ax < 1e-15) { return 1.0; }
+
+    // For large x, use asymptotic expansion
+    if (ax > 700.0) { return Math.INF(); }
+
+    // Series: I_0(x) = sum (x/2)^{2k} / (k!)^2
+    let halfX: double = ax / 2.0;
+    let halfX2: double = halfX * halfX;
+    var sum: double = 1.0;
+    var term: double = 1.0;
+    var k: int = 1;
+    while (k <= 200) {
+        term = term * halfX2 / ((k as double) * (k as double));
+        sum = sum + term;
+        if (Math.abs(term) < 1e-15 * Math.abs(sum)) {
+            k = 201;
+        } else {
+            k = k + 1;
+        }
+    }
+    return sum;
+}
+
+// Modified Bessel function of first kind, order 1, using series
+// I_1(x) = sum_{k=0}^{inf} (x/2)^{2k+1} / (k! * (k+1)!)
+public fn besselI1(x: double): double {
+    let ax: double = Math.abs(x);
+    if (ax < 1e-15) { return 0.0; }
+
+    if (ax > 700.0) {
+        if (x > 0.0) { return Math.INF(); }
+        return -Math.INF();
+    }
+
+    // Series: I_1(x) = (x/2) * sum (x/2)^{2k} / (k! * (k+1)!)
+    let halfX: double = ax / 2.0;
+    let halfX2: double = halfX * halfX;
+    var sum: double = 1.0;
+    var term: double = 1.0;
+    var k: int = 1;
+    while (k <= 200) {
+        term = term * halfX2 / ((k as double) * ((k + 1) as double));
+        sum = sum + term;
+        if (Math.abs(term) < 1e-15 * Math.abs(sum)) {
+            k = 201;
+        } else {
+            k = k + 1;
+        }
+    }
+    let result: double = halfX * sum;
+    if (x < 0.0) { return -result; }
+    return result;
+}
+
+// Modified Bessel function of first kind, order n, using recurrence
+// I_n(x) via forward recurrence: I_{n+1}(x) = I_{n-1}(x) - (2n/x)*I_n(x)
+// But for modified Bessel, use: I_{n-1}(x) - I_{n+1}(x) = (2n/x)*I_n(x)
+// So I_{n+1}(x) = I_{n-1}(x) - (2n/x)*I_n(x)
+public fn besselIN(n: int, x: double): double {
+    if (n == 0) { return besselI0(x); }
+    if (n == 1) { return besselI1(x); }
+    if (n < 0) {
+        // I_{-n}(x) = I_n(x)
+        return besselIN(-n, x);
+    }
+
+    // Forward recurrence from I_0 and I_1
+    // I_{n+1}(x) = I_{n-1}(x) - (2n/x)*I_n(x)
+    if (Math.abs(x) < 1e-15) { return 0.0; }
+
+    var prev: double = besselI0(x);
+    var curr: double = besselI1(x);
+    var i: int = 1;
+    while (i < n) {
+        let next: double = prev - (2.0 * (i as double) / x) * curr;
+        prev = curr;
+        curr = next;
+        i = i + 1;
+    }
+    return curr;
+}
+
+// Modified Bessel function of second kind, order 0 (for x > 0)
+// K_0(x) = -I_0(x) * ln(x/2) + sum_{k=0}^{inf} (psi(k+1) / (k!)^2) * (x/2)^{2k}
+// For small x: K_0(x) ~ -ln(x/2) - gamma
+// For large x: K_0(x) ~ sqrt(pi/(2x)) * exp(x)
+public fn besselK0(x: double): double {
+    if (x <= 0.0) { return Math.INF(); }
+    if (x > 700.0) { return Math.INF(); }
+
+    // For small x, use series with logarithmic term
+    if (x < 2.0) {
+        // K_0(x) = -I_0(x)*ln(x/2) + sum_{k=0}^{inf} (psi(k+1)/(k!)^2)*(x/2)^{2k}
+        // psi(1) = -gamma, psi(k+1) = -gamma + H_k where H_k is harmonic number
+        let EULER: double = 0.5772156649015329; // Euler-Mascheroni constant
+        let halfX: double = x / 2.0;
+        let halfX2: double = halfX * halfX;
+        var sum: double = 0.0;
+        var term: double = 1.0;
+        var harmonic: double = 0.0; // H_0 = 0
+        var k: int = 0;
+        while (k <= 100) {
+            // psi(k+1) = -EULER + harmonic
+            let psiK1: double = -EULER + harmonic;
+            sum = sum + psiK1 * term;
+            k = k + 1;
+            harmonic = harmonic + 1.0 / (k as double);
+            term = term * halfX2 / ((k as double) * (k as double));
+            if (Math.abs(term) < 1e-15) {
+                k = 101;
+            }
+        }
+        return -besselI0(x) * MathAdvanced.ln(halfX) + sum;
+    }
+
+    // For large x, use asymptotic expansion
+    // K_0(x) ~ sqrt(pi/(2x)) * exp(x) * (1 - 1/(8x) + 9/(128x^2) - ...)
+    let invX: double = 1.0 / x;
+    let p: double = 1.0 - invX * (1.0 / 8.0 - invX * (9.0 / 128.0 - invX * (75.0 / 1024.0 - invX * (3675.0 / 32768.0))));
+    return MathAdvanced.sqrt(Math.PI() / (2.0 * x)) * MathAdvanced.exp(x) * p;
+}
+
+// Modified Bessel function of second kind, order 1 (for x > 0)
+// K_1(x) for small x: K_1(x) ~ 1/x + (x/2)*ln(x/2) + ...
+// For large x: K_1(x) ~ sqrt(pi/(2x)) * exp(x) * (1 + 3/(8x) + ...)
+public fn besselK1(x: double): double {
+    if (x <= 0.0) { return Math.INF(); }
+    if (x > 700.0) { return Math.INF(); }
+
+    // For small x, use series
+    if (x < 2.0) {
+        // K_1(x) = 1/x + I_1(x)*ln(x/2) + series
+        let EULER: double = 0.5772156649015329;
+        let halfX: double = x / 2.0;
+        let halfX2: double = halfX * halfX;
+        var sum: double = 0.0;
+        var term: double = halfX; // (x/2)^1 / (0! * 1!)
+        let psi0: double = -EULER - 1.0; // psi(1) - 1 = -EULER - 1
+        sum = sum + (-EULER - 1.0) * term;
+        var harmonic: double = 1.0; // H_1 = 1
+        var k: int = 1;
+        while (k <= 100) {
+            // psi(k+1) - 1/k - 1/(k+1) ... we need psi(k+1)/(k!(k+1)!) terms
+            let psiK1: double = -EULER + harmonic;
+            term = term * halfX2 / ((k as double) * ((k + 1) as double));
+            sum = sum + (psiK1 - 0.5 / (k as double) - 0.5 / ((k + 1) as double)) * term;
+            harmonic = harmonic + 1.0 / ((k + 1) as double);
+            if (Math.abs(term) < 1e-15) {
+                k = 101;
+            } else {
+                k = k + 1;
+            }
+        }
+        return 1.0 / x + besselI1(x) * MathAdvanced.ln(halfX) + sum;
+    }
+
+    // For large x, use asymptotic expansion
+    // K_1(x) ~ sqrt(pi/(2x)) * exp(x) * (1 + 3/(8x) + 15/(128x^2) + ...)
+    let invX: double = 1.0 / x;
+    let p: double = 1.0 + invX * (3.0 / 8.0 + invX * (15.0 / 128.0 + invX * (105.0 / 1024.0 + invX * (4725.0 / 32768.0))));
+    return MathAdvanced.sqrt(Math.PI() / (2.0 * x)) * MathAdvanced.exp(x) * p;
+}
+
+// Modified Bessel function of second kind, order n, using recurrence (for x > 0)
+// K_{n+1}(x) = K_{n-1}(x) + (2n/x)*K_n(x)
+public fn besselKN(n: int, x: double): double {
+    if (x <= 0.0) { return Math.INF(); }
+    if (n == 0) { return besselK0(x); }
+    if (n == 1) { return besselK1(x); }
+    if (n < 0) {
+        // K_{-n}(x) = K_n(x)
+        return besselKN(-n, x);
+    }
+
+    // Forward recurrence: K_{n+1}(x) = K_{n-1}(x) + (2n/x)*K_n(x)
+    var prev: double = besselK0(x);
+    var curr: double = besselK1(x);
+    var i: int = 1;
+    while (i < n) {
+        let next: double = prev + (2.0 * (i as double) / x) * curr;
+        prev = curr;
+        curr = next;
+        i = i + 1;
+    }
+    return curr;
+}
+
+// Spherical Bessel function of first kind, order n
+// j_n(x) = sqrt(pi/(2x)) * J_{n+1/2}(x)
+// Approximated for small n using explicit formulas
+public fn sphericalBesselJ(n: int, x: double): double {
+    if (Math.abs(x) < 1e-15) {
+        if (n == 0) { return 1.0; }
+        return 0.0;
+    }
+
+    // j_0(x) = sin(x) / x
+    // j_1(x) = sin(x) / x^2 - cos(x) / x
+    // j_2(x) = (3/x^3 - 1/x)*sin(x) - 3*cos(x)/x^2
+    // Use recurrence for n >= 3: j_{n+1}(x) = (2n+1)/x * j_n(x) - j_{n-1}(x)
+    if (n == 0) {
+        return MathTrig.sin(x) / x;
+    }
+    if (n == 1) {
+        return MathTrig.sin(x) / (x * x) - MathTrig.cos(x) / x;
+    }
+    if (n < 0) { return 0.0; }
+
+    // Forward recurrence from j_0 and j_1
+    var prev: double = MathTrig.sin(x) / x;
+    var curr: double = MathTrig.sin(x) / (x * x) - MathTrig.cos(x) / x;
+    var i: int = 1;
+    while (i < n) {
+        let next: double = (2.0 * (i as double) + 1.0) / x * curr - prev;
+        prev = curr;
+        curr = next;
+        i = i + 1;
+    }
+    return curr;
+}
+
+// Spherical Bessel function of second kind, order n
+// y_n(x) = sqrt(pi/(2x)) * Y_{n+1/2}(x)
+// Approximated for small n using explicit formulas
+public fn sphericalBesselY(n: int, x: double): double {
+    if (x <= 0.0) { return Math.NAN(); }
+    if (Math.abs(x) < 1e-15) { return -Math.INF(); }
+
+    // y_0(x) = -cos(x) / x
+    // y_1(x) = -cos(x) / x^2 - sin(x) / x
+    // y_2(x) = (-3/x^3 + 1/x)*cos(x) - 3*sin(x)/x^2
+    // Use recurrence for n >= 3: y_{n+1}(x) = (2n+1)/x * y_n(x) - y_{n-1}(x)
+    if (n == 0) {
+        return -MathTrig.cos(x) / x;
+    }
+    if (n == 1) {
+        return -MathTrig.cos(x) / (x * x) - MathTrig.sin(x) / x;
+    }
+    if (n < 0) { return 0.0; }
+
+    // Forward recurrence from y_0 and y_1
+    var prev: double = -MathTrig.cos(x) / x;
+    var curr: double = -MathTrig.cos(x) / (x * x) - MathTrig.sin(x) / x;
+    var i: int = 1;
+    while (i < n) {
+        let next: double = (2.0 * (i as double) + 1.0) / x * curr - prev;
+        prev = curr;
+        curr = next;
+        i = i + 1;
+    }
+    return curr;
+}
+
 // ==================== Airy functions ====================
 
 // Airy functions: returns [Ai, Bi, Ai', Bi'] using polynomial/rational approximations
@@ -626,4 +883,759 @@ public fn logSumExp(x: ArrayList<double>): double {
 public fn geometricSumInfinite(a: double, ratio: double): double {
     if (Math.fabs(ratio) >= 1.0) { return Math.INF(); }
     return a / (1.0 - ratio);
+}
+
+// ==================== Gamma/Beta/Zeta deepening (Task 125) ====================
+
+// Polygamma function psi^(n)(x), n >= 0
+// For n=0 returns digamma, n=1 returns trigamma, otherwise uses recurrence + series
+public fn polygamma(n: int, x: double): double {
+    if (x <= 0.0) { return Math.NAN(); }
+    if (n < 0) { return Math.NAN(); }
+    if (n == 0) { return digamma(x); }
+    if (n == 1) { return trigamma(x); }
+
+    // Use recurrence: psi^(n)(x) = psi^(n)(x+1) + (-1)^n * n! / x^(n+1)
+    // Shift x to a large value for the asymptotic expansion
+    var result: double = 0.0;
+    var xx: double = x;
+    while (xx < 10.0) {
+        // Compute (-1)^n * n! / xx^(n+1)
+        let sign: double = 1.0;
+        if (n % 2 != 0) { sign = -1.0; }
+        let nFact: double = _factorialDouble(n);
+        result = result + sign * nFact / MathAdvanced.pow(xx, (n + 1) as double);
+        xx = xx + 1.0;
+    }
+
+    // Asymptotic expansion for polygamma:
+    // psi^(n)(x) ~ (-1)^(n+1) * n! * [1/x^(n+1) + 1/(2*x^(n+2)) + B_2*(n+1)!/((n+3)!*2)*1/x^(n+3) + ...]
+    // Using Bernoulli numbers in the expansion
+    let sign: double = 1.0;
+    if ((n + 1) % 2 != 0) { sign = -1.0; }
+    let nFact: double = _factorialDouble(n);
+    let invX: double = 1.0 / xx;
+    let invXN1: double = MathAdvanced.pow(invX, (n + 1) as double);
+
+    // Leading term: (-1)^(n+1) * n! / x^(n+1)
+    var sum: double = sign * nFact * invXN1;
+
+    // Next term: (-1)^(n+1) * n! * (n+1) / (2 * x^(n+2))
+    let invXN2: double = invXN1 * invX;
+    sum = sum + sign * nFact * ((n + 1) as double) / 2.0 * invXN2;
+
+    // Bernoulli number corrections
+    // B2 = 1/6, B4 = -1/30, B6 = 1/42
+    let np1: double = (n + 1) as double;
+    let np2: double = (n + 2) as double;
+    let np3: double = (n + 3) as double;
+    let np4: double = (n + 4) as double;
+    let np5: double = (n + 5) as double;
+    let np6: double = (n + 6) as double;
+    let np7: double = (n + 7) as double;
+
+    let invXN3: double = invXN2 * invX;
+    let invXN4: double = invXN3 * invX;
+    let invXN5: double = invXN4 * invX;
+    let invXN6: double = invXN5 * invX;
+    let invXN7: double = invXN6 * invX;
+
+    // B2 term: np1*np2/(2*6) * 1/x^(n+3)
+    sum = sum + sign * nFact * np1 * np2 / 12.0 * invXN3;
+    // B4 term
+    sum = sum + sign * nFact * (-1.0) * np1 * np2 * np3 * np4 / 720.0 * invXN5;
+    // B6 term
+    sum = sum + sign * nFact * np1 * np2 * np3 * np4 * np5 * np6 / 60480.0 * invXN7;
+
+    return result + sum;
+}
+
+// Helper: compute n! as double
+fn _factorialDouble(n: int): double {
+    var result: double = 1.0;
+    var i: int = 2;
+    while (i <= n) {
+        result = result * (i as double);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Regularized lower incomplete gamma P(a, x) using series expansion
+// P(a,x) = gamma(a,x)/Gamma(a) = e^{-x} * x^a * sum_{n=0}^{inf} x^n / (a*(a+1)*...*(a+n))
+public fn incompleteGamma(a: double, x: double): double {
+    if (x < 0.0) { return 0.0; }
+    if (x == 0.0) { return 0.0; }
+    if (a <= 0.0) { return Math.NAN(); }
+
+    // For large x, use the continued fraction for Q(a,x) and return 1-Q
+    if (x >= a + 1.0) {
+        return 1.0 - incompleteGammaUpper(a, x);
+    }
+
+    // Series expansion for P(a,x):
+    // P(a,x) = e^{-x} * x^a / Gamma(a) * sum_{n=0}^{inf} x^n / (a*(a+1)*...*(a+n))
+    let EPS: double = 1e-14;
+    let maxIter: int = 200;
+
+    var term: double = 1.0 / a;
+    var sum: double = term;
+    var n: int = 1;
+    while (n <= maxIter) {
+        term = term * x / (a + (n as double));
+        sum = sum + term;
+        if (Math.abs(term) < Math.abs(sum) * EPS) {
+            n = maxIter + 1;
+        } else {
+            n = n + 1;
+        }
+    }
+
+    // Multiply by e^{-x} * x^a / Gamma(a)
+    // Use log to avoid overflow: ln(result) = -x + a*ln(x) - lgamma(a) + ln(sum)
+    let logResult: double = -x + a * MathAdvanced.ln(x) - Math.lgamma(a) + MathAdvanced.ln(sum);
+    return MathAdvanced.exp(logResult);
+}
+
+// Upper incomplete gamma Q(a,x) = 1 - P(a,x) using continued fraction (Lentz's method)
+public fn incompleteGammaUpper(a: double, x: double): double {
+    if (x < 0.0) { return 1.0; }
+    if (x == 0.0) { return 1.0; }
+    if (a <= 0.0) { return Math.NAN(); }
+
+    // For small x, use the series for P(a,x) and return 1-P
+    if (x < a + 1.0) {
+        return 1.0 - incompleteGamma(a, x);
+    }
+
+    // Continued fraction for Q(a,x) using Lentz's method
+    // Q(a,x) = e^{-x} * x^a / Gamma(a) * CF
+    // CF = 1/(x+1-a+ 1*(1-a)/(x+3-a+ 2*(2-a)/(x+5-a+ ...)))
+    let EPS: double = 1e-14;
+    let TINY: double = 1e-30;
+    let maxIter: int = 200;
+
+    let b: double = x + 1.0 - a;
+    var c: double = 1.0 / TINY;
+    var d: double = 1.0 / b;
+    var f: double = d;
+    var i: int = 1;
+    while (i <= maxIter) {
+        let an: double = -((i as double)) * ((i as double) - a);
+        let bn: double = x + 2.0 * (i as double) + 1.0 - a;
+        d = bn + an * d;
+        if (Math.abs(d) < TINY) { d = TINY; }
+        d = 1.0 / d;
+        c = bn + an / c;
+        if (Math.abs(c) < TINY) { c = TINY; }
+        let delta: double = d * c;
+        f = f * delta;
+        if (Math.abs(delta - 1.0) < EPS) {
+            i = maxIter + 1;
+        } else {
+            i = i + 1;
+        }
+    }
+
+    let logResult: double = -x + a * MathAdvanced.ln(x) - Math.lgamma(a) + MathAdvanced.ln(f);
+    return MathAdvanced.exp(logResult);
+}
+
+// Alias for betaIncomplete for naming consistency
+public fn incompleteBeta(a: double, b: double, x: double): double {
+    return betaIncomplete(a, b, x);
+}
+
+// Dirichlet eta function: eta(s) = (1 - 2^(1-s)) * zeta(s)
+public fn dirichletEta(s: double): double {
+    if (s == 1.0) {
+        // eta(1) = ln(2)
+        return MathAdvanced.ln(2.0);
+    }
+    let factor: double = 1.0 - MathAdvanced.pow(2.0, 1.0 - s);
+    return factor * zeta(s);
+}
+
+// Log of the beta function: ln B(a,b) = lgamma(a) + lgamma(b) - lgamma(a+b)
+public fn logBeta(a: double, b: double): double {
+    return Math.lgamma(a) + Math.lgamma(b) - Math.lgamma(a + b);
+}
+
+// ==================== Airy/Fresnel deepening (Task 126) ====================
+
+// Airy function Ai(x) — standalone, using power series for small x, asymptotic for large x
+public fn airyAi(x: double): double {
+    if (x < -6.0) {
+        // Asymptotic expansion for large negative x
+        let z: double = MathAdvanced.pow(-x, 1.5);
+        let t: double = 2.0 / 3.0 * z;
+        let invSqrtPi: double = 0.5641895835;
+        let amp: double = invSqrtPi / MathAdvanced.pow(-x, 0.25);
+        return amp * MathTrig.cos(t - Math.PI() / 4.0);
+    }
+
+    if (x > 6.0) {
+        // Asymptotic expansion for large positive x
+        let z: double = MathAdvanced.pow(x, 1.5);
+        let t: double = 2.0 / 3.0 * z;
+        let invSqrtPi: double = 0.5641895835;
+        let amp: double = invSqrtPi / MathAdvanced.pow(x, 0.25);
+        return 0.5 * amp * MathAdvanced.exp(-t);
+    }
+
+    // Power series for moderate x
+    let c1: double = 0.355028053887817;
+    let c2: double = 0.258819403792807;
+    let z: double = x * x * x;
+    var f: double = 1.0;
+    var g: double = 1.0;
+    var fk: double = 1.0;
+    var gk: double = 1.0;
+    var k: int = 1;
+    while (k <= 20) {
+        let kd: double = (k as double);
+        fk = fk * (3.0 * kd - 2.0) * z / ((3.0 * kd) * (3.0 * kd - 1.0) * (3.0 * kd - 2.0));
+        gk = gk * (3.0 * kd - 1.0) * z / ((3.0 * kd + 1.0) * (3.0 * kd) * (3.0 * kd - 1.0));
+        f = f + fk;
+        g = g + gk;
+        k = k + 1;
+    }
+    g = g * x;
+    return c1 * f - c2 * g;
+}
+
+// Airy function Bi(x) — standalone, using power series for small x, asymptotic for large x
+public fn airyBi(x: double): double {
+    if (x < -6.0) {
+        // Asymptotic expansion for large negative x
+        let z: double = MathAdvanced.pow(-x, 1.5);
+        let t: double = 2.0 / 3.0 * z;
+        let invSqrtPi: double = 0.5641895835;
+        let amp: double = invSqrtPi / MathAdvanced.pow(-x, 0.25);
+        return -amp * MathTrig.sin(t - Math.PI() / 4.0);
+    }
+
+    if (x > 6.0) {
+        // Asymptotic expansion for large positive x
+        let z: double = MathAdvanced.pow(x, 1.5);
+        let t: double = 2.0 / 3.0 * z;
+        let invSqrtPi: double = 0.5641895835;
+        let amp: double = invSqrtPi / MathAdvanced.pow(x, 0.25);
+        return amp * MathAdvanced.exp(t);
+    }
+
+    // Power series for moderate x
+    let c1: double = 0.355028053887817;
+    let c2: double = 0.258819403792807;
+    let z: double = x * x * x;
+    var f: double = 1.0;
+    var g: double = 1.0;
+    var fk: double = 1.0;
+    var gk: double = 1.0;
+    var k: int = 1;
+    while (k <= 20) {
+        let kd: double = (k as double);
+        fk = fk * (3.0 * kd - 2.0) * z / ((3.0 * kd) * (3.0 * kd - 1.0) * (3.0 * kd - 2.0));
+        gk = gk * (3.0 * kd - 1.0) * z / ((3.0 * kd + 1.0) * (3.0 * kd) * (3.0 * kd - 1.0));
+        f = f + fk;
+        g = g + gk;
+        k = k + 1;
+    }
+    g = g * x;
+    return 1.73205080756888 * (c1 * f + c2 * g);
+}
+
+// Fresnel sine integral S(x) = integral_0^x sin(pi*t^2/2) dt
+// Using series approximation: S(x) = sum_{n=0}^{inf} (-1)^n * (pi/2)^(2n+1) * x^(4n+3) / ((2n+1)! * (4n+3))
+public fn fresnelS(x: double): double {
+    if (x == 0.0) { return 0.0; }
+    let ax: double = Math.abs(x);
+    let sign: double = 1.0;
+    if (x < 0.0) { sign = -1.0; }
+
+    // For large |x|, use the asymptotic limit: S(inf) = 0.5
+    if (ax > 50.0) {
+        return sign * 0.5;
+    }
+
+    // Series expansion
+    let halfPi: double = Math.PI() / 2.0;
+    let EPS: double = 1e-15;
+    let maxIter: int = 100;
+
+    var sum: double = 0.0;
+    var term: double = halfPi * ax * ax * ax / 3.0; // n=0 term
+    var n: int = 0;
+    sum = term;
+
+    while (n < maxIter) {
+        n = n + 1;
+        let nd: double = (n as double);
+        // term_{n} = term_{n-1} * (-1) * (pi/2)^2 * x^4 / ((2n)*(2n+1)*(4n+3)/(4n-1))
+        let factor: double = -halfPi * halfPi * ax * ax * ax * ax
+            / ((2.0 * nd) * (2.0 * nd + 1.0));
+        // Adjust for denominator change from (4(n-1)+3) to (4n+3)
+        term = term * factor * (4.0 * nd - 1.0) / (4.0 * nd + 3.0);
+        sum = sum + term;
+        if (Math.abs(term) < EPS * Math.abs(sum)) {
+            n = maxIter;
+        }
+    }
+
+    return sign * sum;
+}
+
+// Fresnel cosine integral C(x) = integral_0^x cos(pi*t^2/2) dt
+// Using series approximation: C(x) = sum_{n=0}^{inf} (-1)^n * (pi/2)^(2n) * x^(4n+1) / ((2n)! * (4n+1))
+public fn fresnelC(x: double): double {
+    if (x == 0.0) { return 0.0; }
+    let ax: double = Math.abs(x);
+    let sign: double = 1.0;
+    if (x < 0.0) { sign = -1.0; }
+
+    // For large |x|, use the asymptotic limit: C(inf) = 0.5
+    if (ax > 50.0) {
+        return sign * 0.5;
+    }
+
+    // Series expansion
+    let halfPi: double = Math.PI() / 2.0;
+    let EPS: double = 1e-15;
+    let maxIter: int = 100;
+
+    var sum: double = 0.0;
+    var term: double = ax; // n=0 term: x
+    var n: int = 0;
+    sum = term;
+
+    while (n < maxIter) {
+        n = n + 1;
+        let nd: double = (n as double);
+        // term_{n} = term_{n-1} * (-1) * (pi/2)^2 * x^4 / ((2n-1)*(2n)*(4n+1)/(4n-3))
+        let factor: double = -halfPi * halfPi * ax * ax * ax * ax
+            / ((2.0 * nd - 1.0) * (2.0 * nd));
+        term = term * factor * (4.0 * nd - 3.0) / (4.0 * nd + 1.0);
+        sum = sum + term;
+        if (Math.abs(term) < EPS * Math.abs(sum)) {
+            n = maxIter;
+        }
+    }
+
+    return sign * sum;
+}
+
+// Dawson function F(x) = exp(-x^2) * integral_0^x exp(t^2) dt
+// Using series for small x, continued fraction for large x
+public fn dawson(x: double): double {
+    if (x == 0.0) { return 0.0; }
+
+    let ax: double = Math.abs(x);
+    let sign: double = 1.0;
+    if (x < 0.0) { sign = -1.0; }
+
+    if (ax < 4.0) {
+        // Series: F(x) = x - (2/3)*x^3 + (4/15)*x^5 - ... = sum_{n=0} (-1)^n * 2^n * x^(2n+1) / (2n+1)!!
+        let EPS: double = 1e-15;
+        let maxIter: int = 100;
+        var term: double = ax;
+        var sum: double = term;
+        var n: int = 1;
+        while (n <= maxIter) {
+            term = term * (-2.0 * ax * ax) / ((2.0 * (n as double) + 1.0));
+            sum = sum + term;
+            if (Math.abs(term) < EPS * Math.abs(sum)) {
+                n = maxIter + 1;
+            } else {
+                n = n + 1;
+            }
+        }
+        return sign * sum;
+    }
+
+    // Asymptotic expansion for large x: F(x) ~ 1/(2x) + 1/(4x^3) + 3/(8x^5) + ...
+    let invX: double = 1.0 / ax;
+    let invX2: double = invX * invX;
+    var sum: double = invX;
+    var term: double = invX;
+    var n: int = 1;
+    while (n <= 20) {
+        term = term * (2.0 * (n as double) - 1.0) * invX2 / 2.0;
+        sum = sum + term;
+        n = n + 1;
+    }
+    return sign * sum;
+}
+
+// Exponential integral E_1(x) for x > 0
+// E_1(x) = integral_x^inf (e^{-t}/t) dt
+// Using series for small x, continued fraction for large x
+public fn exponentialIntegral(x: double): double {
+    if (x <= 0.0) { return Math.NAN(); }
+
+    // Euler-Mascheroni constant
+    let GAMMA: double = 0.5772156649015329;
+
+    if (x < 1.0) {
+        // Series: E_1(x) = -gamma - ln(x) - sum_{n=1}^{inf} (-x)^n / (n * n!)
+        let EPS: double = 1e-15;
+        let maxIter: int = 200;
+        var sum: double = 0.0;
+        var term: double = -x;
+        var n: int = 1;
+        while (n <= maxIter) {
+            sum = sum + term / ((n as double) * _factorialDouble(n));
+            term = term * (-x);
+            if (Math.abs(term / ((n as double) * _factorialDouble(n))) < EPS * Math.abs(sum)) {
+                n = maxIter + 1;
+            } else {
+                n = n + 1;
+            }
+        }
+        return -GAMMA - MathAdvanced.ln(x) + sum;
+    }
+
+    // Continued fraction for x >= 1 using Lentz's method
+    // E_1(x) = e^{-x} * CF where CF = 1/(x+1- 1^2/(x+3- 2^2/(x+5- ...)))
+    let EPS: double = 1e-14;
+    let TINY: double = 1e-30;
+    let maxIter: int = 200;
+
+    let b: double = x + 1.0;
+    var c: double = 1.0 / TINY;
+    var d: double = 1.0 / b;
+    var f: double = d;
+    var i: int = 1;
+    while (i <= maxIter) {
+        let an: double = -((i as double)) * ((i as double));
+        let bn: double = x + 2.0 * (i as double) + 1.0;
+        d = bn + an * d;
+        if (Math.abs(d) < TINY) { d = TINY; }
+        d = 1.0 / d;
+        c = bn + an / c;
+        if (Math.abs(c) < TINY) { c = TINY; }
+        let delta: double = d * c;
+        f = f * delta;
+        if (Math.abs(delta - 1.0) < EPS) {
+            i = maxIter + 1;
+        } else {
+            i = i + 1;
+        }
+    }
+
+    return MathAdvanced.exp(-x) * f;
+}
+
+// ==================== Hypergeometric functions (Task 123) ====================
+
+// Confluent hypergeometric limit function 0F1(;b;z) using series
+// 0F1(;b;z) = sum_{k=0}^{inf} z^k / ((b)_k * k!)
+public fn hypergeometric0F1(b: double, z: double): double {
+    if (b <= 0.0) { return Math.NAN(); }
+
+    let EPS: double = 1e-15;
+    let maxIter: int = 300;
+
+    var sum: double = 1.0;
+    var term: double = 1.0;
+    var k: int = 1;
+    while (k <= maxIter) {
+        let kd: double = (k as double);
+        term = term * z / ((b + kd - 1.0) * kd);
+        sum = sum + term;
+        if (Math.abs(term) < EPS * Math.abs(sum)) {
+            k = maxIter + 1;
+        } else {
+            k = k + 1;
+        }
+    }
+    return sum;
+}
+
+// Kummer's (confluent hypergeometric) function 1F1(a;b;z) using series
+// 1F1(a;b;z) = sum_{k=0}^{inf} (a)_k * z^k / ((b)_k * k!)
+public fn hypergeometric1F1(a: double, b: double, z: double): double {
+    if (b <= 0.0) { return Math.NAN(); }
+
+    let EPS: double = 1e-15;
+    let maxIter: int = 300;
+
+    var sum: double = 1.0;
+    var term: double = 1.0;
+    var k: int = 1;
+    while (k <= maxIter) {
+        let kd: double = (k as double);
+        term = term * (a + kd - 1.0) * z / ((b + kd - 1.0) * kd);
+        sum = sum + term;
+        if (Math.abs(term) < EPS * Math.abs(sum)) {
+            k = maxIter + 1;
+        } else {
+            k = k + 1;
+        }
+    }
+    return sum;
+}
+
+// Gauss hypergeometric function 2F1(a,b;c;z) using series (|z|<1)
+// 2F1(a,b;c;z) = sum_{k=0}^{inf} (a)_k * (b)_k / ((c)_k * k!) * z^k
+public fn hypergeometric2F1(a: double, b: double, c: double, z: double): double {
+    if (c <= 0.0) { return Math.NAN(); }
+    if (Math.abs(z) >= 1.0) { return Math.NAN(); }
+
+    let EPS: double = 1e-15;
+    let maxIter: int = 300;
+
+    var sum: double = 1.0;
+    var term: double = 1.0;
+    var k: int = 1;
+    while (k <= maxIter) {
+        let kd: double = (k as double);
+        term = term * (a + kd - 1.0) * (b + kd - 1.0) * z / ((c + kd - 1.0) * kd);
+        sum = sum + term;
+        if (Math.abs(term) < EPS * Math.abs(sum)) {
+            k = maxIter + 1;
+        } else {
+            k = k + 1;
+        }
+    }
+    return sum;
+}
+
+// Tricomi's confluent hypergeometric function U(a,b,x) — asymptotic approximation for large x
+// U(a,b,x) ~ x^(-a) * sum_{k=0}^{N} (-1)^k * (a)_k * (1+a-b)_k / (k! * x^k)
+public fn confluentHypergeometricU(a: double, b: double, x: double): double {
+    if (x <= 0.0) { return Math.NAN(); }
+
+    // For small x, use the relation U(a,b,x) = pi/sin(pi*b) * (M(a,b,x)/(gamma(1+a-b)*gamma(b))
+    //   - M(a-b+1,2-b,x)/(gamma(a)*gamma(2-b)))
+    // But we use the asymptotic series which is valid for large x.
+    // For moderate x, shift x upward using recurrence if needed.
+    var xx: double = x;
+    var aa: double = a;
+
+    // Use recurrence U(a,b,x) = U(a,b-1,x) + a*U(a+1,b+1,x) is complex;
+    // instead, if x is small, use the asymptotic form with enough terms.
+    // We apply the simple asymptotic expansion directly.
+
+    let EPS: double = 1e-12;
+    let maxIter: int = 100;
+
+    var sum: double = 1.0;
+    var term: double = 1.0;
+    var k: int = 1;
+    while (k <= maxIter) {
+        let kd: double = (k as double);
+        term = term * -(aa + kd - 1.0) * (aa + 1.0 - b + kd - 1.0) / (kd * xx);
+        sum = sum + term;
+        if (Math.abs(term) < EPS * Math.abs(sum)) {
+            k = maxIter + 1;
+        } else {
+            k = k + 1;
+        }
+    }
+
+    return MathAdvanced.pow(xx, -aa) * sum;
+}
+
+// ==================== Elliptic integrals (Task 124) ====================
+
+// Carlson symmetric form RF(x,y,z)
+// RF(x,y,z) = (1/2) * integral_0^inf [(t+x)(t+y)(t+z)]^{-1/2} dt
+// Computed via duplication iteration
+public fn carlsonRF(x: double, y: double, z: double): double {
+    if (x < 0.0 || y < 0.0 || z < 0.0) { return Math.NAN(); }
+    if (x + y == 0.0 || x + z == 0.0 || y + z == 0.0) { return Math.NAN(); }
+
+    let EPS: double = 1e-10;
+    let TINY: double = 1.5e-38;
+    let BIG: double = 3.0e37;
+    let maxIter: int = 50;
+
+    var xn: double = x;
+    var yn: double = y;
+    var zn: double = z;
+
+    // Bring variables closer together via duplication
+    var mu: double = (xn + yn + zn) / 3.0;
+    var xnDev: double = 2.0 - (mu + xn) / mu;
+    var ynDev: double = 2.0 - (mu + yn) / mu;
+    var znDev: double = 2.0 - (mu + zn) / mu;
+    var eps: double = Math.max(Math.abs(xnDev), Math.max(Math.abs(ynDev), Math.abs(znDev)));
+
+    var i: int = 0;
+    while (eps >= EPS && i < maxIter) {
+        let sqrtX: double = MathAdvanced.sqrt(xn);
+        let sqrtY: double = MathAdvanced.sqrt(yn);
+        let sqrtZ: double = MathAdvanced.sqrt(zn);
+        let alambda: double = sqrtX * sqrtY + sqrtX * sqrtZ + sqrtY * sqrtZ;
+        xn = (xn + alambda) * 0.25;
+        yn = (yn + alambda) * 0.25;
+        zn = (zn + alambda) * 0.25;
+        mu = (xn + yn + zn) / 3.0;
+        xnDev = 2.0 - (mu + xn) / mu;
+        ynDev = 2.0 - (mu + yn) / mu;
+        znDev = 2.0 - (mu + zn) / mu;
+        eps = Math.max(Math.abs(xnDev), Math.max(Math.abs(ynDev), Math.abs(znDev)));
+        i = i + 1;
+    }
+
+    // Taylor expansion for small deviations
+    let e2: double = xnDev * ynDev - znDev * znDev;
+    let e3: double = xnDev * ynDev * znDev;
+    let result: double = 1.0 + (e2 / 24.0 - 0.1 - 3.0 / 44.0 * e3) * e2 + e3 / 14.0;
+    return result / MathAdvanced.sqrt(mu);
+}
+
+// Carlson symmetric form RJ(x,y,z,p)
+// RJ(x,y,z,p) = (3/2) * integral_0^inf [(t+x)(t+y)(t+z)]^{-1/2} * (t+p)^{-1} dt
+// Computed via duplication iteration
+public fn carlsonRJ(x: double, y: double, z: double, p: double): double {
+    if (x < 0.0 || y < 0.0 || z < 0.0 || p <= 0.0) { return Math.NAN(); }
+    if (x + y == 0.0 || x + z == 0.0 || y + z == 0.0) { return Math.NAN(); }
+
+    let EPS: double = 1e-10;
+    let maxIter: int = 50;
+
+    var xn: double = x;
+    var yn: double = y;
+    var zn: double = z;
+    var pn: double = p;
+
+    let sigma: double = 0.0;
+    var power4: double = 1.0;
+    var s: double = 0.0;
+
+    var mu: double = (xn + yn + zn + 3.0 * pn) / 5.0;
+    var xnDev: double = (mu - xn) / mu;
+    var ynDev: double = (mu - yn) / mu;
+    var znDev: double = (mu - zn) / mu;
+    var pnDev: double = (mu - pn) / mu;
+    var eps: double = Math.max(Math.abs(xnDev), Math.max(Math.abs(ynDev), Math.max(Math.abs(znDev), Math.abs(pnDev))));
+
+    var i: int = 0;
+    while (eps >= EPS && i < maxIter) {
+        let sqrtX: double = MathAdvanced.sqrt(xn);
+        let sqrtY: double = MathAdvanced.sqrt(yn);
+        let sqrtZ: double = MathAdvanced.sqrt(zn);
+        let alambda: double = sqrtX * sqrtY + sqrtX * sqrtZ + sqrtY * sqrtZ;
+        let alpha: double = MathAdvanced.pow(pn * (sqrtX + sqrtY + sqrtZ) + sqrtX * sqrtY * sqrtZ, 2);
+        let beta: double = pn * MathAdvanced.pow(pn + alambda, 2);
+        s = s + power4 * carlsonRC(alpha, beta);
+        power4 = power4 * 0.25;
+        xn = (xn + alambda) * 0.25;
+        yn = (yn + alambda) * 0.25;
+        zn = (zn + alambda) * 0.25;
+        pn = (pn + alambda) * 0.25;
+        mu = (xn + yn + zn + 3.0 * pn) / 5.0;
+        xnDev = (mu - xn) / mu;
+        ynDev = (mu - yn) / mu;
+        znDev = (mu - zn) / mu;
+        pnDev = (mu - pn) / mu;
+        eps = Math.max(Math.abs(xnDev), Math.max(Math.abs(ynDev), Math.max(Math.abs(znDev), Math.abs(pnDev))));
+        i = i + 1;
+    }
+
+    // Taylor expansion
+    let ea: double = xnDev * ynDev + xnDev * znDev + ynDev * znDev;
+    let eb: double = xnDev * ynDev * znDev;
+    let ec: double = pnDev * pnDev;
+    let ed: double = ea - 3.0 * ec;
+    let ee: double = eb + 2.0 * pnDev * ea - 4.0 * ec * pnDev;
+
+    let result: double = 1.0 + ed * (-3.0 / 14.0 + 9.0 / 88.0 * ed - 4.5 / 52.0 * ee
+        + eb / 6.0 + 2.0 / 3.0 * ec)
+        - 3.0 / 26.0 * ee + 5.0 / 16.0 * ec * pnDev
+        + eb * (-9.0 / 22.0 + 3.0 / 26.0 * ed)
+        + 3.0 / 8.0 * ec * ea;
+
+    return 3.0 * s + power4 * result / MathAdvanced.pow(mu, 1.5);
+}
+
+// Degenerate Carlson form RC(x,y) = RF(x,y,y)
+// RC(x,y) = (1/2) * integral_0^inf (t+x)^{-1/2} * (t+y)^{-1} dt
+public fn carlsonRC(x: double, y: double): double {
+    if (x < 0.0 || y <= 0.0) { return Math.NAN(); }
+
+    let EPS: double = 1e-10;
+    let maxIter: int = 50;
+
+    var xn: double = x;
+    var yn: double = y;
+
+    var mu: double = (xn + 2.0 * yn) / 3.0;
+    var sn: double = (mu - xn) / mu;
+
+    var i: int = 0;
+    while (Math.abs(sn) >= EPS && i < maxIter) {
+        let lambda: double = 2.0 * MathAdvanced.sqrt(xn) * MathAdvanced.sqrt(yn) + yn;
+        xn = (xn + lambda) * 0.25;
+        yn = (yn + lambda) * 0.25;
+        mu = (xn + 2.0 * yn) / 3.0;
+        sn = (mu - xn) / mu;
+        i = i + 1;
+    }
+
+    // Taylor expansion
+    let s2: double = sn * sn;
+    let result: double = 1.0 + sn * (1.0 / 3.0 + sn * (1.0 / 10.0 + sn * (1.0 / 7.0 + sn * (11.0 / 84.0 + sn * 439.0 / 6930.0))));
+    return result / MathAdvanced.sqrt(mu);
+}
+
+// Complete elliptic integral of the third kind Pi(n|m)
+// Pi(n|m) = integral_0^{pi/2} 1 / ((1 - n*sin^2(t)) * sqrt(1 - m*sin^2(t))) dt
+public fn ellipticPi(n: double, m: double): double {
+    if (n >= 1.0) { return Math.INF(); }
+    if (m >= 1.0) { return Math.INF(); }
+    if (m < 0.0) { return Math.NAN(); }
+    if (n == 0.0) { return ellipticK(m); }
+
+    // Pi(n|m) = K(m) + (pi/2) * n * RJ(1, 1-m, 1, 1-n) / (3 * (1-n))
+    let rf: double = carlsonRF(0.0, 1.0 - m, 1.0);
+    let rj: double = carlsonRJ(0.0, 1.0 - m, 1.0, 1.0 - n);
+    return rf + n * rj / (3.0 * (1.0 - n));
+}
+
+// Incomplete elliptic integral of the first kind F(phi|m) using Carlson form
+// F(phi|m) = integral_0^phi 1 / sqrt(1 - m*sin^2(t)) dt
+public fn ellipticF(phi: double, m: double): double {
+    if (m < 0.0) { return Math.NAN(); }
+
+    let s: double = MathTrig.sin(phi);
+    let c: double = MathTrig.cos(phi);
+    let s2: double = s * s;
+    let c2: double = c * c;
+
+    return s * carlsonRF(c2, 1.0 - m * s2, 1.0);
+}
+
+// Incomplete elliptic integral of the second kind E(phi|m)
+// E(phi|m) = integral_0^phi sqrt(1 - m*sin^2(t)) dt
+public fn ellipticEIncomplete(phi: double, m: double): double {
+    if (m < 0.0) { return Math.NAN(); }
+
+    let s: double = MathTrig.sin(phi);
+    let c: double = MathTrig.cos(phi);
+    let s2: double = s * s;
+    let c2: double = c * c;
+
+    let rf: double = carlsonRF(c2, 1.0 - m * s2, 1.0);
+    let rj: double = carlsonRJ(c2, 1.0 - m * s2, 1.0, 1.0);
+
+    return s * (rf - m * s2 * rj / 3.0);
+}
+
+// Incomplete elliptic integral of the third kind Pi(n, phi|m)
+// Pi(n, phi|m) = integral_0^phi 1 / ((1 - n*sin^2(t)) * sqrt(1 - m*sin^2(t))) dt
+public fn ellipticPiIncomplete(n: double, phi: double, m: double): double {
+    if (m < 0.0) { return Math.NAN(); }
+    if (n >= 1.0) { return Math.INF(); }
+
+    let s: double = MathTrig.sin(phi);
+    let c: double = MathTrig.cos(phi);
+    let s2: double = s * s;
+    let c2: double = c * c;
+
+    let rf: double = carlsonRF(c2, 1.0 - m * s2, 1.0);
+    let rj: double = carlsonRJ(c2, 1.0 - m * s2, 1.0, 1.0 - n * s2);
+
+    return s * (rf + n * rj / 3.0);
 }
