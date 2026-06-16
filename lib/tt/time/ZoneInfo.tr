@@ -4,6 +4,8 @@ import tt::util::HashMap;
 import tt::time::DateTime;
 import tt::time::Duration;
 import tt::lang::String;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
 public class ZoneInfo {
     private string _name;
@@ -54,74 +56,122 @@ fn _pad(n: int): string {
     return Integer.toString(n);
 }
 
+// ---- Data loaded from external JSON via DataFile ----
+
+var _tzByNameCache: HashMap<string, ZoneInfo> = new HashMap<string, ZoneInfo>();
+var _tzLoaded: bool = false;
+
+fn _ensureTimezonesLoaded(): void {
+    if (_tzLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("datetime/timezones.json");
+    if (data.isNull() || !data.isObject()) {
+        _tzLoaded = true;
+        return;
+    }
+    if (!data.hasKey("timezones")) {
+        _tzLoaded = true;
+        return;
+    }
+    let timezones: JsonValue = data.get("timezones");
+    if (!timezones.isArray()) {
+        _tzLoaded = true;
+        return;
+    }
+    var i: int = 0;
+    while (i < timezones.size()) {
+        let entry: JsonValue = timezones.getAt(i);
+        if (entry.isObject() && entry.hasKey("name") && entry.hasKey("offset")) {
+            let tzName: string = entry.get("name").asString();
+            let tzOffset: double = entry.get("offset").asNumber();
+            let tz: ZoneInfo = new ZoneInfo(tzName, tzOffset);
+            // Cache by canonical name
+            _tzByNameCache.put(tzName, tz);
+            // Cache by all aliases
+            if (entry.hasKey("aliases")) {
+                let aliases: JsonValue = entry.get("aliases");
+                if (aliases.isArray()) {
+                    var j: int = 0;
+                    while (j < aliases.size()) {
+                        let alias: string = aliases.getAt(j).asString();
+                        _tzByNameCache.put(alias, tz);
+                        j = j + 1;
+                    }
+                }
+            }
+        }
+        i = i + 1;
+    }
+    _tzLoaded = true;
+}
+
+// Get a timezone by common name
+public fn timezone(name: string): ZoneInfo {
+    _ensureTimezonesLoaded();
+    if (_tzByNameCache.containsKey(name)) {
+        return _tzByNameCache.get(name);
+    }
+    // Default: return UTC
+    return utc();
+}
+
 // Predefined timezone: UTC
 public fn utc(): ZoneInfo {
+    _ensureTimezonesLoaded();
+    if (_tzByNameCache.containsKey("UTC")) {
+        return _tzByNameCache.get("UTC");
+    }
+    // Fallback if data file is unavailable
     return new ZoneInfo("UTC", 0.0);
 }
 
 // Predefined timezone: US Eastern (UTC-5)
 public fn eastern(): ZoneInfo {
-    return new ZoneInfo("US/Eastern", -5.0);
+    return timezone("US/Eastern");
 }
 
 // Predefined timezone: US Central (UTC-6)
 public fn central(): ZoneInfo {
-    return new ZoneInfo("US/Central", -6.0);
+    return timezone("US/Central");
 }
 
 // Predefined timezone: US Mountain (UTC-7)
 public fn mountain(): ZoneInfo {
-    return new ZoneInfo("US/Mountain", -7.0);
+    return timezone("US/Mountain");
 }
 
 // Predefined timezone: US Pacific (UTC-8)
 public fn pacific(): ZoneInfo {
-    return new ZoneInfo("US/Pacific", -8.0);
+    return timezone("US/Pacific");
 }
 
 // Predefined timezone: GMT (UTC+0)
 public fn gmt(): ZoneInfo {
-    return new ZoneInfo("GMT", 0.0);
+    return timezone("GMT");
 }
 
 // Predefined timezone: Central European Time (UTC+1)
 public fn cet(): ZoneInfo {
-    return new ZoneInfo("CET", 1.0);
+    return timezone("CET");
 }
 
 // Predefined timezone: Japan Standard Time (UTC+9)
 public fn jst(): ZoneInfo {
-    return new ZoneInfo("JST", 9.0);
+    return timezone("JST");
 }
 
 // Predefined timezone: China Standard Time (UTC+8)
 public fn cst(): ZoneInfo {
-    return new ZoneInfo("CST", 8.0);
+    return timezone("CST");
 }
 
 // Predefined timezone: India Standard Time (UTC+5:30)
 public fn ist(): ZoneInfo {
-    return new ZoneInfo("IST", 5.5);
+    return timezone("IST");
 }
 
 // Predefined timezone: Australian Eastern Standard Time (UTC+10)
 public fn aest(): ZoneInfo {
-    return new ZoneInfo("AEST", 10.0);
-}
-
-// Get a timezone by common name
-public fn timezone(name: string): ZoneInfo {
-    if (name == "UTC" || name == "utc") { return utc(); }
-    if (name == "GMT" || name == "gmt") { return gmt(); }
-    if (name == "US/Eastern" || name == "Eastern" || name == "eastern") { return eastern(); }
-    if (name == "US/Central" || name == "Central" || name == "central") { return central(); }
-    if (name == "US/Mountain" || name == "Mountain" || name == "mountain") { return mountain(); }
-    if (name == "US/Pacific" || name == "Pacific" || name == "pacific") { return pacific(); }
-    if (name == "CET" || name == "cet") { return cet(); }
-    if (name == "JST" || name == "jst") { return jst(); }
-    if (name == "CST" || name == "cst") { return cst(); }
-    if (name == "IST" || name == "ist") { return ist(); }
-    if (name == "AEST" || name == "aest") { return aest(); }
-    // Default: return UTC
-    return utc();
+    return timezone("AEST");
 }
