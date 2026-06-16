@@ -3,8 +3,48 @@ import tt::chem::Atom;
 import tt::chem::Molecule;
 import tt::math::Math;
 import tt::math::MathAdvanced;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Double;
 
 // ForceField nonbonded: lennardJonesEnergy, coulombEnergy, gradient, computeForces, partialCharge
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _ffCache: JsonValue = JsonValue.null();
+var _ffLoaded: bool = false;
+var _chargeCache: HashMap<string, double> = new HashMap<string, double>();
+
+fn _ensureFFLoaded(): void {
+    if (_ffLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("chem/forcefield_params.json");
+    if (data.isNull() || !data.isObject()) {
+        _ffLoaded = true;
+        return;
+    }
+    _ffCache = data;
+    // Pre-load partial charges
+    if (data.hasKey("partialCharges")) {
+        let charges: JsonValue = data.get("partialCharges");
+        if (charges.isArray()) {
+            var i: int = 0;
+            while (i < charges.size()) {
+                let entry: JsonValue = charges.getAt(i);
+                if (entry.isObject() && entry.hasKey("symbol") && entry.hasKey("charge")) {
+                    let sym: string = entry.get("symbol").asString();
+                    let ch: double = entry.get("charge").asNumber();
+                    _chargeCache.put(sym, ch);
+                }
+                i = i + 1;
+            }
+        }
+    }
+    _ffLoaded = true;
+}
 
 // Lennard-Jones 6-12 potential: E = 4*epsilon * ((sigma/r)^12 - (sigma/r)^6)
 public fn lennardJonesEnergy(ff: ForceField, mol: Molecule): double {
@@ -57,13 +97,12 @@ public fn coulombEnergy(ff: ForceField, mol: Molecule): double {
     return e;
 }
 
-// Simplified partial charges for common elements
+// Simplified partial charges for common elements (loaded from data file)
 public fn partialCharge(symbol: string): double {
-    if (symbol == "O") { return -0.8476; }
-    if (symbol == "H") { return 0.4238; }
-    if (symbol == "N") { return -0.47; }
-    if (symbol == "C") { return -0.1; }
-    if (symbol == "S") { return -0.2; }
+    _ensureFFLoaded();
+    if (_chargeCache.containsKey(symbol)) {
+        return _chargeCache.get(symbol);
+    }
     return 0.0;
 }
 
