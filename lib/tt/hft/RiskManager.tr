@@ -1,0 +1,82 @@
+// RiskManager.tr — Risk management: position limits, rate limits, kill switch
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+public class RiskManager {
+    public double maxPositionSize;
+    public double maxNotional;
+    public int maxOrdersPerSecond;
+    public double maxDailyLoss;
+    public bool killSwitch;
+    public HashMap<string, double> positions;
+    public HashMap<string, double> dailyPnL;
+    public ArrayList<double> orderTimestamps;
+    public double totalDailyLoss;
+
+    public fn init() {
+        this.maxPositionSize = 1000000.0;
+        this.maxNotional = 5000000.0;
+        this.maxOrdersPerSecond = 100;
+        this.maxDailyLoss = 100000.0;
+        this.killSwitch = false;
+        this.positions = new HashMap<string, double>();
+        this.dailyPnL = new HashMap<string, double>();
+        this.orderTimestamps = new ArrayList<double>();
+        this.totalDailyLoss = 0.0;
+    }
+
+    public fn checkPositionLimit(symbol: string, quantity: double): bool {
+        if (this.killSwitch) { return false; }
+        let current: double = 0.0;
+        if (this.positions.containsKey(symbol)) { current = this.positions.get(symbol); }
+        return Math.abs(current + quantity) <= this.maxPositionSize;
+    }
+
+    public fn checkNotionalLimit(symbol: string, quantity: double, price: double): bool {
+        if (this.killSwitch) { return false; }
+        let notional: double = quantity * price;
+        return notional <= this.maxNotional;
+    }
+
+    public fn checkRateLimit(timestamp: double): bool {
+        if (this.killSwitch) { return false; }
+        // Remove timestamps older than 1 second
+        while (this.orderTimestamps.size() > 0 && this.orderTimestamps.get(0) < timestamp - 1.0) {
+            this.orderTimestamps.removeAt(0);
+        }
+        return this.orderTimestamps.size() < this.maxOrdersPerSecond;
+    }
+
+    public fn checkDailyLoss(): bool {
+        if (this.killSwitch) { return false; }
+        return this.totalDailyLoss > -this.maxDailyLoss;
+    }
+
+    public fn updatePosition(symbol: string, quantity: double): void {
+        let current: double = 0.0;
+        if (this.positions.containsKey(symbol)) { current = this.positions.get(symbol); }
+        this.positions.put(symbol, current + quantity);
+    }
+
+    public fn updatePnL(symbol: string, pnl: double): void {
+        this.totalDailyLoss = this.totalDailyLoss + pnl;
+        let current: double = 0.0;
+        if (this.dailyPnL.containsKey(symbol)) { current = this.dailyPnL.get(symbol); }
+        this.dailyPnL.put(symbol, current + pnl);
+    }
+
+    public fn activateKillSwitch(): void {
+        this.killSwitch = true;
+    }
+
+    public fn deactivateKillSwitch(): void {
+        this.killSwitch = false;
+    }
+
+    public fn resetDaily(): void {
+        this.totalDailyLoss = 0.0;
+        this.dailyPnL = new HashMap<string, double>();
+        this.orderTimestamps = new ArrayList<double>();
+    }
+}
