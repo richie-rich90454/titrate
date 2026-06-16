@@ -1,0 +1,1018 @@
+// XPath 1.0 evaluator for XmlNode.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::xml::XmlNode;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+// One step in a location path.
+public class XPathStep {
+    public string axis;
+    public string nodeTest;
+    public ArrayList<string> predicates;
+
+    public fn init(axis: string, test: string) {
+        this.axis = axis;
+        this.nodeTest = test;
+        this.predicates = new ArrayList<string>();
+    }
+}
+
+// Compiled XPath expression.
+public class XPathExpression {
+    public string path;
+    private ArrayList<XPathStep> _steps;
+    private bool _isAbsolute;
+
+    public fn init(expr: string) {
+        this.path = expr;
+        this._steps = new ArrayList<XPathStep>();
+        this._isAbsolute = false;
+        this._parse(expr);
+    }
+
+    // Evaluate against a node, return matching nodes.
+    public fn evaluate(node: XmlNode): ArrayList<XmlNode> {
+        if (this._steps.size() == 0) {
+            let result: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+            result.add(node);
+            return result;
+        }
+        var contextNodes: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+        if (this._isAbsolute) {
+            let root: XmlNode = _findRoot(node);
+            contextNodes.add(root);
+        } else {
+            contextNodes.add(node);
+        }
+        let i: int = 0;
+        while (i < this._steps.size()) {
+            let step: XPathStep = this._steps.get(i);
+            contextNodes = _applyStep(contextNodes, step);
+            i = i + 1;
+        }
+        return contextNodes;
+    }
+
+    // Evaluate and return string value.
+    public fn evaluateString(node: XmlNode): string {
+        let nodes: ArrayList<XmlNode> = this.evaluate(node);
+        if (nodes.size() == 0) {
+            return "";
+        }
+        return _stringValue(nodes.get(0));
+    }
+
+    // Evaluate and return numeric value.
+    public fn evaluateNumber(node: XmlNode): double {
+        let s: string = this.evaluateString(node);
+        if (s == "") {
+            return 0.0 / 0.0;
+        }
+        return Double.parse(s);
+    }
+
+    // Evaluate and return boolean value.
+    public fn evaluateBoolean(node: XmlNode): bool {
+        let nodes: ArrayList<XmlNode> = this.evaluate(node);
+        if (nodes.size() > 0) {
+            return true;
+        }
+        return false;
+    }
+
+    // Parse expression into steps.
+    private fn _parse(expr: string): void {
+        let trimmed: string = String.trim(expr);
+        if (String.length(trimmed) == 0) {
+            return;
+        }
+        // Check for absolute path
+        if (String.charAt(trimmed, 0) == "/") {
+            this._isAbsolute = true;
+            trimmed = String.substring(trimmed, 1, String.length(trimmed));
+            if (String.length(trimmed) == 0) {
+                // Just "/" — select root
+                return;
+            }
+        }
+        let tokens: ArrayList<string> = this._tokenize(trimmed);
+        let i: int = 0;
+        while (i < tokens.size()) {
+            let token: string = tokens.get(i);
+            if (token == "//") {
+                // Descendant-or-self axis
+                let step: XPathStep = new XPathStep("descendant", "*");
+                this._steps.add(step);
+            } else if (token == "/") {
+                // Separator — skip
+            } else {
+                let step: XPathStep = _parseStep(token);
+                this._steps.add(step);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Tokenize expression into path segments.
+    private fn _tokenize(expr: string): ArrayList<string> {
+        let tokens: ArrayList<string> = new ArrayList<string>();
+        let current: string = "";
+        let i: int = 0;
+        let len: int = String.length(expr);
+        while (i < len) {
+            let c: string = String.charAt(expr, i);
+            if (c == "/") {
+                // Check for //
+                if (i + 1 < len && String.charAt(expr, i + 1) == "/") {
+                    if (String.length(current) > 0) {
+                        tokens.add(String.trim(current));
+                        current = "";
+                    }
+                    tokens.add("//");
+                    i = i + 2;
+                } else {
+                    if (String.length(current) > 0) {
+                        tokens.add(String.trim(current));
+                        current = "";
+                    }
+                    tokens.add("/");
+                    i = i + 1;
+                }
+            } else if (c == "[") {
+                // Read predicate including brackets
+                let depth: int = 1;
+                current = current + c;
+                i = i + 1;
+                while (i < len && depth > 0) {
+                    let pc: string = String.charAt(expr, i);
+                    current = current + pc;
+                    if (pc == "[") {
+                        depth = depth + 1;
+                    } else if (pc == "]") {
+                        depth = depth - 1;
+                    }
+                    i = i + 1;
+                }
+            } else {
+                current = current + c;
+                i = i + 1;
+            }
+        }
+        if (String.length(current) > 0) {
+            tokens.add(String.trim(current));
+        }
+        return tokens;
+    }
+}
+
+// ---- Top-level convenience functions ----
+
+// Compile an XPath expression.
+public fn compile(expr: string): XPathExpression {
+    return new XPathExpression(expr);
+}
+
+// Convenience: select nodes matching an XPath expression.
+public fn selectNodes(node: XmlNode, expr: string): ArrayList<XmlNode> {
+    let xpath: XPathExpression = new XPathExpression(expr);
+    return xpath.evaluate(node);
+}
+
+// ---- Internal helpers ----
+
+// Parse a single step token (e.g. "child[@attr='val']", ".", "..", "@attr", "*")
+fn _parseStep(token: string): XPathStep {
+    let t: string = String.trim(token);
+    // Parent axis: ..
+    if (t == "..") {
+        return new XPathStep("parent", "..");
+    }
+    // Self axis: .
+    if (t == ".") {
+        return new XPathStep("self", ".");
+    }
+    // Attribute axis: @attr
+    if (String.length(t) > 0 && String.charAt(t, 0) == "@") {
+        let attrName: string = String.substring(t, 1, String.length(t));
+        // Check for predicates on attribute
+        let predStart: int = String.indexOf(attrName, "[");
+        if (predStart >= 0) {
+            let step: XPathStep = new XPathStep("attribute", String.substring(attrName, 0, predStart));
+            _extractPredicates(attrName, step);
+            return step;
+        }
+        return new XPathStep("attribute", attrName);
+    }
+    // Child axis (default): element name or *
+    // Extract predicates
+    let predStart: int = _findPredicateStart(t);
+    if (predStart >= 0) {
+        let nodeTest: string = String.substring(t, 0, predStart);
+        let step: XPathStep = new XPathStep("child", nodeTest);
+        _extractPredicates(t, step);
+        return step;
+    }
+    return new XPathStep("child", t);
+}
+
+// Find the start of the first predicate bracket that is not inside quotes.
+fn _findPredicateStart(s: string): int {
+    let i: int = 0;
+    let len: int = String.length(s);
+    while (i < len) {
+        let c: string = String.charAt(s, i);
+        if (c == "[") {
+            return i;
+        }
+        if (c == "'" || c == "\"") {
+            let quote: string = c;
+            i = i + 1;
+            while (i < len && String.charAt(s, i) != quote) {
+                i = i + 1;
+            }
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Extract predicates from a step token and add them to the XPathStep.
+fn _extractPredicates(token: string, step: XPathStep): void {
+    let i: int = 0;
+    let len: int = String.length(token);
+    while (i < len) {
+        let c: string = String.charAt(token, i);
+        if (c == "[") {
+            let depth: int = 1;
+            let start: int = i + 1;
+            i = i + 1;
+            while (i < len && depth > 0) {
+                let pc: string = String.charAt(token, i);
+                if (pc == "[") {
+                    depth = depth + 1;
+                } else if (pc == "]") {
+                    depth = depth - 1;
+                }
+                i = i + 1;
+            }
+            let predContent: string = String.substring(token, start, i - 1);
+            step.predicates.add(String.trim(predContent));
+        } else {
+            i = i + 1;
+        }
+    }
+}
+
+// Apply a single step to a list of context nodes.
+fn _applyStep(contextNodes: ArrayList<XmlNode>, step: XPathStep): ArrayList<XmlNode> {
+    let result: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+    let i: int = 0;
+    while (i < contextNodes.size()) {
+        let node: XmlNode = contextNodes.get(i);
+        let selected: ArrayList<XmlNode> = _selectByAxis(node, step);
+        let filtered: ArrayList<XmlNode> = _applyPredicates(selected, step.predicates, node);
+        // Add unique nodes
+        let j: int = 0;
+        while (j < filtered.size()) {
+            let f: XmlNode = filtered.get(j);
+            if (!_containsNode(result, f)) {
+                result.add(f);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Select nodes by axis.
+fn _selectByAxis(node: XmlNode, step: XPathStep): ArrayList<XmlNode> {
+    let result: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+    if (step.axis == "child") {
+        if (step.nodeTest == "*") {
+            // All children
+            let children: ArrayList<XmlNode> = node.getChildren();
+            let i: int = 0;
+            while (i < children.size()) {
+                let child: XmlNode = children.get(i);
+                if (child.tag != "") {
+                    result.add(child);
+                }
+                i = i + 1;
+            }
+        } else {
+            // Named children
+            let children: ArrayList<XmlNode> = node.getChildren();
+            let i: int = 0;
+            while (i < children.size()) {
+                let child: XmlNode = children.get(i);
+                if (child.tag == step.nodeTest) {
+                    result.add(child);
+                }
+                i = i + 1;
+            }
+        }
+    } else if (step.axis == "descendant") {
+        if (step.nodeTest == "*") {
+            _collectAllDescendants(node, result);
+        } else {
+            _collectDescendantsByName(node, step.nodeTest, result);
+        }
+    } else if (step.axis == "self") {
+        result.add(node);
+    } else if (step.axis == "parent") {
+        // Parent axis — we need to find parent from root.
+        // Since XmlNode doesn't store parent references, we return empty.
+        // This is a limitation; parent traversal requires tree reconstruction.
+    } else if (step.axis == "attribute") {
+        // Attribute axis: return the node itself if it has the attribute
+        // We use a convention: the "attribute" result is the owning node,
+        // and predicate evaluation checks the attribute value.
+        if (node.hasAttr(step.nodeTest)) {
+            result.add(node);
+        }
+    }
+    return result;
+}
+
+// Collect all descendants (non-self).
+fn _collectAllDescendants(node: XmlNode, result: ArrayList<XmlNode>): void {
+    let children: ArrayList<XmlNode> = node.getChildren();
+    let i: int = 0;
+    while (i < children.size()) {
+        let child: XmlNode = children.get(i);
+        if (child.tag != "") {
+            result.add(child);
+        }
+        _collectAllDescendants(child, result);
+        i = i + 1;
+    }
+}
+
+// Collect descendants by tag name.
+fn _collectDescendantsByName(node: XmlNode, name: string, result: ArrayList<XmlNode>): void {
+    let children: ArrayList<XmlNode> = node.getChildren();
+    let i: int = 0;
+    while (i < children.size()) {
+        let child: XmlNode = children.get(i);
+        if (child.tag == name) {
+            result.add(child);
+        }
+        _collectDescendantsByName(child, name, result);
+        i = i + 1;
+    }
+}
+
+// Apply predicates to filter a node list.
+fn _applyPredicates(nodes: ArrayList<XmlNode>, predicates: ArrayList<string>, contextParent: XmlNode): ArrayList<XmlNode> {
+    let result: ArrayList<XmlNode> = nodes;
+    let p: int = 0;
+    while (p < predicates.size()) {
+        result = _applyPredicate(result, predicates.get(p));
+        p = p + 1;
+    }
+    return result;
+}
+
+// Apply a single predicate to filter nodes.
+fn _applyPredicate(nodes: ArrayList<XmlNode>, predicate: string): ArrayList<XmlNode> {
+    let result: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+    let pred: string = String.trim(predicate);
+    let i: int = 0;
+    while (i < nodes.size()) {
+        let pos: int = i + 1; // XPath position is 1-based
+        let node: XmlNode = nodes.get(i);
+        if (_evaluatePredicate(node, pred, pos, nodes.size())) {
+            result.add(node);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Evaluate a predicate expression for a node.
+fn _evaluatePredicate(node: XmlNode, pred: string, position: int, last: int): bool {
+    let p: string = String.trim(pred);
+    // Numeric predicate: position test [1], [2], etc.
+    if (_isNumeric(p)) {
+        return position == Integer.parseInt(p);
+    }
+    // Attribute predicate: [@attr] or [@attr='value'] or [@attr="value"]
+    if (String.length(p) > 0 && String.charAt(p, 0) == "@") {
+        return _evaluateAttrPredicate(node, p);
+    }
+    // text() predicate: [text()='value']
+    let textPrefix: string = "text()";
+    if (String.length(p) >= String.length(textPrefix) && String.substring(p, 0, String.length(textPrefix)) == textPrefix) {
+        return _evaluateTextPredicate(node, p);
+    }
+    // position() predicate: [position()=N]
+    let posPrefix: string = "position()";
+    if (String.length(p) >= String.length(posPrefix) && String.substring(p, 0, String.length(posPrefix)) == posPrefix) {
+        return _evaluatePositionPredicate(p, position);
+    }
+    // last() predicate: [last()] or [last()-N]
+    let lastPrefix: string = "last()";
+    if (String.length(p) >= String.length(lastPrefix) && String.substring(p, 0, String.length(lastPrefix)) == lastPrefix) {
+        return _evaluateLastPredicate(p, position, last);
+    }
+    // Function call predicate: [count(../child)=N], etc.
+    if (String.indexOf(p, "(") >= 0) {
+        return _evaluateFunctionPredicate(node, p, position, last);
+    }
+    // Comparison with node value: compare against text content
+    // e.g. [.='value'] or [.='value']
+    if (String.length(p) > 0 && String.charAt(p, 0) == ".") {
+        return _evaluateDotPredicate(node, p);
+    }
+    // Default: try as numeric
+    return false;
+}
+
+// Check if a string is a positive integer.
+fn _isNumeric(s: string): bool {
+    let i: int = 0;
+    let len: int = String.length(s);
+    if (len == 0) {
+        return false;
+    }
+    while (i < len) {
+        let c: string = String.charAt(s, i);
+        if (c < "0" || c > "9") {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Evaluate attribute predicate: @attr, @attr='val', @attr="val", @attr!=val, @attr>val, @attr<val
+fn _evaluateAttrPredicate(node: XmlNode, pred: string): bool {
+    let p: string = String.substring(pred, 1, String.length(pred));
+    // Check for comparison operators
+    let opIdx: int = _findComparisonOp(p);
+    if (opIdx < 0) {
+        // Just [@attr] — true if attribute exists
+        return node.hasAttr(p);
+    }
+    let attrName: string = String.substring(p, 0, opIdx);
+    let opAndValue: string = String.substring(p, opIdx, String.length(p));
+    let parsed: (string, string) = _parseComparison(opAndValue);
+    let op: string = parsed.0;
+    let value: string = parsed.1;
+    let attrVal: string = node.getAttr(attrName);
+    return _compareValues(attrVal, op, value);
+}
+
+// Evaluate text() predicate: text()='val' or text()="val"
+fn _evaluateTextPredicate(node: XmlNode, pred: string): bool {
+    let rest: string = String.substring(pred, String.length("text()"), String.length(pred));
+    rest = String.trim(rest);
+    if (String.length(rest) == 0) {
+        // Just [text()] — true if text is non-empty
+        return node.text != "";
+    }
+    let parsed: (string, string) = _parseComparison(rest);
+    let op: string = parsed.0;
+    let value: string = parsed.1;
+    return _compareValues(node.text, op, value);
+}
+
+// Evaluate position() predicate: position()=N, position()>N, etc.
+fn _evaluatePositionPredicate(pred: string, position: int): bool {
+    let rest: string = String.substring(pred, String.length("position()"), String.length(pred));
+    rest = String.trim(rest);
+    if (String.length(rest) == 0) {
+        return true;
+    }
+    let parsed: (string, string) = _parseComparison(rest);
+    let op: string = parsed.0;
+    let value: string = parsed.1;
+    let posStr: string = Integer.toString(position);
+    return _compareValues(posStr, op, value);
+}
+
+// Evaluate last() predicate: last(), last()-N, last()=N
+fn _evaluateLastPredicate(pred: string, position: int, last: int): bool {
+    let rest: string = String.substring(pred, String.length("last()"), String.length(pred));
+    rest = String.trim(rest);
+    if (String.length(rest) == 0) {
+        return position == last;
+    }
+    // Handle last()-N
+    if (String.length(rest) > 0 && String.charAt(rest, 0) == "-") {
+        let offsetStr: string = String.substring(rest, 1, String.length(rest));
+        if (_isNumeric(offsetStr)) {
+            let offset: int = Integer.parseInt(offsetStr);
+            return position == last - offset;
+        }
+    }
+    let parsed: (string, string) = _parseComparison(rest);
+    let op: string = parsed.0;
+    let value: string = parsed.1;
+    let lastStr: string = Integer.toString(last);
+    return _compareValues(lastStr, op, value);
+}
+
+// Evaluate a dot predicate: [.='value']
+fn _evaluateDotPredicate(node: XmlNode, pred: string): bool {
+    let rest: string = String.substring(pred, 1, String.length(pred));
+    rest = String.trim(rest);
+    if (String.length(rest) == 0) {
+        return true;
+    }
+    let parsed: (string, string) = _parseComparison(rest);
+    let op: string = parsed.0;
+    let value: string = parsed.1;
+    return _compareValues(_stringValue(node), op, value);
+}
+
+// Evaluate a function-based predicate.
+fn _evaluateFunctionPredicate(node: XmlNode, pred: string, position: int, last: int): bool {
+    // Try to find comparison operator outside of function parentheses
+    let opIdx: int = _findComparisonOutsideParens(pred);
+    if (opIdx >= 0) {
+        let leftExpr: string = String.trim(String.substring(pred, 0, opIdx));
+        let opAndValue: string = String.substring(pred, opIdx, String.length(pred));
+        let parsed: (string, string) = _parseComparison(opAndValue);
+        let op: string = parsed.0;
+        let rightValue: string = parsed.1;
+        let leftValue: string = _evaluateFunctionString(node, leftExpr, position, last);
+        return _compareValues(leftValue, op, rightValue);
+    }
+    // No comparison — evaluate as boolean
+    let boolResult: bool = _evaluateFunctionBoolean(node, pred, position, last);
+    return boolResult;
+}
+
+// Find comparison operator index, skipping content inside parentheses.
+fn _findComparisonOutsideParens(s: string): int {
+    let depth: int = 0;
+    let i: int = 0;
+    let len: int = String.length(s);
+    while (i < len) {
+        let c: string = String.charAt(s, i);
+        if (c == "(") {
+            depth = depth + 1;
+        } else if (c == ")") {
+            depth = depth - 1;
+        } else if (depth == 0) {
+            if (c == "=" || c == "!" || c == "<" || c == ">") {
+                return i;
+            }
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Evaluate a function expression and return its string value.
+fn _evaluateFunctionString(node: XmlNode, expr: string, position: int, last: int): string {
+    let e: string = String.trim(expr);
+    // count(path)
+    if (String.length(e) > 6 && String.substring(e, 0, 6) == "count(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.substring(e, 6, String.length(e) - 1);
+        let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, inner);
+        return Integer.toString(innerNodes.size());
+    }
+    // string-length(path) or string-length()
+    if (String.length(e) > 14 && String.substring(e, 0, 14) == "string-length(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.trim(String.substring(e, 14, String.length(e) - 1));
+        if (inner == "") {
+            return Integer.toString(String.length(_stringValue(node)));
+        }
+        let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, inner);
+        if (innerNodes.size() > 0) {
+            return Integer.toString(String.length(_stringValue(innerNodes.get(0))));
+        }
+        return "0";
+    }
+    // name(path) or name()
+    if (String.length(e) > 5 && String.substring(e, 0, 5) == "name(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.trim(String.substring(e, 5, String.length(e) - 1));
+        if (inner == "") {
+            return node.tag;
+        }
+        let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, inner);
+        if (innerNodes.size() > 0) {
+            return innerNodes.get(0).tag;
+        }
+        return "";
+    }
+    // local-name(path) or local-name()
+    if (String.length(e) > 11 && String.substring(e, 0, 11) == "local-name(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.trim(String.substring(e, 11, String.length(e) - 1));
+        if (inner == "") {
+            return _localName(node.tag);
+        }
+        let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, inner);
+        if (innerNodes.size() > 0) {
+            return _localName(innerNodes.get(0).tag);
+        }
+        return "";
+    }
+    // position()
+    if (e == "position()") {
+        return Integer.toString(position);
+    }
+    // last()
+    if (e == "last()") {
+        return Integer.toString(last);
+    }
+    // string(path) or string()
+    if (String.length(e) > 7 && String.substring(e, 0, 7) == "string(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.trim(String.substring(e, 7, String.length(e) - 1));
+        if (inner == "") {
+            return _stringValue(node);
+        }
+        let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, inner);
+        if (innerNodes.size() > 0) {
+            return _stringValue(innerNodes.get(0));
+        }
+        return "";
+    }
+    // number(path) or number()
+    if (String.length(e) > 7 && String.substring(e, 0, 7) == "number(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.trim(String.substring(e, 7, String.length(e) - 1));
+        if (inner == "") {
+            return Double.toString(Double.parse(_stringValue(node)));
+        }
+        let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, inner);
+        if (innerNodes.size() > 0) {
+            return Double.toString(Double.parse(_stringValue(innerNodes.get(0))));
+        }
+        return "NaN";
+    }
+    return "";
+}
+
+// Evaluate a function expression as boolean.
+fn _evaluateFunctionBoolean(node: XmlNode, expr: string, position: int, last: int): bool {
+    let e: string = String.trim(expr);
+    // not(expr)
+    if (String.length(e) > 4 && String.substring(e, 0, 4) == "not(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.substring(e, 4, String.length(e) - 1);
+        return !_evaluateFunctionBoolean(node, inner, position, last);
+    }
+    // true()
+    if (e == "true()") {
+        return true;
+    }
+    // false()
+    if (e == "false()") {
+        return false;
+    }
+    // boolean(expr)
+    if (String.length(e) > 8 && String.substring(e, 0, 8) == "boolean(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.trim(String.substring(e, 8, String.length(e) - 1));
+        let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, inner);
+        return innerNodes.size() > 0;
+    }
+    // contains(s1, s2)
+    if (String.length(e) > 8 && String.substring(e, 0, 8) == "contains(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.substring(e, 8, String.length(e) - 1);
+        let args: ArrayList<string> = _splitFunctionArgs(inner);
+        if (args.size() >= 2) {
+            let s1: string = _resolveArg(node, String.trim(args.get(0)), position, last);
+            let s2: string = _resolveArg(node, String.trim(args.get(1)), position, last);
+            return String.contains(s1, s2);
+        }
+        return false;
+    }
+    // starts-with(s1, s2)
+    if (String.length(e) > 12 && String.substring(e, 0, 12) == "starts-with(" && String.charAt(e, String.length(e) - 1) == ")") {
+        let inner: string = String.substring(e, 12, String.length(e) - 1);
+        let args: ArrayList<string> = _splitFunctionArgs(inner);
+        if (args.size() >= 2) {
+            let s1: string = _resolveArg(node, String.trim(args.get(0)), position, last);
+            let s2: string = _resolveArg(node, String.trim(args.get(1)), position, last);
+            return String.startsWith(s1, s2);
+        }
+        return false;
+    }
+    // Path expression: non-empty result means true
+    let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, e);
+    return innerNodes.size() > 0;
+}
+
+// Split function arguments by comma, respecting quotes and parentheses.
+fn _splitFunctionArgs(s: string): ArrayList<string> {
+    let args: ArrayList<string> = new ArrayList<string>();
+    let current: string = "";
+    let depth: int = 0;
+    let i: int = 0;
+    let len: int = String.length(s);
+    let inQuote: string = "";
+    while (i < len) {
+        let c: string = String.charAt(s, i);
+        if (inQuote != "") {
+            current = current + c;
+            if (c == inQuote) {
+                inQuote = "";
+            }
+        } else if (c == "'" || c == "\"") {
+            inQuote = c;
+            current = current + c;
+        } else if (c == "(") {
+            depth = depth + 1;
+            current = current + c;
+        } else if (c == ")") {
+            depth = depth - 1;
+            current = current + c;
+        } else if (c == "," && depth == 0) {
+            args.add(String.trim(current));
+            current = "";
+        } else {
+            current = current + c;
+        }
+        i = i + 1;
+    }
+    if (String.length(current) > 0) {
+        args.add(String.trim(current));
+    }
+    return args;
+}
+
+// Resolve a function argument to a string value.
+fn _resolveArg(node: XmlNode, arg: string, position: int, last: int): string {
+    // Quoted string literal
+    if (String.length(arg) >= 2) {
+        let first: string = String.charAt(arg, 0);
+        let lastChar: string = String.charAt(arg, String.length(arg) - 1);
+        if ((first == "'" && lastChar == "'") || (first == "\"" && lastChar == "\"")) {
+            return String.substring(arg, 1, String.length(arg) - 1);
+        }
+    }
+    // @attr
+    if (String.length(arg) > 1 && String.charAt(arg, 0) == "@") {
+        return node.getAttr(String.substring(arg, 1, String.length(arg)));
+    }
+    // text()
+    if (arg == "text()") {
+        return node.text;
+    }
+    // .
+    if (arg == ".") {
+        return _stringValue(node);
+    }
+    // Function call
+    if (String.indexOf(arg, "(") >= 0) {
+        return _evaluateFunctionString(node, arg, position, last);
+    }
+    // Path expression
+    let innerNodes: ArrayList<XmlNode> = _evaluatePathExpr(node, arg);
+    if (innerNodes.size() > 0) {
+        return _stringValue(innerNodes.get(0));
+    }
+    return "";
+}
+
+// Evaluate a relative path expression starting from a node.
+fn _evaluatePathExpr(node: XmlNode, path: string): ArrayList<XmlNode> {
+    let expr: XPathExpression = new XPathExpression(path);
+    return expr.evaluate(node);
+}
+
+// Find the root of the tree by walking up (not possible without parent refs),
+// so we return the node itself. For absolute paths, the caller should pass the root.
+fn _findRoot(node: XmlNode): XmlNode {
+    // Without parent references, we assume the given node is the root.
+    return node;
+}
+
+// Get the string value of a node (text content including descendants).
+fn _stringValue(node: XmlNode): string {
+    if (node == null) {
+        return "";
+    }
+    let result: string = node.text;
+    let children: ArrayList<XmlNode> = node.getChildren();
+    let i: int = 0;
+    while (i < children.size()) {
+        result = result + _stringValue(children.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Get local name (strip namespace prefix if present).
+fn _localName(tag: string): string {
+    let colonIdx: int = String.indexOf(tag, ":");
+    if (colonIdx >= 0) {
+        return String.substring(tag, colonIdx + 1, String.length(tag));
+    }
+    return tag;
+}
+
+// Find the index of a comparison operator in a string.
+fn _findComparisonOp(s: string): int {
+    let i: int = 0;
+    let len: int = String.length(s);
+    while (i < len) {
+        let c: string = String.charAt(s, i);
+        if (c == "=" || c == "!" || c == "<" || c == ">") {
+            return i;
+        }
+        if (c == "'" || c == "\"") {
+            let quote: string = c;
+            i = i + 1;
+            while (i < len && String.charAt(s, i) != quote) {
+                i = i + 1;
+            }
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Parse a comparison expression like ="value" or !='value' or >3
+// Returns (operator, value) tuple.
+fn _parseComparison(s: string): (string, string) {
+    let i: int = 0;
+    let len: int = String.length(s);
+    let op: string = "";
+    // Extract operator
+    if (i < len) {
+        let c: string = String.charAt(s, i);
+        if (c == "!" && i + 1 < len && String.charAt(s, i + 1) == "=") {
+            op = "!=";
+            i = i + 2;
+        } else if (c == "<" && i + 1 < len && String.charAt(s, i + 1) == "=") {
+            op = "<=";
+            i = i + 2;
+        } else if (c == ">" && i + 1 < len && String.charAt(s, i + 1) == "=") {
+            op = ">=";
+            i = i + 2;
+        } else if (c == "=") {
+            op = "=";
+            i = i + 1;
+        } else if (c == "<") {
+            op = "<";
+            i = i + 1;
+        } else if (c == ">") {
+            op = ">";
+            i = i + 1;
+        }
+    }
+    // Extract value (strip quotes)
+    let value: string = String.trim(String.substring(s, i, len));
+    if (String.length(value) >= 2) {
+        let first: string = String.charAt(value, 0);
+        let lastChar: string = String.charAt(value, String.length(value) - 1);
+        if ((first == "'" && lastChar == "'") || (first == "\"" && lastChar == "\"")) {
+            value = String.substring(value, 1, String.length(value) - 1);
+        }
+    }
+    return (op, value);
+}
+
+// Compare two values with an operator.
+fn _compareValues(left: string, op: string, right: string): bool {
+    if (op == "=" || op == "") {
+        return left == right;
+    }
+    if (op == "!=") {
+        return left != right;
+    }
+    // Numeric comparisons
+    let leftNum: double = Double.parse(left);
+    let rightNum: double = Double.parse(right);
+    if (op == "<") {
+        return leftNum < rightNum;
+    }
+    if (op == ">") {
+        return leftNum > rightNum;
+    }
+    if (op == "<=") {
+        return leftNum <= rightNum;
+    }
+    if (op == ">=") {
+        return leftNum >= rightNum;
+    }
+    return false;
+}
+
+// Check if a node list already contains a given node.
+fn _containsNode(list: ArrayList<XmlNode>, node: XmlNode): bool {
+    let i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == node) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// ---- XPath Function implementations ----
+
+// count(nodeSet) — count nodes matching a path.
+public fn count(node: XmlNode, path: string): int {
+    let xpath: XPathExpression = new XPathExpression(path);
+    let nodes: ArrayList<XmlNode> = xpath.evaluate(node);
+    return nodes.size();
+}
+
+// position() — note: position is context-dependent; this returns 1 as default.
+public fn position(): int {
+    return 1;
+}
+
+// last() — note: last is context-dependent; this returns 1 as default.
+public fn last(): int {
+    return 1;
+}
+
+// string(value) — convert to string.
+public fn stringValue(node: XmlNode): string {
+    return _stringValue(node);
+}
+
+// number(value) — convert to number.
+public fn numberValue(node: XmlNode): double {
+    return Double.parse(_stringValue(node));
+}
+
+// concat(s1, s2, ...) — concatenate strings.
+public fn concat(args: ArrayList<string>): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < args.size()) {
+        result = result + args.get(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// contains(s1, s2) — check if s1 contains s2.
+public fn contains(s1: string, s2: string): bool {
+    return String.contains(s1, s2);
+}
+
+// startsWith(s1, s2) — check if s1 starts with s2.
+public fn startsWith(s1: string, s2: string): bool {
+    return String.startsWith(s1, s2);
+}
+
+// substring(s, start) or substring(s, start, length) — XPath 1.0 substring.
+public fn substring(s: string, start: double): string {
+    let startPos: int = (start as int) - 1; // XPath is 1-based
+    if (startPos < 0) {
+        startPos = 0;
+    }
+    return String.substring(s, startPos, String.length(s));
+}
+
+// substring with length
+public fn substringLen(s: string, start: double, length: double): string {
+    let startPos: int = (start as int) - 1;
+    if (startPos < 0) {
+        startPos = 0;
+    }
+    let endPos: int = startPos + (length as int);
+    if (endPos > String.length(s)) {
+        endPos = String.length(s);
+    }
+    return String.substring(s, startPos, endPos);
+}
+
+// stringLength(s) — length of string.
+public fn stringLength(s: string): int {
+    return String.length(s);
+}
+
+// name(node) — qualified name of the node.
+public fn name(node: XmlNode): string {
+    if (node == null) {
+        return "";
+    }
+    return node.tag;
+}
+
+// localName(node) — local name of the node (without namespace prefix).
+public fn localName(node: XmlNode): string {
+    if (node == null) {
+        return "";
+    }
+    return _localName(node.tag);
+}
+
+// not(b) — logical negation.
+public fn not(b: bool): bool {
+    return !b;
+}
+
+// sum(nodeSet) — sum of numeric values of nodes.
+public fn sum(node: XmlNode, path: string): double {
+    let xpath: XPathExpression = new XPathExpression(path);
+    let nodes: ArrayList<XmlNode> = xpath.evaluate(node);
+    var total: double = 0.0;
+    let i: int = 0;
+    while (i < nodes.size()) {
+        total = total + Double.parse(_stringValue(nodes.get(i)));
+        i = i + 1;
+    }
+    return total;
+}
