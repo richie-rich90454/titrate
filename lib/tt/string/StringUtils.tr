@@ -2,53 +2,99 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
-// String constants
-public const asciiLowercase: string = "abcdefghijklmnopqrstuvwxyz";
-public const asciiUppercase: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-public const digits: string = "0123456789";
-public const hexdigits: string = "0123456789abcdefABCDEF";
-public const octdigits: string = "01234567";
-public const punctuation: string = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
-public const whitespace: string = " \t\n\r\x0b\x0c";
-public const printable: string = digits + asciiLowercase + asciiUppercase + punctuation + whitespace;
+// ---- Data loaded from external JSON via DataFile ----
+
+var _charsetsCache: HashMap<string, string> = new HashMap<string, string>();
+var _charsetsLoaded: bool = false;
+
+fn _ensureCharsetsLoaded(): void {
+    if (_charsetsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("string/charsets.json");
+    if (data.isNull() || !data.isObject()) {
+        _charsetsLoaded = true;
+        return;
+    }
+    if (!data.hasKey("charsets")) {
+        _charsetsLoaded = true;
+        return;
+    }
+    let charsets: JsonValue = data.get("charsets");
+    if (!charsets.isObject()) {
+        _charsetsLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("ascii_lowercase");
+    keys.add("ascii_uppercase");
+    keys.add("digits");
+    keys.add("hexdigits");
+    keys.add("octdigits");
+    keys.add("punctuation");
+    keys.add("whitespace");
+    keys.add("printable");
+    keys.add("ascii_letters");
+    keys.add("alnum");
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (charsets.hasKey(key)) {
+            _charsetsCache.put(key, charsets.get(key).asString());
+        }
+        i = i + 1;
+    }
+    _charsetsLoaded = true;
+}
 
 public class StringUtils {
     // String constants
     public fn asciiLetters(): string {
-        return "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("ascii_letters");
     }
 
     public fn asciiLowercase(): string {
-        return "abcdefghijklmnopqrstuvwxyz";
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("ascii_lowercase");
     }
 
     public fn asciiUppercase(): string {
-        return "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("ascii_uppercase");
     }
 
     public fn digits(): string {
-        return "0123456789";
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("digits");
     }
 
     public fn hexdigits(): string {
-        return "0123456789abcdefABCDEF";
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("hexdigits");
     }
 
     public fn octdigits(): string {
-        return "01234567";
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("octdigits");
     }
 
     public fn punctuation(): string {
-        return "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("punctuation");
     }
 
     public fn whitespace(): string {
-        return " \t\n\r\x0b\x0c";
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("whitespace");
     }
 
     public fn printable(): string {
-        return StringUtils.digits() + StringUtils.asciiLetters() + StringUtils.punctuation() + StringUtils.whitespace();
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("printable");
     }
 
     // Capitalize each word in the string.
