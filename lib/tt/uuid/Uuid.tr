@@ -1,15 +1,64 @@
 // Uuid provides UUID generation and validation utilities.
 import tt::lang::String;
 import tt::lang::Time;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _nsCache: HashMap<string, string> = new HashMap<string, string>();
+var _nsLoaded: bool = false;
+
+fn _ensureNSLoaded(): void {
+    if (_nsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("uuid/namespaces.json");
+    if (data.isNull() || !data.isObject()) {
+        _nsLoaded = true;
+        return;
+    }
+    if (!data.hasKey("namespaces")) {
+        _nsLoaded = true;
+        return;
+    }
+    let namespaces: JsonValue = data.get("namespaces");
+    if (!namespaces.isObject()) {
+        _nsLoaded = true;
+        return;
+    }
+    // Load known namespace keys
+    if (namespaces.hasKey("DNS")) {
+        _nsCache.put("DNS", namespaces.get("DNS").asString());
+    }
+    if (namespaces.hasKey("URL")) {
+        _nsCache.put("URL", namespaces.get("URL").asString());
+    }
+    if (namespaces.hasKey("OID")) {
+        _nsCache.put("OID", namespaces.get("OID").asString());
+    }
+    if (namespaces.hasKey("X500")) {
+        _nsCache.put("X500", namespaces.get("X500").asString());
+    }
+    _nsLoaded = true;
+}
+
+fn _getNamespace(key: string, defaultVal: string): string {
+    _ensureNSLoaded();
+    if (_nsCache.containsKey(key)) {
+        return _nsCache.get(key);
+    }
+    return defaultVal;
+}
 
 // Namespace DNS constant for UUID v3/v5.
-const NAMESPACE_DNS: string = "6ba7b810-9dad-11d1-80b4-00c04fd430c8";
+const NAMESPACE_DNS: string = _getNamespace("DNS", "6ba7b810-9dad-11d1-80b4-00c04fd430c8");
 // Namespace URL constant for UUID v3/v5.
-const NAMESPACE_URL: string = "6ba7b811-9dad-11d1-80b4-00c04fd430c8";
+const NAMESPACE_URL: string = _getNamespace("URL", "6ba7b811-9dad-11d1-80b4-00c04fd430c8");
 // Namespace OID constant for UUID v3/v5.
-const NAMESPACE_OID: string = "6ba7b812-9dad-11d1-80b4-00c04fd430c8";
+const NAMESPACE_OID: string = _getNamespace("OID", "6ba7b812-9dad-11d1-80b4-00c04fd430c8");
 // Namespace X500 constant for UUID v3/v5.
-const NAMESPACE_X500: string = "6ba7b814-9dad-11d1-80b4-00c04fd430c8";
+const NAMESPACE_X500: string = _getNamespace("X500", "6ba7b814-9dad-11d1-80b4-00c04fd430c8");
 
 // UUID value object with parsed fields.
 public class UUID {
