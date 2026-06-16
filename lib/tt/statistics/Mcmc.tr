@@ -1,0 +1,204 @@
+// Mcmc module providing Markov Chain Monte Carlo sampling algorithms.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::random::Random;
+import tt::statistics::Statistics;
+
+// Metropolis-Hastings sampler.
+// target: log-density of the target distribution (up to a normalizing constant).
+// proposal: function that takes the current state and returns a proposed new state.
+// initial: starting value of the chain.
+// iterations: total number of iterations (including burn-in).
+// burnIn: number of initial samples to discard.
+public fn metropolisHastings(target: fn(double): double, proposal: fn(double): double, initial: double, iterations: int, burnIn: int): ArrayList<double> {
+    let samples: ArrayList<double> = new ArrayList<double>();
+    let rng: Random = new Random();
+    var current: double = initial;
+    var currentLogP: double = target(current);
+    var i: int = 0;
+    while (i < iterations) {
+        let proposed: double = proposal(current);
+        let proposedLogP: double = target(proposed);
+        let logAlpha: double = proposedLogP - currentLogP;
+        if (logAlpha >= 0.0) {
+            current = proposed;
+            currentLogP = proposedLogP;
+        } else {
+            let u: double = rng.nextDouble();
+            if (u < MathAdvanced.exp(logAlpha)) {
+                current = proposed;
+                currentLogP = proposedLogP;
+            }
+        }
+        if (i >= burnIn) {
+            samples.add(current);
+        }
+        i = i + 1;
+    }
+    return samples;
+}
+
+// Gibbs sampler for multivariate distributions.
+// conditionalSamplers: list of functions, each taking the current state vector
+//   and returning a new value for its corresponding dimension.
+// initial: starting state vector.
+// iterations: total number of iterations (including burn-in).
+// burnIn: number of initial samples to discard.
+public fn gibbsSampler(conditionalSamplers: ArrayList<fn(ArrayList<double>): double>, initial: ArrayList<double>, iterations: int, burnIn: int): ArrayList<ArrayList<double>> {
+    let chains: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let dim: int = initial.size();
+    // Copy initial state
+    var state: ArrayList<double> = new ArrayList<double>();
+    var d: int = 0;
+    while (d < dim) {
+        state.add(initial.get(d));
+        d = d + 1;
+    }
+    var i: int = 0;
+    while (i < iterations) {
+        var j: int = 0;
+        while (j < dim) {
+            let sampler: fn(ArrayList<double>): double = conditionalSamplers.get(j);
+            let newVal: double = sampler(state);
+            state.set(j, newVal);
+            j = j + 1;
+        }
+        if (i >= burnIn) {
+            // Copy current state into chains
+            let snapshot: ArrayList<double> = new ArrayList<double>();
+            var k: int = 0;
+            while (k < dim) {
+                snapshot.add(state.get(k));
+                k = k + 1;
+            }
+            chains.add(snapshot);
+        }
+        i = i + 1;
+    }
+    return chains;
+}
+
+// Gelman-Rubin R-hat diagnostic for convergence assessment.
+// chains: list of MCMC chains (each chain is an ArrayList<double>).
+// Returns R-hat value; values close to 1.0 indicate convergence.
+public fn rhat(chains: ArrayList<ArrayList<double>>): double {
+    let m: int = chains.size();
+    if (m < 2) { return 1.0; }
+    let n: int = chains.get(0).size();
+    if (n < 2) { return 1.0; }
+
+    // Compute per-chain means
+    let chainMeans: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < m) {
+        chainMeans.add(Statistics.mean(chains.get(i)));
+        i = i + 1;
+    }
+
+    // Overall mean
+    let overallMean: double = Statistics.mean(chainMeans);
+
+    // Between-chain variance B
+    var B: double = 0.0;
+    i = 0;
+    while (i < m) {
+        let diff: double = chainMeans.get(i) - overallMean;
+        B = B + diff * diff;
+        i = i + 1;
+    }
+    B = B * n as double / (m - 1) as double;
+
+    // Within-chain variance W
+    var W: double = 0.0;
+    i = 0;
+    while (i < m) {
+        let chain: ArrayList<double> = chains.get(i);
+        let chainMean: double = chainMeans.get(i);
+        var s2: double = 0.0;
+        var j: int = 0;
+        while (j < n) {
+            let diff: double = chain.get(j) - chainMean;
+            s2 = s2 + diff * diff;
+            j = j + 1;
+        }
+        W = W + s2 / (n - 1) as double;
+        i = i + 1;
+    }
+    W = W / m as double;
+
+    // Pooled variance estimate
+    let varPlus: double = (n - 1) as double / n as double * W + B / n as double;
+    if (W == 0.0) { return 1.0; }
+    return MathAdvanced.sqrt(varPlus / W);
+}
+
+// Effective sample size using autocorrelation.
+// ESS = n / (1 + 2 * sum of autocorrelations).
+public fn effectiveSampleSize(samples: ArrayList<double>): int {
+    let n: int = samples.size();
+    if (n < 2) { return n; }
+    let maxLag: int = n / 2;
+    if (maxLag > 200) { maxLag = 200; }
+    let acf: ArrayList<double> = autocorrelation(samples, maxLag);
+    // Sum autocorrelations using Geyer's initial positive sequence
+    var sumAcf: double = 0.0;
+    var i: int = 1;
+    while (i < acf.size()) {
+        if (acf.get(i) < 0.0) { break; }
+        sumAcf = sumAcf + acf.get(i);
+        i = i + 1;
+    }
+    let ess: double = n as double / (1.0 + 2.0 * sumAcf);
+    if (ess < 1.0) { return 1; }
+    if (ess > n as double) { return n; }
+    return Math.floor(ess) as int;
+}
+
+// Compute autocorrelation function up to maxLag.
+// Returns ArrayList<double> of length maxLag+1 where index k is the autocorrelation at lag k.
+public fn autocorrelation(samples: ArrayList<double>, maxLag: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = samples.size();
+    if (n == 0 || maxLag < 0) { return result; }
+    let lag: int = maxLag;
+    if (lag >= n) { lag = n - 1; }
+
+    // Compute mean
+    let m: double = Statistics.mean(samples);
+
+    // Compute variance (using population variance for normalization)
+    var varSum: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let diff: double = samples.get(i) - m;
+        varSum = varSum + diff * diff;
+        i = i + 1;
+    }
+    let variance: double = varSum / n as double;
+    if (variance == 0.0) {
+        // Constant series: autocorrelation is 1 at lag 0, 0 elsewhere
+        result.add(1.0);
+        i = 1;
+        while (i <= lag) {
+            result.add(0.0);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Compute autocorrelation for each lag
+    var k: int = 0;
+    while (k <= lag) {
+        var acfSum: double = 0.0;
+        i = 0;
+        while (i < n - k) {
+            acfSum = acfSum + (samples.get(i) - m) * (samples.get(i + k) - m);
+            i = i + 1;
+        }
+        result.add(acfSum / (n as double * variance));
+        k = k + 1;
+    }
+    return result;
+}

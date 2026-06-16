@@ -1,0 +1,293 @@
+// Bootstrap module providing bootstrap resampling and inference algorithms.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::random::Random;
+import tt::statistics::Statistics;
+
+// Generate one bootstrap resample (sampling with replacement).
+public fn bootstrapSample(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) { return result; }
+    let rng: Random = new Random();
+    var i: int = 0;
+    while (i < n) {
+        let idx: int = rng.nextInt(n);
+        result.add(data.get(idx));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Percentile bootstrap confidence interval.
+// statistic: function that computes the statistic of interest.
+// data: the observed data.
+// nBoot: number of bootstrap replicates.
+// alpha: significance level (e.g. 0.05 for 95% CI).
+// Returns [lower, upper] confidence interval.
+public fn bootstrapCI(statistic: fn(ArrayList<double>): double, data: ArrayList<double>, nBoot: int, alpha: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0 || nBoot <= 0) {
+        result.add(0.0);
+        result.add(0.0);
+        return result;
+    }
+    let rng: Random = new Random();
+    let bootStats: ArrayList<double> = new ArrayList<double>();
+    var b: int = 0;
+    while (b < nBoot) {
+        // Generate bootstrap resample
+        let resample: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < n) {
+            let idx: int = rng.nextInt(n);
+            resample.add(data.get(idx));
+            i = i + 1;
+        }
+        bootStats.add(statistic(resample));
+        b = b + 1;
+    }
+    // Sort bootstrap statistics
+    sortInPlace(bootStats);
+    let lowerIdx: int = Math.floor(alpha / 2.0 * nBoot as double) as int;
+    let upperIdx: int = Math.floor((1.0 - alpha / 2.0) * nBoot as double) as int;
+    if (lowerIdx < 0) { lowerIdx = 0; }
+    if (upperIdx >= bootStats.size()) { upperIdx = bootStats.size() - 1; }
+    result.add(bootStats.get(lowerIdx));
+    result.add(bootStats.get(upperIdx));
+    return result;
+}
+
+// BCa (Bias-Corrected and Accelerated) bootstrap confidence interval.
+// Provides better coverage than the percentile method by adjusting for
+// bias and skewness in the bootstrap distribution.
+// statistic: function that computes the statistic of interest.
+// data: the observed data.
+// nBoot: number of bootstrap replicates.
+// alpha: significance level.
+// Returns [lower, upper] confidence interval.
+public fn bootstrapBCa(statistic: fn(ArrayList<double>): double, data: ArrayList<double>, nBoot: int, alpha: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0 || nBoot <= 0) {
+        result.add(0.0);
+        result.add(0.0);
+        return result;
+    }
+    let rng: Random = new Random();
+    let bootStats: ArrayList<double> = new ArrayList<double>();
+    let origStat: double = statistic(data);
+
+    // Also track jackknife statistics for acceleration
+    let jackStats: ArrayList<double> = new ArrayList<double>();
+    var ji: int = 0;
+    while (ji < n) {
+        let jackSample: ArrayList<double> = new ArrayList<double>();
+        var jj: int = 0;
+        while (jj < n) {
+            if (jj != ji) {
+                jackSample.add(data.get(jj));
+            }
+            jj = jj + 1;
+        }
+        jackStats.add(statistic(jackSample));
+        ji = ji + 1;
+    }
+
+    // Generate bootstrap replicates
+    var b: int = 0;
+    while (b < nBoot) {
+        let resample: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < n) {
+            let idx: int = rng.nextInt(n);
+            resample.add(data.get(idx));
+            i = i + 1;
+        }
+        bootStats.add(statistic(resample));
+        b = b + 1;
+    }
+
+    // Bias correction: z0 = invPhi(proportion of bootStats < origStat)
+    var countBelow: int = 0;
+    b = 0;
+    while (b < bootStats.size()) {
+        if (bootStats.get(b) < origStat) {
+            countBelow = countBelow + 1;
+        }
+        b = b + 1;
+    }
+    let propBelow: double = countBelow as double / bootStats.size() as double;
+    if (propBelow == 0.0) { propBelow = 0.5 / nBoot as double; }
+    if (propBelow >= 1.0) { propBelow = 1.0 - 0.5 / nBoot as double; }
+    let z0: double = invPhi(propBelow);
+
+    // Acceleration: a = sum((mean_jack - jack_i)^3) / (6 * (sum((mean_jack - jack_i)^2))^1.5)
+    let jackMean: double = Statistics.mean(jackStats);
+    var sumDiff2: double = 0.0;
+    var sumDiff3: double = 0.0;
+    var j: int = 0;
+    while (j < jackStats.size()) {
+        let diff: double = jackMean - jackStats.get(j);
+        sumDiff2 = sumDiff2 + diff * diff;
+        sumDiff3 = sumDiff3 + diff * diff * diff;
+        j = j + 1;
+    }
+    var a: double = 0.0;
+    if (sumDiff2 > 0.0) {
+        a = sumDiff3 / (6.0 * MathAdvanced.pow(sumDiff2, 1.5));
+    }
+
+    // Compute adjusted percentiles
+    let zAlphaLo: double = invPhi(alpha / 2.0);
+    let zAlphaHi: double = invPhi(1.0 - alpha / 2.0);
+
+    // BCa adjusted quantiles
+    let adjLo: double = z0 + (z0 + zAlphaLo) / (1.0 - a * (z0 + zAlphaLo));
+    let adjHi: double = z0 + (z0 + zAlphaHi) / (1.0 - a * (z0 + zAlphaHi));
+    let pLo: double = phi(adjLo);
+    let pHi: double = phi(adjHi);
+
+    // Clamp probabilities
+    if (pLo < 0.0) { pLo = 0.0; }
+    if (pHi > 1.0) { pHi = 1.0; }
+
+    // Sort bootstrap statistics
+    sortInPlace(bootStats);
+
+    let lowerIdx: int = Math.floor(pLo * bootStats.size() as double) as int;
+    let upperIdx: int = Math.floor(pHi * bootStats.size() as double) as int;
+    if (lowerIdx < 0) { lowerIdx = 0; }
+    if (upperIdx >= bootStats.size()) { upperIdx = bootStats.size() - 1; }
+    result.add(bootStats.get(lowerIdx));
+    result.add(bootStats.get(upperIdx));
+    return result;
+}
+
+// Bootstrap hypothesis test for comparing two samples.
+// Computes the observed difference in statistics, then resamples under
+// the null hypothesis (pooling both samples) to estimate the p-value.
+// statistic: function that computes the statistic of interest.
+// data1: first sample.
+// data2: second sample.
+// nBoot: number of bootstrap replicates.
+// Returns approximate two-sided p-value.
+public fn bootstrapTest(statistic: fn(ArrayList<double>): double, data1: ArrayList<double>, data2: ArrayList<double>, nBoot: int): double {
+    let n1: int = data1.size();
+    let n2: int = data2.size();
+    if (n1 == 0 || n2 == 0 || nBoot <= 0) { return 1.0; }
+
+    // Observed difference
+    let obsDiff: double = statistic(data1) - statistic(data2);
+    let absObsDiff: double = Math.abs(obsDiff);
+
+    // Pool the data under H0
+    let pooled: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n1) {
+        pooled.add(data1.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n2) {
+        pooled.add(data2.get(i));
+        i = i + 1;
+    }
+
+    let rng: Random = new Random();
+    var countExtreme: int = 0;
+    var b: int = 0;
+    while (b < nBoot) {
+        // Resample two groups from the pooled data
+        let resample1: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < n1) {
+            let idx: int = rng.nextInt(pooled.size());
+            resample1.add(pooled.get(idx));
+            i = i + 1;
+        }
+        let resample2: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < n2) {
+            let idx: int = rng.nextInt(pooled.size());
+            resample2.add(pooled.get(idx));
+            i = i + 1;
+        }
+        let bootDiff: double = statistic(resample1) - statistic(resample2);
+        if (Math.abs(bootDiff) >= absObsDiff) {
+            countExtreme = countExtreme + 1;
+        }
+        b = b + 1;
+    }
+    return countExtreme as double / nBoot as double;
+}
+
+// Helper: sort ArrayList<double> in place using insertion sort.
+fn sortInPlace(data: ArrayList<double>): void {
+    let n: int = data.size();
+    var i: int = 1;
+    while (i < n) {
+        let key: double = data.get(i);
+        var j: int = i - 1;
+        while (j >= 0 && data.get(j) > key) {
+            data.set(j + 1, data.get(j));
+            j = j - 1;
+        }
+        data.set(j + 1, key);
+        i = i + 1;
+    }
+}
+
+// Helper: standard normal CDF using error function.
+fn phi(x: double): double {
+    return 0.5 * (1.0 + Math.erf(x / MathAdvanced.sqrt(2.0)));
+}
+
+// Helper: inverse standard normal CDF (quantile function).
+// Uses rational approximation by Peter Acklam.
+fn invPhi(p: double): double {
+    if (p <= 0.0) { return -Math.INF(); }
+    if (p >= 1.0) { return Math.INF(); }
+    let a1: double = -3.969683028665376e+01;
+    let a2: double = 2.209460984245205e+02;
+    let a3: double = -2.759285104469687e+02;
+    let a4: double = 1.383577518672690e+02;
+    let a5: double = -3.066479806614716e+01;
+    let a6: double = 2.506628277459239e+00;
+    let b1: double = -5.447609879822406e+01;
+    let b2: double = 1.615858368580409e+02;
+    let b3: double = -1.556989798598866e+02;
+    let b4: double = 6.680131188771972e+01;
+    let b5: double = -1.328068155288572e+01;
+    let c1: double = -7.784894002430293e-03;
+    let c2: double = -3.223964580411365e-01;
+    let c3: double = -2.400758277161838e+00;
+    let c4: double = -2.549732539343734e+00;
+    let c5: double = 4.374664141464968e+00;
+    let c6: double = 2.938163982698783e+00;
+    let d1: double = 7.784695709041462e-03;
+    let d2: double = 3.224671290700398e-01;
+    let d3: double = 2.445134137142996e+00;
+    let d4: double = 3.754408661907416e+00;
+    let pLow: double = 0.02425;
+    let pHigh: double = 1.0 - pLow;
+    var q: double = 0.0;
+    var r: double = 0.0;
+    var x: double = 0.0;
+    if (p < pLow) {
+        q = MathAdvanced.sqrt(-2.0 * MathAdvanced.ln(p));
+        x = (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1.0);
+    } else {
+        if (p <= pHigh) {
+            q = p - 0.5;
+            r = q * q;
+            x = (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q / (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1.0);
+        } else {
+            q = MathAdvanced.sqrt(-2.0 * MathAdvanced.ln(1.0 - p));
+            x = -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1.0);
+        }
+    }
+    return x;
+}
