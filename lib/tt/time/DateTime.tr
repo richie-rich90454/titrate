@@ -1,6 +1,8 @@
 // DateTime represents a point in time as milliseconds since the Unix epoch.
 import tt::time::Duration;
 import tt::util::ArrayList;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
 public class DateTime {
     public long epochMillis;
@@ -449,42 +451,75 @@ public class DateTime {
 
     // Get the day of the week as a string.
     public fn dayOfWeekName(): string {
+        _ensureNamesLoaded();
         let dow: int = this.dayOfWeek();
-        let names: ArrayList<string> = new ArrayList<string>();
-        names.add("Monday");
-        names.add("Tuesday");
-        names.add("Wednesday");
-        names.add("Thursday");
-        names.add("Friday");
-        names.add("Saturday");
-        names.add("Sunday");
-        if (dow >= 0 && dow < 7) {
-            return names.get(dow);
+        if (dow >= 0 && dow < _weekdayNamesCache.size()) {
+            return _weekdayNamesCache.get(dow);
         }
         return "Unknown";
     }
 
     // Get the month as a string.
     public fn monthName(): string {
+        _ensureNamesLoaded();
         let m: int = this.getMonth();
-        let names: ArrayList<string> = new ArrayList<string>();
-        names.add("January");
-        names.add("February");
-        names.add("March");
-        names.add("April");
-        names.add("May");
-        names.add("June");
-        names.add("July");
-        names.add("August");
-        names.add("September");
-        names.add("October");
-        names.add("November");
-        names.add("December");
-        if (m >= 1 && m <= 12) {
-            return names.get(m - 1);
+        if (m >= 1 && m <= _monthNamesCache.size()) {
+            return _monthNamesCache.get(m - 1);
         }
         return "Unknown";
     }
+}
+
+// Module-level caches for locale names loaded from DataFile
+let _monthNamesCache: ArrayList<string> = new ArrayList<string>();
+let _weekdayNamesCache: ArrayList<string> = new ArrayList<string>();
+let _monthAbbrCache: ArrayList<string> = new ArrayList<string>();
+let _namesLoaded: bool = false;
+
+// Load month and weekday names from DataFile if not already loaded.
+// The JSON file stores weekdays in Sunday-first order (Sun=0..Sat=6),
+// but dayOfWeek() returns Monday=0..Sunday=6, so we reorder.
+fn _ensureNamesLoaded(): void {
+    if (_namesLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("locale/month_names.json");
+    if (!data.isNull() && data.isObject()) {
+        // Load month names
+        let months: JsonValue = data.get("months");
+        if (!months.isNull() && months.isObject() && months.hasKey("en")) {
+            let enMonths: JsonValue = months.get("en");
+            if (enMonths.isArray()) {
+                var i: int = 0;
+                while (i < enMonths.size()) {
+                    _monthNamesCache.add(enMonths.getAt(i).asString());
+                    i = i + 1;
+                }
+            }
+        }
+        // Load weekday names (reorder from Sun-first to Mon-first)
+        let weekdays: JsonValue = data.get("weekdays");
+        if (!weekdays.isNull() && weekdays.isObject() && weekdays.hasKey("en")) {
+            let enWeekdays: JsonValue = weekdays.get("en");
+            if (enWeekdays.isArray()) {
+                // JSON: 0=Sun,1=Mon,...,6=Sat -> reorder to 0=Mon,...,5=Sat,6=Sun
+                var i: int = 1;
+                while (i < enWeekdays.size()) {
+                    _weekdayNamesCache.add(enWeekdays.getAt(i).asString());
+                    i = i + 1;
+                }
+                _weekdayNamesCache.add(enWeekdays.getAt(0).asString());
+            }
+        }
+    }
+    // Build abbreviated month names from full names
+    var mi: int = 0;
+    while (mi < _monthNamesCache.size()) {
+        let name: string = _monthNamesCache.get(mi);
+        _monthAbbrCache.add(String.substring(name, 0, 3));
+        mi = mi + 1;
+    }
+    _namesLoaded = true;
 }
 
 public fn now(): DateTime {
@@ -720,22 +755,10 @@ public fn strptime(input: string, format: string): DateTime {
             }
             // %B - Full month name
             else if (code == "B") {
-                let names: ArrayList<string> = new ArrayList<string>();
-                names.add("January");
-                names.add("February");
-                names.add("March");
-                names.add("April");
-                names.add("May");
-                names.add("June");
-                names.add("July");
-                names.add("August");
-                names.add("September");
-                names.add("October");
-                names.add("November");
-                names.add("December");
+                _ensureNamesLoaded();
                 var mi: int = 0;
-                while (mi < names.size()) {
-                    let name: string = names.get(mi);
+                while (mi < _monthNamesCache.size()) {
+                    let name: string = _monthNamesCache.get(mi);
                     if (ii + String.length(name) <= String.length(input)) {
                         let candidate: string = String.substring(input, ii, ii + String.length(name));
                         if (candidate == name) {
@@ -749,23 +772,11 @@ public fn strptime(input: string, format: string): DateTime {
             }
             // %b - Abbreviated month name
             else if (code == "b") {
-                let names: ArrayList<string> = new ArrayList<string>();
-                names.add("Jan");
-                names.add("Feb");
-                names.add("Mar");
-                names.add("Apr");
-                names.add("May");
-                names.add("Jun");
-                names.add("Jul");
-                names.add("Aug");
-                names.add("Sep");
-                names.add("Oct");
-                names.add("Nov");
-                names.add("Dec");
+                _ensureNamesLoaded();
                 let candidate: string = String.substring(input, ii, ii + 3);
                 var mi: int = 0;
-                while (mi < names.size()) {
-                    if (candidate == names.get(mi)) {
+                while (mi < _monthAbbrCache.size()) {
+                    if (candidate == _monthAbbrCache.get(mi)) {
                         month = mi + 1;
                         ii = ii + 3;
                         break;
@@ -775,17 +786,10 @@ public fn strptime(input: string, format: string): DateTime {
             }
             // %A - Full weekday name (skip, just advance past)
             else if (code == "A") {
-                let names: ArrayList<string> = new ArrayList<string>();
-                names.add("Monday");
-                names.add("Tuesday");
-                names.add("Wednesday");
-                names.add("Thursday");
-                names.add("Friday");
-                names.add("Saturday");
-                names.add("Sunday");
+                _ensureNamesLoaded();
                 var wi: int = 0;
-                while (wi < names.size()) {
-                    let name: string = names.get(wi);
+                while (wi < _weekdayNamesCache.size()) {
+                    let name: string = _weekdayNamesCache.get(wi);
                     if (ii + String.length(name) <= String.length(input)) {
                         let candidate: string = String.substring(input, ii, ii + String.length(name));
                         if (candidate == name) {
