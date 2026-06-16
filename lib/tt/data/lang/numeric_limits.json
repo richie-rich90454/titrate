@@ -1,0 +1,17 @@
+{
+  "_meta": {"source": "IEEE 754 / C stdint.h", "version": "1.0", "description": "Numeric type limits for all Titrate primitive types"},
+  "limits": {
+    "byte": {"min": -128, "max": 127},
+    "short": {"min": -32768, "max": 32767},
+    "int": {"min": -2147483648, "max": 2147483647},
+    "long": {"min": -9223372036854775808, "max": 9223372036854775807},
+    "float": {"min": 1.175494e-38, "max": 3.4028235e38, "epsilon": 1.1920929e-7},
+    "double": {"min": 2.2250738585072014e-308, "max": 1.7976931348623157e308, "epsilon": 2.220446049250313e-16},
+    "half": {"min": 6.1035e-5, "max": 65504.0, "epsilon": 9.7656e-4},
+    "quad": {"min": 3.3621e-4932, "max": 1.18973e+4932, "epsilon": 1.92592994e-34},
+    "u8": {"max": 255},
+    "u16": {"max": 65535},
+    "u32": {"max": 4294967295},
+    "u64": {"max": 18446744073709551615}
+  }
+}
