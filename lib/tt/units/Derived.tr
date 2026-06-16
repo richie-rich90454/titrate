@@ -1,4 +1,7 @@
 import tt::units::Base;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
 
 public class Joule {
     public double value;
@@ -9,7 +12,7 @@ public class Joule {
     public fn times(d: double): Joule { return new Joule(this.value * d); }
     public fn div(d: double): Joule { return new Joule(this.value / d); }
     public fn div(s: Second): Watt { return new Watt(this.value / s.getValue()); }
-    public fn toString(): string { return Double.toString(this.value) + " J"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("energy"); }
 }
 
 // Derived: kg * m^2 / s^2
@@ -26,7 +29,7 @@ public class Newton {
     public fn times(d: double): Newton { return new Newton(this.value * d); }
     public fn div(d: double): Newton { return new Newton(this.value / d); }
     public fn times(m: Meter): Joule { return new Joule(this.value * m.getValue()); }
-    public fn toString(): string { return Double.toString(this.value) + " N"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("force"); }
 }
 
 // Derived: kg * m / s^2
@@ -42,7 +45,7 @@ public class Pascal {
     public fn minus(other: Pascal): Pascal { return new Pascal(this.value - other.value); }
     public fn times(d: double): Pascal { return new Pascal(this.value * d); }
     public fn div(d: double): Pascal { return new Pascal(this.value / d); }
-    public fn toString(): string { return Double.toString(this.value) + " Pa"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("pressure"); }
 }
 
 // Derived: N / m^2
@@ -59,7 +62,7 @@ public class Watt {
     public fn times(d: double): Watt { return new Watt(this.value * d); }
     public fn div(d: double): Watt { return new Watt(this.value / d); }
     public fn times(s: Second): Joule { return new Joule(this.value * s.getValue()); }
-    public fn toString(): string { return Double.toString(this.value) + " W"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("power"); }
 }
 
 // Derived: J / s
@@ -75,7 +78,7 @@ public class Coulomb {
     public fn minus(other: Coulomb): Coulomb { return new Coulomb(this.value - other.value); }
     public fn times(d: double): Coulomb { return new Coulomb(this.value * d); }
     public fn div(d: double): Coulomb { return new Coulomb(this.value / d); }
-    public fn toString(): string { return Double.toString(this.value) + " C"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("charge"); }
 }
 
 // Derived: A * s
@@ -93,7 +96,7 @@ public class Volt {
     public fn div(d: double): Volt { return new Volt(this.value / d); }
     public fn times(c: Coulomb): Joule { return new Joule(this.value * c.getValue()); }
     public fn div(a: Ampere): Ohm { return new Ohm(this.value / a.getValue()); }
-    public fn toString(): string { return Double.toString(this.value) + " V"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("voltage"); }
 }
 
 // Derived: J / C
@@ -107,7 +110,7 @@ public class Ohm {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Ohm): Ohm { return new Ohm(this.value + other.value); }
     public fn minus(other: Ohm): Ohm { return new Ohm(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " Ω"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("resistance"); }
 }
 
 // Derived: V / A
@@ -121,7 +124,7 @@ public class Farad {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Farad): Farad { return new Farad(this.value + other.value); }
     public fn minus(other: Farad): Farad { return new Farad(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " F"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("capacitance"); }
 }
 
 // Derived: C / V
@@ -135,7 +138,7 @@ public class Henry {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Henry): Henry { return new Henry(this.value + other.value); }
     public fn minus(other: Henry): Henry { return new Henry(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " H"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("inductance"); }
 }
 
 // Derived: V * s / A
@@ -149,7 +152,7 @@ public class Tesla {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Tesla): Tesla { return new Tesla(this.value + other.value); }
     public fn minus(other: Tesla): Tesla { return new Tesla(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " T"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("magnetic_flux_density"); }
 }
 
 // Derived: V * s / m²
@@ -163,7 +166,7 @@ public class Weber {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Weber): Weber { return new Weber(this.value + other.value); }
     public fn minus(other: Weber): Weber { return new Weber(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " Wb"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("magnetic_flux"); }
 }
 
 // Derived: V * s
@@ -177,7 +180,7 @@ public class Hertz {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Hertz): Hertz { return new Hertz(this.value + other.value); }
     public fn minus(other: Hertz): Hertz { return new Hertz(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " Hz"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("frequency"); }
 }
 
 // Derived: 1 / s
@@ -191,7 +194,7 @@ public class Becquerel {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Becquerel): Becquerel { return new Becquerel(this.value + other.value); }
     public fn minus(other: Becquerel): Becquerel { return new Becquerel(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " Bq"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("radioactivity"); }
 }
 
 // Derived: 1 / s
@@ -205,7 +208,7 @@ public class Gray {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Gray): Gray { return new Gray(this.value + other.value); }
     public fn minus(other: Gray): Gray { return new Gray(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " Gy"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("absorbed_dose"); }
 }
 
 // Derived: J / kg
@@ -219,7 +222,7 @@ public class Sievert {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Sievert): Sievert { return new Sievert(this.value + other.value); }
     public fn minus(other: Sievert): Sievert { return new Sievert(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " Sv"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("absorbed_dose"); }
 }
 
 // Derived: J / kg
@@ -233,7 +236,7 @@ public class Lux {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Lux): Lux { return new Lux(this.value + other.value); }
     public fn minus(other: Lux): Lux { return new Lux(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " lx"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("illuminance"); }
 }
 
 // Derived: cd / m²
@@ -247,7 +250,7 @@ public class Lumen {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Lumen): Lumen { return new Lumen(this.value + other.value); }
     public fn minus(other: Lumen): Lumen { return new Lumen(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " lm"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("luminous_flux"); }
 }
 
 // Derived: cd * sr (steradian is dimensionless, so cd * 1)
@@ -261,10 +264,52 @@ public class Katal {
     public fn getValue(): double { return this.value; }
     public fn plus(other: Katal): Katal { return new Katal(this.value + other.value); }
     public fn minus(other: Katal): Katal { return new Katal(this.value - other.value); }
-    public fn toString(): string { return Double.toString(this.value) + " kat"; }
+    public fn toString(): string { return Double.toString(this.value) + " " + _getDerivedSymbol("catalytic_activity"); }
 }
 
 // Derived: mol / s
 public fn katalFromBase(mol: Mole, s: Second): Katal {
     return new Katal(mol.getValue() / s.getValue());
+}
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _siDerivedCache: HashMap<string, string> = new HashMap<string, string>();
+var _siDerivedLoaded: bool = false;
+
+fn _ensureSiDerivedLoaded(): void {
+    if (_siDerivedLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("units/si_units.json");
+    if (data.isNull() || !data.isObject()) {
+        _siDerivedLoaded = true;
+        return;
+    }
+    if (!data.hasKey("derived")) {
+        _siDerivedLoaded = true;
+        return;
+    }
+    let derived: JsonValue = data.get("derived");
+    if (!derived.isObject()) {
+        _siDerivedLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = derived.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: string = derived.get(key).asString();
+        _siDerivedCache.put(key, val);
+        i = i + 1;
+    }
+    _siDerivedLoaded = true;
+}
+
+fn _getDerivedSymbol(quantity: string): string {
+    _ensureSiDerivedLoaded();
+    if (_siDerivedCache.containsKey(quantity)) {
+        return _siDerivedCache.get(quantity);
+    }
+    return quantity;
 }
