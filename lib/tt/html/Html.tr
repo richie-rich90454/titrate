@@ -1,7 +1,44 @@
-﻿﻿﻿﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _entitiesCache: HashMap<string, string> = new HashMap<string, string>();
+var _entitiesLoaded: bool = false;
+
+fn _ensureEntitiesLoaded(): void {
+    if (_entitiesLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("html/entities.json");
+    if (data.isNull() || !data.isObject() || !data.hasKey("entities")) {
+        _entitiesLoaded = true;
+        return;
+    }
+    let entities: JsonValue = data.get("entities");
+    if (!entities.isObject()) {
+        _entitiesLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = entities.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let entityName: string = keys.get(i);
+        let entry: JsonValue = entities.get(entityName);
+        if (entry.isObject() && entry.hasKey("characters")) {
+            let chars: JsonValue = entry.get("characters");
+            if (chars.isString()) {
+                _entitiesCache.put(entityName, chars.asString());
+            }
+        }
+        i = i + 1;
+    }
+    _entitiesLoaded = true;
+}
 
 public class Html {
     // Replace special characters with HTML entities.
@@ -32,15 +69,17 @@ public class Html {
 
     // Replace HTML entities with their character equivalents.
     public fn unescape(s: string): string {
+        _ensureEntitiesLoaded();
         let result: string = s;
-        // Named entities
-        result = String::replace(result, "&amp;", "&");
-        result = String::replace(result, "&lt;", "<");
-        result = String::replace(result, "&gt;", ">");
-        result = String::replace(result, "&quot;", "\"");
-        result = String::replace(result, "&#x27;", "'");
-        result = String::replace(result, "&apos;", "'");
-        result = String::replace(result, "&nbsp;", " ");
+        // Named entities from data file
+        let keys: ArrayList<string> = _entitiesCache.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let entityName: string = keys.get(i);
+            let charValue: string = _entitiesCache.get(entityName);
+            result = String::replace(result, entityName, charValue);
+            i = i + 1;
+        }
         // Numeric decimal entities: &#NNN;
         result = Html.unescapeNumeric(result);
         return result;
