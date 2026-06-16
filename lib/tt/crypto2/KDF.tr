@@ -1,0 +1,90 @@
+// KDF.tr — Key derivation functions: PBKDF2, HKDF, key stretching
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::math::Math;
+
+// PBKDF2 (Password-Based Key Derivation Function 2)
+public fn pbkdf2(password: string, salt: string, iterations: int, keyLength: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var blockNum: int = 1;
+    while (result.size() < keyLength) {
+        let block: ArrayList<int> = _pbkdf2Block(password, salt, iterations, blockNum);
+        var i: int = 0;
+        while (i < block.size() && result.size() < keyLength) {
+            result.add(block.get(i));
+            i = i + 1;
+        }
+        blockNum = blockNum + 1;
+    }
+    return result;
+}
+
+fn _pbkdf2Block(password: string, salt: string, iterations: int, blockNum: int): ArrayList<int> {
+    let input: string = salt + Integer.toString(blockNum);
+    let u: ArrayList<int> = Hmac_compute(password, input);
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < u.size()) { result.add(u.get(i)); i = i + 1; }
+    var iter: int = 1;
+    while (iter < iterations) {
+        let newU: ArrayList<int> = Hmac_compute(password, _intsToString(u));
+        i = 0;
+        while (i < result.size() && i < newU.size()) {
+            result.set(i, result.get(i) ^ newU.get(i));
+            i = i + 1;
+        }
+        u = newU;
+        iter = iter + 1;
+    }
+    return result;
+}
+
+fn _intsToString(ints: ArrayList<int>): string {
+    let sb: string = "";
+    var i: int = 0;
+    while (i < ints.size()) {
+        sb = sb + String.fromCharCode(ints.get(i));
+        i = i + 1;
+    }
+    return sb;
+}
+
+// HKDF (HMAC-based Key Derivation Function)
+public fn hkdfExtract(salt: string, inputKey: string): ArrayList<int> {
+    let result: ArrayList<int> = Hmac_compute(salt, inputKey);
+    return result;
+}
+
+public fn hkdfExpand(prk: ArrayList<int>, info: string, length: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let t: string = "";
+    var i: int = 1;
+    while (result.size() < length) {
+        let input: string = t + info + String.fromCharCode(i);
+        let hmacInput: ArrayList<int> = Hmac_compute(_intsToString(prk), input);
+        var j: int = 0;
+        while (j < hmacInput.size() && result.size() < length) {
+            result.add(hmacInput.get(j));
+            j = j + 1;
+        }
+        t = _intsToString(hmacInput);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Generate salt
+public fn generateSalt(length: int): ArrayList<int> {
+    let salt: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < length) {
+        salt.add(Math.abs(Random_nextInt()) % 256);
+        i = i + 1;
+    }
+    return salt;
+}
+
+// Key stretching (simple iteration)
+public fn keyStretch(password: string, salt: string, iterations: int): ArrayList<int> {
+    return pbkdf2(password, salt, iterations, 32);
+}
