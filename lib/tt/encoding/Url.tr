@@ -1,6 +1,37 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// URL encoding and decoding backed by native implementations.
+﻿﻿﻿﻿// URL encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _urlCharsCache: HashMap<string, string> = new HashMap<string, string>();
+var _urlCharsLoaded: bool = false;
+
+fn _ensureUrlCharsLoaded(): void {
+    if (_urlCharsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("encoding/url_safe_chars.json");
+    if (data.isNull() || !data.isObject()) {
+        _urlCharsLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("unreserved");
+    keys.add("reserved");
+    keys.add("sub_delims");
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (data.hasKey(key)) {
+            _urlCharsCache.put(key, data.get(key).asString());
+        }
+        i = i + 1;
+    }
+    _urlCharsLoaded = true;
+}
 
 public class Url {
     public fn encode(input: string): string {
@@ -14,7 +45,8 @@ public class Url {
     // Encode a string for use in URL query components.
     // Encodes all characters except A-Z a-z 0-9 - _ . ~
     public fn encodeComponent(s: string): string {
-        let safe: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~";
+        _ensureUrlCharsLoaded();
+        let safe: string = _urlCharsCache.get("unreserved");
         let result: string = "";
         let i: int = 0;
         while (i < String.length(s)) {
