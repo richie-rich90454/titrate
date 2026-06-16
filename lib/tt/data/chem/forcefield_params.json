@@ -1,0 +1,17 @@
+{
+  "_meta": { "source": "AMBER ff99", "version": "1999", "description": "AMBER force field nonbonded parameters" },
+  "partialCharges": [
+    {"symbol": "O", "charge": -0.834},
+    {"symbol": "H", "charge": 0.417},
+    {"symbol": "N", "charge": -0.47},
+    {"symbol": "C", "charge": 0.28},
+    {"symbol": "S", "charge": -0.23}
+  ],
+  "lennardJones": [
+    {"symbol": "O", "epsilon": 0.152, "sigma": 3.15},
+    {"symbol": "H", "epsilon": 0.046, "sigma": 0.4},
+    {"symbol": "N", "epsilon": 0.17, "sigma": 3.25},
+    {"symbol": "C", "epsilon": 0.109, "sigma": 3.40},
+    {"symbol": "S", "epsilon": 0.25, "sigma": 3.55}
+  ]
+}
