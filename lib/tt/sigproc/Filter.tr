@@ -1,0 +1,98 @@
+// Filter.tr — Digital filter design: Butterworth, Chebyshev, FIR, IIR
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::math::Math;
+
+public class FilterCoeffs {
+    public ArrayList<double> b;
+    public ArrayList<double> a;
+
+    public fn init() {
+        this.b = new ArrayList<double>();
+        this.a = new ArrayList<double>();
+        this.a.add(1.0);
+    }
+}
+
+// Butterworth low-pass filter coefficients (2nd order section)
+public fn butterworthLowpass(order: int, cutoffFreq: double, sampleRate: double): FilterCoeffs {
+    let coeffs: FilterCoeffs = new FilterCoeffs();
+    let wc: double = MathTrig.tan(Math.PI() * cutoffFreq / sampleRate);
+    let wc2: double = wc * wc;
+    // Simplified 2nd-order Butterworth
+    let k1: double = MathAdvanced.sqrt(2.0) * wc;
+    let k2: double = wc2;
+    let norm: double = 1.0 + k1 + k2;
+    coeffs.b.add(k2 / norm);
+    coeffs.b.add(2.0 * k2 / norm);
+    coeffs.b.add(k2 / norm);
+    coeffs.a.add(1.0);
+    coeffs.a.add(2.0 * (k2 - 1.0) / norm);
+    coeffs.a.add((1.0 - k1 + k2) / norm);
+    return coeffs;
+}
+
+// Butterworth high-pass filter coefficients
+public fn butterworthHighpass(order: int, cutoffFreq: double, sampleRate: double): FilterCoeffs {
+    let coeffs: FilterCoeffs = new FilterCoeffs();
+    let wc: double = MathTrig.tan(Math.PI() * cutoffFreq / sampleRate);
+    let wc2: double = wc * wc;
+    let k1: double = MathAdvanced.sqrt(2.0) * wc;
+    let k2: double = wc2;
+    let norm: double = 1.0 + k1 + k2;
+    coeffs.b.add(1.0 / norm);
+    coeffs.b.add(-2.0 / norm);
+    coeffs.b.add(1.0 / norm);
+    coeffs.a.add(1.0);
+    coeffs.a.add(2.0 * (k2 - 1.0) / norm);
+    coeffs.a.add((1.0 - k1 + k2) / norm);
+    return coeffs;
+}
+
+// Apply IIR filter to signal
+public fn applyFilter(signal: ArrayList<double>, coeffs: FilterCoeffs): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < signal.size()) {
+        var y: double = 0.0;
+        // FIR part
+        var j: int = 0;
+        while (j < coeffs.b.size() && j <= i) {
+            y = y + coeffs.b.get(j) * signal.get(i - j);
+            j = j + 1;
+        }
+        // IIR part
+        j = 1;
+        while (j < coeffs.a.size() && j <= i) {
+            y = y - coeffs.a.get(j) * result.get(i - j);
+            j = j + 1;
+        }
+        result.add(y);
+        i = i + 1;
+    }
+    return result;
+}
+
+// FIR filter design using window method
+public fn firLowpass(numTaps: int, cutoffFreq: double, sampleRate: double, window: ArrayList<double>): FilterCoeffs {
+    let coeffs: FilterCoeffs = new FilterCoeffs();
+    let fc: double = cutoffFreq / sampleRate;
+    let mid: int = numTaps / 2;
+    var i: int = 0;
+    while (i < numTaps) {
+        let n: int = i - mid;
+        var h: double;
+        if (n == 0) {
+            h = 2.0 * fc;
+        } else {
+            h = MathTrig.sin(2.0 * Math.PI() * fc * n as double) / (Math.PI() * n as double);
+        }
+        if (i < window.size()) {
+            h = h * window.get(i);
+        }
+        coeffs.b.add(h);
+        i = i + 1;
+    }
+    return coeffs;
+}

@@ -1,0 +1,215 @@
+// FFT2.tr — 1D/2D FFT, IFFT, real FFT, FFT shift, frequency bins
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::math::Math;
+
+// Complex number operations
+class _Complex {
+    public double re;
+    public double im;
+
+    public fn init(r: double, i: double) {
+        this.re = r;
+        this.im = i;
+    }
+
+    public fn add(other: _Complex): _Complex {
+        return new _Complex(this.re + other.re, this.im + other.im);
+    }
+
+    public fn sub(other: _Complex): _Complex {
+        return new _Complex(this.re - other.re, this.im - other.im);
+    }
+
+    public fn mul(other: _Complex): _Complex {
+        return new _Complex(this.re * other.re - this.im * other.im, this.re * other.im + this.im * other.re);
+    }
+
+    public fn scale(s: double): _Complex {
+        return new _Complex(this.re * s, this.im * s);
+    }
+
+    public fn magnitude(): double {
+        return MathAdvanced.sqrt(this.re * this.re + this.im * this.im);
+    }
+
+    public fn phase(): double {
+        return MathTrig.atan2(this.im, this.re);
+    }
+}
+
+// Bit reversal permutation
+fn _bitReverse(n: int, bits: int): int {
+    var result: int = 0;
+    var x: int = n;
+    var i: int = 0;
+    while (i < bits) {
+        result = (result << 1) | (x & 1);
+        x = x >> 1;
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _log2Int(n: int): int {
+    var result: int = 0;
+    var x: int = n;
+    while (x > 1) {
+        x = x >> 1;
+        result = result + 1;
+    }
+    return result;
+}
+
+// 1D FFT (Cooley-Tukey radix-2)
+public fn fft(input: ArrayList<double>): ArrayList<_Complex> {
+    let n: int = input.size();
+    let bits: int = _log2Int(n);
+    let output: ArrayList<_Complex> = new ArrayList<_Complex>();
+    var i: int = 0;
+    while (i < n) {
+        let j: int = _bitReverse(i, bits);
+        if (j < n) {
+            output.add(new _Complex(input.get(j), 0.0));
+        } else {
+            output.add(new _Complex(0.0, 0.0));
+        }
+        i = i + 1;
+    }
+    // Butterfly
+    var len: int = 2;
+    while (len <= n) {
+        let halfLen: int = len / 2;
+        let angle: double = -2.0 * Math.PI() / len as double;
+        let wn: _Complex = new _Complex(MathTrig.cos(angle), MathTrig.sin(angle));
+        var start: int = 0;
+        while (start < n) {
+            let w: _Complex = new _Complex(1.0, 0.0);
+            var j: int = 0;
+            while (j < halfLen) {
+                let idx1: int = start + j;
+                let idx2: int = start + j + halfLen;
+                let t: _Complex = w.mul(output.get(idx2));
+                output.set(idx2, output.get(idx1).sub(t));
+                output.set(idx1, output.get(idx1).add(t));
+                w = w.mul(wn);
+                j = j + 1;
+            }
+            start = start + len;
+        }
+        len = len * 2;
+    }
+    return output;
+}
+
+// 1D IFFT
+public fn ifft(input: ArrayList<_Complex>): ArrayList<_Complex> {
+    let n: int = input.size();
+    // Conjugate
+    let conj: ArrayList<_Complex> = new ArrayList<_Complex>();
+    var i: int = 0;
+    while (i < n) {
+        conj.add(new _Complex(input.get(i).re, -input.get(i).im));
+        i = i + 1;
+    }
+    // FFT on conjugated
+    let bits: int = _log2Int(n);
+    let output: ArrayList<_Complex> = new ArrayList<_Complex>();
+    i = 0;
+    while (i < n) {
+        let j: int = _bitReverse(i, bits);
+        if (j < n) {
+            output.add(conj.get(j));
+        } else {
+            output.add(new _Complex(0.0, 0.0));
+        }
+        i = i + 1;
+    }
+    var len: int = 2;
+    while (len <= n) {
+        let halfLen: int = len / 2;
+        let angle: double = -2.0 * Math.PI() / len as double;
+        let wn: _Complex = new _Complex(MathTrig.cos(angle), MathTrig.sin(angle));
+        var start: int = 0;
+        while (start < n) {
+            let w: _Complex = new _Complex(1.0, 0.0);
+            var j: int = 0;
+            while (j < halfLen) {
+                let idx1: int = start + j;
+                let idx2: int = start + j + halfLen;
+                let t: _Complex = w.mul(output.get(idx2));
+                output.set(idx2, output.get(idx1).sub(t));
+                output.set(idx1, output.get(idx1).add(t));
+                w = w.mul(wn);
+                j = j + 1;
+            }
+            start = start + len;
+        }
+        len = len * 2;
+    }
+    // Scale and conjugate
+    let result: ArrayList<_Complex> = new ArrayList<_Complex>();
+    i = 0;
+    while (i < n) {
+        result.add(new _Complex(output.get(i).re / n as double, -output.get(i).im / n as double));
+        i = i + 1;
+    }
+    return result;
+}
+
+// FFT frequency bins
+public fn fftFreq(n: int, sampleRate: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        var f: double = i as double * sampleRate / n as double;
+        if (i > n / 2) {
+            f = (i - n) as double * sampleRate / n as double;
+        }
+        result.add(f);
+        i = i + 1;
+    }
+    return result;
+}
+
+// FFT shift (swap halves)
+public fn fftShift(data: ArrayList<double>): ArrayList<double> {
+    let n: int = data.size();
+    let half: int = n / 2;
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = half;
+    while (i < n) {
+        result.add(data.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < half) {
+        result.add(data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Real FFT magnitudes
+public fn fftMagnitudes(input: ArrayList<double>): ArrayList<double> {
+    let spectrum: ArrayList<_Complex> = fft(input);
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < spectrum.size()) {
+        result.add(spectrum.get(i).magnitude());
+        i = i + 1;
+    }
+    return result;
+}
+
+// Windowed FFT
+public fn windowedFft(input: ArrayList<double>, window: ArrayList<double>): ArrayList<_Complex> {
+    let windowed: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < input.size()) {
+        windowed.add(input.get(i) * window.get(i));
+        i = i + 1;
+    }
+    return fft(windowed);
+}

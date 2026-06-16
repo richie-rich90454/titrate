@@ -1,0 +1,115 @@
+// Window.tr — Window functions: Hamming, Hanning, Blackman, Kaiser, Bartlett, etc.
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::math::Math;
+
+public fn hamming(n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let w: double = 0.54 - 0.46 * MathTrig.cos(2.0 * Math.PI() * i as double / (n - 1) as double);
+        result.add(w);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn hanning(n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let w: double = 0.5 * (1.0 - MathTrig.cos(2.0 * Math.PI() * i as double / (n - 1) as double));
+        result.add(w);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn blackman(n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let x: double = 2.0 * Math.PI() * i as double / (n - 1) as double;
+        let w: double = 0.42 - 0.5 * MathTrig.cos(x) + 0.08 * MathTrig.cos(2.0 * x);
+        result.add(w);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn bartlett(n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let mid: double = (n - 1) as double / 2.0;
+    var i: int = 0;
+    while (i < n) {
+        let w: double = 1.0 - Math.abs(i as double - mid) / mid;
+        result.add(w);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn rectangular(n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        result.add(1.0);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn flattop(n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let x: double = 2.0 * Math.PI() * i as double / (n - 1) as double;
+        let w: double = 0.21557895 - 0.41663158 * MathTrig.cos(x) + 0.277263158 * MathTrig.cos(2.0 * x) - 0.083578947 * MathTrig.cos(3.0 * x) + 0.006947368 * MathTrig.cos(4.0 * x);
+        result.add(w);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Kaiser window (uses Bessel function approximation)
+public fn kaiser(n: int, beta: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let mid: double = (n - 1) as double / 2.0;
+    var i: int = 0;
+    while (i < n) {
+        let x: double = (i as double - mid) / mid;
+        let arg: double = beta * MathAdvanced.sqrt(1.0 - x * x);
+        let w: double = _besselI0(arg) / _besselI0(beta);
+        result.add(w);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Modified Bessel function I0 approximation
+fn _besselI0(x: double): double {
+    let ax: double = Math.abs(x);
+    if (ax < 3.75) {
+        let y: double = x / 3.75;
+        let y2: double = y * y;
+        return 1.0 + y2 * (3.5156229 + y2 * (3.0899424 + y2 * (1.2067492 + y2 * (0.2659732 + y2 * (0.0360768 + y2 * 0.0045813)))));
+    }
+    let y: double = 3.75 / ax;
+    let y2: double = y * y;
+    return MathAdvanced.exp(ax) / MathAdvanced.sqrt(ax) * (0.39894228 + y2 * (0.01328592 + y2 * (0.00225319 + y2 * (-0.00157565 + y2 * (0.00916281 + y2 * (-0.02057706 + y2 * (0.02635537 + y2 * (-0.01647633 + y2 * 0.00392377))))))));
+}
+
+// Gaussian window
+public fn gaussian(n: int, sigma: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let mid: double = (n - 1) as double / 2.0;
+    var i: int = 0;
+    while (i < n) {
+        let x: double = (i as double - mid) / (sigma * mid);
+        let w: double = MathAdvanced.exp(-0.5 * x * x);
+        result.add(w);
+        i = i + 1;
+    }
+    return result;
+}
