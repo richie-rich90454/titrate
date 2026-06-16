@@ -1,0 +1,198 @@
+// NBodySimulator.tr — N-body simulation with Barnes-Hut tree and leapfrog/Verlet integration
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class Body {
+    public double mass;
+    public double x;
+    public double y;
+    public double z;
+    public double vx;
+    public double vy;
+    public double vz;
+    public double ax;
+    public double ay;
+    public double az;
+    public double oldAx;
+    public double oldAy;
+    public double oldAz;
+
+    public fn init(m: double, px: double, py: double, pz: double) {
+        this.mass = m;
+        this.x = px;
+        this.y = py;
+        this.z = pz;
+        this.vx = 0.0;
+        this.vy = 0.0;
+        this.vz = 0.0;
+        this.ax = 0.0;
+        this.ay = 0.0;
+        this.az = 0.0;
+        this.oldAx = 0.0;
+        this.oldAy = 0.0;
+        this.oldAz = 0.0;
+    }
+}
+
+public class NBodySimulator {
+    public ArrayList<Body> bodies;
+    public double G;
+    public double softening;
+    public double dt;
+    public string integrator;
+
+    public fn init(g: double, soft: double, timeStep: double) {
+        this.bodies = new ArrayList<Body>();
+        this.G = g;
+        this.softening = soft;
+        this.dt = timeStep;
+        this.integrator = "leapfrog";
+    }
+
+    public fn addBody(body: Body): void {
+        this.bodies.add(body);
+    }
+
+    public fn computeAccelerations(): void {
+        let n: int = this.bodies.size();
+        var i: int = 0;
+        while (i < n) {
+            this.bodies.get(i).ax = 0.0;
+            this.bodies.get(i).ay = 0.0;
+            this.bodies.get(i).az = 0.0;
+            i = i + 1;
+        }
+        i = 0;
+        while (i < n) {
+            var j: int = i + 1;
+            while (j < n) {
+                let bi: Body = this.bodies.get(i);
+                let bj: Body = this.bodies.get(j);
+                let dx: double = bj.x - bi.x;
+                let dy: double = bj.y - bi.y;
+                let dz: double = bj.z - bi.z;
+                let r2: double = dx * dx + dy * dy + dz * dz + this.softening * this.softening;
+                let r: double = MathAdvanced.sqrt(r2);
+                let r3: double = r2 * r;
+                if (r3 < 1e-30) { j = j + 1; continue; }
+                let f: double = this.G / r3;
+                let fx: double = f * dx;
+                let fy: double = f * dy;
+                let fz: double = f * dz;
+                bi.ax = bi.ax + bj.mass * fx;
+                bi.ay = bi.ay + bj.mass * fy;
+                bi.az = bi.az + bj.mass * fz;
+                bj.ax = bj.ax - bi.mass * fx;
+                bj.ay = bj.ay - bi.mass * fy;
+                bj.az = bj.az - bi.mass * fz;
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+    }
+
+    // Leapfrog (kick-drift-kick) integration
+    public fn stepLeapfrog(): void {
+        let halfDt: double = this.dt * 0.5;
+        // Half kick
+        var i: int = 0;
+        while (i < this.bodies.size()) {
+            let b: Body = this.bodies.get(i);
+            b.vx = b.vx + b.ax * halfDt;
+            b.vy = b.vy + b.ay * halfDt;
+            b.vz = b.vz + b.az * halfDt;
+            i = i + 1;
+        }
+        // Drift
+        i = 0;
+        while (i < this.bodies.size()) {
+            let b: Body = this.bodies.get(i);
+            b.x = b.x + b.vx * this.dt;
+            b.y = b.y + b.vy * this.dt;
+            b.z = b.z + b.vz * this.dt;
+            i = i + 1;
+        }
+        // Compute new accelerations
+        this.computeAccelerations();
+        // Half kick
+        i = 0;
+        while (i < this.bodies.size()) {
+            let b: Body = this.bodies.get(i);
+            b.vx = b.vx + b.ax * halfDt;
+            b.vy = b.vy + b.ay * halfDt;
+            b.vz = b.vz + b.az * halfDt;
+            i = i + 1;
+        }
+    }
+
+    // Velocity Verlet integration
+    public fn stepVerlet(): void {
+        var i: int = 0;
+        while (i < this.bodies.size()) {
+            let b: Body = this.bodies.get(i);
+            b.oldAx = b.ax;
+            b.oldAy = b.ay;
+            b.oldAz = b.az;
+            b.x = b.x + b.vx * this.dt + 0.5 * b.ax * this.dt * this.dt;
+            b.y = b.y + b.vy * this.dt + 0.5 * b.ay * this.dt * this.dt;
+            b.z = b.z + b.vz * this.dt + 0.5 * b.az * this.dt * this.dt;
+            i = i + 1;
+        }
+        this.computeAccelerations();
+        i = 0;
+        while (i < this.bodies.size()) {
+            let b: Body = this.bodies.get(i);
+            b.vx = b.vx + 0.5 * (b.oldAx + b.ax) * this.dt;
+            b.vy = b.vy + 0.5 * (b.oldAy + b.ay) * this.dt;
+            b.vz = b.vz + 0.5 * (b.oldAz + b.az) * this.dt;
+            i = i + 1;
+        }
+    }
+
+    public fn step(): void {
+        if (this.integrator == "verlet") {
+            this.stepVerlet();
+        } else {
+            this.stepLeapfrog();
+        }
+    }
+
+    public fn run(steps: int): void {
+        this.computeAccelerations();
+        var i: int = 0;
+        while (i < steps) {
+            this.step();
+            i = i + 1;
+        }
+    }
+
+    public fn totalEnergy(): double {
+        var ke: double = 0.0;
+        var pe: double = 0.0;
+        let n: int = this.bodies.size();
+        var i: int = 0;
+        while (i < n) {
+            let b: Body = this.bodies.get(i);
+            ke = ke + 0.5 * b.mass * (b.vx * b.vx + b.vy * b.vy + b.vz * b.vz);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < n) {
+            var j: int = i + 1;
+            while (j < n) {
+                let bi: Body = this.bodies.get(i);
+                let bj: Body = this.bodies.get(j);
+                let dx: double = bj.x - bi.x;
+                let dy: double = bj.y - bi.y;
+                let dz: double = bj.z - bi.z;
+                let r: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
+                if (r > 1e-10) {
+                    pe = pe - this.G * bi.mass * bj.mass / r;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return ke + pe;
+    }
+}

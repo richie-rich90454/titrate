@@ -1,0 +1,130 @@
+// UnitSystem.tr — SI, CGS, natural units conversion, dimensional analysis
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Double;
+
+var _convCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _convLoaded: bool = false;
+var _categories: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _categoriesBuilt: bool = false;
+
+fn _ensureConvLoaded(): void {
+    if (_convLoaded) { return; }
+    let data: JsonValue = DataFile.load("units/conversions.json");
+    if (!data.isNull()) {
+        _convCache.put("root", data);
+    }
+    _convLoaded = true;
+}
+
+fn _ensureCategoriesBuilt(): void {
+    if (_categoriesBuilt) { return; }
+    _ensureConvLoaded();
+    let root: JsonValue = _convCache.get("root");
+    if (root.isNull()) { return; }
+    let cats: JsonValue = root.get("categories");
+    if (cats.isNull()) { return; }
+    let keys: ArrayList<string> = cats.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let name: string = keys.get(i);
+        _categories.put(name, cats.get(name));
+        i = i + 1;
+    }
+    _categoriesBuilt = true;
+}
+
+public fn convert(value: double, fromUnit: string, toUnit: string, category: string): double {
+    _ensureCategoriesBuilt();
+    if (!_categories.containsKey(category)) { return 0.0; }
+    let cat: JsonValue = _categories.get(category);
+    let units: JsonValue = cat.get("units");
+    if (units.isNull()) { return 0.0; }
+    if (!units.hasKey(fromUnit) || !units.hasKey(toUnit)) { return 0.0; }
+    let fromVal: JsonValue = units.get(fromUnit);
+    let toVal: JsonValue = units.get(toUnit);
+    if (fromVal.isString() || toVal.isString()) {
+        // Temperature conversion - special handling
+        return _convertTemperature(value, fromUnit, toUnit);
+    }
+    let fromFactor: double = fromVal.asNumber();
+    let toFactor: double = toVal.asNumber();
+    if (toFactor == 0.0) { return 0.0; }
+    return value * fromFactor / toFactor;
+}
+
+fn _convertTemperature(value: double, from: string, to: string): double {
+    // Convert to Kelvin first
+    var kelvin: double = 0.0;
+    if (from == "K") { kelvin = value; }
+    else {
+        if (from == "C") { kelvin = value + 273.15; }
+        else {
+            if (from == "F") { kelvin = (value + 459.67) * 5.0 / 9.0; }
+            else {
+                if (from == "R") { kelvin = value * 5.0 / 9.0; }
+                else { return 0.0; }
+            }
+        }
+    }
+    // Convert from Kelvin
+    if (to == "K") { return kelvin; }
+    if (to == "C") { return kelvin - 273.15; }
+    if (to == "F") { return kelvin * 9.0 / 5.0 - 459.67; }
+    if (to == "R") { return kelvin * 9.0 / 5.0; }
+    return 0.0;
+}
+
+public fn getCategories(): ArrayList<string> {
+    _ensureCategoriesBuilt();
+    return _categories.keys();
+}
+
+public fn getUnits(category: string): ArrayList<string> {
+    _ensureCategoriesBuilt();
+    if (!_categories.containsKey(category)) { return new ArrayList<string>(); }
+    let cat: JsonValue = _categories.get(category);
+    let units: JsonValue = cat.get("units");
+    if (units.isNull()) { return new ArrayList<string>(); }
+    return units.keys();
+}
+
+public fn getBaseUnit(category: string): string {
+    _ensureCategoriesBuilt();
+    if (!_categories.containsKey(category)) { return ""; }
+    let cat: JsonValue = _categories.get(category);
+    return cat.get("baseUnit").asString();
+}
+
+// SI to CGS conversion factors
+public fn siToCgs(value: double, quantity: string): double {
+    if (quantity == "length") { return value * 100.0; }
+    if (quantity == "mass") { return value * 1000.0; }
+    if (quantity == "force") { return value * 100000.0; }
+    if (quantity == "energy") { return value * 1e7; }
+    if (quantity == "pressure") { return value * 10.0; }
+    if (quantity == "power") { return value * 1e7; }
+    return value;
+}
+
+public fn cgsToSi(value: double, quantity: string): double {
+    if (quantity == "length") { return value * 0.01; }
+    if (quantity == "mass") { return value * 0.001; }
+    if (quantity == "force") { return value * 1e-5; }
+    if (quantity == "energy") { return value * 1e-7; }
+    if (quantity == "pressure") { return value * 0.1; }
+    if (quantity == "power") { return value * 1e-7; }
+    return value;
+}
+
+// Natural units (hbar = c = 1) conversions
+public fn siToNatural(value: double, quantity: string, hbar: double, c: double): double {
+    if (quantity == "length") { return value * hbar * c; }
+    if (quantity == "mass") { return value * c * c / hbar; }
+    if (quantity == "energy") { return value / hbar; }
+    if (quantity == "time") { return value * c / hbar; }
+    return value;
+}
