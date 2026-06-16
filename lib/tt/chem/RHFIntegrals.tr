@@ -1,24 +1,79 @@
 import tt::chem::Atom;
 import tt::math::Math;
 import tt::math::MathAdvanced;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Double;
 
 // RHF two-electron integrals, orbital exponent, basis-to-atom mapping
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _zetaCache: HashMap<string, double> = new HashMap<string, double>();
+var _zetaLoaded: bool = false;
+
+fn _ensureZetaLoaded(): void {
+    if (_zetaLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("chem/orbital_exponents.json");
+    if (data.isNull() || !data.isObject()) {
+        _zetaLoaded = true;
+        return;
+    }
+    if (!data.hasKey("exponents")) {
+        _zetaLoaded = true;
+        return;
+    }
+    let exps: JsonValue = data.get("exponents");
+    if (!exps.isArray()) {
+        _zetaLoaded = true;
+        return;
+    }
+    var i: int = 0;
+    while (i < exps.size()) {
+        let entry: JsonValue = exps.getAt(i);
+        if (entry.isObject() && entry.hasKey("symbol")) {
+            let sym: string = entry.get("symbol").asString();
+            // Use zeta for H/He, zeta_2s for others (valence exponent)
+            if (entry.hasKey("zeta")) {
+                _zetaCache.put(sym, entry.get("zeta").asNumber());
+            } else if (entry.hasKey("zeta_2s")) {
+                _zetaCache.put(sym, entry.get("zeta_2s").asNumber());
+            }
+        }
+        i = i + 1;
+    }
+    _zetaLoaded = true;
+}
 
 // Get effective orbital exponent (zeta) for STO-3G-like basis
 // Uses Slater rules approximation: zeta = (Z - sigma) / n*
 public fn orbitalExponent(atomicNumber: int): double {
-    // Simplified Slater-type orbital exponents for 1s/2s/2p
-    if (atomicNumber == 1)  { return 1.24; }  // H 1s
-    if (atomicNumber == 2)  { return 1.69; }  // He 1s
-    if (atomicNumber == 3)  { return 2.69; }  // Li 2s
-    if (atomicNumber == 4)  { return 3.68; }  // Be 2s
-    if (atomicNumber == 5)  { return 4.68; }  // B
-    if (atomicNumber == 6)  { return 5.67; }  // C
-    if (atomicNumber == 7)  { return 6.67; }  // N
-    if (atomicNumber == 8)  { return 7.66; }  // O
-    if (atomicNumber == 9)  { return 8.65; }  // F
-    if (atomicNumber == 10) { return 9.64; }  // Ne
+    _ensureZetaLoaded();
+    // Map atomic number to symbol for lookup
+    let sym: string = _atomicSymbol(atomicNumber);
+    if (_zetaCache.containsKey(sym)) {
+        return _zetaCache.get(sym);
+    }
     return atomicNumber as double * 0.95;
+}
+
+// Map atomic number to element symbol
+fn _atomicSymbol(z: int): string {
+    if (z == 1) { return "H"; }
+    if (z == 2) { return "He"; }
+    if (z == 3) { return "Li"; }
+    if (z == 4) { return "Be"; }
+    if (z == 5) { return "B"; }
+    if (z == 6) { return "C"; }
+    if (z == 7) { return "N"; }
+    if (z == 8) { return "O"; }
+    if (z == 9) { return "F"; }
+    if (z == 10) { return "Ne"; }
+    return "";
 }
 
 // Map basis function index to atom index
