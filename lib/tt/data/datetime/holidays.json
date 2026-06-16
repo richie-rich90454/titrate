@@ -1,0 +1,150 @@
+{
+  "_meta": { "source": "Various national calendars", "version": "2024", "description": "Holiday calendars for major regions" },
+  "holidays": {
+    "US": [
+      {"name": "New Year's Day", "month": 1, "day": 1},
+      {"name": "Martin Luther King Jr. Day", "month": 1, "week": 3, "weekday": 1},
+      {"name": "Presidents' Day", "month": 2, "week": 3, "weekday": 1},
+      {"name": "Memorial Day", "month": 5, "week": -1, "weekday": 1},
+      {"name": "Independence Day", "month": 7, "day": 4},
+      {"name": "Labor Day", "month": 9, "week": 1, "weekday": 1},
+      {"name": "Columbus Day", "month": 10, "week": 2, "weekday": 1},
+      {"name": "Veterans Day", "month": 11, "day": 11},
+      {"name": "Thanksgiving", "month": 11, "week": 4, "weekday": 4},
+      {"name": "Christmas Day", "month": 12, "day": 25}
+    ],
+    "EU": [
+      {"name": "New Year's Day", "month": 1, "day": 1},
+      {"name": "Good Friday", "easterOffset": -2},
+      {"name": "Easter Monday", "easterOffset": 1},
+      {"name": "Labour Day", "month": 5, "day": 1},
+      {"name": "Christmas Day", "month": 12, "day": 25},
+      {"name": "Boxing Day", "month": 12, "day": 26}
+    ],
+    "JP": [
+      {"name": "New Year's Day", "month": 1, "day": 1},
+      {"name": "Coming of Age Day", "month": 1, "week": 2, "weekday": 1},
+      {"name": "National Foundation Day", "month": 2, "day": 11},
+      {"name": "Vernal Equinox Day", "month": 3, "day": 21},
+      {"name": "Showa Day", "month": 4, "day": 29},
+      {"name": "Constitution Memorial Day", "month": 5, "day": 3},
+      {"name": "Children's Day", "month": 5, "day": 5},
+      {"name": "Marine Day", "month": 7, "week": 3, "weekday": 1},
+      {"name": "Respect for the Aged Day", "month": 9, "week": 3, "weekday": 1},
+      {"name": "Autumnal Equinox Day", "month": 9, "day": 23},
+      {"name": "Health and Sports Day", "month": 10, "week": 2, "weekday": 1},
+      {"name": "Culture Day", "month": 11, "day": 3},
+      {"name": "Labor Thanksgiving Day", "month": 11, "day": 23},
+      {"name": "Emperor's Birthday", "month": 2, "day": 23}
+    ],
+    "CN": [
+      {"name": "New Year's Day", "month": 1, "day": 1},
+      {"name": "Spring Festival", "lunar": true, "lunarMonth": 1, "lunarDay": 1},
+      {"name": "Qingming Festival", "month": 4, "day": 5},
+      {"name": "Labour Day", "month": 5, "day": 1},
+      {"name": "Dragon Boat Festival", "lunar": true, "lunarMonth": 5, "lunarDay": 5},
+      {"name": "Mid-Autumn Festival", "lunar": true, "lunarMonth": 8, "lunarDay": 15},
+      {"name": "National Day", "month": 10, "day": 1}
+    ],
+    "UK": [
+      {"name": "New Year's Day", "month": 1, "day": 1},
+      {"name": "Good Friday", "easterOffset": -2},
+      {"name": "Easter Monday", "easterOffset": 1},
+      {"name": "Early May Bank Holiday", "month": 5, "week": 1, "weekday": 1},
+      {"name": "Spring Bank Holiday", "month": 5, "week": -1, "weekday": 1},
+      {"name": "Summer Bank Holiday", "month": 8, "week": -1, "weekday": 1},
+      {"name": "Christmas Day", "month": 12, "day": 25},
+      {"name": "Boxing Day", "month": 12, "day": 26}
+    ],
+    "DE": [
+      {"name": "Neujahrstag", "month": 1, "day": 1},
+      {"name": "Karfreitag", "easterOffset": -2},
+      {"name": "Ostermontag", "easterOffset": 1},
+      {"name": "Tag der Arbeit", "month": 5, "day": 1},
+      {"name": "Christi Himmelfahrt", "easterOffset": 39},
+      {"name": "Pfingstmontag", "easterOffset": 50},
+      {"name": "Tag der Deutschen Einheit", "month": 10, "day": 3},
+      {"name": "Weihnachtstag", "month": 12, "day": 25},
+      {"name": "Zweiter Weihnachtstag", "month": 12, "day": 26}
+    ],
+    "FR": [
+      {"name": "Jour de l'An", "month": 1, "day": 1},
+      {"name": "Lundi de P\u00e2ques", "easterOffset": 1},
+      {"name": "F\u00eate du Travail", "month": 5, "day": 1},
+      {"name": "Victoire 1945", "month": 5, "day": 8},
+      {"name": "Ascension", "easterOffset": 39},
+      {"name": "Lundi de Pentec\u00f4te", "easterOffset": 50},
+      {"name": "F\u00eate nationale", "month": 7, "day": 14},
+      {"name": "Assomption", "month": 8, "day": 15},
+      {"name": "Toussaint", "month": 11, "day": 1},
+      {"name": "Armistice", "month": 11, "day": 11},
+      {"name": "No\u00ebl", "month": 12, "day": 25}
+    ],
+    "KR": [
+      {"name": "New Year's Day", "month": 1, "day": 1},
+      {"name": "Seollal", "lunar": true, "lunarMonth": 1, "lunarDay": 1},
+      {"name": "Independence Movement Day", "month": 3, "day": 1},
+      {"name": "Buddha's Birthday", "lunar": true, "lunarMonth": 4, "lunarDay": 8},
+      {"name": "Children's Day", "month": 5, "day": 5},
+      {"name": "Memorial Day", "month": 6, "day": 6},
+      {"name": "Liberation Day", "month": 8, "day": 15},
+      {"name": "Chuseok", "lunar": true, "lunarMonth": 8, "lunarDay": 15},
+      {"name": "National Foundation Day", "month": 10, "day": 3},
+      {"name": "Hangeul Day", "month": 10, "day": 9},
+      {"name": "Christmas Day", "month": 12, "day": 25}
+    ],
+    "IN": [
+      {"name": "Republic Day", "month": 1, "day": 26},
+      {"name": "Independence Day", "month": 8, "day": 15},
+      {"name": "Gandhi Jayanti", "month": 10, "day": 2},
+      {"name": "Christmas Day", "month": 12, "day": 25},
+      {"name": "Diwali", "lunar": true, "lunarMonth": 10, "lunarDay": 15},
+      {"name": "Holi", "lunar": true, "lunarMonth": 12, "lunarDay": 15}
+    ],
+    "AU": [
+      {"name": "New Year's Day", "month": 1, "day": 1},
+      {"name": "Australia Day", "month": 1, "day": 26},
+      {"name": "Good Friday", "easterOffset": -2},
+      {"name": "Easter Monday", "easterOffset": 1},
+      {"name": "ANZAC Day", "month": 4, "day": 25},
+      {"name": "Queen's Birthday", "month": 6, "week": 2, "weekday": 1},
+      {"name": "Christmas Day", "month": 12, "day": 25},
+      {"name": "Boxing Day", "month": 12, "day": 26}
+    ],
+    "CA": [
+      {"name": "New Year's Day", "month": 1, "day": 1},
+      {"name": "Family Day", "month": 2, "week": 3, "weekday": 1},
+      {"name": "Good Friday", "easterOffset": -2},
+      {"name": "Victoria Day", "month": 5, "week": -1, "weekday": 1},
+      {"name": "Canada Day", "month": 7, "day": 1},
+      {"name": "Civic Holiday", "month": 8, "week": 1, "weekday": 1},
+      {"name": "Labour Day", "month": 9, "week": 1, "weekday": 1},
+      {"name": "Thanksgiving", "month": 10, "week": 2, "weekday": 1},
+      {"name": "Remembrance Day", "month": 11, "day": 11},
+      {"name": "Christmas Day", "month": 12, "day": 25},
+      {"name": "Boxing Day", "month": 12, "day": 26}
+    ],
+    "BR": [
+      {"name": "Confraterniza\u00e7\u00e3o Universal", "month": 1, "day": 1},
+      {"name": "Carnaval", "easterOffset": -47},
+      {"name": "Sexta-feira Santa", "easterOffset": -2},
+      {"name": "Tiradentes", "month": 4, "day": 21},
+      {"name": "Dia do Trabalho", "month": 5, "day": 1},
+      {"name": "Corpus Christi", "easterOffset": 60},
+      {"name": "Independ\u00eancia do Brasil", "month": 9, "day": 7},
+      {"name": "Nossa Senhora Aparecida", "month": 10, "day": 12},
+      {"name": "Finados", "month": 11, "day": 2},
+      {"name": "Proclama\u00e7\u00e3o da Rep\u00fablica", "month": 11, "day": 15},
+      {"name": "Natal", "month": 12, "day": 25}
+    ],
+    "MX": [
+      {"name": "A\u00f1o Nuevo", "month": 1, "day": 1},
+      {"name": "D\u00eda de la Constituci\u00f3n", "month": 2, "week": 1, "weekday": 1},
+      {"name": "Natalicio de Benito Ju\u00e1rez", "month": 3, "week": 3, "weekday": 1},
+      {"name": "D\u00eda del Trabajo", "month": 5, "day": 1},
+      {"name": "D\u00eda de la Independencia", "month": 9, "day": 16},
+      {"name": "D\u00eda de la Revoluci\u00f3n", "month": 11, "week": 3, "weekday": 1},
+      {"name": "Navidad", "month": 12, "day": 25}
+    ]
+  }
+}
