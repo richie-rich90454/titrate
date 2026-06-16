@@ -1,0 +1,336 @@
+// Series module: Taylor series, Laurent series, Pade approximants,
+// and asymptotic expansions using numerical differentiation.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// ==================== Helper: Factorial as double ====================
+
+fn factorialDouble(n: int): double {
+    var result: double = 1.0;
+    var i: int = 2;
+    while (i <= n) {
+        result = result * (i as double);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Helper: Numerical nth derivative ====================
+
+// Compute the nth numerical derivative of f at x using central differences
+fn numericalNthDerivative(f: fn(double): double, x: double, n: int, h: double): double {
+    if (n == 0) {
+        return f(x);
+    }
+    if (n == 1) {
+        return (f(x + h) - f(x - h)) / (2.0 * h);
+    }
+    if (n == 2) {
+        return (f(x + h) - 2.0 * f(x) + f(x - h)) / (h * h);
+    }
+    // For higher derivatives, use recursive central difference
+    // f^(n)(x) ≈ (f^(n-1)(x + h) - f^(n-1)(x - h)) / (2*h)
+    let fPrev: fn(double): double = fn(t: double): double {
+        return numericalNthDerivative(f, t, n - 1, h);
+    };
+    return (fPrev(x + h) - fPrev(x - h)) / (2.0 * h);
+}
+
+// ==================== Taylor Series ====================
+
+// Compute Taylor series coefficients of f centered at `center` up to given `order`.
+// Uses numerical derivatives with step size h.
+// Returns coefficients [a0, a1, a2, ..., a_order] where:
+//   f(x) ≈ a0 + a1*(x-center) + a2*(x-center)^2 + ... + a_order*(x-center)^order
+//   a_k = f^(k)(center) / k!
+public fn taylorSeries(f: fn(double): double, center: double, order: int, h: double): ArrayList<double> {
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+    var k: int = 0;
+    while (k <= order) {
+        let deriv: double = numericalNthDerivative(f, center, k, h);
+        let coeff: double = deriv / factorialDouble(k);
+        coeffs.add(coeff);
+        k = k + 1;
+    }
+    return coeffs;
+}
+
+// ==================== Taylor Polynomial Evaluation ====================
+
+// Evaluate a Taylor polynomial given coefficients, center, and evaluation point.
+// Uses Horner's method for numerical stability.
+// coeffs = [a0, a1, a2, ..., an] representing sum(a_k * (x-center)^k)
+public fn taylorEvaluate(coeffs: ArrayList<double>, center: double, x: double): double {
+    let n: int = coeffs.size();
+    if (n == 0) {
+        return 0.0;
+    }
+    let dx: double = x - center;
+    // Horner's method: a0 + dx*(a1 + dx*(a2 + dx*(... + dx*an)))
+    var result: double = coeffs.get(n - 1);
+    var i: int = n - 2;
+    while (i >= 0) {
+        result = result * dx + coeffs.get(i);
+        i = i - 1;
+    }
+    return result;
+}
+
+// ==================== Laurent Series ====================
+
+// Compute Laurent series coefficients for f around `center`.
+// Returns coefficients for both negative and positive powers.
+// The returned ArrayList has 2*order+1 entries:
+//   [a_{-order}, a_{-order+1}, ..., a_{-1}, a_0, a_1, ..., a_order]
+// where f(x) ≈ sum_{k=-order}^{order} a_k * (x-center)^k
+//
+// For the negative power coefficients, we compute them by evaluating
+// f(x) * (x-center)^m and extracting the Taylor coefficient of (x-center)^0.
+public fn laurentSeries(f: fn(double): double, center: double, order: int, h: double): ArrayList<double> {
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+
+    // Negative power coefficients: a_{-m} for m = order down to 1
+    // a_{-m} is the coefficient of (x-center)^{-m} in the Laurent expansion.
+    // We compute: a_{-m} = (1/m!) * d^m/dx^m [(x-center)^m * f(x)] evaluated at center
+    // But this requires differentiating a product, so we use a numerical approach:
+    // g_m(x) = (x - center)^m * f(x), then a_{-m} = g_m^(m)(center) / m!
+    var m: int = order;
+    while (m >= 1) {
+        let mm: int = m;
+        let gm: fn(double): double = fn(x: double): double {
+            return MathAdvanced.pow(x - center, mm as double) * f(x);
+        };
+        let deriv: double = numericalNthDerivative(gm, center, mm, h);
+        let coeff: double = deriv / factorialDouble(mm);
+        coeffs.add(coeff);
+        m = m - 1;
+    }
+
+    // Non-negative power coefficients: a_0, a_1, ..., a_order
+    // These are the standard Taylor coefficients
+    var k: int = 0;
+    while (k <= order) {
+        let deriv: double = numericalNthDerivative(f, center, k, h);
+        let coeff: double = deriv / factorialDouble(k);
+        coeffs.add(coeff);
+        k = k + 1;
+    }
+
+    return coeffs;
+}
+
+// ==================== Pade Approximation ====================
+
+// Compute the Pade approximant [m/n] for a function given its Taylor coefficients.
+// Returns a Pair of (numerator_coeffs, denominator_coeffs) where:
+//   numerator has m+1 coefficients: [p0, p1, ..., pm]
+//   denominator has n+1 coefficients: [q0, q1, ..., qn] with q0 = 1
+//
+// The Pade approximant is: P(x)/Q(x) where
+//   P(x) = p0 + p1*x + ... + pm*x^m
+//   Q(x) = 1 + q1*x + ... + qn*x^n
+//
+// Uses the direct linear algebra approach (solving the denominator system first).
+public fn padeApproximation(coeffs: ArrayList<double>, m: int, n: int): Pair<ArrayList<double>, ArrayList<double>> {
+    // The Pade [m/n] conditions give:
+    // sum_{j=0}^{m} p_j * c_{i-j} = 0  for i = m+1, ..., m+n
+    // where c_k = 0 for k < 0 and c_k = coeffs[k] for k >= 0
+    // This gives a linear system for q_1, ..., q_n
+
+    // Build the system for denominator coefficients q1, ..., qn
+    // A * q = -b where A is n x n, q = [q1, ..., qn], b = [c_{m+1}, ..., c_{m+n}]
+    // A[i][j] = c_{m+1+i-j} for i=0..n-1, j=0..n-1
+
+    let numCoeffs: ArrayList<double> = new ArrayList<double>();
+    let denCoeffs: ArrayList<double> = new ArrayList<double>();
+
+    if (n == 0) {
+        // Trivial case: denominator is just 1
+        var i: int = 0;
+        while (i <= m && i < coeffs.size()) {
+            numCoeffs.add(coeffs.get(i));
+            i = i + 1;
+        }
+        while (numCoeffs.size() <= m) {
+            numCoeffs.add(0.0);
+        }
+        denCoeffs.add(1.0);
+        return new Pair<ArrayList<double>, ArrayList<double>>(numCoeffs, denCoeffs);
+    }
+
+    // Solve for denominator coefficients using Gaussian elimination
+    // Augmented matrix: n rows, n+1 columns
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            let idx: int = m + 1 + i - j;
+            if (idx >= 0 && idx < coeffs.size()) {
+                row.add(coeffs.get(idx));
+            } else {
+                row.add(0.0);
+            }
+            j = j + 1;
+        }
+        // Right-hand side
+        let rhsIdx: int = m + 1 + i;
+        if (rhsIdx < coeffs.size()) {
+            row.add(-coeffs.get(rhsIdx));
+        } else {
+            row.add(0.0);
+        }
+        aug.add(row);
+        i = i + 1;
+    }
+
+    // Gaussian elimination with partial pivoting
+    var col: int = 0;
+    while (col < n) {
+        // Find pivot
+        var maxRow: int = col;
+        var maxVal: double = Math.abs(aug.get(col).get(col));
+        var k: int = col + 1;
+        while (k < n) {
+            let val: double = Math.abs(aug.get(k).get(col));
+            if (val > maxVal) {
+                maxVal = val;
+                maxRow = k;
+            }
+            k = k + 1;
+        }
+
+        // Swap rows
+        if (maxRow != col) {
+            let temp: ArrayList<double> = aug.get(col);
+            aug.set(col, aug.get(maxRow));
+            aug.set(maxRow, temp);
+        }
+
+        // Eliminate below
+        if (Math.abs(aug.get(col).get(col)) > 1e-15) {
+            var k: int = col + 1;
+            while (k < n) {
+                let factor: double = aug.get(k).get(col) / aug.get(col).get(col);
+                var jj: int = col;
+                while (jj <= n) {
+                    aug.get(k).set(jj, aug.get(k).get(jj) - factor * aug.get(col).get(jj));
+                    jj = jj + 1;
+                }
+                k = k + 1;
+            }
+        }
+        col = col + 1;
+    }
+
+    // Back substitution
+    let q: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        q.add(0.0);
+        i = i + 1;
+    }
+
+    i = n - 1;
+    while (i >= 0) {
+        var sum: double = aug.get(i).get(n);
+        var j: int = i + 1;
+        while (j < n) {
+            sum = sum - aug.get(i).get(j) * q.get(j);
+            j = j + 1;
+        }
+        if (Math.abs(aug.get(i).get(i)) > 1e-15) {
+            q.set(i, sum / aug.get(i).get(i));
+        } else {
+            q.set(i, 0.0);
+        }
+        i = i - 1;
+    }
+
+    // Compute numerator coefficients
+    // p_k = c_k + sum_{j=1}^{min(k,n)} q_j * c_{k-j}  for k = 0, ..., m
+    var k: int = 0;
+    while (k <= m) {
+        var pk: double = 0.0;
+        if (k < coeffs.size()) {
+            pk = coeffs.get(k);
+        }
+        var j: int = 1;
+        while (j <= k && j <= n) {
+            let cIdx: int = k - j;
+            if (cIdx >= 0 && cIdx < coeffs.size()) {
+                pk = pk + q.get(j - 1) * coeffs.get(cIdx);
+            }
+            j = j + 1;
+        }
+        numCoeffs.add(pk);
+        k = k + 1;
+    }
+
+    // Denominator coefficients: [1, q1, q2, ..., qn]
+    denCoeffs.add(1.0);
+    i = 0;
+    while (i < n) {
+        denCoeffs.add(q.get(i));
+        i = i + 1;
+    }
+
+    return new Pair<ArrayList<double>, ArrayList<double>>(numCoeffs, denCoeffs);
+}
+
+// ==================== Asymptotic Expansion ====================
+
+// Compute asymptotic expansion coefficients of f as x approaches `point`.
+// For point = infinity, computes expansion in 1/x.
+// Returns coefficients [a0, a1, a2, ..., a_order] where:
+//   f(x) ≈ a0 + a1/x + a2/x^2 + ... + a_order/x^order  (for point = INF)
+//   f(x) ≈ a0 + a1*(x-point) + a2*(x-point)^2 + ...  (for finite point)
+//
+// Uses numerical evaluation at large/small values to extract coefficients.
+public fn asymptoticExpansion(f: fn(double): double, point: double, order: int): ArrayList<double> {
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+    let inf: double = Math.INF();
+
+    if (point == inf || point > 1e100) {
+        // Expansion in powers of 1/x as x -> infinity
+        // Evaluate f at a large x, then use successive subtraction
+        let x0: double = 1e6;
+        var x: double = x0;
+
+        // a0 = lim_{x->inf} f(x)
+        let a0: double = f(x);
+        coeffs.add(a0);
+
+        // For higher coefficients, use finite differences on g(t) = f(1/t) near t=0
+        // g(t) = f(1/t), then expand g(t) as Taylor series near t=0
+        let g: fn(double): double = fn(t: double): double {
+            return f(1.0 / t);
+        };
+
+        // Use numerical derivatives of g at a small t
+        let t0: double = 1e-6;
+        let h: double = 1e-5;
+        var k: int = 1;
+        while (k <= order) {
+            let deriv: double = numericalNthDerivative(g, t0, k, h);
+            let coeff: double = deriv / factorialDouble(k);
+            coeffs.add(coeff);
+            k = k + 1;
+        }
+    } else {
+        // Expansion near a finite point using Taylor-like expansion
+        let h: double = 1e-4;
+        var k: int = 0;
+        while (k <= order) {
+            let deriv: double = numericalNthDerivative(f, point, k, h);
+            let coeff: double = deriv / factorialDouble(k);
+            coeffs.add(coeff);
+            k = k + 1;
+        }
+    }
+
+    return coeffs;
+}

@@ -1,0 +1,711 @@
+// Symbolic module: symbolic differentiation and expression manipulation.
+// Provides an expression tree (Expr), symbolic differentiation, simplification,
+// expansion, substitution, evaluation, and string conversion.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::util::Integer;
+import tt::util::Double;
+
+// ==================== Expression Type Constants ====================
+
+const TYPE_CONST: int = 0;
+const TYPE_VAR: int = 1;
+const TYPE_ADD: int = 2;
+const TYPE_SUB: int = 3;
+const TYPE_MUL: int = 4;
+const TYPE_DIV: int = 5;
+const TYPE_POW: int = 6;
+const TYPE_NEG: int = 7;
+const TYPE_SIN: int = 8;
+const TYPE_COS: int = 9;
+const TYPE_EXP: int = 10;
+const TYPE_LN: int = 11;
+const TYPE_SQRT: int = 12;
+
+// ==================== Expr Class ====================
+
+// Symbolic expression tree node.
+// type: one of TYPE_CONST, TYPE_VAR, TYPE_ADD, ..., TYPE_SQRT
+// value: used for TYPE_CONST (the numeric value)
+// name: used for TYPE_VAR (the variable name)
+// left, right: child expressions for binary ops (Add, Sub, Mul, Div, Pow)
+// child: single child for unary ops (Neg, Sin, Cos, Exp, Ln, Sqrt)
+public class Expr {
+    public int type;
+    public double value;
+    public string name;
+    public Expr left;
+    public Expr right;
+    public Expr child;
+
+    public fn init() {
+        this.type = TYPE_CONST;
+        this.value = 0.0;
+        this.name = "";
+        this.left = null;
+        this.right = null;
+        this.child = null;
+    }
+}
+
+// ==================== Expression Constructors ====================
+
+// Create a constant expression
+public fn constExpr(value: double): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_CONST;
+    e.value = value;
+    return e;
+}
+
+// Create a variable expression
+public fn varExpr(name: string): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_VAR;
+    e.name = name;
+    return e;
+}
+
+// Create an addition expression
+public fn addExpr(left: Expr, right: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_ADD;
+    e.left = left;
+    e.right = right;
+    return e;
+}
+
+// Create a subtraction expression
+public fn subExpr(left: Expr, right: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_SUB;
+    e.left = left;
+    e.right = right;
+    return e;
+}
+
+// Create a multiplication expression
+public fn mulExpr(left: Expr, right: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_MUL;
+    e.left = left;
+    e.right = right;
+    return e;
+}
+
+// Create a division expression
+public fn divExpr(left: Expr, right: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_DIV;
+    e.left = left;
+    e.right = right;
+    return e;
+}
+
+// Create a power expression
+public fn powExpr(base: Expr, exponent: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_POW;
+    e.left = base;
+    e.right = exponent;
+    return e;
+}
+
+// Create a negation expression
+public fn negExpr(child: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_NEG;
+    e.child = child;
+    return e;
+}
+
+// Create a sine expression
+public fn sinExpr(child: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_SIN;
+    e.child = child;
+    return e;
+}
+
+// Create a cosine expression
+public fn cosExpr(child: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_COS;
+    e.child = child;
+    return e;
+}
+
+// Create an exponential expression
+public fn expExpr(child: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_EXP;
+    e.child = child;
+    return e;
+}
+
+// Create a natural logarithm expression
+public fn lnExpr(child: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_LN;
+    e.child = child;
+    return e;
+}
+
+// Create a square root expression
+public fn sqrtExpr(child: Expr): Expr {
+    let e: Expr = new Expr();
+    e.type = TYPE_SQRT;
+    e.child = child;
+    return e;
+}
+
+// ==================== Helper: Check if expression is constant ====================
+
+// Check if an expression is a constant (including compound constant expressions)
+fn isConst(expr: Expr): bool {
+    if (expr.type == TYPE_CONST) {
+        return true;
+    }
+    if (expr.type == TYPE_VAR) {
+        return false;
+    }
+    if (expr.type == TYPE_NEG || expr.type == TYPE_SIN || expr.type == TYPE_COS
+        || expr.type == TYPE_EXP || expr.type == TYPE_LN || expr.type == TYPE_SQRT) {
+        return isConst(expr.child);
+    }
+    if (expr.left != null && expr.right != null) {
+        return isConst(expr.left) && isConst(expr.right);
+    }
+    return false;
+}
+
+// ==================== Helper: Evaluate a constant expression ====================
+
+fn evalConst(expr: Expr): double {
+    if (expr.type == TYPE_CONST) {
+        return expr.value;
+    }
+    if (expr.type == TYPE_NEG) {
+        return -evalConst(expr.child);
+    }
+    if (expr.type == TYPE_SIN) {
+        return MathTrig.sin(evalConst(expr.child));
+    }
+    if (expr.type == TYPE_COS) {
+        return MathTrig.cos(evalConst(expr.child));
+    }
+    if (expr.type == TYPE_EXP) {
+        return MathAdvanced.exp(evalConst(expr.child));
+    }
+    if (expr.type == TYPE_LN) {
+        return MathAdvanced.ln(evalConst(expr.child));
+    }
+    if (expr.type == TYPE_SQRT) {
+        return MathAdvanced.sqrt(evalConst(expr.child));
+    }
+    if (expr.type == TYPE_ADD) {
+        return evalConst(expr.left) + evalConst(expr.right);
+    }
+    if (expr.type == TYPE_SUB) {
+        return evalConst(expr.left) - evalConst(expr.right);
+    }
+    if (expr.type == TYPE_MUL) {
+        return evalConst(expr.left) * evalConst(expr.right);
+    }
+    if (expr.type == TYPE_DIV) {
+        return evalConst(expr.left) / evalConst(expr.right);
+    }
+    if (expr.type == TYPE_POW) {
+        return MathAdvanced.pow(evalConst(expr.left), evalConst(expr.right));
+    }
+    return 0.0;
+}
+
+// ==================== Helper: Check if expression is zero ====================
+
+fn isZero(expr: Expr): bool {
+    if (expr.type == TYPE_CONST) {
+        return Math.abs(expr.value) < 1e-15;
+    }
+    return false;
+}
+
+// ==================== Helper: Check if expression is one ====================
+
+fn isOne(expr: Expr): bool {
+    if (expr.type == TYPE_CONST) {
+        return Math.abs(expr.value - 1.0) < 1e-15;
+    }
+    return false;
+}
+
+// ==================== Symbolic Differentiation ====================
+
+// Symbolically differentiate an expression with respect to a variable.
+// Applies standard differentiation rules:
+//   d/dx(c) = 0
+//   d/dx(x) = 1
+//   d/dx(y) = 0  (y != x)
+//   d/dx(f + g) = f' + g'
+//   d/dx(f - g) = f' - g'
+//   d/dx(f * g) = f'*g + f*g'
+//   d/dx(f / g) = (f'*g - f*g') / g^2
+//   d/dx(f ^ n) = n * f^(n-1) * f'  (when n is constant)
+//   d/dx(-f) = -f'
+//   d/dx(sin(f)) = cos(f) * f'
+//   d/dx(cos(f)) = -sin(f) * f'
+//   d/dx(exp(f)) = exp(f) * f'
+//   d/dx(ln(f)) = f' / f
+//   d/dx(sqrt(f)) = f' / (2 * sqrt(f))
+public fn differentiate(expr: Expr, var: string): Expr {
+    if (expr.type == TYPE_CONST) {
+        return constExpr(0.0);
+    }
+    if (expr.type == TYPE_VAR) {
+        if (expr.name == var) {
+            return constExpr(1.0);
+        }
+        return constExpr(0.0);
+    }
+    if (expr.type == TYPE_ADD) {
+        let dl: Expr = differentiate(expr.left, var);
+        let dr: Expr = differentiate(expr.right, var);
+        return addExpr(dl, dr);
+    }
+    if (expr.type == TYPE_SUB) {
+        let dl: Expr = differentiate(expr.left, var);
+        let dr: Expr = differentiate(expr.right, var);
+        return subExpr(dl, dr);
+    }
+    if (expr.type == TYPE_MUL) {
+        // Product rule: f'g + fg'
+        let f: Expr = expr.left;
+        let g: Expr = expr.right;
+        let df: Expr = differentiate(f, var);
+        let dg: Expr = differentiate(g, var);
+        return addExpr(mulExpr(df, g), mulExpr(f, dg));
+    }
+    if (expr.type == TYPE_DIV) {
+        // Quotient rule: (f'g - fg') / g^2
+        let f: Expr = expr.left;
+        let g: Expr = expr.right;
+        let df: Expr = differentiate(f, var);
+        let dg: Expr = differentiate(g, var);
+        return divExpr(subExpr(mulExpr(df, g), mulExpr(f, dg)),
+                       powExpr(g, constExpr(2.0)));
+    }
+    if (expr.type == TYPE_POW) {
+        let base: Expr = expr.left;
+        let exp: Expr = expr.right;
+        // If exponent is constant: n * base^(n-1) * base'
+        if (isConst(exp)) {
+            let n: Expr = exp;
+            let nMinus1: Expr = constExpr(evalConst(exp) - 1.0);
+            let dbase: Expr = differentiate(base, var);
+            return mulExpr(mulExpr(n, powExpr(base, nMinus1)), dbase);
+        }
+        // General case: d/dx(f^g) = f^g * (g' * ln(f) + g * f'/f)
+        let df: Expr = differentiate(base, var);
+        let dg: Expr = differentiate(exp, var);
+        return mulExpr(expr, addExpr(mulExpr(dg, lnExpr(base)),
+                                     mulExpr(exp, divExpr(df, base))));
+    }
+    if (expr.type == TYPE_NEG) {
+        let dc: Expr = differentiate(expr.child, var);
+        return negExpr(dc);
+    }
+    if (expr.type == TYPE_SIN) {
+        // d/dx(sin(u)) = cos(u) * u'
+        let u: Expr = expr.child;
+        let du: Expr = differentiate(u, var);
+        return mulExpr(cosExpr(u), du);
+    }
+    if (expr.type == TYPE_COS) {
+        // d/dx(cos(u)) = -sin(u) * u'
+        let u: Expr = expr.child;
+        let du: Expr = differentiate(u, var);
+        return mulExpr(negExpr(sinExpr(u)), du);
+    }
+    if (expr.type == TYPE_EXP) {
+        // d/dx(exp(u)) = exp(u) * u'
+        let u: Expr = expr.child;
+        let du: Expr = differentiate(u, var);
+        return mulExpr(expExpr(u), du);
+    }
+    if (expr.type == TYPE_LN) {
+        // d/dx(ln(u)) = u' / u
+        let u: Expr = expr.child;
+        let du: Expr = differentiate(u, var);
+        return divExpr(du, u);
+    }
+    if (expr.type == TYPE_SQRT) {
+        // d/dx(sqrt(u)) = u' / (2 * sqrt(u))
+        let u: Expr = expr.child;
+        let du: Expr = differentiate(u, var);
+        return divExpr(du, mulExpr(constExpr(2.0), sqrtExpr(u)));
+    }
+    return constExpr(0.0);
+}
+
+// ==================== Simplification ====================
+
+// Apply basic simplification rules to an expression.
+// Rules include: constant folding, identity elimination (x+0, x*1, x*0, x^1, x^0),
+// double negation, and recursive simplification of children.
+public fn simplify(expr: Expr): Expr {
+    if (expr.type == TYPE_CONST || expr.type == TYPE_VAR) {
+        return expr;
+    }
+
+    if (expr.type == TYPE_NEG) {
+        let c: Expr = simplify(expr.child);
+        // Double negation: -(-x) = x
+        if (c.type == TYPE_NEG) {
+            return c.child;
+        }
+        // Negate constant
+        if (c.type == TYPE_CONST) {
+            return constExpr(-c.value);
+        }
+        return negExpr(c);
+    }
+
+    if (expr.type == TYPE_SIN || expr.type == TYPE_COS
+        || expr.type == TYPE_EXP || expr.type == TYPE_LN || expr.type == TYPE_SQRT) {
+        let c: Expr = simplify(expr.child);
+        // Fold constant
+        if (isConst(c)) {
+            let val: double;
+            if (expr.type == TYPE_SIN) {
+                val = MathTrig.sin(evalConst(c));
+            } else {
+                if (expr.type == TYPE_COS) {
+                    val = MathTrig.cos(evalConst(c));
+                } else {
+                    if (expr.type == TYPE_EXP) {
+                        val = MathAdvanced.exp(evalConst(c));
+                    } else {
+                        if (expr.type == TYPE_LN) {
+                            val = MathAdvanced.ln(evalConst(c));
+                        } else {
+                            val = MathAdvanced.sqrt(evalConst(c));
+                        }
+                    }
+                }
+            }
+            return constExpr(val);
+        }
+        let result: Expr = new Expr();
+        result.type = expr.type;
+        result.child = c;
+        return result;
+    }
+
+    // Binary operations
+    let l: Expr = simplify(expr.left);
+    let r: Expr = simplify(expr.right);
+
+    // Constant folding
+    if (isConst(l) && isConst(r)) {
+        let lv: double = evalConst(l);
+        let rv: double = evalConst(r);
+        if (expr.type == TYPE_ADD) {
+            return constExpr(lv + rv);
+        }
+        if (expr.type == TYPE_SUB) {
+            return constExpr(lv - rv);
+        }
+        if (expr.type == TYPE_MUL) {
+            return constExpr(lv * rv);
+        }
+        if (expr.type == TYPE_DIV) {
+            if (Math.abs(rv) < 1e-15) {
+                return divExpr(l, r);
+            }
+            return constExpr(lv / rv);
+        }
+        if (expr.type == TYPE_POW) {
+            return constExpr(MathAdvanced.pow(lv, rv));
+        }
+    }
+
+    if (expr.type == TYPE_ADD) {
+        // x + 0 = x
+        if (isZero(r)) {
+            return l;
+        }
+        // 0 + x = x
+        if (isZero(l)) {
+            return r;
+        }
+        return addExpr(l, r);
+    }
+
+    if (expr.type == TYPE_SUB) {
+        // x - 0 = x
+        if (isZero(r)) {
+            return l;
+        }
+        // x - x = 0
+        if (exprToString(l) == exprToString(r)) {
+            return constExpr(0.0);
+        }
+        return subExpr(l, r);
+    }
+
+    if (expr.type == TYPE_MUL) {
+        // x * 0 = 0
+        if (isZero(l) || isZero(r)) {
+            return constExpr(0.0);
+        }
+        // x * 1 = x
+        if (isOne(r)) {
+            return l;
+        }
+        // 1 * x = x
+        if (isOne(l)) {
+            return r;
+        }
+        // -1 * x = -x
+        if (l.type == TYPE_CONST && Math.abs(l.value + 1.0) < 1e-15) {
+            return negExpr(r);
+        }
+        return mulExpr(l, r);
+    }
+
+    if (expr.type == TYPE_DIV) {
+        // 0 / x = 0
+        if (isZero(l)) {
+            return constExpr(0.0);
+        }
+        // x / 1 = x
+        if (isOne(r)) {
+            return l;
+        }
+        return divExpr(l, r);
+    }
+
+    if (expr.type == TYPE_POW) {
+        // x ^ 0 = 1
+        if (isZero(r)) {
+            return constExpr(1.0);
+        }
+        // x ^ 1 = x
+        if (isOne(r)) {
+            return l;
+        }
+        return powExpr(l, r);
+    }
+
+    return expr;
+}
+
+// ==================== Expansion ====================
+
+// Expand products in an expression.
+// Applies distributive law: a*(b+c) = a*b + a*c
+// Recursively expands children first.
+public fn expand(expr: Expr): Expr {
+    if (expr.type == TYPE_CONST || expr.type == TYPE_VAR) {
+        return expr;
+    }
+
+    if (expr.type == TYPE_NEG) {
+        return negExpr(expand(expr.child));
+    }
+
+    if (expr.type == TYPE_SIN || expr.type == TYPE_COS
+        || expr.type == TYPE_EXP || expr.type == TYPE_LN || expr.type == TYPE_SQRT) {
+        let c: Expr = expand(expr.child);
+        let result: Expr = new Expr();
+        result.type = expr.type;
+        result.child = c;
+        return result;
+    }
+
+    if (expr.type == TYPE_ADD) {
+        return addExpr(expand(expr.left), expand(expr.right));
+    }
+
+    if (expr.type == TYPE_SUB) {
+        return subExpr(expand(expr.left), expand(expr.right));
+    }
+
+    if (expr.type == TYPE_DIV) {
+        return divExpr(expand(expr.left), expand(expr.right));
+    }
+
+    if (expr.type == TYPE_POW) {
+        return powExpr(expand(expr.left), expand(expr.right));
+    }
+
+    if (expr.type == TYPE_MUL) {
+        let l: Expr = expand(expr.left);
+        let r: Expr = expand(expr.right);
+
+        // Distribute: a * (b + c) = a*b + a*c
+        if (r.type == TYPE_ADD) {
+            return addExpr(expand(mulExpr(l, r.left)), expand(mulExpr(l, r.right)));
+        }
+        // Distribute: (a + b) * c = a*c + b*c
+        if (l.type == TYPE_ADD) {
+            return addExpr(expand(mulExpr(l.left, r)), expand(mulExpr(l.right, r)));
+        }
+        // Distribute: a * (b - c) = a*b - a*c
+        if (r.type == TYPE_SUB) {
+            return subExpr(expand(mulExpr(l, r.left)), expand(mulExpr(l, r.right)));
+        }
+        // Distribute: (a - b) * c = a*c - b*c
+        if (l.type == TYPE_SUB) {
+            return subExpr(expand(mulExpr(l.left, r)), expand(mulExpr(l.right, r)));
+        }
+        // Negation: a * (-b) = -(a*b), (-a) * b = -(a*b)
+        if (r.type == TYPE_NEG) {
+            return negExpr(expand(mulExpr(l, r.child)));
+        }
+        if (l.type == TYPE_NEG) {
+            return negExpr(expand(mulExpr(l.child, r)));
+        }
+
+        return mulExpr(l, r);
+    }
+
+    return expr;
+}
+
+// ==================== Substitution ====================
+
+// Substitute all occurrences of a variable with an expression.
+// Replaces every Var node named `var` with `value`.
+public fn substitute(expr: Expr, var: string, value: Expr): Expr {
+    if (expr.type == TYPE_CONST) {
+        return expr;
+    }
+    if (expr.type == TYPE_VAR) {
+        if (expr.name == var) {
+            return value;
+        }
+        return expr;
+    }
+    if (expr.type == TYPE_NEG || expr.type == TYPE_SIN || expr.type == TYPE_COS
+        || expr.type == TYPE_EXP || expr.type == TYPE_LN || expr.type == TYPE_SQRT) {
+        let c: Expr = substitute(expr.child, var, value);
+        let result: Expr = new Expr();
+        result.type = expr.type;
+        result.child = c;
+        return result;
+    }
+    if (expr.type == TYPE_ADD || expr.type == TYPE_SUB
+        || expr.type == TYPE_MUL || expr.type == TYPE_DIV || expr.type == TYPE_POW) {
+        let l: Expr = substitute(expr.left, var, value);
+        let r: Expr = substitute(expr.right, var, value);
+        let result: Expr = new Expr();
+        result.type = expr.type;
+        result.left = l;
+        result.right = r;
+        return result;
+    }
+    return expr;
+}
+
+// ==================== Evaluation ====================
+
+// Evaluate an expression by substituting variable values from a HashMap.
+// All variables in the expression must have corresponding entries in the map.
+public fn evaluate(expr: Expr, vars: HashMap<string, double>): double {
+    if (expr.type == TYPE_CONST) {
+        return expr.value;
+    }
+    if (expr.type == TYPE_VAR) {
+        return vars.get(expr.name);
+    }
+    if (expr.type == TYPE_ADD) {
+        return evaluate(expr.left, vars) + evaluate(expr.right, vars);
+    }
+    if (expr.type == TYPE_SUB) {
+        return evaluate(expr.left, vars) - evaluate(expr.right, vars);
+    }
+    if (expr.type == TYPE_MUL) {
+        return evaluate(expr.left, vars) * evaluate(expr.right, vars);
+    }
+    if (expr.type == TYPE_DIV) {
+        return evaluate(expr.left, vars) / evaluate(expr.right, vars);
+    }
+    if (expr.type == TYPE_POW) {
+        return MathAdvanced.pow(evaluate(expr.left, vars), evaluate(expr.right, vars));
+    }
+    if (expr.type == TYPE_NEG) {
+        return -evaluate(expr.child, vars);
+    }
+    if (expr.type == TYPE_SIN) {
+        return MathTrig.sin(evaluate(expr.child, vars));
+    }
+    if (expr.type == TYPE_COS) {
+        return MathTrig.cos(evaluate(expr.child, vars));
+    }
+    if (expr.type == TYPE_EXP) {
+        return MathAdvanced.exp(evaluate(expr.child, vars));
+    }
+    if (expr.type == TYPE_LN) {
+        return MathAdvanced.ln(evaluate(expr.child, vars));
+    }
+    if (expr.type == TYPE_SQRT) {
+        return MathAdvanced.sqrt(evaluate(expr.child, vars));
+    }
+    return 0.0;
+}
+
+// ==================== Expression to String ====================
+
+// Convert an expression to a human-readable string representation.
+public fn exprToString(expr: Expr): string {
+    if (expr.type == TYPE_CONST) {
+        // Format the constant value
+        let v: double = expr.value;
+        // Check if it's an integer value
+        if (v == Math.floor(v) && Math.abs(v) < 1e15) {
+            return Integer.toString(v as int);
+        }
+        return Double.toString(v);
+    }
+    if (expr.type == TYPE_VAR) {
+        return expr.name;
+    }
+    if (expr.type == TYPE_ADD) {
+        return "(" + exprToString(expr.left) + " + " + exprToString(expr.right) + ")";
+    }
+    if (expr.type == TYPE_SUB) {
+        return "(" + exprToString(expr.left) + " - " + exprToString(expr.right) + ")";
+    }
+    if (expr.type == TYPE_MUL) {
+        return "(" + exprToString(expr.left) + " * " + exprToString(expr.right) + ")";
+    }
+    if (expr.type == TYPE_DIV) {
+        return "(" + exprToString(expr.left) + " / " + exprToString(expr.right) + ")";
+    }
+    if (expr.type == TYPE_POW) {
+        return "(" + exprToString(expr.left) + " ^ " + exprToString(expr.right) + ")";
+    }
+    if (expr.type == TYPE_NEG) {
+        return "(-" + exprToString(expr.child) + ")";
+    }
+    if (expr.type == TYPE_SIN) {
+        return "sin(" + exprToString(expr.child) + ")";
+    }
+    if (expr.type == TYPE_COS) {
+        return "cos(" + exprToString(expr.child) + ")";
+    }
+    if (expr.type == TYPE_EXP) {
+        return "exp(" + exprToString(expr.child) + ")";
+    }
+    if (expr.type == TYPE_LN) {
+        return "ln(" + exprToString(expr.child) + ")";
+    }
+    if (expr.type == TYPE_SQRT) {
+        return "sqrt(" + exprToString(expr.child) + ")";
+    }
+    return "?";
+}
