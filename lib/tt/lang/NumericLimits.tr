@@ -1,57 +1,127 @@
 // Numeric limits constants and query functions for Titrate numeric types.
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _limitsCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _limitsLoaded: bool = false;
+
+fn _ensureLimitsLoaded(): void {
+    if (_limitsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("lang/numeric_limits.json");
+    if (data.isNull() || !data.isObject()) {
+        _limitsLoaded = true;
+        return;
+    }
+    if (!data.hasKey("limits")) {
+        _limitsLoaded = true;
+        return;
+    }
+    let limits: JsonValue = data.get("limits");
+    if (!limits.isObject()) {
+        _limitsLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = limits.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: JsonValue = limits.get(key);
+        _limitsCache.put(key, val);
+        i = i + 1;
+    }
+    _limitsLoaded = true;
+}
+
+fn _getLimitInt(typeName: string, field: string, defaultVal: int): int {
+    _ensureLimitsLoaded();
+    if (_limitsCache.containsKey(typeName)) {
+        let entry: JsonValue = _limitsCache.get(typeName);
+        if (entry.isObject() && entry.hasKey(field)) {
+            return entry.get(field).asNumber() as int;
+        }
+    }
+    return defaultVal;
+}
+
+fn _getLimitLong(typeName: string, field: string, defaultVal: long): long {
+    _ensureLimitsLoaded();
+    if (_limitsCache.containsKey(typeName)) {
+        let entry: JsonValue = _limitsCache.get(typeName);
+        if (entry.isObject() && entry.hasKey(field)) {
+            return entry.get(field).asNumber() as long;
+        }
+    }
+    return defaultVal;
+}
+
+fn _getLimitDouble(typeName: string, field: string, defaultVal: double): double {
+    _ensureLimitsLoaded();
+    if (_limitsCache.containsKey(typeName)) {
+        let entry: JsonValue = _limitsCache.get(typeName);
+        if (entry.isObject() && entry.hasKey(field)) {
+            return entry.get(field).asNumber();
+        }
+    }
+    return defaultVal;
+}
 
 // Integer limits
-public const INT_MAX: int = 2147483647;
-public const INT_MIN: int = -2147483648;
-public const LONG_MAX: long = 9223372036854775807;
-public const LONG_MIN: long = -9223372036854775808;
+public const INT_MAX: int = _getLimitInt("int", "max", 2147483647);
+public const INT_MIN: int = _getLimitInt("int", "min", -2147483648);
+public const LONG_MAX: long = _getLimitLong("long", "max", 9223372036854775807);
+public const LONG_MIN: long = _getLimitLong("long", "min", -9223372036854775808);
 
 // Floating-point limits
-public const DOUBLE_MAX: double = 1.7976931348623157e+308;
-public const DOUBLE_MIN: double = 4.9e-324;
-public const DOUBLE_EPSILON: double = 2.220446049250313e-16;
+public const DOUBLE_MAX: double = _getLimitDouble("double", "max", 1.7976931348623157e+308);
+public const DOUBLE_MIN: double = _getLimitDouble("double", "min", 4.9e-324);
+public const DOUBLE_EPSILON: double = _getLimitDouble("double", "epsilon", 2.220446049250313e-16);
 public const DOUBLE_NAN: double = 0.0 / 0.0;
 public const DOUBLE_INF: double = 1.0 / 0.0;
 public const DOUBLE_NEG_INF: double = -1.0 / 0.0;
 
-public const FLOAT_MAX: double = 3.4028234663852886e+38;
-public const FLOAT_MIN: double = 1.1754943508222875e-38;
-public const FLOAT_EPSILON: double = 1.1920928955078125e-07;
+public const FLOAT_MAX: double = _getLimitDouble("float", "max", 3.4028234663852886e+38);
+public const FLOAT_MIN: double = _getLimitDouble("float", "min", 1.1754943508222875e-38);
+public const FLOAT_EPSILON: double = _getLimitDouble("float", "epsilon", 1.1920928955078125e-07);
 
 // Byte and Short limits
-public const BYTE_MAX: int = 127;
-public const BYTE_MIN: int = -128;
-public const SHORT_MAX: int = 32767;
-public const SHORT_MIN: int = -32768;
+public const BYTE_MAX: int = _getLimitInt("byte", "max", 127);
+public const BYTE_MIN: int = _getLimitInt("byte", "min", -128);
+public const SHORT_MAX: int = _getLimitInt("short", "max", 32767);
+public const SHORT_MIN: int = _getLimitInt("short", "min", -32768);
 
 // Integer query functions
 public fn intMax(): int {
-    return INT_MAX;
+    return _getLimitInt("int", "max", 2147483647);
 }
 
 public fn intMin(): int {
-    return INT_MIN;
+    return _getLimitInt("int", "min", -2147483648);
 }
 
 public fn longMax(): long {
-    return LONG_MAX;
+    return _getLimitLong("long", "max", 9223372036854775807);
 }
 
 public fn longMin(): long {
-    return LONG_MIN;
+    return _getLimitLong("long", "min", -9223372036854775808);
 }
 
 // Double query functions
 public fn doubleMax(): double {
-    return DOUBLE_MAX;
+    return _getLimitDouble("double", "max", 1.7976931348623157e+308);
 }
 
 public fn doubleMin(): double {
-    return DOUBLE_MIN;
+    return _getLimitDouble("double", "min", 4.9e-324);
 }
 
 public fn doubleEpsilon(): double {
-    return DOUBLE_EPSILON;
+    return _getLimitDouble("double", "epsilon", 2.220446049250313e-16);
 }
 
 public fn doubleNaN(): double {
@@ -68,49 +138,49 @@ public fn doubleNegInf(): double {
 
 // Float query functions
 public fn floatMax(): double {
-    return FLOAT_MAX;
+    return _getLimitDouble("float", "max", 3.4028234663852886e+38);
 }
 
 public fn floatMin(): double {
-    return FLOAT_MIN;
+    return _getLimitDouble("float", "min", 1.1754943508222875e-38);
 }
 
 public fn floatEpsilon(): double {
-    return FLOAT_EPSILON;
+    return _getLimitDouble("float", "epsilon", 1.1920928955078125e-07);
 }
 
 // Byte and Short query functions
 public fn byteMax(): int {
-    return BYTE_MAX;
+    return _getLimitInt("byte", "max", 127);
 }
 
 public fn byteMin(): int {
-    return BYTE_MIN;
+    return _getLimitInt("byte", "min", -128);
 }
 
 public fn shortMax(): int {
-    return SHORT_MAX;
+    return _getLimitInt("short", "max", 32767);
 }
 
 public fn shortMin(): int {
-    return SHORT_MIN;
+    return _getLimitInt("short", "min", -32768);
 }
 
 // Half (16-bit float) limits
-public const HALF_MAX: double = 65504.0;
-public const HALF_MIN: double = 5.960464477539063e-08;
-public const HALF_EPSILON: double = 9.765625e-04;
+public const HALF_MAX: double = _getLimitDouble("half", "max", 65504.0);
+public const HALF_MIN: double = _getLimitDouble("half", "min", 5.960464477539063e-08);
+public const HALF_EPSILON: double = _getLimitDouble("half", "epsilon", 9.765625e-04);
 
 // Quad (128-bit float) limits (approximate)
-public const QUAD_MAX: double = 1.189731495357231765e+4932;
-public const QUAD_MIN: double = 6.4751751194380251109e-4966;
-public const QUAD_EPSILON: double = 1.925929944387235853e-34;
+public const QUAD_MAX: double = _getLimitDouble("quad", "max", 1.189731495357231765e+4932);
+public const QUAD_MIN: double = _getLimitDouble("quad", "min", 6.4751751194380251109e-4966);
+public const QUAD_EPSILON: double = _getLimitDouble("quad", "epsilon", 1.925929944387235853e-34);
 
 // Unsigned integer limits
-public const U8_MAX: int = 255;
-public const U16_MAX: int = 65535;
-public const U32_MAX: long = 4294967295;
-public const U64_MAX: long = -1L;
+public const U8_MAX: int = _getLimitInt("u8", "max", 255);
+public const U16_MAX: int = _getLimitInt("u16", "max", 65535);
+public const U32_MAX: long = _getLimitLong("u32", "max", 4294967295);
+public const U64_MAX: long = _getLimitLong("u64", "max", -1L);
 
 // Classification functions
 public fn isFinite(x: double): bool {
@@ -136,45 +206,45 @@ public fn signbit(x: double): bool {
 
 // Half query functions
 public fn halfMax(): double {
-    return HALF_MAX;
+    return _getLimitDouble("half", "max", 65504.0);
 }
 
 public fn halfMin(): double {
-    return HALF_MIN;
+    return _getLimitDouble("half", "min", 5.960464477539063e-08);
 }
 
 public fn halfEpsilon(): double {
-    return HALF_EPSILON;
+    return _getLimitDouble("half", "epsilon", 9.765625e-04);
 }
 
 // Quad query functions
 public fn quadMax(): double {
-    return QUAD_MAX;
+    return _getLimitDouble("quad", "max", 1.189731495357231765e+4932);
 }
 
 public fn quadMin(): double {
-    return QUAD_MIN;
+    return _getLimitDouble("quad", "min", 6.4751751194380251109e-4966);
 }
 
 public fn quadEpsilon(): double {
-    return QUAD_EPSILON;
+    return _getLimitDouble("quad", "epsilon", 1.925929944387235853e-34);
 }
 
 // Unsigned integer query functions
 public fn u8Max(): int {
-    return U8_MAX;
+    return _getLimitInt("u8", "max", 255);
 }
 
 public fn u16Max(): int {
-    return U16_MAX;
+    return _getLimitInt("u16", "max", 65535);
 }
 
 public fn u32Max(): long {
-    return U32_MAX;
+    return _getLimitLong("u32", "max", 4294967295);
 }
 
 public fn u64Max(): long {
-    return U64_MAX;
+    return _getLimitLong("u64", "max", -1L);
 }
 
 // Additional classification functions
