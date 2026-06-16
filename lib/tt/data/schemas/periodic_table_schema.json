@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Periodic Table Data",
+  "description": "Schema for chem/periodic_table.json — all 118 elements with properties",
+  "type": "object",
+  "required": ["_meta", "elements"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["source", "version", "description"],
+      "properties": {
+        "source": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["symbol", "name", "number", "mass"],
+        "properties": {
+          "symbol": { "type": "string", "minLength": 1, "maxLength": 3 },
+          "name": { "type": "string" },
+          "number": { "type": "integer", "minimum": 1, "maximum": 118 },
+          "mass": { "type": "number", "minimum": 0 },
+          "radius": { "type": "number", "minimum": 0 },
+          "electronegativity": { "type": "number" },
+          "electronConfig": { "type": "string" },
+          "valence": { "type": "integer", "minimum": 0 },
+          "vdwRadius": { "type": "number", "minimum": 0 },
+          "covalentRadius": { "type": "number", "minimum": 0 },
+          "ionizationEnergy": { "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

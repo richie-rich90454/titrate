@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HTML Entities Data",
+  "description": "Schema for html/entities.json — HTML5 named character references",
+  "type": "object",
+  "required": ["_meta", "entities"],
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "required": ["source", "version", "description"],
+      "properties": {
+        "source": { "type": "string" },
+        "version": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "entities": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["codepoints"],
+        "properties": {
+          "codepoints": {
+            "type": "array",
+            "items": { "type": "integer", "minimum": 0 }
+          },
+          "characters": { "type": "string" }
+        }
+      }
+    }
+  }
+}
