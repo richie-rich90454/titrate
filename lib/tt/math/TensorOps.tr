@@ -1,0 +1,345 @@
+// TensorOps: tensor operations for flat-array-backed tensors.
+// Tensors are represented as flat ArrayList<double> with separate shape metadata.
+
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// --- Helper functions ---
+
+// Compute stride array for row-major order.
+fn _computeStrides(shape: ArrayList<int>): ArrayList<int> {
+    let ndim = shape.size();
+    let strides = new ArrayList<int>();
+    var i: int = 0;
+    while (i < ndim) {
+        strides.add(1);
+        i = i + 1;
+    }
+    i = ndim - 2;
+    while (i >= 0) {
+        strides.set(i, strides.get(i + 1) * shape.get(i + 1));
+        i = i - 1;
+    }
+    return strides;
+}
+
+// Convert multi-dimensional index to flat index.
+fn _flatIndex(shape: ArrayList<int>, indices: ArrayList<int>): int {
+    let strides = _computeStrides(shape);
+    let ndim = shape.size();
+    var flat: int = 0;
+    var i: int = 0;
+    while (i < ndim) {
+        flat = flat + indices.get(i) * strides.get(i);
+        i = i + 1;
+    }
+    return flat;
+}
+
+// Convert a flat index to multi-dimensional indices using the given strides.
+fn _unflatten(flat: int, strides: ArrayList<int>, ndim: int): ArrayList<int> {
+    let indices = new ArrayList<int>();
+    var r: int = flat;
+    var d: int = 0;
+    while (d < ndim) {
+        indices.add(r / strides.get(d));
+        r = r % strides.get(d);
+        d = d + 1;
+    }
+    return indices;
+}
+
+// --- Public tensor operations ---
+
+// Contract (sum over) two indices of a tensor.
+// The contracted axes must have the same dimension.
+public fn tensorContract(tensor: ArrayList<double>, shape: ArrayList<int>, axis1: int, axis2: int): ArrayList<double> {
+    let ndim = shape.size();
+    let contractSize = shape.get(axis1);
+
+    // Build result shape (original shape minus axis1 and axis2)
+    let resultShape = new ArrayList<int>();
+    var i: int = 0;
+    while (i < ndim) {
+        if (i != axis1 && i != axis2) {
+            resultShape.add(shape.get(i));
+        }
+        i = i + 1;
+    }
+
+    // Compute total result size
+    let resultNdim = resultShape.size();
+    var resultTotal: int = 1;
+    i = 0;
+    while (i < resultNdim) {
+        resultTotal = resultTotal * resultShape.get(i);
+        i = i + 1;
+    }
+
+    let result = new ArrayList<double>();
+    i = 0;
+    while (i < resultTotal) {
+        result.add(0.0);
+        i = i + 1;
+    }
+
+    let resultStrides = _computeStrides(resultShape);
+    i = 0;
+    while (i < resultTotal) {
+        let resultIndices = _unflatten(i, resultStrides, resultNdim);
+
+        // Build full indices for original tensor, inserting contracted axis value
+        var sum: double = 0.0;
+        var k: int = 0;
+        while (k < contractSize) {
+            let fullIndices = new ArrayList<int>();
+            var ri: int = 0;
+            var fi: int = 0;
+            while (fi < ndim) {
+                if (fi == axis1 || fi == axis2) {
+                    fullIndices.add(k);
+                } else {
+                    fullIndices.add(resultIndices.get(ri));
+                    ri = ri + 1;
+                }
+                fi = fi + 1;
+            }
+            sum = sum + tensor.get(_flatIndex(shape, fullIndices));
+            k = k + 1;
+        }
+
+        result.set(i, sum);
+        i = i + 1;
+    }
+
+    return result;
+}
+
+// Outer product of two tensors. Returns flat array with shape shapeA + shapeB.
+public fn tensorProduct(a: ArrayList<double>, shapeA: ArrayList<int>, b: ArrayList<double>, shapeB: ArrayList<int>): ArrayList<double> {
+    let result = new ArrayList<double>();
+    let totalA = a.size();
+    let totalB = b.size();
+    var i: int = 0;
+    while (i < totalA) {
+        var j: int = 0;
+        while (j < totalB) {
+            result.add(a.get(i) * b.get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Permute axes of a tensor according to the permutation array.
+// permutation[i] gives the old axis that becomes new axis i.
+public fn tensorPermute(tensor: ArrayList<double>, shape: ArrayList<int>, permutation: ArrayList<int>): ArrayList<double> {
+    let ndim = shape.size();
+
+    // Compute new shape
+    let newShape = new ArrayList<int>();
+    var i: int = 0;
+    while (i < ndim) {
+        newShape.add(shape.get(permutation.get(i)));
+        i = i + 1;
+    }
+
+    let newStrides = _computeStrides(newShape);
+    let totalSize = tensor.size();
+
+    let result = new ArrayList<double>();
+    i = 0;
+    while (i < totalSize) {
+        result.add(0.0);
+        i = i + 1;
+    }
+
+    i = 0;
+    while (i < totalSize) {
+        let newIndices = _unflatten(i, newStrides, ndim);
+
+        // Map to old indices: old_indices[permutation[j]] = new_indices[j]
+        let oldIndices = new ArrayList<int>();
+        var d: int = 0;
+        while (d < ndim) {
+            oldIndices.add(0);
+            d = d + 1;
+        }
+        d = 0;
+        while (d < ndim) {
+            oldIndices.set(permutation.get(d), newIndices.get(d));
+            d = d + 1;
+        }
+
+        result.set(i, tensor.get(_flatIndex(shape, oldIndices)));
+        i = i + 1;
+    }
+
+    return result;
+}
+
+// Transpose a 2D tensor (swap last two axes).
+public fn tensorTranspose(tensor: ArrayList<double>, shape: ArrayList<int>): ArrayList<double> {
+    let ndim = shape.size();
+    let permutation = new ArrayList<int>();
+    var i: int = 0;
+    while (i < ndim) {
+        permutation.add(i);
+        i = i + 1;
+    }
+    if (ndim >= 2) {
+        let tmp = permutation.get(ndim - 1);
+        permutation.set(ndim - 1, permutation.get(ndim - 2));
+        permutation.set(ndim - 2, tmp);
+    }
+    return tensorPermute(tensor, shape, permutation);
+}
+
+// Symmetrize a tensor: (T + T^T) / 2
+public fn tensorSymmetrize(tensor: ArrayList<double>, shape: ArrayList<int>): ArrayList<double> {
+    let transposed = tensorTranspose(tensor, shape);
+    let sum = tensorAdd(tensor, transposed);
+    return tensorScale(sum, 0.5);
+}
+
+// Antisymmetrize a tensor: (T - T^T) / 2
+public fn tensorAntisymmetrize(tensor: ArrayList<double>, shape: ArrayList<int>): ArrayList<double> {
+    let transposed = tensorTranspose(tensor, shape);
+    let diff = tensorSub(tensor, transposed);
+    return tensorScale(diff, 0.5);
+}
+
+// Trace of a 2D tensor (sum of diagonal elements).
+public fn tensorTrace(tensor: ArrayList<double>, shape: ArrayList<int>): double {
+    let rows = shape.get(0);
+    let cols = shape.get(1);
+    let n = Math.min(rows, cols);
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let indices = new ArrayList<int>();
+        indices.add(i);
+        indices.add(i);
+        sum = sum + tensor.get(_flatIndex(shape, indices));
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Frobenius norm: sqrt(sum of squares of all elements).
+public fn tensorNorm(tensor: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    let n = tensor.size();
+    while (i < n) {
+        let v = tensor.get(i);
+        sum = sum + v * v;
+        i = i + 1;
+    }
+    return MathAdvanced.sqrt(sum);
+}
+
+// Scale all elements by a scalar.
+public fn tensorScale(tensor: ArrayList<double>, scalar: double): ArrayList<double> {
+    let result = new ArrayList<double>();
+    var i: int = 0;
+    let n = tensor.size();
+    while (i < n) {
+        result.add(tensor.get(i) * scalar);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Element-wise addition of two tensors.
+public fn tensorAdd(a: ArrayList<double>, b: ArrayList<double>): ArrayList<double> {
+    let result = new ArrayList<double>();
+    var i: int = 0;
+    let n = a.size();
+    while (i < n) {
+        result.add(a.get(i) + b.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Element-wise subtraction of two tensors.
+public fn tensorSub(a: ArrayList<double>, b: ArrayList<double>): ArrayList<double> {
+    let result = new ArrayList<double>();
+    var i: int = 0;
+    let n = a.size();
+    while (i < n) {
+        result.add(a.get(i) - b.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Reshape a tensor (same total size). Returns a copy with the same flat data.
+public fn tensorReshape(tensor: ArrayList<double>, newShape: ArrayList<int>): ArrayList<double> {
+    let result = new ArrayList<double>();
+    var i: int = 0;
+    let n = tensor.size();
+    while (i < n) {
+        result.add(tensor.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Flatten a tensor. Returns as-is since the representation is already flat.
+public fn tensorFlatten(tensor: ArrayList<double>): ArrayList<double> {
+    return tensor;
+}
+
+// Slice a tensor along an axis at a given index.
+// Returns a tensor with the specified axis removed.
+public fn tensorSlice(tensor: ArrayList<double>, shape: ArrayList<int>, axis: int, index: int): ArrayList<double> {
+    let ndim = shape.size();
+
+    // Build result shape (original shape minus the sliced axis)
+    let resultShape = new ArrayList<int>();
+    var i: int = 0;
+    while (i < ndim) {
+        if (i != axis) {
+            resultShape.add(shape.get(i));
+        }
+        i = i + 1;
+    }
+
+    let resultNdim = resultShape.size();
+    var resultTotal: int = 1;
+    i = 0;
+    while (i < resultNdim) {
+        resultTotal = resultTotal * resultShape.get(i);
+        i = i + 1;
+    }
+
+    let resultStrides = _computeStrides(resultShape);
+    let result = new ArrayList<double>();
+    i = 0;
+    while (i < resultTotal) {
+        let resultIndices = _unflatten(i, resultStrides, resultNdim);
+
+        // Build full indices for original tensor by inserting the slice index at the axis position
+        let fullIndices = new ArrayList<int>();
+        var ri: int = 0;
+        var d: int = 0;
+        while (d < ndim) {
+            if (d == axis) {
+                fullIndices.add(index);
+            } else {
+                fullIndices.add(resultIndices.get(ri));
+                ri = ri + 1;
+            }
+            d = d + 1;
+        }
+
+        result.add(tensor.get(_flatIndex(shape, fullIndices)));
+        i = i + 1;
+    }
+
+    return result;
+}
