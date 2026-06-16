@@ -2,6 +2,49 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::io::File;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::lang::Integer;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _levelCache: HashMap<string, int> = new HashMap<string, int>();
+var _levelsLoaded: bool = false;
+
+fn _ensureLevelsLoaded(): void {
+    if (_levelsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("logging/log_levels.json");
+    if (data.isNull() || !data.isObject()) {
+        _levelCache.put("NOTSET", 0);
+        _levelCache.put("DEBUG", 10);
+        _levelCache.put("INFO", 20);
+        _levelCache.put("WARNING", 30);
+        _levelCache.put("ERROR", 40);
+        _levelCache.put("CRITICAL", 50);
+        _levelsLoaded = true;
+        return;
+    }
+    if (!data.hasKey("levels")) {
+        _levelsLoaded = true;
+        return;
+    }
+    let levels: JsonValue = data.get("levels");
+    if (!levels.isObject()) {
+        _levelsLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = levels.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: int = Integer.parseInt(Double.toString(levels.get(key).asNumber()));
+        _levelCache.put(key, val);
+        i = i + 1;
+    }
+    _levelsLoaded = true;
+}
 
 // Formatter controls the layout of log messages.
 public class Formatter {
@@ -240,12 +283,10 @@ public class Logger {
     public bool propagate;
 
     private fn _levelValue(lvl: string): int {
-        if (lvl == "NOTSET") { return 0; }
-        if (lvl == "DEBUG") { return 10; }
-        if (lvl == "INFO") { return 20; }
-        if (lvl == "WARNING") { return 30; }
-        if (lvl == "ERROR") { return 40; }
-        if (lvl == "CRITICAL") { return 50; }
+        _ensureLevelsLoaded();
+        if (_levelCache.containsKey(lvl)) {
+            return _levelCache.get(lvl);
+        }
         return 0;
     }
 
