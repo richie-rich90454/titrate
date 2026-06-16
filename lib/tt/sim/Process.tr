@@ -1,0 +1,51 @@
+// Process.tr — SimPy-style process definition with yield-based waiting
+import tt::util::ArrayList;
+
+public class SimProcess {
+    public int id;
+    public string name;
+    public string state;
+    public double nextTime;
+    public ArrayList<string> actions;
+    public int actionIndex;
+
+    public fn init(id: int, name: string) {
+        this.id = id;
+        this.name = name;
+        this.state = "ready";
+        this.nextTime = 0.0;
+        this.actions = new ArrayList<string>();
+        this.actionIndex = 0;
+    }
+
+    public fn addAction(action: string): void {
+        this.actions.add(action);
+    }
+
+    public fn nextAction(): string {
+        if (this.actionIndex >= this.actions.size()) {
+            this.state = "done";
+            return "";
+        }
+        let action: string = this.actions.get(this.actionIndex);
+        this.actionIndex = this.actionIndex + 1;
+        return action;
+    }
+
+    public fn wait(duration: double): void {
+        this.state = "waiting";
+        this.nextTime = this.nextTime + duration;
+    }
+
+    public fn isDone(): bool {
+        return this.state == "done" || this.actionIndex >= this.actions.size();
+    }
+
+    public fn activate(): void {
+        this.state = "ready";
+    }
+
+    public fn suspend(): void {
+        this.state = "suspended";
+    }
+}

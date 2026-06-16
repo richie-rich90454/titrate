@@ -1,0 +1,51 @@
+// Resource.tr — Limited-capacity resource with request/release and queue management
+import tt::util::ArrayList;
+
+public class SimResource {
+    public string name;
+    public int capacity;
+    public int available;
+    public ArrayList<int> waitQueue;
+    public int totalRequested;
+    public int totalReleased;
+
+    public fn init(n: string, cap: int) {
+        this.name = n;
+        this.capacity = cap;
+        this.available = cap;
+        this.waitQueue = new ArrayList<int>();
+        this.totalRequested = 0;
+        this.totalReleased = 0;
+    }
+
+    public fn request(processId: int): bool {
+        if (this.available > 0) {
+            this.available = this.available - 1;
+            this.totalRequested = this.totalRequested + 1;
+            return true;
+        }
+        this.waitQueue.add(processId);
+        return false;
+    }
+
+    public fn release(): int {
+        if (this.waitQueue.size() > 0) {
+            let nextId: int = this.waitQueue.get(0);
+            this.waitQueue.removeAt(0);
+            this.totalReleased = this.totalReleased + 1;
+            return nextId;
+        }
+        this.available = this.available + 1;
+        this.totalReleased = this.totalReleased + 1;
+        return -1;
+    }
+
+    public fn utilization(): double {
+        if (this.capacity == 0) { return 0.0; }
+        return (this.capacity - this.available) as double / this.capacity as double;
+    }
+
+    public fn queueLength(): int {
+        return this.waitQueue.size();
+    }
+}

@@ -1,0 +1,78 @@
+// Simulation.tr — Discrete-event simulation: event scheduler, clock, run/step/pause
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public class SimEvent {
+    public double time;
+    public string type;
+    public string data;
+    public int priority;
+
+    public fn init(t: double, typ: string, d: string, p: int) {
+        this.time = t;
+        this.type = typ;
+        this.data = d;
+        this.priority = p;
+    }
+}
+
+public class Simulation {
+    public double currentTime;
+    public double endTime;
+    public ArrayList<SimEvent> eventQueue;
+    public bool running;
+    public bool paused;
+    public int eventCount;
+
+    public fn init(end: double) {
+        this.currentTime = 0.0;
+        this.endTime = end;
+        this.eventQueue = new ArrayList<SimEvent>();
+        this.running = false;
+        this.paused = false;
+        this.eventCount = 0;
+    }
+
+    public fn schedule(event: SimEvent): void {
+        // Insert in time order
+        var i: int = 0;
+        while (i < this.eventQueue.size()) {
+            if (event.time < this.eventQueue.get(i).time || (event.time == this.eventQueue.get(i).time && event.priority < this.eventQueue.get(i).priority)) {
+                break;
+            }
+            i = i + 1;
+        }
+        this.eventQueue.add(i, event);
+    }
+
+    public fn scheduleAt(time: double, type: string, data: string): void {
+        this.schedule(new SimEvent(time, type, data, 0));
+    }
+
+    public fn scheduleDelay(delay: double, type: string, data: string): void {
+        this.schedule(new SimEvent(this.currentTime + delay, type, data, 0));
+    }
+
+    public fn step(): SimEvent {
+        if (this.eventQueue.size() == 0) { return null; }
+        let event: SimEvent = this.eventQueue.get(0);
+        this.eventQueue.removeAt(0);
+        this.currentTime = event.time;
+        this.eventCount = this.eventCount + 1;
+        return event;
+    }
+
+    public fn run(): void {
+        this.running = true;
+        while (this.running && !this.paused && this.eventQueue.size() > 0 && this.currentTime <= this.endTime) {
+            let event: SimEvent = this.step();
+            if (event == null) { break; }
+        }
+        this.running = false;
+    }
+
+    public fn pause(): void { this.paused = true; }
+    public fn resume(): void { this.paused = false; this.run(); }
+    public fn stop(): void { this.running = false; }
+    public fn hasEvents(): bool { return this.eventQueue.size() > 0; }
+}
