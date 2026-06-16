@@ -1,0 +1,190 @@
+// Mfcc.tr — MFCC computation: pre-emphasis, framing, windowing, FFT, mel filterbank, DCT
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+// Pre-emphasis filter
+public fn preEmphasis(signal: ArrayList<double>, alpha: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    result.add(signal.get(0));
+    var i: int = 1;
+    while (i < signal.size()) {
+        result.add(signal.get(i) - alpha * signal.get(i - 1));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Frame signal into overlapping frames
+public fn frameSignal(signal: ArrayList<double>, frameLength: int, hopLength: int): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var start: int = 0;
+    while (start + frameLength <= signal.size()) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < frameLength) {
+            frame.add(signal.get(start + i));
+            i = i + 1;
+        }
+        result.add(frame);
+        start = start + hopLength;
+    }
+    return result;
+}
+
+// Apply Hanning window to frame
+public fn applyWindow(frame: ArrayList<double>): ArrayList<double> {
+    let n: int = frame.size();
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let w: double = 0.5 * (1.0 - MathTrig.cos(2.0 * Math.PI() * i as double / (n - 1) as double));
+        result.add(frame.get(i) * w);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Compute power spectrum of a frame
+public fn powerSpectrum(frame: ArrayList<double>): ArrayList<double> {
+    let n: int = frame.size();
+    let halfN: int = n / 2 + 1;
+    let result: ArrayList<double> = new ArrayList<double>();
+    var k: int = 0;
+    while (k < halfN) {
+        var re: double = 0.0;
+        var im: double = 0.0;
+        var j: int = 0;
+        while (j < n) {
+            let angle: double = -2.0 * Math.PI() * k as double * j as double / n as double;
+            re = re + frame.get(j) * MathTrig.cos(angle);
+            im = im + frame.get(j) * MathTrig.sin(angle);
+            j = j + 1;
+        }
+        result.add((re * re + im * im) / n as double);
+        k = k + 1;
+    }
+    return result;
+}
+
+// Hz to Mel
+public fn hzToMel(hz: double): double {
+    return 2595.0 * MathAdvanced.ln(1.0 + hz / 700.0);
+}
+
+// Mel to Hz
+public fn melToHz(mel: double): double {
+    return 700.0 * (MathAdvanced.exp(mel / 2595.0) - 1.0);
+}
+
+// Create mel filterbank
+public fn melFilterbank(numFilters: int, fftSize: int, sampleRate: int): ArrayList<ArrayList<double>> {
+    let lowMel: double = hzToMel(0.0);
+    let highMel: double = hzToMel(sampleRate as double / 2.0);
+    let halfFFT: int = fftSize / 2 + 1;
+    let filterbank: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    // Create mel-spaced center frequencies
+    let melPoints: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i <= numFilters + 1) {
+        melPoints.add(lowMel + (highMel - lowMel) * i as double / (numFilters + 1) as double);
+        i = i + 1;
+    }
+    let hzPoints: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < melPoints.size()) {
+        hzPoints.add(melToHz(melPoints.get(i)));
+        i = i + 1;
+    }
+    let binPoints: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < hzPoints.size()) {
+        binPoints.add(Math.floor(hzPoints.get(i) * fftSize as double / sampleRate as double) as int);
+        i = i + 1;
+    }
+    // Create triangular filters
+    var f: int = 0;
+    while (f < numFilters) {
+        let filter: ArrayList<double> = new ArrayList<double>();
+        var k: int = 0;
+        while (k < halfFFT) {
+            filter.add(0.0);
+            k = k + 1;
+        }
+        let left: int = binPoints.get(f);
+        let center: int = binPoints.get(f + 1);
+        let right: int = binPoints.get(f + 2);
+        k = left;
+        while (k <= center && k < halfFFT) {
+            if (center > left) {
+                filter.set(k, (k - left) as double / (center - left) as double);
+            }
+            k = k + 1;
+        }
+        k = center;
+        while (k <= right && k < halfFFT) {
+            if (right > center) {
+                filter.set(k, (right - k) as double / (right - center) as double);
+            }
+            k = k + 1;
+        }
+        filterbank.add(filter);
+        f = f + 1;
+    }
+    return filterbank;
+}
+
+// Apply mel filterbank to power spectrum
+public fn applyFilterbank(spectrum: ArrayList<double>, filterbank: ArrayList<ArrayList<double>>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var f: int = 0;
+    while (f < filterbank.size()) {
+        var energy: double = 0.0;
+        var k: int = 0;
+        while (k < spectrum.size() && k < filterbank.get(f).size()) {
+            energy = energy + spectrum.get(k) * filterbank.get(f).get(k);
+            k = k + 1;
+        }
+        if (energy < 1e-30) { energy = 1e-30; }
+        result.add(MathAdvanced.ln(energy));
+        f = f + 1;
+    }
+    return result;
+}
+
+// DCT-II for MFCC
+public fn dctII(input: ArrayList<double>, numCoeffs: int): ArrayList<double> {
+    let n: int = input.size();
+    let result: ArrayList<double> = new ArrayList<double>();
+    var k: int = 0;
+    while (k < numCoeffs) {
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            sum = sum + input.get(i) * MathTrig.cos(Math.PI() * k as double * (2 * i + 1) as double / (2 * n) as double);
+            i = i + 1;
+        }
+        result.add(sum);
+        k = k + 1;
+    }
+    return result;
+}
+
+// Compute MFCCs for a signal
+public fn computeMFCC(signal: ArrayList<double>, sampleRate: int, numMelFilters: int, numCoeffs: int, frameLength: int, hopLength: int): ArrayList<ArrayList<double>> {
+    let emphasized: ArrayList<double> = preEmphasis(signal, 0.97);
+    let frames: ArrayList<ArrayList<double>> = frameSignal(emphasized, frameLength, hopLength);
+    let filterbank: ArrayList<ArrayList<double>> = melFilterbank(numMelFilters, frameLength, sampleRate);
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var f: int = 0;
+    while (f < frames.size()) {
+        let windowed: ArrayList<double> = applyWindow(frames.get(f));
+        let spectrum: ArrayList<double> = powerSpectrum(windowed);
+        let melEnergies: ArrayList<double> = applyFilterbank(spectrum, filterbank);
+        let mfccs: ArrayList<double> = dctII(melEnergies, numCoeffs);
+        result.add(mfccs);
+        f = f + 1;
+    }
+    return result;
+}
