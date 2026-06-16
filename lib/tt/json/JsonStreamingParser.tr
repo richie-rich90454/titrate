@@ -1,0 +1,402 @@
+// SAX-style streaming JSON parser.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::json::JsonValue;
+import tt::lang::String;
+
+// A single event emitted by the streaming parser.
+public class JsonEvent {
+    public string type;
+    public string stringValue;
+    public double numberValue;
+    public bool boolValue;
+
+    public fn init(t: string) {
+        this.type = t;
+        this.stringValue = "";
+        this.numberValue = 0.0;
+        this.boolValue = false;
+    }
+}
+
+// Streaming JSON parser that emits SAX-style events.
+public class JsonStreamingParser {
+    private var _buffer: string;
+    private var _state: int;
+    private var _depth: int;
+    public var maxDepth: int;
+    private var _pos: int;
+    private var _events: ArrayList<JsonEvent>;
+    private var _pathStack: ArrayList<string>;
+    private var _indexStack: ArrayList<int>;
+    private var _isKeyNext: bool;
+
+    public fn init() {
+        this._buffer = "";
+        this._state = 0;
+        this._depth = 0;
+        this.maxDepth = 1000;
+        this._pos = 0;
+        this._events = new ArrayList<JsonEvent>();
+        this._pathStack = new ArrayList<string>();
+        this._indexStack = new ArrayList<int>();
+        this._isKeyNext = false;
+    }
+
+    // Feed a chunk of JSON text and return any parsed events.
+    public fn feed(chunk: string): ArrayList<JsonEvent> {
+        this._buffer = this._buffer + chunk;
+        this._pos = 0;
+        this._events = new ArrayList<JsonEvent>();
+        this._parseChunk();
+        this._buffer = String.substring(this._buffer, this._pos, String.length(this._buffer));
+        return this._events;
+    }
+
+    // Parse a complete JSON string.
+    public fn parse(data: string): ArrayList<JsonEvent> {
+        this._buffer = data;
+        this._pos = 0;
+        this._events = new ArrayList<JsonEvent>();
+        this._parseChunk();
+        this._buffer = "";
+        return this._events;
+    }
+
+    // Signal end of input and return any remaining events.
+    public fn close(): ArrayList<JsonEvent> {
+        this._pos = 0;
+        this._events = new ArrayList<JsonEvent>();
+        this._skipWhitespace();
+        if (this._pos < String.length(this._buffer)) {
+            this._parseChunk();
+        }
+        this._buffer = "";
+        return this._events;
+    }
+
+    // Return the current location as a JSON Pointer string.
+    public fn currentPath(): string {
+        if (this._pathStack.size() == 0) {
+            return "";
+        }
+        var result: string = "";
+        let i: int = 0;
+        while (i < this._pathStack.size()) {
+            let seg: string = this._pathStack.get(i);
+            result = result + "/" + _escapePointerSegment(seg);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return the next event or null if none available.
+    public fn next(): JsonEvent {
+        if (this._events.size() > 0) {
+            let evt: JsonEvent = this._events.get(0);
+            this._events.remove(0);
+            return evt;
+        }
+        return null;
+    }
+
+    // ---- Internal parsing ----
+
+    fn _parseChunk(): void {
+        while (this._pos < String.length(this._buffer)) {
+            this._skipWhitespace();
+            if (this._pos >= String.length(this._buffer)) {
+                break;
+            }
+            let c: string = String.charAt(this._buffer, this._pos);
+            if (c == "{") {
+                this._parseStartObject();
+            } else if (c == "}") {
+                this._parseEndObject();
+            } else if (c == "[") {
+                this._parseStartArray();
+            } else if (c == "]") {
+                this._parseEndArray();
+            } else if (c == "\"") {
+                this._parseStringOrKey();
+            } else if (c == ":" ) {
+                this._pos = this._pos + 1;
+            } else if (c == ",") {
+                this._pos = this._pos + 1;
+                this._handleComma();
+            } else if (c == "n") {
+                this._parseNull();
+            } else if (c == "t" || c == "f") {
+                this._parseBool();
+            } else if (c == "-" || (c >= "0" && c <= "9")) {
+                this._parseNumber();
+            } else {
+                this._pos = this._pos + 1;
+            }
+        }
+    }
+
+    fn _skipWhitespace(): void {
+        while (this._pos < String.length(this._buffer)) {
+            let c: string = String.charAt(this._buffer, this._pos);
+            if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                this._pos = this._pos + 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    fn _parseStartObject(): void {
+        this._depth = this._depth + 1;
+        if (this._depth > this.maxDepth) {
+            return;
+        }
+        let evt: JsonEvent = new JsonEvent("startObject");
+        this._events.add(evt);
+        this._state = 1;
+        this._isKeyNext = true;
+        this._pathStack.add("");
+        this._indexStack.add(0);
+        this._pos = this._pos + 1;
+    }
+
+    fn _parseEndObject(): void {
+        if (this._pathStack.size() > 0) {
+            this._pathStack.remove(this._pathStack.size() - 1);
+        }
+        if (this._indexStack.size() > 0) {
+            this._indexStack.remove(this._indexStack.size() - 1);
+        }
+        this._depth = this._depth - 1;
+        if (this._depth < 0) {
+            this._depth = 0;
+        }
+        let evt: JsonEvent = new JsonEvent("endObject");
+        this._events.add(evt);
+        this._isKeyNext = false;
+        this._pos = this._pos + 1;
+    }
+
+    fn _parseStartArray(): void {
+        this._depth = this._depth + 1;
+        if (this._depth > this.maxDepth) {
+            return;
+        }
+        let evt: JsonEvent = new JsonEvent("startArray");
+        this._events.add(evt);
+        this._state = 2;
+        this._isKeyNext = false;
+        this._pathStack.add("");
+        this._indexStack.add(0);
+        this._pos = this._pos + 1;
+    }
+
+    fn _parseEndArray(): void {
+        if (this._pathStack.size() > 0) {
+            this._pathStack.remove(this._pathStack.size() - 1);
+        }
+        if (this._indexStack.size() > 0) {
+            this._indexStack.remove(this._indexStack.size() - 1);
+        }
+        this._depth = this._depth - 1;
+        if (this._depth < 0) {
+            this._depth = 0;
+        }
+        let evt: JsonEvent = new JsonEvent("endArray");
+        this._events.add(evt);
+        this._isKeyNext = false;
+        this._pos = this._pos + 1;
+    }
+
+    fn _parseStringOrKey(): void {
+        let s: string = this._readString();
+        if (this._isKeyNext) {
+            let evt: JsonEvent = new JsonEvent("key");
+            evt.stringValue = s;
+            this._events.add(evt);
+            // Update path stack with current key
+            if (this._pathStack.size() > 0) {
+                this._pathStack.set(this._pathStack.size() - 1, s);
+            }
+            this._isKeyNext = false;
+        } else {
+            let evt: JsonEvent = new JsonEvent("string");
+            evt.stringValue = s;
+            this._events.add(evt);
+            this._advanceIndex();
+        }
+    }
+
+    fn _parseNull(): void {
+        if (this._match("null")) {
+            let evt: JsonEvent = new JsonEvent("null");
+            this._events.add(evt);
+            this._advanceIndex();
+        }
+    }
+
+    fn _parseBool(): void {
+        if (this._match("true")) {
+            let evt: JsonEvent = new JsonEvent("bool");
+            evt.boolValue = true;
+            this._events.add(evt);
+            this._advanceIndex();
+        } else if (this._match("false")) {
+            let evt: JsonEvent = new JsonEvent("bool");
+            evt.boolValue = false;
+            this._events.add(evt);
+            this._advanceIndex();
+        }
+    }
+
+    fn _parseNumber(): void {
+        let numStr: string = "";
+        if (this._pos < String.length(this._buffer) && String.charAt(this._buffer, this._pos) == "-") {
+            numStr = numStr + String.charAt(this._buffer, this._pos);
+            this._pos = this._pos + 1;
+        }
+        while (this._pos < String.length(this._buffer)) {
+            let c: string = String.charAt(this._buffer, this._pos);
+            if ((c >= "0" && c <= "9") || c == "." || c == "e" || c == "E" || c == "+" || c == "-") {
+                numStr = numStr + c;
+                this._pos = this._pos + 1;
+            } else {
+                break;
+            }
+        }
+        let evt: JsonEvent = new JsonEvent("number");
+        evt.numberValue = Double.parseDouble(numStr);
+        evt.stringValue = numStr;
+        this._events.add(evt);
+        this._advanceIndex();
+    }
+
+    fn _handleComma(): void {
+        this._skipWhitespace();
+        // After comma in object, next should be a key
+        if (this._depth > 0 && this._pathStack.size() > 0) {
+            // Check if we are in an object context by looking at what comes next
+            if (this._pos < String.length(this._buffer)) {
+                let c: string = String.charAt(this._buffer, this._pos);
+                if (c == "\"") {
+                    // In object context, next is a key
+                    this._isKeyNext = true;
+                }
+            }
+        }
+    }
+
+    fn _advanceIndex(): void {
+        // If inside an array, increment the index counter
+        if (this._indexStack.size() > 0) {
+            let idx: int = this._indexStack.get(this._indexStack.size() - 1);
+            this._indexStack.set(this._indexStack.size() - 1, idx + 1);
+            // Update path stack for array index
+            if (this._pathStack.size() > 0) {
+                this._pathStack.set(this._pathStack.size() - 1, Integer.toString(idx));
+            }
+        }
+        // After a value in an object, next could be a key
+        this._isKeyNext = false;
+    }
+
+    fn _readString(): string {
+        // Skip opening quote
+        this._pos = this._pos + 1;
+        let result: string = "";
+        while (this._pos < String.length(this._buffer)) {
+            let c: string = String.charAt(this._buffer, this._pos);
+            this._pos = this._pos + 1;
+            if (c == "\"") {
+                break;
+            }
+            if (c == "\\") {
+                if (this._pos < String.length(this._buffer)) {
+                    let escaped: string = String.charAt(this._buffer, this._pos);
+                    this._pos = this._pos + 1;
+                    if (escaped == "n") {
+                        result = result + "\n";
+                    } else if (escaped == "t") {
+                        result = result + "\t";
+                    } else if (escaped == "r") {
+                        result = result + "\r";
+                    } else if (escaped == "\\") {
+                        result = result + "\\";
+                    } else if (escaped == "\"") {
+                        result = result + "\"";
+                    } else if (escaped == "/") {
+                        result = result + "/";
+                    } else if (escaped == "b") {
+                        result = result + "\b";
+                    } else if (escaped == "f") {
+                        result = result + "\f";
+                    } else if (escaped == "u") {
+                        let hex: string = "";
+                        let h: int = 0;
+                        while (h < 4 && this._pos < String.length(this._buffer)) {
+                            hex = hex + String.charAt(this._buffer, this._pos);
+                            this._pos = this._pos + 1;
+                            h = h + 1;
+                        }
+                        result = result + _decodeHex(hex);
+                    } else {
+                        result = result + escaped;
+                    }
+                }
+            } else {
+                result = result + c;
+            }
+        }
+        return result;
+    }
+
+    fn _match(expected: string): bool {
+        if (this._pos + String.length(expected) > String.length(this._buffer)) {
+            return false;
+        }
+        let sub: string = String.substring(this._buffer, this._pos, this._pos + String.length(expected));
+        if (sub == expected) {
+            this._pos = this._pos + String.length(expected);
+            return true;
+        }
+        return false;
+    }
+}
+
+// Escape a JSON Pointer segment per RFC 6901.
+fn _escapePointerSegment(seg: string): string {
+    var result: string = "";
+    let i: int = 0;
+    while (i < String.length(seg)) {
+        let c: string = String.charAt(seg, i);
+        if (c == "~") {
+            result = result + "~0";
+        } else if (c == "/") {
+            result = result + "~1";
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Decode a 4-digit hex string to a Unicode character.
+fn _decodeHex(hex: string): string {
+    let code: int = 0;
+    let i: int = 0;
+    while (i < String.length(hex)) {
+        let c: string = String.charAt(hex, i);
+        code = code * 16;
+        if (c >= "0" && c <= "9") {
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("0", 0) as int));
+        } else if (c >= "a" && c <= "f") {
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("a", 0) as int)) + 10;
+        } else if (c >= "A" && c <= "F") {
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("A", 0) as int)) + 10;
+        }
+        i = i + 1;
+    }
+    return String.fromCharCode(code);
+}
