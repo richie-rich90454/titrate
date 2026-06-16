@@ -1,0 +1,770 @@
+// Survival analysis module providing Kaplan-Meier estimator, log-rank test,
+// hazard function, survival function, median survival, and Cox regression.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// ==================== Helper functions ====================
+
+// Sort times and events together by time (ascending), using insertion sort.
+fn sortSurvivalData(times: ArrayList<double>, events: ArrayList<bool>): ArrayList<ArrayList<double>> {
+    let n: int = times.size();
+    // Copy into paired arrays
+    let t: ArrayList<double> = new ArrayList<double>();
+    let e: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        t.add(times.get(i));
+        if (events.get(i)) {
+            e.add(1.0);
+        } else {
+            e.add(0.0);
+        }
+        i = i + 1;
+    }
+    // Insertion sort by time
+    var j: int = 1;
+    while (j < n) {
+        let keyT: double = t.get(j);
+        let keyE: double = e.get(j);
+        var k: int = j - 1;
+        while (k >= 0 && t.get(k) > keyT) {
+            t.set(k + 1, t.get(k));
+            e.set(k + 1, e.get(k));
+            k = k - 1;
+        }
+        t.set(k + 1, keyT);
+        e.set(k + 1, keyE);
+        j = j + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    result.add(t);
+    result.add(e);
+    return result;
+}
+
+// Normal CDF using the error function.
+fn normalCdf(x: double): double {
+    return 0.5 * (1.0 + Math.erf(x / MathAdvanced.sqrt(2.0)));
+}
+
+// ==================== Public API ====================
+
+// Kaplan-Meier estimator for survival function.
+// Returns [times, survival] as ArrayList<ArrayList<double>> where:
+//   times.get(i) = distinct event time
+//   survival.get(i) = Kaplan-Meier survival probability at that time
+public fn kaplanMeier(times: ArrayList<double>, events: ArrayList<bool>): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let timeResult: ArrayList<double> = new ArrayList<double>();
+    let survResult: ArrayList<double> = new ArrayList<double>();
+    result.add(timeResult);
+    result.add(survResult);
+
+    let n: int = times.size();
+    if (n == 0 || n != events.size()) { return result; }
+
+    // Sort by time
+    let sorted: ArrayList<ArrayList<double>> = sortSurvivalData(times, events);
+    let sortedTimes: ArrayList<double> = sorted.get(0);
+    let sortedEvents: ArrayList<double> = sorted.get(1);
+
+    // Kaplan-Meier computation
+    var survival: double = 1.0;
+    var atRisk: int = n;
+    var i: int = 0;
+    while (i < n) {
+        let currentTime: double = sortedTimes.get(i);
+        // Count events and censored at this time
+        var deaths: int = 0;
+        var censored: int = 0;
+        while (i < n && sortedTimes.get(i) == currentTime) {
+            if (sortedEvents.get(i) == 1.0) {
+                deaths = deaths + 1;
+            } else {
+                censored = censored + 1;
+            }
+            i = i + 1;
+        }
+        // Update survival
+        if (deaths > 0) {
+            survival = survival * (1.0 - deaths as double / atRisk as double);
+            timeResult.add(currentTime);
+            survResult.add(survival);
+        }
+        atRisk = atRisk - deaths - censored;
+    }
+    return result;
+}
+
+// Log-rank test comparing two groups.
+// Returns HashMap with {chiSquared, pValue}.
+public fn logRankTest(group1Times: ArrayList<double>, group1Events: ArrayList<bool>, group2Times: ArrayList<double>, group2Events: ArrayList<bool>): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    result.put("chiSquared", 0.0);
+    result.put("pValue", 1.0);
+
+    let n1: int = group1Times.size();
+    let n2: int = group2Times.size();
+    if (n1 == 0 || n2 == 0 || n1 != group1Events.size() || n2 != group2Events.size()) {
+        return result;
+    }
+
+    // Merge and sort all event times
+    let allTimes: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n1) {
+        allTimes.add(group1Times.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n2) {
+        allTimes.add(group2Times.get(i));
+        i = i + 1;
+    }
+    // Sort all times (insertion sort)
+    var j: int = 1;
+    while (j < allTimes.size()) {
+        let key: double = allTimes.get(j);
+        var k: int = j - 1;
+        while (k >= 0 && allTimes.get(k) > key) {
+            allTimes.set(k + 1, allTimes.get(k));
+            k = k - 1;
+        }
+        allTimes.set(k + 1, key);
+        j = j + 1;
+    }
+    // Remove duplicate times
+    let uniqueTimes: ArrayList<double> = new ArrayList<double>();
+    if (allTimes.size() > 0) {
+        uniqueTimes.add(allTimes.get(0));
+        i = 1;
+        while (i < allTimes.size()) {
+            if (allTimes.get(i) != allTimes.get(i - 1)) {
+                uniqueTimes.add(allTimes.get(i));
+            }
+            i = i + 1;
+        }
+    }
+
+    // Log-rank statistic: sum over distinct event times
+    var U: double = 0.0;
+    var V: double = 0.0;
+    var atRisk1: int = n1;
+    var atRisk2: int = n2;
+    var idx1: int = 0;
+    var idx2: int = 0;
+
+    // Sort group data
+    let sorted1: ArrayList<ArrayList<double>> = sortSurvivalData(group1Times, group1Events);
+    let sorted2: ArrayList<ArrayList<double>> = sortSurvivalData(group2Times, group2Events);
+    let g1Times: ArrayList<double> = sorted1.get(0);
+    let g1Events: ArrayList<double> = sorted1.get(1);
+    let g2Times: ArrayList<double> = sorted2.get(0);
+    let g2Events: ArrayList<double> = sorted2.get(1);
+
+    i = 0;
+    while (i < uniqueTimes.size()) {
+        let t: double = uniqueTimes.get(i);
+        // Count events in each group at time t
+        var d1: int = 0;
+        var c1: int = 0;
+        while (idx1 < n1 && g1Times.get(idx1) == t) {
+            if (g1Events.get(idx1) == 1.0) {
+                d1 = d1 + 1;
+            } else {
+                c1 = c1 + 1;
+            }
+            idx1 = idx1 + 1;
+        }
+        var d2: int = 0;
+        var c2: int = 0;
+        while (idx2 < n2 && g2Times.get(idx2) == t) {
+            if (g2Events.get(idx2) == 1.0) {
+                d2 = d2 + 1;
+            } else {
+                c2 = c2 + 1;
+            }
+            idx2 = idx2 + 1;
+        }
+        let d: int = d1 + d2;
+        let n: int = atRisk1 + atRisk2;
+        if (d > 0 && n > 0) {
+            let expected: double = d as double * atRisk1 as double / n as double;
+            U = U + d1 as double - expected;
+            // Variance under H0
+            if (n > 1) {
+                V = V + d as double * atRisk1 as double * atRisk2 as double * (n - d) as double / (n as double * n as double * (n - 1) as double);
+            }
+        }
+        atRisk1 = atRisk1 - d1 - c1;
+        atRisk2 = atRisk2 - d2 - c2;
+        i = i + 1;
+    }
+
+    var chiSq: double = 0.0;
+    if (V > 0.0) {
+        chiSq = U * U / V;
+    }
+    // p-value from chi-squared(1) using normal approximation
+    let pValue: double = 1.0;
+    if (chiSq > 0.0) {
+        // chi-squared with 1 df: p = 2 * (1 - Phi(sqrt(chiSq)))
+        pValue = 2.0 * (1.0 - normalCdf(MathAdvanced.sqrt(chiSq)));
+        if (pValue > 1.0) { pValue = 1.0; }
+        if (pValue < 0.0) { pValue = 0.0; }
+    }
+    result.put("chiSquared", chiSq);
+    result.put("pValue", pValue);
+    return result;
+}
+
+// Hazard rate estimation using the Nelson-Aalen estimator.
+// Returns hazard rates at each distinct event time.
+public fn hazardFunction(times: ArrayList<double>, events: ArrayList<bool>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = times.size();
+    if (n == 0 || n != events.size()) { return result; }
+
+    // Sort by time
+    let sorted: ArrayList<ArrayList<double>> = sortSurvivalData(times, events);
+    let sortedTimes: ArrayList<double> = sorted.get(0);
+    let sortedEvents: ArrayList<double> = sorted.get(1);
+
+    // Nelson-Aalen cumulative hazard
+    var atRisk: int = n;
+    var cumulativeHazard: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let currentTime: double = sortedTimes.get(i);
+        var deaths: int = 0;
+        var censored: int = 0;
+        while (i < n && sortedTimes.get(i) == currentTime) {
+            if (sortedEvents.get(i) == 1.0) {
+                deaths = deaths + 1;
+            } else {
+                censored = censored + 1;
+            }
+            i = i + 1;
+        }
+        if (deaths > 0 && atRisk > 0) {
+            cumulativeHazard = cumulativeHazard + deaths as double / atRisk as double;
+            result.add(cumulativeHazard);
+        }
+        atRisk = atRisk - deaths - censored;
+    }
+    return result;
+}
+
+// Survival function (alias for Kaplan-Meier).
+// Returns [times, survival] as ArrayList<ArrayList<double>>.
+public fn survivalFunction(times: ArrayList<double>, events: ArrayList<bool>): ArrayList<ArrayList<double>> {
+    return kaplanMeier(times, events);
+}
+
+// Median survival time from Kaplan-Meier estimate.
+// Returns the time at which survival first drops to 0.5 or below.
+// Returns -1.0 if survival never reaches 0.5.
+public fn medianSurvival(times: ArrayList<double>, events: ArrayList<bool>): double {
+    let km: ArrayList<ArrayList<double>> = kaplanMeier(times, events);
+    if (km.size() < 2) { return -1.0; }
+    let kmTimes: ArrayList<double> = km.get(0);
+    let kmSurv: ArrayList<double> = km.get(1);
+    if (kmTimes.size() == 0) { return -1.0; }
+    // Find first time where survival <= 0.5
+    var i: int = 0;
+    while (i < kmTimes.size()) {
+        if (kmSurv.get(i) <= 0.5) {
+            return kmTimes.get(i);
+        }
+        i = i + 1;
+    }
+    return -1.0;
+}
+
+// Cox proportional hazards regression (simplified, single covariate or multi-covariate via Newton-Raphson).
+// Returns HashMap with {beta, expBeta, se, pValue}.
+public fn coxRegression(times: ArrayList<double>, events: ArrayList<bool>, covariates: ArrayList<ArrayList<double>>): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    result.put("beta", 0.0);
+    result.put("expBeta", 1.0);
+    result.put("se", 0.0);
+    result.put("pValue", 1.0);
+
+    let n: int = times.size();
+    if (n == 0 || n != events.size()) { return result; }
+    if (covariates.size() == 0) { return result; }
+
+    // Number of covariates
+    let numCov: int = covariates.size();
+
+    // Sort by time
+    let sorted: ArrayList<ArrayList<double>> = sortSurvivalData(times, events);
+    let sortedTimes: ArrayList<double> = sorted.get(0);
+    let sortedEvents: ArrayList<double> = sorted.get(1);
+
+    // Build sorted covariate matrix: covSorted[covIdx][patientIdx]
+    // We need to reorder covariates to match sorted times
+    // Create index mapping from sorted order
+    let indices: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < n) {
+        indices.add(i);
+        i = i + 1;
+    }
+    // Sort indices by time
+    var jj: int = 1;
+    while (jj < n) {
+        let keyIdx: int = indices.get(jj);
+        var kk: int = jj - 1;
+        while (kk >= 0 && times.get(indices.get(kk)) > times.get(keyIdx)) {
+            indices.set(kk + 1, indices.get(kk));
+            kk = kk - 1;
+        }
+        indices.set(kk + 1, keyIdx);
+        jj = jj + 1;
+    }
+    // Reorder covariates
+    let covSorted: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    i = 0;
+    while (i < numCov) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var ii: int = 0;
+        while (ii < n) {
+            row.add(covariates.get(i).get(indices.get(ii)));
+            ii = ii + 1;
+        }
+        covSorted.add(row);
+        i = i + 1;
+    }
+
+    // For simplicity, handle single covariate case with Newton-Raphson
+    if (numCov == 1) {
+        let z: ArrayList<double> = covSorted.get(0);
+        // Newton-Raphson for beta
+        var beta: double = 0.0;
+        var iter: int = 0;
+        let maxIter: int = 50;
+        while (iter < maxIter) {
+            var score: double = 0.0;
+            var info: double = 0.0;
+            var k: int = 0;
+            while (k < n) {
+                if (sortedEvents.get(k) == 1.0) {
+                    // Risk set: all subjects at risk at time sortedTimes.get(k)
+                    var sumExpZ: double = 0.0;
+                    var sumZExpZ: double = 0.0;
+                    var sumZ2ExpZ: double = 0.0;
+                    var m: int = k;
+                    while (m < n) {
+                        let expZb: double = MathAdvanced.exp(beta * z.get(m));
+                        sumExpZ = sumExpZ + expZb;
+                        sumZExpZ = sumZExpZ + z.get(m) * expZb;
+                        sumZ2ExpZ = sumZ2ExpZ + z.get(m) * z.get(m) * expZb;
+                        m = m + 1;
+                    }
+                    if (sumExpZ > 0.0) {
+                        score = score + z.get(k) - sumZExpZ / sumExpZ;
+                        info = info + sumZ2ExpZ / sumExpZ - (sumZExpZ / sumExpZ) * (sumZExpZ / sumExpZ);
+                    }
+                }
+                k = k + 1;
+            }
+            if (Math.abs(info) < 1e-12) { break; }
+            let delta: double = score / info;
+            beta = beta + delta;
+            if (Math.abs(delta) < 1e-8) { break; }
+            iter = iter + 1;
+        }
+        // Compute standard error from observed information
+        var info: double = 0.0;
+        var k: int = 0;
+        while (k < n) {
+            if (sortedEvents.get(k) == 1.0) {
+                var sumExpZ: double = 0.0;
+                var sumZExpZ: double = 0.0;
+                var sumZ2ExpZ: double = 0.0;
+                var m: int = k;
+                while (m < n) {
+                    let expZb: double = MathAdvanced.exp(beta * z.get(m));
+                    sumExpZ = sumExpZ + expZb;
+                    sumZExpZ = sumZExpZ + z.get(m) * expZb;
+                    sumZ2ExpZ = sumZ2ExpZ + z.get(m) * z.get(m) * expZb;
+                    m = m + 1;
+                }
+                if (sumExpZ > 0.0) {
+                    info = info + sumZ2ExpZ / sumExpZ - (sumZExpZ / sumExpZ) * (sumZExpZ / sumExpZ);
+                }
+            }
+            k = k + 1;
+        }
+        var se: double = 0.0;
+        if (info > 0.0) {
+            se = 1.0 / MathAdvanced.sqrt(info);
+        }
+        // Wald test p-value
+        var pValue: double = 1.0;
+        if (se > 0.0) {
+            let zStat: double = beta / se;
+            pValue = 2.0 * (1.0 - normalCdf(Math.abs(zStat)));
+            if (pValue < 0.0) { pValue = 0.0; }
+            if (pValue > 1.0) { pValue = 1.0; }
+        }
+        result.put("beta", beta);
+        result.put("expBeta", MathAdvanced.exp(beta));
+        result.put("se", se);
+        result.put("pValue", pValue);
+    } else {
+        // Multi-covariate: Newton-Raphson with vector beta
+        let beta: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < numCov) {
+            beta.add(0.0);
+            i = i + 1;
+        }
+        var iter: int = 0;
+        let maxIter: int = 50;
+        while (iter < maxIter) {
+            // Score vector and information matrix
+            let score: ArrayList<double> = new ArrayList<double>();
+            let info: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+            i = 0;
+            while (i < numCov) {
+                score.add(0.0);
+                let row: ArrayList<double> = new ArrayList<double>();
+                var j2: int = 0;
+                while (j2 < numCov) {
+                    row.add(0.0);
+                    j2 = j2 + 1;
+                }
+                info.add(row);
+                i = i + 1;
+            }
+            var k: int = 0;
+            while (k < n) {
+                if (sortedEvents.get(k) == 1.0) {
+                    // Compute linear predictor and exp for risk set
+                    var sumExp: double = 0.0;
+                    let meanZ: ArrayList<double> = new ArrayList<double>();
+                    i = 0;
+                    while (i < numCov) {
+                        meanZ.add(0.0);
+                        i = i + 1;
+                    }
+                    var m: int = k;
+                    while (m < n) {
+                        var lp: double = 0.0;
+                        i = 0;
+                        while (i < numCov) {
+                            lp = lp + beta.get(i) * covSorted.get(i).get(m);
+                            i = i + 1;
+                        }
+                        let expLp: double = MathAdvanced.exp(lp);
+                        sumExp = sumExp + expLp;
+                        i = 0;
+                        while (i < numCov) {
+                            meanZ.set(i, meanZ.get(i) + covSorted.get(i).get(m) * expLp);
+                            i = i + 1;
+                        }
+                        m = m + 1;
+                    }
+                    if (sumExp > 0.0) {
+                        // Normalize meanZ
+                        i = 0;
+                        while (i < numCov) {
+                            meanZ.set(i, meanZ.get(i) / sumExp);
+                            i = i + 1;
+                        }
+                        // Update score
+                        i = 0;
+                        while (i < numCov) {
+                            score.set(i, score.get(i) + covSorted.get(i).get(k) - meanZ.get(i));
+                            i = i + 1;
+                        }
+                        // Update information
+                        m = k;
+                        while (m < n) {
+                            var lp: double = 0.0;
+                            i = 0;
+                            while (i < numCov) {
+                                lp = lp + beta.get(i) * covSorted.get(i).get(m);
+                                i = i + 1;
+                            }
+                            let expLp: double = MathAdvanced.exp(lp) / sumExp;
+                            i = 0;
+                            while (i < numCov) {
+                                var j2: int = 0;
+                                while (j2 < numCov) {
+                                    let zi: double = covSorted.get(i).get(m) - meanZ.get(i);
+                                    let zj: double = covSorted.get(j2).get(m) - meanZ.get(j2);
+                                    info.get(i).set(j2, info.get(i).get(j2) + expLp * zi * zj);
+                                    j2 = j2 + 1;
+                                }
+                                i = i + 1;
+                            }
+                            m = m + 1;
+                        }
+                    }
+                }
+                k = k + 1;
+            }
+            // Solve info * delta = score
+            let delta: ArrayList<double> = solveLinear(info, score);
+            var converged: bool = true;
+            i = 0;
+            while (i < numCov) {
+                beta.set(i, beta.get(i) + delta.get(i));
+                if (Math.abs(delta.get(i)) > 1e-8) { converged = false; }
+                i = i + 1;
+            }
+            if (converged) { break; }
+            iter = iter + 1;
+        }
+        // Compute information at final beta for standard errors
+        let info: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        i = 0;
+        while (i < numCov) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var j2: int = 0;
+            while (j2 < numCov) {
+                row.add(0.0);
+                j2 = j2 + 1;
+            }
+            info.add(row);
+            i = i + 1;
+        }
+        var k: int = 0;
+        while (k < n) {
+            if (sortedEvents.get(k) == 1.0) {
+                var sumExp: double = 0.0;
+                let meanZ: ArrayList<double> = new ArrayList<double>();
+                i = 0;
+                while (i < numCov) {
+                    meanZ.add(0.0);
+                    i = i + 1;
+                }
+                var m: int = k;
+                while (m < n) {
+                    var lp: double = 0.0;
+                    i = 0;
+                    while (i < numCov) {
+                        lp = lp + beta.get(i) * covSorted.get(i).get(m);
+                        i = i + 1;
+                    }
+                    let expLp: double = MathAdvanced.exp(lp);
+                    sumExp = sumExp + expLp;
+                    i = 0;
+                    while (i < numCov) {
+                        meanZ.set(i, meanZ.get(i) + covSorted.get(i).get(m) * expLp);
+                        i = i + 1;
+                    }
+                    m = m + 1;
+                }
+                if (sumExp > 0.0) {
+                    i = 0;
+                    while (i < numCov) {
+                        meanZ.set(i, meanZ.get(i) / sumExp);
+                        i = i + 1;
+                    }
+                    m = k;
+                    while (m < n) {
+                        var lp: double = 0.0;
+                        i = 0;
+                        while (i < numCov) {
+                            lp = lp + beta.get(i) * covSorted.get(i).get(m);
+                            i = i + 1;
+                        }
+                        let expLp: double = MathAdvanced.exp(lp) / sumExp;
+                        i = 0;
+                        while (i < numCov) {
+                            var j2: int = 0;
+                            while (j2 < numCov) {
+                                let zi: double = covSorted.get(i).get(m) - meanZ.get(i);
+                                let zj: double = covSorted.get(j2).get(m) - meanZ.get(j2);
+                                info.get(i).set(j2, info.get(i).get(j2) + expLp * zi * zj);
+                                j2 = j2 + 1;
+                            }
+                            i = i + 1;
+                        }
+                        m = m + 1;
+                    }
+                }
+            }
+            k = k + 1;
+        }
+        // For multi-covariate, report the first covariate's beta and stats
+        // Invert information matrix to get variance-covariance
+        // Use a simple approach: invert 1x1 sub-problem for each coefficient
+        // For the full result, we store the first beta and overall stats
+        // Compute inverse of info via Gaussian elimination
+        let invInfo: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        i = 0;
+        while (i < numCov) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var j2: int = 0;
+            while (j2 < numCov) {
+                if (i == j2) {
+                    row.add(1.0);
+                } else {
+                    row.add(0.0);
+                }
+                j2 = j2 + 1;
+            }
+            invInfo.add(row);
+            i = i + 1;
+        }
+        // Gauss-Jordan elimination
+        var col: int = 0;
+        while (col < numCov) {
+            // Find pivot
+            var maxRow: int = col;
+            var maxVal: double = Math.abs(info.get(col).get(col));
+            var rr: int = col + 1;
+            while (rr < numCov) {
+                let val: double = Math.abs(info.get(rr).get(col));
+                if (val > maxVal) {
+                    maxVal = val;
+                    maxRow = rr;
+                }
+                rr = rr + 1;
+            }
+            // Swap rows in both info and invInfo
+            if (maxRow != col) {
+                let tmpInfo: ArrayList<double> = info.get(col);
+                info.set(col, info.get(maxRow));
+                info.set(maxRow, tmpInfo);
+                let tmpInv: ArrayList<double> = invInfo.get(col);
+                invInfo.set(col, invInfo.get(maxRow));
+                invInfo.set(maxRow, tmpInv);
+            }
+            let pivot: double = info.get(col).get(col);
+            if (Math.abs(pivot) < 1e-12) {
+                col = col + 1;
+                continue;
+            }
+            // Scale pivot row
+            var cc: int = 0;
+            while (cc < numCov) {
+                info.get(col).set(cc, info.get(col).get(cc) / pivot);
+                invInfo.get(col).set(cc, invInfo.get(col).get(cc) / pivot);
+                cc = cc + 1;
+            }
+            // Eliminate other rows
+            rr = 0;
+            while (rr < numCov) {
+                if (rr != col) {
+                    let factor: double = info.get(rr).get(col);
+                    cc = 0;
+                    while (cc < numCov) {
+                        info.get(rr).set(cc, info.get(rr).get(cc) - factor * info.get(col).get(cc));
+                        invInfo.get(rr).set(cc, invInfo.get(rr).get(cc) - factor * invInfo.get(col).get(cc));
+                        cc = cc + 1;
+                    }
+                }
+                rr = rr + 1;
+            }
+            col = col + 1;
+        }
+        // Use first covariate for the primary result
+        let se: double = MathAdvanced.sqrt(Math.abs(invInfo.get(0).get(0)));
+        let betaVal: double = beta.get(0);
+        var pValue: double = 1.0;
+        if (se > 0.0) {
+            let zStat: double = betaVal / se;
+            pValue = 2.0 * (1.0 - normalCdf(Math.abs(zStat)));
+            if (pValue < 0.0) { pValue = 0.0; }
+            if (pValue > 1.0) { pValue = 1.0; }
+        }
+        result.put("beta", betaVal);
+        result.put("expBeta", MathAdvanced.exp(betaVal));
+        result.put("se", se);
+        result.put("pValue", pValue);
+    }
+    return result;
+}
+
+// Helper: solve linear system Ax = b via Gaussian elimination.
+// Used by coxRegression for multi-covariate case.
+fn solveLinear(A: ArrayList<ArrayList<double>>, b: ArrayList<double>): ArrayList<double> {
+    let n: int = b.size();
+    let x: ArrayList<double> = new ArrayList<double>();
+    if (n == 0) { return x; }
+    // Build augmented matrix
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            if (i < A.size() && j < A.get(i).size()) {
+                row.add(A.get(i).get(j));
+            } else {
+                row.add(0.0);
+            }
+            j = j + 1;
+        }
+        row.add(b.get(i));
+        aug.add(row);
+        i = i + 1;
+    }
+    // Forward elimination with partial pivoting
+    var col: int = 0;
+    while (col < n) {
+        var maxRow: int = col;
+        var maxVal: double = Math.abs(aug.get(col).get(col));
+        var r: int = col + 1;
+        while (r < n) {
+            let val: double = Math.abs(aug.get(r).get(col));
+            if (val > maxVal) {
+                maxVal = val;
+                maxRow = r;
+            }
+            r = r + 1;
+        }
+        if (maxRow != col) {
+            let tmp: ArrayList<double> = aug.get(col);
+            aug.set(col, aug.get(maxRow));
+            aug.set(maxRow, tmp);
+        }
+        let pivot: double = aug.get(col).get(col);
+        if (Math.abs(pivot) < 1e-12) {
+            col = col + 1;
+            continue;
+        }
+        var rr: int = col + 1;
+        while (rr < n) {
+            let factor: double = aug.get(rr).get(col) / pivot;
+            var cc: int = col;
+            while (cc <= n) {
+                aug.get(rr).set(cc, aug.get(rr).get(cc) - factor * aug.get(col).get(cc));
+                cc = cc + 1;
+            }
+            rr = rr + 1;
+        }
+        col = col + 1;
+    }
+    // Back substitution
+    i = 0;
+    while (i < n) {
+        x.add(0.0);
+        i = i + 1;
+    }
+    i = n - 1;
+    while (i >= 0) {
+        var sum: double = aug.get(i).get(n);
+        var j: int = i + 1;
+        while (j < n) {
+            sum = sum - aug.get(i).get(j) * x.get(j);
+            j = j + 1;
+        }
+        let diag: double = aug.get(i).get(i);
+        if (Math.abs(diag) < 1e-12) {
+            x.set(i, 0.0);
+        } else {
+            x.set(i, sum / diag);
+        }
+        i = i - 1;
+    }
+    return x;
+}
