@@ -1,0 +1,15 @@
+{
+  "_meta": {"source": "Python codecs module / IANA", "version": "1.0", "description": "Encoding name aliases mapping to canonical names"},
+  "aliases": {
+    "utf-8": "utf-8",
+    "utf8": "utf-8",
+    "ascii": "ascii",
+    "latin-1": "latin-1",
+    "latin1": "latin-1",
+    "iso-8859-1": "latin-1",
+    "utf-16": "utf-16",
+    "utf-16le": "utf-16le",
+    "utf-16be": "utf-16be",
+    "us-ascii": "ascii"
+  }
+}
