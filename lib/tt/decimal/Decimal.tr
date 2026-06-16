@@ -6,6 +6,41 @@ import tt::lang::Double;
 import tt::util::ArrayList;
 import tt::decimal::DecimalArithmetic;
 import tt::math::MathAdvanced;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _roundingModesCache: HashMap<string, string> = new HashMap<string, string>();
+var _roundingModesLoaded: bool = false;
+
+fn _ensureRoundingModesLoaded(): void {
+    if (_roundingModesLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("decimal/rounding_modes.json");
+    if (data.isNull() || !data.isObject()) {
+        _roundingModesLoaded = true;
+        return;
+    }
+    if (!data.hasKey("modes")) {
+        _roundingModesLoaded = true;
+        return;
+    }
+    let modes: JsonValue = data.get("modes");
+    if (!modes.isObject()) {
+        _roundingModesLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = modes.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        _roundingModesCache.put(key, modes.get(key).asString());
+        i = i + 1;
+    }
+    _roundingModesLoaded = true;
+}
 
 public class Decimal {
     // Sign: true = negative, false = positive or zero
@@ -375,7 +410,7 @@ public class Decimal {
     }
 }
 
-// RoundingMode provides string constants for rounding modes.
+// RoundingMode provides string constants for rounding modes loaded from DataFile.
 public class RoundingMode {
     public string UP;
     public string DOWN;
@@ -386,13 +421,14 @@ public class RoundingMode {
     public string HALF_EVEN;
 
     public fn init() {
-        this.UP = "up";
-        this.DOWN = "down";
-        this.CEILING = "ceiling";
-        this.FLOOR = "floor";
-        this.HALF_UP = "half_up";
-        this.HALF_DOWN = "half_down";
-        this.HALF_EVEN = "half_even";
+        _ensureRoundingModesLoaded();
+        this.UP = _roundingModesCache.get("UP");
+        this.DOWN = _roundingModesCache.get("DOWN");
+        this.CEILING = _roundingModesCache.get("CEILING");
+        this.FLOOR = _roundingModesCache.get("FLOOR");
+        this.HALF_UP = _roundingModesCache.get("HALF_UP");
+        this.HALF_DOWN = _roundingModesCache.get("HALF_DOWN");
+        this.HALF_EVEN = _roundingModesCache.get("HALF_EVEN");
     }
 }
 
