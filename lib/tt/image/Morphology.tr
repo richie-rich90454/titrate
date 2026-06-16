@@ -1,0 +1,191 @@
+// Morphology.tr — Morphological operations: dilation, erosion, opening, closing, gradient
+import tt::util::ArrayList;
+import tt::math::Math;
+
+public class StructuringElement {
+    public ArrayList<ArrayList<bool>> data;
+    public int width;
+    public int height;
+
+    public fn init(w: int, h: int) {
+        this.width = w;
+        this.height = h;
+        this.data = new ArrayList<ArrayList<bool>>();
+        var i: int = 0;
+        while (i < h) {
+            let row: ArrayList<bool> = new ArrayList<bool>();
+            var j: int = 0;
+            while (j < w) {
+                row.add(true);
+                j = j + 1;
+            }
+            this.data.add(row);
+            i = i + 1;
+        }
+    }
+
+    public fn get(r: int, c: int): bool {
+        return this.data.get(r).get(c);
+    }
+
+    public fn set(r: int, c: int, val: bool): void {
+        this.data.get(r).set(c, val);
+    }
+}
+
+public fn squareSE(size: int): StructuringElement {
+    return new StructuringElement(size, size);
+}
+
+public fn crossSE(size: int): StructuringElement {
+    let se: StructuringElement = new StructuringElement(size, size);
+    let mid: int = size / 2;
+    var i: int = 0;
+    while (i < size) {
+        var j: int = 0;
+        while (j < size) {
+            if (i != mid && j != mid) { se.set(i, j, false); }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return se;
+}
+
+public fn dilate(image: ArrayList<ArrayList<double>>, se: StructuringElement): ArrayList<ArrayList<double>> {
+    let rows: int = image.size();
+    let cols: int = image.get(0).size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let midR: int = se.height / 2;
+    let midC: int = se.width / 2;
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            var maxVal: double = 0.0;
+            var ki: int = 0;
+            while (ki < se.height) {
+                var kj: int = 0;
+                while (kj < se.width) {
+                    if (se.get(ki, kj)) {
+                        let ii: int = i + ki - midR;
+                        let jj: int = j + kj - midC;
+                        if (ii >= 0 && ii < rows && jj >= 0 && jj < cols) {
+                            if (image.get(ii).get(jj) > maxVal) { maxVal = image.get(ii).get(jj); }
+                        }
+                    }
+                    kj = kj + 1;
+                }
+                ki = ki + 1;
+            }
+            row.add(maxVal);
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn erode(image: ArrayList<ArrayList<double>>, se: StructuringElement): ArrayList<ArrayList<double>> {
+    let rows: int = image.size();
+    let cols: int = image.get(0).size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let midR: int = se.height / 2;
+    let midC: int = se.width / 2;
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            var minVal: double = 255.0;
+            var ki: int = 0;
+            while (ki < se.height) {
+                var kj: int = 0;
+                while (kj < se.width) {
+                    if (se.get(ki, kj)) {
+                        let ii: int = i + ki - midR;
+                        let jj: int = j + kj - midC;
+                        if (ii >= 0 && ii < rows && jj >= 0 && jj < cols) {
+                            if (image.get(ii).get(jj) < minVal) { minVal = image.get(ii).get(jj); }
+                        }
+                    }
+                    kj = kj + 1;
+                }
+                ki = ki + 1;
+            }
+            row.add(minVal);
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn opening(image: ArrayList<ArrayList<double>>, se: StructuringElement): ArrayList<ArrayList<double>> {
+    return dilate(erode(image, se), se);
+}
+
+public fn closing(image: ArrayList<ArrayList<double>>, se: StructuringElement): ArrayList<ArrayList<double>> {
+    return erode(dilate(image, se), se);
+}
+
+public fn gradient(image: ArrayList<ArrayList<double>>, se: StructuringElement): ArrayList<ArrayList<double>> {
+    let d: ArrayList<ArrayList<double>> = dilate(image, se);
+    let e: ArrayList<ArrayList<double>> = erode(image, se);
+    let rows: int = image.size();
+    let cols: int = image.get(0).size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(d.get(i).get(j) - e.get(i).get(j));
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn topHat(image: ArrayList<ArrayList<double>>, se: StructuringElement): ArrayList<ArrayList<double>> {
+    let opened: ArrayList<ArrayList<double>> = opening(image, se);
+    let rows: int = image.size();
+    let cols: int = image.get(0).size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(image.get(i).get(j) - opened.get(i).get(j));
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn blackHat(image: ArrayList<ArrayList<double>>, se: StructuringElement): ArrayList<ArrayList<double>> {
+    let closed: ArrayList<ArrayList<double>> = closing(image, se);
+    let rows: int = image.size();
+    let cols: int = image.get(0).size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(closed.get(i).get(j) - image.get(i).get(j));
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}

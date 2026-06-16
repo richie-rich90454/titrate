@@ -1,0 +1,143 @@
+// Image.tr — Grayscale/RGB/RGBA image class with pixel operations
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public class Image {
+    public int width;
+    public int height;
+    public int channels;
+    public ArrayList<double> data;
+
+    public fn init(w: int, h: int, ch: int) {
+        this.width = w;
+        this.height = h;
+        this.channels = ch;
+        this.data = new ArrayList<double>();
+        var i: int = 0;
+        while (i < w * h * ch) {
+            this.data.add(0.0);
+            i = i + 1;
+        }
+    }
+
+    public fn getPixel(x: int, y: int, c: int): double {
+        if (x < 0 || x >= this.width || y < 0 || y >= this.height || c < 0 || c >= this.channels) { return 0.0; }
+        return this.data.get((y * this.width + x) * this.channels + c);
+    }
+
+    public fn setPixel(x: int, y: int, c: int, val: double): void {
+        if (x < 0 || x >= this.width || y < 0 || y >= this.height || c < 0 || c >= this.channels) { return; }
+        this.data.set((y * this.width + x) * this.channels + c, val);
+    }
+
+    public fn crop(x: int, y: int, w: int, h: int): Image {
+        let result: Image = new Image(w, h, this.channels);
+        var j: int = 0;
+        while (j < h) {
+            var i: int = 0;
+            while (i < w) {
+                var c: int = 0;
+                while (c < this.channels) {
+                    result.setPixel(i, j, c, this.getPixel(x + i, y + j, c));
+                    c = c + 1;
+                }
+                i = i + 1;
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+
+    public fn resize(newW: int, newH: int): Image {
+        let result: Image = new Image(newW, newH, this.channels);
+        let xRatio: double = this.width as double / newW as double;
+        let yRatio: double = this.height as double / newH as double;
+        var j: int = 0;
+        while (j < newH) {
+            var i: int = 0;
+            while (i < newW) {
+                let srcX: int = Math.floor(i as double * xRatio) as int;
+                let srcY: int = Math.floor(j as double * yRatio) as int;
+                var c: int = 0;
+                while (c < this.channels) {
+                    result.setPixel(i, j, c, this.getPixel(srcX, srcY, c));
+                    c = c + 1;
+                }
+                i = i + 1;
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+
+    public fn flipHorizontal(): Image {
+        let result: Image = new Image(this.width, this.height, this.channels);
+        var j: int = 0;
+        while (j < this.height) {
+            var i: int = 0;
+            while (i < this.width) {
+                var c: int = 0;
+                while (c < this.channels) {
+                    result.setPixel(this.width - 1 - i, j, c, this.getPixel(i, j, c));
+                    c = c + 1;
+                }
+                i = i + 1;
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+
+    public fn flipVertical(): Image {
+        let result: Image = new Image(this.width, this.height, this.channels);
+        var j: int = 0;
+        while (j < this.height) {
+            var i: int = 0;
+            while (i < this.width) {
+                var c: int = 0;
+                while (c < this.channels) {
+                    result.setPixel(i, this.height - 1 - j, c, this.getPixel(i, j, c));
+                    c = c + 1;
+                }
+                i = i + 1;
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+
+    public fn rotate90(): Image {
+        let result: Image = new Image(this.height, this.width, this.channels);
+        var j: int = 0;
+        while (j < this.height) {
+            var i: int = 0;
+            while (i < this.width) {
+                var c: int = 0;
+                while (c < this.channels) {
+                    result.setPixel(this.height - 1 - j, i, c, this.getPixel(i, j, c));
+                    c = c + 1;
+                }
+                i = i + 1;
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+
+    public fn toGrayscale(): Image {
+        if (this.channels == 1) { return this.crop(0, 0, this.width, this.height); }
+        let result: Image = new Image(this.width, this.height, 1);
+        var j: int = 0;
+        while (j < this.height) {
+            var i: int = 0;
+            while (i < this.width) {
+                let gray: double = 0.299 * this.getPixel(i, j, 0) + 0.587 * this.getPixel(i, j, 1) + 0.114 * this.getPixel(i, j, 2);
+                result.setPixel(i, j, 0, gray);
+                i = i + 1;
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+}
