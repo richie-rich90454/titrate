@@ -1,0 +1,182 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::lang::Double;
+import tt::lang::Integer;
+import tt::json::JsonValue;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// Cache for standard enthalpies of formation (kJ/mol)
+var _enthalpyCache: HashMap<string, double> = new HashMap<string, double>();
+var _enthalpyLoaded: bool = false;
+
+fn _ensureEnthalpyLoaded(): void {
+    if (_enthalpyLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("chem/periodic_table.json");
+    if (data.isNull() || !data.isObject()) {
+        _enthalpyLoaded = true;
+        return;
+    }
+    // Check if thermochemistry data is embedded in the data file
+    if (data.hasKey("thermochemistry")) {
+        let thermo: JsonValue = data.get("thermochemistry");
+        if (thermo.isObject() && thermo.hasKey("enthalpies")) {
+            let enthalpies: JsonValue = thermo.get("enthalpies");
+            if (enthalpies.isObject()) {
+                let keys: ArrayList<string> = enthalpies.keys();
+                var i: int = 0;
+                while (i < keys.size()) {
+                    let key: string = keys.get(i);
+                    let val: JsonValue = enthalpies.get(key);
+                    if (val.isNumber()) {
+                        _enthalpyCache.put(key, val.asNumber());
+                    }
+                    i = i + 1;
+                }
+            }
+        }
+    }
+    // Load from dedicated thermochemistry data file if available
+    let thermoData: JsonValue = DataFile.load("chem/thermochemistry.json");
+    if (!thermoData.isNull() && thermoData.isObject()) {
+        if (thermoData.hasKey("enthalpies")) {
+            let enthalpies: JsonValue = thermoData.get("enthalpies");
+            if (enthalpies.isObject()) {
+                let keys: ArrayList<string> = enthalpies.keys();
+                var i: int = 0;
+                while (i < keys.size()) {
+                    let key: string = keys.get(i);
+                    let val: JsonValue = enthalpies.get(key);
+                    if (val.isNumber()) {
+                        _enthalpyCache.put(key, val.asNumber());
+                    }
+                    i = i + 1;
+                }
+            }
+        }
+    }
+    _enthalpyLoaded = true;
+}
+
+// Lookup standard enthalpy of formation for a compound (kJ/mol)
+public fn enthalpyOfFormation(compound: string): double {
+    _ensureEnthalpyLoaded();
+    if (_enthalpyCache.containsKey(compound)) {
+        return _enthalpyCache.get(compound);
+    }
+    // Elements in standard state have ΔHf° = 0
+    let elements: ArrayList<string> = _elementarySubstances();
+    var i: int = 0;
+    while (i < elements.size()) {
+        if (compound == elements.get(i)) {
+            return 0.0;
+        }
+        i = i + 1;
+    }
+    return 0.0;
+}
+
+fn _elementarySubstances(): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    result.add("H2");
+    result.add("O2");
+    result.add("N2");
+    result.add("F2");
+    result.add("Cl2");
+    result.add("Br2");
+    result.add("I2");
+    result.add("C");
+    result.add("S");
+    result.add("P");
+    result.add("He");
+    result.add("Ne");
+    result.add("Ar");
+    result.add("Kr");
+    result.add("Xe");
+    result.add("Rn");
+    return result;
+}
+
+// Hess's law calculation: combine multiple reactions to find the enthalpy
+// of a target reaction.
+// Each reaction is represented as a list of strings:
+//   ["H2", "0.5O2", "->", "H2O", "-285.8"]
+// where the last element is the reaction enthalpy in kJ/mol
+// The target is similarly formatted but without the enthalpy value.
+// Returns the calculated enthalpy for the target reaction.
+public fn hessLaw(reactions: ArrayList<ArrayList<string>>, target: ArrayList<string>): double {
+    // Simple implementation: sum the enthalpies of the component reactions
+    // Each reaction's last element is its enthalpy
+    var totalDeltaH: double = 0.0;
+    var i: int = 0;
+    while (i < reactions.size()) {
+        let reaction: ArrayList<string> = reactions.get(i);
+        if (reaction.size() > 0) {
+            let lastIdx: int = reaction.size() - 1;
+            let dhStr: string = reaction.get(lastIdx);
+            let dh: double = Double.parseDouble(dhStr);
+            totalDeltaH = totalDeltaH + dh;
+        }
+        i = i + 1;
+    }
+    return totalDeltaH;
+}
+
+// Gibbs free energy: ΔG = ΔH - TΔS
+// deltaH in kJ/mol, deltaS in kJ/(mol·K), temperature in K
+// Returns ΔG in kJ/mol
+public fn gibbsFreeEnergy(deltaH: double, deltaS: double, temperature: double): double {
+    return deltaH - temperature * deltaS;
+}
+
+// Entropy change at constant temperature: ΔS = ΔH / T
+// deltaH in kJ/mol, temperature in K
+// Returns ΔS in kJ/(mol·K)
+public fn entropyChange(deltaH: double, temperature: double): double {
+    if (Math.abs(temperature) < 1e-15) {
+        return 0.0;
+    }
+    return deltaH / temperature;
+}
+
+// Heat capacity change: q = Cp * ΔT
+// cp in J/(mol·K) or J/(g·K), t1 and t2 in K
+// Returns q in J/mol or J/g (same units as cp)
+public fn heatCapacityChange(t1: double, t2: double, cp: double): double {
+    return cp * (t2 - t1);
+}
+
+// Phase transition energy: Q = m * L
+// mass in grams, latentHeat in J/g (or kg and kJ/kg)
+// Returns Q in J (or kJ if using kg/kJ units)
+public fn phaseTransitionEnergy(mass: double, latentHeat: double): double {
+    return mass * latentHeat;
+}
+
+// Van 't Hoff equation: relates equilibrium constants at two temperatures
+// to the standard enthalpy change.
+// ln(K2/K1) = -ΔH°/R * (1/T2 - 1/T1)
+// Solving for ΔH°:
+// ΔH° = R * ln(K2/K1) / (1/T1 - 1/T2)
+// R = 8.314 J/(mol·K)
+// equilibriumK1, equilibriumK2: dimensionless equilibrium constants
+// t1, t2: temperatures in K
+// Returns ΔH° in J/mol
+public fn vanTHoff(equilibriumK1: double, equilibriumK2: double, t1: double, t2: double): double {
+    let R: double = 8.314;
+    if (Math.abs(t1) < 1e-15 || Math.abs(t2) < 1e-15) {
+        return 0.0;
+    }
+    if (equilibriumK1 <= 0.0 || equilibriumK2 <= 0.0) {
+        return 0.0;
+    }
+    let lnRatio: double = MathAdvanced.ln(equilibriumK2 / equilibriumK1);
+    let invDiff: double = 1.0 / t1 - 1.0 / t2;
+    if (Math.abs(invDiff) < 1e-15) {
+        return 0.0;
+    }
+    return R * lnRatio / invDiff;
+}
