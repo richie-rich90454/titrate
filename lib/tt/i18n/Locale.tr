@@ -1,5 +1,36 @@
 // Locale-aware formatting and internationalization support.
 import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// Module-level cache: locale name -> JsonValue
+let _localeCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+
+// Load locale data from DataFile into the cache (once).
+fn _ensureLocaleDataLoaded(): void {
+    if (_localeCache.size() > 0) {
+        return;
+    }
+    let root: JsonValue = DataFile.load("locale/cldr.json");
+    if (root.isNull() || !root.isObject()) {
+        return;
+    }
+    if (!root.hasKey("locales")) {
+        return;
+    }
+    let locales: JsonValue = root.get("locales");
+    if (!locales.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = locales.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: JsonValue = locales.get(key);
+        _localeCache.put(key, val);
+        i = i + 1;
+    }
+}
 
 public class Locale {
     public string name;
@@ -20,36 +51,28 @@ public class Locale {
     }
 
     private fn applyDefaults(name: string): void {
-        if (name == "en_US") {
-            this.decimalPoint = ".";
-            this.thousandsSep = ",";
-            this.currencySymbol = "$";
-            this.dateFormat = "%m/%d/%Y";
-            this.timeFormat = "%I:%M:%S %p";
-        } else if (name == "de_DE" || name == "fr_FR" || name == "es_ES") {
-            this.decimalPoint = ",";
-            this.thousandsSep = ".";
-            this.currencySymbol = "\u20ac";
-            this.dateFormat = "%d.%m.%Y";
-            this.timeFormat = "%H:%M:%S";
-        } else if (name == "ja_JP") {
-            this.decimalPoint = ".";
-            this.thousandsSep = ",";
-            this.currencySymbol = "\u00a5";
-            this.dateFormat = "%Y/%m/%d";
-            this.timeFormat = "%H:%M:%S";
-        } else if (name == "zh_CN") {
-            this.decimalPoint = ".";
-            this.thousandsSep = ",";
-            this.currencySymbol = "\u00a5";
-            this.dateFormat = "%Y-%m-%d";
-            this.timeFormat = "%H:%M:%S";
-        } else if (name == "en_GB") {
-            this.decimalPoint = ".";
-            this.thousandsSep = ",";
-            this.currencySymbol = "\u00a3";
-            this.dateFormat = "%d/%m/%Y";
-            this.timeFormat = "%H:%M:%S";
+        _ensureLocaleDataLoaded();
+        if (!_localeCache.containsKey(name)) {
+            return;
+        }
+        let data: JsonValue = _localeCache.get(name);
+        if (data.isNull() || !data.isObject()) {
+            return;
+        }
+        if (data.hasKey("decimalPoint")) {
+            this.decimalPoint = data.get("decimalPoint").asString();
+        }
+        if (data.hasKey("thousandsSep")) {
+            this.thousandsSep = data.get("thousandsSep").asString();
+        }
+        if (data.hasKey("currencySymbol")) {
+            this.currencySymbol = data.get("currencySymbol").asString();
+        }
+        if (data.hasKey("dateFormat")) {
+            this.dateFormat = data.get("dateFormat").asString();
+        }
+        if (data.hasKey("timeFormat")) {
+            this.timeFormat = data.get("timeFormat").asString();
         }
     }
 
