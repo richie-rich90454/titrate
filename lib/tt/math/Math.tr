@@ -637,6 +637,165 @@ public fn changeOfBase(value: double, fromBase: double, toBase: double): double 
     return MathAdvanced.ln(value) / MathAdvanced.ln(toBase);
 }
 
+// ==================== Additional utility functions (Tasks 113-120) ====================
+
+// Signum function: -1, 0, or 1
+public fn signum(x: double): double {
+    if (x > 0.0) { return 1.0; }
+    if (x < 0.0) { return -1.0; }
+    return 0.0;
+}
+
+// Next representable value greater than x
+public fn nextUp(x: double): double {
+    return MathAdvanced.nextUp(x);
+}
+
+// Next representable value less than x
+public fn nextDown(x: double): double {
+    return MathAdvanced.nextDown(x);
+}
+
+// Convert degrees to radians
+public fn degrees(x: double): double {
+    return x * 180.0 / PI();
+}
+
+// Convert radians to degrees
+public fn radians(x: double): double {
+    return x * PI() / 180.0;
+}
+
+// Cube root
+public fn cbrt(x: double): double {
+    return MathAdvanced.cbrt(x);
+}
+
+// 10^x
+public fn exp10(x: double): double {
+    return MathAdvanced.pow(10.0, x);
+}
+
+// log base 2
+public fn log2(x: double): double {
+    return MathAdvanced.log2(x);
+}
+
+// log base 10
+public fn log10(x: double): double {
+    return MathAdvanced.log10(x);
+}
+
+// Wrap value into [lo, hi) range
+public fn wrap(x: double, lo: double, hi: double): double {
+    let range: double = hi - lo;
+    if (range <= 0.0) { return lo; }
+    let val: double = x - lo;
+    let wrapped: double = val - Math_floor(val / range) * range;
+    if (wrapped < 0.0) { wrapped = wrapped + range; }
+    return wrapped + lo;
+}
+
+// Remap value from [inLo, inHi] to [outLo, outHi]
+public fn remap(x: double, inLo: double, inHi: double, outLo: double, outHi: double): double {
+    let t: double = (x - inLo) / (inHi - inLo);
+    return outLo + t * (outHi - outLo);
+}
+
+// Shortest angular difference from 'from' to 'to' in degrees
+public fn deltaAngle(from: double, to: double): double {
+    let diff: double = wrap(to - from, -180.0, 180.0);
+    return diff;
+}
+
+// Inverse lerp: returns t such that lerp(a, b, t) = value
+public fn inverseLerp(a: double, b: double, value: double): double {
+    if (a == b) { return 0.0; }
+    return (value - a) / (b - a);
+}
+
+// Ping-pong: value bounces back and forth between 0 and length
+public fn pingPong(t: double, length: double): double {
+    t = Math_abs(t);
+    let period: double = t - Math_floor(t / (length * 2.0)) * length * 2.0;
+    if (period > length) { return length * 2.0 - period; }
+    return period;
+}
+
+// Repeat: value repeats in [0, length)
+public fn repeat(t: double, length: double): double {
+    return Math_abs(t - Math_floor(t / length) * length);
+}
+
+// Smooth step interpolation (Hermite)
+public fn smoothStep(edge0: double, edge1: double, x: double): double {
+    let t: double = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+// Smoother step interpolation (Ken Perlin's improved)
+public fn smootherStep(edge0: double, edge1: double, x: double): double {
+    let t: double = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+// Lerp for angles in degrees
+public fn lerpAngle(a: double, b: double, t: double): double {
+    let diff: double = deltaAngle(a, b);
+    return a + diff * t;
+}
+
+// Move current toward target by maxDelta
+public fn moveTowards(current: double, target: double, maxDelta: double): double {
+    if (Math_abs(target - current) <= maxDelta) { return target; }
+    return current + signum(target - current) * maxDelta;
+}
+
+// Exponential damping
+public fn damp(current: double, target: double, lambda: double, dt: double): double {
+    return lerp(current, target, 1.0 - MathAdvanced.exp(-lambda * dt));
+}
+
+// Spring damping
+public fn springDamp(current: double, target: double, velocity: double, stiffness: double, damping: double, dt: double): Pair<double, double> {
+    let force: double = (target - current) * stiffness - velocity * damping;
+    let newVel: double = velocity + force * dt;
+    let newPos: double = current + newVel * dt;
+    return new Pair<double, double>(newPos, newVel);
+}
+
+// Round to nearest multiple
+public fn roundTo(x: double, multiple: double): double {
+    if (multiple == 0.0) { return x; }
+    return Math_round(x / multiple) as double * multiple;
+}
+
+// Floor to nearest multiple
+public fn floorTo(x: double, multiple: double): double {
+    if (multiple == 0.0) { return x; }
+    return Math_floor(x / multiple) * multiple;
+}
+
+// Ceil to nearest multiple
+public fn ceilTo(x: double, multiple: double): double {
+    if (multiple == 0.0) { return x; }
+    return Math_ceil(x / multiple) * multiple;
+}
+
+// Round to N decimal places
+public fn roundToDecimal(x: double, decimals: int): double {
+    let factor: double = MathAdvanced.pow(10.0, decimals as double);
+    return Math_round(x * factor) as double / factor;
+}
+
+// Round to N significant figures
+public fn roundToSignificant(x: double, digits: int): double {
+    if (x == 0.0) { return 0.0; }
+    let magnitude: double = Math_floor(MathAdvanced.ln(Math_abs(x)) / MathAdvanced.ln(10.0));
+    let factor: double = MathAdvanced.pow(10.0, (digits as double) - 1.0 - magnitude);
+    return Math_round(x * factor) as double / factor;
+}
+
 // Logarithm in arbitrary base: ln(value) / ln(base)
 public fn logBase(base: double, value: double): double {
     return MathAdvanced.ln(value) / MathAdvanced.ln(base);
