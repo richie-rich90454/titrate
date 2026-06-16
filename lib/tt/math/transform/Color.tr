@@ -5,6 +5,93 @@ import tt::math::MathTrig;
 import tt::math::vec::Vec3;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _colorsCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _colorsLoaded: bool = false;
+
+fn _ensureColorsLoaded(): void {
+    if (_colorsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("color/named_colors.json");
+    if (data.isNull() || !data.isObject()) {
+        _colorsLoaded = true;
+        return;
+    }
+    if (!data.hasKey("colors")) {
+        _colorsLoaded = true;
+        return;
+    }
+    let colors: JsonValue = data.get("colors");
+    if (!colors.isObject()) {
+        _colorsLoaded = true;
+        return;
+    }
+    // Cache all named color entries
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("black");
+    names.add("white");
+    names.add("red");
+    names.add("green");
+    names.add("blue");
+    names.add("yellow");
+    names.add("cyan");
+    names.add("magenta");
+    names.add("silver");
+    names.add("gray");
+    names.add("maroon");
+    names.add("olive");
+    names.add("lime");
+    names.add("aqua");
+    names.add("teal");
+    names.add("navy");
+    names.add("fuchsia");
+    names.add("purple");
+    names.add("orange");
+    names.add("pink");
+    names.add("brown");
+    names.add("coral");
+    names.add("gold");
+    names.add("indigo");
+    names.add("ivory");
+    names.add("khaki");
+    names.add("lavender");
+    names.add("salmon");
+    names.add("sienna");
+    names.add("tan");
+    names.add("tomato");
+    names.add("turquoise");
+    names.add("violet");
+    names.add("wheat");
+    var i: int = 0;
+    while (i < names.size()) {
+        let name: string = names.get(i);
+        if (colors.hasKey(name)) {
+            _colorsCache.put(name, colors.get(name));
+        }
+        i = i + 1;
+    }
+    _colorsLoaded = true;
+}
+
+// Look up a named color from the data file, returns null if not found
+fn _getNamedColor(name: string): Color {
+    _ensureColorsLoaded();
+    if (_colorsCache.containsKey(name)) {
+        let entry: JsonValue = _colorsCache.get(name);
+        if (entry.isObject() && entry.hasKey("r") && entry.hasKey("g") && entry.hasKey("b")) {
+            let ri: int = Integer.parseInt(Double.toString(entry.get("r").asNumber()));
+            let gi: int = Integer.parseInt(Double.toString(entry.get("g").asNumber()));
+            let bi: int = Integer.parseInt(Double.toString(entry.get("b").asNumber()));
+            return new Color(ri as double / 255.0, gi as double / 255.0, bi as double / 255.0);
+        }
+    }
+    return new Color(0.0, 0.0, 0.0);
+}
 
 // ---- Color (RGB, 0.0-1.0 range) ----
 
@@ -285,4 +372,9 @@ public fn colorLerp(a: Color, b: Color, t: double): Color {
 
 public fn rgbaLerp(a: RGBA, b: RGBA, t: double): RGBA {
     return a.lerp(b, t);
+}
+
+// Look up a named color from the data file
+public fn colorByName(name: string): Color {
+    return _getNamedColor(name);
 }
