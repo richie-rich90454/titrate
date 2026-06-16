@@ -3,6 +3,9 @@ import tt::math::MathTrig;
 import tt::math::MathAdvanced;
 import tt::util::Pair;
 import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
 // Constants
 public fn PI(): double {
@@ -39,6 +42,78 @@ public fn MAX_INT(): long {
 
 public fn MIN_INT(): long {
     return Math_minInt();
+}
+
+// ==================== DataFile caches for Lanczos and erf coefficients ====================
+
+var _lanczosCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _lanczosLoaded: bool = false;
+var _erfCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _erfLoaded: bool = false;
+
+fn _ensureLanczosLoaded(): void {
+    if (_lanczosLoaded) { return; }
+    let data: JsonValue = DataFile.load("math/lanczos_coefficients.json");
+    if (data.isNull()) { return; }
+    let g: JsonValue = data.get("g");
+    if (!g.isNull()) { _lanczosCache.put("g", g); }
+    let coeffs: JsonValue = data.get("coefficients");
+    if (!coeffs.isNull()) { _lanczosCache.put("coefficients", coeffs); }
+    _lanczosLoaded = true;
+}
+
+fn _ensureErfLoaded(): void {
+    if (_erfLoaded) { return; }
+    let data: JsonValue = DataFile.load("math/erf_coefficients.json");
+    if (data.isNull()) { return; }
+    let a: JsonValue = data.get("a");
+    if (!a.isNull()) { _erfCache.put("a", a); }
+    let p: JsonValue = data.get("p");
+    if (!p.isNull()) { _erfCache.put("p", p); }
+    _erfLoaded = true;
+}
+
+fn _getLanczosG(): double {
+    _ensureLanczosLoaded();
+    let g: JsonValue = _lanczosCache.get("g");
+    if (!g.isNull()) { return g.asNumber(); }
+    return 7.0;
+}
+
+fn _getLanczosCoeff(i: int): double {
+    _ensureLanczosLoaded();
+    let coeffs: JsonValue = _lanczosCache.get("coefficients");
+    if (!coeffs.isNull() && i < coeffs.size()) {
+        return coeffs.getAt(i).asNumber();
+    }
+    return 0.0;
+}
+
+fn _getErfCoeff(i: int): double {
+    _ensureErfLoaded();
+    let a: JsonValue = _erfCache.get("a");
+    if (!a.isNull() && i < a.size()) {
+        return a.getAt(i).asNumber();
+    }
+    return 0.0;
+}
+
+fn _getErfP(): double {
+    _ensureErfLoaded();
+    let p: JsonValue = _erfCache.get("p");
+    if (!p.isNull()) { return p.asNumber(); }
+    return 0.3275911;
+}
+
+// Compute Lanczos sum: c0 + c1/(xx+1) + c2/(xx+2) + ... + c8/(xx+8)
+fn _lanczosSum(xx: double): double {
+    var a: double = _getLanczosCoeff(0);
+    var i: int = 1;
+    while (i < 9) {
+        a = a + _getLanczosCoeff(i) / (xx + (i as double));
+        i = i + 1;
+    }
+    return a;
 }
 
 // Utility
@@ -304,12 +379,7 @@ public fn isnan(x: double): bool {
 
 // Error function approximation (Abramowitz and Stegun)
 public fn erf(x: double): double {
-    let a1: double = 0.254829592;
-    let a2: double = -0.284496736;
-    let a3: double = 1.421413741;
-    let a4: double = -1.453152027;
-    let a5: double = 1.061405429;
-    let p: double = 0.3275911;
+    let p: double = _getErfP();
 
     let sign: int = 1;
     var ax: double = x;
@@ -318,7 +388,7 @@ public fn erf(x: double): double {
         ax = -x;
     }
     let t: double = 1.0 / (1.0 + p * ax);
-    let y: double = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * MathAdvanced.exp(-ax * ax);
+    let y: double = 1.0 - (((((_getErfCoeff(4) * t + _getErfCoeff(3)) * t) + _getErfCoeff(2)) * t + _getErfCoeff(1)) * t + _getErfCoeff(0)) * t * MathAdvanced.exp(-ax * ax);
     return sign as double * y;
 }
 
@@ -329,64 +399,29 @@ public fn erfc(x: double): double {
 
 // Gamma function using Lanczos approximation
 public fn gamma(x: double): double {
-    let g: double = 7.0;
-    // Lanczos coefficients
-    let c0: double = 0.99999999999980993;
-    let c1: double = 676.5203681218851;
-    let c2: double = -1259.1392167224028;
-    let c3: double = 771.32342877765313;
-    let c4: double = -176.61502916214059;
-    let c5: double = 12.507343278686905;
-    let c6: double = -0.13857109526572012;
-    let c7: double = 9.9843695780195716e-6;
-    let c8: double = 1.5056327351493116e-7;
+    let g: double = _getLanczosG();
 
     if (x < 0.5) {
         // Reflection formula: gamma(x) = PI / (sin(PI*x) * gamma(1-x))
         return PI() / (MathTrig.sin(PI() * x) * gamma(1.0 - x));
     }
-    var xx: double = x - 1.0;
-    var a: double = c0;
-    a = a + c1 / (xx + 1.0);
-    a = a + c2 / (xx + 2.0);
-    a = a + c3 / (xx + 3.0);
-    a = a + c4 / (xx + 4.0);
-    a = a + c5 / (xx + 5.0);
-    a = a + c6 / (xx + 6.0);
-    a = a + c7 / (xx + 7.0);
-    a = a + c8 / (xx + 8.0);
+    let xx: double = x - 1.0;
+    let a: double = _lanczosSum(xx);
     let t: double = xx + g + 0.5;
     return MathAdvanced.sqrt(2.0 * PI()) * MathAdvanced.pow(t, xx + 0.5) * MathAdvanced.exp(-t) * a;
 }
 
 // Log-gamma function: ln(|gamma(x)|)
 public fn lgamma(x: double): double {
-    let g: double = 7.0;
-    let c0: double = 0.99999999999980993;
-    let c1: double = 676.5203681218851;
-    let c2: double = -1259.1392167224028;
-    let c3: double = 771.32342877765313;
-    let c4: double = -176.61502916214059;
-    let c5: double = 12.507343278686905;
-    let c6: double = -0.13857109526572012;
-    let c7: double = 9.9843695780195716e-6;
-    let c8: double = 1.5056327351493116e-7;
+    let g: double = _getLanczosG();
 
     if (x < 0.5) {
         // Reflection: lgamma(x) = ln(PI / |sin(PI*x)|) - lgamma(1-x)
         let sinPiX: double = Math_abs(MathTrig.sin(PI() * x));
         return MathAdvanced.ln(PI() / sinPiX) - lgamma(1.0 - x);
     }
-    var xx: double = x - 1.0;
-    var a: double = c0;
-    a = a + c1 / (xx + 1.0);
-    a = a + c2 / (xx + 2.0);
-    a = a + c3 / (xx + 3.0);
-    a = a + c4 / (xx + 4.0);
-    a = a + c5 / (xx + 5.0);
-    a = a + c6 / (xx + 6.0);
-    a = a + c7 / (xx + 7.0);
-    a = a + c8 / (xx + 8.0);
+    let xx: double = x - 1.0;
+    let a: double = _lanczosSum(xx);
     let t: double = xx + g + 0.5;
     return 0.5 * MathAdvanced.ln(2.0 * PI()) + (xx + 0.5) * MathAdvanced.ln(t) - t + MathAdvanced.ln(a);
 }
