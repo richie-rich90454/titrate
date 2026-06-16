@@ -1,0 +1,85 @@
+// PhaseDiagram.tr — Binary phase diagram, lever rule, eutectic/peritectic points
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+public class PhasePoint {
+    public double temperature;
+    public double composition;
+    public string phase;
+
+    public fn init(t: double, c: double, p: string) {
+        this.temperature = t;
+        this.composition = c;
+        this.phase = p;
+    }
+}
+
+public class BinaryPhaseDiagram {
+    public string componentA;
+    public string componentB;
+    public ArrayList<PhasePoint> liquidus;
+    public ArrayList<PhasePoint> solidus;
+    public double eutecticTemp;
+    public double eutecticComp;
+    public double peritecticTemp;
+    public double peritecticComp;
+
+    public fn init(a: string, b: string) {
+        this.componentA = a;
+        this.componentB = b;
+        this.liquidus = new ArrayList<PhasePoint>();
+        this.solidus = new ArrayList<PhasePoint>();
+        this.eutecticTemp = 0.0;
+        this.eutecticComp = 0.0;
+        this.peritecticTemp = 0.0;
+        this.peritecticComp = 0.0;
+    }
+
+    public fn addLiquidusPoint(temp: double, comp: double): void {
+        this.liquidus.add(new PhasePoint(temp, comp, "liquid"));
+    }
+
+    public fn addSolidusPoint(temp: double, comp: double): void {
+        this.solidus.add(new PhasePoint(temp, comp, "solid"));
+    }
+
+    public fn setEutectic(temp: double, comp: double): void {
+        this.eutecticTemp = temp;
+        this.eutecticComp = comp;
+    }
+
+    public fn setPeritectic(temp: double, comp: double): void {
+        this.peritecticTemp = temp;
+        this.peritecticComp = comp;
+    }
+}
+
+// Lever rule: compute fraction of each phase
+public fn leverRule(composition: double, compAlpha: double, compBeta: double): double {
+    if (compBeta == compAlpha) { return 0.5; }
+    return (composition - compAlpha) / (compBeta - compAlpha);
+}
+
+// Cooling curve for a binary system (simplified)
+public fn coolingCurve(diagram: BinaryPhaseDiagram, composition: double, startTemp: double, endTemp: double, steps: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let dt: double = (startTemp - endTemp) / steps as double;
+    var temp: double = startTemp;
+    var i: int = 0;
+    while (i < steps) {
+        result.add(temp);
+        // Simplified: linear cooling with plateau at eutectic
+        if (diagram.eutecticTemp > 0.0 && Math.abs(temp - diagram.eutecticTemp) < dt) {
+            // Add plateau points
+            var j: int = 0;
+            while (j < 5) {
+                result.add(diagram.eutecticTemp);
+                j = j + 1;
+            }
+        }
+        temp = temp - dt;
+        i = i + 1;
+    }
+    return result;
+}

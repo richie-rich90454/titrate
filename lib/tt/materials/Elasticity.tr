@@ -1,0 +1,119 @@
+// Elasticity.tr — Stress-strain tensors, elastic moduli, compliance/stiffness matrices
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+
+public class StressTensor {
+    public double xx;
+    public double yy;
+    public double zz;
+    public double xy;
+    public double xz;
+    public double yz;
+
+    public fn init() {
+        this.xx = 0.0;
+        this.yy = 0.0;
+        this.zz = 0.0;
+        this.xy = 0.0;
+        this.xz = 0.0;
+        this.yz = 0.0;
+    }
+
+    public fn hydrostaticStress(): double {
+        return (this.xx + this.yy + this.zz) / 3.0;
+    }
+
+    public fn vonMisesStress(): double {
+        let s: double = 0.5 * ((this.xx - this.yy) * (this.xx - this.yy) + (this.yy - this.zz) * (this.yy - this.zz) + (this.zz - this.xx) * (this.zz - this.xx));
+        let t: double = 3.0 * (this.xy * this.xy + this.xz * this.xz + this.yz * this.yz);
+        return MathAdvanced.sqrt(s + t);
+    }
+}
+
+public class StrainTensor {
+    public double xx;
+    public double yy;
+    public double zz;
+    public double xy;
+    public double xz;
+    public double yz;
+
+    public fn init() {
+        this.xx = 0.0;
+        this.yy = 0.0;
+        this.zz = 0.0;
+        this.xy = 0.0;
+        this.xz = 0.0;
+        this.yz = 0.0;
+    }
+
+    public fn volumetricStrain(): double {
+        return this.xx + this.yy + this.zz;
+    }
+}
+
+public class ElasticConstants {
+    public double youngsModulus;
+    public double poissonRatio;
+    public double shearModulus;
+    public double bulkModulus;
+
+    public fn init(e: double, nu: double) {
+        this.youngsModulus = e;
+        this.poissonRatio = nu;
+        this.shearModulus = e / (2.0 * (1.0 + nu));
+        this.bulkModulus = e / (3.0 * (1.0 - 2.0 * nu));
+    }
+
+    public fn fromShearBulk(g: double, k: double): void {
+        this.shearModulus = g;
+        this.bulkModulus = k;
+        this.youngsModulus = 9.0 * k * g / (3.0 * k + g);
+        this.poissonRatio = (3.0 * k - 2.0 * g) / (2.0 * (3.0 * k + g));
+    }
+
+    public fn lameLambda(): double {
+        return this.shearModulus * this.poissonRatio / (1.0 - 2.0 * this.poissonRatio);
+    }
+
+    public fn pWaveModulus(): double {
+        return this.youngsModulus * (1.0 - this.poissonRatio) / ((1.0 + this.poissonRatio) * (1.0 - 2.0 * this.poissonRatio));
+    }
+}
+
+// Hooke's law: stress = C * strain (isotropic)
+public fn hookeStress(strain: StrainTensor, constants: ElasticConstants): StressTensor {
+    let stress: StressTensor = new StressTensor();
+    let lambda: double = constants.lameLambda();
+    let mu: double = constants.shearModulus;
+    let trace: double = strain.volumetricStrain();
+    stress.xx = lambda * trace + 2.0 * mu * strain.xx;
+    stress.yy = lambda * trace + 2.0 * mu * strain.yy;
+    stress.zz = lambda * trace + 2.0 * mu * strain.zz;
+    stress.xy = 2.0 * mu * strain.xy;
+    stress.xz = 2.0 * mu * strain.xz;
+    stress.yz = 2.0 * mu * strain.yz;
+    return stress;
+}
+
+// Compliance (inverse stiffness) for isotropic material
+public fn hookeStrain(stress: StressTensor, constants: ElasticConstants): StrainTensor {
+    let strain: StrainTensor = new StrainTensor();
+    let e: double = constants.youngsModulus;
+    let nu: double = constants.poissonRatio;
+    let trace: double = stress.xx + stress.yy + stress.zz;
+    let factor: double = (1.0 + nu) / e;
+    let traceFactor: double = nu / e;
+    strain.xx = factor * stress.xx - traceFactor * (stress.yy + stress.zz);
+    strain.yy = factor * stress.yy - traceFactor * (stress.xx + stress.zz);
+    strain.zz = factor * stress.zz - traceFactor * (stress.xx + stress.yy);
+    strain.xy = factor * stress.xy;
+    strain.xz = factor * stress.xz;
+    strain.yz = factor * stress.yz;
+    return strain;
+}
+
+// Strain energy density
+public fn strainEnergyDensity(stress: StressTensor, strain: StrainTensor): double {
+    return 0.5 * (stress.xx * strain.xx + stress.yy * strain.yy + stress.zz * strain.zz + 2.0 * (stress.xy * strain.xy + stress.xz * strain.xz + stress.yz * strain.yz));
+}
