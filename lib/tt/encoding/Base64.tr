@@ -1,9 +1,45 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
+﻿﻿// Base64 encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
-let ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-let URL_ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-let BASE32_ALPHABET: string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+// ---- Data loaded from external JSON via DataFile ----
+
+var _alphabetCache: HashMap<string, string> = new HashMap<string, string>();
+var _alphabetLoaded: bool = false;
+
+fn _ensureAlphabetLoaded(): void {
+    if (_alphabetLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("encoding/base64_alphabets.json");
+    if (data.isNull() || !data.isObject()) {
+        _alphabetLoaded = true;
+        return;
+    }
+    if (data.hasKey("base64")) {
+        _alphabetCache.put("base64", data.get("base64").asString());
+    }
+    if (data.hasKey("base64url")) {
+        _alphabetCache.put("base64url", data.get("base64url").asString());
+    }
+    if (data.hasKey("base32")) {
+        _alphabetCache.put("base32", data.get("base32").asString());
+    }
+    _alphabetLoaded = true;
+}
+
+fn _getAlphabet(key: string, defaultVal: string): string {
+    _ensureAlphabetLoaded();
+    if (_alphabetCache.containsKey(key)) {
+        return _alphabetCache.get(key);
+    }
+    return defaultVal;
+}
+
+let ALPHABET: string = _getAlphabet("base64", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
+let URL_ALPHABET: string = _getAlphabet("base64url", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
+let BASE32_ALPHABET: string = _getAlphabet("base32", "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
 
 public class Base64 {
     public fn encode(input: string): string {
