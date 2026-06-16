@@ -1,8 +1,11 @@
 // Special: special mathematical functions (beta, zeta, Bessel, Airy, elliptic integrals, digamma, ML activations)
 import tt::util::ArrayList;
+import tt::util::HashMap;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::math::MathTrig;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 
 // ==================== Beta functions ====================
 
@@ -122,80 +125,111 @@ public fn zetaPartial(s: double, n: int): double {
 
 // ==================== Bessel functions ====================
 
+// Module-level cache for Bessel coefficient data loaded from DataFile
+let _besselCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+let _besselLoaded: bool = false;
+
+// Load Bessel coefficients from data file into cache
+fn _ensureBesselCoeffsLoaded(): void {
+    if (_besselLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("math/bessel_coefficients.json");
+    if (data.isNull() || !data.isObject()) {
+        _besselLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("besselJ0");
+    keys.add("besselJ1");
+    keys.add("besselY0");
+    keys.add("besselY1");
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (data.hasKey(key)) {
+            _besselCache.put(key, data.get(key));
+        }
+        i = i + 1;
+    }
+    _besselLoaded = true;
+}
+
+// Extract a coefficient array from a JsonValue using a dot-separated path
+fn _getCoeffArray(data: JsonValue, path: string): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let parts: ArrayList<string> = String.split(path, ".");
+    var current: JsonValue = data;
+    var i: int = 0;
+    while (i < parts.size()) {
+        current = current.get(parts.get(i));
+        if (current.isNull()) {
+            return result;
+        }
+        i = i + 1;
+    }
+    if (!current.isArray()) {
+        return result;
+    }
+    i = 0;
+    while (i < current.size()) {
+        result.add(current.getAt(i).asNumber());
+        i = i + 1;
+    }
+    return result;
+}
+
+// Evaluate polynomial using Horner's method: coeffs[0] + x*(coeffs[1] + x*(coeffs[2] + ...))
+fn _evalPoly(coeffs: ArrayList<double>, x: double): double {
+    var result: double = coeffs.get(coeffs.size() - 1);
+    var i: int = coeffs.size() - 2;
+    while (i >= 0) {
+        result = coeffs.get(i) + x * result;
+        i = i - 1;
+    }
+    return result;
+}
+
 // Bessel function of first kind, order 0 (polynomial approximation)
 public fn besselJ0(x: double): double {
+    _ensureBesselCoeffsLoaded();
+    let j0Data: JsonValue = _besselCache.get("besselJ0");
     let ax: double = Math.abs(x);
     if (ax < 8.0) {
         let y: double = x * x;
-        let a1: double = 57568490574.0;
-        let a2: double = -13362590354.0;
-        let a3: double = 651619640.7;
-        let a4: double = -11214424.18;
-        let a5: double = 77392.33017;
-        let a6: double = -184.9052456;
-        let b1: double = 57568490411.0;
-        let b2: double = 1029532985.0;
-        let b3: double = 9494680.718;
-        let b4: double = 59272.64853;
-        let b5: double = 267.8532712;
-        let b6: double = 1.0;
-        return (a1 + y * (a2 + y * (a3 + y * (a4 + y * (a5 + y * a6)))))
-            / (b1 + y * (b2 + y * (b3 + y * (b4 + y * (b5 + y * b6)))));
+        let num: ArrayList<double> = _getCoeffArray(j0Data, "small.numerator");
+        let den: ArrayList<double> = _getCoeffArray(j0Data, "small.denominator");
+        return _evalPoly(num, y) / _evalPoly(den, y);
     }
     let z: double = 8.0 / ax;
     let y: double = z * z;
     let xx: double = ax - 0.785398164;
-    let p0: double = 1.0;
-    let p1: double = -0.001098628627;
-    let p2: double = 2.734510407e-5;
-    let p3: double = -2.073370639e-7;
-    let p4: double = 2.093887211e-9;
-    let q0: double = -0.01562499995;
-    let q1: double = 1.430488765e-4;
-    let q2: double = -6.911147651e-6;
-    let q3: double = 7.621095161e-8;
-    let q4: double = -9.34935152e-10;
-    let p: double = p0 + y * (p1 + y * (p2 + y * (p3 + y * p4)));
-    let q: double = q0 + y * (q1 + y * (q2 + y * (q3 + y * q4)));
+    let pCoeffs: ArrayList<double> = _getCoeffArray(j0Data, "large.p");
+    let qCoeffs: ArrayList<double> = _getCoeffArray(j0Data, "large.q");
+    let p: double = _evalPoly(pCoeffs, y);
+    let q: double = _evalPoly(qCoeffs, y);
     return MathAdvanced.sqrt(0.636619772 / ax) * (p * MathTrig.cos(xx) - z * q * MathTrig.sin(xx));
 }
 
 // Bessel function of first kind, order 1 (polynomial approximation)
 public fn besselJ1(x: double): double {
+    _ensureBesselCoeffsLoaded();
+    let j1Data: JsonValue = _besselCache.get("besselJ1");
     let ax: double = Math.abs(x);
     if (ax < 8.0) {
         let y: double = x * x;
-        let a1: double = 72362614232.0;
-        let a2: double = -7895059235.0;
-        let a3: double = 242396853.1;
-        let a4: double = -2972611.439;
-        let a5: double = 15704.48260;
-        let a6: double = -30.16036606;
-        let b1: double = 144725228442.0;
-        let b2: double = 2300535178.0;
-        let b3: double = 18583304.74;
-        let b4: double = 99447.43394;
-        let b5: double = 376.9991397;
-        let b6: double = 1.0;
-        let result: double = x * (a1 + y * (a2 + y * (a3 + y * (a4 + y * (a5 + y * a6)))))
-            / (b1 + y * (b2 + y * (b3 + y * (b4 + y * (b5 + y * b6)))));
+        let num: ArrayList<double> = _getCoeffArray(j1Data, "small.numerator");
+        let den: ArrayList<double> = _getCoeffArray(j1Data, "small.denominator");
+        let result: double = x * _evalPoly(num, y) / _evalPoly(den, y);
         return result;
     }
     let z: double = 8.0 / ax;
     let y: double = z * z;
     let xx: double = ax - 2.356194491;
-    let p0: double = 1.0;
-    let p1: double = 0.001832426587;
-    let p2: double = -3.515497706e-5;
-    let p3: double = 3.780045329e-7;
-    let p4: double = -4.739578669e-9;
-    let q0: double = 0.04687499995;
-    let q1: double = -2.009560814e-4;
-    let q2: double = 8.449962385e-6;
-    let q3: double = -8.828839928e-8;
-    let q4: double = 1.064044829e-9;
-    let p: double = p0 + y * (p1 + y * (p2 + y * (p3 + y * p4)));
-    let q: double = q0 + y * (q1 + y * (q2 + y * (q3 + y * q4)));
+    let pCoeffs: ArrayList<double> = _getCoeffArray(j1Data, "large.p");
+    let qCoeffs: ArrayList<double> = _getCoeffArray(j1Data, "large.q");
+    let p: double = _evalPoly(pCoeffs, y);
+    let q: double = _evalPoly(qCoeffs, y);
     let ans: double = MathAdvanced.sqrt(0.636619772 / ax) * (p * MathTrig.cos(xx) - z * q * MathTrig.sin(xx));
     if (x < 0.0) { return -ans; }
     return ans;
@@ -246,79 +280,44 @@ public fn besselJN(n: int, x: double): double {
 // Bessel function of second kind, order 0 (approximation)
 public fn besselY0(x: double): double {
     if (x <= 0.0) { return Math.NAN(); }
+    _ensureBesselCoeffsLoaded();
+    let y0Data: JsonValue = _besselCache.get("besselY0");
     if (x < 8.0) {
         let y: double = x * x;
-        let a1: double = -2957821389.0;
-        let a2: double = 7062834065.0;
-        let a3: double = -512359803.6;
-        let a4: double = 10879881.29;
-        let a5: double = -86327.92757;
-        let a6: double = 228.4622733;
-        let b1: double = 40076544269.0;
-        let b2: double = 745249964.8;
-        let b3: double = 7189466.438;
-        let b4: double = 47447.26470;
-        let b5: double = 226.1030244;
-        let b6: double = 1.0;
-        let p: double = (a1 + y * (a2 + y * (a3 + y * (a4 + y * (a5 + y * a6)))))
-            / (b1 + y * (b2 + y * (b3 + y * (b4 + y * (b5 + y * b6)))));
+        let num: ArrayList<double> = _getCoeffArray(y0Data, "small.numerator");
+        let den: ArrayList<double> = _getCoeffArray(y0Data, "small.denominator");
+        let p: double = _evalPoly(num, y) / _evalPoly(den, y);
         return p + 0.636619772 * besselJ0(x) * MathAdvanced.ln(x);
     }
     let z: double = 8.0 / x;
     let y: double = z * z;
     let xx: double = x - 0.785398164;
-    let p0: double = 1.0;
-    let p1: double = -0.001098628627;
-    let p2: double = 2.734510407e-5;
-    let p3: double = -2.073370639e-7;
-    let p4: double = 2.093887211e-9;
-    let q0: double = -0.01562499995;
-    let q1: double = 1.430488765e-4;
-    let q2: double = -6.911147651e-6;
-    let q3: double = 7.621095161e-8;
-    let q4: double = -9.34935152e-10;
-    let p: double = p0 + y * (p1 + y * (p2 + y * (p3 + y * p4)));
-    let q: double = q0 + y * (q1 + y * (q2 + y * (q3 + y * q4)));
+    let pCoeffs: ArrayList<double> = _getCoeffArray(y0Data, "large.p");
+    let qCoeffs: ArrayList<double> = _getCoeffArray(y0Data, "large.q");
+    let p: double = _evalPoly(pCoeffs, y);
+    let q: double = _evalPoly(qCoeffs, y);
     return MathAdvanced.sqrt(0.636619772 / x) * (p * MathTrig.sin(xx) + z * q * MathTrig.cos(xx));
 }
 
 // Bessel function of second kind, order 1 (approximation)
 public fn besselY1(x: double): double {
     if (x <= 0.0) { return Math.NAN(); }
+    _ensureBesselCoeffsLoaded();
+    let y1Data: JsonValue = _besselCache.get("besselY1");
     if (x < 8.0) {
         let y: double = x * x;
-        let a1: double = -0.4900604943e13;
-        let a2: double = 0.1275274390e13;
-        let a3: double = -0.5153438139e11;
-        let a4: double = 0.7349264551e9;
-        let a5: double = -0.4237922726e7;
-        let a6: double = 0.8511937935e4;
-        let b1: double = 0.2499580570e14;
-        let b2: double = 0.4244419664e12;
-        let b3: double = 0.3733650367e10;
-        let b4: double = 0.2245904002e8;
-        let b5: double = 0.1020426050e6;
-        let b6: double = 0.3549632885e3;
-        let b7: double = 1.0;
-        let p: double = (a1 + y * (a2 + y * (a3 + y * (a4 + y * (a5 + y * a6)))))
-            / (b1 + y * (b2 + y * (b3 + y * (b4 + y * (b5 + y * (b6 + y * b7))))));
+        let num: ArrayList<double> = _getCoeffArray(y1Data, "small.numerator");
+        let den: ArrayList<double> = _getCoeffArray(y1Data, "small.denominator");
+        let p: double = _evalPoly(num, y) / _evalPoly(den, y);
         return x * p + 0.636619772 * (besselJ1(x) * MathAdvanced.ln(x) - 1.0 / x);
     }
     let z: double = 8.0 / x;
     let y: double = z * z;
     let xx: double = x - 2.356194491;
-    let p0: double = 1.0;
-    let p1: double = 0.001832426587;
-    let p2: double = -3.515497706e-5;
-    let p3: double = 3.780045329e-7;
-    let p4: double = -4.739578669e-9;
-    let q0: double = 0.04687499995;
-    let q1: double = -2.009560814e-4;
-    let q2: double = 8.449962385e-6;
-    let q3: double = -8.828839928e-8;
-    let q4: double = 1.064044829e-9;
-    let p: double = p0 + y * (p1 + y * (p2 + y * (p3 + y * p4)));
-    let q: double = q0 + y * (q1 + y * (q2 + y * (q3 + y * q4)));
+    let pCoeffs: ArrayList<double> = _getCoeffArray(y1Data, "large.p");
+    let qCoeffs: ArrayList<double> = _getCoeffArray(y1Data, "large.q");
+    let p: double = _evalPoly(pCoeffs, y);
+    let q: double = _evalPoly(qCoeffs, y);
     return MathAdvanced.sqrt(0.636619772 / x) * (p * MathTrig.sin(xx) + z * q * MathTrig.cos(xx));
 }
 
