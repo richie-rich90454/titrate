@@ -1,21 +1,92 @@
-public fn BOLTZMANN(): double { return 1.380649e-23; }
-public fn AVOGADRO(): double { return 6.02214076e23; }
-public fn GAS_CONSTANT(): double { return 8.314462618; }
-public fn PLANCK(): double { return 6.62607015e-34; }
-public fn SPEED_OF_LIGHT(): double { return 299792458.0; }
-public fn ELEMENTARY_CHARGE(): double { return 1.602176634e-19; }
-public fn COULOMB_CONSTANT(): double { return 8.9875517923e9; }
-public fn GRAVITATIONAL(): double { return 6.67430e-11; }
-public fn PI(): double { return 3.14159265358979323846; }
-public fn ELECTRON_MASS(): double { return 9.1093837015e-31; }
-public fn PROTON_MASS(): double { return 1.67262192369e-27; }
-public fn NEUTRON_MASS(): double { return 1.67492749804e-27; }
-public fn ATOMIC_MASS_UNIT(): double { return 1.66053906660e-27; }
-public fn RYDBERG(): double { return 1.0973731568160e7; }
-public fn BOHR_RADIUS(): double { return 5.29177210903e-11; }
-public fn FINE_STRUCTURE(): double { return 7.2973525693e-3; }
-public fn STEFAN_BOLTZMANN(): double { return 5.670374419e-8; }
-public fn WIEN_DISPLACEMENT(): double { return 2.897771955e-3; }
-public fn PERMEABILITY_VACUUM(): double { return 1.25663706212e-6; }
-public fn PERMITTIVITY_VACUUM(): double { return 8.8541878128e-12; }
-public fn MOLAR_GAS_VOLUME(): double { return 22.413969545014e-3; }
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _constantsCache: HashMap<string, double> = new HashMap<string, double>();
+var _constantsLoaded: bool = false;
+
+fn _ensureConstantsLoaded(): void {
+    if (_constantsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("physics/constants.json");
+    if (data.isNull() || !data.isObject() || !data.hasKey("constants")) {
+        _constantsLoaded = true;
+        return;
+    }
+    let constants: JsonValue = data.get("constants");
+    if (!constants.isObject()) {
+        _constantsLoaded = true;
+        return;
+    }
+    // Iterate over known keys and cache their values
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("boltzmann");
+    keys.add("avogadro");
+    keys.add("gasConstant");
+    keys.add("planck");
+    keys.add("speedOfLight");
+    keys.add("elementaryCharge");
+    keys.add("coulombConstant");
+    keys.add("gravitationalConstant");
+    keys.add("pi");
+    keys.add("electronMass");
+    keys.add("protonMass");
+    keys.add("neutronMass");
+    keys.add("atomicMassUnit");
+    keys.add("rydberg");
+    keys.add("bohrRadius");
+    keys.add("fineStructure");
+    keys.add("stefanBoltzmann");
+    keys.add("wienDisplacement");
+    keys.add("vacuumPermeability");
+    keys.add("vacuumPermittivity");
+    keys.add("molarGasVolume");
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (constants.hasKey(key)) {
+            let entry: JsonValue = constants.get(key);
+            if (entry.isObject() && entry.hasKey("value")) {
+                _constantsCache.put(key, entry.get("value").asNumber());
+            } else if (entry.isNumber()) {
+                _constantsCache.put(key, entry.asNumber());
+            }
+        }
+        i = i + 1;
+    }
+    _constantsLoaded = true;
+}
+
+fn _getConstant(key: string, defaultVal: double): double {
+    _ensureConstantsLoaded();
+    if (_constantsCache.containsKey(key)) {
+        return _constantsCache.get(key);
+    }
+    return defaultVal;
+}
+
+public fn BOLTZMANN(): double { return _getConstant("boltzmann", 1.380649e-23); }
+public fn AVOGADRO(): double { return _getConstant("avogadro", 6.02214076e23); }
+public fn GAS_CONSTANT(): double { return _getConstant("gasConstant", 8.314462618); }
+public fn PLANCK(): double { return _getConstant("planck", 6.62607015e-34); }
+public fn SPEED_OF_LIGHT(): double { return _getConstant("speedOfLight", 299792458.0); }
+public fn ELEMENTARY_CHARGE(): double { return _getConstant("elementaryCharge", 1.602176634e-19); }
+public fn COULOMB_CONSTANT(): double { return _getConstant("coulombConstant", 8.9875517923e9); }
+public fn GRAVITATIONAL(): double { return _getConstant("gravitationalConstant", 6.67430e-11); }
+public fn PI(): double { return _getConstant("pi", 3.14159265358979323846); }
+public fn ELECTRON_MASS(): double { return _getConstant("electronMass", 9.1093837015e-31); }
+public fn PROTON_MASS(): double { return _getConstant("protonMass", 1.67262192369e-27); }
+public fn NEUTRON_MASS(): double { return _getConstant("neutronMass", 1.67492749804e-27); }
+public fn ATOMIC_MASS_UNIT(): double { return _getConstant("atomicMassUnit", 1.66053906660e-27); }
+public fn RYDBERG(): double { return _getConstant("rydberg", 1.0973731568160e7); }
+public fn BOHR_RADIUS(): double { return _getConstant("bohrRadius", 5.29177210903e-11); }
+public fn FINE_STRUCTURE(): double { return _getConstant("fineStructure", 7.2973525693e-3); }
+public fn STEFAN_BOLTZMANN(): double { return _getConstant("stefanBoltzmann", 5.670374419e-8); }
+public fn WIEN_DISPLACEMENT(): double { return _getConstant("wienDisplacement", 2.897771955e-3); }
+public fn PERMEABILITY_VACUUM(): double { return _getConstant("vacuumPermeability", 1.25663706212e-6); }
+public fn PERMITTIVITY_VACUUM(): double { return _getConstant("vacuumPermittivity", 8.8541878128e-12); }
+public fn MOLAR_GAS_VOLUME(): double { return _getConstant("molarGasVolume", 22.413969545014e-3); }
