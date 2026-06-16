@@ -1,14 +1,75 @@
 // Signal handling interface.
 import tt::util::HashMap;
 import tt::lang::String;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::lang::Integer;
 
-// Standard signal numbers
-public const SIGINT: int = 2;
-public const SIGTERM: int = 15;
-public const SIGKILL: int = 9;
-public const SIGHUP: int = 1;
-public const SIGUSR1: int = 10;
-public const SIGUSR2: int = 12;
+// ---- Data loaded from external JSON via DataFile ----
+
+var _signalsCache: HashMap<string, int> = new HashMap<string, int>();
+var _signalsLoaded: bool = false;
+
+fn _ensureSignalsLoaded(): void {
+    if (_signalsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("sys/signals.json");
+    if (data.isNull() || !data.isObject()) {
+        _signalsLoaded = true;
+        return;
+    }
+    if (!data.hasKey("signals")) {
+        _signalsLoaded = true;
+        return;
+    }
+    let signals: JsonValue = data.get("signals");
+    if (!signals.isObject()) {
+        _signalsLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = signals.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: int = Integer.parseInt(Double.toString(signals.get(key).asNumber()));
+        _signalsCache.put(key, val);
+        i = i + 1;
+    }
+    _signalsLoaded = true;
+}
+
+// Standard signal numbers (loaded from DataFile)
+public fn SIGHUP(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGHUP")) { return _signalsCache.get("SIGHUP"); }
+    return 1;
+}
+public fn SIGINT(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGINT")) { return _signalsCache.get("SIGINT"); }
+    return 2;
+}
+public fn SIGKILL(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGKILL")) { return _signalsCache.get("SIGKILL"); }
+    return 9;
+}
+public fn SIGTERM(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGTERM")) { return _signalsCache.get("SIGTERM"); }
+    return 15;
+}
+public fn SIGUSR1(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGUSR1")) { return _signalsCache.get("SIGUSR1"); }
+    return 10;
+}
+public fn SIGUSR2(): int {
+    _ensureSignalsLoaded();
+    if (_signalsCache.containsKey("SIGUSR2")) { return _signalsCache.get("SIGUSR2"); }
+    return 12;
+}
 
 // Internal registry of signal handlers
 var _handlers: HashMap<int, fn(int): void> = new HashMap<int, fn(int): void>();
