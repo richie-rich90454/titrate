@@ -1,0 +1,311 @@
+// XmlBuilder — fluent API for constructing XML documents.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::xml::XmlNode;
+import tt::lang::String;
+
+public class XmlBuilder {
+    private XmlNode _root;
+    private ArrayList<XmlNode> _stack;
+    private int _indent;
+    private string _indentStr;
+    private bool _minified;
+    private string _declaration;
+
+    public fn init() {
+        this._root = null;
+        this._stack = new ArrayList<XmlNode>();
+        this._indent = 0;
+        this._indentStr = "  ";
+        this._minified = false;
+        this._declaration = "";
+    }
+
+    // Add XML declaration (e.g. <?xml version="1.0" encoding="UTF-8"?>)
+    public fn declaration(version: string, encoding: string): XmlBuilder {
+        this._declaration = "<?xml version=\"" + version + "\" encoding=\"" + encoding + "\"?>";
+        return this;
+    }
+
+    // Create the root element and push it onto the stack.
+    public fn root(tag: string): XmlBuilder {
+        let node: XmlNode = new XmlNode(tag);
+        this._root = node;
+        this._stack.add(node);
+        return this;
+    }
+
+    // Create a child element under the current element and push it onto the stack.
+    public fn elem(tag: string): XmlBuilder {
+        if (this._stack.size() == 0) {
+            return this;
+        }
+        let parent: XmlNode = this._stack.get(this._stack.size() - 1);
+        let node: XmlNode = new XmlNode(tag);
+        parent.addChild(node);
+        this._stack.add(node);
+        return this;
+    }
+
+    // Add an attribute to the current element.
+    public fn attr(key: string, value: string): XmlBuilder {
+        if (this._stack.size() == 0) {
+            return this;
+        }
+        let current: XmlNode = this._stack.get(this._stack.size() - 1);
+        current.setAttr(key, value);
+        return this;
+    }
+
+    // Add text content to the current element.
+    public fn text(content: string): XmlBuilder {
+        if (this._stack.size() == 0) {
+            return this;
+        }
+        let current: XmlNode = this._stack.get(this._stack.size() - 1);
+        if (current.text == "") {
+            current.text = content;
+        } else {
+            current.text = current.text + content;
+        }
+        return this;
+    }
+
+    // Add a CDATA section to the current element.
+    public fn cdata(content: string): XmlBuilder {
+        if (this._stack.size() == 0) {
+            return this;
+        }
+        let current: XmlNode = this._stack.get(this._stack.size() - 1);
+        let cdataStr: string = "<![CDATA[" + content + "]]>";
+        if (current.text == "") {
+            current.text = cdataStr;
+        } else {
+            current.text = current.text + cdataStr;
+        }
+        return this;
+    }
+
+    // Add a comment as a child of the current element.
+    public fn comment(content: string): XmlBuilder {
+        if (this._stack.size() == 0) {
+            return this;
+        }
+        let current: XmlNode = this._stack.get(this._stack.size() - 1);
+        let commentNode: XmlNode = new XmlNode("");
+        commentNode.text = "<!-- " + content + " -->";
+        current.addChild(commentNode);
+        return this;
+    }
+
+    // Add a processing instruction as a child of the current element.
+    public fn pi(target: string, data: string): XmlBuilder {
+        if (this._stack.size() == 0) {
+            return this;
+        }
+        let current: XmlNode = this._stack.get(this._stack.size() - 1);
+        let piNode: XmlNode = new XmlNode("");
+        piNode.text = "<?" + target + " " + data + "?>";
+        current.addChild(piNode);
+        return this;
+    }
+
+    // Pop the current element from the stack (close the element).
+    public fn end(): XmlBuilder {
+        if (this._stack.size() > 0) {
+            this._stack.remove(this._stack.size() - 1);
+        }
+        return this;
+    }
+
+    // Finalize and return the root XmlNode.
+    public fn build(): XmlNode {
+        return this._root;
+    }
+
+    // Enable pretty printing with the given number of spaces per indent level.
+    public fn prettyPrint(indent: int): XmlBuilder {
+        this._indent = indent;
+        this._minified = false;
+        this._indentStr = repeatStr(" ", indent);
+        return this;
+    }
+
+    // Enable minified output mode (no whitespace formatting).
+    public fn minified(): XmlBuilder {
+        this._minified = true;
+        this._indent = 0;
+        return this;
+    }
+
+    // Declare a namespace with a prefix on the current element.
+    public fn ns(prefix: string, uri: string): XmlBuilder {
+        return this.attr("xmlns:" + prefix, uri);
+    }
+
+    // Declare the default namespace on the current element.
+    public fn defaultNs(uri: string): XmlBuilder {
+        return this.attr("xmlns", uri);
+    }
+
+    // Create a builder from an existing XmlNode, using it as the root.
+    public fn fromNode(node: XmlNode): XmlBuilder {
+        this._root = node;
+        this._stack = new ArrayList<XmlNode>();
+        this._stack.add(node);
+        return this;
+    }
+
+    // Serialize to XML string.
+    public fn toString(): string {
+        if (this._root == null) {
+            return "";
+        }
+        let result: string = "";
+        if (this._declaration != "") {
+            result = this._declaration;
+            if (!this._minified) {
+                result = result + "\n";
+            }
+        }
+        if (this._minified) {
+            result = result + serializeMinified(this._root);
+        } else {
+            result = result + serializePretty(this._root, 0);
+        }
+        return result;
+    }
+}
+
+// Serialize an XmlNode with pretty-print indentation.
+fn serializePretty(node: XmlNode, level: int): string {
+    let indent: string = repeatStr("  ", level);
+    // Comment or PI node (tag is empty, text starts with <!-- or <?)
+    if (node.tag == "" && node.text != "") {
+        return indent + node.text;
+    }
+    let result: string = indent + "<" + node.tag;
+    // Attributes
+    let keys: ArrayList<string> = node.attributes.keys();
+    let k: int = 0;
+    while (k < keys.size()) {
+        let key: string = keys.get(k);
+        let val: string = node.attributes.get(key);
+        result = result + " " + key + "=\"" + escapeAttrValue(val) + "\"";
+        k = k + 1;
+    }
+    // Self-closing
+    if (node.children.size() == 0 && node.text == "") {
+        result = result + " />";
+        return result;
+    }
+    result = result + ">";
+    // Text-only content
+    if (node.children.size() == 0) {
+        result = result + escapeTextContent(node.text) + "</" + node.tag + ">";
+        return result;
+    }
+    // Has children
+    result = result + "\n";
+    if (node.text != "") {
+        result = result + indent + "  " + escapeTextContent(node.text) + "\n";
+    }
+    let c: int = 0;
+    while (c < node.children.size()) {
+        result = result + serializePretty(node.children.get(c), level + 1) + "\n";
+        c = c + 1;
+    }
+    result = result + indent + "</" + node.tag + ">";
+    return result;
+}
+
+// Serialize an XmlNode in minified form (no whitespace).
+fn serializeMinified(node: XmlNode): string {
+    // Comment or PI node
+    if (node.tag == "" && node.text != "") {
+        return node.text;
+    }
+    let result: string = "<" + node.tag;
+    let keys: ArrayList<string> = node.attributes.keys();
+    let k: int = 0;
+    while (k < keys.size()) {
+        let key: string = keys.get(k);
+        let val: string = node.attributes.get(key);
+        result = result + " " + key + "=\"" + escapeAttrValue(val) + "\"";
+        k = k + 1;
+    }
+    if (node.children.size() == 0 && node.text == "") {
+        result = result + " />";
+        return result;
+    }
+    result = result + ">";
+    if (node.children.size() == 0) {
+        result = result + escapeTextContent(node.text) + "</" + node.tag + ">";
+        return result;
+    }
+    if (node.text != "") {
+        result = result + escapeTextContent(node.text);
+    }
+    let c: int = 0;
+    while (c < node.children.size()) {
+        result = result + serializeMinified(node.children.get(c));
+        c = c + 1;
+    }
+    result = result + "</" + node.tag + ">";
+    return result;
+}
+
+// Escape text content for XML serialization.
+fn escapeTextContent(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "&") {
+            result = result + "&amp;";
+        } else if (c == "<") {
+            result = result + "&lt;";
+        } else if (c == ">") {
+            result = result + "&gt;";
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Escape attribute value for XML serialization.
+fn escapeAttrValue(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "&") {
+            result = result + "&amp;";
+        } else if (c == "<") {
+            result = result + "&lt;";
+        } else if (c == ">") {
+            result = result + "&gt;";
+        } else if (c == "\"") {
+            result = result + "&quot;";
+        } else if (c == "'") {
+            result = result + "&apos;";
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Repeat a string n times.
+fn repeatStr(s: string, n: int): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < n) {
+        result = result + s;
+        i = i + 1;
+    }
+    return result;
+}
