@@ -1,5 +1,66 @@
 // Cryptographic hash functions backed by native implementations.
 import tt::util::ArrayList;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _algoCache: HashMap<string, string> = new HashMap<string, string>();
+var _algoLoaded: bool = false;
+
+fn _ensureAlgoLoaded(): void {
+    if (_algoLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("crypto/hash_algorithms.json");
+    if (data.isNull() || !data.isObject()) {
+        _algoLoaded = true;
+        return;
+    }
+    if (!data.hasKey("algorithms")) {
+        _algoLoaded = true;
+        return;
+    }
+    let algos: JsonValue = data.get("algorithms");
+    if (!algos.isObject()) {
+        _algoLoaded = true;
+        return;
+    }
+    // Load known algorithm keys
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("md5");
+    keys.add("sha1");
+    keys.add("sha224");
+    keys.add("sha256");
+    keys.add("sha384");
+    keys.add("sha512");
+    keys.add("sha3_224");
+    keys.add("sha3_256");
+    keys.add("sha3_384");
+    keys.add("sha3_512");
+    keys.add("blake2b");
+    keys.add("blake2s");
+    keys.add("ripemd160");
+    keys.add("whirlpool");
+    keys.add("sm3");
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (algos.hasKey(key)) {
+            _algoCache.put(key, algos.get(key).asString());
+        }
+        i = i + 1;
+    }
+    _algoLoaded = true;
+}
+
+fn _getNativeFunc(algo: string): string {
+    _ensureAlgoLoaded();
+    if (_algoCache.containsKey(algo)) {
+        return _algoCache.get(algo);
+    }
+    return "";
+}
 
 public class Hash {
     public fn md5(input: string): string {
@@ -72,20 +133,29 @@ public class Hash {
     }
 
     public fn hashBytes(algorithm: string, data: string): string {
-        if (algorithm == "md5") { return Hash_md5(data); }
-        if (algorithm == "sha1") { return Hash_sha1(data); }
-        if (algorithm == "sha224") { return Hash_sha224(data); }
-        if (algorithm == "sha256") { return Hash_sha256(data); }
-        if (algorithm == "sha384") { return Hash_sha384(data); }
-        if (algorithm == "sha512") { return Hash_sha512(data); }
-        if (algorithm == "sha3-224") { return Hash_sha3_224(data); }
-        if (algorithm == "sha3-256") { return Hash_sha3_256(data); }
-        if (algorithm == "sha3-384") { return Hash_sha3_384(data); }
-        if (algorithm == "sha3-512") { return Hash_sha3_512(data); }
-        if (algorithm == "shake128") { return Hash_shake128(data, 32); }
-        if (algorithm == "shake256") { return Hash_shake256(data, 64); }
-        if (algorithm == "blake2b") { return Hash_blake2b(data); }
-        if (algorithm == "blake2s") { return Hash_blake2s(data); }
+        _ensureAlgoLoaded();
+        // Normalize algorithm name: replace hyphens with underscores for lookup
+        let normalized: string = _normalizeAlgo(algorithm);
+        // Check data file for mapping
+        if (_algoCache.containsKey(normalized)) {
+            let nativeFunc: string = _algoCache.get(normalized);
+            // Dispatch to the appropriate native function
+            if (nativeFunc == "Hash_md5") { return Hash_md5(data); }
+            if (nativeFunc == "Hash_sha1") { return Hash_sha1(data); }
+            if (nativeFunc == "Hash_sha224") { return Hash_sha224(data); }
+            if (nativeFunc == "Hash_sha256") { return Hash_sha256(data); }
+            if (nativeFunc == "Hash_sha384") { return Hash_sha384(data); }
+            if (nativeFunc == "Hash_sha512") { return Hash_sha512(data); }
+            if (nativeFunc == "Hash_sha3_224") { return Hash_sha3_224(data); }
+            if (nativeFunc == "Hash_sha3_256") { return Hash_sha3_256(data); }
+            if (nativeFunc == "Hash_sha3_384") { return Hash_sha3_384(data); }
+            if (nativeFunc == "Hash_sha3_512") { return Hash_sha3_512(data); }
+            if (nativeFunc == "Hash_blake2b") { return Hash_blake2b(data); }
+            if (nativeFunc == "Hash_blake2s") { return Hash_blake2s(data); }
+        }
+        // Special cases for shake algorithms (require length parameter)
+        if (normalized == "shake128") { return Hash_shake128(data, 32); }
+        if (normalized == "shake256") { return Hash_shake256(data, 64); }
         if (algorithm == "crc32") { return Hash_crc32(data); }
         return "";
     }
@@ -112,6 +182,22 @@ public class Hash {
         }
         return result;
     }
+}
+
+// Normalize algorithm name by replacing hyphens with underscores
+fn _normalizeAlgo(algo: string): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < String.length(algo)) {
+        let c: string = String.charAt(algo, i);
+        if (c == "-") {
+            result = result + "_";
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
 }
 
 // Incremental hasher for streaming hash computation.
