@@ -1,0 +1,374 @@
+// DataFile.tr — Data file loader utility for the Titrate stdlib
+// Loads JSON/CSV/TXT data files from lib/tt/data/, caches in memory.
+// All stdlib modules that need reference data MUST use DataFile exclusively.
+
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::json::JsonParser;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::io::File;
+
+// Module-level cache: path -> JsonValue
+var _cache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _csvCache: HashMap<string, ArrayList<ArrayList<string>>> = new HashMap<string, ArrayList<ArrayList<string>>>();
+var _textCache: HashMap<string, string> = new HashMap<string, string>();
+var _dataDir: string = "";
+
+// Returns the data directory path (lib/tt/data/)
+public fn dataDir(): string {
+    if (String.length(_dataDir) > 0) {
+        return _dataDir;
+    }
+    // Determine data directory relative to the stdlib root
+    // The data directory is lib/tt/data/
+    let envDir: string = Os_getenv("TITRATE_DATA_DIR");
+    if (String.length(envDir) > 0) {
+        _dataDir = envDir;
+    } else {
+        _dataDir = _resolveDataDir();
+    }
+    return _dataDir;
+}
+
+// Resolve the data directory by searching upward from the executable
+// or using a well-known relative path
+fn _resolveDataDir(): string {
+    // Try common locations
+    let candidates: ArrayList<string> = new ArrayList<string>();
+    candidates.add("lib/tt/data");
+    candidates.add("../lib/tt/data");
+    candidates.add("../../lib/tt/data");
+
+    var i: int = 0;
+    while (i < candidates.size()) {
+        let candidate: string = candidates.get(i);
+        if (Fs_isDir(candidate)) {
+            let abs: string = _toAbsolutePath(candidate);
+            return abs;
+        }
+        i = i + 1;
+    }
+
+    // Fallback: return the default relative path
+    return "lib/tt/data";
+}
+
+// Convert a relative path to absolute using Os_getcwd
+fn _toAbsolutePath(path: string): string {
+    let cwd: string = Os_getcwd();
+    if (String.length(cwd) > 0) {
+        // Ensure no trailing slash on cwd
+        if (String.charAt(cwd, String.length(cwd) - 1) == "/" || String.charAt(cwd, String.length(cwd) - 1) == "\\") {
+            cwd = String.substring(cwd, 0, String.length(cwd) - 1);
+        }
+        return cwd + "/" + path;
+    }
+    return path;
+}
+
+// Build the full filesystem path for a data file
+fn _fullPath(relativePath: string): string {
+    let dir: string = dataDir();
+    // Ensure no leading slash on relative path
+    let cleanPath: string = relativePath;
+    if (String.startsWith(cleanPath, "/")) {
+        cleanPath = String.substring(cleanPath, 1, String.length(cleanPath));
+    }
+    if (String.startsWith(cleanPath, "\\")) {
+        cleanPath = String.substring(cleanPath, 1, String.length(cleanPath));
+    }
+    return dir + "/" + cleanPath;
+}
+
+// Load a JSON data file from the data directory.
+// Caches the result; subsequent calls return the cached version.
+// Returns JsonValue.null() if the file is missing or corrupt.
+public fn load(path: string): JsonValue {
+    // Check cache first
+    if (_cache.containsKey(path)) {
+        let cached: JsonValue = _cache.get(path);
+        if (!cached.isNull()) {
+            return cached;
+        }
+    }
+
+    let fullPath: string = _fullPath(path);
+
+    // Check file exists
+    if (!Fs_exists(fullPath)) {
+        io::println("DataFile: file not found: " + fullPath);
+        return JsonValue.null();
+    }
+
+    // Read and parse
+    let content: string = File_readFile(fullPath);
+    if (content == null || String.length(content) == 0) {
+        io::println("DataFile: empty file: " + fullPath);
+        return JsonValue.null();
+    }
+
+    let parsed: JsonValue = Json.parse(content);
+    if (parsed.isNull()) {
+        io::println("DataFile: failed to parse JSON: " + fullPath);
+        return JsonValue.null();
+    }
+
+    // Cache the result
+    _cache.put(path, parsed);
+    return parsed;
+}
+
+// Load a CSV/TSV data file from the data directory.
+// Returns an ArrayList of ArrayLists (rows of columns).
+// The first row is assumed to be the header.
+// Caches the result.
+public fn loadCsv(path: string): ArrayList<ArrayList<string>> {
+    // Check cache
+    if (_csvCache.containsKey(path)) {
+        return _csvCache.get(path);
+    }
+
+    let fullPath: string = _fullPath(path);
+
+    if (!Fs_exists(fullPath)) {
+        io::println("DataFile: CSV file not found: " + fullPath);
+        return new ArrayList<ArrayList<string>>();
+    }
+
+    let content: string = File_readFile(fullPath);
+    if (content == null || String.length(content) == 0) {
+        io::println("DataFile: empty CSV file: " + fullPath);
+        return new ArrayList<ArrayList<string>>();
+    }
+
+    let result: ArrayList<ArrayList<string>> = _parseCsv(content);
+    _csvCache.put(path, result);
+    return result;
+}
+
+// Load a raw text file from the data directory.
+// Caches the result.
+public fn loadText(path: string): string {
+    // Check cache
+    if (_textCache.containsKey(path)) {
+        return _textCache.get(path);
+    }
+
+    let fullPath: string = _fullPath(path);
+
+    if (!Fs_exists(fullPath)) {
+        io::println("DataFile: text file not found: " + fullPath);
+        return "";
+    }
+
+    let content: string = File_readFile(fullPath);
+    if (content == null) {
+        content = "";
+    }
+
+    _textCache.put(path, content);
+    return content;
+}
+
+// Parse CSV content into rows of columns
+fn _parseCsv(content: string): ArrayList<ArrayList<string>> {
+    let result: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = String.trim(lines.get(i));
+        if (String.length(line) > 0) {
+            let row: ArrayList<string> = _parseCsvLine(line);
+            result.add(row);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Parse a single CSV line, handling quoted fields
+fn _parseCsvLine(line: string): ArrayList<string> {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    var current: string = "";
+    var inQuotes: bool = false;
+    var i: int = 0;
+    let len: int = String.length(line);
+
+    while (i < len) {
+        let ch: string = String.charAt(line, i);
+        if (inQuotes) {
+            if (ch == "\"") {
+                // Check for escaped quote
+                if (i + 1 < len && String.charAt(line, i + 1) == "\"") {
+                    current = current + "\"";
+                    i = i + 2;
+                } else {
+                    inQuotes = false;
+                    i = i + 1;
+                }
+            } else {
+                current = current + ch;
+                i = i + 1;
+            }
+        } else {
+            if (ch == "\"") {
+                inQuotes = true;
+                i = i + 1;
+            } else if (ch == ",") {
+                fields.add(current);
+                current = "";
+                i = i + 1;
+            } else if (ch == "\t") {
+                // TSV support: tab is also a delimiter
+                fields.add(current);
+                current = "";
+                i = i + 1;
+            } else {
+                current = current + ch;
+                i = i + 1;
+            }
+        }
+    }
+    fields.add(current);
+    return fields;
+}
+
+// Clear a cached data file
+public fn unload(path: string): void {
+    _cache.remove(path);
+    _csvCache.remove(path);
+    _textCache.remove(path);
+}
+
+// Force re-read of a data file from disk (clears cache and reloads)
+public fn reload(path: string): JsonValue {
+    _cache.remove(path);
+    _csvCache.remove(path);
+    _textCache.remove(path);
+    return load(path);
+}
+
+// Force re-read of a CSV data file
+public fn reloadCsv(path: string): ArrayList<ArrayList<string>> {
+    _csvCache.remove(path);
+    return loadCsv(path);
+}
+
+// Force re-read of a text data file
+public fn reloadText(path: string): string {
+    _textCache.remove(path);
+    return loadText(path);
+}
+
+// Check if a data file exists without loading it
+public fn exists(path: string): bool {
+    let fullPath: string = _fullPath(path);
+    return Fs_exists(fullPath);
+}
+
+// List all data files for a given module (subdirectory)
+// Returns an ArrayList of relative paths
+public fn list(module: string): ArrayList<string> {
+    let dirPath: string = _fullPath(module);
+    let result: ArrayList<string> = new ArrayList<string>();
+
+    if (!Fs_isDir(dirPath)) {
+        return result;
+    }
+
+    let entries: ArrayList<string> = Dir_list(dirPath);
+    if (entries == null) {
+        return result;
+    }
+
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        if (entry != "." && entry != "..") {
+            let entryPath: string = module + "/" + entry;
+            // If it's a subdirectory, recurse
+            let fullEntryPath: string = _fullPath(entryPath);
+            if (Fs_isDir(fullEntryPath)) {
+                let subFiles: ArrayList<string> = list(entryPath);
+                var j: int = 0;
+                while (j < subFiles.size()) {
+                    result.add(subFiles.get(j));
+                    j = j + 1;
+                }
+            } else {
+                result.add(entryPath);
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Return the _meta object from a data file (source, version, description)
+// Returns JsonValue.null() if the file has no _meta field
+public fn meta(path: string): JsonValue {
+    let data: JsonValue = load(path);
+    if (data.isNull() || !data.isObject()) {
+        return JsonValue.null();
+    }
+    if (data.hasKey("_meta")) {
+        return data.get("_meta");
+    }
+    return JsonValue.null();
+}
+
+// Validate a data file against a JSON Schema file
+// Returns true if valid, false otherwise
+// schemaPath is relative to the data directory (e.g., "schemas/periodic_table_schema.json")
+public fn validate(path: string, schemaPath: string): bool {
+    let data: JsonValue = load(path);
+    if (data.isNull()) {
+        io::println("DataFile.validate: cannot load data file: " + path);
+        return false;
+    }
+
+    let schema: JsonValue = load(schemaPath);
+    if (schema.isNull()) {
+        io::println("DataFile.validate: cannot load schema file: " + schemaPath);
+        return false;
+    }
+
+    // Basic validation: check _meta is present if required by schema
+    if (schema.isObject() && schema.hasKey("required")) {
+        let required: JsonValue = schema.get("required");
+        if (required.isArray()) {
+            var i: int = 0;
+            while (i < required.size()) {
+                let reqField: string = required.getAt(i).asString();
+                if (!data.hasKey(reqField)) {
+                    io::println("DataFile.validate: missing required field: " + reqField);
+                    return false;
+                }
+                i = i + 1;
+            }
+        }
+    }
+
+    // Check _meta fields if present
+    if (data.hasKey("_meta")) {
+        let meta: JsonValue = data.get("_meta");
+        if (!meta.isObject()) {
+            io::println("DataFile.validate: _meta must be an object");
+            return false;
+        }
+        if (!meta.hasKey("source") || !meta.hasKey("version") || !meta.hasKey("description")) {
+            io::println("DataFile.validate: _meta must have source, version, description");
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Clear all caches
+public fn clearCache(): void {
+    _cache = new HashMap<string, JsonValue>();
+    _csvCache = new HashMap<string, ArrayList<ArrayList<string>>>();
+    _textCache = new HashMap<string, string>();
+}
