@@ -1,0 +1,149 @@
+// Sampling provides utility functions for random sampling operations.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::random::Random;
+
+// Shared RNG instance for module-level functions
+let _rng: Random = new Random();
+
+// ---------------------------------------------------------------------------
+// Weighted random choices with replacement
+// ---------------------------------------------------------------------------
+public fn choices(data: ArrayList<double>, weights: ArrayList<double>, k: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    // Build cumulative weights
+    let cumWeights: ArrayList<double> = new ArrayList<double>();
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < weights.size()) {
+        total = total + weights.get(i);
+        cumWeights.add(total);
+        i = i + 1;
+    }
+    var kk: int = 0;
+    while (kk < k) {
+        let r: double = _rng.nextDouble() * total;
+        var idx: int = 0;
+        while (idx < cumWeights.size() - 1) {
+            if (r < cumWeights.get(idx)) { break; }
+            idx = idx + 1;
+        }
+        result.add(data.get(idx));
+        kk = kk + 1;
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Sample without replacement (Fisher-Yates partial shuffle)
+// ---------------------------------------------------------------------------
+public fn sample(data: ArrayList<double>, k: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    var kk: int = k;
+    if (kk > n) { kk = n; }
+    // Copy the list
+    let copy: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        copy.add(data.get(i));
+        i = i + 1;
+    }
+    // Fisher-Yates partial shuffle
+    i = 0;
+    while (i < kk) {
+        let j: int = i + _rng.nextInt(n - i);
+        let temp: double = copy.get(i);
+        copy.set(i, copy.get(j));
+        copy.set(j, temp);
+        result.add(copy.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Fisher-Yates shuffle in-place (ArrayList<double>)
+// ---------------------------------------------------------------------------
+public fn shuffle(data: ArrayList<double>): void {
+    let n: int = data.size();
+    var i: int = n - 1;
+    while (i > 0) {
+        let j: int = _rng.nextInt(i + 1);
+        let temp: double = data.get(i);
+        data.set(i, data.get(j));
+        data.set(j, temp);
+        i = i - 1;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Fisher-Yates shuffle in-place (ArrayList<string>)
+// ---------------------------------------------------------------------------
+public fn shuffleList(data: ArrayList<string>): void {
+    let n: int = data.size();
+    var i: int = n - 1;
+    while (i > 0) {
+        let j: int = _rng.nextInt(i + 1);
+        let temp: string = data.get(i);
+        data.set(i, data.get(j));
+        data.set(j, temp);
+        i = i - 1;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Reservoir sampling (streaming) — select k items from a stream
+// ---------------------------------------------------------------------------
+public fn reservoirSample(data: ArrayList<double>, k: int): ArrayList<double> {
+    let reservoir: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (k <= 0 || n == 0) { return reservoir; }
+    // Fill the reservoir with the first k elements
+    var i: int = 0;
+    while (i < k && i < n) {
+        reservoir.add(data.get(i));
+        i = i + 1;
+    }
+    // For remaining elements, replace with decreasing probability
+    while (i < n) {
+        let j: int = _rng.nextInt(i + 1);
+        if (j < k) {
+            reservoir.set(j, data.get(i));
+        }
+        i = i + 1;
+    }
+    return reservoir;
+}
+
+// ---------------------------------------------------------------------------
+// Rejection sampling
+// ---------------------------------------------------------------------------
+public fn rejectionSample(target: fn(double): double, proposal: fn(double): double, proposalSample: fn(): double, k: double): double {
+    while (true) {
+        let x: double = proposalSample();
+        let u: double = _rng.nextDouble();
+        if (u < target(x) / (k * proposal(x))) {
+            return x;
+        }
+    }
+    return 0.0;
+}
+
+// ---------------------------------------------------------------------------
+// Importance sampling — returns weighted samples
+// ---------------------------------------------------------------------------
+public fn importanceSample(target: fn(double): double, proposal: fn(double): double, proposalSample: fn(): double, n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let x: double = proposalSample();
+        let weight: double = target(x) / proposal(x);
+        // Store as [sample, weight] pairs: x0, w0, x1, w1, ...
+        result.add(x);
+        result.add(weight);
+        i = i + 1;
+    }
+    return result;
+}
