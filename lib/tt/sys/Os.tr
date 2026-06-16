@@ -4,6 +4,69 @@ import tt::util::HashMap;
 import tt::lang::String;
 import tt::lang::Result;
 import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _pathSepCache: HashMap<string, string> = new HashMap<string, string>();
+var _pathSepLoaded: bool = false;
+
+fn _ensurePathSepLoaded(): void {
+    if (_pathSepLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("sys/platform_data.json");
+    if (data.isNull() || !data.isObject()) {
+        _pathSepLoaded = true;
+        return;
+    }
+    if (!data.hasKey("path_separators")) {
+        _pathSepLoaded = true;
+        return;
+    }
+    let pathSeps: JsonValue = data.get("path_separators");
+    if (!pathSeps.isObject()) {
+        _pathSepLoaded = true;
+        return;
+    }
+    // Flatten the nested structure: "windows.path" -> "windows_path", etc.
+    let platforms: ArrayList<string> = pathSeps.keys();
+    var i: int = 0;
+    while (i < platforms.size()) {
+        let platform: string = platforms.get(i);
+        let platData: JsonValue = pathSeps.get(platform);
+        if (platData.isObject()) {
+            let fields: ArrayList<string> = platData.keys();
+            var j: int = 0;
+            while (j < fields.size()) {
+                let field: string = fields.get(j);
+                let cacheKey: string = platform + "_" + field;
+                _pathSepCache.put(cacheKey, platData.get(field).asString());
+                j = j + 1;
+            }
+        }
+        i = i + 1;
+    }
+    _pathSepLoaded = true;
+}
+
+fn _getPathSep(platform: string, field: string, defaultVal: string): string {
+    _ensurePathSepLoaded();
+    let cacheKey: string = platform + "_" + field;
+    if (_pathSepCache.containsKey(cacheKey)) {
+        return _pathSepCache.get(cacheKey);
+    }
+    return defaultVal;
+}
+
+fn _currentPlatform(): string {
+    let os: string = Os_name();
+    if (os == "windows") {
+        return "windows";
+    }
+    return "unix";
+}
 
 // Get an environment variable value
 public fn getEnv(key: string): string {
@@ -270,27 +333,23 @@ public fn getFileSize(path: string): int {
 
 // Environment variable constants.
 public fn pathSeparator(): string {
-    let os: string = Os_name();
-    if (os == "windows") { return ";"; }
-    return ":";
+    let platform: string = _currentPlatform();
+    return _getPathSep(platform, "path", platform == "windows" ? ";" : ":");
 }
 
 public fn separator(): string {
-    let os: string = Os_name();
-    if (os == "windows") { return "\\"; }
-    return "/";
+    let platform: string = _currentPlatform();
+    return _getPathSep(platform, "dir", platform == "windows" ? "\\" : "/");
 }
 
 public fn linesep(): string {
-    let os: string = Os_name();
-    if (os == "windows") { return "\r\n"; }
-    return "\n";
+    let platform: string = _currentPlatform();
+    return _getPathSep(platform, "line", platform == "windows" ? "\r\n" : "\n");
 }
 
 public fn devNull(): string {
-    let os: string = Os_name();
-    if (os == "windows") { return "NUL"; }
-    return "/dev/null";
+    let platform: string = _currentPlatform();
+    return _getPathSep(platform, "null", platform == "windows" ? "NUL" : "/dev/null");
 }
 
 // Recursively remove directories (like rmdir -p).
