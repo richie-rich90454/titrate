@@ -171,6 +171,43 @@ public fn dctII(input: ArrayList<double>, numCoeffs: int): ArrayList<double> {
     return result;
 }
 
+// Compute delta features from MFCC matrix
+public fn delta(mfcc: ArrayList<ArrayList<double>>, n: int): ArrayList<ArrayList<double>> {
+    let numFrames: int = mfcc.size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var f: int = 0;
+    while (f < numFrames) {
+        let deltas: ArrayList<double> = new ArrayList<double>();
+        let numCoeffs: int = mfcc.get(f).size();
+        var k: int = 0;
+        while (k < numCoeffs) {
+            var sum: double = 0.0;
+            var norm: double = 0.0;
+            var i: int = 1;
+            while (i <= n) {
+                let prev: int = f - i;
+                let next: int = f + i;
+                let prevVal: double = 0.0;
+                let nextVal: double = 0.0;
+                if (prev >= 0) { prevVal = mfcc.get(prev).get(k); }
+                if (next < numFrames) { nextVal = mfcc.get(next).get(k); }
+                sum = sum + i as double * (nextVal - prevVal);
+                norm = norm + 2.0 * i as double * i as double;
+                i = i + 1;
+            }
+            if (norm > 0.0) {
+                deltas.add(sum / norm);
+            } else {
+                deltas.add(0.0);
+            }
+            k = k + 1;
+        }
+        result.add(deltas);
+        f = f + 1;
+    }
+    return result;
+}
+
 // Compute MFCCs for a signal
 public fn computeMFCC(signal: ArrayList<double>, sampleRate: int, numMelFilters: int, numCoeffs: int, frameLength: int, hopLength: int): ArrayList<ArrayList<double>> {
     let emphasized: ArrayList<double> = preEmphasis(signal, 0.97);
