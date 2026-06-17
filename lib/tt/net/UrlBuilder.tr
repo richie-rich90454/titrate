@@ -46,6 +46,10 @@ public class Url {
         return this;
     }
 
+    public fn query(key: string, value: string): Url {
+        return this.withQuery(key, value);
+    }
+
     public fn withFragment(fragment: string): Url {
         this.fragment = fragment;
         return this;
