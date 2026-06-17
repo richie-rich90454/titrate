@@ -30,6 +30,12 @@ public class CurrencyUnit {
     }
 }
 
+// Return the astronomical unit constant in kilometers.
+// 1 AU = 149,597,870.7 km
+public fn astronomicalUnit(): double {
+    return 149597870.7;
+}
+
 // Astronomical unit to kilometers.
 // 1 AU = 149,597,870.7 km
 public fn auToKm(au: double): double {
