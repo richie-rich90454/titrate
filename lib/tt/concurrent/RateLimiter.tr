@@ -45,6 +45,10 @@ public class TokenBucket {
     }
 }
 
+public fn tokenBucket(maxTokens: double, refillRate: double): TokenBucket {
+    return new TokenBucket(maxTokens, refillRate);
+}
+
 public class LeakyBucket {
     public double water;
     public double capacity;
