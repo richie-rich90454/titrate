@@ -37,3 +37,12 @@ let isFile: bool = FileUtils.isFile("config.json");
 let isDir: bool = FileUtils.isDir("src/");
 let fileSize: int = FileUtils.size("data.bin");
 ```
+
+## Extended File Utilities
+
+- `FileUtils.copy2(src: string, dst: string): void` — copy file with metadata
+- `FileUtils.copytree(src: string, dst: string): void` — copy directory tree
+- `FileUtils.rmtree(path: string): void` — remove directory tree
+- `FileUtils.move(src: string, dst: string): void` — move file or directory
+- `FileUtils.diskUsage(path: string): HashMap<string, long>` — disk usage (total, used, free)
+- `FileUtils.which(command: string): string` — find executable in PATH

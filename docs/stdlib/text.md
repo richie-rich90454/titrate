@@ -99,3 +99,27 @@ io::println(sum.toString());  // "0.3"
 let product = a.mul(new Decimal("3.0"));
 let cmp = a.compareTo(b);
 ```
+
+## Deepened Difflib
+
+- `Difflib.unifiedDiff(a: ArrayList<string>, b: ArrayList<string>, fromFile: string, toFile: string): ArrayList<string>` — unified diff
+- `Difflib.contextDiff(a: ArrayList<string>, b: ArrayList<string>): ArrayList<string>` — context diff
+- `Difflib.ndiff(a: ArrayList<string>, b: ArrayList<string>): ArrayList<string>` — delta in ndiff format
+- `Difflib.restore(delta: ArrayList<string>, which: int): ArrayList<string>` — restore from delta
+
+## Deepened Shlex
+
+- `Shlex.split(s: string): ArrayList<string>` — shell-like splitting
+- `Shlex.quote(s: string): string` — shell-escape a string
+- `Shlex.join(splitCommand: ArrayList<string>): string` — join split command
+
+## Deepened Unicodedata
+
+- `Unicodedata.normalize(form: string, s: string): string` — Unicode normalization (NFC, NFD, NFKC, NFKD)
+- `Unicodedata.category(c: string): string` — Unicode category
+- `Unicodedata.bidirectional(c: string): string` — bidirectional class
+- `Unicodedata.combining(c: string): int` — combining class value
+- `Unicodedata.decomposition(c: string): string` — decomposition mapping
+- `Unicodedata.mirrored(c: string): int` — mirrored property
+- `Unicodedata.numeric(c: string): double` — numeric value
+- Data loaded from `data/unicode/decomposition.json`, `data/unicode/combining_class.json`

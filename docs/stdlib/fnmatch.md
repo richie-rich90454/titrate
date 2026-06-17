@@ -27,3 +27,16 @@ let trFiles: ArrayList<string> = Fnmatch.filter(names, "*.tr");
 
 let regex: string = Fnmatch.translate("*.tr");
 ```
+
+## filter
+
+- `Fnmatch.filter(names: ArrayList<string>, pattern: string): ArrayList<string>` — filter names matching pattern
+
+## translate
+
+- `Fnmatch.translate(pattern: string): string` — translate fnmatch pattern to regex
+
+## Case-Insensitive Matching
+
+- `Fnmatch.fnmatchCase(name: string, pattern: string): bool` — case-sensitive match
+- `Fnmatch.fnmatch(name: string, pattern: string): bool` — case-insensitive match (platform-dependent)

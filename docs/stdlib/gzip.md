@@ -21,3 +21,15 @@ io::println(decompressed);  // "hello world, this is some text to compress"
 io::println(Boolean.toString(Gzip.isGzip(compressed)));  // true
 io::println(Boolean.toString(Gzip.isGzip(original)));     // false
 ```
+
+## Streaming Decompression
+
+- `Gzip.decompressStream(input: string, chunkSize: int): string` — streaming decompression for large files
+
+## Multi-Member Gzip
+
+- `Gzip.decompressAllMembers(data: ArrayList<byte>): ArrayList<ArrayList<byte>>` — decompress all gzip members in concatenated file
+
+## Compression Level
+
+- `Gzip.compressWithLevel(data: ArrayList<byte>, level: int): ArrayList<byte>` — compress with specified level (1-9)
