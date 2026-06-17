@@ -95,6 +95,19 @@ public class SmtpClient {
     }
 }
 
+// Send an HTML email to a single recipient using the given SMTP server.
+public fn sendHtml(host: string, port: int, from: string, to: string, subject: string, htmlBody: string): bool {
+    let client: SmtpClient = new SmtpClient(host, port);
+    if (!client.connect()) {
+        return false;
+    }
+    let recipients: ArrayList<string> = new ArrayList<string>();
+    recipients.add(to);
+    let result: bool = client.sendHtml(from, recipients, subject, htmlBody);
+    client.disconnect();
+    return result;
+}
+
 // Join email addresses with commas.
 fn joinAddresses(addresses: ArrayList<string>): string {
     let result: string = "";
