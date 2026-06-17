@@ -125,6 +125,24 @@ public class Image {
         return result;
     }
 
+    public fn rotate180(): Image {
+        let result: Image = new Image(this.width, this.height, this.channels);
+        var j: int = 0;
+        while (j < this.height) {
+            var i: int = 0;
+            while (i < this.width) {
+                var c: int = 0;
+                while (c < this.channels) {
+                    result.setPixel(this.width - 1 - i, this.height - 1 - j, c, this.getPixel(i, j, c));
+                    c = c + 1;
+                }
+                i = i + 1;
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+
     public fn toGrayscale(): Image {
         if (this.channels == 1) { return this.crop(0, 0, this.width, this.height); }
         let result: Image = new Image(this.width, this.height, 1);
