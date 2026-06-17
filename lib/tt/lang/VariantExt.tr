@@ -27,6 +27,21 @@ public fn getIf(v: Variant, typeName: string, predicate: fn(Variant): bool): Var
 }
 
 // Visit a Variant by dispatching to the matching visitor function based on type tag.
+public fn visit(v: Variant, visitors: HashMap<string, fn(Variant): Variant>): Variant {
+    let tag: string = v.typeTag();
+    if (visitors.containsKey(tag)) {
+        let visitor: fn(Variant): Variant = visitors.get(tag);
+        return visitor(v.get());
+    }
+    // Check for default visitor
+    if (visitors.containsKey("default")) {
+        let defaultVisitor: fn(Variant): Variant = visitors.get("default");
+        return defaultVisitor(v);
+    }
+    return null;
+}
+
+// Visit a Variant by dispatching to the matching visitor function based on type tag (alias).
 public fn visitVariant(v: Variant, visitors: HashMap<string, fn(Variant): Variant>): Variant {
     let tag: string = v.typeTag();
     if (visitors.containsKey(tag)) {
