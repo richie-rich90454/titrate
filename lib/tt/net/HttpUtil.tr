@@ -109,6 +109,15 @@ public class MultipartForm {
     }
 }
 
+// Create a new MultipartForm with the given boundary.
+public fn multipartFormData(boundary: string): MultipartForm {
+    let form: MultipartForm = new MultipartForm();
+    if (String.length(boundary) > 0) {
+        form.boundary = boundary;
+    }
+    return form;
+}
+
 public class HttpCache {
     public HashMap<string, string> entries;
     private int maxSize;
