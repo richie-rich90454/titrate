@@ -12,6 +12,10 @@ public class FastaRecord {
     }
 }
 
+public fn writeFastaDefault(path: string, records: ArrayList<FastaRecord>): void {
+    writeFasta(path, records, 80);
+}
+
 public fn writeFasta(path: string, records: ArrayList<FastaRecord>, lineWidth: int): void {
     let content: string = "";
     var i: int = 0;
