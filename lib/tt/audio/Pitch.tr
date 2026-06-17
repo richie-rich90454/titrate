@@ -3,6 +3,15 @@ import tt::util::ArrayList;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 
+import tt::audio::AudioBuffer;
+
+// Autocorrelation pitch detection from AudioBuffer
+public fn detectAutocorrelation(buffer: AudioBuffer): double {
+    let signal: ArrayList<double> = buffer.samples.get(0);
+    let sampleRate: int = buffer.sampleRate;
+    return detectPitchAutocorrelation(signal, sampleRate, 50.0, 2000.0);
+}
+
 // Autocorrelation-based pitch detection
 public fn detectPitchAutocorrelation(signal: ArrayList<double>, sampleRate: int, minFreq: double, maxFreq: double): double {
     let n: int = signal.size();
