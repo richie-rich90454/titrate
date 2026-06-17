@@ -61,6 +61,20 @@ public fn leverRule(composition: double, compAlpha: double, compBeta: double): d
     return (composition - compAlpha) / (compBeta - compAlpha);
 }
 
+// Phase fractions using lever rule
+public fn phaseFractions(composition: double, compAlpha: double, compBeta: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let fBeta: double = leverRule(composition, compAlpha, compBeta);
+    let fAlpha: double = 1.0 - fBeta;
+    if (fAlpha < 0.0) { fAlpha = 0.0; }
+    if (fBeta < 0.0) { fBeta = 0.0; }
+    if (fAlpha > 1.0) { fAlpha = 1.0; }
+    if (fBeta > 1.0) { fBeta = 1.0; }
+    result.add(fAlpha);
+    result.add(fBeta);
+    return result;
+}
+
 // Cooling curve for a binary system (simplified)
 public fn coolingCurve(diagram: BinaryPhaseDiagram, composition: double, startTemp: double, endTemp: double, steps: int): ArrayList<double> {
     let result: ArrayList<double> = new ArrayList<double>();
