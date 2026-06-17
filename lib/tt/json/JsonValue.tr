@@ -557,6 +557,56 @@ public class JsonValue {
         return f(this);
     }
 
+    // Infer a JSON Schema from this value.
+    // Returns a JsonValue representing a Draft 7 JSON Schema that would validate this structure.
+    public fn schema(): JsonValue {
+        if (this.isNull()) {
+            return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("null")));
+        }
+        if (this.isBool()) {
+            return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("boolean")));
+        }
+        if (this.isNumber()) {
+            return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("number")));
+        }
+        if (this.isString()) {
+            return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("string")));
+        }
+        if (this.isArray()) {
+            let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            schema.put("type", JsonValue.ofStr("array"));
+            if (this.arrayVal.size() > 0) {
+                schema.put("items", this.arrayVal.get(0).schema());
+            }
+            return JsonValue.ofObject(schema);
+        }
+        if (this.isObject()) {
+            let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            schema.put("type", JsonValue.ofStr("object"));
+            let props: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            let required: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < ks.size()) {
+                let key: string = ks.get(i);
+                props.put(key, this.objVal.get(key).schema());
+                required.add(JsonValue.ofStr(key));
+                i = i + 1;
+            }
+            schema.put("properties", JsonValue.ofObject(props));
+            schema.put("required", JsonValue.ofArray(required));
+            return JsonValue.ofObject(schema);
+        }
+        return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("string")));
+    }
+
+    // Helper: create a HashMap with a single key-value pair.
+    fn _singletonMap(key: string, value: JsonValue): HashMap<string, JsonValue> {
+        let m: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        m.put(key, value);
+        return m;
+    }
+
     // JSON serialization
     public fn toString(): string {
         if (this.kind == "null") {
