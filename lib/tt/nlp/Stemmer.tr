@@ -120,3 +120,65 @@ fn _endsWithCVC(word: string): bool {
     if (n < 3) { return false; }
     return !_isVowel(String.charAt(word, n - 3)) && _isVowel(String.charAt(word, n - 2)) && !_isVowel(String.charAt(word, n - 1)) && String.charAt(word, n - 1) != "w" && String.charAt(word, n - 1) != "x" && String.charAt(word, n - 1) != "y";
 }
+
+// Lancaster stemmer implementation
+public fn lancaster(word: string): string {
+    let w: string = String.toLowerCase(word);
+    let len: int = String.length(w);
+    if (len <= 2) { return w; }
+    var result: string = w;
+    var changed: bool = true;
+    var ruleIndex: int = 0;
+    while (changed && ruleIndex < 5) {
+        changed = false;
+        // Rule 1: Remove trailing 'e'
+        if (String.length(result) > 3 && _endsWith(result, "e")) {
+            result = _replaceSuffix(result, "e", "");
+            changed = true;
+        }
+        // Rule 2: Remove trailing 'y' and replace with 'i'
+        if (String.length(result) > 3 && _endsWith(result, "y")) {
+            result = _replaceSuffix(result, "y", "i");
+            changed = true;
+        }
+        // Rule 3: Remove common suffixes
+        if (String.length(result) > 4 && _endsWith(result, "tion")) {
+            result = _replaceSuffix(result, "tion", "t");
+            changed = true;
+        } else {
+            if (String.length(result) > 4 && _endsWith(result, "sion")) {
+                result = _replaceSuffix(result, "sion", "s");
+                changed = true;
+            } else {
+                if (String.length(result) > 3 && _endsWith(result, "ing")) {
+                    result = _replaceSuffix(result, "ing", "");
+                    changed = true;
+                } else {
+                    if (String.length(result) > 3 && _endsWith(result, "ity")) {
+                        result = _replaceSuffix(result, "ity", "");
+                        changed = true;
+                    } else {
+                        if (String.length(result) > 4 && _endsWith(result, "ment")) {
+                            result = _replaceSuffix(result, "ment", "");
+                            changed = true;
+                        } else {
+                            if (String.length(result) > 3 && _endsWith(result, "ness")) {
+                                result = _replaceSuffix(result, "ness", "");
+                                changed = true;
+                            } else {
+                                if (String.length(result) > 3 && _endsWith(result, "ful")) {
+                                    result = _replaceSuffix(result, "ful", "");
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ruleIndex = ruleIndex + 1;
+    }
+    // Ensure result has at least 2 characters
+    if (String.length(result) < 2) { return w; }
+    return result;
+}
