@@ -162,6 +162,53 @@ public class GraphUtil {
         return total;
     }
 
+    // Find the shortest path from one vertex to another using BFS.
+    public fn shortestPath(g: GraphUtil, from: string, to: string): ArrayList<string> {
+        if (!g.adjacency.containsKey(from) || !g.adjacency.containsKey(to)) {
+            return new ArrayList<string>();
+        }
+        if (from == to) {
+            let result: ArrayList<string> = new ArrayList<string>();
+            result.add(from);
+            return result;
+        }
+        let visited: HashMap<string, bool> = new HashMap<string, bool>();
+        let parent: HashMap<string, string> = new HashMap<string, string>();
+        let queue: ArrayList<string> = new ArrayList<string>();
+        visited.put(from, true);
+        queue.add(from);
+        while (queue.size() > 0) {
+            let current: string = queue.get(0);
+            queue.remove(0);
+            if (current == to) {
+                // Reconstruct path
+                let path: ArrayList<string> = new ArrayList<string>();
+                var node: string = to;
+                while (node != null) {
+                    path.add(0, node);
+                    if (parent.containsKey(node)) {
+                        node = parent.get(node);
+                    } else {
+                        node = null;
+                    }
+                }
+                return path;
+            }
+            let neighbors: ArrayList<string> = g.adjacency.get(current);
+            var i: int = 0;
+            while (i < neighbors.size()) {
+                let neighbor: string = neighbors.get(i);
+                if (!visited.containsKey(neighbor)) {
+                    visited.put(neighbor, true);
+                    parent.put(neighbor, current);
+                    queue.add(neighbor);
+                }
+                i = i + 1;
+            }
+        }
+        return new ArrayList<string>();
+    }
+
     // Get all vertices.
     public fn vertices(): ArrayList<string> {
         return this.adjacency.keys();
