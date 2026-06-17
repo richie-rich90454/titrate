@@ -90,4 +90,9 @@ public class LatencyTracker {
     public fn p90(): double { return this.percentile(90.0); }
     public fn p99(): double { return this.percentile(99.0); }
     public fn p999(): double { return this.percentile(99.9); }
+
+    // Percentile returning long (nanoseconds)
+    public fn percentileLong(p: double): long {
+        return this.percentile(p) as long;
+    }
 }
