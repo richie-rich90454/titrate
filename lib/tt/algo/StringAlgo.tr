@@ -55,6 +55,10 @@ public fn kmpSearch(text: string, pattern: string): ArrayList<int> {
     return result;
 }
 
+public fn kmp(text: string, pattern: string): ArrayList<int> {
+    return kmpSearch(text, pattern);
+}
+
 public fn rabinKarp(text: string, pattern: string): ArrayList<int> {
     let result: ArrayList<int> = new ArrayList<int>();
     let n: int = String.length(text);
