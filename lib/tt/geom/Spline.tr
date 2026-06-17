@@ -77,6 +77,31 @@ public fn cubicBezierDerivative(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point
     return new Point2D(x, y);
 }
 
+// General derivative evaluation for Bezier curve at parameter t
+// Returns derivative components [dx/dt, dy/dt]
+public fn derivative(controlPoints: ArrayList<Point2D>, t: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = controlPoints.size();
+    if (n < 2) {
+        result.add(0.0);
+        result.add(0.0);
+        return result;
+    }
+    // Derivative of Bezier is (n-1) * difference of control points
+    let diffPoints: ArrayList<Point2D> = new ArrayList<Point2D>();
+    var i: int = 0;
+    while (i < n - 1) {
+        let dx: double = (n - 1) as double * (controlPoints.get(i + 1).x - controlPoints.get(i).x);
+        let dy: double = (n - 1) as double * (controlPoints.get(i + 1).y - controlPoints.get(i).y);
+        diffPoints.add(new Point2D(dx, dy));
+        i = i + 1;
+    }
+    let derivPt: Point2D = bezierCurve(diffPoints, t);
+    result.add(derivPt.x);
+    result.add(derivPt.y);
+    return result;
+}
+
 // Approximate arc length of a cubic Bezier
 public fn cubicBezierLength(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, numSamples: int): double {
     var length: double = 0.0;
