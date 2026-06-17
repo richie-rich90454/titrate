@@ -1,0 +1,98 @@
+// Extended utility methods for Result type (Task 206).
+import tt::lang::Result;
+import tt::lang::Optional;
+
+// Chain a Result-producing function on the Ok value.
+public fn andThen(r: Result, f: fn(Variant): Result): Result {
+    if (r.isOk()) {
+        return f(r.unwrap());
+    }
+    return r;
+}
+
+// Provide an alternative Result if this one is Err.
+public fn orElse(r: Result, f: fn(Variant): Result): Result {
+    if (r.isErr()) {
+        return f(r.unwrapErr());
+    }
+    return r;
+}
+
+// Unwrap the Ok value, or return the default if Err.
+public fn unwrapOr(r: Result, default: Variant): Variant {
+    if (r.isOk()) {
+        return r.unwrap();
+    }
+    return default;
+}
+
+// Unwrap the Ok value, or compute a default from the Err value.
+public fn unwrapOrElse(r: Result, f: fn(Variant): Variant): Variant {
+    if (r.isOk()) {
+        return r.unwrap();
+    }
+    return f(r.unwrapErr());
+}
+
+// Unwrap the Ok value, or throw with a custom message if Err.
+public fn expect(r: Result, message: string): Variant {
+    if (r.isOk()) {
+        return r.unwrap();
+    }
+    throw message;
+}
+
+// Map the Ok value of a Result using a function.
+public fn mapResult(r: Result, f: fn(Variant): Variant): Result {
+    if (r.isOk()) {
+        let val: Variant = r.unwrap();
+        let mapped: Variant = f(val);
+        return Result.ok(mapped);
+    }
+    return r;
+}
+
+// Map the Err value of a Result using a function.
+public fn mapErr(r: Result, f: fn(Variant): Variant): Result {
+    if (r.isErr()) {
+        let err: Variant = r.unwrapErr();
+        let mapped: Variant = f(err);
+        return Result.err(mapped);
+    }
+    return r;
+}
+
+// Flatten a nested Result (Result<Result> -> Result).
+public fn flattenResult(r: Result): Result {
+    if (r.isOk()) {
+        let val: Variant = r.unwrap();
+        if (val is Result) {
+            let inner: Result = val as Result;
+            if (inner.isOk()) {
+                return Result.ok(inner.unwrap());
+            }
+            return Result.err(inner.unwrapErr());
+        }
+        return r;
+    }
+    return r;
+}
+
+// Transpose Result<Optional> to Optional<Result>.
+public fn transposeResult(r: Result): Result {
+    if (r.isErr()) {
+        // Err -> wrap in Optional as present Result
+        let err: Variant = r.unwrapErr();
+        return Optional.of(Result.err(err));
+    }
+    let val: Variant = r.unwrap();
+    if (val is Optional) {
+        let opt: Optional = val as Optional;
+        if (opt.isPresent()) {
+            return Optional.of(Result.ok(opt.get()));
+        }
+        return Optional.empty();
+    }
+    // Not an Optional, wrap as-is
+    return Optional.of(Result.ok(val));
+}

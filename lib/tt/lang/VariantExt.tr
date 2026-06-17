@@ -1,0 +1,63 @@
+// Extended utility methods for Variant type (Task 208).
+import tt::lang::Variant;
+import tt::util::HashMap;
+
+// Check if a Variant holds a value of the given type name.
+public fn holdsAlternative(v: Variant, typeName: string): bool {
+    return v.hasTag(typeName);
+}
+
+// Get the value of a Variant if it matches the given type name.
+public fn getVariant(v: Variant, typeName: string): Variant {
+    if (v.hasTag(typeName)) {
+        return v.get();
+    }
+    return null;
+}
+
+// Get the value if it matches the type name and predicate.
+public fn getIf(v: Variant, typeName: string, predicate: fn(Variant): bool): Variant {
+    if (v.hasTag(typeName)) {
+        let val: Variant = v.get();
+        if (predicate(val)) {
+            return val;
+        }
+    }
+    return null;
+}
+
+// Visit a Variant by dispatching to the matching visitor function based on type tag.
+public fn visitVariant(v: Variant, visitors: HashMap<string, fn(Variant): Variant>): Variant {
+    let tag: string = v.typeTag();
+    if (visitors.containsKey(tag)) {
+        let visitor: fn(Variant): Variant = visitors.get(tag);
+        return visitor(v.get());
+    }
+    // Check for default visitor
+    if (visitors.containsKey("default")) {
+        let defaultVisitor: fn(Variant): Variant = visitors.get("default");
+        return defaultVisitor(v);
+    }
+    return null;
+}
+
+// Return the type index of a Variant (based on its type tag hash).
+public fn variantIndex(v: Variant): int {
+    let tag: string = v.typeTag();
+    if (tag == null) { return -1; }
+    // Compute a simple hash-based index
+    var hash: int = 0;
+    var i: int = 0;
+    while (i < String_length(tag)) {
+        let c: int = String_charAt(tag, i) as int;
+        hash = hash * 31 + c;
+        i = i + 1;
+    }
+    if (hash < 0) { hash = -hash; }
+    return hash;
+}
+
+// Return the type name of a Variant.
+public fn variantTypeName(v: Variant): string {
+    return v.typeTag();
+}
