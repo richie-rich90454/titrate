@@ -200,6 +200,24 @@ public fn derangement(n: int): long {
     return b;
 }
 
+// Derangement (subfactorial) returning vast for large n.
+// Recurrence: D(0) = 1, D(1) = 0, D(n) = (n-1) * (D(n-1) + D(n-2))
+public fn derangementVast(n: int): vast {
+    if (n < 0) { return 0; }
+    if (n == 0) { return 1; }
+    if (n == 1) { return 0; }
+    var a: vast = 1; // D(0)
+    var b: vast = 0; // D(1)
+    var i: int = 2;
+    while (i <= n) {
+        let d: vast = (i - 1) * (a + b);
+        a = b;
+        b = d;
+        i = i + 1;
+    }
+    return b;
+}
+
 // ==================== Multinomial coefficient ====================
 
 // Multinomial coefficient: n! / (k1! * k2! * ... * km!)
