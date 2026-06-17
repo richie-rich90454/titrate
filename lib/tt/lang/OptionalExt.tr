@@ -11,6 +11,14 @@ public fn mapOptional(opt: Optional, f: fn(Variant): Variant): Optional {
 }
 
 // FlatMap: apply a function that returns an Optional.
+public fn flatMap(opt: Optional, f: fn(Variant): Optional): Optional {
+    if (opt.isPresent()) {
+        return f(opt.get());
+    }
+    return Optional.empty();
+}
+
+// FlatMap: apply a function that returns an Optional (alias).
 public fn flatMapOptional(opt: Optional, f: fn(Variant): Optional): Optional {
     if (opt.isPresent()) {
         return f(opt.get());
