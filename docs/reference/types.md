@@ -148,3 +148,52 @@ Built-in constraint interfaces:
 ### Monomorphization
 
 Titrate compiles generics via monomorphization. For each concrete type used, the compiler generates a specialized copy of the generic code. This means there is no runtime overhead — `ArrayList<int>` runs just as fast as a hand-written list for integers.
+
+## Reference Types
+
+Titrate supports reference types for advanced memory management:
+
+```titrate
+// Immutable reference
+let ref: &int = &value;
+
+// Mutable reference
+let mutRef: &mut int = &mut value;
+```
+
+Reference types are used internally by the ownership system and are not commonly needed in application code.
+
+## Optional Type
+
+`Optional<T>` provides null-safe access to values that may be absent:
+
+```titrate
+let opt: Optional<int> = Optional.of(42);
+if (opt.isPresent()) {
+    let val: int = opt.get();
+}
+```
+
+## DataFile and External Data
+
+The `DataFile` system loads reference data from external JSON files at runtime, keeping `.tr` source files clean:
+
+```titrate
+import tt.lang.DataFile;
+
+let data: JsonValue = DataFile.load("chem/periodic_table.json");
+let meta: JsonValue = DataFile.meta("chem/periodic_table.json");
+```
+
+All data files include a `_meta` object with source, version, and description. No `.tr` file should contain more than 5 literal reference values.
+
+## Extended Tuple Types
+
+Beyond 2-element tuples, Titrate supports `Tuple3`, `Tuple4`, and `Tuple5`:
+
+```titrate
+let t3 = new Tuple3(1, "hello", 3.14);
+let first = t3.first();    // 1
+let second = t3.second();  // "hello"
+let third = t3.third();    // 3.14
+```

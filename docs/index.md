@@ -36,7 +36,7 @@ features:
   - icon:
       src: /icons/flask.svg
     title: Scientific Computing
-    details: Chemistry (Atom, Molecule, ForceField, MD), linear algebra (Matrix, NDArray), and units of measure -- all in the standard library.
+    details: Bioinformatics, physics simulation, materials science, signal processing, image/audio processing, ML, computational geometry, and more -- all in the standard library.
   - icon:
       src: /icons/compat.svg
     title: C-family Compatibility
@@ -52,7 +52,7 @@ features:
   - icon:
       src: /icons/library.svg
     title: Rich Standard Library
-    details: Collections, I/O, JSON, CSV, XML, TCP, HTTP, SHA-256, HMAC, Base64 -- everything you need to build real applications, out of the box.
+    details: Collections, I/O, JSON, CSV, XML, TCP, HTTP, SHA-256, HMAC, Base64, bioinformatics, physics, ML, HFT, simulation -- everything you need, out of the box.
 ---
 
 ## Quick Start
@@ -243,7 +243,7 @@ Inspired by Rust and Python, Titrate uses `name: Type` parameter order, `fn` dec
 
 ### Scientific Computing Built In
 
-Chemistry simulations (Atom, Molecule, ForceField, MD, RHF), linear algebra (Matrix, NDArray with operator overloading), and units of measure are part of the standard library -- not third-party packages.
+Chemistry simulations (Atom, Molecule, ForceField, MD, RHF), bioinformatics (Sequence, Alignment, PhyloTree), physics (Particle, ForceField, NBodySimulator), machine learning (Tensor, Model, Optimizer), signal processing (FFT2, Filter, Wavelet), image processing, audio processing, computational geometry, NLP, HFT, and discrete-event simulation are all part of the standard library -- not third-party packages.
 
 ### Comprehensive Standard Library
 
@@ -273,15 +273,28 @@ Titrate ships with a comprehensive standard library organized into intuitive mod
 |--------|-----------|-------------|
 | `tt::util` | ArrayList, HashMap, HashSet, Vec, Stack, Queue | Core collections with generic support |
 | `tt::io` | File, BufferedReader, BufferedWriter, Path | File I/O and filesystem operations |
-| `tt::json` | JsonValue, Json | JSON parsing, serialization, and querying |
-| `tt::math` | Math, Random, Statistics | Mathematical functions and distributions |
+| `tt::json` | JsonValue, Json, JsonPath, JsonSchema, Json5 | JSON parsing, serialization, querying, validation |
+| `tt::xml` | XmlNode, Xml, XPath, XmlBuilder, XmlSchema | XML parsing, XPath, schema validation, C14N |
+| `tt::math` | Math, Random, Statistics, Special | Mathematical functions, distributions, special functions |
 | `tt::ndarray` | NDArray, Matrix | N-dimensional arrays and linear algebra |
 | `tt::chem` | Atom, Molecule, ForceField, MD, RHF | Computational chemistry toolkit |
+| `tt::bio` | Sequence, Alignment, PhyloTree, CodonTable | Bioinformatics and sequence analysis |
+| `tt::physics` | Particle, ForceField, NBodySimulator, RigidBody | Physics simulation |
+| `tt::materials` | CrystalStructure, XRayDiffraction, Elasticity | Materials science |
+| `tt::sigproc` | FFT2, Filter, Wavelet, Spectrogram | Signal processing |
+| `tt::image` | Image, Kernel, Morphology, Threshold | Image processing |
+| `tt::audio` | AudioBuffer, Pitch, Mfcc | Audio processing |
+| `tt::ml` | Tensor, Layer, Optimizer, Model | Machine learning |
+| `tt::geom` | ConvexHull, Delaunay, SpatialIndex | Computational geometry |
+| `tt::nlp` | Tokenizer, Stemmer, Classifier | Natural language processing |
+| `tt::hft` | FixParser, OrderRouter, RiskManager, Backtest | High-frequency trading |
+| `tt::sim` | Simulation, Resource, Process, Monitor | Discrete-event simulation |
+| `tt::finance` | BlackScholes, Portfolio, YieldCurve | Quantitative finance |
+| `tt::crypto2` | AES, RSA, ECDSA, KDF | Advanced cryptography |
 | `tt::net` | TcpClient, TcpServer, HttpClient | Networking primitives |
 | `tt::crypto` | SHA256, HMAC, Base64 | Cryptographic primitives |
 | `tt::argparse` | ArgumentParser | CLI argument parsing |
 | `tt::csv` | CsvReader, CsvWriter | CSV file handling |
-| `tt::xml` | XmlNode, XmlParser | XML parsing and generation |
 
 ## Community and Contributing
 
