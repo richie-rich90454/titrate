@@ -108,6 +108,21 @@ public class AsyncFileReader {
     }
 }
 
+// Read a file with progress tracking. Calls onChunk for each chunk read,
+// and onProgress with the progress ratio (0.0 to 1.0) after each chunk.
+public fn readWithProgress(path: string, bufferSize: int, onChunk: fn(string): void, onProgress: fn(double): void): void {
+    let reader: AsyncFileReader = new AsyncFileReader(path, bufferSize);
+    while (!reader.isEof()) {
+        let chunk: string = File_readChunk(path, reader.getPosition(), bufferSize);
+        if (chunk == null || String.length(chunk) == 0) {
+            break;
+        }
+        onChunk(chunk);
+        reader.getPosition();
+        onProgress(reader.getProgress());
+    }
+}
+
 public class AsyncFileWriter {
     private string path;
     private ArrayList<string> buffer;
