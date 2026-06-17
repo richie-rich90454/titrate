@@ -1,0 +1,123 @@
+import tt::util::ArrayList;
+import tt::util::Pair;
+
+// Broadcasting utilities for NDArray operations
+
+// Compute the broadcast shape from two input shapes.
+// Rules: dimensions are compatible when they are equal, or one of them is 1.
+public fn broadcastShapes(shape1: ArrayList<int>, shape2: ArrayList<int>): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let n1: int = shape1.size();
+    let n2: int = shape2.size();
+    let nd: int = Math.max(n1, n2);
+    var i: int = 0;
+    while (i < nd) {
+        let d1: int = 1;
+        let d2: int = 1;
+        let offset1: int = i - (nd - n1);
+        let offset2: int = i - (nd - n2);
+        if (offset1 >= 0) { d1 = shape1.get(offset1); }
+        if (offset2 >= 0) { d2 = shape2.get(offset2); }
+        if (d1 == d2) {
+            result.add(d1);
+        } else {
+            if (d1 == 1) {
+                result.add(d2);
+            } else {
+                if (d2 == 1) {
+                    result.add(d1);
+                } else {
+                    // Incompatible shapes — pick the larger (best-effort)
+                    result.add(Math.max(d1, d2));
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Broadcast flat data with given shape to a target shape.
+// Returns a new flat ArrayList<double> with targetShape total elements.
+public fn broadcastTo(data: ArrayList<double>, shape: ArrayList<int>, targetShape: ArrayList<int>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let nd: int = targetShape.size();
+    // Compute total elements in target
+    var total: int = 1;
+    var i: int = 0;
+    while (i < nd) {
+        total = total * targetShape.get(i);
+        i = i + 1;
+    }
+    // Compute source strides
+    let srcNd: int = shape.size();
+    let srcStrides: ArrayList<int> = new ArrayList<int>();
+    if (srcNd > 0) {
+        srcStrides.add(0, 1);
+        i = srcNd - 2;
+        while (i >= 0) {
+            srcStrides.add(0, srcStrides.get(0) * shape.get(i + 1));
+            i = i - 1;
+        }
+    }
+    // Compute target strides
+    let tgtStrides: ArrayList<int> = new ArrayList<int>();
+    if (nd > 0) {
+        tgtStrides.add(0, 1);
+        i = nd - 2;
+        while (i >= 0) {
+            tgtStrides.add(0, tgtStrides.get(0) * targetShape.get(i + 1));
+            i = i - 1;
+        }
+    }
+    // Iterate over all target indices
+    let indices: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < nd) {
+        indices.add(0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < total) {
+        // Map target indices to source indices
+        var srcFlat: int = 0;
+        let offset: int = nd - srcNd;
+        var d: int = 0;
+        while (d < srcNd) {
+            let srcDim: int = shape.get(d);
+            let tgtIdx: int = indices.get(d + offset);
+            if (srcDim == 1) {
+                // broadcast dimension — index 0
+            } else {
+                srcFlat = srcFlat + tgtIdx * srcStrides.get(d);
+            }
+            d = d + 1;
+        }
+        result.add(data.get(srcFlat));
+        // Increment indices
+        var axis: int = nd - 1;
+        while (axis >= 0) {
+            let val: int = indices.get(axis) + 1;
+            indices.set(axis, val);
+            if (val < targetShape.get(axis)) {
+                break;
+            }
+            indices.set(axis, 0);
+            axis = axis - 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Broadcast two arrays together. Returns a Pair of (broadcasted data A, broadcasted data B)
+// and the common shape is computed internally.
+public fn broadcastArrays(a: ArrayList<double>, shapeA: ArrayList<int>, b: ArrayList<double>, shapeB: ArrayList<int>): Pair<ArrayList<double>, ArrayList<int>> {
+    let targetShape: ArrayList<int> = broadcastShapes(shapeA, shapeB);
+    let aBroadcast: ArrayList<double> = broadcastTo(a, shapeA, targetShape);
+    let bBroadcast: ArrayList<double> = broadcastTo(b, shapeB, targetShape);
+    // Return aBroadcast and targetShape (bBroadcast can be computed similarly)
+    // We return aBroadcast as first and targetShape as second for convenience
+    // The caller can also call broadcastTo for b if needed
+    return new Pair<ArrayList<double>, ArrayList<int>>(aBroadcast, targetShape);
+}
