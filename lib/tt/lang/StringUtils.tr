@@ -2,6 +2,19 @@
 import tt::util::ArrayList;
 import tt::lang::String;
 
+// Word-wrap a string to the given width, returning a single string with newline breaks.
+public fn wordWrapString(s: string, width: int): string {
+    let lines: ArrayList<string> = wordWrap(s, width);
+    let sb: string = "";
+    var i: int = 0;
+    while (i < lines.size()) {
+        if (i > 0) { sb = sb + "\n"; }
+        sb = sb + lines.get(i);
+        i = i + 1;
+    }
+    return sb;
+}
+
 // Word-wrap a string to the given width, returning a list of lines.
 public fn wordWrap(s: string, width: int): ArrayList<string> {
     let lines: ArrayList<string> = new ArrayList<string>();
