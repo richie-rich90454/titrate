@@ -453,3 +453,97 @@ fn _toLower(c: string): string {
     }
     return c;
 }
+
+// ---- Color Terminal Output ----
+
+// ANSI escape codes for terminal colors.
+const _ANSI_RESET: string = "\u001b[0m";
+const _ANSI_BOLD: string = "\u001b[1m";
+const _ANSI_DIM: string = "\u001b[2m";
+const _ANSI_RED: string = "\u001b[31m";
+const _ANSI_GREEN: string = "\u001b[32m";
+const _ANSI_YELLOW: string = "\u001b[33m";
+const _ANSI_BLUE: string = "\u001b[34m";
+const _ANSI_MAGENTA: string = "\u001b[35m";
+const _ANSI_CYAN: string = "\u001b[36m";
+const _ANSI_WHITE: string = "\u001b[37m";
+
+// Stringify a JsonValue with ANSI color codes for terminal display.
+// Keys are colored blue, strings green, numbers yellow, booleans magenta, null red.
+public fn stringifyColor(value: JsonValue): string {
+    return _stringifyColorValue(value, 0);
+}
+
+// Stringify a JsonValue with ANSI color codes and indentation.
+public fn stringifyColorPretty(value: JsonValue, indent: int): string {
+    return _stringifyColorValue(value, indent);
+}
+
+// Internal: colorize a JsonValue for terminal output.
+fn _stringifyColorValue(value: JsonValue, indent: int): string {
+    if (value.isNull()) {
+        return _ANSI_RED + "null" + _ANSI_RESET;
+    }
+    if (value.isBool()) {
+        return _ANSI_MAGENTA + value.asString() + _ANSI_RESET;
+    }
+    if (value.isNumber()) {
+        return _ANSI_YELLOW + value.asString() + _ANSI_RESET;
+    }
+    if (value.isString()) {
+        return _ANSI_GREEN + "\"" + value.asString() + "\"" + _ANSI_RESET;
+    }
+    if (value.isArray()) {
+        let size: int = value.size();
+        if (size == 0) {
+            return "[]";
+        }
+        let pad: string = _pad(indent + 2);
+        let endPad: string = _pad(indent);
+        var s: string = "[" + "\n";
+        var i: int = 0;
+        while (i < size) {
+            s = s + pad + _stringifyColorValue(value.getAt(i), indent + 2);
+            if (i < size - 1) {
+                s = s + ",";
+            }
+            s = s + "\n";
+            i = i + 1;
+        }
+        s = s + endPad + "]";
+        return s;
+    }
+    if (value.isObject()) {
+        let keys: ArrayList<string> = value.keys();
+        if (keys.size() == 0) {
+            return "{}";
+        }
+        let pad: string = _pad(indent + 2);
+        let endPad: string = _pad(indent);
+        var s: string = "{" + "\n";
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            s = s + pad + _ANSI_BLUE + "\"" + k + "\"" + _ANSI_RESET + ": " + _stringifyColorValue(value.get(k), indent + 2);
+            if (i < keys.size() - 1) {
+                s = s + ",";
+            }
+            s = s + "\n";
+            i = i + 1;
+        }
+        s = s + endPad + "}";
+        return s;
+    }
+    return value.asString();
+}
+
+// Generate indentation padding string.
+fn _pad(n: int): string {
+    var s: string = "";
+    var i: int = 0;
+    while (i < n) {
+        s = s + " ";
+        i = i + 1;
+    }
+    return s;
+}
