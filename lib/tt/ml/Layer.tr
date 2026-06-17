@@ -154,6 +154,11 @@ public class DropoutLayer {
     }
 }
 
+// Dropout factory function
+public fn Dropout(rate: double): DropoutLayer {
+    return new DropoutLayer(rate);
+}
+
 // Batch normalization layer
 public class BatchNormLayer {
     public int numFeatures;
