@@ -3,6 +3,15 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::Variant;
 
+// Add a subparser to an existing parser and return the new subparser.
+public fn addSubparser(parser: ArgparseExt, name: string, help: string): ArgparseExt {
+    let sub: ArgparseExt = new ArgparseExt();
+    let sp: SubcommandParser = new SubcommandParser(name, help);
+    sp.addSubcommand(name, sub);
+    parser.subcommands.put(name, sp);
+    return sub;
+}
+
 // ArgumentGroup groups related arguments under a named section.
 public class ArgumentGroup {
     public string name;
