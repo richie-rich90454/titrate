@@ -18,6 +18,11 @@ public class WatchEvent {
     }
 }
 
+// Create a FileWatcher that watches a directory recursively.
+public fn watchRecursive(path: string): FileWatcher {
+    return new FileWatcher(path, true);
+}
+
 public class FileWatcher {
     private string watchPath;
     private bool recursive;
