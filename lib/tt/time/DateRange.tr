@@ -3,6 +3,20 @@ import tt::util::ArrayList;
 import tt::util::Pair;
 import tt::time::DateTime;
 
+// Generate a range of dates from start to end (inclusive) with the given step in days.
+public fn dateRangeIntStep(start: string, end: string, step: int): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let startDt: DateTime = DateTime.fromISO(start);
+    let endDt: DateTime = DateTime.fromISO(end);
+    var current: DateTime = startDt;
+    if (step <= 0) { step = 1; }
+    while (current.isBefore(endDt) || current.equals(endDt)) {
+        result.add(current.strftime("%Y-%m-%d"));
+        current = current.plusDays(step as long);
+    }
+    return result;
+}
+
 // Generate a range of dates from start to end (inclusive) with the given step.
 // Step format: "1d" (1 day), "1w" (1 week), "1M" (1 month), etc.
 public fn dateRange(start: string, end: string, step: string): ArrayList<string> {
