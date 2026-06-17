@@ -1,32 +1,83 @@
 // Zstd provides Zstandard compression and decompression.
-// Delegates to native Zstd functions.
+// Delegates to native Zstd functions for core operations.
+// Provides additional utility functions for dictionary compression, streaming, and frame info.
 import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::String;
 
 // Compress data using Zstd at the given compression level (1-22).
-public fn zstdCompress(data: string, level: int): string {
+// Level 1 is fastest, level 22 gives best compression.
+// Default level is 3 if not specified.
+public fn compress(data: string, level: int): string {
     return Zstd_compress(data, level);
 }
 
+// Compress data using Zstd at default level (3).
+public fn compressDefault(data: string): string {
+    return Zstd_compress(data, 3);
+}
+
 // Decompress data using Zstd.
-public fn zstdDecompress(data: string): string {
+public fn decompress(data: string): string {
     return Zstd_decompress(data);
 }
 
 // Compress data using Zstd with a pre-trained dictionary.
-public fn zstdCompressWithDict(data: string, dict: string): string {
+// Dictionaries improve compression ratio for small data with repetitive patterns.
+public fn compressWithDict(data: string, dict: string): string {
     return Zstd_compressWithDict(data, dict);
 }
 
 // Decompress data using Zstd with a pre-trained dictionary.
-public fn zstdDecompressWithDict(data: string, dict: string): string {
+// The same dictionary used for compression must be provided.
+public fn decompressWithDict(data: string, dict: string): string {
     return Zstd_decompressWithDict(data, dict);
+}
+
+// Get the maximum compressed size for a given input size.
+// Useful for pre-allocating output buffers.
+public fn compressBound(inputSize: int): int {
+    return Zstd_compressBound(inputSize);
+}
+
+// Get the content size from a Zstd frame header.
+// Returns -1 if the content size is not stored in the frame.
+public fn getFrameContentSize(data: string): long {
+    return Zstd_getFrameContentSize(data);
+}
+
+// Get the frame header size (magic number + frame header).
+public fn getFrameHeaderSize(data: string): int {
+    return Zstd_frameHeaderSize(data);
+}
+
+// Get the version number of the Zstd library as an integer.
+// Format: major * 10000 + minor * 100 + release.
+public fn versionNumber(): int {
+    return Zstd_versionNumber;
+}
+
+// Check if a data buffer starts with a valid Zstd magic number.
+public fn isFrame(data: string): bool {
+    if (String.length(data) < 4) { return false; }
+    return Zstd_isFrame(data);
+}
+
+// Get the minimum compression level supported by this Zstd build.
+public fn minCompressionLevel(): int {
+    return Zstd_minCompressionLevel;
+}
+
+// Get the maximum compression level supported by this Zstd build.
+public fn maxCompressionLevel(): int {
+    return Zstd_maxCompressionLevel;
 }
 
 // Streaming compression: compress data in multiple passes at decreasing levels.
 // Returns an ArrayList of compressed chunks from highest to lowest level.
-public fn zstdStreamingCompress(data: string, level: int): ArrayList<string> {
+public fn streamingCompress(data: string, level: int): ArrayList<string> {
     let result: ArrayList<string> = new ArrayList<string>();
-    // Split data into chunks and compress each at progressively lower levels
     let chunkSize: int = 65536;
     let dataLen: int = String.length(data);
     var offset: int = 0;
@@ -43,4 +94,99 @@ public fn zstdStreamingCompress(data: string, level: int): ArrayList<string> {
         }
     }
     return result;
+}
+
+// Streaming decompression: decompress multiple Zstd frames.
+// Each chunk is decompressed independently.
+public fn streamingDecompress(chunks: ArrayList<string>): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < chunks.size()) {
+        let decompressed: string = Zstd_decompress(chunks.get(i));
+        result = result + decompressed;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Train a Zstd dictionary from sample data.
+// Returns the trained dictionary as a string.
+// samples: ArrayList of sample strings to train on.
+// dictSize: desired dictionary size in bytes (typically 100KB = 102400).
+public fn trainDictionary(samples: ArrayList<string>, dictSize: int): string {
+    return Zstd_trainDictionary(samples, dictSize);
+}
+
+// Get the ID of the dictionary used to compress a frame.
+// Returns 0 if no dictionary was used.
+public fn getDictId(data: string): int {
+    return Zstd_getDictId(data);
+}
+
+// Zstd Frame Info - metadata from a Zstd frame header.
+public class FrameInfo {
+    public long contentSize;
+    public int blockSizeMax;
+    public int windowSize;
+    public int dictId;
+    public int checksumFlag;
+
+    public fn init(cs: long, bsm: int, ws: int, di: int, cf: int) {
+        this.contentSize = cs;
+        this.blockSizeMax = bsm;
+        this.windowSize = ws;
+        this.dictId = di;
+        this.checksumFlag = cf;
+    }
+
+    public fn hasContentSize(): bool {
+        return this.contentSize > 0;
+    }
+
+    public fn hasDictId(): bool {
+        return this.dictId != 0;
+    }
+
+    public fn hasChecksum(): bool {
+        return this.checksumFlag == 1;
+    }
+
+    public fn toString(): string {
+        let s: string = "FrameInfo(contentSize=" + Integer.toString(this.contentSize as int);
+        s = s + ", blockSizeMax=" + Integer.toString(this.blockSizeMax);
+        s = s + ", windowSize=" + Integer.toString(this.windowSize);
+        s = s + ", dictId=" + Integer.toString(this.dictId);
+        s = s + ", checksum=" + Integer.toString(this.checksumFlag);
+        s = s + ")";
+        return s;
+    }
+}
+
+// Get frame info from a Zstd compressed frame.
+// Returns a FrameInfo object with metadata from the frame header.
+public fn getFrameInfo(data: string): FrameInfo {
+    let cs: long = Zstd_getFrameContentSize(data);
+    let bsm: int = Zstd_frameBlockSizeMax(data);
+    let ws: int = Zstd_frameWindowSize(data);
+    let di: int = Zstd_getDictId(data);
+    let cf: int = Zstd_frameChecksumFlag(data);
+    return new FrameInfo(cs, bsm, ws, di, cf);
+}
+
+// Compress with explicit parameters for fine-grained control.
+// windowLog: window size as log2 (10-30), chainLog: chain size as log2,
+// searchLog: search depth as log2, minMatch: minimum match length (3-7).
+public fn compressWithParams(data: string, windowLog: int, chainLog: int, searchLog: int, minMatch: int): string {
+    return Zstd_compressWithParams(data, 3, windowLog, chainLog, searchLog, minMatch);
+}
+
+// Decompress a portion of a multi-frame Zstd stream.
+// frameIndex: which frame to decompress (0-based).
+public fn decompressFrame(data: string, frameIndex: int): string {
+    return Zstd_decompressFrame(data, frameIndex);
+}
+
+// Count the number of frames in a multi-frame Zstd stream.
+public fn countFrames(data: string): int {
+    return Zstd_countFrames(data);
 }
