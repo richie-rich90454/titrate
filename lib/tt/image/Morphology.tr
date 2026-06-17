@@ -152,6 +152,100 @@ public fn gradient(image: ArrayList<ArrayList<double>>, se: StructuringElement):
     return result;
 }
 
+// Morphological gradient using Image and Kernel types
+import tt::image::Image;
+import tt::image::Kernel;
+
+public fn gradientImage(img: Image, kernel: Kernel): Image {
+    let dilated: Image = dilateImage(img, kernel);
+    let eroded: Image = erodeImage(img, kernel);
+    let result: Image = new Image(img.width, img.height, img.channels);
+    var j: int = 0;
+    while (j < img.height) {
+        var i: int = 0;
+        while (i < img.width) {
+            var c: int = 0;
+            while (c < img.channels) {
+                result.setPixel(i, j, c, dilated.getPixel(i, j, c) - eroded.getPixel(i, j, c));
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
+public fn dilateImage(img: Image, kernel: Kernel): Image {
+    let result: Image = new Image(img.width, img.height, img.channels);
+    let midR: int = kernel.height / 2;
+    let midC: int = kernel.width / 2;
+    var j: int = 0;
+    while (j < img.height) {
+        var i: int = 0;
+        while (i < img.width) {
+            var c: int = 0;
+            while (c < img.channels) {
+                var maxVal: double = 0.0;
+                var ki: int = 0;
+                while (ki < kernel.height) {
+                    var kj: int = 0;
+                    while (kj < kernel.width) {
+                        let ii: int = j + ki - midR;
+                        let jj: int = i + kj - midC;
+                        if (ii >= 0 && ii < img.height && jj >= 0 && jj < img.width) {
+                            let val: double = img.getPixel(jj, ii, c);
+                            if (val > maxVal) { maxVal = val; }
+                        }
+                        kj = kj + 1;
+                    }
+                    ki = ki + 1;
+                }
+                result.setPixel(i, j, c, maxVal);
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
+public fn erodeImage(img: Image, kernel: Kernel): Image {
+    let result: Image = new Image(img.width, img.height, img.channels);
+    let midR: int = kernel.height / 2;
+    let midC: int = kernel.width / 2;
+    var j: int = 0;
+    while (j < img.height) {
+        var i: int = 0;
+        while (i < img.width) {
+            var c: int = 0;
+            while (c < img.channels) {
+                var minVal: double = 255.0;
+                var ki: int = 0;
+                while (ki < kernel.height) {
+                    var kj: int = 0;
+                    while (kj < kernel.width) {
+                        let ii: int = j + ki - midR;
+                        let jj: int = i + kj - midC;
+                        if (ii >= 0 && ii < img.height && jj >= 0 && jj < img.width) {
+                            let val: double = img.getPixel(jj, ii, c);
+                            if (val < minVal) { minVal = val; }
+                        }
+                        kj = kj + 1;
+                    }
+                    ki = ki + 1;
+                }
+                result.setPixel(i, j, c, minVal);
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
 public fn topHat(image: ArrayList<ArrayList<double>>, se: StructuringElement): ArrayList<ArrayList<double>> {
     let opened: ArrayList<ArrayList<double>> = opening(image, se);
     let rows: int = image.size();
