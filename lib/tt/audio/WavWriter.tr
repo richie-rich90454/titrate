@@ -46,6 +46,50 @@ public fn writeWav(path: string, buffer: AudioBuffer, bitsPerSample: int): void 
     File_writeBytes(path, bytes);
 }
 
+// Write 32-bit float WAV file
+public fn writeF32(path: string, buffer: AudioBuffer): void {
+    let numFrames: int = buffer.numFrames();
+    let bytesPerSample: int = 4;
+    let dataSize: int = numFrames * buffer.channels * bytesPerSample;
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    // RIFF header
+    _writeString(bytes, "RIFF");
+    _writeLE32(bytes, 36 + dataSize);
+    _writeString(bytes, "WAVE");
+    // fmt chunk (IEEE float = format code 3)
+    _writeString(bytes, "fmt ");
+    _writeLE32(bytes, 16);
+    _writeLE16(bytes, 3); // IEEE float
+    _writeLE16(bytes, buffer.channels);
+    _writeLE32(bytes, buffer.sampleRate);
+    _writeLE32(bytes, buffer.sampleRate * buffer.channels * bytesPerSample);
+    _writeLE16(bytes, buffer.channels * bytesPerSample);
+    _writeLE16(bytes, 32); // bits per sample
+    // data chunk
+    _writeString(bytes, "data");
+    _writeLE32(bytes, dataSize);
+    var frame: int = 0;
+    while (frame < numFrames) {
+        var ch: int = 0;
+        while (ch < buffer.channels) {
+            let sample: double = buffer.getSample(ch, frame);
+            _writeF32(bytes, sample);
+            ch = ch + 1;
+        }
+        frame = frame + 1;
+    }
+    File_writeBytes(path, bytes);
+}
+
+// Write IEEE 754 single-precision float bytes (little-endian)
+fn _writeF32(bytes: ArrayList<int>, val: double): void {
+    let bits: int = Float_toF32Bits(val);
+    bytes.add(bits & 0xFF);
+    bytes.add((bits >> 8) & 0xFF);
+    bytes.add((bits >> 16) & 0xFF);
+    bytes.add((bits >> 24) & 0xFF);
+}
+
 fn _writeString(bytes: ArrayList<int>, s: string): void {
     var i: int = 0;
     while (i < String.length(s)) {
