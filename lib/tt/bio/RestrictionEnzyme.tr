@@ -142,3 +142,25 @@ public fn digest(dna: string, enzymeName: string): ArrayList<string> {
     }
     return fragments;
 }
+
+public fn multiDigest(dna: string, enzymeNames: ArrayList<string>): ArrayList<string> {
+    let current: ArrayList<string> = new ArrayList<string>();
+    current.add(dna);
+    var e: int = 0;
+    while (e < enzymeNames.size()) {
+        let nextFragments: ArrayList<string> = new ArrayList<string>();
+        var f: int = 0;
+        while (f < current.size()) {
+            let subFrags: ArrayList<string> = digest(current.get(f), enzymeNames.get(e));
+            var s: int = 0;
+            while (s < subFrags.size()) {
+                nextFragments.add(subFrags.get(s));
+                s = s + 1;
+            }
+            f = f + 1;
+        }
+        current = nextFragments;
+        e = e + 1;
+    }
+    return current;
+}
