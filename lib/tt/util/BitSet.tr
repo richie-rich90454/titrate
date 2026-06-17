@@ -63,6 +63,17 @@ public class BitSet {
         return result;
     }
 
+    // Static: bitwise AND of two BitSets.
+    public fn and(a: BitSet, b: BitSet): BitSet {
+        let result: BitSet = new BitSet(a.size);
+        var i: int = 0;
+        while (i < a.words.size() && i < b.words.size()) {
+            result.words.set(i, a.words.get(i) & b.words.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
     // Bitwise OR with another BitSet.
     public fn or(other: BitSet): BitSet {
         let result: BitSet = new BitSet(this.size);
