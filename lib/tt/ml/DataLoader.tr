@@ -72,6 +72,10 @@ public class DataLoader {
         return result;
     }
 
+    public fn shuffle(): void {
+        _shuffleIndices(this.indices);
+    }
+
     public fn reset(): void {
         this.indices = new ArrayList<int>();
         var i: int = 0;
