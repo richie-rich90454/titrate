@@ -79,4 +79,13 @@ public class RiskManager {
         this.dailyPnL = new HashMap<string, double>();
         this.orderTimestamps = new ArrayList<double>();
     }
+
+    // Full reset of all risk manager state
+    public fn reset(): void {
+        this.totalDailyLoss = 0.0;
+        this.dailyPnL = new HashMap<string, double>();
+        this.orderTimestamps = new ArrayList<double>();
+        this.positions = new HashMap<string, double>();
+        this.killSwitch = false;
+    }
 }
