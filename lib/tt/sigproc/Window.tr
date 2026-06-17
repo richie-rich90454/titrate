@@ -100,6 +100,22 @@ fn _besselI0(x: double): double {
     return MathAdvanced.exp(ax) / MathAdvanced.sqrt(ax) * (0.39894228 + y2 * (0.01328592 + y2 * (0.00225319 + y2 * (-0.00157565 + y2 * (0.00916281 + y2 * (-0.02057706 + y2 * (0.02635537 + y2 * (-0.01647633 + y2 * 0.00392377))))))));
 }
 
+// Apply a window function to a signal
+public fn apply(window: ArrayList<double>, signal: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = Math.min(window.size(), signal.size());
+    var i: int = 0;
+    while (i < n) {
+        result.add(signal.get(i) * window.get(i));
+        i = i + 1;
+    }
+    while (i < signal.size()) {
+        result.add(signal.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
 // Gaussian window
 public fn gaussian(n: int, sigma: double): ArrayList<double> {
     let result: ArrayList<double> = new ArrayList<double>();
