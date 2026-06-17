@@ -125,6 +125,49 @@ public fn adaptiveThreshold(image: ArrayList<ArrayList<double>>, blockSize: int,
     return result;
 }
 
+// Adaptive threshold using Image type
+import tt::image::Image;
+
+public fn adaptiveThresholdImage(img: Image, blockSize: int, c: double): Image {
+    let result: Image = new Image(img.width, img.height, img.channels);
+    let half: int = blockSize / 2;
+    var j: int = 0;
+    while (j < img.height) {
+        var i: int = 0;
+        while (i < img.width) {
+            var ch: int = 0;
+            while (ch < img.channels) {
+                var sum: double = 0.0;
+                var count: int = 0;
+                var ki: int = -half;
+                while (ki <= half) {
+                    var kj: int = -half;
+                    while (kj <= half) {
+                        let ii: int = j + ki;
+                        let jj: int = i + kj;
+                        if (ii >= 0 && ii < img.height && jj >= 0 && jj < img.width) {
+                            sum = sum + img.getPixel(jj, ii, ch);
+                            count = count + 1;
+                        }
+                        kj = kj + 1;
+                    }
+                    ki = ki + 1;
+                }
+                let mean: double = sum / count as double;
+                if (img.getPixel(i, j, ch) >= mean - c) {
+                    result.setPixel(i, j, ch, 255.0);
+                } else {
+                    result.setPixel(i, j, ch, 0.0);
+                }
+                ch = ch + 1;
+            }
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
 // Histogram equalization
 public fn histogramEqualization(image: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
     let hist: ArrayList<int> = computeHistogram(image, 256);
