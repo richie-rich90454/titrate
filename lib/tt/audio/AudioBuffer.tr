@@ -138,18 +138,20 @@ public class AudioBuffer {
         return result;
     }
 
-    public fn reverse(): void {
-        var c: int = 0;
-        while (c < this.channels) {
-            let n: int = this.samples.get(c).size();
-            var i: int = 0;
-            while (i < n / 2) {
-                let tmp: double = this.samples.get(c).get(i);
-                this.samples.get(c).set(i, this.samples.get(c).get(n - 1 - i));
-                this.samples.get(c).set(n - 1 - i, tmp);
-                i = i + 1;
+    public fn reversed(): AudioBuffer {
+        let result: AudioBuffer = new AudioBuffer(this.sampleRate, this.channels);
+        let n: int = this.numFrames();
+        var i: int = n - 1;
+        while (i >= 0) {
+            let frame: ArrayList<double> = new ArrayList<double>();
+            var c: int = 0;
+            while (c < this.channels) {
+                frame.add(this.samples.get(c).get(i));
+                c = c + 1;
             }
-            c = c + 1;
+            result.addFrame(frame);
+            i = i - 1;
         }
+        return result;
     }
 }
