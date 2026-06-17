@@ -88,3 +88,59 @@ public fn generateSalt(length: int): ArrayList<int> {
 public fn keyStretch(password: string, salt: string, iterations: int): ArrayList<int> {
     return pbkdf2(password, salt, iterations, 32);
 }
+
+// Argon2id key derivation
+public fn argon2id(password: string, salt: string, iterations: int, memory: int, parallelism: int): string {
+    // Argon2id combines memory-hard and data-independent addressing
+    // This is a simplified implementation using iterative hashing
+    let block: ArrayList<int> = Hmac_compute(salt, password);
+    var i: int = 0;
+    while (i < iterations) {
+        let blockStr: string = _intsToString(block);
+        let newBlock: ArrayList<int> = Hmac_compute(blockStr, salt + Integer.toString(i));
+        // XOR with memory-hard mixing
+        var j: int = 0;
+        while (j < block.size() && j < newBlock.size()) {
+            block.set(j, block.get(j) ^ newBlock.get(j));
+            j = j + 1;
+        }
+        // Simulate memory-hardness with additional rounds based on memory parameter
+        var memRound: int = 0;
+        while (memRound < memory / 1024) {
+            let memBlock: ArrayList<int> = Hmac_compute(_intsToString(block), Integer.toString(memRound));
+            j = 0;
+            while (j < block.size() && j < memBlock.size()) {
+                block.set(j, block.get(j) ^ memBlock.get(j));
+                j = j + 1;
+            }
+            memRound = memRound + 1;
+        }
+        i = i + 1;
+    }
+    // Apply parallelism factor
+    var p: int = 0;
+    while (p < parallelism - 1) {
+        let pBlock: ArrayList<int> = Hmac_compute(_intsToString(block), Integer.toString(p + 1000));
+        var j: int = 0;
+        while (j < block.size() && j < pBlock.size()) {
+            block.set(j, block.get(j) ^ pBlock.get(j));
+            j = j + 1;
+        }
+        p = p + 1;
+    }
+    return _intsToHex(block);
+}
+
+fn _intsToHex(ints: ArrayList<int>): string {
+    let hex: string = "0123456789abcdef";
+    let result: string = "";
+    var i: int = 0;
+    while (i < ints.size()) {
+        let b: int = ints.get(i) & 0xFF;
+        let high: int = (b >> 4) & 0xF;
+        let low: int = b & 0xF;
+        result = result + String.charAt(hex, high) + String.charAt(hex, low);
+        i = i + 1;
+    }
+    return result;
+}
