@@ -11,6 +11,15 @@ public const HALF_UP: string = "half_up";
 public const HALF_DOWN: string = "half_down";
 public const HALF_EVEN: string = "half_even";
 
+// Integer rounding mode constants for use in switch statements
+public const ROUND_CEILING: int = 0;
+public const ROUND_FLOOR: int = 1;
+public const ROUND_UP: int = 2;
+public const ROUND_DOWN: int = 3;
+public const ROUND_HALF_UP: int = 4;
+public const ROUND_HALF_DOWN: int = 5;
+public const ROUND_HALF_EVEN: int = 6;
+
 // DecimalContext holds precision and rounding mode for decimal arithmetic.
 public class DecimalContext {
     public int precision;
