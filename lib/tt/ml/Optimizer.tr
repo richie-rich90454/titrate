@@ -97,6 +97,11 @@ public class AdamOptimizer {
     }
 }
 
+// Generic step function that applies gradients to weights
+public fn step(optimizer: SGDOptimizer, weights: ArrayList<ArrayList<double>>, grads: ArrayList<ArrayList<double>>): void {
+    optimizer.step(weights, grads);
+}
+
 // Learning rate schedulers
 public fn stepLR(initialLR: double, stepSize: int, gamma: double, epoch: int): double {
     return initialLR * MathAdvanced.pow(gamma, (epoch / stepSize) as double);
