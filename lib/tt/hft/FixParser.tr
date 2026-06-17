@@ -119,3 +119,18 @@ public fn getFieldName(tag: string): string {
     }
     return "";
 }
+
+// Compute FIX checksum for a raw message string
+public fn checksum(msg: string): string {
+    var sum: int = 0;
+    var i: int = 0;
+    while (i < String.length(msg)) {
+        sum = sum + String.charAt(msg, i) as int;
+        i = i + 1;
+    }
+    sum = sum % 256;
+    let cs: string = Integer.toString(sum);
+    if (sum < 10) { cs = "00" + cs; }
+    else { if (sum < 100) { cs = "0" + cs; } }
+    return cs;
+}
