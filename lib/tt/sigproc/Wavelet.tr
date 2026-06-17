@@ -83,6 +83,21 @@ public fn cwtMorlet(signal: ArrayList<double>, scales: ArrayList<double>, sample
     return result;
 }
 
+// Inverse discrete wavelet transform (reconstruct signal from approx and detail)
+public fn idwt(approx: ArrayList<double>, detail: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = Math.min(approx.size(), detail.size());
+    var i: int = 0;
+    while (i < n) {
+        let a: double = approx.get(i);
+        let d: double = detail.get(i);
+        result.add((a + d) / MathAdvanced.sqrt(2.0));
+        result.add((a - d) / MathAdvanced.sqrt(2.0));
+        i = i + 1;
+    }
+    return result;
+}
+
 // Multi-level DWT using Haar wavelets
 public fn dwtMultiLevel(signal: ArrayList<double>, levels: int): ArrayList<ArrayList<double>> {
     let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
