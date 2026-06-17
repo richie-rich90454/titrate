@@ -3,6 +3,8 @@ import tt::util::HashMap;
 import tt::util::Pair;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 
@@ -444,24 +446,8 @@ fn _denominator(x: double): int {
 // Calculate the oxidation state of an element in a compound
 // compound is a list of (element, count) pairs, total charge assumed 0
 public fn oxidationState(element: string, compound: ArrayList<Pair<string, int>>): int {
-    // Common oxidation states for known elements
-    let known: HashMap<string, int> = new HashMap<string, int>();
-    known.put("F", -1);
-    known.put("O", -2);
-    known.put("H", 1);
-    known.put("Li", 1);
-    known.put("Na", 1);
-    known.put("K", 1);
-    known.put("Rb", 1);
-    known.put("Cs", 1);
-    known.put("Fr", 1);
-    known.put("Be", 2);
-    known.put("Mg", 2);
-    known.put("Ca", 2);
-    known.put("Sr", 2);
-    known.put("Ba", 2);
-    known.put("Ra", 2);
-    known.put("Al", 3);
+    // Load common oxidation states from external data file
+    let known: HashMap<string, int> = _ensureOxidationStatesLoaded();
 
     // Calculate total oxidation from known elements
     var knownSum: int = 0;
@@ -573,4 +559,24 @@ public fn reactionToString(reaction: Reaction): string {
         i = i + 1;
     }
     return s;
+}
+
+// --- Oxidation states data loaded from external JSON ---
+var _oxidationStatesCache: HashMap<string, int> = new HashMap<string, int>();
+var _oxidationStatesLoaded: bool = false;
+
+public fn _ensureOxidationStatesLoaded(): HashMap<string, int> {
+    if (!_oxidationStatesLoaded) {
+        let data: JsonValue = DataFile.load("chem/oxidation_states.json");
+        let states: JsonValue = data.get("oxidation_states");
+        let keys: ArrayList<string> = states.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            _oxidationStatesCache.put(key, Integer.parseInt(states.get(key).asString()));
+            i = i + 1;
+        }
+        _oxidationStatesLoaded = true;
+    }
+    return _oxidationStatesCache;
 }
