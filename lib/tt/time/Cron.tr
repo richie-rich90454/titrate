@@ -89,6 +89,11 @@ public class CronExpression {
     }
 }
 
+// Calculate the next execution time for a cron schedule after the given timestamp.
+public fn next(schedule: CronExpression, after: string): string {
+    return schedule.nextExecution(after);
+}
+
 // Check if a value matches a cron field (supports *, ranges, steps, and lists).
 fn _matchesField(field: string, value: int): bool {
     if (field == "*") {
