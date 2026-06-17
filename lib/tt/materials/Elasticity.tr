@@ -117,3 +117,9 @@ public fn hookeStrain(stress: StressTensor, constants: ElasticConstants): Strain
 public fn strainEnergyDensity(stress: StressTensor, strain: StrainTensor): double {
     return 0.5 * (stress.xx * strain.xx + stress.yy * strain.yy + stress.zz * strain.zz + 2.0 * (stress.xy * strain.xy + stress.xz * strain.xz + stress.yz * strain.yz));
 }
+
+// Compute Young's modulus from uniaxial stress and strain
+public fn youngsModulus(stress: StressTensor, strain: StrainTensor): double {
+    if (Math.abs(strain.xx) < 1e-15) { return 0.0; }
+    return stress.xx / strain.xx;
+}
