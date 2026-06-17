@@ -156,6 +156,12 @@ public fn autocorrelationFunction(data: ArrayList<double>, maxLag: int): ArrayLi
     return result;
 }
 
+// Autocorrelation function (ACF) — convenience alias for autocorrelationFunction.
+// Returns ACF values for lags 0..=maxLag.
+public fn acf(data: ArrayList<double>, maxLag: int): ArrayList<double> {
+    return autocorrelationFunction(data, maxLag);
+}
+
 // Partial autocorrelation function (PACF) using the Durbin-Levinson algorithm.
 // Returns PACF values for lags 1..=maxLag.
 public fn partialAutocorrelation(data: ArrayList<double>, maxLag: int): ArrayList<double> {
