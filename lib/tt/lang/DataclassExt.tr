@@ -3,6 +3,17 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::Variant;
 
+// Create a frozen (immutable) dataclass definition with the given name and fields.
+public fn frozen(name: string, fields: ArrayList<string>): DataclassExt {
+    let dc: DataclassExt = new DataclassExt(true);
+    var i: int = 0;
+    while (i < fields.size()) {
+        dc.setField(fields.get(i), null);
+        i = i + 1;
+    }
+    return dc;
+}
+
 // DataclassExt provides a mutable data container with optional immutability and validators.
 public class DataclassExt {
     public HashMap<string, Variant> fields;
