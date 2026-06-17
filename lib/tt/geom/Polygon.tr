@@ -90,6 +90,12 @@ public fn pointInPolygon(point: Point2D, vertices: ArrayList<Point2D>): bool {
     return inside;
 }
 
+// Point-in-polygon test using x,y coordinates
+public fn containsPoint(vertices: ArrayList<Point2D>, x: double, y: double): bool {
+    let point: Point2D = new Point2D(x, y);
+    return pointInPolygon(point, vertices);
+}
+
 // Polygon perimeter
 public fn polygonPerimeter(vertices: ArrayList<Point2D>): double {
     var perimeter: double = 0.0;
