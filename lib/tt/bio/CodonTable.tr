@@ -65,6 +65,14 @@ public fn lookupSingleLetter(codon: string): string {
     return "?";
 }
 
+public fn isStart(codon: string): bool {
+    return isStartCodon(codon);
+}
+
+public fn isStop(codon: string): bool {
+    return isStopCodon(codon);
+}
+
 public fn isStartCodon(codon: string): bool {
     _ensureCodonsBuilt();
     if (_standardType.containsKey(codon)) {
