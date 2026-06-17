@@ -48,4 +48,11 @@ public class SimProcess {
     public fn suspend(): void {
         this.state = "suspended";
     }
+
+    // Interrupt a waiting or suspended process
+    public fn interrupt(): void {
+        if (this.state == "waiting" || this.state == "suspended") {
+            this.state = "interrupted";
+        }
+    }
 }
