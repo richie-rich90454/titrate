@@ -65,6 +65,11 @@ public class Trie {
         return result;
     }
 
+    // Static: auto-complete from a given trie with the given prefix.
+    public fn autoComplete(trie: Trie, prefix: string): ArrayList<string> {
+        return trie.autoComplete(prefix);
+    }
+
     // Delete a word from the trie. Returns true if the word was found and deleted.
     public fn delete(word: string): bool {
         if (!this.search(word)) { return false; }
