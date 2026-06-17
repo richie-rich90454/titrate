@@ -1,0 +1,295 @@
+// URL builder and parsing utilities.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class Url {
+    public string scheme;
+    public string host;
+    public int port;
+    public string path;
+    public HashMap<string, string> query;
+    public string fragment;
+    public string userInfo;
+
+    public fn init() {
+        this.scheme = "https";
+        this.host = "";
+        this.port = 0;
+        this.path = "";
+        this.query = new HashMap<string, string>();
+        this.fragment = "";
+        this.userInfo = "";
+    }
+
+    public fn withScheme(scheme: string): Url {
+        this.scheme = scheme;
+        return this;
+    }
+
+    public fn withHost(host: string): Url {
+        this.host = host;
+        return this;
+    }
+
+    public fn withPort(port: int): Url {
+        this.port = port;
+        return this;
+    }
+
+    public fn withPath(path: string): Url {
+        this.path = path;
+        return this;
+    }
+
+    public fn withQuery(key: string, value: string): Url {
+        this.query.put(key, value);
+        return this;
+    }
+
+    public fn withFragment(fragment: string): Url {
+        this.fragment = fragment;
+        return this;
+    }
+
+    public fn withUserInfo(user: string): Url {
+        this.userInfo = user;
+        return this;
+    }
+
+    public fn build(): string {
+        let sb: StringBuilder = new StringBuilder();
+        if (String.length(this.scheme) > 0) {
+            sb.append(this.scheme);
+            sb.append("://");
+        }
+        if (String.length(this.userInfo) > 0) {
+            sb.append(this.userInfo);
+            sb.append("@");
+        }
+        sb.append(this.host);
+        if (this.port > 0) {
+            let isDefault: bool = (this.scheme == "http" && this.port == 80) || (this.scheme == "https" && this.port == 443);
+            if (!isDefault) {
+                sb.append(":");
+                sb.append(Integer.toString(this.port));
+            }
+        }
+        if (String.length(this.path) > 0) {
+            if (String.charAt(this.path, 0) != '/') {
+                sb.append("/");
+            }
+            sb.append(this.path);
+        }
+        let keys: ArrayList<string> = this.query.keys();
+        if (keys.size() > 0) {
+            sb.append("?");
+            var i: int = 0;
+            while (i < keys.size()) {
+                if (i > 0) {
+                    sb.append("&");
+                }
+                let k: string = keys.get(i);
+                sb.append(urlEncode(k));
+                sb.append("=");
+                sb.append(urlEncode(this.query.get(k)));
+                i = i + 1;
+            }
+        }
+        if (String.length(this.fragment) > 0) {
+            sb.append("#");
+            sb.append(this.fragment);
+        }
+        return sb.toString();
+    }
+
+    public fn toString(): string {
+        return this.build();
+    }
+}
+
+// Parse a URL string into a Url object.
+public fn parseUrl(url: string): Url {
+    let result: Url = new Url();
+    var remaining: string = url;
+
+    // Extract scheme
+    let schemeEnd: int = String.indexOf(remaining, "://");
+    if (schemeEnd >= 0) {
+        result.scheme = String.substring(remaining, 0, schemeEnd);
+        remaining = String.substring(remaining, schemeEnd + 3);
+    }
+
+    // Extract fragment
+    let fragIdx: int = String.indexOf(remaining, "#");
+    if (fragIdx >= 0) {
+        result.fragment = String.substring(remaining, fragIdx + 1);
+        remaining = String.substring(remaining, 0, fragIdx);
+    }
+
+    // Extract query
+    let queryIdx: int = String.indexOf(remaining, "?");
+    if (queryIdx >= 0) {
+        let queryString: string = String.substring(remaining, queryIdx + 1);
+        remaining = String.substring(remaining, 0, queryIdx);
+        let parts: ArrayList<string> = String.split(queryString, "&");
+        var i: int = 0;
+        while (i < parts.size()) {
+            let pair: string = parts.get(i);
+            let eqIdx: int = String.indexOf(pair, "=");
+            if (eqIdx >= 0) {
+                let k: string = urlDecode(String.substring(pair, 0, eqIdx));
+                let v: string = urlDecode(String.substring(pair, eqIdx + 1));
+                result.query.put(k, v);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Extract path
+    let pathIdx: int = String.indexOf(remaining, "/");
+    if (pathIdx >= 0) {
+        result.path = String.substring(remaining, pathIdx);
+        remaining = String.substring(remaining, 0, pathIdx);
+    }
+
+    // Extract userInfo
+    let atIdx: int = String.indexOf(remaining, "@");
+    if (atIdx >= 0) {
+        result.userInfo = String.substring(remaining, 0, atIdx);
+        remaining = String.substring(remaining, atIdx + 1);
+    }
+
+    // Extract host and port
+    let portIdx: int = String.indexOf(remaining, ":");
+    if (portIdx >= 0) {
+        result.host = String.substring(remaining, 0, portIdx);
+        result.port = Integer.parseInt(String.substring(remaining, portIdx + 1));
+    } else {
+        result.host = remaining;
+        result.port = 0;
+    }
+
+    return result;
+}
+
+// Join a base URL and a relative path.
+public fn urlJoin(base: string, relative: string): string {
+    let baseUrl: Url = parseUrl(base);
+    if (String.indexOf(relative, "://") >= 0) {
+        return relative;
+    }
+    if (String.charAt(relative, 0) == '/') {
+        baseUrl.path = relative;
+    } else {
+        if (String.length(baseUrl.path) > 0 && String.charAt(baseUrl.path, String.length(baseUrl.path) - 1) != '/') {
+            let lastSlash: int = String.lastIndexOf(baseUrl.path, "/");
+            if (lastSlash >= 0) {
+                baseUrl.path = String.substring(baseUrl.path, 0, lastSlash + 1) + relative;
+            } else {
+                baseUrl.path = "/" + relative;
+            }
+        } else {
+            baseUrl.path = baseUrl.path + relative;
+        }
+    }
+    return baseUrl.build();
+}
+
+// Normalize a URL by removing default port and resolving dot segments.
+public fn urlNormalize(url: string): string {
+    let parsed: Url = parseUrl(url);
+    // Remove default port
+    if (parsed.scheme == "http" && parsed.port == 80) {
+        parsed.port = 0;
+    } else if (parsed.scheme == "https" && parsed.port == 443) {
+        parsed.port = 0;
+    }
+    // Remove duplicate slashes in path
+    var normalized: string = parsed.path;
+    while (String.indexOf(normalized, "//") >= 0) {
+        let idx: int = String.indexOf(normalized, "//");
+        normalized = String.substring(normalized, 0, idx) + "/" + String.substring(normalized, idx + 2);
+    }
+    // Resolve dot segments
+    let segments: ArrayList<string> = String.split(normalized, "/");
+    let resolved: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < segments.size()) {
+        let seg: string = segments.get(i);
+        if (seg == "..") {
+            if (resolved.size() > 0) {
+                resolved.remove(resolved.size() - 1);
+            }
+        } else if (seg != "." && String.length(seg) > 0) {
+            resolved.add(seg);
+        }
+        i = i + 1;
+    }
+    parsed.path = "/" + String.join("/", resolved);
+    return parsed.build();
+}
+
+// Percent-encode a string for use in URLs.
+public fn urlEncode(s: string): string {
+    let result: string = "";
+    var i: int = 0;
+    let hexChars: string = "0123456789ABCDEF";
+    while (i < String.length(s)) {
+        let ch: int = String.charAt(s, i);
+        if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '.' || ch == '~') {
+            result = result + Character.toString(ch);
+        } else {
+            result = result + "%";
+            result = result + Character.toString(String.charAt(hexChars, (ch >> 4) & 0x0F));
+            result = result + Character.toString(String.charAt(hexChars, ch & 0x0F));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Decode a percent-encoded string.
+public fn urlDecode(s: string): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let ch: int = String.charAt(s, i);
+        if (ch == '%') {
+            if (i + 2 < String.length(s)) {
+                let hex: string = String.substring(s, i + 1, i + 3);
+                let val: int = hexToInt(hex);
+                result = result + Character.toString(val);
+                i = i + 3;
+            } else {
+                result = result + Character.toString(ch);
+                i = i + 1;
+            }
+        } else if (ch == '+') {
+            result = result + " ";
+            i = i + 1;
+        } else {
+            result = result + Character.toString(ch);
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+// Convert a two-character hex string to an integer.
+fn hexToInt(hex: string): int {
+    let result: int = 0;
+    var i: int = 0;
+    while (i < String.length(hex)) {
+        let ch: int = String.charAt(hex, i);
+        result = result * 16;
+        if (ch >= '0' && ch <= '9') {
+            result = result + (ch - '0');
+        } else if (ch >= 'A' && ch <= 'F') {
+            result = result + (ch - 'A' + 10);
+        } else if (ch >= 'a' && ch <= 'f') {
+            result = result + (ch - 'a' + 10);
+        }
+        i = i + 1;
+    }
+    return result;
+}
