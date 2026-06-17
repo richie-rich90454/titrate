@@ -83,6 +83,33 @@ public fn shear(kx: double, ky: double): Mat3 {
     return m;
 }
 
+import tt::image::Image;
+
+// Apply shear transform to an Image
+public fn shearImage(img: Image, shx: double, shy: double): Image {
+    let transform: Mat3 = shear(shx, shy);
+    let result: Image = new Image(img.width, img.height, img.channels);
+    var j: int = 0;
+    while (j < img.height) {
+        var i: int = 0;
+        while (i < img.width) {
+            let src: ArrayList<double> = transform.transformPoint(i as double, j as double);
+            let sx: int = Math.floor(src.get(0)) as int;
+            let sy: int = Math.floor(src.get(1)) as int;
+            var c: int = 0;
+            while (c < img.channels) {
+                if (sx >= 0 && sx < img.width && sy >= 0 && sy < img.height) {
+                    result.setPixel(i, j, c, img.getPixel(sx, sy, c));
+                }
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
 // Apply affine transform to image using bilinear interpolation
 public fn warpAffine(image: ArrayList<ArrayList<double>>, transform: Mat3, outWidth: int, outHeight: int): ArrayList<ArrayList<double>> {
     let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
