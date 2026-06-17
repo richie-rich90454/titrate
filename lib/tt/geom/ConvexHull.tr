@@ -102,6 +102,11 @@ public fn hullPerimeter(hull: ArrayList<Point2D>): double {
     return perimeter;
 }
 
+// Convex hull perimeter (alias for hullPerimeter)
+public fn perimeter(hull: ArrayList<Point2D>): double {
+    return hullPerimeter(hull);
+}
+
 // QuickHull 2D
 public fn quickHull(points: ArrayList<Point2D>): ArrayList<Point2D> {
     if (points.size() <= 3) { return points; }
