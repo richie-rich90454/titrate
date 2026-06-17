@@ -4,6 +4,21 @@ import tt::util::HashMap;
 import tt::util::Pair;
 import tt::lang::Variant;
 
+// Accumulate running results of a binary function over Variant data.
+public fn accumulateVariant(data: ArrayList<Variant>, f: fn(Variant, Variant): Variant): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    if (data.size() == 0) { return result; }
+    var acc: Variant = data.get(0);
+    result.add(acc);
+    var i: int = 1;
+    while (i < data.size()) {
+        acc = f(acc, data.get(i));
+        result.add(acc);
+        i = i + 1;
+    }
+    return result;
+}
+
 // Accumulate running results of a binary function over the data.
 public fn accumulate(data: ArrayList<double>, f: fn(double, double): double): ArrayList<double> {
     let result: ArrayList<double> = new ArrayList<double>();
