@@ -92,6 +92,14 @@ public class RigidBody {
         this.angVz = this.angVz + tz / this.Izz * dt;
     }
 
+    public fn applyForceAtPoint(fx: double, fy: double, fz: double, px: double, py: double, pz: double, dt: double): void {
+        this.applyForce(fx, fy, fz, dt);
+        let tx: double = py * fz - pz * fy;
+        let ty: double = pz * fx - px * fz;
+        let tz: double = px * fy - py * fx;
+        this.applyTorque(tx, ty, tz, dt);
+    }
+
     public fn update(dt: double): void {
         // Update position
         this.x = this.x + this.vx * dt;
