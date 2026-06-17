@@ -139,6 +139,8 @@ XPath 1.0 expression evaluator for selecting nodes and computing values from XML
 - `XPath.count(expression: string, xml: string): int` — count matching nodes
 - `XPath.compile(expression: string): CompiledXPath` — pre-compile an expression for repeated evaluation
 - `XPath.withNamespaces(ns: NamespaceMap): XPath` — create an evaluator with namespace context
+- `XPath.bindVariable(name: string, value: string): void` — bind a variable for $varname references
+- `XPath.clearVariables(): void` — clear all bound variables
 
 ```titrate
 let xml = "<books><book title='A'/><book title='B'/><book title='C'/></books>";
