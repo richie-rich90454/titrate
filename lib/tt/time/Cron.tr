@@ -1,0 +1,214 @@
+// Cron provides cron expression parsing and next-execution calculation.
+import tt::util::ArrayList;
+import tt::time::DateTime;
+import tt::time::Duration;
+
+// CronExpression represents a parsed cron expression with five fields:
+// minute, hour, day-of-month, month, day-of-week.
+public class CronExpression {
+    public string minute;
+    public string hour;
+    public string dayOfMonth;
+    public string month;
+    public string dayOfWeek;
+    public string original;
+
+    public fn init(expression: string) {
+        this.original = expression;
+        let parts: ArrayList<string> = String.split(expression, " ");
+        if (parts.size() >= 5) {
+            this.minute = parts.get(0);
+            this.hour = parts.get(1);
+            this.dayOfMonth = parts.get(2);
+            this.month = parts.get(3);
+            this.dayOfWeek = parts.get(4);
+        } else {
+            // Default: every minute
+            this.minute = "*";
+            this.hour = "*";
+            this.dayOfMonth = "*";
+            this.month = "*";
+            this.dayOfWeek = "*";
+        }
+    }
+
+    // Calculate the next execution time after the given timestamp (ISO format).
+    public fn nextExecution(after: string): string {
+        let dt: DateTime = DateTime.fromISO(after);
+        // Start from the next minute
+        var candidate: DateTime = dt.plus(Duration.ofMinutes(1));
+        // Round down to the start of the minute
+        let ms: long = candidate.epochMillis;
+        let roundedMs: long = (ms / 60000) * 60000;
+        candidate = new DateTime(roundedMs);
+        // Search up to 4 years (1461 days) for a matching time
+        let limit: DateTime = dt.plusDays(1461);
+        while (candidate.isBefore(limit) || candidate.equals(limit)) {
+            if (_matchesField(this.month, candidate.getMonth()) &&
+                _matchesField(this.dayOfMonth, candidate.getDay()) &&
+                _matchesField(this.dayOfWeek, candidate.dayOfWeek()) &&
+                _matchesField(this.hour, candidate.getHour()) &&
+                _matchesField(this.minute, candidate.getMinute())) {
+                return candidate.strftime("%Y-%m-%d %H:%M");
+            }
+            candidate = candidate.plus(Duration.ofMinutes(1));
+        }
+        return "";
+    }
+
+    // Calculate the next N execution times after the given timestamp.
+    public fn nextNExecutions(after: string, n: int): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var current: string = after;
+        var i: int = 0;
+        while (i < n) {
+            let next: string = this.nextExecution(current);
+            if (String.length(next) == 0) {
+                break;
+            }
+            result.add(next);
+            // Advance past the found time to find the next one
+            let nextDt: DateTime = DateTime.fromISO(next);
+            current = nextDt.plus(Duration.ofMinutes(1)).strftime("%Y-%m-%d %H:%M");
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Validate the cron expression fields.
+    public fn isValid(): bool {
+        return _isValidField(this.minute, 0, 59) &&
+            _isValidField(this.hour, 0, 23) &&
+            _isValidField(this.dayOfMonth, 1, 31) &&
+            _isValidField(this.month, 1, 12) &&
+            _isValidField(this.dayOfWeek, 0, 6);
+    }
+
+    public fn toString(): string {
+        return this.original;
+    }
+}
+
+// Check if a value matches a cron field (supports *, ranges, steps, and lists).
+fn _matchesField(field: string, value: int): bool {
+    if (field == "*") {
+        return true;
+    }
+    // Handle comma-separated lists (e.g., "1,3,5")
+    if (String.indexOf(field, ",") >= 0) {
+        let parts: ArrayList<string> = String.split(field, ",");
+        var i: int = 0;
+        while (i < parts.size()) {
+            if (_matchesSinglePart(parts.get(i), value)) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+    return _matchesSinglePart(field, value);
+}
+
+// Match a single cron part (handles *, ranges, and steps).
+fn _matchesSinglePart(part: string, value: int): bool {
+    // Handle step (e.g., "*/5" or "1-10/2")
+    let slashPos: int = String.indexOf(part, "/");
+    if (slashPos >= 0) {
+        let rangePart: string = String.substring(part, 0, slashPos);
+        let stepStr: string = String.substring(part, slashPos + 1, String.length(part));
+        let step: int = Integer.parseInt(stepStr);
+        if (step <= 0) { step = 1; }
+        let rangeVals: ArrayList<int> = _expandRange(rangePart);
+        var i: int = 0;
+        while (i < rangeVals.size()) {
+            if (rangeVals.get(i) == value) {
+                // Check if value is on the step boundary from the first value
+                let first: int = rangeVals.get(0);
+                if ((value - first) % step == 0) {
+                    return true;
+                }
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+    // Handle range (e.g., "1-5")
+    let dashPos: int = String.indexOf(part, "-");
+    if (dashPos >= 0) {
+        let fromStr: string = String.substring(part, 0, dashPos);
+        let toStr: string = String.substring(part, dashPos + 1, String.length(part));
+        let from: int = Integer.parseInt(fromStr);
+        let to: int = Integer.parseInt(toStr);
+        return value >= from && value <= to;
+    }
+    // Handle wildcard
+    if (part == "*") {
+        return true;
+    }
+    // Single value
+    return Integer.parseInt(part) == value;
+}
+
+// Expand a range or wildcard into a list of values.
+fn _expandRange(part: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    if (part == "*") {
+        var i: int = 0;
+        while (i <= 59) {
+            result.add(i);
+            i = i + 1;
+        }
+        return result;
+    }
+    let dashPos: int = String.indexOf(part, "-");
+    if (dashPos >= 0) {
+        let fromStr: string = String.substring(part, 0, dashPos);
+        let toStr: string = String.substring(part, dashPos + 1, String.length(part));
+        let from: int = Integer.parseInt(fromStr);
+        let to: int = Integer.parseInt(toStr);
+        var i: int = from;
+        while (i <= to) {
+            result.add(i);
+            i = i + 1;
+        }
+        return result;
+    }
+    result.add(Integer.parseInt(part));
+    return result;
+}
+
+// Validate a single cron field against its allowed range.
+fn _isValidField(field: string, min: int, max: int): bool {
+    if (field == "*") {
+        return true;
+    }
+    let parts: ArrayList<string> = String.split(field, ",");
+    var i: int = 0;
+    while (i < parts.size()) {
+        let part: string = parts.get(i);
+        // Remove step suffix for validation
+        let slashPos: int = String.indexOf(part, "/");
+        let rangePart: string = part;
+        if (slashPos >= 0) {
+            rangePart = String.substring(part, 0, slashPos);
+            let stepStr: string = String.substring(part, slashPos + 1, String.length(part));
+            let step: int = 0;
+            step = Integer.parseInt(stepStr);
+            if (step <= 0) { return false; }
+        }
+        // Validate range or single value
+        let dashPos: int = String.indexOf(rangePart, "-");
+        if (dashPos >= 0) {
+            let fromStr: string = String.substring(rangePart, 0, dashPos);
+            let toStr: string = String.substring(rangePart, dashPos + 1, String.length(rangePart));
+            let from: int = Integer.parseInt(fromStr);
+            let to: int = Integer.parseInt(toStr);
+            if (from < min || to > max || from > to) { return false; }
+        } else if (rangePart != "*") {
+            let val: int = Integer.parseInt(rangePart);
+            if (val < min || val > max) { return false; }
+        }
+        i = i + 1;
+    }
+    return true;
+}

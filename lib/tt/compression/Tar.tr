@@ -1,0 +1,149 @@
+// Tar provides tar archive reading and writing.
+import tt::util::ArrayList;
+
+// TarEntry represents a single entry (file, directory, or symlink) in a tar archive.
+public class TarEntry {
+    public string name;
+    public long size;
+    public int mode;
+    public long modifiedTime;
+    public bool isDirectory;
+    public bool isSymbolicLink;
+    public string linkTarget;
+    public string data;
+
+    public fn init(n: string) {
+        this.name = n;
+        this.size = 0;
+        this.mode = 0644;
+        this.modifiedTime = 0;
+        this.isDirectory = false;
+        this.isSymbolicLink = false;
+        this.linkTarget = "";
+        this.data = "";
+    }
+}
+
+// TarReader parses tar archive data and provides access to entries.
+public class TarReader {
+    public ArrayList<TarEntry> entries;
+
+    public fn init(data: string) {
+        this.entries = new ArrayList<TarEntry>();
+        // Parse the tar data using native function
+        let raw: string = Tar_parse(data);
+        // Parse "name|size|mode|mtime|isDir|isLink|linkTarget|data;..."
+        if (String.length(raw) == 0) {
+            return;
+        }
+        let parts: ArrayList<string> = String.split(raw, ";");
+        var i: int = 0;
+        while (i < parts.size()) {
+            let part: string = parts.get(i);
+            if (String.length(part) == 0) {
+                i = i + 1;
+                continue;
+            }
+            let fields: ArrayList<string> = String.split(part, "|");
+            if (fields.size() >= 7) {
+                let entry: TarEntry = new TarEntry(fields.get(0));
+                entry.size = Long.parseLong(fields.get(1));
+                entry.mode = Integer.parseInt(fields.get(2));
+                entry.modifiedTime = Long.parseLong(fields.get(3));
+                entry.isDirectory = fields.get(4) == "1";
+                entry.isSymbolicLink = fields.get(5) == "1";
+                entry.linkTarget = fields.get(6);
+                if (fields.size() >= 8) {
+                    entry.data = fields.get(7);
+                }
+                this.entries.add(entry);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Get all entries in the archive.
+    public fn getEntries(): ArrayList<TarEntry> {
+        return this.entries;
+    }
+
+    // Get a specific entry by name.
+    public fn getEntry(name: string): TarEntry {
+        var i: int = 0;
+        while (i < this.entries.size()) {
+            let entry: TarEntry = this.entries.get(i);
+            if (entry.name == name) {
+                return entry;
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+}
+
+// TarWriter builds a tar archive from entries.
+public class TarWriter {
+    public ArrayList<TarEntry> entries;
+
+    public fn init() {
+        this.entries = new ArrayList<TarEntry>();
+    }
+
+    // Add a TarEntry to the archive.
+    public fn addEntry(entry: TarEntry): void {
+        this.entries.add(entry);
+    }
+
+    // Add a file entry with the given name and data.
+    public fn addFile(name: string, data: string): void {
+        let entry: TarEntry = new TarEntry(name);
+        entry.data = data;
+        entry.size = String.length(data) as long;
+        entry.isDirectory = false;
+        entry.isSymbolicLink = false;
+        this.entries.add(entry);
+    }
+
+    // Add a directory entry with the given name.
+    public fn addDirectory(name: string): void {
+        let entry: TarEntry = new TarEntry(name);
+        entry.isDirectory = true;
+        entry.mode = 0755;
+        entry.isSymbolicLink = false;
+        this.entries.add(entry);
+    }
+
+    // Add a symbolic link entry.
+    public fn addSymbolicLink(name: string, target: string): void {
+        let entry: TarEntry = new TarEntry(name);
+        entry.isSymbolicLink = true;
+        entry.linkTarget = target;
+        entry.isDirectory = false;
+        this.entries.add(entry);
+    }
+
+    // Build the tar archive and return the raw tar data.
+    public fn build(): string {
+        // Serialize entries to "name|size|mode|mtime|isDir|isLink|linkTarget|data;..."
+        var serialized: string = "";
+        var i: int = 0;
+        while (i < this.entries.size()) {
+            let entry: TarEntry = this.entries.get(i);
+            if (i > 0) {
+                serialized = serialized + ";";
+            }
+            let isDir: string = "0";
+            if (entry.isDirectory) { isDir = "1"; }
+            let isLink: string = "0";
+            if (entry.isSymbolicLink) { isLink = "1"; }
+            serialized = serialized + entry.name + "|" +
+                Long.toString(entry.size) + "|" +
+                Integer.toString(entry.mode) + "|" +
+                Long.toString(entry.modifiedTime) + "|" +
+                isDir + "|" + isLink + "|" +
+                entry.linkTarget + "|" + entry.data;
+            i = i + 1;
+        }
+        return Tar_build(serialized);
+    }
+}

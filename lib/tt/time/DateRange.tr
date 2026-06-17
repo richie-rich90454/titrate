@@ -1,0 +1,104 @@
+// DateRange provides date range generation, period arithmetic, and date conversions.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::time::DateTime;
+
+// Generate a range of dates from start to end (inclusive) with the given step.
+// Step format: "1d" (1 day), "1w" (1 week), "1M" (1 month), etc.
+public fn dateRange(start: string, end: string, step: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let startDt: DateTime = DateTime.fromISO(start);
+    let endDt: DateTime = DateTime.fromISO(end);
+    var current: DateTime = startDt;
+    let stepDays: int = _parseStepToDays(step);
+    if (stepDays <= 0) { stepDays = 1; }
+    while (current.isBefore(endDt) || current.equals(endDt)) {
+        result.add(current.strftime("%Y-%m-%d"));
+        current = current.plusDays(stepDays as long);
+    }
+    return result;
+}
+
+// Add a period to a date. Period format: "1d", "1w", "1M", "1y", etc.
+public fn periodAdd(date: string, period: string): string {
+    let dt: DateTime = DateTime.fromISO(date);
+    let (amount, unit): (int, string) = _parsePeriod(period);
+    if (unit == "d") {
+        return dt.plusDays(amount as long).strftime("%Y-%m-%d");
+    } else if (unit == "w") {
+        return dt.plusDays((amount * 7) as long).strftime("%Y-%m-%d");
+    } else if (unit == "M") {
+        return dt.plusMonths(amount).strftime("%Y-%m-%d");
+    } else if (unit == "y") {
+        return dt.plusYears(amount).strftime("%Y-%m-%d");
+    }
+    return dt.plusDays(amount as long).strftime("%Y-%m-%d");
+}
+
+// Subtract a period from a date.
+public fn periodSubtract(date: string, period: string): string {
+    let dt: DateTime = DateTime.fromISO(date);
+    let (amount, unit): (int, string) = _parsePeriod(period);
+    if (unit == "d") {
+        return dt.minusDays(amount as long).strftime("%Y-%m-%d");
+    } else if (unit == "w") {
+        return dt.minusDays((amount * 7) as long).strftime("%Y-%m-%d");
+    } else if (unit == "M") {
+        return dt.plusMonths(-amount).strftime("%Y-%m-%d");
+    } else if (unit == "y") {
+        return dt.plusYears(-amount).strftime("%Y-%m-%d");
+    }
+    return dt.minusDays(amount as long).strftime("%Y-%m-%d");
+}
+
+// Convert a date to ISO week date format: "YYYY-Www-D" (e.g., "2024-W03-1").
+public fn isoWeekDate(date: string): string {
+    let dt: DateTime = DateTime.fromISO(date);
+    let cal: ArrayList<int> = dt.isocalendar();
+    let isoYear: int = cal.get(0);
+    let isoWeek: int = cal.get(1);
+    let isoDay: int = cal.get(2);
+    let weekStr: string = Integer.toString(isoWeek);
+    if (isoWeek < 10) { weekStr = "0" + weekStr; }
+    return Integer.toString(isoYear) + "-W" + weekStr + "-" + Integer.toString(isoDay);
+}
+
+// Get the ordinal date as a Pair of (year, day-of-year).
+public fn ordinalDate(date: string): Pair<int, int> {
+    let dt: DateTime = DateTime.fromISO(date);
+    let year: int = dt.getYear();
+    let doy: int = dt.dayOfYear();
+    return new Pair<int, int>(year, doy);
+}
+
+// Construct a date from a year and day-of-year.
+public fn fromOrdinalDate(year: int, dayOfYear: int): string {
+    // Start from Jan 1 of the year
+    let jan1: DateTime = DateTime.fromISO(Integer.toString(year) + "-01-01");
+    let result: DateTime = jan1.plusDays((dayOfYear - 1) as long);
+    return result.strftime("%Y-%m-%d");
+}
+
+// Parse a period string like "3d", "2w", "1M", "1y" into (amount, unit).
+fn _parsePeriod(period: string): (int, string) {
+    if (String.length(period) == 0) {
+        return (0, "d");
+    }
+    let lastChar: string = String.charAt(period, String.length(period) - 1);
+    let numPart: string = String.substring(period, 0, String.length(period) - 1);
+    let amount: int = Integer.parseInt(numPart);
+    return (amount, lastChar);
+}
+
+// Parse a step string into number of days.
+fn _parseStepToDays(step: string): int {
+    if (String.length(step) == 0) {
+        return 1;
+    }
+    let (amount, unit): (int, string) = _parsePeriod(step);
+    if (unit == "d") { return amount; }
+    if (unit == "w") { return amount * 7; }
+    if (unit == "M") { return amount * 30; }
+    if (unit == "y") { return amount * 365; }
+    return amount;
+}

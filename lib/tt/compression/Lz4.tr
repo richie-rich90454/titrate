@@ -1,0 +1,27 @@
+// Lz4 provides LZ4 compression and decompression.
+// Delegates to native LZ4 functions.
+
+// Compress data using LZ4 block format.
+public fn lz4Compress(data: string): string {
+    return Lz4_compress(data);
+}
+
+// Decompress data using LZ4 block format.
+public fn lz4Decompress(data: string): string {
+    return Lz4_decompress(data);
+}
+
+// Compress data using LZ4 frame format.
+public fn lz4FrameCompress(data: string): string {
+    return Lz4_frameCompress(data);
+}
+
+// Decompress data using LZ4 frame format.
+public fn lz4FrameDecompress(data: string): string {
+    return Lz4_frameDecompress(data);
+}
+
+// Compress data using LZ4 high-speed mode.
+public fn lz4HighSpeedCompress(data: string): string {
+    return Lz4_highSpeedCompress(data);
+}

@@ -1,0 +1,46 @@
+// Zstd provides Zstandard compression and decompression.
+// Delegates to native Zstd functions.
+import tt::util::ArrayList;
+
+// Compress data using Zstd at the given compression level (1-22).
+public fn zstdCompress(data: string, level: int): string {
+    return Zstd_compress(data, level);
+}
+
+// Decompress data using Zstd.
+public fn zstdDecompress(data: string): string {
+    return Zstd_decompress(data);
+}
+
+// Compress data using Zstd with a pre-trained dictionary.
+public fn zstdCompressWithDict(data: string, dict: string): string {
+    return Zstd_compressWithDict(data, dict);
+}
+
+// Decompress data using Zstd with a pre-trained dictionary.
+public fn zstdDecompressWithDict(data: string, dict: string): string {
+    return Zstd_decompressWithDict(data, dict);
+}
+
+// Streaming compression: compress data in multiple passes at decreasing levels.
+// Returns an ArrayList of compressed chunks from highest to lowest level.
+public fn zstdStreamingCompress(data: string, level: int): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    // Split data into chunks and compress each at progressively lower levels
+    let chunkSize: int = 65536;
+    let dataLen: int = String.length(data);
+    var offset: int = 0;
+    var currentLevel: int = level;
+    while (offset < dataLen) {
+        let end: int = offset + chunkSize;
+        if (end > dataLen) { end = dataLen; }
+        let chunk: string = String.substring(data, offset, end);
+        let compressed: string = Zstd_compress(chunk, currentLevel);
+        result.add(compressed);
+        offset = end;
+        if (currentLevel > 1) {
+            currentLevel = currentLevel - 1;
+        }
+    }
+    return result;
+}
