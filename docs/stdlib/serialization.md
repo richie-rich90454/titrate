@@ -100,36 +100,176 @@ let rows = new ArrayList<ArrayList<string>>();
 let csv: string = writer.writeWithHeaders(headers, rows);
 ```
 
-## XML
+## Advanced JSON
 
-### Xml
+### JsonStreamingParser
 
-Static method for parsing XML.
+SAX-style streaming JSON parser for memory-efficient processing of large files.
 
-- `Xml.parse(input: string): XmlNode` — parse XML string into a tree
+- `fn init()` — create a streaming parser
+- `onStartObject(handler: fn(): void): void` — register object start handler
+- `onEndObject(handler: fn(): void): void` — register object end handler
+- `onStartArray(handler: fn(): void): void` — register array start handler
+- `onEndArray(handler: fn(): void): void` — register array end handler
+- `onKey(handler: fn(string): void): void` — register key handler
+- `onValue(handler: fn(JsonValue): void): void` — register value handler
+- `feed(chunk: string): void` — feed a chunk of JSON text
+- `finish(): void` — signal end of input
+- `currentPath(): string` — current location as JSON Pointer
 
 ```titrate
-let doc = Xml.parse("<root><item key=\"a\">hello</item></root>");
-let val: string = doc.getChildrenByTag("item").get(0).getText();  // "hello"
+let parser = new JsonStreamingParser();
+parser.onKey(fn(k: string): void { io::println("key: " + k); });
+parser.onValue(fn(v: JsonValue): void { io::println("value: " + Json.stringify(v)); });
+parser.feed("{\"name\": \"Alice\"}");
+parser.finish();
 ```
 
-### XmlNode
+### JsonPath
 
-Represents an XML element with tag, attributes, children, and text.
+Query JSON documents using JSON Path expressions.
 
-- `fn init(tag: string)` — create a node with the given tag
-- `getTag(): string` — element tag name
-- `getText(): string` — text content
-- `getAttr(name: string): string` — attribute value (empty string if missing)
-- `setAttr(name: string, value: string): void` — set attribute
-- `hasAttr(key: string): bool` — check attribute existence
-- `removeAttr(key: string): void` — remove attribute
-- `addChild(node: XmlNode): void` — append a child
-- `getChildren(): ArrayList<XmlNode>` — all children
-- `getChildrenByTag(tag: string): ArrayList<XmlNode>` — children matching tag
-- `getElementByTagName(name: string): XmlNode` — first descendant matching tag
-- `removeChild(node: XmlNode): void` — remove a child
-- `replaceChild(oldNode: XmlNode, newNode: XmlNode): void` — replace a child
-- `toString(): string` — serialize to XML
-- `XmlNode.escapeText(s: string): string` — static: escape text for XML
-- `XmlNode.escapeAttr(s: string): string` — static: escape attribute value for XML
+- `JsonPath.query(data: JsonValue, path: string): ArrayList<JsonValue>` — evaluate a path expression
+- `JsonPath.compile(path: string): JsonPathExpr` — compile for repeated evaluation
+- `JsonPathExpr.evaluate(data: JsonValue): ArrayList<JsonValue>` — evaluate compiled expression
+
+```titrate
+let data = Json.parse("{\"users\": [{\"name\": \"Alice\", \"age\": 30}, {\"name\": \"Bob\", \"age\": 25}]}");
+let names = JsonPath.query(data, "$.users[*].name");
+// [JsonValue.ofStr("Alice"), JsonValue.ofStr("Bob")]
+```
+
+### JsonPatch
+
+RFC 6902 JSON Patch and RFC 6901 JSON Pointer.
+
+- `JsonPatch.apply(document: JsonValue, patch: ArrayList<JsonValue>): JsonValue` — apply patch operations
+- `JsonPatch.diff(original: JsonValue, modified: JsonValue): ArrayList<JsonValue>` — compute patch
+- `JsonPatch.compile(patch: ArrayList<JsonValue>): CompiledPatch` — compile for fast repeated application
+- `JsonPointer.get(document: JsonValue, pointer: string): JsonValue` — get value at pointer
+- `JsonPointer.set(document: JsonValue, pointer: string, value: JsonValue): JsonValue` — set value at pointer
+
+```titrate
+let original = Json.parse("{\"a\": 1}");
+let modified = Json.parse("{\"a\": 2, \"b\": 3}");
+let patch = JsonPatch.diff(original, modified);
+let result = JsonPatch.apply(original, patch);
+```
+
+### JsonSchema
+
+JSON Schema Draft 7 and Draft 2020-12 validation.
+
+- `JsonSchema.validate(data: JsonValue, schema: JsonValue): ValidationReport` — validate against schema
+- `JsonSchema.compile(schema: JsonValue): CompiledSchema` — compile for fast repeated validation
+- `ValidationReport.isValid(): bool` — whether validation passed
+- `ValidationReport.getErrors(): ArrayList<ValidationError>` — list of violations
+- `ValidationError.getPath(): string` — JSON path to violation
+- `ValidationError.getMessage(): string` — error description
+
+```titrate
+let schema = Json.parse("{\"type\": \"object\", \"required\": [\"name\"], \"properties\": {\"name\": {\"type\": \"string\"}}}");
+let report = JsonSchema.validate(data, schema);
+if (!report.isValid()) {
+    for (err in report.getErrors()) {
+        io::println(err.getPath() + ": " + err.getMessage());
+    }
+}
+```
+
+### Json5
+
+JSON5 parser supporting relaxed syntax.
+
+- `Json5.parse(input: string): JsonValue` — parse JSON5 text
+- `Json5.stringify(value: JsonValue): string` — serialize to JSON5 format
+
+```titrate
+let data = Json5.parse("{name: 'Alice', age: 30,}");  // unquoted keys, single quotes, trailing comma
+```
+
+### JsonBinary
+
+Binary JSON encoding (MessagePack-compatible).
+
+- `JsonBinary.encode(value: JsonValue): ArrayList<byte>` — encode to binary
+- `JsonBinary.decode(bytes: ArrayList<byte>): JsonValue` — decode from binary
+
+```titrate
+let data = Json.parse("{\"key\": \"value\"}");
+let bytes = JsonBinary.encode(data);
+let restored = JsonBinary.decode(bytes);
+```
+
+## Advanced XML
+
+### XmlNamespace
+
+XML namespace support with prefix-to-URI mapping.
+
+- `fn init()` — create an empty namespace map
+- `declare(prefix: string, uri: string): void` — declare a namespace prefix
+- `resolveQName(qname: string): string` — resolve prefix:local to {URI}local
+- `getURI(prefix: string): string` — get URI for a prefix
+- `setDefaultNamespace(uri: string): void` — set default namespace
+
+### XmlStreamingParser
+
+SAX-style streaming XML parser for memory-efficient processing of large files.
+
+- `fn init()` — create a streaming parser
+- `onStartElement(handler: fn(string, HashMap<string, string>): void): void` — register start element handler
+- `onEndElement(handler: fn(string): void): void` — register end element handler
+- `onCharacters(handler: fn(string): void): void` — register character data handler
+- `onComment(handler: fn(string): void): void` — register comment handler
+- `feed(chunk: string): void` — feed a chunk of XML text
+- `finish(): void` — signal end of input
+
+### XPath
+
+XPath 1.0 expression evaluator.
+
+- `XPath.evaluate(node: XmlNode, expression: string): ArrayList<XmlNode>` — evaluate XPath
+- `XPath.evaluateString(node: XmlNode, expression: string): string` — evaluate to string
+- `XPath.evaluateNumber(node: XmlNode, expression: string): double` — evaluate to number
+- `XPath.compile(expression: string): XPathExpr` — compile for repeated evaluation
+
+```titrate
+let doc = Xml.parse("<root><item id='1'>A</item><item id='2'>B</item></root>");
+let items = XPath.evaluate(doc, "//item[@id='1']");
+```
+
+### XmlBuilder
+
+Fluent XML builder API.
+
+- `XmlBuilder.builder(): XmlBuilder` — create a new builder
+- `root(tag: string): XmlBuilder` — set root element
+- `elem(tag: string): XmlBuilder` — add child element
+- `attr(key: string, value: string): XmlBuilder` — add attribute
+- `text(content: string): XmlBuilder` — add text content
+- `cdata(content: string): XmlBuilder` — add CDATA section
+- `comment(content: string): XmlBuilder` — add comment
+- `build(): XmlNode` — build the XML tree
+
+```titrate
+let doc = XmlBuilder.builder()
+    .root("root")
+    .elem("item").attr("id", "1").text("hello")
+    .build();
+```
+
+### XmlSchema
+
+XML Schema validation.
+
+- `XmlSchema.validate(node: XmlNode, schema: XmlNode): ValidationReport` — validate against schema
+- `ValidationReport.isValid(): bool` — whether validation passed
+- `ValidationReport.getErrors(): ArrayList<ValidationError>` — list of violations
+
+### XmlCanonicalizer
+
+XML Canonicalization (C14N).
+
+- `XmlCanonicalizer.canonicalize(node: XmlNode): string` — Canonical XML 1.0
+- `XmlCanonicalizer.exclusiveCanonicalize(node: XmlNode, inclusivePrefixes: ArrayList<string>): string` — Exclusive C14N
