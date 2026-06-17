@@ -98,6 +98,10 @@ public class UnboundedChannel {
     }
 }
 
+public fn select(channels: ArrayList<BufferedChannel>): Pair<int, Variant> {
+    return channelSelect(channels);
+}
+
 // Non-blocking select from multiple channels. Returns the index of the channel
 // that had a value and the value received, or (-1, null) if all channels are empty.
 public fn channelSelect(channels: ArrayList<BufferedChannel>): Pair<int, Variant> {
