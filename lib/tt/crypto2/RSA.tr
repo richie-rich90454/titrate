@@ -113,3 +113,55 @@ fn _modInverse(a: double, m: double): double {
     if (result < 0.0) { result = result + m; }
     return result;
 }
+
+// RSA digital signature using string keys and message
+public fn sign(privateKey: string, message: string): string {
+    // Parse private key (format: "d,n" in hex)
+    let commaIdx: int = String.indexOf(privateKey, ",");
+    let dHex: string = String.substring(privateKey, 0, commaIdx);
+    let nHex: string = String.substring(privateKey, commaIdx + 1, String.length(privateKey));
+    let d: double = _hexToDouble(dHex);
+    let n: double = _hexToDouble(nHex);
+    // Hash message to a numeric value (simple hash)
+    let hash: double = _simpleHash(message);
+    let sig: double = _modPow(hash, d, n);
+    return _doubleToHex(sig);
+}
+
+fn _simpleHash(s: string): double {
+    var h: double = 5381.0;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        h = ((h << 5) + h + String.charAt(s, i) as int) % 1e15;
+        i = i + 1;
+    }
+    return h;
+}
+
+fn _hexToDouble(hex: string): double {
+    var result: double = 0.0;
+    var i: int = 0;
+    while (i < String.length(hex)) {
+        let ch: string = String.charAt(hex, i);
+        var val: int = 0;
+        if (ch >= "0" && ch <= "9") { val = String.charAt(ch, 0) as int - 48; }
+        else { if (ch >= "a" && ch <= "f") { val = String.charAt(ch, 0) as int - 87; }
+        else { if (ch >= "A" && ch <= "F") { val = String.charAt(ch, 0) as int - 55; } } }
+        result = result * 16.0 + val as double;
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _doubleToHex(d: double): string {
+    let hex: string = "0123456789abcdef";
+    let result: string = "";
+    var val: double = d;
+    if (val == 0.0) { return "0"; }
+    while (val > 0.0) {
+        let digit: int = val as int % 16;
+        result = String.charAt(hex, digit) + result;
+        val = Math.floor(val / 16.0);
+    }
+    return result;
+}
