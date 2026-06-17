@@ -105,6 +105,11 @@ public fn jaroWinklerSimilarity(s1: string, s2: string): double {
     return jaro + prefix as double * 0.1 * (1.0 - jaro);
 }
 
+// Jaro-Winkler similarity (alias)
+public fn jaroWinkler(a: string, b: string): double {
+    return jaroWinklerSimilarity(a, b);
+}
+
 // Soundex code
 public fn soundex(word: string): string {
     let w: string = String.toUpperCase(word);
