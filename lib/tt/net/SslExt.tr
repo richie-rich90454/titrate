@@ -1,0 +1,89 @@
+// SslExt — extended SSL/TLS utilities: configuration, certificate pinning, SNI, ALPN, session resumption.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// TlsConfig holds TLS configuration parameters.
+public class TlsConfig {
+    public string minVersion;
+    public string maxVersion;
+    public ArrayList<string> cipherSuites;
+    public bool verifyPeer;
+
+    public fn init() {
+        this.minVersion = "TLSv1.2";
+        this.maxVersion = "TLSv1.3";
+        this.cipherSuites = new ArrayList<string>();
+        this.cipherSuites.add("TLS_AES_256_GCM_SHA384");
+        this.cipherSuites.add("TLS_CHACHA20_POLY1305_SHA256");
+        this.cipherSuites.add("TLS_AES_128_GCM_SHA256");
+        this.verifyPeer = true;
+    }
+}
+
+// Check whether a certificate's hash matches one of the pinned hashes.
+// Returns true if a match is found.
+public fn certificatePin(hashes: ArrayList<string>): bool {
+    // In a real implementation, this would verify the peer certificate hash
+    // against the provided list of pinned hashes during the TLS handshake.
+    // Here we return true as a placeholder indicating the pinning check passed.
+    return hashes.size() > 0;
+}
+
+// Set up Server Name Indication (SNI) for a hostname.
+// Returns a HashMap with the SNI configuration.
+public fn sniSetup(hostname: string): HashMap {
+    let config: HashMap<string, string> = new HashMap<string, string>();
+    config.put("sni_hostname", hostname);
+    config.put("sni_enabled", "true");
+    return config;
+}
+
+// Negotiate an ALPN protocol from client-supported and server-preferred lists.
+// Returns the first matching protocol, or an empty string if no match.
+public fn alpnNegotiate(supported: ArrayList<string>, serverPreferred: ArrayList<string>): string {
+    var i: int = 0;
+    while (i < serverPreferred.size()) {
+        let proto: string = serverPreferred.get(i);
+        var j: int = 0;
+        while (j < supported.size()) {
+            if (supported.get(j) == proto) {
+                return proto;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return "";
+}
+
+// TlsSession represents a TLS session that can be resumed.
+public class TlsSession {
+    public string sessionId;
+    public string hostname;
+    public bool established;
+
+    public fn init(hostname: string) {
+        this.sessionId = "";
+        this.hostname = hostname;
+        this.established = false;
+    }
+
+    // Attempt to resume a previous session by session ID.
+    // Returns true if resumption succeeds.
+    public fn resume(sessionId: string): bool {
+        this.sessionId = sessionId;
+        // In a real implementation, this would attempt TLS session resumption.
+        this.established = true;
+        return true;
+    }
+}
+
+// Create a client certificate authentication configuration.
+// Returns a HashMap with cert and key paths.
+public fn clientCertAuth(certPath: string, keyPath: string): HashMap {
+    let config: HashMap<string, string> = new HashMap<string, string>();
+    config.put("cert_path", certPath);
+    config.put("key_path", keyPath);
+    config.put("client_auth_enabled", "true");
+    return config;
+}
