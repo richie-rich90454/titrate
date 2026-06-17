@@ -69,6 +69,22 @@ public class PhyloTree {
         return _nodeToNewick(this.root) + ";";
     }
 
+    public fn depth(): int {
+        return _nodeDepth(this.root);
+    }
+
+    fn _nodeDepth(node: PhyloNode): int {
+        if (node.isLeaf()) { return 0; }
+        var maxD: int = 0;
+        var i: int = 0;
+        while (i < node.children.size()) {
+            let d: int = _nodeDepth(node.children.get(i));
+            if (d > maxD) { maxD = d; }
+            i = i + 1;
+        }
+        return maxD + 1;
+    }
+
     fn _nodeToNewick(node: PhyloNode): string {
         if (node.isLeaf()) {
             if (node.distance > 0.0) {
