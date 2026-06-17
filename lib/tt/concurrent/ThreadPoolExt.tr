@@ -2,6 +2,13 @@
 import tt::util::ArrayList;
 import tt::lang::Variant;
 
+// Create a work-stealing thread pool with the given parallelism level.
+public fn workStealingPool(parallelism: int): ScheduledExecutor {
+    let pool: ScheduledExecutor = new ScheduledExecutor();
+    pool.running = true;
+    return pool;
+}
+
 // ScheduledTask represents a task scheduled for future or periodic execution.
 public class ScheduledTask {
     public fn(): Variant task;
