@@ -38,6 +38,15 @@ public fn assertFalse(condition: bool, message: string): void {
     }
 }
 
+// Assert that two doubles are approximately equal within the given tolerance.
+public fn assertAlmostEqualTolerance(actual: double, expected: double, tolerance: double, message: string): void {
+    let diff: double = actual - expected;
+    if (diff < 0) { diff = -diff; }
+    if (diff > tolerance) {
+        throw "AssertionError: " + message;
+    }
+}
+
 // Assert that two doubles are approximately equal within the given number of decimal places.
 public fn assertAlmostEqual(actual: double, expected: double, places: int, message: string): void {
     let diff: double = actual - expected;
