@@ -63,3 +63,42 @@ while (rs.next()) {
 }
 rs.close();
 ```
+
+## Prepared Statements
+
+- `Sqlite.prepare(db: SqliteDb, sql: string): PreparedStatement` — create prepared statement
+- `PreparedStatement.bindInt(index: int, value: int): void` — bind integer parameter
+- `PreparedStatement.bindDouble(index: int, value: double): void` — bind double parameter
+- `PreparedStatement.bindString(index: int, value: string): void` — bind string parameter
+- `PreparedStatement.bindNull(index: int): void` — bind NULL
+- `PreparedStatement.execute(): void` — execute statement
+- `PreparedStatement.executeQuery(): ResultSet` — execute query
+- `PreparedStatement.reset(): void` — reset for reuse
+- `PreparedStatement.close(): void` — close statement
+
+## Transaction Control
+
+- `Sqlite.beginTransaction(db: SqliteDb): void` — begin transaction
+- `Sqlite.commit(db: SqliteDb): void` — commit transaction
+- `Sqlite.rollback(db: SqliteDb): void` — rollback transaction
+- `Sqlite.savepoint(db: SqliteDb, name: string): void` — create savepoint
+- `Sqlite.release(db: SqliteDb, name: string): void` — release savepoint
+- `Sqlite.rollbackTo(db: SqliteDb, name: string): void` — rollback to savepoint
+
+## Blob I/O
+
+- `Sqlite.blobOpen(db: SqliteDb, table: string, column: string, rowid: long, readOnly: bool): Blob` — open blob for I/O
+- `Blob.read(offset: int, length: int): ArrayList<byte>` — read blob bytes
+- `Blob.write(offset: int, data: ArrayList<byte>): void` — write blob bytes
+- `Blob.close(): void` — close blob
+
+## WAL Mode
+
+- `Sqlite.enableWAL(db: SqliteDb): void` — enable Write-Ahead Logging
+- `Sqlite.disableWAL(db: SqliteDb): void` — disable WAL (rollback to journal)
+- `Sqlite.checkpoint(db: SqliteDb): void` — checkpoint WAL
+
+## Backup API
+
+- `Sqlite.backup(source: SqliteDb, dest: string): void` — backup database to file
+- `Sqlite.restore(dest: SqliteDb, source: string): void` — restore database from file

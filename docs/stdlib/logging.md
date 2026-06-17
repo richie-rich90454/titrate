@@ -156,3 +156,32 @@ public fn main(): void {
     log.error("Failed to bind port 8080");
 }
 ```
+
+## JSON Formatter
+
+- `Logging.jsonFormatter(): Formatter` — create JSON log formatter
+- JSON output includes: timestamp, level, logger, message, thread, exception
+
+## Syslog Handler
+
+- `Logging.syslogHandler(host: string, port: int): Handler` — create syslog handler
+- `Logging.syslogHandler(facility: string): Handler` — create local syslog handler
+
+## Email Handler
+
+- `Logging.emailHandler(to: string, from: string, smtpHost: string, subject: string): Handler` — email handler for critical errors
+
+## Rotating Handler
+
+- `Logging.rotatingFileHandler(path: string, maxSizeBytes: long, backupCount: int): Handler` — rotating file handler
+- `Logging.timedRotatingFileHandler(path: string, when: string, backupCount: int): Handler` — time-based rotation
+
+## Per-Handler Level
+
+- `Handler.setLevel(level: string): void` — set minimum level for this handler
+- `Handler.getLevel(): string` — get current level
+
+## Async Handler
+
+- `Logging.asyncHandler(handler: Handler, queueSize: int): Handler` — wrap handler with async queue
+- Async handler uses background thread to process log records

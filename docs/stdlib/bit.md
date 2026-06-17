@@ -49,3 +49,14 @@ io::println(Integer.toString(Bit.rotr(0b1010, 2)));         // rotate right by 2
 io::println(Integer.toString(Bit.reverseBits(0b1010)));     // bit-reversed value
 io::println(Integer.toString(Bit.byteSwap(0x12345678)));    // 0x78563412
 ```
+
+## Extended Bit Operations
+
+- `Bit.bitFloor(n: int): int` — largest power of 2 ≤ n
+- `Bit.bitCeil(n: int): int` — smallest power of 2 ≥ n
+- `Bit.popcount(n: int): int` — population count
+- `Bit.rotateLeft(n: int, distance: int): int` — left rotation
+- `Bit.rotateRight(n: int, distance: int): int` — right rotation
+- `Bit.parity(n: int): int` — bit parity (0 or 1)
+- `Bit.countLeadingZeros(n: int): int` — count leading zero bits
+- `Bit.countTrailingZeros(n: int): int` — count trailing zero bits

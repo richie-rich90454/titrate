@@ -36,3 +36,28 @@ io::println(Integer.toString(pool.getQueueSize()));    // 0
 pool.shutdown();
 io::println(Boolean.toString(pool.isShutdown())); // true
 ```
+
+## Work-Stealing Pool
+
+- `ThreadPool.workStealingPool(parallelism: int): ThreadPool` — create work-stealing pool
+- `ThreadPool.getScheduledExecutor(): ScheduledExecutor` — get scheduled executor
+
+## Scheduled Executor
+
+- `ScheduledExecutor.schedule(task: fn(): void, delayMs: int): ScheduledFuture` — schedule one-time task
+- `ScheduledExecutor.scheduleAtFixedRate(task: fn(): void, initialDelayMs: int, periodMs: int): ScheduledFuture` — schedule periodic task
+- `ScheduledExecutor.scheduleWithFixedDelay(task: fn(): void, initialDelayMs: int, delayMs: int): ScheduledFuture` — schedule with fixed delay
+
+## Future Chaining
+
+- `Future.thenApply(f: fn(Variant): Variant): Future` — transform result
+- `Future.thenCompose(f: fn(Variant): Future): Future` — chain futures
+- `Future.thenCombine(other: Future, f: fn(Variant, Variant): Variant): Future` — combine two futures
+- `Future.exceptionally(f: fn(Variant): Variant): Future` — handle exception
+
+## Rejection Policies
+
+- `ThreadPool.abortPolicy(): RejectionPolicy` — reject with exception
+- `ThreadPool.callerRunsPolicy(): RejectionPolicy` — run in caller thread
+- `ThreadPool.discardPolicy(): RejectionPolicy` — silently discard
+- `ThreadPool.discardOldestPolicy(): RejectionPolicy` — discard oldest task

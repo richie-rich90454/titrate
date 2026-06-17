@@ -103,3 +103,27 @@ let result = complex.exp(z);         // e^(i*pi) ≈ -1 + 0i
 - `complex.sinh(z: Complex): Complex` — complex hyperbolic sine
 - `complex.cosh(z: Complex): Complex` — complex hyperbolic cosine
 - `complex.tanh(z: Complex): Complex` — complex hyperbolic tangent
+
+## Polar Form
+
+- `Complex.fromPolar(r: double, theta: double): Complex` — create from polar coordinates
+- `Complex.abs(c: Complex): double` — magnitude
+- `Complex.arg(c: Complex): double` — argument (phase angle)
+- `Complex.conjugate(c: Complex): Complex` — complex conjugate
+
+## Roots of Unity
+
+- `Complex.rootsOfUnity(n: int): ArrayList<Complex>` — nth roots of unity
+- `Complex.nthRoot(c: Complex, n: int): ArrayList<Complex>` — nth roots of complex number
+
+## Deepened Operations
+
+- `Complex.exp(c: Complex): Complex` — e^z
+- `Complex.ln(c: Complex): Complex` — natural logarithm
+- `Complex.pow(base: Complex, exp: Complex): Complex` — complex power
+- `Complex.sqrt(c: Complex): Complex` — complex square root
+- `Complex.sin(c: Complex): Complex` — complex sine
+- `Complex.cos(c: Complex): Complex` — complex cosine
+- `Complex.tan(c: Complex): Complex` — complex tangent
+- `Complex.sinh(c: Complex): Complex` — complex hyperbolic sine
+- `Complex.cosh(c: Complex): Complex` — complex hyperbolic cosine

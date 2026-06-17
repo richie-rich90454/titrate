@@ -21,3 +21,22 @@ let sig512: string = Hmac.sha512("secret-key", "message data");
 let sigMd5: string = Hmac.md5("secret-key", "message data");
 let sig: string = Hmac.digest("secret-key", "message data", "sha256");
 ```
+
+## HKDF
+
+- `HKDF.extract(salt: string, inputKeyMaterial: string): string` — HKDF-Extract
+- `HKDF.expand(prk: string, info: string, length: int): string` — HKDF-Expand
+- `HKDF.deriveKey(salt: string, inputKeyMaterial: string, info: string, length: int): string` — full HKDF
+
+## PBKDF2
+
+- `PBKDF2.deriveKey(password: string, salt: string, iterations: int, keyLength: int): string` — PBKDF2 key derivation
+
+## scrypt
+
+- `Scrypt.deriveKey(password: string, salt: string, n: int, r: int, p: int, keyLength: int): string` — scrypt key derivation
+
+## Argon2
+
+- `Argon2.hash(password: string, salt: string, iterations: int, memory: int, parallelism: int): string` — Argon2id hash
+- `Argon2.verify(hash: string, password: string): bool` — verify Argon2 hash

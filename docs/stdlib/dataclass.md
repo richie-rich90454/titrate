@@ -44,3 +44,29 @@ overrides.put("x", 10);
 let p2 = Dataclass.copyWith(p, fields, overrides);
 io::println(Dataclass.toString(p2, "Point", fields)); // Point(x=10, y=4)
 ```
+
+## Frozen Dataclass
+
+- `Dataclass.frozen(name: string, fields: ArrayList<string>): DataclassDef` — create immutable dataclass
+- Frozen dataclasses prevent field modification after construction
+
+## kw_only Fields
+
+- `Dataclass.kwOnly(name: string, fields: ArrayList<string>): DataclassDef` — keyword-only fields
+
+## default_factory
+
+- `Dataclass.field(defaultFactory: fn(): Variant): FieldDef` — field with default factory
+- `Dataclass.field(default: Variant): FieldDef` — field with default value
+
+## post_init
+
+- `Dataclass.postInit(fn: fn(): void): void` — post-initialization hook
+
+## Ordered Dataclass
+
+- `Dataclass.ordered(name: string, fields: ArrayList<string>): DataclassDef` — create comparable dataclass
+
+## Validator
+
+- `Dataclass.validator(field: string, fn: fn(Variant): bool): void` — add field validator

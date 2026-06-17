@@ -113,3 +113,27 @@ let sw = new Stopwatch().start();
 sw.stop();
 io::println("Elapsed: " + sw.elapsed().toString());
 ```
+
+## Business Calendar
+
+- `BusinessCalendar.init(region: string)` — create calendar for region (US, EU, JP, CN, UK)
+- `BusinessCalendar.isBusinessDay(date: string): bool` — check if business day
+- `BusinessCalendar.businessDaysBetween(start: string, end: string): int` — count business days
+- `BusinessCalendar.addBusinessDays(date: string, n: int): string` — add business days
+- `BusinessCalendar.isHoliday(date: string): bool` — check if holiday
+- `BusinessCalendar.getHolidays(year: int): ArrayList<string>` — list holidays for year
+- Holiday data loaded from `data/datetime/holidays.json`
+
+## Cron Expression Parser
+
+- `Cron.parse(expression: string): CronSchedule` — parse cron expression
+- `Cron.next(schedule: CronSchedule, after: string): string` — next execution time
+- `Cron.schedule(schedule: CronSchedule, from: string, count: int): ArrayList<string>` — generate schedule
+- `Cron.validate(expression: string): bool` — validate cron expression
+
+## Date Range
+
+- `DateRange.dateRange(start: string, end: string, step: int): ArrayList<string>` — generate date range
+- `DateRange.periodArithmetic(date: string, period: string, n: int): string` — add/subtract period
+- `DateRange.isoWeekDate(date: string): (int, int, int)` — ISO week date (year, week, day)
+- `DateRange.ordinalDate(date: string): (int, int)` — ordinal date (year, day-of-year)

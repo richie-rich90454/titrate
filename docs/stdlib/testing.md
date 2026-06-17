@@ -65,3 +65,38 @@ if (runner.exitCode() != 0) {
     Sys.exit(1);
 }
 ```
+
+## Test Fixtures
+
+- `TestFixture.setUp(fn: fn(): void): void` — setup before each test
+- `TestFixture.tearDown(fn: fn(): void): void` — cleanup after each test
+- `TestFixture.setUpClass(fn: fn(): void): void` — setup before all tests
+- `TestFixture.tearDownClass(fn: fn(): void): void` — cleanup after all tests
+
+## Parameterized Tests
+
+- `Testing.parameterize(test: fn(Variant): void, params: ArrayList<Variant>): void` — run test with multiple parameters
+
+## Test Skipping
+
+- `Testing.skip(reason: string): void` — skip current test
+- `Testing.skipIf(condition: bool, reason: string): void` — conditional skip
+
+## Expected Failures
+
+- `Testing.expectedFailure(test: fn(): void): void` — mark test as expected to fail
+
+## Test Suites
+
+- `TestSuite.init(name: string)` — create named test suite
+- `TestSuite.addTest(test: fn(): void): void` — add test to suite
+- `TestSuite.addSuite(suite: TestSuite): void` — add nested suite
+- `TestSuite.run(): TestResult` — run all tests
+
+## Benchmark Mode
+
+- `Testing.benchmark(test: fn(): void, iterations: int): BenchmarkResult` — benchmark a test
+- `BenchmarkResult.meanTime(): double` — mean execution time (ms)
+- `BenchmarkResult.minTime(): double` — minimum execution time (ms)
+- `BenchmarkResult.maxTime(): double` — maximum execution time (ms)
+- `BenchmarkResult.stdDev(): double` — standard deviation

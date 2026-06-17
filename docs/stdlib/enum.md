@@ -42,3 +42,28 @@ io::println(found.toString());  // "Green"
 let byOrd: EnumValue = enumFromOrdinal(colors, 2);
 io::println(byOrd.toString());  // "Blue"
 ```
+
+## Flag Enum
+
+- `FlagEnum.create(name: string, values: HashMap<string, int>): FlagEnum` — create flag enum
+- `FlagEnum.hasFlag(value: int, flag: int): bool` — check if flag is set
+- `FlagEnum.setFlag(value: int, flag: int): int` — set flag
+- `FlagEnum.clearFlag(value: int, flag: int): int` — clear flag
+- `FlagEnum.toggleFlag(value: int, flag: int): int` — toggle flag
+
+## IntEnum
+
+- `IntEnum.create(name: string, values: HashMap<string, int>): IntEnum` — create integer enum
+- `IntEnum.fromValue(enumType: IntEnum, value: int): string` — lookup by integer value
+
+## StrEnum
+
+- `StrEnum.create(name: string, values: HashMap<string, string>): StrEnum` — create string enum
+- `StrEnum.fromValue(enumType: StrEnum, value: string): string` — lookup by string value
+
+## Auto-numbering
+
+- `Enum.auto(): int` — auto-assign next integer value
+- `Enum.iterate(enumType: Enum): ArrayList<string>` — iterate enum values
+- `Enum.fromValue(enumType: Enum, value: Variant): string` — lookup by value
+- `Enum.isMember(enumType: Enum, name: string): bool` — membership test

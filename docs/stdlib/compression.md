@@ -50,3 +50,30 @@ let content: string = reader.read("hello.txt");
 io::println(content);  // "Hello, world!"
 reader.close();
 ```
+
+## LZ4
+
+- `Lz4.compress(data: ArrayList<byte>): ArrayList<byte>` — LZ4 compress
+- `Lz4.decompress(data: ArrayList<byte>): ArrayList<byte>` — LZ4 decompress
+- `Lz4.compressFrame(data: ArrayList<byte>): ArrayList<byte>` — LZ4 frame format compress
+- `Lz4.decompressFrame(data: ArrayList<byte>): ArrayList<byte>` — LZ4 frame format decompress
+
+## Zstandard
+
+- `Zstd.compress(data: ArrayList<byte>, level: int): ArrayList<byte>` — Zstd compress with level
+- `Zstd.decompress(data: ArrayList<byte>): ArrayList<byte>` — Zstd decompress
+- `Zstd.compressWithDictionary(data: ArrayList<byte>, dict: ArrayList<byte>): ArrayList<byte>` — dictionary compression
+- `Zstd.decompressWithDictionary(data: ArrayList<byte>, dict: ArrayList<byte>): ArrayList<byte>` — dictionary decompression
+
+## Tar Archive
+
+- `TarReader.init()` — create tar reader
+- `TarReader.read(data: ArrayList<byte>): ArrayList<TarEntry>` — read tar entries
+- `TarWriter.init()` — create tar writer
+- `TarWriter.addEntry(name: string, data: ArrayList<byte>): void` — add entry
+- `TarWriter.addFile(path: string, name: string): void` — add file from disk
+- `TarWriter.write(): ArrayList<byte>` — write tar archive
+- `TarEntry.getName(): string` — entry name
+- `TarEntry.getData(): ArrayList<byte>` — entry data
+- `TarEntry.getSize(): int` — entry size
+- `TarEntry.isDirectory(): bool` — check if directory entry

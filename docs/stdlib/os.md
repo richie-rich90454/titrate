@@ -91,3 +91,13 @@ Os.symlink("/path/to/target", "/path/to/link");
 // Change permissions
 Os.chmod("/path/to/file", 0o755);
 ```
+
+## Deepened OS Operations
+
+- `Os.walk(path: string): ArrayList<HashMap<string, Variant>>` — recursive directory walk
+- `Os.scandir(path: string): ArrayList<HashMap<string, Variant>>` — list directory entries with metadata
+- `Os.symlink(target: string, link: string): void` — create symbolic link
+- `Os.readlink(path: string): string` — read symbolic link target
+- `Os.environ(): HashMap<string, string>` — all environment variables
+- `Os.getpid(): int` — current process ID
+- `Os.kill(pid: int, signal: int): void` — send signal to process

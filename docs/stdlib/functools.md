@@ -96,3 +96,35 @@ io::println(Integer.toString(fast(5)));  // 25 (cached)
 ```titrate
 let cached = functools.memoizeWith(fn(n: int): int => n * n, 100);
 ```
+
+## lruCache
+
+- `Functools.lruCache(maxSize: int, fn: fn(Variant): Variant): fn(Variant): Variant` — least-recently-used cache decorator
+
+## cachedProperty
+
+- `Functools.cachedProperty(fn: fn(): Variant): fn(): Variant` — cached property decorator
+
+## partial
+
+- `Functools.partial(fn: fn(Variant): Variant, args: ArrayList<Variant>): fn(Variant): Variant` — partial application
+
+## reduce
+
+- `Functools.reduce(fn: fn(Variant, Variant): Variant, iterable: ArrayList, initial: Variant): Variant` — left fold
+
+## singledispatch
+
+- `Functools.singledispatch(fn: fn(Variant): Variant): HashMap<string, fn(Variant): Variant>` — single-dispatch generic function
+
+## wraps
+
+- `Functools.wraps(wrapped: fn): fn` — preserve function metadata in decorator
+
+## totalOrdering
+
+- `Functools.totalOrdering(cls: Class): Class` — fill in missing comparison methods
+
+## cmpToKey
+
+- `Functools.cmpToKey(cmp: fn(Variant, Variant): int): fn(Variant, Variant): int` — convert cmp to key function

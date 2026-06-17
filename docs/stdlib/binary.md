@@ -50,3 +50,29 @@ let size: int = Struct.calcSize("<ih");
 let unpacked: ArrayList<Variant> = Struct.unpack("<ih", packed);
 let iter: ArrayList<ArrayList<Variant>> = Struct.iterUnpack("<ih", packed);
 ```
+
+## All Format Characters
+
+- `Struct.formatChar(type: string): string` — get format character for type
+- Supported: b/B (byte), h/H (short), i/I (int), l/L (long), f (float), d (double), s (string), ? (bool)
+
+## Byte Order Prefixes
+
+- `Struct.nativeOrder(): string` — native byte order prefix (@)
+- `Struct.littleEndian(): string` — little-endian prefix (<)
+- `Struct.bigEndian(): string` — big-endian prefix (>)
+- `Struct.networkOrder(): string` — network byte order prefix (!)
+
+## Advanced Operations
+
+- `Struct.packInto(format: string, buffer: ArrayList<byte>, offset: int, values: ArrayList<Variant>): void` — pack into buffer at offset
+- `Struct.unpackFrom(format: string, buffer: ArrayList<byte>, offset: int): ArrayList<Variant>` — unpack from buffer at offset
+- `Struct.iterUnpack(format: string, buffer: ArrayList<byte>): ArrayList<ArrayList<Variant>>` — iterate unpack
+- `Struct.calcsize(format: string): int` — calculate size of struct
+
+## Struct Class
+
+- `Struct.init(format: string)` — create reusable Struct instance
+- `Struct.pack(values: ArrayList<Variant>): ArrayList<byte>` — pack values
+- `Struct.unpack(buffer: ArrayList<byte>): ArrayList<Variant>` — unpack buffer
+- `Struct.size(): int` — struct size

@@ -120,3 +120,20 @@ let l = fractions.lcm(4, 6);    // 12
 let pi = fractions.approximate(3.14159265, 1000);
 // 355/113 (a well-known approximation of pi)
 ```
+
+## fromFloat
+
+- `Fraction.fromFloat(x: double, maxDenom: int): Fraction` — create fraction from float with bounded denominator
+
+## approximate
+
+- `Fraction.approximate(x: double, tolerance: double): Fraction` — best rational approximation within tolerance
+
+## asIntegerRatio
+
+- `Fraction.asIntegerRatio(f: Fraction): (long, long)` — numerator and denominator
+
+## Continued Fraction
+
+- `Fraction.toContinuedFraction(f: Fraction): ArrayList<int>` — continued fraction representation
+- `Fraction.fromContinuedFraction(terms: ArrayList<int>): Fraction` — from continued fraction

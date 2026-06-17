@@ -55,3 +55,23 @@ Represents a single regex match result.
 - `groupCount(): int` — number of captured groups
 - `groups(): ArrayList<string>` — all captured groups
 - `range(): ArrayList<int>` — [start, end] as a two-element list
+
+## Named Capture Groups
+
+- `Regex.namedGroup(match: Match, name: string): string` — get named capture group value
+- `Regex.groupNames(pattern: string): ArrayList<string>` — list named groups in pattern
+
+## Advanced Patterns
+
+- `Regex.atomicGroup(pattern: string): string` — wrap in atomic group (?>...)
+- `Regex.possessiveQuantifier(pattern: string): string` — wrap in possessive quantifier
+
+## Utility Functions
+
+- `Regex.escape(s: string): string` — escape special regex characters
+- `Regex.fullMatch(pattern: string, text: string): bool` — check if entire string matches
+- `Regex.subN(pattern: string, replacement: string, text: string, n: int): string` — substitute at most n occurrences
+- `Match.start(group: int): int` — start position of group
+- `Match.end(group: int): int` — end position of group
+- `Match.span(group: int): (int, int)` — (start, end) tuple
+- `Match.groupDict(match: Match): HashMap<string, string>` — all named groups as dict

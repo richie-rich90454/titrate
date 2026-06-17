@@ -247,3 +247,43 @@ list.iterator().forEach(fn(x: Variant): void {
     io::println(x.toString());
 });
 ```
+
+## accumulate
+
+- `Itertools.accumulate(iterable: ArrayList, fn: fn(Variant, Variant): Variant): ArrayList` — running accumulation
+
+## compress
+
+- `Itertools.compress(data: ArrayList, selectors: ArrayList<bool>): ArrayList` — filter by selectors
+
+## dropwhile
+
+- `Itertools.dropwhile(predicate: fn(Variant): bool, iterable: ArrayList): ArrayList` — drop while predicate is true
+
+## filterfalse
+
+- `Itertools.filterfalse(predicate: fn(Variant): bool, iterable: ArrayList): ArrayList` — filter where predicate is false
+
+## groupby
+
+- `Itertools.groupby(iterable: ArrayList, key: fn(Variant): Variant): ArrayList<ArrayList<Variant>>` — group consecutive elements
+
+## islice
+
+- `Itertools.islice(iterable: ArrayList, start: int, stop: int, step: int): ArrayList` — slice an iterable
+
+## starmap
+
+- `Itertools.starmap(fn: fn(ArrayList): Variant, iterable: ArrayList<ArrayList>): ArrayList` — apply fn to unpacked args
+
+## takewhile
+
+- `Itertools.takewhile(predicate: fn(Variant): bool, iterable: ArrayList): ArrayList` — take while predicate is true
+
+## zip_longest
+
+- `Itertools.zipLongest(iterables: ArrayList<ArrayList>, fillValue: Variant): ArrayList<ArrayList>` — zip with fill value
+
+## product
+
+- `Itertools.product(iterables: ArrayList<ArrayList>): ArrayList<ArrayList>` — Cartesian product

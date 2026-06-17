@@ -87,3 +87,29 @@ let encoded = Url.encodeComponent("hello world&foo=bar");
 let params = Url.parseQueryString("?name=alice&age=30");
 let qs = Url.buildQueryString(params);
 ```
+
+## Ed25519 Signatures
+
+- `Ed25519.generateKeyPair(): (string, string)` — generate Ed25519 key pair
+- `Ed25519.sign(privateKey: string, message: string): string` — sign message
+- `Ed25519.verify(publicKey: string, message: string, signature: string): bool` — verify signature
+
+## Curve25519 Key Exchange
+
+- `Curve25519.generateKeyPair(): (string, string)` — generate X25519 key pair
+- `Curve25519.computeSharedSecret(privateKey: string, publicKey: string): string` — compute shared secret
+
+## ChaCha20-Poly1305
+
+- `ChaCha20Poly1305.encrypt(key: string, nonce: string, plaintext: string): string` — AEAD encrypt
+- `ChaCha20Poly1305.decrypt(key: string, nonce: string, ciphertext: string): string` — AEAD decrypt
+
+## HKDF
+
+- `HKDF.extract(salt: string, inputKeyMaterial: string): string` — HKDF-Extract
+- `HKDF.expand(prk: string, info: string, length: int): string` — HKDF-Expand
+- `HKDF.deriveKey(salt: string, inputKeyMaterial: string, info: string, length: int): string` — full HKDF
+
+## Constant-Time Comparison
+
+- `Crypto.constantTimeEquals(a: string, b: string): bool` — constant-time string comparison

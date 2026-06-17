@@ -42,3 +42,30 @@ let cert: string = conn.getPeerCertificate();
 conn.close();
 ctx.close();
 ```
+
+## TLS 1.3
+
+- `Ssl.connectTLS1_3(host: string, port: int): SslConnection` — connect with TLS 1.3
+- `Ssl.getProtocolVersion(conn: SslConnection): string` — negotiated protocol version
+- `Ssl.getCipherSuite(conn: SslConnection): string` — negotiated cipher suite
+
+## Certificate Pinning
+
+- `Ssl.pinCertificate(conn: SslConnection, expectedHash: string): bool` — verify certificate pin
+- `Ssl.getPeerCertificate(conn: SslConnection): string` — get peer certificate PEM
+
+## SNI and ALPN
+
+- `Ssl.setServerName(conn: SslConnection, hostname: string): void` — set SNI hostname
+- `Ssl.setAlpnProtocols(conn: SslConnection, protocols: ArrayList<string>): void` — set ALPN protocols
+- `Ssl.getNegotiatedAlpnProtocol(conn: SslConnection): string` — get negotiated ALPN
+
+## Session Resumption
+
+- `Ssl.getSession(conn: SslConnection): SslSession` — get session for resumption
+- `Ssl.resumeSession(conn: SslConnection, session: SslSession): void` — resume TLS session
+
+## Client Certificate Authentication
+
+- `Ssl.setClientCertificate(conn: SslConnection, certPath: string, keyPath: string): void` — set client cert
+- `Ssl.setCaCertificate(conn: SslConnection, caPath: string): void` — set CA certificate

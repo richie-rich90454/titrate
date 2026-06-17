@@ -104,3 +104,21 @@ let na = Constants.AVOGADRO();
 let r = Constants.GAS_CONSTANT();
 // R = k * N_A (within floating-point precision)
 ```
+
+## Unit Conversion
+
+- `UnitConverter.convert(value: double, fromUnit: string, toUnit: string): double` — convert between units
+- `UnitConverter.compoundUnit(definition: string): double` — define compound unit
+- `UnitConverter.dimensionalAnalysis(expr: string): string` — dimensional analysis
+- `UnitConverter.autoTrack(value: double, unit: string): TrackedValue` — automatic unit tracking
+- Conversion factors loaded from `data/units/conversions.json`
+
+## Special Units
+
+- `SpecialUnits.astronomicalUnit(): double` — 1 AU in meters
+- `SpecialUnits.lightYear(): double` — 1 light-year in meters
+- `SpecialUnits.parsec(): double` — 1 parsec in meters
+- `SpecialUnits.planckLength(): double` — Planck length in meters
+- `SpecialUnits.planckTime(): double` — Planck time in seconds
+- `SpecialUnits.planckMass(): double` — Planck mass in kg
+- `SpecialUnits.electronVolt(): double` — 1 eV in joules

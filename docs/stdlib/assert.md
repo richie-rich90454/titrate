@@ -32,3 +32,33 @@ Assert.assertInRange(5, 1, 10);
 // With custom message
 Assert.assertTrue(x > 0, "x must be positive");
 ```
+
+## assertEqual
+
+- `Assert.assertEqual(actual: Variant, expected: Variant, message: string): void` — assert equality
+
+## assertNotEqual
+
+- `Assert.assertNotEqual(actual: Variant, expected: Variant, message: string): void` — assert inequality
+
+## assertTrue / assertFalse
+
+- `Assert.assertTrue(condition: bool, message: string): void` — assert true
+- `Assert.assertFalse(condition: bool, message: string): void` — assert false
+
+## assertAlmostEqual
+
+- `Assert.assertAlmostEqual(actual: double, expected: double, tolerance: double, message: string): void` — approximate equality
+
+## assertRaises
+
+- `Assert.assertRaises(errorType: string, fn: fn(): void): void` — assert exception is raised
+
+## assertIn
+
+- `Assert.assertIn(item: Variant, collection: ArrayList, message: string): void` — assert item in collection
+
+## assertGreater / assertLess
+
+- `Assert.assertGreater(a: Variant, b: Variant, message: string): void` — assert a > b
+- `Assert.assertLess(a: Variant, b: Variant, message: string): void` — assert a < b

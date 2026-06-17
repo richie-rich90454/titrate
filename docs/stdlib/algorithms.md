@@ -190,3 +190,56 @@ algorithms.shuffle(list);
 ### shuffled
 
 - `algorithms.shuffled<T>(items: ArrayList<T>): ArrayList<T>` — return a new randomly permuted list
+
+## Graph Algorithms Part 1
+
+- `GraphAlgo.bfs(graph: Graph, start: string): ArrayList<string>` — breadth-first search
+- `GraphAlgo.dfs(graph: Graph, start: string): ArrayList<string>` — depth-first search
+- `GraphAlgo.dijkstra(graph: Graph, start: string): HashMap<string, double>` — shortest paths
+- `GraphAlgo.bellmanFord(graph: Graph, start: string): HashMap<string, double>` — shortest paths (negative weights)
+- `GraphAlgo.floydWarshall(graph: Graph): HashMap<string, HashMap<string, double>>` — all-pairs shortest paths
+- `GraphAlgo.aStar(graph: Graph, start: string, goal: string, heuristic: fn(string): double): ArrayList<string>` — A* search
+
+## Graph Algorithms Part 2
+
+- `GraphAlgo.kruskalMST(graph: Graph): ArrayList<(string, string, double)>` — Kruskal's MST
+- `GraphAlgo.primMST(graph: Graph): ArrayList<(string, string, double)>` — Prim's MST
+- `GraphAlgo.topologicalSort(graph: Graph): ArrayList<string>` — topological ordering
+- `GraphAlgo.stronglyConnectedComponents(graph: Graph): ArrayList<ArrayList<string>>` — SCCs
+- `GraphAlgo.hasCycle(graph: Graph): bool` — cycle detection
+
+## Graph Algorithms Part 3
+
+- `GraphAlgo.maxFlow(graph: Graph, source: string, sink: string): double` — Ford-Fulkerson max flow
+- `GraphAlgo.bipartiteMatching(graph: Graph): ArrayList<(string, string)>` — bipartite matching
+- `GraphAlgo.eulerTour(graph: Graph, start: string): ArrayList<string>` — Euler tour
+- `GraphAlgo.isHamiltonian(graph: Graph): bool` — Hamiltonian path check
+- `GraphAlgo.graphColoring(graph: Graph, maxColors: int): HashMap<string, int>` — graph coloring
+
+## String Algorithms
+
+- `StringAlgo.kmp(text: string, pattern: string): ArrayList<int>` — KMP pattern matching
+- `StringAlgo.rabinKarp(text: string, pattern: string): ArrayList<int>` — Rabin-Karp
+- `StringAlgo.boyerMoore(text: string, pattern: string): ArrayList<int>` — Boyer-Moore
+- `StringAlgo.suffixArray(text: string): ArrayList<int>` — suffix array
+- `StringAlgo.lcpArray(text: string): ArrayList<int>` — LCP array
+- `StringAlgo.zAlgorithm(text: string): ArrayList<int>` — Z-algorithm
+- `StringAlgo.ahoCorasick(text: string, patterns: ArrayList<string>): HashMap<string, ArrayList<int>>` — Aho-Corasick
+
+## Heap Algorithms
+
+- `HeapAlgo.isHeap(arr: ArrayList): bool` — check if valid heap
+- `HeapAlgo.isHeapUntil(arr: ArrayList): int` — first heap violation
+- `HeapAlgo.makeHeap(arr: ArrayList): void` — heapify
+- `HeapAlgo.pushHeap(arr: ArrayList, value: Variant): void` — push to heap
+- `HeapAlgo.popHeap(arr: ArrayList): Variant` — pop from heap
+- `HeapAlgo.sortHeap(arr: ArrayList): void` — heap sort
+
+## Set Algorithms
+
+- `SetAlgo.setUnion(a: ArrayList, b: ArrayList): ArrayList` — set union
+- `SetAlgo.setIntersection(a: ArrayList, b: ArrayList): ArrayList` — set intersection
+- `SetAlgo.setDifference(a: ArrayList, b: ArrayList): ArrayList` — set difference
+- `SetAlgo.setSymmetricDifference(a: ArrayList, b: ArrayList): ArrayList` — symmetric difference
+- `SetAlgo.includes(a: ArrayList, b: ArrayList): bool` — subset check
+- `SetAlgo.nthElement(arr: ArrayList, n: int): Variant` — nth element (selection)

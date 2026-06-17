@@ -245,3 +245,80 @@ A tuple with named fields for readable record-like data.
 
 - `namedTuple(fields: ArrayList<string>)` — create a named tuple type
 - `get(field: string): Variant` — access field by name
+
+## Deepened HashMap
+
+- `HashMap.fromKeys(keys: ArrayList<string>, defaultValue: Variant): HashMap<string, Variant>` — create from keys
+- `HashMap.setDefault(map: HashMap, key: string, defaultValue: Variant): Variant` — set default if absent
+- `HashMap.update(map: HashMap, other: HashMap): void` — merge another map
+- `HashMap.pop(map: HashMap, key: string, default: Variant): Variant` — remove and return
+- `HashMap.popItem(map: HashMap): (string, Variant)` — remove and return arbitrary entry
+- `HashMap.keysView(map: HashMap): ArrayList<string>` — keys view
+- `HashMap.valuesView(map: HashMap): ArrayList<Variant>` — values view
+
+## Deepened ArrayList
+
+- `ArrayList.sortWithComparator(list: ArrayList, comparator: fn(Variant, Variant): int): void` — sort with comparator
+- `ArrayList.reverse(list: ArrayList): void` — reverse in place
+- `ArrayList.copy(list: ArrayList): ArrayList` — shallow copy
+- `ArrayList.extend(list: ArrayList, other: ArrayList): void` — extend with another list
+- `ArrayList.count(list: ArrayList, element: Variant): int` — count occurrences
+- `ArrayList.removeFirst(list: ArrayList, element: Variant): bool` — remove first occurrence
+- `ArrayList.pop(list: ArrayList): Variant` — remove and return last element
+
+## Deepened Counter
+
+- `Counter.mostCommon(c: HashMap<string, int>, n: int): ArrayList<(string, int)>` — n most common
+- `Counter.elements(c: HashMap<string, int>): ArrayList<string>` — expand elements
+- `Counter.subtract(c: HashMap<string, int>, other: HashMap<string, int>): void` — subtract counts
+- `Counter.total(c: HashMap<string, int>): int` — total count
+
+## Deepened Deque
+
+- `Deque.rotate(d: ArrayList, n: int): void` — rotate by n positions
+- `Deque.insert(d: ArrayList, index: int, item: Variant): void` — insert at index
+- `Deque.extendLeft(d: ArrayList, items: ArrayList): void` — extend to left
+- `Deque.count(d: ArrayList, item: Variant): int` — count occurrences
+- `Deque.removeFirst(d: ArrayList, item: Variant): void` — remove first occurrence
+
+## Deepened BitSet
+
+- `BitSet.and(a: BitSet, b: BitSet): BitSet` — bitwise AND
+- `BitSet.or(a: BitSet, b: BitSet): BitSet` — bitwise OR
+- `BitSet.xor(a: BitSet, b: BitSet): BitSet` — bitwise XOR
+- `BitSet.andNot(a: BitSet, b: BitSet): BitSet` — AND NOT
+- `BitSet.flip(bs: BitSet, index: int): void` — flip bit at index
+- `BitSet.cardinality(bs: BitSet): int` — number of set bits
+- `BitSet.nextSetBit(bs: BitSet, fromIndex: int): int` — next set bit
+- `BitSet.nextClearBit(bs: BitSet, fromIndex: int): int` — next clear bit
+- `BitSet.isEmpty(bs: BitSet): bool` — check if empty
+- `BitSet.intersects(a: BitSet, b: BitSet): bool` — check intersection
+
+## Deepened Trie
+
+- `Trie.startsWith(trie: Trie, prefix: string): bool` — check prefix
+- `Trie.searchExact(trie: Trie, word: string): bool` — exact match
+- `Trie.autoComplete(trie: Trie, prefix: string): ArrayList<string>` — autocomplete suggestions
+- `Trie.delete(trie: Trie, word: string): bool` — delete word
+- `Trie.keysWithPrefix(trie: Trie, prefix: string): ArrayList<string>` — all words with prefix
+- `Trie.longestPrefixOf(trie: Trie, word: string): string` — longest prefix match
+
+## Deepened Graph
+
+- `Graph.addVertex(g: Graph, vertex: string): void` — add vertex
+- `Graph.addEdge(g: Graph, from: string, to: string, weight: double): void` — add weighted edge
+- `Graph.removeVertex(g: Graph, vertex: string): void` — remove vertex
+- `Graph.removeEdge(g: Graph, from: string, to: string): void` — remove edge
+- `Graph.neighbors(g: Graph, vertex: string): ArrayList<string>` — adjacent vertices
+- `Graph.degree(g: Graph, vertex: string): int` — vertex degree
+- `Graph.shortestPath(g: Graph, from: string, to: string): ArrayList<string>` — Dijkstra shortest path
+- `Graph.minimumSpanningTree(g: Graph): ArrayList<(string, string, double)>` — MST edges
+
+## Deepened PriorityQueue
+
+- `PriorityQueue.peek(pq: PriorityQueue): Variant` — peek at top element
+- `PriorityQueue.updatePriority(pq: PriorityQueue, element: Variant, newPriority: double): void` — update priority
+- `PriorityQueue.remove(pq: PriorityQueue, element: Variant): bool` — remove element
+- `PriorityQueue.drainTo(pq: PriorityQueue, n: int): ArrayList<Variant>` — drain n elements
+- `PriorityQueue.tryPut(pq: PriorityQueue, element: Variant, timeoutMs: int): bool` — try put with timeout
+- `PriorityQueue.tryGet(pq: PriorityQueue, timeoutMs: int): Variant` — try get with timeout

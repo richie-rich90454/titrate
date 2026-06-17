@@ -149,3 +149,13 @@ logger.addHandler(new ConsoleHandler());
 logger.info("Application started");
 logger.warning("Low disk space");
 ```
+
+## Deepened OS Operations
+
+- `System.getEnvironmentVariable(name: string): string` — get env variable
+- `System.setEnvironmentVariable(name: string, value: string): void` — set env variable
+- `System.getProcessId(): int` — current process ID
+- `System.getProcessorCount(): int` — available CPU cores
+- `System.getTotalMemory(): long` — total system memory
+- `System.getFreeMemory(): long` — free system memory
+- `System.getUptime(): long` — system uptime in milliseconds

@@ -110,3 +110,26 @@ public fn main(): void {
     // ... search logic ...
 }
 ```
+
+## Subcommands
+
+- `Argparse.addSubparser(parser: Parser, name: string, help: string): Parser` — add subcommand
+- `Argparse.parseKnownArgs(parser: Parser, args: ArrayList<string>): HashMap<string, Variant>` — parse known args only
+
+## Mutually Exclusive Groups
+
+- `Argparse.addMutuallyExclusiveGroup(parser: Parser, required: bool): ArgumentGroup` — create mutually exclusive group
+- `ArgumentGroup.addArgument(name: string, options: HashMap<string, Variant>): void` — add argument to group
+
+## Argument Groups
+
+- `Argparse.addArgumentGroup(parser: Parser, title: string): ArgumentGroup` — create argument group
+- `ArgumentGroup.addArgument(name: string, options: HashMap<string, Variant>): void` — add argument to group
+
+## Custom Types
+
+- `Argparse.registerType(parser: Parser, typeName: string, converter: fn(string): Variant): void` — register custom type
+
+## Custom Actions
+
+- `Argparse.registerAction(parser: Parser, actionName: string, action: fn(string, Variant, Variant): void): void` — register custom action
