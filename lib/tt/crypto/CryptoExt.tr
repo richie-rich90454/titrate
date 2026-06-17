@@ -38,6 +38,23 @@ public fn hkdfExpand(prk: string, info: string, length: int): string {
 
 // Constant-time comparison of two strings to prevent timing attacks.
 // Returns true if the strings are equal, false otherwise.
+public fn constantTimeEquals(a: string, b: string): bool {
+    if (String.length(a) != String.length(b)) {
+        return false;
+    }
+    var result: int = 0;
+    var i: int = 0;
+    while (i < String.length(a)) {
+        let ca: int = String.charAt(a, i) as int;
+        let cb: int = String.charAt(b, i) as int;
+        result = result | (ca ^ cb);
+        i = i + 1;
+    }
+    return result == 0;
+}
+
+// Constant-time comparison of two strings to prevent timing attacks (alias).
+// Returns true if the strings are equal, false otherwise.
 public fn constantTimeCompare(a: string, b: string): bool {
     if (String.length(a) != String.length(b)) {
         return false;
