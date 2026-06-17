@@ -95,6 +95,39 @@ public class KDTree {
         }
     }
 
+    // Axis-aligned range query: find all points within [min, max] bounding box
+    public fn rangeQuery(min: ArrayList<double>, max: ArrayList<double>): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        _rangeQueryRec(this.root, min, max, 0, result);
+        return result;
+    }
+
+    fn _rangeQueryRec(node: _KDNode, min: ArrayList<double>, max: ArrayList<double>, depth: int, result: ArrayList<int>): void {
+        if (node == null) { return; }
+        // Check if point is within bounding box
+        var inside: bool = true;
+        var i: int = 0;
+        while (i < this.dimensions && i < node.point.coords.size() && i < min.size() && i < max.size()) {
+            if (node.point.coords.get(i) < min.get(i) || node.point.coords.get(i) > max.get(i)) {
+                inside = false;
+                break;
+            }
+            i = i + 1;
+        }
+        if (inside) {
+            result.add(node.index);
+        }
+        let axis: int = depth % this.dimensions;
+        if (axis < min.size() && axis < max.size()) {
+            if (node.point.coords.get(axis) >= min.get(axis)) {
+                _rangeQueryRec(node.left, min, max, depth + 1, result);
+            }
+            if (node.point.coords.get(axis) <= max.get(axis)) {
+                _rangeQueryRec(node.right, min, max, depth + 1, result);
+            }
+        }
+    }
+
     public fn rangeSearch(query: PointKD, radius: double): ArrayList<int> {
         let result: ArrayList<int> = new ArrayList<int>();
         _rangeSearch(this.root, query, radius, 0, result);
