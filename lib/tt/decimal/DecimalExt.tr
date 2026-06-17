@@ -3,6 +3,15 @@
 import tt::decimal::Decimal;
 import tt::decimal::DecimalContext;
 
+// Quantize a double value using the specified context for rounding and precision.
+public fn quantizeDouble(value: double, context: DecimalContext): double {
+    let d: Decimal = new Decimal(Double.toString(value));
+    let places: int = context.getPrecision();
+    if (places < 0) { places = 0; }
+    let rounded: Decimal = d.round(places, context.getRoundingMode());
+    return Double.parseDouble(rounded.toString());
+}
+
 // Quantize a decimal value string to the given exponent using the specified context.
 // For example, quantize("3.14159", -2, ctx) rounds to "3.14".
 public fn quantize(value: string, exponent: int, context: DecimalContext): string {
