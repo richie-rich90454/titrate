@@ -102,6 +102,27 @@ public class WaveFunction {
         return MathAdvanced.sqrt(sum * this.dx);
     }
 
+    public fn uncertainty(): double {
+        return this.uncertaintyX();
+    }
+
+    public fn uncertaintyP(hbar: double): double {
+        let meanP: double = this.expectationP();
+        var sum: double = 0.0;
+        var i: int = 1;
+        while (i < this.size() - 1) {
+            let drDx: double = (this.realPart.get(i + 1) - this.realPart.get(i - 1)) / (2.0 * this.dx);
+            let diDx: double = (this.imagPart.get(i + 1) - this.imagPart.get(i - 1)) / (2.0 * this.dx);
+            let re: double = this.realPart.get(i);
+            let im: double = this.imagPart.get(i);
+            let pOp: double = -hbar * (re * diDx - im * drDx);
+            let dp: double = pOp - meanP;
+            sum = sum + dp * dp * this.getProbability(i);
+            i = i + 1;
+        }
+        return MathAdvanced.sqrt(sum * this.dx);
+    }
+
     public fn expectationP(): double {
         // <p> = -i*hbar * integral(psi* d/dx psi) dx
         // Approximate with finite differences
