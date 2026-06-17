@@ -76,6 +76,23 @@ public fn possessiveQuantifier(pattern: string, min: int, max: int): string {
 }
 
 // Escape all special regex characters in a string.
+public fn escape(s: string): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "\\" || c == "." || c == "^" || c == "$" || c == "*" ||
+            c == "+" || c == "?" || c == "{" || c == "}" || c == "[" ||
+            c == "]" || c == "|" || c == "(" || c == ")") {
+            result = result + "\\";
+        }
+        result = result + c;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Escape all special regex characters in a string (alias).
 public fn regexEscape(s: string): string {
     let result: string = "";
     var i: int = 0;
