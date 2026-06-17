@@ -1,0 +1,112 @@
+// Heap algorithms: isHeap, isHeapUntil, makeHeap, pushHeap, popHeap, sortHeap.
+import tt::util::ArrayList;
+
+public fn isHeap(data: ArrayList<double>): bool {
+    return _isHeapUntil(data) >= data.size();
+}
+
+public fn isHeapUntil(data: ArrayList<double>): int {
+    return _isHeapUntil(data);
+}
+
+fn _isHeapUntil(data: ArrayList<double>): int {
+    let n: int = data.size();
+    var i: int = 0;
+    while (i < n) {
+        let left: int = 2 * i + 1;
+        let right: int = 2 * i + 2;
+        if (left < n && data.get(left) > data.get(i)) {
+            return i;
+        }
+        if (right < n && data.get(right) > data.get(i)) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return n;
+}
+
+public fn makeHeap(data: ArrayList<double>): void {
+    let n: int = data.size();
+    // Start from last non-leaf node and sift down
+    var i: int = (n / 2) - 1;
+    while (i >= 0) {
+        _siftDown(data, i, n);
+        i = i - 1;
+    }
+}
+
+public fn pushHeap(data: ArrayList<double>): void {
+    let n: int = data.size();
+    if (n <= 1) {
+        return;
+    }
+    _siftUp(data, n - 1);
+}
+
+public fn popHeap(data: ArrayList<double>): void {
+    let n: int = data.size();
+    if (n <= 1) {
+        return;
+    }
+    // Swap first (max) with last
+    let tmp: double = data.get(0);
+    data.set(0, data.get(n - 1));
+    data.set(n - 1, tmp);
+    // Sift down from root on reduced heap
+    _siftDown(data, 0, n - 1);
+}
+
+public fn sortHeap(data: ArrayList<double>): void {
+    let n: int = data.size();
+    if (n <= 1) {
+        return;
+    }
+    // Repeatedly pop max to end
+    var end: int = n;
+    while (end > 1) {
+        end = end - 1;
+        let tmp: double = data.get(0);
+        data.set(0, data.get(end));
+        data.set(end, tmp);
+        _siftDown(data, 0, end);
+    }
+}
+
+fn _siftUp(data: ArrayList<double>, idx: int): void {
+    var i: int = idx;
+    while (i > 0) {
+        let parent: int = (i - 1) / 2;
+        if (data.get(i) > data.get(parent)) {
+            let tmp: double = data.get(i);
+            data.set(i, data.get(parent));
+            data.set(parent, tmp);
+            i = parent;
+        } else {
+            return;
+        }
+    }
+}
+
+fn _siftDown(data: ArrayList<double>, idx: int, size: int): void {
+    var i: int = idx;
+    while (true) {
+        let left: int = 2 * i + 1;
+        let right: int = 2 * i + 2;
+        var largest: int = i;
+        if (left < size && data.get(left) > data.get(largest)) {
+            largest = left;
+        }
+        if (right < size && data.get(right) > data.get(largest)) {
+            largest = right;
+        }
+        if (largest != i) {
+            let tmp: double = data.get(i);
+            data.set(i, data.get(largest));
+            data.set(largest, tmp);
+            i = largest;
+        } else {
+            return;
+        }
+    }
+}

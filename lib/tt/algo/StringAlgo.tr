@@ -1,0 +1,402 @@
+// String algorithms: KMP, Rabin-Karp, Boyer-Moore, suffix array, LCP, Z-algorithm, Aho-Corasick.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Queue;
+
+public fn kmpSearch(text: string, pattern: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let n: int = String.length(text);
+    let m: int = String.length(pattern);
+    if (m == 0 || m > n) {
+        return result;
+    }
+    // Build failure function
+    let lps: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < m) {
+        lps.add(0);
+        i = i + 1;
+    }
+    var len: int = 0;
+    i = 1;
+    while (i < m) {
+        if (String.charAt(pattern, i) == String.charAt(pattern, len)) {
+            len = len + 1;
+            lps.set(i, len);
+            i = i + 1;
+        } else {
+            if (len != 0) {
+                len = lps.get(len - 1);
+            } else {
+                lps.set(i, 0);
+                i = i + 1;
+            }
+        }
+    }
+    // Search
+    i = 0;
+    var j: int = 0;
+    while (i < n) {
+        if (String.charAt(text, i) == String.charAt(pattern, j)) {
+            i = i + 1;
+            j = j + 1;
+        }
+        if (j == m) {
+            result.add(i - j);
+            j = lps.get(j - 1);
+        } else if (i < n && String.charAt(text, i) != String.charAt(pattern, j)) {
+            if (j != 0) {
+                j = lps.get(j - 1);
+            } else {
+                i = i + 1;
+            }
+        }
+    }
+    return result;
+}
+
+public fn rabinKarp(text: string, pattern: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let n: int = String.length(text);
+    let m: int = String.length(pattern);
+    if (m == 0 || m > n) {
+        return result;
+    }
+    const BASE: int = 256;
+    const MOD: int = 101;
+    var h: int = 1;
+    var i: int = 0;
+    while (i < m - 1) {
+        h = (h * BASE) % MOD;
+        i = i + 1;
+    }
+    var pHash: int = 0;
+    var tHash: int = 0;
+    i = 0;
+    while (i < m) {
+        pHash = (pHash * BASE + String.charAt(text, i) as int) % MOD;
+        tHash = (tHash * BASE + String.charAt(text, i) as int) % MOD;
+        i = i + 1;
+    }
+    // Recompute pattern hash properly
+    pHash = 0;
+    i = 0;
+    while (i < m) {
+        pHash = (pHash * BASE + String.charAt(pattern, i) as int) % MOD;
+        i = i + 1;
+    }
+    // Recompute initial text hash
+    tHash = 0;
+    i = 0;
+    while (i < m) {
+        tHash = (tHash * BASE + String.charAt(text, i) as int) % MOD;
+        i = i + 1;
+    }
+    i = 0;
+    while (i <= n - m) {
+        if (pHash == tHash) {
+            // Verify match
+            var j: int = 0;
+            var match: bool = true;
+            while (j < m) {
+                if (String.charAt(text, i + j) != String.charAt(pattern, j)) {
+                    match = false;
+                    break;
+                }
+                j = j + 1;
+            }
+            if (match) {
+                result.add(i);
+            }
+        }
+        if (i < n - m) {
+            tHash = ((tHash - String.charAt(text, i) as int * h) * BASE + String.charAt(text, i + m) as int) % MOD;
+            if (tHash < 0) {
+                tHash = tHash + MOD;
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn boyerMoore(text: string, pattern: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let n: int = String.length(text);
+    let m: int = String.length(pattern);
+    if (m == 0 || m > n) {
+        return result;
+    }
+    // Build bad character table
+    let badChar: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < 256) {
+        badChar.add(-1);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < m) {
+        badChar.set(String.charAt(pattern, i) as int, i);
+        i = i + 1;
+    }
+    // Search
+    var s: int = 0;
+    while (s <= n - m) {
+        var j: int = m - 1;
+        while (j >= 0 && String.charAt(pattern, j) == String.charAt(text, s + j)) {
+            j = j - 1;
+        }
+        if (j < 0) {
+            result.add(s);
+            if (s + m < n) {
+                let shift: int = m - badChar.get(String.charAt(text, s + m) as int);
+                if (shift < 1) {
+                    shift = 1;
+                }
+                s = s + shift;
+            } else {
+                s = s + 1;
+            }
+        } else {
+            let bc: int = badChar.get(String.charAt(text, s + j) as int);
+            let shift: int = j - bc;
+            if (shift < 1) {
+                shift = 1;
+            }
+            s = s + shift;
+        }
+    }
+    return result;
+}
+
+public fn suffixArray(text: string): ArrayList<int> {
+    let n: int = String.length(text);
+    let sa: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < n) {
+        sa.add(i);
+        i = i + 1;
+    }
+    // Simple O(n^2 log n) suffix array construction using comparison sort
+    i = 0;
+    while (i < n - 1) {
+        var minIdx: int = i;
+        var j: int = i + 1;
+        while (j < n) {
+            if (_suffixCompare(text, sa.get(j), sa.get(minIdx)) < 0) {
+                minIdx = j;
+            }
+            j = j + 1;
+        }
+        if (minIdx != i) {
+            let tmp: int = sa.get(i);
+            sa.set(i, sa.get(minIdx));
+            sa.set(minIdx, tmp);
+        }
+        i = i + 1;
+    }
+    return sa;
+}
+
+fn _suffixCompare(text: string, a: int, b: int): int {
+    let n: int = String.length(text);
+    var i: int = 0;
+    while (a + i < n && b + i < n) {
+        let ca: string = String.charAt(text, a + i);
+        let cb: string = String.charAt(text, b + i);
+        if (ca < cb) {
+            return -1;
+        }
+        if (ca > cb) {
+            return 1;
+        }
+        i = i + 1;
+    }
+    let lenA: int = n - a;
+    let lenB: int = n - b;
+    if (lenA < lenB) {
+        return -1;
+    }
+    if (lenA > lenB) {
+        return 1;
+    }
+    return 0;
+}
+
+public fn lcpArray(text: string, sa: ArrayList<int>): ArrayList<int> {
+    let n: int = String.length(text);
+    let lcp: ArrayList<int> = new ArrayList<int>();
+    if (n == 0) {
+        return lcp;
+    }
+    // Build inverse rank array
+    let rank: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < n) {
+        rank.add(0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < sa.size()) {
+        rank.set(sa.get(i), i);
+        i = i + 1;
+    }
+    // Kasai's algorithm
+    lcp.add(0);
+    var h: int = 0;
+    i = 0;
+    while (i < n) {
+        if (rank.get(i) > 0) {
+            let j: int = sa.get(rank.get(i) - 1);
+            while (i + h < n && j + h < n && String.charAt(text, i + h) == String.charAt(text, j + h)) {
+                h = h + 1;
+            }
+            lcp.add(h);
+            if (h > 0) {
+                h = h - 1;
+            }
+        } else {
+            lcp.add(0);
+            h = 0;
+        }
+        i = i + 1;
+    }
+    return lcp;
+}
+
+public fn zAlgorithm(text: string): ArrayList<int> {
+    let n: int = String.length(text);
+    let z: ArrayList<int> = new ArrayList<int>();
+    if (n == 0) {
+        return z;
+    }
+    var i: int = 0;
+    while (i < n) {
+        z.add(0);
+        i = i + 1;
+    }
+    z.set(0, n);
+    var l: int = 0;
+    var r: int = 0;
+    i = 1;
+    while (i < n) {
+        if (i < r) {
+            let zi: int = z.get(i - l);
+            if (i + zi < r) {
+                z.set(i, zi);
+                i = i + 1;
+                continue;
+            }
+            l = i;
+        } else {
+            l = i;
+            r = i;
+        }
+        while (r < n && String.charAt(text, r - l) == String.charAt(text, r)) {
+            r = r + 1;
+        }
+        z.set(i, r - l);
+        i = i + 1;
+    }
+    return z;
+}
+
+public fn ahoCorasick(text: string, patterns: ArrayList<string>): HashMap<string, ArrayList<int>> {
+    let result: HashMap<string, ArrayList<int>> = new HashMap<string, ArrayList<int>>();
+    var i: int = 0;
+    while (i < patterns.size()) {
+        result.put(patterns.get(i), new ArrayList<int>());
+        i = i + 1;
+    }
+    if (patterns.size() == 0) {
+        return result;
+    }
+    // Build trie: each node has children (char -> int), fail link, and output list
+    let children: ArrayList<HashMap<string, int>> = new ArrayList<HashMap<string, int>>();
+    let fail: ArrayList<int> = new ArrayList<int>();
+    let output: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    // Root node
+    children.add(new HashMap<string, int>());
+    fail.add(0);
+    output.add(new ArrayList<int>());
+    // Insert patterns into trie
+    i = 0;
+    while (i < patterns.size()) {
+        let pat: string = patterns.get(i);
+        let m: int = String.length(pat);
+        var node: int = 0;
+        var j: int = 0;
+        while (j < m) {
+            let ch: string = String.charAt(pat, j);
+            if (!children.get(node).containsKey(ch)) {
+                children.add(new HashMap<string, int>());
+                fail.add(0);
+                output.add(new ArrayList<int>());
+                children.get(node).put(ch, children.size() - 1);
+            }
+            node = children.get(node).get(ch);
+            j = j + 1;
+        }
+        output.get(node).add(i);
+        i = i + 1;
+    }
+    // Build failure links (BFS)
+    let queue: Queue<int> = new Queue<int>();
+    let rootKeys: ArrayList<string> = children.get(0).keys();
+    i = 0;
+    while (i < rootKeys.size()) {
+        queue.enqueue(children.get(0).get(rootKeys.get(i)));
+        fail.set(children.get(0).get(rootKeys.get(i)), 0);
+        i = i + 1;
+    }
+    while (!queue.isEmpty()) {
+        let u: int = queue.dequeue();
+        let keys: ArrayList<string> = children.get(u).keys();
+        i = 0;
+        while (i < keys.size()) {
+            let ch: string = keys.get(i);
+            let v: int = children.get(u).get(ch);
+            var f: int = fail.get(u);
+            while (f != 0 && !children.get(f).containsKey(ch)) {
+                f = fail.get(f);
+            }
+            if (children.get(f).containsKey(ch) && children.get(f).get(ch) != v) {
+                fail.set(v, children.get(f).get(ch));
+            } else {
+                fail.set(v, 0);
+            }
+            // Merge output from fail node
+            let failOut: ArrayList<int> = output.get(fail.get(v));
+            var j: int = 0;
+            while (j < failOut.size()) {
+                output.get(v).add(failOut.get(j));
+                j = j + 1;
+            }
+            queue.enqueue(v);
+            i = i + 1;
+        }
+    }
+    // Search
+    var state: int = 0;
+    let textLen: int = String.length(text);
+    i = 0;
+    while (i < textLen) {
+        let ch: string = String.charAt(text, i);
+        while (state != 0 && !children.get(state).containsKey(ch)) {
+            state = fail.get(state);
+        }
+        if (children.get(state).containsKey(ch)) {
+            state = children.get(state).get(ch);
+        }
+        var j: int = 0;
+        while (j < output.get(state).size()) {
+            let patIdx: int = output.get(state).get(j);
+            let pat: string = patterns.get(patIdx);
+            let pos: int = i - String.length(pat) + 1;
+            result.get(pat).add(pos);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
