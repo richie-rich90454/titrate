@@ -1,6 +1,11 @@
 // MmapExt — extended memory-mapped file utilities with read, write, find, and resize.
 import tt::lang::String;
 
+// Create a read-only memory-mapped file.
+public fn mmapReadOnly(path: string): MmapExt {
+    return new MmapExt(path, "read");
+}
+
 // MmapExt provides memory-mapped file access with read, write, find, and resize operations.
 public class MmapExt {
     public string path;
