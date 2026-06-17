@@ -1,114 +1,48 @@
-// Channel for message passing between concurrent tasks.
+// CSP-style channels for message passing.
 import tt::util::ArrayList;
-import tt::concurrent::Mutex;
-import tt::concurrent::ConditionVariable;
+import tt::util::Pair;
+import tt::lang::Variant;
 
-public class Channel<T> {
-    private ArrayList<T> buffer;
-    private bool closed;
+public class BufferedChannel {
+    private ArrayList<Variant> buffer;
     public int capacity;
-    private fn(): void onCloseFn;
-    private Mutex _mutex;
-    private ConditionVariable _notFull;
-    private ConditionVariable _notEmpty;
+    private bool closed;
 
-    public fn init() {
-        this.buffer = new ArrayList<T>();
+    public fn init(capacity: int) {
+        this.buffer = new ArrayList<Variant>();
+        this.capacity = capacity;
         this.closed = false;
-        this.capacity = 0;
-        this.onCloseFn = null;
-        this._mutex = new Mutex();
-        this._notFull = new ConditionVariable();
-        this._notEmpty = new ConditionVariable();
     }
 
-    public fn send(value: T): void {
-        this._mutex.lock();
-        if (!this.closed) {
-            if (this.capacity == 0 || this.buffer.size() < this.capacity) {
-                this.buffer.add(value);
-                this._notEmpty.notifyOne();
-            }
-        }
-        this._mutex.unlock();
-    }
-
-    public fn trySend(value: T): bool {
-        this._mutex.lock();
+    public fn send(value: Variant): bool {
         if (this.closed) {
-            this._mutex.unlock();
             return false;
         }
-        if (this.capacity > 0 && this.buffer.size() >= this.capacity) {
-            this._mutex.unlock();
+        if (this.buffer.size() >= this.capacity) {
             return false;
         }
         this.buffer.add(value);
-        this._notEmpty.notifyOne();
-        this._mutex.unlock();
         return true;
     }
 
-    // Blocking send: waits until there is space in the buffer.
-    public fn sendBlocking(value: T): void {
-        this._mutex.lock();
-        while (!this.closed && this.capacity > 0 && this.buffer.size() >= this.capacity) {
-            this._notFull.wait(this._mutex);
-        }
-        if (!this.closed) {
-            this.buffer.add(value);
-            this._notEmpty.notifyOne();
-        }
-        this._mutex.unlock();
-    }
-
-    public fn receive(): T {
-        this._mutex.lock();
-        let item: T = this.buffer.get(0);
-        this.buffer.remove(0);
-        this._notFull.notifyOne();
-        this._mutex.unlock();
-        return item;
-    }
-
-    public fn tryReceive(): T {
-        this._mutex.lock();
+    public fn receive(): Variant {
         if (this.buffer.size() == 0) {
-            this._mutex.unlock();
             return null;
         }
-        let item: T = this.buffer.get(0);
+        let item: Variant = this.buffer.get(0);
         this.buffer.remove(0);
-        this._notFull.notifyOne();
-        this._mutex.unlock();
         return item;
     }
 
-    // Blocking receive: waits until an item is available or the channel is closed.
-    public fn receiveBlocking(): T {
-        this._mutex.lock();
-        while (this.buffer.size() == 0 && !this.closed) {
-            this._notEmpty.wait(this._mutex);
-        }
-        if (this.buffer.size() == 0) {
-            this._mutex.unlock();
-            return null;
-        }
-        let item: T = this.buffer.get(0);
-        this.buffer.remove(0);
-        this._notFull.notifyOne();
-        this._mutex.unlock();
-        return item;
+    public fn close(): void {
+        this.closed = true;
     }
 
-    public fn len(): int {
-        return this.buffer.size();
+    public fn isClosed(): bool {
+        return this.closed;
     }
 
     public fn isFull(): bool {
-        if (this.capacity == 0) {
-            return false;
-        }
         return this.buffer.size() >= this.capacity;
     }
 
@@ -116,29 +50,65 @@ public class Channel<T> {
         return this.buffer.size() == 0;
     }
 
-    public fn close(): void {
-        this._mutex.lock();
-        this.closed = true;
-        this._notEmpty.notifyAll();
-        this._notFull.notifyAll();
-        this._mutex.unlock();
-        if (this.onCloseFn != null) {
-            this.onCloseFn();
+    public fn size(): int {
+        return this.buffer.size();
+    }
+}
+
+public class UnboundedChannel {
+    private ArrayList<Variant> buffer;
+    private bool closed;
+
+    public fn init() {
+        this.buffer = new ArrayList<Variant>();
+        this.closed = false;
+    }
+
+    public fn send(value: Variant): bool {
+        if (this.closed) {
+            return false;
         }
+        this.buffer.add(value);
+        return true;
+    }
+
+    public fn receive(): Variant {
+        if (this.buffer.size() == 0) {
+            return null;
+        }
+        let item: Variant = this.buffer.get(0);
+        this.buffer.remove(0);
+        return item;
+    }
+
+    public fn close(): void {
+        this.closed = true;
     }
 
     public fn isClosed(): bool {
         return this.closed;
     }
 
-    public fn onClose(fn: fn(): void): void {
-        this.onCloseFn = fn;
+    public fn isEmpty(): bool {
+        return this.buffer.size() == 0;
+    }
+
+    public fn size(): int {
+        return this.buffer.size();
     }
 }
 
-// Factory function to create a channel with a specific capacity.
-public fn channelWithCapacity<T>(capacity: int): Channel<T> {
-    let ch: Channel<T> = new Channel<T>();
-    ch.capacity = capacity;
-    return ch;
+// Non-blocking select from multiple channels. Returns the index of the channel
+// that had a value and the value received, or (-1, null) if all channels are empty.
+public fn channelSelect(channels: ArrayList<BufferedChannel>): Pair<int, Variant> {
+    var i: int = 0;
+    while (i < channels.size()) {
+        let ch: BufferedChannel = channels.get(i);
+        if (!ch.isEmpty()) {
+            let value: Variant = ch.receive();
+            return new Pair<int, Variant>(i, value);
+        }
+        i = i + 1;
+    }
+    return new Pair<int, Variant>(-1, null);
 }

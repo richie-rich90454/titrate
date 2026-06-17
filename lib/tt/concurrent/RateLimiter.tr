@@ -1,0 +1,139 @@
+// Rate limiting strategies.
+import tt::util::ArrayList;
+
+public class TokenBucket {
+    private double tokens;
+    private double maxTokens;
+    private double refillRate;
+    private long lastRefill;
+
+    public fn init(maxTokens: double, refillRate: double) {
+        this.maxTokens = maxTokens;
+        this.tokens = maxTokens;
+        this.refillRate = refillRate;
+        this.lastRefill = System_currentTimeMillis();
+    }
+
+    private fn refill(): void {
+        let now: long = System_currentTimeMillis();
+        let elapsed: double = (now - this.lastRefill) as double;
+        if (elapsed > 0.0) {
+            let added: double = elapsed * this.refillRate / 1000.0;
+            this.tokens = Math.min(this.tokens + added, this.maxTokens);
+            this.lastRefill = now;
+        }
+    }
+
+    public fn tryAcquire(tokens: double): bool {
+        this.refill();
+        if (this.tokens >= tokens) {
+            this.tokens = this.tokens - tokens;
+            return true;
+        }
+        return false;
+    }
+
+    public fn acquire(tokens: double): void {
+        while (!this.tryAcquire(tokens)) {
+            Thread_sleep(10);
+        }
+    }
+
+    public fn availableTokens(): double {
+        this.refill();
+        return this.tokens;
+    }
+}
+
+public class LeakyBucket {
+    public double water;
+    public double capacity;
+    public double leakRate;
+    public long lastLeak;
+
+    public fn init(capacity: double, leakRate: double) {
+        this.water = 0.0;
+        this.capacity = capacity;
+        this.leakRate = leakRate;
+        this.lastLeak = System_currentTimeMillis();
+    }
+
+    private fn leak(): void {
+        let now: long = System_currentTimeMillis();
+        let elapsed: double = (now - this.lastLeak) as double;
+        if (elapsed > 0.0) {
+            let leaked: double = elapsed * this.leakRate / 1000.0;
+            this.water = Math.max(this.water - leaked, 0.0);
+            this.lastLeak = now;
+        }
+    }
+
+    public fn tryAcquire(): bool {
+        this.leak();
+        if (this.water < this.capacity) {
+            this.water = this.water + 1.0;
+            return true;
+        }
+        return false;
+    }
+}
+
+public class SlidingWindowRateLimiter {
+    public int maxRequests;
+    public long windowMs;
+    private ArrayList<long> timestamps;
+
+    public fn init(maxRequests: int, windowMs: long) {
+        this.maxRequests = maxRequests;
+        this.windowMs = windowMs;
+        this.timestamps = new ArrayList<long>();
+    }
+
+    private fn prune(): void {
+        let now: long = System_currentTimeMillis();
+        let cutoff: long = now - this.windowMs;
+        while (this.timestamps.size() > 0 && this.timestamps.get(0) < cutoff) {
+            this.timestamps.remove(0);
+        }
+    }
+
+    public fn tryAcquire(): bool {
+        this.prune();
+        if (this.timestamps.size() >= this.maxRequests) {
+            return false;
+        }
+        this.timestamps.add(System_currentTimeMillis());
+        return true;
+    }
+}
+
+public class FixedWindowRateLimiter {
+    public int maxRequests;
+    public long windowMs;
+    public int count;
+    private long windowStart;
+
+    public fn init(maxRequests: int, windowMs: long) {
+        this.maxRequests = maxRequests;
+        this.windowMs = windowMs;
+        this.count = 0;
+        this.windowStart = System_currentTimeMillis();
+    }
+
+    private fn checkWindow(): void {
+        let now: long = System_currentTimeMillis();
+        if (now - this.windowStart >= this.windowMs) {
+            this.count = 0;
+            this.windowStart = now;
+        }
+    }
+
+    public fn tryAcquire(): bool {
+        this.checkWindow();
+        if (this.count >= this.maxRequests) {
+            return false;
+        }
+        this.count = this.count + 1;
+        return true;
+    }
+}

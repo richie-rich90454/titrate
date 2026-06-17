@@ -1,0 +1,94 @@
+// Circuit breaker pattern for fault tolerance.
+import tt::lang::Variant;
+
+public class CircuitBreaker {
+    private string state;
+    public int failureThreshold;
+    public long resetTimeoutMs;
+    public int failureCount;
+    public int successCount;
+    public long lastFailureTime;
+
+    public fn init(failureThreshold: int, resetTimeoutMs: long) {
+        this.state = "closed";
+        this.failureThreshold = failureThreshold;
+        this.resetTimeoutMs = resetTimeoutMs;
+        this.failureCount = 0;
+        this.successCount = 0;
+        this.lastFailureTime = 0;
+    }
+
+    public fn execute(f: fn(): Variant): Variant {
+        if (this.state == "open") {
+            let now: long = System_currentTimeMillis();
+            if (now - this.lastFailureTime >= this.resetTimeoutMs) {
+                this.state = "half_open";
+                this.successCount = 0;
+            } else {
+                throw "CircuitBreaker is OPEN";
+            }
+        }
+
+        try {
+            let result: Variant = f();
+            this.onSuccess();
+            return result;
+        } catch (e: string) {
+            this.onFailure();
+            throw e;
+        }
+    }
+
+    private fn onSuccess(): void {
+        if (this.state == "half_open") {
+            this.successCount = this.successCount + 1;
+            if (this.successCount >= 1) {
+                this.reset();
+            }
+        } else {
+            this.failureCount = 0;
+        }
+    }
+
+    private fn onFailure(): void {
+        this.failureCount = this.failureCount + 1;
+        this.lastFailureTime = System_currentTimeMillis();
+
+        if (this.state == "half_open") {
+            this.trip();
+        } else if (this.failureCount >= this.failureThreshold) {
+            this.trip();
+        }
+    }
+
+    public fn getState(): string {
+        return this.state;
+    }
+
+    public fn getFailureCount(): int {
+        return this.failureCount;
+    }
+
+    public fn reset(): void {
+        this.state = "closed";
+        this.failureCount = 0;
+        this.successCount = 0;
+    }
+
+    public fn trip(): void {
+        this.state = "open";
+        this.lastFailureTime = System_currentTimeMillis();
+    }
+
+    public fn isClosed(): bool {
+        return this.state == "closed";
+    }
+
+    public fn isOpen(): bool {
+        return this.state == "open";
+    }
+
+    public fn isHalfOpen(): bool {
+        return this.state == "half_open";
+    }
+}
