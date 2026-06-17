@@ -154,3 +154,22 @@ public class TfidfVectorizer {
         return result;
     }
 }
+
+// TF-IDF computation from raw text corpus
+public fn tfidf(corpus: ArrayList<string>): ArrayList<ArrayList<double>> {
+    let tokenized: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    var i: int = 0;
+    while (i < corpus.size()) {
+        tokenized.add(String.split(String.toLowerCase(corpus.get(i)), " "));
+        i = i + 1;
+    }
+    let vectorizer: TfidfVectorizer = new TfidfVectorizer();
+    vectorizer.fit(tokenized);
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    i = 0;
+    while (i < tokenized.size()) {
+        result.add(vectorizer.transform(tokenized.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
