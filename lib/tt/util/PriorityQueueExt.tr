@@ -48,6 +48,14 @@ public class PriorityQueueExt {
         return this.heap.get(0);
     }
 
+    // Static: peek at the top item of a priority queue without removing it.
+    public fn peek(pq: PriorityQueueExt): Variant {
+        if (pq.heap.size() == 0) {
+            return null;
+        }
+        return pq.heap.get(0).second;
+    }
+
     // Update priority of item by ID. Returns true if found.
     public fn updatePriority(id: string, newPriority: double): bool {
         if (!this.indexMap.containsKey(id)) { return false; }
