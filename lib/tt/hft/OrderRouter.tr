@@ -105,4 +105,16 @@ public class OrderRouter {
             this.orders.get(orderId).status = "cancelled";
         }
     }
+
+    // Cancel order with boolean return indicating success
+    public fn tryCancelOrder(orderId: string): bool {
+        if (this.orders.containsKey(orderId)) {
+            let order: Order = this.orders.get(orderId);
+            if (order.status != "filled" && order.status != "cancelled") {
+                order.status = "cancelled";
+                return true;
+            }
+        }
+        return false;
+    }
 }
