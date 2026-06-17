@@ -103,6 +103,14 @@ public fn laplacian(): Kernel {
     return k;
 }
 
+public fn unsharpMask(amount: double): Kernel {
+    let k: Kernel = new Kernel(3, 3);
+    k.set(0, 0, 0.0); k.set(0, 1, -amount); k.set(0, 2, 0.0);
+    k.set(1, 0, -amount); k.set(1, 1, 1.0 + 4.0 * amount); k.set(1, 2, -amount);
+    k.set(2, 0, 0.0); k.set(2, 1, -amount); k.set(2, 2, 0.0);
+    return k;
+}
+
 public fn emboss(): Kernel {
     let k: Kernel = new Kernel(3, 3);
     k.set(0, 0, -2.0); k.set(0, 1, -1.0); k.set(0, 2, 0.0);
