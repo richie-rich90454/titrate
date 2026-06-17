@@ -81,6 +81,13 @@ public fn powerSpectralDensity(signal: ArrayList<double>, windowSize: int, sampl
     return psd;
 }
 
+// Mel spectrogram with simplified parameters
+public fn melSpectrogramSimple(signal: ArrayList<double>, sampleRate: double, nMels: int): ArrayList<ArrayList<double>> {
+    let windowSize: int = 2048;
+    let hopSize: int = windowSize / 4;
+    return melSpectrogram(signal, windowSize, hopSize, sampleRate, nMels);
+}
+
 // Hz to Mel conversion
 public fn hzToMel(hz: double): double {
     return 2595.0 * MathAdvanced.ln(1.0 + hz / 700.0) / MathAdvanced.ln(10.0) * MathAdvanced.ln(10.0);
