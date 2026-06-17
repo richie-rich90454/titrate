@@ -149,3 +149,30 @@ Directory operations backed by VM built-ins.
 let dir = new Directory("/tmp/project");
 let files: ArrayList<string> = dir.walk();
 ```
+
+## FileWatcher
+
+- `FileWatcher.watch(path: string, callback: fn(string, string): void): void` — watch directory for changes
+- `FileWatcher.watchRecursive(path: string, callback: fn(string, string): void): void` — recursive directory watching
+- `FileWatcher.stop(): void` — stop watching
+
+## AsyncFile
+
+- `AsyncFile.read(path: string, callback: fn(string): void): void` — non-blocking read
+- `AsyncFile.write(path: string, content: string, callback: fn(): void): void` — non-blocking write
+- `AsyncFile.readWithProgress(path: string, callback: fn(string, double): void): void` — read with progress tracking
+
+## Pipe
+
+- `PipeReader.init(path: string)` — create named pipe reader
+- `PipeReader.read(): string` — read from pipe
+- `PipeWriter.init(path: string)` — create named pipe writer
+- `PipeWriter.write(data: string): void` — write to pipe
+
+## FileLock
+
+- `FileLock.shared(path: string): FileLock` — acquire shared lock
+- `FileLock.exclusive(path: string): FileLock` — acquire exclusive lock
+- `FileLock.tryLock(path: string, exclusive: bool): bool` — try to acquire lock
+- `FileLock.lockWithTimeout(path: string, exclusive: bool, timeoutMs: int): bool` — lock with timeout
+- `FileLock.release(): void` — release lock

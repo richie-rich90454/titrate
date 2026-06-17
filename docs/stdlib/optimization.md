@@ -134,3 +134,19 @@ b.add(4.0); b.add(6.0);
 
 let result: OptResult = linearProgramming(c, a, b, 1000);
 ```
+
+## Simulated Annealing
+
+- `SimulatedAnnealing.optimize(f: fn(ArrayList<double>): double, initial: ArrayList<double>, initialTemp: double, coolingRate: double, iterations: int): ArrayList<double>` — simulated annealing
+
+## Particle Swarm Optimization
+
+- `PSO.optimize(f: fn(ArrayList<double>): double, bounds: ArrayList<(double, double)>, swarmSize: int, iterations: int): ArrayList<double>` — PSO
+
+## Genetic Algorithm
+
+- `GeneticAlgorithm.optimize(f: fn(ArrayList<double>): double, bounds: ArrayList<(double, double)>, populationSize: int, generations: int, mutationRate: double, crossoverRate: double): ArrayList<double>` — genetic algorithm
+
+## Bayesian Optimization
+
+- `BayesianOptimization.optimize(f: fn(ArrayList<double>): double, bounds: ArrayList<(double, double)>, iterations: int): ArrayList<double>` — Bayesian optimization with Gaussian process surrogate

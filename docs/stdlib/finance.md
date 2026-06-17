@@ -206,3 +206,52 @@ let sharpe: double = sharpeRatio(returns, 0.02);
 let sortino: double = sortinoRatio(returns, 0.02);
 let kelly: double = kellyCriterion(0.55, 1.5, 1.0);  // ≈ 0.183
 ```
+
+## BlackScholes
+
+- `BlackScholes.callPrice(s: double, k: double, t: double, r: double, sigma: double): double` — European call option price
+- `BlackScholes.putPrice(s: double, k: double, t: double, r: double, sigma: double): double` — European put option price
+- `BlackScholes.impliedVolatility(price: double, s: double, k: double, t: double, r: double, isCall: bool): double` — implied volatility
+- `BlackScholes.delta(s: double, k: double, t: double, r: double, sigma: double): double` — delta
+- `BlackScholes.gamma(s: double, k: double, t: double, r: double, sigma: double): double` — gamma
+- `BlackScholes.theta(s: double, k: double, t: double, r: double, sigma: double): double` — theta
+- `BlackScholes.vega(s: double, k: double, t: double, r: double, sigma: double): double` — vega
+- `BlackScholes.rho(s: double, k: double, t: double, r: double, sigma: double): double` — rho
+
+## BinomialTree
+
+- `BinomialTree.crrPrice(s: double, k: double, t: double, r: double, sigma: double, steps: int, isCall: bool): double` — CRR binomial tree pricing
+- `BinomialTree.crrGreeks(s: double, k: double, t: double, r: double, sigma: double, steps: int): HashMap<string, double>` — Greeks from binomial tree
+
+## MonteCarloPricing
+
+- `MonteCarloPricing.gbmPath(s0: double, mu: double, sigma: double, t: double, steps: int): ArrayList<double>` — geometric Brownian motion path
+- `MonteCarloPricing.monteCarloCall(s: double, k: double, t: double, r: double, sigma: double, paths: int): double` — Monte Carlo call pricing
+- `MonteCarloPricing.monteCarloPut(s: double, k: double, t: double, r: double, sigma: double, paths: int): double` — Monte Carlo put pricing
+- `MonteCarloPricing.monteCarloAsian(s: double, k: double, t: double, r: double, sigma: double, paths: int, steps: int): double` — Asian option pricing
+- `MonteCarloPricing.antitheticVariateCall(s: double, k: double, t: double, r: double, sigma: double, paths: int): double` — variance reduction
+- `MonteCarloPricing.controlVariateCall(s: double, k: double, t: double, r: double, sigma: double, paths: int): double` — control variate method
+
+## YieldCurve
+
+- `YieldCurve.nelsonSiegel(beta0: double, beta1: double, beta2: double, tau: double, t: double): double` — Nelson-Siegel model
+- `YieldCurve.svensson(beta0: double, beta1: double, beta2: double, beta3: double, tau1: double, tau2: double, t: double): double` — Svensson model
+- `YieldCurve.cubicSplineInterpolate(points: ArrayList<double>, values: ArrayList<double>, x: double): double` — cubic spline interpolation
+- `YieldCurve.bootstrapYieldCurve(bonds: ArrayList<HashMap<string, double>>): ArrayList<double>` — bootstrap yield curve
+- `YieldCurve.forwardRate(spotRates: ArrayList<double>, t1: int, t2: int): double` — forward rate
+
+## Portfolio
+
+- `Portfolio.meanVarianceOptimize(returns: ArrayList<ArrayList<double>>, targetReturn: double): ArrayList<double>` — Markowitz optimization
+- `Portfolio.efficientFrontier(returns: ArrayList<ArrayList<double>>, points: int): ArrayList<HashMap<string, double>>` — efficient frontier
+- `Portfolio.blackLitterman(marketWeights: ArrayList<double>, covMatrix: ArrayList<ArrayList<double>>, views: ArrayList<double>, tau: double): ArrayList<double>` — Black-Litterman
+- `Portfolio.riskParity(covMatrix: ArrayList<ArrayList<double>>): ArrayList<double>` — risk parity allocation
+- `Portfolio.sharpeRatio(returns: ArrayList<double>, riskFreeRate: double): double` — Sharpe ratio
+
+## FactorModel
+
+- `FactorModel.capm(returns: ArrayList<double>, marketReturns: ArrayList<double>, riskFreeRate: double): HashMap<string, double>` — CAPM alpha/beta
+- `FactorModel.famaFrench3(returns: ArrayList<double>, market: ArrayList<double>, smb: ArrayList<double>, hml: ArrayList<double>): HashMap<string, double>` — Fama-French 3-factor
+- `FactorModel.famaFrench5(returns: ArrayList<double>, market: ArrayList<double>, smb: ArrayList<double>, hml: ArrayList<double>, rmw: ArrayList<double>, cma: ArrayList<double>): HashMap<string, double>` — Fama-French 5-factor
+- `FactorModel.factorExposure(returns: ArrayList<double>, factors: ArrayList<ArrayList<double>>): ArrayList<double>` — factor exposure
+- `FactorModel.alphaEstimate(returns: ArrayList<double>, factorReturns: ArrayList<ArrayList<double>>): double` — alpha estimate

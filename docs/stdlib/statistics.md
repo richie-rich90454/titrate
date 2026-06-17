@@ -174,3 +174,69 @@ io::println(Double.toString(summary.max()));     // 5.0
 - `.median(): double` — median
 - `.q1(): double` — first quartile
 - `.q3(): double` — third quartile
+
+## Hypothesis Testing
+
+- `Statistics.tTest(sample: ArrayList<double>, mu0: double): double` — one-sample t-test p-value
+- `Statistics.twoSampleTTest(a: ArrayList<double>, b: ArrayList<double>): double` — two-sample t-test
+- `Statistics.pairedTTest(before: ArrayList<double>, after: ArrayList<double>): double` — paired t-test
+- `Statistics.chiSquaredTest(observed: ArrayList<double>, expected: ArrayList<double>): double` — chi-squared test
+- `Statistics.kolmogorovSmirnovTest(sample: ArrayList<double>, cdf: fn(double): double): double` — K-S test
+- `Statistics.mannWhitneyUTest(a: ArrayList<double>, b: ArrayList<double>): double` — Mann-Whitney U test
+- `Statistics.wilcoxonTest(before: ArrayList<double>, after: ArrayList<double>): double` — Wilcoxon signed-rank test
+
+## ANOVA
+
+- `Statistics.oneWayANOVA(groups: ArrayList<ArrayList<double>>): double` — F-statistic
+- `Statistics.twoWayANOVA(data: ArrayList<ArrayList<double>>, factorA: int, factorB: int): HashMap<string, double>` — two-way ANOVA
+- `Statistics.tukeyHSD(groups: ArrayList<ArrayList<double>>): ArrayList<double>` — Tukey HSD post-hoc
+- `Statistics.bonferroniCorrection(pValues: ArrayList<double>, alpha: double): ArrayList<bool>` — Bonferroni correction
+
+## Bayesian Statistics
+
+- `Statistics.betaBinomialPosterior(alpha: double, beta: double, successes: int, trials: int): (double, double)` — Beta-Binomial posterior
+- `Statistics.normalNormalPosterior(priorMean: double, priorVar: double, sampleMean: double, sampleVar: double, n: int): (double, double)` — Normal-Normal posterior
+- `Statistics.gammaPoissonPosterior(alpha: double, beta: double, count: int): (double, double)` — Gamma-Poisson posterior
+- `Statistics.credibleInterval(alpha: double, beta: double, level: double): (double, double)` — credible interval
+
+## MCMC
+
+- `Mcmc.metropolisHastings(target: fn(double): double, proposal: fn(double): double, initial: double, iterations: int): ArrayList<double>` — Metropolis-Hastings sampling
+- `Mcmc.gibbsSampler(conditionals: ArrayList<fn(ArrayList<double>): double>, initial: ArrayList<double>, iterations: int): ArrayList<ArrayList<double>>` — Gibbs sampling
+- `Mcmc.rhat(chains: ArrayList<ArrayList<double>>): double` — R-hat convergence diagnostic
+- `Mcmc.effectiveSampleSize(samples: ArrayList<double>): int` — ESS
+- `Mcmc.autocorrelation(samples: ArrayList<double>, lag: int): double` — autocorrelation at lag
+
+## Kernel Density Estimation
+
+- `Kde.kdeGaussian(data: ArrayList<double>, x: double, bandwidth: double): double` — Gaussian KDE
+- `Kde.silvermanBandwidth(data: ArrayList<double>): double` — Silverman bandwidth
+- `Kde.scottBandwidth(data: ArrayList<double>): double` — Scott bandwidth
+- `Kde.kdeEvaluate(data: ArrayList<double>, points: ArrayList<double>, bandwidth: double): ArrayList<double>` — evaluate KDE at points
+- `Kde.kdeGrid(data: ArrayList<double>, lo: double, hi: double, n: int, bandwidth: double): ArrayList<double>` — KDE on grid
+
+## Bootstrap
+
+- `Bootstrap.bootstrapSample(data: ArrayList<double>): ArrayList<double>` — resample with replacement
+- `Bootstrap.bootstrapCI(data: ArrayList<double>, statistic: fn(ArrayList<double>): double, confidence: double, iterations: int): (double, double)` — bootstrap confidence interval
+- `Bootstrap.bootstrapBCa(data: ArrayList<double>, statistic: fn(ArrayList<double>): double, confidence: double, iterations: int): (double, double)` — BCa confidence interval
+- `Bootstrap.bootstrapTest(sample1: ArrayList<double>, sample2: ArrayList<double>, iterations: int): double` — bootstrap hypothesis test
+
+## Time Series
+
+- `TimeSeries.acf(data: ArrayList<double>, maxLag: int): ArrayList<double>` — autocorrelation function
+- `TimeSeries.pacf(data: ArrayList<double>, maxLag: int): ArrayList<double>` — partial autocorrelation
+- `TimeSeries.arimaFit(data: ArrayList<double>, p: int, d: int, q: int): ArrayList<double>` — ARIMA parameters
+- `TimeSeries.arimaForecast(params: ArrayList<double>, data: ArrayList<double>, steps: int): ArrayList<double>` — ARIMA forecast
+- `TimeSeries.exponentialSmoothing(data: ArrayList<double>, alpha: double): ArrayList<double>` — simple exponential smoothing
+- `TimeSeries.holtSmoothing(data: ArrayList<double>, alpha: double, beta: double): ArrayList<double>` — Holt's linear trend
+- `TimeSeries.holtWinters(data: ArrayList<double>, alpha: double, beta: double, gamma: double, period: int): ArrayList<double>` — Holt-Winters
+- `TimeSeries.seasonalDecompose(data: ArrayList<double>, period: int): HashMap<string, ArrayList<double>>` — seasonal decomposition
+
+## Survival Analysis
+
+- `Survival.kaplanMeier(times: ArrayList<double>, events: ArrayList<bool>): ArrayList<double>` — Kaplan-Meier estimator
+- `Survival.logRankTest(group1Times: ArrayList<double>, group1Events: ArrayList<bool>, group2Times: ArrayList<double>, group2Events: ArrayList<bool>): double` — log-rank test p-value
+- `Survival.hazardFunction(times: ArrayList<double>, events: ArrayList<bool>): ArrayList<double>` — hazard function
+- `Survival.medianSurvival(kmEstimate: ArrayList<double>): double` — median survival time
+- `Survival.coxRegression(times: ArrayList<double>, events: ArrayList<bool>, covariates: ArrayList<ArrayList<double>>): ArrayList<double>` — Cox proportional hazards

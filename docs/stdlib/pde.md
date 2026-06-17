@@ -129,3 +129,23 @@ let u: ArrayList<ArrayList<double>> = poisson2D(nx, ny, dx, dy, source, bc, 1000
 Solve the 2D Laplace equation ∂²u/∂x² + ∂²u/∂y² = 0. Equivalent to `poisson2D` with a zero source term.
 
 Parameters are the same as `poisson2D` without the `source` parameter.
+
+## Finite Element Method
+
+- `FEM.createMesh(nodes: ArrayList<ArrayList<double>>, elements: ArrayList<ArrayList<int>>): FEMMesh` — create FEM mesh
+- `FEM.assembleStiffness(mesh: FEMMesh): ArrayList<ArrayList<double>>` — assemble stiffness matrix
+- `FEM.assembleLoad(mesh: FEMMesh, f: fn(ArrayList<double>): double): ArrayList<double>` — assemble load vector
+- `FEM.solve(stiffness: ArrayList<ArrayList<double>>, load: ArrayList<double>, boundaryConditions: HashMap<int, double>): ArrayList<double>` — solve FEM system
+
+## Mesh Generation
+
+- `MeshGen.generateStructured2D(nx: int, ny: int, lx: double, ly: double): FEMMesh` — structured 2D mesh
+- `MeshGen.generateStructured3D(nx: int, ny: int, nz: int, lx: double, ly: double, lz: double): FEMMesh` — structured 3D mesh
+
+## Adaptive Refinement
+
+- `AdaptiveRefine.refine(mesh: FEMMesh, errorIndicator: ArrayList<double>, threshold: double): FEMMesh` — refine elements with high error
+
+## Navier-Stokes
+
+- `NavierStokes.solve2D(mesh: FEMMesh, viscosity: double, dt: double, steps: int, boundaryVelocities: HashMap<int, ArrayList<double>>): ArrayList<ArrayList<double>>` — 2D incompressible Navier-Stokes

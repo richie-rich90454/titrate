@@ -348,3 +348,43 @@ let remaining: int = stack.size(); // 2
 - `spscRingBuffer(capacity: int): SPSCRingBuffer` — create an SPSC ring buffer
 - `mpscRingBuffer(capacity: int): MPSCRingBuffer` — create an MPSC ring buffer
 - `lockFreeStack(): LockFreeStack` — create a lock-free stack
+
+## Actor Model
+
+- `Actor.init(handler: fn(string): void)` — create actor with message handler
+- `Actor.tell(message: string): void` — send message to actor
+- `Actor.ask(message: string): string` — send and wait for response
+- `ActorSystem.create(name: string): ActorRef` — create actor in system
+- `ActorSystem.shutdown(): void` — shutdown all actors
+
+## CSP Channels
+
+- `Channel.init(capacity: int)` — buffered channel
+- `Channel.send(value: Variant): void` — send value (blocks if full)
+- `Channel.receive(): Variant` — receive value (blocks if empty)
+- `Channel.trySend(value: Variant): bool` — non-blocking send
+- `Channel.tryReceive(): Variant` — non-blocking receive
+- `Channel.select(channels: ArrayList<Channel>): (int, Variant)` — select from multiple channels
+
+## Rate Limiter
+
+- `RateLimiter.tokenBucket(rate: double, capacity: int): RateLimiter` — token bucket limiter
+- `RateLimiter.leakyBucket(rate: double, capacity: int): RateLimiter` — leaky bucket limiter
+- `RateLimiter.slidingWindow(limit: int, windowMs: int): RateLimiter` — sliding window limiter
+- `RateLimiter.acquire(): bool` — try to acquire a permit
+- `RateLimiter.wait(): void` — wait until permit available
+
+## Circuit Breaker
+
+- `CircuitBreaker.init(failureThreshold: int, recoveryTimeoutMs: int)` — create circuit breaker
+- `CircuitBreaker.execute(fn(): Variant): Variant` — execute with circuit breaker protection
+- `CircuitBreaker.getState(): string` — current state (closed/open/half-open)
+- `CircuitBreaker.getFailureCount(): int` — current failure count
+- `CircuitBreaker.reset(): void` — manually reset to closed state
+
+## Retry with Backoff
+
+- `Retry.exponentialBackoff(fn(): Variant, maxAttempts: int, baseDelayMs: int, maxDelayMs: int): Variant` — retry with exponential backoff
+- `Retry.withJitter(fn(): Variant, maxAttempts: int, baseDelayMs: int): Variant` — retry with jitter
+- `Retry.onErrors(fn(): Variant, maxAttempts: int, errorTypes: ArrayList<string>): Variant` — retry on specific errors
+- `Retry.withBudget(fn(): Variant, budgetMs: int, maxAttempts: int): Variant` — retry within time budget

@@ -77,3 +77,51 @@ let http = new HttpClient();
 http.setHeader("Accept", "application/json");
 let body: string = http.get("https://api.example.com/data");
 ```
+
+## WebSocket
+
+- `WebSocket.connect(url: string): WebSocket` — connect to WebSocket server
+- `WebSocket.send(message: string): void` — send text message
+- `WebSocket.receive(): string` — receive message
+- `WebSocket.close(): void` — close connection
+- `WebSocket.ping(): void` — send ping frame
+- `WebSocket.onMessage(handler: fn(string): void): void` — register message handler
+- `WebSocket.onClose(handler: fn(): void): void` — register close handler
+
+## URL Builder
+
+- `UrlBuilder.init()` — create URL builder
+- `UrlBuilder.scheme(s: string): UrlBuilder` — set scheme
+- `UrlBuilder.host(h: string): UrlBuilder` — set host
+- `UrlBuilder.port(p: int): UrlBuilder` — set port
+- `UrlBuilder.path(p: string): UrlBuilder` — set path
+- `UrlBuilder.query(key: string, value: string): UrlBuilder` — add query parameter
+- `UrlBuilder.fragment(f: string): UrlBuilder` — set fragment
+- `UrlBuilder.build(): string` — build URL string
+- `UrlBuilder.normalize(url: string): string` — normalize URL
+
+## HTTP Utilities
+
+- `HttpUtil.cookieJar(): CookieJar` — create cookie jar
+- `HttpUtil.multipartFormData(): MultipartBuilder` — create multipart form builder
+- `HttpUtil.cache(): HttpCache` — create HTTP cache
+- `HttpUtil.retryWithBackoff(request: fn(): string, maxRetries: int, baseDelayMs: int): string` — retry HTTP request
+- `HttpUtil.connectionPool(maxConnections: int): ConnectionPool` — create connection pool
+
+## DNS
+
+- `Dns.lookupA(hostname: string): ArrayList<string>` — A record lookup
+- `Dns.lookupAAAA(hostname: string): ArrayList<string>` — AAAA record lookup
+- `Dns.lookupMX(hostname: string): ArrayList<string>` — MX record lookup
+- `Dns.lookupNS(hostname: string): ArrayList<string>` — NS record lookup
+- `Dns.lookupTXT(hostname: string): ArrayList<string>` — TXT record lookup
+- `Dns.reverseLookup(ip: string): string` — reverse DNS lookup
+
+## SMTP
+
+- `Smtp.connect(host: string, port: int): SmtpClient` — connect to SMTP server
+- `Smtp.authenticate(username: string, password: string): void` — authenticate
+- `Smtp.send(from: string, to: string, subject: string, body: string): void` — send email
+- `Smtp.sendWithAttachment(from: string, to: string, subject: string, body: string, attachmentPath: string): void` — send with attachment
+- `Smtp.sendHtml(from: string, to: string, subject: string, htmlBody: string): void` — send HTML email
+- `Smtp.disconnect(): void` — disconnect

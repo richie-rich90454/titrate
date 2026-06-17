@@ -178,3 +178,52 @@ let energy: double = rhf.compute();
 io::println("RHF energy: " + Double.toString(energy));
 io::println("Converged: " + Boolean.toString(rhf.isConverged()));
 ```
+
+## PeriodicTable
+
+Full element database loaded from `data/chem/periodic_table.json`.
+
+- `PeriodicTable.getElement(symbol: string): Element` — get element by symbol
+- `PeriodicTable.getElementByNumber(number: int): Element` — get element by atomic number
+- `PeriodicTable.allElements(): ArrayList<Element>` — all 118 elements
+- `PeriodicTable.alkaliMetals(): ArrayList<Element>` — alkali metal group
+- `PeriodicTable.nobleGases(): ArrayList<Element>` — noble gas group
+- `PeriodicTable.halogens(): ArrayList<Element>` — halogen group
+- `PeriodicTable.transitionMetals(): ArrayList<Element>` — transition metals
+- `PeriodicTable.lanthanides(): ArrayList<Element>` — lanthanide series
+- `PeriodicTable.actinides(): ArrayList<Element>` — actinide series
+
+## Element
+
+- `fn init(symbol: string, name: string, number: int, mass: double)` — create element
+- `getSymbol(): string`, `getName(): string`, `getNumber(): int`, `getMass(): double`
+- `getElectronegativity(): double`, `getElectronConfig(): string`
+- `getAtomicRadius(): double`, `getIonizationEnergy(): double`
+
+## ReactionBalancer
+
+- `ReactionBalancer.balance(equation: string): string` — balance a chemical equation
+- `ReactionBalancer.oxidationState(compound: string): HashMap<string, int>` — compute oxidation states
+- `ReactionBalancer.isRedox(equation: string): bool` — check if reaction is redox
+
+## Thermochemistry
+
+- `Thermochemistry.enthalpyOfFormation(compound: string): double` — standard enthalpy of formation
+- `Thermochemistry.hessLaw(reactions: ArrayList<string>): double` — Hess's law calculation
+- `Thermochemistry.gibbsFreeEnergy(enthalpy: double, entropy: double, temperature: double): double` — ΔG = ΔH - TΔS
+- `Thermochemistry.vanTHoff(keq1: double, t1: double, keq2: double, t2: double): double` — Van 't Hoff equation
+
+## Kinetics
+
+- `Kinetics.zeroOrderRate(k: double, t: double): double` — [A] = [A]₀ - kt
+- `Kinetics.firstOrderRate(k: double, t: double, a0: double): double` — [A] = [A]₀e^(-kt)
+- `Kinetics.secondOrderRate(k: double, t: double, a0: double): double` — 1/[A] = 1/[A]₀ + kt
+- `Kinetics.halfLife(k: double, order: int): double` — half-life for given order
+- `Kinetics.arrheniusRate(a: double, ea: double, t: double): double` — Arrhenius rate constant
+
+## Electrochemistry
+
+- `Electrochemistry.nernstPotential(e0: double, n: int, q: double, t: double): double` — Nernst equation
+- `Electrochemistry.cellPotential(cathode: double, anode: double): double` — E°cell = E°cathode - E°anode
+- `Electrochemistry.gibbsFromPotential(e: double, n: int): double` — ΔG = -nFE
+- `Electrochemistry.faradayElectrolysis(current: double, time: double, n: int): double` — Faraday's law

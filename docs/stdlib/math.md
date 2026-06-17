@@ -243,3 +243,106 @@ let rng = new Random(42);
 let dice = rng.nextInt(1, 6);  // 1 to 6
 let normal = rng.nextGaussian();
 ```
+
+## Number Theory
+
+- `Math.isPrime(n: int): bool` — Miller-Rabin primality test
+- `Math.primeSieve(limit: int): ArrayList<int>` — Sieve of Eratosthenes
+- `Math.factorize(n: int): ArrayList<int>` — prime factorization
+- `Math.eulerTotient(n: int): int` — Euler's totient function
+- `Math.mobius(n: int): int` — Möbius function
+- `Math.modPow(base: int, exp: int, mod: int): int` — modular exponentiation
+- `Math.modInverse(a: int, m: int): int` — modular multiplicative inverse
+- `Math.chineseRemainder(remainders: ArrayList<int>, moduli: ArrayList<int>): int` — CRT
+- `Math.jacobiSymbol(a: int, n: int): int` — Jacobi symbol
+
+## Combinatorics
+
+- `Math.stirling1(n: int, k: int): vast` — Stirling numbers of the first kind
+- `Math.stirling2(n: int, k: int): vast` — Stirling numbers of the second kind
+- `Math.bellNumber(n: int): vast` — Bell number
+- `Math.catalanNumber(n: int): vast` — Catalan number
+- `Math.partitionNumber(n: int): vast` — integer partition count
+- `Math.derangement(n: int): vast` — subfactorial
+- `Math.fibonacci(n: int): vast` — Fibonacci number
+- `Math.multinomial(n: int, ks: ArrayList<int>): vast` — multinomial coefficient
+
+## Continued Fractions
+
+- `ContinuedFraction.fromDouble(x: double, maxTerms: int): ContinuedFraction` — create from double
+- `ContinuedFraction.convergents(): ArrayList<int>` — convergent sequence
+- `ContinuedFraction.bestRationalApproximation(x: double, maxDenom: int): (int, int)` — best rational approximation
+
+## Interval Arithmetic
+
+- `Interval(lo: double, hi: double)` — interval with lower/upper bounds
+- `Interval.add(other: Interval): Interval` — interval addition
+- `Interval.mul(other: Interval): Interval` — interval multiplication
+- `Interval.sqrt(): Interval` — interval square root
+- `Interval.sin(): Interval` — interval sine
+- `Interval.contains(x: double): bool` — membership test
+
+## Automatic Differentiation
+
+- `DualNumber(value: double, derivative: double)` — dual number for forward-mode AD
+- `DualNumber.sin(): DualNumber` — dual sine
+- `DualNumber.cos(): DualNumber` — dual cosine
+- `DualNumber.exp(): DualNumber` — dual exponential
+- `DualNumber.ln(): DualNumber` — dual logarithm
+- `Math.gradient(f: fn(ArrayList<DualNumber>): DualNumber, x: ArrayList<double>): ArrayList<double>` — compute gradient
+- `Math.jacobian(f: fn(ArrayList<DualNumber>): ArrayList<DualNumber>, x: ArrayList<double>): ArrayList<ArrayList<double>>` — compute Jacobian
+
+## Tensor Operations
+
+- `TensorOps.contract(a: NDArray, b: NDArray, axes: ArrayList<int>): NDArray` — tensor contraction
+- `TensorOps.product(a: NDArray, b: NDArray): NDArray` — tensor product
+- `TensorOps.permute(a: NDArray, order: ArrayList<int>): NDArray` — permute axes
+- `TensorOps.symmetrize(a: NDArray): NDArray` — symmetrize tensor
+- `TensorOps.antisymmetrize(a: NDArray): NDArray` — antisymmetrize tensor
+
+## Utility Functions
+
+- `Math.trunc(x: double): double` — truncate toward zero
+- `Math.fmod(x: double, y: double): double` — floating-point remainder
+- `Math.modf(x: double): (double, double)` — fractional and integer parts
+- `Math.remainder(x: double, y: double): double` — IEEE 754 remainder
+- `Math.copysign(x: double, y: double): double` — copy sign
+- `Math.signum(x: double): double` — signum function
+- `Math.frexp(x: double): (double, int)` — decompose to mantissa and exponent
+- `Math.ldexp(x: double, exp: int): double` — reconstruct from mantissa and exponent
+- `Math.fma(a: double, b: double, c: double): double` — fused multiply-add
+- `Math.fsum(values: ArrayList<double>): double` — high-precision sum
+- `Math.prod(values: ArrayList<double>): double` — product
+- `Math.isqrt(n: int): int` — integer square root
+- `Math.perm(n: int, k: int): vast` — permutations
+- `Math.comb(n: int, k: int): vast` — combinations
+- `Math.degrees(radians: double): double` — radians to degrees
+- `Math.radians(degrees: double): double` — degrees to radians
+- `Math.nextAfter(x: double, y: double): double` — next representable float
+- `Math.erfc(x: double): double` — complementary error function
+- `Math.isclose(a: double, b: double, relTol: double, absTol: double): bool` — approximate equality
+- `Math.isfinite(x: double): bool` — check if finite
+- `Math.isinf(x: double): bool` — check if infinite
+- `Math.isnan(x: double): bool` — check if NaN
+- `Math.log1p(x: double): double` — ln(1 + x)
+- `Math.expm1(x: double): double` — e^x - 1
+- `Math.exp2(x: double): double` — 2^x
+- `Math.exp10(x: double): double` — 10^x
+- `Math.clamp(x: double, lo: double, hi: double): double` — constrain to range
+- `Math.wrap(x: double, lo: double, hi: double): double` — wrap to range
+- `Math.remap(x: double, fromLo: double, fromHi: double, toLo: double, toHi: double): double` — remap range
+- `Math.deltaAngle(current: double, target: double): double` — shortest angle difference
+- `Math.inverseLerp(a: double, b: double, value: double): double` — inverse linear interpolation
+- `Math.pingPong(t: double, length: double): double` — ping-pong value
+- `Math.repeat(t: double, length: double): double` — repeat value
+- `Math.smoothStep(edge0: double, edge1: double, x: double): double` — Hermite smooth step
+- `Math.smootherStep(edge0: double, edge1: double, x: double): double` — Ken Perlin's smoother step
+- `Math.lerpAngle(a: double, b: double, t: double): double` — linear interpolation for angles
+- `Math.moveTowards(current: double, target: double, maxDelta: double): double` — move towards target
+- `Math.damp(current: double, target: double, lambda: double, dt: double): double` — exponential damping
+- `Math.springDamp(current: double, target: double, velocity: double, stiffness: double, damping: double, dt: double): double` — spring damping
+- `Math.roundTo(x: double, multiple: double): double` — round to nearest multiple
+- `Math.floorTo(x: double, multiple: double): double` — floor to nearest multiple
+- `Math.ceilTo(x: double, multiple: double): double` — ceil to nearest multiple
+- `Math.roundToDecimal(x: double, decimals: int): double` — round to decimal places
+- `Math.roundToSignificant(x: double, digits: int): double` — round to significant digits

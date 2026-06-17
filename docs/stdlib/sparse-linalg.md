@@ -87,3 +87,35 @@ x0.add(0.0); x0.add(0.0); x0.add(0.0);
 let x: ArrayList<double> = sparseConjugateGradient(a, b, x0, 100, 1e-10);
 // x ≈ [1.0, 1.0, 1.0]
 ```
+
+## COO Format
+
+- `SparseCOO(rows: int, cols: int)` — coordinate format sparse matrix
+- `add(row: int, col: int, value: double): void` — add entry
+- `toCSR(): SparseCSR` — convert to CSR
+- `toDense(): ArrayList<ArrayList<double>>` — convert to dense
+
+## DOK Format
+
+- `SparseDOK(rows: int, cols: int)` — dictionary-of-keys format
+- `set(row: int, col: int, value: double): void` — set entry
+- `get(row: int, col: int): double` — get entry
+- `toCSR(): SparseCSR` — convert to CSR
+
+## LIL Format
+
+- `SparseLIL(rows: int, cols: int)` — list-of-lists format
+- `append(row: int, col: int, value: double): void` — append entry to row
+- `sortIndices(): void` — sort column indices per row
+- `toCSR(): SparseCSR` — convert to CSR
+
+## Iterative Solvers
+
+- `IterativeSolvers.cg(a: SparseCSR, b: ArrayList<double>, x0: ArrayList<double>, tol: double, maxIter: int): ArrayList<double>` — conjugate gradient
+- `IterativeSolvers.gmres(a: SparseCSR, b: ArrayList<double>, x0: ArrayList<double>, tol: double, maxIter: int, restart: int): ArrayList<double>` — GMRES
+- `IterativeSolvers.bicgstab(a: SparseCSR, b: ArrayList<double>, x0: ArrayList<double>, tol: double, maxIter: int): ArrayList<double>` — BiCGSTAB
+
+## Sparse Eigenvalues
+
+- `SparseEigen.powerIteration(a: SparseCSR, maxIter: int, tol: double): (double, ArrayList<double>)` — largest eigenvalue and eigenvector
+- `SparseEigen.arnoldi(a: SparseCSR, k: int, maxIter: int): ArrayList<double>` — k largest eigenvalues via Arnoldi

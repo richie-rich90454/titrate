@@ -215,3 +215,98 @@ list.add(1);
 list.add(2);
 let iter = list.iterator();
 ```
+
+## Integer Extensions
+
+- `Integer.parseInt(s: string, radix: int): int` — parse with radix
+- `Integer.parseUnsignedInt(s: string): int` — parse unsigned
+- `Integer.toUnsignedString(n: int): string` — unsigned string
+- `Integer.bitCount(n: int): int` — population count
+- `Integer.rotateLeft(n: int, distance: int): int` — left rotate
+- `Integer.rotateRight(n: int, distance: int): int` — right rotate
+- `Integer.highestOneBit(n: int): int` — highest one bit
+- `Integer.signum(n: int): int` — signum
+- `Integer.clamp(n: int, lo: int, hi: int): int` — clamp to range
+
+## Long Extensions
+
+- `Long.parseLong(s: string): long` — parse long
+- `Long.divideUnsigned(n: long, d: long): long` — unsigned division
+- `Long.remainderUnsigned(n: long, d: long): long` — unsigned remainder
+- `Long.numberOfLeadingZeros(n: long): int` — leading zeros
+- `Long.numberOfTrailingZeros(n: long): int` — trailing zeros
+- `Long.reverse(n: long): long` — bit reversal
+- `Long.reverseBytes(n: long): long` — byte reversal
+
+## Double Extensions
+
+- `Double.isFinite(x: double): bool` — check if finite
+- `Double.isInfinite(x: double): bool` — check if infinite
+- `Double.isNaN(x: double): bool` — check if NaN
+- `Double.parseDouble(s: string): double` — parse double
+- `Double.toHexString(x: double): string` — hex string representation
+- `Double.toEngineeringString(x: double, precision: int): string` — engineering notation
+
+## Result Extensions
+
+- `Result.andThen(r: Result, f: fn(Variant): Result): Result` — chain on success
+- `Result.orElse(r: Result, f: fn(Variant): Result): Result` — chain on failure
+- `Result.unwrapOr(r: Result, default: Variant): Variant` — unwrap with default
+- `Result.unwrapOrElse(r: Result, f: fn(Variant): Variant): Variant` — unwrap with lazy default
+- `Result.expect(r: Result, message: string): Variant` — unwrap with custom error
+- `Result.map(r: Result, f: fn(Variant): Variant): Result` — map success value
+- `Result.mapErr(r: Result, f: fn(Variant): Variant): Result` — map error value
+- `Result.flatten(r: Result<Result>): Result` — flatten nested Result
+- `Result.transpose(r: Result<Optional>): Optional<Result>` — transpose Result and Optional
+
+## Optional Extensions
+
+- `Optional.map(opt: Optional, f: fn(Variant): Variant): Optional` — map value
+- `Optional.flatMap(opt: Optional, f: fn(Variant): Optional): Optional` — flat map
+- `Optional.filter(opt: Optional, predicate: fn(Variant): bool): Optional` — filter value
+- `Optional.orElse(opt: Optional, default: Variant): Variant` — get or default
+- `Optional.orElseGet(opt: Optional, supplier: fn(): Variant): Variant` — get or lazy default
+- `Optional.ifPresent(opt: Optional, consumer: fn(Variant): void): void` — consume if present
+- `Optional.ifPresentOrElse(opt: Optional, consumer: fn(Variant): void, emptyAction: fn(): void): void` — consume or empty action
+- `Optional.isEmpty(opt: Optional): bool` — check if empty
+
+## Variant Extensions
+
+- `Variant.holdsAlternative(v: Variant, typeName: string): bool` — check held type
+- `Variant.get(v: Variant, typeName: string): Variant` — get value as type
+- `Variant.getIf(v: Variant, predicate: fn(Variant): bool): Optional` — conditional get
+- `Variant.visit(v: Variant, visitors: HashMap<string, fn(Variant): Variant>): Variant` — visitor pattern
+- `Variant.index(v: Variant): int` — type index
+- `Variant.valueType(v: Variant): string` — type name
+
+## Tuple Extensions
+
+- `Tuple3(first: Variant, second: Variant, third: Variant)` — triple
+- `Tuple4(first: Variant, second: Variant, third: Variant, fourth: Variant)` — quadruple
+- `Tuple5(first: Variant, second: Variant, third: Variant, fourth: Variant, fifth: Variant)` — quintuple
+- `Tuple3.first(): Variant`, `Tuple3.second(): Variant`, `Tuple3.third(): Variant`
+- `Tuple4.fourth(): Variant`, `Tuple5.fifth(): Variant`
+
+## Character Extensions
+
+- `Character.isLetter(c: string): bool` — check if letter
+- `Character.isDigit(c: string): bool` — check if digit
+- `Character.isWhitespace(c: string): bool` — check if whitespace
+- `Character.isUpperCase(c: string): bool` — check if uppercase
+- `Character.isLowerCase(c: string): bool` — check if lowercase
+- `Character.toUpperCase(c: string): string` — convert to uppercase
+- `Character.toLowerCase(c: string): string` — convert to lowercase
+- `Character.getNumericValue(c: string): int` — numeric value of character
+
+## Vast/Uvast Extensions
+
+- `Vast.add(a: vast, b: vast): vast` — arbitrary-precision addition
+- `Vast.multiply(a: vast, b: vast): vast` — arbitrary-precision multiplication
+- `Vast.factorial(n: int): vast` — factorial
+- `Vast.gcd(a: vast, b: vast): vast` — GCD
+- `Vast.lcm(a: vast, b: vast): vast` — LCM
+- `Vast.isProbablePrime(n: vast, certainty: int): bool` — probabilistic primality
+- `Vast.shiftLeft(n: vast, bits: int): vast` — left shift
+- `Vast.shiftRight(n: vast, bits: int): vast` — right shift
+- `Vast.bitLength(n: vast): int` — bit length
+- `Vast.toByteArray(n: vast): ArrayList<byte>` — convert to byte array

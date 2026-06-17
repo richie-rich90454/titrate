@@ -154,3 +154,49 @@ let pointInside = frustum.containsPoint(new Vec3(0.0, 0.0, 0.0));
 ## Helper Functions
 
 - `aabbCorners(box: AABB): ArrayList<Vec3>` — compute the 8 corner vertices of an AABB
+
+## Deepened AABB
+
+- `AABB.expand(point: ArrayList<double>): void` — expand to include point
+- `AABB.intersects(other: AABB): bool` — intersection test
+- `AABB.contains(point: ArrayList<double>): bool` — containment test
+- `AABB.closestPoint(point: ArrayList<double>): ArrayList<double>` — closest point on AABB
+- `AABB.surfaceArea(): double` — surface area
+- `AABB.volume(): double` — volume
+
+## Deepened Ray
+
+- `Ray.at(t: double): ArrayList<double>` — point at parameter t
+- `Ray.intersectAABB(aabb: AABB): double` — ray-AABB intersection (t or -1)
+- `Ray.intersectSphere(center: ArrayList<double>, radius: double): double` — ray-sphere intersection
+- `Ray.intersectPlane(plane: Plane): double` — ray-plane intersection
+- `Ray.intersectTriangle(v0: ArrayList<double>, v1: ArrayList<double>, v2: ArrayList<double>): double` — Möller-Trumbore
+
+## Deepened Plane
+
+- `Plane.distanceToPoint(point: ArrayList<double>): double` — signed distance
+- `Plane.projectPoint(point: ArrayList<double>): ArrayList<double>` — project onto plane
+- `Plane.flip(): Plane` — flip normal
+- `Plane.transform(matrix: ArrayList<ArrayList<double>>): Plane` — transform by matrix
+
+## Deepened Triangle
+
+- `Triangle.normal(): ArrayList<double>` — face normal
+- `Triangle.area(): double` — triangle area
+- `Triangle.centroid(): ArrayList<double>` — centroid
+- `Triangle.barycentric(point: ArrayList<double>): ArrayList<double>` — barycentric coordinates
+- `Triangle.containsPoint(point: ArrayList<double>): bool` — point-in-triangle test
+
+## Deepened Sphere
+
+- `Sphere.contains(point: ArrayList<double>): bool` — containment test
+- `Sphere.intersectsSphere(other: Sphere): bool` — sphere-sphere intersection
+- `Sphere.intersectsAABB(aabb: AABB): bool` — sphere-AABB intersection
+- `Sphere.closestPoint(point: ArrayList<double>): ArrayList<double>` — closest surface point
+
+## Deepened Frustum
+
+- `Frustum.fromMatrix(m: ArrayList<ArrayList<double>>): Frustum` — extract from view-projection matrix
+- `Frustum.containsPoint(point: ArrayList<double>): bool` — point-in-frustum test
+- `Frustum.intersectsAABB(aabb: AABB): bool` — frustum-AABB test
+- `Frustum.intersectsSphere(sphere: Sphere): bool` — frustum-sphere test
