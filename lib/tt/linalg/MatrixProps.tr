@@ -327,6 +327,221 @@ public fn rangeSpace(a: ArrayList<double>, m: int, n: int): ArrayList<double> {
     return result;
 }
 
+// Condition number: ratio of largest to smallest singular value.
+// Returns infinity if the matrix is singular.
+public fn conditionNumber(a: ArrayList<double>, m: int, n: int): double {
+    let k: int = Math.min(m, n);
+    // Compute A^T * A
+    let ata: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n * n) {
+        var sum: double = 0.0;
+        var jj: int = 0;
+        while (jj < m) {
+            let j1: int = i / n;
+            let j2: int = i % n;
+            sum = sum + a.get(jj * n + j1) * a.get(jj * n + j2);
+            jj = jj + 1;
+        }
+        ata.add(sum);
+        i = i + 1;
+    }
+
+    // Power iteration to find largest eigenvalue
+    let v: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        v.add(1.0);
+        i = i + 1;
+    }
+
+    var iter: int = 0;
+    while (iter < 100) {
+        let vNew: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < n) {
+            var sum: double = 0.0;
+            var kk: int = 0;
+            while (kk < n) {
+                sum = sum + ata.get(i * n + kk) * v.get(kk);
+                kk = kk + 1;
+            }
+            vNew.add(sum);
+            i = i + 1;
+        }
+
+        var norm: double = 0.0;
+        i = 0;
+        while (i < n) {
+            norm = norm + vNew.get(i) * vNew.get(i);
+            i = i + 1;
+        }
+        norm = MathAdvanced.sqrt(norm);
+        if (norm < 1e-15) { break; }
+
+        i = 0;
+        while (i < n) {
+            v.set(i, vNew.get(i) / norm);
+            i = i + 1;
+        }
+        iter = iter + 1;
+    }
+
+    // Largest eigenvalue
+    var maxEval: double = 0.0;
+    i = 0;
+    while (i < n) {
+        var sum: double = 0.0;
+        var kk: int = 0;
+        while (kk < n) {
+            sum = sum + ata.get(i * n + kk) * v.get(kk);
+            kk = kk + 1;
+        }
+        maxEval = maxEval + v.get(i) * sum;
+        i = i + 1;
+    }
+
+    // Inverse iteration to find smallest eigenvalue
+    // Shift by maxEval and invert
+    let shifted: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n * n) {
+        if (i % (n + 1) == 0) {
+            shifted.add(ata.get(i) - maxEval);
+        } else {
+            shifted.add(ata.get(i));
+        }
+        i = i + 1;
+    }
+    // Small perturbation to avoid singularity
+    shifted.set(0, shifted.get(0) + 1e-10);
+
+    // Simple LU solve for inverse iteration
+    let vi: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        vi.add(1.0);
+        i = i + 1;
+    }
+
+    iter = 0;
+    while (iter < 50) {
+        // Solve shifted * w = vi using simple Gaussian elimination
+        let lu: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < n * n) {
+            lu.add(shifted.get(i));
+            i = i + 1;
+        }
+        let b: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < n) {
+            b.add(vi.get(i));
+            i = i + 1;
+        }
+        // Forward elimination
+        var col: int = 0;
+        while (col < n) {
+            var maxVal: double = Math.abs(lu.get(col * n + col));
+            var maxRow: int = col;
+            var row: int = col + 1;
+            while (row < n) {
+                let val: double = Math.abs(lu.get(row * n + col));
+                if (val > maxVal) {
+                    maxVal = val;
+                    maxRow = row;
+                }
+                row = row + 1;
+            }
+            if (maxRow != col) {
+                var jj: int = 0;
+                while (jj < n) {
+                    let tmp: double = lu.get(col * n + jj);
+                    lu.set(col * n + jj, lu.get(maxRow * n + jj));
+                    lu.set(maxRow * n + jj, tmp);
+                    jj = jj + 1;
+                }
+                let tmpB: double = b.get(col);
+                b.set(col, b.get(maxRow));
+                b.set(maxRow, tmpB);
+            }
+            if (Math.abs(lu.get(col * n + col)) > 1e-15) {
+                row = col + 1;
+                while (row < n) {
+                    let factor: double = lu.get(row * n + col) / lu.get(col * n + col);
+                    var jj: int = col + 1;
+                    while (jj < n) {
+                        lu.set(row * n + jj, lu.get(row * n + jj) - factor * lu.get(col * n + jj));
+                        jj = jj + 1;
+                    }
+                    b.set(row, b.get(row) - factor * b.get(col));
+                    row = row + 1;
+                }
+            }
+            col = col + 1;
+        }
+        // Back substitution
+        let w: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < n) {
+            w.add(0.0);
+            i = i + 1;
+        }
+        i = n - 1;
+        while (i >= 0) {
+            var sum: double = b.get(i);
+            var kk: int = i + 1;
+            while (kk < n) {
+                sum = sum - lu.get(i * n + kk) * w.get(kk);
+                kk = kk + 1;
+            }
+            let diag: double = lu.get(i * n + i);
+            if (Math.abs(diag) < 1e-15) {
+                w.set(i, 0.0);
+            } else {
+                w.set(i, sum / diag);
+            }
+            i = i - 1;
+        }
+
+        // Normalize
+        var wNorm: double = 0.0;
+        i = 0;
+        while (i < n) {
+            wNorm = wNorm + w.get(i) * w.get(i);
+            i = i + 1;
+        }
+        wNorm = MathAdvanced.sqrt(wNorm);
+        if (wNorm < 1e-15) { break; }
+        i = 0;
+        while (i < n) {
+            vi.set(i, w.get(i) / wNorm);
+            i = i + 1;
+        }
+        iter = iter + 1;
+    }
+
+    // Smallest eigenvalue via Rayleigh quotient
+    var minEval: double = 0.0;
+    i = 0;
+    while (i < n) {
+        var sum: double = 0.0;
+        var kk: int = 0;
+        while (kk < n) {
+            sum = sum + ata.get(i * n + kk) * vi.get(kk);
+            kk = kk + 1;
+        }
+        minEval = minEval + vi.get(i) * sum;
+        i = i + 1;
+    }
+
+    if (minEval <= 0.0) { return Math.INF(); }
+    let maxSing: double = MathAdvanced.sqrt(maxEval);
+    let minSing: double = MathAdvanced.sqrt(minEval);
+    if (minSing < 1e-15) { return Math.INF(); }
+    return maxSing / minSing;
+}
+
 // Determinant via LU decomposition
 public fn determinant(a: ArrayList<double>, n: int): double {
     // Copy matrix
