@@ -114,7 +114,42 @@ public fn delaunay(points: ArrayList<Point2D>): ArrayList<Triangle> {
         }
         i = i + 1;
     }
-    // Remove triangles with super triangle vertices
+    // Voronoi diagram extraction from Delaunay triangulation
+// Returns list of Voronoi cells, each cell is a list of circumcenter coordinates [x, y]
+public fn voronoi(points: ArrayList<Point2D>, triangles: ArrayList<Triangle>): ArrayList<ArrayList<double>> {
+    let cells: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < points.size()) {
+        let cell: ArrayList<double> = new ArrayList<double>();
+        // Find all triangles containing point i and compute circumcenters
+        var j: int = 0;
+        while (j < triangles.size()) {
+            let tri: Triangle = triangles.get(j);
+            if (tri.a == i || tri.b == i || tri.c == i) {
+                // Compute circumcenter
+                let ax: double = points.get(tri.a).x;
+                let ay: double = points.get(tri.a).y;
+                let bx: double = points.get(tri.b).x;
+                let by: double = points.get(tri.b).y;
+                let cx: double = points.get(tri.c).x;
+                let cy: double = points.get(tri.c).y;
+                let d: double = 2.0 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+                if (Math.abs(d) > 1e-10) {
+                    let ux: double = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / d;
+                    let uy: double = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / d;
+                    cell.add(ux);
+                    cell.add(uy);
+                }
+            }
+            j = j + 1;
+        }
+        cells.add(cell);
+        i = i + 1;
+    }
+    return cells;
+}
+
+// Remove triangles with super triangle vertices
     let result: ArrayList<Triangle> = new ArrayList<Triangle>();
     i = 0;
     while (i < triangles.size()) {
