@@ -5,6 +5,11 @@ import tt::lang::Variant;
 import tt::lang::Integer;
 import tt::lang::Double;
 
+// Create a JSON formatter instance with pretty-printing disabled by default.
+public fn jsonFormatter(): JsonFormatter {
+    return new JsonFormatter(false);
+}
+
 // JsonFormatter formats log records as JSON strings.
 public class JsonFormatter {
     public bool pretty;
