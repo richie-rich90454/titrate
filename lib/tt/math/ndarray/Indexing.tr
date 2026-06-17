@@ -98,6 +98,12 @@ public fn fancyIndex(data: ArrayList<double>, shape: ArrayList<int>, indices: Ar
     return result;
 }
 
+// Boolean indexing: select elements from data where mask is true, returning selected values.
+// Unlike booleanMask which works on flat data, this provides a named alias for clarity.
+public fn booleanIndex(data: ArrayList<double>, mask: ArrayList<bool>): ArrayList<double> {
+    return booleanMask(data, mask);
+}
+
 // Boolean masking: select elements where mask is true.
 public fn booleanMask(data: ArrayList<double>, mask: ArrayList<bool>): ArrayList<double> {
     let result: ArrayList<double> = new ArrayList<double>();
