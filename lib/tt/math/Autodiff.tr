@@ -249,3 +249,99 @@ public fn hessian(f: fn(ArrayList<double>): double, point: ArrayList<double>): A
 
     return hess;
 }
+
+// Compute Hessian matrix using forward-mode automatic differentiation (DualNumbers).
+// f takes an ArrayList of DualNumbers and returns a DualNumber.
+// x is the point at which to evaluate the Hessian.
+// Uses second-order dual numbers: for each pair (i, j), seeds both directions
+// and extracts the second derivative from the result.
+public fn hessianDual(f: fn(ArrayList<DualNumber>): DualNumber, x: ArrayList<double>): ArrayList<ArrayList<double>> {
+    let n: int = x.size();
+    let hess: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let h: double = _EPS;
+
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j <= i) {
+            if (i == j) {
+                // Diagonal: d^2f/dx_i^2 using central finite difference on DualNumber gradient
+                // Build input with dual seed in direction i
+                let argsPlus: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                let argsMinus: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                var k: int = 0;
+                while (k < n) {
+                    if (k == i) {
+                        argsPlus.add(new DualNumber(x.get(k) + h, 1.0));
+                        argsMinus.add(new DualNumber(x.get(k) - h, 1.0));
+                    } else {
+                        argsPlus.add(new DualNumber(x.get(k), 0.0));
+                        argsMinus.add(new DualNumber(x.get(k), 0.0));
+                    }
+                    k = k + 1;
+                }
+                let fPlus: DualNumber = f(argsPlus);
+                let fMinus: DualNumber = f(argsMinus);
+                // Second derivative from central difference of first derivatives
+                row.add((fPlus.deriv - fMinus.deriv) / (2.0 * h));
+            } else {
+                // Off-diagonal: mixed partial d^2f/(dx_i dx_j)
+                // Use 4-point stencil with dual seeds
+                let argsPP: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                let argsPM: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                let argsMP: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                let argsMM: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                var k: int = 0;
+                while (k < n) {
+                    let vPP: double = x.get(k);
+                    let vPM: double = x.get(k);
+                    let vMP: double = x.get(k);
+                    let vMM: double = x.get(k);
+                    let dPP: double = 0.0;
+                    let dPM: double = 0.0;
+                    let dMP: double = 0.0;
+                    let dMM: double = 0.0;
+                    if (k == i) {
+                        vPP = vPP + h; dPP = 1.0;
+                        vPM = vPM + h; dPM = 1.0;
+                        vMP = vMP - h; dMP = 1.0;
+                        vMM = vMM - h; dMM = 1.0;
+                    }
+                    if (k == j) {
+                        vPP = vPP + h;
+                        vPM = vPM - h;
+                        vMP = vMP + h;
+                        vMM = vMM - h;
+                    }
+                    argsPP.add(new DualNumber(vPP, dPP));
+                    argsPM.add(new DualNumber(vPM, dPM));
+                    argsMP.add(new DualNumber(vMP, dMP));
+                    argsMM.add(new DualNumber(vMM, dMM));
+                    k = k + 1;
+                }
+                let fPP: DualNumber = f(argsPP);
+                let fPM: DualNumber = f(argsPM);
+                let fMP: DualNumber = f(argsMP);
+                let fMM: DualNumber = f(argsMM);
+                row.add((fPP.val - fPM.val - fMP.val + fMM.val) / (4.0 * h * h));
+            }
+            j = j + 1;
+        }
+        hess.add(row);
+        i = i + 1;
+    }
+
+    // Fill in the upper triangle by symmetry
+    i = 0;
+    while (i < n) {
+        var j: int = i + 1;
+        while (j < n) {
+            hess.get(i).add(hess.get(j).get(i));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    return hess;
+}
