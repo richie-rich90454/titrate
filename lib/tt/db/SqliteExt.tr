@@ -3,6 +3,12 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::Variant;
 
+// Create a prepared statement for the given database and SQL.
+public fn prepare(db: string, sql: string): PreparedStatement {
+    let stmt: PreparedStatement = new PreparedStatement(sql);
+    return stmt;
+}
+
 // PreparedStatement represents a pre-compiled SQL statement with bindable parameters.
 public class PreparedStatement {
     public string sql;
