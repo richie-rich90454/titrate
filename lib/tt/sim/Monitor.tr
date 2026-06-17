@@ -115,4 +115,15 @@ public class Monitor {
         result.add(m + 1.96 * se);
         return result;
     }
+
+    // Generate a summary report string
+    public fn report(): string {
+        let r: string = "Monitor: " + this.name;
+        r = r + " | count: " + Integer.toString(this.count());
+        r = r + " | mean: " + Double.toString(this.mean());
+        r = r + " | stdDev: " + Double.toString(this.stdDev());
+        r = r + " | min: " + Double.toString(this.min());
+        r = r + " | max: " + Double.toString(this.max());
+        return r;
+    }
 }
