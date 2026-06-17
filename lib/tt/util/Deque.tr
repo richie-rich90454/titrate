@@ -93,6 +93,25 @@ public class Deque {
         }
     }
 
+    // Static: rotate an ArrayList n steps to the right. Negative n rotates left.
+    public fn rotate(d: ArrayList, n: int): void {
+        let len: int = d.size();
+        if (len == 0) { return; }
+        var steps: int = n % len;
+        if (steps < 0) {
+            steps = steps + len;
+        }
+        if (steps == 0) { return; }
+        // Move last `steps` items to the front
+        var i: int = 0;
+        while (i < steps) {
+            let item: Variant = d.get(len - 1);
+            d.remove(len - 1);
+            d.add(0, item);
+            i = i + 1;
+        }
+    }
+
     // Find the index of item. Returns -1 if not found.
     public fn indexOf(item: Variant): int {
         var i: int = 0;
