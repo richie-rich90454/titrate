@@ -76,6 +76,12 @@ public fn retryWithBackoff(f: fn(): Variant, policy: RetryPolicy): Variant {
     throw "Max retries (" + Integer.toString(policy.maxAttempts) + ") exceeded: " + lastError;
 }
 
+// Execute a function with exponential backoff, retrying on failure.
+public fn exponentialBackoff(f: fn(): Variant, maxAttempts: int, baseDelayMs: long): Variant {
+    let policy: RetryPolicy = new RetryPolicy(maxAttempts, baseDelayMs);
+    return retryWithBackoff(f, policy);
+}
+
 // Create a budget-limited retry policy that allows maxRetries within a time period.
 public fn retryBudget(maxRetries: int, periodMs: long): RetryPolicy {
     let policy: RetryPolicy = new RetryPolicy(maxRetries, periodMs / maxRetries as long);
