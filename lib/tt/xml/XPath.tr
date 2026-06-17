@@ -24,12 +24,38 @@ public class XPathExpression {
     public string path;
     private ArrayList<XPathStep> _steps;
     private bool _isAbsolute;
+    private HashMap<string, string> _variables;
 
     public fn init(expr: string) {
         this.path = expr;
         this._steps = new ArrayList<XPathStep>();
+        this._variables = new HashMap<string, string>();
         this._isAbsolute = false;
         this._parse(expr);
+    }
+
+    // Bind a variable for use in the expression.
+    // Variables are referenced as $varname in XPath expressions.
+    public fn bindVariable(name: string, value: string): void {
+        this._variables.put(name, value);
+    }
+
+    // Get a bound variable value.
+    public fn getVariable(name: string): string {
+        if (this._variables.containsKey(name)) {
+            return this._variables.get(name);
+        }
+        return "";
+    }
+
+    // Check if a variable is bound.
+    public fn hasVariable(name: string): bool {
+        return this._variables.containsKey(name);
+    }
+
+    // Clear all bound variables.
+    public fn clearVariables(): void {
+        this._variables = new HashMap<string, string>();
     }
 
     // Evaluate against a node, return matching nodes.
@@ -427,6 +453,10 @@ fn _evaluatePredicate(node: XmlNode, pred: string, position: int, last: int): bo
     if (String.length(p) > 0 && String.charAt(p, 0) == ".") {
         return _evaluateDotPredicate(node, p);
     }
+    // Variable reference: [$varname] or [$varname='value']
+    if (String.length(p) > 0 && String.charAt(p, 0) == "$") {
+        return _evaluateVariablePredicate(node, p);
+    }
     // Default: try as numeric
     return false;
 }
@@ -527,6 +557,50 @@ fn _evaluateDotPredicate(node: XmlNode, pred: string): bool {
     let op: string = parsed.0;
     let value: string = parsed.1;
     return _compareValues(_stringValue(node), op, value);
+}
+
+// Evaluate a variable reference predicate: [$varname] or [$varname='value']
+// Resolves $varname from the bound variables in the compiled expression.
+fn _evaluateVariablePredicate(node: XmlNode, pred: string): bool {
+    let rest: string = String.substring(pred, 1, String.length(pred));
+    rest = String.trim(rest);
+    // Check for comparison: $varname='value' or $varname="value"
+    let eqIdx: int = String.indexOf(rest, "=");
+    if (eqIdx >= 0) {
+        let varName: string = String.trim(String.substring(rest, 0, eqIdx));
+        let opAndValue: string = String.substring(rest, eqIdx, String.length(rest));
+        let parsed: (string, string) = _parseComparison(opAndValue);
+        let op: string = parsed.0;
+        let rightValue: string = parsed.1;
+        // Look up variable value from the current expression context
+        let varValue: string = _resolveVariable(varName);
+        return _compareValues(varValue, op, rightValue);
+    }
+    // No comparison: check if variable is truthy (non-empty string)
+    let varName: string = String.trim(rest);
+    let varValue: string = _resolveVariable(varName);
+    return String.length(varValue) > 0;
+}
+
+// Resolve a variable name to its value.
+// Uses the module-level variable cache for standalone function calls.
+var _currentVariables: HashMap<string, string> = new HashMap<string, string>();
+
+fn _resolveVariable(name: string): string {
+    if (_currentVariables.containsKey(name)) {
+        return _currentVariables.get(name);
+    }
+    return "";
+}
+
+// Bind a variable for use in XPath expressions evaluated via top-level functions.
+public fn bindVariable(name: string, value: string): void {
+    _currentVariables.put(name, value);
+}
+
+// Clear all bound variables.
+public fn clearVariables(): void {
+    _currentVariables = new HashMap<string, string>();
 }
 
 // Evaluate a function-based predicate.
