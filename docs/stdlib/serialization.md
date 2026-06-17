@@ -20,6 +20,9 @@ Static methods for parsing and serializing JSON.
 - `Json.parse(input: string): JsonValue` — parse a JSON string into a `JsonValue`
 - `Json.stringify(value: JsonValue): string` — serialize a `JsonValue` to compact JSON
 - `Json.prettyPrint(value: JsonValue, indent: int): string` — serialize with indentation
+- `Json.stringifyColor(value: JsonValue): string` — serialize with ANSI color codes for terminal
+- `Json.stringifyColorPretty(value: JsonValue, indent: int): string` — color + indentation
+- `Json.stringifyWrapped(value: JsonValue, maxWidth: int): string` — smart line wrapping at column width
 
 ```titrate
 let data = Json.parse("{\"name\": \"Alice\", \"age\": 30}");
@@ -51,6 +54,11 @@ Represents any JSON value with type-safe accessors.
 - `size(): int` — array length or object size
 - `deepCopy(): JsonValue` — deep clone
 - `merge(other: JsonValue): void` — merge another object into this one
+- `pick(keys: ArrayList<string>): JsonValue` — select subset of object keys
+- `omit(keys: ArrayList<string>): JsonValue` — exclude object keys
+- `transform(f: fn(JsonValue): JsonValue): JsonValue` — recursively transform values
+- `schema(): JsonValue` — infer JSON Schema from value structure
+- `equals(other: JsonValue): bool` — deep equality comparison
 
 ```titrate
 let arr = new ArrayList<JsonValue>();
