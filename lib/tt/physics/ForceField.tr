@@ -1,6 +1,7 @@
 // ForceField.tr — Force calculations: gravitational, electromagnetic, spring, Lennard-Jones, Coulomb
 import tt::math::MathAdvanced;
 import tt::util::ArrayList;
+import tt::physics::Particle;
 
 public class Vec3 {
     public double x;
@@ -35,6 +36,15 @@ public fn gravitationalForce(m1: double, m2: double, r: Vec3, G: double): Vec3 {
     let ny: double = r.y / dist;
     let nz: double = r.z / dist;
     return new Vec3(-forceMag * nx, -forceMag * ny, -forceMag * nz);
+}
+
+// Coulomb force between two particles
+public fn coulomb(p1: Particle, p2: Particle, k: double): Vec3 {
+    let dx: double = p2.x - p1.x;
+    let dy: double = p2.y - p1.y;
+    let dz: double = p2.z - p1.z;
+    let r: Vec3 = new Vec3(dx, dy, dz);
+    return coulombForce(p1.charge, p2.charge, r, k);
 }
 
 // Coulomb force between two charges
