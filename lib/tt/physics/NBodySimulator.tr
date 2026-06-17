@@ -195,4 +195,28 @@ public class NBodySimulator {
         }
         return ke + pe;
     }
+
+    public fn centerOfMass(): Body {
+        let n: int = this.bodies.size();
+        var totalMass: double = 0.0;
+        var cx: double = 0.0;
+        var cy: double = 0.0;
+        var cz: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let b: Body = this.bodies.get(i);
+            totalMass = totalMass + b.mass;
+            cx = cx + b.mass * b.x;
+            cy = cy + b.mass * b.y;
+            cz = cz + b.mass * b.z;
+            i = i + 1;
+        }
+        let com: Body = new Body(totalMass, 0.0, 0.0, 0.0);
+        if (totalMass > 0.0) {
+            com.x = cx / totalMass;
+            com.y = cy / totalMass;
+            com.z = cz / totalMass;
+        }
+        return com;
+    }
 }
