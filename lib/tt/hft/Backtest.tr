@@ -136,4 +136,23 @@ public class BacktestEngine {
         result.equity = this.equity;
         return result;
     }
+
+    // Compute annualized Sharpe ratio from returns
+    public fn sharpeRatio(): double {
+        if (this.returns.size() < 2) { return 0.0; }
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < this.returns.size()) { sum = sum + this.returns.get(i); i = i + 1; }
+        let mean: double = sum / this.returns.size() as double;
+        var varSum: double = 0.0;
+        i = 0;
+        while (i < this.returns.size()) {
+            let d: double = this.returns.get(i) - mean;
+            varSum = varSum + d * d;
+            i = i + 1;
+        }
+        let stdDev: double = MathAdvanced.sqrt(varSum / (this.returns.size() - 1) as double);
+        if (stdDev <= 0.0) { return 0.0; }
+        return mean / stdDev * MathAdvanced.sqrt(252.0);
+    }
 }
