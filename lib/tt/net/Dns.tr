@@ -25,6 +25,11 @@ public fn dnsLookup(hostname: string, recordType: string): ArrayList<DnsRecord> 
     return Dns_lookup(hostname, recordType);
 }
 
+// Lookup MX (mail exchange) records for a domain.
+public fn lookupMX(domain: string): ArrayList<DnsRecord> {
+    return dnsLookup(domain, "MX");
+}
+
 // Reverse DNS lookup: IP address to hostname.
 public fn reverseDns(ip: string): string {
     return Dns_reverseLookup(ip);
