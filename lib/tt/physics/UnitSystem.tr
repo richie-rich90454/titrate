@@ -37,6 +37,22 @@ fn _ensureCategoriesBuilt(): void {
     _categoriesBuilt = true;
 }
 
+public fn convertAuto(value: double, fromUnit: string, toUnit: string): double {
+    _ensureCategoriesBuilt();
+    let cats: ArrayList<string> = _categories.keys();
+    var i: int = 0;
+    while (i < cats.size()) {
+        let cat: string = cats.get(i);
+        let catData: JsonValue = _categories.get(cat);
+        let units: JsonValue = catData.get("units");
+        if (!units.isNull() && units.hasKey(fromUnit) && units.hasKey(toUnit)) {
+            return convert(value, fromUnit, toUnit, cat);
+        }
+        i = i + 1;
+    }
+    return 0.0;
+}
+
 public fn convert(value: double, fromUnit: string, toUnit: string, category: string): double {
     _ensureCategoriesBuilt();
     if (!_categories.containsKey(category)) { return 0.0; }
