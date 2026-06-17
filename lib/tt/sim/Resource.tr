@@ -48,4 +48,9 @@ public class SimResource {
     public fn queueLength(): int {
         return this.waitQueue.size();
     }
+
+    // Query available capacity
+    public fn available(): int {
+        return this.available;
+    }
 }
