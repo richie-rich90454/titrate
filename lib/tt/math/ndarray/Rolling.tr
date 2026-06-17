@@ -39,6 +39,30 @@ public fn expanding(data: ArrayList<double>, f: fn(ArrayList<double>): double): 
     return result;
 }
 
+// Rolling maximum: compute the maximum value over a rolling window of fixed size.
+// For positions where the full window is not available, uses whatever elements exist.
+public fn rollingMax(data: ArrayList<double>, window: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0 || window <= 0) { return result; }
+    var i: int = 0;
+    while (i < n) {
+        let start: int = i - window + 1;
+        if (start < 0) { start = 0; }
+        var maxVal: double = data.get(start);
+        var j: int = start + 1;
+        while (j <= i) {
+            if (data.get(j) > maxVal) {
+                maxVal = data.get(j);
+            }
+            j = j + 1;
+        }
+        result.add(maxVal);
+        i = i + 1;
+    }
+    return result;
+}
+
 // Exponentially weighted mean.
 // alpha is the smoothing factor (0 < alpha <= 1).
 // EWM_t = alpha * x_t + (1 - alpha) * EWM_{t-1}
