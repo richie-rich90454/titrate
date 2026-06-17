@@ -104,6 +104,49 @@ public class SequentialModel {
         return loss;
     }
 
+import tt::ml::Tensor;
+
+    public fn evaluate(data: ArrayList<Tensor>, labels: ArrayList<Tensor>): double {
+        var correct: int = 0;
+        var total: int = 0;
+        var i: int = 0;
+        while (i < data.size()) {
+            let input: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < data.get(i).data.size()) {
+                input.add(data.get(i).data.get(j));
+                j = j + 1;
+            }
+            let output: ArrayList<double> = this.predict(input);
+            let label: ArrayList<double> = new ArrayList<double>();
+            j = 0;
+            while (j < labels.get(i).data.size()) {
+                label.add(labels.get(i).data.get(j));
+                j = j + 1;
+            }
+            // Find predicted and actual max indices
+            var predIdx: int = 0;
+            var predMax: double = output.get(0);
+            var labelIdx: int = 0;
+            var labelMax: double = label.get(0);
+            j = 1;
+            while (j < output.size()) {
+                if (output.get(j) > predMax) { predMax = output.get(j); predIdx = j; }
+                j = j + 1;
+            }
+            j = 1;
+            while (j < label.size()) {
+                if (label.get(j) > labelMax) { labelMax = label.get(j); labelIdx = j; }
+                j = j + 1;
+            }
+            if (predIdx == labelIdx) { correct = correct + 1; }
+            total = total + 1;
+            i = i + 1;
+        }
+        if (total == 0) { return 0.0; }
+        return correct as double / total as double;
+    }
+
     public fn trainAdam(input: ArrayList<double>, target: ArrayList<double>, optimizer: AdamOptimizer): double {
         let output: ArrayList<double> = this.forward(input);
         let loss: double = mseLoss(output, target);
