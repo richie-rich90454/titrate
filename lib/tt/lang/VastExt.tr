@@ -288,6 +288,21 @@ public fn vastLcm(a: string, b: string): string {
     return vastDiv(product, gcd);
 }
 
+// Compute factorial of n, returning a vast integer.
+public fn factorial(n: int): vast {
+    if (n < 0) {
+        throw "ArithmeticException: factorial of negative number";
+    }
+    if (n <= 1) { return 1 as vast; }
+    var result: vast = 1;
+    var i: int = 2;
+    while (i <= n) {
+        result = result * i;
+        i = i + 1;
+    }
+    return result;
+}
+
 // Compute factorial of n, returning a string.
 public fn vastFactorial(n: int): string {
     if (n < 0) {
