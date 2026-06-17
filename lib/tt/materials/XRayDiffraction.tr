@@ -41,6 +41,10 @@ fn _ensureSFMapBuilt(): void {
 }
 
 // Bragg's law: n*lambda = 2*d*sin(theta)
+public fn braggAngle(dSpacing: double, wavelength: double): double {
+    return braggAngle(dSpacing, wavelength, 1);
+}
+
 public fn braggAngle(dSpacing: double, wavelength: double, n: int): double {
     let sinTheta: double = n as double * wavelength / (2.0 * dSpacing);
     if (sinTheta > 1.0 || sinTheta < -1.0) { return -1.0; }
