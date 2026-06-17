@@ -2,6 +2,22 @@
 import tt::util::ArrayList;
 import tt::lang::Variant;
 
+// Pack values into a byte buffer at the given offset according to the format string.
+public fn packInto(format: string, buffer: ArrayList<int>, offset: int, values: ArrayList<Variant>): void {
+    let fmt: StructFormat = new StructFormat(format);
+    let packed: string = fmt.pack(values);
+    var i: int = 0;
+    while (i < String.length(packed)) {
+        let byteVal: int = String.charAt(packed, i) as int;
+        if (offset + i < buffer.size()) {
+            buffer.set(offset + i, byteVal);
+        } else {
+            buffer.add(byteVal);
+        }
+        i = i + 1;
+    }
+}
+
 // StructFormat describes a binary data format and provides pack/unpack operations.
 public class StructFormat {
     public string format;
