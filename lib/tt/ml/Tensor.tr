@@ -51,6 +51,27 @@ public class Tensor {
         if (idx >= 0 && idx < this.data.size()) { this.data.set(idx, val); }
     }
 
+    public fn backward(): void {
+        if (!this.requiresGrad) { return; }
+        // Set initial gradient to 1.0 for scalar outputs
+        var i: int = 0;
+        while (i < this.grad.size()) {
+            if (this.grad.get(i) == 0.0) {
+                this.grad.set(i, 1.0);
+            }
+            i = i + 1;
+        }
+        // Propagate gradients through parent tensors
+        var p: int = 0;
+        while (p < this.parents.size()) {
+            let parent: Tensor = this.parents.get(p);
+            if (parent.requiresGrad) {
+                parent.accumulateGrad(this);
+            }
+            p = p + 1;
+        }
+    }
+
     public fn zeroGrad(): void {
         var i: int = 0;
         while (i < this.grad.size()) {
