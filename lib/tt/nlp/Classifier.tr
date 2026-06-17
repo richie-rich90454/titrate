@@ -59,6 +59,21 @@ public fn sentimentLabel(text: string): string {
     return "neutral";
 }
 
+// Classification accuracy metric
+public fn accuracy(predicted: ArrayList<string>, actual: ArrayList<string>): double {
+    if (predicted.size() == 0 || actual.size() == 0) { return 0.0; }
+    var correct: int = 0;
+    let n: int = Math.min(predicted.size(), actual.size());
+    var i: int = 0;
+    while (i < n) {
+        if (predicted.get(i) == actual.get(i)) {
+            correct = correct + 1;
+        }
+        i = i + 1;
+    }
+    return correct as double / n as double;
+}
+
 // Naive Bayes text classifier
 public class NaiveBayesClassifier {
     public HashMap<string, HashMap<string, int>> wordCounts;
