@@ -84,6 +84,24 @@ public class LruCache {
     }
 }
 
+// Create an LRU-cached wrapper around a function.
+// The returned function caches results up to maxSize entries using LRU eviction.
+public fn lruCache(maxSize: int, f: fn(Variant): Variant): fn(Variant): Variant {
+    let cache: LruCache = new LruCache(maxSize);
+    let capturedF: fn(Variant): Variant = f;
+    let wrapper: fn(Variant): Variant = fn(arg: Variant): Variant {
+        let key: string = arg.toString();
+        let cached: Variant = cache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        let result: Variant = capturedF(arg);
+        cache.put(key, result);
+        return result;
+    };
+    return wrapper;
+}
+
 // CachedProperty lazily computes and caches values by key.
 public class CachedProperty {
     public HashMap<string, Variant> cache;
