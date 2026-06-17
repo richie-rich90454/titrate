@@ -2,6 +2,41 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
+// Connect to a host using TLS 1.3 and return an SslConnection.
+public fn connectTLS1_3(host: string, port: int): SslConnection {
+    let config: TlsConfig = new TlsConfig();
+    config.minVersion = "TLSv1.3";
+    config.maxVersion = "TLSv1.3";
+    let conn: SslConnection = new SslConnection(host, port, config);
+    return conn;
+}
+
+// SslConnection represents an established TLS connection.
+public class SslConnection {
+    public string host;
+    public int port;
+    public TlsConfig config;
+    public bool connected;
+
+    public fn init(host: string, port: int, config: TlsConfig) {
+        this.host = host;
+        this.port = port;
+        this.config = config;
+        this.connected = false;
+    }
+
+    // Establish the TLS connection.
+    public fn connect(): void {
+        Ssl_connect(this.host, this.port, this.config);
+        this.connected = true;
+    }
+
+    // Close the TLS connection.
+    public fn close(): void {
+        this.connected = false;
+    }
+}
+
 // TlsConfig holds TLS configuration parameters.
 public class TlsConfig {
     public string minVersion;
