@@ -72,6 +72,10 @@ public class Particle {
         return 0.5 * this.mass * v2;
     }
 
+    public fn potentialEnergy(g: double): double {
+        return this.mass * g * this.z;
+    }
+
     public fn momentum(): double {
         let v2: double = this.vx * this.vx + this.vy * this.vy + this.vz * this.vz;
         return this.mass * MathAdvanced.sqrt(v2);
