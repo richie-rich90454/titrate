@@ -121,3 +121,12 @@ public fn orthorhombicCell(a: double, b: double, c: double): UnitCell {
 public fn hexagonalCell(a: double, c: double): UnitCell {
     return new UnitCell(a, a, c, 90.0, 90.0, 120.0);
 }
+
+public fn packingFraction(latticeType: string): double {
+    if (latticeType == "fcc") { return 0.74048; }
+    if (latticeType == "hcp") { return 0.74048; }
+    if (latticeType == "bcc") { return 0.68017; }
+    if (latticeType == "sc") { return 0.52360; }
+    if (latticeType == "diamond") { return 0.34010; }
+    return 0.0;
+}
