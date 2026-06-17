@@ -1266,6 +1266,26 @@ public fn dawson(x: double): double {
     return sign * sum;
 }
 
+// ==================== Chebyshev polynomials ====================
+
+// Chebyshev polynomial of the second kind U_n(x).
+// Recurrence: U_0(x) = 1, U_1(x) = 2x, U_n(x) = 2x*U_{n-1}(x) - U_{n-2}(x)
+public fn chebyshevU(n: int, x: double): double {
+    if (n < 0) { return 0.0; }
+    if (n == 0) { return 1.0; }
+    if (n == 1) { return 2.0 * x; }
+    var uPrev2: double = 1.0; // U_0
+    var uPrev1: double = 2.0 * x; // U_1
+    var i: int = 2;
+    while (i <= n) {
+        let u: double = 2.0 * x * uPrev1 - uPrev2;
+        uPrev2 = uPrev1;
+        uPrev1 = u;
+        i = i + 1;
+    }
+    return uPrev1;
+}
+
 // Exponential integral E_1(x) for x > 0
 // E_1(x) = integral_x^inf (e^{-t}/t) dt
 // Using series for small x, continued fraction for large x
