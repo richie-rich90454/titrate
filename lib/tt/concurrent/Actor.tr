@@ -41,6 +41,21 @@ public class ActorRef {
         return msg;
     }
 
+    public fn ask(system: ActorSystem, msg: ActorMessage, timeoutMs: long): ActorMessage {
+        let replyId: string = this.id + "_reply_" + Integer.toString(Time_millis());
+        msg.sender = replyId;
+        system.send(this.id, msg);
+        let deadline: long = Time_millis() + timeoutMs;
+        while (Time_millis() < deadline) {
+            let replyRef: ActorRef = system.getActor(replyId);
+            if (replyRef != null && replyRef.hasMessages()) {
+                return replyRef.receive();
+            }
+            Thread_sleep(1);
+        }
+        return null;
+    }
+
     public fn mailboxSize(): int {
         return this.mailbox.size();
     }
