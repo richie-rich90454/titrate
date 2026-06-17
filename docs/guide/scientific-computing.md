@@ -284,3 +284,192 @@ public fn main(): void {
 - [Standard Library](./stdlib) — full module reference
 - [Operator Overloading](./operator-overloading) — how NDArray and Matrix use operators
 - [Iterators](./iterators) — traversing data structures
+
+## Bioinformatics
+
+The `tt.bio` module provides tools for DNA/RNA/Protein sequence analysis, alignment, and phylogenetics.
+
+```titrate
+import tt.bio.Sequence;
+import tt.bio.Alignment;
+import tt.bio.CodonTable;
+
+// Create a DNA sequence
+let seq = new Sequence("ATCGATCGATCG", "DNA");
+let complement = seq.complement();           // TAGCTAGCTAGC
+let transcribed = seq.transcribe();          // AUCGAUCGAUCG (RNA)
+let gc = seq.gcContent();                    // 0.5
+
+// Align two sequences
+let result = Alignment.needlemanWunsch("GATTACA", "GCATGCU");
+io::println("Score: " + Double.toString(result.score));
+```
+
+## Physics Simulation
+
+The `tt.physics` module provides particle dynamics, force fields, and N-body simulation.
+
+```titrate
+import tt.physics.Particle;
+import tt.physics.ForceField;
+import tt.physics.NBodySimulator;
+
+let p = new Particle(1.0, 0.0);  // mass=1, charge=0
+p.setPosition(0.0, 0.0, 0.0);
+p.setVelocity(1.0, 0.0, 0.0);
+
+// Gravitational force
+let force = ForceField.gravitational(p, other, 6.674e-11);
+p.applyForce(force, 0.01);  // dt = 0.01s
+```
+
+## Materials Science
+
+The `tt.materials` module provides crystal structure analysis, X-ray diffraction, and elasticity calculations.
+
+```titrate
+import tt.materials.CrystalStructure;
+import tt.materials.XRayDiffraction;
+
+let crystal = new CrystalStructure("FCC", 3.615);  // FCC copper, a=3.615 Å
+let dSpacing = crystal.dSpacing(new MillerIndices(1, 1, 1));
+let pattern = XRayDiffraction.powderPattern(crystal);
+```
+
+## Signal Processing
+
+The `tt.sigproc` module provides FFT, filter design, wavelets, and spectral analysis.
+
+```titrate
+import tt.sigproc.FFT2;
+import tt.sigproc.Filter;
+
+let signal = new ArrayList<double>();
+// ... fill signal data
+let spectrum = FFT2.fft(signal);
+let filtered = Filter.butterworthLowPass(signal, cutoffFreq, sampleRate, order);
+```
+
+## Image Processing
+
+The `tt.image` module provides image manipulation, filtering, morphology, and transforms.
+
+```titrate
+import tt.image.Image;
+import tt.image.Kernel;
+
+let img = new Image(640, 480, "RGB");
+img.setPixel(100, 200, 255, 128, 0);
+let blurred = Kernel.gaussianBlur(img, 5, 1.5);
+```
+
+## Audio Processing
+
+The `tt.audio` module provides audio buffer manipulation, WAV I/O, pitch detection, and MFCC computation.
+
+```titrate
+import tt.audio.AudioBuffer;
+import tt.audio.Pitch;
+
+let buffer = new AudioBuffer(44100, 1);
+// ... fill audio samples
+let freq = Pitch.detectYIN(buffer);
+io::println("Fundamental frequency: " + Double.toString(freq) + " Hz");
+```
+
+## Machine Learning
+
+The `tt.ml` module provides tensors with autograd, neural network layers, optimizers, and training loops.
+
+```titrate
+import tt.ml.Tensor;
+import tt.ml.Layer;
+import tt.ml.Optimizer;
+import tt.ml.Model;
+
+let model = new Model();
+model.add(new Layer.Dense(784, 128));
+model.add(new Layer.ReLU());
+model.add(new Layer.Dense(128, 10));
+model.add(new Layer.Softmax());
+
+let optimizer = new Optimizer.Adam(model.parameters(), 0.001);
+model.fit(trainingData, trainingLabels, 10, 32, optimizer);
+```
+
+## Computational Geometry
+
+The `tt.geom` module provides convex hull, Delaunay triangulation, polygon operations, and spatial indexing.
+
+```titrate
+import tt.geom.ConvexHull;
+import tt.geom.SpatialIndex;
+
+let points = new ArrayList<ArrayList<double>>();
+// ... add 2D points
+let hull = ConvexHull.grahamScan(points);
+let tree = new SpatialIndex.KDTree(points);
+let nearest = tree.nearestNeighbor(queryPoint);
+```
+
+## Natural Language Processing
+
+The `tt.nlp` module provides tokenization, stemming, vectorization, and text classification.
+
+```titrate
+import tt.nlp.Tokenizer;
+import tt.nlp.Stemmer;
+import tt.nlp.Classifier;
+
+let tokens = Tokenizer.wordTokenize("The quick brown fox jumps over the lazy dog.");
+let stemmed = Stemmer.porter("running");  // "run"
+let sentiment = Classifier.predict("This movie is great!");  // positive
+```
+
+## High-Frequency Trading
+
+The `tt.hft` module provides FIX protocol parsing, order routing, risk management, and backtesting.
+
+```titrate
+import tt.hft.FixParser;
+import tt.hft.RiskManager;
+import tt.hft.Backtest;
+
+let msg = FixParser.parse("8=FIX.4.2|35=D|55=AAPL|44=150.00|38=100|");
+let risk = new RiskManager(1000000.0, 100, 500000.0);  // maxPosition, maxOrdersPerSec, maxNotional
+let allowed = risk.checkOrder("AAPL", 100, 150.0);
+```
+
+## Discrete-Event Simulation
+
+The `tt.sim` module provides event scheduling, resource management, and statistical monitoring.
+
+```titrate
+import tt.sim.Simulation;
+import tt.sim.Resource;
+import tt.sim.Process;
+
+let sim = new Simulation();
+let server = new Resource(sim, 3);  // 3 servers
+sim.run(1000.0);  // run for 1000 time units
+```
+
+## Advanced Mathematics
+
+The `tt.math` module now includes number theory, combinatorics, interval arithmetic, automatic differentiation, and special functions.
+
+```titrate
+import tt.math.Math;
+import tt.math.special.Special;
+
+// Number theory
+let primes = Math.primeSieve(100);
+let factors = Math.factorize(360);  // [2, 2, 2, 3, 3, 5]
+
+// Special functions
+let j0 = Special.besselJ(0, 2.5);
+let gamma = Special.gamma(5.0);  // 24.0
+
+// Automatic differentiation
+let grad = Math.gradient(fn(x: ArrayList<DualNumber>): DualNumber { ... }, [1.0, 2.0, 3.0]);
+```

@@ -392,3 +392,56 @@ if (shape is Circle) { ... }
 - [Error Handling](./error-handling) — `Result` and the `?` operator
 - [Enums](./enums) — enums with associated data
 - [FAQ](./faq) — common questions answered
+
+## Scientific Computing Migration
+
+C/C++ scientists will find Titrate's scientific modules far more ergonomic than raw C or even C++ with external libraries:
+
+| C/C++ Library | Titrate Equivalent |
+|---------------|-------------------|
+| FFTW | `tt.sigproc.FFT2` |
+| OpenCV | `tt.image.Image`, `tt.image.Kernel` |
+| Eigen | `tt.math.linalg.Matrix`, `tt.math.ndarray.NDArray` |
+| GSL | `tt.math.special.Special` |
+| QuantLib | `tt.finance.BlackScholes`, `tt.finance.Portfolio` |
+| RDKit | `tt.bio.Sequence`, `tt.bio.Alignment` |
+| NLTK | `tt.nlp.Tokenizer`, `tt.nlp.Stemmer` |
+| TensorFlow | `tt.ml.Tensor`, `tt.ml.Model` |
+
+### Example: FFT in C vs Titrate
+
+```c
+// C with FFTW
+#include <fftw3.h>
+fftw_complex *in, *out;
+fftw_plan p;
+in = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
+out = (fftw_complex*) fftw_malloc(sizeof(fftw_complex) * N);
+p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_ESTIMATE);
+fftw_execute(p);
+fftw_destroy_plan(p);
+fftw_free(in); fftw_free(out);
+```
+
+```titrate
+// Titrate
+import tt.sigproc.FFT2;
+let spectrum = FFT2.fft(signal);
+```
+
+### Example: Option Pricing in C vs Titrate
+
+```c
+// C with QuantLib (simplified)
+#include <ql/quantlib.hpp>
+using namespace QuantLib;
+VanillaOption option(payoff, exercise);
+option.setPricingEngine(AnalyticEuropeanEngine(stochasticProcess));
+Real price = option.NPV();
+```
+
+```titrate
+// Titrate
+import tt.finance.BlackScholes;
+let price = BlackScholes.callPrice(100.0, 105.0, 0.25, 0.05, 0.2);
+```

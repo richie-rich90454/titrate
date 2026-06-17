@@ -771,3 +771,34 @@ import tt.logging.Logger;
 |--------|-------------|
 | [testing](../stdlib/testing) | Built-in testing framework (`Assay`) |
 | [assert](../stdlib/assert) | Assertion utilities |
+
+## New Scientific Modules
+
+| Namespace | Purpose | Examples |
+|-----------|---------|---------|
+| `tt::bio` | Bioinformatics | `Sequence`, `Alignment`, `PhyloTree` |
+| `tt::physics` | Physics simulation | `Particle`, `ForceField`, `NBodySimulator` |
+| `tt::materials` | Materials science | `CrystalStructure`, `XRayDiffraction`, `Elasticity` |
+| `tt::sigproc` | Signal processing | `FFT2`, `Filter`, `Wavelet`, `Spectrogram` |
+| `tt::image` | Image processing | `Image`, `Kernel`, `Morphology`, `Threshold` |
+| `tt::audio` | Audio processing | `AudioBuffer`, `Pitch`, `Mfcc` |
+| `tt::ml` | Machine learning | `Tensor`, `Layer`, `Optimizer`, `Model` |
+| `tt::geom` | Computational geometry | `ConvexHull`, `Delaunay`, `SpatialIndex` |
+| `tt::nlp` | Natural language processing | `Tokenizer`, `Stemmer`, `Classifier` |
+| `tt::crypto2` | Advanced cryptography | `AES`, `RSA`, `ECDSA`, `KDF` |
+| `tt::hft` | High-frequency trading | `FixParser`, `OrderRouter`, `RiskManager` |
+| `tt::sim` | Discrete-event simulation | `Simulation`, `Resource`, `Process` |
+
+## Enhanced Modules
+
+| Namespace | New Features |
+|-----------|-------------|
+| `tt::math` | Number theory, combinatorics, interval arithmetic, autodiff, special functions |
+| `tt::statistics` | Hypothesis testing, ANOVA, Bayesian stats, MCMC, KDE, bootstrap, time series, survival analysis |
+| `tt::random` | MT19937, PCG32, quasi-random sequences, continuous/discrete distributions |
+| `tt::calculus` | Quadrature, vector calculus, symbolic differentiation, series expansion |
+| `tt::chem` | PeriodicTable, ReactionBalancer, Thermochemistry, Kinetics, Electrochemistry |
+| `tt::finance` | BlackScholes, binomial tree, Monte Carlo pricing, yield curve, portfolio optimization |
+| `tt::xml` | XmlNamespace, XmlStreamingParser, XPath, XmlBuilder, XmlSchema, XmlCanonicalizer |
+| `tt::json` | JsonStreamingParser, JsonPath, JsonPatch, JsonSchema, Json5, JsonBinary |
+| `tt::lang` | DataFile, IntegerExt, LongExt, DoubleExt, ResultExt, OptionalExt, VastExt |

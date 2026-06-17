@@ -676,3 +676,114 @@ public fn main(): void {
 - [Closures](./closures) — anonymous functions and capture semantics
 - [Interfaces](./interfaces) — contracts and polymorphism
 - [Standard Library](./stdlib) — what's available out of the box
+
+## Recipe: Parse a DNA Sequence and Find ORFs
+
+```titrate
+import tt.bio.Sequence;
+import tt.bio.CodonTable;
+
+public fn findORFs(dna: string): ArrayList<string> {
+    let seq = new Sequence(dna, "DNA");
+    let orfs = new ArrayList<string>();
+    let codons = seq.codons();
+    var i = 0;
+    while (i < codons.size()) {
+        if (CodonTable.isStart(codons.get(i))) {
+            var j = i + 1;
+            while (j < codons.size()) {
+                if (CodonTable.isStop(codons.get(j))) {
+                    orfs.add(seq.substring(i * 3, (j + 1) * 3));
+                    break;
+                }
+                j = j + 1;
+            }
+        }
+        i = i + 1;
+    }
+    return orfs;
+}
+```
+
+## Recipe: Compute Black-Scholes Option Price
+
+```titrate
+import tt.finance.BlackScholes;
+
+public fn main(): void {
+    let s = 100.0;   // spot price
+    let k = 105.0;   // strike price
+    let t = 0.25;    // time to expiry (years)
+    let r = 0.05;    // risk-free rate
+    let sigma = 0.2; // volatility
+
+    let callPrice = BlackScholes.callPrice(s, k, t, r, sigma);
+    let putPrice = BlackScholes.putPrice(s, k, t, r, sigma);
+    let delta = BlackScholes.delta(s, k, t, r, sigma);
+
+    io::println("Call: " + Double.toString(callPrice));
+    io::println("Put:  " + Double.toString(putPrice));
+    io::println("Delta: " + Double.toString(delta));
+}
+```
+
+## Recipe: Run a Simple Neural Network Training
+
+```titrate
+import tt.ml.Tensor;
+import tt.ml.Layer;
+import tt.ml.Loss;
+import tt.ml.Optimizer;
+import tt.ml.Model;
+
+public fn main(): void {
+    let model = new Model();
+    model.add(new Layer.Dense(2, 16));
+    model.add(new Layer.ReLU());
+    model.add(new Layer.Dense(16, 1));
+    model.add(new Layer.Sigmoid());
+
+    let optimizer = new Optimizer.Adam(model.parameters(), 0.01);
+    let lossFn = Loss.binaryCrossEntropy;
+
+    // Training loop
+    var epoch = 0;
+    while (epoch < 100) {
+        let loss = model.trainBatch(inputs, targets, lossFn, optimizer);
+        if (epoch % 10 == 0) {
+            io::println("Epoch " + Integer.toString(epoch) + ": loss=" + Double.toString(loss));
+        }
+        epoch = epoch + 1;
+    }
+}
+```
+
+## Recipe: Stream a Large JSON File
+
+```titrate
+import tt.json.JsonStreamingParser;
+import tt.json.JsonValue;
+
+public fn main(): void {
+    let parser = new JsonStreamingParser();
+    var count = 0;
+
+    parser.onKey(fn(k: string): void {
+        if (k == "name") { count = count + 1; }
+    });
+
+    parser.onValue(fn(v: JsonValue): void {
+        if (count % 1000 == 0) {
+            io::println("Processed " + Integer.toString(count) + " records");
+        }
+    });
+
+    // Feed chunks from file
+    let chunk = File.readChunk("large.json", 0, 8192);
+    while (String.length(chunk) > 0) {
+        parser.feed(chunk);
+        chunk = File.readChunk("large.json", 0, 8192);
+    }
+    parser.finish();
+}
+```
