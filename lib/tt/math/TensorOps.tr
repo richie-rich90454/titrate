@@ -343,3 +343,51 @@ public fn tensorSlice(tensor: ArrayList<double>, shape: ArrayList<int>, axis: in
 
     return result;
 }
+
+// Slice a tensor (represented as flat ArrayList with shape) using per-axis indices.
+// indices specifies which index to select along each axis.
+// Axes where indices.get(i) == -1 are kept (not sliced), others are removed.
+// Returns the sliced tensor data.
+public fn tensorSliceByIndices(tensor: ArrayList<double>, shape: ArrayList<int>, indices: ArrayList<int>): ArrayList<double> {
+    let ndim: int = shape.size();
+    // Build result shape: keep axes where index is -1
+    let resultShape: ArrayList<int> = new ArrayList<int>();
+    var d: int = 0;
+    while (d < ndim) {
+        if (d >= indices.size() || indices.get(d) == -1) {
+            resultShape.add(shape.get(d));
+        }
+        d = d + 1;
+    }
+
+    let resultNdim: int = resultShape.size();
+    var resultTotal: int = 1;
+    d = 0;
+    while (d < resultNdim) {
+        resultTotal = resultTotal * resultShape.get(d);
+        d = d + 1;
+    }
+
+    let resultStrides: ArrayList<int> = _computeStrides(resultShape);
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < resultTotal) {
+        let resultIndices: ArrayList<int> = _unflatten(i, resultStrides, resultNdim);
+        // Build full indices for original tensor
+        let fullIndices: ArrayList<int> = new ArrayList<int>();
+        var ri: int = 0;
+        d = 0;
+        while (d < ndim) {
+            if (d < indices.size() && indices.get(d) != -1) {
+                fullIndices.add(indices.get(d));
+            } else {
+                fullIndices.add(resultIndices.get(ri));
+                ri = ri + 1;
+            }
+            d = d + 1;
+        }
+        result.add(tensor.get(_flatIndex(shape, fullIndices)));
+        i = i + 1;
+    }
+    return result;
+}
