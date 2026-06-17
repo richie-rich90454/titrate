@@ -38,10 +38,27 @@ public fn argmin(data: ArrayList<double>): int {
     return idx;
 }
 
+// Binary search for a single value in a sorted array.
+// Returns the index where the value would be inserted to maintain sorted order.
+public fn searchSorted(sorted: ArrayList<double>, value: double): int {
+    let n: int = sorted.size();
+    var lo: int = 0;
+    var hi: int = n;
+    while (lo < hi) {
+        let mid: int = (lo + hi) / 2;
+        if (sorted.get(mid) < value) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return lo;
+}
+
 // Binary search for insertion points in a sorted array.
 // For each value in `values`, returns the index where it would be inserted
 // to maintain sorted order.
-public fn searchSorted(sorted: ArrayList<double>, values: ArrayList<double>): ArrayList<int> {
+public fn searchSortedBatch(sorted: ArrayList<double>, values: ArrayList<double>): ArrayList<int> {
     let result: ArrayList<int> = new ArrayList<int>();
     let n: int = sorted.size();
     var vi: int = 0;
