@@ -1,0 +1,243 @@
+// File system watching for change events.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class WatchEvent {
+    public string kind;
+    public string path;
+    public long timestamp;
+
+    public fn init(kind: string, path: string, timestamp: long) {
+        this.kind = kind;
+        this.path = path;
+        this.timestamp = timestamp;
+    }
+
+    public fn toString(): string {
+        return "WatchEvent{kind=" + this.kind + ", path=" + this.path + ", timestamp=" + Long.toString(this.timestamp) + "}";
+    }
+}
+
+public class FileWatcher {
+    private string watchPath;
+    private bool recursive;
+    private bool running;
+    private HashMap<string, ArrayList<fn(WatchEvent): void>> callbacks;
+    private ArrayList<WatchEvent> events;
+    private HashMap<string, long> snapshot;
+
+    public fn init(path: string, recursive: bool) {
+        this.watchPath = path;
+        this.recursive = recursive;
+        this.running = false;
+        this.callbacks = new HashMap<string, ArrayList<fn(WatchEvent): void>>();
+        this.events = new ArrayList<WatchEvent>();
+        this.snapshot = new HashMap<string, long>();
+        this._buildSnapshot();
+    }
+
+    public fn onEvent(kind: string, callback: fn(WatchEvent): void): void {
+        let list: ArrayList<fn(WatchEvent): void> = this.callbacks.get(kind);
+        if (list == null) {
+            list = new ArrayList<fn(WatchEvent): void>();
+            this.callbacks.put(kind, list);
+        }
+        list.add(callback);
+    }
+
+    public fn start(): void {
+        this.running = true;
+    }
+
+    public fn stop(): void {
+        this.running = false;
+    }
+
+    public fn isRunning(): bool {
+        return this.running;
+    }
+
+    public fn poll(intervalMs: long): ArrayList<WatchEvent> {
+        if (!this.running) {
+            return new ArrayList<WatchEvent>();
+        }
+
+        // Use native polling if available
+        let pending: ArrayList<WatchEvent> = Fs_pollWatchEvents(this.watchPath);
+        if (pending != null && pending.size() > 0) {
+            var i: int = 0;
+            while (i < pending.size()) {
+                let evt: WatchEvent = pending.get(i);
+                this.events.add(evt);
+                this._dispatch(evt);
+                i = i + 1;
+            }
+            return pending;
+        }
+
+        // Fallback: snapshot-based change detection
+        let detected: ArrayList<WatchEvent> = this._detectChanges();
+        var j: int = 0;
+        while (j < detected.size()) {
+            let evt: WatchEvent = detected.get(j);
+            this.events.add(evt);
+            this._dispatch(evt);
+            j = j + 1;
+        }
+
+        // Wait for the specified interval
+        if (intervalMs > 0) {
+            Thread_sleep(intervalMs);
+        }
+
+        return detected;
+    }
+
+    public fn getEvents(): ArrayList<WatchEvent> {
+        return this.events;
+    }
+
+    public fn clearEvents(): void {
+        this.events = new ArrayList<WatchEvent>();
+    }
+
+    public fn close(): void {
+        this.running = false;
+        Fs_closeWatch(this.watchPath);
+    }
+
+    public fn getPath(): string {
+        return this.watchPath;
+    }
+
+    public fn isRecursive(): bool {
+        return this.recursive;
+    }
+
+    // --- Private helpers ---
+
+    private fn _dispatch(evt: WatchEvent): void {
+        let list: ArrayList<fn(WatchEvent): void> = this.callbacks.get(evt.kind);
+        if (list != null) {
+            var i: int = 0;
+            while (i < list.size()) {
+                let cb: fn(WatchEvent): void = list.get(i);
+                cb(evt);
+                i = i + 1;
+            }
+        }
+    }
+
+    private fn _buildSnapshot(): void {
+        this.snapshot = new HashMap<string, long>();
+        let entries: ArrayList<string> = Dir_list(this.watchPath);
+        if (entries != null) {
+            var i: int = 0;
+            while (i < entries.size()) {
+                let entry: string = entries.get(i);
+                let fullPath: string = this.watchPath + "/" + entry;
+                if (Fs_isFile(fullPath)) {
+                    let mtime: long = File_lastModified(fullPath);
+                    this.snapshot.put(fullPath, mtime);
+                } else if (this.recursive && Fs_isDir(fullPath)) {
+                    this._buildSnapshotRecursive(fullPath);
+                }
+                i = i + 1;
+            }
+        }
+    }
+
+    private fn _buildSnapshotRecursive(dirPath: string): void {
+        let entries: ArrayList<string> = Dir_list(dirPath);
+        if (entries != null) {
+            var i: int = 0;
+            while (i < entries.size()) {
+                let entry: string = entries.get(i);
+                let fullPath: string = dirPath + "/" + entry;
+                if (Fs_isFile(fullPath)) {
+                    let mtime: long = File_lastModified(fullPath);
+                    this.snapshot.put(fullPath, mtime);
+                } else if (Fs_isDir(fullPath)) {
+                    this._buildSnapshotRecursive(fullPath);
+                }
+                i = i + 1;
+            }
+        }
+    }
+
+    private fn _detectChanges(): ArrayList<WatchEvent> {
+        let result: ArrayList<WatchEvent> = new ArrayList<WatchEvent>();
+        let now: long = System_currentTimeMillis();
+        let currentSnapshot: HashMap<string, long> = new HashMap<string, long>();
+
+        // Build current state
+        let entries: ArrayList<string> = Dir_list(this.watchPath);
+        if (entries != null) {
+            var i: int = 0;
+            while (i < entries.size()) {
+                let entry: string = entries.get(i);
+                let fullPath: string = this.watchPath + "/" + entry;
+                if (Fs_isFile(fullPath)) {
+                    let mtime: long = File_lastModified(fullPath);
+                    currentSnapshot.put(fullPath, mtime);
+                } else if (this.recursive && Fs_isDir(fullPath)) {
+                    this._buildCurrentSnapshotRecursive(fullPath, currentSnapshot);
+                }
+                i = i + 1;
+            }
+        }
+
+        // Detect new and modified files
+        let currentKeys: ArrayList<string> = HashMap_keys(currentSnapshot);
+        var j: int = 0;
+        while (j < currentKeys.size()) {
+            let key: string = currentKeys.get(j);
+            let prevMtime: long = this.snapshot.get(key);
+            if (prevMtime == 0) {
+                // File did not exist before — create event
+                result.add(new WatchEvent("create", key, now));
+            } else {
+                let curMtime: long = currentSnapshot.get(key);
+                if (curMtime != prevMtime) {
+                    // File was modified
+                    result.add(new WatchEvent("modify", key, now));
+                }
+            }
+            j = j + 1;
+        }
+
+        // Detect deleted files
+        let prevKeys: ArrayList<string> = HashMap_keys(this.snapshot);
+        var k: int = 0;
+        while (k < prevKeys.size()) {
+            let key: string = prevKeys.get(k);
+            let stillExists: long = currentSnapshot.get(key);
+            if (stillExists == 0) {
+                result.add(new WatchEvent("delete", key, now));
+            }
+            k = k + 1;
+        }
+
+        // Update snapshot
+        this.snapshot = currentSnapshot;
+        return result;
+    }
+
+    private fn _buildCurrentSnapshotRecursive(dirPath: string, currentSnapshot: HashMap<string, long>): void {
+        let entries: ArrayList<string> = Dir_list(dirPath);
+        if (entries != null) {
+            var i: int = 0;
+            while (i < entries.size()) {
+                let entry: string = entries.get(i);
+                let fullPath: string = dirPath + "/" + entry;
+                if (Fs_isFile(fullPath)) {
+                    let mtime: long = File_lastModified(fullPath);
+                    currentSnapshot.put(fullPath, mtime);
+                } else if (Fs_isDir(fullPath)) {
+                    this._buildCurrentSnapshotRecursive(fullPath, currentSnapshot);
+                }
+                i = i + 1;
+            }
+        }
+    }
+}

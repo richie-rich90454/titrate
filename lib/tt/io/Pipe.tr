@@ -1,0 +1,126 @@
+// Pipe I/O for inter-task communication.
+import tt::util::ArrayList;
+import tt::util::Pair;
+
+public class PipeReader {
+    private ArrayList<string> buffer;
+    private bool closed;
+
+    public fn init() {
+        this.buffer = new ArrayList<string>();
+        this.closed = false;
+    }
+
+    public fn read(): string {
+        if (this.buffer.size() == 0) {
+            return "";
+        }
+        let data: string = this.buffer.get(0);
+        this.buffer.remove(0);
+        return data;
+    }
+
+    public fn readLine(): string {
+        var i: int = 0;
+        while (i < this.buffer.size()) {
+            let chunk: string = this.buffer.get(i);
+            let nlIdx: int = String.indexOf(chunk, "\n");
+            if (nlIdx >= 0) {
+                // Found a newline — collect everything up to it
+                let sb: StringBuilder = new StringBuilder();
+                var j: int = 0;
+                // Collect full chunks before the one containing the newline
+                while (j < i) {
+                    sb.append(this.buffer.get(0));
+                    this.buffer.remove(0);
+                    j = j + 1;
+                }
+                // Split the chunk containing the newline
+                let before: string = String.substring(chunk, 0, nlIdx);
+                sb.append(before);
+                let after: string = String.substring(chunk, nlIdx + 1);
+                this.buffer.remove(0);
+                if (String.length(after) > 0) {
+                    this.buffer.add(0, after);
+                }
+                return sb.toString();
+            }
+            i = i + 1;
+        }
+        // No newline found — return all available data
+        return this.readAll();
+    }
+
+    public fn readAll(): string {
+        let sb: StringBuilder = new StringBuilder();
+        while (this.buffer.size() > 0) {
+            sb.append(this.buffer.get(0));
+            this.buffer.remove(0);
+        }
+        return sb.toString();
+    }
+
+    public fn isDataAvailable(): bool {
+        return this.buffer.size() > 0;
+    }
+
+    public fn available(): int {
+        return this.buffer.size();
+    }
+
+    public fn close(): void {
+        this.closed = true;
+    }
+
+    public fn isClosed(): bool {
+        return this.closed;
+    }
+
+    public fn _write(data: string): void {
+        if (!this.closed) {
+            this.buffer.add(data);
+        }
+    }
+}
+
+public class PipeWriter {
+    private PipeReader reader;
+    private bool closed;
+
+    public fn init(reader: PipeReader) {
+        this.reader = reader;
+        this.closed = false;
+    }
+
+    public fn write(data: string): void {
+        if (!this.closed) {
+            this.reader._write(data);
+        }
+    }
+
+    public fn writeLine(data: string): void {
+        if (!this.closed) {
+            this.reader._write(data + "\n");
+        }
+    }
+
+    public fn close(): void {
+        this.closed = true;
+        this.reader.close();
+    }
+
+    public fn isClosed(): bool {
+        return this.closed;
+    }
+
+    public fn getReader(): PipeReader {
+        return this.reader;
+    }
+}
+
+// Factory function to create a connected pipe pair.
+public fn createPipe(): Pair<PipeReader, PipeWriter> {
+    let reader: PipeReader = new PipeReader();
+    let writer: PipeWriter = new PipeWriter(reader);
+    return new Pair<PipeReader, PipeWriter>(reader, writer);
+}
