@@ -1,178 +1,71 @@
-// Counter collection backed by HashMap.
-public class Counter<E> {
-    private HashMap<E, int> counts;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
 
-    public fn Counter() {
-        this.counts = new HashMap<E, int>();
+// Counter: a dict-like class for counting hashable items.
+public class Counter {
+    public HashMap<string, int> counts;
+
+    public fn init() {
+        this.counts = new HashMap<string, int>();
     }
 
-    public fn increment(key: E): void {
-        let current: int = this.get(key);
-        this.counts.put(key, current + 1);
-    }
-
-    public fn decrement(key: E): void {
-        let current: int = this.get(key);
-        if (current <= 1) {
-            this.counts.remove(key);
+    // Add count to item.
+    public fn add(item: string, count: int): void {
+        if (this.counts.containsKey(item)) {
+            this.counts.put(item, this.counts.get(item) + count);
         } else {
-            this.counts.put(key, current - 1);
+            this.counts.put(item, count);
         }
     }
 
-    public fn get(key: E): int {
-        if (this.counts.containsKey(key)) {
-            return this.counts.get(key);
+    // Get count for item. Returns 0 if not present.
+    public fn get(item: string): int {
+        if (this.counts.containsKey(item)) {
+            return this.counts.get(item);
         }
         return 0;
     }
 
-    public fn mostCommon(): ArrayList<(E, int)> {
-        let keyList: ArrayList<E> = this.counts.keys();
+    // Return the n most common items and their counts.
+    public fn mostCommon(n: int): ArrayList<Pair<string, int>> {
+        let keys: ArrayList<string> = this.counts.keys();
         // Selection sort by count descending
-        let n: int = keyList.size();
-        let i: int = 0;
-        while (i < n - 1) {
-            let maxIdx: int = i;
-            let j: int = i + 1;
-            while (j < n) {
-                if (this.counts.get(keyList.get(j)) > this.counts.get(keyList.get(maxIdx))) {
+        var i: int = 0;
+        while (i < keys.size() - 1 && i < n) {
+            var maxIdx: int = i;
+            var j: int = i + 1;
+            while (j < keys.size()) {
+                if (this.counts.get(keys.get(j)) > this.counts.get(keys.get(maxIdx))) {
                     maxIdx = j;
                 }
                 j = j + 1;
             }
             if (maxIdx != i) {
-                let temp: E = keyList.get(i);
-                keyList.set(i, keyList.get(maxIdx));
-                keyList.set(maxIdx, temp);
+                let temp: string = keys.get(i);
+                keys.set(i, keys.get(maxIdx));
+                keys.set(maxIdx, temp);
             }
             i = i + 1;
         }
-        let result: ArrayList<(E, int)> = new ArrayList<(E, int)>();
-        let k: int = 0;
-        while (k < keyList.size()) {
-            let key: E = keyList.get(k);
-            result.add((key, this.counts.get(key)));
-            k = k + 1;
-        }
-        return result;
-    }
-
-    public fn size(): int {
-        return this.counts.size();
-    }
-
-    public fn keys(): ArrayList<E> {
-        return this.counts.keys();
-    }
-
-    public fn items(): ArrayList<(E, int)> {
-        return this.counts.entries();
-    }
-
-    public fn total(): int {
-        let sum: int = 0;
-        let vals: ArrayList<int> = this.counts.values();
-        let i: int = 0;
-        while (i < vals.size()) {
-            sum = sum + vals.get(i);
-            i = i + 1;
-        }
-        return sum;
-    }
-
-    public fn clear(): void {
-        this.counts = new HashMap<E, int>();
-    }
-
-    public fn mostCommon(n: int): ArrayList<(E, int)> {
-        let sorted: ArrayList<(E, int)> = this.mostCommon();
-        let result: ArrayList<(E, int)> = new ArrayList<(E, int)>();
-        let i: int = 0;
-        while (i < n && i < sorted.size()) {
-            result.add(sorted.get(i));
-            i = i + 1;
-        }
-        return result;
-    }
-
-    public fn subtractInPlace(other: Counter<E>): void {
-        let otherKeys: ArrayList<E> = other.keys();
-        let i: int = 0;
-        while (i < otherKeys.size()) {
-            let key: E = otherKeys.get(i);
-            let diff: int = this.get(key) - other.get(key);
-            if (diff <= 0) {
-                this.counts.remove(key);
-            } else {
-                this.counts.put(key, diff);
-            }
-            i = i + 1;
-        }
-    }
-
-    public fn addInPlace(other: Counter<E>): void {
-        let otherKeys: ArrayList<E> = other.keys();
-        let i: int = 0;
-        while (i < otherKeys.size()) {
-            let key: E = otherKeys.get(i);
-            this.counts.put(key, this.get(key) + other.get(key));
-            i = i + 1;
-        }
-    }
-
-    public fn add(other: Counter<E>): Counter<E> {
-        let result: Counter<E> = new Counter<E>();
-        let allKeys: ArrayList<E> = this.keys();
-        let otherKeys: ArrayList<E> = other.keys();
-        var i: int = 0;
-        while (i < allKeys.size()) {
-            let key: E = allKeys.get(i);
-            result.counts.put(key, this.get(key));
-            i = i + 1;
-        }
+        let result: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
         i = 0;
-        while (i < otherKeys.size()) {
-            let key: E = otherKeys.get(i);
-            result.counts.put(key, result.get(key) + other.get(key));
+        while (i < n && i < keys.size()) {
+            result.add(new Pair<string, int>(keys.get(i), this.counts.get(keys.get(i))));
             i = i + 1;
         }
         return result;
     }
 
-    public fn subtract(other: Counter<E>): Counter<E> {
-        let result: Counter<E> = new Counter<E>();
-        let allKeys: ArrayList<E> = this.keys();
-        let otherKeys: ArrayList<E> = other.keys();
+    // Return all elements with repetition (each item repeated by its count).
+    public fn elements(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let keys: ArrayList<string> = this.counts.keys();
         var i: int = 0;
-        while (i < allKeys.size()) {
-            let key: E = allKeys.get(i);
-            result.counts.put(key, this.get(key));
-            i = i + 1;
-        }
-        i = 0;
-        while (i < otherKeys.size()) {
-            let key: E = otherKeys.get(i);
-            let diff: int = result.get(key) - other.get(key);
-            if (diff > 0) {
-                result.counts.put(key, diff);
-            } else {
-                if (result.counts.containsKey(key)) {
-                    result.counts.remove(key);
-                }
-            }
-            i = i + 1;
-        }
-        return result;
-    }
-
-    public fn elements(): ArrayList<E> {
-        let result: ArrayList<E> = new ArrayList<E>();
-        let items: ArrayList<(E, int)> = this.counts.entries();
-        let i: int = 0;
-        while (i < items.size()) {
-            let (key: E, count: int) = items.get(i);
-            let j: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let count: int = this.counts.get(key);
+            var j: int = 0;
             while (j < count) {
                 result.add(key);
                 j = j + 1;
@@ -182,25 +75,52 @@ public class Counter<E> {
         return result;
     }
 
-    public fn update(list: ArrayList<E>): void {
-        let i: int = 0;
-        while (i < list.size()) {
-            this.increment(list.get(i));
+    // Subtract another counter from this one.
+    public fn subtract(other: Counter): void {
+        let keys: ArrayList<string> = other.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let otherCount: int = other.counts.get(key);
+            if (this.counts.containsKey(key)) {
+                this.counts.put(key, this.counts.get(key) - otherCount);
+            } else {
+                this.counts.put(key, -otherCount);
+            }
             i = i + 1;
         }
     }
 
-    public fn toString(): string {
-        let s: string = "Counter({";
-        let items: ArrayList<(E, int)> = this.counts.entries();
-        let i: int = 0;
-        while (i < items.size()) {
-            if (i > 0) { s = s + ", "; }
-            let (key: E, count: int) = items.get(i);
-            s = s + key + ": " + count;
+    // Update this counter from another counter.
+    public fn update(other: Counter): void {
+        let keys: ArrayList<string> = other.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let otherCount: int = other.counts.get(key);
+            if (this.counts.containsKey(key)) {
+                this.counts.put(key, this.counts.get(key) + otherCount);
+            } else {
+                this.counts.put(key, otherCount);
+            }
             i = i + 1;
         }
-        s = s + "})";
-        return s;
+    }
+
+    // Total of all counts.
+    public fn total(): int {
+        var sum: int = 0;
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            sum = sum + this.counts.get(keys.get(i));
+            i = i + 1;
+        }
+        return sum;
+    }
+
+    // Clear all counts.
+    public fn clear(): void {
+        this.counts = new HashMap<string, int>();
     }
 }

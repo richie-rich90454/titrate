@@ -1,185 +1,147 @@
-// Bit set collection for efficient bit-level operations.
+import tt::util::ArrayList;
+
+// BitSet: a compact array of bit values.
 public class BitSet {
-    private ArrayList<int> words;
+    public ArrayList<long> words;
+    public int size;
 
-    public fn BitSet() {
-        this.words = new ArrayList<int>();
-    }
-
-    private fn _wordIndex(bitIndex: int): int {
-        return bitIndex / 32;
-    }
-
-    private fn ensureCapacity(wordIdx: int): void {
-        while (this.words.size() <= wordIdx) {
-            this.words.add(0);
+    public fn init(n: int) {
+        this.size = n;
+        this.words = new ArrayList<long>();
+        let wordCount: int = (n + 63) / 64;
+        var i: int = 0;
+        while (i < wordCount) {
+            this.words.add(0 as long);
+            i = i + 1;
         }
     }
 
-    public fn set(bitIndex: int): void {
-        let idx: int = this._wordIndex(bitIndex);
-        this.ensureCapacity(idx);
-        let word: int = this.words.get(idx);
-        this.words.set(idx, word | (1 << (bitIndex % 32)));
+    // Set the bit at the given index.
+    public fn set(bit: int): void {
+        if (bit < 0 || bit >= this.size) { return; }
+        let wordIdx: int = bit / 64;
+        let bitIdx: int = bit % 64;
+        let word: long = this.words.get(wordIdx);
+        this.words.set(wordIdx, word | (1 as long << bitIdx));
     }
 
-    public fn get(bitIndex: int): bool {
-        let idx: int = this._wordIndex(bitIndex);
-        if (idx >= this.words.size()) {
-            return false;
+    // Clear the bit at the given index.
+    public fn clear(bit: int): void {
+        if (bit < 0 || bit >= this.size) { return; }
+        let wordIdx: int = bit / 64;
+        let bitIdx: int = bit % 64;
+        let word: long = this.words.get(wordIdx);
+        this.words.set(wordIdx, word & ~(1 as long << bitIdx));
+    }
+
+    // Get the bit at the given index.
+    public fn get(bit: int): bool {
+        if (bit < 0 || bit >= this.size) { return false; }
+        let wordIdx: int = bit / 64;
+        let bitIdx: int = bit % 64;
+        let word: long = this.words.get(wordIdx);
+        return (word & (1 as long << bitIdx)) != 0;
+    }
+
+    // Flip the bit at the given index.
+    public fn flip(bit: int): void {
+        if (bit < 0 || bit >= this.size) { return; }
+        let wordIdx: int = bit / 64;
+        let bitIdx: int = bit % 64;
+        let word: long = this.words.get(wordIdx);
+        this.words.set(wordIdx, word ^ (1 as long << bitIdx));
+    }
+
+    // Bitwise AND with another BitSet.
+    public fn and(other: BitSet): BitSet {
+        let result: BitSet = new BitSet(this.size);
+        var i: int = 0;
+        while (i < this.words.size() && i < other.words.size()) {
+            result.words.set(i, this.words.get(i) & other.words.get(i));
+            i = i + 1;
         }
-        let word: int = this.words.get(idx);
-        return (word & (1 << (bitIndex % 32))) != 0;
+        return result;
     }
 
-    public fn clear(bitIndex: int): void {
-        let idx: int = this._wordIndex(bitIndex);
-        if (idx < this.words.size()) {
-            let word: int = this.words.get(idx);
-            this.words.set(idx, word & ~(1 << (bitIndex % 32)));
+    // Bitwise OR with another BitSet.
+    public fn or(other: BitSet): BitSet {
+        let result: BitSet = new BitSet(this.size);
+        var i: int = 0;
+        while (i < this.words.size() && i < other.words.size()) {
+            result.words.set(i, this.words.get(i) | other.words.get(i));
+            i = i + 1;
         }
+        return result;
     }
 
-    public fn flip(bitIndex: int): void {
-        let idx: int = this._wordIndex(bitIndex);
-        this.ensureCapacity(idx);
-        let word: int = this.words.get(idx);
-        this.words.set(idx, word ^ (1 << (bitIndex % 32)));
+    // Bitwise XOR with another BitSet.
+    public fn xor(other: BitSet): BitSet {
+        let result: BitSet = new BitSet(this.size);
+        var i: int = 0;
+        while (i < this.words.size() && i < other.words.size()) {
+            result.words.set(i, this.words.get(i) ^ other.words.get(i));
+            i = i + 1;
+        }
+        return result;
     }
 
+    // AND NOT: bits that are set in this but not in other.
+    public fn andNot(other: BitSet): BitSet {
+        let result: BitSet = new BitSet(this.size);
+        var i: int = 0;
+        while (i < this.words.size() && i < other.words.size()) {
+            result.words.set(i, this.words.get(i) & ~other.words.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Number of set bits.
     public fn cardinality(): int {
-        let count: int = 0;
-        let i: int = 0;
+        var count: int = 0;
+        var i: int = 0;
         while (i < this.words.size()) {
-            let word: int = this.words.get(i);
-            while (word != 0) {
-                count = count + (word & 1);
-                word = word >> 1;
+            let word: long = this.words.get(i);
+            var w: long = word;
+            while (w != 0) {
+                count = count + 1;
+                w = w & (w - 1);
             }
             i = i + 1;
         }
         return count;
     }
 
-    public fn and(other: BitSet): void {
-        let i: int = 0;
-        while (i < this.words.size()) {
-            if (i < other.words.size()) {
-                this.words.set(i, this.words.get(i) & other.words.get(i));
-            } else {
-                this.words.set(i, 0);
-            }
+    // Next set bit from the given index. Returns -1 if none.
+    public fn nextSetBit(from: int): int {
+        if (from < 0) { from = 0; }
+        var i: int = from;
+        while (i < this.size) {
+            if (this.get(i)) { return i; }
             i = i + 1;
         }
+        return -1;
     }
 
-    public fn or(other: BitSet): void {
-        let i: int = 0;
-        while (i < other.words.size()) {
-            this.ensureCapacity(i);
-            this.words.set(i, this.words.get(i) | other.words.get(i));
+    // Next clear bit from the given index.
+    public fn nextClearBit(from: int): int {
+        if (from < 0) { from = 0; }
+        var i: int = from;
+        while (i < this.size) {
+            if (!this.get(i)) { return i; }
             i = i + 1;
         }
+        return this.size;
     }
 
-    public fn xor(other: BitSet): void {
-        let i: int = 0;
-        while (i < other.words.size()) {
-            this.ensureCapacity(i);
-            this.words.set(i, this.words.get(i) ^ other.words.get(i));
-            i = i + 1;
-        }
-    }
-
-    public fn size(): int {
-        return this.words.size() * 32;
-    }
-
-    public fn length(): int {
-        let i: int = this.words.size() - 1;
-        while (i >= 0) {
-            if (this.words.get(i) != 0) {
-                let word: int = this.words.get(i);
-                let bit: int = 31;
-                while (bit >= 0) {
-                    if ((word & (1 << bit)) != 0) {
-                        return i * 32 + bit + 1;
-                    }
-                    bit = bit - 1;
-                }
-            }
-            i = i - 1;
-        }
-        return 0;
-    }
-
+    // Check if no bits are set.
     public fn isEmpty(): bool {
-        let i: int = 0;
-        while (i < this.words.size()) {
-            if (this.words.get(i) != 0) {
-                return false;
-            }
-            i = i + 1;
-        }
-        return true;
+        return this.cardinality() == 0;
     }
 
-    public fn clear(): void {
-        let i: int = 0;
-        while (i < this.words.size()) {
-            this.words.set(i, 0);
-            i = i + 1;
-        }
-    }
-
-    public fn set(from: int, to: int): void {
-        let i: int = from;
-        while (i < to) {
-            this.set(i);
-            i = i + 1;
-        }
-    }
-
-    public fn get(from: int, to: int): BitSet {
-        let result: BitSet = new BitSet();
-        let i: int = from;
-        while (i < to) {
-            if (this.get(i)) {
-                result.set(i - from);
-            }
-            i = i + 1;
-        }
-        return result;
-    }
-
-    public fn clear(from: int, to: int): void {
-        let i: int = from;
-        while (i < to) {
-            this.clear(i);
-            i = i + 1;
-        }
-    }
-
-    public fn flip(from: int, to: int): void {
-        let i: int = from;
-        while (i < to) {
-            this.flip(i);
-            i = i + 1;
-        }
-    }
-
-    public fn andNot(other: BitSet): void {
-        let i: int = 0;
-        while (i < this.words.size()) {
-            if (i < other.words.size()) {
-                this.words.set(i, this.words.get(i) & ~other.words.get(i));
-            }
-            i = i + 1;
-        }
-    }
-
+    // Check if this BitSet shares any set bits with another.
     public fn intersects(other: BitSet): bool {
-        let i: int = 0;
+        var i: int = 0;
         while (i < this.words.size() && i < other.words.size()) {
             if ((this.words.get(i) & other.words.get(i)) != 0) {
                 return true;
@@ -187,83 +149,5 @@ public class BitSet {
             i = i + 1;
         }
         return false;
-    }
-
-    public fn toString(): string {
-        let s: string = "{";
-        let first: bool = true;
-        let i: int = 0;
-        while (i < this.size()) {
-            if (this.get(i)) {
-                if (!first) { s = s + ", "; }
-                s = s + i;
-                first = false;
-            }
-            i = i + 1;
-        }
-        s = s + "}";
-        return s;
-    }
-
-    public fn clone(): BitSet {
-        let result: BitSet = new BitSet();
-        let i: int = 0;
-        while (i < this.words.size()) {
-            result.words.add(this.words.get(i));
-            i = i + 1;
-        }
-        return result;
-    }
-
-    public fn nextSetBit(from: int): int {
-        if (from < 0) { return -1; }
-        let wordIdx: int = from / 32;
-        let bitIdx: int = from % 32;
-        while (wordIdx < this.words.size()) {
-            let word: int = this.words.get(wordIdx);
-            // Mask out bits below from within this word
-            if (bitIdx > 0) {
-                word = word & ~((1 << bitIdx) - 1);
-            }
-            if (word != 0) {
-                // Find the lowest set bit
-                var bit: int = bitIdx;
-                while (bit < 32) {
-                    if ((word & (1 << bit)) != 0) {
-                        return wordIdx * 32 + bit;
-                    }
-                    bit = bit + 1;
-                }
-            }
-            wordIdx = wordIdx + 1;
-            bitIdx = 0;
-        }
-        return -1;
-    }
-
-    public fn nextClearBit(from: int): int {
-        if (from < 0) { return 0; }
-        let wordIdx: int = from / 32;
-        let bitIdx: int = from % 32;
-        while (wordIdx < this.words.size()) {
-            let word: int = this.words.get(wordIdx);
-            // Mask out bits below from within this word
-            if (bitIdx > 0) {
-                word = word | ((1 << bitIdx) - 1);
-            }
-            if (word != -1) {
-                // Find the lowest clear bit
-                var bit: int = bitIdx;
-                while (bit < 32) {
-                    if ((word & (1 << bit)) == 0) {
-                        return wordIdx * 32 + bit;
-                    }
-                    bit = bit + 1;
-                }
-            }
-            wordIdx = wordIdx + 1;
-            bitIdx = 0;
-        }
-        return wordIdx * 32;
     }
 }

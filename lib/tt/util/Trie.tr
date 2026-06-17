@@ -1,170 +1,152 @@
-// Trie (prefix tree) data structure for string keys.
 import tt::util::ArrayList;
 import tt::util::HashMap;
-import tt::util::ArrayListIterator;
+import tt::lang::Variant;
 
-public class Trie {
-    private HashMap<string, TrieNode> children;
-    private bool isEnd;
-    private int _size;
+// TrieNode: a node in the trie.
+public class TrieNode {
+    public HashMap<string, TrieNode> children;
+    public bool isEnd;
+    public Variant value;
 
-    public fn Trie() {
+    public fn init() {
         this.children = new HashMap<string, TrieNode>();
         this.isEnd = false;
-        this._size = 0;
+        this.value = null;
+    }
+}
+
+// Trie: prefix tree for string keys.
+public class Trie {
+    public TrieNode root;
+    public int count;
+
+    public fn init() {
+        this.root = new TrieNode();
+        this.count = 0;
     }
 
+    // Insert a word into the trie.
     public fn insert(word: string): void {
-        let node: TrieNode = this;
-        let i: int = 0;
-        while (i < String.length(word)) {
-            let ch: string = word.substring(i, i + 1);
-            let kids: HashMap<string, TrieNode> = node.children;
-            let next: TrieNode = kids.get(ch);
-            if (next == null) {
-                next = new TrieNode();
-                kids.put(ch, next);
+        var node: TrieNode = this.root;
+        var i: int = 0;
+        while (i < String_length(word)) {
+            let ch: string = String_charAt(word, i);
+            if (!node.children.containsKey(ch)) {
+                node.children.put(ch, new TrieNode());
             }
-            node = next;
+            node = node.children.get(ch);
             i = i + 1;
         }
         if (!node.isEnd) {
-            node.isEnd = true;
-            this._size = this._size + 1;
+            this.count = this.count + 1;
         }
+        node.isEnd = true;
     }
 
+    // Search for an exact word in the trie.
     public fn search(word: string): bool {
-        let node: TrieNode = this._findNode(word);
-        if (node == null) {
-            return false;
-        }
+        var node: TrieNode = this.findNode(word);
+        if (node == null) { return false; }
         return node.isEnd;
     }
 
+    // Check if any word in the trie starts with the given prefix.
     public fn startsWith(prefix: string): bool {
-        let node: TrieNode = this._findNode(prefix);
+        var node: TrieNode = this.findNode(prefix);
         return node != null;
     }
 
+    // Auto-complete: return all words that start with the given prefix.
+    public fn autoComplete(prefix: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var node: TrieNode = this.findNode(prefix);
+        if (node == null) { return result; }
+        this.collectWords(node, prefix, result);
+        return result;
+    }
+
+    // Delete a word from the trie. Returns true if the word was found and deleted.
     public fn delete(word: string): bool {
-        let node: TrieNode = this._findNode(word);
-        if (node == null || !node.isEnd) {
-            return false;
-        }
-        node.isEnd = false;
-        this._size = this._size - 1;
+        if (!this.search(word)) { return false; }
+        this.deleteHelper(this.root, word, 0);
+        this.count = this.count - 1;
         return true;
     }
 
-    public fn isEmpty(): bool {
-        return this._size == 0;
-    }
-
-    public fn size(): int {
-        return this._size;
-    }
-
+    // Return all keys with the given prefix.
     public fn keysWithPrefix(prefix: string): ArrayList<string> {
-        let result: ArrayList<string> = new ArrayList<string>();
-        let node: TrieNode = this._findNode(prefix);
-        if (node == null) {
-            return result;
-        }
-        this._collectKeys(node, prefix, result);
-        return result;
+        return this.autoComplete(prefix);
     }
 
-    public fn longestPrefixOf(prefix: string): string {
-        let node: TrieNode = this;
-        let lastEnd: int = 0;
-        let i: int = 0;
-        while (i < String.length(prefix)) {
-            let ch: string = prefix.substring(i, i + 1);
-            let next: TrieNode = node.children.get(ch);
-            if (next == null) {
-                break;
-            }
-            node = next;
-            i = i + 1;
+    // Return the longest prefix of query that is in the trie.
+    public fn longestPrefixOf(query: string): string {
+        var node: TrieNode = this.root;
+        var lastEnd: int = -1;
+        var i: int = 0;
+        while (i < String_length(query)) {
+            let ch: string = String_charAt(query, i);
+            if (!node.children.containsKey(ch)) { break; }
+            node = node.children.get(ch);
             if (node.isEnd) {
-                lastEnd = i;
+                lastEnd = i + 1;
             }
-        }
-        if (lastEnd == 0) {
-            return "";
-        }
-        return prefix.substring(0, lastEnd);
-    }
-
-    public fn keys(): ArrayList<string> {
-        let result: ArrayList<string> = new ArrayList<string>();
-        this._collectKeys(this, "", result);
-        return result;
-    }
-
-    public fn values(): ArrayList<string> {
-        return this.keys();
-    }
-
-    public fn entries(): ArrayList<(string, string)> {
-        let allKeys: ArrayList<string> = this.keys();
-        let result: ArrayList<(string, string)> = new ArrayList<(string, string)>();
-        let i: int = 0;
-        while (i < allKeys.size()) {
-            let key: string = allKeys.get(i);
-            result.add((key, key));
             i = i + 1;
         }
-        return result;
+        if (lastEnd < 0) { return ""; }
+        return String.substring(query, 0, lastEnd);
     }
 
-    public fn clear(): void {
-        this.children = new HashMap<string, TrieNode>();
-        this.isEnd = false;
-        this._size = 0;
+    // Number of words in the trie.
+    public fn size(): int {
+        return this.count;
     }
 
-    public fn iterator(): ArrayListIterator<string> {
-        return new ArrayListIterator<string>(this.keys());
+    // Check if the trie is empty.
+    public fn isEmpty(): bool {
+        return this.count == 0;
     }
 
-    private fn _findNode(word: string): TrieNode {
-        let node: TrieNode = this;
-        let i: int = 0;
-        while (i < String.length(word)) {
-            let ch: string = word.substring(i, i + 1);
-            let next: TrieNode = node.children.get(ch);
-            if (next == null) {
-                return null;
-            }
-            node = next;
+    // Internal: find the node corresponding to a prefix.
+    private fn findNode(prefix: string): TrieNode {
+        var node: TrieNode = this.root;
+        var i: int = 0;
+        while (i < String_length(prefix)) {
+            let ch: string = String_charAt(prefix, i);
+            if (!node.children.containsKey(ch)) { return null; }
+            node = node.children.get(ch);
             i = i + 1;
         }
         return node;
     }
 
-    private fn _collectKeys(node: TrieNode, prefix: string, result: ArrayList<string>): void {
+    // Internal: collect all words from a given node.
+    private fn collectWords(node: TrieNode, prefix: string, result: ArrayList<string>): void {
         if (node.isEnd) {
             result.add(prefix);
         }
         let keys: ArrayList<string> = node.children.keys();
-        let i: int = 0;
+        var i: int = 0;
         while (i < keys.size()) {
             let ch: string = keys.get(i);
-            let child: TrieNode = node.children.get(ch);
-            this._collectKeys(child, prefix + ch, result);
+            this.collectWords(node.children.get(ch), prefix + ch, result);
             i = i + 1;
         }
     }
-}
 
-public class TrieNode {
-    public HashMap<string, TrieNode> children;
-    public bool isEnd;
-
-    public fn TrieNode() {
-        this.children = new HashMap<string, TrieNode>();
-        this.isEnd = false;
+    // Internal: recursive delete helper.
+    private fn deleteHelper(node: TrieNode, word: string, depth: int): bool {
+        if (depth == String_length(word)) {
+            node.isEnd = false;
+            return node.children.size() == 0;
+        }
+        let ch: string = String_charAt(word, depth);
+        if (!node.children.containsKey(ch)) { return false; }
+        let child: TrieNode = node.children.get(ch);
+        let shouldDelete: bool = this.deleteHelper(child, word, depth + 1);
+        if (shouldDelete) {
+            node.children.remove(ch);
+            return !node.isEnd && node.children.size() == 0;
+        }
+        return false;
     }
 }

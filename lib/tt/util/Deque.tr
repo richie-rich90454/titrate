@@ -1,117 +1,103 @@
-// Double-ended queue backed by RingDeque for O(1) front operations.
-import tt::util::RingDeque;
 import tt::util::ArrayList;
-import tt::util::ArrayListIterator;
+import tt::lang::Variant;
 
-public class Deque<E> {
-    private RingDeque<E> data;
+// Deque: double-ended queue with optional max length.
+public class Deque {
+    public ArrayList<Variant> items;
+    public int maxLen;
 
-    public fn Deque() {
-        this.data = new RingDeque<E>();
+    public fn init() {
+        this.items = new ArrayList<Variant>();
+        this.maxLen = 0;
     }
 
-    public fn pushFront(item: E): void {
-        this.data.pushFront(item);
+    // Constructor with max length.
+    public fn initWithMaxLen(maxLen: int) {
+        this.items = new ArrayList<Variant>();
+        this.maxLen = maxLen;
     }
 
-    public fn pushBack(item: E): void {
-        this.data.pushBack(item);
+    // Add item to the front of the deque.
+    public fn pushLeft(item: Variant): void {
+        this.items.add(0, item);
+        this.trimIfNeeded();
     }
 
-    public fn popFront(): E {
-        return this.data.popFront();
+    // Add item to the back of the deque.
+    public fn pushRight(item: Variant): void {
+        this.items.add(item);
+        this.trimIfNeeded();
     }
 
-    public fn popBack(): E {
-        return this.data.popBack();
+    // Remove and return item from the front.
+    public fn popLeft(): Variant {
+        if (this.items.size() == 0) {
+            throw "DequeError: pop from empty deque";
+        }
+        let item: Variant = this.items.get(0);
+        this.items.remove(0);
+        return item;
     }
 
-    public fn peekFront(): E {
-        return this.data.peekFront();
+    // Remove and return item from the back.
+    public fn popRight(): Variant {
+        if (this.items.size() == 0) {
+            throw "DequeError: pop from empty deque";
+        }
+        let item: Variant = this.items.get(this.items.size() - 1);
+        this.items.remove(this.items.size() - 1);
+        return item;
     }
 
-    public fn peekBack(): E {
-        return this.data.peekBack();
+    // View the front item without removing it.
+    public fn peekLeft(): Variant {
+        if (this.items.size() == 0) {
+            return null;
+        }
+        return this.items.get(0);
     }
 
+    // View the back item without removing it.
+    public fn peekRight(): Variant {
+        if (this.items.size() == 0) {
+            return null;
+        }
+        return this.items.get(this.items.size() - 1);
+    }
+
+    // Number of items in the deque.
     public fn size(): int {
-        return this.data.size();
+        return this.items.size();
     }
 
+    // Check if the deque is empty.
     public fn isEmpty(): bool {
-        return this.data.isEmpty();
+        return this.items.size() == 0;
     }
 
-    public fn contains(value: E): bool {
-        return this.data.contains(value);
-    }
-
-    public fn iterator(): ArrayListIterator<E> {
-        return new ArrayListIterator<E>(this.data.toArray());
-    }
-
-    public fn clear(): void {
-        this.data.clear();
-    }
-
+    // Rotate the deque n steps to the right. Negative n rotates left.
     public fn rotate(n: int): void {
-        if (this.data.size() == 0) { return; }
-        let effective: int = n % this.data.size();
-        if (effective == 0) { return; }
-        if (effective > 0) {
-            // Rotate right: pop from back, push to front
-            var i: int = 0;
-            while (i < effective) {
-                this.data.pushFront(this.data.popBack());
-                i = i + 1;
-            }
-        } else {
-            // Rotate left: pop from front, push to back
-            var i: int = 0;
-            while (i < -effective) {
-                this.data.pushBack(this.data.popFront());
-                i = i + 1;
-            }
+        if (this.items.size() == 0) { return; }
+        var steps: int = n % this.items.size();
+        if (steps < 0) {
+            steps = steps + this.items.size();
         }
-    }
-
-    public fn insert(i: int, x: E): void {
-        // Insert x at position i
-        let arr: ArrayList<E> = this.data.toArray();
-        this.data.clear();
-        var j: int = 0;
-        while (j < i && j < arr.size()) {
-            this.data.pushBack(arr.get(j));
-            j = j + 1;
-        }
-        this.data.pushBack(x);
-        while (j < arr.size()) {
-            this.data.pushBack(arr.get(j));
-            j = j + 1;
-        }
-    }
-
-    public fn remove(x: E): bool {
-        let arr: ArrayList<E> = this.data.toArray();
-        var found: bool = false;
-        this.data.clear();
+        if (steps == 0) { return; }
+        // Move last `steps` items to the front
         var i: int = 0;
-        while (i < arr.size()) {
-            if (!found && arr.get(i) == x) {
-                found = true;
-            } else {
-                this.data.pushBack(arr.get(i));
-            }
+        while (i < steps) {
+            let item: Variant = this.items.get(this.items.size() - 1);
+            this.items.remove(this.items.size() - 1);
+            this.items.add(0, item);
             i = i + 1;
         }
-        return found;
     }
 
-    public fn index(x: E): int {
-        let arr: ArrayList<E> = this.data.toArray();
+    // Find the index of item. Returns -1 if not found.
+    public fn indexOf(item: Variant): int {
         var i: int = 0;
-        while (i < arr.size()) {
-            if (arr.get(i) == x) {
+        while (i < this.items.size()) {
+            if (this.items.get(i) == item) {
                 return i;
             }
             i = i + 1;
@@ -119,8 +105,22 @@ public class Deque<E> {
         return -1;
     }
 
-    public fn maxlen(): int {
-        // 0 means unlimited
-        return 0;
+    // Check if item is in the deque.
+    public fn contains(item: Variant): bool {
+        return this.indexOf(item) >= 0;
+    }
+
+    // Remove all items from the deque.
+    public fn clear(): void {
+        this.items = new ArrayList<Variant>();
+    }
+
+    // Internal: trim items from the left if maxLen is set and exceeded.
+    private fn trimIfNeeded(): void {
+        if (this.maxLen > 0) {
+            while (this.items.size() > this.maxLen) {
+                this.items.remove(0);
+            }
+        }
     }
 }
