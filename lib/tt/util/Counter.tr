@@ -119,6 +119,36 @@ public class Counter {
         return sum;
     }
 
+    // Static: return the n most common items from a count map.
+    public fn mostCommon(c: HashMap<string, int>, n: int): ArrayList<(string, int)> {
+        let keys: ArrayList<string> = c.keys();
+        // Selection sort by count descending
+        var i: int = 0;
+        while (i < keys.size() - 1 && i < n) {
+            var maxIdx: int = i;
+            var j: int = i + 1;
+            while (j < keys.size()) {
+                if (c.get(keys.get(j)) > c.get(keys.get(maxIdx))) {
+                    maxIdx = j;
+                }
+                j = j + 1;
+            }
+            if (maxIdx != i) {
+                let temp: string = keys.get(i);
+                keys.set(i, keys.get(maxIdx));
+                keys.set(maxIdx, temp);
+            }
+            i = i + 1;
+        }
+        let result: ArrayList<(string, int)> = new ArrayList<(string, int)>();
+        i = 0;
+        while (i < n && i < keys.size()) {
+            result.add((keys.get(i), c.get(keys.get(i))));
+            i = i + 1;
+        }
+        return result;
+    }
+
     // Clear all counts.
     public fn clear(): void {
         this.counts = new HashMap<string, int>();
