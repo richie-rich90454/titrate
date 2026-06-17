@@ -3,6 +3,7 @@ import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
 import tt::lang::Integer;
+import tt::bio::CodonTable;
 
 var _complementMap: HashMap<string, string> = new HashMap<string, string>();
 var _complementLoaded: bool = false;
@@ -98,6 +99,15 @@ public class Sequence {
             }
         }
         return new Sequence(this.seq, this.type);
+    }
+
+    public fn translate(): Sequence {
+        let dna: string = this.seq;
+        if (this.type == "rna") {
+            dna = this.transcribe().seq;
+        }
+        let protein: string = CodonTable.translate(dna);
+        return new Sequence(protein, "protein");
     }
 
     public fn gcContent(): double {
