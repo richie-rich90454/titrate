@@ -191,6 +191,24 @@ public fn fftShift(data: ArrayList<double>): ArrayList<double> {
     return result;
 }
 
+// Inverse FFT shift (undo centering)
+public fn ifftShift(data: ArrayList<double>): ArrayList<double> {
+    let n: int = data.size();
+    let half: int = (n + 1) / 2;
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = half;
+    while (i < n) {
+        result.add(data.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < half) {
+        result.add(data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
 // Real FFT magnitudes
 public fn fftMagnitudes(input: ArrayList<double>): ArrayList<double> {
     let spectrum: ArrayList<_Complex> = fft(input);
