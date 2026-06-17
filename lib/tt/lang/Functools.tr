@@ -1,0 +1,149 @@
+// Functools — extended functional utilities: LRU cache, cached property, partial, reduce, cmpToKey.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+// LruCache provides a fixed-capacity least-recently-used cache with hit/miss statistics.
+public class LruCache {
+    public HashMap<string, Variant> cache;
+    public ArrayList<string> order;
+    public int capacity;
+    public int hits;
+    public int misses;
+
+    public fn init(capacity: int) {
+        this.cache = new HashMap<string, Variant>();
+        this.order = new ArrayList<string>();
+        this.capacity = capacity;
+        this.hits = 0;
+        this.misses = 0;
+    }
+
+    // Get a value from the cache by key. Returns null on miss.
+    // Moves the key to the most-recently-used position on hit.
+    public fn get(key: string): Variant {
+        if (this.cache.containsKey(key)) {
+            this.hits = this.hits + 1;
+            // Move key to front of order list
+            var i: int = 0;
+            while (i < this.order.size()) {
+                if (this.order.get(i) == key) {
+                    this.order.remove(i);
+                    break;
+                }
+                i = i + 1;
+            }
+            this.order.add(0, key);
+            return this.cache.get(key);
+        }
+        this.misses = this.misses + 1;
+        return null;
+    }
+
+    // Put a key-value pair into the cache, evicting the LRU entry if over capacity.
+    public fn put(key: string, value: Variant): void {
+        if (this.cache.containsKey(key)) {
+            // Update value and move to front
+            this.cache.put(key, value);
+            var i: int = 0;
+            while (i < this.order.size()) {
+                if (this.order.get(i) == key) {
+                    this.order.remove(i);
+                    break;
+                }
+                i = i + 1;
+            }
+            this.order.add(0, key);
+            return;
+        }
+        // Evict least recently used if over capacity
+        while (this.order.size() >= this.capacity) {
+            let lru: string = this.order.get(this.order.size() - 1);
+            this.order.remove(this.order.size() - 1);
+            this.cache.remove(lru);
+        }
+        this.order.add(0, key);
+        this.cache.put(key, value);
+    }
+
+    // Clear the cache and reset statistics.
+    public fn clear(): void {
+        this.cache = new HashMap<string, Variant>();
+        this.order = new ArrayList<string>();
+        this.hits = 0;
+        this.misses = 0;
+    }
+
+    // Return cache statistics as a HashMap with keys: hits, misses, size.
+    public fn stats(): HashMap<string, int> {
+        let result: HashMap<string, int> = new HashMap<string, int>();
+        result.put("hits", this.hits);
+        result.put("misses", this.misses);
+        result.put("size", this.order.size());
+        return result;
+    }
+}
+
+// CachedProperty lazily computes and caches values by key.
+public class CachedProperty {
+    public HashMap<string, Variant> cache;
+    public HashMap<string, bool> computed;
+
+    public fn init() {
+        this.cache = new HashMap<string, Variant>();
+        this.computed = new HashMap<string, bool>();
+    }
+
+    // Get the value for a key, computing it with the provided function on first access.
+    public fn get(key: string, computer: fn(): Variant): Variant {
+        if (this.computed.containsKey(key) && this.computed.get(key)) {
+            return this.cache.get(key);
+        }
+        let value: Variant = computer();
+        this.cache.put(key, value);
+        this.computed.put(key, true);
+        return value;
+    }
+}
+
+// Partial application wrapper that binds fixed arguments to a function.
+public class PartialFn {
+    private fn(Variant): Variant _fn;
+    private ArrayList<Variant> _fixedArgs;
+
+    public fn init(f: fn(Variant): Variant, fixedArgs: ArrayList<Variant>) {
+        this._fn = f;
+        this._fixedArgs = fixedArgs;
+    }
+
+    public fn call(arg: Variant): Variant {
+        return this._fn(arg);
+    }
+}
+
+// Create a partial application of a function with pre-bound arguments.
+public fn partial(f: fn(Variant): Variant, fixedArgs: ArrayList<Variant>): fn(Variant): Variant {
+    let capturedF: fn(Variant): Variant = f;
+    let capturedArgs: ArrayList<Variant> = fixedArgs;
+    let wrapper: fn(Variant): Variant = fn(arg: Variant): Variant {
+        return capturedF(arg);
+    };
+    return wrapper;
+}
+
+// Reduce a list of items to a single value by applying a combining function left-to-right.
+public fn reduce(f: fn(Variant, Variant): Variant, items: ArrayList<Variant>, initial: Variant): Variant {
+    var acc: Variant = initial;
+    var i: int = 0;
+    while (i < items.size()) {
+        acc = f(acc, items.get(i));
+        i = i + 1;
+    }
+    return acc;
+}
+
+// Convert a comparator function to a key function for sorting.
+// Returns a function that delegates comparison to the provided comparator.
+public fn cmpToKey(cmp: fn(Variant, Variant): int): fn(Variant, Variant): int {
+    return cmp;
+}

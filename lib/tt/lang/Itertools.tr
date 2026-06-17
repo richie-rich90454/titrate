@@ -1,0 +1,143 @@
+// Itertools — extended iterator utilities: accumulate, compress, dropwhile, filterfalse, groupby, islice, starmap, takewhile, zipLongest.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
+import tt::lang::Variant;
+
+// Accumulate running results of a binary function over the data.
+public fn accumulate(data: ArrayList<double>, f: fn(double, double): double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (data.size() == 0) { return result; }
+    var acc: double = data.get(0);
+    result.add(acc);
+    var i: int = 1;
+    while (i < data.size()) {
+        acc = f(acc, data.get(i));
+        result.add(acc);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Return only those elements of data for which the corresponding selector is true.
+public fn compress(data: ArrayList<Variant>, selectors: ArrayList<bool>): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    let len: int = data.size();
+    if (selectors.size() < len) { len = selectors.size(); }
+    var i: int = 0;
+    while (i < len) {
+        if (selectors.get(i)) {
+            result.add(data.get(i));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Drop elements from data while the predicate is true, then yield the rest.
+public fn dropwhile(data: ArrayList<Variant>, predicate: fn(Variant): bool): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    var dropping: bool = true;
+    var i: int = 0;
+    while (i < data.size()) {
+        if (dropping) {
+            if (!predicate(data.get(i))) {
+                dropping = false;
+                result.add(data.get(i));
+            }
+        } else {
+            result.add(data.get(i));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Return elements of data where the predicate returns false.
+public fn filterfalse(data: ArrayList<Variant>, predicate: fn(Variant): bool): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    var i: int = 0;
+    while (i < data.size()) {
+        if (!predicate(data.get(i))) {
+            result.add(data.get(i));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Group consecutive elements by a key function.
+// Returns a HashMap mapping each key to the list of elements with that key.
+public fn groupby(data: ArrayList<Variant>, keyFn: fn(Variant): string): HashMap<string, ArrayList<Variant>> {
+    let result: HashMap<string, ArrayList<Variant>> = new HashMap<string, ArrayList<Variant>>();
+    var i: int = 0;
+    while (i < data.size()) {
+        let key: string = keyFn(data.get(i));
+        if (result.containsKey(key)) {
+            result.get(key).add(data.get(i));
+        } else {
+            let group: ArrayList<Variant> = new ArrayList<Variant>();
+            group.add(data.get(i));
+            result.put(key, group);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Slice an ArrayList by start, stop, and step (like Python's itertools.islice).
+public fn islice(data: ArrayList<Variant>, start: int, stop: int, step: int): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    if (step <= 0) { return result; }
+    var i: int = start;
+    while (i < stop && i < data.size()) {
+        if (i >= 0) {
+            result.add(data.get(i));
+        }
+        i = i + step;
+    }
+    return result;
+}
+
+// Apply a function to argument tuples unpacked from each element of data.
+public fn starmap(f: fn(ArrayList<Variant>): Variant, data: ArrayList<ArrayList<Variant>>): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    var i: int = 0;
+    while (i < data.size()) {
+        result.add(f(data.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Take elements from data while the predicate is true.
+public fn takewhile(data: ArrayList<Variant>, predicate: fn(Variant): bool): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    var i: int = 0;
+    while (i < data.size()) {
+        if (predicate(data.get(i))) {
+            result.add(data.get(i));
+        } else {
+            break;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Zip two lists together, filling missing positions with fillValue.
+public fn zipLongest(a: ArrayList<Variant>, b: ArrayList<Variant>, fillValue: Variant): ArrayList<Pair<Variant, Variant>> {
+    let result: ArrayList<Pair<Variant, Variant>> = new ArrayList<Pair<Variant, Variant>>();
+    let maxLen: int = a.size();
+    if (b.size() > maxLen) { maxLen = b.size(); }
+    var i: int = 0;
+    while (i < maxLen) {
+        let va: Variant = fillValue;
+        let vb: Variant = fillValue;
+        if (i < a.size()) { va = a.get(i); }
+        if (i < b.size()) { vb = b.get(i); }
+        result.add(new Pair<Variant, Variant>(va, vb));
+        i = i + 1;
+    }
+    return result;
+}

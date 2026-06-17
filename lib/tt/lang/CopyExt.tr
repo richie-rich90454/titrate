@@ -1,0 +1,94 @@
+// CopyExt — extended copy utilities with memoization and type-dispatched copying.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+// Deep copy an object with a memo dictionary to handle shared references and cycles.
+// The memo maps already-copied objects to their copies to preserve identity.
+public fn deepCopy(obj: Variant, memo: HashMap): Variant {
+    if (obj == null) { return null; }
+    // Check memo for already-copied object
+    let key: string = obj.toString();
+    if (memo.containsKey(key)) {
+        return memo.get(key);
+    }
+    if (obj is ArrayList) {
+        let list: ArrayList<Variant> = obj as ArrayList<Variant>;
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        memo.put(key, result);
+        var i: int = 0;
+        while (i < list.size()) {
+            result.add(deepCopy(list.get(i), memo));
+            i = i + 1;
+        }
+        return result;
+    }
+    if (obj is HashMap) {
+        let map: HashMap<string, Variant> = obj as HashMap<string, Variant>;
+        let result: HashMap<string, Variant> = new HashMap<string, Variant>();
+        memo.put(key, result);
+        let keys: ArrayList<string> = map.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            result.put(k, deepCopy(map.get(k), memo));
+            i = i + 1;
+        }
+        return result;
+    }
+    // Primitive or non-container: return as-is
+    return obj;
+}
+
+// Shallow copy an object. For containers, copies the container but not the elements.
+public fn shallowCopy(obj: Variant): Variant {
+    if (obj == null) { return null; }
+    if (obj is ArrayList) {
+        let list: ArrayList<Variant> = obj as ArrayList<Variant>;
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        var i: int = 0;
+        while (i < list.size()) {
+            result.add(list.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+    if (obj is HashMap) {
+        let map: HashMap<string, Variant> = obj as HashMap<string, Variant>;
+        let result: HashMap<string, Variant> = new HashMap<string, Variant>();
+        let keys: ArrayList<string> = map.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            result.put(k, map.get(k));
+            i = i + 1;
+        }
+        return result;
+    }
+    return obj;
+}
+
+// CopyDispatcher allows registering custom copy functions per type name.
+public class CopyDispatcher {
+    public HashMap<string, fn(Variant, HashMap): Variant> dispatchers;
+
+    public fn init() {
+        this.dispatchers = new HashMap<string, fn(Variant, HashMap): Variant>();
+    }
+
+    // Register a custom copier function for a given type name.
+    public fn register(typeName: string, copier: fn(Variant, HashMap): Variant): void {
+        this.dispatchers.put(typeName, copier);
+    }
+
+    // Copy an object using the registered copier for its type, or fall back to deepCopy.
+    public fn copy(obj: Variant, memo: HashMap): Variant {
+        if (obj == null) { return null; }
+        let typeName: string = TypeName_of(obj);
+        if (this.dispatchers.containsKey(typeName)) {
+            let copier: fn(Variant, HashMap): Variant = this.dispatchers.get(typeName);
+            return copier(obj, memo);
+        }
+        return deepCopy(obj, memo);
+    }
+}

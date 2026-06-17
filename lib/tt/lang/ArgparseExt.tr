@@ -1,0 +1,197 @@
+// ArgparseExt — extended argument parsing with groups, mutually exclusive groups, and subcommands.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+// ArgumentGroup groups related arguments under a named section.
+public class ArgumentGroup {
+    public string name;
+    public ArrayList<HashMap> arguments;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.arguments = new ArrayList<HashMap>();
+    }
+
+    // Add an argument to this group.
+    public fn addArgument(name: string, config: HashMap): void {
+        let arg: HashMap<string, Variant> = new HashMap<string, Variant>();
+        arg.put("name", name);
+        let keys: ArrayList<string> = config.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            arg.put(key, config.get(key));
+            i = i + 1;
+        }
+        this.arguments.add(arg);
+    }
+}
+
+// MutuallyExclusiveGroup ensures that at most one of its arguments is provided.
+public class MutuallyExclusiveGroup {
+    public ArrayList<HashMap> arguments;
+    public bool required;
+
+    public fn init(required: bool) {
+        this.arguments = new ArrayList<HashMap>();
+        this.required = required;
+    }
+
+    // Add an argument to this mutually exclusive group.
+    public fn addArgument(name: string, config: HashMap): void {
+        let arg: HashMap<string, Variant> = new HashMap<string, Variant>();
+        arg.put("name", name);
+        arg.put("mutually_exclusive", true);
+        let keys: ArrayList<string> = config.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            arg.put(key, config.get(key));
+            i = i + 1;
+        }
+        this.arguments.add(arg);
+    }
+}
+
+// SubcommandParser handles subcommand dispatching.
+public class SubcommandParser {
+    public string name;
+    public string description;
+    public HashMap<string, ArgparseExt> parsers;
+
+    public fn init(name: string, description: string) {
+        this.name = name;
+        this.description = description;
+        this.parsers = new HashMap<string, ArgparseExt>();
+    }
+
+    // Add a subcommand with its own parser.
+    public fn addSubcommand(name: string, parser: ArgparseExt): void {
+        this.parsers.put(name, parser);
+    }
+}
+
+// ArgparseExt is the main argument parser with groups, mutually exclusive groups, and subcommands.
+public class ArgparseExt {
+    public ArrayList<HashMap> arguments;
+    public ArrayList<ArgumentGroup> groups;
+    public HashMap<string, SubcommandParser> subcommands;
+
+    public fn init() {
+        this.arguments = new ArrayList<HashMap>();
+        this.groups = new ArrayList<ArgumentGroup>();
+        this.subcommands = new HashMap<string, SubcommandParser>();
+    }
+
+    // Add a top-level argument.
+    public fn addArgument(name: string, config: HashMap): void {
+        let arg: HashMap<string, Variant> = new HashMap<string, Variant>();
+        arg.put("name", name);
+        let keys: ArrayList<string> = config.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            arg.put(key, config.get(key));
+            i = i + 1;
+        }
+        this.arguments.add(arg);
+    }
+
+    // Add a named argument group and return it.
+    public fn addGroup(name: string): ArgumentGroup {
+        let group: ArgumentGroup = new ArgumentGroup(name);
+        this.groups.add(group);
+        return group;
+    }
+
+    // Add a mutually exclusive group and return it.
+    public fn addMutuallyExclusiveGroup(required: bool): MutuallyExclusiveGroup {
+        let group: MutuallyExclusiveGroup = new MutuallyExclusiveGroup(required);
+        return group;
+    }
+
+    // Add a subcommand parser and return it.
+    public fn addSubcommand(name: string, description: string): SubcommandParser {
+        let parser: SubcommandParser = new SubcommandParser(name, description);
+        this.subcommands.put(name, parser);
+        return parser;
+    }
+
+    // Parse a list of argument strings into a HashMap of results.
+    // Supports --key value, --flag (boolean), positional args, and subcommands.
+    public fn parse(args: ArrayList<string>): HashMap {
+        let result: HashMap<string, Variant> = new HashMap<string, Variant>();
+        // Pre-populate defaults from argument definitions
+        var i: int = 0;
+        while (i < this.arguments.size()) {
+            let arg: HashMap = this.arguments.get(i);
+            if (arg.containsKey("default")) {
+                let name: string = arg.get("name") as string;
+                result.put(name, arg.get("default"));
+            }
+            i = i + 1;
+        }
+        // Parse arguments
+        var idx: int = 0;
+        while (idx < args.size()) {
+            let arg: string = args.get(idx);
+            // Check for subcommand
+            if (this.subcommands.containsKey(arg)) {
+                let subParser: SubcommandParser = this.subcommands.get(arg);
+                result.put("subcommand", arg);
+                idx = idx + 1;
+                // Remaining args go to subcommand parser
+                let subArgs: ArrayList<string> = new ArrayList<string>();
+                while (idx < args.size()) {
+                    subArgs.add(args.get(idx));
+                    idx = idx + 1;
+                }
+                if (subParser.parsers.containsKey(arg)) {
+                    let parser: ArgparseExt = subParser.parsers.get(arg);
+                    let subResult: HashMap = parser.parse(subArgs);
+                    let subKeys: ArrayList<string> = subResult.keys();
+                    var j: int = 0;
+                    while (j < subKeys.size()) {
+                        result.put(subKeys.get(j), subResult.get(subKeys.get(j)));
+                        j = j + 1;
+                    }
+                }
+                break;
+            }
+            // Handle --key value and --flag
+            if (String.length(arg) > 2 && String.substring(arg, 0, 2) == "--") {
+                let key: string = String.substring(arg, 2, String.length(arg));
+                // Check if this is a boolean flag
+                let isFlag: bool = false;
+                var k: int = 0;
+                while (k < this.arguments.size()) {
+                    let argDef: HashMap = this.arguments.get(k);
+                    if (argDef.containsKey("name") && argDef.get("name") == key) {
+                        if (argDef.containsKey("type") && argDef.get("type") == "bool") {
+                            isFlag = true;
+                        }
+                        break;
+                    }
+                    k = k + 1;
+                }
+                if (isFlag) {
+                    result.put(key, true);
+                    idx = idx + 1;
+                } else if (idx + 1 < args.size()) {
+                    result.put(key, args.get(idx + 1));
+                    idx = idx + 2;
+                } else {
+                    result.put(key, true);
+                    idx = idx + 1;
+                }
+            } else {
+                // Positional argument
+                let posKey: string = "arg" + Integer.toString(idx);
+                result.put(posKey, arg);
+                idx = idx + 1;
+            }
+        }
+        return result;
+    }
+}
