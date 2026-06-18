@@ -940,3 +940,18 @@ public fn lines(s: string): ArrayList<string> {
     result.add(current);
     return result;
 }
+
+// Split a string into chunks of the given size.
+public fn chunked(s: string, size: int): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    let len: int = String_length(s);
+    if (size <= 0) { return result; }
+    var i: int = 0;
+    while (i < len) {
+        var end: int = i + size;
+        if (end > len) { end = len; }
+        result.add(String.substring(s, i, end));
+        i = i + size;
+    }
+    return result;
+}
