@@ -86,6 +86,18 @@ public class HashMap<K, V> implements Iterable<K> {
         return null;
     }
 
+    // Merge another HashMap into this one, overwriting existing keys.
+    public fn update(other: HashMap<K, V>): void {
+        let keys: ArrayList<K> = other.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let key: K = keys.get(i);
+            let val: V = other.get(key);
+            this.put(key, val);
+            i = i + 1;
+        }
+    }
+
     public fn iterator(): ArrayListIterator<K> {
         return this.map.keys().iterator();
     }
@@ -200,5 +212,55 @@ public class HashMap<K, V> implements Iterable<K> {
             result.add(this.map.get(key));
         }
         return result;
+    }
+}
+
+// --- Task 194: HashMap deepening utility functions ---
+
+// Create a HashMap from a list of keys with a default value.
+public fn fromKeys(keys: ArrayList<string>, defaultValue: string): HashMap<string, string> {
+    let result: HashMap<string, string> = new HashMap<string, string>();
+    var i: int = 0;
+    while (i < keys.size()) {
+        result.put(keys.get(i), defaultValue);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Get the value for key, or set and return defaultValue if absent.
+public fn setDefault(map: HashMap<string, string>, key: string, defaultValue: string): string {
+    if (map.containsKey(key)) {
+        return map.get(key);
+    }
+    map.put(key, defaultValue);
+    return defaultValue;
+}
+
+// Pop and return the value for key.
+public fn mapPop(map: HashMap<string, string>, key: string): string {
+    let val: string = map.get(key);
+    map.remove(key);
+    return val;
+}
+
+// Pop and return the value for key, or return defaultValue if absent.
+public fn mapPopDefault(map: HashMap<string, string>, key: string, defaultValue: string): string {
+    if (map.containsKey(key)) {
+        let val: string = map.get(key);
+        map.remove(key);
+        return val;
+    }
+    return defaultValue;
+}
+
+// Merge all entries from source into target.
+public fn mapMerge(target: HashMap<string, string>, source: HashMap<string, string>): void {
+    let entries: ArrayList<(string, string)> = source.entries();
+    var i: int = 0;
+    while (i < entries.size()) {
+        let (key: string, val: string) = entries.get(i);
+        target.put(key, val);
+        i = i + 1;
     }
 }
