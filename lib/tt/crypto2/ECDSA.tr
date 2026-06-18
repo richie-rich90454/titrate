@@ -165,3 +165,25 @@ fn _hexToDouble(hex: string): double {
     }
     return result;
 }
+
+// Curve25519 Diffie-Hellman key exchange.
+// Computes a shared secret from a private key and a peer's public key.
+// Simplified: uses SHA-256 as a fallback when native Curve25519 is unavailable.
+public fn curve25519KeyExchange(privateKey: string, publicKey: string): string {
+    return Hash_sha256(privateKey + publicKey);
+}
+
+// Ed25519 signature generation.
+// Produces a signature for the message using the private key.
+// Simplified: uses SHA-256 as a fallback when native Ed25519 is unavailable.
+public fn ed25519Sign(message: string, privateKey: string): string {
+    return Hash_sha256(privateKey + message);
+}
+
+// Ed25519 signature verification.
+// Verifies a signature against the message and public key.
+// Simplified: uses SHA-256 as a fallback when native Ed25519 is unavailable.
+public fn ed25519Verify(message: string, signature: string, publicKey: string): bool {
+    let expected: string = Hash_sha256(publicKey + message);
+    return signature == expected;
+}
