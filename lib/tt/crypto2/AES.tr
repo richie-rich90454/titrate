@@ -185,3 +185,46 @@ fn _bytesToHex(bytes: ArrayList<int>): string {
     }
     return result;
 }
+
+// CTR mode encryption.
+// Generates a keystream by encrypting successive counter blocks (starting
+// from the IV) and XORs it with the plaintext. No padding is required since
+// the final block may be partial.
+public fn encryptCTR(plaintext: ArrayList<int>, key: AESKey, iv: ArrayList<int>): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let counter: ArrayList<int> = new ArrayList<int>();
+    var c: int = 0;
+    while (c < iv.size()) { counter.add(iv.get(c)); c = c + 1; }
+    var i: int = 0;
+    while (i < plaintext.size()) {
+        let keystream: ArrayList<int> = aesEncryptBlock(counter, key);
+        var j: int = 0;
+        while (j < 16 && i + j < plaintext.size()) {
+            result.add(plaintext.get(i + j) ^ keystream.get(j));
+            j = j + 1;
+        }
+        counter = _incrementCounter(counter);
+        i = i + 16;
+    }
+    return result;
+}
+
+// CTR mode decryption (identical to encryption in CTR mode).
+public fn decryptCTR(ciphertext: ArrayList<int>, key: AESKey, iv: ArrayList<int>): ArrayList<int> {
+    return encryptCTR(ciphertext, key, iv);
+}
+
+// Increment the CTR counter as a big-endian 128-bit integer.
+fn _incrementCounter(counter: ArrayList<int>): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < counter.size()) { result.add(counter.get(i)); i = i + 1; }
+    var idx: int = result.size() - 1;
+    while (idx >= 0) {
+        let v: int = result.get(idx) + 1;
+        result.set(idx, v & 0xFF);
+        if (v <= 0xFF) { return result; }
+        idx = idx - 1;
+    }
+    return result;
+}
