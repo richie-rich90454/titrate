@@ -427,6 +427,28 @@ impl Vm {
                     _ => return Err(format!("SHR_I64: type mismatch {:?}", a)),
                 }
             }
+            OpCode::USHR_I32 => {
+                let b = self.pop();
+                let a = self.pop();
+                match (&a, &b) {
+                    (Value::Int(x), Value::Int(y)) => {
+                        // Unsigned (logical) right shift: cast to u32, shift, cast back
+                        self.push(Value::Int(((*x as u32) >> (*y as u32)) as i32));
+                    }
+                    _ => return Err(format!("USHR_I32: type mismatch {:?}", a)),
+                }
+            }
+            OpCode::USHR_I64 => {
+                let b = self.pop();
+                let a = self.pop();
+                match (&a, &b) {
+                    (Value::Long(x), Value::Long(y)) => {
+                        // Unsigned (logical) right shift: cast to u64, shift, cast back
+                        self.push(Value::Long(((*x as u64) >> (*y as u32)) as i64));
+                    }
+                    _ => return Err(format!("USHR_I64: type mismatch {:?}", a)),
+                }
+            }
             OpCode::BITNOT_I32 => {
                 let a = self.pop();
                 match a {

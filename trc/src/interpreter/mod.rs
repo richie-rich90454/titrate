@@ -40,6 +40,7 @@ pub(crate) fn interpreter_operator_method_name(op: &ast::Operator) -> String {
         ast::Operator::BitXor => "operator^".to_string(),
         ast::Operator::BitShl => "operator<<".to_string(),
         ast::Operator::BitShr => "operator>>".to_string(),
+        ast::Operator::BitUshr => "operator>>>".to_string(),
         ast::Operator::And | ast::Operator::Or => String::new(), // not overloadable
     }
 }

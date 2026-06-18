@@ -62,7 +62,8 @@ impl Analyzer {
                     | ast::Operator::BitOr
                     | ast::Operator::BitXor
                     | ast::Operator::BitShl
-                    | ast::Operator::BitShr => left_type,
+                    | ast::Operator::BitShr
+                    | ast::Operator::BitUshr => left_type,
                 }
             }
             ast::Expr::Unary(unop, operand, _) => {

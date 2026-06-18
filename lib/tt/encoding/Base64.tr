@@ -1,4 +1,4 @@
-﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
 import tt::util::ArrayList;
 import tt::lang::DataFile;
 import tt::json::JsonValue;

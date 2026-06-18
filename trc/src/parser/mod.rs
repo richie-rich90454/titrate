@@ -54,6 +54,64 @@ impl Parser {
         }
     }
 
+    /// Expect a `>` token to close a generic type parameter list.
+    /// Handles `>>` (RightShift) and `>>>` (TripleGreater) produced by the
+    /// lexer when multiple `>` characters are adjacent (e.g.
+    /// `ArrayList<ArrayList<double>>` or `ArrayList<ArrayList<ArrayList<double>>>`).
+    /// The multi-char token is consumed and a single Greater is pushed back so
+    /// nested generics close correctly.
+    pub(super) fn expect_close_angle(&mut self) -> Result<(), String> {
+        let (token, line, column) = match self.tokens.get(self.pos) {
+            Some(st) => (st.token.clone(), st.line, st.column),
+            None => (lexer::Token::Eof, 0, 0),
+        };
+        match token {
+            lexer::Token::Greater => {
+                self.pos += 1;
+                Ok(())
+            }
+            lexer::Token::RightShift => {
+                self.pos += 1;
+                self.tokens.insert(
+                    self.pos,
+                    lexer::SpannedToken {
+                        token: lexer::Token::Greater,
+                        line,
+                        column: column + 1,
+                    },
+                );
+                Ok(())
+            }
+            lexer::Token::TripleGreater => {
+                self.pos += 1;
+                self.tokens.insert(
+                    self.pos,
+                    lexer::SpannedToken {
+                        token: lexer::Token::RightShift,
+                        line,
+                        column: column + 1,
+                    },
+                );
+                Ok(())
+            }
+            _ => Err(format!("Expected >, found {}", token)),
+        }
+    }
+
+    /// Expect a name: either an identifier or a type keyword used as a name
+    /// (e.g. `size` in `fn size(): int`). Type keywords are reserved words
+    /// like `int`, `double`, `size`, etc. that are commonly used as method
+    /// names in the standard library.
+    pub(super) fn expect_name(&mut self) -> Result<String, String> {
+        let tok = self.advance();
+        match tok {
+            lexer::Token::Identifier(s) => Ok(s),
+            t if is_type_keyword(&t) => type_keyword_name(&t)
+                .ok_or_else(|| format!("Expected name, found {}", t)),
+            _ => Err(format!("Expected name, found {}", tok)),
+        }
+    }
+
     /// If the current token matches `expected`, consume it and return true;
     /// otherwise return false (no consumption).
     pub(super) fn match_token(&mut self, expected: &lexer::Token) -> bool {
@@ -157,7 +215,7 @@ impl Parser {
                     break;
                 }
             }
-            self.expect(&lexer::Token::Greater)?;
+            self.expect_close_angle()?;
             Ok(params)
         } else {
             Ok(vec![])
@@ -209,6 +267,7 @@ impl Parser {
             lexer::Token::Caret => Some("^"),
             lexer::Token::LeftShift => Some("<<"),
             lexer::Token::RightShift => Some(">>"),
+            lexer::Token::TripleGreater => Some(">>>"),
             _ => None,
         }
     }
@@ -296,6 +355,10 @@ pub(super) fn token_as_name(tok: &lexer::Token) -> Option<String> {
             lexer::Token::This => Some("this".to_string()),
             lexer::Token::Super => Some("super".to_string()),
             lexer::Token::NullLiteral => Some("null".to_string()),
+            // `fn` can be used as a parameter name (e.g. `forEach(fn: fn(T): void)`)
+            lexer::Token::Fn => Some("fn".to_string()),
+            // `var` can be used as a variable name (e.g. `let var: double = ...` for variance)
+            lexer::Token::Var => Some("var".to_string()),
             _ => None,
         }),
     }
@@ -305,7 +368,7 @@ pub(super) fn token_as_name(tok: &lexer::Token) -> Option<String> {
 pub(super) fn is_type_start(tok: &lexer::Token) -> bool {
     is_type_keyword(tok)
         || matches!(tok, lexer::Token::Identifier(_))
-        || matches!(tok, lexer::Token::Owned | lexer::Token::Result)
+        || matches!(tok, lexer::Token::Owned | lexer::Token::Result | lexer::Token::Fn)
 }
 
 // ---------------------------------------------------------------------------

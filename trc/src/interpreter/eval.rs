@@ -279,6 +279,7 @@ impl Interpreter {
             ast::Operator::BitXor => self.bit_binop(|a, b| a ^ b, |a, b| a ^ b, &left_val, &right_val),
             ast::Operator::BitShl => self.shift_binop(&left_val, &right_val, false),
             ast::Operator::BitShr => self.shift_binop(&left_val, &right_val, true),
+            ast::Operator::BitUshr => self.unsigned_shift_binop(&left_val, &right_val),
             ast::Operator::And | ast::Operator::Or => {
                 // Already handled above via short-circuit
                 unreachable!()

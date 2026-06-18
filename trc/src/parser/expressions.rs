@@ -168,6 +168,8 @@ impl Parser {
                 ast::Operator::BitShl
             } else if self.match_token(&lexer::Token::RightShift) {
                 ast::Operator::BitShr
+            } else if self.match_token(&lexer::Token::TripleGreater) {
+                ast::Operator::BitUshr
             } else {
                 break;
             };
@@ -466,6 +468,12 @@ impl Parser {
                     _ => Err("Expected identifier".to_string()),
                 }
             }
+            // `var` can be used as a variable name (e.g. `var + this.epsilon`)
+            lexer::Token::Var => {
+                let span = self.make_span();
+                self.advance();
+                Ok(ast::Expr::Identifier("var".to_string(), span))
+            }
             lexer::Token::This => {
                 let span = self.make_span();
                 self.advance();
@@ -534,44 +542,53 @@ impl Parser {
                 ))
             }
             lexer::Token::Fn => {
-                // Closure expression: fn(params) => expr  or  fn(params) { block }
+                // Could be a closure expression: fn(params) => expr  or  fn(params) { block }
+                // Or a call to a variable named `fn`: fn(elem)
+                // Use backtracking to disambiguate.
                 let span = self.make_span();
+                let saved = self.pos;
                 self.advance(); // consume 'fn'
-                self.expect(&lexer::Token::LeftParen)?;
-                let params = self.parse_closure_params()?;
-                self.expect(&lexer::Token::RightParen)?;
 
-                let return_type = ast::Type::simple("void");
-
-                if self.match_token(&lexer::Token::FatArrow) {
-                    // Expression body: fn(x) => x * 2
-                    let expr = self.parse_expression()?;
-                    Ok(ast::Expr::Closure {
-                        params,
-                        return_type,
-                        body: vec![],
-                        expr: Some(Box::new(expr)),
-                        captured_vars: vec![],
-                        span,
-                    })
-                } else if self.is_at(&lexer::Token::LeftBrace) {
-                    // Block body: fn(x) { return x + 1; }
-                    let body = self.parse_block()?;
-                    Ok(ast::Expr::Closure {
-                        params,
-                        return_type,
-                        body,
-                        expr: None,
-                        captured_vars: vec![],
-                        span,
-                    })
+                if self.match_token(&lexer::Token::LeftParen) {
+                    // Try to parse as closure
+                    let closure_result = self.parse_closure_params();
+                    if let Ok(params) = closure_result {
+                        if self.match_token(&lexer::Token::RightParen) {
+                            let return_type = ast::Type::simple("void");
+                            if self.match_token(&lexer::Token::FatArrow) {
+                                // Expression body: fn(x) => x * 2
+                                let expr = self.parse_expression()?;
+                                return Ok(ast::Expr::Closure {
+                                    params,
+                                    return_type,
+                                    body: vec![],
+                                    expr: Some(Box::new(expr)),
+                                    captured_vars: vec![],
+                                    span,
+                                });
+                            } else if self.is_at(&lexer::Token::LeftBrace) {
+                                // Block body: fn(x) { return x + 1; }
+                                let body = self.parse_block()?;
+                                return Ok(ast::Expr::Closure {
+                                    params,
+                                    return_type,
+                                    body,
+                                    expr: None,
+                                    captured_vars: vec![],
+                                    span,
+                                });
+                            }
+                        }
+                    }
+                    // Not a closure — backtrack to just after `fn` was consumed
+                    // so parse_postfix can handle `(args)` as a function call.
+                    self.pos = saved + 1;
                 } else {
-                    let (line, col) = self.span_here();
-                    Err(format!(
-                        "Expected '=>' or '{{' after closure parameters at {}:{}",
-                        line, col
-                    ))
+                    // No `(` after `fn` — `fn` is just an identifier
                 }
+
+                // Treat `fn` as an identifier (e.g., a parameter named `fn`)
+                Ok(ast::Expr::Identifier("fn".to_string(), span))
             }
             lexer::Token::Unsafe => {
                 let span = self.make_span();

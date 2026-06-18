@@ -151,7 +151,8 @@ impl Analyzer {
                     | ast::Operator::BitOr
                     | ast::Operator::BitXor
                     | ast::Operator::BitShl
-                    | ast::Operator::BitShr => {
+                    | ast::Operator::BitShr
+                    | ast::Operator::BitUshr => {
                         if !is_integer_type(&left_type) || !is_integer_type(&right_type) {
                             self.error(CompileError::new(format!(
                                 "bitwise operator requires integer operands, found {} and {}",

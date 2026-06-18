@@ -40,7 +40,8 @@ impl Compiler {
                     | ast::Operator::BitOr
                     | ast::Operator::BitXor
                     | ast::Operator::BitShl
-                    | ast::Operator::BitShr => self.wider_type(lt, rt),
+                    | ast::Operator::BitShr
+                    | ast::Operator::BitUshr => self.wider_type(lt, rt),
                 }
             }
             ast::Expr::Unary(op, operand, _) => {
@@ -327,6 +328,16 @@ impl Compiler {
             match ty {
                 InferredType::I32 => OpCode::SHR_I32,
                 _ => OpCode::SHR_I64,
+            },
+            line,
+        );
+    }
+
+    pub(super) fn emit_ushr_opcode(&mut self, ty: InferredType, line: u32) {
+        self.emit_opcode(
+            match ty {
+                InferredType::I32 => OpCode::USHR_I32,
+                _ => OpCode::USHR_I64,
             },
             line,
         );

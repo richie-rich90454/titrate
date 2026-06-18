@@ -8,7 +8,7 @@ pub enum Operator {
     Add, Sub, Mul, Div, Mod,
     Eq, Ne, Lt, Gt, Le, Ge,
     And, Or,
-    BitAnd, BitOr, BitXor, BitShl, BitShr,
+    BitAnd, BitOr, BitXor, BitShl, BitShr, BitUshr,
 }
 
 /// Unary operator.
@@ -83,6 +83,7 @@ pub struct MethodSig {
     pub name: String,
     pub params: Vec<Param>,
     pub return_type: Option<Type>,
+    pub body: Option<Block>, // Default method body (for interface default methods)
 }
 
 /// Method declaration (for classes).

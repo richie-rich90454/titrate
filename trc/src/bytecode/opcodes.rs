@@ -236,6 +236,10 @@ pub enum OpCode {
     // -- Closure capture ------------------------------------------------------
     CLOSURE_NEW_CAPTURED = 126,
     CLOSURE_CAPTURE      = 127,
+
+    // -- Unsigned right shift -------------------------------------------------
+    USHR_I32 = 128, // unsigned (logical) right shift, i32
+    USHR_I64 = 129, // unsigned (logical) right shift, i64
 }
 
 impl OpCode {
@@ -338,7 +342,7 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Validate that the value falls within the defined opcode range.
         match value {
-            0..=127 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
+            0..=129 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
             _ => Err(value),
         }
     }

@@ -8,11 +8,9 @@ impl Parser {
     /// Parse `let x: type = expr;` or `let x = expr;`
     pub(super) fn parse_let_decl(&mut self, mutable: bool) -> Result<ast::VarDecl, String> {
         let span = self.make_span();
-        let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-        let name = match name_tok {
-            lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected variable name, found {}", name_tok)),
-        };
+        let name_tok = self.advance();
+        let name = token_as_name(&name_tok)
+            .ok_or_else(|| format!("Expected variable name, found {}", name_tok))?;
 
         let typ = if self.match_token(&lexer::Token::Colon) {
             Some(self.parse_type()?)
@@ -39,11 +37,9 @@ impl Parser {
     /// Parse `var x = expr;` — desugar to let with mutable=true
     pub(super) fn parse_var_decl(&mut self) -> Result<ast::VarDecl, String> {
         let span = self.make_span();
-        let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-        let name = match name_tok {
-            lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected variable name, found {}", name_tok)),
-        };
+        let name_tok = self.advance();
+        let name = token_as_name(&name_tok)
+            .ok_or_else(|| format!("Expected variable name, found {}", name_tok))?;
 
         let typ = if self.match_token(&lexer::Token::Colon) {
             Some(self.parse_type()?)
@@ -70,11 +66,9 @@ impl Parser {
     /// Parse `const X: type = expr;`
     pub(super) fn parse_const_decl(&mut self) -> Result<ast::VarDecl, String> {
         let span = self.make_span();
-        let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-        let name = match name_tok {
-            lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected constant name, found {}", name_tok)),
-        };
+        let name_tok = self.advance();
+        let name = token_as_name(&name_tok)
+            .ok_or_else(|| format!("Expected constant name, found {}", name_tok))?;
 
         let typ = if self.match_token(&lexer::Token::Colon) {
             Some(self.parse_type()?)
@@ -215,11 +209,9 @@ impl Parser {
                     .ok_or_else(|| format!("Expected type keyword, found {}", type_tok))?;
                 let typ = ast::Type::simple(&type_name);
 
-                let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-                let name = match name_tok {
-                    lexer::Token::Identifier(s) => s,
-                    _ => return Err(format!("Expected variable name, found {}", name_tok)),
-                };
+                let name_tok = self.advance();
+                let name = token_as_name(&name_tok)
+                    .ok_or_else(|| format!("Expected variable name, found {}", name_tok))?;
 
                 let init = if self.match_token(&lexer::Token::Equals) {
                     Some(self.parse_expression()?)

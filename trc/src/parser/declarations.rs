@@ -195,11 +195,7 @@ impl Parser {
         sugar: bool,
     ) -> Result<ast::Declaration, String> {
         let span = self.make_span();
-        let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-        let name = match name_tok {
-            lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected function name, found {}", name_tok)),
-        };
+        let name = self.expect_name()?;
 
         let type_params = self.parse_type_params()?;
 
@@ -237,11 +233,9 @@ impl Parser {
             return Ok(params);
         }
         loop {
-            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-            let name = match name_tok {
-                lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected parameter name, found {}", name_tok)),
-            };
+            let name_tok = self.advance();
+            let name = token_as_name(&name_tok)
+                .ok_or_else(|| format!("Expected parameter name, found {}", name_tok))?;
             // Support `self` without type annotation (type defaults to "Self")
             if name == "self" && !self.is_at(&lexer::Token::Colon) {
                 params.push(ast::Param { name, typ: ast::Type::simple("Self") });
@@ -265,11 +259,9 @@ impl Parser {
         }
         loop {
             let typ = self.parse_type()?;
-            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-            let name = match name_tok {
-                lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected parameter name, found {}", name_tok)),
-            };
+            let name_tok = self.advance();
+            let name = token_as_name(&name_tok)
+                .ok_or_else(|| format!("Expected parameter name, found {}", name_tok))?;
             params.push(ast::Param { name, typ });
             if !self.match_token(&lexer::Token::Comma) {
                 break;
@@ -371,38 +363,48 @@ impl Parser {
         }
 
         // fn method(params): type { body }
+        // But not if `fn` is followed by `(` (function type for a field, e.g. `fn(E): R mapper;`)
         if self.is_at(&lexer::Token::Fn) {
-            self.advance();
-            let span = self.make_span();
-            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-            let mut name = match name_tok {
-                lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected method name, found {}", name_tok)),
-            };
-            // Support operator overloading: `fn operator+(...)` → name = "operator+"
-            if name == "operator" {
-                let op_str = self.operator_token_to_str();
-                if let Some(s) = op_str {
-                    name = format!("operator{}", s);
-                    self.advance(); // consume the operator token
+            let next = self.tokens.get(self.pos + 1).map(|st| &st.token);
+            if next != Some(&lexer::Token::LeftParen) {
+                self.advance();
+                let span = self.make_span();
+                let mut name = self.expect_name()?;
+                // Support operator overloading: `fn operator+(...)` → name = "operator+"
+                if name == "operator" {
+                    let op_str = self.operator_token_to_str();
+                    if let Some(s) = op_str {
+                        name = format!("operator{}", s);
+                        self.advance(); // consume the operator token
+                    }
                 }
-            }
-            let type_params = self.parse_type_params()?;
-            self.expect(&lexer::Token::LeftParen)?;
-            let params = self.parse_params()?;
-            self.expect(&lexer::Token::RightParen)?;
-            let return_type = if self.match_token(&lexer::Token::Colon) {
-                Some(self.parse_type()?)
-            } else {
-                None
-            };
-            let where_clause = self.parse_where_clause()?;
-            let body = self.parse_block()?;
-            // fn init(params) is the constructor
-            if name == "init" {
-                return Ok(ast::ClassMember::Constructor(ast::MethodDecl {
+                let type_params = self.parse_type_params()?;
+                self.expect(&lexer::Token::LeftParen)?;
+                let params = self.parse_params()?;
+                self.expect(&lexer::Token::RightParen)?;
+                let return_type = if self.match_token(&lexer::Token::Colon) {
+                    Some(self.parse_type()?)
+                } else {
+                    None
+                };
+                let where_clause = self.parse_where_clause()?;
+                let body = self.parse_block()?;
+                // fn init(params) is the constructor
+                if name == "init" {
+                    return Ok(ast::ClassMember::Constructor(ast::MethodDecl {
+                        access,
+                        name: "new".to_string(),
+                        type_params,
+                        params,
+                        return_type,
+                        body,
+                        where_clause,
+                        span,
+                    }));
+                }
+                return Ok(ast::ClassMember::Method(ast::MethodDecl {
                     access,
-                    name: "new".to_string(),
+                    name,
                     type_params,
                     params,
                     return_type,
@@ -411,16 +413,6 @@ impl Parser {
                     span,
                 }));
             }
-            return Ok(ast::ClassMember::Method(ast::MethodDecl {
-                access,
-                name,
-                type_params,
-                params,
-                return_type,
-                body,
-                where_clause,
-                span,
-            }));
         }
 
         // Sugar method or typed field: Type name...
@@ -551,14 +543,12 @@ impl Parser {
 
     pub(super) fn parse_method_sig(&mut self) -> Result<ast::MethodSig, String> {
         // [public|private] fn name(params): type;
+        // or with default body: [public|private] fn name(params): type { body }
         // Allow optional access modifier before fn
         let _ = self.match_token(&lexer::Token::Public) || self.match_token(&lexer::Token::Private);
         self.expect(&lexer::Token::Fn)?;
-        let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-        let name = match name_tok {
-            lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected method name, found {}", name_tok)),
-        };
+        let name = self.expect_name()?;
+        let _type_params = self.parse_type_params()?;
         self.expect(&lexer::Token::LeftParen)?;
         let params = self.parse_params()?;
         self.expect(&lexer::Token::RightParen)?;
@@ -567,11 +557,18 @@ impl Parser {
         } else {
             None
         };
-        self.expect(&lexer::Token::Semicolon)?;
+        // Check for default method body (interface default methods)
+        let body = if self.is_at(&lexer::Token::LeftBrace) {
+            Some(self.parse_block()?)
+        } else {
+            self.expect(&lexer::Token::Semicolon)?;
+            None
+        };
         Ok(ast::MethodSig {
             name,
             params,
             return_type,
+            body,
         })
     }
 }

@@ -118,6 +118,7 @@ pub enum Token {
     Tilde,
     LeftShift,
     RightShift,
+    TripleGreater, // >>> unsigned right shift
     PlusEqual,
     MinusEqual,
     StarEqual,
@@ -128,6 +129,7 @@ pub enum Token {
     CaretEqual,
     LeftShiftEqual,
     RightShiftEqual,
+    TripleGreaterEqual, // >>>= unsigned right shift assignment
     ColonColon,
     Arrow,
     FatArrow,
@@ -279,6 +281,7 @@ impl fmt::Display for Token {
             Token::CaretEqual => write!(f, "^="),
             Token::LeftShiftEqual => write!(f, "<<="),
             Token::RightShiftEqual => write!(f, ">>="),
+            Token::TripleGreaterEqual => write!(f, ">>>="),
             Token::IntLiteral(v) => write!(f, "{}", v),
             Token::FloatLiteral { value, suffix } => {
                 write!(f, "{}", value)?;
@@ -341,7 +344,11 @@ pub(super) fn try_consume_operator(chars: &mut std::iter::Peekable<std::str::Cha
             if chars.clone().nth(1) == Some('=') {
                 ">=".to_string()
             } else if chars.clone().nth(1) == Some('>') {
-                ">>".to_string()
+                if chars.clone().nth(2) == Some('>') {
+                    ">>>".to_string()
+                } else {
+                    ">>".to_string()
+                }
             } else {
                 ">".to_string()
             }

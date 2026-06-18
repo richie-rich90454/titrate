@@ -208,3 +208,97 @@ public class ArrayList<T> implements Iterable<T> {
         return result;
     }
 }
+
+// --- Task 195: ArrayList deepening utility functions ---
+
+// Sort list with a custom comparator.
+public fn sortWithComparator(list: ArrayList<string>, comp: fn(string, string): int): void {
+    let n: int = list.size();
+    var i: int = 0;
+    while (i < n - 1) {
+        var minIdx: int = i;
+        var j: int = i + 1;
+        while (j < n) {
+            if (comp(list.get(j), list.get(minIdx)) < 0) {
+                minIdx = j;
+            }
+            j = j + 1;
+        }
+        if (minIdx != i) {
+            let temp: string = list.get(i);
+            list.set(i, list.get(minIdx));
+            list.set(minIdx, temp);
+        }
+        i = i + 1;
+    }
+}
+
+// Reverse list in-place.
+public fn reverseList(list: ArrayList<string>): void {
+    let n: int = list.size();
+    var i: int = 0;
+    while (i < n / 2) {
+        let temp: string = list.get(i);
+        list.set(i, list.get(n - 1 - i));
+        list.set(n - 1 - i, temp);
+        i = i + 1;
+    }
+}
+
+// Shallow copy of a list.
+public fn copyList(list: ArrayList<string>): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < list.size()) {
+        result.add(list.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Extend target with all elements from source.
+public fn extendList(target: ArrayList<string>, source: ArrayList<string>): void {
+    var i: int = 0;
+    while (i < source.size()) {
+        target.add(source.get(i));
+        i = i + 1;
+    }
+}
+
+// Index of item starting from a given position.
+public fn indexOf(list: ArrayList<string>, item: string, start: int): int {
+    var i: int = start;
+    while (i < list.size()) {
+        if (list.get(i) == item) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Count occurrences of item in list.
+public fn countItem(list: ArrayList<string>, item: string): int {
+    var count: int = 0;
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == item) {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Remove first occurrence of item. Returns true if removed.
+public fn removeItem(list: ArrayList<string>, item: string): bool {
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == item) {
+            list.remove(i);
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}

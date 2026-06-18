@@ -324,7 +324,47 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                             _ => break,
                         }
                     }
+                }
 
+                // Check for scientific notation exponent (e.g., 1e5, 1.5e-3, 1E10)
+                if let Some(&c) = chars.peek() {
+                    if c == 'e' || c == 'E' {
+                        // Look ahead to ensure there's a digit or sign after e/E
+                        let mut lookahead = chars.clone();
+                        lookahead.next(); // skip e/E
+                        if let Some(&next) = lookahead.peek() {
+                            if next.is_ascii_digit() || next == '+' || next == '-' {
+                                is_float = true;
+                                num_str.push(c);
+                                chars.next();
+                                column += 1;
+                                // Check for optional sign
+                                if let Some(&sign) = chars.peek() {
+                                    if sign == '+' || sign == '-' {
+                                        num_str.push(sign);
+                                        chars.next();
+                                        column += 1;
+                                    }
+                                }
+                                // Consume exponent digits
+                                while let Some(&d) = chars.peek() {
+                                    if d.is_ascii_digit() {
+                                        num_str.push(d);
+                                        chars.next();
+                                        column += 1;
+                                    } else if d == '_' {
+                                        chars.next();
+                                        column += 1;
+                                    } else {
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if is_float {
                     // Check for float suffix
                     let suffix = match chars.peek() {
                         Some('h') => {
@@ -349,6 +389,13 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                         column: start_col,
                     });
                 } else {
+                    // Check for 'L' or 'l' suffix (long literal, e.g. 2147483647L)
+                    if let Some(&suffix) = chars.peek() {
+                        if suffix == 'L' || suffix == 'l' {
+                            chars.next();
+                            column += 1;
+                        }
+                    }
                     let val: i64 = num_str
                         .parse()
                         .map_err(|e| format!("Invalid integer literal at {}:{}: {}", start_line, start_col, e))?;
@@ -832,7 +879,26 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                 } else if chars.peek() == Some(&'>') {
                     chars.next();
                     column += 1;
-                    if chars.peek() == Some(&'=') {
+                    if chars.peek() == Some(&'>') {
+                        // >>> or >>>=
+                        chars.next();
+                        column += 1;
+                        if chars.peek() == Some(&'=') {
+                            chars.next();
+                            column += 1;
+                            tokens.push(SpannedToken {
+                                token: Token::TripleGreaterEqual,
+                                line: start_line,
+                                column: start_col,
+                            });
+                        } else {
+                            tokens.push(SpannedToken {
+                                token: Token::TripleGreater,
+                                line: start_line,
+                                column: start_col,
+                            });
+                        }
+                    } else if chars.peek() == Some(&'=') {
                         chars.next();
                         column += 1;
                         tokens.push(SpannedToken {

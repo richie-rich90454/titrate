@@ -1,4 +1,4 @@
-﻿use super::*;
+use super::*;
 
 
 #[cfg(test)]
@@ -1083,6 +1083,7 @@ mod tests {
                 name: "toString".to_string(),
                 params: vec![],
                 return_type: Some(Type::simple("string")),
+                body: None,
             }],
             span: Span::unknown(),
         }));

@@ -169,6 +169,44 @@ impl Interpreter {
             _ => Err(format!("Cannot shift {:?}", left)),
         }
     }
+
+    /// Unsigned (logical) right shift `>>>`.
+    /// Converts the left operand to its unsigned representation, shifts right
+    /// (zero-filling), then converts back to the original signed type.
+    pub(super) fn unsigned_shift_binop(&self, left: &Value, right: &Value) -> Result<Value, String> {
+        let rv = right.to_i64().ok_or_else(|| format!("Shift amount must be integer, got {:?}", right))?;
+        if rv < 0 {
+            return Err("Negative shift amount".to_string());
+        }
+        let shift = rv as u32;
+        match left {
+            Value::Byte(v) => {
+                let result = ((*v as u8) >> shift) as i8;
+                Ok(Value::Byte(result))
+            }
+            Value::Short(v) => {
+                let result = ((*v as u16) >> shift) as i16;
+                Ok(Value::Short(result))
+            }
+            Value::Int(v) => {
+                let result = ((*v as u32) >> shift) as i32;
+                Ok(Value::Int(result))
+            }
+            Value::Long(v) => {
+                let result = ((*v as u64) >> shift) as i64;
+                Ok(Value::Long(result))
+            }
+            Value::Vast(v) => {
+                let result = ((*v as u128) >> shift) as i128;
+                Ok(Value::Vast(result))
+            }
+            Value::Uvast(v) => {
+                let result = (*v) >> shift;
+                Ok(Value::Uvast(result))
+            }
+            _ => Err(format!("Cannot unsigned shift {:?}", left)),
+        }
+    }
 }
 
 use super::Interpreter;
