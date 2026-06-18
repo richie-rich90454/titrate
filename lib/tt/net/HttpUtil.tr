@@ -1,6 +1,7 @@
 // HTTP utility classes and functions.
 import tt::util::HashMap;
 import tt::util::ArrayList;
+import tt::lang::Variant;
 
 public class CookieJar {
     public ArrayList<HashMap<string, string>> cookies;
@@ -162,4 +163,61 @@ public fn httpRetryWithBackoff(request: fn(): string, maxRetries: int, baseDelay
         }
     }
     return "";
+}
+
+// HTTP connection pool for connection reuse.
+public class ConnectionPool {
+    public HashMap<string, ArrayList<Variant>> pool;
+    public int maxSize;
+    public int maxPerHost;
+    public long connectionTimeoutMs;
+
+    public fn init(maxSize: int, maxPerHost: int, connectionTimeoutMs: long) {
+        this.pool = new HashMap<string, ArrayList<Variant>>();
+        this.maxSize = maxSize;
+        this.maxPerHost = maxPerHost;
+        this.connectionTimeoutMs = connectionTimeoutMs;
+    }
+
+    // Get a connection for the given host:port, or null if none available.
+    public fn getConnection(host: string, port: int): Variant {
+        let key: string = host + ":" + Integer.toString(port);
+        if (this.pool.containsKey(key)) {
+            let connections: ArrayList<Variant> = this.pool.get(key);
+            if (connections.size() > 0) {
+                return connections.remove(connections.size() - 1);
+            }
+        }
+        return null;
+    }
+
+    // Return a connection to the pool for reuse.
+    public fn returnConnection(host: string, port: int, conn: Variant): void {
+        let key: string = host + ":" + Integer.toString(port);
+        if (!this.pool.containsKey(key)) {
+            this.pool.put(key, new ArrayList<Variant>());
+        }
+        let connections: ArrayList<Variant> = this.pool.get(key);
+        if (connections.size() < this.maxPerHost) {
+            connections.add(conn);
+        }
+    }
+
+    // Clear all pooled connections.
+    public fn clear(): void {
+        this.pool.clear();
+    }
+
+    // Get the total number of pooled connections.
+    public fn totalConnections(): int {
+        var count: int = 0;
+        let keys: ArrayList<string> = this.pool.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let connections: ArrayList<Variant> = this.pool.get(keys.get(i));
+            count = count + connections.size();
+            i = i + 1;
+        }
+        return count;
+    }
 }
