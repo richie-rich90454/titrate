@@ -202,3 +202,241 @@ public class BatchNormLayer {
         return result;
     }
 }
+
+// Helper: Initialize a matrix with random values.
+private fn _initMatrix(rows: int, cols: int): ArrayList<ArrayList<double>> {
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(Random_nextDouble() * 0.1 - 0.05);
+            j = j + 1;
+        }
+        m.add(row);
+        i = i + 1;
+    }
+    return m;
+}
+
+// Helper: Sigmoid function.
+private fn _sigmoid(x: double): double {
+    if (x > 500.0) { return 1.0; }
+    if (x < -500.0) { return 0.0; }
+    return 1.0 / (1.0 + MathAdvanced.exp(-x));
+}
+
+// 2D convolution layer.
+public class Conv2D {
+    public int filters;
+    public int kernelSize;
+    public int stride;
+    public int padding;
+    public ArrayList<ArrayList<ArrayList<ArrayList<double>>>> weights;
+    public ArrayList<double> biases;
+
+    public fn init(numFilters: int, kSize: int, s: int, p: int) {
+        this.filters = numFilters;
+        this.kernelSize = kSize;
+        this.stride = s;
+        this.padding = p;
+        this.weights = new ArrayList<ArrayList<ArrayList<ArrayList<double>>>>();
+        this.biases = new ArrayList<double>();
+        // Initialize with random weights
+        var f: int = 0;
+        while (f < numFilters) {
+            let filter: ArrayList<ArrayList<ArrayList<double>>> = new ArrayList<ArrayList<ArrayList<double>>>();
+            var i: int = 0;
+            while (i < kSize) {
+                let row: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+                var j: int = 0;
+                while (j < kSize) {
+                    let col: ArrayList<double> = new ArrayList<double>();
+                    var c: int = 0;
+                    while (c < 1) { // single input channel for simplicity
+                        col.add(Random_nextDouble() * 0.1);
+                        c = c + 1;
+                    }
+                    row.add(col);
+                    j = j + 1;
+                }
+                filter.add(row);
+                i = i + 1;
+            }
+            this.weights.add(filter);
+            this.biases.add(0.0);
+            f = f + 1;
+        }
+    }
+
+    // Forward pass: apply convolution to input image (height x width).
+    public fn forward(input: ArrayList<ArrayList<double>>): ArrayList<ArrayList<ArrayList<double>>> {
+        let outSize: int = (input.size() - this.kernelSize + 2 * this.padding) / this.stride + 1;
+        let output: ArrayList<ArrayList<ArrayList<double>>> = new ArrayList<ArrayList<ArrayList<double>>>();
+        var f: int = 0;
+        while (f < this.filters) {
+            let featureMap: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+            var i: int = 0;
+            while (i < outSize) {
+                let row: ArrayList<double> = new ArrayList<double>();
+                var j: int = 0;
+                while (j < outSize) {
+                    var sum: double = this.biases.get(f);
+                    var ki: int = 0;
+                    while (ki < this.kernelSize) {
+                        var kj: int = 0;
+                        while (kj < this.kernelSize) {
+                            let ii: int = i * this.stride + ki - this.padding;
+                            let jj: int = j * this.stride + kj - this.padding;
+                            if (ii >= 0 && ii < input.size() && jj >= 0 && jj < input.get(0).size()) {
+                                let filter: ArrayList<ArrayList<ArrayList<double>>> = this.weights.get(f);
+                                let kernelRow: ArrayList<ArrayList<double>> = filter.get(ki);
+                                let kernelCol: ArrayList<double> = kernelRow.get(kj);
+                                sum = sum + input.get(ii).get(jj) * kernelCol.get(0);
+                            }
+                            kj = kj + 1;
+                        }
+                        ki = ki + 1;
+                    }
+                    row.add(sum);
+                    j = j + 1;
+                }
+                featureMap.add(row);
+                i = i + 1;
+            }
+            output.add(featureMap);
+            f = f + 1;
+        }
+        return output;
+    }
+}
+
+// Simple recurrent neural network layer.
+public class RNN {
+    public int inputSize;
+    public int hiddenSize;
+    public ArrayList<ArrayList<double>> wxh;
+    public ArrayList<ArrayList<double>> whh;
+    public ArrayList<double> bias;
+    public ArrayList<double> hiddenState;
+
+    public fn init(inSize: int, hSize: int) {
+        this.inputSize = inSize;
+        this.hiddenSize = hSize;
+        this.wxh = _initMatrix(inSize, hSize);
+        this.whh = _initMatrix(hSize, hSize);
+        this.bias = new ArrayList<double>();
+        this.hiddenState = new ArrayList<double>();
+        var i: int = 0;
+        while (i < hSize) {
+            this.bias.add(0.0);
+            this.hiddenState.add(0.0);
+            i = i + 1;
+        }
+    }
+
+    // Forward pass for one timestep.
+    public fn forward(input: ArrayList<double>): ArrayList<double> {
+        let newHidden: ArrayList<double> = new ArrayList<double>();
+        var h: int = 0;
+        while (h < this.hiddenSize) {
+            var sum: double = this.bias.get(h);
+            var i: int = 0;
+            while (i < this.inputSize) {
+                sum = sum + input.get(i) * this.wxh.get(i).get(h);
+                i = i + 1;
+            }
+            var j: int = 0;
+            while (j < this.hiddenSize) {
+                sum = sum + this.hiddenState.get(j) * this.whh.get(j).get(h);
+                j = j + 1;
+            }
+            // tanh activation
+            sum = tanh(sum);
+            newHidden.add(sum);
+            h = h + 1;
+        }
+        this.hiddenState = newHidden;
+        return newHidden;
+    }
+}
+
+// LSTM (Long Short-Term Memory) layer.
+public class LSTM {
+    public int inputSize;
+    public int hiddenSize;
+    public ArrayList<ArrayList<double>> wForget;
+    public ArrayList<ArrayList<double>> wInput;
+    public ArrayList<ArrayList<double>> wCandidate;
+    public ArrayList<ArrayList<double>> wOutput;
+    public ArrayList<double> hiddenState;
+    public ArrayList<double> cellState;
+
+    public fn init(inSize: int, hSize: int) {
+        this.inputSize = inSize;
+        this.hiddenSize = hSize;
+        this.wForget = _initMatrix(inSize + hSize, hSize);
+        this.wInput = _initMatrix(inSize + hSize, hSize);
+        this.wCandidate = _initMatrix(inSize + hSize, hSize);
+        this.wOutput = _initMatrix(inSize + hSize, hSize);
+        this.hiddenState = new ArrayList<double>();
+        this.cellState = new ArrayList<double>();
+        var i: int = 0;
+        while (i < hSize) {
+            this.hiddenState.add(0.0);
+            this.cellState.add(0.0);
+            i = i + 1;
+        }
+    }
+
+    // Forward pass for one timestep.
+    public fn forward(input: ArrayList<double>): ArrayList<double> {
+        // Concatenate input and hidden state
+        let combined: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < this.inputSize) { combined.add(input.get(i)); i = i + 1; }
+        i = 0;
+        while (i < this.hiddenSize) { combined.add(this.hiddenState.get(i)); i = i + 1; }
+
+        let newHidden: ArrayList<double> = new ArrayList<double>();
+        let newCell: ArrayList<double> = new ArrayList<double>();
+        var h: int = 0;
+        while (h < this.hiddenSize) {
+            // Forget gate
+            var fSum: double = 0.0;
+            var i2: int = 0;
+            while (i2 < combined.size()) { fSum = fSum + combined.get(i2) * this.wForget.get(i2).get(h); i2 = i2 + 1; }
+            let fGate: double = _sigmoid(fSum);
+
+            // Input gate
+            var iSum: double = 0.0;
+            i2 = 0;
+            while (i2 < combined.size()) { iSum = iSum + combined.get(i2) * this.wInput.get(i2).get(h); i2 = i2 + 1; }
+            let iGate: double = _sigmoid(iSum);
+
+            // Candidate
+            var cSum: double = 0.0;
+            i2 = 0;
+            while (i2 < combined.size()) { cSum = cSum + combined.get(i2) * this.wCandidate.get(i2).get(h); i2 = i2 + 1; }
+            let candidate: double = tanh(cSum);
+
+            // Output gate
+            var oSum: double = 0.0;
+            i2 = 0;
+            while (i2 < combined.size()) { oSum = oSum + combined.get(i2) * this.wOutput.get(i2).get(h); i2 = i2 + 1; }
+            let oGate: double = _sigmoid(oSum);
+
+            // Update cell state
+            let cell: double = fGate * this.cellState.get(h) + iGate * candidate;
+            newCell.add(cell);
+
+            // Update hidden state
+            newHidden.add(oGate * tanh(cell));
+            h = h + 1;
+        }
+        this.hiddenState = newHidden;
+        this.cellState = newCell;
+        return newHidden;
+    }
+}
