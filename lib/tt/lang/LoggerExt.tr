@@ -193,3 +193,43 @@ public class PerLevelLogger {
         }
     }
 }
+
+// AsyncHandler buffers log messages and writes them in batches to a wrapped handler.
+public class AsyncHandler {
+    public ArrayList<string> buffer;
+    public Variant wrappedHandler;
+    public int bufferSize;
+
+    public fn init(handler: Variant, size: int) {
+        this.buffer = new ArrayList<string>();
+        this.wrappedHandler = handler;
+        this.bufferSize = size;
+    }
+
+    // Add a message to the buffer. Flushes automatically when the buffer is full.
+    public fn log(level: string, message: string): void {
+        this.buffer.add("[" + level + "] " + message);
+        if (this.buffer.size() >= this.bufferSize) {
+            this.flush();
+        }
+    }
+
+    // Flush all buffered messages to the wrapped handler.
+    public fn flush(): void {
+        var i: int = 0;
+        while (i < this.buffer.size()) {
+            let entry: string = this.buffer.get(i);
+            if (this.wrappedHandler is SyslogHandler) {
+                let sh: SyslogHandler = this.wrappedHandler as SyslogHandler;
+                sh.send("INFO", entry);
+            } else if (this.wrappedHandler is RotatingHandler) {
+                let rh: RotatingHandler = this.wrappedHandler as RotatingHandler;
+                rh.write(entry);
+            } else {
+                io::println(entry);
+            }
+            i = i + 1;
+        }
+        this.buffer.clear();
+    }
+}
