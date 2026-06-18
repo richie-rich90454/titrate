@@ -911,3 +911,32 @@ public fn stripRight(s: string): string {
     }
     return String.substring(s, 0, i + 1);
 }
+
+// Split a string into lines (splits on \n, \r\n, \r).
+public fn lines(s: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    var current: string = "";
+    var i: int = 0;
+    let len: int = String_length(s);
+    while (i < len) {
+        let c: string = String_charAt(s, i);
+        if (c == "\n") {
+            result.add(current);
+            current = "";
+        } else if (c == "\r") {
+            result.add(current);
+            current = "";
+            if (i + 1 < len) {
+                let next: string = String_charAt(s, i + 1);
+                if (next == "\n") {
+                    i = i + 1;
+                }
+            }
+        } else {
+            current = current + c;
+        }
+        i = i + 1;
+    }
+    result.add(current);
+    return result;
+}
