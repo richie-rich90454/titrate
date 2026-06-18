@@ -129,3 +129,31 @@ public class DataclassExt {
         return sb;
     }
 }
+
+// Mark a field as keyword-only.
+public fn kwOnly(fieldName: string): string {
+    return "__kwonly__" + fieldName;
+}
+
+// Wrapper for default factory functions.
+public class DefaultFactory {
+    public Variant factory;
+
+    public fn init(f: Variant) {
+        this.factory = f;
+    }
+
+    public fn create(): Variant {
+        return Variant.call(this.factory, new ArrayList<Variant>());
+    }
+}
+
+// Create a default factory wrapper.
+public fn defaultFactory(f: Variant): DefaultFactory {
+    return new DefaultFactory(f);
+}
+
+// Register a post-init hook for a dataclass instance.
+public fn postInit(instance: Variant, hook: Variant): void {
+    Variant.call(hook, instance);
+}
