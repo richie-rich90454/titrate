@@ -399,6 +399,170 @@ public class Graph<V> {
         return false;
     }
 
+    // Kruskal's minimum spanning tree algorithm using union-find.
+    // Returns (total weight, list of MST edges).
+    public fn kruskalMST(): (double, ArrayList<(V, V)>) {
+        let mstEdges: ArrayList<(V, V)> = new ArrayList<(V, V)>();
+        let totalWeight: double = 0.0;
+        let allEdges: ArrayList<(V, V)> = this.edges();
+        if (allEdges.size() == 0) {
+            return (totalWeight, mstEdges);
+        }
+        // Build parallel arrays so we can sort edges by weight.
+        let fromList: ArrayList<V> = new ArrayList<V>();
+        let toList: ArrayList<V> = new ArrayList<V>();
+        let weightList: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < allEdges.size()) {
+            let (from: V, to: V) = allEdges.get(i);
+            fromList.add(from);
+            toList.add(to);
+            weightList.add(this.weights.get(this._edgeKey(from, to)));
+            i = i + 1;
+        }
+        // Selection sort edges by weight (ascending).
+        let n: int = fromList.size();
+        i = 0;
+        while (i < n - 1) {
+            let minIdx: int = i;
+            let j: int = i + 1;
+            while (j < n) {
+                if (weightList.get(j) < weightList.get(minIdx)) {
+                    minIdx = j;
+                }
+                j = j + 1;
+            }
+            if (minIdx != i) {
+                let tmpFrom: V = fromList.get(i);
+                let tmpTo: V = toList.get(i);
+                let tmpW: double = weightList.get(i);
+                fromList.set(i, fromList.get(minIdx));
+                toList.set(i, toList.get(minIdx));
+                weightList.set(i, weightList.get(minIdx));
+                fromList.set(minIdx, tmpFrom);
+                toList.set(minIdx, tmpTo);
+                weightList.set(minIdx, tmpW);
+            }
+            i = i + 1;
+        }
+        // Union-find initialization: each vertex is its own parent.
+        let parent: HashMap<V, V> = new HashMap<V, V>();
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let k: int = 0;
+        while (k < allVertices.size()) {
+            parent.put(allVertices.get(k), allVertices.get(k));
+            k = k + 1;
+        }
+        // Kruskal main loop: add edge if it connects two distinct components.
+        i = 0;
+        while (i < n) {
+            let from: V = fromList.get(i);
+            let to: V = toList.get(i);
+            let rootFrom: V = this._ufFind(parent, from);
+            let rootTo: V = this._ufFind(parent, to);
+            if (rootFrom != rootTo) {
+                mstEdges.add((from, to));
+                totalWeight = totalWeight + weightList.get(i);
+                parent.put(rootFrom, rootTo);
+            }
+            i = i + 1;
+        }
+        return (totalWeight, mstEdges);
+    }
+
+    // Prim's minimum spanning tree algorithm starting from startVertex.
+    // Returns (total weight, list of MST edges).
+    public fn primMST(startVertex: V): (double, ArrayList<(V, V)>) {
+        let mstEdges: ArrayList<(V, V)> = new ArrayList<(V, V)>();
+        let totalWeight: double = 0.0;
+        if (!this.adj.containsKey(startVertex)) {
+            return (totalWeight, mstEdges);
+        }
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let visited: Set<V> = new Set<V>();
+        visited.add(startVertex);
+        // bestWeight[v] = cheapest edge weight connecting v to the visited set.
+        let bestWeight: HashMap<V, double> = new HashMap<V, double>();
+        // bestFrom[v] = the visited endpoint of that cheapest edge.
+        let bestFrom: HashMap<V, V> = new HashMap<V, V>();
+        let i: int = 0;
+        while (i < allVertices.size()) {
+            let v: V = allVertices.get(i);
+            if (v != startVertex) {
+                bestWeight.put(v, 999999999.0);
+                bestFrom.put(v, null);
+            }
+            i = i + 1;
+        }
+        // Seed with edges leaving the start vertex.
+        let nbrs: ArrayList<V> = this.adj.get(startVertex);
+        let j: int = 0;
+        while (j < nbrs.size()) {
+            let neighbor: V = nbrs.get(j);
+            let w: double = this.weights.get(this._edgeKey(startVertex, neighbor));
+            bestWeight.put(neighbor, w);
+            bestFrom.put(neighbor, startVertex);
+            j = j + 1;
+        }
+        // Add vertices one at a time, picking the cheapest crossing edge.
+        let vertexCount: int = allVertices.size();
+        let added: int = 0;
+        while (added < vertexCount - 1) {
+            let u: V = null;
+            let minW: double = 999999999.0;
+            i = 0;
+            while (i < allVertices.size()) {
+                let v: V = allVertices.get(i);
+                if (!visited.contains(v) && bestWeight.get(v) < minW) {
+                    minW = bestWeight.get(v);
+                    u = v;
+                }
+                i = i + 1;
+            }
+            if (u == null) {
+                break; // graph is disconnected
+            }
+            visited.add(u);
+            let from: V = bestFrom.get(u);
+            if (from != null) {
+                mstEdges.add((from, u));
+                totalWeight = totalWeight + minW;
+            }
+            added = added + 1;
+            // Relax edges leaving u.
+            let uNbrs: ArrayList<V> = this.adj.get(u);
+            j = 0;
+            while (j < uNbrs.size()) {
+                let neighbor: V = uNbrs.get(j);
+                if (!visited.contains(neighbor)) {
+                    let w: double = this.weights.get(this._edgeKey(u, neighbor));
+                    if (w < bestWeight.get(neighbor)) {
+                        bestWeight.put(neighbor, w);
+                        bestFrom.put(neighbor, u);
+                    }
+                }
+                j = j + 1;
+            }
+        }
+        return (totalWeight, mstEdges);
+    }
+
+    // Union-find: find root of v with path compression.
+    private fn _ufFind(parent: HashMap<V, V>, v: V): V {
+        let root: V = v;
+        while (parent.get(root) != root) {
+            root = parent.get(root);
+        }
+        // Path compression: point each node on the path directly at root.
+        let node: V = v;
+        while (parent.get(node) != root) {
+            let next: V = parent.get(node);
+            parent.put(node, root);
+            node = next;
+        }
+        return root;
+    }
+
     public fn toString(): string {
         let s: string = "Graph({";
         let allVertices: ArrayList<V> = this.adj.keys();
