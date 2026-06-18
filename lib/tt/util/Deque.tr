@@ -134,6 +134,42 @@ public class Deque {
         this.items = new ArrayList<Variant>();
     }
 
+    // Insert an element at the specified index.
+    public fn insert(index: int, element: Variant): void {
+        // Add at end to grow capacity, then shift right to make room.
+        this.items.add(element);
+        var i: int = this.items.size() - 1;
+        while (i > index) {
+            let temp: Variant = this.items.get(i - 1);
+            this.items.set(i, temp);
+            i = i - 1;
+        }
+        this.items.set(index, element);
+        this.trimIfNeeded();
+    }
+
+    // Return a shallow copy of this deque.
+    public fn copy(): Deque {
+        let result: Deque = new Deque();
+        result.maxLen = this.maxLen;
+        var i: int = 0;
+        while (i < this.items.size()) {
+            result.items.add(this.items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Extend this deque by prepending elements from another deque.
+    public fn extendLeft(other: Deque): void {
+        // Insert each element from other at the beginning, in reverse order.
+        var i: int = other.size() - 1;
+        while (i >= 0) {
+            this.insert(0, other.items.get(i));
+            i = i - 1;
+        }
+    }
+
     // Internal: trim items from the left if maxLen is set and exceeded.
     private fn trimIfNeeded(): void {
         if (this.maxLen > 0) {
