@@ -1839,3 +1839,47 @@ public fn wilcoxonTest(x: ArrayList<double>, y: ArrayList<double>): HashMap<stri
     result.put("pValue", p);
     return result;
 }
+
+// F-test: compare variances of two samples.
+// Returns an ArrayList with [fStatistic, df1, df2, pValue].
+public fn fTest(sample1: ArrayList<double>, sample2: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (sample1.size() < 2 || sample2.size() < 2) {
+        result.add(0.0);
+        result.add(0.0);
+        result.add(0.0);
+        result.add(1.0);
+        return result;
+    }
+    let var1: double = variance(sample1);
+    let var2: double = variance(sample2);
+    if (var1 == 0.0 || var2 == 0.0) {
+        // F-test undefined when either variance is zero
+        result.add(0.0);
+        result.add((sample1.size() - 1) as double);
+        result.add((sample2.size() - 1) as double);
+        result.add(1.0);
+        return result;
+    }
+    let fStat: double = var1 / var2;
+    if (fStat < 1.0) {
+        // Use the larger variance as numerator
+        let fStatInverse: double = 1.0 / fStat;
+        let df1: double = (sample2.size() - 1) as double;
+        let df2: double = (sample1.size() - 1) as double;
+        let pValue: double = fDistPValue(fStatInverse, df1, df2);
+        result.add(fStatInverse);
+        result.add(df1);
+        result.add(df2);
+        result.add(pValue);
+        return result;
+    }
+    let df1: double = (sample1.size() - 1) as double;
+    let df2: double = (sample2.size() - 1) as double;
+    let pValue: double = fDistPValue(fStat, df1, df2);
+    result.add(fStat);
+    result.add(df1);
+    result.add(df2);
+    result.add(pValue);
+    return result;
+}
