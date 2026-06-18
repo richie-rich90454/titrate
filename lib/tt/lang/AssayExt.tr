@@ -188,3 +188,72 @@ public fn parameterizedTest(params: ArrayList<Variant>, f: fn(Variant): void): A
     }
     return result;
 }
+
+// BenchmarkResult holds timing statistics for a benchmark run.
+// All times are in nanoseconds.
+public class BenchmarkResult {
+    public var minNanos: long;
+    public var maxNanos: long;
+    public var meanNanos: double;
+    public var medianNanos: double;
+    public var totalNanos: long;
+    public var iterations: int;
+
+    public fn init(min: long, max: long, mean: double, median: double, total: long, iters: int) {
+        this.minNanos = min;
+        this.maxNanos = max;
+        this.meanNanos = mean;
+        this.medianNanos = median;
+        this.totalNanos = total;
+        this.iterations = iters;
+    }
+
+    public fn toString(): string {
+        return "BenchmarkResult{iters=" + Integer.toString(this.iterations)
+            + ", min=" + Long.toString(this.minNanos) + "ns"
+            + ", max=" + Long.toString(this.maxNanos) + "ns"
+            + ", mean=" + Double.toString(this.meanNanos) + "ns"
+            + ", median=" + Double.toString(this.medianNanos) + "ns"
+            + ", total=" + Long.toString(this.totalNanos) + "ns}";
+    }
+}
+
+// Run a function n times and return benchmark statistics.
+// Each iteration is timed individually using a monotonic clock.
+public fn benchmark(f: fn(): void, iterations: int): BenchmarkResult {
+    let times: ArrayList<long> = new ArrayList<long>();
+    var i: int = 0;
+    while (i < iterations) {
+        let start: long = Time_monotonic();
+        f();
+        let end: long = Time_monotonic();
+        times.add(end - start);
+        i = i + 1;
+    }
+    // Sort to compute median
+    times.sort();
+    // Compute statistics
+    var minVal: long = times.get(0);
+    var maxVal: long = times.get(0);
+    var total: long = 0;
+    i = 0;
+    while (i < times.size()) {
+        let t: long = times.get(i);
+        if (t < minVal) { minVal = t; }
+        if (t > maxVal) { maxVal = t; }
+        total = total + t;
+        i = i + 1;
+    }
+    let mean: double = total as double / iterations as double;
+    // Median: middle element for odd count, average of two middle for even count
+    var median: double = 0.0;
+    let n: int = times.size();
+    if (n % 2 == 1) {
+        median = times.get(n / 2) as double;
+    } else {
+        let a: double = times.get(n / 2 - 1) as double;
+        let b: double = times.get(n / 2) as double;
+        median = (a + b) / 2.0;
+    }
+    return new BenchmarkResult(minVal, maxVal, mean, median, total, iterations);
+}
