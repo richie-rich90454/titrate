@@ -4,6 +4,7 @@ import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::linalg::Cholesky;
 import tt::linalg::Qr;
+import tt::lang::Integer;
 
 // Linear solvers module
 // Matrices are stored as flat ArrayList<double> in row-major order.
@@ -521,6 +522,322 @@ public fn gmres(a: ArrayList<double>, n: int, b: ArrayList<double>, maxIter: int
         }
 
         restart = restart + 1;
+    }
+
+    return x;
+}
+
+// Solve a banded linear system A * x = b using LU decomposition with partial pivoting
+// adapted for banded matrices.
+// a is the n x n matrix stored flat (row-major), kl is the number of subdiagonals,
+// ku is the number of superdiagonals, b is length n. Returns x of length n.
+// The L factor keeps kl subdiagonals; U has up to kl + ku superdiagonals (fill-in).
+public fn bandedSolve(a: ArrayList<double>, n: int, b: ArrayList<double>, kl: int, ku: int): ArrayList<double> {
+    // Copy a into lu (flat n*n)
+    let lu: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n * n) {
+        lu.add(a.get(i));
+        i = i + 1;
+    }
+
+    // Permutation array
+    let perm: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < n) {
+        perm.add(i);
+        i = i + 1;
+    }
+
+    // U superdiagonal count after fill-in
+    let ku1: int = kl + ku;
+
+    var col: int = 0;
+    while (col < n) {
+        // Find pivot within the subdiagonal band (rows col..min(col+kl, n-1))
+        var maxVal: double = Math.abs(lu.get(col * n + col));
+        var maxRow: int = col;
+        let rowLimit: int = Integer.min(col + kl, n - 1);
+        var row: int = col + 1;
+        while (row <= rowLimit) {
+            let val: double = Math.abs(lu.get(row * n + col));
+            if (val > maxVal) {
+                maxVal = val;
+                maxRow = row;
+            }
+            row = row + 1;
+        }
+
+        // Swap rows (full row swap)
+        if (maxRow != col) {
+            var j: int = 0;
+            while (j < n) {
+                let tmp: double = lu.get(col * n + j);
+                lu.set(col * n + j, lu.get(maxRow * n + j));
+                lu.set(maxRow * n + j, tmp);
+                j = j + 1;
+            }
+            let tmpP: int = perm.get(col);
+            perm.set(col, perm.get(maxRow));
+            perm.set(maxRow, tmpP);
+        }
+
+        // Eliminate below within the subdiagonal band
+        if (Math.abs(lu.get(col * n + col)) > 1e-15) {
+            let elimRowLimit: int = Integer.min(col + kl, n - 1);
+            row = col + 1;
+            while (row <= elimRowLimit) {
+                let factor: double = lu.get(row * n + col) / lu.get(col * n + col);
+                lu.set(row * n + col, factor);
+                // Update only within the band (columns col+1..min(col+ku1, n-1))
+                let colLimit: int = Integer.min(col + ku1, n - 1);
+                var j: int = col + 1;
+                while (j <= colLimit) {
+                    lu.set(row * n + j, lu.get(row * n + j) - factor * lu.get(col * n + j));
+                    j = j + 1;
+                }
+                row = row + 1;
+            }
+        }
+        col = col + 1;
+    }
+
+    // Apply permutation to b
+    let y: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        y.add(b.get(perm.get(i)));
+        i = i + 1;
+    }
+
+    // Forward substitution (L has unit diagonal, only kl subdiagonals)
+    i = 0;
+    while (i < n) {
+        var sum: double = y.get(i);
+        let kStart: int = Integer.max(0, i - kl);
+        var k: int = kStart;
+        while (k < i) {
+            sum = sum - lu.get(i * n + k) * y.get(k);
+            k = k + 1;
+        }
+        y.set(i, sum);
+        i = i + 1;
+    }
+
+    // Back substitution (U has up to kl+ku superdiagonals)
+    let x: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        x.add(0.0);
+        i = i + 1;
+    }
+
+    i = n - 1;
+    while (i >= 0) {
+        var sum: double = y.get(i);
+        let kEnd: int = Integer.min(i + ku1, n - 1);
+        var k: int = i + 1;
+        while (k <= kEnd) {
+            sum = sum - lu.get(i * n + k) * x.get(k);
+            k = k + 1;
+        }
+        let diag: double = lu.get(i * n + i);
+        if (Math.abs(diag) < 1e-15) {
+            x.set(i, 0.0);
+        } else {
+            x.set(i, sum / diag);
+        }
+        i = i - 1;
+    }
+
+    return x;
+}
+
+// BiCGSTAB iterative solver for general (non-symmetric) systems: A * x = b.
+// a is n x n, b is length n, x0 is the initial guess (length n).
+// maxIter is the maximum number of iterations, tol is the convergence tolerance
+// on the residual 2-norm. Returns x of length n.
+public fn bicgstab(a: ArrayList<double>, n: int, b: ArrayList<double>, x0: ArrayList<double>, maxIter: int, tol: double): ArrayList<double> {
+    // x = copy of x0
+    let x: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        x.add(x0.get(i));
+        i = i + 1;
+    }
+
+    // r = b - A*x
+    let r: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        var axi: double = 0.0;
+        var k: int = 0;
+        while (k < n) {
+            axi = axi + a.get(i * n + k) * x.get(k);
+            k = k + 1;
+        }
+        r.add(b.get(i) - axi);
+        i = i + 1;
+    }
+
+    // r0hat = copy of r (fixed shadow residual)
+    let r0hat: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        r0hat.add(r.get(i));
+        i = i + 1;
+    }
+
+    var rho: double = 1.0;
+    var alpha: double = 1.0;
+    var omega: double = 1.0;
+
+    // p = copy of r
+    let p: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        p.add(r.get(i));
+        i = i + 1;
+    }
+
+    // v = zero vector
+    let v: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        v.add(0.0);
+        i = i + 1;
+    }
+
+    var iter: int = 0;
+    while (iter < maxIter) {
+        // rhoNew = (r0hat, r)
+        var rhoNew: double = 0.0;
+        i = 0;
+        while (i < n) {
+            rhoNew = rhoNew + r0hat.get(i) * r.get(i);
+            i = i + 1;
+        }
+        if (Math.abs(rhoNew) < 1e-30) { break; }
+
+        // beta = (rhoNew / rho) * (alpha / omega)
+        let beta: double = (rhoNew / rho) * (alpha / omega);
+        rho = rhoNew;
+
+        // p = r + beta * (p - omega * v)
+        i = 0;
+        while (i < n) {
+            p.set(i, r.get(i) + beta * (p.get(i) - omega * v.get(i)));
+            i = i + 1;
+        }
+
+        // v = A * p
+        i = 0;
+        while (i < n) {
+            var sum: double = 0.0;
+            var k: int = 0;
+            while (k < n) {
+                sum = sum + a.get(i * n + k) * p.get(k);
+                k = k + 1;
+            }
+            v.set(i, sum);
+            i = i + 1;
+        }
+
+        // alpha = rho / (r0hat, v)
+        var r0v: double = 0.0;
+        i = 0;
+        while (i < n) {
+            r0v = r0v + r0hat.get(i) * v.get(i);
+            i = i + 1;
+        }
+        if (Math.abs(r0v) < 1e-30) { break; }
+        alpha = rho / r0v;
+
+        // s = r - alpha * v
+        let s: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < n) {
+            s.add(r.get(i) - alpha * v.get(i));
+            i = i + 1;
+        }
+
+        // Check convergence on s
+        var sNorm: double = 0.0;
+        i = 0;
+        while (i < n) {
+            sNorm = sNorm + s.get(i) * s.get(i);
+            i = i + 1;
+        }
+        sNorm = MathAdvanced.sqrt(sNorm);
+        if (sNorm < tol) {
+            // x = x + alpha * p
+            i = 0;
+            while (i < n) {
+                x.set(i, x.get(i) + alpha * p.get(i));
+                i = i + 1;
+            }
+            break;
+        }
+
+        // t = A * s
+        let t: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < n) {
+            var sum: double = 0.0;
+            var k: int = 0;
+            while (k < n) {
+                sum = sum + a.get(i * n + k) * s.get(k);
+                k = k + 1;
+            }
+            t.add(sum);
+            i = i + 1;
+        }
+
+        // omega = (t, s) / (t, t)
+        var ts: double = 0.0;
+        var tt: double = 0.0;
+        i = 0;
+        while (i < n) {
+            ts = ts + t.get(i) * s.get(i);
+            tt = tt + t.get(i) * t.get(i);
+            i = i + 1;
+        }
+        if (Math.abs(tt) < 1e-30) {
+            // Breakdown: x = x + alpha * p, then stop
+            i = 0;
+            while (i < n) {
+                x.set(i, x.get(i) + alpha * p.get(i));
+                i = i + 1;
+            }
+            break;
+        }
+        omega = ts / tt;
+
+        // x = x + alpha * p + omega * s
+        i = 0;
+        while (i < n) {
+            x.set(i, x.get(i) + alpha * p.get(i) + omega * s.get(i));
+            i = i + 1;
+        }
+
+        // r = s - omega * t
+        i = 0;
+        while (i < n) {
+            r.set(i, s.get(i) - omega * t.get(i));
+            i = i + 1;
+        }
+
+        // Check convergence on r
+        var rNorm: double = 0.0;
+        i = 0;
+        while (i < n) {
+            rNorm = rNorm + r.get(i) * r.get(i);
+            i = i + 1;
+        }
+        rNorm = MathAdvanced.sqrt(rNorm);
+        if (rNorm < tol) { break; }
+
+        iter = iter + 1;
     }
 
     return x;
