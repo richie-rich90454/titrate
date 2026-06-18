@@ -165,3 +165,41 @@ public fn reduce(f: fn(Variant, Variant): Variant, items: ArrayList<Variant>, in
 public fn cmpToKey(cmp: fn(Variant, Variant): int): fn(Variant, Variant): int {
     return cmp;
 }
+
+// DispatchRegistry — maps type tags to handler functions for single-dispatch.
+// Dispatches to the registered handler based on the type tag of the first argument,
+// falling back to the default function when no handler matches.
+public class DispatchRegistry {
+    private HashMap<string, fn(Variant): Variant> _registry;
+    private fn(Variant): Variant _defaultFn;
+
+    public fn init(defaultFn: fn(Variant): Variant) {
+        this._registry = new HashMap<string, fn(Variant): Variant>();
+        this._defaultFn = defaultFn;
+    }
+
+    // Register a handler function for a given type tag.
+    public fn register(typeTag: string, handler: fn(Variant): Variant): void {
+        this._registry.put(typeTag, handler);
+    }
+
+    // Dispatch to the registered handler based on the type tag of the argument.
+    // Falls back to the default function if no handler is registered.
+    public fn call(args: Variant): Variant {
+        if (args == null) {
+            return this._defaultFn(args);
+        }
+        let typeTag: string = args.typeTag();
+        if (typeTag != null && this._registry.containsKey(typeTag)) {
+            let handler: fn(Variant): Variant = this._registry.get(typeTag);
+            return handler(args);
+        }
+        return this._defaultFn(args);
+    }
+}
+
+// Create a single-dispatch registry with a default handler function.
+// Dispatches to the registered function based on the type tag of the first argument.
+public fn singledispatch(defaultFn: fn(Variant): Variant): DispatchRegistry {
+    return new DispatchRegistry(defaultFn);
+}
