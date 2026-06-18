@@ -99,3 +99,26 @@ public fn enumMembers(members: ArrayList<Pair<string, int>>): ArrayList<string> 
     }
     return result;
 }
+
+// Auto-numbering counter for enum values.
+private var _autoCounter: int = 0;
+
+// Auto-numbering: returns the next auto-incremented value.
+public fn auto(): int {
+    let val: int = _autoCounter;
+    _autoCounter = _autoCounter + 1;
+    return val;
+}
+
+// Auto-numbering starting from a specific value.
+public fn autoFrom(start: int): int {
+    _autoCounter = start;
+    let val: int = _autoCounter;
+    _autoCounter = _autoCounter + 1;
+    return val;
+}
+
+// Reset the auto counter.
+public fn autoReset(): void {
+    _autoCounter = 0;
+}
