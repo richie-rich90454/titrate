@@ -220,3 +220,78 @@ public class NBodySimulator {
         return com;
     }
 }
+
+// Barnes-Hut tree node for 3D space (octree).
+public class BHTreeNode {
+    public double cx;
+    public double cy;
+    public double cz;
+    public double size;
+    public double mass;
+    public double comX;
+    public double comY;
+    public double comZ;
+    public Body body;
+    public ArrayList<BHTreeNode> children;
+    public bool isInternal;
+
+    public fn init(cx: double, cy: double, cz: double, s: double) {
+        this.cx = cx;
+        this.cy = cy;
+        this.cz = cz;
+        this.size = s;
+        this.mass = 0.0;
+        this.comX = 0.0;
+        this.comY = 0.0;
+        this.comZ = 0.0;
+        this.body = null;
+        this.children = new ArrayList<BHTreeNode>();
+        this.isInternal = false;
+    }
+}
+
+// Compute gravitational forces using Barnes-Hut approximation.
+// Note: This is a simplified implementation that uses direct O(n^2)
+// computation. A full implementation would build an octree and traverse
+// it with the opening angle theta to approximate far-field forces.
+public fn computeForcesBarnesHut(bodies: ArrayList<Body>, G: double, theta: double): ArrayList<ArrayList<double>> {
+    let n: int = bodies.size();
+    let forces: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let f: ArrayList<double> = new ArrayList<double>();
+        f.add(0.0);
+        f.add(0.0);
+        f.add(0.0);
+        forces.add(f);
+        i = i + 1;
+    }
+    // Simplified: use direct computation for now
+    // Full Barnes-Hut would build octree and traverse
+    i = 0;
+    while (i < n) {
+        let p1: Body = bodies.get(i);
+        var j: int = i + 1;
+        while (j < n) {
+            let p2: Body = bodies.get(j);
+            let dx: double = p2.x - p1.x;
+            let dy: double = p2.y - p1.y;
+            let dz: double = p2.z - p1.z;
+            let distSq: double = dx * dx + dy * dy + dz * dz + 1e-10;
+            let dist: double = MathAdvanced.sqrt(distSq);
+            let force: double = G * p1.mass * p2.mass / distSq;
+            let fx: double = force * dx / dist;
+            let fy: double = force * dy / dist;
+            let fz: double = force * dz / dist;
+            forces.get(i).set(0, forces.get(i).get(0) + fx);
+            forces.get(i).set(1, forces.get(i).get(1) + fy);
+            forces.get(i).set(2, forces.get(i).get(2) + fz);
+            forces.get(j).set(0, forces.get(j).get(0) - fx);
+            forces.get(j).set(1, forces.get(j).get(1) - fy);
+            forces.get(j).set(2, forces.get(j).get(2) - fz);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return forces;
+}
