@@ -140,3 +140,116 @@ fn _soundexCode(ch: string): string {
     if (ch == "R") { return "6"; }
     return "";
 }
+
+// Metaphone phonetic encoding
+public fn metaphone(word: string): string {
+    let upper: string = String.toUpperCase(word);
+    let len: int = String.length(upper);
+    if (len == 0) { return ""; }
+    let chars: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < len) {
+        chars.add(String.charAt(upper, i));
+        i = i + 1;
+    }
+    var result: string = "";
+    i = 0;
+    while (i < chars.size()) {
+        let c: string = chars.get(i);
+        // Skip duplicate consonants (except C)
+        if (i > 0 && c == chars.get(i - 1) && c != "C") {
+            i = i + 1;
+            continue;
+        }
+        if (c == "B") {
+            // B is silent at end of word after M (e.g., dumb, lamb)
+            if (i + 1 < chars.size() || i == 0 || chars.get(i - 1) != "M") {
+                result = result + "B";
+            }
+        } else if (c == "C") {
+            if (i + 1 < chars.size()) {
+                let next: string = chars.get(i + 1);
+                if (next == "I" || next == "E" || next == "Y") {
+                    result = result + "S";
+                } else {
+                    result = result + "K";
+                }
+            } else {
+                result = result + "K";
+            }
+        } else if (c == "D") {
+            if (i + 2 < chars.size() && chars.get(i + 1) == "G" && (chars.get(i + 2) == "I" || chars.get(i + 2) == "E" || chars.get(i + 2) == "Y")) {
+                result = result + "J";
+                i = i + 2;
+            } else {
+                result = result + "T";
+            }
+        } else if (c == "F") {
+            result = result + "F";
+        } else if (c == "G") {
+            if (i + 1 < chars.size()) {
+                let next: string = chars.get(i + 1);
+                if (next == "N") {
+                    // silent GN
+                } else if (i == 0 || (chars.get(i - 1) != "N" && chars.get(i - 1) != "D")) {
+                    result = result + "K";
+                }
+            } else {
+                result = result + "K";
+            }
+        } else if (c == "H") {
+            if (i > 0 && i + 1 < chars.size()) {
+                let prev: string = chars.get(i - 1);
+                let next: string = chars.get(i + 1);
+                if ((prev == "A" || prev == "E" || prev == "I" || prev == "O" || prev == "U") && (next == "A" || next == "E" || next == "I" || next == "O" || next == "U")) {
+                    result = result + "H";
+                }
+            }
+        } else if (c == "J") {
+            result = result + "J";
+        } else if (c == "K") {
+            result = result + "K";
+        } else if (c == "L") {
+            result = result + "L";
+        } else if (c == "M") {
+            result = result + "M";
+        } else if (c == "N") {
+            result = result + "N";
+        } else if (c == "P") {
+            if (i + 1 < chars.size() && chars.get(i + 1) == "H") {
+                result = result + "F";
+                i = i + 1;
+            } else {
+                result = result + "P";
+            }
+        } else if (c == "Q") {
+            result = result + "K";
+        } else if (c == "R") {
+            result = result + "R";
+        } else if (c == "S") {
+            if (i + 2 < chars.size() && chars.get(i + 1) == "I" && (chars.get(i + 2) == "O" || chars.get(i + 2) == "A")) {
+                result = result + "X";
+                i = i + 2;
+            } else {
+                result = result + "S";
+            }
+        } else if (c == "T") {
+            if (i + 2 < chars.size() && chars.get(i + 1) == "I" && (chars.get(i + 2) == "O" || chars.get(i + 2) == "A")) {
+                result = result + "X";
+                i = i + 2;
+            } else {
+                result = result + "T";
+            }
+        } else if (c == "V") {
+            result = result + "F";
+        } else if (c == "W" || c == "Y") {
+            result = result + c;
+        } else if (c == "X") {
+            result = result + "KS";
+        } else if (c == "Z") {
+            result = result + "S";
+        }
+        i = i + 1;
+    }
+    return result;
+}
