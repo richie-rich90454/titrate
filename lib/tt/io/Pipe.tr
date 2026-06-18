@@ -124,3 +124,65 @@ public fn createPipe(): Pair<PipeReader, PipeWriter> {
     let writer: PipeWriter = new PipeWriter(reader);
     return new Pair<PipeReader, PipeWriter>(reader, writer);
 }
+
+// Named pipe for inter-process communication (IPC).
+// On Unix, create() invokes `mkfifo` to create a FIFO special file; read/write
+// then go through the file I/O natives. On Windows, named pipe creation is not
+// supported via the available primitives — create() throws an error.
+public class NamedPipe {
+    public var pipeName: string;
+    public var isOpen: bool;
+
+    public fn init(name: string) {
+        this.pipeName = name;
+        this.isOpen = false;
+    }
+
+    // Create the named pipe (server side).
+    public fn create(): void {
+        let os: string = Os_name();
+        if (os == "windows") {
+            throw "NamedPipe: named pipe creation is not supported on Windows";
+        }
+        let code: int = Os_system("mkfifo " + this.pipeName);
+        if (code != 0) {
+            throw "NamedPipe: failed to create named pipe '" + this.pipeName + "'";
+        }
+        this.isOpen = true;
+    }
+
+    // Connect to an existing named pipe (client side).
+    public fn connect(): void {
+        if (!Fs_exists(this.pipeName)) {
+            throw "NamedPipe: pipe '" + this.pipeName + "' does not exist";
+        }
+        this.isOpen = true;
+    }
+
+    // Write data to the named pipe. Returns the number of bytes written,
+    // or -1 if the pipe is not open.
+    public fn write(data: string): int {
+        if (!this.isOpen) { return -1; }
+        File_writeFile(this.pipeName, data);
+        return String.length(data);
+    }
+
+    // Read data from the named pipe. Reads up to maxBytes characters; a
+    // non-positive maxBytes reads all available data.
+    public fn read(maxBytes: int): string {
+        if (!this.isOpen) { return ""; }
+        let data: string = File_readFile(this.pipeName);
+        if (maxBytes > 0 && String.length(data) > maxBytes) {
+            return String.substring(data, 0, maxBytes);
+        }
+        return data;
+    }
+
+    // Close and remove the named pipe.
+    public fn close(): void {
+        if (this.isOpen) {
+            File_delete(this.pipeName);
+            this.isOpen = false;
+        }
+    }
+}
