@@ -1659,3 +1659,73 @@ public fn ellipticPiIncomplete(n: double, phi: double, m: double): double {
 
     return s * (rf + n * rj / 3.0);
 }
+
+// ==================== Orthogonal polynomials (Task 122) ====================
+
+// Legendre polynomial P_n(x) using recurrence: (n+1)P_{n+1} = (2n+1)x P_n - n P_{n-1}
+public fn legendreP(n: int, x: double): double {
+    if (n < 0) { return 0.0; }
+    if (n == 0) { return 1.0; }
+    if (n == 1) { return x; }
+    var p0: double = 1.0;
+    var p1: double = x;
+    var i: int = 1;
+    while (i < n) {
+        let p2: double = ((2.0 * (i as double) + 1.0) * x * p1 - (i as double) * p0) / ((i as double) + 1.0);
+        p0 = p1;
+        p1 = p2;
+        i = i + 1;
+    }
+    return p1;
+}
+
+// Physicist's Hermite polynomial H_n(x) using recurrence: H_{n+1} = 2x H_n - 2n H_{n-1}
+public fn hermiteH(n: int, x: double): double {
+    if (n < 0) { return 0.0; }
+    if (n == 0) { return 1.0; }
+    if (n == 1) { return 2.0 * x; }
+    var h0: double = 1.0;
+    var h1: double = 2.0 * x;
+    var i: int = 1;
+    while (i < n) {
+        let h2: double = 2.0 * x * h1 - 2.0 * (i as double) * h0;
+        h0 = h1;
+        h1 = h2;
+        i = i + 1;
+    }
+    return h1;
+}
+
+// Laguerre polynomial L_n(x) using recurrence: (n+1)L_{n+1} = (2n+1-x)L_n - n L_{n-1}
+public fn laguerreL(n: int, x: double): double {
+    if (n < 0) { return 0.0; }
+    if (n == 0) { return 1.0; }
+    if (n == 1) { return 1.0 - x; }
+    var l0: double = 1.0;
+    var l1: double = 1.0 - x;
+    var i: int = 1;
+    while (i < n) {
+        let l2: double = ((2.0 * (i as double) + 1.0 - x) * l1 - (i as double) * l0) / ((i as double) + 1.0);
+        l0 = l1;
+        l1 = l2;
+        i = i + 1;
+    }
+    return l1;
+}
+
+// Chebyshev polynomial of the first kind T_n(x) using recurrence: T_{n+1} = 2x T_n - T_{n-1}
+public fn chebyshevT(n: int, x: double): double {
+    if (n < 0) { return 0.0; }
+    if (n == 0) { return 1.0; }
+    if (n == 1) { return x; }
+    var t0: double = 1.0;
+    var t1: double = x;
+    var i: int = 1;
+    while (i < n) {
+        let t2: double = 2.0 * x * t1 - t0;
+        t0 = t1;
+        t1 = t2;
+        i = i + 1;
+    }
+    return t1;
+}
