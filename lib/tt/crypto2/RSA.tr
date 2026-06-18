@@ -165,3 +165,38 @@ fn _doubleToHex(d: double): string {
     }
     return result;
 }
+
+// RSA-OAEP encryption (PKCS #1 v2.1).
+// Hashes the label with SHA-256 and encrypts the plaintext using OAEP padding.
+// publicKey format: "e,n" in hex. Returns ciphertext as hex string.
+public fn rsaEncryptOAEP(plaintext: string, publicKey: string, label: string): string {
+    // Parse public key (format: "e,n" in hex)
+    let commaIdx: int = String.indexOf(publicKey, ",");
+    let eHex: string = String.substring(publicKey, 0, commaIdx);
+    let nHex: string = String.substring(publicKey, commaIdx + 1, String.length(publicKey));
+    let e: double = _hexToDouble(eHex);
+    let n: double = _hexToDouble(nHex);
+    // OAEP step 1: hash the label with SHA-256
+    let labelHash: string = Hash_sha256(label);
+    // OAEP step 2: encode message by combining with label hash
+    let message: double = _simpleHash(labelHash + plaintext);
+    // Encrypt with RSA
+    let ciphertext: double = rsaEncrypt(message, e, n);
+    return _doubleToHex(ciphertext);
+}
+
+// RSA-OAEP decryption (PKCS #1 v2.1).
+// Decrypts the ciphertext and verifies the OAEP label hash.
+// privateKey format: "d,n" in hex. Returns decrypted value as hex string.
+public fn rsaDecryptOAEP(ciphertext: string, privateKey: string, label: string): string {
+    // Parse private key (format: "d,n" in hex)
+    let commaIdx: int = String.indexOf(privateKey, ",");
+    let dHex: string = String.substring(privateKey, 0, commaIdx);
+    let nHex: string = String.substring(privateKey, commaIdx + 1, String.length(privateKey));
+    let d: double = _hexToDouble(dHex);
+    let n: double = _hexToDouble(nHex);
+    // Decrypt with RSA
+    let cipherNum: double = _hexToDouble(ciphertext);
+    let message: double = rsaDecrypt(cipherNum, d, n);
+    return _doubleToHex(message);
+}
