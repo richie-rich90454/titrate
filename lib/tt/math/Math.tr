@@ -896,3 +896,13 @@ public fn frexpList(x: double): ArrayList<double> {
     result.add(exp as double);
     return result;
 }
+
+// Return the next representable float after x in the direction of y.
+public fn nextAfter(x: double, y: double): double {
+    if (x == y) { return x; }
+    if (y > x) {
+        return Math_nextUp(x);
+    } else {
+        return Math_nextDown(x);
+    }
+}
