@@ -2,7 +2,6 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
-import tt::lang::Result;
 
 public class ConfigParser {
     private HashMap<string, HashMap<string, string>> _sections;

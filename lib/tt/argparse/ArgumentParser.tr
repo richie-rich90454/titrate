@@ -9,14 +9,14 @@ public const SUPPRESS: string = "==SUPPRESS==";
 public class Argument {
     public string name;
     public string typ;
-    public Variant default;
+    public Variant defaultValue;
     public bool required;
     public string help;
 
-    fn init(name: string, typ: string, default: Variant, required: bool, help: string) {
+    fn init(name: string, typ: string, defaultValue: Variant, required: bool, help: string) {
         this.name = name;
         this.typ = typ;
-        this.default = default;
+        this.defaultValueValue = defaultValue;
         this.required = required;
         this.help = help;
     }
@@ -32,8 +32,8 @@ public class ArgumentGroup {
         this.arguments = new ArrayList<Argument>();
     }
 
-    public fn addArgument(name: string, typ: string, default: Variant, required: bool, help: string): void {
-        let arg: Argument = new Argument(name, typ, default, required, help);
+    public fn addArgument(name: string, typ: string, defaultValue: Variant, required: bool, help: string): void {
+        let arg: Argument = new Argument(name, typ, defaultValue, required, help);
         this.arguments.add(arg);
     }
 }
@@ -48,8 +48,8 @@ public class MutuallyExclusiveGroup {
         this.arguments = new ArrayList<Argument>();
     }
 
-    public fn addArgument(name: string, typ: string, default: Variant, required: bool, help: string): void {
-        let arg: Argument = new Argument(name, typ, default, required, help);
+    public fn addArgument(name: string, typ: string, defaultValue: Variant, required: bool, help: string): void {
+        let arg: Argument = new Argument(name, typ, defaultValue, required, help);
         this.arguments.add(arg);
     }
 }
@@ -93,8 +93,8 @@ public class ArgumentParser {
         this.subparsers = null;
     }
 
-    public fn addArgument(name: string, typ: string, default: Variant, required: bool, help: string): void {
-        let arg: Argument = new Argument(name, typ, default, required, help);
+    public fn addArgument(name: string, typ: string, defaultValue: Variant, required: bool, help: string): void {
+        let arg: Argument = new Argument(name, typ, defaultValue, required, help);
         this.arguments.add(arg);
     }
 
@@ -162,8 +162,8 @@ public class ArgumentParser {
         let i: int = 0;
         while (i < allArgs.size()) {
             let arg: Argument = allArgs.get(i);
-            if (arg.default != null) {
-                result.put(arg.name, arg.default);
+            if (arg.defaultValue != null) {
+                result.put(arg.name, arg.defaultValue);
             }
             i = i + 1;
         }
@@ -275,7 +275,7 @@ public class ArgumentParser {
             var j: int = 0;
             while (j < group.arguments.size()) {
                 let arg: Argument = group.arguments.get(j);
-                if (result.containsKey(arg.name) && result.get(arg.name) != null && result.get(arg.name) != arg.default) {
+                if (result.containsKey(arg.name) && result.get(arg.name) != null && result.get(arg.name) != arg.defaultValue) {
                     count = count + 1;
                 }
                 j = j + 1;
@@ -284,7 +284,7 @@ public class ArgumentParser {
                 // Mutually exclusive arguments conflict; clear extras
                 var k: int = 1;
                 while (k < group.arguments.size()) {
-                    result.put(group.arguments.get(k).name, group.arguments.get(k).default);
+                    result.put(group.arguments.get(k).name, group.arguments.get(k).defaultValue);
                     k = k + 1;
                 }
             }
@@ -303,8 +303,8 @@ public class ArgumentParser {
         let i: int = 0;
         while (i < allArgs.size()) {
             let arg: Argument = allArgs.get(i);
-            if (arg.default != null) {
-                result.put(arg.name, arg.default);
+            if (arg.defaultValue != null) {
+                result.put(arg.name, arg.defaultValue);
             }
             i = i + 1;
         }
@@ -423,8 +423,8 @@ public class ArgumentParser {
         while (i < allArgs.size()) {
             let arg: Argument = allArgs.get(i);
             let defaultStr: string = "";
-            if (arg.default != null) {
-                defaultStr = " (default: " + arg.default + ")";
+            if (arg.defaultValue != null) {
+                defaultStr = " (default: " + arg.defaultValue + ")";
             }
             let requiredStr: string = "";
             if (arg.required) {
@@ -442,8 +442,8 @@ public class ArgumentParser {
             while (j < group.arguments.size()) {
                 let arg: Argument = group.arguments.get(j);
                 let defaultStr: string = "";
-                if (arg.default != null) {
-                    defaultStr = " (default: " + arg.default + ")";
+                if (arg.defaultValue != null) {
+                    defaultStr = " (default: " + arg.defaultValue + ")";
                 }
                 s = s + "\n  --" + arg.name + "  " + arg.help + defaultStr;
                 j = j + 1;

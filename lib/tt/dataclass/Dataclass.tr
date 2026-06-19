@@ -117,9 +117,9 @@ public fn copyWith(instance: Variant, fields: ArrayList<string>, overrides: Hash
 
 // Create field metadata for dataclass definitions.
 // Returns a HashMap with field configuration: default, name, repr, compare.
-public fn field(default: Variant, name: string, repr: bool, compare: bool): HashMap<string, Variant> {
+public fn field(defaultValue: Variant, name: string, repr: bool, compare: bool): HashMap<string, Variant> {
     let meta: HashMap<string, Variant> = new HashMap<string, Variant>();
-    meta.put("default", default);
+    meta.put("default", defaultValue);
     meta.put("name", name);
     meta.put("repr", repr);
     meta.put("compare", compare);

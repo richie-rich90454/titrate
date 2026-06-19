@@ -56,6 +56,7 @@ public class Formatter {
 // Handler interface for processing log records.
 interface Handler {
     fn handle(level: string, message: string, timestamp: string): void;
+    fn passesFilters(level: int, message: string, loggerName: string): bool;
 }
 
 // LogFilter interface for filtering log records.
@@ -119,7 +120,7 @@ public class ConsoleHandler implements Handler {
         }
     }
 
-    private fn _passesFilters(level: int, message: string, loggerName: string): bool {
+    public fn passesFilters(level: int, message: string, loggerName: string): bool {
         var i: int = 0;
         while (i < this.filters.size()) {
             if (!this.filters.get(i).filter(level, message, loggerName)) {
@@ -174,7 +175,7 @@ public class FileHandler implements Handler {
         }
     }
 
-    private fn _passesFilters(level: int, message: string, loggerName: string): bool {
+    public fn passesFilters(level: int, message: string, loggerName: string): bool {
         var i: int = 0;
         while (i < this.filters.size()) {
             if (!this.filters.get(i).filter(level, message, loggerName)) {
@@ -223,7 +224,7 @@ public class RotatingFileHandler implements Handler {
         }
     }
 
-    private fn _passesFilters(level: int, message: string, loggerName: string): bool {
+    public fn passesFilters(level: int, message: string, loggerName: string): bool {
         var i: int = 0;
         while (i < this.filters.size()) {
             if (!this.filters.get(i).filter(level, message, loggerName)) {
@@ -247,8 +248,8 @@ public class RotatingFileHandler implements Handler {
         if (!Fs_exists(this.filePath)) {
             return false;
         }
-        let size: int = Fs_size(this.filePath);
-        return size >= this.maxBytes;
+        let fileSize: int = Fs_size(this.filePath);
+        return fileSize >= this.maxBytes;
     }
 
     public fn doRollover(): void {
@@ -393,18 +394,7 @@ public class Logger {
         while (i < this.handlers.size()) {
             let handler: Handler = this.handlers.get(i);
             // Check handler-level filters
-            let passes: bool = true;
-            // Use handler's _passesFilters if available
-            if (handler is ConsoleHandler) {
-                let ch: ConsoleHandler = handler as ConsoleHandler;
-                passes = ch._passesFilters(levelVal, msg, this.name);
-            } else if (handler is FileHandler) {
-                let fh: FileHandler = handler as FileHandler;
-                passes = fh._passesFilters(levelVal, msg, this.name);
-            } else if (handler is RotatingFileHandler) {
-                let rh: RotatingFileHandler = handler as RotatingFileHandler;
-                passes = rh._passesFilters(levelVal, msg, this.name);
-            }
+            let passes: bool = handler.passesFilters(levelVal, msg, this.name);
             if (passes) {
                 handler.handle(level, msg, timestamp);
             }
