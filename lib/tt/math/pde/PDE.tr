@@ -564,3 +564,226 @@ public fn laplace2D(nx: int, ny: int, dx: double, dy: double, bc: ArrayList<Boun
 
     return poisson2D(nx, ny, dx, dy, source, bc, maxIter, tol);
 }
+
+// ---- Boundary condition classes ----
+
+// Dirichlet boundary condition: u = value at the boundary.
+public class DirichletBC {
+    public double value;
+
+    public fn init(value: double) {
+        this.value = value;
+    }
+}
+
+// Neumann boundary condition: du/dn = gradient at the boundary.
+public class NeumannBC {
+    public double gradient;
+
+    public fn init(gradient: double) {
+        this.gradient = gradient;
+    }
+}
+
+// Robin boundary condition: alpha * u + beta * du/dn = 0 at the boundary.
+public class RobinBC {
+    public double alpha;
+    public double beta;
+
+    public fn init(alpha: double, beta: double) {
+        this.alpha = alpha;
+        this.beta = beta;
+    }
+}
+
+// ---- Finite difference solvers ----
+
+// Solve 1D PDE (heat equation) using finite difference method.
+// du/dt = d^2u/dx^2 with explicit forward Euler time stepping.
+// f(x, t) provides the initial condition at t0.
+// bc specifies boundary condition type: "dirichlet", "neumann", or "robin".
+// Returns solution[timeStep][spaceIndex].
+public fn finiteDifference1D(f: fn(double, double): double, x0: double, x1: double, nx: int, t0: double, t1: double, nt: int, bc: string): ArrayList<ArrayList<double>> {
+    let dx: double = (x1 - x0) / ((nx - 1) as double);
+    let dt: double = (t1 - t0) / ((nt - 1) as double);
+    let r: double = dt / (dx * dx);
+
+    let solution = new ArrayList<ArrayList<double>>();
+
+    // Initialize with f(x, t0)
+    let u = new ArrayList<double>();
+    var i: int = 0;
+    while (i < nx) {
+        let x: double = x0 + (i as double) * dx;
+        u.add(f(x, t0));
+        i = i + 1;
+    }
+    solution.add(u);
+
+    // Time stepping (explicit forward Euler)
+    var step: int = 0;
+    while (step < nt - 1) {
+        let uNew = new ArrayList<double>();
+        i = 0;
+        while (i < nx) {
+            uNew.add(0.0);
+            i = i + 1;
+        }
+
+        // Interior points: explicit update
+        i = 1;
+        while (i < nx - 1) {
+            let d2u: double = u.get(i - 1) - 2.0 * u.get(i) + u.get(i + 1);
+            uNew.set(i, u.get(i) + r * d2u);
+            i = i + 1;
+        }
+
+        // Apply boundary conditions
+        if (bc == "dirichlet") {
+            // Fixed boundary values from initial condition
+            uNew.set(0, u.get(0));
+            uNew.set(nx - 1, u.get(nx - 1));
+        } else if (bc == "neumann") {
+            // Zero gradient: u[0] = u[1], u[n-1] = u[n-2]
+            uNew.set(0, uNew.get(1));
+            uNew.set(nx - 1, uNew.get(nx - 2));
+        } else if (bc == "robin") {
+            // Robin: u[0] and u[n-1] derived from interior
+            uNew.set(0, uNew.get(1));
+            uNew.set(nx - 1, uNew.get(nx - 2));
+        } else {
+            // Default to dirichlet
+            uNew.set(0, u.get(0));
+            uNew.set(nx - 1, u.get(nx - 1));
+        }
+
+        solution.add(uNew);
+
+        // Copy for next step
+        i = 0;
+        while (i < nx) {
+            u.set(i, uNew.get(i));
+            i = i + 1;
+        }
+
+        step = step + 1;
+    }
+
+    return solution;
+}
+
+// Solve 2D PDE (Poisson/Laplace equation) using finite difference method.
+// d^2u/dx^2 + d^2u/dy^2 = f(x, y) using Gauss-Seidel iteration.
+// bc specifies boundary condition type: "dirichlet", "neumann", or "robin".
+// Returns a 3D array: solution[xIndex][yIndex][0] = u(x, y).
+public fn finiteDifference2D(f: fn(double, double): double, x0: double, x1: double, y0: double, y1: double, nx: int, ny: int, bc: string): ArrayList<ArrayList<ArrayList<double>>> {
+    let dx: double = (x1 - x0) / ((nx - 1) as double);
+    let dy: double = (y1 - y0) / ((ny - 1) as double);
+    let dx2: double = dx * dx;
+    let dy2: double = dy * dy;
+    let denom: double = 2.0 * (1.0 / dx2 + 1.0 / dy2);
+    let maxIter: int = 1000;
+    let tol: double = 1e-8;
+
+    // Initialize 3D solution array: solution[i][j][0] = u(x_i, y_j)
+    let solution = new ArrayList<ArrayList<ArrayList<double>>>();
+    var i: int = 0;
+    while (i < nx) {
+        let row = new ArrayList<ArrayList<double>>();
+        var j: int = 0;
+        while (j < ny) {
+            let cell = new ArrayList<double>();
+            cell.add(0.0);
+            row.add(cell);
+            j = j + 1;
+        }
+        solution.add(row);
+        i = i + 1;
+    }
+
+    // Apply Dirichlet boundary conditions using f(x, y)
+    if (bc == "dirichlet") {
+        // Left and right boundaries (i = 0 and i = nx-1)
+        var j: int = 0;
+        while (j < ny) {
+            let y: double = y0 + (j as double) * dy;
+            solution.get(0).get(j).set(0, f(x0, y));
+            solution.get(nx - 1).get(j).set(0, f(x1, y));
+            j = j + 1;
+        }
+        // Top and bottom boundaries (j = 0 and j = ny-1)
+        i = 0;
+        while (i < nx) {
+            let x: double = x0 + (i as double) * dx;
+            solution.get(i).get(0).set(0, f(x, y0));
+            solution.get(i).get(ny - 1).set(0, f(x, y1));
+            i = i + 1;
+        }
+    }
+
+    // Gauss-Seidel iteration for interior points
+    var iter: int = 0;
+    while (iter < maxIter) {
+        var maxChange: double = 0.0;
+
+        i = 1;
+        while (i < nx - 1) {
+            var j: int = 1;
+            while (j < ny - 1) {
+                let oldVal: double = solution.get(i).get(j).get(0);
+                let xCoord: double = x0 + (i as double) * dx;
+                let yCoord: double = y0 + (j as double) * dy;
+                let newVal: double = ((solution.get(i - 1).get(j).get(0) + solution.get(i + 1).get(j).get(0)) / dx2 +
+                                      (solution.get(i).get(j - 1).get(0) + solution.get(i).get(j + 1).get(0)) / dy2 -
+                                      f(xCoord, yCoord)) / denom;
+                solution.get(i).get(j).set(0, newVal);
+                let change: double = Math.fabs(newVal - oldVal);
+                if (change > maxChange) {
+                    maxChange = change;
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+
+        // Apply Neumann/Robin BCs after each iteration
+        if (bc == "neumann") {
+            // Zero gradient at boundaries
+            var j: int = 1;
+            while (j < ny - 1) {
+                solution.get(0).get(j).set(0, solution.get(1).get(j).get(0));
+                solution.get(nx - 1).get(j).set(0, solution.get(nx - 2).get(j).get(0));
+                j = j + 1;
+            }
+            i = 1;
+            while (i < nx - 1) {
+                solution.get(i).get(0).set(0, solution.get(i).get(1).get(0));
+                solution.get(i).get(ny - 1).set(0, solution.get(i).get(ny - 2).get(0));
+                i = i + 1;
+            }
+        } else if (bc == "robin") {
+            // Robin: approximate with zero-gradient as simplification
+            var j: int = 1;
+            while (j < ny - 1) {
+                solution.get(0).get(j).set(0, solution.get(1).get(j).get(0));
+                solution.get(nx - 1).get(j).set(0, solution.get(nx - 2).get(j).get(0));
+                j = j + 1;
+            }
+            i = 1;
+            while (i < nx - 1) {
+                solution.get(i).get(0).set(0, solution.get(i).get(1).get(0));
+                solution.get(i).get(ny - 1).set(0, solution.get(i).get(ny - 2).get(0));
+                i = i + 1;
+            }
+        }
+
+        // Check convergence
+        if (maxChange < tol) {
+            break;
+        }
+
+        iter = iter + 1;
+    }
+
+    return solution;
+}

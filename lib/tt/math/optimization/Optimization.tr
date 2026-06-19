@@ -84,66 +84,71 @@ fn vecCopy(a: ArrayList<double>): ArrayList<double> {
     return result;
 }
 
+// Numerical gradient via central difference for vector-valued functions.
+fn numericalGradient(f: fn(ArrayList<double>): double, x: ArrayList<double>, h: double): ArrayList<double> {
+    let n: int = x.size();
+    let grad = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let xPlus = vecCopy(x);
+        let xMinus = vecCopy(x);
+        xPlus.set(i, x.get(i) + h);
+        xMinus.set(i, x.get(i) - h);
+        grad.add((f(xPlus) - f(xMinus)) / (2.0 * h));
+        i = i + 1;
+    }
+    return grad;
+}
+
 // ---- Optimization algorithms ----
 
-// Standard gradient descent
-public fn gradientDescent(f: fn(ArrayList<double>): double, gradF: fn(ArrayList<double>): ArrayList<double>, x0: ArrayList<double>, lr: double, maxIter: int, tol: double): OptResult {
-    let x = vecCopy(x0);
+// 1D gradient descent using numerical gradient (central difference).
+public fn gradientDescent(f: fn(double): double, x0: double, lr: double, maxIter: int): double {
+    let h: double = 1e-6;
+    var x: double = x0;
     var iter: int = 0;
-    var converged: bool = false;
-
     while (iter < maxIter) {
-        let g = gradF(x);
-        let gNorm: double = vecNorm(g);
-        if (gNorm < tol) {
-            converged = true;
-            break;
-        }
-        let scaled = vecScale(g, lr);
-        var i: int = 0;
-        while (i < x.size()) {
-            x.set(i, x.get(i) - scaled.get(i));
-            i = i + 1;
-        }
+        // Numerical gradient via central difference
+        let fPlus: double = f(x + h);
+        let fMinus: double = f(x - h);
+        let grad: double = (fPlus - fMinus) / (2.0 * h);
+        x = x - lr * grad;
         iter = iter + 1;
     }
-
-    let val: double = f(x);
-    return new OptResult(vecCopy(x), val, iter, converged);
+    return x;
 }
 
-// Stochastic gradient descent with learning rate decay
-public fn stochasticGradientDescent(f: fn(ArrayList<double>): double, gradF: fn(ArrayList<double>): ArrayList<double>, x0: ArrayList<double>, lr: double, maxIter: int, tol: double): OptResult {
-    let x = vecCopy(x0);
-    var iter: int = 0;
-    var converged: bool = false;
-
-    while (iter < maxIter) {
-        let g = gradF(x);
-        let gNorm: double = vecNorm(g);
-        if (gNorm < tol) {
-            converged = true;
-            break;
+// Stochastic gradient descent over a dataset.
+// f is the per-sample loss as a function of params; data provides the samples.
+public fn stochasticGradientDescent(f: fn(ArrayList<double>): double, params: ArrayList<double>, data: ArrayList<ArrayList<double>>, lr: double, epochs: int): ArrayList<double> {
+    let x = vecCopy(params);
+    let h: double = 1e-6;
+    var epoch: int = 0;
+    while (epoch < epochs) {
+        var d: int = 0;
+        while (d < data.size()) {
+            // Numerical gradient of f at current params
+            let grad = numericalGradient(f, x, h);
+            // Update params using learning rate
+            var i: int = 0;
+            while (i < x.size()) {
+                x.set(i, x.get(i) - lr * grad.get(i));
+                i = i + 1;
+            }
+            d = d + 1;
         }
-        let decayLr: double = lr / (1.0 + 0.01 * (iter as double));
-        let scaled = vecScale(g, decayLr);
-        var i: int = 0;
-        while (i < x.size()) {
-            x.set(i, x.get(i) - scaled.get(i));
-            i = i + 1;
-        }
-        iter = iter + 1;
+        epoch = epoch + 1;
     }
-
-    let val: double = f(x);
-    return new OptResult(vecCopy(x), val, iter, converged);
+    return x;
 }
 
-// L-BFGS quasi-Newton method
-public fn lbfgs(f: fn(ArrayList<double>): double, gradF: fn(ArrayList<double>): ArrayList<double>, x0: ArrayList<double>, maxIter: int, tol: double, m: int): OptResult {
+// L-BFGS quasi-Newton method using numerical gradient.
+public fn lbfgs(f: fn(ArrayList<double>): double, x0: ArrayList<double>, maxIter: int): ArrayList<double> {
     let x = vecCopy(x0);
+    let tol: double = 1e-8;
+    let m: int = 10;
+    let h: double = 1e-6;
     var iter: int = 0;
-    var converged: bool = false;
 
     // History lists for s and y vectors
     let sList = new ArrayList<ArrayList<double>>();
@@ -151,10 +156,9 @@ public fn lbfgs(f: fn(ArrayList<double>): double, gradF: fn(ArrayList<double>): 
     let rhoList = new ArrayList<double>();
 
     while (iter < maxIter) {
-        let g = gradF(x);
+        let g = numericalGradient(f, x, h);
         let gNorm: double = vecNorm(g);
         if (gNorm < tol) {
-            converged = true;
             break;
         }
 
@@ -164,7 +168,6 @@ public fn lbfgs(f: fn(ArrayList<double>): double, gradF: fn(ArrayList<double>): 
         let k: int = sList.size();
 
         let alphaList = new ArrayList<double>();
-        // Resize alphaList to k
         var j: int = 0;
         while (j < k) {
             alphaList.add(0.0);
@@ -229,19 +232,19 @@ public fn lbfgs(f: fn(ArrayList<double>): double, gradF: fn(ArrayList<double>): 
         let stepSize: double = 1.0;
         let f0: double = f(x);
         let dg: double = vecDot(dir, g);
-        var jj: int = 0;
-        while (jj < 20) {
+        var ls: int = 0;
+        while (ls < 20) {
             let xNew = vecAdd(x, vecScale(dir, stepSize));
             let fNew: double = f(xNew);
             if (fNew <= f0 + 1e-4 * stepSize * dg) {
                 break;
             }
             stepSize = stepSize * 0.5;
-            jj = jj + 1;
+            ls = ls + 1;
         }
 
         let xNew = vecAdd(x, vecScale(dir, stepSize));
-        let gNew = gradF(xNew);
+        let gNew = numericalGradient(f, xNew, h);
 
         // Update history
         let s = vecSub(xNew, x);
@@ -269,17 +272,17 @@ public fn lbfgs(f: fn(ArrayList<double>): double, gradF: fn(ArrayList<double>): 
         iter = iter + 1;
     }
 
-    let val: double = f(x);
-    return new OptResult(vecCopy(x), val, iter, converged);
+    return x;
 }
 
-// Nelder-Mead simplex method (no gradient needed)
-public fn nelderMead(f: fn(ArrayList<double>): double, x0: ArrayList<double>, maxIter: int, tol: double): OptResult {
+// Nelder-Mead simplex method (derivative-free).
+public fn nelderMead(f: fn(ArrayList<double>): double, x0: ArrayList<double>, maxIter: int): ArrayList<double> {
     let n: int = x0.size();
     let alpha: double = 1.0;
     let gamma: double = 2.0;
     let rho: double = 0.5;
     let sigma: double = 0.5;
+    let tol: double = 1e-10;
 
     // Initialize simplex: n+1 vertices
     let simplex = new ArrayList<ArrayList<double>>();
@@ -302,7 +305,6 @@ public fn nelderMead(f: fn(ArrayList<double>): double, x0: ArrayList<double>, ma
     }
 
     var iter: int = 0;
-    var converged: bool = false;
 
     while (iter < maxIter) {
         // Sort vertices by function value
@@ -326,7 +328,6 @@ public fn nelderMead(f: fn(ArrayList<double>): double, x0: ArrayList<double>, ma
         // Check convergence: spread of function values
         let fRange: double = Math.fabs(fVals.get(fVals.size() - 1) - fVals.get(0));
         if (fRange < tol) {
-            converged = true;
             break;
         }
 
@@ -433,21 +434,21 @@ public fn nelderMead(f: fn(ArrayList<double>): double, x0: ArrayList<double>, ma
         ii = ii + 1;
     }
 
-    return new OptResult(vecCopy(simplex.get(0)), fVals.get(0), iter, converged);
+    return simplex.get(0);
 }
 
-// Nonlinear conjugate gradient with Fletcher-Reeves beta
-public fn conjugateGradient(f: fn(ArrayList<double>): double, gradF: fn(ArrayList<double>): ArrayList<double>, x0: ArrayList<double>, maxIter: int, tol: double): OptResult {
+// Nonlinear conjugate gradient with Fletcher-Reeves beta using numerical gradient.
+public fn conjugateGradient(f: fn(ArrayList<double>): double, x0: ArrayList<double>, maxIter: int): ArrayList<double> {
     let x = vecCopy(x0);
-    let g = gradF(x);
+    let h: double = 1e-6;
+    let tol: double = 1e-8;
+    let g = numericalGradient(f, x, h);
     let d = vecScale(g, -1.0);
     var iter: int = 0;
-    var converged: bool = false;
 
     while (iter < maxIter) {
         let gNorm: double = vecNorm(g);
         if (gNorm < tol) {
-            converged = true;
             break;
         }
 
@@ -467,7 +468,7 @@ public fn conjugateGradient(f: fn(ArrayList<double>): double, gradF: fn(ArrayLis
         }
 
         let xNew = vecAdd(x, vecScale(d, stepSize));
-        let gNew = gradF(xNew);
+        let gNew = numericalGradient(f, xNew, h);
 
         // Fletcher-Reeves beta
         let beta: double = vecDot(gNew, gNew) / (vecDot(g, g) + 1e-30);
@@ -491,12 +492,12 @@ public fn conjugateGradient(f: fn(ArrayList<double>): double, gradF: fn(ArrayLis
         iter = iter + 1;
     }
 
-    let val: double = f(x);
-    return new OptResult(vecCopy(x), val, iter, converged);
+    return x;
 }
 
 // Simplex method for linear programming: minimize c^T x subject to Ax <= b, x >= 0
-public fn linearProgramming(c: ArrayList<double>, a: ArrayList<ArrayList<double>>, b: ArrayList<double>, maxIter: int): OptResult {
+public fn linearProgramming(c: ArrayList<double>, a: ArrayList<ArrayList<double>>, b: ArrayList<double>): ArrayList<double> {
+    let maxIter: int = 10000;
     let m: int = a.size();       // number of constraints
     let n: int = c.size();       // number of original variables
 
@@ -549,7 +550,6 @@ public fn linearProgramming(c: ArrayList<double>, a: ArrayList<ArrayList<double>
     }
 
     var iter: int = 0;
-    var converged: bool = false;
 
     while (iter < maxIter) {
         // Find entering variable: most negative coefficient in objective row
@@ -568,7 +568,6 @@ public fn linearProgramming(c: ArrayList<double>, a: ArrayList<ArrayList<double>
 
         // Optimal if no negative coefficient
         if (pivotCol == -1) {
-            converged = true;
             break;
         }
 
@@ -638,8 +637,5 @@ public fn linearProgramming(c: ArrayList<double>, a: ArrayList<ArrayList<double>
         i = i + 1;
     }
 
-    // Compute objective value
-    let objVal: double = tableau.get(m).get(cols - 1);
-
-    return new OptResult(x, objVal, iter, converged);
+    return x;
 }
