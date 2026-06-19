@@ -224,7 +224,7 @@ public class JsonBinary {
 
     private fn _decodeValue(ctx: ArrayList<int>, pos: ArrayList<int>): JsonValue {
         if (pos.get(0) >= ctx.size()) {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         let b: int = ctx.get(pos.get(0));
         pos.set(0, pos.get(0) + 1);
@@ -250,7 +250,7 @@ public class JsonBinary {
         }
         // Nil
         if (b == 0xc0) {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         // False
         if (b == 0xc2) {
@@ -345,7 +345,7 @@ public class JsonBinary {
         if (b >= 0xe0) {
             return JsonValue.ofNum((b - 256) as double);
         }
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     private fn _decodeArray(ctx: ArrayList<int>, pos: ArrayList<int>, len: int): JsonValue {

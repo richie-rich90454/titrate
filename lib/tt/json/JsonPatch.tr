@@ -85,16 +85,16 @@ fn _getByTokens(data: JsonValue, tokens: ArrayList<string>): JsonValue {
         if (current.isArray()) {
             let idx: int = _parseArrayIndex(token, current.size());
             if (idx < 0 || idx >= current.size()) {
-                return JsonValue.null();
+                return JsonValue.ofNull();
             }
             current = current.getAt(idx);
         } else if (current.isObject()) {
             if (!current.hasKey(token)) {
-                return JsonValue.null();
+                return JsonValue.ofNull();
             }
             current = current.get(token);
         } else {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         i = i + 1;
     }
@@ -290,7 +290,7 @@ class _PatchOp {
         this.op = o;
         this.path = "";
         this.from = "";
-        this.value = JsonValue.null();
+        this.value = JsonValue.ofNull();
     }
 }
 

@@ -457,16 +457,16 @@ fn _toLower(c: string): string {
 // ---- Color Terminal Output ----
 
 // ANSI escape codes for terminal colors.
-const _ANSI_RESET: string = "\u001b[0m";
-const _ANSI_BOLD: string = "\u001b[1m";
-const _ANSI_DIM: string = "\u001b[2m";
-const _ANSI_RED: string = "\u001b[31m";
-const _ANSI_GREEN: string = "\u001b[32m";
-const _ANSI_YELLOW: string = "\u001b[33m";
-const _ANSI_BLUE: string = "\u001b[34m";
-const _ANSI_MAGENTA: string = "\u001b[35m";
-const _ANSI_CYAN: string = "\u001b[36m";
-const _ANSI_WHITE: string = "\u001b[37m";
+let _ANSI_RESET: string = String.fromCharCode(27) + "[0m";
+let _ANSI_BOLD: string = String.fromCharCode(27) + "[1m";
+let _ANSI_DIM: string = String.fromCharCode(27) + "[2m";
+let _ANSI_RED: string = String.fromCharCode(27) + "[31m";
+let _ANSI_GREEN: string = String.fromCharCode(27) + "[32m";
+let _ANSI_YELLOW: string = String.fromCharCode(27) + "[33m";
+let _ANSI_BLUE: string = String.fromCharCode(27) + "[34m";
+let _ANSI_MAGENTA: string = String.fromCharCode(27) + "[35m";
+let _ANSI_CYAN: string = String.fromCharCode(27) + "[36m";
+let _ANSI_WHITE: string = String.fromCharCode(27) + "[37m";
 
 // Stringify a JsonValue with ANSI color codes for terminal display.
 // Keys are colored blue, strings green, numbers yellow, booleans magenta, null red.
@@ -494,17 +494,17 @@ fn _stringifyColorValue(value: JsonValue, indent: int): string {
         return _ANSI_GREEN + "\"" + value.asString() + "\"" + _ANSI_RESET;
     }
     if (value.isArray()) {
-        let size: int = value.size();
-        if (size == 0) {
+        let sz: int = value.size();
+        if (sz == 0) {
             return "[]";
         }
         let pad: string = _pad(indent + 2);
         let endPad: string = _pad(indent);
         var s: string = "[" + "\n";
         var i: int = 0;
-        while (i < size) {
+        while (i < sz) {
             s = s + pad + _stringifyColorValue(value.getAt(i), indent + 2);
-            if (i < size - 1) {
+            if (i < sz - 1) {
                 s = s + ",";
             }
             s = s + "\n";
@@ -570,8 +570,8 @@ fn _stringifyWrappedValue(value: JsonValue, indent: int, maxWidth: int): string 
         return "\"" + s + "\"";
     }
     if (value.isArray()) {
-        let size: int = value.size();
-        if (size == 0) { return "[]"; }
+        let sz: int = value.size();
+        if (sz == 0) { return "[]"; }
         // Try compact form first
         let compact: string = _compactArray(value);
         if (String.length(compact) + indent <= maxWidth) {
@@ -582,9 +582,9 @@ fn _stringifyWrappedValue(value: JsonValue, indent: int, maxWidth: int): string 
         let endPad: string = _pad(indent);
         var s: string = "[\n";
         var i: int = 0;
-        while (i < size) {
+        while (i < sz) {
             s = s + pad + _stringifyWrappedValue(value.getAt(i), indent + 2, maxWidth);
-            if (i < size - 1) { s = s + ","; }
+            if (i < sz - 1) { s = s + ","; }
             s = s + "\n";
             i = i + 1;
         }
@@ -642,16 +642,16 @@ fn _wrapString(s: string, width: int): string {
 // Compact array representation for short arrays.
 fn _compactArray(value: JsonValue): string {
     var s: string = "[";
-    let size: int = value.size();
+    let sz: int = value.size();
     var i: int = 0;
-    while (i < size) {
+    while (i < sz) {
         let item: JsonValue = value.getAt(i);
         if (item.isString()) {
             s = s + "\"" + item.asString() + "\"";
         } else {
             s = s + item.asString();
         }
-        if (i < size - 1) { s = s + ", "; }
+        if (i < sz - 1) { s = s + ", "; }
         i = i + 1;
     }
     s = s + "]";

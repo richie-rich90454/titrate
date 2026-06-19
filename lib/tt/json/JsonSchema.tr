@@ -45,7 +45,7 @@ public class JsonSchema {
     private var _id: string;
 
     public fn init() {
-        this._schema = JsonValue.null();
+        this._schema = JsonValue.ofNull();
         this._compiled = false;
         this._refs = new HashMap<string, JsonValue>();
         this._id = "";
@@ -624,7 +624,7 @@ public class JsonSchema {
                 if (current.isObject() && current.hasKey(part)) {
                     current = current.get(part);
                 } else {
-                    return JsonValue.null();
+                    return JsonValue.ofNull();
                 }
                 i = i + 1;
             }
@@ -639,7 +639,7 @@ public class JsonSchema {
             }
         }
 
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 }
 

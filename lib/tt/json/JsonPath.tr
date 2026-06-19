@@ -530,7 +530,7 @@ fn _resolveFilterValue(elem: JsonValue, expr: string): JsonValue {
             }
             return JsonValue.ofArray(arr);
         }
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
     if (String.length(t) > 8 && String.substring(t, 0, 8) == "values()") {
         if (elem.isObject()) {
@@ -543,7 +543,7 @@ fn _resolveFilterValue(elem: JsonValue, expr: string): JsonValue {
             }
             return JsonValue.ofArray(arr);
         }
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
     if (String.length(t) > 9 && String.substring(t, 0, 9) == "contains(") {
         let closeIdx: int = String.indexOf(t, ")");
@@ -586,7 +586,7 @@ fn _resolveFilterValue(elem: JsonValue, expr: string): JsonValue {
             if (current.isObject() && current.hasKey(parts.get(i))) {
                 current = current.get(parts.get(i));
             } else {
-                return JsonValue.null();
+                return JsonValue.ofNull();
             }
             i = i + 1;
         }
@@ -603,7 +603,7 @@ fn _resolveFilterValue(elem: JsonValue, expr: string): JsonValue {
     if (t == "false") { return JsonValue.ofBool(false); }
 
     // Null literal
-    if (t == "null") { return JsonValue.null(); }
+    if (t == "null") { return JsonValue.ofNull(); }
 
     // Numeric literal
     if (String.length(t) > 0 && ((String.charAt(t, 0) >= "0" && String.charAt(t, 0) <= "9") || String.charAt(t, 0) == "-")) {
@@ -615,7 +615,7 @@ fn _resolveFilterValue(elem: JsonValue, expr: string): JsonValue {
         return elem.get(t);
     }
 
-    return JsonValue.null();
+    return JsonValue.ofNull();
 }
 
 // Compare two JsonValues with a comparison operator.

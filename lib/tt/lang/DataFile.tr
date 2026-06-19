@@ -83,7 +83,7 @@ fn _fullPath(relativePath: string): string {
 
 // Load a JSON data file from the data directory.
 // Caches the result; subsequent calls return the cached version.
-// Returns JsonValue.null() if the file is missing or corrupt.
+// Returns JsonValue.ofNull() if the file is missing or corrupt.
 public fn load(path: string): JsonValue {
     // Check cache first
     if (_cache.containsKey(path)) {
@@ -98,20 +98,20 @@ public fn load(path: string): JsonValue {
     // Check file exists
     if (!Fs_exists(fullPath)) {
         io::println("DataFile: file not found: " + fullPath);
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     // Read and parse
     let content: string = File_readFile(fullPath);
     if (content == null || String.length(content) == 0) {
         io::println("DataFile: empty file: " + fullPath);
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     let parsed: JsonValue = Json.parse(content);
     if (parsed.isNull()) {
         io::println("DataFile: failed to parse JSON: " + fullPath);
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     // Cache the result
@@ -269,8 +269,8 @@ public fn exists(path: string): bool {
 
 // List all data files for a given module (subdirectory)
 // Returns an ArrayList of relative paths
-public fn list(module: string): ArrayList<string> {
-    let dirPath: string = _fullPath(module);
+public fn list(moduleName: string): ArrayList<string> {
+    let dirPath: string = _fullPath(moduleName);
     let result: ArrayList<string> = new ArrayList<string>();
 
     if (!Fs_isDir(dirPath)) {
@@ -286,7 +286,7 @@ public fn list(module: string): ArrayList<string> {
     while (i < entries.size()) {
         let entry: string = entries.get(i);
         if (entry != "." && entry != "..") {
-            let entryPath: string = module + "/" + entry;
+            let entryPath: string = moduleName + "/" + entry;
             // If it's a subdirectory, recurse
             let fullEntryPath: string = _fullPath(entryPath);
             if (Fs_isDir(fullEntryPath)) {
@@ -306,16 +306,16 @@ public fn list(module: string): ArrayList<string> {
 }
 
 // Return the _meta object from a data file (source, version, description)
-// Returns JsonValue.null() if the file has no _meta field
+// Returns JsonValue.ofNull() if the file has no _meta field
 public fn meta(path: string): JsonValue {
     let data: JsonValue = load(path);
     if (data.isNull() || !data.isObject()) {
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
     if (data.hasKey("_meta")) {
         return data.get("_meta");
     }
-    return JsonValue.null();
+    return JsonValue.ofNull();
 }
 
 // Validate a data file against a JSON Schema file

@@ -1,7 +1,6 @@
 // JsonValue represents any JSON value.
 import tt::util::ArrayList;
 import tt::util::HashMap;
-import tt::lang::DataFile;
 import tt::lang::String;
 
 public class JsonValue {
@@ -70,11 +69,11 @@ public class JsonValue {
     // Object key access
     public fn get(key: string): JsonValue {
         if (this.kind != "object") {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         let val: JsonValue = this.objVal.get(key);
         if (val == null) {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         return val;
     }
@@ -82,10 +81,10 @@ public class JsonValue {
     // Array index access
     public fn getAt(index: int): JsonValue {
         if (this.kind != "array") {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         if (index < 0 || index >= this.arrayVal.size()) {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         return this.arrayVal.get(index);
     }
@@ -120,7 +119,7 @@ public class JsonValue {
     // Create a deep copy of this value
     public fn deepCopy(): JsonValue {
         if (this.kind == "null") {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         if (this.kind == "bool") {
             return JsonValue.ofBool(this.boolVal);
@@ -152,7 +151,7 @@ public class JsonValue {
             }
             return JsonValue.ofObject(obj);
         }
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     // Merge another JsonValue (object) into this one (mutating)
@@ -175,7 +174,7 @@ public class JsonValue {
             return this;
         }
         if (String.charAt(pointer, 0) != "/") {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         let tokens: ArrayList<string> = _splitPointer(pointer);
         let current: JsonValue = this;
@@ -188,7 +187,7 @@ public class JsonValue {
                 let idx: int = Integer.parseInt(token);
                 current = current.getAt(idx);
             } else {
-                return JsonValue.null();
+                return JsonValue.ofNull();
             }
             i = i + 1;
         }
@@ -659,7 +658,7 @@ public class JsonValue {
 }
 
 // Factory methods
-public fn null(): JsonValue {
+public fn ofNull(): JsonValue {
     let v: JsonValue = new JsonValue("null");
     return v;
 }
@@ -695,16 +694,27 @@ public fn ofObject(obj: HashMap<string, JsonValue>): JsonValue {
 }
 
 // Escape a string for JSON output
-// All control characters U+0000-U+001F are escaped as \uXXXX
+// Common control characters use short escapes; others use \uXXXX
 public fn escapeString(s: string): string {
     let result: string = "\"";
     let i: int = 0;
     while (i < String.length(s)) {
         let c: string = String.charAt(s, i);
         let code: int = String.charAt(c, 0) as int;
-        _ensureJsonEscapeLoaded();
-        if (_jsonEscapeCache.containsKey(c)) {
-            result = result + _jsonEscapeCache.get(c);
+        if (c == "\"") {
+            result = result + "\\\"";
+        } else if (c == "\\") {
+            result = result + "\\\\";
+        } else if (code == 8) {
+            result = result + "\\b";
+        } else if (code == 9) {
+            result = result + "\\t";
+        } else if (code == 10) {
+            result = result + "\\n";
+        } else if (code == 12) {
+            result = result + "\\f";
+        } else if (code == 13) {
+            result = result + "\\r";
         } else if (code >= 0 && code < 32) {
             // Escape all other control characters U+0000-U+001F as \uXXXX
             result = result + "\\u00" + _hexDigit(code / 16) + _hexDigit(code % 16);
@@ -723,40 +733,6 @@ fn _hexDigit(v: int): string {
         return String.fromCharCode(48 + v);
     }
     return String.fromCharCode(65 + v - 10);
-}
-
-// ---- Data loaded from external JSON via DataFile ----
-
-let _jsonEscapeCache: HashMap<string, string> = new HashMap<string, string>();
-var _jsonEscapeLoaded: bool = false;
-
-fn _ensureJsonEscapeLoaded(): void {
-    if (_jsonEscapeLoaded) {
-        return;
-    }
-    let data: JsonValue = DataFile.load("encoding/escape_maps.json");
-    if (data.isNull() || !data.isObject()) {
-        _jsonEscapeLoaded = true;
-        return;
-    }
-    if (!data.hasKey("json_escape")) {
-        _jsonEscapeLoaded = true;
-        return;
-    }
-    let escape: JsonValue = data.get("json_escape");
-    if (!escape.isObject()) {
-        _jsonEscapeLoaded = true;
-        return;
-    }
-    let keys: ArrayList<string> = escape.keys();
-    let i: int = 0;
-    while (i < keys.size()) {
-        let key: string = keys.get(i);
-        let val: string = escape.get(key).asString();
-        _jsonEscapeCache.put(key, val);
-        i = i + 1;
-    }
-    _jsonEscapeLoaded = true;
 }
 
 // ---- JSON Pointer helpers ----

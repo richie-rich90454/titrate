@@ -52,7 +52,7 @@ fn _getIpRangeField(version: string, category: string): JsonValue {
             return verData.get(category);
         }
     }
-    return JsonValue.null();
+    return JsonValue.ofNull();
 }
 
 // Check if an IPv4 address starts with any of the prefixes derived from a CIDR array

@@ -1,7 +1,6 @@
 import tt::json::JsonValue;
 import tt::util::ArrayList;
 import tt::util::HashMap;
-import tt::lang::DataFile;
 
 // JsonParser: internal recursive descent parser for JSON
 public class JsonParser {
@@ -53,7 +52,7 @@ public class JsonParser {
     public fn parseValue(): JsonValue {
         this.skipWhitespace();
         if (this.pos >= String.length(this.input)) {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         let c: string = this.peek();
         if (c == "n") {
@@ -74,12 +73,12 @@ public class JsonParser {
         if (c == "-" || (c >= "0" && c <= "9")) {
             return this.parseNumber();
         }
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     public fn parseNull(): JsonValue {
         this.match("null");
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     public fn parseBool(): JsonValue {
@@ -117,9 +116,22 @@ public class JsonParser {
             }
             if (c == "\\") {
                 let escaped: string = this.advance();
-                _ensureJsonUnescapeLoaded();
-                if (_jsonUnescapeCache.containsKey(escaped)) {
-                    result = result + _jsonUnescapeCache.get(escaped);
+                if (escaped == "\"") {
+                    result = result + "\"";
+                } else if (escaped == "\\") {
+                    result = result + "\\";
+                } else if (escaped == "n") {
+                    result = result + "\n";
+                } else if (escaped == "t") {
+                    result = result + "\t";
+                } else if (escaped == "r") {
+                    result = result + "\r";
+                } else if (escaped == "b") {
+                    result = result + "\b";
+                } else if (escaped == "f") {
+                    result = result + "\f";
+                } else if (escaped == "/") {
+                    result = result + "/";
                 } else if (escaped == "u") {
                     // Parse 4 hex digits
                     let hex: string = "";
@@ -221,38 +233,4 @@ fn decodeHex(hex: string): string {
         i = i + 1;
     }
     return String.fromCharCode(code);
-}
-
-// ---- Data loaded from external JSON via DataFile ----
-
-let _jsonUnescapeCache: HashMap<string, string> = new HashMap<string, string>();
-var _jsonUnescapeLoaded: bool = false;
-
-fn _ensureJsonUnescapeLoaded(): void {
-    if (_jsonUnescapeLoaded) {
-        return;
-    }
-    let data: JsonValue = DataFile.load("encoding/escape_maps.json");
-    if (data.isNull() || !data.isObject()) {
-        _jsonUnescapeLoaded = true;
-        return;
-    }
-    if (!data.hasKey("json_unescape")) {
-        _jsonUnescapeLoaded = true;
-        return;
-    }
-    let unescape: JsonValue = data.get("json_unescape");
-    if (!unescape.isObject()) {
-        _jsonUnescapeLoaded = true;
-        return;
-    }
-    let keys: ArrayList<string> = unescape.keys();
-    let i: int = 0;
-    while (i < keys.size()) {
-        let key: string = keys.get(i);
-        let val: string = unescape.get(key).asString();
-        _jsonUnescapeCache.put(key, val);
-        i = i + 1;
-    }
-    _jsonUnescapeLoaded = true;
 }

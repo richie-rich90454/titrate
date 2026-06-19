@@ -35,7 +35,7 @@ let age: double = data.get("age").asNumber();     // 30.0
 Represents any JSON value with type-safe accessors.
 
 **Factory methods:**
-- `JsonValue.null(): JsonValue` — create a null value
+- `JsonValue.ofNull(): JsonValue` — create a null value
 - `JsonValue.ofBool(b: bool): JsonValue` — create a boolean
 - `JsonValue.ofNum(n: double): JsonValue` — create a number
 - `JsonValue.ofStr(s: string): JsonValue` — create a string

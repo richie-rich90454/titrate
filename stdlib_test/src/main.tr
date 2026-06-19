@@ -28,7 +28,7 @@ public fn main(): void {
     io::println("Has missing key: " + Boolean.toString(obj.containsKey("missing")));
 
     // JSON null value
-    let nullVal: JsonValue = JsonValue.null();
+    let nullVal: JsonValue = JsonValue.ofNull();
     io::println("Null is null: " + Boolean.toString(nullVal.isNull()));
 
     // JSON bool value

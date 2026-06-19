@@ -1,38 +1,27 @@
-import tt::util::ArrayList;
-import tt::util::ArrayListIterator;
-
 interface Iterator<E> {
     fn next(): E;
     fn hasNext(): bool;
 
-    fn forEachRemaining(fn: fn(E): void) {
+    fn forEachRemaining(func: fn(E): void) {
         while (this.hasNext()) {
-            fn(this.next());
+            func(this.next());
         }
     }
 
-    fn map<R>(fn: fn(E): R): Iterator<R> {
-        return new MappedIterator<E, R>(this, fn);
+    fn map<R>(func: fn(E): R): Iterator<R> {
+        return new MappedIterator<E, R>(this, func);
     }
 
-    fn filter(fn: fn(E): bool): Iterator<E> {
-        return new FilteredIterator<E>(this, fn);
+    fn filter(predicate: fn(E): bool): Iterator<E> {
+        return new FilteredIterator<E>(this, predicate);
     }
 
-    fn reduce(init: E, fn: fn(E, E): E): E {
+    fn reduce(init: E, func: fn(E, E): E): E {
         var acc: E = init;
         while (this.hasNext()) {
-            acc = fn(acc, this.next());
+            acc = func(acc, this.next());
         }
         return acc;
-    }
-
-    fn collect(): ArrayList<E> {
-        let result: ArrayList<E> = new ArrayList<E>();
-        while (this.hasNext()) {
-            result.add(this.next());
-        }
-        return result;
     }
 
     fn count(): int {
@@ -69,24 +58,24 @@ interface Iterator<E> {
         return new EnumeratedIterator<E>(this);
     }
 
-    fn any(fn: fn(E): bool): bool {
+    fn any(predicate: fn(E): bool): bool {
         while (this.hasNext()) {
-            if (fn(this.next())) { return true; }
+            if (predicate(this.next())) { return true; }
         }
         return false;
     }
 
-    fn all(fn: fn(E): bool): bool {
+    fn all(predicate: fn(E): bool): bool {
         while (this.hasNext()) {
-            if (!fn(this.next())) { return false; }
+            if (!predicate(this.next())) { return false; }
         }
         return true;
     }
 
-    fn find(fn: fn(E): bool): E {
+    fn find(predicate: fn(E): bool): E {
         while (this.hasNext()) {
             let val: E = this.next();
-            if (fn(val)) { return val; }
+            if (predicate(val)) { return val; }
         }
         return null;
     }
@@ -129,56 +118,7 @@ interface Iterator<E> {
         return val;
     }
 
-    fn takeWhile(predicate: fn(Variant): bool): Iterator {
-        let items: ArrayList<Variant> = new ArrayList<Variant>();
-        while (this.hasNext()) {
-            let item: Variant = this.next();
-            if (predicate(item)) {
-                items.add(item);
-            } else {
-                break;
-            }
-        }
-        return new ArrayListIterator(items);
-    }
-
-    fn skipWhile(predicate: fn(Variant): bool): Iterator {
-        let items: ArrayList<Variant> = new ArrayList<Variant>();
-        var skipping: bool = true;
-        while (this.hasNext()) {
-            let item: Variant = this.next();
-            if (skipping && predicate(item)) {
-                continue;
-            }
-            skipping = false;
-            items.add(item);
-        }
-        return new ArrayListIterator(items);
-    }
-
-    fn stepBy(n: int): Iterator {
-        let items: ArrayList<Variant> = new ArrayList<Variant>();
-        var first: bool = true;
-        while (this.hasNext()) {
-            let item: Variant = this.next();
-            if (first) {
-                items.add(item);
-                first = false;
-            } else {
-                var step: int = 1;
-                while (step < n && this.hasNext()) {
-                    this.next();
-                    step = step + 1;
-                }
-                if (this.hasNext()) {
-                    items.add(this.next());
-                }
-            }
-        }
-        return new ArrayListIterator(items);
-    }
-
-    fn forEach(action: fn(Variant): void): void {
+    fn forEach(action: fn(E): void): void {
         while (this.hasNext()) {
             action(this.next());
         }
@@ -187,7 +127,7 @@ interface Iterator<E> {
     fn sum(): double {
         var total: double = 0.0;
         while (this.hasNext()) {
-            let item: Variant = this.next();
+            let item: E = this.next();
             total = total + (item as double);
         }
         return total;
@@ -196,37 +136,22 @@ interface Iterator<E> {
     fn product(): double {
         var result: double = 1.0;
         while (this.hasNext()) {
-            let item: Variant = this.next();
+            let item: E = this.next();
             result = result * (item as double);
         }
         return result;
     }
 
-    fn position(predicate: fn(Variant): bool): int {
+    fn position(predicate: fn(E): bool): int {
         var idx: int = 0;
         while (this.hasNext()) {
-            let item: Variant = this.next();
+            let item: E = this.next();
             if (predicate(item)) {
                 return idx;
             }
             idx = idx + 1;
         }
         return -1;
-    }
-
-    fn dedup(): Iterator {
-        let items: ArrayList<Variant> = new ArrayList<Variant>();
-        var prev: Variant = null;
-        var hasPrev: bool = false;
-        while (this.hasNext()) {
-            let item: Variant = this.next();
-            if (!hasPrev || item != prev) {
-                items.add(item);
-                prev = item;
-                hasPrev = true;
-            }
-        }
-        return new ArrayListIterator(items);
     }
 }
 
@@ -235,9 +160,9 @@ class MappedIterator<E, R> implements Iterator<R> {
     public Iterator<E> source;
     public fn(E): R mapper;
 
-    public fn init(src: Iterator<E>, fn: fn(E): R) {
+    public fn init(src: Iterator<E>, func: fn(E): R) {
         this.source = src;
-        this.mapper = fn;
+        this.mapper = func;
     }
 
     fn next(): R {
@@ -256,9 +181,9 @@ class FilteredIterator<E> implements Iterator<E> {
     public E nextVal;
     public bool hasVal;
 
-    public fn init(src: Iterator<E>, fn: fn(E): bool) {
+    public fn init(src: Iterator<E>, pred: fn(E): bool) {
         this.source = src;
-        this.predicate = fn;
+        this.predicate = pred;
         this.hasVal = false;
         this.advance();
     }

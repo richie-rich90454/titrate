@@ -744,7 +744,7 @@ public fn isSpace(s: string): bool {
     var i: int = 0;
     while (i < String_length(s)) {
         let c: string = String_charAt(s, i);
-        if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != "\f" && c != "\v") { return false; }
+        if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != "\f" && c != String.fromCharCode(11)) { return false; }
         i = i + 1;
     }
     return true;
@@ -890,7 +890,7 @@ public fn stripLeft(s: string): string {
     var i: int = 0;
     while (i < len) {
         let c: string = String_charAt(s, i);
-        if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != "\f" && c != "\v") {
+        if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != "\f" && c != String.fromCharCode(11)) {
             break;
         }
         i = i + 1;
@@ -904,7 +904,7 @@ public fn stripRight(s: string): string {
     var i: int = len - 1;
     while (i >= 0) {
         let c: string = String_charAt(s, i);
-        if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != "\f" && c != "\v") {
+        if (c != " " && c != "\t" && c != "\n" && c != "\r" && c != "\f" && c != String.fromCharCode(11)) {
             break;
         }
         i = i - 1;
@@ -942,16 +942,16 @@ public fn lines(s: string): ArrayList<string> {
 }
 
 // Split a string into chunks of the given size.
-public fn chunked(s: string, size: int): ArrayList<string> {
+public fn chunked(s: string, chunkSize: int): ArrayList<string> {
     let result: ArrayList<string> = new ArrayList<string>();
     let len: int = String_length(s);
-    if (size <= 0) { return result; }
+    if (chunkSize <= 0) { return result; }
     var i: int = 0;
     while (i < len) {
-        var end: int = i + size;
+        var end: int = i + chunkSize;
         if (end > len) { end = len; }
         result.add(String.substring(s, i, end));
-        i = i + size;
+        i = i + chunkSize;
     }
     return result;
 }

@@ -233,7 +233,7 @@ public class Json5 {
     private fn _parseValue(): JsonValue {
         this._skipWhitespaceAndComments();
         if (this._pos >= String.length(this._input)) {
-            return JsonValue.null();
+            return JsonValue.ofNull();
         }
         let c: string = this._peek();
         // null
@@ -267,12 +267,12 @@ public class Json5 {
         if (c == "N") {
             return this._parseNaN();
         }
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     private fn _parseKeywordNull(): JsonValue {
         this._match("null");
-        return JsonValue.null();
+        return JsonValue.ofNull();
     }
 
     private fn _parseBool(): JsonValue {

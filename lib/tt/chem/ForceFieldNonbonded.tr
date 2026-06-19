@@ -13,7 +13,7 @@ import tt::lang::Double;
 
 // ---- Data loaded from external JSON via DataFile ----
 
-var _ffCache: JsonValue = JsonValue.null();
+var _ffCache: JsonValue = JsonValue.ofNull();
 var _ffLoaded: bool = false;
 var _chargeCache: HashMap<string, double> = new HashMap<string, double>();
 

@@ -127,7 +127,7 @@ public class HashMap<K, V> implements Iterable<K> {
         let entries: ArrayList<(K, V)> = this.map.entries();
         let i: int = 0;
         while (i < entries.size()) {
-            let (key: K, val: V) = entries.get(i);
+            let (key, val) = entries.get(i);
             result.put(key, val);
             i = i + 1;
         }
@@ -140,7 +140,7 @@ public class HashMap<K, V> implements Iterable<K> {
         let i: int = 0;
         while (i < entries.size()) {
             if (i > 0) { s = s + ", "; }
-            let (key: K, val: V) = entries.get(i);
+            let (key, val) = entries.get(i);
             s = s + key + ": " + val;
             i = i + 1;
         }
@@ -148,36 +148,36 @@ public class HashMap<K, V> implements Iterable<K> {
         return s;
     }
 
-    public fn forEach(fn: fn(K, V): void): void {
+    public fn forEach(func: fn(K, V): void): void {
         let entries: ArrayList<(K, V)> = this.map.entries();
         let i: int = 0;
         while (i < entries.size()) {
-            let (key: K, val: V) = entries.get(i);
-            fn(key, val);
+            let (key, val) = entries.get(i);
+            func(key, val);
             i = i + 1;
         }
     }
 
-    public fn map(fn: fn(K, V): (K, V)): HashMap<K, V> {
+    public fn map(func: fn(K, V): (K, V)): HashMap<K, V> {
         let result: HashMap<K, V> = new HashMap<K, V>();
         let entries: ArrayList<(K, V)> = this.map.entries();
         let i: int = 0;
         while (i < entries.size()) {
-            let (key: K, val: V) = entries.get(i);
-            let (newKey: K, newVal: V) = fn(key, val);
+            let (key, val) = entries.get(i);
+            let (newKey, newVal) = func(key, val);
             result.put(newKey, newVal);
             i = i + 1;
         }
         return result;
     }
 
-    public fn filter(fn: fn(K, V): bool): HashMap<K, V> {
+    public fn filter(func: fn(K, V): bool): HashMap<K, V> {
         let result: HashMap<K, V> = new HashMap<K, V>();
         let entries: ArrayList<(K, V)> = this.map.entries();
         let i: int = 0;
         while (i < entries.size()) {
-            let (key: K, val: V) = entries.get(i);
-            if (fn(key, val)) {
+            let (key, val) = entries.get(i);
+            if (func(key, val)) {
                 result.put(key, val);
             }
             i = i + 1;
@@ -196,7 +196,7 @@ public class HashMap<K, V> implements Iterable<K> {
         this.map = new HashMap<K, V>();
         let i: int = 0;
         while (i < entries.size()) {
-            let (key: K, val: V) = entries.get(i);
+            let (key, val) = entries.get(i);
             this.map.put(key, val);
             i = i + 1;
         }
@@ -259,7 +259,7 @@ public fn mapMerge(target: HashMap<string, string>, source: HashMap<string, stri
     let entries: ArrayList<(string, string)> = source.entries();
     var i: int = 0;
     while (i < entries.size()) {
-        let (key: string, val: string) = entries.get(i);
+        let (key, val) = entries.get(i);
         target.put(key, val);
         i = i + 1;
     }
