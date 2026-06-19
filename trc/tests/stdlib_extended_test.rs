@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use trc::lexer;
 use trc::parser;
 use trc::bytecode;
@@ -13,6 +14,24 @@ fn run_source(source: &str) -> Result<Vec<String>, String> {
     let compiled = compiler.compile(&ast)?;
 
     let mut vm = bytecode::Vm::new();
+    vm.load_program(compiled);
+    vm.run()?;
+
+    Ok(vm.output)
+}
+
+/// Helper: compile and run a Titrate source string with module resolution.
+/// Uses `compile_with_modules` so that `import tt::...` statements resolve
+/// against the project's `lib/` directory.
+fn run_source_with_modules(source: &str, root_dir: &str) -> Result<Vec<String>, String> {
+    let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
+    let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
+
+    let mut compiler = bytecode::Compiler::new();
+    let compiled = compiler.compile_with_modules(&ast, &PathBuf::from(root_dir))?;
+
+    let mut vm = bytecode::Vm::new();
+    vm.set_working_dir(PathBuf::from(root_dir));
     vm.load_program(compiled);
     vm.run()?;
 
@@ -807,3 +826,59 @@ public void main() {
     let output = run_source(source).expect("PriorityQueue test should succeed");
     assert_output(&output, "5\n1\n2\n3");
 }
+
+// ---------------------------------------------------------------------------
+// 16. Optimization & PDE module compilation test
+//    Verifies that lib/tt/math/optimization/Optimization.tr and
+//    lib/tt/math/pde/PDE.tr compile correctly with module resolution.
+//    Uses compile_with_modules so imports are resolved against ../lib/.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_optimization_pde_modules_compile() {
+    // The root_dir is the project root (parent of trc/), so that
+    // `import tt::...` resolves to ../lib/tt/...
+    let root_dir = "..";
+
+    let source = r#"
+import tt::math::optimization::Optimization;
+import tt::math::pde::PDE;
+import tt::util::ArrayList;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+public fn main(): void {
+    // --- PDE boundary condition classes ---
+    let dbc = new DirichletBC(100.0);
+    io::println(Double.toString(dbc.value));
+
+    let nbc = new NeumannBC(0.5);
+    io::println(Double.toString(nbc.gradient));
+
+    let rbc = new RobinBC(0.1, 0.9);
+    io::println(Double.toString(rbc.alpha));
+    io::println(Double.toString(rbc.beta));
+
+    // --- Optimization: OptResult class ---
+    let xs = new ArrayList<double>();
+    xs.add(1.0);
+    xs.add(2.0);
+    let result = new OptResult(xs, 0.5, 10, true);
+    io::println(Double.toString(result.value));
+    io::println(Integer.toString(result.iterations));
+
+    // --- PDE: BoundaryCondition class ---
+    let bc = new BoundaryCondition("dirichlet", 42.0, 0.0);
+    io::println(bc.kind);
+    io::println(Double.toString(bc.value));
+}
+"#;
+
+    let output = run_source_with_modules(source, root_dir)
+        .expect("Optimization & PDE modules should compile and run");
+    assert_output(
+        &output,
+        "100\n0.5\n0.1\n0.9\n0.5\n10\ndirichlet\n42",
+    );
+}
+
