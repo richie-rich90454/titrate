@@ -373,3 +373,175 @@ fn _prefixToMask(prefixLen: int): int {
 fn _hostMask(prefixLen: int): int {
     return 0xFFFFFFFF >> prefixLen;
 }
+
+// IPv6 network/subnet representation (stub). Full 128-bit arithmetic is not
+// supported by the int type, so these methods use simplified string-based
+// operations suitable for basic prefix matching and display.
+public class IPv6Network {
+    public string address;
+    public int prefixLen;
+
+    public fn init(address: string, prefixLen: int) {
+        this.address = address;
+        this.prefixLen = prefixLen;
+    }
+
+    // Returns the network address. For this stub the stored address is
+    // returned unchanged since 128-bit masking is not available.
+    public fn networkAddress(): string {
+        return this.address;
+    }
+
+    // IPv6 has no broadcast address; return the all-nodes multicast placeholder.
+    public fn broadcastAddress(): string {
+        return "ff02::1";
+    }
+
+    // Build a simplified netmask string from the prefix length.
+    public fn netmask(): string {
+        return _ipv6PrefixToNetmask(this.prefixLen);
+    }
+
+    // Build a simplified hostmask string (inverse of netmask).
+    public fn hostmask(): string {
+        return _ipv6PrefixToHostmask(this.prefixLen);
+    }
+
+    // Number of addresses in the subnet. Capped to avoid overflow for small prefixes.
+    public fn numAddresses(): int {
+        let hostBits: int = 128 - this.prefixLen;
+        if (hostBits >= 31) {
+            return 0x7FFFFFFF;
+        }
+        return 1 << hostBits;
+    }
+
+    // Basic prefix-based containment check for IPv6 addresses.
+    public fn contains(ip: string): bool {
+        return _ipv6PrefixMatch(this.networkAddress(), ip, this.prefixLen);
+    }
+
+    // Split the network into two equal subnets with prefixLen + 1.
+    public fn subnets(): ArrayList<IPv6Network> {
+        let result: ArrayList<IPv6Network> = new ArrayList<IPv6Network>();
+        let newPrefix: int = this.prefixLen + 1;
+        result.add(new IPv6Network(this.address, newPrefix));
+        result.add(new IPv6Network(this.address, newPrefix));
+        return result;
+    }
+
+    // IPv6 subnets are too large to enumerate; return an empty list as a stub.
+    public fn hosts(): ArrayList<string> {
+        return new ArrayList<string>();
+    }
+
+    public fn toString(): string {
+        return this.networkAddress() + "/" + Integer.toString(this.prefixLen);
+    }
+}
+
+// Expand an IPv6 address to its full 8-group form for prefix comparison.
+fn _expandIpv6(address: string): string {
+    // Handle "::" shorthand by expanding to the full number of groups.
+    let doubleColonIdx: int = String.indexOf(address, "::");
+    if (doubleColonIdx < 0) {
+        return address;
+    }
+    let before: string = String.substring(address, 0, doubleColonIdx);
+    let after: string = String.substring(address, doubleColonIdx + 2, String.length(address));
+    let beforeParts: ArrayList<string> = new ArrayList<string>();
+    let afterParts: ArrayList<string> = new ArrayList<string>();
+    if (String.length(before) > 0) {
+        beforeParts = String.split(before, ":");
+    }
+    if (String.length(after) > 0) {
+        afterParts = String.split(after, ":");
+    }
+    let missing: int = 8 - beforeParts.size() - afterParts.size();
+    var expanded: string = "";
+    var i: int = 0;
+    while (i < beforeParts.size()) {
+        if (String.length(expanded) > 0) { expanded = expanded + ":"; }
+        expanded = expanded + beforeParts.get(i);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < missing) {
+        if (String.length(expanded) > 0) { expanded = expanded + ":"; }
+        expanded = expanded + "0";
+        i = i + 1;
+    }
+    i = 0;
+    while (i < afterParts.size()) {
+        if (String.length(expanded) > 0) { expanded = expanded + ":"; }
+        expanded = expanded + afterParts.get(i);
+        i = i + 1;
+    }
+    return expanded;
+}
+
+// Compare two IPv6 addresses by prefix of the given bit length (in 16-bit groups).
+fn _ipv6PrefixMatch(network: string, ip: string, prefixBits: int): bool {
+    let netExpanded: string = _expandIpv6(network);
+    let ipExpanded: string = _expandIpv6(ip);
+    let netParts: ArrayList<string> = String.split(netExpanded, ":");
+    let ipParts: ArrayList<string> = String.split(ipExpanded, ":");
+    if (netParts.size() != 8 || ipParts.size() != 8) {
+        return network == ip;
+    }
+    let groupsToCompare: int = prefixBits / 16;
+    var i: int = 0;
+    while (i < groupsToCompare && i < 8) {
+        if (netParts.get(i) != ipParts.get(i)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Build a simplified IPv6 netmask string from a prefix length.
+fn _ipv6PrefixToNetmask(prefixLen: int): string {
+    if (prefixLen == 0) { return "::"; }
+    if (prefixLen >= 128) { return "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"; }
+    let fullGroups: int = prefixLen / 16;
+    let partialBits: int = prefixLen % 16;
+    var result: string = "";
+    var i: int = 0;
+    while (i < 8) {
+        if (String.length(result) > 0) { result = result + ":"; }
+        if (i < fullGroups) {
+            result = result + "ffff";
+        } else if (i == fullGroups && partialBits > 0) {
+            let mask: int = 0xFFFF << (16 - partialBits);
+            result = result + Integer.toHexString(mask);
+        } else {
+            result = result + "0";
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Build a simplified IPv6 hostmask string (inverse of netmask) from a prefix length.
+fn _ipv6PrefixToHostmask(prefixLen: int): string {
+    if (prefixLen == 0) { return "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"; }
+    if (prefixLen >= 128) { return "::"; }
+    let fullGroups: int = prefixLen / 16;
+    let partialBits: int = prefixLen % 16;
+    var result: string = "";
+    var i: int = 0;
+    while (i < 8) {
+        if (String.length(result) > 0) { result = result + ":"; }
+        if (i < fullGroups) {
+            result = result + "0";
+        } else if (i == fullGroups && partialBits > 0) {
+            let mask: int = 0xFFFF >> partialBits;
+            result = result + Integer.toHexString(mask);
+        } else {
+            result = result + "ffff";
+        }
+        i = i + 1;
+    }
+    return result;
+}
