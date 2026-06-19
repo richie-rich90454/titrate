@@ -281,6 +281,7 @@ impl fmt::Display for Token {
             Token::CaretEqual => write!(f, "^="),
             Token::LeftShiftEqual => write!(f, "<<="),
             Token::RightShiftEqual => write!(f, ">>="),
+            Token::TripleGreater => write!(f, ">>>"),
             Token::TripleGreaterEqual => write!(f, ">>>="),
             Token::IntLiteral(v) => write!(f, "{}", v),
             Token::FloatLiteral { value, suffix } => {

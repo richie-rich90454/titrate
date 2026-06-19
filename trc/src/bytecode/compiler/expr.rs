@@ -234,6 +234,7 @@ impl Compiler {
             ast::Operator::BitXor => "operator^".to_string(),
             ast::Operator::BitShl => "operator<<".to_string(),
             ast::Operator::BitShr => "operator>>".to_string(),
+            ast::Operator::BitUshr => "operator>>>".to_string(),
             ast::Operator::And | ast::Operator::Or => unreachable!("And/Or are short-circuit"),
         }
     }
