@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;
@@ -289,7 +289,16 @@ public class HtmlParser {
                     tagName = HtmlParser.trimWhitespace(tagName);
                     this.handleEndTag(tagName);
                 } else if (String.length(tagContent) > 0 && String.charAt(tagContent, 0) == "!") {
-                    // Comment or doctype, skip
+                    // Comment (<!-- ... -->) or doctype
+                    if (String.length(tagContent) >= 3 && String.charAt(tagContent, 1) == "-" && String.charAt(tagContent, 2) == "-") {
+                        // Extract comment text: strip leading "--" and trailing "--"
+                        var commentText: string = String.substring(tagContent, 3, String.length(tagContent));
+                        if (String.length(commentText) >= 2 && String.charAt(commentText, String.length(commentText) - 1) == "-" && String.charAt(commentText, String.length(commentText) - 2) == "-") {
+                            commentText = String.substring(commentText, 0, String.length(commentText) - 2);
+                        }
+                        this.handleComment(commentText);
+                    }
+                    // Doctype and other declarations are skipped
                 } else {
                     // Opening tag - parse tag name and attributes
                     let selfClosing: bool = String.length(tagContent) > 0 && String.charAt(tagContent, String.length(tagContent) - 1) == "/";
@@ -380,6 +389,12 @@ public class HtmlParser {
         } else {
             current.text = trimmed;
         }
+    }
+
+    // Handle a comment: override-able callback for comment content.
+    // Default implementation is a no-op; subclasses can override to process comments.
+    public fn handleComment(data: string): void {
+        // No-op by default
     }
 
     // Parse a tag's content into (tagName, attrs).

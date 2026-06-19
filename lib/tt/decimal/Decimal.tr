@@ -363,6 +363,12 @@ public class Decimal {
                 return new Decimal().initFrom(false, Long.toString(intVal + 1L), 0);
             }
             return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
+        } else if (mode == "unnecessary") {
+            // Rounding is prohibited; throw if any fractional part exists
+            if (!DecimalArithmetic.isZeroStr(d.digits) && d.scale > 0 && fracDigit != 0) {
+                throw "ArithmeticException: Rounding necessary with UNNECESSARY mode";
+            }
+            return new Decimal().initFrom(d.negative, Long.toString(intVal), 0);
         }
         // Default: half_up
         if (fracDigit >= 5) {
@@ -419,6 +425,7 @@ public class RoundingMode {
     public string HALF_UP;
     public string HALF_DOWN;
     public string HALF_EVEN;
+    public string UNNECESSARY;
 
     public fn init() {
         _ensureRoundingModesLoaded();
@@ -429,6 +436,7 @@ public class RoundingMode {
         this.HALF_UP = _roundingModesCache.get("HALF_UP");
         this.HALF_DOWN = _roundingModesCache.get("HALF_DOWN");
         this.HALF_EVEN = _roundingModesCache.get("HALF_EVEN");
+        this.UNNECESSARY = _roundingModesCache.get("UNNECESSARY");
     }
 }
 
