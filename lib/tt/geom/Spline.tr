@@ -118,3 +118,114 @@ public fn cubicBezierLength(p0: Point2D, p1: Point2D, p2: Point2D, p3: Point2D, 
     }
     return length;
 }
+
+// B-spline interpolation with control points, knots, and degree
+public class BSpline {
+    public ArrayList<Point2D> controlPoints;
+    public ArrayList<double> knots;
+    public int degree;
+
+    public fn init(controlPoints: ArrayList<Point2D>, knots: ArrayList<double>, degree: int) {
+        this.controlPoints = controlPoints;
+        this.knots = knots;
+        this.degree = degree;
+    }
+
+    // Cox-de Boor recursion basis function
+    fn _basis(i: int, p: int, t: double): double {
+        if (p == 0) {
+            if (t >= this.knots.get(i) && t < this.knots.get(i + 1)) {
+                return 1.0;
+            }
+            return 0.0;
+        }
+        let left: double = 0.0;
+        let leftDenom: double = this.knots.get(i + p) - this.knots.get(i);
+        if (leftDenom > 0.0) {
+            left = (t - this.knots.get(i)) / leftDenom * this._basis(i, p - 1, t);
+        }
+        let right: double = 0.0;
+        let rightDenom: double = this.knots.get(i + p + 1) - this.knots.get(i + 1);
+        if (rightDenom > 0.0) {
+            right = (this.knots.get(i + p + 1) - t) / rightDenom * this._basis(i + 1, p - 1, t);
+        }
+        return left + right;
+    }
+
+    // Evaluate the B-spline at parameter t
+    public fn evaluate(t: double): Point2D {
+        let n: int = this.controlPoints.size();
+        var x: double = 0.0;
+        var y: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let b: double = this._basis(i, this.degree, t);
+            x = x + b * this.controlPoints.get(i).x;
+            y = y + b * this.controlPoints.get(i).y;
+            i = i + 1;
+        }
+        return new Point2D(x, y);
+    }
+}
+
+// NURBS — Non-Uniform Rational B-Spline
+public class NURBS {
+    public ArrayList<Point2D> controlPoints;
+    public ArrayList<double> weights;
+    public ArrayList<double> knots;
+    public int degree;
+
+    public fn init(controlPoints: ArrayList<Point2D>, weights: ArrayList<double>, knots: ArrayList<double>, degree: int) {
+        this.controlPoints = controlPoints;
+        this.weights = weights;
+        this.knots = knots;
+        this.degree = degree;
+    }
+
+    // Cox-de Boor recursion basis function
+    fn _basis(i: int, p: int, t: double): double {
+        if (p == 0) {
+            if (t >= this.knots.get(i) && t < this.knots.get(i + 1)) {
+                return 1.0;
+            }
+            return 0.0;
+        }
+        let left: double = 0.0;
+        let leftDenom: double = this.knots.get(i + p) - this.knots.get(i);
+        if (leftDenom > 0.0) {
+            left = (t - this.knots.get(i)) / leftDenom * this._basis(i, p - 1, t);
+        }
+        let right: double = 0.0;
+        let rightDenom: double = this.knots.get(i + p + 1) - this.knots.get(i + 1);
+        if (rightDenom > 0.0) {
+            right = (this.knots.get(i + p + 1) - t) / rightDenom * this._basis(i + 1, p - 1, t);
+        }
+        return left + right;
+    }
+
+    // Evaluate the NURBS at parameter u (rational B-spline)
+    public fn evaluatePoint(u: double): Point2D {
+        let n: int = this.controlPoints.size();
+        var numerX: double = 0.0;
+        var numerY: double = 0.0;
+        var denom: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            let b: double = this._basis(i, this.degree, u);
+            let w: double = this.weights.get(i);
+            numerX = numerX + b * w * this.controlPoints.get(i).x;
+            numerY = numerY + b * w * this.controlPoints.get(i).y;
+            denom = denom + b * w;
+            i = i + 1;
+        }
+        if (denom == 0.0) {
+            return new Point2D(0.0, 0.0);
+        }
+        return new Point2D(numerX / denom, numerY / denom);
+    }
+
+    // Alias for evaluatePoint for consistency with BSpline
+    public fn evaluate(u: double): Point2D {
+        return this.evaluatePoint(u);
+    }
+}
