@@ -66,12 +66,18 @@ public class UUID {
     public int version;
     public int variant;
     public string urn;
+    public string bytes;
+    public int time;
+    public int node;
 
     public fn init(hex: string) {
         this.hex = _stripDashes(hex);
         this.version = _parseVersion(hex);
         this.variant = _parseVariant(hex);
         this.urn = "urn:uuid:" + _formatWithDashes(this.hex);
+        this.bytes = Hex_decode(this.hex);
+        this.time = _extractTime(this.hex);
+        this.node = _extractNode(this.hex);
     }
 
     public fn toString(): string {
@@ -291,4 +297,33 @@ fn _padHex(val: int, len: int): string {
         result = String.substring(result, String.length(result) - len, String.length(result));
     }
     return result;
+}
+
+// Convert a hex string to an int value using _hexVal for each digit.
+fn _hexStrToInt(hex: string): int {
+    var result: int = 0;
+    var i: int = 0;
+    while (i < String.length(hex)) {
+        result = (result << 4) | _hexVal(String.charAt(hex, i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Extract the 60-bit timestamp from a UUID hex string (meaningful for v1 UUIDs).
+// Composed of time_low (hex 0-7), time_mid (hex 8-11), and time_hi (hex 13-15,
+// skipping the version nibble at position 12).
+fn _extractTime(hex: string): int {
+    if (String.length(hex) < 16) { return 0; }
+    let timeLow: int = _hexStrToInt(String.substring(hex, 0, 8));
+    let timeMid: int = _hexStrToInt(String.substring(hex, 8, 12));
+    let timeHi: int = _hexStrToInt(String.substring(hex, 13, 16));
+    return timeLow | (timeMid << 32) | (timeHi << 48);
+}
+
+// Extract the 48-bit node identifier from a UUID hex string (meaningful for v1 UUIDs).
+// The node field occupies the last 12 hex characters (positions 20-31).
+fn _extractNode(hex: string): int {
+    if (String.length(hex) < 32) { return 0; }
+    return _hexStrToInt(String.substring(hex, 20, 32));
 }
