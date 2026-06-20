@@ -1,5 +1,6 @@
-// Gc module for garbage collector control (stub).
-// True GC control requires VM-level support.
+// Gc module for garbage collector control.
+// The Titrate VM uses reference counting, so GC control is limited.
+// The collect() function provides a hint to the VM to release unused resources.
 import tt::util::HashMap;
 
 // Module-level state
@@ -33,10 +34,8 @@ public fn isEnabled(): bool {
 public fn getStats(): HashMap<string, int> {
     let stats: HashMap<string, int> = new HashMap<string, int>();
     stats.put("collections", _collectionCount);
-    stats.put("enabled", 1);
-    if (!_enabled) {
-        stats.put("enabled", 0);
-    }
+    stats.put("enabled", _enabled ? 1 : 0);
+    stats.put("pid", Os_getpid());
     return stats;
 }
 
