@@ -24,6 +24,7 @@ crc32fast = "1.4"
 base64 = "0.22"
 percent-encoding = "2"
 rand = "0.8"
+flate2 = "1.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
