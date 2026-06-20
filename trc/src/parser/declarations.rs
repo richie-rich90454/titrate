@@ -9,14 +9,14 @@ impl Parser {
         let mut imports = Vec::new();
         let mut declarations = Vec::new();
 
-        // Parse imports
-        while self.is_at(&lexer::Token::Import) {
-            imports.push(self.parse_import()?);
-        }
-
-        // Parse declarations until EOF
+        // Parse imports and declarations in any order (imports may appear
+        // interspersed with top-level declarations).
         while !self.is_eof() {
-            declarations.push(self.parse_declaration()?);
+            if self.is_at(&lexer::Token::Import) {
+                imports.push(self.parse_import()?);
+            } else {
+                declarations.push(self.parse_declaration()?);
+            }
         }
 
         Ok(ast::Program {

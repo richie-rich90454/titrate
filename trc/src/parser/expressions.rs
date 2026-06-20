@@ -286,11 +286,15 @@ impl Parser {
                 self.expect(&lexer::Token::RightParen)?;
                 expr = ast::Expr::Call(Box::new(expr), args, span);
             } else if self.match_token(&lexer::Token::Dot) {
-                // Member access — field name can be an identifier or a keyword used as a name
+                // Member access — field name can be an identifier, a keyword used
+                // as a name, or a numeric literal (tuple field access: t.0, t.1).
                 let span = self.make_span();
                 let name_tok = self.advance();
-                let name = token_as_name(&name_tok)
-                    .ok_or_else(|| format!("Expected member name, found {}", name_tok))?;
+                let name = match &name_tok {
+                    lexer::Token::IntLiteral(v) => v.to_string(),
+                    _ => token_as_name(&name_tok)
+                        .ok_or_else(|| format!("Expected member name, found {}", name_tok))?,
+                };
                 expr = ast::Expr::MemberAccess(Box::new(expr), name, span);
             } else if self.match_token(&lexer::Token::ColonColon) {
                 // :: namespace access → treat as member access
@@ -299,6 +303,37 @@ impl Parser {
                 let name = token_as_name(&name_tok)
                     .ok_or_else(|| format!("Expected namespace member, found {}", name_tok))?;
                 expr = ast::Expr::MemberAccess(Box::new(expr), name, span);
+            } else if self.is_at(&lexer::Token::Less) {
+                // Could be generic type arguments: Identifier<Type, ...>::method(...)
+                // or a less-than comparison: a < b
+                // Use backtracking: try to parse <Type, ...> and check if followed by :: or (
+                let saved = self.pos;
+                self.advance(); // consume '<'
+                let mut success = true;
+                loop {
+                    if self.parse_type().is_err() {
+                        success = false;
+                        break;
+                    }
+                    if self.match_token(&lexer::Token::Comma) {
+                        continue;
+                    }
+                    if self.expect_close_angle().is_ok() {
+                        break;
+                    } else {
+                        success = false;
+                        break;
+                    }
+                }
+                if success && (self.is_at(&lexer::Token::ColonColon) || self.is_at(&lexer::Token::LeftParen) || self.is_at(&lexer::Token::Dot)) {
+                    // Generic type arguments parsed successfully — type args are ignored
+                    // at runtime (dynamic dispatch), so just continue the loop.
+                    continue;
+                } else {
+                    // Not generic type arguments — backtrack and treat as less-than
+                    self.pos = saved;
+                    break;
+                }
             } else if self.match_token(&lexer::Token::LeftBracket) {
                 // Index access
                 let span = self.make_span();
@@ -320,6 +355,11 @@ impl Parser {
                 let span = self.make_span();
                 let typ = self.parse_type()?;
                 expr = ast::Expr::Cast(Box::new(expr), typ, span);
+            } else if self.match_token(&lexer::Token::Is) {
+                // Type check: expr is Type
+                let span = self.make_span();
+                let typ = self.parse_type()?;
+                expr = ast::Expr::Is(Box::new(expr), typ, span);
             } else if self.match_token(&lexer::Token::PlusPlus) {
                 // Postfix increment: x++ desugars to x = x + 1
                 let span = self.make_span();
@@ -474,6 +514,19 @@ impl Parser {
                 self.advance();
                 Ok(ast::Expr::Identifier("var".to_string(), span))
             }
+            // `where` can be used as a function name (e.g. `where(...)`)
+            lexer::Token::Where => {
+                let span = self.make_span();
+                self.advance();
+                Ok(ast::Expr::Identifier("where".to_string(), span))
+            }
+            // `Result` can be used as a type/identifier in expressions
+            // (e.g. `Result<T, E>::ok(...)`)
+            lexer::Token::Result => {
+                let span = self.make_span();
+                self.advance();
+                Ok(ast::Expr::Identifier("Result".to_string(), span))
+            }
             lexer::Token::This => {
                 let span = self.make_span();
                 self.advance();
@@ -554,7 +607,12 @@ impl Parser {
                     let closure_result = self.parse_closure_params();
                     if let Ok(params) = closure_result {
                         if self.match_token(&lexer::Token::RightParen) {
-                            let return_type = ast::Type::simple("void");
+                            // Check for optional return type: fn(params): ReturnType
+                            let return_type = if self.match_token(&lexer::Token::Colon) {
+                                self.parse_type()?
+                            } else {
+                                ast::Type::simple("void")
+                            };
                             if self.match_token(&lexer::Token::FatArrow) {
                                 // Expression body: fn(x) => x * 2
                                 let expr = self.parse_expression()?;

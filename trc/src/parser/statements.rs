@@ -221,30 +221,43 @@ impl Parser {
                 Ok(ast::Stmt::Expr(ast::Expr::UnsafeBlock(block, span)))
             }
             // Type name = expr; → desugar to let with type and mutable=true
+            // But if the type keyword is followed by something that isn't a name
+            // (e.g. `size = this.pos;` where `size` is a variable), treat the
+            // type keyword as a variable name and parse as an expression statement.
             tok if is_type_keyword(&tok) => {
-                let span = self.make_span();
-                let type_tok = self.advance();
-                let type_name = type_keyword_name(&type_tok)
-                    .ok_or_else(|| format!("Expected type keyword, found {}", type_tok))?;
-                let typ = ast::Type::simple(&type_name);
+                let next_is_name = self.tokens.get(self.pos + 1)
+                    .map(|st| token_as_name(&st.token).is_some())
+                    .unwrap_or(false);
+                if next_is_name {
+                    let span = self.make_span();
+                    let type_tok = self.advance();
+                    let type_name = type_keyword_name(&type_tok)
+                        .ok_or_else(|| format!("Expected type keyword, found {}", type_tok))?;
+                    let typ = ast::Type::simple(&type_name);
 
-                let name_tok = self.advance();
-                let name = token_as_name(&name_tok)
-                    .ok_or_else(|| format!("Expected variable name, found {}", name_tok))?;
+                    let name_tok = self.advance();
+                    let name = token_as_name(&name_tok)
+                        .ok_or_else(|| format!("Expected variable name, found {}", name_tok))?;
 
-                let init = if self.match_token(&lexer::Token::Equals) {
-                    Some(self.parse_expression()?)
+                    let init = if self.match_token(&lexer::Token::Equals) {
+                        Some(self.parse_expression()?)
+                    } else {
+                        None
+                    };
+                    self.expect(&lexer::Token::Semicolon)?;
+                    Ok(ast::Stmt::VarDecl(ast::VarDecl {
+                        name,
+                        typ: Some(typ),
+                        init,
+                        mutable: true,
+                        span,
+                    }))
                 } else {
-                    None
-                };
-                self.expect(&lexer::Token::Semicolon)?;
-                Ok(ast::Stmt::VarDecl(ast::VarDecl {
-                    name,
-                    typ: Some(typ),
-                    init,
-                    mutable: true,
-                    span,
-                }))
+                    // Type keyword used as a variable name (e.g. `size = x;`)
+                    let expr = self.parse_expression()?;
+                    self.expect(&lexer::Token::Semicolon)?;
+                    Ok(ast::Stmt::Expr(expr))
+                }
             }
             _ => {
                 // Expression statement

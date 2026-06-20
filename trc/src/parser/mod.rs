@@ -108,6 +108,8 @@ impl Parser {
             lexer::Token::Identifier(s) => Ok(s),
             t if is_type_keyword(&t) => type_keyword_name(&t)
                 .ok_or_else(|| format!("Expected name, found {}", t)),
+            // `where` can be used as a function name (e.g. `fn where(...)`)
+            lexer::Token::Where => Ok("where".to_string()),
             _ => Err(format!("Expected name, found {}", tok)),
         }
     }
@@ -359,6 +361,8 @@ pub(super) fn token_as_name(tok: &lexer::Token) -> Option<String> {
             lexer::Token::Fn => Some("fn".to_string()),
             // `var` can be used as a variable name (e.g. `let var: double = ...` for variance)
             lexer::Token::Var => Some("var".to_string()),
+            // `where` can be used as a function name (e.g. `where(...)`)
+            lexer::Token::Where => Some("where".to_string()),
             _ => None,
         }),
     }
