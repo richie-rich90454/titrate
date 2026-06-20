@@ -132,3 +132,25 @@ pub(crate) fn native_string_from_char_code(args: &[Value]) -> Result<Value, Stri
     let s = char::from_u32(code).unwrap_or('\0').to_string();
     Ok(Value::String(Rc::new(s)))
 }
+
+pub(crate) fn native_string_char_at(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("String_charAt: expected 2 arguments (string, index)".to_string());
+    }
+    let s = match &args[0] {
+        Value::String(s) => s.as_str(),
+        _ => return Err("String_charAt: expected String argument".to_string()),
+    };
+    let idx = args[1].to_i64().unwrap_or(0);
+    if idx < 0 {
+        return Err(format!("String_charAt: index {} out of bounds", idx));
+    }
+    match s.chars().nth(idx as usize) {
+        Some(c) => Ok(Value::String(Rc::new(c.to_string()))),
+        None => Err(format!(
+            "String_charAt: index {} out of bounds for string of length {}",
+            idx,
+            s.chars().count()
+        )),
+    }
+}

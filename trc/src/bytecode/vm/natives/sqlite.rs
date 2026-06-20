@@ -53,3 +53,11 @@ pub(crate) fn native_sqlite_column_name(_args: &[Value]) -> Result<Value, String
 pub(crate) fn native_sqlite_close_result(_args: &[Value]) -> Result<Value, String> {
     Err("SQLite not available: add rusqlite dependency".to_string())
 }
+
+pub(crate) fn native_sqlite_execute_prepared(_args: &[Value]) -> Result<Value, String> {
+    Err("SQLite not available: add rusqlite dependency".to_string())
+}
+
+pub(crate) fn native_sqlite_backup(_args: &[Value]) -> Result<Value, String> {
+    Err("SQLite not available: add rusqlite dependency".to_string())
+}

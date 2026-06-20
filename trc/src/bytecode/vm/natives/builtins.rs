@@ -132,3 +132,15 @@ pub(crate) fn native_long_parse_long(args: &[Value]) -> Result<Value, String> {
         .map(Value::Long)
         .map_err(|e| format!("Long_parseLong: cannot parse '{}': {}", s, e))
 }
+
+pub(crate) fn native_type_name_of(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("TypeName_of: expected 1 argument".to_string());
+    }
+    let name = match &args[0] {
+        Value::ClassInstance { class_name, .. } => class_name.clone(),
+        Value::EnumInstance { enum_name, .. } => enum_name.clone(),
+        other => other.type_name().to_string(),
+    };
+    Ok(Value::String(Rc::new(name)))
+}

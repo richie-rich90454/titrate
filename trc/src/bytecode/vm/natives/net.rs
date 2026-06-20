@@ -4,6 +4,7 @@
 use super::super::super::value::Value;
 use std::io::Write;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 pub(crate) fn native_net_connect(args: &[Value]) -> Result<Value, String> {
@@ -471,4 +472,60 @@ pub(crate) fn parse_http_url(url: &str) -> Result<(String, u16, String), String>
     };
 
     Ok((host, port, path.to_string()))
+}
+
+pub(crate) fn native_dns_lookup(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Dns_lookup: expected 2 arguments (hostname, recordType)".to_string());
+    }
+    let hostname = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Dns_lookup: expected String hostname".to_string()),
+    };
+    let record_type = match &args[1] {
+        Value::String(s) => s.as_str().to_uppercase(),
+        _ => return Err("Dns_lookup: expected String recordType".to_string()),
+    };
+
+    use std::net::ToSocketAddrs;
+    let addr_str = format!("{}:0", hostname);
+    let mut records: Vec<Value> = Vec::new();
+    match addr_str.to_socket_addrs() {
+        Ok(iter) => {
+            for addr in iter {
+                let ip = addr.ip();
+                let include = match record_type.as_str() {
+                    "A" => ip.is_ipv4(),
+                    "AAAA" => ip.is_ipv6(),
+                    _ => true,
+                };
+                if include {
+                    let mut fields = HashMap::new();
+                    fields.insert("name".to_string(), Value::String(Rc::new(hostname.clone())));
+                    fields.insert("recordType".to_string(), Value::String(Rc::new(record_type.clone())));
+                    fields.insert("value".to_string(), Value::String(Rc::new(ip.to_string())));
+                    fields.insert("ttl".to_string(), Value::Int(0));
+                    records.push(Value::ClassInstance {
+                        class_name: "DnsRecord".to_string(),
+                        fields: Rc::new(RefCell::new(fields)),
+                        vtable: HashMap::new(),
+                    });
+                }
+            }
+        }
+        Err(e) => return Err(format!("Dns_lookup: failed to resolve '{}': {}", hostname, e)),
+    }
+    Ok(Value::Array { elements: records })
+}
+
+pub(crate) fn native_dns_reverse_lookup(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("Dns_reverseLookup: expected 1 argument (ip)".to_string());
+    }
+    let ip = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("Dns_reverseLookup: expected String ip".to_string()),
+    };
+    // std does not provide reverse DNS; return the IP as a fallback.
+    Ok(Value::String(Rc::new(ip)))
 }

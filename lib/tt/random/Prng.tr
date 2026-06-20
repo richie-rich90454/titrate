@@ -148,7 +148,7 @@ public class Xoshiro256 {
         return (x << k) | (x >> (64 - k));
     }
 
-    public static fn _splitMix64(z: long): long {
+    public fn _splitMix64(z: long): long {
         var zz: long = z;
         zz = (zz ^ (zz >> 30)) * 0xBF58476D1CE4E5B9L;
         zz = (zz ^ (zz >> 27)) * 0x94D049BB133111EBL;
