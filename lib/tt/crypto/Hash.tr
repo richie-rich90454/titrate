@@ -127,6 +127,16 @@ public class Hash {
         return Hmac.sha256(key, data);
     }
 
+    // HMAC-SHA256 convenience method (delegates to Hmac module).
+    public fn hmacSha256(key: string, data: string): string {
+        return Hmac.sha256(key, data);
+    }
+
+    // HMAC-SHA512 convenience method (delegates to Hmac module).
+    public fn hmacSha512(key: string, data: string): string {
+        return Hmac.sha512(key, data);
+    }
+
     // CRC32 backed by native implementation
     public fn crc32(data: string): string {
         return Hash_crc32(data);
