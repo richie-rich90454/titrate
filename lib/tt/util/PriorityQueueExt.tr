@@ -119,6 +119,21 @@ public class PriorityQueueExt {
         return this.indexMap.containsKey(id);
     }
 
+    // Try to put an item without blocking. Returns true on success.
+    // Since this PriorityQueueExt is not capacity-limited, put always succeeds.
+    public fn tryPut(priority: double, item: Variant, id: string): bool {
+        this.push(priority, item, id);
+        return true;
+    }
+
+    // Try to get an item without blocking. Returns null if the queue is empty.
+    public fn tryGet(): Pair<double, Variant> {
+        if (this.heap.size() == 0) {
+            return null;
+        }
+        return this.pop();
+    }
+
     // Internal: sift element at idx up to restore heap property.
     private fn siftUp(idx: int): void {
         while (idx > 0) {

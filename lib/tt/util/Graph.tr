@@ -96,6 +96,14 @@ public class Graph<V> {
         return this.adj.get(vertex);
     }
 
+    // Return the degree (number of outgoing edges) of a vertex.
+    public fn degree(vertex: V): int {
+        if (!this.adj.containsKey(vertex)) {
+            return 0;
+        }
+        return this.adj.get(vertex).size();
+    }
+
     public fn hasVertex(vertex: V): bool {
         return this.adj.containsKey(vertex);
     }

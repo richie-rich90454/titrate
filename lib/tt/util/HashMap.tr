@@ -106,6 +106,39 @@ public class HashMap<K, V> implements Iterable<K> {
         this.map.remove(key);
     }
 
+    // Remove a key and return its associated value, or null if the key is absent.
+    public fn pop(key: K): V {
+        if (this.map.containsKey(key)) {
+            let val: V = this.map.get(key);
+            this.map.remove(key);
+            return val;
+        }
+        return null;
+    }
+
+    // Remove a key and return its associated value, or defaultValue if the key is absent.
+    public fn pop(key: K, defaultValue: V): V {
+        if (this.map.containsKey(key)) {
+            let val: V = this.map.get(key);
+            this.map.remove(key);
+            return val;
+        }
+        return defaultValue;
+    }
+
+    // Remove and return an arbitrary (key, value) pair from the map.
+    // Returns null if the map is empty.
+    public fn popItem(): (K, V) {
+        if (this.map.size() == 0) {
+            return null;
+        }
+        let keys: ArrayList<K> = this.map.keys();
+        let key: K = keys.get(0);
+        let val: V = this.map.get(key);
+        this.map.remove(key);
+        return (key, val);
+    }
+
     public fn clear(): void {
         this.map = new HashMap<K, V>();
     }

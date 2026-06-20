@@ -2,6 +2,8 @@
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::Variant;
+import tt::lang::Integer;
+import tt::lang::String;
 
 // Create a prepared statement for the given database and SQL.
 public fn prepare(db: string, sql: string): PreparedStatement {
@@ -111,4 +113,56 @@ public fn walMode(dbPath: string, enable: bool): void {
     } else {
         Sqlite_execute(dbPath, "PRAGMA journal_mode=DELETE");
     }
+}
+
+// BlobReader provides read access to a BLOB column in a SQLite database.
+public class BlobReader {
+    public string dbPath;
+    public string tableName;
+    public string columnName;
+    public int rowId;
+    public string data;
+
+    public fn init(dbPath: string, table: string, column: string, rowId: int) {
+        this.dbPath = dbPath;
+        this.tableName = table;
+        this.columnName = column;
+        this.rowId = rowId;
+        // Read the BLOB data using a SELECT query
+        let sql: string = "SELECT " + column + " FROM " + table + " WHERE rowid = " + Integer.toString(rowId);
+        let rows: ArrayList<HashMap> = Sqlite_query(dbPath, sql);
+        if (rows.size() > 0) {
+            this.data = rows.get(0).get(column);
+        } else {
+            this.data = "";
+        }
+    }
+
+    // Return the BLOB data as a string.
+    public fn readAll(): string {
+        return this.data;
+    }
+
+    // Return the length of the BLOB data in bytes.
+    public fn length(): int {
+        return String.length(this.data);
+    }
+
+    // Return a substring of the BLOB data.
+    public fn read(offset: int, length: int): string {
+        return String.substring(this.data, offset, offset + length);
+    }
+}
+
+// Write BLOB data to a SQLite database row.
+public fn writeBlob(dbPath: string, table: string, column: string, rowId: int, data: string): void {
+    let sql: string = "UPDATE " + table + " SET " + column + " = ? WHERE rowid = " + Integer.toString(rowId);
+    let stmt: PreparedStatement = new PreparedStatement(sql);
+    stmt.bindString(1, data);
+    stmt.execute();
+}
+
+// Backup a SQLite database to a target file path.
+public fn backup(dbPath: string, targetPath: string): void {
+    Sqlite_backup(dbPath, targetPath);
 }

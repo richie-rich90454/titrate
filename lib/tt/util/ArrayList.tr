@@ -124,6 +124,16 @@ public class ArrayList<T> implements Iterable<T> {
         return item;
     }
 
+    // Remove and return the last element. Throws if the list is empty.
+    public fn pop(): T {
+        if (this.list.size() == 0) {
+            throw "IndexError: pop from empty list";
+        }
+        let item: T = this.list.get(this.list.size() - 1);
+        this.list.remove(this.list.size() - 1);
+        return item;
+    }
+
     public fn contains(value: T): bool {
         let i: int = 0;
         while (i < this.list.size()) {

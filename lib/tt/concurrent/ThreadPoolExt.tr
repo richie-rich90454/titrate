@@ -1,4 +1,4 @@
-// ThreadPoolExt — extended thread pool utilities: scheduled execution and future chaining.
+// ThreadPoolExt — extended thread pool utilities: scheduled execution, future chaining, callable, rejection policies.
 import tt::util::ArrayList;
 import tt::lang::Variant;
 
@@ -144,4 +144,92 @@ public class FutureChain {
     public fn isDone(): bool {
         return this.done;
     }
+}
+
+// Callable wraps a function that returns a value, supporting lazy execution and result retrieval.
+public class Callable {
+    public fn(): Variant task;
+    public bool done;
+    public Variant result;
+    public Variant error;
+
+    public fn init(task: fn(): Variant) {
+        this.task = task;
+        this.done = false;
+        this.result = null;
+        this.error = null;
+    }
+
+    // Execute the task if not already executed. Returns the result.
+    public fn call(): Variant {
+        if (this.done) {
+            return this.result;
+        }
+        try {
+            this.result = this.task();
+        } catch (e: string) {
+            this.error = e;
+        }
+        this.done = true;
+        return this.result;
+    }
+
+    // Check whether the callable has been executed.
+    public fn isDone(): bool {
+        return this.done;
+    }
+
+    // Get the result of the callable.
+    public fn get(): Variant {
+        return this.result;
+    }
+
+    // Get the error if the callable failed.
+    public fn getError(): Variant {
+        return this.error;
+    }
+}
+
+// RejectionPolicy defines how to handle tasks when the executor cannot accept them.
+public class RejectionPolicy {
+    public string policy;
+
+    public fn init(policy: string) {
+        this.policy = policy;
+    }
+
+    // Apply the rejection policy to a rejected task.
+    // Returns the task result if caller-runs, null if discarded, or throws if abort.
+    public fn reject(task: fn(): Variant): Variant {
+        if (this.policy == "abort") {
+            throw "RejectedExecutionError: task rejected by abort policy";
+        } else if (this.policy == "callerRuns") {
+            return task();
+        } else if (this.policy == "discard") {
+            return null;
+        } else if (this.policy == "discardOldest") {
+            return null;
+        }
+        return null;
+    }
+}
+
+// Create an abort rejection policy that throws on rejection.
+public fn abortPolicy(): RejectionPolicy {
+    return new RejectionPolicy("abort");
+}
+
+// Create a caller-runs rejection policy that executes the task in the calling thread.
+public fn callerRunsPolicy(): RejectionPolicy {
+    return new RejectionPolicy("callerRuns");
+}
+
+// Create a discard rejection policy that silently drops rejected tasks.
+public fn discardPolicy(): RejectionPolicy {
+    return new RejectionPolicy("discard");
+}
+
+// Create a discard-oldest rejection policy that drops the oldest pending task.
+public fn discardOldestPolicy(): RejectionPolicy {
+    return new RejectionPolicy("discardOldest");
 }

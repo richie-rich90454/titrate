@@ -1,9 +1,10 @@
-// LoggerExt — extended logging utilities: JSON formatter, syslog handler, rotating handler, per-level logger.
+// LoggerExt — extended logging utilities: JSON formatter, syslog handler, email handler, rotating handler, per-level logger.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::Variant;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::net::SmtpClient;
 
 // Create a JSON formatter instance with pretty-printing disabled by default.
 public fn jsonFormatter(): JsonFormatter {
@@ -148,6 +149,52 @@ public class RotatingHandler {
     }
 }
 
+// EmailHandler sends log messages via email using an SMTP client.
+public class EmailHandler {
+    public string smtpHost;
+    public int smtpPort;
+    public string from;
+    public ArrayList<string> to;
+    public string subjectPrefix;
+    public string username;
+    public string password;
+    public SmtpClient client;
+
+    public fn init(host: string, port: int, from: string, to: ArrayList<string>) {
+        this.smtpHost = host;
+        this.smtpPort = port;
+        this.from = from;
+        this.to = to;
+        this.subjectPrefix = "[Log]";
+        this.username = "";
+        this.password = "";
+        this.client = new SmtpClient(host, port);
+    }
+
+    // Set credentials for SMTP authentication.
+    public fn setCredentials(username: string, password: string): void {
+        this.username = username;
+        this.password = password;
+    }
+
+    // Set the subject prefix for outgoing log emails.
+    public fn setSubjectPrefix(prefix: string): void {
+        this.subjectPrefix = prefix;
+    }
+
+    // Send a log message via email.
+    public fn send(level: string, message: string): void {
+        if (!this.client.connected) {
+            this.client.connect();
+            if (this.username != "") {
+                this.client.authenticate(this.username, this.password);
+            }
+        }
+        let subject: string = this.subjectPrefix + " " + level;
+        this.client.send(this.from, this.to, subject, "[" + level + "] " + message);
+    }
+}
+
 // PerLevelLogger dispatches log messages to different handlers based on log level.
 public class PerLevelLogger {
     public HashMap<string, ArrayList<Variant>> handlers;
@@ -187,6 +234,9 @@ public class PerLevelLogger {
                 } else if (handler is RotatingHandler) {
                     let rh: RotatingHandler = handler as RotatingHandler;
                     rh.write("[" + level + "] " + message);
+                } else if (handler is EmailHandler) {
+                    let eh: EmailHandler = handler as EmailHandler;
+                    eh.send(level, message);
                 }
                 i = i + 1;
             }
@@ -225,6 +275,9 @@ public class AsyncHandler {
             } else if (this.wrappedHandler is RotatingHandler) {
                 let rh: RotatingHandler = this.wrappedHandler as RotatingHandler;
                 rh.write(entry);
+            } else if (this.wrappedHandler is EmailHandler) {
+                let eh: EmailHandler = this.wrappedHandler as EmailHandler;
+                eh.send("INFO", entry);
             } else {
                 io::println(entry);
             }
