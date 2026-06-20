@@ -231,6 +231,34 @@ impl Interpreter {
                 }
                 Ok(ControlFlow::None)
             }
+            ast::Stmt::Throw(expr, _) => {
+                let val = self.eval_expr_with_env(expr, &env)?;
+                let msg = match &val {
+                    Value::String(s) => s.clone(),
+                    other => format!("{:?}", other),
+                };
+                Err(msg)
+            }
+            ast::Stmt::TryCatch { try_block, catch_var, catch_var_type: _, catch_block, span: _ } => {
+                let try_env = Rc::new(RefCell::new(Env::with_parent(env.clone())));
+                match self.exec_block(try_block, try_env) {
+                    Ok(ControlFlow::Return(Value::ResultErr(e))) => {
+                        let err_msg = match *e {
+                            Value::String(s) => s,
+                            other => format!("{:?}", other),
+                        };
+                        let catch_env = Rc::new(RefCell::new(Env::with_parent(env)));
+                        catch_env.borrow_mut().set(catch_var, Value::String(err_msg));
+                        self.exec_block(catch_block, catch_env)
+                    }
+                    Err(e) => {
+                        let catch_env = Rc::new(RefCell::new(Env::with_parent(env)));
+                        catch_env.borrow_mut().set(catch_var, Value::String(e));
+                        self.exec_block(catch_block, catch_env)
+                    }
+                    other => other,
+                }
+            }
         }
     }
 

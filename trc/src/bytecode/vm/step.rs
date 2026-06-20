@@ -943,6 +943,20 @@ impl Vm {
                             .unwrap_or(Value::Null);
                         self.push(val);
                     }
+                    Value::Tuple { elements } => {
+                        // Numeric tuple field access: t.0, t.1, ...
+                        match field_name.parse::<usize>() {
+                            Ok(idx) if idx < elements.len() => {
+                                self.push(elements[idx].clone());
+                            }
+                            _ => {
+                                return Err(format!(
+                                    "GET_FIELD: invalid tuple index '{}' on tuple of length {}",
+                                    field_name, elements.len()
+                                ))
+                            }
+                        }
+                    }
                     _ => {
                         return Err(format!(
                             "GET_FIELD: cannot get field '{}' on {:?}",

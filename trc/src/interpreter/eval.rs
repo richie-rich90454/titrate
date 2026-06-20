@@ -137,6 +137,24 @@ impl Interpreter {
                 self.eval_cast(&val, target_type.name())
             }
 
+            ast::Expr::Is(inner, target_type, _) => {
+                let val = self.eval_expr_with_env(inner, env)?;
+                let type_name = target_type.name();
+                let result = match &val {
+                    Value::ClassInstance { class_name, .. } => {
+                        class_name == type_name
+                    }
+                    Value::String(_) => type_name == "string",
+                    Value::Int(_) => type_name == "int" || type_name == "long" || type_name == "byte" || type_name == "short",
+                    Value::Long(_) => type_name == "long",
+                    Value::Double(_) => type_name == "double" || type_name == "float",
+                    Value::Bool(_) => type_name == "bool",
+                    Value::Null => type_name == "null",
+                    _ => false,
+                };
+                Ok(Value::Bool(result))
+            }
+
             ast::Expr::StaticCall { class_name, method, args, .. } => {
                 self.eval_static_call(class_name, method, args, env)
             }
@@ -461,6 +479,13 @@ impl Interpreter {
                     "variant" => Ok(Value::String(variant.clone())),
                     "fields" => Ok(Value::Array { elements: enum_fields.clone() }),
                     _ => Err(format!("No member '{}' on enum instance", member)),
+                }
+            }
+            Value::Tuple { elements } => {
+                // Numeric tuple field access: t.0, t.1, ...
+                match member.parse::<usize>() {
+                    Ok(idx) if idx < elements.len() => Ok(elements[idx].clone()),
+                    _ => Err(format!("No member '{}' on tuple of length {}", member, elements.len())),
                 }
             }
             Value::Ref(idx) => {
