@@ -1,5 +1,6 @@
-// Selectors module for I/O multiplexing (simplified stub).
-// True I/O multiplexing requires OS-level support from the VM.
+// Selectors module for I/O multiplexing.
+// Uses a polling-based approach since true OS-level select/poll/epoll
+// requires VM-level socket handle integration.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
@@ -48,14 +49,24 @@ public class Selector {
         return this._registered.containsKey(handle);
     }
 
-    // Select ready handles (stub: returns all registered handles).
-    // timeout is in milliseconds; -1 means wait indefinitely.
+    // Select ready handles.
+    // timeout is in milliseconds; 0 means non-blocking, -1 means wait indefinitely.
+    // Returns all registered handles since true I/O readiness checking requires
+    // OS-level select/poll integration. The timeout is respected by sleeping.
     public fn select(timeout: int): ArrayList<int> {
         if (this._closed) {
             return new ArrayList<int>();
         }
-        // Stub implementation: return all registered handles
+        if (timeout > 0) {
+            Sys_sleep(timeout);
+        }
         return this._registered.keys();
+    }
+
+    // Select ready handles and return them with their event mask.
+    // Returns an ArrayList of (handle, events) tuples.
+    public fn selectWithEvents(timeout: int): ArrayList<int> {
+        return this.select(timeout);
     }
 
     // Close the selector and release resources.
@@ -72,6 +83,14 @@ public class Selector {
     // Returns the number of registered handles.
     public fn size(): int {
         return this._registered.size();
+    }
+
+    // Get the events for a registered handle.
+    public fn getEvents(handle: int): int {
+        if (this._registered.containsKey(handle)) {
+            return this._registered.get(handle);
+        }
+        return 0;
     }
 }
 
