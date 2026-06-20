@@ -64,9 +64,24 @@ public class Selector {
     }
 
     // Select ready handles and return them with their event mask.
-    // Returns an ArrayList of (handle, events) tuples.
-    public fn selectWithEvents(timeout: int): ArrayList<int> {
-        return this.select(timeout);
+    // Returns an ArrayList of (handle, events) tuples as Variant values.
+    public fn selectWithEvents(timeout: int): ArrayList<Variant> {
+        if (this._closed) {
+            return new ArrayList<Variant>();
+        }
+        if (timeout > 0) {
+            Sys_sleep(timeout);
+        }
+        let handles: ArrayList<int> = this._registered.keys();
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        var i: int = 0;
+        while (i < handles.size()) {
+            let h: int = handles.get(i);
+            let ev: int = this._registered.get(h);
+            result.add((h, ev));
+            i = i + 1;
+        }
+        return result;
     }
 
     // Close the selector and release resources.
