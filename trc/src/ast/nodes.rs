@@ -268,6 +268,14 @@ pub enum Stmt {
     VarDecl(VarDecl),
     ConstDecl(VarDecl),
     TupleDestructure { names: Vec<String>, expr: Expr, mutable: bool, span: Span },
+    Throw(Expr, Span),
+    TryCatch {
+        try_block: Block,
+        catch_var: String,
+        catch_var_type: Option<Type>,
+        catch_block: Block,
+        span: Span,
+    },
 }
 
 /// Expression.
@@ -289,6 +297,7 @@ pub enum Expr {
     UnsafeBlock(Block, Span),
     ErrorPropagation(Box<Expr>, Span),
     Cast(Box<Expr>, Type, Span),
+    Is(Box<Expr>, Type, Span),
     StaticCall { class_name: String, method: String, args: Vec<Expr>, span: Span },
     Assign(Box<Expr>, Box<Expr>, Span),
     Ternary { condition: Box<Expr>, then_expr: Box<Expr>, else_expr: Box<Expr>, span: Span },
