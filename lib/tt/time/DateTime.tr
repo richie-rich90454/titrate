@@ -6,9 +6,11 @@ import tt::json::JsonValue;
 
 public class DateTime {
     public long epochMillis;
+    public int tzOffsetMinutes;
 
     public fn init(ms: long) {
         this.epochMillis = ms;
+        this.tzOffsetMinutes = 0;
     }
 
     public fn getYear(): int {
@@ -177,13 +179,29 @@ public class DateTime {
                     }
                     result = result + Long.toString(us);
                 }
-                // %z - UTC offset (stub: +0000)
+                // %z - UTC offset (e.g. +0530)
                 else if (code == "z") {
-                    result = result + "+0000";
+                    let offset: int = this.tzOffsetMinutes;
+                    let sign: string = offset >= 0 ? "+" : "-";
+                    let absMin: int = offset >= 0 ? offset : -offset;
+                    let hours: int = absMin / 60;
+                    let mins: int = absMin % 60;
+                    let hStr: string = hours < 10 ? "0" + Integer.toString(hours) : Integer.toString(hours);
+                    let mStr: string = mins < 10 ? "0" + Integer.toString(mins) : Integer.toString(mins);
+                    result = result + sign + hStr + mStr;
                 }
-                // %Z - Timezone name (stub: UTC)
+                // %Z - Timezone name
                 else if (code == "Z") {
-                    result = result + "UTC";
+                    if (this.tzOffsetMinutes == 0) {
+                        result = result + "UTC";
+                    } else {
+                        let offset: int = this.tzOffsetMinutes;
+                        let sign: string = offset >= 0 ? "+" : "-";
+                        let absMin: int = offset >= 0 ? offset : -offset;
+                        let hours: int = absMin / 60;
+                        let hStr: string = hours < 10 ? "0" + Integer.toString(hours) : Integer.toString(hours);
+                        result = result + "UTC" + sign + hStr;
+                    }
                 }
                 // %% - Literal percent
                 else if (code == "%") {
@@ -434,26 +452,40 @@ public class DateTime {
         return fromISO(input);
     }
 
-    // Convert to UTC (stub - returns same datetime).
+    // Convert to UTC by subtracting the timezone offset.
     public fn toUtc(): DateTime {
-        return this;
+        if (this.tzOffsetMinutes == 0) {
+            return this;
+        }
+        let offsetMs: long = this.tzOffsetMinutes as long * 60000;
+        return new DateTime(this.epochMillis - offsetMs);
     }
 
-    // Get the timezone offset in minutes (stub - returns 0).
+    // Get the timezone offset in minutes.
     public fn offsetMinutes(): int {
-        return 0;
+        return this.tzOffsetMinutes;
     }
 
-    // Check if daylight saving time is in effect (stub).
+    // Check if daylight saving time is in effect.
+    // DST detection requires platform-specific timezone database access.
+    // Uses a simple heuristic based on Northern Hemisphere summer months.
     public fn isDst(): bool {
-        return false;
+        if (this.tzOffsetMinutes == 0) {
+            return false;
+        }
+        let month: int = this.getMonth();
+        // Simplified DST check: DST is typically in effect from March to October
+        // in the Northern Hemisphere. This is a heuristic approximation.
+        return month >= 3 && month <= 10;
     }
 
     // Convert this DateTime to the given timezone.
     // Adjusts the epoch millis by the timezone's offset (in minutes).
     public fn astimezone(tz: TimeZone): DateTime {
         let offsetMs: long = tz.offsetMinutes as long * 60000;
-        return new DateTime(this.epochMillis + offsetMs);
+        let result: DateTime = new DateTime(this.epochMillis + offsetMs);
+        result.tzOffsetMinutes = tz.offsetMinutes;
+        return result;
     }
 
     // Get the day of the week as a string.
