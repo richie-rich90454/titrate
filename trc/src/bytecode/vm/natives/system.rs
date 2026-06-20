@@ -482,8 +482,17 @@ pub(crate) fn native_sys_change_dir(args: &[Value]) -> Result<Value, String> {
 }
 
 pub(crate) fn native_os_getppid(_args: &[Value]) -> Result<Value, String> {
-    // Stub: return 0 (parent PID not available on all platforms)
-    Ok(Value::Int(0))
+    #[cfg(unix)]
+    {
+        // On Unix, get the parent process ID via libc
+        let ppid = unsafe { libc::getppid() };
+        Ok(Value::Int(ppid as i32))
+    }
+    #[cfg(not(unix))]
+    {
+        // On non-Unix (Windows), parent PID is not available without external crates
+        Ok(Value::Int(0))
+    }
 }
 
 pub(crate) fn native_os_strerror(args: &[Value]) -> Result<Value, String> {
@@ -685,24 +694,52 @@ pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_totalSpace: expected 1 argument (path)".to_string());
     }
-    let _path = match &args[0] {
+    let path = match &args[0] {
         Value::String(s) => s.as_str(),
         _ => return Err("Fs_totalSpace: expected String argument".to_string()),
     };
-    // TODO: Use platform-specific APIs (statvfs on Unix, GetDiskFreeSpaceExW on Windows)
-    // to return the actual total disk space. Returning 0 as a stub for now.
-    Ok(Value::Long(0))
+    #[cfg(unix)]
+    {
+        let c_path = std::ffi::CString::new(path)
+            .map_err(|e| format!("Fs_totalSpace: invalid path: {}", e))?;
+        let mut statvfs_buf: libc::statvfs = unsafe { std::mem::zeroed() };
+        let ret = unsafe { libc::statvfs(c_path.as_ptr(), &mut statvfs_buf) };
+        if ret != 0 {
+            return Ok(Value::Long(0));
+        }
+        let total = statvfs_buf.f_blocks as u64 * statvfs_buf.f_frsize as u64;
+        Ok(Value::Long(total as i64))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(Value::Long(0))
+    }
 }
 
 pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Fs_freeSpace: expected 1 argument (path)".to_string());
     }
-    let _path = match &args[0] {
+    let path = match &args[0] {
         Value::String(s) => s.as_str(),
         _ => return Err("Fs_freeSpace: expected String argument".to_string()),
     };
-    // TODO: Use platform-specific APIs (statvfs on Unix, GetDiskFreeSpaceExW on Windows)
-    // to return the actual free disk space. Returning 0 as a stub for now.
-    Ok(Value::Long(0))
+    #[cfg(unix)]
+    {
+        let c_path = std::ffi::CString::new(path)
+            .map_err(|e| format!("Fs_freeSpace: invalid path: {}", e))?;
+        let mut statvfs_buf: libc::statvfs = unsafe { std::mem::zeroed() };
+        let ret = unsafe { libc::statvfs(c_path.as_ptr(), &mut statvfs_buf) };
+        if ret != 0 {
+            return Ok(Value::Long(0));
+        }
+        let free = statvfs_buf.f_bavail as u64 * statvfs_buf.f_frsize as u64;
+        Ok(Value::Long(free as i64))
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        Ok(Value::Long(0))
+    }
 }
