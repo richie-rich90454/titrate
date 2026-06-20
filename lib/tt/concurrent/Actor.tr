@@ -181,7 +181,7 @@ public class Actor {
 // Create a supervised actor that restarts on failure according to the given strategy.
 public fn supervisedActor(system: ActorSystem, id: string, handler: fn(ActorMessage): void, strategy: SupervisorStrategy): ActorRef {
     var retries: int = 0;
-    let supervisedHandler: fn(ActorMessage): void = fn(msg: ActorMessage): void {
+    let supervisedHandler: fn(ActorMessage): void = fn(msg) {
         var attempt: int = 0;
         var success: bool = false;
         while (attempt <= strategy.maxRetries && !success) {

@@ -28,7 +28,7 @@ public class ThreadPoolExecutor {
         // Spawn worker threads
         var i: int = 0;
         while (i < maxThreads) {
-            let worker: Thread = new Thread(fn(): void {
+            let worker: Thread = new Thread(fn() {
                 this._workerLoop();
             });
             this.workers.add(worker);
@@ -67,7 +67,7 @@ public class ThreadPoolExecutor {
 
     public fn submitCallable<T>(task: fn(): T): Future<T> {
         let promise: Promise<T> = new Promise<T>();
-        let wrapper: fn(): void = fn(): void {
+        let wrapper: fn(): void = fn() {
             let result: T = task();
             promise.complete(result);
         };
