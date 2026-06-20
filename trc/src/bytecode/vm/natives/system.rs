@@ -495,7 +495,22 @@ pub(crate) fn native_os_strerror(args: &[Value]) -> Result<Value, String> {
         Some(Value::Int(c)) => *c,
         _ => return Err("Os_strerror: expected an Int error code".to_string()),
     };
-    Ok(Value::String(Rc::new(format!("error {}", code))))
+    #[cfg(unix)]
+    {
+        let ptr = unsafe { libc::strerror(code as libc::c_int) };
+        if ptr.is_null() {
+            Ok(Value::String(Rc::new(format!("error {}", code))))
+        } else {
+            let msg = unsafe { std::ffi::CStr::from_ptr(ptr) }
+                .to_string_lossy()
+                .to_string();
+            Ok(Value::String(Rc::new(msg)))
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        Ok(Value::String(Rc::new(format!("error {}", code))))
+    }
 }
 
 pub(crate) fn native_os_removedirs(args: &[Value]) -> Result<Value, String> {
