@@ -56,12 +56,12 @@ public class RingDeque<E> {
     }
 
     public fn peekFront(): E {
-        if (this.count == 0) { return buffer.get(0); }
+        if (this.count == 0) { return null; }
         return this.buffer.get(this.head);
     }
 
     public fn peekBack(): E {
-        if (this.count == 0) { return buffer.get(0); }
+        if (this.count == 0) { return null; }
         return this.buffer.get((this.tail - 1 + this.capacity) % this.capacity);
     }
 
@@ -105,7 +105,7 @@ public class RingDeque<E> {
         let newBuffer: ArrayList<E> = new ArrayList<E>();
         var i: int = 0;
         while (i < newCapacity) {
-            newBuffer.add(buffer.get(0)); // placeholder
+            newBuffer.add(null); // pre-allocate slot
             i = i + 1;
         }
         var j: int = 0;

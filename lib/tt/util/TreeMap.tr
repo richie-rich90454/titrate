@@ -222,8 +222,8 @@ public class TreeMap<K, V> {
             return idx;
         }
         let idx: int = this.keys.size();
-        this.keys.add(keys.get(0)); // placeholder
-        this.values.add(values.get(0)); // placeholder
+        this.keys.add(null); // placeholder slot - will be overwritten by caller
+        this.values.add(null); // placeholder slot - will be overwritten by caller
         this.left.add(-1);
         this.right.add(-1);
         this.parent.add(-1);
