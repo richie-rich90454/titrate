@@ -104,8 +104,6 @@ public class SequentialModel {
         return loss;
     }
 
-import tt::ml::Tensor;
-
     public fn evaluate(data: ArrayList<Tensor>, labels: ArrayList<Tensor>): double {
         var correct: int = 0;
         var total: int = 0;

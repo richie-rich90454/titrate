@@ -358,8 +358,8 @@ public fn removedirs(path: string): void {
 }
 
 // Rename with intermediate directory creation.
-public fn renames(old: string, new: string): void {
-    Os_renames(old, new);
+public fn renames(old: string, newPath: string): void {
+    Os_renames(old, newPath);
 }
 
 // Replace destination file (atomic on same filesystem).

@@ -76,7 +76,7 @@ fn formatMap(map: HashMap<Variant, Variant>, indent: int, width: int): string {
     let i: int = 0;
     while (i < entries.size()) {
         if (i > 0) { compact = compact + ", "; }
-        (key: Variant, val: Variant) = entries.get(i);
+        let (key: Variant, val: Variant) = entries.get(i);
         compact = compact + pformat(key, indent, width) + ": " + pformat(val, indent, width);
         i = i + 1;
     }
@@ -88,7 +88,7 @@ fn formatMap(map: HashMap<Variant, Variant>, indent: int, width: int): string {
     let result: string = "{\n";
     let j: int = 0;
     while (j < entries.size()) {
-        (key: Variant, val: Variant) = entries.get(j);
+        let (key: Variant, val: Variant) = entries.get(j);
         let line: string = pformat(key, indent, width) + ": " + pformat(val, indent, width);
         let indented: string = indent(line, indent);
         result = result + indented;
@@ -242,7 +242,7 @@ public class PrettyPrinter {
         let i: int = 0;
         while (i < entries.size()) {
             if (i > 0) { compact = compact + ", "; }
-            (key: Variant, val: Variant) = entries.get(i);
+            let (key: Variant, val: Variant) = entries.get(i);
             compact = compact + this._format(key, currentDepth + 1, visited) + ": " + this._format(val, currentDepth + 1, visited);
             i = i + 1;
         }
@@ -255,7 +255,7 @@ public class PrettyPrinter {
         let result: string = "{\n";
         let j: int = 0;
         while (j < entries.size()) {
-            (key: Variant, val: Variant) = entries.get(j);
+            let (key: Variant, val: Variant) = entries.get(j);
             let keyStr: string = this._format(key, currentDepth + 1, visited);
             let valStr: string = this._format(val, currentDepth + 1, visited);
             let line: string = keyStr + ": " + valStr;
@@ -312,7 +312,7 @@ public class PrettyPrinter {
             let entries: ArrayList<(Variant, Variant)> = map.entries();
             let j: int = 0;
             while (j < entries.size()) {
-                (key: Variant, val: Variant) = entries.get(j);
+                let (key: Variant, val: Variant) = entries.get(j);
                 if (PrettyPrinter._checkRecursive(val, visited)) {
                     return true;
                 }
@@ -341,13 +341,13 @@ fn sortEntries(entries: ArrayList<(Variant, Variant)>): ArrayList<(Variant, Vari
     // Simple insertion sort by key string representation
     let i: int = 0;
     while (i < entries.size()) {
-        (key: Variant, val: Variant) = entries.get(i);
+        let (key: Variant, val: Variant) = entries.get(i);
         let keyStr: string = key.toString();
         // Find insertion point
         let inserted: bool = false;
         let j: int = 0;
         while (j < result.size()) {
-            (existingKey: Variant, existingVal: Variant) = result.get(j);
+            let (existingKey: Variant, existingVal: Variant) = result.get(j);
             let existingStr: string = existingKey.toString();
             if (String.length(keyStr) < String.length(existingStr) ||
                 (String.length(keyStr) == String.length(existingStr) && keyStr < existingStr)) {
