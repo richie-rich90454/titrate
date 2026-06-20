@@ -314,6 +314,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Ssl_close" => Some(ssl::native_ssl_close),
         "Ssl_peerCertificate" => Some(ssl::native_ssl_peer_certificate),
         "Ssl_contextClose" => Some(ssl::native_ssl_context_close),
+        "Ssl_getPeerCertHash" => Some(ssl::native_ssl_get_peer_cert_hash),
 
         // SQLite natives (stubs)
         "Sqlite_open" => Some(sqlite::native_sqlite_open),

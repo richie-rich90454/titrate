@@ -33,3 +33,9 @@ pub(crate) fn native_ssl_peer_certificate(_args: &[Value]) -> Result<Value, Stri
 pub(crate) fn native_ssl_context_close(_args: &[Value]) -> Result<Value, String> {
     Err("SSL not available: add native-tls dependency".to_string())
 }
+
+pub(crate) fn native_ssl_get_peer_cert_hash(_args: &[Value]) -> Result<Value, String> {
+    // Returns empty string when SSL is not available, so certificatePin
+    // fails closed (returns false) rather than succeeding.
+    Ok(Value::String(std::rc::Rc::new("".to_string())))
+}

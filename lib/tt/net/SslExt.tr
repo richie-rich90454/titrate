@@ -56,12 +56,27 @@ public class TlsConfig {
 }
 
 // Check whether a certificate's hash matches one of the pinned hashes.
-// Returns true if a match is found.
+// Returns true if a match is found, false otherwise.
+// Secure by default: returns false if no hashes are provided or if
+// the peer certificate hash cannot be retrieved.
 public fn certificatePin(hashes: ArrayList<string>): bool {
-    // In a real implementation, this would verify the peer certificate hash
-    // against the provided list of pinned hashes during the TLS handshake.
-    // Here we return true as a placeholder indicating the pinning check passed.
-    return hashes.size() > 0;
+    if (hashes == null || hashes.size() == 0) {
+        return false;
+    }
+    // Attempt to retrieve the peer certificate hash via native call.
+    // If the native is unavailable, return false (secure by default).
+    let peerHash: string = Ssl_getPeerCertHash();
+    if (String.length(peerHash) == 0) {
+        return false;
+    }
+    var i: int = 0;
+    while (i < hashes.size()) {
+        if (hashes.get(i) == peerHash) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
 }
 
 // Set up Server Name Indication (SNI) for a hostname.
