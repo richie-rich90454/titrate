@@ -13,7 +13,7 @@ public class RingDeque<E> {
         this.buffer = new ArrayList<E>();
         var i: int = 0;
         while (i < this.capacity) {
-            this.buffer.add(buffer.get(0)); // placeholder
+            this.buffer.add(null); // pre-allocate slot
             i = i + 1;
         }
         this.head = 0;
@@ -40,7 +40,7 @@ public class RingDeque<E> {
     }
 
     public fn popFront(): E {
-        if (this.count == 0) { return buffer.get(0); }
+        if (this.count == 0) { return null; }
         let item: E = this.buffer.get(this.head);
         this.head = (this.head + 1) % this.capacity;
         this.count = this.count - 1;
@@ -48,7 +48,7 @@ public class RingDeque<E> {
     }
 
     public fn popBack(): E {
-        if (this.count == 0) { return buffer.get(0); }
+        if (this.count == 0) { return null; }
         this.tail = (this.tail - 1 + this.capacity) % this.capacity;
         let item: E = this.buffer.get(this.tail);
         this.count = this.count - 1;
