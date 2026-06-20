@@ -482,6 +482,9 @@ impl Vm {
                     (Value::Int(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) == *y)),
                     (Value::Long(x), Value::Int(y)) => self.push(Value::Bool(*x == (*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x == y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(x == y)),
+                    (Value::Null, Value::String(_)) | (Value::String(_), Value::Null) => self.push(Value::Bool(false)),
+                    (Value::Null, Value::Null) => self.push(Value::Bool(true)),
                     _ => return Err(format!("EQ_I64: type mismatch {:?} == {:?}", a, b)),
                 }
             }
@@ -548,6 +551,9 @@ impl Vm {
                     (Value::Int(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) != *y)),
                     (Value::Long(x), Value::Int(y)) => self.push(Value::Bool(*x != (*y as i64))),
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x != y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(x != y)),
+                    (Value::Null, Value::String(_)) | (Value::String(_), Value::Null) => self.push(Value::Bool(true)),
+                    (Value::Null, Value::Null) => self.push(Value::Bool(false)),
                     _ => return Err(format!("NE_I64: type mismatch {:?} != {:?}", a, b)),
                 }
             }

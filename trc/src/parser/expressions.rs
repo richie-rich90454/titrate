@@ -615,6 +615,15 @@ impl Parser {
                 self.expect(&lexer::Token::RightParen)?;
                 Ok(ast::Expr::OwnedDeref(Box::new(expr), span))
             }
+            // Type keywords can be used as variable/parameter names
+            // (e.g. `size` in `this.size = size;`)
+            t if is_type_keyword(&t) => {
+                let span = self.make_span();
+                self.advance();
+                let name = type_keyword_name(&t)
+                    .ok_or_else(|| format!("Expected expression, found {}", t))?;
+                Ok(ast::Expr::Identifier(name, span))
+            }
             _ => {
                 let (line, col) = self.span_here();
                 Err(format!(

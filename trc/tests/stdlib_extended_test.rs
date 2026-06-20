@@ -882,3 +882,93 @@ public fn main(): void {
     );
 }
 
+// ---------------------------------------------------------------------------
+// 17. Finance module compilation & execution test
+//    Verifies that lib/tt/finance/{OrderBook,MarketData,Indicators,Risk}.tr
+//    compile correctly with module resolution and produce expected results.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_finance_modules_compile_and_run() {
+    let root_dir = "..";
+
+    let source = r#"
+import tt::util::ArrayList;
+import tt::lang::Double;
+import tt::lang::Integer;
+import tt::finance::OrderBook;
+import tt::finance::MarketData;
+import tt::finance::Indicators;
+import tt::finance::Risk;
+
+public fn main(): void {
+    // --- OrderBook ---
+    let book: OrderBook = new OrderBook();
+    book.addBid(new Order("b1", "buy", 100.0, 10.0));
+    book.addBid(new Order("b2", "buy", 101.0, 5.0));
+    book.addAsk(new Order("a1", "sell", 103.0, 8.0));
+    book.addAsk(new Order("a2", "sell", 102.0, 4.0));
+    io::println(Double.toString(book.bestBid()));
+    io::println(Double.toString(book.bestAsk()));
+    io::println(Double.toString(book.spread()));
+    io::println(Integer.toString(book.depth(2).size()));
+    io::println(book.bbo());
+    book.cancelOrder("b2");
+    io::println(Double.toString(book.bestBid()));
+
+    // --- MarketData ---
+    let candle: OHLCV = new OHLCV(100.0, 105.0, 99.0, 104.0, 250.0, 1700000000);
+    io::println(Double.toString(candle.close));
+    io::println(Integer.toString(candle.timestamp));
+    let tick: Tick = new Tick(104.5, 2.0, "buy", 1700000001);
+    io::println(Double.toString(tick.size));
+    let trade: Trade = new Trade(104.5, 2.0, "t1", 1700000002);
+    io::println(trade.id);
+    let quote: Quote = new Quote(104.0, 10.0, 104.5, 8.0, 1700000003);
+    io::println(Double.toString(quote.spread()));
+
+    // --- Indicators ---
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let s: ArrayList<double> = Indicators.sma(data, 3);
+    io::println(Double.toString(s.get(0)));
+    io::println(Integer.toString(s.size()));
+    let e: ArrayList<double> = Indicators.ema(data, 3);
+    io::println(Double.toString(e.get(0)));
+    let w: ArrayList<double> = Indicators.ewma(data, 0.5);
+    io::println(Double.toString(w.get(1)));
+    let rsi: ArrayList<double> = Indicators.rsi(data, 3);
+    io::println(Integer.toString(rsi.size()));
+    let m: ArrayList<double> = Indicators.macd(data, 2, 3, 2);
+    io::println(Integer.toString(m.size()));
+    let bb: ArrayList<double> = Indicators.bollingerBands(data, 3, 2.0);
+    io::println(Integer.toString(bb.size()));
+    let vols: ArrayList<double> = new ArrayList<double>();
+    vols.add(10.0); vols.add(20.0); vols.add(30.0);
+    let v: double = Indicators.vwap(data, vols);
+    io::println(Integer.toString((v > 2.0 && v < 3.0) ? 1 : 0));
+
+    // --- Risk ---
+    let rets: ArrayList<double> = new ArrayList<double>();
+    rets.add(0.01); rets.add(-0.02); rets.add(0.03); rets.add(-0.01); rets.add(0.02);
+    let vr: double = Risk.valueAtRisk(rets, 0.95);
+    io::println(Integer.toString(vr > 0.0 ? 1 : 0));
+    let sr: double = Risk.sharpeRatio(rets, 0.0);
+    io::println(Integer.toString(sr > 0.0 ? 1 : 0));
+    let equity: ArrayList<double> = new ArrayList<double>();
+    equity.add(100.0); equity.add(110.0); equity.add(105.0); equity.add(120.0);
+    let dd: double = Risk.maxDrawdown(equity);
+    io::println(Integer.toString((dd > 0.04 && dd < 0.05) ? 1 : 0));
+    let kc: double = Risk.kellyCriterion(0.6, 1.5);
+    io::println(Integer.toString((kc > 0.3 && kc < 0.4) ? 1 : 0));
+}
+"#;
+
+    let output = run_source_with_modules(source, root_dir)
+        .expect("Finance modules should compile and run");
+    assert_output(
+        &output,
+        "101\n102\n1\n2\nBBO: bid=101 ask=102\n100\n104\n1700000000\n2\nt1\n0.5\n2\n3\n1\n1.5\n2\n5\n3\n1\n1\n1\n1\n1",
+    );
+}
+

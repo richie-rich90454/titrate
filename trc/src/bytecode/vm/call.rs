@@ -575,6 +575,33 @@ impl Vm {
                 let items: Vec<String> = elements.iter().map(|e| e.display_string()).collect();
                 Ok(Value::String(Rc::new(format!("[{}]", items.join(", ")))))
             }
+            "indexOf" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.indexOf requires 1 argument".to_string());
+                }
+                let target = self.stack.last().cloned().unwrap_or(Value::Void);
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                for (i, e) in elements.iter().enumerate() {
+                    if *e == target {
+                        return Ok(Value::Int(i as i32));
+                    }
+                }
+                Ok(Value::Int(-1))
+            }
+            "contains" => {
+                if arg_count < 1 {
+                    return Err("ArrayList.contains requires 1 argument".to_string());
+                }
+                let target = self.stack.last().cloned().unwrap_or(Value::Void);
+                let elements = match fields.borrow().get("_elements") {
+                    Some(Value::Array { elements }) => elements.clone(),
+                    _ => vec![],
+                };
+                Ok(Value::Bool(elements.iter().any(|e| *e == target)))
+            }
             _ => Err(format!("Unknown ArrayList method '{}'", method)),
         }
     }

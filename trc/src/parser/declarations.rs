@@ -425,13 +425,10 @@ impl Parser {
             let saved = self.pos;
             let return_type = self.parse_type()?;
 
-            // Check if next is an identifier (could be method name or field name)
-            if let lexer::Token::Identifier(_) = self.peek() {
-                let name_tok = self.advance();
-                let name = match name_tok {
-                    lexer::Token::Identifier(s) => s,
-                    _ => return Err(format!("Expected name, found {}", name_tok)),
-                };
+            // Check if next is a name (identifier or type keyword like `size`)
+            // that could be a method name or field name
+            if let Some(name) = token_as_name(self.peek()) {
+                self.advance();
 
                 if self.is_at(&lexer::Token::LeftParen) {
                     // Sugar method: Type name(params) { body }
@@ -476,10 +473,12 @@ impl Parser {
 
         // Field: name: Type or name: Type = expr
         let span = self.make_span();
-        let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-        let name = match name_tok {
-            lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected field name, found {}", name_tok)),
+        let name = match token_as_name(self.peek()) {
+            Some(n) => {
+                self.advance();
+                n
+            }
+            None => return Err(format!("Expected field name, found {}", self.peek())),
         };
         self.expect(&lexer::Token::Colon)?;
         let typ = self.parse_type()?;

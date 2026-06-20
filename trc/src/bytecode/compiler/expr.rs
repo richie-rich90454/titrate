@@ -504,6 +504,24 @@ impl Compiler {
                     name
                 ));
             }
+
+            // Check if it's a native function call using the Module_function
+            // convention (e.g., Math_sqrt, String_length). We emit a STATIC_CALL
+            // so the VM can resolve it via its native lookup fallback.
+            if let Some(idx) = name.find('_') {
+                let class_name = &name[..idx];
+                let method_name = &name[idx + 1..];
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                let class_idx = self.intern_string(class_name);
+                let method_idx = self.intern_string(method_name);
+                self.emit_opcode(OpCode::STATIC_CALL, line);
+                self.emit_u16(class_idx, line);
+                self.emit_u16(method_idx, line);
+                self.emit_u8(args.len() as u8, line);
+                return Ok(());
+            }
         }
 
         // Special case: MemberAccess callee → method call.
@@ -518,6 +536,37 @@ impl Compiler {
                 if self.class_map.contains_key(obj_name) {
                     self.compile_static_call(obj_name, method, args, line)?;
                     return Ok(());
+                }
+                // Check if obj_name is a module name (not a local variable) and
+                // method is a known function. This handles module-qualified calls
+                // like Indicators.sma(...), Risk.valueAtRisk(...), etc.
+                if self.resolve_local(obj_name).is_none() {
+                    // Try symbol table (imported functions registered by name).
+                    if let Some(Symbol::Function(fn_idx)) = self.symbol_table.get(method).cloned() {
+                        for arg in args {
+                            self.compile_expr(arg)?;
+                        }
+                        self.emit_opcode(OpCode::CALL, line);
+                        self.emit_u16(fn_idx, line);
+                        self.emit_u8(args.len() as u8, line);
+                        return Ok(());
+                    }
+                    // Try mangled name lookup: any key ending with ".module.function".
+                    let suffix = format!(".{}.{}", obj_name, method);
+                    let mangled_key = self.function_map.keys()
+                        .find(|k| k.ends_with(&suffix))
+                        .cloned();
+                    if let Some(key) = mangled_key {
+                        if let Some(&fn_idx) = self.function_map.get(&key) {
+                            for arg in args {
+                                self.compile_expr(arg)?;
+                            }
+                            self.emit_opcode(OpCode::CALL, line);
+                            self.emit_u16(fn_idx, line);
+                            self.emit_u8(args.len() as u8, line);
+                            return Ok(());
+                        }
+                    }
                 }
             }
 
@@ -602,7 +651,15 @@ impl Compiler {
         } else if let Some(Symbol::Class(idx)) = self.symbol_table.get(class_name) {
             *idx
         } else {
-            return Err(format!("Unknown class '{}' in new expression", class_name));
+            // Try mangled name (for classes within the current module).
+            let mangled_key = self.class_map.keys()
+                .find(|k| k.ends_with(&format!(".{}", class_name)))
+                .cloned();
+            if let Some(key) = mangled_key {
+                *self.class_map.get(&key).unwrap()
+            } else {
+                return Err(format!("Unknown class '{}' in new expression", class_name));
+            }
         };
 
         // Compile arguments.
