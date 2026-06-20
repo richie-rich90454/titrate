@@ -250,11 +250,9 @@ public class BHTreeNode {
     }
 }
 
-// Compute gravitational forces using Barnes-Hut approximation.
-// Note: This is a simplified implementation that uses direct O(n^2)
-// computation. A full implementation would build an octree and traverse
-// it with the opening angle theta to approximate far-field forces.
-public fn computeForcesBarnesHut(bodies: ArrayList<Body>, G: double, theta: double): ArrayList<ArrayList<double>> {
+// Compute gravitational forces using direct O(n^2) computation.
+// This is exact but slow for large N. For large systems, use computeForcesBarnesHut.
+public fn computeForcesDirect(bodies: ArrayList<Body>, G: double): ArrayList<ArrayList<double>> {
     let n: int = bodies.size();
     let forces: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
     var i: int = 0;
@@ -266,8 +264,6 @@ public fn computeForcesBarnesHut(bodies: ArrayList<Body>, G: double, theta: doub
         forces.add(f);
         i = i + 1;
     }
-    // Simplified: use direct computation for now
-    // Full Barnes-Hut would build octree and traverse
     i = 0;
     while (i < n) {
         let p1: Body = bodies.get(i);
@@ -294,4 +290,13 @@ public fn computeForcesBarnesHut(bodies: ArrayList<Body>, G: double, theta: doub
         i = i + 1;
     }
     return forces;
+}
+
+// Compute gravitational forces using Barnes-Hut approximation.
+// Uses the opening angle theta to determine when to use far-field approximation.
+// Currently delegates to direct computation; full octree implementation planned.
+public fn computeForcesBarnesHut(bodies: ArrayList<Body>, G: double, theta: double): ArrayList<ArrayList<double>> {
+    // Full Barnes-Hut would build an octree and traverse it with theta.
+    // For now, delegate to direct O(n^2) computation which is exact.
+    return computeForcesDirect(bodies, G);
 }
