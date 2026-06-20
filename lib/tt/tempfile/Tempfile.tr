@@ -37,6 +37,7 @@ public fn getTempDir(): string {
 public class NamedTempFile {
     public string name;
     public string path;
+    private bool _closed;
 
     public fn init(prefix: string, suffix: string, dir: string) {
         let baseDir: string = dir;
@@ -47,21 +48,35 @@ public class NamedTempFile {
         this.name = prefix + randomHex + suffix;
         this.path = Path_join(baseDir, this.name);
         File_writeFile(this.path, "");
+        this._closed = false;
     }
 
     public fn write(data: string): void {
+        if (this._closed) {
+            return;
+        }
         File_writeFile(this.path, data);
     }
 
     public fn read(): string {
+        if (this._closed) {
+            return "";
+        }
         return File_readFile(this.path);
     }
 
     public fn close(): void {
-        // No-op: file handles are not tracked in this implementation
+        this._closed = true;
+    }
+
+    public fn isClosed(): bool {
+        return this._closed;
     }
 
     public fn delete(): void {
+        if (!this._closed) {
+            this.close();
+        }
         Dir_remove(this.path);
     }
 
