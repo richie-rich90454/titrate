@@ -359,17 +359,12 @@ pub(crate) fn native_os_kill(args: &[Value]) -> Result<Value, String> {
 
     #[cfg(unix)]
     {
-        // On Unix, send signal to process
-        // We use libc-free approach: just use nix or raw syscall
-        // For simplicity, use unsafe libc::kill
-        // Since we don't have libc as a dependency, use a best-effort approach
-        // by spawning kill command
-        let output = std::process::Command::new("kill")
-            .args(["-s", &format!("{}", _sig), &format!("{}", pid)])
-            .output();
-        match output {
-            Ok(_) => Ok(Value::Void),
-            Err(e) => Err(format!("Os_kill: {}", e)),
+        // Use libc::kill directly (libc is already a dependency)
+        let ret = unsafe { libc::kill(pid as libc::pid_t, _sig as libc::c_int) };
+        if ret == 0 {
+            Ok(Value::Void)
+        } else {
+            Err(format!("Os_kill: failed to send signal {} to pid {}", _sig, pid))
         }
     }
 
