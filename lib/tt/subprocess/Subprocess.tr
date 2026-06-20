@@ -43,10 +43,9 @@ public class Popen {
 
     public fn wait(): int {
         if (!this.completed) {
-            let result: SubprocessResult = Subprocess_run(this.command, this.cwd, this.env);
-            this.stdout = result.stdout;
-            this.stderr = result.stderr;
-            this.returnCode = result.returnCode;
+            this.stdout = Subprocess_exec(this.command);
+            this.stderr = "";
+            this.returnCode = Subprocess_run(this.command);
             this.completed = true;
             lastExitCode = this.returnCode;
         }
@@ -70,7 +69,6 @@ public class Popen {
 
     public fn kill(): void {
         if (!this.completed) {
-            Os_kill(this.command);
             this.returnCode = -9;
             this.completed = true;
         }
@@ -82,7 +80,7 @@ public class Popen {
 }
 
 // Run a command and return its exit code.
-fn run(command: string): int {
+public fn run(command: string): int {
     let code: int = Subprocess_run(command);
     lastExitCode = code;
     return code;
@@ -95,7 +93,7 @@ public fn exec(command: string): string {
 }
 
 // Get the exit code from the last run command.
-fn exitCode(): int {
+public fn exitCode(): int {
     return lastExitCode;
 }
 

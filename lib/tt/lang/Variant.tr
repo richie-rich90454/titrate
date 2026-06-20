@@ -55,7 +55,7 @@ public class Variant {
 }
 
 // Creates a Variant with the given tag and value.
-fn of(tag: string, value: Variant): Variant {
+public fn of(tag: string, value: Variant): Variant {
     let v: Variant = new Variant();
     v._typeTag = tag;
     v._value = value;

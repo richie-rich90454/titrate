@@ -1,5 +1,7 @@
 // System operations backed by VM built-ins.
 import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
 
 public fn args(): ArrayList<string> {
     return Sys_args();
