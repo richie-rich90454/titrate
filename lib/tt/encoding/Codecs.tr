@@ -47,9 +47,14 @@ fn _resolveEncoding(encoding: string): string {
 }
 
 // Encode a string using the specified encoding.
-// Supported encodings: utf-8, ascii, latin-1
+// Supported encodings: utf-8, ascii, latin-1, and custom registered encodings.
 public fn encode(s: string, encoding: string): string {
     let enc: string = _resolveEncoding(encoding);
+    let customEnc: string = String.toLowerCase(enc);
+    if (_customEncoders.containsKey(customEnc)) {
+        let encoder: fn(string): string = _customEncoders.get(customEnc);
+        return encoder(s);
+    }
     if (enc == "utf-8") {
         return encodeUtf8(s);
     }
@@ -63,9 +68,14 @@ public fn encode(s: string, encoding: string): string {
 }
 
 // Decode a string using the specified encoding.
-// Supported encodings: utf-8, ascii, latin-1
+// Supported encodings: utf-8, ascii, latin-1, and custom registered encodings.
 public fn decode(s: string, encoding: string): string {
     let enc: string = _resolveEncoding(encoding);
+    let customEnc: string = String.toLowerCase(enc);
+    if (_customDecoders.containsKey(customEnc)) {
+        let decoder: fn(string): string = _customDecoders.get(customEnc);
+        return decoder(s);
+    }
     if (enc == "utf-8") {
         return decodeUtf8(s);
     }
@@ -132,9 +142,15 @@ fn decodeLatin1(s: string): string {
     return s;
 }
 
-// Register a custom encoding (stub for future extension).
+// Custom encoding registry
+var _customEncoders: HashMap<string, fn(string): string> = new HashMap<string, fn(string): string>();
+var _customDecoders: HashMap<string, fn(string): string> = new HashMap<string, fn(string): string>();
+
+// Register a custom encoding with encoder and decoder functions.
 public fn register(encoding: string, encoder: fn(string): string, decoder: fn(string): string): void {
-    // Stub: custom encoding registration requires VM support
+    let name: string = String.toLowerCase(encoding);
+    _customEncoders.put(name, encoder);
+    _customDecoders.put(name, decoder);
 }
 
 // Look up information about a registered encoding.
