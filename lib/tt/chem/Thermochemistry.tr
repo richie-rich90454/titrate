@@ -9,6 +9,7 @@ import tt::math::MathAdvanced;
 
 // Cache for standard enthalpies of formation (kJ/mol)
 var _enthalpyCache: HashMap<string, double> = new HashMap<string, double>();
+var _elementaryCache: ArrayList<string> = new ArrayList<string>();
 var _enthalpyLoaded: bool = false;
 
 fn _ensureEnthalpyLoaded(): void {
@@ -57,6 +58,16 @@ fn _ensureEnthalpyLoaded(): void {
                 }
             }
         }
+        if (thermoData.hasKey("elementary_substances")) {
+            let substances: JsonValue = thermoData.get("elementary_substances");
+            if (substances.isArray()) {
+                var i: int = 0;
+                while (i < substances.size()) {
+                    _elementaryCache.add(substances.getAt(i).asString());
+                    i = i + 1;
+                }
+            }
+        }
     }
     _enthalpyLoaded = true;
 }
@@ -80,24 +91,8 @@ public fn enthalpyOfFormation(compound: string): double {
 }
 
 fn _elementarySubstances(): ArrayList<string> {
-    let result: ArrayList<string> = new ArrayList<string>();
-    result.add("H2");
-    result.add("O2");
-    result.add("N2");
-    result.add("F2");
-    result.add("Cl2");
-    result.add("Br2");
-    result.add("I2");
-    result.add("C");
-    result.add("S");
-    result.add("P");
-    result.add("He");
-    result.add("Ne");
-    result.add("Ar");
-    result.add("Kr");
-    result.add("Xe");
-    result.add("Rn");
-    return result;
+    _ensureEnthalpyLoaded();
+    return _elementaryCache;
 }
 
 // Hess's law calculation: combine multiple reactions to find the enthalpy
