@@ -12,6 +12,11 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
     let mut line = 1;
     let mut column = 1;
 
+    // Skip UTF-8 BOM if present at the start of the file (there may be multiple)
+    while chars.peek() == Some(&'\u{FEFF}') {
+        chars.next();
+    }
+
     // Tokenizing one drop at a time...
     while let Some(&ch) = chars.peek() {
         let start_line = line;
@@ -80,18 +85,90 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                             break;
                         }
                         '\\' => {
-                            chars.next();
+                            chars.next(); // consume backslash
                             column += 1;
                             let escaped = match chars.peek() {
-                                Some('n') => '\n',
-                                Some('t') => '\t',
-                                Some('r') => '\r',
-                                Some('\\') => '\\',
-                                Some('"') => '"',
-                                Some('\'') => '\'',
-                                Some('0') => '\0',
-                                Some('b') => '\x08',
-                                Some('f') => '\x0c',
+                                Some('n') => { chars.next(); column += 1; '\n' }
+                                Some('t') => { chars.next(); column += 1; '\t' }
+                                Some('r') => { chars.next(); column += 1; '\r' }
+                                Some('\\') => { chars.next(); column += 1; '\\' }
+                                Some('"') => { chars.next(); column += 1; '"' }
+                                Some('\'') => { chars.next(); column += 1; '\'' }
+                                Some('0') => { chars.next(); column += 1; '\0' }
+                                Some('b') => { chars.next(); column += 1; '\x08' }
+                                Some('f') => { chars.next(); column += 1; '\x0c' }
+                                Some('v') => { chars.next(); column += 1; '\x0b' }
+                                Some('a') => { chars.next(); column += 1; '\x07' }
+                                Some('x') => {
+                                    // \xHH — hex escape (1-2 hex digits)
+                                    chars.next();
+                                    column += 1;
+                                    let mut hex = String::new();
+                                    for _ in 0..2 {
+                                        if let Some(&h) = chars.peek() {
+                                            if h.is_ascii_hexdigit() {
+                                                hex.push(h);
+                                                chars.next();
+                                                column += 1;
+                                            } else {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if hex.is_empty() {
+                                        return Err(format!(
+                                            "Invalid hex escape \\x at {}:{}",
+                                            start_line, start_col
+                                        ));
+                                    }
+                                    let val = u32::from_str_radix(&hex, 16)
+                                        .map_err(|e| format!("Invalid hex escape \\x{} at {}:{}: {}", hex, start_line, start_col, e))?;
+                                    char::from_u32(val).ok_or_else(|| format!(
+                                        "Invalid hex escape \\x{} at {}:{}: not a valid Unicode scalar", hex, start_line, start_col
+                                    ))?
+                                }
+                                Some('u') => {
+                                    // \u{HHHHHH} — unicode escape
+                                    chars.next();
+                                    column += 1;
+                                    if chars.peek() != Some(&'{') {
+                                        return Err(format!(
+                                            "Expected '{{' after \\u at {}:{}",
+                                            start_line, start_col
+                                        ));
+                                    }
+                                    chars.next();
+                                    column += 1;
+                                    let mut hex = String::new();
+                                    while let Some(&h) = chars.peek() {
+                                        if h == '}' {
+                                            chars.next();
+                                            column += 1;
+                                            break;
+                                        }
+                                        if h.is_ascii_hexdigit() {
+                                            hex.push(h);
+                                            chars.next();
+                                            column += 1;
+                                        } else {
+                                            return Err(format!(
+                                                "Invalid unicode escape \\u at {}:{}",
+                                                start_line, start_col
+                                            ));
+                                        }
+                                    }
+                                    if hex.is_empty() {
+                                        return Err(format!(
+                                            "Empty unicode escape \\u{{}} at {}:{}",
+                                            start_line, start_col
+                                        ));
+                                    }
+                                    let val = u32::from_str_radix(&hex, 16)
+                                        .map_err(|e| format!("Invalid unicode escape \\u{{{}}} at {}:{}: {}", hex, start_line, start_col, e))?;
+                                    char::from_u32(val).ok_or_else(|| format!(
+                                        "Invalid unicode escape \\u{{{}}} at {}:{}: not a valid Unicode scalar", hex, start_line, start_col
+                                    ))?
+                                }
                                 Some(&other) => {
                                     return Err(format!(
                                         "Unknown escape \\{} at {}:{}",
@@ -105,8 +182,6 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                                     ));
                                 }
                             };
-                            chars.next();
-                            column += 1;
                             s.push(escaped);
                         }
                         '\n' => {
@@ -153,6 +228,8 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                             Some('0') => '\0',
                             Some('b') => '\x08',
                             Some('f') => '\x0c',
+                            Some('v') => '\x0b',
+                            Some('a') => '\x07',
                             Some(&other) => {
                                 return Err(format!(
                                     "Unknown char escape \\{} at {}:{}",
@@ -222,7 +299,15 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                             }
                         }
                         let val = i64::from_str_radix(&hex, 16)
+                            .or_else(|_| u64::from_str_radix(&hex, 16).map(|v| v as i64))
                             .map_err(|e| format!("Invalid hex literal at {}:{}: {}", start_line, start_col, e))?;
+                        // Consume optional 'L' or 'l' suffix (long literal)
+                        if let Some(&suffix) = chars.peek() {
+                            if suffix == 'L' || suffix == 'l' {
+                                chars.next();
+                                column += 1;
+                            }
+                        }
                         tokens.push(SpannedToken {
                             token: Token::IntLiteral(val),
                             line: start_line,
@@ -248,6 +333,7 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                             }
                         }
                         let val = i64::from_str_radix(&oct, 8)
+                            .or_else(|_| u64::from_str_radix(&oct, 8).map(|v| v as i64))
                             .map_err(|e| format!("Invalid octal literal at {}:{}: {}", start_line, start_col, e))?;
                         tokens.push(SpannedToken {
                             token: Token::IntLiteral(val),
@@ -274,6 +360,7 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                             }
                         }
                         let val = i64::from_str_radix(&bin, 2)
+                            .or_else(|_| u64::from_str_radix(&bin, 2).map(|v| v as i64))
                             .map_err(|e| format!("Invalid binary literal at {}:{}: {}", start_line, start_col, e))?;
                         tokens.push(SpannedToken {
                             token: Token::IntLiteral(val),
@@ -397,7 +484,8 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                         }
                     }
                     let val: i64 = num_str
-                        .parse()
+                        .parse::<i64>()
+                        .or_else(|_| num_str.parse::<u64>().map(|v| v as i64))
                         .map_err(|e| format!("Invalid integer literal at {}:{}: {}", start_line, start_col, e))?;
                     tokens.push(SpannedToken {
                         token: Token::IntLiteral(val),
@@ -615,6 +703,10 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                     "case" => Token::Case,
                     "default" => Token::Default,
                     "with" => Token::With,
+                    "throw" => Token::Throw,
+                    "try" => Token::Try,
+                    "catch" => Token::Catch,
+                    "finally" => Token::Finally,
                     "true" => Token::BoolLiteral(true),
                     "false" => Token::BoolLiteral(false),
                     "null" => Token::NullLiteral,

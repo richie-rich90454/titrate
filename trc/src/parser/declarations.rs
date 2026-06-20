@@ -37,12 +37,11 @@ impl Parser {
         let mut path = Vec::new();
         let mut glob = false;
 
-        // First segment must be an identifier
-        let first = self.expect(&lexer::Token::Identifier(String::new()))?;
-        match first {
-            lexer::Token::Identifier(name) => path.push(name),
-            _ => return Err(format!("Expected identifier in import path, found {}", first)),
-        }
+        // First segment must be an identifier or keyword-as-name (e.g. Result)
+        let first_tok = self.advance();
+        let first = token_as_name(&first_tok)
+            .ok_or_else(|| format!("Expected identifier in import path, found {}", first_tok))?;
+        path.push(first);
 
         // Consume :: or . segments (both are valid import path separators)
         while self.match_token(&lexer::Token::ColonColon) || self.match_token(&lexer::Token::Dot) {
@@ -52,11 +51,10 @@ impl Parser {
                 glob = true;
                 break;
             }
-            let seg = self.expect(&lexer::Token::Identifier(String::new()))?;
-            match seg {
-                lexer::Token::Identifier(name) => path.push(name),
-                _ => return Err(format!("Expected identifier in import path, found {}", seg)),
-            }
+            let seg_tok = self.advance();
+            let seg = token_as_name(&seg_tok)
+                .ok_or_else(|| format!("Expected identifier in import path, found {}", seg_tok))?;
+            path.push(seg);
         }
 
         self.expect(&lexer::Token::Semicolon)?;
@@ -278,11 +276,9 @@ impl Parser {
 impl Parser {
     pub(super) fn parse_class_decl(&mut self, _access: ast::Access) -> Result<ast::Declaration, String> {
         let span = self.make_span();
-        let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-        let name = match name_tok {
-            lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected class name, found {}", name_tok)),
-        };
+        let name_tok = self.advance();
+        let name = token_as_name(&name_tok)
+            .ok_or_else(|| format!("Expected class name, found {}", name_tok))?;
 
         let type_params = self.parse_type_params()?;
 
@@ -413,6 +409,31 @@ impl Parser {
                     span,
                 }));
             }
+        }
+
+        // Titrate-style field declarations: var name: Type; let name: Type = expr; const name: Type = expr;
+        if matches!(self.peek(), lexer::Token::Var | lexer::Token::Let | lexer::Token::Const) {
+            self.advance(); // consume var/let/const
+            let span = self.make_span();
+            let name = self.expect_name()?;
+            let typ = if self.match_token(&lexer::Token::Colon) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            let init = if self.match_token(&lexer::Token::Equals) {
+                Some(self.parse_expression()?)
+            } else {
+                None
+            };
+            self.expect(&lexer::Token::Semicolon)?;
+            return Ok(ast::ClassMember::Field(ast::FieldDecl {
+                access,
+                name,
+                typ: typ.unwrap_or_else(|| ast::Type::simple("void")),
+                init,
+                span,
+            }));
         }
 
         // Sugar method or typed field: Type name...

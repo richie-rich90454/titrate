@@ -25,11 +25,18 @@ impl Parser {
         // The type information is not deeply used by the compiler (function
         // values are dynamically dispatched), so we parse the syntax and
         // return a simple "fn" named type.
+        // Supports both unnamed params: fn(K, V): void
+        // and named params: fn(a: K, b: K): int
         if self.match_token(&lexer::Token::Fn) {
             self.expect(&lexer::Token::LeftParen)?;
             if !self.is_at(&lexer::Token::RightParen) {
                 loop {
                     let _ = self.parse_type()?;
+                    // If next is ':', the previous type was actually a param name;
+                    // parse the actual type after the colon.
+                    if self.match_token(&lexer::Token::Colon) {
+                        let _ = self.parse_type()?;
+                    }
                     if !self.match_token(&lexer::Token::Comma) {
                         break;
                     }

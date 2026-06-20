@@ -89,22 +89,30 @@ impl Parser {
     }
 
     /// Parse tuple destructuring: `let (a, b, ...) = expr;` or `var (a, b, ...) = expr;`
+    /// Also supports optional type annotations: `let (a: Type, b: Type) = expr;`
+    /// and overall type: `let (a, b): Type = expr;`
     pub(super) fn parse_tuple_destructure(&mut self, mutable: bool) -> Result<ast::Stmt, String> {
         let span = self.make_span();
         self.expect(&lexer::Token::LeftParen)?;
         let mut names = Vec::new();
         loop {
-            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-            let name = match name_tok {
-                lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected identifier in tuple destructuring, found {}", name_tok)),
-            };
+            let name_tok = self.advance();
+            let name = token_as_name(&name_tok)
+                .ok_or_else(|| format!("Expected identifier in tuple destructuring, found {}", name_tok))?;
             names.push(name);
+            // Skip optional per-element type annotation: `name: Type`
+            if self.match_token(&lexer::Token::Colon) {
+                let _ = self.parse_type()?;
+            }
             if !self.match_token(&lexer::Token::Comma) {
                 break;
             }
         }
         self.expect(&lexer::Token::RightParen)?;
+        // Skip optional overall type annotation: `(a, b): Type`
+        if self.match_token(&lexer::Token::Colon) {
+            let _ = self.parse_type()?;
+        }
         self.expect(&lexer::Token::Equals)?;
         let expr = self.parse_expression()?;
         self.expect(&lexer::Token::Semicolon)?;
@@ -160,6 +168,17 @@ impl Parser {
             lexer::Token::With => {
                 self.advance();
                 self.parse_with_stmt()
+            }
+            lexer::Token::Throw => {
+                self.advance();
+                let span = self.make_span();
+                let expr = self.parse_expression()?;
+                self.expect(&lexer::Token::Semicolon)?;
+                Ok(ast::Stmt::Throw(expr, span))
+            }
+            lexer::Token::Try => {
+                self.advance();
+                self.parse_try_catch_stmt()
             }
             lexer::Token::Let => {
                 self.advance();
@@ -582,5 +601,53 @@ impl Parser {
             body,
             span,
         }))
+    }
+
+    /// Parse `try { ... } catch (var: Type) { ... }` or `try { ... } finally { ... }`
+    pub(super) fn parse_try_catch_stmt(&mut self) -> Result<ast::Stmt, String> {
+        let span = self.make_span();
+        let try_block = self.parse_block()?;
+
+        // Check for catch clause
+        if self.match_token(&lexer::Token::Catch) {
+            self.expect(&lexer::Token::LeftParen)?;
+            let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
+            let catch_var = match name_tok {
+                lexer::Token::Identifier(s) => s,
+                _ => return Err(format!("Expected identifier in catch, found {}", name_tok)),
+            };
+            let catch_var_type = if self.match_token(&lexer::Token::Colon) {
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
+            self.expect(&lexer::Token::RightParen)?;
+            let catch_block = self.parse_block()?;
+
+            // Check for optional finally
+            if self.match_token(&lexer::Token::Finally) {
+                let _finally_block = self.parse_block()?;
+            }
+
+            Ok(ast::Stmt::TryCatch {
+                try_block,
+                catch_var,
+                catch_var_type,
+                catch_block,
+                span,
+            })
+        } else if self.match_token(&lexer::Token::Finally) {
+            // try { } finally { } — treat as try/catch with empty catch
+            let finally_block = self.parse_block()?;
+            Ok(ast::Stmt::TryCatch {
+                try_block,
+                catch_var: "_".to_string(),
+                catch_var_type: None,
+                catch_block: finally_block,
+                span,
+            })
+        } else {
+            Err("Expected 'catch' or 'finally' after try block".to_string())
+        }
     }
 }
