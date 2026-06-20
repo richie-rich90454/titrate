@@ -37,19 +37,20 @@ public fn pkcs7Unpad(data: ArrayList<int>): ArrayList<int> {
     return result;
 }
 
-// AES block encryption (uses native AES_encrypt if available, otherwise stub)
+// AES block encryption (uses native AES_encrypt if available, otherwise throws)
 public fn aesEncryptBlock(block: ArrayList<int>, key: AESKey): ArrayList<int> {
     // Use native AES if available
     let result: ArrayList<int> = AES_encrypt(block, key.key);
     if (result.size() > 0) { return result; }
-    // Fallback: return block unchanged (native required for real AES)
-    return block;
+    // Native AES not available - fail closed for security
+    throw "AES encryption requires native AES support (AES_encrypt returned empty result)";
 }
 
 public fn aesDecryptBlock(block: ArrayList<int>, key: AESKey): ArrayList<int> {
     let result: ArrayList<int> = AES_decrypt(block, key.key);
     if (result.size() > 0) { return result; }
-    return block;
+    // Native AES not available - fail closed for security
+    throw "AES decryption requires native AES support (AES_decrypt returned empty result)";
 }
 
 // ECB mode encryption
@@ -149,8 +150,8 @@ public fn decryptGCM(ciphertext: string, key: string, iv: string, tag: string): 
     if (result.size() > 0) {
         return _bytesToHex(result);
     }
-    // Fallback: attempt CBC-like decryption (native required for real GCM)
-    return "";
+    // Native AES-GCM not available - fail closed for security
+    throw "AES-GCM decryption requires native AES support (AES_gcm_decrypt returned empty result)";
 }
 
 fn _hexToBytes(hex: string): ArrayList<int> {
