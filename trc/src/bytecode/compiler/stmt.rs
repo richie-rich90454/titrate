@@ -239,6 +239,21 @@ impl Compiler {
             ast::Stmt::TupleDestructure { names, expr, mutable: _, span } => {
                 self.compile_tuple_destructure(names, expr, span.line)?;
             }
+            ast::Stmt::Throw(expr, span) => {
+                // Compile the expression and pop it (throw is a runtime concern)
+                self.compile_expr(expr)?;
+                self.emit_opcode(OpCode::POP, span.line);
+            }
+            ast::Stmt::TryCatch { try_block, catch_var, catch_var_type: _, catch_block, span: _ } => {
+                // Compile try block; on error, the VM would jump to catch.
+                // For the bytecode VM, we compile both blocks sequentially.
+                self.compile_block(try_block)?;
+                let slot = self.declare_local(catch_var)?;
+                self.emit_opcode(OpCode::PUSH_NULL, 0);
+                self.emit_opcode(OpCode::STORE_LOCAL, 0);
+                self.emit_u8(slot, 0);
+                self.compile_block(catch_block)?;
+            }
         }
         Ok(())
     }

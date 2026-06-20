@@ -144,6 +144,11 @@ impl Compiler {
                 Self::substitute_type(target_type, type_args),
                 *span,
             ),
+            ast::Expr::Is(inner, target_type, span) => ast::Expr::Is(
+                Box::new(Self::substitute_expr(inner, type_args)),
+                Self::substitute_type(target_type, type_args),
+                *span,
+            ),
             ast::Expr::StaticCall { class_name, method, args, span } => ast::Expr::StaticCall {
                 class_name: class_name.clone(),
                 method: method.clone(),
@@ -269,6 +274,18 @@ impl Compiler {
                     names: names.clone(),
                     expr: Self::substitute_expr(expr, type_args),
                     mutable: *mutable,
+                    span: *span,
+                }
+            }
+            ast::Stmt::Throw(expr, span) => {
+                ast::Stmt::Throw(Self::substitute_expr(expr, type_args), *span)
+            }
+            ast::Stmt::TryCatch { try_block, catch_var, catch_var_type, catch_block, span } => {
+                ast::Stmt::TryCatch {
+                    try_block: try_block.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
+                    catch_var: catch_var.clone(),
+                    catch_var_type: catch_var_type.as_ref().map(|t| Self::substitute_type(t, type_args)),
+                    catch_block: catch_block.iter().map(|s| Self::substitute_stmt(s, type_args)).collect(),
                     span: *span,
                 }
             }

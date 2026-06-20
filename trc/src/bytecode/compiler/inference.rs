@@ -77,6 +77,7 @@ impl Compiler {
             ast::Expr::UnsafeBlock(_, _) => InferredType::Unknown,
             ast::Expr::ErrorPropagation(_, _) => InferredType::Unknown,
             ast::Expr::Cast(_, target_type, _) => self.type_to_inferred(target_type),
+            ast::Expr::Is(_, _, _) => InferredType::Bool,
             ast::Expr::StaticCall { method, .. } => {
                 // toString always returns String
                 if method == "toString" {
