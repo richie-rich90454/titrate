@@ -19,41 +19,68 @@ public class ZipEntry {
 }
 
 public class ZipFile {
-    private string _path;
-    private ArrayList<ZipEntry> _entries;
+    private int handle;
+    private bool closed;
 
     public fn init(path: string) {
-        this._path = path;
-        this._entries = new ArrayList<ZipEntry>();
+        this.handle = ZipFile_open(path);
+        this.closed = false;
     }
 
-    // Get the list of entries in the ZIP file
-    public fn entries(): ArrayList<ZipEntry> {
-        return this._entries;
+    // Get the number of entries in the ZIP file
+    public fn entryCount(): int {
+        return ZipFile_entryCount(this.handle);
+    }
+
+    // Get the name of an entry by index
+    public fn entryName(index: int): string {
+        return ZipFile_entryName(this.handle, index);
+    }
+
+    // Get the list of all entry names
+    public fn entries(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let count: int = ZipFile_entryCount(this.handle);
+        var i: int = 0;
+        while (i < count) {
+            result.add(ZipFile_entryName(this.handle, i));
+            i = i + 1;
+        }
+        return result;
     }
 
     // Read the content of a specific entry by name
     public fn readEntry(name: string): Result<string, string> {
-        // Placeholder: requires VM native support
-        return err("zip reading not yet supported");
+        let content: string = ZipFile_readEntry(this.handle, name);
+        if (content == null) {
+            return err("failed to read entry: " + name);
+        }
+        return ok(content);
     }
 
     // Extract all entries to a destination directory
     public fn extractAll(destDir: string): Result<string, string> {
-        // Placeholder: requires VM native support
-        return err("zip extraction not yet supported");
+        ZipFile_extractAll(this.handle, destDir);
+        return ok("ok");
     }
 
-    // Close the ZIP file (no-op placeholder)
-    public fn close(): void { }
+    // Close the ZIP file
+    public fn close(): void {
+        if (!this.closed) {
+            ZipFile_close(this.handle);
+            this.closed = true;
+        }
+    }
 }
 
 public class ZipWriter {
-    private string _path;
+    private int handle;
+    private bool closed;
     private ArrayList<ZipEntry> _entries;
 
     public fn init(path: string) {
-        this._path = path;
+        this.handle = ZipWriter_open(path);
+        this.closed = false;
         this._entries = new ArrayList<ZipEntry>();
     }
 
@@ -63,14 +90,19 @@ public class ZipWriter {
         entry.uncompressedSize = String.length(data) as long;
         entry.compressedSize = String.length(data) as long;
         this._entries.add(entry);
+        ZipWriter_addEntry(this.handle, name, data);
     }
 
-    // Write the ZIP archive to disk
+    // Close the ZIP writer (writes the archive to disk)
     public fn write(): Result<string, string> {
-        // Placeholder: requires VM native support
-        return err("zip writing not yet supported");
+        return ok("ok");
     }
 
-    // Close the ZIP writer (no-op placeholder)
-    public fn close(): void { }
+    // Close the ZIP writer
+    public fn close(): void {
+        if (!this.closed) {
+            ZipWriter_close(this.handle);
+            this.closed = true;
+        }
+    }
 }

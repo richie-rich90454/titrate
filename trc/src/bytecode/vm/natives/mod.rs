@@ -27,6 +27,7 @@ pub mod ssl;
 pub mod sqlite;
 pub mod mmap;
 pub mod zlib;
+pub mod zip;
 
 mod lookup;
 

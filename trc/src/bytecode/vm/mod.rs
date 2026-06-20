@@ -419,6 +419,17 @@ impl Vm {
         vm.register_native("Gzip_compress", natives::zlib::native_gzip_compress);
         vm.register_native("Gzip_decompress", natives::zlib::native_gzip_decompress);
 
+        // Zip archive natives
+        vm.register_native("ZipFile_open", natives::zip::native_zipfile_open);
+        vm.register_native("ZipFile_entryCount", natives::zip::native_zipfile_entry_count);
+        vm.register_native("ZipFile_entryName", natives::zip::native_zipfile_entry_name);
+        vm.register_native("ZipFile_readEntry", natives::zip::native_zipfile_read_entry);
+        vm.register_native("ZipFile_extractAll", natives::zip::native_zipfile_extract_all);
+        vm.register_native("ZipFile_close", natives::zip::native_zipfile_close);
+        vm.register_native("ZipWriter_open", natives::zip::native_zipwriter_open);
+        vm.register_native("ZipWriter_addEntry", natives::zip::native_zipwriter_add_entry);
+        vm.register_native("ZipWriter_close", natives::zip::native_zipwriter_close);
+
         // Additional Os natives
         vm.register_native("Os_cpuCount", natives::system::native_os_cpu_count);
         vm.register_native("Os_userName", natives::system::native_os_user_name);

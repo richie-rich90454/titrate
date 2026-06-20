@@ -26,6 +26,7 @@ percent-encoding = "2"
 rand = "0.8"
 flate2 = "1.0"
 memmap2 = "0.9"
+zip = { version = "2.2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

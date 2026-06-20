@@ -4,7 +4,7 @@
 use super::super::super::value::NativeFn;
 use super::{builtins, file, path, directory, system, net, time, regex, math,
             random, json, string, hash, encoding, subprocess, tempfile,
-            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib};
+            thread, mutex, condvar, semaphore, atomic, socket, ssl, sqlite, mmap, zlib, zip};
 
 pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
     match name {
@@ -354,6 +354,17 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Zlib_decompress" => Some(zlib::native_zlib_decompress),
         "Gzip_compress" => Some(zlib::native_gzip_compress),
         "Gzip_decompress" => Some(zlib::native_gzip_decompress),
+
+        // Zip archive natives
+        "ZipFile_open" => Some(zip::native_zipfile_open),
+        "ZipFile_entryCount" => Some(zip::native_zipfile_entry_count),
+        "ZipFile_entryName" => Some(zip::native_zipfile_entry_name),
+        "ZipFile_readEntry" => Some(zip::native_zipfile_read_entry),
+        "ZipFile_extractAll" => Some(zip::native_zipfile_extract_all),
+        "ZipFile_close" => Some(zip::native_zipfile_close),
+        "ZipWriter_open" => Some(zip::native_zipwriter_open),
+        "ZipWriter_addEntry" => Some(zip::native_zipwriter_add_entry),
+        "ZipWriter_close" => Some(zip::native_zipwriter_close),
 
         // Additional Os natives
         "Os_cpuCount" => Some(system::native_os_cpu_count),
