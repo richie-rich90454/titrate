@@ -91,7 +91,7 @@ public fn getCurrent(): string {
 }
 
 public fn setCurrent(path: string): void {
-    // No native for setWorkingDir; no-op
+    Sys_setWorkingDir(path);
 }
 
 // Internal: recursive walk with depth tracking

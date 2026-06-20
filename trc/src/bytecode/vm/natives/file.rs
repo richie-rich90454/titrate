@@ -366,6 +366,28 @@ pub(crate) fn native_file_last_modified(args: &[Value]) -> Result<Value, String>
     }
 }
 
+pub(crate) fn native_file_set_modified(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("File_setModified: expected 2 arguments (path, epochMillis)".to_string());
+    }
+    let path = match &args[0] {
+        Value::String(s) => s.as_str().to_string(),
+        _ => return Err("File_setModified: expected String path".to_string()),
+    };
+    let epoch_ms = args[1].to_i64().unwrap_or(0);
+    let duration = std::time::Duration::from_millis(epoch_ms as u64);
+    let time = std::time::SystemTime::UNIX_EPOCH + duration;
+    match std::fs::File::open(&path) {
+        Ok(file) => {
+            match file.set_modified(time) {
+                Ok(()) => Ok(Value::Void),
+                Err(e) => Err(format!("File_setModified: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("File_setModified: {}", e)),
+    }
+}
+
 pub(crate) fn native_file_flush(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("File_flush: expected 1 argument (FileHandle)".to_string());

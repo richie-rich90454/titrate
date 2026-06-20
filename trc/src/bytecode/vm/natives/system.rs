@@ -58,6 +58,17 @@ pub(crate) fn native_sys_working_dir(args: &[Value]) -> Result<Value, String> {
     }
 }
 
+pub(crate) fn native_sys_set_working_dir(args: &[Value]) -> Result<Value, String> {
+    let path = match args.first() {
+        Some(Value::String(s)) => s.as_str(),
+        _ => return Err("Sys_setWorkingDir: expected a string path".to_string()),
+    };
+    match std::env::set_current_dir(path) {
+        Ok(()) => Ok(Value::Void),
+        Err(e) => Err(format!("Sys_setWorkingDir: {}", e)),
+    }
+}
+
 pub(crate) fn native_sys_sleep(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
         return Err("Sys_sleep: expected 1 argument (milliseconds)".to_string());

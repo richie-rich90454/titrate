@@ -51,6 +51,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Sys_setEnv" => Some(system::native_sys_set_env),
         "Sys_exit" => Some(system::native_sys_exit),
         "Sys_workingDir" => Some(system::native_sys_working_dir),
+        "Sys_setWorkingDir" => Some(system::native_sys_set_working_dir),
         "Sys_sleep" => Some(system::native_sys_sleep),
         "Net_connect" => Some(net::native_net_connect),
         "Net_send" => Some(net::native_net_send),

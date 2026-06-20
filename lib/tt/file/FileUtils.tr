@@ -17,8 +17,9 @@ public fn copy2(src: string, dst: string): Result<string, string> {
     File_writeFile(dst, content);
     // Preserve last modified time
     let mtime: int = File_lastModified(src);
-    // Note: setting modification time requires native support;
-    // we copy the file content and return success
+    if (mtime > 0) {
+        File_setModified(dst, mtime);
+    }
     return ok(dst);
 }
 
@@ -37,8 +38,10 @@ public fn copyfileobj(src: File, dst: File, bufferSize: int): int {
 
 // Copy file metadata (last modified time) from src to dst.
 public fn copystat(src: string, dst: string): void {
-    // Metadata copying is limited; we can only copy what the VM supports
-    // This is a placeholder that would use native calls in a full implementation
+    let mtime: int = File_lastModified(src);
+    if (mtime > 0) {
+        File_setModified(dst, mtime);
+    }
 }
 
 // Copy a file from src to dst
