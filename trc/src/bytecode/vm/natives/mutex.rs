@@ -4,7 +4,7 @@
 use super::super::super::value::Value;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::sync::{Arc, LazyLock, Mutex as StdMutex, MutexGuard};
+use std::sync::{Arc, LazyLock, Mutex as StdMutex, MutexGuard, RwLock};
 
 // ---------------------------------------------------------------------------
 // Plain Mutex registry
@@ -201,49 +201,117 @@ pub(crate) fn native_recursive_mutex_try_lock(args: &[Value]) -> Result<Value, S
 // SharedMutex (reader-writer lock) registry
 // ---------------------------------------------------------------------------
 
-static SHARED_MUTEX_REGISTRY: LazyLock<StdMutex<HashMap<i64, Arc<StdMutex<()>>>>> =
+static SHARED_MUTEX_REGISTRY: LazyLock<StdMutex<HashMap<i64, Arc<RwLock<()>>>>> =
     LazyLock::new(|| StdMutex::new(HashMap::new()));
 static SHARED_MUTEX_NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
 
 pub(crate) fn native_shared_mutex_new(args: &[Value]) -> Result<Value, String> {
     let _ = args;
     let handle = SHARED_MUTEX_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
-    let mutex = Arc::new(StdMutex::new(()));
+    let rwlock = Arc::new(RwLock::new(()));
     let mut registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
-    registry.insert(handle, mutex);
+    registry.insert(handle, rwlock);
     Ok(Value::Long(handle))
 }
 
 pub(crate) fn native_shared_mutex_shared_lock(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
-    // Stub: in a real implementation, this would acquire a shared (reader) lock
+    let handle = match args.first() {
+        Some(Value::Long(h)) => *h,
+        Some(Value::Int(h)) => *h as i64,
+        _ => return Err("SharedMutex_sharedLock: expected an Int/Long handle".to_string()),
+    };
+    let rwlock = {
+        let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+        registry
+            .get(&handle)
+            .cloned()
+            .ok_or_else(|| "SharedMutex_sharedLock: invalid handle".to_string())?
+    };
+    // Acquire shared (reader) lock and immediately drop (same pattern as Mutex).
+    let _guard = rwlock.read().unwrap();
     Ok(Value::Null)
 }
 
 pub(crate) fn native_shared_mutex_shared_unlock(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
+    let handle = match args.first() {
+        Some(Value::Long(h)) => *h,
+        Some(Value::Int(h)) => *h as i64,
+        _ => return Err("SharedMutex_sharedUnlock: expected an Int/Long handle".to_string()),
+    };
+    let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+    if !registry.contains_key(&handle) {
+        return Err("SharedMutex_sharedUnlock: invalid handle".to_string());
+    }
     Ok(Value::Null)
 }
 
 pub(crate) fn native_shared_mutex_unique_lock(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
-    // Stub: in a real implementation, this would acquire a unique (writer) lock
+    let handle = match args.first() {
+        Some(Value::Long(h)) => *h,
+        Some(Value::Int(h)) => *h as i64,
+        _ => return Err("SharedMutex_uniqueLock: expected an Int/Long handle".to_string()),
+    };
+    let rwlock = {
+        let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+        registry
+            .get(&handle)
+            .cloned()
+            .ok_or_else(|| "SharedMutex_uniqueLock: invalid handle".to_string())?
+    };
+    // Acquire unique (writer) lock and immediately drop (same pattern as Mutex).
+    let _guard = rwlock.write().unwrap();
     Ok(Value::Null)
 }
 
 pub(crate) fn native_shared_mutex_unique_unlock(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
+    let handle = match args.first() {
+        Some(Value::Long(h)) => *h,
+        Some(Value::Int(h)) => *h as i64,
+        _ => return Err("SharedMutex_uniqueUnlock: expected an Int/Long handle".to_string()),
+    };
+    let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+    if !registry.contains_key(&handle) {
+        return Err("SharedMutex_uniqueUnlock: invalid handle".to_string());
+    }
     Ok(Value::Null)
 }
 
 pub(crate) fn native_shared_mutex_try_shared_lock(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
-    Ok(Value::Bool(true))
+    let handle = match args.first() {
+        Some(Value::Long(h)) => *h,
+        Some(Value::Int(h)) => *h as i64,
+        _ => return Err("SharedMutex_trySharedLock: expected an Int/Long handle".to_string()),
+    };
+    let rwlock = {
+        let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+        registry
+            .get(&handle)
+            .cloned()
+            .ok_or_else(|| "SharedMutex_trySharedLock: invalid handle".to_string())?
+    };
+    let result = rwlock.try_read();
+    let ok = result.is_ok();
+    drop(result);
+    Ok(Value::Bool(ok))
 }
 
 pub(crate) fn native_shared_mutex_try_unique_lock(args: &[Value]) -> Result<Value, String> {
-    let _ = args;
-    Ok(Value::Bool(true))
+    let handle = match args.first() {
+        Some(Value::Long(h)) => *h,
+        Some(Value::Int(h)) => *h as i64,
+        _ => return Err("SharedMutex_tryUniqueLock: expected an Int/Long handle".to_string()),
+    };
+    let rwlock = {
+        let registry = SHARED_MUTEX_REGISTRY.lock().unwrap();
+        registry
+            .get(&handle)
+            .cloned()
+            .ok_or_else(|| "SharedMutex_tryUniqueLock: invalid handle".to_string())?
+    };
+    let result = rwlock.try_write();
+    let ok = result.is_ok();
+    drop(result);
+    Ok(Value::Bool(ok))
 }
 
 // ---------------------------------------------------------------------------
