@@ -128,46 +128,70 @@ pub fn tokenize(src: &str) -> Result<Vec<SpannedToken>, String> {
                                     ))?
                                 }
                                 Some('u') => {
-                                    // \u{HHHHHH} — unicode escape
+                                    // \u{HHHHHH} — unicode escape with braces
+                                    // \uXXXX     — unicode escape without braces (4 hex digits)
                                     chars.next();
                                     column += 1;
-                                    if chars.peek() != Some(&'{') {
-                                        return Err(format!(
-                                            "Expected '{{' after \\u at {}:{}",
-                                            start_line, start_col
-                                        ));
-                                    }
-                                    chars.next();
-                                    column += 1;
-                                    let mut hex = String::new();
-                                    while let Some(&h) = chars.peek() {
-                                        if h == '}' {
-                                            chars.next();
-                                            column += 1;
-                                            break;
+                                    if chars.peek() == Some(&'{') {
+                                        chars.next();
+                                        column += 1;
+                                        let mut hex = String::new();
+                                        while let Some(&h) = chars.peek() {
+                                            if h == '}' {
+                                                chars.next();
+                                                column += 1;
+                                                break;
+                                            }
+                                            if h.is_ascii_hexdigit() {
+                                                hex.push(h);
+                                                chars.next();
+                                                column += 1;
+                                            } else {
+                                                return Err(format!(
+                                                    "Invalid unicode escape \\u at {}:{}",
+                                                    start_line, start_col
+                                                ));
+                                            }
                                         }
-                                        if h.is_ascii_hexdigit() {
-                                            hex.push(h);
-                                            chars.next();
-                                            column += 1;
-                                        } else {
+                                        if hex.is_empty() {
                                             return Err(format!(
-                                                "Invalid unicode escape \\u at {}:{}",
+                                                "Empty unicode escape \\u{{}} at {}:{}",
                                                 start_line, start_col
                                             ));
                                         }
+                                        let val = u32::from_str_radix(&hex, 16)
+                                            .map_err(|e| format!("Invalid unicode escape \\u{{{}}} at {}:{}: {}", hex, start_line, start_col, e))?;
+                                        char::from_u32(val).ok_or_else(|| format!(
+                                            "Invalid unicode escape \\u{{{}}} at {}:{}: not a valid Unicode scalar", hex, start_line, start_col
+                                        ))?
+                                    } else {
+                                        // \uXXXX — exactly 4 hex digits without braces
+                                        let mut hex = String::new();
+                                        for _ in 0..4 {
+                                            if let Some(&h) = chars.peek() {
+                                                if h.is_ascii_hexdigit() {
+                                                    hex.push(h);
+                                                    chars.next();
+                                                    column += 1;
+                                                } else {
+                                                    return Err(format!(
+                                                        "Invalid unicode escape \\u{} at {}:{}: expected 4 hex digits",
+                                                        hex, start_line, start_col
+                                                    ));
+                                                }
+                                            } else {
+                                                return Err(format!(
+                                                    "Unterminated unicode escape \\u{} at {}:{}",
+                                                    hex, start_line, start_col
+                                                ));
+                                            }
+                                        }
+                                        let val = u32::from_str_radix(&hex, 16)
+                                            .map_err(|e| format!("Invalid unicode escape \\u{} at {}:{}: {}", hex, start_line, start_col, e))?;
+                                        char::from_u32(val).ok_or_else(|| format!(
+                                            "Invalid unicode escape \\u{} at {}:{}: not a valid Unicode scalar", hex, start_line, start_col
+                                        ))?
                                     }
-                                    if hex.is_empty() {
-                                        return Err(format!(
-                                            "Empty unicode escape \\u{{}} at {}:{}",
-                                            start_line, start_col
-                                        ));
-                                    }
-                                    let val = u32::from_str_radix(&hex, 16)
-                                        .map_err(|e| format!("Invalid unicode escape \\u{{{}}} at {}:{}: {}", hex, start_line, start_col, e))?;
-                                    char::from_u32(val).ok_or_else(|| format!(
-                                        "Invalid unicode escape \\u{{{}}} at {}:{}: not a valid Unicode scalar", hex, start_line, start_col
-                                    ))?
                                 }
                                 Some(&other) => {
                                     return Err(format!(
