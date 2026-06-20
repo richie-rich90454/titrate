@@ -281,3 +281,55 @@ XML Canonicalization (C14N).
 
 - `XmlCanonicalizer.canonicalize(node: XmlNode): string` — Canonical XML 1.0
 - `XmlCanonicalizer.exclusiveCanonicalize(node: XmlNode, inclusivePrefixes: ArrayList<string>): string` — Exclusive C14N
+
+## Custom Serialization Hooks
+
+Register custom serializers and deserializers to control how user-defined types are encoded to and decoded from JSON, CSV, or XML.
+
+### Json Custom Hooks
+
+- `Json.registerCustomSerializer(typeName: string, serializer: fn(Variant): JsonValue): void` — register a serializer that converts a custom type to `JsonValue`
+- `Json.registerCustomDeserializer(typeName: string, deserializer: fn(JsonValue): Variant): void` — register a deserializer that reconstructs a custom type from `JsonValue`
+- `Json.unregisterCustomSerializer(typeName: string): bool` — remove a previously registered serializer
+- `Json.unregisterCustomDeserializer(typeName: string): bool` — remove a previously registered deserializer
+- `Json.hasCustomSerializer(typeName: string): bool` — check whether a serializer is registered for the given type
+- `Json.hasCustomDeserializer(typeName: string): bool` — check whether a deserializer is registered for the given type
+- `Json.registerTypeTag(typeName: string, tag: string): void` — associate a discriminator key/tag used to identify the type during serialization
+
+### Custom Hook Patterns
+
+When serializing an object, the serializer inspects the value's type name and dispatches to the matching registered serializer. The resulting `JsonValue` should typically be a JSON object containing a discriminator field (e.g. `"__type__"`) so the deserializer can route it back to the correct type.
+
+```titrate
+// Register a serializer for a custom Point class
+Json.registerCustomSerializer("Point", fn(v: Variant): JsonValue {
+    let obj = new HashMap<string, JsonValue>();
+    obj.put("__type__", JsonValue.ofStr("Point"));
+    obj.put("x", JsonValue.ofNum(v.get("x") as double));
+    obj.put("y", JsonValue.ofNum(v.get("y") as double));
+    return JsonValue.ofObject(obj);
+});
+
+// Register the matching deserializer
+Json.registerCustomDeserializer("Point", fn(jv: JsonValue): Variant {
+    let x: double = jv.get("x").asNumber();
+    let y: double = jv.get("y").asNumber();
+    let p = new Point(x, y);
+    return Variant.of(p);
+});
+
+// Serialize and deserialize round-trip
+let point = new Point(3.0, 4.0);
+let json: JsonValue = Json.serializeVariant(Variant.of(point));
+let restored: Variant = Json.deserializeVariant(json);
+```
+
+### Csv Custom Hooks
+
+- `CsvWriter.registerCustomSerializer(typeName: string, serializer: fn(Variant): string): void` — register a serializer that converts a custom type to a CSV cell string
+- `CsvReader.registerCustomDeserializer(typeName: string, deserializer: fn(string): Variant): void` — register a deserializer that reconstructs a custom type from a CSV cell string
+
+### Xml Custom Hooks
+
+- `Xml.registerCustomSerializer(typeName: string, serializer: fn(Variant): XmlNode): void` — register a serializer that converts a custom type to an `XmlNode` tree
+- `Xml.registerCustomDeserializer(typeName: string, deserializer: fn(XmlNode): Variant): void` — register a deserializer that reconstructs a custom type from an `XmlNode`

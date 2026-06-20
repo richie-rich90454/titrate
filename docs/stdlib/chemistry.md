@@ -227,3 +227,66 @@ Full element database loaded from `data/chem/periodic_table.json`.
 - `Electrochemistry.cellPotential(cathode: double, anode: double): double` — E°cell = E°cathode - E°anode
 - `Electrochemistry.gibbsFromPotential(e: double, n: int): double` — ΔG = -nFE
 - `Electrochemistry.faradayElectrolysis(current: double, time: double, n: int): double` — Faraday's law
+
+## Spectroscopy
+
+Spectroscopic calculations for UV-Vis, IR, NMR, and Mass Spectrometry.
+
+### UVVis
+
+Ultraviolet-Visible spectroscopy calculations based on the Beer-Lambert law.
+
+- `UVVis.absorbance(transmittance: double): double` — A = -log10(T)
+- `UVVis.transmittance(absorbance: double): double` — T = 10^(-A)
+- `UVVis.beerLambert(absorptivity: double, pathLength: double, concentration: double): double` — A = ε·l·c
+- `UVVis.concentration(absorbance: double, absorptivity: double, pathLength: double): double` — c = A / (ε·l)
+- `UVVis.molarAbsorptivity(absorbance: double, pathLength: double, concentration: double): double` — ε = A / (l·c)
+- `UVVis.lambdaMax(wavelengths: ArrayList<double>, absorbances: ArrayList<double>): double` — wavelength of maximum absorbance
+
+```titrate
+let a: double = UVVis.beerLambert(2235.0, 1.0, 0.0001);
+io::println("Absorbance: " + Double.toString(a));  // 0.2235
+let c: double = UVVis.concentration(a, 2235.0, 1.0);
+io::println("Concentration: " + Double.toString(c));  // 0.0001
+```
+
+### IR
+
+Infrared spectroscopy calculations including wavenumber conversion and peak analysis.
+
+- `IR.wavenumber(wavelengthNm: double): double` — convert wavelength (nm) to wavenumber (cm⁻¹)
+- `IR.wavelength(wavenumber: double): double` — convert wavenumber (cm⁻¹) to wavelength (nm)
+- `IR.frequency(wavenumber: double): double` — frequency (Hz) from wavenumber
+- `IR.energy(wavenumber: double): double` — photon energy (J) from wavenumber
+- `IR.peakPositions(wavenumbers: ArrayList<double>, intensities: ArrayList<double>, threshold: double): ArrayList<double>` — detect peak positions above threshold
+
+```titrate
+let wn: double = IR.wavenumber(2500.0);  // 4000.0 cm⁻¹
+io::println("Wavenumber: " + Double.toString(wn));
+```
+
+### NMR
+
+Nuclear Magnetic Resonance spectroscopy calculations.
+
+- `NMR.chemicalShift(sampleFreq: double, referenceFreq: double): double` — δ (ppm) = (ν_sample - ν_ref) / ν_ref × 10⁶
+- `NMR.larmorFrequency(gyromagneticRatio: double, fieldStrength: double): double` — ω = γ·B₀
+- `NMR.couplingConstant(spectrum: ArrayList<double>, peak1Index: int, peak2Index: int): double` — J coupling constant (Hz)
+- `NMR.multiplicity(nEquivalentNeighbors: int): int` — n+1 rule for peak count
+- `NMR.integration(peaks: ArrayList<double>, startIndex: int, endIndex: int): double` — integrate peak area
+
+```titrate
+let delta: double = NMR.chemicalShift(400.000128e6, 400.000000e6);
+io::println("Chemical shift: " + Double.toString(delta) + " ppm");  // 0.32 ppm
+```
+
+### MassSpec
+
+Mass spectrometry calculations including mass-to-charge ratio and isotope patterns.
+
+- `MassSpec.massToCharge(mass: double, charge: int): double` — m/z = mass / charge
+- `MassSpec.charge(mass: double, mz: double): int` — charge state from mass and m/z
+- `MassSpec.isotopePattern(monoisotopicMass: double, numPeaks: int): ArrayList<double>` — theoretical isotope distribution
+- `MassSpec.resolution(mass: double, deltaM: double): double` — resolving power R = m / Δm
+- `MassSpec.basePeak(masses: ArrayList<double>, intensities: ArrayList<double>): double` — mass at maximum intensity
+- `MassSpec.monoisotopicMass(isotopeMasses: ArrayList<double>, abundances: ArrayList<double>): double` — most abundant isotope mass
