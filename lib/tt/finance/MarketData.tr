@@ -8,9 +8,9 @@ public class OHLCV {
     public double low;
     public double close;
     public double volume;
-    public double timestamp;
+    public int timestamp;
 
-    public fn init(open: double, high: double, low: double, close: double, volume: double, timestamp: double) {
+    public fn init(open: double, high: double, low: double, close: double, volume: double, timestamp: int) {
         this.open = open;
         this.high = high;
         this.low = low;
@@ -22,33 +22,29 @@ public class OHLCV {
 
 public class Tick {
     public double price;
-    public double quantity;
-    public double timestamp;
+    public double size;
     public string side;
+    public int timestamp;
 
-    public fn init(price: double, quantity: double, timestamp: double, side: string) {
+    public fn init(price: double, size: double, side: string, timestamp: int) {
         this.price = price;
-        this.quantity = quantity;
-        this.timestamp = timestamp;
+        this.size = size;
         this.side = side;
+        this.timestamp = timestamp;
     }
 }
 
 public class Trade {
-    public string id;
     public double price;
-    public double quantity;
-    public double timestamp;
-    public string side;
-    public string orderId;
+    public double size;
+    public string id;
+    public int timestamp;
 
-    public fn init(id: string, price: double, quantity: double, timestamp: double, side: string, orderId: string) {
-        this.id = id;
+    public fn init(price: double, size: double, id: string, timestamp: int) {
         this.price = price;
-        this.quantity = quantity;
+        this.size = size;
+        this.id = id;
         this.timestamp = timestamp;
-        this.side = side;
-        this.orderId = orderId;
     }
 }
 
@@ -57,9 +53,9 @@ public class Quote {
     public double bidSize;
     public double askPrice;
     public double askSize;
-    public double timestamp;
+    public int timestamp;
 
-    public fn init(bidPrice: double, bidSize: double, askPrice: double, askSize: double, timestamp: double) {
+    public fn init(bidPrice: double, bidSize: double, askPrice: double, askSize: double, timestamp: int) {
         this.bidPrice = bidPrice;
         this.bidSize = bidSize;
         this.askPrice = askPrice;

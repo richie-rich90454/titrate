@@ -1,6 +1,5 @@
 // Technical indicators for HFT: SMA, EMA, EWMA, RSI, MACD, Bollinger Bands, VWAP.
 import tt::util::ArrayList;
-import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::lang::Double;
 
@@ -88,7 +87,7 @@ public fn rsi(data: ArrayList<double>, period: int): ArrayList<double> {
         if (change > 0.0) {
             avgGain = avgGain + change;
         } else {
-            avgLoss = avgLoss + Math.abs(change);
+            avgLoss = avgLoss + (change < 0.0 ? -change : change);
         }
         i = i + 1;
     }
@@ -109,7 +108,7 @@ public fn rsi(data: ArrayList<double>, period: int): ArrayList<double> {
         if (change > 0.0) {
             gain = change;
         } else {
-            loss = Math.abs(change);
+            loss = (change < 0.0 ? -change : change);
         }
         avgGain = (avgGain * ((period as double) - 1.0) + gain) / (period as double);
         avgLoss = (avgLoss * ((period as double) - 1.0) + loss) / (period as double);
@@ -126,65 +125,26 @@ public fn rsi(data: ArrayList<double>, period: int): ArrayList<double> {
 
 // ==================== MACD ====================
 
-public fn macd(data: ArrayList<double>, fastPeriod: int, slowPeriod: int, signalPeriod: int): ArrayList<ArrayList<double>> {
-    let fastEma: ArrayList<double> = ema(data, fastPeriod);
-    let slowEma: ArrayList<double> = ema(data, slowPeriod);
-    // MACD line = fast EMA - slow EMA (aligned at the tail)
-    let macdLine: ArrayList<double> = new ArrayList<double>();
-    let offset: int = slowPeriod - fastPeriod;
-    var i: int = offset;
-    while (i < fastEma.size()) {
-        macdLine.add(fastEma.get(i) - slowEma.get(i - offset));
+public fn macd(data: ArrayList<double>, fast: int, slow: int, signal: int): ArrayList<double> {
+    let fastEma: ArrayList<double> = ema(data, fast);
+    let slowEma: ArrayList<double> = ema(data, slow);
+    // MACD line = fast EMA - slow EMA
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    var i: int = 0;
+    while (i < n) {
+        result.add(fastEma.get(i) - slowEma.get(i));
         i = i + 1;
     }
-    // Signal line = EMA of MACD line
-    let signalLine: ArrayList<double> = ema(macdLine, signalPeriod);
-    // Histogram = MACD - Signal (aligned at the tail)
-    let histogram: ArrayList<double> = new ArrayList<double>();
-    let sigOffset: int = macdLine.size() - signalLine.size();
-    var j: int = 0;
-    while (j < signalLine.size()) {
-        histogram.add(macdLine.get(j + sigOffset) - signalLine.get(j));
-        j = j + 1;
-    }
-    // Align all three to histogram length
-    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    let alignedMacd: ArrayList<double> = new ArrayList<double>();
-    let alignedSignal: ArrayList<double> = new ArrayList<double>();
-    let histOffset: int = macdLine.size() - histogram.size();
-    var k: int = 0;
-    while (k < histogram.size()) {
-        alignedMacd.add(macdLine.get(k + histOffset));
-        alignedSignal.add(signalLine.get(k + sigOffset + histOffset - (macdLine.size() - signalLine.size())));
-        k = k + 1;
-    }
-    // Recompute aligned signal properly
-    let finalSignal: ArrayList<double> = new ArrayList<double>();
-    let macdStart: int = macdLine.size() - histogram.size();
-    let sigStart: int = signalLine.size() - histogram.size();
-    var m: int = 0;
-    while (m < histogram.size()) {
-        finalSignal.add(signalLine.get(sigStart + m));
-        m = m + 1;
-    }
-    result.add(alignedMacd);
-    result.add(finalSignal);
-    result.add(histogram);
     return result;
 }
 
 // ==================== Bollinger Bands ====================
 
-public fn bollingerBands(data: ArrayList<double>, period: int, numStdDev: double): ArrayList<ArrayList<double>> {
-    let upper: ArrayList<double> = new ArrayList<double>();
-    let middle: ArrayList<double> = new ArrayList<double>();
-    let lower: ArrayList<double> = new ArrayList<double>();
+public fn bollingerBands(data: ArrayList<double>, period: int, stdDev: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
     let n: int = data.size();
     if (n < period) {
-        let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-        result.add(upper);
-        result.add(middle);
-        result.add(lower);
         return result;
     }
     var i: int = period - 1;
@@ -206,39 +166,31 @@ public fn bollingerBands(data: ArrayList<double>, period: int, numStdDev: double
             j = j + 1;
         }
         let std: double = MathAdvanced.sqrt(varSum / (period as double));
-        middle.add(mean);
-        upper.add(mean + numStdDev * std);
-        lower.add(mean - numStdDev * std);
+        // Upper band = mean + stdDev * standard deviation
+        result.add(mean + stdDev * std);
         i = i + 1;
     }
-    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
-    result.add(upper);
-    result.add(middle);
-    result.add(lower);
     return result;
 }
 
 // ==================== Volume Weighted Average Price ====================
 
-public fn vwap(prices: ArrayList<double>, volumes: ArrayList<double>): ArrayList<double> {
-    let result: ArrayList<double> = new ArrayList<double>();
+public fn vwap(prices: ArrayList<double>, volumes: ArrayList<double>): double {
     let n: int = prices.size();
     if (n == 0 || volumes.size() == 0) {
-        return result;
+        return 0.0;
     }
-    let len: int = Math.min(n, volumes.size());
+    let len: int = (n < volumes.size() ? n : volumes.size());
     var cumPV: double = 0.0;
     var cumVol: double = 0.0;
     var i: int = 0;
     while (i < len) {
         cumPV = cumPV + prices.get(i) * volumes.get(i);
         cumVol = cumVol + volumes.get(i);
-        if (cumVol == 0.0) {
-            result.add(0.0);
-        } else {
-            result.add(cumPV / cumVol);
-        }
         i = i + 1;
     }
-    return result;
+    if (cumVol == 0.0) {
+        return 0.0;
+    }
+    return cumPV / cumVol;
 }

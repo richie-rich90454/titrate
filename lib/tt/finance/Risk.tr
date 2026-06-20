@@ -1,6 +1,5 @@
 // Risk metrics for HFT: VaR, CVaR, Sharpe, Sortino, max drawdown, Kelly criterion, annualized volatility, beta.
 import tt::util::ArrayList;
-import tt::math::Math;
 import tt::math::MathAdvanced;
 import tt::lang::Double;
 
@@ -220,12 +219,11 @@ public fn maxDrawdown(equityCurve: ArrayList<double>): double {
 
 // ==================== Kelly Criterion ====================
 
-public fn kellyCriterion(winRate: double, avgWin: double, avgLoss: double): double {
-    if (avgLoss == 0.0) {
+public fn kellyCriterion(winRate: double, winLossRatio: double): double {
+    if (winLossRatio == 0.0) {
         return 0.0;
     }
-    // Kelly fraction = winRate - (1 - winRate) / (avgWin / avgLoss)
-    let winLossRatio: double = avgWin / avgLoss;
+    // Kelly fraction = winRate - (1 - winRate) / winLossRatio
     let kelly: double = winRate - (1.0 - winRate) / winLossRatio;
     return kelly;
 }
