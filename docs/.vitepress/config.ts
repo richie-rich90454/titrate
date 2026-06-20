@@ -232,6 +232,7 @@ export default defineConfig({
           items: [
             { text: 'math', link: '/stdlib/math' },
             { text: 'special', link: '/stdlib/special' },
+            { text: 'transform', link: '/stdlib/transform' },
             { text: 'geometry3d', link: '/stdlib/geometry3d' },
             { text: 'sparse-linalg', link: '/stdlib/sparse-linalg' },
             { text: 'optimization', link: '/stdlib/optimization' },
