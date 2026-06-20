@@ -40,6 +40,10 @@ pub enum Token {
     Case,
     Default,
     With,
+    Throw,
+    Try,
+    Catch,
+    Finally,
 
     // Literal keywords
     True,
@@ -194,6 +198,10 @@ impl fmt::Display for Token {
             Token::Case => write!(f, "case"),
             Token::Default => write!(f, "default"),
             Token::With => write!(f, "with"),
+            Token::Throw => write!(f, "throw"),
+            Token::Try => write!(f, "try"),
+            Token::Catch => write!(f, "catch"),
+            Token::Finally => write!(f, "finally"),
             Token::True => write!(f, "true"),
             Token::False => write!(f, "false"),
             Token::Null => write!(f, "null"),
