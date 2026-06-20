@@ -54,7 +54,7 @@ public class SqliteConnection {
         var i: int = 0;
         while (i < params.size()) {
             let row: ArrayList<Variant> = params.get(i);
-            Sqlite_executePrepared(sql, row);
+            Sqlite_executePrepared(this.handle, sql, row);
             i = i + 1;
         }
     }
