@@ -1,8 +1,13 @@
-// WeakRef module for weak references (simplified stub).
-// True weak references require VM-level support for garbage collection integration.
+// WeakRef module for weak references.
+// True weak references require VM-level GC integration. This implementation
+// uses a global registry so that WeakRef.collect() can simulate GC by
+// clearing all registered weak references. This makes WeakRef testable
+// and usable in scenarios where manual collection is acceptable.
+import tt::util::ArrayList;
 
-// WeakRef<T> holds a reference that does not prevent garbage collection of the referent.
-// This is a simplified stub implementation.
+// Global registry of all live WeakRef instances.
+private var _registry: ArrayList<WeakRef> = new ArrayList<WeakRef>();
+
 public class WeakRef<T> {
     private T _ref;
     private bool _cleared;
@@ -10,6 +15,7 @@ public class WeakRef<T> {
     public fn init(ref: T) {
         this._ref = ref;
         this._cleared = false;
+        _registry.add(this);
     }
 
     // Returns the referenced object, or null if it has been cleared or collected.
@@ -35,4 +41,39 @@ public class WeakRef<T> {
 // Create a new WeakRef wrapping the given reference.
 public fn weakRef<T>(ref: T): WeakRef<T> {
     return new WeakRef<T>(ref);
+}
+
+// Simulate garbage collection by clearing all registered weak references.
+// In a full VM implementation, this would be triggered by the actual GC
+// after determining which referents have no remaining strong references.
+public fn collect(): int {
+    let count: int = 0;
+    var i: int = 0;
+    while (i < _registry.size()) {
+        let ref: WeakRef = _registry.get(i);
+        if (!ref.isCleared()) {
+            ref.clear();
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Returns the number of live (non-cleared) weak references.
+public fn liveCount(): int {
+    let count: int = 0;
+    var i: int = 0;
+    while (i < _registry.size()) {
+        if (!_registry.get(i).isCleared()) {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Clear the registry (for testing purposes).
+public fn clearRegistry(): void {
+    _registry.clear();
 }
