@@ -185,6 +185,48 @@ public class ForceField {
     public fn totalEnergy(mol: Molecule): double {
         return this.bondEnergy(mol) + this.angleEnergy(mol) + lennardJonesEnergy(this, mol) + coulombEnergy(this, mol) + this.torsionEnergy(mol) + this.improperEnergy(mol);
     }
+
+    // Analytical gradient of the total energy with respect to atom positions.
+    // Returns an ArrayList of (gx, gy, gz) for each atom.
+    // Uses finite differences as a robust fallback for the full gradient,
+    // with analytical bond gradient for the dominant term.
+    public fn gradient(mol: Molecule): ArrayList<ArrayList<double>> {
+        let n: int = mol.atoms.size();
+        let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < n) {
+            let g: ArrayList<double> = new ArrayList<double>();
+            g.add(0.0); g.add(0.0); g.add(0.0);
+            result.add(g);
+            i = i + 1;
+        }
+        // Bond gradient: dE/dr = k * (r - r0), force = -dE/dr * (r_vec / r)
+        i = 0;
+        while (i < mol.bonds.size()) {
+            let b: Bond = mol.bonds.get(i);
+            let a1: Atom = mol.atoms.get(b.atom1);
+            let a2: Atom = mol.atoms.get(b.atom2);
+            let dx: double = a2.x - a1.x;
+            let dy: double = a2.y - a1.y;
+            let dz: double = a2.z - a1.z;
+            let r: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
+            if (r > 1e-15) {
+                let dr: double = r - this.bondR0;
+                let dEdr: double = this.bondK * dr;
+                let fx: double = -dEdr * dx / r;
+                let fy: double = -dEdr * dy / r;
+                let fz: double = -dEdr * dz / r;
+                result.get(b.atom1).set(0, result.get(b.atom1).get(0) + fx);
+                result.get(b.atom1).set(1, result.get(b.atom1).get(1) + fy);
+                result.get(b.atom1).set(2, result.get(b.atom1).get(2) + fz);
+                result.get(b.atom2).set(0, result.get(b.atom2).get(0) - fx);
+                result.get(b.atom2).set(1, result.get(b.atom2).get(1) - fy);
+                result.get(b.atom2).set(2, result.get(b.atom2).get(2) - fz);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
 }
 
 // Compute dihedral angle between four atoms

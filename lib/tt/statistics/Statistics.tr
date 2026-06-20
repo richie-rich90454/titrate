@@ -9,7 +9,7 @@ import tt::math::special::Special;
 import tt::random::Random;
 
 // Arithmetic mean.
-fn mean(data: ArrayList<double>): double {
+public fn mean(data: ArrayList<double>): double {
     if (data.size() == 0) {
         return 0.0;
     }
@@ -23,7 +23,7 @@ fn mean(data: ArrayList<double>): double {
 }
 
 // Median (middle value).
-fn median(data: ArrayList<double>): double {
+public fn median(data: ArrayList<double>): double {
     if (data.size() == 0) {
         return 0.0;
     }
@@ -37,7 +37,7 @@ fn median(data: ArrayList<double>): double {
 }
 
 // Mode (most frequent value).
-fn mode(data: ArrayList<double>): double {
+public fn mode(data: ArrayList<double>): double {
     if (data.size() == 0) {
         return 0.0;
     }
@@ -69,13 +69,13 @@ fn mode(data: ArrayList<double>): double {
 }
 
 // Sample standard deviation.
-fn stdev(data: ArrayList<double>): double {
+public fn stdev(data: ArrayList<double>): double {
     let v: double = variance(data);
     return MathAdvanced.sqrt(v);
 }
 
 // Sample variance.
-fn variance(data: ArrayList<double>): double {
+public fn variance(data: ArrayList<double>): double {
     if (data.size() < 2) {
         return 0.0;
     }
@@ -91,13 +91,13 @@ fn variance(data: ArrayList<double>): double {
 }
 
 // Population standard deviation.
-fn pstdev(data: ArrayList<double>): double {
+public fn pstdev(data: ArrayList<double>): double {
     let v: double = pvariance(data);
     return MathAdvanced.sqrt(v);
 }
 
 // Population variance.
-fn pvariance(data: ArrayList<double>): double {
+public fn pvariance(data: ArrayList<double>): double {
     if (data.size() == 0) {
         return 0.0;
     }
@@ -114,7 +114,7 @@ fn pvariance(data: ArrayList<double>): double {
 
 // Quantiles: divide data into n equal-sized intervals.
 // Returns n-1 cut points.
-fn quantiles(data: ArrayList<double>, n: int): ArrayList<double> {
+public fn quantiles(data: ArrayList<double>, n: int): ArrayList<double> {
     let result: ArrayList<double> = new ArrayList<double>();
     if (data.size() == 0 || n <= 1) {
         return result;
@@ -194,7 +194,7 @@ public fn linearRegression(x: ArrayList<double>, y: ArrayList<double>): ArrayLis
 }
 
 // Geometric mean.
-fn geometricMean(data: ArrayList<double>): double {
+public fn geometricMean(data: ArrayList<double>): double {
     if (data.size() == 0) {
         return 0.0;
     }
@@ -228,7 +228,7 @@ public fn harmonicMean(data: ArrayList<double>): double {
 }
 
 // Helper: sort a copy of the data.
-fn sortCopy(data: ArrayList<double>): ArrayList<double> {
+public fn sortCopy(data: ArrayList<double>): ArrayList<double> {
     let copy: ArrayList<double> = new ArrayList<double>();
     var i: int = 0;
     while (i < data.size()) {
@@ -449,7 +449,7 @@ public fn interquartileRange(data: ArrayList<double>): double {
 // ==================== Confidence Intervals & Hypothesis Testing ====================
 
 // Helper: get z-value for a given confidence level.
-fn zValueForConfidence(confidence: double): double {
+public fn zValueForConfidence(confidence: double): double {
     // Common z-values for standard confidence levels
     if (confidence >= 0.99) { return 2.576; }
     if (confidence >= 0.95) { return 1.96; }
@@ -742,7 +742,7 @@ public class NormalDist {
 // ==================== Probability Distribution Classes ====================
 
 // Helper: factorial for integer k.
-fn factorial(k: int): double {
+public fn factorial(k: int): double {
     var result: double = 1.0;
     var i: int = 2;
     while (i <= k) {
@@ -753,7 +753,7 @@ fn factorial(k: int): double {
 }
 
 // Helper: log-gamma using Stirling's approximation for large values, exact for small.
-fn logGamma(x: double): double {
+public fn logGamma(x: double): double {
     if (x <= 0.0) { return 0.0; }
     if (x < 0.5) {
         // Reflection formula: Gamma(x)*Gamma(1-x) = pi / sin(pi*x)
@@ -787,17 +787,17 @@ fn logGamma(x: double): double {
 }
 
 // Helper: gamma function via exp(logGamma).
-fn gammaFn(x: double): double {
+public fn gammaFn(x: double): double {
     return MathAdvanced.exp(logGamma(x));
 }
 
 // Helper: log of beta function.
-fn logBeta(a: double, b: double): double {
+public fn logBeta(a: double, b: double): double {
     return logGamma(a) + logGamma(b) - logGamma(a + b);
 }
 
 // Helper: binomial coefficient C(n, k).
-fn binomCoeff(n: int, k: int): double {
+public fn binomCoeff(n: int, k: int): double {
     if (k < 0 || k > n) { return 0.0; }
     if (k == 0 || k == n) { return 1.0; }
     // Use the smaller of k and n-k for efficiency
@@ -996,7 +996,7 @@ public class BetaDist {
 // ==================== ANOVA (Task 128) ====================
 
 // Helper: compute sum of a list of doubles.
-fn sumList(data: ArrayList<double>): double {
+public fn sumList(data: ArrayList<double>): double {
     var s: double = 0.0;
     var i: int = 0;
     while (i < data.size()) {
@@ -1007,7 +1007,7 @@ fn sumList(data: ArrayList<double>): double {
 }
 
 // Helper: compute sum of a list of ints.
-fn sumListInt(data: ArrayList<int>): double {
+public fn sumListInt(data: ArrayList<int>): double {
     var s: double = 0.0;
     var i: int = 0;
     while (i < data.size()) {
@@ -1020,20 +1020,20 @@ fn sumListInt(data: ArrayList<int>): double {
 // Helper: F-distribution CDF approximation using the relationship with beta incomplete.
 // F CDF with df1, df2 at x: P = 1 - I_{df1/(df1+df2*x)}(df1/2, df2/2)
 // We use: I_x(a,b) where x = df1*x / (df1*x + df2)
-fn fDistCdf(x: double, df1: double, df2: double): double {
+public fn fDistCdf(x: double, df1: double, df2: double): double {
     if (x <= 0.0) { return 0.0; }
     let z: double = df1 * x / (df1 * x + df2);
     return Special.betaIncomplete(df1 / 2.0, df2 / 2.0, z);
 }
 
 // Helper: approximate F-distribution upper tail p-value.
-fn fDistPValue(fStat: double, df1: double, df2: double): double {
+public fn fDistPValue(fStat: double, df1: double, df2: double): double {
     return 1.0 - fDistCdf(fStat, df1, df2);
 }
 
 // Helper: approximate inverse of beta incomplete using bisection.
 // Finds x such that I_x(a,b) = target.
-fn betaIncompleteInverse(a: double, b: double, target: double): double {
+public fn betaIncompleteInverse(a: double, b: double, target: double): double {
     if (target <= 0.0) { return 0.0; }
     if (target >= 1.0) { return 1.0; }
     let EPS: double = 1e-10;

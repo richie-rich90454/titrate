@@ -3,7 +3,7 @@ import tt::util::ArrayList;
 import tt::itertools::ItertoolsSeq;
 
 // Generate all r-length combinations of elements from arr.
-fn combinations<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
+public fn combinations<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
     let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
     let n: int = arr.size();
     if (r > n || r <= 0) {
@@ -50,7 +50,7 @@ fn combinations<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
 }
 
 // Generate r-length combinations with replacement.
-fn combinationsWithReplacement<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
+public fn combinationsWithReplacement<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
     let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
     let n: int = arr.size();
     if (r <= 0) {
@@ -102,7 +102,7 @@ fn combinationsWithReplacement<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayLis
 }
 
 // Generate r-length permutations of elements from arr.
-fn permutations<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
+public fn permutations<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
     let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
     let n: int = arr.size();
     if (r > n) {
@@ -172,7 +172,7 @@ fn permutations<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
 }
 
 // Cartesian product of two arrays.
-fn product<T, U>(arr1: ArrayList<T>, arr2: ArrayList<U>): ArrayList<ArrayList<Variant>> {
+public fn product<T, U>(arr1: ArrayList<T>, arr2: ArrayList<U>): ArrayList<ArrayList<Variant>> {
     let result: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
     let i: int = 0;
     while (i < arr1.size()) {

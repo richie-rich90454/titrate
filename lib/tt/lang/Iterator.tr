@@ -126,6 +126,14 @@ interface Iterator<E> {
         }
     }
 
+    fn collect(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        while (this.hasNext()) {
+            result.add(this.next());
+        }
+        return result;
+    }
+
     fn sum(): double {
         var total: double = 0.0;
         while (this.hasNext()) {

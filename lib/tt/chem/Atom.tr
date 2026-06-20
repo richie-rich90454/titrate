@@ -12,6 +12,8 @@ public class Atom {
     public int atomicNumber;
     public double mass;
     public double charge;
+    public double radius;
+    public double electronegativity;
     public double x;
     public double y;
     public double z;
@@ -21,6 +23,8 @@ public class Atom {
         this.atomicNumber = number;
         this.mass = m;
         this.charge = 0.0;
+        this.radius = 0.0;
+        this.electronegativity = 0.0;
         this.x = 0.0;
         this.y = 0.0;
         this.z = 0.0;

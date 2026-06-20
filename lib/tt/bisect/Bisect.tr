@@ -2,7 +2,7 @@
 import tt::util::ArrayList;
 
 // Returns the leftmost index where x should be inserted to keep arr sorted.
-fn bisectLeft(arr: ArrayList<int>, x: int): int {
+public fn bisectLeft(arr: ArrayList<int>, x: int): int {
     var lo: int = 0;
     var hi: int = arr.size();
     while (lo < hi) {
@@ -17,7 +17,7 @@ fn bisectLeft(arr: ArrayList<int>, x: int): int {
 }
 
 // Returns the rightmost index where x should be inserted to keep arr sorted.
-fn bisectRight(arr: ArrayList<int>, x: int): int {
+public fn bisectRight(arr: ArrayList<int>, x: int): int {
     var lo: int = 0;
     var hi: int = arr.size();
     while (lo < hi) {
@@ -32,19 +32,19 @@ fn bisectRight(arr: ArrayList<int>, x: int): int {
 }
 
 // Inserts x into arr at the leftmost position to maintain sorted order.
-fn insortLeft(arr: ArrayList<int>, x: int) {
+public fn insortLeft(arr: ArrayList<int>, x: int) {
     let idx: int = bisectLeft(arr, x);
     arr.add(idx, x);
 }
 
 // Inserts x into arr at the rightmost position to maintain sorted order.
-fn insortRight(arr: ArrayList<int>, x: int) {
+public fn insortRight(arr: ArrayList<int>, x: int) {
     let idx: int = bisectRight(arr, x);
     arr.add(idx, x);
 }
 
 // Returns the leftmost index where x should be inserted to keep arr sorted (double variant).
-fn bisectLeftD(arr: ArrayList<double>, x: double): int {
+public fn bisectLeftD(arr: ArrayList<double>, x: double): int {
     var lo: int = 0;
     var hi: int = arr.size();
     while (lo < hi) {
@@ -59,7 +59,7 @@ fn bisectLeftD(arr: ArrayList<double>, x: double): int {
 }
 
 // Returns the rightmost index where x should be inserted to keep arr sorted (double variant).
-fn bisectRightD(arr: ArrayList<double>, x: double): int {
+public fn bisectRightD(arr: ArrayList<double>, x: double): int {
     var lo: int = 0;
     var hi: int = arr.size();
     while (lo < hi) {

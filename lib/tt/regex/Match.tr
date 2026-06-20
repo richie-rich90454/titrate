@@ -64,6 +64,11 @@ public class Match {
         return r;
     }
 
+    // Return the named groups as a HashMap from group name to matched text.
+    public fn namedGroups(): HashMap<string, string> {
+        return this.groupDict;
+    }
+
     // Return the (start, end) span for a specific capture group.
     public fn span(group: int): ArrayList<int> {
         let r: ArrayList<int> = new ArrayList<int>();

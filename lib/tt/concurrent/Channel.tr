@@ -7,11 +7,13 @@ public class BufferedChannel {
     private ArrayList<Variant> buffer;
     public int capacity;
     private bool closed;
+    private fn(): void _onCloseCallback;
 
     public fn init(capacity: int) {
         this.buffer = new ArrayList<Variant>();
         this.capacity = capacity;
         this.closed = false;
+        this._onCloseCallback = null;
     }
 
     public fn send(value: Variant): bool {
@@ -25,6 +27,11 @@ public class BufferedChannel {
         return true;
     }
 
+    // Non-blocking send alias.
+    public fn trySend(value: Variant): bool {
+        return this.send(value);
+    }
+
     public fn receive(): Variant {
         if (this.buffer.size() == 0) {
             return null;
@@ -36,6 +43,14 @@ public class BufferedChannel {
 
     public fn close(): void {
         this.closed = true;
+        if (this._onCloseCallback != null) {
+            this._onCloseCallback();
+        }
+    }
+
+    // Register a callback to be invoked when the channel is closed.
+    public fn onClose(callback: fn(): void): void {
+        this._onCloseCallback = callback;
     }
 
     public fn isClosed(): bool {
@@ -51,6 +66,11 @@ public class BufferedChannel {
     }
 
     public fn size(): int {
+        return this.buffer.size();
+    }
+
+    // Alias for size().
+    public fn len(): int {
         return this.buffer.size();
     }
 }

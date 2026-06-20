@@ -150,6 +150,87 @@ public class BitSet {
         return this.cardinality() == 0;
     }
 
+    // Return the number of bits in the BitSet (capacity).
+    public fn size(): int {
+        return this.size;
+    }
+
+    // Return the "logical size" - the index of the highest set bit + 1.
+    public fn length(): int {
+        var i: int = this.size - 1;
+        while (i >= 0) {
+            if (this.get(i)) {
+                return i + 1;
+            }
+            i = i - 1;
+        }
+        return 0;
+    }
+
+    // Clear all bits in the BitSet.
+    public fn clearAll(): void {
+        var i: int = 0;
+        while (i < this.words.size()) {
+            this.words.set(i, 0 as long);
+            i = i + 1;
+        }
+    }
+
+    // Set bits in the range [from, to] inclusive.
+    public fn setRange(from: int, to: int): void {
+        var i: int = from;
+        while (i <= to) {
+            this.set(i);
+            i = i + 1;
+        }
+    }
+
+    // Clear bits in the range [from, to] inclusive.
+    public fn clearRange(from: int, to: int): void {
+        var i: int = from;
+        while (i <= to) {
+            this.clear(i);
+            i = i + 1;
+        }
+    }
+
+    // Flip bits in the range [from, to] inclusive.
+    public fn flipRange(from: int, to: int): void {
+        var i: int = from;
+        while (i <= to) {
+            this.flip(i);
+            i = i + 1;
+        }
+    }
+
+    // Return a copy of this BitSet.
+    public fn clone(): BitSet {
+        let result: BitSet = new BitSet(this.size);
+        var i: int = 0;
+        while (i < this.words.size()) {
+            result.words.set(i, this.words.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return a string representation of the BitSet.
+    public fn toString(): string {
+        let s: string = "{";
+        var first: bool = true;
+        var i: int = 0;
+        while (i < this.size) {
+            if (this.get(i)) {
+                if (!first) { s = s + ", "; }
+                s = s + i;
+                first = false;
+            }
+            i = i + 1;
+        }
+        s = s + "}";
+        return s;
+    }
+
     // Check if this BitSet shares any set bits with another.
     public fn intersects(other: BitSet): bool {
         var i: int = 0;

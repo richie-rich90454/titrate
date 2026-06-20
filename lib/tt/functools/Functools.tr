@@ -29,12 +29,12 @@ public class Partial<F, T> {
 }
 
 // Create a partial application.
-fn partial<F, T>(fn: F, boundArgs: ArrayList<Variant>): Partial<F, T> {
+public fn partial<F, T>(fn: F, boundArgs: ArrayList<Variant>): Partial<F, T> {
     return new Partial<F, T>(fn, boundArgs);
 }
 
 // Reduce: fold left with an initial value.
-fn reduce<T>(arr: ArrayList<T>, fn: fn(T, T): T, init: T): T {
+public fn reduce<T>(arr: ArrayList<T>, fn: fn(T, T): T, init: T): T {
     var acc: T = init;
     var i: int = 0;
     while (i < arr.size()) {
@@ -44,7 +44,7 @@ fn reduce<T>(arr: ArrayList<T>, fn: fn(T, T): T, init: T): T {
     return acc;
 }
 
-// Reduce without an explicit initial value â€” uses the first element as the initial value.
+// Reduce without an explicit initial value â€?uses the first element as the initial value.
 public fn reduceNoInit(arr: ArrayList<Variant>, fn: fn(Variant, Variant): Variant): Variant {
     var acc: Variant = arr.get(0);
     var i: int = 1;
@@ -56,7 +56,7 @@ public fn reduceNoInit(arr: ArrayList<Variant>, fn: fn(Variant, Variant): Varian
 }
 
 // Cache: memoization wrapper using HashMap.
-fn cache<F>(fn: F): F {
+public fn cache<F>(fn: F): F {
     let cacheMap: HashMap<Variant, Variant> = new HashMap<Variant, Variant>();
     let cached: fn(Variant): Variant = fn(args: Variant) {
         if (cacheMap.containsKey(args)) {
@@ -213,7 +213,7 @@ public fn totalOrdering(cls: Variant): Variant {
     return cls;
 }
 
-// WrapperInfo â€” stores metadata from the original function for decorator wrapping.
+// WrapperInfo â€?stores metadata from the original function for decorator wrapping.
 public class WrapperInfo {
     public string originalName;
     public string originalDoc;
@@ -239,7 +239,7 @@ public fn updateWrapper(wrapper: Variant, original: Variant): Variant {
     return wrapper;
 }
 
-// DispatchRegistry â€” maps type names to handler functions for single-dispatch.
+// DispatchRegistry â€?maps type names to handler functions for single-dispatch.
 public class DispatchRegistry {
     private HashMap<string, fn(Variant): Variant> _registry;
     private fn(Variant): Variant _defaultFn;
@@ -272,7 +272,7 @@ public fn singledispatch(defaultFn: fn(Variant): Variant): DispatchRegistry {
     return new DispatchRegistry(defaultFn);
 }
 
-// CachedProperty â€” computes a value on first access and caches the result.
+// CachedProperty â€?computes a value on first access and caches the result.
 public class CachedProperty {
     private fn(): Variant _getter;
     private Variant _cachedValue;
@@ -300,7 +300,7 @@ public fn cachedProperty(getter: fn(): Variant): CachedProperty {
     return new CachedProperty(getter);
 }
 
-// LazyValue â€” deferred computation that evaluates only when accessed.
+// LazyValue â€?deferred computation that evaluates only when accessed.
 public class LazyValue {
     private fn(): Variant _fn;
     private Variant _value;

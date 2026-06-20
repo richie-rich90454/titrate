@@ -206,4 +206,18 @@ public class Counter {
     public fn clear(): void {
         this.counts = new HashMap<string, int>();
     }
+
+    // Return a string representation of the counter.
+    public fn toString(): string {
+        let s: string = "Counter({";
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + "'" + keys.get(i) + "': " + this.counts.get(keys.get(i));
+            i = i + 1;
+        }
+        s = s + "})";
+        return s;
+    }
 }

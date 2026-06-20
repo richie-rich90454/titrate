@@ -301,6 +301,42 @@ public class Regex {
         return result;
     }
 
+    // Return the flags string of this regex.
+    public fn flags(): string {
+        return this.flags;
+    }
+
+    // Extract named group names from the pattern.
+    // Looks for (?P<name>...) or (?<name>...) syntax.
+    public fn namedGroups(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let p: string = this.pattern;
+        let n: int = String.length(p);
+        var i: int = 0;
+        while (i < n) {
+            // Check for (?P<name> or (?<name>
+            if (i + 2 < n && String.charAt(p, i) == "(" && String.charAt(p, i + 1) == "?") {
+                var idx: int = i + 2;
+                if (idx < n && String.charAt(p, idx) == "P") {
+                    idx = idx + 1;
+                }
+                if (idx < n && String.charAt(p, idx) == "<") {
+                    idx = idx + 1;
+                    let nameStart: int = idx;
+                    while (idx < n && String.charAt(p, idx) != ">") {
+                        idx = idx + 1;
+                    }
+                    if (idx < n) {
+                        let name: string = String.substring(p, nameStart, idx);
+                        result.add(name);
+                    }
+                }
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
     public fn _effectivePattern(): string {
         if (String.length(this.flags) > 0) {
             return "(?" + this.flags + ")" + this.pattern;

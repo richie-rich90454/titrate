@@ -703,3 +703,39 @@ public fn companionMatrix(p: Polynomial): ArrayList<ArrayList<double>> {
     }
     return result;
 }
+
+// Lagrange interpolation: construct a Polynomial passing through the given (xs, ys) points.
+// P(x) = sum_{i} y_i * product_{j != i} (x - x_j) / (x_i - x_j)
+public fn lagrangeInterpolation(xs: ArrayList<double>, ys: ArrayList<double>): Polynomial {
+    let n: int = xs.size();
+    // Start with the zero polynomial
+    let zeroCoeffs: ArrayList<double> = new ArrayList<double>();
+    zeroCoeffs.add(0.0);
+    let result: Polynomial = new Polynomial(zeroCoeffs);
+    let i: int = 0;
+    while (i < n) {
+        // Build the i-th Lagrange basis polynomial L_i(x) = product_{j != i} (x - x_j) / (x_i - x_j)
+        let basisCoeffs: ArrayList<double> = new ArrayList<double>();
+        basisCoeffs.add(1.0);
+        let basisPoly: Polynomial = new Polynomial(basisCoeffs);
+        let denom: double = 1.0;
+        let j: int = 0;
+        while (j < n) {
+            if (j != i) {
+                // Multiply by (x - x_j) = [-x_j, 1]
+                let factorCoeffs: ArrayList<double> = new ArrayList<double>();
+                factorCoeffs.add(1.0);
+                factorCoeffs.add(-xs.get(j));
+                basisPoly = basisPoly.mul(new Polynomial(factorCoeffs));
+                denom = denom * (xs.get(i) - xs.get(j));
+            }
+            j = j + 1;
+        }
+        // Scale basis by y_i / denom
+        let scale: double = ys.get(i) / denom;
+        basisPoly = basisPoly.scale(scale);
+        result = result.add(basisPoly);
+        i = i + 1;
+    }
+    return result;
+}

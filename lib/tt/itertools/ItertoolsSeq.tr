@@ -3,7 +3,7 @@ import tt::util::ArrayList;
 // ItertoolsSeq: sequential iteration utilities (chain, accumulate, cycle, islice, zipLongest, count, repeat, starmap, compress, filterFalse, dropWhile, takeWhile, groupby)
 
 // Flatten an ArrayList of ArrayLists into a single ArrayList.
-fn chain<T>(iterables: ArrayList<ArrayList<T>>): ArrayList<T> {
+public fn chain<T>(iterables: ArrayList<ArrayList<T>>): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     while (i < iterables.size()) {
@@ -19,7 +19,7 @@ fn chain<T>(iterables: ArrayList<ArrayList<T>>): ArrayList<T> {
 }
 
 // Running accumulation with a binary function.
-fn accumulate<T>(arr: ArrayList<T>, fn: fn(T, T): T): ArrayList<T> {
+public fn accumulate<T>(arr: ArrayList<T>, fn: fn(T, T): T): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     if (arr.size() == 0) {
         return result;
@@ -36,7 +36,7 @@ fn accumulate<T>(arr: ArrayList<T>, fn: fn(T, T): T): ArrayList<T> {
 }
 
 // Repeat the array n times (cycle).
-fn cycle<T>(arr: ArrayList<T>, n: int): ArrayList<T> {
+public fn cycle<T>(arr: ArrayList<T>, n: int): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let c: int = 0;
     while (c < n) {
@@ -51,7 +51,7 @@ fn cycle<T>(arr: ArrayList<T>, n: int): ArrayList<T> {
 }
 
 // Slice with step (islice).
-fn islice<T>(arr: ArrayList<T>, start: int, stop: int, step: int): ArrayList<T> {
+public fn islice<T>(arr: ArrayList<T>, start: int, stop: int, step: int): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     if (step <= 0) {
         return result;
@@ -65,7 +65,7 @@ fn islice<T>(arr: ArrayList<T>, start: int, stop: int, step: int): ArrayList<T> 
 }
 
 // Zip longest: zip two arrays, filling missing with fillValue.
-fn zipLongest<T, U>(a: ArrayList<T>, b: ArrayList<U>, fillValue: Variant): ArrayList<ArrayList<Variant>> {
+public fn zipLongest<T, U>(a: ArrayList<T>, b: ArrayList<U>, fillValue: Variant): ArrayList<ArrayList<Variant>> {
     let result: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
     let maxLen: int = a.size();
     if (b.size() > maxLen) {
@@ -91,7 +91,7 @@ fn zipLongest<T, U>(a: ArrayList<T>, b: ArrayList<U>, fillValue: Variant): Array
 }
 
 // Generate a count sequence: start, start+step, ..., n values.
-fn count(start: int, step: int, n: int): ArrayList<int> {
+public fn count(start: int, step: int, n: int): ArrayList<int> {
     let result: ArrayList<int> = new ArrayList<int>();
     let i: int = 0;
     while (i < n) {
@@ -102,7 +102,7 @@ fn count(start: int, step: int, n: int): ArrayList<int> {
 }
 
 // Repeat a value n times.
-fn repeat<T>(value: T, n: int): ArrayList<T> {
+public fn repeat<T>(value: T, n: int): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     while (i < n) {
@@ -113,7 +113,7 @@ fn repeat<T>(value: T, n: int): ArrayList<T> {
 }
 
 // Starmap: apply function to each argument list.
-fn starmap<T>(fn: fn(ArrayList<Variant>): T, args: ArrayList<ArrayList<Variant>>): ArrayList<T> {
+public fn starmap<T>(fn: fn(ArrayList<Variant>): T, args: ArrayList<ArrayList<Variant>>): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     while (i < args.size()) {
@@ -124,7 +124,7 @@ fn starmap<T>(fn: fn(ArrayList<Variant>): T, args: ArrayList<ArrayList<Variant>>
 }
 
 // Compress: filter data by selectors.
-fn compress<T>(data: ArrayList<T>, selectors: ArrayList<bool>): ArrayList<T> {
+public fn compress<T>(data: ArrayList<T>, selectors: ArrayList<bool>): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     while (i < data.size() && i < selectors.size()) {
@@ -137,7 +137,7 @@ fn compress<T>(data: ArrayList<T>, selectors: ArrayList<bool>): ArrayList<T> {
 }
 
 // Filter false: keep elements where fn returns false.
-fn filterFalse<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
+public fn filterFalse<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     while (i < arr.size()) {
@@ -150,7 +150,7 @@ fn filterFalse<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
 }
 
 // Drop while: drop elements while fn returns true.
-fn dropWhile<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
+public fn dropWhile<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     let dropping: bool = true;
@@ -167,7 +167,7 @@ fn dropWhile<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
 }
 
 // Take while: take elements while fn returns true.
-fn takeWhile<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
+public fn takeWhile<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     while (i < arr.size()) {
@@ -182,7 +182,7 @@ fn takeWhile<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
 }
 
 // Group consecutive elements by key function.
-fn groupby<T, K>(arr: ArrayList<T>, fn: fn(T): K): ArrayList<ArrayList<T>> {
+public fn groupby<T, K>(arr: ArrayList<T>, fn: fn(T): K): ArrayList<ArrayList<T>> {
     let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
     if (arr.size() == 0) {
         return result;

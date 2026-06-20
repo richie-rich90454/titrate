@@ -1,4 +1,5 @@
 import tt::util::ArrayList;
+import tt::util::ArrayListIterator;
 import tt::lang::Variant;
 
 // Deque: double-ended queue with optional max length.
@@ -132,6 +133,11 @@ public class Deque {
     // Remove all items from the deque.
     public fn clear(): void {
         this.items = new ArrayList<Variant>();
+    }
+
+    // Return an iterator over the deque elements.
+    public fn iterator(): ArrayListIterator<Variant> {
+        return new ArrayListIterator<Variant>(this.items);
     }
 
     // Insert an element at the specified index.

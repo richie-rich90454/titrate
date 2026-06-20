@@ -86,11 +86,11 @@ public class Directory {
     }
 }
 
-fn getCurrent(): string {
+public fn getCurrent(): string {
     return Sys_workingDir();
 }
 
-fn setCurrent(path: string): void {
+public fn setCurrent(path: string): void {
     // No native for setWorkingDir; no-op
 }
 

@@ -251,7 +251,7 @@ public class Fraction {
 }
 
 // Greatest common divisor using Euclidean algorithm.
-fn gcd(a: long, b: long): long {
+public fn gcd(a: long, b: long): long {
     let x: long = a;
     let y: long = b;
     if (x < 0L) { x = -x; }
@@ -265,19 +265,19 @@ fn gcd(a: long, b: long): long {
 }
 
 // Least common multiple.
-fn lcm(a: long, b: long): long {
+public fn lcm(a: long, b: long): long {
     if (a == 0L || b == 0L) { return 0L; }
     let g: long = gcd(a, b);
     return absLong(a) / g * absLong(b);
 }
 
-fn absLong(x: long): long {
+public fn absLong(x: long): long {
     if (x < 0L) { return -x; }
     return x;
 }
 
 // Create a Fraction from a double using continued fraction expansion.
-fn fromDouble(d: double): Fraction {
+public fn fromDouble(d: double): Fraction {
     if (d == 0.0) { return new Fraction(0L, 1L); }
     let negative: bool = false;
     if (d < 0.0) {
@@ -315,7 +315,7 @@ fn fromDouble(d: double): Fraction {
 }
 
 // Create a Fraction from a string like "3/4" or "5".
-fn fromString(s: string): Fraction {
+public fn fromString(s: string): Fraction {
     let parts: ArrayList<string> = String::split(s, "/");
     if (parts.size() == 1) {
         let num: long = Long.parseLong(parts.get(0));
@@ -332,7 +332,7 @@ fn fromString(s: string): Fraction {
 // Create a Fraction from a decimal string like "3.14" or "-0.5".
 // The decimal string is parsed exactly into a numerator and denominator
 // (e.g. "3.14" becomes 314/100 which reduces to 157/50).
-fn fromDecimal(s: string): Fraction {
+public fn fromDecimal(s: string): Fraction {
     let str: string = s;
     let negative: bool = false;
     if (String.length(str) > 0 && String.charAt(str, 0) == "-") {

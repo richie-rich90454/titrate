@@ -8,7 +8,7 @@ import tt::math::Math;
 // --- Sorting ---
 
 // Quicksort (not stable). Returns a new sorted list.
-fn sort<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn sort<T>(arr: ArrayList<T>): ArrayList<T> {
     if (arr.size() <= 1) {
         return arr.clone();
     }
@@ -47,7 +47,7 @@ fn _swap<T>(arr: ArrayList<T>, i: int, j: int): void {
 }
 
 // Merge sort (stable). Returns a new sorted list.
-fn stableSort<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn stableSort<T>(arr: ArrayList<T>): ArrayList<T> {
     if (arr.size() <= 1) {
         return arr.clone();
     }
@@ -93,7 +93,7 @@ fn _mergeLists<T>(left: ArrayList<T>, right: ArrayList<T>): ArrayList<T> {
 // --- Search ---
 
 // Linear search: returns index of value, or -1 if not found.
-fn find<T>(arr: ArrayList<T>, value: T): int {
+public fn find<T>(arr: ArrayList<T>, value: T): int {
     let i: int = 0;
     while (i < arr.size()) {
         if (arr.get(i) == value) {
@@ -105,7 +105,7 @@ fn find<T>(arr: ArrayList<T>, value: T): int {
 }
 
 // Linear search with predicate: returns index of first match, or -1.
-fn findIf<T>(arr: ArrayList<T>, fn: fn(T): bool): int {
+public fn findIf<T>(arr: ArrayList<T>, fn: fn(T): bool): int {
     let i: int = 0;
     while (i < arr.size()) {
         if (fn(arr.get(i))) {
@@ -117,7 +117,7 @@ fn findIf<T>(arr: ArrayList<T>, fn: fn(T): bool): int {
 }
 
 // Binary search on a sorted array: returns index or -1.
-fn binarySearch<T>(arr: ArrayList<T>, value: T): int {
+public fn binarySearch<T>(arr: ArrayList<T>, value: T): int {
     let lo: int = 0;
     let hi: int = arr.size() - 1;
     while (lo <= hi) {
@@ -135,7 +135,7 @@ fn binarySearch<T>(arr: ArrayList<T>, value: T): int {
 }
 
 // Lower bound: first index where element would not compare less than value.
-fn lowerBound<T>(arr: ArrayList<T>, value: T): int {
+public fn lowerBound<T>(arr: ArrayList<T>, value: T): int {
     let lo: int = 0;
     let hi: int = arr.size();
     while (lo < hi) {
@@ -150,7 +150,7 @@ fn lowerBound<T>(arr: ArrayList<T>, value: T): int {
 }
 
 // Upper bound: first index where element would compare greater than value.
-fn upperBound<T>(arr: ArrayList<T>, value: T): int {
+public fn upperBound<T>(arr: ArrayList<T>, value: T): int {
     let lo: int = 0;
     let hi: int = arr.size();
     while (lo < hi) {
@@ -166,7 +166,7 @@ fn upperBound<T>(arr: ArrayList<T>, value: T): int {
 
 // --- Counting ---
 
-fn count<T>(arr: ArrayList<T>, value: T): int {
+public fn count<T>(arr: ArrayList<T>, value: T): int {
     let c: int = 0;
     let i: int = 0;
     while (i < arr.size()) {
@@ -178,7 +178,7 @@ fn count<T>(arr: ArrayList<T>, value: T): int {
     return c;
 }
 
-fn countIf<T>(arr: ArrayList<T>, fn: fn(T): bool): int {
+public fn countIf<T>(arr: ArrayList<T>, fn: fn(T): bool): int {
     let c: int = 0;
     let i: int = 0;
     while (i < arr.size()) {
@@ -193,7 +193,7 @@ fn countIf<T>(arr: ArrayList<T>, fn: fn(T): bool): int {
 // --- Transform ---
 
 // Apply fn to each element, returning a new list.
-fn transform<T, U>(arr: ArrayList<T>, fn: fn(T): U): ArrayList<U> {
+public fn transform<T, U>(arr: ArrayList<T>, fn: fn(T): U): ArrayList<U> {
     let result: ArrayList<U> = new ArrayList<U>();
     let i: int = 0;
     while (i < arr.size()) {
@@ -205,7 +205,7 @@ fn transform<T, U>(arr: ArrayList<T>, fn: fn(T): U): ArrayList<U> {
 
 // --- Replace (in-place) ---
 
-fn replace<T>(arr: ArrayList<T>, old: T, newVal: T): void {
+public fn replace<T>(arr: ArrayList<T>, old: T, newVal: T): void {
     let i: int = 0;
     while (i < arr.size()) {
         if (arr.get(i) == old) {
@@ -215,7 +215,7 @@ fn replace<T>(arr: ArrayList<T>, old: T, newVal: T): void {
     }
 }
 
-fn replaceIf<T>(arr: ArrayList<T>, fn: fn(T): bool, newVal: T): void {
+public fn replaceIf<T>(arr: ArrayList<T>, fn: fn(T): bool, newVal: T): void {
     let i: int = 0;
     while (i < arr.size()) {
         if (fn(arr.get(i))) {
@@ -227,7 +227,7 @@ fn replaceIf<T>(arr: ArrayList<T>, fn: fn(T): bool, newVal: T): void {
 
 // --- Remove (returns new list) ---
 
-fn remove<T>(arr: ArrayList<T>, value: T): ArrayList<T> {
+public fn remove<T>(arr: ArrayList<T>, value: T): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     while (i < arr.size()) {
@@ -239,7 +239,7 @@ fn remove<T>(arr: ArrayList<T>, value: T): ArrayList<T> {
     return result;
 }
 
-fn removeIf<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
+public fn removeIf<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
     while (i < arr.size()) {
@@ -253,7 +253,7 @@ fn removeIf<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<T> {
 
 // --- Unique (remove consecutive duplicates) ---
 
-fn unique<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn unique<T>(arr: ArrayList<T>): ArrayList<T> {
     if (arr.size() == 0) {
         return new ArrayList<T>();
     }
@@ -271,7 +271,7 @@ fn unique<T>(arr: ArrayList<T>): ArrayList<T> {
 
 // --- Reverse ---
 
-fn reverse<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn reverse<T>(arr: ArrayList<T>): ArrayList<T> {
     let result: ArrayList<T> = new ArrayList<T>();
     let i: int = arr.size() - 1;
     while (i >= 0) {
@@ -284,7 +284,7 @@ fn reverse<T>(arr: ArrayList<T>): ArrayList<T> {
 // --- Rotate ---
 
 // Rotate left by n positions. n may be negative (rotates right).
-fn rotate<T>(arr: ArrayList<T>, n: int): ArrayList<T> {
+public fn rotate<T>(arr: ArrayList<T>, n: int): ArrayList<T> {
     if (arr.size() == 0) {
         return new ArrayList<T>();
     }
@@ -309,7 +309,7 @@ fn rotate<T>(arr: ArrayList<T>, n: int): ArrayList<T> {
 
 // --- Shuffle ---
 
-fn shuffle<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn shuffle<T>(arr: ArrayList<T>): ArrayList<T> {
     let result: ArrayList<T> = arr.clone();
     let rng: Random = new Random();
     let i: int = result.size() - 1;
@@ -324,7 +324,7 @@ fn shuffle<T>(arr: ArrayList<T>): ArrayList<T> {
 // --- Partition ---
 
 // Returns [true_part, false_part].
-fn partition<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<ArrayList<T>> {
+public fn partition<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<ArrayList<T>> {
     let truePart: ArrayList<T> = new ArrayList<T>();
     let falsePart: ArrayList<T> = new ArrayList<T>();
     let i: int = 0;
@@ -344,7 +344,7 @@ fn partition<T>(arr: ArrayList<T>, fn: fn(T): bool): ArrayList<ArrayList<T>> {
 
 // --- Min / Max ---
 
-fn minElement<T>(arr: ArrayList<T>): T {
+public fn minElement<T>(arr: ArrayList<T>): T {
     if (arr.size() == 0) {
         return null;
     }
@@ -359,7 +359,7 @@ fn minElement<T>(arr: ArrayList<T>): T {
     return best;
 }
 
-fn maxElement<T>(arr: ArrayList<T>): T {
+public fn maxElement<T>(arr: ArrayList<T>): T {
     if (arr.size() == 0) {
         return null;
     }
@@ -376,7 +376,7 @@ fn maxElement<T>(arr: ArrayList<T>): T {
 
 // --- Numeric ---
 
-fn accumulate<T>(arr: ArrayList<T>, init: T, fn: fn(T, T): T): T {
+public fn accumulate<T>(arr: ArrayList<T>, init: T, fn: fn(T, T): T): T {
     let acc: T = init;
     let i: int = 0;
     while (i < arr.size()) {
@@ -386,7 +386,7 @@ fn accumulate<T>(arr: ArrayList<T>, init: T, fn: fn(T, T): T): T {
     return acc;
 }
 
-fn innerProduct<T>(a: ArrayList<T>, b: ArrayList<T>, init: T): T {
+public fn innerProduct<T>(a: ArrayList<T>, b: ArrayList<T>, init: T): T {
     let acc: T = init;
     let len: int = Math.min(a.size(), b.size());
     let i: int = 0;
@@ -397,7 +397,7 @@ fn innerProduct<T>(a: ArrayList<T>, b: ArrayList<T>, init: T): T {
     return acc;
 }
 
-fn adjacentDifference<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn adjacentDifference<T>(arr: ArrayList<T>): ArrayList<T> {
     if (arr.size() == 0) {
         return new ArrayList<T>();
     }
@@ -411,7 +411,7 @@ fn adjacentDifference<T>(arr: ArrayList<T>): ArrayList<T> {
     return result;
 }
 
-fn partialSum<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn partialSum<T>(arr: ArrayList<T>): ArrayList<T> {
     if (arr.size() == 0) {
         return new ArrayList<T>();
     }
@@ -429,7 +429,7 @@ fn partialSum<T>(arr: ArrayList<T>): ArrayList<T> {
 
 // --- Iota ---
 
-fn iota(start: int, n: int): ArrayList<int> {
+public fn iota(start: int, n: int): ArrayList<int> {
     let result: ArrayList<int> = new ArrayList<int>();
     let i: int = 0;
     while (i < n) {
@@ -441,7 +441,7 @@ fn iota(start: int, n: int): ArrayList<int> {
 
 // --- GCD / LCM ---
 
-fn gcd(a: int, b: int): int {
+public fn gcd(a: int, b: int): int {
     let x: int = Math.absInt(a);
     let y: int = Math.absInt(b);
     while (y != 0) {
@@ -452,7 +452,7 @@ fn gcd(a: int, b: int): int {
     return x;
 }
 
-fn lcm(a: int, b: int): int {
+public fn lcm(a: int, b: int): int {
     if (a == 0 || b == 0) {
         return 0;
     }
@@ -461,7 +461,7 @@ fn lcm(a: int, b: int): int {
 
 // --- Clamp ---
 
-fn clamp<T>(value: T, min: T, max: T): T {
+public fn clamp<T>(value: T, min: T, max: T): T {
     if (value < min) { return min; }
     if (value > max) { return max; }
     return value;
@@ -469,14 +469,14 @@ fn clamp<T>(value: T, min: T, max: T): T {
 
 // --- Merge (sorted) ---
 
-fn merge<T>(a: ArrayList<T>, b: ArrayList<T>): ArrayList<T> {
+public fn merge<T>(a: ArrayList<T>, b: ArrayList<T>): ArrayList<T> {
     return _mergeLists<T>(a, b);
 }
 
 // --- Permutations ---
 
 // Next permutation in lexicographic order. Returns a new list.
-fn nextPermutation<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn nextPermutation<T>(arr: ArrayList<T>): ArrayList<T> {
     let result: ArrayList<T> = arr.clone();
     let n: int = result.size();
     if (n <= 1) {
@@ -509,7 +509,7 @@ fn nextPermutation<T>(arr: ArrayList<T>): ArrayList<T> {
 }
 
 // Previous permutation in lexicographic order. Returns a new list.
-fn prevPermutation<T>(arr: ArrayList<T>): ArrayList<T> {
+public fn prevPermutation<T>(arr: ArrayList<T>): ArrayList<T> {
     let result: ArrayList<T> = arr.clone();
     let n: int = result.size();
     if (n <= 1) {
@@ -543,7 +543,7 @@ fn prevPermutation<T>(arr: ArrayList<T>): ArrayList<T> {
 
 // --- Predicate checks ---
 
-fn anyOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
+public fn anyOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
     let i: int = 0;
     while (i < arr.size()) {
         if (fn(arr.get(i))) {
@@ -554,7 +554,7 @@ fn anyOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
     return false;
 }
 
-fn allOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
+public fn allOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
     let i: int = 0;
     while (i < arr.size()) {
         if (!fn(arr.get(i))) {
@@ -565,7 +565,7 @@ fn allOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
     return true;
 }
 
-fn noneOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
+public fn noneOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
     let i: int = 0;
     while (i < arr.size()) {
         if (fn(arr.get(i))) {
@@ -578,7 +578,7 @@ fn noneOf<T>(arr: ArrayList<T>, fn: fn(T): bool): bool {
 
 // --- For-each ---
 
-fn forEach<T>(arr: ArrayList<T>, fn: fn(T): void): void {
+public fn forEach<T>(arr: ArrayList<T>, fn: fn(T): void): void {
     let i: int = 0;
     while (i < arr.size()) {
         fn(arr.get(i));
@@ -588,7 +588,7 @@ fn forEach<T>(arr: ArrayList<T>, fn: fn(T): void): void {
 
 // --- Fill (in-place) ---
 
-fn fill<T>(arr: ArrayList<T>, value: T): void {
+public fn fill<T>(arr: ArrayList<T>, value: T): void {
     let i: int = 0;
     while (i < arr.size()) {
         arr.set(i, value);
@@ -598,7 +598,7 @@ fn fill<T>(arr: ArrayList<T>, value: T): void {
 
 // --- Generate (in-place) ---
 
-fn generate<T>(arr: ArrayList<T>, fn: fn(): T): void {
+public fn generate<T>(arr: ArrayList<T>, fn: fn(): T): void {
     let i: int = 0;
     while (i < arr.size()) {
         arr.set(i, fn());

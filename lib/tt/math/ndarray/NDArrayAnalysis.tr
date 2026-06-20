@@ -190,3 +190,29 @@ public fn bincount(a: NDArray<double>): ArrayList<int> {
     }
     return result;
 }
+
+// Digitize: return the indices of the bins to which each value in `a` belongs.
+// Bins must be monotonically increasing. For each element x in `a`, the result is
+// the index i such that bins[i-1] <= x < bins[i] (right=False semantics).
+public fn digitize(a: NDArray<double>, bins: NDArray<double>): NDArray<int> {
+    let result: NDArray<int> = new NDArray<int>();
+    result.shape.add(a.data.size());
+    result.computeStrides();
+    let nBins: int = bins.data.size();
+    let n: int = a.data.size();
+    var i: int = 0;
+    while (i < n) {
+        let x: double = a.data.get(i);
+        var idx: int = 0;
+        var j: int = 0;
+        while (j < nBins) {
+            if (x >= bins.data.get(j)) {
+                idx = j + 1;
+            }
+            j = j + 1;
+        }
+        result.data.add(idx);
+        i = i + 1;
+    }
+    return result;
+}
