@@ -1,82 +1,74 @@
 import tt::util::ArrayList;
 import tt::util::ArrayListIterator;
+import tt::util::RingDeque;
 import tt::lang::Variant;
 
 // Deque: double-ended queue with optional max length.
+// Backed by RingDeque for O(1) pushLeft/popLeft operations.
 public class Deque {
-    public ArrayList<Variant> items;
+    public RingDeque<Variant> items;
     public int maxLen;
 
     public fn init() {
-        this.items = new ArrayList<Variant>();
+        this.items = new RingDeque<Variant>();
         this.maxLen = 0;
     }
 
     // Constructor with max length.
     public fn initWithMaxLen(maxLen: int) {
-        this.items = new ArrayList<Variant>();
+        this.items = new RingDeque<Variant>();
         this.maxLen = maxLen;
     }
 
-    // Add item to the front of the deque.
+    // Add item to the front of the deque. O(1)
     public fn pushLeft(item: Variant): void {
-        this.items.add(0, item);
+        this.items.pushFront(item);
         this.trimIfNeeded();
     }
 
-    // Add item to the back of the deque.
+    // Add item to the back of the deque. O(1)
     public fn pushRight(item: Variant): void {
-        this.items.add(item);
+        this.items.pushBack(item);
         this.trimIfNeeded();
     }
 
-    // Remove and return item from the front.
+    // Remove and return item from the front. O(1)
     public fn popLeft(): Variant {
         if (this.items.size() == 0) {
             throw "DequeError: pop from empty deque";
         }
-        let item: Variant = this.items.get(0);
-        this.items.remove(0);
-        return item;
+        return this.items.popFront();
     }
 
-    // Remove and return item from the back.
+    // Remove and return item from the back. O(1)
     public fn popRight(): Variant {
         if (this.items.size() == 0) {
             throw "DequeError: pop from empty deque";
         }
-        let item: Variant = this.items.get(this.items.size() - 1);
-        this.items.remove(this.items.size() - 1);
-        return item;
+        return this.items.popBack();
     }
 
-    // View the front item without removing it.
+    // View the front item without removing it. O(1)
     public fn peekLeft(): Variant {
-        if (this.items.size() == 0) {
-            return null;
-        }
-        return this.items.get(0);
+        return this.items.peekFront();
     }
 
-    // View the back item without removing it.
+    // View the back item without removing it. O(1)
     public fn peekRight(): Variant {
-        if (this.items.size() == 0) {
-            return null;
-        }
-        return this.items.get(this.items.size() - 1);
+        return this.items.peekBack();
     }
 
-    // Number of items in the deque.
+    // Number of items in the deque. O(1)
     public fn size(): int {
         return this.items.size();
     }
 
-    // Check if the deque is empty.
+    // Check if the deque is empty. O(1)
     public fn isEmpty(): bool {
-        return this.items.size() == 0;
+        return this.items.isEmpty();
     }
 
-    // Rotate the deque n steps to the right. Negative n rotates left.
+    // Rotate the deque n steps to the right. Negative n rotates left. O(n)
     public fn rotate(n: int): void {
         if (this.items.size() == 0) { return; }
         var steps: int = n % this.items.size();
@@ -84,12 +76,10 @@ public class Deque {
             steps = steps + this.items.size();
         }
         if (steps == 0) { return; }
-        // Move last `steps` items to the front
         var i: int = 0;
         while (i < steps) {
-            let item: Variant = this.items.get(this.items.size() - 1);
-            this.items.remove(this.items.size() - 1);
-            this.items.add(0, item);
+            let item: Variant = this.items.popBack();
+            this.items.pushFront(item);
             i = i + 1;
         }
     }
@@ -103,7 +93,6 @@ public class Deque {
             steps = steps + len;
         }
         if (steps == 0) { return; }
-        // Move last `steps` items to the front
         var i: int = 0;
         while (i < steps) {
             let item: Variant = d.get(len - 1);
@@ -113,11 +102,12 @@ public class Deque {
         }
     }
 
-    // Find the index of item. Returns -1 if not found.
+    // Find the index of item. Returns -1 if not found. O(n)
     public fn indexOf(item: Variant): int {
+        let arr: ArrayList<Variant> = this.items.toArray();
         var i: int = 0;
-        while (i < this.items.size()) {
-            if (this.items.get(i) == item) {
+        while (i < arr.size()) {
+            if (arr.get(i) == item) {
                 return i;
             }
             i = i + 1;
@@ -125,63 +115,66 @@ public class Deque {
         return -1;
     }
 
-    // Check if item is in the deque.
+    // Check if item is in the deque. O(n)
     public fn contains(item: Variant): bool {
-        return this.indexOf(item) >= 0;
+        return this.items.contains(item);
     }
 
-    // Remove all items from the deque.
+    // Remove all items from the deque. O(1)
     public fn clear(): void {
-        this.items = new ArrayList<Variant>();
+        this.items.clear();
     }
 
-    // Return an iterator over the deque elements.
+    // Return an iterator over the deque elements. O(n)
     public fn iterator(): ArrayListIterator<Variant> {
-        return new ArrayListIterator<Variant>(this.items);
+        return new ArrayListIterator<Variant>(this.items.toArray());
     }
 
-    // Insert an element at the specified index.
+    // Insert an element at the specified index. O(n)
     public fn insert(index: int, element: Variant): void {
-        // Add at end to grow capacity, then shift right to make room.
-        this.items.add(element);
-        var i: int = this.items.size() - 1;
-        while (i > index) {
-            let temp: Variant = this.items.get(i - 1);
-            this.items.set(i, temp);
-            i = i - 1;
+        // Convert to ArrayList, insert, rebuild RingDeque
+        let arr: ArrayList<Variant> = this.items.toArray();
+        arr.add(index, element);
+        this.items = new RingDeque<Variant>();
+        var i: int = 0;
+        while (i < arr.size()) {
+            this.items.pushBack(arr.get(i));
+            i = i + 1;
         }
-        this.items.set(index, element);
         this.trimIfNeeded();
     }
 
-    // Return a shallow copy of this deque.
+    // Return a shallow copy of this deque. O(n)
     public fn copy(): Deque {
         let result: Deque = new Deque();
         result.maxLen = this.maxLen;
+        let arr: ArrayList<Variant> = this.items.toArray();
         var i: int = 0;
-        while (i < this.items.size()) {
-            result.items.add(this.items.get(i));
+        while (i < arr.size()) {
+            result.items.pushBack(arr.get(i));
             i = i + 1;
         }
         return result;
     }
 
-    // Extend this deque by prepending elements from another deque.
+    // Extend this deque by prepending elements from another deque. O(n)
     public fn extendLeft(other: Deque): void {
-        // Insert each element from other at the beginning, in reverse order.
-        var i: int = other.size() - 1;
+        let arr: ArrayList<Variant> = other.items.toArray();
+        var i: int = arr.size() - 1;
         while (i >= 0) {
-            this.insert(0, other.items.get(i));
+            this.items.pushFront(arr.get(i));
             i = i - 1;
         }
+        this.trimIfNeeded();
     }
 
-    // Count the number of occurrences of item in the deque.
+    // Count the number of occurrences of item in the deque. O(n)
     public fn count(item: Variant): int {
+        let arr: ArrayList<Variant> = this.items.toArray();
         var cnt: int = 0;
         var i: int = 0;
-        while (i < this.items.size()) {
-            if (this.items.get(i) == item) {
+        while (i < arr.size()) {
+            if (arr.get(i) == item) {
                 cnt = cnt + 1;
             }
             i = i + 1;
@@ -189,32 +182,41 @@ public class Deque {
         return cnt;
     }
 
-    // Remove the first occurrence of item. Throws if item is not found.
+    // Remove the first occurrence of item. Throws if item is not found. O(n)
     public fn remove(item: Variant): void {
         let idx: int = this.indexOf(item);
         if (idx < 0) {
             throw "DequeError: item not found";
         }
-        this.items.remove(idx);
+        // Convert to ArrayList, remove, rebuild
+        let arr: ArrayList<Variant> = this.items.toArray();
+        arr.remove(idx);
+        this.items = new RingDeque<Variant>();
+        var i: int = 0;
+        while (i < arr.size()) {
+            this.items.pushBack(arr.get(i));
+            i = i + 1;
+        }
     }
 
-    // Return a new Deque with items in reverse order.
+    // Return a new Deque with items in reverse order. O(n)
     public fn reversed(): Deque {
         let result: Deque = new Deque();
         result.maxLen = this.maxLen;
-        var i: int = this.items.size() - 1;
+        let arr: ArrayList<Variant> = this.items.toArray();
+        var i: int = arr.size() - 1;
         while (i >= 0) {
-            result.items.add(this.items.get(i));
+            result.items.pushBack(arr.get(i));
             i = i - 1;
         }
         return result;
     }
 
-    // Internal: trim items from the left if maxLen is set and exceeded.
+    // Internal: trim items from the left if maxLen is set and exceeded. O(n)
     private fn trimIfNeeded(): void {
         if (this.maxLen > 0) {
             while (this.items.size() > this.maxLen) {
-                this.items.remove(0);
+                this.items.popFront();
             }
         }
     }
