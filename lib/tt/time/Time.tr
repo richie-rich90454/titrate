@@ -22,13 +22,13 @@ public fn micros(): long {
     return Time_now() * 1000;
 }
 
-public public fn nanos(): long {
+public fn nanos(): long {
     return Time_nanos();
 }
 
-public fn measure(public fn: public fn(): void): Duration {
+public fn measure(f: fn(): void): Duration {
     let start: long = Time_now() * 1000000;
-    public fn();
+    f();
     let end: long = Time_now() * 1000000;
     return new Duration((end - start) / 1000000);
 }
@@ -38,16 +38,16 @@ public fn stopwatch(): Stopwatch {
 }
 
 // Monotonic time in nanoseconds from an arbitrary epoch (suitable for measuring durations)
-public public fn monotonic(): long {
+public fn monotonic(): long {
     return Time_monotonic();
 }
 
 // High-resolution performance counter in nanoseconds
-public public fn perfCounter(): long {
+public fn perfCounter(): long {
     return Time_perfCounter();
 }
 
 // Unix timestamp as double with sub-second precision
-public public fn epochSeconds(): double {
+public fn epochSeconds(): double {
     return Time_epochSeconds();
 }

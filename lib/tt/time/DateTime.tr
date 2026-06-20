@@ -449,6 +449,13 @@ public class DateTime {
         return false;
     }
 
+    // Convert this DateTime to the given timezone.
+    // Adjusts the epoch millis by the timezone's offset (in minutes).
+    public fn astimezone(tz: TimeZone): DateTime {
+        let offsetMs: long = tz.offsetMinutes as long * 60000;
+        return new DateTime(this.epochMillis + offsetMs);
+    }
+
     // Get the day of the week as a string.
     public fn dayOfWeekName(): string {
         _ensureNamesLoaded();
@@ -468,6 +475,58 @@ public class DateTime {
         }
         return "Unknown";
     }
+}
+
+// TimeZone represents a timezone with a name and UTC offset (in minutes).
+public class TimeZone {
+    public string name;
+    public int offsetMinutes;
+
+    public fn init(name: string, offsetMinutes: int) {
+        this.name = name;
+        this.offsetMinutes = offsetMinutes;
+    }
+
+    public fn getName(): string {
+        return this.name;
+    }
+
+    public fn getOffsetMinutes(): int {
+        return this.offsetMinutes;
+    }
+
+    // Get the UTC offset as a formatted string (e.g. "+05:30" or "-04:00").
+    public fn getOffsetString(): string {
+        let totalMinutes: int = this.offsetMinutes;
+        let sign: string = "+";
+        if (totalMinutes < 0) {
+            sign = "-";
+        }
+        let absMinutes: int = totalMinutes;
+        if (absMinutes < 0) {
+            absMinutes = -absMinutes;
+        }
+        let hours: int = absMinutes / 60;
+        let minutes: int = absMinutes % 60;
+        let hourStr: string = Integer.toString(hours);
+        let minStr: string = Integer.toString(minutes);
+        if (hours < 10) {
+            hourStr = "0" + hourStr;
+        }
+        if (minutes < 10) {
+            minStr = "0" + minStr;
+        }
+        return sign + hourStr + ":" + minStr;
+    }
+
+    public fn toString(): string {
+        return "TimeZone(" + this.name + ", UTC" + this.getOffsetString() + ")";
+    }
+}
+
+// The UTC timezone singleton (offset 0).
+public fn utc(): TimeZone {
+    return new TimeZone("UTC", 0);
 }
 
 // Module-level caches for locale names loaded from DataFile

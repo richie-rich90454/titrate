@@ -378,6 +378,9 @@ public class Logger {
 
     private fn _log(level: string, msg: string): void {
         let levelVal: int = this._levelValue(level);
+        if (levelVal <= _disabledLevel) {
+            return;
+        }
         if (levelVal < this.effectiveLevel()) {
             return;
         }
@@ -414,6 +417,7 @@ public class Logger {
 // Global logger registry.
 let _loggers: HashMap<string, Logger> = new HashMap<string, Logger>();
 let _rootLogger: Logger = new Logger("root", "WARNING");
+let _disabledLevel: int = 0;
 
 // Get or create a named logger with parent-child hierarchy based on dot-separated names.
 public fn getLogger(name: string): Logger {
@@ -460,3 +464,30 @@ public fn info(msg: string): void { _rootLogger.info(msg); }
 public fn warning(msg: string): void { _rootLogger.warning(msg); }
 public fn error(msg: string): void { _rootLogger.error(msg); }
 public fn critical(msg: string): void { _rootLogger.critical(msg); }
+
+// ---- Logging level constants ----
+public const NOTSET: int = 0;
+public const DEBUG: int = 10;
+public const INFO: int = 20;
+public const WARNING: int = 30;
+public const ERROR: int = 40;
+public const CRITICAL: int = 50;
+
+// Disable all logging at or below the given level.
+// Pass NOTSET (0) to re-enable logging.
+public fn disable(level: int): void {
+    _disabledLevel = level;
+}
+
+// Shut down the logging system by clearing all handlers from all loggers.
+// This flushes (by discarding) pending handlers and releases resources.
+public fn shutdown(): void {
+    let names: ArrayList<string> = _loggers.keys();
+    var i: int = 0;
+    while (i < names.size()) {
+        let logger: Logger = _loggers.get(names.get(i));
+        logger.handlers.clear();
+        i = i + 1;
+    }
+    _rootLogger.handlers.clear();
+}

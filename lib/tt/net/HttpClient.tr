@@ -3,17 +3,27 @@ import tt::util::HashMap;
 
 public class HttpResponse {
     private int statusCode;
+    private string reason;
     private HashMap<string, string> headers;
     private string body;
 
     public fn init(statusCode: int, headers: HashMap<string, string>, body: string) {
         this.statusCode = statusCode;
+        this.reason = "";
         this.headers = headers;
         this.body = body;
     }
 
     public fn getStatusCode(): int {
         return this.statusCode;
+    }
+
+    public fn getReason(): string {
+        return this.reason;
+    }
+
+    public fn setReason(reason: string): void {
+        this.reason = reason;
     }
 
     public fn getHeaders(): HashMap<string, string> {
@@ -25,7 +35,64 @@ public class HttpResponse {
     }
 
     public fn toString(): string {
-        return "HttpResponse{statusCode=" + this.statusCode + ", body=" + this.body + "}";
+        return "HttpResponse{statusCode=" + this.statusCode + ", reason=" + this.reason + ", body=" + this.body + "}";
+    }
+}
+
+// Base exception for HTTP-related errors.
+public class HttpException {
+    public string message;
+
+    public fn init(message: string) {
+        this.message = message;
+    }
+
+    public fn getMessage(): string {
+        return this.message;
+    }
+
+    public fn toString(): string {
+        return "HttpException: " + this.message;
+    }
+}
+
+// Raised when an invalid HTTP status line is received.
+public class BadStatusLine {
+    public string message;
+    public string line;
+
+    public fn init(line: string) {
+        this.line = line;
+        this.message = "BadStatusLine: " + line;
+    }
+
+    public fn getMessage(): string {
+        return this.message;
+    }
+
+    public fn getLine(): string {
+        return this.line;
+    }
+
+    public fn toString(): string {
+        return this.message;
+    }
+}
+
+// Raised when the remote end of a connection closes unexpectedly.
+public class RemoteDisconnected {
+    public string message;
+
+    public fn init(message: string) {
+        this.message = "RemoteDisconnected: " + message;
+    }
+
+    public fn getMessage(): string {
+        return this.message;
+    }
+
+    public fn toString(): string {
+        return this.message;
     }
 }
 
