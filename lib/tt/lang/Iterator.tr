@@ -1,3 +1,5 @@
+import tt::util::ArrayList;
+
 interface Iterator<E> {
     fn next(): E;
     fn hasNext(): bool;
@@ -292,4 +294,105 @@ class EnumeratedIterator<E> implements Iterator<(int, E)> {
     fn hasNext(): bool {
         return this.source.hasNext();
     }
+}
+
+// --- C++ STL-style iterator utilities ---
+
+// Advance an iterator by n positions (in-place). Negative n is ignored
+// for forward-only iterators.
+public fn advance<E>(it: Iterator<E>, n: int): void {
+    var i: int = 0;
+    while (i < n && it.hasNext()) {
+        it.next();
+        i = i + 1;
+    }
+}
+
+// Return the number of elements remaining in the iterator.
+// This consumes the iterator.
+public fn distance<E>(it: Iterator<E>): int {
+    var count: int = 0;
+    while (it.hasNext()) {
+        it.next();
+        count = count + 1;
+    }
+    return count;
+}
+
+// Return the element n positions ahead, advancing the iterator.
+// Returns null if the iterator is exhausted before n steps.
+public fn next<E>(it: Iterator<E>, n: int): E {
+    var i: int = 0;
+    while (i < n && it.hasNext()) {
+        it.next();
+        i = i + 1;
+    }
+    if (it.hasNext()) {
+        return it.next();
+    }
+    return null;
+}
+
+// Return the element n positions before the given index in a random-access list.
+// This does not modify any iterator; it indexes into the backing list.
+public fn prev<E>(list: ArrayList<E>, index: int, n: int): E {
+    let target: int = index - n;
+    if (target < 0 || target >= list.size()) {
+        return null;
+    }
+    return list.get(target);
+}
+
+// BackInsertIterator: an output iterator that appends elements to a list.
+class BackInsertIterator<E> implements Iterator<E> {
+    public ArrayList<E> target;
+
+    public fn init(list: ArrayList<E>) {
+        this.target = list;
+    }
+
+    fn next(): E {
+        return null;
+    }
+
+    fn hasNext(): bool {
+        return false;
+    }
+
+    // Insert value at the back of the target list.
+    public fn insert(value: E): void {
+        this.target.add(value);
+    }
+}
+
+// FrontInsertIterator: an output iterator that prepends elements to a list.
+class FrontInsertIterator<E> implements Iterator<E> {
+    public ArrayList<E> target;
+
+    public fn init(list: ArrayList<E>) {
+        this.target = list;
+    }
+
+    fn next(): E {
+        return null;
+    }
+
+    fn hasNext(): bool {
+        return false;
+    }
+
+    // Insert value at the front of the target list.
+    public fn insert(value: E): void {
+        this.target.add(0, value);
+    }
+}
+
+// Create a back insert iterator for the given list.
+public fn backInserter<E>(list: ArrayList<E>): BackInsertIterator<E> {
+    return new BackInsertIterator<E>(list);
+}
+
+// Create a front insert iterator for the given list.
+public fn frontInserter<E>(list: ArrayList<E>): FrontInsertIterator<E> {
+    return new FrontInsertIterator<E>(list);
 }

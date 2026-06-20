@@ -119,6 +119,59 @@ public class Counter {
         return sum;
     }
 
+    // Union: return a new Counter with the maximum of each key's count.
+    public fn union(other: Counter): Counter {
+        let result: Counter = new Counter();
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let otherCount: int = other.get(key);
+            let maxCount: int = this.counts.get(key);
+            if (otherCount > maxCount) {
+                maxCount = otherCount;
+            }
+            if (maxCount > 0) {
+                result.counts.put(key, maxCount);
+            }
+            i = i + 1;
+        }
+        let otherKeys: ArrayList<string> = other.counts.keys();
+        i = 0;
+        while (i < otherKeys.size()) {
+            let key: string = otherKeys.get(i);
+            if (!result.counts.containsKey(key)) {
+                let cnt: int = other.counts.get(key);
+                if (cnt > 0) {
+                    result.counts.put(key, cnt);
+                }
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Intersection: return a new Counter with the minimum of each key's count.
+    // Keys with non-positive counts are omitted.
+    public fn intersection(other: Counter): Counter {
+        let result: Counter = new Counter();
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let otherCount: int = other.get(key);
+            let minCount: int = this.counts.get(key);
+            if (otherCount < minCount) {
+                minCount = otherCount;
+            }
+            if (minCount > 0) {
+                result.counts.put(key, minCount);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
     // Static: return the n most common items from a count map.
     public fn mostCommon(c: HashMap<string, int>, n: int): ArrayList<(string, int)> {
         let keys: ArrayList<string> = c.keys();

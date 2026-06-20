@@ -940,6 +940,41 @@ public fn sortHeap<T>(heap: ArrayList<T>): void {
     }
 }
 
+// Check if the list satisfies the max-heap property.
+public fn isHeap<T>(list: ArrayList<T>): bool {
+    return isHeapUntil<T>(list) >= list.size();
+}
+
+// Return the index of the first element that violates the max-heap property.
+// Returns list.size() if the entire list is a valid heap.
+public fn isHeapUntil<T>(list: ArrayList<T>): int {
+    let n: int = list.size();
+    let i: int = 0;
+    while (i < n) {
+        let left: int = 2 * i + 1;
+        let right: int = 2 * i + 2;
+        if (left < n && list.get(left) > list.get(i)) {
+            return i;
+        }
+        if (right < n && list.get(right) > list.get(i)) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return n;
+}
+
+// Randomly shuffle the list in place (C++ std::random_shuffle naming).
+public fn randomShuffle<T>(list: ArrayList<T>): void {
+    let rng: Random = new Random();
+    let i: int = list.size() - 1;
+    while (i > 0) {
+        let j: int = rng.nextInt(i + 1);
+        _swap<T>(list, i, j);
+        i = i - 1;
+    }
+}
+
 // --- Min/max ---
 
 // Return a Pair of (min, max) from two values.

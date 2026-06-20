@@ -73,6 +73,16 @@ public fn ceil2(value: int): int {
     return 1 << w;
 }
 
+// Alias for floor2 (C++20 std::bit_floor naming).
+public fn bitFloor(value: int): int {
+    return floor2(value);
+}
+
+// Alias for ceil2 (C++20 std::bit_ceil naming).
+public fn bitCeil(value: int): int {
+    return ceil2(value);
+}
+
 // Bit cast integer to another representation (identity for same size).
 public fn bitCast(value: int): int {
     return value;

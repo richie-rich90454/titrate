@@ -426,3 +426,13 @@ public fn system(command: string): int {
 public fn uname(): string {
     return Os_uname();
 }
+
+// Open a pipe to a command. mode "r" reads the command's stdout,
+// mode "w" would write to the command's stdin (not supported, returns "").
+// Returns the captured output as a string for read mode.
+public fn popen(command: string, mode: string): string {
+    if (mode != "r") {
+        return "";
+    }
+    return Subprocess_exec(command);
+}
