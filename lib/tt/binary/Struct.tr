@@ -654,3 +654,22 @@ public fn unpackFrom(format: string, buffer: string, offset: int): ArrayList<Var
     let s: Struct = new Struct(format);
     return s.unpackFrom(buffer, offset);
 }
+
+// Convenience function: iteratively unpack all records from a binary string.
+// Returns a list of records, each record being the list of values for one format unit.
+public fn iterUnpack(format: string, data: string): ArrayList<ArrayList<Variant>> {
+    let result: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let s: Struct = new Struct(format);
+    let recordSize: int = s.size();
+    if (recordSize <= 0) {
+        return result;
+    }
+    var offset: int = 0;
+    while (offset + recordSize <= String.length(data)) {
+        let chunk: string = String.substring(data, offset, offset + recordSize);
+        let record: ArrayList<Variant> = s.unpack(chunk);
+        result.add(record);
+        offset = offset + recordSize;
+    }
+    return result;
+}

@@ -328,3 +328,58 @@ fn fromString(s: string): Fraction {
     }
     return new Fraction(0L, 1L);
 }
+
+// Create a Fraction from a decimal string like "3.14" or "-0.5".
+// The decimal string is parsed exactly into a numerator and denominator
+// (e.g. "3.14" becomes 314/100 which reduces to 157/50).
+fn fromDecimal(s: string): Fraction {
+    let str: string = s;
+    let negative: bool = false;
+    if (String.length(str) > 0 && String.charAt(str, 0) == "-") {
+        negative = true;
+        str = String.substring(str, 1, String.length(str));
+    } else if (String.length(str) > 0 && String.charAt(str, 0) == "+") {
+        str = String.substring(str, 1, String.length(str));
+    }
+    // Find decimal point
+    let dotPos: int = -1;
+    let i: int = 0;
+    while (i < String.length(str)) {
+        if (String.charAt(str, i) == ".") {
+            dotPos = i;
+            break;
+        }
+        i = i + 1;
+    }
+    if (dotPos == -1) {
+        // No decimal point, treat as integer
+        if (String.length(str) == 0) {
+            return new Fraction(0L, 1L);
+        }
+        let num: long = Long.parseLong(str);
+        if (negative) {
+            num = -num;
+        }
+        return new Fraction(num, 1L);
+    }
+    let intPart: string = String.substring(str, 0, dotPos);
+    let fracPart: string = String.substring(str, dotPos + 1, String.length(str));
+    if (String.length(intPart) == 0) {
+        intPart = "0";
+    }
+    let numStr: string = intPart + fracPart;
+    if (String.length(numStr) == 0 || numStr == "0") {
+        return new Fraction(0L, 1L);
+    }
+    let num: long = Long.parseLong(numStr);
+    let den: long = 1L;
+    let j: int = 0;
+    while (j < String.length(fracPart)) {
+        den = den * 10L;
+        j = j + 1;
+    }
+    if (negative) {
+        num = -num;
+    }
+    return new Fraction(num, den);
+}

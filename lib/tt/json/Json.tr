@@ -35,6 +35,12 @@ public fn stringify(value: JsonValue, indent: int, sortKeys: bool): string {
     return dumps(value, sortKeys, indent);
 }
 
+// Convert a JsonValue to a JSON string with indentation, key sorting, and ASCII-only output.
+// ensureAscii: if true, non-ASCII characters are escaped as \uXXXX sequences.
+public fn stringify(value: JsonValue, indent: int, sortKeys: bool, ensureAscii: bool): string {
+    return stringifyPrettyInner(value, indent, 0, sortKeys, ensureAscii);
+}
+
 // Pretty print with indentation
 public fn prettyPrint(value: JsonValue, indent: int): string {
     return prettyPrintInner(value, indent, 0);
