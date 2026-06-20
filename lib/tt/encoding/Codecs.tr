@@ -136,3 +136,18 @@ fn decodeLatin1(s: string): string {
 public fn register(encoding: string, encoder: fn(string): string, decoder: fn(string): string): void {
     // Stub: custom encoding registration requires VM support
 }
+
+// Look up information about a registered encoding.
+// Returns the canonical encoding name, or empty string if not found.
+public fn lookup(encoding: string): string {
+    _ensureCodecsLoaded();
+    let enc: string = String.toLowerCase(encoding);
+    if (_codecAliasesCache.containsKey(enc)) {
+        return _codecAliasesCache.get(enc);
+    }
+    // Check if it's a known canonical name
+    if (enc == "utf-8" || enc == "utf8" || enc == "ascii" || enc == "latin-1" || enc == "latin1" || enc == "iso-8859-1" || enc == "utf-16" || enc == "utf-32") {
+        return enc;
+    }
+    return "";
+}

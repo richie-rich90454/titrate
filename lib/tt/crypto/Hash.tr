@@ -2,6 +2,7 @@
 import tt::util::ArrayList;
 import tt::lang::DataFile;
 import tt::json::JsonValue;
+import tt::crypto::Hmac;
 
 // ---- Data loaded from external JSON via DataFile ----
 
@@ -120,11 +121,10 @@ public class Hash {
         return Hash_blake2s(input);
     }
 
-    // NOTE: HMAC is not yet available as a VM native.
-    // This is a simplified placeholder.
+    // HMAC-SHA256 using proper HMAC construction (RFC 2104).
+    // Delegates to the Hmac module's implementation.
     public fn hmac(key: string, data: string): string {
-        // Placeholder: concatenate and hash until native HMAC is available
-        return Hash_sha256(key + data);
+        return Hmac.sha256(key, data);
     }
 
     // CRC32 backed by native implementation

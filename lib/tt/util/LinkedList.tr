@@ -289,4 +289,90 @@ public class LinkedList<E> {
             current = nextNode;
         }
     }
+
+    // Splice: move all elements from another list into this list at the given position.
+    // The other list becomes empty after the operation.
+    public fn splice(index: int, other: LinkedList<E>): void {
+        if (other == null || other._size == 0) {
+            return;
+        }
+        if (index >= this._size) {
+            // Append at end
+            this.tail.next = other.head;
+            other.head.prev = this.tail;
+            this.tail = other.tail;
+        } else if (index <= 0) {
+            // Prepend at front
+            other.tail.next = this.head;
+            this.head.prev = other.tail;
+            this.head = other.head;
+        } else {
+            let node: Node<E> = this._nodeAt(index);
+            let pred: Node<E> = node.prev;
+            pred.next = other.head;
+            other.head.prev = pred;
+            other.tail.next = node;
+            node.prev = other.tail;
+        }
+        this._size = this._size + other._size;
+        other.head = null;
+        other.tail = null;
+        other._size = 0;
+    }
+
+    // Sort the list using merge sort with a comparator.
+    // Returns a new sorted list (does not modify this list).
+    public fn sort(comparator: fn(E, E): int): LinkedList<E> {
+        // Convert to ArrayList, sort, rebuild
+        let arr: ArrayList<E> = new ArrayList<E>();
+        let current: Node<E> = this.head;
+        while (current != null) {
+            arr.add(current.value);
+            current = current.next;
+        }
+        // Insertion sort using comparator
+        var i: int = 1;
+        while (i < arr.size()) {
+            let key: E = arr.get(i);
+            var j: int = i - 1;
+            while (j >= 0 && comparator(arr.get(j), key) > 0) {
+                arr.set(j + 1, arr.get(j));
+                j = j - 1;
+            }
+            arr.set(j + 1, key);
+            i = i + 1;
+        }
+        let result: LinkedList<E> = new LinkedList<E>();
+        var k: int = 0;
+        while (k < arr.size()) {
+            result.addLast(arr.get(k));
+            k = k + 1;
+        }
+        return result;
+    }
+
+    // Merge two sorted lists into a new sorted list using the comparator.
+    public fn merge(other: LinkedList<E>, comparator: fn(E, E): int): LinkedList<E> {
+        let result: LinkedList<E> = new LinkedList<E>();
+        let a: Node<E> = this.head;
+        let b: Node<E> = other.head;
+        while (a != null && b != null) {
+            if (comparator(a.value, b.value) <= 0) {
+                result.addLast(a.value);
+                a = a.next;
+            } else {
+                result.addLast(b.value);
+                b = b.next;
+            }
+        }
+        while (a != null) {
+            result.addLast(a.value);
+            a = a.next;
+        }
+        while (b != null) {
+            result.addLast(b.value);
+            b = b.next;
+        }
+        return result;
+    }
 }

@@ -112,3 +112,13 @@ public fn makeTuple3<A, B, C>(a: A, b: B, c: C): Tuple3<A, B, C> {
 public fn makeTuple4<A, B, C, D>(a: A, b: B, c: C, d: D): Tuple4<A, B, C, D> {
     return new Tuple4<A, B, C, D>(a, b, c, d);
 }
+
+// Concatenate two Tuple2 instances into a Tuple4.
+public fn tupleCat2<A, B, C, D>(t1: Tuple2<A, B>, t2: Tuple2<C, D>): Tuple4<A, B, C, D> {
+    return new Tuple4<A, B, C, D>(t1._0, t1._1, t2._0, t2._1);
+}
+
+// Concatenate a Tuple2 and a Tuple3 into a Tuple4 (truncating to 4 elements).
+public fn tupleCat23<A, B, C, D>(t1: Tuple2<A, B>, t2: Tuple3<C, D, Variant>): Tuple4<A, B, C, D> {
+    return new Tuple4<A, B, C, D>(t1._0, t1._1, t2._0, t2._1);
+}

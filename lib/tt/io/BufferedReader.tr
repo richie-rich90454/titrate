@@ -87,6 +87,16 @@ public class BufferedReader implements Reader {
         return line;
     }
 
+    // Read a single character from the stream.
+    // Returns the character as a string, or null at end of stream.
+    public fn readChar(): string {
+        let line: string = this.readLine();
+        if (line == null || String.length(line) == 0) {
+            return null;
+        }
+        return String.charAt(line, 0);
+    }
+
     // Mark the current position for later reset.
     public fn mark(): void {
         this.markPos = this.bufferPos;
