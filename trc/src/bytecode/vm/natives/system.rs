@@ -633,18 +633,39 @@ pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
         _ => 0, // F_OK = 0 (existence check)
     };
     let p = std::path::Path::new(path);
-    let result = match mode {
-        0 => p.exists(), // F_OK
-        1 => p.exists(), // X_OK (simplified)
-        2 => { // W_OK — try opening for append
-            std::fs::OpenOptions::new().append(true).open(p).is_ok()
-        }
-        4 => { // R_OK — try opening for read
-            std::fs::File::open(p).is_ok()
-        }
-        _ => p.exists(),
-    };
-    Ok(Value::Bool(result))
+    #[cfg(unix)]
+    {
+        // Use libc::access for real permission checking on Unix
+        use std::ffi::CString;
+        let c_path = match CString::new(path) {
+            Ok(s) => s,
+            Err(_) => return Ok(Value::Bool(false)),
+        };
+        let c_mode = match mode {
+            0 => libc::F_OK,
+            1 => libc::X_OK,
+            2 => libc::W_OK,
+            4 => libc::R_OK,
+            _ => libc::F_OK,
+        };
+        let ret = unsafe { libc::access(c_path.as_ptr(), c_mode) };
+        Ok(Value::Bool(ret == 0))
+    }
+    #[cfg(not(unix))]
+    {
+        let result = match mode {
+            0 => p.exists(), // F_OK
+            1 => p.exists(), // X_OK (simplified on Windows)
+            2 => { // W_OK — try opening for append
+                std::fs::OpenOptions::new().append(true).open(p).is_ok()
+            }
+            4 => { // R_OK — try opening for read
+                std::fs::File::open(p).is_ok()
+            }
+            _ => p.exists(),
+        };
+        Ok(Value::Bool(result))
+    }
 }
 
 pub(crate) fn native_os_system(args: &[Value]) -> Result<Value, String> {
