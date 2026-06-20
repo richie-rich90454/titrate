@@ -35,14 +35,14 @@ public class TcpClient {
     }
 
     public fn setTimeout(ms: int): void {
-        // No native Net_setTimeout; no-op
+        Net_setTimeout(this.handle, ms);
     }
 
     public fn getLocalAddress(): string {
-        return "";
+        return Net_getLocalAddress(this.handle);
     }
 
     public fn getRemoteAddress(): string {
-        return "";
+        return Net_getRemoteAddress(this.handle);
     }
 }

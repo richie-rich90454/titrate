@@ -529,3 +529,108 @@ pub(crate) fn native_dns_reverse_lookup(args: &[Value]) -> Result<Value, String>
     // std does not provide reverse DNS; return the IP as a fallback.
     Ok(Value::String(Rc::new(ip)))
 }
+
+pub(crate) fn native_net_get_local_port(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Ok(Value::Int(0));
+    }
+    match &args[0] {
+        Value::Socket(socket_rc) => {
+            let socket_opt = socket_rc.borrow();
+            match socket_opt.as_ref() {
+                Some(stream) => {
+                    match stream.local_addr() {
+                        Ok(addr) => Ok(Value::Int(addr.port() as i32)),
+                        Err(_) => Ok(Value::Int(0)),
+                    }
+                }
+                None => Ok(Value::Int(0)),
+            }
+        }
+        Value::Listener(listener_rc) => {
+            let listener_opt = listener_rc.borrow();
+            match listener_opt.as_ref() {
+                Some(listener) => {
+                    match listener.local_addr() {
+                        Ok(addr) => Ok(Value::Int(addr.port() as i32)),
+                        Err(_) => Ok(Value::Int(0)),
+                    }
+                }
+                None => Ok(Value::Int(0)),
+            }
+        }
+        _ => Ok(Value::Int(0)),
+    }
+}
+
+pub(crate) fn native_net_get_local_address(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Ok(Value::String(Rc::new("".to_string())));
+    }
+    match &args[0] {
+        Value::Socket(socket_rc) => {
+            let socket_opt = socket_rc.borrow();
+            match socket_opt.as_ref() {
+                Some(stream) => {
+                    match stream.local_addr() {
+                        Ok(addr) => Ok(Value::String(Rc::new(addr.ip().to_string()))),
+                        Err(_) => Ok(Value::String(Rc::new("".to_string()))),
+                    }
+                }
+                None => Ok(Value::String(Rc::new("".to_string()))),
+            }
+        }
+        _ => Ok(Value::String(Rc::new("".to_string()))),
+    }
+}
+
+pub(crate) fn native_net_get_remote_address(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Ok(Value::String(Rc::new("".to_string())));
+    }
+    match &args[0] {
+        Value::Socket(socket_rc) => {
+            let socket_opt = socket_rc.borrow();
+            match socket_opt.as_ref() {
+                Some(stream) => {
+                    match stream.peer_addr() {
+                        Ok(addr) => Ok(Value::String(Rc::new(addr.ip().to_string()))),
+                        Err(_) => Ok(Value::String(Rc::new("".to_string()))),
+                    }
+                }
+                None => Ok(Value::String(Rc::new("".to_string()))),
+            }
+        }
+        _ => Ok(Value::String(Rc::new("".to_string()))),
+    }
+}
+
+pub(crate) fn native_net_set_timeout(args: &[Value]) -> Result<Value, String> {
+    if args.len() < 2 {
+        return Err("Net_setTimeout: expected 2 arguments (socket, ms)".to_string());
+    }
+    let ms = args[1].to_i64().unwrap_or(0) as u64;
+    let timeout = if ms > 0 {
+        Some(std::time::Duration::from_millis(ms))
+    } else {
+        None
+    };
+    match &args[0] {
+        Value::Socket(socket_rc) => {
+            let mut socket_opt = socket_rc.borrow_mut();
+            if let Some(stream) = socket_opt.as_mut() {
+                let _ = stream.set_read_timeout(timeout);
+                let _ = stream.set_write_timeout(timeout);
+            }
+            Ok(Value::Void)
+        }
+        Value::Listener(listener_rc) => {
+            let listener_opt = listener_rc.borrow();
+            if let Some(listener) = listener_opt.as_ref() {
+                let _ = listener.set_nonblocking(ms == 0);
+            }
+            Ok(Value::Void)
+        }
+        _ => Err("Net_setTimeout: expected Socket or Listener argument".to_string()),
+    }
+}

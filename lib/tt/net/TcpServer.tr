@@ -30,10 +30,10 @@ public class TcpServer {
     }
 
     public fn getLocalPort(): int {
-        return 0;
+        return Net_getLocalPort(this.handle);
     }
 
     public fn setTimeout(ms: int): void {
-        // No native Net_setServerTimeout; no-op
+        Net_setTimeout(this.handle, ms);
     }
 }
