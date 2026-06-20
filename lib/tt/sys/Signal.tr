@@ -97,12 +97,21 @@ public fn raise(signum: int): void {
     }
 }
 
-// Return the default handler for a signal (no-op placeholder)
+// Return the default handler for a signal.
+// The default handler simulates OS default behavior: it logs the signal
+// and terminates the process. This is equivalent to SIG_DFL in C.
 public fn defaultHandler(signum: int): fn(int): void {
-    return fn(sig: int): void { };
+    return fn(sig: int): void {
+        io::println("Signal " + Integer.toString(sig) + " received (default action: terminate)");
+        Sys_exit(128 + sig);
+    };
 }
 
-// Return an ignore handler for a signal (no-op)
+// Return an ignore handler for a signal.
+// The ignore handler does nothing, effectively ignoring the signal.
+// This is equivalent to SIG_IGN in C.
 public fn ignoreHandler(signum: int): fn(int): void {
-    return fn(sig: int): void { };
+    return fn(sig: int): void {
+        // Intentionally empty: signal is ignored
+    };
 }
