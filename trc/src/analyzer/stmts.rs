@@ -287,6 +287,23 @@ impl Analyzer {
                     self.local_vars.push(name.clone());
                 }
             }
+            ast::Stmt::Throw(expr, _) => {
+                self.analyze_expr(expr, scope);
+            }
+            ast::Stmt::TryCatch { try_block, catch_var, catch_var_type, catch_block, span: _ } => {
+                self.analyze_block(try_block, scope);
+                let catch_scope = Rc::new(RefCell::new(Scope::new(Some(scope.clone()))));
+                let catch_type = catch_var_type.clone().unwrap_or_else(|| ast::Type::simple("string"));
+                catch_scope.borrow_mut().define(
+                    catch_var.clone(),
+                    Symbol::Variable { typ: catch_type, mutable: false },
+                );
+                self.var_states.insert(catch_var.clone(), VarState::Live);
+                self.local_vars.push(catch_var.clone());
+                self.analyze_block(catch_block, &catch_scope);
+                self.var_states.remove(catch_var);
+                self.local_vars.retain(|v| v != catch_var);
+            }
         }
     }
 

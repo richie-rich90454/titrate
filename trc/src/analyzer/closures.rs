@@ -63,7 +63,7 @@ impl Analyzer {
                     self.collect_captured_vars_from_expr(arg, param_names, outer_scope, captured);
                 }
             }
-            ast::Expr::OwnedDeref(inner, _) | ast::Expr::ErrorPropagation(inner, _) | ast::Expr::Cast(inner, _, _) => {
+            ast::Expr::OwnedDeref(inner, _) | ast::Expr::ErrorPropagation(inner, _) | ast::Expr::Cast(inner, _, _) | ast::Expr::Is(inner, _, _) => {
                 self.collect_captured_vars_from_expr(inner, param_names, outer_scope, captured);
             }
             ast::Expr::RefExpr(inner, _, _) => {
@@ -199,6 +199,17 @@ impl Analyzer {
             }
             ast::Stmt::TupleDestructure { expr, .. } => {
                 self.collect_captured_vars_from_expr(expr, param_names, outer_scope, captured);
+            }
+            ast::Stmt::Throw(expr, _) => {
+                self.collect_captured_vars_from_expr(expr, param_names, outer_scope, captured);
+            }
+            ast::Stmt::TryCatch { try_block, catch_block, .. } => {
+                for s in try_block {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
+                for s in catch_block {
+                    self.collect_captured_vars_from_stmt(s, param_names, outer_scope, captured);
+                }
             }
         }
     }

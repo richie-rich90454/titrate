@@ -176,6 +176,7 @@ impl Analyzer {
                 inner_type
             }
             ast::Expr::Cast(_inner, target_type, _) => target_type.clone(),
+            ast::Expr::Is(_, _, _) => ast::Type::simple("bool"),
             ast::Expr::StaticCall { .. } => {
                 // For toString, returns string.
                 ast::Type::simple("string")

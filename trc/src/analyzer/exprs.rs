@@ -487,6 +487,9 @@ impl Analyzer {
                     }));
                 }
             }
+            ast::Expr::Is(inner, _, _) => {
+                self.analyze_expr(inner, scope);
+            }
             ast::Expr::StaticCall { class_name, method, args, span: _ } => {
                 for arg in args.iter_mut() {
                     self.analyze_expr(arg, scope);
