@@ -114,7 +114,20 @@ public fn delaunay(points: ArrayList<Point2D>): ArrayList<Triangle> {
         }
         i = i + 1;
     }
-    // Voronoi diagram extraction from Delaunay triangulation
+    // Remove triangles with super triangle vertices
+    let result: ArrayList<Triangle> = new ArrayList<Triangle>();
+    i = 0;
+    while (i < triangles.size()) {
+        let tri: Triangle = triangles.get(i);
+        if (tri.a < n && tri.b < n && tri.c < n) {
+            result.add(tri);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Voronoi diagram extraction from Delaunay triangulation
 // Returns list of Voronoi cells, each cell is a list of circumcenter coordinates [x, y]
 public fn voronoi(points: ArrayList<Point2D>, triangles: ArrayList<Triangle>): ArrayList<ArrayList<double>> {
     let cells: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
@@ -147,17 +160,4 @@ public fn voronoi(points: ArrayList<Point2D>, triangles: ArrayList<Triangle>): A
         i = i + 1;
     }
     return cells;
-}
-
-// Remove triangles with super triangle vertices
-    let result: ArrayList<Triangle> = new ArrayList<Triangle>();
-    i = 0;
-    while (i < triangles.size()) {
-        let tri: Triangle = triangles.get(i);
-        if (tri.a < n && tri.b < n && tri.c < n) {
-            result.add(tri);
-        }
-        i = i + 1;
-    }
-    return result;
 }
