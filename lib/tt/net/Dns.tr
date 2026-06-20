@@ -4,19 +4,19 @@ import tt::util::ArrayList;
 
 public class DnsRecord {
     public string name;
-    public string type;
+    public string recordType;
     public string value;
     public int ttl;
 
-    public fn init(name: string, type: string, value: string, ttl: int) {
+    public fn init(name: string, recordType: string, value: string, ttl: int) {
         this.name = name;
-        this.type = type;
+        this.recordType = recordType;
         this.value = value;
         this.ttl = ttl;
     }
 
     public fn toString(): string {
-        return "DnsRecord{name=" + this.name + ", type=" + this.type + ", value=" + this.value + ", ttl=" + Integer.toString(this.ttl) + "}";
+        return "DnsRecord{name=" + this.name + ", type=" + this.recordType + ", value=" + this.value + ", ttl=" + Integer.toString(this.ttl) + "}";
     }
 }
 

@@ -25,11 +25,11 @@ fn _ensureComplementLoaded(): void {
 
 public class Sequence {
     public string seq;
-    public string type;
+    public string seqType;
 
     public fn init(s: string, t: string) {
         this.seq = s;
-        this.type = t;
+        this.seqType = t;
     }
 
     public fn length(): int {
@@ -38,7 +38,7 @@ public class Sequence {
 
     public fn substring(start: int, end: int): Sequence {
         let sub: string = String.substring(this.seq, start, end);
-        return new Sequence(sub, this.type);
+        return new Sequence(sub, this.seqType);
     }
 
     public fn complement(): Sequence {
@@ -54,7 +54,7 @@ public class Sequence {
             }
             i = i + 1;
         }
-        return new Sequence(result, this.type);
+        return new Sequence(result, this.seqType);
     }
 
     public fn reverseComplement(): Sequence {
@@ -65,11 +65,11 @@ public class Sequence {
             reversed = reversed + String.charAt(comp.seq, i);
             i = i - 1;
         }
-        return new Sequence(reversed, this.type);
+        return new Sequence(reversed, this.seqType);
     }
 
     public fn transcribe(): Sequence {
-        if (this.type == "dna") {
+        if (this.seqType == "dna") {
             let rna: string = "";
             var i: int = 0;
             while (i < String.length(this.seq)) {
@@ -83,7 +83,7 @@ public class Sequence {
             }
             return new Sequence(rna, "rna");
         } else {
-            if (this.type == "rna") {
+            if (this.seqType == "rna") {
                 let dna: string = "";
                 var j: int = 0;
                 while (j < String.length(this.seq)) {
@@ -98,12 +98,12 @@ public class Sequence {
                 return new Sequence(dna, "dna");
             }
         }
-        return new Sequence(this.seq, this.type);
+        return new Sequence(this.seq, this.seqType);
     }
 
     public fn translate(): Sequence {
         let dna: string = this.seq;
-        if (this.type == "rna") {
+        if (this.seqType == "rna") {
             dna = this.transcribe().seq;
         }
         let protein: string = CodonTable.translate(dna);
@@ -128,11 +128,11 @@ public class Sequence {
     public fn mutation(position: int, newBase: string): Sequence {
         let len: int = String.length(this.seq);
         if (position < 0 || position >= len) {
-            return new Sequence(this.seq, this.type);
+            return new Sequence(this.seq, this.seqType);
         }
         let before: string = String.substring(this.seq, 0, position);
         let after: string = String.substring(this.seq, position + 1, len);
-        return new Sequence(before + newBase + after, this.type);
+        return new Sequence(before + newBase + after, this.seqType);
     }
 
     public fn countBase(base: string): int {
@@ -152,6 +152,6 @@ public class Sequence {
     }
 
     public fn getType(): string {
-        return this.type;
+        return this.seqType;
     }
 }

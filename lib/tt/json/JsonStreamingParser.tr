@@ -6,13 +6,13 @@ import tt::lang::String;
 
 // A single event emitted by the streaming parser.
 public class JsonEvent {
-    public string type;
+    public string eventType;
     public string stringValue;
     public double numberValue;
     public bool boolValue;
 
     public fn init(t: string) {
-        this.type = t;
+        this.eventType = t;
         this.stringValue = "";
         this.numberValue = 0.0;
         this.boolValue = false;

@@ -19,11 +19,11 @@ public fn orElse(r: Result, f: fn(Variant): Result): Result {
 }
 
 // Unwrap the Ok value, or return the default if Err.
-public fn unwrapOr(r: Result, default: Variant): Variant {
+public fn unwrapOr(r: Result, defaultValue: Variant): Variant {
     if (r.isOk()) {
         return r.unwrap();
     }
-    return default;
+    return defaultValue;
 }
 
 // Unwrap the Ok value, or compute a default from the Err value.

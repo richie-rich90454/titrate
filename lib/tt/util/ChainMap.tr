@@ -27,7 +27,7 @@ public class ChainMap<K, V> {
         return maps.get(0).get(key); // Will throw if not found
     }
 
-    public fn getOrDefault(key: K, default: V): V {
+    public fn getOrDefault(key: K, defaultValue: V): V {
         var i: int = 0;
         while (i < this.maps.size()) {
             let m: HashMap<K, V> = this.maps.get(i);
@@ -36,7 +36,7 @@ public class ChainMap<K, V> {
             }
             i = i + 1;
         }
-        return default;
+        return defaultValue;
     }
 
     public fn containsKey(key: K): bool {

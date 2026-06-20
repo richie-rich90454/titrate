@@ -4,12 +4,12 @@ import tt::util::HashMap;
 import tt::lang::Variant;
 
 public class ActorMessage {
-    public string type;
+    public string messageType;
     public Variant payload;
     public string sender;
 
-    public fn init(type: string, payload: Variant, sender: string) {
-        this.type = type;
+    public fn init(messageType: string, payload: Variant, sender: string) {
+        this.messageType = messageType;
         this.payload = payload;
         this.sender = sender;
     }

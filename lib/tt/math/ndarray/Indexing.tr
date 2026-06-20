@@ -155,7 +155,7 @@ public fn where(condition: ArrayList<bool>, x: ArrayList<double>, y: ArrayList<d
 
 // Select from multiple conditions: for each element, find the first matching condition
 // in condlist and use the corresponding value from choicelist. Use default if none match.
-public fn select(condlist: ArrayList<ArrayList<bool>>, choicelist: ArrayList<ArrayList<double>>, default: double): ArrayList<double> {
+public fn select(condlist: ArrayList<ArrayList<bool>>, choicelist: ArrayList<ArrayList<double>>, defaultValue: double): ArrayList<double> {
     let n: int = condlist.size();
     if (n == 0) { return new ArrayList<double>(); }
     let len: int = condlist.get(0).size();
@@ -173,7 +173,7 @@ public fn select(condlist: ArrayList<ArrayList<bool>>, choicelist: ArrayList<Arr
             c = c + 1;
         }
         if (!chosen) {
-            result.add(default);
+            result.add(defaultValue);
         }
         i = i + 1;
     }

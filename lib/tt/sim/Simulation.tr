@@ -4,13 +4,12 @@ import tt::math::Math;
 
 public class SimEvent {
     public double time;
-    public string type;
+    public string eventType;
     public string data;
     public int priority;
 
     public fn init(t: double, typ: string, d: string, p: int) {
-        this.time = t;
-        this.type = typ;
+        this.eventType = typ;
         this.data = d;
         this.priority = p;
     }
@@ -45,12 +44,12 @@ public class Simulation {
         this.eventQueue.add(i, event);
     }
 
-    public fn scheduleAt(time: double, type: string, data: string): void {
-        this.schedule(new SimEvent(time, type, data, 0));
+    public fn scheduleAt(time: double, eventType: string, data: string): void {
+        this.schedule(new SimEvent(time, eventType, data, 0));
     }
 
-    public fn scheduleDelay(delay: double, type: string, data: string): void {
-        this.schedule(new SimEvent(this.currentTime + delay, type, data, 0));
+    public fn scheduleDelay(delay: double, eventType: string, data: string): void {
+        this.schedule(new SimEvent(this.currentTime + delay, eventType, data, 0));
     }
 
     public fn step(): SimEvent {

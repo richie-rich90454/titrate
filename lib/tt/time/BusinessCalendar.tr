@@ -8,7 +8,7 @@ public class BusinessCalendar {
     public ArrayList<string> holidays;
     public ArrayList<int> weekendDays;
 
-    public fn init(region: string) {
+    public fn init(regionCode: string) {
         this.holidays = new ArrayList<string>();
         this.weekendDays = new ArrayList<int>();
         // Saturday=5, Sunday=6 by default (Monday=0 system)
@@ -17,8 +17,8 @@ public class BusinessCalendar {
         // Load holidays from DataFile
         let data: JsonValue = DataFile.load("datetime/holidays.json");
         if (!data.isNull() && data.isObject()) {
-            if (data.hasKey(region)) {
-                let regionHolidays: JsonValue = data.get(region);
+            if (data.hasKey(regionCode)) {
+                let regionHolidays: JsonValue = data.get(regionCode);
                 if (regionHolidays.isArray()) {
                     var i: int = 0;
                     while (i < regionHolidays.size()) {

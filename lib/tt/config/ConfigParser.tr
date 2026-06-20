@@ -18,10 +18,10 @@ public class ConfigParser {
         return sec.get(key);
     }
 
-    public fn getOrElse(section: string, key: string, default: string): string {
+    public fn getOrElse(section: string, key: string, defaultValue: string): string {
         let val: string = this.get(section, key);
         if (val == null || String.length(val) == 0) {
-            return default;
+            return defaultValue;
         }
         return val;
     }
