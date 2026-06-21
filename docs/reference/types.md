@@ -26,10 +26,10 @@
 
 ## Composite Types
 
-- `Owned<T>` — heap-allocated, move-semantics
+- `Owned<T>` — single-owner smart pointer type (boxed value)
 - `Result<T, E>` — success or error
 - `Variant` — dynamic type that can hold values of different types at runtime
-- `array<T>` — fixed-size array
+- `Array<T>` — fixed-size array (library class in `tt::util::Array`)
 - Class instances
 - Enum instances
 
@@ -199,7 +199,9 @@ Beyond 2-element tuples, Titrate supports `Tuple3`, `Tuple4`, and `Tuple5`:
 
 ```titrate
 let t3 = new Tuple3(1, "hello", 3.14);
-let first = t3.first();    // 1
-let second = t3.second();  // "hello"
-let third = t3.third();    // 3.14
+let first = t3.getFirst();    // 1
+let second = t3.getSecond();  // "hello"
+let third = t3.getThird();    // 3.14
 ```
+
+Generic (typed) versions are also available via `tt::lang::Tuple3<A, B, C>`, `tt::lang::Tuple4<A, B, C, D>`, and `tt::lang::Tuple5<A, B, C, D, E>`, using `get0()`, `get1()`, etc. for access.
