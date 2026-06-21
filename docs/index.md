@@ -160,6 +160,7 @@ public fn main(): void {
 ```titrate
 import tt::json::Json;
 import tt::json::JsonValue;
+import tt::net::HttpClient;
 
 public fn fetchUser(id: int): Result<JsonValue, string> {
     let client: HttpClient = new HttpClient();
@@ -178,7 +179,7 @@ public fn fetchUser(id: int): Result<JsonValue, string> {
 ### Data Processing with NDArray
 
 ```titrate
-import tt::ndarray::NDArray;
+import tt::math::ndarray::NDArray;
 import tt::math::Math;
 
 public fn normalize(data: NDArray<double>): NDArray<double> {
