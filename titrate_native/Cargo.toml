@@ -1,0 +1,9 @@
+[package]
+name = "titrate_native"
+version = "0.1.0"
+edition = "2021"
+description = "C-ABI native runtime bridge for the Titrate LLVM backend"
+
+[lib]
+name = "titrate_native"
+crate-type = ["staticlib", "rlib"]
