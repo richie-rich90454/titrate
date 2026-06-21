@@ -184,15 +184,64 @@ pub(crate) fn native_os_family(args: &[Value]) -> Result<Value, String> {
 }
 
 // ---------------------------------------------------------------------------
-// Signal natives (stubs – signal handling not supported on Windows)
+// Signal natives – real OS signal handling via the C standard library
 // ---------------------------------------------------------------------------
 
-pub(crate) fn native_signal_register(_args: &[Value]) -> Result<Value, String> {
-    Err("Signal handling not supported on this platform".to_string())
+// Flags set by the signal handler; index 0 is unused (signal 0 doesn't exist).
+static SIGNAL_RECEIVED: [std::sync::atomic::AtomicBool; 32] =
+    [const { std::sync::atomic::AtomicBool::new(false) }; 32];
+
+/// Async-signal-safe handler: just records that a signal was received.
+extern "C" fn signal_handler(sig: i32) {
+    if sig > 0 && (sig as usize) < SIGNAL_RECEIVED.len() {
+        SIGNAL_RECEIVED[sig as usize].store(true, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
-pub(crate) fn native_signal_raise(_args: &[Value]) -> Result<Value, String> {
-    Err("Signal handling not supported on this platform".to_string())
+// C standard library signal functions (linked on both Unix and Windows).
+extern "C" {
+    fn signal(sig: i32, handler: extern "C" fn(i32)) -> usize;
+    fn raise(sig: i32) -> i32;
+}
+
+/// Install a signal handler that records received signals. The handler does
+/// not invoke Titrate code directly (signal handlers must be async-signal-
+/// safe); use Signal_wasReceived to poll for delivery.
+pub(crate) fn native_signal_register(args: &[Value]) -> Result<Value, String> {
+    let signum = match args.first() {
+        Some(Value::Int(s)) => *s as i32,
+        Some(Value::Long(s)) => *s as i32,
+        _ => return Err("Signal_register: expected a signal number".to_string()),
+    };
+
+    // SIG_ERR is defined as ((_sig_func)-1), i.e. all-ones pointer.
+    const SIG_ERR: usize = usize::MAX;
+
+    let prev = unsafe { signal(signum, signal_handler) };
+    if prev == SIG_ERR {
+        return Err(format!(
+            "Signal_register: failed to register handler for signal {}",
+            signum
+        ));
+    }
+
+    Ok(Value::Int(0))
+}
+
+/// Send a signal to the current process via the C raise() function.
+pub(crate) fn native_signal_raise(args: &[Value]) -> Result<Value, String> {
+    let signum = match args.first() {
+        Some(Value::Int(s)) => *s as i32,
+        Some(Value::Long(s)) => *s as i32,
+        _ => return Err("Signal_raise: expected a signal number".to_string()),
+    };
+
+    let rc = unsafe { raise(signum) };
+    if rc != 0 {
+        return Err(format!("Signal_raise: failed to raise signal {}", signum));
+    }
+
+    Ok(Value::Int(0))
 }
 
 // ---------------------------------------------------------------------------
