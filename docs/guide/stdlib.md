@@ -1,6 +1,6 @@
 # Standard Library
 
-The Titrate standard library (`tt`) is a comprehensive collection of modules that provide essential functionality for everyday programming — from collections and I/O to math, networking, and testing. It is shipped with every Titrate installation and requires no external dependencies.
+The Titrate standard library (`tt`) is a comprehensive collection of modules that provide essential functionality for everyday programming �?from collections and I/O to math, networking, and testing. It is shipped with every Titrate installation and requires no external dependencies.
 
 ## Introduction
 
@@ -23,7 +23,7 @@ import tt::json::JsonValue;
 
 ### Import Rules
 
-- **`::` is only used in import statements** — everywhere else, use `.` for member access
+- **`::` is only used in import statements** �?everywhere else, use `.` for member access
 - Each import brings a single name into scope
 - Imports must appear at the top of the file, before any declarations
 - You can import multiple names from the same module in separate statements
@@ -45,7 +45,7 @@ tt::namespace::ClassName
 | Namespace | Purpose | Examples |
 |-----------|---------|---------|
 | `tt::util` | General-purpose data structures | `ArrayList`, `HashMap`, `StringBuilder` |
-| `tt::math` | Mathematical operations | `Math`, `NDArray`, `Matrix` |
+| `tt::math` | Mathematical operations | `Math`, `MathAdvanced`, `MathTrig` |
 | `tt::io` | Input/output | `IO`, `File` |
 | `tt::json` | JSON handling | `JsonValue` |
 | `tt::random` | Random number generation | `Random` |
@@ -53,19 +53,19 @@ tt::namespace::ClassName
 | `tt::uuid` | UUID generation | `Uuid` |
 | `tt::operator` | Functional operator wrappers | `Operator` |
 | `tt::contextlib` | Context managers | `Contextlib` |
-| `tt::datetime` | Date and time | `DateTime`, `Duration` |
-| `tt::system` | System operations | `Sys` |
-| `tt::crypto` | Cryptography | `Crypto` |
-| `tt::networking` | Network operations | `TcpClient`, `HttpClient` |
+| `tt::time` | Date and time | `DateTime`, `Duration` |
+| `tt::sys` | System operations | `Sys` |
+| `tt::crypto` | Cryptography | `Hash`, `Hmac`, `Secrets` |
+| `tt::net` | Network operations | `TcpClient`, `HttpClient` |
 | `tt::concurrent` | Concurrency | `Future`, `Channel` |
 | `tt::argparse` | Argument parsing | `ArgumentParser` |
 | `tt::logging` | Logging | `Logger` |
 | `tt::functools` | Higher-order functions | `Functools` |
-| `tt::testing` | Testing framework | `Assay` |
+| `tt::assay` | Testing framework | `Assay` |
 
 ## Core Modules
 
-### lang — Core Types
+### lang �?Core Types
 
 The `lang` module provides the fundamental types that every Titrate program uses:
 
@@ -98,12 +98,12 @@ if (r.isOk()) {
 }
 ```
 
-### operator — Functional Operator Wrappers
+### operator �?Functional Operator Wrappers
 
 The `operator` module wraps built-in operators as functions, enabling higher-order programming patterns:
 
 ```titrate
-import tt.operator.Operator;
+import tt::operator::Operator;
 
 let sum: int = Operator.add(3, 4);        // 7
 let cmp: bool = Operator.gt(10, 5);       // true
@@ -112,12 +112,12 @@ let div: double = Operator.truediv(10.0, 3.0);  // 3.333...
 
 See the [operator](../stdlib/operator) documentation for the complete function reference.
 
-### optional-variant — Optional and Variant Types
+### optional-variant �?Optional and Variant Types
 
 The `optional-variant` module provides safe alternatives to null values and dynamic typing:
 
 ```titrate
-// Optional — a value that may or may not be present
+// Optional �?a value that may or may not be present
 let maybeName: Optional<string> = Optional.of("Alice");
 let empty: Optional<string> = Optional.empty();
 
@@ -125,7 +125,7 @@ if (maybeName.isPresent()) {
     io::println(maybeName.get());  // "Alice"
 }
 
-// Variant — a dynamically-typed value
+// Variant �?a dynamically-typed value
 let v: Variant = 42;
 let s: Variant = "hello";
 ```
@@ -134,7 +134,7 @@ let s: Variant = "hello";
 
 Titrate provides a rich set of collection types for storing and manipulating groups of values.
 
-### collections — Primary Data Structures
+### collections �?Primary Data Structures
 
 | Type | Description | When to Use |
 |------|-------------|-------------|
@@ -151,7 +151,7 @@ Titrate provides a rich set of collection types for storing and manipulating gro
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
-// ArrayList — ordered, indexable
+// ArrayList �?ordered, indexable
 let fruits: ArrayList<string> = new ArrayList<string>();
 fruits.add("apple");
 fruits.add("banana");
@@ -159,14 +159,14 @@ fruits.add("cherry");
 io::println(fruits.get(1));  // "banana"
 io::println(Integer.toString(fruits.size()));  // 3
 
-// HashMap — key-value lookups
+// HashMap �?key-value lookups
 let scores: HashMap<string, int> = new HashMap<string, int>();
-HashMap.put(scores, "Alice", 95);
-HashMap.put(scores, "Bob", 87);
-io::println(Integer.toString(HashMap.get(scores, "Alice")));  // 95
+scores.put("Alice", 95);
+scores.put("Bob", 87);
+io::println(Integer.toString(scores.get("Alice")));  // 95
 ```
 
-### array — Fixed-Size Arrays
+### array �?Fixed-Size Arrays
 
 For performance-critical code where the size is known at compile time:
 
@@ -176,26 +176,26 @@ buffer[0] = 42;
 buffer[1] = 100;
 ```
 
-### heapq — Heap-Based Priority Queue
+### heapq �?Heap-Based Priority Queue
 
 Efficient min-heap operations for priority queues:
 
 ```titrate
-import tt.heapq.Heapq;
+import tt::heapq::Heapq;
 
 let heap: ArrayList<int> = new ArrayList<int>();
-Heapq.push(heap, 5);
-Heapq.push(heap, 2);
-Heapq.push(heap, 8);
-let min: int = Heapq.pop(heap);  // 2
+Heapq.heappush(heap, 5);
+Heapq.heappush(heap, 2);
+Heapq.heappush(heap, 8);
+let min: int = Heapq.heappop(heap);  // 2
 ```
 
-### bisect — Binary Search
+### bisect �?Binary Search
 
 Binary search operations on sorted sequences:
 
 ```titrate
-import tt.bisect.Bisect;
+import tt::bisect::Bisect;
 
 let sorted: ArrayList<int> = new ArrayList<int>();
 sorted.add(1);
@@ -205,32 +205,32 @@ sorted.add(7);
 let pos: int = Bisect.bisectLeft(sorted, 4);  // 2
 ```
 
-### itertools — Iterator Adapters
+### itertools �?Iterator Adapters
 
 Composable iterator transformations:
 
 ```titrate
-import tt.itertools.Itertools;
+import tt::itertools::Itertools;
 
 // Chain, zip, cycle, and more
 ```
 
-### dataclass — Auto-Generated Class Boilerplate
+### dataclass �?Auto-Generated Class Boilerplate
 
 Decorator-like pattern for reducing class boilerplate:
 
 ```titrate
-import tt.dataclass.Dataclass;
+import tt::dataclass::Dataclass;
 ```
 
 ## I/O & File System
 
-### io — Input/Output
+### io �?Input/Output
 
 The `io` module provides file operations and console output:
 
 ```titrate
-import tt.io.IO;
+import tt::io::IO;
 
 // Console output
 io::println("Hello, world!");
@@ -244,12 +244,12 @@ IO.writeFile("output.txt", "Hello, file!");
 let lines: ArrayList<string> = IO.readLines("data.txt");
 ```
 
-### contextlib — Resource Management
+### contextlib �?Resource Management
 
 The `contextlib` module ensures resources are properly cleaned up:
 
 ```titrate
-import tt.contextlib.Contextlib;
+import tt::contextlib::Contextlib;
 
 // Ensure a file is closed after use
 let file: File = File.open("data.txt");
@@ -261,7 +261,7 @@ Contextlib.closing(file, fn(): void {
 
 // Suppress exceptions from a block
 Contextlib.suppress(fn(): void {
-    // risky operation — errors are silently ignored
+    // risky operation �?errors are silently ignored
 });
 ```
 
@@ -269,23 +269,24 @@ See the [contextlib](../stdlib/contextlib) documentation for more details.
 
 ## Text & Serialization
 
-### text — Text Utilities
+### text �?Text Utilities
 
 String formatting and manipulation:
 
 ```titrate
-import tt.text.Text;
+import tt::textwrap::Textwrap;
 
-// Text formatting, alignment, wrapping
-let padded: string = Text.center("hello", 10);
+// Text wrapping and filling
+let lines: ArrayList<string> = Textwrap.wrap("A long string that needs wrapping", 20);
+let filled: string = Textwrap.fill("A long string that needs wrapping", 20);
 ```
 
-### regex — Regular Expressions
+### regex �?Regular Expressions
 
 Pattern matching and text extraction:
 
 ```titrate
-import tt.regex.Regex;
+import tt::regex::Regex;
 
 let pattern: Regex = new Regex("\\d+");
 let m: Match = Regex.match(pattern, "abc123def");
@@ -294,12 +295,12 @@ if (m.found()) {
 }
 ```
 
-### serialization — JSON, CSV, XML
+### serialization �?JSON, CSV, XML
 
 Parsing and writing structured data formats:
 
 ```titrate
-import tt.json.JsonValue;
+import tt::json::JsonValue;
 
 // JSON parsing
 let json: string = "{\"name\": \"Alice\", \"age\": 30}";
@@ -313,65 +314,67 @@ obj.set("age", JsonValue.ofNum(25));
 let output: string = obj.toString();
 ```
 
-### pprint — Pretty Printing
+### pprint �?Pretty Printing
 
 Formatted output for data structures:
 
 ```titrate
-import tt.pprint.Pprint;
+import tt::pprint::Pprint;
 
 let data: HashMap<string, int> = new HashMap<string, int>();
-HashMap.put(data, "alpha", 1);
-HashMap.put(data, "beta", 2);
-Pprint.print(data);  // nicely formatted output
+data.put("alpha", 1);
+data.put("beta", 2);
+Pprint.pprint(data);  // nicely formatted output
 ```
 
 ## Math & Science
 
-### math — Mathematical Functions
+### math �?Mathematical Functions
 
 Constants, trigonometry, logarithms, and advanced types:
 
 ```titrate
-import tt.math.Math;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
 
-let pi: double = Math.PI;
-let root: double = Math.sqrt(2.0);
-let sinVal: double = Math.sin(Math.PI / 4.0);
-let pow: double = Math.pow(2.0, 10.0);  // 1024.0
+let pi: double = Math.PI();
+let root: double = MathAdvanced.sqrt(2.0);
+let sinVal: double = MathTrig.sin(Math.PI() / 4.0);
+let pow: double = MathAdvanced.pow(2.0, 10.0);  // 1024.0
 let absVal: double = Math.abs(-3.14);    // 3.14
 ```
 
-### complex — Complex Numbers
+### complex �?Complex Numbers
 
 Complex number arithmetic:
 
 ```titrate
-import tt.complex.Complex;
+import tt::math::complex::Complex;
 
 let z: Complex = new Complex(3.0, 4.0);  // 3 + 4i
 let magnitude: double = z.abs();          // 5.0
 let conj: Complex = z.conjugate();        // 3 - 4i
 ```
 
-### fractions — Rational Numbers
+### fractions �?Rational Numbers
 
 Exact rational arithmetic without floating-point errors:
 
 ```titrate
-import tt.fractions.Fraction;
+import tt::fractions::Fraction;
 
 let a: Fraction = new Fraction(1, 3);
 let b: Fraction = new Fraction(1, 6);
 let sum: Fraction = a.add(b);  // 1/2
 ```
 
-### statistics — Statistical Functions
+### statistics �?Statistical Functions
 
 Descriptive statistics:
 
 ```titrate
-import tt.statistics.Statistics;
+import tt::statistics::Statistics;
 
 let data: ArrayList<double> = new ArrayList<double>();
 data.add(1.0);
@@ -384,38 +387,38 @@ let med: double = Statistics.median(data);    // 3.0
 let vari: double = Statistics.variance(data); // 2.5
 ```
 
-### chemistry — Computational Chemistry
+### chemistry �?Computational Chemistry
 
 Atom, molecule, and force field types for computational chemistry:
 
 ```titrate
-import tt.chemistry.Atom;
+import tt::chem::Atom;
 
 let h: Atom = Atom.hydrogen(0.0, 0.0, 0.0);
 let o: Atom = Atom.oxygen(0.0, 0.9572, 0.0);
 ```
 
-### units — Units of Measure
+### units �?Units of Measure
 
 Physical units and constants:
 
 ```titrate
-import tt.units.Constants;
+import tt::units::Constants;
 
 let c: double = Constants.speedOfLight;  // 299792458.0 m/s
 ```
 
 ## System & Networking
 
-### system — System Operations
+### system �?System Operations
 
 Environment variables, CLI arguments, and process control:
 
 ```titrate
-import tt.system.Sys;
+import tt::sys::Sys;
 
 // Read environment variables
-let home: string = Sys.getenv("HOME");
+let home: string = Sys.env("HOME");
 
 // Get command-line arguments
 let args: ArrayList<string> = Sys.args();
@@ -427,13 +430,13 @@ Sys.exec("ls -la");
 Sys.exit(1);
 ```
 
-### networking — TCP and HTTP
+### networking �?TCP and HTTP
 
 Network communication:
 
 ```titrate
-import tt.networking.TcpClient;
-import tt.networking.HttpClient;
+import tt::net::TcpClient;
+import tt::net::HttpClient;
 
 // TCP client
 let client: TcpClient = new TcpClient();
@@ -447,13 +450,13 @@ let http: HttpClient = new HttpClient();
 let body: string = http.get("https://api.example.com/data");
 ```
 
-### concurrent — Concurrency
+### concurrent �?Concurrency
 
 Asynchronous programming primitives:
 
 ```titrate
-import tt.concurrent.Future;
-import tt.concurrent.Channel;
+import tt::concurrent::Future;
+import tt::concurrent::Channel;
 
 // Futures for async computation
 let f: Future<string> = Future.of(fn(): string {
@@ -466,45 +469,48 @@ ch.send("hello");
 let msg: string = ch.receive();
 ```
 
-### crypto — Cryptography
+### crypto �?Cryptography
 
 Hashing and encryption:
 
 ```titrate
-import tt.crypto.Crypto;
+import tt::crypto::Hash;
+import tt::crypto::Hmac;
+import tt::crypto::Secrets;
 
-let hash: string = Crypto.sha256("hello world");
-let hmac: string = Crypto.hmacSha256("secret key", "message");
+let hash: string = Hash.sha256("hello world");
+let hmac: string = Hash.hmacSha256("secret key", "message");
+let token: string = Secrets.tokenHex(16);
 ```
 
 ## Date & Time
 
-### datetime — Date, Time, and Duration
+### datetime �?Date, Time, and Duration
 
 Date and time manipulation:
 
 ```titrate
-import tt.datetime.DateTime;
-import tt.datetime.Duration;
+import tt::time::DateTime;
+import tt::time::Duration;
 
 let now: DateTime = DateTime.now();
 let tomorrow: DateTime = now.plusDays(1);
-let diff: Duration = now.diff(tomorrow);
-io::println(Integer.toString(diff.inHours()));  // 24
+let diff: Duration = Duration.between(now, tomorrow);
+io::println(Long.toString(diff.toHours()));  // 24
 
 // Parse and format dates
-let parsed: DateTime = DateTime.parse("2025-01-15T10:30:00");
-let formatted: string = DateTime.format(now, "yyyy-MM-dd");
+let parsed: DateTime = DateTime.parse("yyyy-MM-dd'T'HH:mm:ss", "2025-01-15T10:30:00");
+let formatted: string = now.format("yyyy-MM-dd");
 ```
 
 ## Random & Utilities
 
-### functools — Higher-Order Functions
+### functools �?Higher-Order Functions
 
 Function composition, partial application, and more:
 
 ```titrate
-import tt.functools.Functools;
+import tt::functools::Functools;
 
 // Compose two functions
 let addOne: fn(int): int = fn(x: int): int { return x + 1; };
@@ -513,12 +519,12 @@ let addOneThenDouble: fn(int): int = Functools.compose(double, addOne);
 let result: int = addOneThenDouble(5);  // (5 + 1) * 2 = 12
 ```
 
-### logging — Logging Framework
+### logging �?Logging Framework
 
 Structured logging with levels:
 
 ```titrate
-import tt.logging.Logger;
+import tt::logging::Logger;
 
 let log: Logger = new Logger("MyApp");
 Logger.info(log, "Application started");
@@ -526,12 +532,12 @@ Logger.warn(log, "Low disk space");
 Logger.error(log, "Connection failed");
 ```
 
-### uuid — UUID Generation
+### uuid �?UUID Generation
 
 Universally unique identifiers:
 
 ```titrate
-import tt.uuid.Uuid;
+import tt::uuid::Uuid;
 
 let id: string = Uuid.uuid4();
 io::println(id);  // e.g. "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
@@ -541,12 +547,12 @@ let valid: bool = Uuid.isValid(id);  // true
 
 See the [uuid](../stdlib/uuid) documentation for more details.
 
-### argparse — Command-Line Argument Parsing
+### argparse �?Command-Line Argument Parsing
 
 Declarative CLI argument definitions:
 
 ```titrate
-import tt.argparse.ArgumentParser;
+import tt::argparse::ArgumentParser;
 
 let parser: ArgumentParser = new ArgumentParser("myapp");
 parser.addArg("--input", "Input file path", true);
@@ -554,12 +560,12 @@ parser.addArg("--verbose", "Enable verbose output", false);
 let args: HashMap<string, string> = parser.parse();
 ```
 
-### algorithms — Common Algorithms
+### algorithms �?Common Algorithms
 
 Sorting, searching, and graph traversal:
 
 ```titrate
-import tt.algorithms.Algorithms;
+import tt::algorithms::Algorithms;
 
 let list: ArrayList<int> = new ArrayList<int>();
 list.add(5);
@@ -572,12 +578,12 @@ Algorithms.sort(list);
 
 ## Testing
 
-### testing — Built-in Testing Framework (Assay)
+### testing �?Built-in Testing Framework (Assay)
 
 Titrate includes a testing framework called **Assay** for writing and running tests:
 
 ```titrate
-import tt.testing.Assay;
+import tt::assay::Assay;
 
 Assay.describe("Math operations", fn(): void {
     Assay.it("should add correctly", fn(): void {
@@ -590,12 +596,12 @@ Assay.describe("Math operations", fn(): void {
 });
 ```
 
-### assert — Assertion Utilities
+### assert �?Assertion Utilities
 
 Standalone assertion functions for validation:
 
 ```titrate
-import tt.assert.Assert;
+import tt::assert::Assert;
 
 Assert.assertEqual(expected, actual);
 Assert.assertTrue(condition);
@@ -609,21 +615,21 @@ Use this decision guide to pick the best collection for your needs:
 
 ```
 Do you need key-value lookups?
-├── Yes → HashMap<K, V>
+├── Yes �?HashMap<K, V>
 └── No
     ├── Do you need unique elements?
-    │   ├── Yes → Set<T>
-    │   └── No
-    │       ├── Do you need priority ordering?
-    │       │   ├── Yes → PriorityQueue<T>
-    │       │   └── No
-    │       │       ├── Do you need FIFO/LIFO operations?
-    │       │       │   ├── Yes → Deque<T>
-    │       │       │   └── No → ArrayList<T>
-    │       │       └── Do you need frequency counting?
-    │       │           └── Yes → Counter<T>
+    �?  ├── Yes �?Set<T>
+    �?  └── No
+    �?      ├── Do you need priority ordering?
+    �?      �?  ├── Yes �?PriorityQueue<T>
+    �?      �?  └── No
+    �?      �?      ├── Do you need FIFO/LIFO operations?
+    �?      �?      �?  ├── Yes �?Deque<T>
+    �?      �?      �?  └── No �?ArrayList<T>
+    �?      �?      └── Do you need frequency counting?
+    �?      �?          └── Yes �?Counter<T>
     └── Do you need efficient string building?
-        └── Yes → StringBuilder
+        └── Yes �?StringBuilder
 ```
 
 ### Quick Comparison
@@ -635,7 +641,7 @@ Do you need key-value lookups?
 | `Set<T>` | O(1) | O(1) | O(1) | O(1) | No |
 | `Deque<T>` | O(1) ends | O(1) ends | O(1) ends | O(n) | Yes (insertion) |
 | `PriorityQueue<T>` | O(1) min | O(log n) | O(log n) | O(n) | By priority |
-| `StringBuilder` | O(1) append | — | — | — | Yes |
+| `StringBuilder` | O(1) append | �?| �?| �?| Yes |
 
 ## Common Import Patterns
 
@@ -644,44 +650,46 @@ Most Titrate programs start with a similar set of imports. Here are common patte
 ### Basic Script
 
 ```titrate
-import tt.io.IO;
+import tt::io::IO;
 ```
 
 ### Data Processing
 
 ```titrate
-import tt.util.ArrayList;
-import tt.util.HashMap;
-import tt.io.IO;
-import tt.json.JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::io::IO;
+import tt::json::JsonValue;
 ```
 
 ### Scientific Computing
 
 ```titrate
-import tt.math.Math;
-import tt.math.NDArray;
-import tt.math.Matrix;
-import tt.statistics.Statistics;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::math::ndarray::NDArray;
+import tt::math::linalg::Matrix;
+import tt::statistics::Statistics;
 ```
 
 ### Web Service
 
 ```titrate
-import tt.networking.HttpClient;
-import tt.json.JsonValue;
-import tt.util.HashMap;
-import tt.logging.Logger;
-import tt.uuid.Uuid;
+import tt::net::HttpClient;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::logging::Logger;
+import tt::uuid::Uuid;
 ```
 
 ### CLI Application
 
 ```titrate
-import tt.argparse.ArgumentParser;
-import tt.io.IO;
-import tt.system.Sys;
-import tt.logging.Logger;
+import tt::argparse::ArgumentParser;
+import tt::io::IO;
+import tt::sys::Sys;
+import tt::logging::Logger;
 ```
 
 ## How to Explore the Stdlib
@@ -725,6 +733,7 @@ import tt.logging.Logger;
 | Module | Description |
 |--------|-------------|
 | [text](../stdlib/text) | Text formatting and manipulation utilities |
+| [textwrap](../stdlib/textwrap) | Text wrapping, filling, indentation |
 | [regex](../stdlib/regex) | Regular expressions: `Regex`, `Match` |
 | [serialization](../stdlib/serialization) | JSON, CSV, and XML parsing and writing |
 | [pprint](../stdlib/pprint) | Pretty-printing for data structures |
@@ -733,19 +742,21 @@ import tt.logging.Logger;
 
 | Module | Description |
 |--------|-------------|
-| [math](../stdlib/math) | Mathematical constants, functions, `NDArray`, `Matrix` |
-| [complex](../stdlib/complex) | Complex number type and operations |
+| [math](../stdlib/math) | Mathematical constants and functions |
+| [math::ndarray](../stdlib/math/ndarray) | N-dimensional array type |
+| [math::linalg](../stdlib/math/linalg) | Linear algebra: `Matrix` operations |
+| [math::complex](../stdlib/math/complex) | Complex number type and operations |
 | [fractions](../stdlib/fractions) | Rational number (`Fraction`) type |
 | [statistics](../stdlib/statistics) | Statistical functions: mean, median, variance, etc. |
-| [chemistry](../stdlib/chemistry) | Computational chemistry: `Atom`, `Molecule`, `ForceField`, `MD`, `RHF` |
+| [chem](../stdlib/chem) | Computational chemistry: `Atom`, `Molecule`, `ForceField`, `MD`, `RHF` |
 | [units](../stdlib/units) | Units of measure: `Base`, `Derived`, physical `Constants` |
 
 #### System & Networking
 
 | Module | Description |
 |--------|-------------|
-| [system](../stdlib/system) | Environment variables, CLI args, `Sys.exec`, `Sys.exit` |
-| [networking](../stdlib/networking) | TCP client/server, HTTP client |
+| [sys](../stdlib/sys) | Environment variables, CLI args, `Sys.exec`, `Sys.exit` |
+| [net](../stdlib/net) | TCP client/server, HTTP client |
 | [concurrent](../stdlib/concurrent) | Concurrency primitives and async utilities |
 | [crypto](../stdlib/crypto) | Cryptographic hashes and encryption |
 
@@ -753,7 +764,7 @@ import tt.logging.Logger;
 
 | Module | Description |
 |--------|-------------|
-| [datetime](../stdlib/datetime) | `DateTime`, `Duration`, `Time` |
+| [time](../stdlib/time) | `DateTime`, `Duration`, `Time` |
 
 #### Random & Utilities
 
@@ -769,7 +780,7 @@ import tt.logging.Logger;
 
 | Module | Description |
 |--------|-------------|
-| [testing](../stdlib/testing) | Built-in testing framework (`Assay`) |
+| [assay](../stdlib/assay) | Built-in testing framework (`Assay`) |
 | [assert](../stdlib/assert) | Assertion utilities |
 
 ## New Scientific Modules
