@@ -161,7 +161,7 @@ Type keywords are reserved words that name the built-in primitive types:
 | `Double` | `double` | 8 | IEEE 754 double-precision |
 | `Half` | `half` | 2 | IEEE 754 half-precision |
 | `Quad` | `quad` | 16 | IEEE 754 quad-precision |
-| `Char` | `char` | 2 | Unicode character (UTF-16) |
+| `Char` | `char` | 2 | Unicode scalar |
 | `String` | `string` | ref | UTF-8 string (reference type) |
 | `Size` | `size` | 8 | Platform-size unsigned integer |
 | `U8` | `u8` | 1 | Unsigned 8-bit integer |
