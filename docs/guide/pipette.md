@@ -20,8 +20,6 @@ myproject/
 The generated `src/main.tr` contains a hello-world program:
 
 ```titrate
-import tt::io::println;
-
 public fn main(): void {
     println("Hello from myproject!");
 }

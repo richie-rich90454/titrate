@@ -59,16 +59,23 @@ No. Titrate uses `Result<T, E>` types for error handling instead of exceptions. 
 
 ## How do I handle null values?
 
-Titrate doesn't have a `null` keyword in the traditional sense. Instead, use `Variant` or `Optional` from the standard library to represent the absence of a value explicitly:
+Titrate has a `null` keyword as part of its type system. You can compare values to `null` directly:
 
 ```titrate
-let maybeName: Variant = Variant.of("Alice");
+if (x == null) { ... }
+if (x != null) { ... }
+```
+
+For a more explicit approach, use `Optional<T>` or `Variant` from the standard library to represent the absence of a value:
+
+```titrate
+let maybeName: Optional<string> = Optional.of("Alice");
 if (maybeName.isPresent()) {
-    io::println(maybeName.getValue().asStr());
+    io::println(maybeName.get());
 }
 ```
 
-This forces you to check for the presence of a value before using it, eliminating null pointer exceptions at compile time.
+Using `Optional` or `Variant` forces you to check for presence before using the value, which eliminates null-related bugs at compile time.
 
 ## Can I call C libraries from Titrate?
 
@@ -123,19 +130,20 @@ Titrate has basic concurrency support through the `concurrent` standard library 
 
 ## How do I install third-party packages?
 
-Titrate uses `pipette` as its package manager. To install a package:
+Titrate uses `pipette` as its build tool and package manager. To add a dependency to your project, edit `Titrate.toml`:
 
-```bash
-pipette install package-name
+```toml
+[dependencies]
+mylib = { git = "https://github.com/example/mylib", tag = "v1.0.0" }
 ```
 
-To add a dependency to your project:
+Then run:
 
 ```bash
-pipette add package-name
+pipette build
 ```
 
-Packages are hosted on the Titrate package registry. You can also reference local packages by path in your project configuration. See [Build Tool](./build-tool) for more details.
+This fetches and compiles the dependency automatically. You can also reference local packages by path. See [Build Tool](./build-tool) for more details.
 
 ## Where can I learn more?
 

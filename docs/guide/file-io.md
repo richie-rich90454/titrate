@@ -4,14 +4,13 @@ Reading and writing files is one of the first things you'll need when building r
 
 ## Reading a File
 
-`File.readFile` reads the entire contents of a file as a string. It returns a `Result<string, string>` to handle potential errors:
+`File.open(path, "r").readAll()` reads the entire contents of a file as a string.
 
 ```titrate
 public fn main(): void {
-    switch File.readFile("data.txt") {
-        case Ok(content) => io::println(content);
-        case Err(e) => io::println("Failed to read: " + e);
-    }
+    let f = File.open("data.txt", "r");
+    let content: string = f.readAll();
+    io::println(content);
 }
 ```
 
@@ -21,24 +20,24 @@ Titrate uses `Result` types for file operations because it forces you to think a
 
 ## Writing a File
 
-`File.writeFile` writes a string to a file, creating it if it does not exist or overwriting it if it does. It returns `Result<void, string>`:
+`File.open(path, "w").write(content)` writes a string to a file, creating it if it does not exist or overwriting it if it does:
 
 ```titrate
 public fn main(): void {
-    switch File.writeFile("output.txt", "Hello, file!") {
-        case Ok(_) => io::println("Written successfully");
-        case Err(e) => io::println("Failed to write: " + e);
-    }
+    let f = File.open("output.txt", "w");
+    f.write("Hello, file!");
+    io::println("Written successfully");
 }
 ```
 
 ## Reading Lines
 
-`File.readLines` reads a file and returns an array of strings, one element per line:
+`File.open(path, "r").readlines()` reads a file and returns an array of strings, one element per line:
 
 ```titrate
 public fn main(): void {
-    let lines = File.readLines("data.txt");
+    let f = File.open("data.txt", "r");
+    let lines = f.readlines();
     for (line in lines) {
         io::println(line);
     }
@@ -59,7 +58,8 @@ This is especially useful when processing line-based file input:
 
 ```titrate
 public fn main(): void {
-    let lines = File.readLines("data.csv");
+    let f = File.open("data.csv", "r");
+    let lines = f.readlines();
     for (line in lines) {
         let fields = String.split(line, ",");
         io::println(fields[0]);
@@ -75,10 +75,8 @@ When a file might not exist, you can provide a fallback value:
 
 ```titrate
 fn readConfig(path: string): string {
-    switch File.readFile(path) {
-        case Ok(content) => return content;
-        case Err(_) => return "";
-    }
+    let f = File.open(path, "r");
+    return f.readAll();
 }
 
 let config = readConfig("config.txt");
@@ -93,7 +91,8 @@ A common pattern: read lines, parse each one, and collect results:
 
 ```titrate
 public fn main(): void {
-    let lines = File.readLines("scores.txt");
+    let f = File.open("scores.txt", "r");
+    let lines = f.readlines();
     var total: int = 0;
     var count: int = 0;
     for (line in lines) {
@@ -125,10 +124,9 @@ public fn main(): void {
     for (i in 1..=10) {
         output = output + "Line " + Integer.toString(i) + "\n";
     }
-    switch File.writeFile("output.txt", output) {
-        case Ok(_) => io::println("File written");
-        case Err(e) => io::println("Error: " + e);
-    }
+    let f = File.open("output.txt", "w");
+    f.write(output);
+    io::println("File written");
 }
 ```
 
@@ -138,18 +136,12 @@ Read a file, transform it, and write the result — all with proper error handli
 
 ```titrate
 fn processFile(inputPath: string, outputPath: string): void {
-    switch File.readFile(inputPath) {
-        case Ok(content) => {
-            let upper = String.toUpperCase(content);
-            switch File.writeFile(outputPath, upper) {
-                case Ok(_) => io::println("Processed successfully");
-                case Err(e) => io::println("Write error: " + e);
-            }
-        }
-        case Err(e) => {
-            io::println("Read error: " + e);
-        }
-    }
+    let fIn = File.open(inputPath, "r");
+    let content: string = fIn.readAll();
+    let upper = String.toUpperCase(content);
+    let fOut = File.open(outputPath, "w");
+    fOut.write(upper);
+    io::println("Processed successfully");
 }
 ```
 
@@ -210,32 +202,26 @@ public fn main(): void {
 
 ```titrate
 public fn main(): void {
-    switch File.readFile("numbers.txt") {
-        case Ok(content) => {
-            let lines = String.split(content, "\n");
-            var output: string = "";
-            for (line in lines) {
-                if (String.length(line) > 0) {
-                    let parsed = Integer.parseInt(line);
-                    switch parsed {
-                        case Ok(n) => {
-                            output = output + Integer.toString(n * 2) + "\n";
-                        }
-                        case Err(_) => {
-                            io::println("Skipping invalid line: " + line);
-                        }
-                    }
+    let f = File.open("numbers.txt", "r");
+    let content: string = f.readAll();
+    let lines = String.split(content, "\n");
+    var output: string = "";
+    for (line in lines) {
+        if (String.length(line) > 0) {
+            let parsed = Integer.parseInt(line);
+            switch parsed {
+                case Ok(n) => {
+                    output = output + Integer.toString(n * 2) + "\n";
+                }
+                case Err(_) => {
+                    io::println("Skipping invalid line: " + line);
                 }
             }
-            switch File.writeFile("doubled.txt", output) {
-                case Ok(_) => io::println("Wrote doubled.txt");
-                case Err(e) => io::println("Write error: " + e);
-            }
-        }
-        case Err(e) => {
-            io::println("Read error: " + e);
         }
     }
+    let fOut = File.open("doubled.txt", "w");
+    fOut.write(output);
+    io::println("Wrote doubled.txt");
 }
 ```
 

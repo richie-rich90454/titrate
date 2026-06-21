@@ -8,7 +8,6 @@ The `Sequence` class represents biological sequences (DNA, RNA, protein) and pro
 
 ```titrate
 import tt::bio::Sequence;
-import tt::bio::Alphabet;
 ```
 
 ### Creating Sequences
@@ -90,7 +89,6 @@ The `tt.bio` module implements both global and local sequence alignment algorith
 
 ```titrate
 import tt::bio::Alignment;
-import tt::bio::ScoringMatrix;
 ```
 
 ### Needleman-Wunsch Global Alignment
@@ -225,10 +223,11 @@ for (t in tables) {
 
 ## FASTA I/O
 
-The `FastaIO` class handles reading and writing FASTA format files — the standard format for sequence data.
+The `FastaReader` and `FastaWriter` classes handle reading and writing FASTA format files — the standard format for sequence data.
 
 ```titrate
-import tt::bio::FastaIO;
+import tt::bio::FastaReader;
+import tt::bio::FastaWriter;
 import tt::bio::FastaRecord;
 ```
 
@@ -236,17 +235,20 @@ import tt::bio::FastaRecord;
 
 ```titrate
 // Read a single-sequence FASTA file
-let record = FastaIO.readOne("sequence.fasta");
-io::println("ID: " + record.id);
-io::println("Description: " + record.description);
-io::println("Sequence: " + record.sequence.toString());
+let records = FastaReader.readFasta("sequence.fasta");
+if (records.size() > 0) {
+    let record = records.get(0);
+    io::println("ID: " + record.id());
+    io::println("Description: " + record.description());
+    io::println("Sequence: " + record.sequence.toString());
+}
 
 // Read a multi-sequence FASTA file
-let records = FastaIO.readAll("sequences.fasta");
-io::println("Read " + Integer.toString(records.size()) + " sequences");
+let allRecords = FastaReader.readFasta("sequences.fasta");
+io::println("Read " + Integer.toString(allRecords.size()) + " sequences");
 
-for (record in records) {
-    io::println(">" + record.id + " " + record.description);
+for (record in allRecords) {
+    io::println(">" + record.id() + " " + record.description());
     io::println(record.sequence.toString());
 }
 ```
@@ -255,19 +257,18 @@ for (record in records) {
 
 ```titrate
 // Create a FASTA record
-let rec1 = new FastaRecord("seq001", "Example sequence", Sequence.dna("ATGCGATCGA"));
+let rec1 = new FastaRecord("seq001", "Example sequence ATGCGATCGA");
 
-// Write a single record
-FastaIO.writeOne("output.fasta", rec1);
+// Write a single record (create a list with one record)
+let singleList = new ArrayList<FastaRecord>();
+singleList.add(rec1);
+FastaWriter.writeFastaDefault("output.fasta", singleList);
 
 // Write multiple records
 let records = new ArrayList<FastaRecord>();
 records.add(rec1);
-records.add(new FastaRecord("seq002", "Another sequence", Sequence.dna("TTAGCGCTA")));
-FastaIO.writeAll("multi_output.fasta", records);
-
-// Control line width (default 80 characters)
-FastaIO.writeAll("formatted.fasta", records, 60);
+records.add(new FastaRecord("seq002", "Another sequence TTAGCGCTA"));
+FastaWriter.writeFasta("multi_output.fasta", records, 60);
 ```
 
 ### Multi-Sequence Handling
@@ -284,7 +285,7 @@ for (record in records) {
 // Compute GC content for all sequences
 for (record in records) {
     let gc = record.sequence.gcContent();
-    io::println(record.id + ": GC=" + Double.toString(gc * 100.0) + "%");
+    io::println(record.id() + ": GC=" + Double.toString(gc * 100.0) + "%");
 }
 ```
 
@@ -294,21 +295,20 @@ The `RestrictionEnzyme` module provides a database of common restriction enzymes
 
 ```titrate
 import tt::bio::RestrictionEnzyme;
-import tt::bio::RestrictionDB;
 ```
 
 ### Enzyme Database
 
 ```titrate
 // Look up an enzyme by name
-let ecori = RestrictionDB.get("EcoRI");
+let ecori = RestrictionEnzyme.getEnzyme("EcoRI");
 io::println("Enzyme: " + ecori.name);
 io::println("Recognition site: " + ecori.site);       // GAATTC
 io::println("Cut position (top): " + Integer.toString(ecori.cutTop));     // 1 (after G)
 io::println("Cut position (bottom): " + Integer.toString(ecori.cutBottom)); // 5 (after A on complement)
 
 // List all available enzymes
-let allEnzymes = RestrictionDB.all();
+let allEnzymes = RestrictionEnzyme.availableEnzymes();
 io::println("Available enzymes: " + Integer.toString(allEnzymes.size()));
 ```
 
@@ -317,12 +317,11 @@ io::println("Available enzymes: " + Integer.toString(allEnzymes.size()));
 ```titrate
 let dna = Sequence.dna("AAGAATTCTGAAGCATGCGATCGAATTCGCTAG");
 
-// Find all EcoRI cut sites
-let sites = ecori.findSites(dna);
+// Find all EcoRI cut sites using the standalone function
+let sites = RestrictionEnzyme.findCutSites(dna, "EcoRI");
 io::println("EcoRI cut sites:");
 for (site in sites) {
-    io::println("  Position " + Integer.toString(site.position) +
-                " (strand: " + site.strand + ")");
+    io::println("  Position " + Integer.toString(site));
 }
 ```
 
@@ -330,7 +329,7 @@ for (site in sites) {
 
 ```titrate
 // Simulate a single-enzyme digest
-let fragments = ecori.digest(dna);
+let fragments = RestrictionEnzyme.digest(dna, "EcoRI");
 io::println("Fragments after EcoRI digest:");
 for (fragment in fragments) {
     io::println("  Length: " + Integer.toString(fragment.length()) +
@@ -338,8 +337,7 @@ for (fragment in fragments) {
 }
 
 // Simulate a double digest (two enzymes)
-let bamhi = RestrictionDB.get("BamHI");  // GGATCC
-let doubleFragments = RestrictionEnzyme.doubleDigest(dna, ecori, bamhi);
+let doubleFragments = RestrictionEnzyme.multiDigest(dna, ["EcoRI", "BamHI"]);
 io::println("Double digest fragments: " + Integer.toString(doubleFragments.size()));
 ```
 
@@ -348,8 +346,7 @@ io::println("Double digest fragments: " + Integer.toString(doubleFragments.size(
 The `tt.bio` module provides algorithms for constructing phylogenetic trees from distance matrices.
 
 ```titrate
-import tt::bio::Phylogenetics;
-import tt::bio::DistanceMatrix;
+import tt::bio::PhyloTree;
 ```
 
 ### UPGMA
@@ -357,22 +354,19 @@ import tt::bio::DistanceMatrix;
 UPGMA (Unweighted Pair Group Method with Arithmetic Mean) produces ultrametric trees assuming a constant molecular clock:
 
 ```titrate
-// Create a distance matrix
-let dm = new DistanceMatrix(4);
-dm.setLabel(0, "A");
-dm.setLabel(1, "B");
-dm.setLabel(2, "C");
-dm.setLabel(3, "D");
+// Build distance matrix as 2D ArrayList
+let dm = new ArrayList<ArrayList<double>>();
+let names = new ArrayList<string>();
+names.add("A"); names.add("B"); names.add("C"); names.add("D");
 
-dm.set(0, 1, 2.0);  // distance A-B
-dm.set(0, 2, 4.0);  // distance A-C
-dm.set(0, 3, 6.0);  // distance A-D
-dm.set(1, 2, 4.0);  // distance B-C
-dm.set(1, 3, 6.0);  // distance B-D
-dm.set(2, 3, 4.0);  // distance C-D
+let row0 = new ArrayList<double>(); row0.add(0.0); row0.add(2.0); row0.add(4.0); row0.add(6.0);
+let row1 = new ArrayList<double>(); row1.add(2.0); row1.add(0.0); row1.add(4.0); row1.add(6.0);
+let row2 = new ArrayList<double>(); row2.add(4.0); row2.add(4.0); row2.add(0.0); row2.add(4.0);
+let row3 = new ArrayList<double>(); row3.add(6.0); row3.add(6.0); row3.add(4.0); row3.add(0.0);
+dm.add(row0); dm.add(row1); dm.add(row2); dm.add(row3);
 
 // Build tree
-let tree = Phylogenetics.upgma(dm);
+let tree = PhyloTree.upgma(dm, names);
 io::println("UPGMA tree (Newick): " + tree.toNewick());
 ```
 
@@ -381,7 +375,7 @@ io::println("UPGMA tree (Newick): " + tree.toNewick());
 Neighbor-joining does not assume a molecular clock and is more appropriate when evolutionary rates vary:
 
 ```titrate
-let tree = Phylogenetics.neighborJoining(dm);
+let tree = PhyloTree.neighborJoining(dm, names);
 io::println("NJ tree (Newick): " + tree.toNewick());
 ```
 
@@ -389,17 +383,17 @@ io::println("NJ tree (Newick): " + tree.toNewick());
 
 ```titrate
 // Parse a Newick string
-let parsed = Phylogenetics.fromNewick("((A:1,B:1):2,(C:3,D:3):1);");
+let parsed = PhyloTree.parseNewick("((A:1,B:1):2,(C:3,D:3):1);");
 
 // Convert back to Newick
 io::println(parsed.toNewick());
 
 // Access tree properties
-let leaves = parsed.leaves();
+let leaves = parsed.getLeaves();
 io::println("Leaves: " + Integer.toString(leaves.size()));
 
-let totalHeight = parsed.height();
-io::println("Tree height: " + Double.toString(totalHeight));
+let totalHeight = parsed.depth();
+io::println("Tree depth: " + Double.toString(totalHeight));
 ```
 
 ## End-to-End Example: Analyzing a DNA Sequence for ORFs and Restriction Sites
@@ -409,10 +403,9 @@ This example takes a DNA sequence, finds all open reading frames (ORFs), identif
 ```titrate
 import tt::bio::Sequence;
 import tt::bio::CodonTable;
-import tt::bio::RestrictionDB;
-import tt::bio::FastaIO;
+import tt::bio::RestrictionEnzyme;
+import tt::bio::FastaWriter;
 import tt::bio::FastaRecord;
-import tt::math::Math;
 
 public class ORFResult {
     public int start;
@@ -473,15 +466,12 @@ public fn findORFs(dna: Sequence, minLen: int): ArrayList<ORFResult> {
 
 public fn findRestrictionSites(dna: Sequence, enzymeNames: ArrayList<string>): void {
     for (name in enzymeNames) {
-        let enzyme = RestrictionDB.get(name);
-        if (enzyme != null) {
-            let sites = enzyme.findSites(dna);
-            if (sites.size() > 0) {
-                io::println("  " + name + " (" + enzyme.site + "): " +
-                            Integer.toString(sites.size()) + " site(s)");
-                for (site in sites) {
-                    io::println("    Position: " + Integer.toString(site.position));
-                }
+        let sites = RestrictionEnzyme.findCutSites(dna, name);
+        if (sites.size() > 0) {
+            io::println("  " + name + ": " +
+                        Integer.toString(sites.size()) + " site(s)");
+            for (site in sites) {
+                io::println("    Position: " + Integer.toString(site));
             }
         }
     }
@@ -524,8 +514,7 @@ public fn main(): void {
 
     // Simulate EcoRI digest
     io::println("--- EcoRI Digest ---");
-    let ecori = RestrictionDB.get("EcoRI");
-    let fragments = ecori.digest(dna);
+    let fragments = RestrictionEnzyme.digest(dna, "EcoRI");
     for (i in 0..fragments.size()) {
         let frag = fragments.get(i);
         io::println("  Fragment " + Integer.toString(i + 1) +
@@ -533,8 +522,9 @@ public fn main(): void {
     }
 
     // Save the sequence to FASTA
-    let record = new FastaRecord("analyzed_seq", "Sample DNA sequence", dna);
-    FastaIO.writeOne("analyzed.fasta", record);
+    let recList = new ArrayList<FastaRecord>();
+    recList.add(new FastaRecord("analyzed_seq", "Sample DNA sequence"));
+    FastaWriter.writeFastaDefault("analyzed.fasta", recList);
     io::println("");
     io::println("Sequence saved to analyzed.fasta");
 }

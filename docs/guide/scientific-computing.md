@@ -459,17 +459,18 @@ sim.run(1000.0);  // run for 1000 time units
 The `tt.math` module now includes number theory, combinatorics, interval arithmetic, automatic differentiation, and special functions.
 
 ```titrate
-import tt.math.Math;
-import tt.math.special.Special;
+import tt::math::NumberTheory;
+import tt::math::Autodiff;
+import tt::math::special::Special;
 
 // Number theory
-let primes = Math.primeSieve(100);
-let factors = Math.factorize(360);  // [2, 2, 2, 3, 3, 5]
+let primes = NumberTheory.primeSieve(100);
+let factors = NumberTheory.factorize(360);  // [2, 2, 2, 3, 3, 5]
 
 // Special functions
 let j0 = Special.besselJ(0, 2.5);
 let gamma = Special.gamma(5.0);  // 24.0
 
 // Automatic differentiation
-let grad = Math.gradient(fn(x: ArrayList<DualNumber>): DualNumber { ... }, [1.0, 2.0, 3.0]);
+let grad = Autodiff.gradient(fn(x: ArrayList<double>): double { ... }, [1.0, 2.0, 3.0]);
 ```

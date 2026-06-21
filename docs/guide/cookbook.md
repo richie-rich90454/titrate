@@ -8,18 +8,13 @@ Practical recipes for common tasks in Titrate. Each recipe presents a problem, a
 
 ```titrate
 import tt::util::ArrayList;
-import tt::util::HashMap;
 import tt::io::File;
 
 public fn readCsv(path: string): ArrayList<ArrayList<string>> {
-    let content: Result<string, string> = File.readAll(path);
-    if (content.isErr()) {
-        io::println("Failed to read file: " + content.unwrapErr());
-        return new ArrayList<ArrayList<string>>();
-    }
-    let text: string = content.unwrap();
+    let f = File.open(path, "r");
+    let content: string = f.readAll();
     let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
-    let lines: ArrayList<string> = String.split(text, "\n");
+    let lines: ArrayList<string> = String.split(content, "\n");
     for (line in lines) {
         if (String.length(String.trim(line)) == 0) {
             continue;
@@ -64,7 +59,7 @@ public fn main(): void {
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::json::JsonValue;
-import tt::networking::HttpClient;
+import tt::net::HttpClient;
 
 public fn fetchUser(id: int): Result<JsonValue, string> {
     let client: HttpClient = new HttpClient();
@@ -105,6 +100,7 @@ public fn main(): void {
 
 ```titrate
 import tt::util::HashMap;
+import tt::time::DateTime;
 
 class CacheEntry<T> {
     public T value;
@@ -126,13 +122,13 @@ class Cache<T> {
     }
 
     public fn put(key: string, value: T): void {
-        let expiresAt: double = System.currentTimeMillis() + this.defaultTtl;
+        let expiresAt: double = DateTime.now().epochMillis + this.defaultTtl;
         let entry: CacheEntry<T> = new CacheEntry<T>(value, expiresAt);
         this.store.put(key, entry);
     }
 
     public fn putWithTtl(key: string, value: T, ttl: double): void {
-        let expiresAt: double = System.currentTimeMillis() + ttl;
+        let expiresAt: double = DateTime.now().epochMillis + ttl;
         let entry: CacheEntry<T> = new CacheEntry<T>(value, expiresAt);
         this.store.put(key, entry);
     }
@@ -142,7 +138,7 @@ class Cache<T> {
         if (entry == null) {
             return err("key not found: " + key);
         }
-        if (System.currentTimeMillis() > entry.expiresAt) {
+        if (DateTime.now().epochMillis > entry.expiresAt) {
             this.store.remove(key);
             return err("key expired: " + key);
         }
@@ -331,8 +327,8 @@ public fn main(): void {
 **Problem:** You need to parse, format, and compute differences between dates.
 
 ```titrate
-import tt::datetime::DateTime;
-import tt::datetime::Duration;
+import tt::time::DateTime;
+import tt::time::Duration;
 
 public fn daysBetween(a: DateTime, b: DateTime): int {
     let diff: Duration = b.difference(a);
@@ -582,46 +578,34 @@ public fn main(): void {
 
 **Explanation:** The `Matrix` class stores data in a flat `ArrayList<double>` using row-major order (`row * cols + col`). `multiply` checks dimension compatibility and returns a `Result` — if the inner dimensions don't match, you get an error instead of a wrong answer. `transpose` swaps rows and columns.
 
-## Recipe 11: Build a Simple HTTP Server
+## Recipe 11: Build a Simple TCP Echo Server
 
-**Problem:** You need a basic HTTP server that responds to requests.
+**Problem:** You need a basic TCP server that accepts connections and echoes back messages.
 
 ```titrate
-import tt::networking::HttpServer;
-import tt::networking::HttpRequest;
-import tt::networking::HttpResponse;
-import tt::util::HashMap;
-
-class HelloHandler implements RequestHandler {
-    public fn handle(request: HttpRequest): HttpResponse {
-        let response: HttpResponse = new HttpResponse();
-        response.setStatus(200);
-        response.setHeader("Content-Type", "text/plain");
-        response.setBody("Hello from Titrate!");
-        return response;
-    }
-}
-
-class EchoHandler implements RequestHandler {
-    public fn handle(request: HttpRequest): HttpResponse {
-        let response: HttpResponse = new HttpResponse();
-        response.setStatus(200);
-        response.setHeader("Content-Type", "text/plain");
-        response.setBody("You said: " + request.body);
-        return response;
-    }
-}
+import tt::net::TcpServer;
+import tt::net::TcpClient;
 
 public fn main(): void {
-    let server: HttpServer = new HttpServer(8080);
-    server.get("/", new HelloHandler());
-    server.post("/echo", new EchoHandler());
-    io::println("Server running on port 8080");
-    server.start();
+    let server: TcpServer = new TcpServer();
+    let bound: bool = server.bind(8080);
+    if (!bound) {
+        io::println("Failed to bind to port 8080");
+        return;
+    }
+    io::println("Server listening on port 8080");
+
+    // Accept one connection and echo back messages
+    let client: TcpClient = server.accept();
+    let message: string = client.receive();
+    io::println("Received: " + message);
+    client.send("Echo: " + message);
+    client.close();
+    server.close();
 }
 ```
 
-**Explanation:** The server registers route handlers using the `RequestHandler` interface. Each handler receives an `HttpRequest` and returns an `HttpResponse`. The `HelloHandler` returns a static greeting, while the `EchoHandler` echoes back the request body. The interface-based design makes it easy to add new routes.
+**Explanation:** The `TcpServer` binds to a port and accepts incoming TCP connections. Each accepted connection is represented by a `TcpClient`, which provides `receive()` and `send()` methods for communication. This pattern forms the basis of any network server built with Titrate.
 
 ## Recipe 12: Implement Retry Logic with Result
 
@@ -640,7 +624,7 @@ public fn retry<T>(operation: fn(): Result<T, string>, maxAttempts: int, delayMs
         attempt = attempt + 1;
         if (attempt < maxAttempts) {
             io::println("Attempt " + Integer.toString(attempt) + " failed, retrying...");
-            Thread.sleep(delayMs);
+            // Note: Thread.sleep() is not yet available in the stdlib
         } else {
             io::println("Attempt " + Integer.toString(attempt) + " failed, giving up.");
         }
@@ -680,26 +664,30 @@ public fn main(): void {
 ## Recipe: Parse a DNA Sequence and Find ORFs
 
 ```titrate
-import tt.bio.Sequence;
-import tt.bio.CodonTable;
+import tt::bio::Sequence;
+import tt::bio::CodonTable;
 
 public fn findORFs(dna: string): ArrayList<string> {
-    let seq = new Sequence(dna, "DNA");
+    let seq = Sequence.dna(dna);
+    let table = CodonTable.getTable(1);
     let orfs = new ArrayList<string>();
-    let codons = seq.codons();
+    let s = seq.toString();
+    let len = String.length(s);
     var i = 0;
-    while (i < codons.size()) {
-        if (CodonTable.isStart(codons.get(i))) {
-            var j = i + 1;
-            while (j < codons.size()) {
-                if (CodonTable.isStop(codons.get(j))) {
-                    orfs.add(seq.substring(i * 3, (j + 1) * 3));
+    while (i + 2 < len) {
+        let codon = String.substring(s, i, i + 3);
+        if (table.isStart(codon)) {
+            var j = i + 3;
+            while (j + 2 < len) {
+                let nextCodon = String.substring(s, j, j + 3);
+                if (table.isStop(nextCodon)) {
+                    orfs.add(String.substring(s, i, j + 3));
                     break;
                 }
-                j = j + 1;
+                j = j + 3;
             }
         }
-        i = i + 1;
+        i = i + 3;
     }
     return orfs;
 }
@@ -708,7 +696,7 @@ public fn findORFs(dna: string): ArrayList<string> {
 ## Recipe: Compute Black-Scholes Option Price
 
 ```titrate
-import tt.finance.BlackScholes;
+import tt::finance::BlackScholes;
 
 public fn main(): void {
     let s = 100.0;   // spot price

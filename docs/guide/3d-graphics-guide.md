@@ -9,8 +9,8 @@ All 3D graphics start with linear algebra. Titrate's `tt.math` module provides v
 ### Vectors
 
 ```titrate
-import tt::math::Vec3;
-import tt::math::Vec4;
+import tt::math::vec::Vec3;
+import tt::math::vec::Vec4;
 
 // Create vectors
 let a = new Vec3(1.0, 2.0, 3.0);
@@ -34,7 +34,7 @@ let norm = a.normalized();    // unit vector in same direction
 ### Matrices
 
 ```titrate
-import tt::math::Mat4;
+import tt::math::transform::Mat4;
 
 // Identity matrix
 let identity = Mat4.eye();
@@ -62,13 +62,13 @@ let transformed = model.mulVec4(point);
 Quaternions avoid gimbal lock and are more efficient for interpolating rotations:
 
 ```titrate
-import tt::math::Quat;
+import tt::math::transform::Quaternion;
 
 // Create from axis-angle
-let q1 = Quat.fromAxisAngle(new Vec3(0.0, 1.0, 0.0), 1.5708);  // 90° around Y
+let q1 = Quaternion.fromAxisAngle(new Vec3(0.0, 1.0, 0.0), 1.5708);  // 90° around Y
 
 // Create from Euler angles (radians)
-let q2 = Quat.fromEuler(0.0, 1.5708, 0.0);  // yaw = 90°
+let q2 = Quaternion.fromEuler(0.0, 1.5708, 0.0);  // yaw = 90°
 
 // Compose rotations
 let combined = q1.mul(q2);
@@ -87,15 +87,15 @@ let rotated = q1.rotate(v);
 
 ## Geometry Primitives
 
-The `tt.geometry3d` module provides geometric primitives used in collision detection, ray casting, and spatial queries.
+The `tt::math::geometry3d` module provides geometric primitives used in collision detection, ray casting, and spatial queries.
 
 ```titrate
-import tt::geometry3d::AABB;
-import tt::geometry3d::Ray;
-import tt::geometry3d::Plane;
-import tt::geometry3d::Triangle;
-import tt::geometry3d::Sphere;
-import tt::geometry3d::Frustum;
+import tt::math::geometry3d::AABB;
+import tt::math::geometry3d::Ray;
+import tt::math::geometry3d::Plane;
+import tt::math::geometry3d::Triangle;
+import tt::math::geometry3d::Sphere;
+import tt::math::geometry3d::Frustum;
 ```
 
 ### AABB (Axis-Aligned Bounding Box)
@@ -270,7 +270,7 @@ The standard 3D transform pipeline composes model, view, and projection matrices
 ### Model / View / Projection
 
 ```titrate
-import tt::math::Mat4;
+import tt::math::transform::Mat4;
 import tt::math::Vec3;
 
 // Model matrix: object space → world space
@@ -326,7 +326,7 @@ Collision detection typically uses a two-phase approach: a broad phase (fast, ap
 
 ```titrate
 import tt::geom::SpatialIndex;
-import tt::geometry3d::AABB;
+import tt::math::geometry3d::AABB;
 
 let index = new SpatialIndex();
 
@@ -376,7 +376,7 @@ This example renders a scene with spheres and a ground plane using basic ray tra
 
 ```titrate
 import tt::math::Vec3;
-import tt::math::Mat4;
+import tt::math::transform::Mat4;
 import tt::geometry3d::Ray;
 import tt::geometry3d::Sphere;
 import tt::geometry3d::Plane;

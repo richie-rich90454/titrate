@@ -20,8 +20,6 @@ myproject/
 The generated `src/main.tr` contains a hello-world program:
 
 ```titrate
-import tt::io::println;
-
 public fn main(): void {
     println("Hello from myproject!");
 }
@@ -41,7 +39,7 @@ Pipette supports two build profiles:
 
 | Profile | Flag | Description |
 |---------|------|-------------|
-| Debug | (default) | No optimizations, full debug info |
+| Debug | (default) | Optimizations enabled, full debug info |
 | Release | `--release` | Optimized build with constant folding and dead code elimination |
 
 ```bash

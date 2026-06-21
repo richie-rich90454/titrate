@@ -120,7 +120,7 @@ class Point {
     }
 
     public fn distance(): double {
-        return Math.sqrt(this.x * this.x + this.y * this.y);
+        return MathAdvanced.sqrt(this.x * this.x + this.y * this.y);
     }
 }
 ```
@@ -159,6 +159,9 @@ async function fetchUser(id) {
 }
 
 // Titrate — synchronous with Result:
+import tt::json::JsonValue;
+import tt::net::HttpClient;
+
 public fn fetchUser(id: int): Result<JsonValue, string> {
     let response: Result<string, string> = HttpClient.get("/users/" + Integer.toString(id));
     if (response.isErr()) {

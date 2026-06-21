@@ -291,7 +291,7 @@ body.applyForceAt(10.0, 0.0, 0.0,    // force (N)
 Rigid bodies use quaternions to represent orientation, avoiding gimbal lock:
 
 ```titrate
-import tt::math::Quat;
+import tt::math::transform::Quaternion;
 
 // Get current orientation
 let q = body.orientation();

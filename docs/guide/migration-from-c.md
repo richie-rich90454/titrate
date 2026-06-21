@@ -193,7 +193,7 @@ class Point {
     }
 
     public fn distance(): double {
-        return Math.sqrt(this.x * this.x + this.y * this.y);
+        return MathAdvanced.sqrt(this.x * this.x + this.y * this.y);
     }
 }
 ```
@@ -442,6 +442,6 @@ Real price = option.NPV();
 
 ```titrate
 // Titrate
-import tt.finance.BlackScholes;
+import tt::finance::BlackScholes;
 let price = BlackScholes.callPrice(100.0, 105.0, 0.25, 0.05, 0.2);
 ```
