@@ -15,7 +15,7 @@ enum HttpStatus {
     ServerError(string),
 }
 
-switch status {
+switch (status) {
     case Ok(code) => io::println("success: " + Integer.toString(code));
     case NotFound => io::println("not found");
     case ServerError(msg) => io::println("error: " + msg);
@@ -37,7 +37,7 @@ enum Shape {
     Triangle(double, double, double),
 }
 
-switch shape {
+switch (shape) {
     case Circle(r) => io::println("radius = " + Double.toString(r));
     case Rectangle(w, h) => io::println("width = " + Double.toString(w) + ", height = " + Double.toString(h));
     case Triangle(a, b, c) => io::println("sides: " + Double.toString(a) + ", " + Double.toString(b) + ", " + Double.toString(c));
@@ -51,7 +51,7 @@ The variables `r`, `w`, `h`, `a`, `b`, `c` are bound by the pattern — you don'
 Use `_` when you want to match a variant but don't care about the data it carries:
 
 ```titrate
-switch status {
+switch (status) {
     case Ok(_) => io::println("success");
     case NotFound => io::println("not found");
     case ServerError(_) => io::println("failure");
@@ -72,7 +72,7 @@ enum JsonValue {
     Str(string),
 }
 
-switch value {
+switch (value) {
     case Null => io::println("null");
     case Bool(b) => io::println("boolean: " + Boolean.toString(b));
     case Number(n) => io::println("number: " + Double.toString(n));
@@ -88,7 +88,7 @@ enum PaymentResult {
     NetworkError,
 }
 
-switch result {
+switch (result) {
     case Success(txId) => io::println("Paid! Transaction: " + txId);
     case InsufficientFunds => io::println("Not enough balance.");
     case Declined(reason) => io::println("Declined: " + reason);
@@ -107,7 +107,7 @@ enum Expr {
     Negate(Expr),
 }
 
-switch expr {
+switch (expr) {
     case Literal(n) => io::println("literal: " + Double.toString(n));
     case Add(Literal(a), Literal(b)) => io::println("adding two literals: " + Double.toString(a) + " + " + Double.toString(b));
     case Add(left, right) => io::println("adding expressions");
@@ -127,7 +127,7 @@ Nested patterns are powerful, but don't overdo it. If a pattern becomes deeply n
 When a case needs more than a single expression, use a block with curly braces:
 
 ```titrate
-switch shape {
+switch (shape) {
     case Circle(r) => {
         let area: double = 3.14159265 * r * r;
         let circ: double = 2.0 * 3.14159265 * r;
@@ -140,7 +140,7 @@ switch shape {
     }
     case Triangle(a, b, c) => {
         let s: double = (a + b + c) / 2.0;
-        let area: double = Math.sqrt(s * (s - a) * (s - b) * (s - c));
+        let area: double = MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
         io::println("Area: " + Double.toString(area));
     }
 }
@@ -161,7 +161,7 @@ The compiler checks for exhaustiveness — make sure you have a `case` for every
 Each case should do one clear thing. If you find yourself writing long blocks in multiple cases, extract the logic into helper functions:
 
 ```titrate
-switch result {
+switch (result) {
     case Success(txId) => handleSuccess(txId);
     case InsufficientFunds => handleInsufficientFunds();
     case Declined(reason) => handleDeclined(reason);
@@ -175,7 +175,7 @@ When you're checking an enum value, always use `switch` instead of `if`/`else` w
 
 ```titrate
 // PREFER — exhaustive, clear, destructures data
-switch status {
+switch (status) {
     case Ok(code) => io::println(Integer.toString(code));
     case NotFound => io::println("404");
     case ServerError(msg) => io::println(msg);

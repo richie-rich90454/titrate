@@ -201,7 +201,7 @@ public class Point {
     public fn distanceTo(other: Point): double {
         let dx: double = this.x - other.x;
         let dy: double = this.y - other.y;
-        return Math.sqrt(dx * dx + dy * dy);
+        return MathAdvanced.sqrt(dx * dx + dy * dy);
     }
 }
 ```

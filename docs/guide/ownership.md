@@ -19,7 +19,7 @@ The trade-off is that you need to think about *who owns* a value and *how long* 
 When you create an `Owned<T>` value, a single variable "owns" that data. Assigning it to another variable **moves** the ownership — the original variable can no longer be used:
 
 ```titrate
-let x: Owned<int> = new int(5);
+let x: Owned<int> = Owned(5);
 let y = x;  // x is moved to y
 // io::println(Integer.toString(x));  // ERROR: use after move
 ```
@@ -28,7 +28,7 @@ This might seem restrictive at first, but it's the key insight: **there is alway
 
 ```titrate
 public fn process(): void {
-    let data: Owned<string> = new string("hello");
+    let data: Owned<string> = Owned("hello");
     // data is used here...
     let length: int = String.length(data);
 }   // data goes out of scope — automatically cleaned up
@@ -43,9 +43,9 @@ Think of ownership like physical ownership in the real world. If you give your b
 What if you want to *use* a value without taking ownership of it? That's what **borrowing** is for. A borrow creates a reference (`&`) to the owned value — you can read the data, but the original owner keeps responsibility for cleanup:
 
 ```titrate
-let x: Owned<int> = new int(5);
+let x: Owned<int> = Owned(5);
 let y = &x;      // immutable borrow — y refers to x's data
-// x = new int(6);  // ERROR: cannot move while borrowed
+// x = Owned(6);  // ERROR: cannot move while borrowed
 ```
 
 While a value is borrowed, the owner can't move or modify it. This prevents dangling references — the compiler guarantees the borrowed data stays valid as long as the borrow exists.
@@ -55,7 +55,7 @@ While a value is borrowed, the owner can't move or modify it. This prevents dang
 You can have multiple immutable borrows at the same time — multiple readers are fine as long as nobody is writing:
 
 ```titrate
-let x: Owned<int> = new int(42);
+let x: Owned<int> = Owned(42);
 let r1 = &x;     // first immutable borrow
 let r2 = &x;     // second immutable borrow — OK
 // Both r1 and r2 can read x's data
@@ -111,7 +111,7 @@ Use regions when you have a clear phase of computation that creates many tempora
 ```titrate
 unsafe {
     // ownership rules are suspended inside this block
-    let x: Owned<int> = new int(5);
+    let x: Owned<int> = Owned(5);
     let y = x;       // would normally move x
     let z = x;       // allowed in unsafe: no move check
 }
@@ -148,7 +148,7 @@ public fn consume(data: Owned<string>): void {
 }
 
 public fn main(): void {
-    let s: Owned<string> = new string("hello");
+    let s: Owned<string> = Owned("hello");
     consume(s);
     // s is no longer valid here
 }
@@ -164,7 +164,7 @@ public fn peek(data: &Owned<string>): int {
 }
 
 public fn main(): void {
-    let s: Owned<string> = new string("hello");
+    let s: Owned<string> = Owned("hello");
     let len: int = peek(&s);    // borrow s
     io::println(Integer.toString(len));  // s is still valid
 }

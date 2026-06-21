@@ -4,20 +4,20 @@ Want your custom types to feel as natural to use as built-in ones? Operator over
 
 ## Defining Operator Methods
 
-Operator methods follow the naming convention `operatorX`, where `X` is the operator symbol. They are defined as instance methods inside a class:
+Operator methods follow the naming convention `operatorX`, where `X` is the operator symbol. They are defined as instance methods inside a class. Unlike regular methods, operator methods do **not** take a `self` parameter — the left-hand operand is accessed via `this`:
 
 ```titrate
 class Vec2 {
     public double x;
     public double y;
 
-    fn operator+(self, other: Vec2): Vec2 {
-        return new Vec2(self.x + other.x, self.y + other.y);
+    fn operator+(other: Vec2): Vec2 {
+        return new Vec2(this.x + other.x, this.y + other.y);
     }
 }
 ```
 
-The `self` parameter refers to the instance on the left side of the operator, and the method parameter is the right operand.
+The `this` keyword refers to the instance on the left side of the operator, and the method parameter is the right operand.
 
 ## Supported Operators
 
@@ -34,11 +34,11 @@ The `self` parameter refers to the instance on the left side of the operator, an
 Arithmetic operator methods return the same type as the class:
 
 ```titrate
-fn operator+(self, other: Self): Self
-fn operator-(self, other: Self): Self
-fn operator*(self, other: Self): Self
-fn operator/(self, other: Self): Self
-fn operator%(self, other: Self): Self
+fn operator+(other: Self): Self
+fn operator-(other: Self): Self
+fn operator*(other: Self): Self
+fn operator/(other: Self): Self
+fn operator%(other: Self): Self
 ```
 
 ### Comparison Operators
@@ -55,12 +55,12 @@ fn operator%(self, other: Self): Self
 Comparison operator methods return `bool`:
 
 ```titrate
-fn operator==(self, other: Self): bool
-fn operator!=(self, other: Self): bool
-fn operator<(self, other: Self): bool
-fn operator>(self, other: Self): bool
-fn operator<=(self, other: Self): bool
-fn operator>=(self, other: Self): bool
+fn operator==(other: Self): bool
+fn operator!=(other: Self): bool
+fn operator<(other: Self): bool
+fn operator>(other: Self): bool
+fn operator<=(other: Self): bool
+fn operator>=(other: Self): bool
 ```
 
 ## Full Example: Vec2
@@ -79,54 +79,54 @@ class Vec2 {
     }
 
     // Arithmetic operators
-    fn operator+(self, other: Vec2): Vec2 {
-        return new Vec2(self.x + other.x, self.y + other.y);
+    fn operator+(other: Vec2): Vec2 {
+        return new Vec2(this.x + other.x, this.y + other.y);
     }
 
-    fn operator-(self, other: Vec2): Vec2 {
-        return new Vec2(self.x - other.x, self.y - other.y);
+    fn operator-(other: Vec2): Vec2 {
+        return new Vec2(this.x - other.x, this.y - other.y);
     }
 
-    fn operator*(self, scalar: double): Vec2 {
-        return new Vec2(self.x * scalar, self.y * scalar);
+    fn operator*(scalar: double): Vec2 {
+        return new Vec2(this.x * scalar, this.y * scalar);
     }
 
-    fn operator/(self, scalar: double): Vec2 {
-        return new Vec2(self.x / scalar, self.y / scalar);
+    fn operator/(scalar: double): Vec2 {
+        return new Vec2(this.x / scalar, this.y / scalar);
     }
 
     // Comparison operators
-    fn operator==(self, other: Vec2): bool {
-        return self.x == other.x && self.y == other.y;
+    fn operator==(other: Vec2): bool {
+        return this.x == other.x && this.y == other.y;
     }
 
-    fn operator!=(self, other: Vec2): bool {
-        return !(self == other);
+    fn operator!=(other: Vec2): bool {
+        return !(this == other);
     }
 
-    fn operator<(self, other: Vec2): bool {
-        return self.magnitude() < other.magnitude();
+    fn operator<(other: Vec2): bool {
+        return this.magnitude() < other.magnitude();
     }
 
-    fn operator<=(self, other: Vec2): bool {
-        return self.magnitude() <= other.magnitude();
+    fn operator<=(other: Vec2): bool {
+        return this.magnitude() <= other.magnitude();
     }
 
-    fn operator>(self, other: Vec2): bool {
-        return self.magnitude() > other.magnitude();
+    fn operator>(other: Vec2): bool {
+        return this.magnitude() > other.magnitude();
     }
 
-    fn operator>=(self, other: Vec2): bool {
-        return self.magnitude() >= other.magnitude();
+    fn operator>=(other: Vec2): bool {
+        return this.magnitude() >= other.magnitude();
     }
 
     // Utility
-    fn magnitude(self): double {
-        return tt.math.Math.sqrt(self.x * self.x + self.y * self.y);
+    fn magnitude(): double {
+        return MathAdvanced.sqrt(this.x * this.x + this.y * this.y);
     }
 
-    fn toString(self): string {
-        return "(" + Double.toString(self.x) + ", " + Double.toString(self.y) + ")";
+    fn toString(): string {
+        return "(" + Double.toString(this.x) + ", " + Double.toString(this.y) + ")";
     }
 }
 ```
@@ -150,22 +150,6 @@ if (a < b) {
 }
 ```
 
-## The `self` Parameter
-
-The `self` parameter in operator methods works like `this` in other methods — it refers to the left-hand operand. You must include it explicitly in the parameter list:
-
-```titrate
-// Correct
-fn operator+(self, other: Self): Self { ... }
-
-// Incorrect — missing self
-fn operator+(other: Self): Self { ... }
-```
-
-::: tip `self` vs `this`
-You might wonder why operator methods use `self` instead of `this`. In operator methods, `self` is an explicit parameter that represents the left-hand side of the expression. This makes the dispatch mechanism clear: `a + b` calls `a.operator+(b)`, where `self` is `a` and `other` is `b`. Inside the method body, you can use either `self.x` or `this.x` — they refer to the same instance.
-:::
-
 ## Operator Overloading and Generics
 
 Operator methods work with generic types. For example, a generic `Pair` class could define equality:
@@ -175,9 +159,9 @@ class Pair<T: Comparable> {
     public T first;
     public T second;
 
-    fn operator==(self, other: Pair<T>): bool {
-        return self.first.compareTo(other.first) == 0
-            && self.second.compareTo(other.second) == 0;
+    fn operator==(other: Pair<T>): bool {
+        return this.first.compareTo(other.first) == 0
+            && this.second.compareTo(other.second) == 0;
     }
 }
 ```
@@ -189,8 +173,8 @@ class Pair<T: Comparable> {
 One of the most common patterns: multiplying a vector/matrix by a scalar. The operator takes a different type than the class itself:
 
 ```titrate
-fn operator*(self, scalar: double): Vec2 {
-    return new Vec2(self.x * scalar, self.y * scalar);
+fn operator*(scalar: double): Vec2 {
+    return new Vec2(this.x * scalar, this.y * scalar);
 }
 ```
 
@@ -201,8 +185,8 @@ This lets you write `vec * 2.0` naturally. Note that `2.0 * vec` won't work unle
 For geometric types, it's common to compare by magnitude (length). This lets you sort vectors or find the shortest/longest:
 
 ```titrate
-fn operator<(self, other: Vec2): bool {
-    return self.magnitude() < other.magnitude();
+fn operator<(other: Vec2): bool {
+    return this.magnitude() < other.magnitude();
 }
 ```
 
@@ -231,19 +215,19 @@ public class Complex {
         this.imag = imag;
     }
 
-    public fn operator+(self, other: Complex): Complex {
-        return new Complex(self.real + other.real, self.imag + other.imag);
+    public fn operator+(other: Complex): Complex {
+        return new Complex(this.real + other.real, this.imag + other.imag);
     }
 
-    public fn operator*(self, other: Complex): Complex {
+    public fn operator*(other: Complex): Complex {
         return new Complex(
-            self.real * other.real - self.imag * other.imag,
-            self.real * other.imag + self.imag * other.real
+            this.real * other.real - this.imag * other.imag,
+            this.real * other.imag + this.imag * other.real
         );
     }
 
-    public fn operator==(self, other: Complex): bool {
-        return self.real == other.real && self.imag == other.imag;
+    public fn operator==(other: Complex): bool {
+        return this.real == other.real && this.imag == other.imag;
     }
 }
 ```
@@ -292,6 +276,7 @@ If someone reads `a + b` and can't guess what it does, use a named method instea
 - **Define operators in sets**: If you define `==`, define `!=` too. If you define `<`, define `>`, `<=`, and `>=`.
 - **Prefer methods for uncommon operations**: If the meaning isn't immediately obvious from the operator, use a named method instead.
 - **Comparison operators must return `bool`**: This is enforced by the type system.
+- **No `self` parameter**: Operator methods use `this` to refer to the left-hand operand, not a `self` parameter. The method signature only includes the right-hand operand.
 
 ## Try It Yourself
 
@@ -311,7 +296,7 @@ public class Money {
 
     // Add your operator methods here!
 
-    public fn toString(self): string {
+    public fn toString(): string {
         return "$" + Double.toString(this.amount);
     }
 }
@@ -343,39 +328,39 @@ public class Money {
         this.amount = amount;
     }
 
-    public fn operator+(self, other: Money): Money {
-        return new Money(self.amount + other.amount);
+    public fn operator+(other: Money): Money {
+        return new Money(this.amount + other.amount);
     }
 
-    public fn operator*(self, scalar: double): Money {
-        return new Money(self.amount * scalar);
+    public fn operator*(scalar: double): Money {
+        return new Money(this.amount * scalar);
     }
 
-    public fn operator==(self, other: Money): bool {
-        return self.amount == other.amount;
+    public fn operator==(other: Money): bool {
+        return this.amount == other.amount;
     }
 
-    public fn operator!=(self, other: Money): bool {
-        return !(self == other);
+    public fn operator!=(other: Money): bool {
+        return !(this == other);
     }
 
-    public fn operator<(self, other: Money): bool {
-        return self.amount < other.amount;
+    public fn operator<(other: Money): bool {
+        return this.amount < other.amount;
     }
 
-    public fn operator<=(self, other: Money): bool {
-        return self.amount <= other.amount;
+    public fn operator<=(other: Money): bool {
+        return this.amount <= other.amount;
     }
 
-    public fn operator>(self, other: Money): bool {
-        return self.amount > other.amount;
+    public fn operator>(other: Money): bool {
+        return this.amount > other.amount;
     }
 
-    public fn operator>=(self, other: Money): bool {
-        return self.amount >= other.amount;
+    public fn operator>=(other: Money): bool {
+        return this.amount >= other.amount;
     }
 
-    public fn toString(self): string {
+    public fn toString(): string {
         return "$" + Double.toString(this.amount);
     }
 }

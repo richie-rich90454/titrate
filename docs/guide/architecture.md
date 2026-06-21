@@ -19,23 +19,28 @@ Understanding how the Titrate compiler works internally — from source text to 
        │
        ▼
   ┌──────────┐
-  │ Analyzer  │  Type checking, name resolution, ownership
+  │    AST    │  Abstract Syntax Tree
   └────┬─────┘
        │
        ▼
   ┌───────────┐
-  │ Optimizer  │  Constant folding, dead code elimination
-  └────┬──────┘
-       │
-       ▼
-  ┌──────────────┐
-  │ Bytecode Emit │  AST → Bytecode (opcodes + constants)
-  └────┬─────────┘
-       │
-       ▼
-  ┌──────────┐
-  │    VM     │  Stack-based execution
-  └──────────┘
+  │ Analyzer   │  Type checking, name resolution, ownership
+  └──┬────┬───┘
+     │    │
+     │    ▼
+     │  ┌──────────────────┐
+     │  │  Bytecode Compiler│  AST → Bytecode (opcodes + constants)
+     │  └───────┬──────────┘
+     │          │
+     │          ▼
+     │  ┌───────────┐
+     │  │     VM     │  Stack-based execution
+     │  └───────────┘
+     │
+     ▼
+  ┌────────────────┐
+  │  Interpreter    │  Tree-walking execution (fast prototyping)
+  └────────────────┘
 ```
 
 The compiler is written in Rust and lives in `trc/src/`. Each stage is a separate module with clear responsibilities.
@@ -100,11 +105,11 @@ The optimizer runs on the analyzed AST (or during bytecode emission) and applies
 
 These are the first optimization passes. The architecture is designed to support additional passes in the future.
 
-### AST → Bytecode Emitter → Bytecode
+### AST → Bytecode Compiler → Bytecode
 
 **Module:** `trc/src/bytecode/compiler/` (`mod.rs`, `expr.rs`, `stmt.rs`, `chunk.rs`, `generics.rs`, `inference.rs`, `resolver.rs`, `symbols.rs`)
 
-The bytecode emitter translates the validated AST into bytecode — a sequence of opcodes and operands that the VM can execute:
+The bytecode compiler translates the validated AST into bytecode — a sequence of opcodes and operands that the VM can execute:
 
 - `expr.rs` — emits bytecode for expressions (arithmetic, calls, field access, etc.)
 - `stmt.rs` — emits bytecode for statements (variable declarations, control flow, etc.)
@@ -152,6 +157,10 @@ Key VM components:
 | `time.rs` | Date and time operations |
 
 Native functions are dispatched via the `CALL_NATIVE` opcode with a function index.
+
+### Interpreter (Tree-Walking)
+
+In addition to the bytecode compiler and VM, Titrate also supports a tree-walking interpreter for fast prototyping and development. The interpreter walks the analyzed AST directly without compiling to bytecode, making it ideal for exploratory programming and quick feedback cycles.
 
 ## Instruction Set Overview
 
