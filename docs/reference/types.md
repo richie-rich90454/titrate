@@ -132,24 +132,14 @@ fn id<T>(x: T): T {
 Type parameters can be constrained to a type that implements a specific interface:
 
 ```titrate
-class SortedList<T: Comparable> { ... }
-fn print<T: Display>(value: T): void { ... }
+class SortedList<T: Comparable<T>> { ... }
 ```
 
 Constraints can also be specified via a `where` clause after the function signature:
 
 ```titrate
-fn sortAndPrint<T>(items: ArrayList<T>): void where T: Comparable { ... }
-fn convert<T, R>(input: T): R where T: Display, R: Numeric { ... }
+fn sortAndPrint<T>(items: ArrayList<T>): void where T: Comparable<T> { ... }
 ```
-
-Built-in constraint interfaces (enforced at monomorphization time by the compiler):
-
-| Constraint | Requires |
-|-----------|----------|
-| `Display` | `toString()` method |
-| `Numeric` | Arithmetic operators (`+`, `-`, `*`, `/`) |
-| `Comparable` | `compareTo(other: T): int` method |
 
 ### Monomorphization
 
@@ -204,4 +194,4 @@ let second = t3.getSecond();  // "hello"
 let third = t3.getThird();    // 3.14
 ```
 
-Generic (typed) versions are also available via `tt::lang::Tuple3<A, B, C>`, `tt::lang::Tuple4<A, B, C, D>`, and `tt::lang::Tuple5<A, B, C, D, E>`, using `get0()`, `get1()`, etc. for access.
+Generic (typed) versions are also available via `tt::lang::Tuple::Tuple3<A, B, C>` and `tt::lang::Tuple::Tuple4<A, B, C, D>`, using `get0()`, `get1()`, etc. for access.

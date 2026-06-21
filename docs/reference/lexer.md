@@ -155,23 +155,23 @@ Type keywords are reserved words that name the built-in primitive types:
 |-------|--------|------|-------------|
 | `Void` | `void` | 0 | No value (return type only) |
 | `Bool` | `bool` | 1 | Boolean (`true`/`false`) |
-| `Byte` | `byte` | 1 | Signed 8-bit integer |
-| `Short` | `short` | 2 | Signed 16-bit integer |
-| `Int` | `int` | 4 | Signed 32-bit integer |
-| `Long` | `long` | 8 | Signed 64-bit integer |
+| `Byte` | `byte` | 8 | Signed 8-bit integer |
+| `Short` | `short` | 16 | Signed 16-bit integer |
+| `Int` | `int` | 32 | Signed 32-bit integer |
+| `Long` | `long` | 64 | Signed 64-bit integer |
 | `Vast` | `vast` | — | Signed arbitrary-precision integer |
 | `Uvast` | `uvast` | — | Unsigned arbitrary-precision integer |
-| `Float` | `float` | 4 | IEEE 754 single-precision |
-| `Double` | `double` | 8 | IEEE 754 double-precision |
-| `Half` | `half` | 2 | IEEE 754 half-precision |
-| `Quad` | `quad` | 16 | IEEE 754 quad-precision |
-| `Char` | `char` | 2 | Unicode scalar |
-| `String` | `string` | ref | UTF-8 string |
-| `Size` | `size` | 8 | Platform-size unsigned integer |
-| `U8` | `u8` | 1 | Unsigned 8-bit integer |
-| `U16` | `u16` | 2 | Unsigned 16-bit integer |
-| `U32` | `u32` | 4 | Unsigned 32-bit integer |
-| `U64` | `u64` | 8 | Unsigned 64-bit integer |
+| `Float` | `float` | 32 | 32-bit IEEE 754 |
+| `Double` | `double` | 64 | 64-bit IEEE 754 |
+| `Half` | `half` | 16 | 16-bit IEEE 754 half-precision float |
+| `Quad` | `quad` | 128 | 128-bit IEEE 754 quad-precision float |
+| `Char` | `char` | 32 | Unicode scalar |
+| `String` | `string` | — | UTF-8 string |
+| `Size` | `size` | ptr | Pointer-sized unsigned |
+| `U8` | `u8` | 8 | Unsigned 8-bit integer |
+| `U16` | `u16` | 16 | Unsigned 16-bit integer |
+| `U32` | `u32` | 32 | Unsigned 32-bit integer |
+| `U64` | `u64` | 64 | Unsigned 64-bit integer |
 
 ## Operators and Punctuation
 
@@ -384,6 +384,8 @@ Within regular string literals (not raw strings), the following escape sequences
 | `\"` | U+0022 | Double quote |
 | `\'` | U+0027 | Single quote |
 | `\0` | U+0000 | Null character |
+| `\b` | U+0008 | Backspace |
+| `\f` | U+000C | Form feed |
 
 ```titrate
 let multi: string = "Line 1\nLine 2\nLine 3";
