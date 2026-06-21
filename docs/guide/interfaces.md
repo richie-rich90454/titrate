@@ -27,7 +27,7 @@ interface Drawable {
     fn draw(): void;
 }
 
-interface measurable {
+interface Measurable {
     fn measure(): double;
 }
 

@@ -197,6 +197,46 @@ Each layer adds context to the error, so when it finally reaches the user, the m
 When building error messages, think about what the person reading the message needs to know. A raw "null pointer" error is less helpful than "Failed to parse user record: missing 'name' field."
 :::
 
+## Throw / Try / Catch
+
+While `Result` is the primary way to handle **recoverable** errors, Titrate also supports `throw`/`try`/`catch` for **unrecoverable** errors — situations where continuing execution is not meaningful:
+
+```titrate
+fn checkIndex(index: int, size: int): void {
+    if (index < 0 || index >= size) {
+        throw "IndexError: index " + Integer.toString(index) + " out of bounds for size " + Integer.toString(size);
+    }
+}
+```
+
+Use `try` / `catch` to handle thrown errors:
+
+```titrate
+public fn main(): void {
+    try {
+        checkIndex(10, 5);
+    } catch (e: string) {
+        io::println("Caught: " + e);
+    }
+}
+```
+
+Titrate also supports `try` / `finally` for cleanup code that should run regardless of whether an error was thrown:
+
+```titrate
+public fn main(): void {
+    try {
+        riskyOperation();
+    } finally {
+        io::println("cleanup always runs");
+    }
+}
+```
+
+::: warning
+Reserve `throw`/`try`/`catch` for truly unrecoverable errors. For expected failure cases (invalid input, missing data, network timeouts), prefer `Result<T, E>` — it makes failure explicit in the type signature and forces callers to handle it.
+:::
+
 ## Improved Error Messages
 
 Alpha 0.3 introduces significantly improved compiler error messages with actionable suggestions.

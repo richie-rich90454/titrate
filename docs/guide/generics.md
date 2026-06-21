@@ -91,7 +91,7 @@ fn print<T: Display>(value: T): void {
     io::println(value.toString());
 }
 
-fn compare<T: Comparable>(a: T, b: T): int {
+fn compare<T: Comparable<T>>(a: T, b: T): int {
     return a.compareTo(b);
 }
 
@@ -105,7 +105,7 @@ The constraint `<T: Display>` means "T can be any type that implements `Display`
 Multiple constraints can be specified with `+`:
 
 ```titrate
-fn sortAndPrint<T: Comparable + Display>(items: ArrayList<T>): void {
+fn sortAndPrint<T: Comparable<T> + Display>(items: ArrayList<T>): void {
     items.sort();
     for (item in items) {
         io::println(item.toString());
@@ -113,7 +113,7 @@ fn sortAndPrint<T: Comparable + Display>(items: ArrayList<T>): void {
 }
 ```
 
-This function only accepts types that are both `Comparable` (so they can be sorted) and `Display` (so they can be printed). If you try to call it with a type that doesn't implement both, you'll get a compile-time error.
+This function only accepts types that are both `Comparable<T>` (so they can be sorted) and `Display` (so they can be printed). If you try to call it with a type that doesn't implement both, you'll get a compile-time error.
 
 ## Monomorphization
 

@@ -1,6 +1,6 @@
 # Classes
 
-Classes are Titrate's way of bundling data and behavior together. If you've used classes in other languages, you'll feel right at home — but Titrate has its own style. No `static` keyword, no Java-style type-before-name syntax, and constructors are always called `fn init()`. Once you get the hang of it, it's a clean and consistent way to write object-oriented code.
+Classes are Titrate's way of bundling data and behavior together. If you've used classes in other languages, you'll feel right at home — but Titrate has its own style. No `static` keyword, and constructors are typically called `fn init()`. Once you get the hang of it, it's a clean and consistent way to write object-oriented code.
 
 ## Defining a Class
 
@@ -23,8 +23,8 @@ class Circle {
 A few things to notice:
 
 - **Fields** are declared with an access modifier — `public` or `private`. There's no default; you must be explicit.
-- **Constructors** use `fn init()`, not the class name. This is the method the compiler calls when you write `new Circle(5.0)`.
-- **`this.`** is required when accessing instance fields and methods. This makes it clear when you're working with instance data versus local variables.
+- **Constructors** use `fn init()` (or `fn ClassName()`). This is the method the compiler calls when you write `new Circle(5.0)`.
+- **`this.`** is the preferred way to access instance fields and methods. This makes it clear when you're working with instance data versus local variables.
 
 ### Try It Yourself
 
@@ -168,7 +168,7 @@ let strBox: Box<string> = new Box<string>("hello");
 Sometimes you need the type parameter to support certain operations. Restrict type parameters to types that implement specific interfaces:
 
 ```titrate
-class SortedList<T: Comparable> {
+class SortedList<T: Comparable<T>> {
     public ArrayList<T> items;
 
     public fn insert(item: T): void {

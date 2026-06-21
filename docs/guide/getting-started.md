@@ -33,7 +33,7 @@ public fn main(): void {
 Let's break this down line by line:
 
 - **`public fn main(): void`** — This declares the entry point of your program. Every Titrate program starts executing from `main()`. The `: void` part tells the compiler this function doesn't return a value.
-- **`io::println(...)`** — This calls the `println` function from the `io` module. The `::` syntax is used to access module members — you'll see this pattern a lot.
+- **`io::println(...)`** — This calls the `println` function from the `io` module. Both `::` and `.` can be used to call module-level functions (`io::println(...)` or `io.println(...)`); `::` is shown here for clarity.
 - **`"Hello, Titrate!"`** — A string literal. Titrate uses `string` (lowercase) as the type name.
 
 ## Running a Program

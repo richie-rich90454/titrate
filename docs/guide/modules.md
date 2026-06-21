@@ -202,7 +202,7 @@ src/
 // Define your functions here
 
 // main.tr
-import greeting::english;
+import tt::greeting::english;
 
 public fn main(): void {
     english.greet("Titrate");
@@ -225,7 +225,7 @@ public fn greet(name: string): void {
 
 ```titrate
 // main.tr
-import greeting::english;
+import tt::greeting::english;
 
 public fn main(): void {
     english.greet("Titrate");  // prints "Hello, Titrate!"

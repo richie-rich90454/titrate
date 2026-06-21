@@ -2,27 +2,27 @@
 
 Variables are the building blocks of any program — they're how you store data, pass information around, and keep track of state. Titrate gives you three distinct ways to declare a variable, and each one communicates something different to the compiler (and to anyone reading your code).
 
-Why three forms? Because **intent matters**. When you declare a variable with `let`, you're promising it won't change. With `var`, you're signaling that it will. And with `const`, you're telling the compiler to compute the value at compile time. This makes your code easier to understand and helps the compiler catch mistakes early.
+Why three forms? Each one communicates something different to the compiler. `let` keeps code concise with type inference, `var` makes types explicit, and `const` tells the compiler to compute the value at compile time as an immutable binding. This makes your code easier to understand and helps the compiler catch mistakes early.
 
-## let — Immutable Binding
+## let — Type Inference (Mutable)
 
-Use `let` when a value should never change after it's assigned. This is the most common declaration in Titrate — and for good reason. Immutable data is easier to reason about, safer to share, and less prone to accidental bugs.
+Use `let` when you want the compiler to infer the type from the value. This is the most common declaration in Titrate — it keeps your code concise while still being fully type-safe.
 
 ```titrate
-let x: int = 42;
-let greeting: string = "Hello";
-// x = 99;  // ERROR: cannot assign to immutable variable
+let x = 42;
+let greeting = "Hello";
+x = 99;  // OK — let bindings are mutable by default
 ```
 
-Once a `let` binding is set, it's locked in. If you try to reassign it, the compiler will stop you.
+`let` infers the type from the assigned value, so you don't need to write it out when it's obvious from context.
 
 ::: tip
-Default to `let` for every variable. Only reach for `var` when you have a specific reason the value needs to change. This habit will save you from subtle bugs where a value changes unexpectedly.
+Use `let` as your default. The type inference keeps code concise, and the mutability gives you flexibility when you need to update the value later.
 :::
 
-## var — Mutable Binding
+## var — Explicit Type (Mutable)
 
-Use `var` when a value needs to change over time — counters, accumulators, state that evolves as your program runs.
+Use `var` when you want to be explicit about the type. This is useful when the type is important for readability or when type inference might not give you what you expect:
 
 ```titrate
 var counter: int = 0;
@@ -33,14 +33,16 @@ counter = counter + 1;
 
 ```titrate
 var total: double = 0.0;
-for item in prices {
+for (item in prices) {
     total = total + item;
 }
 ```
 
-## const — Compile-Time Constant
+Both `let` and `var` create mutable bindings. The only difference is that `let` uses type inference while `var` requires an explicit type annotation.
 
-Use `const` for values that are known at compile time and will never, ever change. The compiler can inline these values and optimize around them.
+## const — Compile-Time Constant (Immutable)
+
+Use `const` for values that are known at compile time and will never, ever change. `const` is the only way to create an **immutable** binding in Titrate. The compiler can inline these values and optimize around them.
 
 ```titrate
 const PI: double = 3.14159;
@@ -59,13 +61,13 @@ const SECONDS_PER_MINUTE: int = 60;     // OK — literal value
 
 Here's a quick decision guide:
 
-| Keyword | Mutability | When to use |
-|---------|-----------|-------------|
-| `let` | Immutable | Default choice. Use for values that shouldn't change after assignment. |
-| `var` | Mutable | When you genuinely need to update the value (counters, accumulators, state). |
-| `const` | Compile-time | For fixed values like mathematical constants, configuration limits, or string literals that the compiler can embed directly. |
+| Keyword | Mutability | Typing | When to use |
+|---------|-----------|--------|-------------|
+| `let` | Mutable | Type inference | Default choice. Concise, flexible, type-safe. |
+| `var` | Mutable | Explicit type | When you want to be explicit about the type. |
+| `const` | Immutable | Explicit type | For fixed values like mathematical constants, configuration limits, or string literals that the compiler can embed directly. |
 
-A good rule of thumb: **start with `let`, switch to `var` only when needed, and use `const` for values that are truly fixed forever.**
+A good rule of thumb: **start with `let`, use `var` when you need an explicit type, and use `const` for values that are truly fixed forever.**
 
 ## Type Inference
 
@@ -121,8 +123,8 @@ While shadowing is allowed, use it sparingly. Overusing shadowing can make code 
 
 ::: tip Try It Yourself
 Declare variables using all three keywords and experiment with what the compiler allows and doesn't allow:
-1. Create a `let` binding and try to reassign it — what error do you get?
+1. Create a `let` binding and reassign it to verify it's mutable.
 2. Create a `var` counter and increment it in a `while` loop.
-3. Declare a `const` for the number of days in a week, then try to change it.
+3. Declare a `const` for the number of days in a week, then try to change it (the compiler should reject this).
 4. Try omitting type annotations on different kinds of values to see what the compiler infers.
 :::

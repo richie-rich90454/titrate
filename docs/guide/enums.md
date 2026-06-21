@@ -126,11 +126,10 @@ public fn area(shape: Shape): double {
         case Rectangle(w, h) => w * h;
         case Triangle(a, b, c) => {
             let s: double = (a + b + c) / 2.0;
-            Math.sqrt(s * (s - a) * (s - b) * (s - c));
+            MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
         }
     }
 }
-```
 
 Functions that return enums are just as useful:
 
@@ -163,7 +162,7 @@ public fn area(shape: Shape): double {
         case Rectangle(w, h) => w * h;
         case Triangle(a, b, c) => {
             let s: double = (a + b + c) / 2.0;
-            Math.sqrt(s * (s - a) * (s - b) * (s - c));
+            MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
         }
     }
 }

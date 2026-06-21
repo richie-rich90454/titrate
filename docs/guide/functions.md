@@ -97,7 +97,7 @@ fn print<T: Display>(value: T): void {
     io::println(value.toString());
 }
 
-fn max<T: Comparable>(a: T, b: T): T {
+fn max<T: Comparable<T>>(a: T, b: T): T {
     if (a.compareTo(b) >= 0) {
         return a;
     }

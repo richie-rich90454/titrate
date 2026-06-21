@@ -7,7 +7,7 @@ Every program needs to make decisions and repeat actions. Titrate keeps control 
 The `if` statement evaluates a condition and executes a block of code if the condition is true. Add `else` for the false case, and chain with `else if` for multiple conditions:
 
 ```titrate
-if x > 0 {
+if (x > 0) {
     io::println("positive");
 } else {
     io::println("non-positive");
@@ -17,11 +17,11 @@ if x > 0 {
 You can chain multiple conditions with `else if`:
 
 ```titrate
-if score >= 90 {
+if (score >= 90) {
     io::println("A");
-} else if score >= 80 {
+} else if (score >= 80) {
     io::println("B");
-} else if score >= 70 {
+} else if (score >= 70) {
     io::println("C");
 } else {
     io::println("F");
@@ -29,7 +29,7 @@ if score >= 90 {
 ```
 
 ::: tip
-Unlike some languages, Titrate's `if` does not require parentheses around the condition (but they're allowed). The curly braces `{ }` are always required — this prevents a whole class of dangling-else bugs.
+Titrate requires parentheses around the condition in `if` statements. The curly braces `{ }` are also required — this prevents a whole class of dangling-else bugs.
 :::
 
 ::: tip Try It Yourself
@@ -41,8 +41,8 @@ Write a program that checks a temperature variable and prints whether water woul
 You can nest `if` statements inside each other when you need to check multiple independent conditions:
 
 ```titrate
-if isWeekend {
-    if isSunny {
+if (isWeekend) {
+    if (isSunny) {
         io::println("Go to the park!");
     } else {
         io::println("Stay in and read.");
@@ -87,7 +87,7 @@ Write a `while` loop that computes the sum of numbers from 1 to 100. Hint: use a
 The `for` loop iterates over any collection — arrays, `ArrayList`, ranges, and more. It's the idiomatic way to walk through elements when you don't need the index:
 
 ```titrate
-for item in collection {
+for (item in collection) {
     io::println(item);
 }
 ```
@@ -95,7 +95,7 @@ for item in collection {
 Use `var` to make the loop variable mutable:
 
 ```titrate
-for var item in collection {
+for (var item in collection) {
     item = item + 1;
 }
 ```
@@ -103,7 +103,7 @@ for var item in collection {
 You can iterate over a range of numbers too:
 
 ```titrate
-for i in range(0, 10) {
+for (i in 0..10) {
     io::println(Integer.toString(i));
 }
 ```
@@ -135,7 +135,7 @@ A practical example — finding the first item that matches a condition:
 
 ```titrate
 var found: string = "";
-for item in names {
+for (item in names) {
     if (String.length(item) > 10) {
         found = item;
         break;
@@ -146,7 +146,7 @@ for item in names {
 And using `continue` to skip unwanted items:
 
 ```titrate
-for item in numbers {
+for (item in numbers) {
     if (item < 0) { continue; }
     io::println(Integer.toString(item));
 }
@@ -191,7 +191,7 @@ while (i <= n) {
 
 ```titrate
 var total: double = 0.0;
-for item in prices {
+for (item in prices) {
     total = total + item;
 }
 io::println("Total: " + Double.toString(total));
@@ -201,7 +201,7 @@ io::println("Total: " + Double.toString(total));
 
 ```titrate
 var target: int = -1;
-for item in list {
+for (item in list) {
     if (item == searchKey) {
         target = item;
         break;
@@ -212,7 +212,7 @@ for item in list {
 ### Skipping with continue
 
 ```titrate
-for item in data {
+for (item in data) {
     if (item is InvalidEntry) { continue; }
     process(item);
 }
