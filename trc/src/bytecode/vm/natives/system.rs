@@ -455,9 +455,12 @@ pub(crate) fn native_os_umask(args: &[Value]) -> Result<Value, String> {
 
     #[cfg(not(unix))]
     {
-        // On Windows, umask is not supported; return 0 (no-op stub)
-        let _ = mask;
-        Ok(Value::Long(0))
+        // Windows: use the C runtime _umask function.
+        extern "C" {
+            fn _umask(mode: i32) -> i32;
+        }
+        let old = unsafe { _umask(mask as i32) };
+        Ok(Value::Long(old as i64))
     }
 }
 
@@ -534,8 +537,57 @@ pub(crate) fn native_os_getppid(_args: &[Value]) -> Result<Value, String> {
     }
     #[cfg(not(unix))]
     {
-        // On non-Unix (Windows), parent PID is not available without external crates
-        Ok(Value::Int(0))
+        // Windows: use the toolhelp32 API to find the parent process ID.
+        #[repr(C)]
+        struct ProcessEntry32W {
+            dw_size: u32,
+            cnt_usage: u32,
+            th32_process_id: u32,
+            th32_default_heap_id: usize,
+            th32_module_id: u32,
+            cnt_threads: u32,
+            th32_parent_process_id: u32,
+            pc_pri_class: i32,
+            dw_flags: u32,
+            sz_exe_file: [u16; 260],
+        }
+
+        const TH32CS_SNAPPROCESS: u32 = 0x00000002;
+        const INVALID_HANDLE_VALUE: isize = -1;
+
+        extern "system" {
+            fn CreateToolhelp32Snapshot(flags: u32, pid: u32) -> isize;
+            fn Process32FirstW(snapshot: isize, entry: *mut ProcessEntry32W) -> i32;
+            fn Process32NextW(snapshot: isize, entry: *mut ProcessEntry32W) -> i32;
+            fn CloseHandle(handle: isize) -> i32;
+            fn GetCurrentProcessId() -> u32;
+        }
+
+        let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
+        if snapshot == INVALID_HANDLE_VALUE {
+            return Ok(Value::Int(0));
+        }
+
+        let mut entry: ProcessEntry32W = unsafe { std::mem::zeroed() };
+        entry.dw_size = std::mem::size_of::<ProcessEntry32W>() as u32;
+
+        let my_pid = unsafe { GetCurrentProcessId() };
+        let mut ppid: i32 = 0;
+
+        if unsafe { Process32FirstW(snapshot, &mut entry) } != 0 {
+            loop {
+                if entry.th32_process_id == my_pid {
+                    ppid = entry.th32_parent_process_id as i32;
+                    break;
+                }
+                if unsafe { Process32NextW(snapshot, &mut entry) } == 0 {
+                    break;
+                }
+            }
+        }
+
+        unsafe { CloseHandle(snapshot) };
+        Ok(Value::Int(ppid))
     }
 }
 
@@ -792,8 +844,40 @@ pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
     }
     #[cfg(not(unix))]
     {
-        let _ = path;
-        Ok(Value::Long(0))
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                lpDirectoryName: *const u16,
+                lpFreeBytesAvailable: *mut u64,
+                lpTotalNumberOfBytes: *mut u64,
+                lpTotalNumberOfFreeBytes: *mut u64,
+            ) -> i32;
+        }
+
+        let wide: Vec<u16> = OsStr::new(path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        let mut free_bytes_available: u64 = 0;
+        let mut total_bytes: u64 = 0;
+        let mut total_free_bytes: u64 = 0;
+
+        let ret = unsafe {
+            GetDiskFreeSpaceExW(
+                wide.as_ptr(),
+                &mut free_bytes_available,
+                &mut total_bytes,
+                &mut total_free_bytes,
+            )
+        };
+
+        if ret == 0 {
+            return Ok(Value::Long(0));
+        }
+        Ok(Value::Long(total_bytes as i64))
     }
 }
 
@@ -819,7 +903,39 @@ pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
     }
     #[cfg(not(unix))]
     {
-        let _ = path;
-        Ok(Value::Long(0))
+        use std::ffi::OsStr;
+        use std::os::windows::ffi::OsStrExt;
+
+        extern "system" {
+            fn GetDiskFreeSpaceExW(
+                lpDirectoryName: *const u16,
+                lpFreeBytesAvailable: *mut u64,
+                lpTotalNumberOfBytes: *mut u64,
+                lpTotalNumberOfFreeBytes: *mut u64,
+            ) -> i32;
+        }
+
+        let wide: Vec<u16> = OsStr::new(path)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        let mut free_bytes_available: u64 = 0;
+        let mut total_bytes: u64 = 0;
+        let mut total_free_bytes: u64 = 0;
+
+        let ret = unsafe {
+            GetDiskFreeSpaceExW(
+                wide.as_ptr(),
+                &mut free_bytes_available,
+                &mut total_bytes,
+                &mut total_free_bytes,
+            )
+        };
+
+        if ret == 0 {
+            return Ok(Value::Long(0));
+        }
+        Ok(Value::Long(total_free_bytes as i64))
     }
 }

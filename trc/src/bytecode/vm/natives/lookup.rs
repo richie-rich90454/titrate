@@ -121,6 +121,8 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "Fs_isFile" => Some(system::native_fs_is_file),
         "Fs_isDir" => Some(system::native_fs_is_dir),
         "Fs_size" => Some(system::native_fs_size),
+        "Fs_totalSpace" => Some(system::native_fs_total_space),
+        "Fs_freeSpace" => Some(system::native_fs_free_space),
         "Process_id" => Some(system::native_process_id),
         "Process_args" => Some(system::native_process_args),
         "Os_name" => Some(system::native_os_name),
