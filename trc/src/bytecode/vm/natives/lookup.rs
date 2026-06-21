@@ -197,6 +197,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "TypeName_of" => Some(builtins::native_type_name_of),
         "Subprocess_run" => Some(subprocess::native_subprocess_run),
         "Subprocess_exec" => Some(subprocess::native_subprocess_exec),
+        "Subprocess_popenWrite" => Some(subprocess::native_subprocess_popen_write),
         "Tempfile_create" => Some(tempfile::native_tempfile_create),
 
         // Thread natives

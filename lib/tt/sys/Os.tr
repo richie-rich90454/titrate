@@ -430,13 +430,19 @@ public fn uname(): string {
 // Open a pipe to a command. mode "r" reads the command's stdout,
 // mode "w" writes to the command's stdin.
 // For "r" mode, returns the captured output as a string.
-// For "w" mode, returns an empty string (write mode is limited).
+// For "w" mode, runs the command with empty stdin and returns its stdout.
+// Use popenWrite(command, input) to pipe data to the command's stdin.
 public fn popen(command: string, mode: string): string {
     if (mode == "r") {
         return Subprocess_exec(command);
     }
-    // For "w" mode, we would need to pipe stdin to the command.
-    // This requires a native Subprocess_popenWrite which is not yet available.
-    // Return empty string to indicate no output was captured.
+    if (mode == "w") {
+        return Subprocess_popenWrite(command, "");
+    }
     return "";
+}
+
+// Pipe input data to a command's stdin and return captured stdout.
+public fn popenWrite(command: string, input: string): string {
+    return Subprocess_popenWrite(command, input);
 }
