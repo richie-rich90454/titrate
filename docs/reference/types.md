@@ -129,15 +129,21 @@ fn id<T>(x: T): T {
 
 ### Constraints
 
-Type parameters can be constrained to types that implement one or more interfaces:
+Type parameters can be constrained to a type that implements a specific interface:
 
 ```titrate
 class SortedList<T: Comparable> { ... }
 fn print<T: Display>(value: T): void { ... }
-fn sortAndPrint<T: Comparable + Display>(items: ArrayList<T>): void { ... }
 ```
 
-Built-in constraint interfaces:
+Constraints can also be specified via a `where` clause after the function signature:
+
+```titrate
+fn sortAndPrint<T>(items: ArrayList<T>): void where T: Comparable { ... }
+fn convert<T, R>(input: T): R where T: Display, R: Numeric { ... }
+```
+
+Built-in constraint interfaces (enforced at monomorphization time by the compiler):
 
 | Constraint | Requires |
 |-----------|----------|

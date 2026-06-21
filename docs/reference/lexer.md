@@ -92,6 +92,10 @@ Keywords are reserved identifiers that have special meaning in the language. The
 | `Case` | `case` | A case label in a switch statement |
 | `Default` | `default` | The default case in a switch statement |
 | `With` | `with` | Context manager statement |
+| `Throw` | `throw` | Throws an exception |
+| `Try` | `try` | Begins a try-catch-finally block |
+| `Catch` | `catch` | Catches an exception |
+| `Finally` | `finally` | Code executed after try/catch |
 
 ### Literal Keywords
 
