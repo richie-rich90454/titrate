@@ -3157,4 +3157,85 @@ import tt.chem.Molecule;"#;
             other => panic!("Expected Function, got {:?}", other),
         }
     }
+
+    // -----------------------------------------------------------------------
+    // String interpolation tests
+    // -----------------------------------------------------------------------
+    #[test]
+    fn test_string_interpolation_simple() {
+        let src = r#"fn f(): void { let s = "Hello, ${name}!"; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::VarDecl(vd) => {
+                    // Should desugar to: "Hello, " + name + "!"
+                    match &vd.init {
+                        Some(ast::Expr::Binary(left, ast::Operator::Add, right, _)) => {
+                            // left = "Hello, " + name
+                            match left.as_ref() {
+                                ast::Expr::Binary(l2, ast::Operator::Add, mid, _) => {
+                                    assert!(matches!(l2.as_ref(), ast::Expr::Literal(ast::Literal::String(s), _) if s == "Hello, "));
+                                    assert!(matches!(mid.as_ref(), ast::Expr::Identifier(name, _) if name == "name"));
+                                }
+                                other => panic!("Expected nested Binary(Add), got {:?}", other),
+                            }
+                            // right = "!"
+                            assert!(matches!(right.as_ref(), ast::Expr::Literal(ast::Literal::String(s), _) if s == "!"));
+                        }
+                        other => panic!("Expected Binary(Add) chain, got {:?}", other),
+                    }
+                }
+                other => panic!("Expected VarDecl, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_string_interpolation_no_markers() {
+        // String without ${ should still be a plain StringLiteral
+        let src = r#"fn f(): void { let s = "Hello, world!"; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::VarDecl(vd) => {
+                    assert!(matches!(
+                        &vd.init,
+                        Some(ast::Expr::Literal(ast::Literal::String(s), _)) if s == "Hello, world!"
+                    ));
+                }
+                other => panic!("Expected VarDecl, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_string_interpolation_multiple() {
+        let src = r#"fn f(): void { let s = "${a} and ${b}"; }"#;
+        let prog = parse_src(src).expect("parse should succeed");
+        match &prog.declarations[0] {
+            ast::Declaration::Function(fd) => match &fd.body[0] {
+                ast::Stmt::VarDecl(vd) => {
+                    // Should desugar to: a + " and " + b
+                    match &vd.init {
+                        Some(ast::Expr::Binary(left, ast::Operator::Add, right, _)) => {
+                            // left = a + " and "
+                            match left.as_ref() {
+                                ast::Expr::Binary(l2, ast::Operator::Add, mid, _) => {
+                                    assert!(matches!(l2.as_ref(), ast::Expr::Identifier(name, _) if name == "a"));
+                                    assert!(matches!(mid.as_ref(), ast::Expr::Literal(ast::Literal::String(s), _) if s == " and "));
+                                }
+                                other => panic!("Expected nested Binary(Add), got {:?}", other),
+                            }
+                            assert!(matches!(right.as_ref(), ast::Expr::Identifier(name, _) if name == "b"));
+                        }
+                        other => panic!("Expected Binary(Add) chain, got {:?}", other),
+                    }
+                }
+                other => panic!("Expected VarDecl, got {:?}", other),
+            },
+            other => panic!("Expected Function, got {:?}", other),
+        }
+    }
 }

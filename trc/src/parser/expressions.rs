@@ -448,7 +448,12 @@ impl Parser {
                 let t = self.advance();
                 match t {
                     lexer::Token::StringLiteral(s) => {
-                        Ok(ast::Expr::Literal(ast::Literal::String(s), span))
+                        // Check for string interpolation: ${expr}
+                        if s.contains("${") {
+                            Self::parse_string_interpolation(&s, span)
+                        } else {
+                            Ok(ast::Expr::Literal(ast::Literal::String(s), span))
+                        }
                     }
                     _ => Err("Expected string literal".to_string()),
                 }
@@ -690,5 +695,95 @@ impl Parser {
                 ))
             }
         }
+    }
+
+    /// Parse a string literal containing `${expr}` interpolation markers.
+    ///
+    /// Desugars `"Hello, ${name}! You are ${age} years old."` into:
+    /// `"Hello, " + name + "! You are " + age + " years old."`
+    ///
+    /// This reuses the existing `Binary(Add)` / `STR_CONCAT*` infrastructure
+    /// so that any type with a `display_string()` representation works.
+    fn parse_string_interpolation(s: &str, span: ast::Span) -> Result<ast::Expr, String> {
+        enum Part {
+            Literal(String),
+            Expression(String),
+        }
+
+        let mut parts: Vec<Part> = Vec::new();
+        let mut chars = s.chars().peekable();
+        let mut current_literal = String::new();
+
+        while let Some(c) = chars.next() {
+            if c == '$' && chars.peek() == Some(&'{') {
+                chars.next(); // consume '{'
+                if !current_literal.is_empty() {
+                    parts.push(Part::Literal(std::mem::take(&mut current_literal)));
+                }
+                let mut expr_str = String::new();
+                let mut depth: i32 = 1;
+                while let Some(ec) = chars.next() {
+                    if ec == '{' {
+                        depth += 1;
+                        expr_str.push(ec);
+                    } else if ec == '}' {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                        expr_str.push(ec);
+                    } else {
+                        expr_str.push(ec);
+                    }
+                }
+                if depth != 0 {
+                    return Err(format!(
+                        "String interpolation: unterminated ${{ in \"{}\"",
+                        s
+                    ));
+                }
+                if expr_str.trim().is_empty() {
+                    return Err(format!(
+                        "String interpolation: empty expression in \"{}\"",
+                        s
+                    ));
+                }
+                parts.push(Part::Expression(expr_str));
+            } else {
+                current_literal.push(c);
+            }
+        }
+        if !current_literal.is_empty() {
+            parts.push(Part::Literal(current_literal));
+        }
+
+        // Build a left-associative Binary(Add) chain.
+        let mut result: Option<ast::Expr> = None;
+        for part in parts {
+            let expr = match part {
+                Part::Literal(text) => {
+                    ast::Expr::Literal(ast::Literal::String(text), span)
+                }
+                Part::Expression(expr_str) => {
+                    let tokens = lexer::tokenize(&expr_str)
+                        .map_err(|e| format!("String interpolation: {}", e))?;
+                    let mut sub_parser = Parser::new(tokens);
+                    sub_parser
+                        .parse_expression()
+                        .map_err(|e| format!("String interpolation: {}", e))?
+                }
+            };
+            result = Some(match result {
+                None => expr,
+                Some(left) => ast::Expr::Binary(
+                    Box::new(left),
+                    ast::Operator::Add,
+                    Box::new(expr),
+                    span,
+                ),
+            });
+        }
+
+        result.ok_or_else(|| "String interpolation: empty string".to_string())
     }
 }
