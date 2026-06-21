@@ -387,7 +387,7 @@ let med: double = Statistics.median(data);    // 3.0
 let vari: double = Statistics.variance(data); // 2.5
 ```
 
-### chemistry â€?Computational Chemistry
+### chem â€?Computational Chemistry
 
 Atom, molecule, and force field types for computational chemistry:
 
@@ -410,7 +410,7 @@ let c: double = Constants.speedOfLight;  // 299792458.0 m/s
 
 ## System & Networking
 
-### system â€?System Operations
+### sys â€?System Operations
 
 Environment variables, CLI arguments, and process control:
 
@@ -430,7 +430,7 @@ Sys.exec("ls -la");
 Sys.exit(1);
 ```
 
-### networking â€?TCP and HTTP
+### net â€?TCP and HTTP
 
 Network communication:
 
@@ -485,7 +485,7 @@ let token: string = Secrets.tokenHex(16);
 
 ## Date & Time
 
-### datetime â€?Date, Time, and Duration
+### time â€?Date, Time, and Duration
 
 Date and time manipulation:
 
@@ -578,7 +578,7 @@ Algorithms.sort(list);
 
 ## Testing
 
-### testing â€?Built-in Testing Framework (Assay)
+### assay â€?Built-in Testing Framework (Assay)
 
 Titrate includes a testing framework called **Assay** for writing and running tests:
 
