@@ -378,7 +378,7 @@ impl Vm {
         vm.register_native("UdpSocket_lastSenderPort", natives::socket::native_udp_socket_last_sender_port);
         vm.register_native("Socket_getAddrInfo", natives::socket::native_socket_get_addr_info);
 
-        // SSL natives (stubs)
+        // SSL natives
         vm.register_native("Ssl_contextNew", natives::ssl::native_ssl_context_new);
         vm.register_native("Ssl_connect", natives::ssl::native_ssl_connect);
         vm.register_native("Ssl_send", natives::ssl::native_ssl_send);
@@ -386,6 +386,7 @@ impl Vm {
         vm.register_native("Ssl_close", natives::ssl::native_ssl_close);
         vm.register_native("Ssl_peerCertificate", natives::ssl::native_ssl_peer_certificate);
         vm.register_native("Ssl_contextClose", natives::ssl::native_ssl_context_close);
+        vm.register_native("Ssl_getPeerCertHash", natives::ssl::native_ssl_get_peer_cert_hash);
 
         // SQLite natives (stubs)
         vm.register_native("Sqlite_open", natives::sqlite::native_sqlite_open);

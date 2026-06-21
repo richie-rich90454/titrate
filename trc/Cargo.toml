@@ -28,6 +28,7 @@ flate2 = "1.0"
 memmap2 = "0.9"
 zip = { version = "2.2", default-features = false, features = ["deflate"] }
 rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+native-tls = "0.2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
