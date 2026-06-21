@@ -276,7 +276,7 @@ Titrate ships with a comprehensive standard library organized into intuitive mod
 | `tt::json` | JsonValue, Json, JsonPath, JsonSchema, Json5 | JSON parsing, serialization, querying, validation |
 | `tt::xml` | XmlNode, Xml, XPath, XmlBuilder, XmlSchema | XML parsing, XPath, schema validation, C14N |
 | `tt::math` | Math, Random, Statistics, Special | Mathematical functions, distributions, special functions |
-| `tt::ndarray` | NDArray, Matrix | N-dimensional arrays and linear algebra |
+| `tt::math::ndarray` | NDArray, Matrix | N-dimensional arrays and linear algebra |
 | `tt::chem` | Atom, Molecule, ForceField, MD, RHF | Computational chemistry toolkit |
 | `tt::bio` | Sequence, Alignment, PhyloTree, CodonTable | Bioinformatics and sequence analysis |
 | `tt::physics` | Particle, ForceField, NBodySimulator, RigidBody | Physics simulation |
