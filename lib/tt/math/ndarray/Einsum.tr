@@ -535,7 +535,11 @@ public fn matrixLogarithm(m: ArrayList<double>, n: int): ArrayList<double> {
     }
 
     var s: int = 0;
-    // Take square roots until Y is close to identity
+    // Take matrix square roots via Denman-Beavers iteration until Y ≈ I.
+    //   Y_0 = A,  Z_0 = I
+    //   Y_{k+1} = (Y_k + Z_k^{-1}) / 2
+    //   Z_{k+1} = (Z_k + Y_k^{-1}) / 2
+    // After convergence Y ≈ A^{1/2}, so repeating gives A^{1/2^s} → I.
     while (s < 20) {
         // Check if Y is close to identity
         var diff: double = 0.0;
@@ -552,21 +556,13 @@ public fn matrixLogarithm(m: ArrayList<double>, n: int): ArrayList<double> {
         }
         if (diff < 1e-6) { break; }
 
-        // Denman-Beavers iteration: Y_{k+1} = (Y_k + Z_k^{-1}) / 2
-        // Z_{k+1} = (Z_k + Y_k^{-1}) / 2
-        // But Y_k^{-1} is expensive. Simplified: just average Y with itself
-        // For a simpler approach, use: Y_new = (Y + I) / 2 repeatedly
-        // This is not a true square root but converges to I
+        // One Denman-Beavers step.
+        let invZ: ArrayList<double> = matInverse(Z, n);
+        let invY: ArrayList<double> = matInverse(Y, n);
         i = 0;
-        while (i < n) {
-            var j: int = 0;
-            while (j < n) {
-                let val: double = Y.get(i * n + j);
-                let ival: double = 0.0;
-                if (i == j) { ival = 1.0; }
-                Y.set(i * n + j, (val + ival) / 2.0);
-                j = j + 1;
-            }
+        while (i < n * n) {
+            Y.set(i, (Y.get(i) + invZ.get(i)) / 2.0);
+            Z.set(i, (Z.get(i) + invY.get(i)) / 2.0);
             i = i + 1;
         }
         s = s + 1;
@@ -654,6 +650,91 @@ fn matMul(a: ArrayList<double>, b: ArrayList<double>, n: int): ArrayList<double>
                 k = k + 1;
             }
             result.set(i * n + j, sum);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Helper: matrix inverse via Gauss-Jordan elimination with partial pivoting.
+fn matInverse(a: ArrayList<double>, n: int): ArrayList<double> {
+    // Build augmented matrix [A | I].
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            row.add(a.get(i * n + j));
+            j = j + 1;
+        }
+        j = 0;
+        while (j < n) {
+            if (j == i) { row.add(1.0); } else { row.add(0.0); }
+            j = j + 1;
+        }
+        aug.add(row);
+        i = i + 1;
+    }
+
+    // Forward elimination with partial pivoting.
+    var col: int = 0;
+    while (col < n) {
+        // Find pivot row.
+        var pivot: int = col;
+        var maxVal: double = Math.abs(aug.get(col).get(col));
+        var r: int = col + 1;
+        while (r < n) {
+            let v: double = Math.abs(aug.get(r).get(col));
+            if (v > maxVal) { maxVal = v; pivot = r; }
+            r = r + 1;
+        }
+        // Swap rows.
+        if (pivot != col) {
+            let tmp: ArrayList<double> = aug.get(col);
+            aug.set(col, aug.get(pivot));
+            aug.set(pivot, tmp);
+        }
+        // Normalise pivot row.
+        let pivotVal: double = aug.get(col).get(col);
+        if (Math.abs(pivotVal) < 1e-15) {
+            // Singular matrix — return identity as fallback.
+            let ident: ArrayList<double> = new ArrayList<double>();
+            i = 0;
+            while (i < n * n) { ident.add(0.0); i = i + 1; }
+            i = 0;
+            while (i < n) { ident.set(i * n + i, 1.0); i = i + 1; }
+            return ident;
+        }
+        var c: int = 0;
+        while (c < 2 * n) {
+            aug.get(col).set(c, aug.get(col).get(c) / pivotVal);
+            c = c + 1;
+        }
+        // Eliminate column from other rows.
+        r = 0;
+        while (r < n) {
+            if (r != col) {
+                let factor: double = aug.get(r).get(col);
+                c = 0;
+                while (c < 2 * n) {
+                    aug.get(r).set(c, aug.get(r).get(c) - factor * aug.get(col).get(c));
+                    c = c + 1;
+                }
+            }
+            r = r + 1;
+        }
+        col = col + 1;
+    }
+
+    // Extract inverse from augmented matrix.
+    let result: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        var j: int = 0;
+        while (j < n) {
+            result.add(aug.get(i).get(n + j));
             j = j + 1;
         }
         i = i + 1;
