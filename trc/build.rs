@@ -7,6 +7,13 @@
 // features to skip llvm-config entirely (the official LLVM Windows installer
 // does not ship llvm-config.exe or the individual static libraries). Instead we
 // link the single combined C API library directly.
+//
+// The `LLVMInitializeAll*` / `LLVMInitializeNative*` functions are `static
+// inline` in `llvm-c/Target.h`, so they are not real symbols in LLVM-C.lib.
+// llvm-sys normally provides C wrappers, but skips them when
+// `disable-alltargets-init` is enabled. We provide Rust wrappers in
+// `src/codegen/llvm/target_wrappers.rs` that call the individual target
+// initialization functions (which ARE exported from LLVM-C.dll) directly.
 
 use std::env;
 use std::path::PathBuf;
