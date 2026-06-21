@@ -5,7 +5,8 @@
 ```
 program      ::= import* declaration*
 import       ::= 'import' IDENTIFIER (('::' | '.') IDENTIFIER)* ';'
-declaration  ::= access? (fn_decl | class_decl | interface_decl | enum_decl | var_decl | const_decl)
+declaration  ::= access? (fn_decl | class_decl | interface_decl | enum_decl)
+             | var_decl | let_decl | const_decl
 access       ::= 'public' | 'private'
 ```
 
@@ -42,7 +43,7 @@ super_call   ::= 'super' '(' args? ')' ';'
 
 ```
 interface_decl ::= 'interface' IDENTIFIER type_params? '{' interface_member* '}'
-interface_member ::= access? 'fn' IDENTIFIER '(' params? ')' (':' type)? ';'
+interface_member ::= access? 'fn' IDENTIFIER '(' params? ')' (':' type)? (';' | block)
 ```
 
 ## Enums
@@ -56,34 +57,44 @@ variant      ::= IDENTIFIER ('(' type (',' type)* ')')?
 
 ```
 stmt         ::= block | expr_stmt | if_stmt | while_stmt | do_while_stmt | for_stmt
-               | return_stmt | break_stmt | continue_stmt | switch_stmt
-               | var_decl | const_decl | unsafe_block | region_block
+               | return_stmt | break_stmt | continue_stmt | switch_stmt | with_stmt
+               | throw_stmt | try_catch_stmt
+               | var_decl | let_decl | const_decl | unsafe_block | region_block
 block        ::= '{' stmt* '}'
 if_stmt      ::= 'if' '(' expr ')' block ('else' (if_stmt | block))?
 while_stmt   ::= 'while' '(' expr ')' block
+             | 'while' 'let' IDENTIFIER '=' expr block          // while-let
 do_while_stmt ::= 'do' block 'while' '(' expr ')' ';'
 for_stmt     ::= 'for' '(' ('var')? IDENTIFIER 'in' expr ')' block
-             | 'for' '(' (var_decl | expr_stmt)? ';' expr? ';' expr? ')' block   // C-style for loop
+             | 'for' '(' (var_decl | let_decl | expr_stmt)? ';' expr? ';' expr? ')' block   // C-style for loop
 var_decl     ::= 'var' IDENTIFIER (':' type)? '=' expr ';'
              | 'var' '(' IDENTIFIER (',' IDENTIFIER)+ ')' '=' expr ';'   // tuple destructuring
+let_decl     ::= 'let' IDENTIFIER (':' type)? ('=' expr)? ';'
+             | 'let' '(' IDENTIFIER (',' IDENTIFIER)+ ')' '=' expr ';'   // tuple destructuring
 const_decl   ::= 'const' IDENTIFIER ':' type '=' expr ';'
 
-> **Note:** Parentheses around the condition/iterator in `if`, `while`, and `for` are optional in the parser but the parenthesized form is the **recommended and preferred style**. Always write `if (expr)`, `while (expr)`, and `for (item in list)`.
+> **Note:** Parentheses around the condition/iterator in `if`, `while`, and `for` are **required** by the language spec. The parser also accepts the unparenthesized form, but the parenthesized form is the **recommended and preferred style**. Always write `if (expr)`, `while (expr)`, and `for (item in list)`.
 return_stmt  ::= 'return' expr? ';'
 break_stmt   ::= 'break' ';'
 continue_stmt ::= 'continue' ';'
+throw_stmt   ::= 'throw' expr ';'
+try_catch_stmt ::= 'try' block 'catch' '(' IDENTIFIER (':' type)? ')' block
 unsafe_block ::= 'unsafe' block
 region_block ::= 'region' IDENTIFIER block
+with_stmt    ::= 'with' '(' expr ')' block
+             | 'with' '(' 'let' IDENTIFIER (':' type)? '=' expr ')' block
 ```
 
 ## Switch
 
 ```
 switch_stmt  ::= 'switch' expr '{' case_arm* '}'
-case_arm     ::= 'case' pattern '=>' stmt
-             | 'default' '=>' stmt
-pattern      ::= IDENTIFIER '(' (IDENTIFIER)? ')'
-             | '_'
+case_arm     ::= 'case' pattern '=>' (stmt | block)
+             | 'default' '=>' (stmt | block)
+pattern      ::= '_'                                           // wildcard
+             | INTEGER | FLOAT | STRING | CHAR | BOOL          // literal patterns
+             | IDENTIFIER                                      // enum variant or literal identifier
+             | IDENTIFIER '(' IDENTIFIER (',' IDENTIFIER)* ')' // constructor with bindings
 ```
 
 ## Expressions
@@ -99,12 +110,14 @@ equality     ::= comparison (('==' | '!=') comparison)*
 comparison   ::= addition (('<' | '>' | '<=' | '>=') addition)*
 addition     ::= multiplication (('+' | '-') multiplication)*
 multiplication ::= unary (('*' | '/' | '%') unary)*
-unary        ::= ('!' | '-' | '&' | '&mut') unary | cast_expr
-cast_expr    ::= postfix ('as' type)?
-postfix      ::= primary (call | member | index)*
+unary        ::= ('!' | '-' | '&' | '&mut') unary | postfix
+postfix      ::= primary (call | member | index | error_prop | cast | is_check)*
 call         ::= '(' args? ')'
 member       ::= '.' IDENTIFIER | '::' IDENTIFIER   // '.' is the preferred form for method calls. '::' is supported for C++ developers but only used in import paths in idiomatic Titrate.
 index        ::= '[' expr ']'
+error_prop   ::= '?'                               // error propagation operator
+cast         ::= 'as' type
+is_check     ::= 'is' type
 primary      ::= INTEGER | FLOAT | STRING | RAW_STRING | CHAR | BYTE | 'true' | 'false' | 'null'
              | 'Ok' '(' expr ')' | 'Err' '(' expr ')'
              // Note: lowercase ok()/err() are standard library convenience functions that produce the same Result values
@@ -135,10 +148,11 @@ BYTE         ::= 'b' '\'' ASCII_OR_ESCAPE '\''  (e.g. b'A', b'\n', b'\x41)
 ```
 type         ::= primitive | 'string' | 'void' | IDENTIFIER ('<' type (',' type)* '>')?
              | 'Owned' '<' type '>' | 'Result' '<' type ',' type '>'
-             | 'array' '<' type '>'
              | '(' type (',' type)+ ')'              // tuple type
              | '(' ')'                                // unit type
              | 'fn' '(' (type (',' type)*)? ')' (':' type)?  // closure type
+             | '&' type                               // immutable reference
+             | '&mut' type                            // mutable reference
 primitive    ::= 'bool' | 'byte' | 'short' | 'int' | 'long' | 'vast' | 'uvast'
              | 'float' | 'double' | 'half' | 'quad' | 'char' | 'size'
              | 'u8' | 'u16' | 'u32' | 'u64'

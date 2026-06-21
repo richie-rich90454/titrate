@@ -42,7 +42,7 @@ public fn compute(): int {
 
 ### Heap Allocation
 
-Heap allocation is used for dynamically-sized data or data that must outlive the current scope. In Titrate, heap allocation occurs when you use `new` to create an object. The `Owned<T>` type wraps heap-allocated values and enforces ownership rules.
+Heap allocation is used for dynamically-sized data or data that must outlive the current scope. In Titrate, heap allocation occurs when you use `new` to create an object. The `Owned<T>` type can be used to wrap heap-allocated values and enforce single-owner semantics, though `new` itself always returns an unwrapped value.
 
 ```
 ┌─────────────────────────────┐
@@ -300,7 +300,6 @@ Every heap-allocated object in Titrate begins with a small header containing met
 ┌──────────────────────┐
 │  Object Header       │
 │  ├─ Type ID          │  ← identifies the class
-│  ├─ Reference count  │  ← for shared references
 │  └─ Size             │  ← total object size in bytes
 ├──────────────────────┤
 │  Field 0             │
@@ -339,7 +338,6 @@ Strings in Titrate are immutable, heap-allocated reference types. Internally, a 
 ┌────────────────────────────┐
 │  String Object             │
 │  ├─ Length: int            │  ← number of characters
-│  ├─ Capacity: int          │  ← allocated buffer size
 │  ├─ Hash cache: int        │  ← precomputed hash (lazy)
 │  └─ Data: byte[]           │  ← UTF-8 encoded bytes
 │      ├─ 'h' (0x68)        │
@@ -474,7 +472,7 @@ public fn readByte(address: long): byte {
 
 | Operation | Stack | Heap |
 |-----------|-------|------|
-| Allocation | ~1 instruction | Multiple instructions + possible GC |
+| Allocation | ~1 instruction | Multiple instructions |
 | Deallocation | ~1 instruction | Requires drop or region exit |
 | Cache locality | Excellent | May cause cache misses |
 | Fragmentation | None | Possible |
@@ -492,13 +490,10 @@ public fn readByte(address: long): byte {
 let list: ArrayList<int> = new ArrayList<int>();
 list.ensureCapacity(10000);  // avoid repeated resizes
 
-// Good: reuse object
-var builder: StringBuilder = new StringBuilder();
+// Good: reuse mutable variable
 var i: int = 0;
 while (i < 1000) {
-    builder.clear();  // reuse the same builder
-    builder.append(Integer.toString(i));
-    io::println(builder.toString());
+    io::println(Integer.toString(i));
     i = i + 1;
 }
 ```
