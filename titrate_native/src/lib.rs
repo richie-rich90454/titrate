@@ -31,6 +31,18 @@ pub extern "C" fn titrate_println(len: i64, ptr: *const u8) {
     let _ = io::stdout().flush();
 }
 
+/// Header stored immediately before each allocation returned by
+/// `titrate_string_concat` so that `titrate_free` can reconstruct the correct
+/// `Vec` layout. Storing the capacity lets us free the buffer safely on every
+/// platform without relying on the allocator tracking sizes internally.
+#[repr(C)]
+struct AllocHeader {
+    cap: usize,
+    len: usize,
+}
+
+const HEADER_SIZE: usize = std::mem::size_of::<AllocHeader>();
+
 /// Concatenate two UTF-8 strings into a freshly allocated buffer.
 ///
 /// Returns a pointer to the new buffer. The new length is written through
@@ -57,18 +69,29 @@ pub extern "C" fn titrate_string_concat(
     };
 
     let total = a_slice.len() + b_slice.len();
-    let mut buf = Vec::<u8>::with_capacity(total);
+    // Allocate room for the header + payload so we can recover the layout on free.
+    let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + total);
+    buf.resize(HEADER_SIZE, 0);
     buf.extend_from_slice(a_slice);
     buf.extend_from_slice(b_slice);
+
+    debug_assert_eq!(buf.len(), HEADER_SIZE + total);
+    debug_assert_eq!(buf.capacity(), HEADER_SIZE + total);
+
+    // Write the header at the start of the buffer.
+    let header = AllocHeader { cap: buf.capacity(), len: total };
+    unsafe {
+        std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
+    }
 
     if !out_len.is_null() {
         unsafe { *out_len = total as i64 };
     }
 
-    // Convert the Vec into a raw pointer so the caller can free it later.
-    let ptr = buf.as_mut_ptr();
+    // Return a pointer past the header so callers see only the payload.
+    let base = buf.as_mut_ptr();
     std::mem::forget(buf);
-    ptr
+    unsafe { base.add(HEADER_SIZE) }
 }
 
 /// Free a buffer previously returned by `titrate_string_concat`.
@@ -81,17 +104,11 @@ pub extern "C" fn titrate_free(ptr: *mut u8) {
         return;
     }
     unsafe {
-        // Reconstruct the Vec and let it drop. The capacity is unknown to the
-        // caller, but `Vec::from_raw_parts` with capacity 0 still frees the
-        // allocation via the global allocator because Rust's allocator tracks
-        // the original layout. We use the libc-free approach of reconstructing
-        // with the same layout the allocator recorded.
-        //
-        // NOTE: This relies on the global allocator being able to free a
-        // pointer without knowing the exact size. On Windows (MSVC) the
-        // CRT allocator (`free`) does track the size internally, so this is
-        // safe for buffers allocated by Rust's `Vec`.
-        let _ = Box::from_raw(ptr as *mut u8);
+        let base = ptr.sub(HEADER_SIZE);
+        let header = std::ptr::read_unaligned(base as *const AllocHeader);
+        // Reconstruct the Vec with the exact length and capacity recorded in
+        // the header so the global allocator sees the same layout it allocated.
+        let _ = Vec::from_raw_parts(base, HEADER_SIZE + header.len, header.cap);
     }
 }
 
