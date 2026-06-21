@@ -323,7 +323,7 @@ pub(crate) fn native_once_flag_new(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Long(0))
 }
 
-pub(crate) fn native_once_flag_call_once(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_once_flag_call_once(_args: &[Value]) -> Result<Value, String> {
     // In a real implementation, this would ensure the function is called exactly once
     // For now, the .tr wrapper already guards with a `called` flag
     Ok(Value::Null)

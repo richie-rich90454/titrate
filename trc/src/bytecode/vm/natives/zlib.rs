@@ -8,7 +8,7 @@
 use super::super::super::value::Value;
 use flate2::read::{ZlibDecoder, ZlibEncoder, GzDecoder, GzEncoder};
 use flate2::Compression;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::rc::Rc;
 
 /// Convert a byte slice to a Latin-1 string (each byte becomes one char).

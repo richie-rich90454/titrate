@@ -292,7 +292,7 @@ pub(crate) fn native_os_chmod(args: &[Value]) -> Result<Value, String> {
     if args.len() < 2 {
         return Err("Os_chmod: expected 2 arguments (path, mode)".to_string());
     }
-    let path = match &args[0] {
+    let _path = match &args[0] {
         Value::String(s) => s.as_str().to_string(),
         _ => return Err("Os_chmod: expected String path".to_string()),
     };

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Html provides HTML escaping, unescaping, and parsing, mirroring Python's html module.
 import tt::util::ArrayList;
 import tt::util::HashMap;
 import tt::lang::String;

@@ -596,26 +596,26 @@ pub(crate) fn native_socket_get_remote_address(args: &[Value]) -> Result<Value, 
     Ok(Value::String(std::rc::Rc::new("0.0.0.0".to_string())))
 }
 
-pub(crate) fn native_socket_get_local_port(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_socket_get_local_port(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Int(0))
 }
 
-pub(crate) fn native_socket_get_remote_port(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_socket_get_remote_port(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Int(0))
 }
 
-pub(crate) fn native_socket_set_reuse_addr(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_socket_set_reuse_addr(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
-pub(crate) fn native_socket_set_broadcast(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_socket_set_broadcast(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
-pub(crate) fn native_socket_set_keep_alive(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_socket_set_keep_alive(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
 
-pub(crate) fn native_socket_set_linger(args: &[Value]) -> Result<Value, String> {
+pub(crate) fn native_socket_set_linger(_args: &[Value]) -> Result<Value, String> {
     Ok(Value::Void)
 }
