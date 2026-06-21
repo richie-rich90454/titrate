@@ -15,38 +15,143 @@ public class FilterCoeffs {
     }
 }
 
-// Butterworth low-pass filter coefficients (2nd order section)
+// Polynomial multiplication: returns coefficients of (a * b).
+// Polynomials are stored as ArrayList<double> with ascending degree.
+fn polyMultiply(a: ArrayList<double>, b: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < a.size() + b.size() - 1) {
+        result.add(0.0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < a.size()) {
+        var j: int = 0;
+        while (j < b.size()) {
+            result.set(i + j, result.get(i + j) + a.get(i) * b.get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Butterworth low-pass filter coefficients of arbitrary order.
+// Cascades biquad sections (and a first-order section for odd order) via
+// polynomial convolution to produce a single (order+1)-tap IIR filter.
 public fn butterworthLowpass(order: int, cutoffFreq: double, sampleRate: double): FilterCoeffs {
     let coeffs: FilterCoeffs = new FilterCoeffs();
-    let wc: double = MathTrig.tan(Math.PI() * cutoffFreq / sampleRate);
-    let wc2: double = wc * wc;
-    // Simplified 2nd-order Butterworth
-    let k1: double = MathAdvanced.sqrt(2.0) * wc;
-    let k2: double = wc2;
-    let norm: double = 1.0 + k1 + k2;
-    coeffs.b.add(k2 / norm);
-    coeffs.b.add(2.0 * k2 / norm);
-    coeffs.b.add(k2 / norm);
-    coeffs.a.add(1.0);
-    coeffs.a.add(2.0 * (k2 - 1.0) / norm);
-    coeffs.a.add((1.0 - k1 + k2) / norm);
+    let K: double = MathTrig.tan(Math.PI() * cutoffFreq / sampleRate);
+    let K2: double = K * K;
+
+    // Accumulate full numerator and denominator polynomials.
+    let bAccum: ArrayList<double> = new ArrayList<double>();
+    bAccum.add(1.0);
+    let aAccum: ArrayList<double> = new ArrayList<double>();
+    aAccum.add(1.0);
+
+    let halfN: int = order / 2;
+    var k: int = 1;
+    while (k <= halfN) {
+        // Pole angle for the k-th conjugate pair.
+        let theta: double = Math.PI() * (2.0 * k as double - 1.0) / (2.0 * order as double);
+        let sinT: double = MathTrig.sin(theta);
+        let a0: double = 1.0 + 2.0 * K * sinT + K2;
+        // Biquad numerator (lowpass): K^2 * (1, 2, 1)
+        let bSec: ArrayList<double> = new ArrayList<double>();
+        bSec.add(K2 / a0);
+        bSec.add(2.0 * K2 / a0);
+        bSec.add(K2 / a0);
+        // Biquad denominator (normalised): (1, a1, a2)
+        let aSec: ArrayList<double> = new ArrayList<double>();
+        aSec.add(1.0);
+        aSec.add(2.0 * (K2 - 1.0) / a0);
+        aSec.add((1.0 - 2.0 * K * sinT + K2) / a0);
+        bAccum = polyMultiply(bAccum, bSec);
+        aAccum = polyMultiply(aAccum, aSec);
+        k = k + 1;
+    }
+
+    // Odd order: add a first-order section (real pole at s = -1).
+    if (order % 2 == 1) {
+        let a0: double = 1.0 + K;
+        let bSec: ArrayList<double> = new ArrayList<double>();
+        bSec.add(K / a0);
+        bSec.add(K / a0);
+        let aSec: ArrayList<double> = new ArrayList<double>();
+        aSec.add(1.0);
+        aSec.add((K - 1.0) / a0);
+        bAccum = polyMultiply(bAccum, bSec);
+        aAccum = polyMultiply(aAccum, aSec);
+    }
+
+    var i: int = 0;
+    while (i < bAccum.size()) {
+        coeffs.b.add(bAccum.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < aAccum.size()) {
+        coeffs.a.add(aAccum.get(i));
+        i = i + 1;
+    }
     return coeffs;
 }
 
-// Butterworth high-pass filter coefficients
+// Butterworth high-pass filter coefficients of arbitrary order.
 public fn butterworthHighpass(order: int, cutoffFreq: double, sampleRate: double): FilterCoeffs {
     let coeffs: FilterCoeffs = new FilterCoeffs();
-    let wc: double = MathTrig.tan(Math.PI() * cutoffFreq / sampleRate);
-    let wc2: double = wc * wc;
-    let k1: double = MathAdvanced.sqrt(2.0) * wc;
-    let k2: double = wc2;
-    let norm: double = 1.0 + k1 + k2;
-    coeffs.b.add(1.0 / norm);
-    coeffs.b.add(-2.0 / norm);
-    coeffs.b.add(1.0 / norm);
-    coeffs.a.add(1.0);
-    coeffs.a.add(2.0 * (k2 - 1.0) / norm);
-    coeffs.a.add((1.0 - k1 + k2) / norm);
+    let K: double = MathTrig.tan(Math.PI() * cutoffFreq / sampleRate);
+    let K2: double = K * K;
+
+    let bAccum: ArrayList<double> = new ArrayList<double>();
+    bAccum.add(1.0);
+    let aAccum: ArrayList<double> = new ArrayList<double>();
+    aAccum.add(1.0);
+
+    let halfN: int = order / 2;
+    var k: int = 1;
+    while (k <= halfN) {
+        let theta: double = Math.PI() * (2.0 * k as double - 1.0) / (2.0 * order as double);
+        let sinT: double = MathTrig.sin(theta);
+        let a0: double = 1.0 + 2.0 * K * sinT + K2;
+        // Biquad numerator (highpass): (1, -2, 1)
+        let bSec: ArrayList<double> = new ArrayList<double>();
+        bSec.add(1.0 / a0);
+        bSec.add(-2.0 / a0);
+        bSec.add(1.0 / a0);
+        let aSec: ArrayList<double> = new ArrayList<double>();
+        aSec.add(1.0);
+        aSec.add(2.0 * (K2 - 1.0) / a0);
+        aSec.add((1.0 - 2.0 * K * sinT + K2) / a0);
+        bAccum = polyMultiply(bAccum, bSec);
+        aAccum = polyMultiply(aAccum, aSec);
+        k = k + 1;
+    }
+
+    // Odd order: first-order highpass section.
+    if (order % 2 == 1) {
+        let a0: double = 1.0 + K;
+        let bSec: ArrayList<double> = new ArrayList<double>();
+        bSec.add(1.0 / a0);
+        bSec.add(-1.0 / a0);
+        let aSec: ArrayList<double> = new ArrayList<double>();
+        aSec.add(1.0);
+        aSec.add((K - 1.0) / a0);
+        bAccum = polyMultiply(bAccum, bSec);
+        aAccum = polyMultiply(aAccum, aSec);
+    }
+
+    var i: int = 0;
+    while (i < bAccum.size()) {
+        coeffs.b.add(bAccum.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < aAccum.size()) {
+        coeffs.a.add(aAccum.get(i));
+        i = i + 1;
+    }
     return coeffs;
 }
 
