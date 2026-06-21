@@ -35,19 +35,18 @@ After importing, you can use the items directly:
 
 ```titrate
 import tt::lang::Integer;
-import tt::io::println;
 
 public fn main(): void {
     let x = Integer.parseInt("42");
     switch x {
-        case Ok(n) => println(Integer.toString(n));
-        case Err(e) => println("Parse failed: " + e);
+        case Ok(n) => io::println(Integer.toString(n));
+        case Err(e) => io::println("Parse failed: " + e);
     }
 }
 ```
 
-::: tip `::` is only for imports
-The `::` syntax is used *exclusively* in `import` statements. Once you've imported something, you use `.` (dot) to call its methods — like `Integer.parseInt("42")`, not `Integer::parseInt("42")`.
+::: tip `::` is primarily for imports
+The `::` syntax is used primarily in `import` statements. Once you've imported something, you use `.` (dot) to call its methods — like `Integer.parseInt("42")`, not `Integer::parseInt("42")`. Note that `::` also works for calling module-level functions (e.g., `Integer::parseInt("42")` is valid), but `.` is the recommended style.
 :::
 
 ## The `tt` Namespace Convention
@@ -82,7 +81,7 @@ public fn useful(): void {
 
 ```titrate
 // main.tr
-import tt::utils::useful;  // OK
+import tt::util::useful;  // OK
 // import tt::utils::helper;  // Error: helper is private
 ```
 
@@ -203,10 +202,10 @@ src/
 // Define your functions here
 
 // main.tr
-import tt::greeting::english::greet;
+import greeting::english;
 
 public fn main(): void {
-    greet("Titrate");
+    english.greet("Titrate");
 }
 ```
 
@@ -226,10 +225,10 @@ public fn greet(name: string): void {
 
 ```titrate
 // main.tr
-import tt::greeting::english::greet;
+import greeting::english;
 
 public fn main(): void {
-    greet("Titrate");  // prints "Hello, Titrate!"
+    english.greet("Titrate");  // prints "Hello, Titrate!"
 }
 ```
 
