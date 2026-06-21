@@ -17,6 +17,7 @@
 //! `titrate_free` (provided by the `titrate_native` crate) operate on this
 //! representation.
 
+pub mod linker;
 pub mod target_wrappers;
 
 use std::collections::HashMap;
