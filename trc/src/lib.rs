@@ -6,3 +6,4 @@ pub mod parser;
 pub mod analyzer;
 pub mod interpreter;
 pub mod bytecode;
+pub mod codegen;
