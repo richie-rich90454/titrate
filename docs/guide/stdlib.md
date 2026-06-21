@@ -1,6 +1,6 @@
 # Standard Library
 
-The Titrate standard library (`tt`) is a comprehensive collection of modules that provide essential functionality for everyday programming â€?from collections and I/O to math, networking, and testing. It is shipped with every Titrate installation and requires no external dependencies.
+The Titrate standard library (`tt`) is a comprehensive collection of modules that provide essential functionality for everyday programming ï¿½?from collections and I/O to math, networking, and testing. It is shipped with every Titrate installation and requires no external dependencies.
 
 ## Introduction
 
@@ -23,7 +23,7 @@ import tt::json::JsonValue;
 
 ### Import Rules
 
-- **`::` is only used in import statements** â€?everywhere else, use `.` for member access
+- **`::` is only used in import statements** ï¿½?everywhere else, use `.` for member access
 - Each import brings a single name into scope
 - Imports must appear at the top of the file, before any declarations
 - You can import multiple names from the same module in separate statements
@@ -65,7 +65,7 @@ tt::namespace::ClassName
 
 ## Core Modules
 
-### lang â€?Core Types
+### lang ï¿½?Core Types
 
 The `lang` module provides the fundamental types that every Titrate program uses:
 
@@ -98,7 +98,7 @@ if (r.isOk()) {
 }
 ```
 
-### operator â€?Functional Operator Wrappers
+### operator ï¿½?Functional Operator Wrappers
 
 The `operator` module wraps built-in operators as functions, enabling higher-order programming patterns:
 
@@ -112,12 +112,12 @@ let div: double = Operator.truediv(10.0, 3.0);  // 3.333...
 
 See the [operator](../stdlib/operator) documentation for the complete function reference.
 
-### optional-variant â€?Optional and Variant Types
+### optional-variant ï¿½?Optional and Variant Types
 
 The `optional-variant` module provides safe alternatives to null values and dynamic typing:
 
 ```titrate
-// Optional â€?a value that may or may not be present
+// Optional ï¿½?a value that may or may not be present
 let maybeName: Optional<string> = Optional.of("Alice");
 let empty: Optional<string> = Optional.empty();
 
@@ -125,7 +125,7 @@ if (maybeName.isPresent()) {
     io::println(maybeName.get());  // "Alice"
 }
 
-// Variant â€?a dynamically-typed value
+// Variant ï¿½?a dynamically-typed value
 let v: Variant = 42;
 let s: Variant = "hello";
 ```
@@ -134,7 +134,7 @@ let s: Variant = "hello";
 
 Titrate provides a rich set of collection types for storing and manipulating groups of values.
 
-### collections â€?Primary Data Structures
+### collections ï¿½?Primary Data Structures
 
 | Type | Description | When to Use |
 |------|-------------|-------------|
@@ -151,7 +151,7 @@ Titrate provides a rich set of collection types for storing and manipulating gro
 import tt::util::ArrayList;
 import tt::util::HashMap;
 
-// ArrayList â€?ordered, indexable
+// ArrayList ï¿½?ordered, indexable
 let fruits: ArrayList<string> = new ArrayList<string>();
 fruits.add("apple");
 fruits.add("banana");
@@ -159,14 +159,14 @@ fruits.add("cherry");
 io::println(fruits.get(1));  // "banana"
 io::println(Integer.toString(fruits.size()));  // 3
 
-// HashMap â€?key-value lookups
+// HashMap ï¿½?key-value lookups
 let scores: HashMap<string, int> = new HashMap<string, int>();
 scores.put("Alice", 95);
 scores.put("Bob", 87);
 io::println(Integer.toString(scores.get("Alice")));  // 95
 ```
 
-### array â€?Fixed-Size Arrays
+### array ï¿½?Fixed-Size Arrays
 
 For performance-critical code where the size is known at compile time:
 
@@ -176,7 +176,7 @@ buffer[0] = 42;
 buffer[1] = 100;
 ```
 
-### heapq â€?Heap-Based Priority Queue
+### heapq ï¿½?Heap-Based Priority Queue
 
 Efficient min-heap operations for priority queues:
 
@@ -190,7 +190,7 @@ Heapq.heappush(heap, 8);
 let min: int = Heapq.heappop(heap);  // 2
 ```
 
-### bisect â€?Binary Search
+### bisect ï¿½?Binary Search
 
 Binary search operations on sorted sequences:
 
@@ -205,7 +205,7 @@ sorted.add(7);
 let pos: int = Bisect.bisectLeft(sorted, 4);  // 2
 ```
 
-### itertools â€?Iterator Adapters
+### itertools ï¿½?Iterator Adapters
 
 Composable iterator transformations:
 
@@ -215,7 +215,7 @@ import tt::itertools::Itertools;
 // Chain, zip, cycle, and more
 ```
 
-### dataclass â€?Auto-Generated Class Boilerplate
+### dataclass ï¿½?Auto-Generated Class Boilerplate
 
 Decorator-like pattern for reducing class boilerplate:
 
@@ -225,7 +225,7 @@ import tt::dataclass::Dataclass;
 
 ## I/O & File System
 
-### io â€?Input/Output
+### io ï¿½?Input/Output
 
 The `io` module provides file operations and console output:
 
@@ -244,7 +244,7 @@ IO.writeFile("output.txt", "Hello, file!");
 let lines: ArrayList<string> = IO.readLines("data.txt");
 ```
 
-### contextlib â€?Resource Management
+### contextlib ï¿½?Resource Management
 
 The `contextlib` module ensures resources are properly cleaned up:
 
@@ -261,7 +261,7 @@ Contextlib.closing(file, fn(): void {
 
 // Suppress exceptions from a block
 Contextlib.suppress(fn(): void {
-    // risky operation â€?errors are silently ignored
+    // risky operation ï¿½?errors are silently ignored
 });
 ```
 
@@ -269,19 +269,22 @@ See the [contextlib](../stdlib/contextlib) documentation for more details.
 
 ## Text & Serialization
 
-### text â€?Text Utilities
+### text â€” Text Utilities
 
 String formatting and manipulation:
 
 ```titrate
-import tt::textwrap::Textwrap;
+import tt::text::Difflib;
 
-// Text wrapping and filling
-let lines: ArrayList<string> = Textwrap.wrap("A long string that needs wrapping", 20);
-let filled: string = Textwrap.fill("A long string that needs wrapping", 20);
+// Text diff and close matches
+let words: ArrayList<string> = new ArrayList<string>();
+words.add("hello");
+words.add("help");
+words.add("world");
+let matches: ArrayList<string> = Difflib.getCloseMatches("hel", words, 3, 0.6);
 ```
 
-### regex â€?Regular Expressions
+### regex ï¿½?Regular Expressions
 
 Pattern matching and text extraction:
 
@@ -295,7 +298,7 @@ if (m.found()) {
 }
 ```
 
-### serialization â€?JSON, CSV, XML
+### serialization ï¿½?JSON, CSV, XML
 
 Parsing and writing structured data formats:
 
@@ -314,7 +317,7 @@ obj.set("age", JsonValue.ofNum(25));
 let output: string = obj.toString();
 ```
 
-### pprint â€?Pretty Printing
+### pprint ï¿½?Pretty Printing
 
 Formatted output for data structures:
 
@@ -329,7 +332,7 @@ Pprint.pprint(data);  // nicely formatted output
 
 ## Math & Science
 
-### math â€?Mathematical Functions
+### math ï¿½?Mathematical Functions
 
 Constants, trigonometry, logarithms, and advanced types:
 
@@ -345,7 +348,7 @@ let pow: double = MathAdvanced.pow(2.0, 10.0);  // 1024.0
 let absVal: double = Math.abs(-3.14);    // 3.14
 ```
 
-### complex â€?Complex Numbers
+### complex ï¿½?Complex Numbers
 
 Complex number arithmetic:
 
@@ -357,7 +360,7 @@ let magnitude: double = z.abs();          // 5.0
 let conj: Complex = z.conjugate();        // 3 - 4i
 ```
 
-### fractions â€?Rational Numbers
+### fractions ï¿½?Rational Numbers
 
 Exact rational arithmetic without floating-point errors:
 
@@ -369,7 +372,7 @@ let b: Fraction = new Fraction(1, 6);
 let sum: Fraction = a.add(b);  // 1/2
 ```
 
-### statistics â€?Statistical Functions
+### statistics ï¿½?Statistical Functions
 
 Descriptive statistics:
 
@@ -387,7 +390,7 @@ let med: double = Statistics.median(data);    // 3.0
 let vari: double = Statistics.variance(data); // 2.5
 ```
 
-### chem â€?Computational Chemistry
+### chem ï¿½?Computational Chemistry
 
 Atom, molecule, and force field types for computational chemistry:
 
@@ -398,7 +401,7 @@ let h: Atom = Atom.hydrogen(0.0, 0.0, 0.0);
 let o: Atom = Atom.oxygen(0.0, 0.9572, 0.0);
 ```
 
-### units â€?Units of Measure
+### units ï¿½?Units of Measure
 
 Physical units and constants:
 
@@ -410,7 +413,7 @@ let c: double = Constants.speedOfLight;  // 299792458.0 m/s
 
 ## System & Networking
 
-### sys â€?System Operations
+### sys ï¿½?System Operations
 
 Environment variables, CLI arguments, and process control:
 
@@ -430,7 +433,7 @@ Sys.exec("ls -la");
 Sys.exit(1);
 ```
 
-### net â€?TCP and HTTP
+### net ï¿½?TCP and HTTP
 
 Network communication:
 
@@ -450,7 +453,7 @@ let http: HttpClient = new HttpClient();
 let body: string = http.get("https://api.example.com/data");
 ```
 
-### concurrent â€?Concurrency
+### concurrent ï¿½?Concurrency
 
 Asynchronous programming primitives:
 
@@ -469,7 +472,7 @@ ch.send("hello");
 let msg: string = ch.receive();
 ```
 
-### crypto â€?Cryptography
+### crypto ï¿½?Cryptography
 
 Hashing and encryption:
 
@@ -485,7 +488,7 @@ let token: string = Secrets.tokenHex(16);
 
 ## Date & Time
 
-### time â€?Date, Time, and Duration
+### time ï¿½?Date, Time, and Duration
 
 Date and time manipulation:
 
@@ -505,7 +508,7 @@ let formatted: string = now.format("yyyy-MM-dd");
 
 ## Random & Utilities
 
-### functools â€?Higher-Order Functions
+### functools ï¿½?Higher-Order Functions
 
 Function composition, partial application, and more:
 
@@ -519,7 +522,7 @@ let addOneThenDouble: fn(int): int = Functools.compose(double, addOne);
 let result: int = addOneThenDouble(5);  // (5 + 1) * 2 = 12
 ```
 
-### logging â€?Logging Framework
+### logging ï¿½?Logging Framework
 
 Structured logging with levels:
 
@@ -532,7 +535,7 @@ Logger.warn(log, "Low disk space");
 Logger.error(log, "Connection failed");
 ```
 
-### uuid â€?UUID Generation
+### uuid ï¿½?UUID Generation
 
 Universally unique identifiers:
 
@@ -547,7 +550,7 @@ let valid: bool = Uuid.isValid(id);  // true
 
 See the [uuid](../stdlib/uuid) documentation for more details.
 
-### argparse â€?Command-Line Argument Parsing
+### argparse ï¿½?Command-Line Argument Parsing
 
 Declarative CLI argument definitions:
 
@@ -560,7 +563,7 @@ parser.addArg("--verbose", "Enable verbose output", false);
 let args: HashMap<string, string> = parser.parse();
 ```
 
-### algorithms â€?Common Algorithms
+### algorithms ï¿½?Common Algorithms
 
 Sorting, searching, and graph traversal:
 
@@ -578,7 +581,7 @@ Algorithms.sort(list);
 
 ## Testing
 
-### assay â€?Built-in Testing Framework (Assay)
+### assay ï¿½?Built-in Testing Framework (Assay)
 
 Titrate includes a testing framework called **Assay** for writing and running tests:
 
@@ -596,7 +599,7 @@ Assay.describe("Math operations", fn(): void {
 });
 ```
 
-### assert â€?Assertion Utilities
+### assert ï¿½?Assertion Utilities
 
 Standalone assertion functions for validation:
 
@@ -615,21 +618,21 @@ Use this decision guide to pick the best collection for your needs:
 
 ```
 Do you need key-value lookups?
-â”œâ”€â”€ Yes â†?HashMap<K, V>
+â”œâ”€â”€ Yes ï¿½?HashMap<K, V>
 â””â”€â”€ No
     â”œâ”€â”€ Do you need unique elements?
-    â”?  â”œâ”€â”€ Yes â†?Set<T>
-    â”?  â””â”€â”€ No
-    â”?      â”œâ”€â”€ Do you need priority ordering?
-    â”?      â”?  â”œâ”€â”€ Yes â†?PriorityQueue<T>
-    â”?      â”?  â””â”€â”€ No
-    â”?      â”?      â”œâ”€â”€ Do you need FIFO/LIFO operations?
-    â”?      â”?      â”?  â”œâ”€â”€ Yes â†?Deque<T>
-    â”?      â”?      â”?  â””â”€â”€ No â†?ArrayList<T>
-    â”?      â”?      â””â”€â”€ Do you need frequency counting?
-    â”?      â”?          â””â”€â”€ Yes â†?Counter<T>
+    ï¿½?  â”œâ”€â”€ Yes ï¿½?Set<T>
+    ï¿½?  â””â”€â”€ No
+    ï¿½?      â”œâ”€â”€ Do you need priority ordering?
+    ï¿½?      ï¿½?  â”œâ”€â”€ Yes ï¿½?PriorityQueue<T>
+    ï¿½?      ï¿½?  â””â”€â”€ No
+    ï¿½?      ï¿½?      â”œâ”€â”€ Do you need FIFO/LIFO operations?
+    ï¿½?      ï¿½?      ï¿½?  â”œâ”€â”€ Yes ï¿½?Deque<T>
+    ï¿½?      ï¿½?      ï¿½?  â””â”€â”€ No ï¿½?ArrayList<T>
+    ï¿½?      ï¿½?      â””â”€â”€ Do you need frequency counting?
+    ï¿½?      ï¿½?          â””â”€â”€ Yes ï¿½?Counter<T>
     â””â”€â”€ Do you need efficient string building?
-        â””â”€â”€ Yes â†?StringBuilder
+        â””â”€â”€ Yes ï¿½?StringBuilder
 ```
 
 ### Quick Comparison
@@ -641,7 +644,7 @@ Do you need key-value lookups?
 | `Set<T>` | O(1) | O(1) | O(1) | O(1) | No |
 | `Deque<T>` | O(1) ends | O(1) ends | O(1) ends | O(n) | Yes (insertion) |
 | `PriorityQueue<T>` | O(1) min | O(log n) | O(log n) | O(n) | By priority |
-| `StringBuilder` | O(1) append | â€?| â€?| â€?| Yes |
+| `StringBuilder` | O(1) append | ï¿½?| ï¿½?| ï¿½?| Yes |
 
 ## Common Import Patterns
 
@@ -735,7 +738,9 @@ import tt::logging::Logger;
 | [text](../stdlib/text) | Text formatting and manipulation utilities |
 | [textwrap](../stdlib/textwrap) | Text wrapping, filling, indentation |
 | [regex](../stdlib/regex) | Regular expressions: `Regex`, `Match` |
-| [serialization](../stdlib/serialization) | JSON, CSV, and XML parsing and writing |
+| [json](../stdlib/json) | JSON parsing and writing |
+| [csv](../stdlib/csv) | CSV parsing and writing |
+| [xml](../stdlib/xml) | XML parsing and writing |
 | [pprint](../stdlib/pprint) | Pretty-printing for data structures |
 
 #### Math & Science
