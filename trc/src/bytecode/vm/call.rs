@@ -91,6 +91,20 @@ impl Vm {
 
         let func = self.natives[ni];
         let result = func(&args)?;
+
+        // Special handling for Thread_spawn: execute the closure argument
+        // synchronously because Value contains Rc<> which is not Send-safe.
+        // The native_thread_spawn function already spawned a no-op thread and
+        // returned a handle; we run the closure here on the calling thread.
+        if ni as u16 == self.thread_spawn_idx {
+            if let Some(closure) = args.first() {
+                if matches!(closure, Value::Closure { .. }) {
+                    // Execute the closure synchronously (ignoring its return value).
+                    let _ = self.call_closure_with_args(closure, &[]);
+                }
+            }
+        }
+
         self.push(result);
         Ok(())
     }

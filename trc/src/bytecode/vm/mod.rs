@@ -48,6 +48,10 @@ pub struct Vm {
     pub(super) working_dir: Option<std::path::PathBuf>,
     /// Maximum call depth to prevent stack overflow (default 10000)
     pub(super) max_call_depth: usize,
+    /// Cached native index for Thread_spawn (set after registration).
+    /// Used by call_native_fn to execute the closure argument synchronously
+    /// because Value contains Rc<> which is not Send-safe across threads.
+    pub(super) thread_spawn_idx: u16,
 }
 
 impl Vm {
@@ -69,6 +73,7 @@ impl Vm {
             output: Vec::new(),
             working_dir: None,
             max_call_depth: 10000,
+            thread_spawn_idx: 0xFFFF,
         };
 
         // Register built-in native functions
@@ -290,7 +295,7 @@ impl Vm {
         vm.register_native("Tempfile_create", natives::tempfile::native_tempfile_create);
 
         // Thread natives
-        vm.register_native("Thread_spawn", natives::thread::native_thread_spawn);
+        vm.thread_spawn_idx = vm.register_native("Thread_spawn", natives::thread::native_thread_spawn);
         vm.register_native("Thread_spawnRunnable", natives::thread::native_thread_spawn_runnable);
         vm.register_native("Thread_join", natives::thread::native_thread_join);
         vm.register_native("Thread_sleep", natives::thread::native_thread_sleep);

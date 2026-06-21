@@ -1,7 +1,8 @@
 // Native OS thread wrapper.
-// NOTE: Due to VM limitations, Titrate closures cannot be executed in spawned
-// threads because Value contains Rc<> which is not Send. Thread_spawn currently
-// creates a thread but does not execute the passed function. For actual concurrent
+// NOTE: Due to VM limitations (Value contains Rc<> which is not Send-safe),
+// Thread_spawn executes the closure synchronously on the calling thread and
+// spawns a no-op OS thread to preserve the handle-based join/detach API.
+// The task runs to completion before Thread_spawn returns. For true concurrent
 // execution, use ThreadPoolExecutor or the async() function from Async.tr.
 import tt::concurrent::Mutex;
 import tt::concurrent::LockGuard;
@@ -21,9 +22,8 @@ public class Thread {
 
     public fn start(): void {
         if (!this.started) {
-            // Thread_spawn currently does not execute the passed task due to
-            // VM architecture limitations (Rc<> is not Send-safe across threads).
-            // The task is stored for future use when the VM supports thread-safe closures.
+            // Thread_spawn executes the task synchronously (VM limitation:
+            // Rc<> is not Send-safe) and returns a handle to a no-op thread.
             this.handle = Thread_spawn(this.task);
             this.started = true;
         }

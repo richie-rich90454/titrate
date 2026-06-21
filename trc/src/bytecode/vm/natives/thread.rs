@@ -13,13 +13,15 @@ static THREAD_REGISTRY: LazyLock<StdMutex<HashMap<i64, Option<JoinHandle<()>>>>>
 static THREAD_NEXT_HANDLE: AtomicI64 = AtomicI64::new(1);
 
 pub(crate) fn native_thread_spawn(args: &[Value]) -> Result<Value, String> {
-    let _ = args; // Full Titrate function execution in threads requires VM architecture changes
+    // The closure argument (args[0]) is executed synchronously by call_native_fn
+    // in call.rs because Value contains Rc<> which is not Send-safe across
+    // threads. This native spawns a no-op thread to preserve the handle-based
+    // join/detach API; the actual task runs on the calling thread before
+    // Thread_spawn returns.
+    let _ = args;
     let handle = THREAD_NEXT_HANDLE.fetch_add(1, Ordering::SeqCst);
     let join_handle = thread::spawn(|| {
-        // Placeholder: actual function execution would go here
-        // NOTE: Executing Titrate closures in spawned threads is not currently
-        // possible because Value contains Rc<> which is not Send. The Thread class
-        // in Thread.tr works around this by using ThreadPoolExecutor patterns.
+        // No-op: the task is executed synchronously by the VM caller.
     });
     let mut registry = THREAD_REGISTRY.lock().unwrap();
     registry.insert(handle, Some(join_handle));
