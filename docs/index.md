@@ -117,8 +117,8 @@ numbers.forEach(fn(n: int): void {
 class Vec2 {
     public double x;
     public double y;
-    fn operator+(self, other: Vec2): Vec2 {
-        return new Vec2(self.x + other.x, self.y + other.y);
+    fn operator+(other: Vec2): Vec2 {
+        return new Vec2(this.x + other.x, this.y + other.y);
     }
 }
 
@@ -209,13 +209,13 @@ class RingBuffer<T> implements Iterable<T> {
         this.count = 0;
     }
 
-    fn push(self, item: T): void {
-        self.data.add(item);
-        self.count = self.count + 1;
+    fn push(item: T): void {
+        this.data.add(item);
+        this.count = this.count + 1;
     }
 
-    fn iterator(self): Iterator<T> {
-        return new RingBufferIterator<T>(self);
+    fn iterator(): Iterator<T> {
+        return new RingBufferIterator<T>(this);
     }
 }
 
