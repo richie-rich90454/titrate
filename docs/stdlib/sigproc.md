@@ -34,7 +34,7 @@ let fft = new FFT2();
 // 1D FFT on a simple signal
 let signal = new ArrayList<double>();
 for (let i = 0; i < 8; i++) {
-    signal.add(Math.sin(2.0 * Math.PI * i / 8.0));
+    signal.add(MathTrig.sin(2.0 * Math.PI() * i / 8.0));
 }
 let spectrum = fft.fft(signal);
 

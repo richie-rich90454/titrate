@@ -10,7 +10,7 @@ import tt.algorithms;
 
 ### sort
 
-- `algorithms.sort<T: Comparable>(items: ArrayList<T>): void` — sort a list in-place in ascending order
+- `algorithms.sort<T: Comparable<T>>(items: ArrayList<T>): void` — sort a list in-place in ascending order
 
 ```titrate
 let list = new ArrayList<int>();
@@ -56,7 +56,7 @@ algorithms.reverse(list);
 
 ### binarySearch
 
-- `algorithms.binarySearch<T: Comparable>(items: ArrayList<T>, target: T): int` — find `target` in a sorted list; returns the index or -1 if not found
+- `algorithms.binarySearch<T: Comparable<T>>(items: ArrayList<T>, target: T): int` — find `target` in a sorted list; returns the index or -1 if not found
 
 ```titrate
 let list = new ArrayList<int>();

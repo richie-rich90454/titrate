@@ -17,7 +17,7 @@ import tt.complex;
 ```titrate
 let z1 = new Complex(3.0, 4.0);       // 3 + 4i
 let z2 = Complex.fromReal(5.0);         // 5 + 0i
-let z3 = Complex.fromPolar(1.0, Math.PI / 4.0);  // e^(i*pi/4)
+let z3 = Complex.fromPolar(1.0, Math.PI() / 4.0);  // e^(i*pi/4)
 ```
 
 ### Accessors
@@ -85,7 +85,7 @@ io::println(z.toString());  // "3.0 - 4.0i"
 - `complex.pow(base: Complex, exp: Complex): Complex` — complex exponentiation
 
 ```titrate
-let z = new Complex(0.0, Math.PI);  // i*pi
+let z = new Complex(0.0, Math.PI());  // i*pi
 let result = complex.exp(z);         // e^(i*pi) ≈ -1 + 0i
 ```
 

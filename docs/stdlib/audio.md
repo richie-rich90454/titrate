@@ -44,7 +44,7 @@ let buf = new AudioBuffer(44100, 1);
 // Load samples (e.g., from a generated tone)
 for (let i = 0; i < 44100; i++) {
     let t = Double.parseDouble(Integer.toString(i)) / 44100.0;
-    buf.setSample(i, Math.sin(2.0 * Math.PI * 440.0 * t));
+    buf.setSample(i, MathTrig.sin(2.0 * Math.PI() * 440.0 * t));
 }
 
 io::println("Duration: " + Double.toString(buf.getDuration()));  // 1.0

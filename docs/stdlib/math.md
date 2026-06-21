@@ -60,7 +60,7 @@ Mathematical constants and functions.
 
 ```titrate
 let angle = Math.toRadians(45.0);
-let result = Math.sin(angle);  // ≈ 0.7071
+let result = MathTrig.sin(angle);  // ≈ 0.7071
 let clamped = Math.clamp(15.0, 0.0, 10.0);  // 10.0
 ```
 

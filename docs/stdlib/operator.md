@@ -302,7 +302,7 @@ if (shape is Circle) {
 
 | Operator | Name | Example | Description |
 |----------|------|---------|-------------|
-| `.` | Dot access | `Math.sqrt(2.0)` | Method/field access (preferred) |
+| `.` | Dot access | `MathAdvanced.sqrt(2.0)` | Method/field access (preferred) |
 | `::` | Scope access | `import tt::math::Math` | Import paths only |
 
 ### Range Operators
