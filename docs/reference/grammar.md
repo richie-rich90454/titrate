@@ -28,12 +28,13 @@ sugar_params ::= type IDENTIFIER (',' type IDENTIFIER)*
 class_decl   ::= 'class' IDENTIFIER type_params? ('extends' type)? ('implements' type (',' type)*)? '{' class_member* '}'
 class_member ::= field_decl | method_decl | constructor_decl
 field_decl   ::= access? type IDENTIFIER ('=' expr)? ';'
-                  // Note: bare 'type IDENTIFIER' without access modifier defaults to public
+                  // Note: bare 'type IDENTIFIER' without access modifier defaults to private
 method_decl  ::= access? 'fn' IDENTIFIER '(' params? ')' (':' type)? block
              | access? 'fn' 'operator' OP '(' self_param (',' param)* ')' (':' type)? block   // operator overloading
              | access? type IDENTIFIER '(' sugar_params? ')' block                            // sugar form (C-family compat)
 self_param   ::= 'self'
 OP           ::= '+' | '-' | '*' | '/' | '%' | '==' | '!=' | '<' | '>' | '<=' | '>='
+             | '&' | '|' | '^' | '<<' | '>>' | '>>>'
 constructor_decl ::= access? 'fn' 'init' '(' params? ')' (super_call)? block
              | access? IDENTIFIER '(' sugar_params? ')' block                                // sugar form (C-family compat)
 super_call   ::= 'super' '(' args? ')' ';'
@@ -101,17 +102,18 @@ pattern      ::= '_'                                           // wildcard
 
 ```
 expr         ::= assignment
-assignment   ::= range_expr (('=' | '+=' | '-=' | '*=' | '/=') assignment)?
+assignment   ::= range_expr (('=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '|=' | '^=' | '<<=' | '>>=') assignment)?
 range_expr   ::= ternary ('..' ternary | '..=' ternary)?
 ternary      ::= or_expr ('?' expr ':' ternary)?
 or_expr      ::= and_expr ('||' and_expr)*
 and_expr     ::= equality ('&&' equality)*
 equality     ::= comparison (('==' | '!=') comparison)*
-comparison   ::= addition (('<' | '>' | '<=' | '>=') addition)*
+comparison   ::= bitwise (('<' | '>' | '<=' | '>=') bitwise)*
+bitwise      ::= addition (('|' | '^' | '&' | '<<' | '>>' | '>>>') addition)*
 addition     ::= multiplication (('+' | '-') multiplication)*
 multiplication ::= unary (('*' | '/' | '%') unary)*
-unary        ::= ('!' | '-' | '&' | '&mut') unary | postfix
-postfix      ::= primary (call | member | index | error_prop | cast | is_check)*
+unary        ::= ('!' | '-' | '~' | '*' | '++' | '--' | '&' | '&mut') unary | postfix
+postfix      ::= primary (call | member | index | error_prop | cast | is_check | '++' | '--')*
 call         ::= '(' args? ')'
 member       ::= '.' IDENTIFIER | '::' IDENTIFIER   // '.' is the preferred form for method calls. '::' is supported for C++ developers but only used in import paths in idiomatic Titrate.
 index        ::= '[' expr ']'

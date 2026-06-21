@@ -87,7 +87,7 @@ io::println(Integer.toString(b));  // still 10
 
 ### Reference Types
 
-Reference types store a pointer to heap-allocated data. Assignment of reference types follows ownership rules (move semantics by default):
+Reference types store a pointer to heap-allocated data. Assignment behavior depends on the type:
 
 | Type Category | Examples |
 |---------------|----------|
@@ -95,11 +95,8 @@ Reference types store a pointer to heap-allocated data. Assignment of reference 
 | Strings | `string` (internally a reference to heap data) |
 | Owned pointers | `Owned<T>` |
 
-```titrate
-let list1: ArrayList<int> = new ArrayList<int>();
-list1.add(42);
-let list2: ArrayList<int> = list1;  // ownership moves (or copies reference)
-```
+- **Class instances** and **strings** use reference counting (`Rc`): assignment creates a shared reference to the same data, incrementing the reference count.
+- **`Owned<T>`** enforces single-owner semantics at compile time: assignment transfers ownership and the source becomes invalid (move semantics).
 
 ## Owned\<T\> in Detail
 
@@ -107,9 +104,9 @@ let list2: ArrayList<int> = list1;  // ownership moves (or copies reference)
 
 ### How Owned\<T\> Works
 
-1. **Allocation**: `new` creates an `Owned<T>` on the heap
+1. **Allocation**: `Owned(value)` wraps an existing value (including class instances created with `new`) with single-owner semantics
 2. **Single owner**: Exactly one variable owns each `Owned<T>` at a time
-3. **Automatic deallocation**: When the owner goes out of scope, the heap memory is freed
+3. **Automatic deallocation**: When the owner goes out of scope, the wrapped value is dropped
 4. **Move semantics**: Assignment transfers ownership; the source becomes invalid
 
 ```titrate
@@ -292,21 +289,22 @@ Garbage collectors trade runtime overhead for developer convenience. Titrate's o
 
 ## Memory Layout of Objects
 
-### Object Header
+### Object Layout
 
-Every heap-allocated object in Titrate begins with a small header containing metadata:
+Every heap-allocated class instance in Titrate is stored with three key pieces of metadata:
+- **class_name** — identifies the class (e.g. "Point", "ArrayList")
+- **fields** — a map of field names to their values
+- **vtable** — a map of method names to function indices
 
 ```
-┌──────────────────────┐
-│  Object Header       │
-│  ├─ Type ID          │  ← identifies the class
-│  └─ Size             │  ← total object size in bytes
-├──────────────────────┤
-│  Field 0             │
-│  Field 1             │
-│  Field 2             │
-│  ...                 │
-└──────────────────────┘
+┌──────────────────────────────┐
+│  ClassInstance               │
+│  ├─ class_name: "Point"     │
+│  ├─ fields (HashMap)        │
+│  │   ├─ "x" → Value::Double │
+│  │   └─ "y" → Value::Double │
+│  └─ vtable (method map)     │
+└──────────────────────────────┘
 ```
 
 ### Field Layout
@@ -318,7 +316,7 @@ public class Point {
     public double x;   // offset 0, 8 bytes
     public double y;   // offset 8, 8 bytes
 }
-// Total: 16 bytes (plus header)
+// Total: 16 bytes (plus metadata)
 ```
 
 ```titrate
@@ -327,19 +325,17 @@ public class Mixed {
     public double value; // offset 8, 8 bytes
     public int count;    // offset 16, 4 bytes + 4 padding
 }
-// Total: 24 bytes (plus header)
+// Total: 24 bytes (plus metadata)
 ```
 
 ## How Strings Are Stored
 
-Strings in Titrate are immutable, heap-allocated reference types. Internally, a string consists of:
+Strings in Titrate are immutable, heap-allocated reference types. Internally, strings are stored as reference-counted UTF-8 sequences:
 
 ```
 ┌────────────────────────────┐
-│  String Object             │
-│  ├─ Length: int            │  ← number of characters
-│  ├─ Hash cache: int        │  ← precomputed hash (lazy)
-│  └─ Data: byte[]           │  ← UTF-8 encoded bytes
+│  String (Rc<String>)       │
+│  └─ UTF-8 encoded bytes   │
 │      ├─ 'h' (0x68)        │
 │      ├─ 'e' (0x65)        │
 │      ├─ 'l' (0x6C)        │
@@ -351,33 +347,30 @@ Strings in Titrate are immutable, heap-allocated reference types. Internally, a 
 Key properties:
 - **Immutable**: Once created, a string's contents never change
 - **UTF-8 encoded**: All strings use UTF-8 internally
-- **Hash caching**: The hash code is computed lazily and cached for fast `HashMap` lookups
-- **Shared references**: String assignment creates a new reference to the same data
+- **Reference-counted**: Multiple variables can share the same string data via `Rc` (reference counting), with no copying on assignment
+- **O(n) character length**: `String.length(s)` counts Unicode characters, which requires iterating over the UTF-8 bytes (O(n))
 
 ```titrate
 let s: string = "hello";       // string literal → heap allocation
-let len: int = String.length(s); // reads length field (O(1))
+let len: int = String.length(s); // counts Unicode characters (O(n))
 let upper: string = String.toUpperCase(s); // creates a new string
 ```
 
 ## How Arrays Are Stored
 
-Arrays (`ArrayList<T>`) are heap-allocated and use a contiguous backing buffer with dynamic resizing:
+Arrays (`ArrayList<T>`) are heap-allocated class instances with a contiguous backing buffer managed internally:
 
 ```
 ┌─────────────────────────────────┐
-│  ArrayList<int> Object          │
-│  ├─ Size: int (= 3)            │  ← number of elements
-│  ├─ Capacity: int (= 8)        │  ← buffer capacity
-│  └─ Buffer: int[]              │  ← contiguous heap array
-│      ├─ [0] = 10               │
-│      ├─ [1] = 20               │
-│      ├─ [2] = 30               │
-│      ├─ [3] = (unused)         │
-│      ├─ [4] = (unused)         │
-│      ├─ [5] = (unused)         │
-│      ├─ [6] = (unused)         │
-│      └─ [7] = (unused)         │
+│  ArrayList<int> Instance        │
+│  ├─ _elements: Array            │  ← value array (Vec<Value>)
+│  │   ├─ [0] = 10               │
+│  │   ├─ [1] = 20               │
+│  │   ├─ [2] = 30               │
+│  │   ├─ [3] = (unused)         │
+│  │   ├─ ...                    │
+│  │   └─ [7] = (unused)         │
+│  └─ (internal capacity: 8)    │
 └─────────────────────────────────┘
 ```
 
