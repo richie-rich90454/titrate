@@ -374,9 +374,8 @@ fn _hostMask(prefixLen: int): int {
     return 0xFFFFFFFF >> prefixLen;
 }
 
-// IPv6 network/subnet representation (stub). Full 128-bit arithmetic is not
-// supported by the int type, so these methods use simplified string-based
-// operations suitable for basic prefix matching and display.
+// IPv6 network/subnet representation using vast (arbitrary-precision) 128-bit
+// arithmetic for accurate network address, broadcast, and subnet computation.
 public class IPv6Network {
     public string address;
     public int prefixLen;
@@ -386,51 +385,78 @@ public class IPv6Network {
         this.prefixLen = prefixLen;
     }
 
-    // Returns the network address. For this stub the stored address is
-    // returned unchanged since 128-bit masking is not available.
+    // Returns the network address (host bits zeroed).
     public fn networkAddress(): string {
-        return this.address;
+        let addr: vast = _ipv6ToVast(this.address);
+        let mask: vast = _ipv6PrefixMask(this.prefixLen);
+        return _vastToIpv6(addr & mask);
     }
 
-    // IPv6 has no broadcast address; return the all-nodes multicast placeholder.
+    // IPv6 has no broadcast, but the all-ones host address is the equivalent.
     public fn broadcastAddress(): string {
-        return "ff02::1";
+        let addr: vast = _ipv6ToVast(this.address);
+        let mask: vast = _ipv6PrefixMask(this.prefixLen);
+        let hostmask: vast = ~mask;
+        return _vastToIpv6(addr | hostmask);
     }
 
-    // Build a simplified netmask string from the prefix length.
+    // Build a netmask string from the prefix length.
     public fn netmask(): string {
-        return _ipv6PrefixToNetmask(this.prefixLen);
+        return _vastToIpv6(_ipv6PrefixMask(this.prefixLen));
     }
 
-    // Build a simplified hostmask string (inverse of netmask).
+    // Build a hostmask string (inverse of netmask).
     public fn hostmask(): string {
-        return _ipv6PrefixToHostmask(this.prefixLen);
+        return _vastToIpv6(~_ipv6PrefixMask(this.prefixLen));
     }
 
-    // Number of addresses in the subnet. Capped to avoid overflow for small prefixes.
-    public fn numAddresses(): int {
+    // Number of addresses in the subnet (2^(128-prefixLen)).
+    public fn numAddresses(): vast {
         let hostBits: int = 128 - this.prefixLen;
-        if (hostBits >= 31) {
-            return 0x7FFFFFFF;
+        if (hostBits >= 64) {
+            // For very large subnets, return a symbolic large value.
+            let result: vast = 1;
+            var i: int = 0;
+            while (i < hostBits) {
+                result = result * 2;
+                i = i + 1;
+            }
+            return result;
         }
-        return 1 << hostBits;
+        let result: vast = 1;
+        var i: int = 0;
+        while (i < hostBits) {
+            result = result * 2;
+            i = i + 1;
+        }
+        return result;
     }
 
-    // Basic prefix-based containment check for IPv6 addresses.
+    // Containment check: is *ip* within this subnet?
     public fn contains(ip: string): bool {
-        return _ipv6PrefixMatch(this.networkAddress(), ip, this.prefixLen);
+        let netAddr: vast = _ipv6ToVast(this.networkAddress());
+        let ipAddr: vast = _ipv6ToVast(ip);
+        let mask: vast = _ipv6PrefixMask(this.prefixLen);
+        return (netAddr & mask) == (ipAddr & mask);
     }
 
     // Split the network into two equal subnets with prefixLen + 1.
     public fn subnets(): ArrayList<IPv6Network> {
         let result: ArrayList<IPv6Network> = new ArrayList<IPv6Network>();
         let newPrefix: int = this.prefixLen + 1;
-        result.add(new IPv6Network(this.address, newPrefix));
-        result.add(new IPv6Network(this.address, newPrefix));
+        let netAddr: vast = _ipv6ToVast(this.networkAddress());
+        let halfSize: vast = 1;
+        var i: int = 0;
+        while (i < 127 - this.prefixLen) {
+            halfSize = halfSize * 2;
+            i = i + 1;
+        }
+        result.add(new IPv6Network(_vastToIpv6(netAddr), newPrefix));
+        result.add(new IPv6Network(_vastToIpv6(netAddr + halfSize), newPrefix));
         return result;
     }
 
-    // IPv6 subnets are too large to enumerate; return an empty list as a stub.
+    // IPv6 subnets are too large to enumerate; return an empty list.
     public fn hosts(): ArrayList<string> {
         return new ArrayList<string>();
     }
@@ -438,6 +464,100 @@ public class IPv6Network {
     public fn toString(): string {
         return this.networkAddress() + "/" + Integer.toString(this.prefixLen);
     }
+}
+
+// Convert an IPv6 address string to a vast (128-bit) integer.
+fn _ipv6ToVast(address: string): vast {
+    let expanded: string = _expandIpv6(address);
+    let parts: ArrayList<string> = String.split(expanded, ":");
+    var result: vast = 0;
+    var i: int = 0;
+    while (i < 8) {
+        var group: vast = 0;
+        if (i < parts.size()) {
+            group = Integer.parseInt(parts.get(i), 16);
+        }
+        result = (result << 16) | group;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert a vast integer to an IPv6 address string (compressed form).
+fn _vastToIpv6(val: vast): string {
+    let groups: ArrayList<int> = new ArrayList<int>();
+    var i: int = 7;
+    while (i >= 0) {
+        let g: int = (val >> (i * 16)) & 0xFFFF as int;
+        groups.add(g);
+        i = i - 1;
+    }
+    // Find the longest run of zero groups for "::" compression.
+    var bestStart: int = -1;
+    var bestLen: int = 0;
+    var curStart: int = -1;
+    var curLen: int = 0;
+    i = 0;
+    while (i < 8) {
+        if (groups.get(i) == 0) {
+            if (curStart < 0) { curStart = i; curLen = 0; }
+            curLen = curLen + 1;
+            if (curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
+        } else {
+            curStart = -1;
+            curLen = 0;
+        }
+        i = i + 1;
+    }
+    var result: string = "";
+    i = 0;
+    while (i < 8) {
+        if (bestLen >= 2 && i == bestStart) {
+            if (String.length(result) > 0) { result = result + ":"; }
+            result = result + ":";
+            i = i + bestLen;
+        } else {
+            if (String.length(result) > 0 && result != ":") { result = result + ":"; }
+            result = result + Integer.toHexString(groups.get(i));
+            i = i + 1;
+        }
+    }
+    if (result == ":") { result = "::"; }
+    return result;
+}
+
+// Build a 128-bit prefix mask as a vast integer.
+fn _ipv6PrefixMask(prefixLen: int): vast {
+    if (prefixLen <= 0) { return 0; }
+    if (prefixLen >= 128) {
+        // All ones: 2^128 - 1
+        let result: vast = 1;
+        var i: int = 0;
+        while (i < 128) {
+            result = result * 2;
+            i = i + 1;
+        }
+        return result - 1;
+    }
+    // Create mask with prefixLen leading 1-bits.
+    let result: vast = 0;
+    var i: int = 0;
+    while (i < prefixLen) {
+        result = (result << 1) | 1;
+        i = i + 1;
+    }
+    // Shift left to fill the remaining bits.
+    var shift: int = 128 - prefixLen;
+    while (shift > 0) {
+        if (shift >= 16) {
+            result = result << 16;
+            shift = shift - 16;
+        } else {
+            result = result << shift;
+            shift = 0;
+        }
+    }
+    return result;
 }
 
 // Expand an IPv6 address to its full 8-group form for prefix comparison.
