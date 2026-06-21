@@ -55,6 +55,7 @@ impl Compiler {
     // Native function registration
     // -----------------------------------------------------------------------
 
+    #[allow(dead_code)]
     pub(super) fn get_or_add_native(&mut self, name: &str) -> u16 {
         if let Some(&idx) = self.native_map.get(name) {
             return idx;

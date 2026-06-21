@@ -397,6 +397,7 @@ impl Compiler {
 
     /// Instantiate a generic function with concrete type arguments.
     /// Returns the function index of the specialized function.
+    #[allow(dead_code)]
     pub(super) fn instantiate_generic_function(&mut self, base_name: &str, type_args: &[ast::Type]) -> Result<u16, String> {
         let mangled = Self::mangle_name(base_name, type_args);
 

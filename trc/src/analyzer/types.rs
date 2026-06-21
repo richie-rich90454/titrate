@@ -39,6 +39,7 @@ pub(super) fn is_result_type(t: &ast::Type) -> bool {
     t.name() == "Result"
 }
 
+#[allow(dead_code)]
 pub(super) fn is_ref_type(t: &ast::Type) -> bool {
     matches!(t, ast::Type::Ref(_) | ast::Type::MutRef(_))
 }

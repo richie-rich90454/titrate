@@ -40,6 +40,7 @@ pub(super) struct Module {
     /// Dotted module name, e.g. "tt.lang.Integer"
     pub name: String,
     /// Absolute path to the source file.
+    #[allow(dead_code)]
     pub file_path: PathBuf,
     /// Parsed AST; `None` if not yet loaded.
     pub program: Option<ast::Program>,
@@ -88,6 +89,7 @@ pub(super) enum InferredType {
 pub(super) struct Local {
     pub name: String,
     pub depth: usize,
+    #[allow(dead_code)]
     pub is_captured: bool,
     /// The stack slot assigned to this local.
     pub slot: u8,
@@ -153,6 +155,7 @@ pub struct Compiler {
     /// Collected native function names.
     pub(super) native_names: Vec<String>,
     /// Mapping from native name → index.
+    #[allow(dead_code)]
     pub(super) native_map: HashMap<String, u16>,
     /// Monomorphization cache: mangled name → index.
     pub(super) mono_cache: HashMap<String, u16>,
@@ -173,6 +176,7 @@ pub struct Compiler {
     /// Module resolver for resolving import paths to file paths.
     pub(super) resolver: resolver::ModuleResolver,
     /// Set of module names currently being processed (for circular import detection).
+    #[allow(dead_code)]
     pub(super) processing: HashSet<String>,
     /// Counter for generating unique closure names.
     pub(super) closure_counter: usize,

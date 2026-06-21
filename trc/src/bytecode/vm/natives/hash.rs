@@ -260,6 +260,7 @@ enum HasherState {
 }
 
 impl HasherState {
+    #[allow(dead_code)]
     fn algorithm_name(&self) -> &'static str {
         match self {
             HasherState::Md5(_) => "md5",

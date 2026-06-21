@@ -415,6 +415,7 @@ impl Compiler {
 
     /// Remove string table entries that are not referenced by any PUSH_STRING
     /// instruction in the chunk, and remap the indices.
+    #[allow(dead_code)]
     pub(super) fn remove_unused_strings(chunk: &mut Chunk) {
         // Find all used string indices from PUSH_STRING and STATIC_CALL.
         let mut used_indices: HashSet<u16> = HashSet::new();

@@ -59,6 +59,7 @@ pub(super) struct Analyzer {
 }
 
 impl Analyzer {
+    #[allow(dead_code)]
     pub(super) fn new() -> Self {
         Analyzer {
             errors: Vec::new(),
