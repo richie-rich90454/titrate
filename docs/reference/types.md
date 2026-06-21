@@ -14,8 +14,8 @@
 | `uvast` | — | Unsigned arbitrary-precision integer |
 | `float` | 32 | 32-bit IEEE 754 |
 | `double` | 64 | 64-bit IEEE 754 |
-| `half` | 16 | 16-bit float (simulated) |
-| `quad` | 128 | 128-bit float (simulated) |
+| `half` | 16 | 16-bit IEEE 754 half-precision float |
+| `quad` | 128 | 128-bit IEEE 754 quad-precision float |
 | `char` | 32 | Unicode scalar |
 | `string` | — | UTF-8 string |
 | `size` | ptr | Pointer-sized unsigned |
