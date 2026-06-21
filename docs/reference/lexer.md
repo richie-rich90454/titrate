@@ -214,6 +214,7 @@ Type keywords are reserved words that name the built-in primitive types:
 | `Tilde` | `~` | Bitwise NOT (complement) |
 | `LeftShift` | `<<` | Left shift |
 | `RightShift` | `>>` | Right shift |
+| `TripleGreater` | `>>>` | Unsigned right shift |
 
 ### Increment / Decrement
 
@@ -237,6 +238,7 @@ Type keywords are reserved words that name the built-in primitive types:
 | `CaretEqual` | `^=` | Bitwise XOR and assign |
 | `LeftShiftEqual` | `<<=` | Left shift and assign |
 | `RightShiftEqual` | `>>=` | Right shift and assign |
+| `TripleGreaterEqual` | `>>>=` | Unsigned right shift and assign |
 
 ### Other Operators
 
