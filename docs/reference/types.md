@@ -10,8 +10,8 @@
 | `short` | 16 | Signed 16-bit integer |
 | `int` | 32 | Signed 32-bit integer |
 | `long` | 64 | Signed 64-bit integer |
-| `vast` | 128 | Signed 128-bit integer |
-| `uvast` | 128 | Unsigned 128-bit integer |
+| `vast` | — | Signed arbitrary-precision integer |
+| `uvast` | — | Unsigned arbitrary-precision integer |
 | `float` | 32 | 32-bit IEEE 754 |
 | `double` | 64 | 64-bit IEEE 754 |
 | `half` | 16 | 16-bit float (simulated) |

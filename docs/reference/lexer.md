@@ -155,8 +155,8 @@ Type keywords are reserved words that name the built-in primitive types:
 | `Short` | `short` | 2 | Signed 16-bit integer |
 | `Int` | `int` | 4 | Signed 32-bit integer |
 | `Long` | `long` | 8 | Signed 64-bit integer |
-| `Vast` | `vast` | 16 | Signed 128-bit integer |
-| `Uvast` | `uvast` | 16 | Unsigned 128-bit integer |
+| `Vast` | `vast` | — | Signed arbitrary-precision integer |
+| `Uvast` | `uvast` | — | Unsigned arbitrary-precision integer |
 | `Float` | `float` | 4 | IEEE 754 single-precision |
 | `Double` | `double` | 8 | IEEE 754 double-precision |
 | `Half` | `half` | 2 | IEEE 754 half-precision |
