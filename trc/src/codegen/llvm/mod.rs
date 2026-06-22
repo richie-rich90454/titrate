@@ -25,6 +25,7 @@ pub mod ownership;
 pub mod target_wrappers;
 pub mod types;
 pub mod vtable;
+pub mod enum_codegen;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -47,6 +48,7 @@ use crate::ast::ClassMember;
 
 use super::llvm::types as llvm_types;
 use super::llvm::vtable::{ClassInfo, InterfaceInfo, emit_new_allocation, emit_field_access, emit_field_store, emit_direct_call, emit_virtual_call, emit_is_check, emit_as_cast, build_class_struct_type, create_vtable_global, build_interface_fat_ptr_type, create_interface_vtable, emit_interface_fat_ptr, emit_interface_is_check, emit_interface_method_call};
+use super::llvm::enum_codegen::{EnumInfo, compile_enum_decl, emit_enum_construct};
 
 /// String value tracked during codegen: the byte length and the pointer to
 /// the underlying UTF-8 buffer.
@@ -113,6 +115,9 @@ pub struct LlvmBackend<'ctx> {
     /// Interface vtable globals: (interface_name, class_name) -> vtable global.
     #[allow(dead_code)]
     interface_vtables: HashMap<(String, String), inkwell::values::GlobalValue<'ctx>>,
+    /// Enum info map: enum name -> compiled enum info.
+    #[allow(dead_code)]
+    enum_infos: HashMap<String, EnumInfo<'ctx>>,
 }
 
 /// Catch context for try/catch codegen.
@@ -146,6 +151,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             current_this: None,
             interface_infos: HashMap::new(),
             interface_vtables: HashMap::new(),
+            enum_infos: HashMap::new(),
         }
     }
 
@@ -1101,6 +1107,18 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let i32_ty = self.context.i32_type();
                     return Ok(i32_ty.const_int(0, false).into());
                 }
+            }
+        }
+
+        // Enum construction: EnumName::Variant(args)
+        if let Expr::StaticCall { class_name, method, args: static_args, .. } = callee {
+            let enum_name = class_name.as_str();
+            if let Some(enum_info) = self.enum_infos.get(enum_name).cloned() {
+                let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                for arg in static_args {
+                    arg_vals.push(self.compile_expr(arg)?);
+                }
+                return emit_enum_construct(self.context, &self.builder, &self.module, &enum_info, method, &arg_vals);
             }
         }
 
@@ -2914,7 +2932,15 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Result<(), String> {
         self.declare_natives();
 
-        // First pass: compile all interface declarations.
+        // First pass: compile all enum declarations.
+        for decl in &program.declarations {
+            if let Declaration::Enum(enum_decl) = decl {
+                let enum_info = compile_enum_decl(self.context, &self.module, enum_decl)?;
+                self.enum_infos.insert(enum_decl.name.clone(), enum_info);
+            }
+        }
+
+        // Pass: compile all interface declarations.
         for decl in &program.declarations {
             if let Declaration::Interface(iface_decl) = decl {
                 self.compile_interface_decl(iface_decl)?;
