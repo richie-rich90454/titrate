@@ -1856,4 +1856,315 @@ mod tests {
         "#).expect("IR should succeed");
         assert!(ir.contains("store double"), "expected store double, got:\n{}", ir);
     }
+
+    // ---- Operator tests (Task 1.3) ----
+
+    #[test]
+    fn int_addition() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 1;
+                let b: int = 2;
+                a + b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("add"), "expected add instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_subtraction() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 5;
+                let b: int = 3;
+                a - b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("sub"), "expected sub instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_multiplication() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 3;
+                let b: int = 4;
+                a * b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("mul"), "expected mul instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_division() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 10;
+                let b: int = 2;
+                a / b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("sdiv"), "expected sdiv instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_modulo() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 10;
+                let b: int = 3;
+                a % b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("srem"), "expected srem instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn float_addition() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: double = 1.0;
+                let b: double = 2.0;
+                a + b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("fadd"), "expected fadd instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn float_subtraction() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: double = 5.0;
+                let b: double = 3.0;
+                a - b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("fsub"), "expected fsub instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn float_multiplication() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: double = 3.0;
+                let b: double = 4.0;
+                a * b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("fmul"), "expected fmul instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn float_division() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: double = 10.0;
+                let b: double = 2.0;
+                a / b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("fdiv"), "expected fdiv instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_equal_comparison() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 1;
+                let b: int = 2;
+                a == b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("icmp eq"), "expected icmp eq, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_not_equal_comparison() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 1;
+                let b: int = 2;
+                a != b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("icmp ne"), "expected icmp ne, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_less_than() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 1;
+                let b: int = 2;
+                a < b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("icmp slt"), "expected icmp slt, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_greater_than() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 1;
+                let b: int = 2;
+                a > b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("icmp sgt"), "expected icmp sgt, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_less_equal() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 1;
+                let b: int = 2;
+                a <= b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("icmp sle"), "expected icmp sle, got:\n{}", ir);
+    }
+
+    #[test]
+    fn int_greater_equal() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 1;
+                let b: int = 2;
+                a >= b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("icmp sge"), "expected icmp sge, got:\n{}", ir);
+    }
+
+    #[test]
+    fn logical_and_short_circuits() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: bool = true;
+                let b: bool = false;
+                a && b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("phi"), "expected phi for short-circuit &&, got:\n{}", ir);
+    }
+
+    #[test]
+    fn logical_or_short_circuits() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: bool = true;
+                let b: bool = false;
+                a || b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("phi"), "expected phi for short-circuit ||, got:\n{}", ir);
+    }
+
+    #[test]
+    fn logical_not() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: bool = true;
+                !a;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("xor"), "expected xor for !, got:\n{}", ir);
+    }
+
+    #[test]
+    fn bitwise_and() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 255;
+                let b: int = 15;
+                a & b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("and"), "expected and instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn bitwise_or() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 240;
+                let b: int = 15;
+                a | b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("or"), "expected or instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn bitwise_xor() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 255;
+                let b: int = 15;
+                a ^ b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("xor"), "expected xor instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn bitwise_not() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 255;
+                ~a;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("xor"), "expected xor for ~, got:\n{}", ir);
+    }
+
+    #[test]
+    fn bitwise_left_shift() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 1;
+                let b: int = 4;
+                a << b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("shl"), "expected shl instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn bitwise_right_shift() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 256;
+                let b: int = 2;
+                a >> b;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("ashr"), "expected ashr instruction, got:\n{}", ir);
+    }
+
+    #[test]
+    fn unary_negation_int() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: int = 5;
+                -a;
+            }
+        "#).expect("IR should succeed");
+        // -a is compiled as 0 - a
+        assert!(ir.contains("sub"), "expected sub for negation, got:\n{}", ir);
+    }
+
+    #[test]
+    fn unary_negation_float() {
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let a: double = 5.0;
+                -a;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("fneg"), "expected fneg instruction, got:\n{}", ir);
+    }
 }
