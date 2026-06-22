@@ -28,6 +28,7 @@
 //! | `Owned<T>`    | `T*`                       |
 //! | `&T`/`&mut T` | `T*`                       |
 //! | `array<T>`    | `{ i64, T* }`              |
+//! | `Result<T,E>` | `{ i32, i8* }`             |
 //! | class         | `{ vtable*, fields... }`*  |
 //! | interface     | `{ object*, vtable* }`*    |
 //! | enum          | `{ i32 tag, [payload] }`*  |
@@ -71,6 +72,23 @@ pub fn array_type<'ctx>(
     context
         .struct_type(&[i64_type.into(), elem_ptr.into()], false)
         .into()
+}
+
+/// Return the LLVM struct type used to represent Titrate `Result<T, E>`:
+/// `{ i32, i8* }` where:
+///   - field 0: tag (0 = Ok, 1 = Err)
+///   - field 1: heap-allocated payload pointer
+pub fn result_type<'ctx>(context: &'ctx Context) -> BasicTypeEnum<'ctx> {
+    let i32_type = context.i32_type();
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+    context
+        .struct_type(&[i32_type.into(), i8_ptr.into()], false)
+        .into()
+}
+
+/// Return true if the given Titrate type is `Result<T, E>`.
+pub fn is_result(ty: &Type) -> bool {
+    matches!(ty, Type::Named { name, .. } if name == "Result")
 }
 
 /// Return the LLVM type used to represent Titrate `Owned<T>`, `&T`, and
@@ -194,6 +212,7 @@ pub fn is_opaque_pointer_type(ty: &Type) -> bool {
     !is_primitive_name(name)
         && name != "void"
         && name != "Owned"
+        && name != "Result"
         && !is_ref(ty)
         && !is_tuple(ty)
 }
@@ -280,8 +299,15 @@ fn llvm_named_type<'ctx>(
                 .unwrap_or_else(|_| context.ptr_type(AddressSpace::default()).into());
             Ok(pointer_to(inner_llvm, context))
         }
+        "Result" => {
+            // Result<T, E> is lowered to { i32, i8* } where:
+            //   tag: 0 = Ok, 1 = Err
+            //   payload: heap-allocated pointer to the Ok or Err value
+            let _ = params; // type params are informational only for Phase 1
+            Ok(result_type(context))
+        }
         // Heap-allocated user types (classes, interfaces, enums) and
-        // generic containers like ArrayList<T>, HashMap<K,V>, Result<T,E>,
+        // generic containers like ArrayList<T>, HashMap<K,V>,
         // Optional<T> are represented as opaque `i8*` pointers for Phase 1.
         _ => Ok(context.ptr_type(AddressSpace::default()).into()),
     }
@@ -393,6 +419,13 @@ mod tests {
     }
 
     #[test]
+    fn result_maps_to_struct() {
+        let ty = Type::generic("Result", vec![Type::simple("int"), Type::simple("string")]);
+        let s = llvm_type_str(&ty);
+        assert!(s.contains("i32") && s.contains("ptr"), "got: {}", s);
+    }
+
+    #[test]
     fn ref_maps_to_pointer() {
         let ty = Type::Ref(Box::new(Type::simple("int")));
         let s = llvm_type_str(&ty);
@@ -453,7 +486,9 @@ mod tests {
         assert!(is_ref(&Type::MutRef(Box::new(Type::simple("int")))));
         assert!(is_tuple(&Type::Tuple(vec![])));
         assert!(is_array(&Type::generic("array", vec![Type::simple("int")])));
+        assert!(is_result(&Type::generic("Result", vec![Type::simple("int"), Type::simple("string")])));
         assert!(is_opaque_pointer_type(&Type::simple("MyClass")));
         assert!(!is_opaque_pointer_type(&Type::simple("int")));
+        assert!(!is_opaque_pointer_type(&Type::generic("Result", vec![Type::simple("int"), Type::simple("string")])));
     }
 }
