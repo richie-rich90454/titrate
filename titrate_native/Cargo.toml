@@ -1,9 +1,12 @@
 [package]
 name = "titrate_native"
-version = "0.1.0"
+version = "0.3.0-alpha"
 edition = "2021"
 description = "C-ABI native runtime bridge for the Titrate LLVM backend"
 
 [lib]
 name = "titrate_native"
-crate-type = ["staticlib", "rlib"]
+path = "src/lib.rs"
+
+[dependencies]
+trc = { path = "../trc" }
