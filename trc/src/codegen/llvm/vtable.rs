@@ -509,3 +509,263 @@ pub fn emit_as_cast<'ctx>(
     // Simple identity cast: return the same pointer.
     Ok(instance_ptr.into())
 }
+
+/// Information about a compiled interface.
+#[derive(Clone)]
+pub struct InterfaceInfo<'ctx> {
+    /// The interface name.
+    pub name: String,
+    /// LLVM struct type for the interface fat pointer: { i8*, i8* }.
+    pub fat_ptr_type: inkwell::types::StructType<'ctx>,
+    /// Method names in the interface (sorted alphabetically).
+    pub method_names: Vec<String>,
+    /// Default method implementations (LLVM functions), keyed by method name.
+    pub default_methods: HashMap<String, inkwell::values::FunctionValue<'ctx>>,
+    /// The interface vtable type (array of i8*).
+    pub vtable_type: Option<inkwell::types::ArrayType<'ctx>>,
+}
+
+/// Build the fat pointer struct type for an interface: { i8*, i8* }.
+pub fn build_interface_fat_ptr_type<'ctx>(context: &'ctx Context) -> inkwell::types::StructType<'ctx> {
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+    context.struct_type(&[i8_ptr.into(), i8_ptr.into()], false)
+}
+
+/// Create an interface vtable global for a class that implements an interface.
+///
+/// The interface vtable maps interface method names to the class's method
+/// implementations. If a method is not found in the class, it falls back to
+/// the interface's default method (if any).
+pub fn create_interface_vtable<'ctx>(
+    context: &'ctx Context,
+    module: &inkwell::module::Module<'ctx>,
+    class_name: &str,
+    interface_name: &str,
+    interface_methods: &[String],
+    class_method_functions: &HashMap<String, inkwell::values::FunctionValue<'ctx>>,
+    default_methods: &HashMap<String, inkwell::values::FunctionValue<'ctx>>,
+) -> Option<inkwell::values::GlobalValue<'ctx>> {
+    if interface_methods.is_empty() {
+        return None;
+    }
+
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+
+    // Sort method names for deterministic ordering.
+    let mut sorted_names: Vec<String> = interface_methods.to_vec();
+    sorted_names.sort();
+
+    let mut entries: Vec<PointerValue<'ctx>> = Vec::with_capacity(sorted_names.len());
+    for mname in &sorted_names {
+        let fn_val = if let Some(mf) = class_method_functions.get(mname) {
+            mf.as_global_value().as_pointer_value()
+        } else if let Some(df) = default_methods.get(mname) {
+            df.as_global_value().as_pointer_value()
+        } else {
+            panic!(
+                "interface vtable: method '{}' not found in class '{}' for interface '{}'",
+                mname, class_name, interface_name
+            )
+        };
+        let fn_ptr_i8 = fn_val.const_cast(i8_ptr);
+        entries.push(fn_ptr_i8);
+    }
+
+    let arr_type = i8_ptr.array_type(entries.len() as u32);
+    let vtable_name = format!("_ivtable_{}_{}", interface_name, class_name);
+    let vtable = module.add_global(arr_type, None, &vtable_name);
+    vtable.set_linkage(Linkage::Internal);
+    vtable.set_constant(true);
+
+    let const_arr = i8_ptr.const_array(&entries);
+    vtable.set_initializer(&const_arr);
+
+    Some(vtable)
+}
+
+/// Emit an interface fat pointer from an object pointer and interface vtable.
+///
+/// Returns a `{ i8*, i8* }` struct value.
+pub fn emit_interface_fat_ptr<'ctx>(
+    context: &'ctx Context,
+    builder: &inkwell::builder::Builder<'ctx>,
+    fat_ptr_type: inkwell::types::StructType<'ctx>,
+    object_ptr: PointerValue<'ctx>,
+    vtable_ptr: PointerValue<'ctx>,
+) -> Result<BasicValueEnum<'ctx>, String> {
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+
+    // Cast object pointer to i8* if needed.
+    let obj_i8 = if object_ptr.get_type() == i8_ptr {
+        object_ptr
+    } else {
+        builder
+            .build_bit_cast(object_ptr, i8_ptr, "iface.obj.cast")
+            .map_err(|e| format!("build_bit_cast iface.obj failed: {:?}", e))?
+            .into_pointer_value()
+    };
+
+    // Cast vtable to i8*.
+    let vt_i8 = builder
+        .build_bit_cast(vtable_ptr, i8_ptr, "iface.vt.cast")
+        .map_err(|e| format!("build_bit_cast iface.vt failed: {:?}", e))?
+        .into_pointer_value();
+
+    // Allocate space for the fat pointer and store the two fields.
+    let alloca = builder
+        .build_alloca(fat_ptr_type, "iface.fat")
+        .map_err(|e| format!("build_alloca iface.fat failed: {:?}", e))?;
+
+    let obj_gep = builder
+        .build_struct_gep(fat_ptr_type, alloca, 0, "iface.obj.gep")
+        .map_err(|e| format!("build_struct_gep iface.obj failed: {:?}", e))?;
+    builder
+        .build_store(obj_gep, obj_i8)
+        .map_err(|e| format!("build_store iface.obj failed: {:?}", e))?;
+
+    let vt_gep = builder
+        .build_struct_gep(fat_ptr_type, alloca, 1, "iface.vt.gep")
+        .map_err(|e| format!("build_struct_gep iface.vt failed: {:?}", e))?;
+    builder
+        .build_store(vt_gep, vt_i8)
+        .map_err(|e| format!("build_store iface.vt failed: {:?}", e))?;
+
+    builder
+        .build_load(fat_ptr_type, alloca, "iface.fat.val")
+        .map_err(|e| format!("build_load iface.fat failed: {:?}", e))
+}
+
+/// Emit an `is` check for interfaces.
+///
+/// Compares the vtable pointer from the fat pointer against the expected
+/// interface vtable.
+pub fn emit_interface_is_check<'ctx>(
+    context: &'ctx Context,
+    builder: &inkwell::builder::Builder<'ctx>,
+    _fat_ptr_type: inkwell::types::StructType<'ctx>,
+    fat_ptr_val: BasicValueEnum<'ctx>,
+    expected_vtable: PointerValue<'ctx>,
+) -> Result<BasicValueEnum<'ctx>, String> {
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+
+    // Extract the vtable pointer from the fat pointer (field 1).
+    let fat_ptr_struct = match fat_ptr_val {
+        BasicValueEnum::StructValue(sv) => sv,
+        _ => return Err("interface is check: expected struct value".to_string()),
+    };
+
+    let vt_ptr = builder
+        .build_extract_value(fat_ptr_struct, 1, "is.vt")
+        .map_err(|e| format!("build_extract_value is.vt failed: {:?}", e))?
+        .into_pointer_value();
+
+    // Cast expected vtable to i8*.
+    let expected_i8 = builder
+        .build_bit_cast(expected_vtable, i8_ptr, "is.expected")
+        .map_err(|e| format!("build_bit_cast is.expected failed: {:?}", e))?
+        .into_pointer_value();
+
+    // Compare.
+    builder
+        .build_int_compare(
+            inkwell::IntPredicate::EQ,
+            vt_ptr,
+            expected_i8,
+            "is.iface.cmp",
+        )
+        .map_err(|e| format!("build_int_compare is.iface failed: {:?}", e))
+        .map(|v| v.into())
+}
+
+/// Emit an interface method call through a fat pointer.
+pub fn emit_interface_method_call<'ctx>(
+    context: &'ctx Context,
+    builder: &inkwell::builder::Builder<'ctx>,
+    _fat_ptr_type: inkwell::types::StructType<'ctx>,
+    fat_ptr_val: BasicValueEnum<'ctx>,
+    interface_methods: &[String],
+    method_name: &str,
+    args: &[BasicValueEnum<'ctx>],
+    return_type: Option<BasicTypeEnum<'ctx>>,
+) -> Result<BasicValueEnum<'ctx>, String> {
+    let i8_ptr = context.ptr_type(AddressSpace::default());
+
+    // Extract the fat pointer fields.
+    let fat_ptr_struct = match fat_ptr_val {
+        BasicValueEnum::StructValue(sv) => sv,
+        _ => return Err("interface method call: expected struct value".to_string()),
+    };
+
+    let obj_ptr = builder
+        .build_extract_value(fat_ptr_struct, 0, "iface.obj")
+        .map_err(|e| format!("build_extract_value iface.obj failed: {:?}", e))?
+        .into_pointer_value();
+
+    let vt_ptr = builder
+        .build_extract_value(fat_ptr_struct, 1, "iface.vt")
+        .map_err(|e| format!("build_extract_value iface.vt failed: {:?}", e))?
+        .into_pointer_value();
+
+    // Find the method index in the interface vtable.
+    let mut sorted_methods: Vec<&String> = interface_methods.iter().collect();
+    sorted_methods.sort();
+    let method_idx = sorted_methods
+        .iter()
+        .position(|&n| n == method_name)
+        .ok_or_else(|| format!("method '{}' not found in interface vtable", method_name))?;
+
+    // GEP to the method entry in the vtable.
+    let i32_type = context.i32_type();
+    let idx_val = i32_type.const_int(method_idx as u64, false);
+    let method_ptr_ptr = unsafe {
+        builder.build_gep(i8_ptr, vt_ptr, &[idx_val], "iface.method.gep")
+    }
+    .map_err(|e| format!("build_gep iface.method failed: {:?}", e))?;
+
+    // Load the function pointer.
+    let fn_ptr = builder
+        .build_load(i8_ptr, method_ptr_ptr, "iface.method")
+        .map_err(|e| format!("build_load iface.method failed: {:?}", e))?
+        .into_pointer_value();
+
+    // Build the function type for the indirect call.
+    let mut param_tys: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
+    param_tys.push(i8_ptr.into());
+    for arg in args {
+        param_tys.push(arg.get_type().into());
+    }
+    let void_ty = context.void_type();
+    let fn_type = match return_type {
+        Some(rt) => rt.fn_type(&param_tys, false),
+        None => void_ty.fn_type(&param_tys, false),
+    };
+    let fn_ptr_type = context.ptr_type(AddressSpace::default());
+    let fn_ptr_typed = builder
+        .build_bit_cast(fn_ptr, fn_ptr_type, "iface.fn.cast")
+        .map_err(|e| format!("build_bit_cast iface.fn failed: {:?}", e))?;
+
+    let mut call_args: Vec<inkwell::values::BasicMetadataValueEnum> = Vec::new();
+    call_args.push(obj_ptr.into());
+    for arg in args {
+        call_args.push((*arg).into());
+    }
+
+    let call = builder
+        .build_indirect_call(
+            fn_type,
+            fn_ptr_typed.into_pointer_value(),
+            &call_args,
+            &format!("iface.call.{}", method_name),
+        )
+        .map_err(|e| format!("build_indirect_call iface '{}' failed: {:?}", method_name, e))?;
+
+    if return_type.is_some() {
+        match call.try_as_basic_value() {
+            inkwell::values::ValueKind::Basic(v) => Ok(v),
+            _ => Err(format!("interface call to '{}' did not return a value", method_name)),
+        }
+    } else {
+        let i32_type = context.i32_type();
+        Ok(i32_type.const_int(0, false).into())
+    }
+}

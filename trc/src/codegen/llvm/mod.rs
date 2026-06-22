@@ -42,11 +42,11 @@ use inkwell::values::{
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 
-use crate::ast::{ClassDecl, Declaration, Expr, FnDecl, Literal, Operator, Program, Stmt, Type, UnOp};
+use crate::ast::{ClassDecl, Declaration, Expr, FnDecl, InterfaceDecl, Literal, Operator, Program, Stmt, Type, UnOp};
 use crate::ast::ClassMember;
 
 use super::llvm::types as llvm_types;
-use super::llvm::vtable::{ClassInfo, emit_new_allocation, emit_field_access, emit_field_store, emit_direct_call, emit_virtual_call, emit_is_check, emit_as_cast, build_class_struct_type, create_vtable_global};
+use super::llvm::vtable::{ClassInfo, InterfaceInfo, emit_new_allocation, emit_field_access, emit_field_store, emit_direct_call, emit_virtual_call, emit_is_check, emit_as_cast, build_class_struct_type, create_vtable_global, build_interface_fat_ptr_type, create_interface_vtable, emit_interface_fat_ptr, emit_interface_is_check, emit_interface_method_call};
 
 /// String value tracked during codegen: the byte length and the pointer to
 /// the underlying UTF-8 buffer.
@@ -107,6 +107,12 @@ pub struct LlvmBackend<'ctx> {
     /// Current 'this' pointer in method codegen (None if not in a method).
     #[allow(dead_code)]
     current_this: Option<PointerValue<'ctx>>,
+    /// Interface info map: interface name -> compiled interface info.
+    #[allow(dead_code)]
+    interface_infos: HashMap<String, InterfaceInfo<'ctx>>,
+    /// Interface vtable globals: (interface_name, class_name) -> vtable global.
+    #[allow(dead_code)]
+    interface_vtables: HashMap<(String, String), inkwell::values::GlobalValue<'ctx>>,
 }
 
 /// Catch context for try/catch codegen.
@@ -138,6 +144,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             class_type_ids: HashMap::new(),
             next_type_id: 0,
             current_this: None,
+            interface_infos: HashMap::new(),
+            interface_vtables: HashMap::new(),
         }
     }
 
@@ -1149,6 +1157,23 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Method call on a class instance: obj.method(args)
         if let Expr::MemberAccess(obj, method, _) = callee {
             let obj_val = self.compile_expr(obj)?;
+            // Check if this is an interface fat pointer (struct value).
+            if obj_val.is_struct_value() {
+                // Look up the interface info from the object's type.
+                let obj_type = self.infer_expr_type(obj);
+                let iface_name = obj_type.name();
+                if let Some(iface_info) = self.interface_infos.get(iface_name).cloned() {
+                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                    for arg in args {
+                        arg_vals.push(self.compile_expr(arg)?);
+                    }
+                    return emit_interface_method_call(
+                        self.context, &self.builder,
+                        iface_info.fat_ptr_type, obj_val,
+                        &iface_info.method_names, method, &arg_vals, None,
+                    );
+                }
+            }
             if obj_val.is_pointer_value() {
                 let obj_ptr = obj_val.into_pointer_value();
                 // Look up the class name from the object's type.
@@ -1219,9 +1244,33 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile an `is` type check expression.
     fn compile_is(&mut self, obj: &Expr, ty: &crate::ast::Type) -> Result<BasicValueEnum<'ctx>, String> {
-        let class_name = ty.name();
+        let type_name = ty.name();
+        // Check if it's an interface.
+        if let Some(iface_info) = self.interface_infos.get(type_name).cloned() {
+            let obj_val = self.compile_expr(obj)?;
+            if !obj_val.is_struct_value() {
+                return Err(format!("codegen: 'is' check on non-struct (interface) value: {:?}", obj));
+            }
+            // For interface `is` check, we need an interface vtable. Look up
+            // the first available class vtable for this interface.
+            let fat_ptr_type = iface_info.fat_ptr_type;
+            let i1_ty = self.context.bool_type();
+            // Find any implementing class vtable for this interface.
+            for ((iface_name, _class_name), vt_global) in &self.interface_vtables {
+                if iface_name == type_name {
+                    let expected_vt = vt_global.as_pointer_value();
+                    let result = emit_interface_is_check(
+                        self.context, &self.builder, fat_ptr_type, obj_val, expected_vt,
+                    )?;
+                    return Ok(result);
+                }
+            }
+            return Ok(i1_ty.const_int(0, false).into());
+        }
+        // Check if it's a class.
+        let class_name = type_name;
         let class_info = self.class_infos.get(class_name).cloned()
-            .ok_or_else(|| format!("codegen: class '{}' not found for 'is' check", class_name))?;
+            .ok_or_else(|| format!("codegen: type '{}' not found for 'is' check", class_name))?;
         let obj_val = self.compile_expr(obj)?;
         if !obj_val.is_pointer_value() {
             return Err(format!("codegen: 'is' check on non-pointer value: {:?}", obj));
@@ -1240,7 +1289,31 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Compile an `as` cast expression.
-    fn compile_cast(&mut self, obj: &Expr, _ty: &crate::ast::Type) -> Result<BasicValueEnum<'ctx>, String> {
+    fn compile_cast(&mut self, obj: &Expr, ty: &crate::ast::Type) -> Result<BasicValueEnum<'ctx>, String> {
+        let type_name = ty.name();
+        // Check if casting to an interface.
+        if let Some(iface_info) = self.interface_infos.get(type_name).cloned() {
+            let obj_val = self.compile_expr(obj)?;
+            if !obj_val.is_pointer_value() {
+                return Err(format!("codegen: 'as' cast to interface on non-pointer value: {:?}", obj));
+            }
+            let obj_ptr = obj_val.into_pointer_value();
+            // Look up the object's type to find the interface vtable.
+            let obj_type = self.infer_expr_type(obj);
+            let class_name = obj_type.name();
+            let vt_key = (type_name.to_string(), class_name.to_string());
+            if let Some(vt_global) = self.interface_vtables.get(&vt_key) {
+                return emit_interface_fat_ptr(
+                    self.context, &self.builder, iface_info.fat_ptr_type,
+                    obj_ptr, vt_global.as_pointer_value(),
+                );
+            }
+            return Err(format!(
+                "codegen: no interface vtable for '{}' as '{}'",
+                class_name, type_name
+            ));
+        }
+        // Simple class cast: identity.
         let obj_val = self.compile_expr(obj)?;
         if obj_val.is_pointer_value() {
             let obj_ptr = obj_val.into_pointer_value();
@@ -1436,6 +1509,107 @@ impl<'ctx> LlvmBackend<'ctx> {
         self.current_this = saved_this;
 
         Ok(fn_val)
+    }
+
+    /// Compile an interface declaration: register interface info, compile
+    /// default methods, and build the fat pointer type.
+    fn compile_interface_decl(&mut self, iface_decl: &InterfaceDecl) -> Result<(), String> {
+        let iface_name = iface_decl.name.clone();
+        let fat_ptr_type = build_interface_fat_ptr_type(self.context);
+
+        // Collect method names.
+        let mut method_names: Vec<String> = Vec::new();
+        let mut default_methods: HashMap<String, FunctionValue<'ctx>> = HashMap::new();
+
+        for method_sig in &iface_decl.methods {
+            method_names.push(method_sig.name.clone());
+
+            // Compile default method body if present.
+            if method_sig.body.is_some() {
+                let i8_ptr = self.context.ptr_type(AddressSpace::default());
+                let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
+                param_types.push(i8_ptr.into());
+                for p in &method_sig.params {
+                    let ty = llvm_types::llvm_type(self.context, &p.typ)?;
+                    param_types.push(ty.into());
+                }
+                let return_type = llvm_types::llvm_type_or_void(self.context, method_sig.return_type.as_ref())?;
+                let fn_type = match return_type {
+                    Some(ret) => ret.fn_type(&param_types, false),
+                    None => self.context.void_type().fn_type(&param_types, false),
+                };
+
+                let fn_name = format!("{}_default_{}", iface_name, method_sig.name);
+                let fn_val = self.module.add_function(&fn_name, fn_type, None);
+                self.functions.insert(fn_name.clone(), fn_val);
+
+                // Compile the default method body.
+                let entry = self.context.append_basic_block(fn_val, "entry");
+                self.builder.position_at_end(entry);
+                let saved_locals = std::mem::take(&mut self.locals);
+                let saved_this = self.current_this;
+
+                let this_ptr = fn_val.get_nth_param(0)
+                    .ok_or_else(|| format!("missing this for {}", fn_name))?;
+                self.current_this = Some(this_ptr.into_pointer_value());
+
+                for (i, p) in method_sig.params.iter().enumerate() {
+                    let param_val = fn_val.get_nth_param((i + 1) as u32)
+                        .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
+                    let ty = llvm_types::llvm_type(self.context, &p.typ)?;
+                    let alloca = self.builder.build_alloca(ty, &p.name)
+                        .map_err(|e| format!("build_alloca param failed: {:?}", e))?;
+                    self.builder.build_store(alloca, param_val)
+                        .map_err(|e| format!("build_store param failed: {:?}", e))?;
+                    self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty });
+                }
+
+                if let Some(ref body) = method_sig.body {
+                    for s in body {
+                        self.compile_stmt(s)?;
+                    }
+                }
+
+                if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+                    match &method_sig.return_type {
+                        Some(t) if !llvm_types::is_void(t) => {
+                            let ty = llvm_types::llvm_type(self.context, t)?;
+                            let zero: BasicValueEnum<'ctx> = match ty {
+                                BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
+                                BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
+                                BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                                _ => {
+                                    self.builder.build_return(None)
+                                        .map_err(|e| format!("build_return failed: {:?}", e))?;
+                                    return Ok(());
+                                }
+                            };
+                            self.builder.build_return(Some(&zero))
+                                .map_err(|e| format!("build_return zero failed: {:?}", e))?;
+                        }
+                        _ => {
+                            self.builder.build_return(None)
+                                .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                        }
+                    }
+                }
+
+                self.locals = saved_locals;
+                self.current_this = saved_this;
+                default_methods.insert(method_sig.name.clone(), fn_val);
+            }
+        }
+
+        let iface_info = InterfaceInfo {
+            name: iface_name.clone(),
+            fat_ptr_type,
+            method_names: method_names.clone(),
+            default_methods,
+            vtable_type: None,
+        };
+
+        self.interface_infos.insert(iface_name, iface_info);
+        Ok(())
     }
 
     /// Compile a single statement.
@@ -2740,10 +2914,55 @@ impl<'ctx> LlvmBackend<'ctx> {
     ) -> Result<(), String> {
         self.declare_natives();
 
-        // First pass: compile all class declarations (build struct types, vtables, methods).
+        // First pass: compile all interface declarations.
+        for decl in &program.declarations {
+            if let Declaration::Interface(iface_decl) = decl {
+                self.compile_interface_decl(iface_decl)?;
+            }
+        }
+
+        // Second pass: compile all class declarations (build struct types, vtables, methods).
         for decl in &program.declarations {
             if let Declaration::Class(class_decl) = decl {
                 self.compile_class_decl(class_decl)?;
+            }
+        }
+
+        // Third pass: build interface vtables for classes that implement interfaces.
+        for decl in &program.declarations {
+            if let Declaration::Class(class_decl) = decl {
+                let class_name = class_decl.name.clone();
+                for iface_type in &class_decl.ifaces {
+                    let iface_name = iface_type.name();
+                    if let Some(iface_info) = self.interface_infos.get(iface_name).cloned() {
+                        // Collect the class's method functions.
+                        let mut class_methods: HashMap<String, FunctionValue<'ctx>> = HashMap::new();
+                        for member in &class_decl.members {
+                            match member {
+                                ClassMember::Method(m) | ClassMember::Constructor(m) => {
+                                    let fn_name = format!("{}_{}", class_name, m.name);
+                                    if let Some(fn_val) = self.module.get_function(&fn_name) {
+                                        class_methods.insert(m.name.clone(), fn_val);
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                        let vt = create_interface_vtable(
+                            self.context, &self.module,
+                            &class_name, iface_name,
+                            &iface_info.method_names,
+                            &class_methods,
+                            &iface_info.default_methods,
+                        );
+                        if let Some(vt_global) = vt {
+                            self.interface_vtables.insert(
+                                (iface_name.to_string(), class_name.clone()),
+                                vt_global,
+                            );
+                        }
+                    }
+                }
             }
         }
 
