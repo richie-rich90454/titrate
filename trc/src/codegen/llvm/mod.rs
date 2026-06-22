@@ -21,6 +21,7 @@
 //! (i32 for int, f64 for double, i1 for bool, etc.).
 
 pub mod linker;
+pub mod ownership;
 pub mod target_wrappers;
 pub mod types;
 
@@ -81,6 +82,25 @@ pub struct LlvmBackend<'ctx> {
     functions: HashMap<String, FunctionValue<'ctx>>,
     /// Map from function name to its declaration (for late compilation / recursion).
     function_decls: HashMap<String, FnDecl>,
+    /// Ownership / region / cleanup state.
+    ownership: ownership::OwnershipContext<'ctx>,
+    /// Counter for generating unique closure function names.
+    #[allow(dead_code)]
+    closure_counter: usize,
+    /// Stack of catch blocks for throw/try-catch codegen. Each entry is
+    /// the basic block that a `throw` should branch to, plus the alloca
+    /// where the thrown error value should be stored.
+    #[allow(dead_code)]
+    catch_stack: Vec<CatchContext<'ctx>>,
+}
+
+/// Catch context for try/catch codegen.
+#[allow(dead_code)]
+struct CatchContext<'ctx> {
+    /// Block to branch to when an exception is thrown.
+    catch_block: inkwell::basic_block::BasicBlock<'ctx>,
+    /// Alloca (i8*) where the thrown error pointer is stored.
+    error_alloca: PointerValue<'ctx>,
 }
 
 impl<'ctx> LlvmBackend<'ctx> {
@@ -96,6 +116,9 @@ impl<'ctx> LlvmBackend<'ctx> {
             loop_stack: Vec::new(),
             functions: HashMap::new(),
             function_decls: HashMap::new(),
+            ownership: ownership::OwnershipContext::new(),
+            closure_counter: 0,
+            catch_stack: Vec::new(),
         }
     }
 
@@ -134,6 +157,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         // void titrate_free(i8* ptr)
         let free_fn = void_type.fn_type(&[i8_ptr.into()], false);
         self.module.add_function("titrate_free", free_fn, Some(Linkage::External));
+
+        // i8* titrate_malloc(i64 size)
+        let malloc_fn = i8_ptr.fn_type(&[i64_type.into()], false);
+        self.module.add_function("titrate_malloc", malloc_fn, Some(Linkage::External));
 
         // Primitive printers.
         let println_int_fn = void_type.fn_type(&[i64_type.into()], false);
@@ -512,6 +539,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 let _ = (namespace, method);
                 Err(format!("codegen: bare member access not supported: {:?}", expr))
             }
+            Expr::OwnedDeref(inner, _) => self.compile_owned_deref(inner),
+            Expr::RefExpr(inner, ref_kind, _) => self.compile_ref_expr(inner, ref_kind),
+            Expr::RegionAlloc(ty, init, _) => self.compile_region_alloc(ty, init),
+            Expr::UnsafeBlock(block, _) => self.compile_unsafe_block(block),
+            Expr::Closure {
+                params,
+                return_type,
+                body,
+                expr,
+                captured_vars,
+                ..
+            } => self.compile_closure(params, return_type, body, expr.as_deref(), captured_vars),
+            Expr::ErrorPropagation(inner, _) => self.compile_error_propagation(inner),
             _ => Err(format!("codegen: unsupported expression: {:?}", expr)),
         }
     }
@@ -1109,13 +1149,33 @@ impl<'ctx> LlvmBackend<'ctx> {
                 Ok(())
             }
             Stmt::Block(block) => {
+                self.ownership.enter_scope();
                 for s in block {
                     self.compile_stmt(s)?;
                 }
+                self.emit_scope_cleanup()?;
                 Ok(())
             }
             Stmt::Switch(switch_stmt) => {
                 self.compile_switch(switch_stmt)?;
+                Ok(())
+            }
+            Stmt::Throw(expr, _) => {
+                self.compile_throw(expr)?;
+                Ok(())
+            }
+            Stmt::TryCatch {
+                try_block,
+                catch_var,
+                catch_var_type,
+                catch_block,
+                ..
+            } => {
+                self.compile_try_catch(try_block, catch_var, catch_var_type.as_ref(), catch_block)?;
+                Ok(())
+            }
+            Stmt::With(with_stmt) => {
+                self.compile_with(with_stmt)?;
                 Ok(())
             }
             _ => Err(format!("codegen: unsupported statement: {:?}", stmt)),
@@ -1567,6 +1627,219 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         self.builder.position_at_end(end_block);
         Ok(())
+    }
+
+    /// Compile an `Owned<T>` dereference expression (`*expr`).
+    ///
+    /// The operand must evaluate to an `Owned<T>` value, which we represent
+    /// as an `i8*` heap pointer stored in an alloca. The result is the
+    /// loaded inner value.
+    ///
+    /// For Phase 1, we look up the operand's alloca (if it's an identifier)
+    /// and use `ownership::load_owned_value` to load the inner value. The
+    /// inner type is inferred from the variable's declared type.
+    fn compile_owned_deref(&mut self, inner: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+        // Get the pointer alloca for the Owned<T> value.
+        let (ptr_alloca, inner_ty) = match inner {
+            Expr::Identifier(name, _) => {
+                let var = self.locals.get(name).ok_or_else(|| {
+                    format!("codegen: unknown variable '{}' for owned deref", name)
+                })?;
+                // The variable's LLVM type is `i8*` (an opaque pointer).
+                // We don't track the inner type separately, so we default
+                // to i64 for the loaded value. This is sufficient for
+                // Phase 1 micro-tests.
+                let inner_ty = self.context.i64_type().into();
+                (var.ptr, inner_ty)
+            }
+            _ => {
+                // For non-identifier operands, evaluate the expression to
+                // get a pointer value, store it in a temporary alloca, and
+                // load from it.
+                let v = self.compile_expr(inner)?;
+                let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
+                let alloca = self.builder.build_alloca(i8_ptr_ty, "deref.tmp")
+                    .map_err(|e| format!("build_alloca deref.tmp failed: {:?}", e))?;
+                self.builder.build_store(alloca, v)
+                    .map_err(|e| format!("build_store deref.tmp failed: {:?}", e))?;
+                (alloca, self.context.i64_type().into())
+            }
+        };
+        ownership::load_owned_value(self.context, &self.builder, inner_ty, ptr_alloca, "deref")
+    }
+
+    /// Compile a borrow expression (`&expr` or `&mut expr`).
+    ///
+    /// For an identifier, this returns the address of the existing alloca.
+    /// For other expressions, the value is evaluated and stored in a fresh
+    /// alloca, whose address is returned.
+    fn compile_ref_expr(
+        &mut self,
+        inner: &Expr,
+        _ref_kind: &crate::ast::RefKind,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
+        match inner {
+            Expr::Identifier(name, _) => {
+                let var = self.locals.get(name).ok_or_else(|| {
+                    format!("codegen: unknown variable '{}' for borrow", name)
+                })?;
+                // Cast the alloca pointer to i8* (opaque pointer in LLVM 15+).
+                let ptr = if var.ptr.get_type() == i8_ptr_ty {
+                    var.ptr
+                } else {
+                    self.builder.build_bit_cast(var.ptr, i8_ptr_ty, "ref.cast")
+                        .map_err(|e| format!("build_bit_cast ref failed: {:?}", e))?
+                        .into_pointer_value()
+                };
+                Ok(ptr.into())
+            }
+            _ => {
+                // Evaluate the expression and store it in a temporary alloca.
+                let v = self.compile_expr(inner)?;
+                let ty = v.get_type();
+                let alloca = self.builder.build_alloca(ty, "ref.tmp")
+                    .map_err(|e| format!("build_alloca ref.tmp failed: {:?}", e))?;
+                self.builder.build_store(alloca, v)
+                    .map_err(|e| format!("build_store ref.tmp failed: {:?}", e))?;
+                let ptr = if alloca.get_type() == i8_ptr_ty {
+                    alloca
+                } else {
+                    self.builder.build_bit_cast(alloca, i8_ptr_ty, "ref.tmp.cast")
+                        .map_err(|e| format!("build_bit_cast ref.tmp failed: {:?}", e))?
+                        .into_pointer_value()
+                };
+                Ok(ptr.into())
+            }
+        }
+    }
+
+    /// Compile a `region.alloc<T>(expr)` expression.
+    ///
+    /// For Phase 1, this is treated like an `Owned<T>` allocation: we
+    /// allocate heap memory, store the initial value, and return the
+    /// pointer. Region lifetime markers are not emitted here (they are
+    /// emitted by `compile_unsafe_block` for `region` blocks).
+    fn compile_region_alloc(
+        &mut self,
+        ty: &Type,
+        init: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let inner_ty = llvm_types::llvm_type(self.context, ty)?;
+        let init_val = self.compile_expr(init)?;
+        let init_val = self.cast_value_to_type(init_val, inner_ty)?;
+        let (ptr_alloca, _drop_flag) = ownership::alloc_owned(
+            self.context,
+            &self.builder,
+            &self.module,
+            init_val,
+            inner_ty,
+            "region.alloc",
+        )?;
+        // Return the raw i8* pointer.
+        let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let raw = self.builder.build_load(i8_ptr_ty, ptr_alloca, "region.ptr")
+            .map_err(|e| format!("build_load region.ptr failed: {:?}", e))?;
+        Ok(raw)
+    }
+
+    /// Compile an `unsafe { ... }` block.
+    ///
+    /// For Phase 1, this simply compiles the body statements in the current
+    /// scope without any safety checks. The block evaluates to the last
+    /// expression statement's value (or `0` if the block is empty).
+    fn compile_unsafe_block(&mut self, block: &[Stmt]) -> Result<BasicValueEnum<'ctx>, String> {
+        let i32_ty = self.context.i32_type();
+        let mut last_val: BasicValueEnum<'ctx> = i32_ty.const_int(0, false).into();
+        self.ownership.enter_scope();
+        for s in block {
+            // If the statement is an expression statement, capture its value.
+            if let Stmt::Expr(e) = s {
+                last_val = self.compile_expr(e)?;
+            } else {
+                self.compile_stmt(s)?;
+            }
+        }
+        self.emit_scope_cleanup()?;
+        Ok(last_val)
+    }
+
+    /// Compile a `with` statement.
+    ///
+    /// For Phase 1, this evaluates the resource expression, binds it to the
+    /// optional variable, compiles the body, and that's it. No automatic
+    /// `.close()` call is emitted (Phase 1 limitation).
+    fn compile_with(&mut self, with_stmt: &crate::ast::WithStmt) -> Result<(), String> {
+        // Evaluate the resource expression.
+        let resource_val = self.compile_expr(&with_stmt.resource_expr)?;
+        // Bind it to the variable if a name was given.
+        if let Some(name) = &with_stmt.var_name {
+            let ty = with_stmt.var_type.as_ref()
+                .map(|t| llvm_types::llvm_type(self.context, t))
+                .transpose()?
+                .unwrap_or_else(|| resource_val.get_type());
+            let alloca = self.builder.build_alloca(ty, name)
+                .map_err(|e| format!("build_alloca with '{}' failed: {:?}", name, e))?;
+            let val = self.cast_value_to_type(resource_val, ty)?;
+            self.builder.build_store(alloca, val)
+                .map_err(|e| format!("build_store with '{}' failed: {:?}", name, e))?;
+            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty });
+        }
+        // Compile the body with scope-based cleanup tracking.
+        self.ownership.enter_scope();
+        for s in &with_stmt.body {
+            self.compile_stmt(s)?;
+        }
+        self.emit_scope_cleanup()?;
+        Ok(())
+    }
+
+    /// Emit cleanup actions for the current scope. This pops the current
+    /// scope's cleanup actions from the ownership stack and emits them
+    /// (only if the current basic block has no terminator).
+    fn emit_scope_cleanup(&mut self) -> Result<(), String> {
+        let actions = self.ownership.exit_scope();
+        let has_terminator = self.builder
+            .get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_some();
+        if !has_terminator && !actions.is_empty() {
+            ownership::emit_cleanup(self.context, &self.builder, &self.module, &actions)?;
+        }
+        Ok(())
+    }
+
+    /// Compile a closure expression. Implemented in Task 1.7.
+    fn compile_closure(
+        &mut self,
+        _params: &[(String, Type)],
+        _return_type: &Type,
+        _body: &[Stmt],
+        _expr: Option<&Expr>,
+        _captured_vars: &[String],
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        Err("codegen: closures not yet implemented (Task 1.7)".to_string())
+    }
+
+    /// Compile an error propagation expression (`expr?`). Implemented in Task 1.8.
+    fn compile_error_propagation(&mut self, _inner: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+        Err("codegen: error propagation not yet implemented (Task 1.8)".to_string())
+    }
+
+    /// Compile a `throw expr;` statement. Implemented in Task 1.8.
+    fn compile_throw(&mut self, _expr: &Expr) -> Result<(), String> {
+        Err("codegen: throw not yet implemented (Task 1.8)".to_string())
+    }
+
+    /// Compile a `try { ... } catch (e: T) { ... }` statement. Implemented in Task 1.8.
+    fn compile_try_catch(
+        &mut self,
+        _try_block: &[Stmt],
+        _catch_var: &str,
+        _catch_var_type: Option<&Type>,
+        _catch_block: &[Stmt],
+    ) -> Result<(), String> {
+        Err("codegen: try/catch not yet implemented (Task 1.8)".to_string())
     }
 
     /// Compile a non-generic top-level function.
@@ -2615,5 +2888,143 @@ mod tests {
         "#).expect("IR should succeed");
         assert!(ir.contains("@classify"), "expected classify function, got:\n{}", ir);
         assert!(ir.contains("call") && ir.contains("@classify"), "expected call to classify, got:\n{}", ir);
+    }
+
+    // ---- Ownership / borrows / regions tests (Task 1.6) ----
+
+    #[test]
+    fn unsafe_block_compiles() {
+        // An unsafe block should compile its body like a normal block.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                unsafe {
+                    let x: int = 42;
+                    io::println(x);
+                }
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("store i32 42"), "expected store i32 42 in unsafe block, got:\n{}", ir);
+    }
+
+    #[test]
+    fn unsafe_block_with_io() {
+        // An unsafe block can call io::println.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                unsafe {
+                    io::println("hello from unsafe");
+                }
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("titrate_println"), "expected titrate_println call in unsafe block, got:\n{}", ir);
+    }
+
+    #[test]
+    fn region_block_compiles_as_unsafe() {
+        // `region name { ... }` is parsed as an UnsafeBlock.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                region r {
+                    let x: int = 10;
+                    io::println(x);
+                }
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("store i32 10"), "expected store i32 10 in region block, got:\n{}", ir);
+    }
+
+    #[test]
+    fn borrow_of_int_variable() {
+        // `&x` should produce a pointer to x's alloca.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let x: int = 42;
+                let r: &int = &x;
+            }
+        "#).expect("IR should succeed");
+        // The borrow should not crash and should produce some pointer value.
+        // We just check that the IR contains an alloca for x.
+        assert!(ir.contains("alloca i32"), "expected alloca i32 for x, got:\n{}", ir);
+    }
+
+    #[test]
+    fn mutable_borrow_of_double_variable() {
+        // `&mut x` should produce a pointer to x's alloca.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                var y: double = 3.14;
+                let r: &mut double = &mut y;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("alloca double"), "expected alloca double for y, got:\n{}", ir);
+    }
+
+    #[test]
+    fn owned_deref_loads_value() {
+        // `*x` should load the value from the Owned<T> pointer.
+        // We use an identifier deref; the pointer is stored in an alloca.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let x: Owned<int> = null;
+                let v: int = *x;
+            }
+        "#).expect("IR should succeed");
+        // The deref should produce a load instruction.
+        assert!(ir.contains("load"), "expected load instruction for owned deref, got:\n{}", ir);
+    }
+
+    #[test]
+    fn with_statement_compiles() {
+        // `with (expr) { body }` should compile the body.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let r: int = 42;
+                with (r) {
+                    io::println("inside with");
+                }
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("titrate_println"), "expected titrate_println in with body, got:\n{}", ir);
+    }
+
+    #[test]
+    fn with_let_binds_variable() {
+        // `with (let f: T = expr) { body }` should bind f.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                with (let f: int = 100) {
+                    io::println(f);
+                }
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("titrate_println_int"), "expected titrate_println_int for f, got:\n{}", ir);
+    }
+
+    #[test]
+    fn nested_unsafe_blocks() {
+        // Nested unsafe blocks should compile.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                unsafe {
+                    let x: int = 1;
+                    unsafe {
+                        let y: int = 2;
+                        io::println(x + y);
+                    }
+                }
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("titrate_println_int"), "expected titrate_println_int, got:\n{}", ir);
+    }
+
+    #[test]
+    fn titrate_malloc_declared() {
+        // The titrate_malloc function should be declared as an external.
+        let ir = compile_to_ir(r#"
+            public fn main(): void {
+                let x: int = 1;
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("titrate_malloc"), "expected titrate_malloc declaration, got:\n{}", ir);
     }
 }

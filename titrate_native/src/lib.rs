@@ -94,10 +94,11 @@ pub extern "C" fn titrate_string_concat(
     unsafe { base.add(HEADER_SIZE) }
 }
 
-/// Free a buffer previously returned by `titrate_string_concat`.
+/// Free a buffer previously returned by `titrate_string_concat` or
+/// `titrate_malloc`.
 ///
 /// Passing a null pointer is a no-op. Passing a pointer not originated from
-/// `titrate_string_concat` is undefined behaviour.
+/// `titrate_string_concat` or `titrate_malloc` is undefined behaviour.
 #[no_mangle]
 pub extern "C" fn titrate_free(ptr: *mut u8) {
     if ptr.is_null() {
@@ -110,6 +111,36 @@ pub extern "C" fn titrate_free(ptr: *mut u8) {
         // the header so the global allocator sees the same layout it allocated.
         let _ = Vec::from_raw_parts(base, HEADER_SIZE + header.len, header.cap);
     }
+}
+
+/// Allocate `size` bytes of heap memory and return a pointer to it.
+///
+/// The allocation is prefixed by an `AllocHeader` so that `titrate_free`
+/// can recover the layout. The returned pointer points past the header.
+/// A null pointer is returned if `size` is 0 or allocation fails.
+///
+/// This is used by the LLVM backend to implement `Owned<T>` heap allocation
+/// and `unsafe` block raw memory operations.
+#[no_mangle]
+pub extern "C" fn titrate_malloc(size: i64) -> *mut u8 {
+    if size <= 0 {
+        return std::ptr::null_mut();
+    }
+    let size = size as usize;
+    let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + size);
+    buf.resize(HEADER_SIZE + size, 0);
+
+    debug_assert_eq!(buf.len(), HEADER_SIZE + size);
+    debug_assert_eq!(buf.capacity(), HEADER_SIZE + size);
+
+    let header = AllocHeader { cap: buf.capacity(), len: size };
+    unsafe {
+        std::ptr::write_unaligned(buf.as_mut_ptr() as *mut AllocHeader, header);
+    }
+
+    let base = buf.as_mut_ptr();
+    std::mem::forget(buf);
+    unsafe { base.add(HEADER_SIZE) }
 }
 
 // ---------------------------------------------------------------------------
