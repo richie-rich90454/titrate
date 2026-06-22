@@ -112,6 +112,48 @@ pub extern "C" fn titrate_free(ptr: *mut u8) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Primitive printing helpers (Phase 1)
+// ---------------------------------------------------------------------------
+//
+// These complement `titrate_println` (which takes a UTF-8 buffer) with
+// direct printers for primitive types. The LLVM backend uses them when
+// `io::println` is called with a non-string argument.
+
+/// Print a 64-bit signed integer followed by a newline.
+#[no_mangle]
+pub extern "C" fn titrate_println_int(v: i64) {
+    let _ = writeln!(io::stdout(), "{}", v);
+    let _ = io::stdout().flush();
+}
+
+/// Print a 64-bit floating-point value followed by a newline.
+#[no_mangle]
+pub extern "C" fn titrate_println_double(v: f64) {
+    let _ = writeln!(io::stdout(), "{}", v);
+    let _ = io::stdout().flush();
+}
+
+/// Print a boolean (passed as i32: 0 = false, non-zero = true) followed by
+/// a newline.
+#[no_mangle]
+pub extern "C" fn titrate_println_bool(v: i32) {
+    let _ = writeln!(io::stdout(), "{}", if v != 0 { "true" } else { "false" });
+    let _ = io::stdout().flush();
+}
+
+/// Print a Unicode character (passed as its scalar value as i32) followed by
+/// a newline.
+#[no_mangle]
+pub extern "C" fn titrate_println_char(v: i32) {
+    if let Some(c) = char::from_u32(v as u32) {
+        let _ = writeln!(io::stdout(), "{}", c);
+    } else {
+        let _ = writeln!(io::stdout(), "?");
+    }
+    let _ = io::stdout().flush();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
