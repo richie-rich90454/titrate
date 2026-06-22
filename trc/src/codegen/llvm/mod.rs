@@ -19,6 +19,7 @@
 
 pub mod linker;
 pub mod target_wrappers;
+pub mod types;
 
 use std::collections::HashMap;
 use std::path::Path;
