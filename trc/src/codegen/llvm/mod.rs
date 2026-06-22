@@ -24,6 +24,7 @@ pub mod linker;
 pub mod ownership;
 pub mod target_wrappers;
 pub mod types;
+pub mod vtable;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -41,9 +42,11 @@ use inkwell::values::{
 use inkwell::AddressSpace;
 use inkwell::OptimizationLevel;
 
-use crate::ast::{Declaration, Expr, FnDecl, Literal, Operator, Program, Stmt, Type, UnOp};
+use crate::ast::{ClassDecl, Declaration, Expr, FnDecl, Literal, Operator, Program, Stmt, Type, UnOp};
+use crate::ast::ClassMember;
 
 use super::llvm::types as llvm_types;
+use super::llvm::vtable::{ClassInfo, emit_new_allocation, emit_field_access, emit_field_store, emit_direct_call, emit_virtual_call, emit_is_check, emit_as_cast, build_class_struct_type, create_vtable_global};
 
 /// String value tracked during codegen: the byte length and the pointer to
 /// the underlying UTF-8 buffer.
@@ -92,6 +95,18 @@ pub struct LlvmBackend<'ctx> {
     /// where the thrown error value should be stored.
     #[allow(dead_code)]
     catch_stack: Vec<CatchContext<'ctx>>,
+    /// Class info map: class name -> compiled class info (struct layout, vtable, etc.).
+    #[allow(dead_code)]
+    class_infos: HashMap<String, ClassInfo<'ctx>>,
+    /// Type ID assignment: class name -> unique type_id.
+    #[allow(dead_code)]
+    class_type_ids: HashMap<String, u32>,
+    /// Next available type_id.
+    #[allow(dead_code)]
+    next_type_id: u32,
+    /// Current 'this' pointer in method codegen (None if not in a method).
+    #[allow(dead_code)]
+    current_this: Option<PointerValue<'ctx>>,
 }
 
 /// Catch context for try/catch codegen.
@@ -119,6 +134,10 @@ impl<'ctx> LlvmBackend<'ctx> {
             ownership: ownership::OwnershipContext::new(),
             closure_counter: 0,
             catch_stack: Vec::new(),
+            class_infos: HashMap::new(),
+            class_type_ids: HashMap::new(),
+            next_type_id: 0,
+            current_this: None,
         }
     }
 
@@ -539,11 +558,20 @@ impl<'ctx> LlvmBackend<'ctx> {
             Expr::Call(callee, args, _) => {
                 self.compile_call(callee, args)
             }
-            Expr::MemberAccess(namespace, method, _) => {
-                // io::println etc. handled in compile_call; bare member access
-                // is not supported as a value.
-                let _ = (namespace, method);
-                Err(format!("codegen: bare member access not supported: {:?}", expr))
+            Expr::New(type_name, args, _) => {
+                self.compile_new(type_name, args)
+            }
+            Expr::MemberAccess(object, field, _) => {
+                self.compile_member_access(object, field)
+            }
+            Expr::This(span) => {
+                self.compile_this(span)
+            }
+            Expr::Is(obj, ty, _) => {
+                self.compile_is(obj, ty)
+            }
+            Expr::Cast(obj, ty, _) => {
+                self.compile_cast(obj, ty)
             }
             Expr::OwnedDeref(inner, _) => self.compile_owned_deref(inner),
             Expr::RefExpr(inner, ref_kind, _) => self.compile_ref_expr(inner, ref_kind),
@@ -917,6 +945,20 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_store assign failed: {:?}", e))?;
             return Ok(v);
         }
+        // Field assignment: obj.field = value
+        if let Expr::MemberAccess(obj, field, _) = target {
+            let obj_val = self.compile_expr(obj)?;
+            if obj_val.is_pointer_value() {
+                let obj_ptr = obj_val.into_pointer_value();
+                let obj_type = self.infer_expr_type(obj);
+                let class_name = obj_type.name();
+                let class_info = self.class_infos.get(class_name).cloned()
+                    .ok_or_else(|| format!("codegen: class '{}' not found for field store", class_name))?;
+                let v = self.compile_expr(value)?;
+                emit_field_store(self.context, &self.builder, &class_info, obj_ptr, field, v)?;
+                return Ok(v);
+            }
+        }
         Err(format!("codegen: unsupported assignment target: {:?}", target))
     }
 
@@ -1104,12 +1146,296 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Method call on a class instance: obj.method(args)
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            let obj_val = self.compile_expr(obj)?;
+            if obj_val.is_pointer_value() {
+                let obj_ptr = obj_val.into_pointer_value();
+                // Look up the class name from the object's type.
+                let obj_type = self.infer_expr_type(obj);
+                let class_name = obj_type.name();
+                if let Some(class_info) = self.class_infos.get(class_name).cloned() {
+                    // First try direct method call (look up the method function by name).
+                    let method_fn_name = format!("{}_{}", class_name, method);
+                    if let Some(method_fn) = self.module.get_function(&method_fn_name) {
+                        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                        for arg in args {
+                            arg_vals.push(self.compile_expr(arg)?);
+                        }
+                        return emit_direct_call(self.context, &self.builder, method_fn, obj_ptr, &arg_vals);
+                    }
+                    // Fall back to virtual call.
+                    let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+                    for arg in args {
+                        arg_vals.push(self.compile_expr(arg)?);
+                    }
+                    return emit_virtual_call(self.context, &self.builder, &class_info, obj_ptr, method, &arg_vals, None);
+                }
+            }
+        }
+
         Err(format!("codegen: unsupported call target: {:?}", callee))
     }
 
     /// Returns true if the given Titrate type is an unsigned integer type.
     fn is_unsigned_type(ty: &Type) -> bool {
         matches!(ty.name(), "uvast" | "u8" | "u16" | "u32" | "u64" | "size")
+    }
+
+    /// Compile a `new ClassName(args)` expression.
+    fn compile_new(&mut self, type_name: &crate::ast::Type, args: &[Expr]) -> Result<BasicValueEnum<'ctx>, String> {
+        let class_name = type_name.name();
+        let class_info = self.class_infos.get(class_name).cloned()
+            .ok_or_else(|| format!("codegen: class '{}' not found", class_name))?;
+        let ctor = class_info.constructor;
+        let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+        for arg in args {
+            arg_vals.push(self.compile_expr(arg)?);
+        }
+        emit_new_allocation(self.context, &self.builder, &self.module, &class_info, ctor, &arg_vals)
+    }
+
+    /// Compile a member access expression: obj.field
+    fn compile_member_access(&mut self, object: &Expr, field: &str) -> Result<BasicValueEnum<'ctx>, String> {
+        let obj_val = self.compile_expr(object)?;
+        if obj_val.is_pointer_value() {
+            let obj_ptr = obj_val.into_pointer_value();
+            let obj_type = self.infer_expr_type(object);
+            let class_name = obj_type.name();
+            let class_info = self.class_infos.get(class_name).cloned()
+                .ok_or_else(|| format!("codegen: class '{}' not found for field access", class_name))?;
+            return emit_field_access(self.context, &self.builder, &class_info, obj_ptr, field);
+        }
+        Err(format!("codegen: member access on non-pointer value: {:?}", object))
+    }
+
+    /// Compile a `this` expression.
+    fn compile_this(&self, _span: &crate::ast::Span) -> Result<BasicValueEnum<'ctx>, String> {
+        match self.current_this {
+            Some(this_ptr) => Ok(this_ptr.into()),
+            None => Err("codegen: 'this' used outside of a method".to_string()),
+        }
+    }
+
+    /// Compile an `is` type check expression.
+    fn compile_is(&mut self, obj: &Expr, ty: &crate::ast::Type) -> Result<BasicValueEnum<'ctx>, String> {
+        let class_name = ty.name();
+        let class_info = self.class_infos.get(class_name).cloned()
+            .ok_or_else(|| format!("codegen: class '{}' not found for 'is' check", class_name))?;
+        let obj_val = self.compile_expr(obj)?;
+        if !obj_val.is_pointer_value() {
+            return Err(format!("codegen: 'is' check on non-pointer value: {:?}", obj));
+        }
+        let obj_ptr = obj_val.into_pointer_value();
+        match &class_info.vtable_global {
+            Some(vtable_global) => {
+                emit_is_check(self.context, &self.builder, obj_ptr, vtable_global.as_pointer_value())
+            }
+            None => {
+                // Class has no vtable (no methods); return false.
+                let i1_ty = self.context.bool_type();
+                Ok(i1_ty.const_int(0, false).into())
+            }
+        }
+    }
+
+    /// Compile an `as` cast expression.
+    fn compile_cast(&mut self, obj: &Expr, _ty: &crate::ast::Type) -> Result<BasicValueEnum<'ctx>, String> {
+        let obj_val = self.compile_expr(obj)?;
+        if obj_val.is_pointer_value() {
+            let obj_ptr = obj_val.into_pointer_value();
+            return emit_as_cast(self.context, &self.builder, obj_ptr);
+        }
+        Err(format!("codegen: 'as' cast on non-pointer value: {:?}", obj))
+    }
+
+    /// Compile a class declaration: build struct type, compile methods, create vtable.
+    fn compile_class_decl(&mut self, class_decl: &ClassDecl) -> Result<(), String> {
+        let class_name = class_decl.name.clone();
+        let _type_id = self.next_type_id;
+        self.next_type_id += 1;
+
+        // Collect field types.
+        let mut field_types: HashMap<String, BasicTypeEnum<'ctx>> = HashMap::new();
+        let mut field_decls: Vec<crate::ast::FieldDecl> = Vec::new();
+        let mut method_names: Vec<String> = Vec::new();
+        let mut constructor: Option<FunctionValue> = None;
+
+        for member in &class_decl.members {
+            match member {
+                ClassMember::Field(field) => {
+                    let ft = llvm_types::llvm_type(self.context, &field.typ)?;
+                    field_types.insert(field.name.clone(), ft);
+                    field_decls.push(field.clone());
+                }
+                ClassMember::Method(method) => {
+                    method_names.push(method.name.clone());
+                }
+                ClassMember::Constructor(method) => {
+                    method_names.push(method.name.clone());
+                    // We'll compile the constructor and set it later.
+                }
+            }
+        }
+
+        // Build the struct type.
+        let struct_type = build_class_struct_type(
+            self.context,
+            &class_name,
+            &field_decls,
+            &field_types,
+            None,
+        );
+
+        // Compile methods and collect their LLVM function values.
+        let mut method_functions: HashMap<String, FunctionValue<'ctx>> = HashMap::new();
+        for member in &class_decl.members {
+            match member {
+                ClassMember::Method(method) => {
+                    let fn_val = self.compile_class_method(&class_name, method, &struct_type)?;
+                    method_functions.insert(method.name.clone(), fn_val);
+                }
+                ClassMember::Constructor(method) => {
+                    let fn_val = self.compile_class_method(&class_name, method, &struct_type)?;
+                    method_functions.insert(method.name.clone(), fn_val);
+                    constructor = Some(fn_val);
+                }
+                _ => {}
+            }
+        }
+
+        // Create the vtable.
+        let vtable_global = create_vtable_global(
+            self.context,
+            &self.module,
+            &class_name,
+            &method_names,
+            &method_functions,
+        );
+
+        // Collect field info.
+        let fields: Vec<(String, BasicTypeEnum<'ctx>)> = field_decls
+            .iter()
+            .map(|f| {
+                let ft = field_types.get(&f.name).copied()
+                    .unwrap_or_else(|| self.context.ptr_type(AddressSpace::default()).into());
+                (f.name.clone(), ft)
+            })
+            .collect();
+
+        let class_info = ClassInfo {
+            name: class_name.clone(),
+            struct_type,
+            fields,
+            method_names,
+            constructor,
+            vtable_global,
+            parent: class_decl.parent.as_ref().map(|t| t.name().to_string()),
+            ifaces: class_decl.ifaces.iter().map(|t| t.name().to_string()).collect(),
+        };
+
+        self.class_infos.insert(class_name, class_info);
+        Ok(())
+    }
+
+    /// Compile a class method (or constructor).
+    fn compile_class_method(
+        &mut self,
+        class_name: &str,
+        method: &crate::ast::MethodDecl,
+        _struct_type: &inkwell::types::StructType<'ctx>,
+    ) -> Result<FunctionValue<'ctx>, String> {
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let mut param_types: Vec<inkwell::types::BasicMetadataTypeEnum> = Vec::new();
+        // First parameter is always `this` (i8*).
+        param_types.push(i8_ptr.into());
+        for p in &method.params {
+            let ty = llvm_types::llvm_type(self.context, &p.typ)?;
+            param_types.push(ty.into());
+        }
+        let return_type = llvm_types::llvm_type_or_void(self.context, method.return_type.as_ref())?;
+        let fn_type = match return_type {
+            Some(ret) => ret.fn_type(&param_types, false),
+            None => self.context.void_type().fn_type(&param_types, false),
+        };
+
+        let fn_name = format!("{}_{}", class_name, method.name);
+        let fn_val = self.module.add_function(&fn_name, fn_type, None);
+        self.functions.insert(fn_name.clone(), fn_val);
+
+        // Create entry block.
+        let entry = self.context.append_basic_block(fn_val, "entry");
+        self.builder.position_at_end(entry);
+
+        // Save locals and current_this.
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_this = self.current_this;
+
+        // Set up `this` pointer.
+        let this_param = fn_val.get_nth_param(0)
+            .ok_or_else(|| format!("missing this param for {}", fn_name))?;
+        let this_ptr = this_param.into_pointer_value();
+
+        // Cast this to the struct pointer type for field access via GEP.
+        let struct_ptr_type = self.context.ptr_type(AddressSpace::default());
+        let struct_ptr = if this_ptr.get_type() != struct_ptr_type {
+            self.builder
+                .build_bit_cast(this_ptr, struct_ptr_type, "this.cast")
+                .map_err(|e| format!("build_bit_cast this failed: {:?}", e))?
+                .into_pointer_value()
+        } else {
+            this_ptr
+        };
+
+        self.current_this = Some(struct_ptr);
+
+        // Allocate space for method parameters (skip `this`).
+        for (i, p) in method.params.iter().enumerate() {
+            let param_val = fn_val.get_nth_param((i + 1) as u32)
+                .ok_or_else(|| format!("missing param {} for {}", i, fn_name))?;
+            let ty = llvm_types::llvm_type(self.context, &p.typ)?;
+            let alloca = self.builder.build_alloca(ty, &p.name)
+                .map_err(|e| format!("build_alloca param '{}' failed: {:?}", p.name, e))?;
+            self.builder.build_store(alloca, param_val)
+                .map_err(|e| format!("build_store param '{}' failed: {:?}", p.name, e))?;
+            self.locals.insert(p.name.clone(), LocalVar { ptr: alloca, ty });
+        }
+
+        // Compile method body.
+        for s in &method.body {
+            self.compile_stmt(s)?;
+        }
+
+        // Add a default return if the current block has no terminator.
+        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+            match &method.return_type {
+                Some(t) if !llvm_types::is_void(t) => {
+                    let ty = llvm_types::llvm_type(self.context, t)?;
+                    let zero: BasicValueEnum<'ctx> = match ty {
+                        BasicTypeEnum::IntType(it) => it.const_int(0, false).into(),
+                        BasicTypeEnum::FloatType(ft) => ft.const_float(0.0).into(),
+                        BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                        _ => {
+                            self.builder.build_return(None)
+                                .map_err(|e| format!("build_return failed: {:?}", e))?;
+                            return Ok(fn_val);
+                        }
+                    };
+                    self.builder.build_return(Some(&zero))
+                        .map_err(|e| format!("build_return zero failed: {:?}", e))?;
+                }
+                _ => {
+                    self.builder.build_return(None)
+                        .map_err(|e| format!("build_return void failed: {:?}", e))?;
+                }
+            }
+        }
+
+        // Restore locals and this.
+        self.locals = saved_locals;
+        self.current_this = saved_this;
+
+        Ok(fn_val)
     }
 
     /// Compile a single statement.
@@ -2413,6 +2739,13 @@ impl<'ctx> LlvmBackend<'ctx> {
         release: bool,
     ) -> Result<(), String> {
         self.declare_natives();
+
+        // First pass: compile all class declarations (build struct types, vtables, methods).
+        for decl in &program.declarations {
+            if let Declaration::Class(class_decl) = decl {
+                self.compile_class_decl(class_decl)?;
+            }
+        }
 
         // Register all function declarations first (for recursion).
         for decl in &program.declarations {
