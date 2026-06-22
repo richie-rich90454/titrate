@@ -79,8 +79,6 @@ pub struct LlvmBackend<'ctx> {
     loop_stack: Vec<LoopContext<'ctx>>,
     /// Map from function name to LLVM function value (for non-generic functions).
     functions: HashMap<String, FunctionValue<'ctx>>,
-    /// Map from mangled name to LLVM function value (for monomorphized generics).
-    generic_functions: HashMap<String, FunctionValue<'ctx>>,
     /// Map from function name to its declaration (for late compilation / recursion).
     function_decls: HashMap<String, FnDecl>,
 }
@@ -97,7 +95,6 @@ impl<'ctx> LlvmBackend<'ctx> {
             string_counter: 0,
             loop_stack: Vec::new(),
             functions: HashMap::new(),
-            generic_functions: HashMap::new(),
             function_decls: HashMap::new(),
         }
     }
@@ -540,6 +537,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         let lv = self.compile_expr(left)?;
         let rv = self.compile_expr(right)?;
 
+        // Coerce operands to the same type if they differ (e.g., i32 var + i64 literal).
+        let (lv, rv) = self.coerce_binary_operands(lv, rv)?;
+
         // Determine if this is an integer or float operation.
         let is_float = lv.is_float_value();
         let is_int = lv.is_int_value();
@@ -547,6 +547,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         if is_float {
             let l = lv.into_float_value();
             let r = rv.into_float_value();
+            // Float comparisons produce i1, not float — handle them here
+            // before dispatching to compile_float_binary (which only does
+            // arithmetic and would otherwise return a FloatValue).
+            if let Some(pred) = Self::float_compare_predicate(op) {
+                let cmp = self.builder.build_float_compare(pred, l, r, "fcmp")
+                    .map_err(|e| format!("build_float_compare failed: {:?}", e))?;
+                return Ok(cmp.into());
+            }
             return Ok(self.compile_float_binary(op, l, r)?.into());
         }
 
@@ -557,6 +565,74 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         Err(format!("codegen: unsupported binary operand types: {:?} {:?}", lv.get_type(), rv.get_type()))
+    }
+
+    /// Coerce two binary operands to the same LLVM type so that arithmetic
+    /// and comparison instructions don't trigger LLVM assertion failures.
+    /// The narrower type is extended to the wider type (signed for ints,
+    /// extended for floats). int+float mixes convert the int to float.
+    fn coerce_binary_operands(
+        &self,
+        lv: BasicValueEnum<'ctx>,
+        rv: BasicValueEnum<'ctx>,
+    ) -> Result<(BasicValueEnum<'ctx>, BasicValueEnum<'ctx>), String> {
+        if lv.get_type() == rv.get_type() {
+            return Ok((lv, rv));
+        }
+        // Both int: sign-extend the narrower one.
+        if lv.is_int_value() && rv.is_int_value() {
+            let l = lv.into_int_value();
+            let r = rv.into_int_value();
+            let l_bits = l.get_type().get_bit_width();
+            let r_bits = r.get_type().get_bit_width();
+            if l_bits < r_bits {
+                let l2 = self.builder.build_int_s_extend(l, r.get_type(), "coerce.sext")
+                    .map_err(|e| format!("build_int_s_extend coerce failed: {:?}", e))?;
+                Ok((l2.into(), rv))
+            } else {
+                let r2 = self.builder.build_int_s_extend(r, l.get_type(), "coerce.sext")
+                    .map_err(|e| format!("build_int_s_extend coerce failed: {:?}", e))?;
+                Ok((lv, r2.into()))
+            }
+        } else if lv.is_float_value() && rv.is_float_value() {
+            // Both float: extend the narrower one.
+            let l = lv.into_float_value();
+            let r = rv.into_float_value();
+            let l_str = l.get_type().print_to_string().to_string();
+            let r_str = r.get_type().print_to_string().to_string();
+            let l_bits: u32 = match l_str.as_str() {
+                "half" => 16, "float" => 32, "double" => 64, "fp128" => 128, _ => 64,
+            };
+            let r_bits: u32 = match r_str.as_str() {
+                "half" => 16, "float" => 32, "double" => 64, "fp128" => 128, _ => 64,
+            };
+            if l_bits < r_bits {
+                let l2 = self.builder.build_float_ext(l, r.get_type(), "coerce.fext")
+                    .map_err(|e| format!("build_float_ext coerce failed: {:?}", e))?;
+                Ok((l2.into(), rv))
+            } else {
+                let r2 = self.builder.build_float_ext(r, l.get_type(), "coerce.fext")
+                    .map_err(|e| format!("build_float_ext coerce failed: {:?}", e))?;
+                Ok((lv, r2.into()))
+            }
+        } else if lv.is_int_value() && rv.is_float_value() {
+            // int + float: convert int to float.
+            let l = lv.into_int_value();
+            let r_ty = rv.into_float_value().get_type();
+            let l2 = self.builder.build_signed_int_to_float(l, r_ty, "coerce.itof")
+                .map_err(|e| format!("build_signed_int_to_float coerce failed: {:?}", e))?;
+            Ok((l2.into(), rv))
+        } else if lv.is_float_value() && rv.is_int_value() {
+            // float + int: convert int to float.
+            let r = rv.into_int_value();
+            let l_ty = lv.into_float_value().get_type();
+            let r2 = self.builder.build_signed_int_to_float(r, l_ty, "coerce.itof")
+                .map_err(|e| format!("build_signed_int_to_float coerce failed: {:?}", e))?;
+            Ok((lv, r2.into()))
+        } else {
+            // If we can't coerce, just return as-is and hope.
+            Ok((lv, rv))
+        }
     }
 
     /// Compile an integer binary operation.
@@ -641,14 +717,29 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
-    /// Compile a float binary operation.
+    /// Map a comparison operator to its LLVM float predicate, or return
+    /// `None` if the operator is not a comparison (i.e. arithmetic).
+    fn float_compare_predicate(op: &Operator) -> Option<inkwell::FloatPredicate> {
+        use inkwell::FloatPredicate::*;
+        match op {
+            Operator::Eq => Some(OEQ),
+            Operator::Ne => Some(ONE),
+            Operator::Lt => Some(OLT),
+            Operator::Gt => Some(OGT),
+            Operator::Le => Some(OLE),
+            Operator::Ge => Some(OGE),
+            _ => None,
+        }
+    }
+
+    /// Compile a float binary operation (arithmetic only — comparisons are
+    /// handled in `compile_binary` because they produce i1, not float).
     fn compile_float_binary(
         &self,
         op: &Operator,
         l: inkwell::values::FloatValue<'ctx>,
         r: inkwell::values::FloatValue<'ctx>,
     ) -> Result<inkwell::values::FloatValue<'ctx>, String> {
-        use inkwell::FloatPredicate::*;
         match op {
             Operator::Add => self.builder.build_float_add(l, r, "fadd")
                 .map_err(|e| format!("build_float_add failed: {:?}", e)),
@@ -660,18 +751,6 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_float_div failed: {:?}", e)),
             Operator::Mod => self.builder.build_float_rem(l, r, "frem")
                 .map_err(|e| format!("build_float_rem failed: {:?}", e)),
-            Operator::Eq => {
-                let cmp = self.builder.build_float_compare(OEQ, l, r, "feq")
-                    .map_err(|e| format!("build_float_compare eq failed: {:?}", e))?;
-                // Convert i1 to float type for uniformity? No — return as float
-                // would be wrong. We need to handle this differently.
-                // Actually, comparison results are i1. We should return them as
-                // IntValue, not FloatValue. Let's handle this in the caller.
-                // For now, convert i1 to the float type via select? No, that's
-                // wrong. Let's restructure.
-                let _ = cmp;
-                Err("float comparison should be handled separately".to_string())
-            }
             _ => Err(format!("codegen: unsupported float operator {:?}", op)),
         }
     }
@@ -932,9 +1011,31 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Direct function call: identifier(args)
         if let Expr::Identifier(name, _) = callee {
             if let Some(&fn_val) = self.functions.get(name) {
+                let param_types = fn_val.get_type().get_param_types();
                 let mut arg_vals = Vec::with_capacity(args.len());
-                for arg in args {
-                    arg_vals.push(self.compile_expr(arg)?.into());
+                for (i, arg) in args.iter().enumerate() {
+                    let v = self.compile_expr(arg)?;
+                    // Cast the argument to the parameter type if needed
+                    // (e.g., i64 literal to i32 parameter).
+                    let v = if i < param_types.len() {
+                        let param_ty: BasicTypeEnum<'ctx> = match param_types[i] {
+                            inkwell::types::BasicMetadataTypeEnum::ArrayType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::FloatType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::IntType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::PointerType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::StructType(t) => t.into(),
+                            inkwell::types::BasicMetadataTypeEnum::VectorType(t) => t.into(),
+                            _ => return Err(format!("unsupported parameter type for function '{}'", name)),
+                        };
+                        if v.get_type() != param_ty {
+                            self.cast_value_to_type(v, param_ty)?
+                        } else {
+                            v
+                        }
+                    } else {
+                        v
+                    };
+                    arg_vals.push(v.into());
                 }
                 let call = self.builder.build_call(fn_val, &arg_vals, "call")
                     .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
@@ -1700,6 +1801,40 @@ mod tests {
         Ok(backend.module.print_to_string().to_string())
     }
 
+    /// Compile a full program (including non-main functions) to LLVM IR.
+    fn compile_program_to_ir(source: &str) -> Result<String, String> {
+        let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
+        let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
+        let typed_ast = analyzer::analyze(&ast).map_err(|e| format!("analyze: {:?}", e))?;
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "test");
+        backend.declare_natives();
+        // Register all function declarations first (for recursion).
+        for decl in &typed_ast.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.type_params.is_empty() {
+                    backend.function_decls.insert(f.name.clone(), f.clone());
+                }
+            }
+        }
+        // Compile all non-generic, non-main functions first.
+        for decl in &typed_ast.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    backend.compile_function(f)
+                        .map_err(|e| format!("compile function '{}': {}", f.name, e))?;
+                }
+            }
+        }
+        // Find and compile main.
+        let main_decl = typed_ast.declarations.iter().find_map(|d| match d {
+            Declaration::Function(f) if f.name == "main" => Some(f),
+            _ => None,
+        }).ok_or("no main")?;
+        backend.compile_main(main_decl).map_err(|e| format!("compile main: {}", e))?;
+        Ok(backend.module.print_to_string().to_string())
+    }
+
     #[test]
     fn int_variable_declaration() {
         let ir = compile_to_ir(r#"
@@ -2356,5 +2491,129 @@ mod tests {
         // Should have two if.then blocks (one for outer, one for inner)
         let count = ir.matches("if.then").count();
         assert!(count >= 2, "expected at least 2 if.then blocks, got {}:\n{}", count, ir);
+    }
+
+    // ---- Function tests (Task 1.5) ----
+
+    #[test]
+    fn function_declaration() {
+        let ir = compile_program_to_ir(r#"
+            fn helper(): void {
+                io::println("hello from helper");
+            }
+            public fn main(): void {
+                helper();
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("@helper"), "expected helper function definition, got:\n{}", ir);
+    }
+
+    #[test]
+    fn function_call_from_main() {
+        let ir = compile_program_to_ir(r#"
+            fn greet(): void {
+                io::println("hi");
+            }
+            public fn main(): void {
+                greet();
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("call") && ir.contains("@greet"), "expected call to greet, got:\n{}", ir);
+    }
+
+    #[test]
+    fn function_with_return_value() {
+        let ir = compile_program_to_ir(r#"
+            fn answer(): int {
+                return 42;
+            }
+            public fn main(): void {
+                let x: int = answer();
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("@answer"), "expected answer function, got:\n{}", ir);
+        assert!(ir.contains("call") && ir.contains("@answer"), "expected call to answer, got:\n{}", ir);
+    }
+
+    #[test]
+    fn function_with_parameters() {
+        let ir = compile_program_to_ir(r#"
+            fn add(a: int, b: int): int {
+                return a + b;
+            }
+            public fn main(): void {
+                let x: int = add(3, 4);
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("@add"), "expected add function, got:\n{}", ir);
+        assert!(ir.contains("call") && ir.contains("@add"), "expected call to add, got:\n{}", ir);
+    }
+
+    #[test]
+    fn recursive_function() {
+        let ir = compile_program_to_ir(r#"
+            fn fib(n: int): int {
+                if (n <= 1) {
+                    return n;
+                }
+                return fib(n - 1) + fib(n - 2);
+            }
+            public fn main(): void {
+                let result: int = fib(10);
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("@fib"), "expected fib function, got:\n{}", ir);
+        // The function should call itself (recursive call): at least 3
+        // occurrences of @fib (1 define + 2 calls).
+        let count = ir.matches("@fib").count();
+        assert!(count >= 3, "expected at least 3 occurrences of @fib (define + 2 calls), got {}:\n{}", count, ir);
+    }
+
+    #[test]
+    fn void_function_called_as_statement() {
+        let ir = compile_program_to_ir(r#"
+            fn printIt(x: int): void {
+                io::println(x);
+            }
+            public fn main(): void {
+                printIt(42);
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("@printIt"), "expected printIt function, got:\n{}", ir);
+        assert!(ir.contains("call") && ir.contains("@printIt"), "expected call to printIt, got:\n{}", ir);
+    }
+
+    #[test]
+    fn function_returning_double() {
+        let ir = compile_program_to_ir(r#"
+            fn pi(): double {
+                return 3.14;
+            }
+            public fn main(): void {
+                let p: double = pi();
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("@pi"), "expected pi function, got:\n{}", ir);
+        assert!(ir.contains("call") && ir.contains("@pi"), "expected call to pi, got:\n{}", ir);
+    }
+
+    #[test]
+    fn function_with_multiple_returns() {
+        let ir = compile_program_to_ir(r#"
+            fn classify(n: int): int {
+                if (n > 0) {
+                    return 1;
+                }
+                if (n < 0) {
+                    return -1;
+                }
+                return 0;
+            }
+            public fn main(): void {
+                let r: int = classify(5);
+            }
+        "#).expect("IR should succeed");
+        assert!(ir.contains("@classify"), "expected classify function, got:\n{}", ir);
+        assert!(ir.contains("call") && ir.contains("@classify"), "expected call to classify, got:\n{}", ir);
     }
 }
