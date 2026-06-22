@@ -23,6 +23,7 @@
 pub mod linker;
 pub mod ownership;
 pub mod target_wrappers;
+pub mod tuple_codegen;
 pub mod types;
 pub mod vtable;
 pub mod enum_codegen;
@@ -600,6 +601,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 ..
             } => self.compile_closure(params, return_type, body, expr.as_deref(), captured_vars),
             Expr::ErrorPropagation(inner, _) => self.compile_error_propagation(inner),
+            Expr::Tuple(elements, _) => self.compile_tuple(elements),
             _ => Err(format!("codegen: unsupported expression: {:?}", expr)),
         }
     }
@@ -1709,6 +1711,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 self.compile_with(with_stmt)?;
                 Ok(())
             }
+            Stmt::TupleDestructure { names, expr, .. } => {
+                self.compile_tuple_destructure(names, expr)?;
+                Ok(())
+            }
             _ => Err(format!("codegen: unsupported statement: {:?}", stmt)),
         }
     }
@@ -2336,6 +2342,34 @@ impl<'ctx> LlvmBackend<'ctx> {
             .is_some();
         if !has_terminator && !actions.is_empty() {
             ownership::emit_cleanup(self.context, &self.builder, &self.module, &actions)?;
+        }
+        Ok(())
+    }
+
+    /// Compile a tuple expression `(a, b, c)` into an anonymous struct.
+    fn compile_tuple(&mut self, elements: &[Expr]) -> Result<BasicValueEnum<'ctx>, String> {
+        let mut vals = Vec::with_capacity(elements.len());
+        for e in elements {
+            vals.push(self.compile_expr(e)?);
+        }
+        tuple_codegen::emit_tuple_construct(self.context, &self.builder, &self.module, &vals)
+    }
+
+    /// Compile tuple destructuring: `let (a, b) = tuple_expr`
+    fn compile_tuple_destructure(&mut self, names: &[String], expr: &Expr) -> Result<(), String> {
+        let tuple_val = self.compile_expr(expr)?;
+        let struct_val = match tuple_val {
+            BasicValueEnum::StructValue(sv) => sv,
+            _ => return Err("tuple destructure: expected struct value".to_string()),
+        };
+        for (i, name) in names.iter().enumerate() {
+            let field_val = tuple_codegen::emit_tuple_field_access(&self.builder, struct_val.into(), i as u32)?;
+            let ty = field_val.get_type();
+            let alloca = self.builder.build_alloca(ty, name)
+                .map_err(|e| format!("build_alloca destructure '{}' failed: {:?}", name, e))?;
+            self.builder.build_store(alloca, field_val)
+                .map_err(|e| format!("build_store destructure '{}' failed: {:?}", name, e))?;
+            self.locals.insert(name.clone(), LocalVar { ptr: alloca, ty });
         }
         Ok(())
     }
