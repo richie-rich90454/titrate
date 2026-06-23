@@ -1,0 +1,285 @@
+// Test file for fft/FFT.tr
+// Exercises Fast Fourier Transform, frequency bins, and window functions.
+import tt::math::fft::FFT;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_fft_nextPowerOf2(): void {
+    if (FFT.nextPowerOf2(1) != 1) {
+        io::println("FAIL: FFT.nextPowerOf2(1)");
+    } else {
+        io::println("PASS: FFT.nextPowerOf2(1) = 1");
+    }
+    if (FFT.nextPowerOf2(2) != 2) {
+        io::println("FAIL: FFT.nextPowerOf2(2)");
+    } else {
+        io::println("PASS: FFT.nextPowerOf2(2) = 2");
+    }
+    if (FFT.nextPowerOf2(5) != 8) {
+        io::println("FAIL: FFT.nextPowerOf2(5)");
+    } else {
+        io::println("PASS: FFT.nextPowerOf2(5) = 8");
+    }
+    if (FFT.nextPowerOf2(9) != 16) {
+        io::println("FAIL: FFT.nextPowerOf2(9)");
+    } else {
+        io::println("PASS: FFT.nextPowerOf2(9) = 16");
+    }
+    if (FFT.nextPowerOf2(0) != 1) {
+        io::println("FAIL: FFT.nextPowerOf2(0)");
+    } else {
+        io::println("PASS: FFT.nextPowerOf2(0) = 1");
+    }
+}
+
+public fn test_fft_bitReverse(): void {
+    // For n=4: indices 0,1,2,3 -> 0,2,1,3
+    if (FFT.bitReverse(0, 4) != 0) {
+        io::println("FAIL: FFT.bitReverse(0,4)");
+    } else {
+        io::println("PASS: FFT.bitReverse(0,4) = 0");
+    }
+    if (FFT.bitReverse(1, 4) != 2) {
+        io::println("FAIL: FFT.bitReverse(1,4)");
+    } else {
+        io::println("PASS: FFT.bitReverse(1,4) = 2");
+    }
+    if (FFT.bitReverse(3, 4) != 3) {
+        io::println("FAIL: FFT.bitReverse(3,4)");
+    } else {
+        io::println("PASS: FFT.bitReverse(3,4) = 3");
+    }
+}
+
+public fn test_fft_dc_signal(): void {
+    // FFT of a constant signal: [1,1,1,1] -> [4,0,0,0] (DC bin only)
+    let re: ArrayList<double> = new ArrayList<double>();
+    re.add(1.0);
+    re.add(1.0);
+    re.add(1.0);
+    re.add(1.0);
+    let im: ArrayList<double> = new ArrayList<double>();
+    im.add(0.0);
+    im.add(0.0);
+    im.add(0.0);
+    im.add(0.0);
+    let result: ArrayList<ArrayList<double>> = FFT.fft(re, im);
+    let reOut: ArrayList<double> = result.get(0);
+    let imOut: ArrayList<double> = result.get(1);
+    if (reOut.size() != 4) {
+        io::println("FAIL: FFT output size");
+    } else {
+        io::println("PASS: FFT output size = 4");
+    }
+    if (absDiff(reOut.get(0), 4.0) > 1e-9) {
+        io::println("FAIL: FFT DC bin = " + Double.toString(reOut.get(0)));
+    } else {
+        io::println("PASS: FFT DC bin = 4.0");
+    }
+    // Other bins should be ~0
+    if (absDiff(reOut.get(1), 0.0) > 1e-9 || absDiff(reOut.get(2), 0.0) > 1e-9 || absDiff(reOut.get(3), 0.0) > 1e-9) {
+        io::println("FAIL: FFT non-DC bins should be ~0");
+    } else {
+        io::println("PASS: FFT non-DC bins ~0");
+    }
+    if (absDiff(imOut.get(0), 0.0) > 1e-9) {
+        io::println("FAIL: FFT DC imag bin");
+    } else {
+        io::println("PASS: FFT DC imag bin = 0");
+    }
+}
+
+public fn test_fft_impulse(): void {
+    // FFT of impulse [1,0,0,0] -> [1,1,1,1] (flat spectrum)
+    let re: ArrayList<double> = new ArrayList<double>();
+    re.add(1.0);
+    re.add(0.0);
+    re.add(0.0);
+    re.add(0.0);
+    let im: ArrayList<double> = new ArrayList<double>();
+    im.add(0.0);
+    im.add(0.0);
+    im.add(0.0);
+    im.add(0.0);
+    let result: ArrayList<ArrayList<double>> = FFT.fft(re, im);
+    let reOut: ArrayList<double> = result.get(0);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 4) {
+        if (absDiff(reOut.get(i), 1.0) > 1e-9) { ok = false; }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: FFT impulse should be flat");
+    } else {
+        io::println("PASS: FFT impulse is flat (all 1.0)");
+    }
+}
+
+public fn test_fft_ifft_roundtrip(): void {
+    // ifft(fft(x)) = x
+    let re: ArrayList<double> = new ArrayList<double>();
+    re.add(1.0);
+    re.add(2.0);
+    re.add(3.0);
+    re.add(4.0);
+    let im: ArrayList<double> = new ArrayList<double>();
+    im.add(0.0);
+    im.add(0.0);
+    im.add(0.0);
+    im.add(0.0);
+    let transformed: ArrayList<ArrayList<double>> = FFT.fft(re, im);
+    let reT: ArrayList<double> = transformed.get(0);
+    let imT: ArrayList<double> = transformed.get(1);
+    let roundtrip: ArrayList<ArrayList<double>> = FFT.ifft(reT, imT);
+    let reR: ArrayList<double> = roundtrip.get(0);
+    let imR: ArrayList<double> = roundtrip.get(1);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 4) {
+        if (absDiff(reR.get(i), re.get(i)) > 1e-9) { ok = false; }
+        if (absDiff(imR.get(i), 0.0) > 1e-9) { ok = false; }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: FFT ifft roundtrip");
+    } else {
+        io::println("PASS: FFT ifft roundtrip recovers original");
+    }
+}
+
+public fn test_fft_magnitude_phase(): void {
+    let re: ArrayList<double> = new ArrayList<double>();
+    re.add(1.0);
+    re.add(1.0);
+    re.add(1.0);
+    re.add(1.0);
+    let im: ArrayList<double> = new ArrayList<double>();
+    im.add(0.0);
+    im.add(0.0);
+    im.add(0.0);
+    im.add(0.0);
+    let mag: ArrayList<double> = FFT.fftMagnitude(re, im);
+    if (mag.size() != 4) {
+        io::println("FAIL: FFT.fftMagnitude size");
+    } else {
+        io::println("PASS: FFT.fftMagnitude size = 4");
+    }
+    if (absDiff(mag.get(0), 4.0) > 1e-9) {
+        io::println("FAIL: FFT.fftMagnitude DC = " + Double.toString(mag.get(0)));
+    } else {
+        io::println("PASS: FFT.fftMagnitude DC = 4.0");
+    }
+    let phase: ArrayList<double> = FFT.fftPhase(re, im);
+    if (phase.size() != 4) {
+        io::println("FAIL: FFT.fftPhase size");
+    } else {
+        io::println("PASS: FFT.fftPhase size = 4");
+    }
+}
+
+public fn test_fft_freq(): void {
+    // fftFreq(4, 4.0) -> [0, 1, 2, -1]
+    let freqs: ArrayList<double> = FFT.ffTFreq(4, 4.0);
+    if (freqs.size() != 4) {
+        io::println("FAIL: FFT.ffTFreq size");
+    } else {
+        io::println("PASS: FFT.ffTFreq size = 4");
+    }
+    if (absDiff(freqs.get(0), 0.0) > 1e-9) {
+        io::println("FAIL: FFT.ffTFreq[0]");
+    } else {
+        io::println("PASS: FFT.ffTFreq[0] = 0.0");
+    }
+    if (absDiff(freqs.get(1), 1.0) > 1e-9) {
+        io::println("FAIL: FFT.ffTFreq[1]");
+    } else {
+        io::println("PASS: FFT.ffTFreq[1] = 1.0");
+    }
+    if (absDiff(freqs.get(3), -1.0) > 1e-9) {
+        io::println("FAIL: FFT.ffTFreq[3]");
+    } else {
+        io::println("PASS: FFT.ffTFreq[3] = -1.0");
+    }
+}
+
+public fn test_fft_windows(): void {
+    let hann: ArrayList<double> = FFT.windowHann(8);
+    if (hann.size() != 8) {
+        io::println("FAIL: FFT.windowHann(8) size");
+    } else {
+        io::println("PASS: FFT.windowHann(8) size = 8");
+    }
+    // Hann window endpoints are 0
+    if (absDiff(hann.get(0), 0.0) > 1e-9) {
+        io::println("FAIL: FFT.windowHann[0] should be 0");
+    } else {
+        io::println("PASS: FFT.windowHann[0] = 0.0");
+    }
+    // Hann midpoint should be 1.0
+    if (absDiff(hann.get(4), 1.0) > 1e-9) {
+        io::println("FAIL: FFT.windowHann[4] should be 1.0");
+    } else {
+        io::println("PASS: FFT.windowHann[4] = 1.0");
+    }
+    let hamming: ArrayList<double> = FFT.windowHamming(8);
+    if (hamming.size() != 8) {
+        io::println("FAIL: FFT.windowHamming(8) size");
+    } else {
+        io::println("PASS: FFT.windowHamming(8) size = 8");
+    }
+    let blackman: ArrayList<double> = FFT.windowBlackman(8);
+    if (blackman.size() != 8) {
+        io::println("FAIL: FFT.windowBlackman(8) size");
+    } else {
+        io::println("PASS: FFT.windowBlackman(8) size = 8");
+    }
+    // Edge cases
+    if (FFT.windowHann(0).size() != 0) {
+        io::println("FAIL: FFT.windowHann(0) should be empty");
+    } else {
+        io::println("PASS: FFT.windowHann(0) is empty");
+    }
+    let single: ArrayList<double> = FFT.windowHann(1);
+    if (single.size() != 1 || single.get(0) != 1.0) {
+        io::println("FAIL: FFT.windowHann(1)");
+    } else {
+        io::println("PASS: FFT.windowHann(1) = [1.0]");
+    }
+}
+
+public fn test_fft_empty(): void {
+    let re: ArrayList<double> = new ArrayList<double>();
+    let im: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<ArrayList<double>> = FFT.fft(re, im);
+    if (result.size() != 2) {
+        io::println("FAIL: FFT.fft(empty) result size");
+    } else {
+        io::println("PASS: FFT.fft(empty) returns 2 lists");
+    }
+    if (result.get(0).size() != 0 || result.get(1).size() != 0) {
+        io::println("FAIL: FFT.fft(empty) inner lists should be empty");
+    } else {
+        io::println("PASS: FFT.fft(empty) inner lists empty");
+    }
+}
+
+public fn run_all_fft_tests(): void {
+    io::println("=== fft/FFT.tr Tests ===");
+    test_fft_nextPowerOf2();
+    test_fft_bitReverse();
+    test_fft_dc_signal();
+    test_fft_impulse();
+    test_fft_ifft_roundtrip();
+    test_fft_magnitude_phase();
+    test_fft_freq();
+    test_fft_windows();
+    test_fft_empty();
+}
