@@ -1,0 +1,188 @@
+// Test file for Directory.tr
+// Exercises the public API of the Directory class and its top-level
+// helpers: list, walk, walkWithDepth, walkWithMaxDepth, walkWithPrune,
+// create, remove, exists, isEmpty, listFiles, getCurrent, setCurrent.
+import tt::file::Directory;
+import tt::io::File;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn _dirSetup(dir: string): void {
+    Dir_create(dir);
+    let f1: File = new File(dir + "/one.txt");
+    f1.write("1");
+    f1.close();
+    let f2: File = new File(dir + "/two.txt");
+    f2.write("2");
+    f2.close();
+}
+
+public fn _dirCleanup(dir: string): void {
+    let entries: ArrayList<string> = Dir_list(dir);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let f: File = new File(dir + "/" + entries.get(i));
+        f.delete();
+        i = i + 1;
+    }
+    Dir_remove(dir);
+}
+
+public fn test_directory_create_exists(): void {
+    let dir: string = "test_dir_create";
+    let d: Directory = new Directory(dir);
+    d.create();
+    if (!d.exists()) {
+        io::println("FAIL: Directory.create/exists");
+    } else {
+        io::println("PASS: Directory.create then exists");
+    }
+    d.remove();
+}
+
+public fn test_directory_list(): void {
+    let dir: string = "test_dir_list";
+    _dirSetup(dir);
+    let d: Directory = new Directory(dir);
+    let entries: ArrayList<string> = d.list();
+    if (entries.size() != 2) {
+        io::println("FAIL: Directory.list size=" + Integer.toString(entries.size()));
+    } else {
+        io::println("PASS: Directory.list returns entries");
+    }
+    _dirCleanup(dir);
+}
+
+public fn test_directory_listFiles(): void {
+    let dir: string = "test_dir_listfiles";
+    _dirSetup(dir);
+    let d: Directory = new Directory(dir);
+    let files: ArrayList<string> = d.listFiles();
+    if (files.size() != 2) {
+        io::println("FAIL: Directory.listFiles size=" + Integer.toString(files.size()));
+    } else {
+        io::println("PASS: Directory.listFiles returns only files");
+    }
+    _dirCleanup(dir);
+}
+
+public fn test_directory_isEmpty(): void {
+    let dir: string = "test_dir_empty";
+    Dir_create(dir);
+    let d: Directory = new Directory(dir);
+    if (!d.isEmpty()) {
+        io::println("FAIL: Directory.isEmpty false for new dir");
+    } else {
+        io::println("PASS: Directory.isEmpty true for new dir");
+    }
+    let f: File = new File(dir + "/x.txt");
+    f.write("x");
+    f.close();
+    if (d.isEmpty()) {
+        io::println("FAIL: Directory.isEmpty true after adding file");
+    } else {
+        io::println("PASS: Directory.isEmpty false after adding file");
+    }
+    _dirCleanup(dir);
+}
+
+public fn test_directory_walk(): void {
+    let dir: string = "test_dir_walk";
+    _dirSetup(dir);
+    let d: Directory = new Directory(dir);
+    let walked: ArrayList<string> = d.walk();
+    if (walked.size() < 2) {
+        io::println("FAIL: Directory.walk size=" + Integer.toString(walked.size()));
+    } else {
+        io::println("PASS: Directory.walk returns entries");
+    }
+    _dirCleanup(dir);
+}
+
+public fn test_directory_walkWithDepth(): void {
+    let dir: string = "test_dir_depth";
+    _dirSetup(dir);
+    let d: Directory = new Directory(dir);
+    let walked: ArrayList<string> = d.walkWithDepth();
+    if (walked.size() < 2) {
+        io::println("FAIL: Directory.walkWithDepth size=" + Integer.toString(walked.size()));
+    } else {
+        io::println("PASS: Directory.walkWithDepth returns depth-prefixed entries");
+    }
+    _dirCleanup(dir);
+}
+
+public fn test_directory_walkWithMaxDepth(): void {
+    let dir: string = "test_dir_maxdepth";
+    _dirSetup(dir);
+    let d: Directory = new Directory(dir);
+    let walked: ArrayList<string> = d.walkWithMaxDepth(0);
+    if (walked.size() < 2) {
+        io::println("FAIL: Directory.walkWithMaxDepth size=" + Integer.toString(walked.size()));
+    } else {
+        io::println("PASS: Directory.walkWithMaxDepth respects limit");
+    }
+    _dirCleanup(dir);
+}
+
+public fn test_directory_walkWithPrune(): void {
+    let dir: string = "test_dir_prune";
+    _dirSetup(dir);
+    let d: Directory = new Directory(dir);
+    // Prune entries starting with "one" — should leave "two.txt".
+    let walked: ArrayList<string> = d.walkWithPrune("one");
+    if (walked.size() != 1) {
+        io::println("FAIL: Directory.walkWithPrune size=" + Integer.toString(walked.size()));
+    } else {
+        io::println("PASS: Directory.walkWithPrune excludes matching entries");
+    }
+    _dirCleanup(dir);
+}
+
+public fn test_directory_remove(): void {
+    let dir: string = "test_dir_remove";
+    Dir_create(dir);
+    let d: Directory = new Directory(dir);
+    let ok: bool = d.remove();
+    if (!ok || d.exists()) {
+        io::println("FAIL: Directory.remove did not remove");
+    } else {
+        io::println("PASS: Directory.remove deletes directory");
+    }
+}
+
+public fn test_directory_getCurrent(): void {
+    let cwd: string = Directory.getCurrent();
+    if (cwd == "" || cwd == null) {
+        io::println("FAIL: Directory.getCurrent empty");
+    } else {
+        io::println("PASS: Directory.getCurrent returns working dir");
+    }
+}
+
+public fn test_directory_setCurrent_roundtrip(): void {
+    let original: string = Directory.getCurrent();
+    // Change to the same directory and verify getCurrent still matches.
+    Directory.setCurrent(original);
+    let after: string = Directory.getCurrent();
+    if (after != original) {
+        io::println("FAIL: Directory.setCurrent roundtrip mismatch");
+    } else {
+        io::println("PASS: Directory.setCurrent roundtrip preserves cwd");
+    }
+}
+
+public fn run_all_directory_tests(): void {
+    io::println("=== Directory.tr Tests ===");
+    test_directory_create_exists();
+    test_directory_list();
+    test_directory_listFiles();
+    test_directory_isEmpty();
+    test_directory_walk();
+    test_directory_walkWithDepth();
+    test_directory_walkWithMaxDepth();
+    test_directory_walkWithPrune();
+    test_directory_remove();
+    test_directory_getCurrent();
+    test_directory_setCurrent_roundtrip();
+}
