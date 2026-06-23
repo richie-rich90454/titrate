@@ -1,0 +1,160 @@
+// Test file for Locale.tr
+// Exercises the public API of the Locale class and its top-level functions.
+import tt::i18n::Locale;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_locale_init(): void {
+    let loc: Locale = new Locale("en_US");
+    if (loc.name != "en_US") {
+        io::println("FAIL: Locale.name wrong");
+    } else {
+        io::println("PASS: Locale.init/name works");
+    }
+}
+
+public fn test_locale_defaults(): void {
+    let loc: Locale = new Locale("en_US");
+    if (loc.decimalPoint != ".") {
+        io::println("FAIL: Locale.decimalPoint default wrong: " + loc.decimalPoint);
+    } else if (loc.thousandsSep != ",") {
+        io::println("FAIL: Locale.thousandsSep default wrong: " + loc.thousandsSep);
+    } else if (loc.currencySymbol != "$") {
+        io::println("FAIL: Locale.currencySymbol default wrong: " + loc.currencySymbol);
+    } else {
+        io::println("PASS: Locale defaults work");
+    }
+}
+
+public fn test_locale_dateFormat_default(): void {
+    let loc: Locale = new Locale("en_US");
+    if (loc.dateFormat != "%Y-%m-%d") {
+        io::println("FAIL: Locale.dateFormat default wrong: " + loc.dateFormat);
+    } else {
+        io::println("PASS: Locale.dateFormat default works");
+    }
+}
+
+public fn test_locale_timeFormat_default(): void {
+    let loc: Locale = new Locale("en_US");
+    if (loc.timeFormat != "%H:%M:%S") {
+        io::println("FAIL: Locale.timeFormat default wrong: " + loc.timeFormat);
+    } else {
+        io::println("PASS: Locale.timeFormat default works");
+    }
+}
+
+public fn test_locale_formatNumber_no_decimals(): void {
+    let loc: Locale = new Locale("en_US");
+    let result: string = loc.formatNumber(1234.0, 0);
+    // Should have thousands separator: 1,234
+    if (result != "1,234") {
+        io::println("FAIL: Locale.formatNumber(1234, 0) returned " + result + ", expected 1,234");
+    } else {
+        io::println("PASS: Locale.formatNumber no decimals works");
+    }
+}
+
+public fn test_locale_formatNumber_with_decimals(): void {
+    let loc: Locale = new Locale("en_US");
+    let result: string = loc.formatNumber(1234.5, 1);
+    // Should be 1,234.5
+    if (result != "1,234.5") {
+        io::println("FAIL: Locale.formatNumber(1234.5, 1) returned " + result + ", expected 1,234.5");
+    } else {
+        io::println("PASS: Locale.formatNumber with decimals works");
+    }
+}
+
+public fn test_locale_formatNumber_small(): void {
+    let loc: Locale = new Locale("en_US");
+    let result: string = loc.formatNumber(42.0, 0);
+    if (result != "42") {
+        io::println("FAIL: Locale.formatNumber(42, 0) returned " + result + ", expected 42");
+    } else {
+        io::println("PASS: Locale.formatNumber small works");
+    }
+}
+
+public fn test_locale_formatCurrency(): void {
+    let loc: Locale = new Locale("en_US");
+    let result: string = loc.formatCurrency(99.5);
+    // Should be $99.50
+    if (String.indexOf(result, "$") != 0) {
+        io::println("FAIL: Locale.formatCurrency should start with $: " + result);
+    } else {
+        io::println("PASS: Locale.formatCurrency works: " + result);
+    }
+}
+
+public fn test_locale_toString(): void {
+    let loc: Locale = new Locale("fr_FR");
+    if (loc.toString() != "fr_FR") {
+        io::println("FAIL: Locale.toString returned " + loc.toString());
+    } else {
+        io::println("PASS: Locale.toString works");
+    }
+}
+
+public fn test_locale_public_fields(): void {
+    let loc: Locale = new Locale("de_DE");
+    // All fields should be accessible
+    if (String.length(loc.name) == 0) {
+        io::println("FAIL: Locale.name empty");
+    } else if (String.length(loc.decimalPoint) == 0) {
+        io::println("FAIL: Locale.decimalPoint empty");
+    } else if (String.length(loc.thousandsSep) == 0) {
+        io::println("FAIL: Locale.thousandsSep empty");
+    } else {
+        io::println("PASS: Locale public fields accessible");
+    }
+}
+
+public fn test_locale_defaultLocale(): void {
+    let loc: Locale = Locale.defaultLocale();
+    if (loc == null) {
+        io::println("FAIL: Locale.defaultLocale returned null");
+    } else if (String.length(loc.name) == 0) {
+        io::println("FAIL: Locale.defaultLocale name empty");
+    } else {
+        io::println("PASS: Locale.defaultLocale works: " + loc.name);
+    }
+}
+
+public fn test_locale_formatNumber_zero(): void {
+    let loc: Locale = new Locale("en_US");
+    let result: string = loc.formatNumber(0.0, 2);
+    if (result != "0.00") {
+        io::println("FAIL: Locale.formatNumber(0, 2) returned " + result + ", expected 0.00");
+    } else {
+        io::println("PASS: Locale.formatNumber zero works");
+    }
+}
+
+public fn test_locale_formatNumber_large(): void {
+    let loc: Locale = new Locale("en_US");
+    let result: string = loc.formatNumber(1000000.0, 0);
+    // Should be 1,000,000
+    if (result != "1,000,000") {
+        io::println("FAIL: Locale.formatNumber(1000000, 0) returned " + result + ", expected 1,000,000");
+    } else {
+        io::println("PASS: Locale.formatNumber large works");
+    }
+}
+
+public fn run_all_locale_tests(): void {
+    io::println("=== Locale.tr Tests ===");
+    test_locale_init();
+    test_locale_defaults();
+    test_locale_dateFormat_default();
+    test_locale_timeFormat_default();
+    test_locale_formatNumber_no_decimals();
+    test_locale_formatNumber_with_decimals();
+    test_locale_formatNumber_small();
+    test_locale_formatCurrency();
+    test_locale_toString();
+    test_locale_public_fields();
+    test_locale_defaultLocale();
+    test_locale_formatNumber_zero();
+    test_locale_formatNumber_large();
+}
