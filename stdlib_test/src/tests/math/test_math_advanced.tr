@@ -1,0 +1,284 @@
+// Test file for MathAdvanced.tr
+// Exercises logarithmic, exponential, power, IEEE-754, and exact arithmetic functions.
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+import tt::lang::Long;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_mathadvanced_sqrt_cbrt(): void {
+    if (MathAdvanced.sqrt(4.0) != 2.0) {
+        io::println("FAIL: MathAdvanced.sqrt(4)");
+    } else {
+        io::println("PASS: MathAdvanced.sqrt(4) = 2.0");
+    }
+    if (absDiff(MathAdvanced.sqrt(2.0), 1.4142135623730951) > 1e-12) {
+        io::println("FAIL: MathAdvanced.sqrt(2)");
+    } else {
+        io::println("PASS: MathAdvanced.sqrt(2) correct");
+    }
+    if (MathAdvanced.sqrt(0.0) != 0.0) {
+        io::println("FAIL: MathAdvanced.sqrt(0)");
+    } else {
+        io::println("PASS: MathAdvanced.sqrt(0) = 0.0");
+    }
+    if (absDiff(MathAdvanced.cbrt(27.0), 3.0) > 1e-12) {
+        io::println("FAIL: MathAdvanced.cbrt(27)");
+    } else {
+        io::println("PASS: MathAdvanced.cbrt(27) = 3.0");
+    }
+    if (absDiff(MathAdvanced.cbrt(-8.0), -2.0) > 1e-12) {
+        io::println("FAIL: MathAdvanced.cbrt(-8)");
+    } else {
+        io::println("PASS: MathAdvanced.cbrt(-8) = -2.0");
+    }
+}
+
+public fn test_mathadvanced_pow(): void {
+    if (MathAdvanced.pow(2.0, 10.0) != 1024.0) {
+        io::println("FAIL: MathAdvanced.pow(2,10)");
+    } else {
+        io::println("PASS: MathAdvanced.pow(2,10) = 1024.0");
+    }
+    if (MathAdvanced.pow(10.0, 3.0) != 1000.0) {
+        io::println("FAIL: MathAdvanced.pow(10,3)");
+    } else {
+        io::println("PASS: MathAdvanced.pow(10,3) = 1000.0");
+    }
+    if (MathAdvanced.pow(5.0, 0.0) != 1.0) {
+        io::println("FAIL: MathAdvanced.pow(5,0)");
+    } else {
+        io::println("PASS: MathAdvanced.pow(5,0) = 1.0");
+    }
+    if (MathAdvanced.pow(2.0, -1.0) != 0.5) {
+        io::println("FAIL: MathAdvanced.pow(2,-1)");
+    } else {
+        io::println("PASS: MathAdvanced.pow(2,-1) = 0.5");
+    }
+}
+
+public fn test_mathadvanced_exp_ln(): void {
+    if (absDiff(MathAdvanced.exp(0.0), 1.0) > 1e-12) {
+        io::println("FAIL: MathAdvanced.exp(0)");
+    } else {
+        io::println("PASS: MathAdvanced.exp(0) = 1.0");
+    }
+    if (absDiff(MathAdvanced.exp(1.0), 2.718281828459045) > 1e-12) {
+        io::println("FAIL: MathAdvanced.exp(1)");
+    } else {
+        io::println("PASS: MathAdvanced.exp(1) = e");
+    }
+    if (MathAdvanced.ln(1.0) != 0.0) {
+        io::println("FAIL: MathAdvanced.ln(1)");
+    } else {
+        io::println("PASS: MathAdvanced.ln(1) = 0.0");
+    }
+    if (absDiff(MathAdvanced.ln(MathAdvanced.exp(1.0)), 1.0) > 1e-12) {
+        io::println("FAIL: MathAdvanced.ln(exp(1))");
+    } else {
+        io::println("PASS: MathAdvanced.ln(exp(1)) = 1.0");
+    }
+}
+
+public fn test_mathadvanced_log10_log2_log_base(): void {
+    if (MathAdvanced.log10(1.0) != 0.0) {
+        io::println("FAIL: MathAdvanced.log10(1)");
+    } else {
+        io::println("PASS: MathAdvanced.log10(1) = 0.0");
+    }
+    if (MathAdvanced.log10(1000.0) != 3.0) {
+        io::println("FAIL: MathAdvanced.log10(1000)");
+    } else {
+        io::println("PASS: MathAdvanced.log10(1000) = 3.0");
+    }
+    if (MathAdvanced.log2(1.0) != 0.0) {
+        io::println("FAIL: MathAdvanced.log2(1)");
+    } else {
+        io::println("PASS: MathAdvanced.log2(1) = 0.0");
+    }
+    if (MathAdvanced.log2(8.0) != 3.0) {
+        io::println("FAIL: MathAdvanced.log2(8)");
+    } else {
+        io::println("PASS: MathAdvanced.log2(8) = 3.0");
+    }
+    if (absDiff(MathAdvanced.log(2.0, 8.0), 3.0) > 1e-12) {
+        io::println("FAIL: MathAdvanced.log(2,8)");
+    } else {
+        io::println("PASS: MathAdvanced.log(2,8) = 3.0");
+    }
+}
+
+public fn test_mathadvanced_expm1_log1p(): void {
+    // expm1(0) = 0
+    if (absDiff(MathAdvanced.expm1(0.0), 0.0) > 1e-12) {
+        io::println("FAIL: MathAdvanced.expm1(0)");
+    } else {
+        io::println("PASS: MathAdvanced.expm1(0) = 0.0");
+    }
+    // log1p(0) = 0
+    if (absDiff(MathAdvanced.log1p(0.0), 0.0) > 1e-12) {
+        io::println("FAIL: MathAdvanced.log1p(0)");
+    } else {
+        io::println("PASS: MathAdvanced.log1p(0) = 0.0");
+    }
+    // log1p(e-1) = 1
+    if (absDiff(MathAdvanced.log1p(MathAdvanced.exp(1.0) - 1.0), 1.0) > 1e-9) {
+        io::println("FAIL: MathAdvanced.log1p(e-1)");
+    } else {
+        io::println("PASS: MathAdvanced.log1p(e-1) = 1.0");
+    }
+}
+
+public fn test_mathadvanced_hypot_fma(): void {
+    if (MathAdvanced.hypot(3.0, 4.0) != 5.0) {
+        io::println("FAIL: MathAdvanced.hypot(3,4)");
+    } else {
+        io::println("PASS: MathAdvanced.hypot(3,4) = 5.0");
+    }
+    if (MathAdvanced.fma(2.0, 3.0, 4.0) != 10.0) {
+        io::println("FAIL: MathAdvanced.fma(2,3,4)");
+    } else {
+        io::println("PASS: MathAdvanced.fma(2,3,4) = 10.0");
+    }
+}
+
+public fn test_mathadvanced_copySign(): void {
+    if (MathAdvanced.copySign(5.0, -1.0) != -5.0) {
+        io::println("FAIL: MathAdvanced.copySign(5,-1)");
+    } else {
+        io::println("PASS: MathAdvanced.copySign(5,-1) = -5.0");
+    }
+    if (MathAdvanced.copySign(-5.0, 1.0) != 5.0) {
+        io::println("FAIL: MathAdvanced.copySign(-5,1)");
+    } else {
+        io::println("PASS: MathAdvanced.copySign(-5,1) = 5.0");
+    }
+    if (MathAdvanced.copySign(5.0, 1.0) != 5.0) {
+        io::println("FAIL: MathAdvanced.copySign(5,1)");
+    } else {
+        io::println("PASS: MathAdvanced.copySign(5,1) = 5.0");
+    }
+}
+
+public fn test_mathadvanced_floorDiv_floorMod(): void {
+    if (MathAdvanced.floorDiv(7L, 3L) != 2L) {
+        io::println("FAIL: MathAdvanced.floorDiv(7,3)");
+    } else {
+        io::println("PASS: MathAdvanced.floorDiv(7,3) = 2");
+    }
+    // Floor division of negative: -7/3 floors to -3 (not -2)
+    if (MathAdvanced.floorDiv(-7L, 3L) != -3L) {
+        io::println("FAIL: MathAdvanced.floorDiv(-7,3)");
+    } else {
+        io::println("PASS: MathAdvanced.floorDiv(-7,3) = -3");
+    }
+    if (MathAdvanced.floorMod(-7L, 3L) != 2L) {
+        io::println("FAIL: MathAdvanced.floorMod(-7,3)");
+    } else {
+        io::println("PASS: MathAdvanced.floorMod(-7,3) = 2");
+    }
+    if (MathAdvanced.floorMod(7L, 3L) != 1L) {
+        io::println("FAIL: MathAdvanced.floorMod(7,3)");
+    } else {
+        io::println("PASS: MathAdvanced.floorMod(7,3) = 1");
+    }
+}
+
+public fn test_mathadvanced_exact_arithmetic(): void {
+    if (MathAdvanced.addExact(2L, 3L) != 5L) {
+        io::println("FAIL: MathAdvanced.addExact(2,3)");
+    } else {
+        io::println("PASS: MathAdvanced.addExact(2,3) = 5");
+    }
+    if (MathAdvanced.subtractExact(10L, 3L) != 7L) {
+        io::println("FAIL: MathAdvanced.subtractExact(10,3)");
+    } else {
+        io::println("PASS: MathAdvanced.subtractExact(10,3) = 7");
+    }
+    if (MathAdvanced.multiplyExact(4L, 5L) != 20L) {
+        io::println("FAIL: MathAdvanced.multiplyExact(4,5)");
+    } else {
+        io::println("PASS: MathAdvanced.multiplyExact(4,5) = 20");
+    }
+    if (MathAdvanced.incrementExact(5L) != 6L) {
+        io::println("FAIL: MathAdvanced.incrementExact(5)");
+    } else {
+        io::println("PASS: MathAdvanced.incrementExact(5) = 6");
+    }
+    if (MathAdvanced.decrementExact(5L) != 4L) {
+        io::println("FAIL: MathAdvanced.decrementExact(5)");
+    } else {
+        io::println("PASS: MathAdvanced.decrementExact(5) = 4");
+    }
+    if (MathAdvanced.negateExact(5L) != -5L) {
+        io::println("FAIL: MathAdvanced.negateExact(5)");
+    } else {
+        io::println("PASS: MathAdvanced.negateExact(5) = -5");
+    }
+    if (MathAdvanced.toIntExact(100L) != 100) {
+        io::println("FAIL: MathAdvanced.toIntExact(100)");
+    } else {
+        io::println("PASS: MathAdvanced.toIntExact(100) = 100");
+    }
+}
+
+public fn test_mathadvanced_scalb_getExponent(): void {
+    // scalb(x, n) = x * 2^n
+    if (MathAdvanced.scalb(1.0, 3) != 8.0) {
+        io::println("FAIL: MathAdvanced.scalb(1,3)");
+    } else {
+        io::println("PASS: MathAdvanced.scalb(1,3) = 8.0");
+    }
+    if (MathAdvanced.scalb(2.0, 2) != 8.0) {
+        io::println("FAIL: MathAdvanced.scalb(2,2)");
+    } else {
+        io::println("PASS: MathAdvanced.scalb(2,2) = 8.0");
+    }
+    // getExponent(8.0) = 3 since 8 = 2^3
+    if (MathAdvanced.getExponent(8.0) != 3) {
+        io::println("FAIL: MathAdvanced.getExponent(8) = " + Integer.toString(MathAdvanced.getExponent(8.0)));
+    } else {
+        io::println("PASS: MathAdvanced.getExponent(8) = 3");
+    }
+}
+
+public fn test_mathadvanced_nextUp_nextDown(): void {
+    let one: double = 1.0;
+    let up: double = MathAdvanced.nextUp(one);
+    let down: double = MathAdvanced.nextDown(one);
+    if (up <= one) {
+        io::println("FAIL: MathAdvanced.nextUp(1) should be > 1");
+    } else {
+        io::println("PASS: MathAdvanced.nextUp(1) > 1");
+    }
+    if (down >= one) {
+        io::println("FAIL: MathAdvanced.nextDown(1) should be < 1");
+    } else {
+        io::println("PASS: MathAdvanced.nextDown(1) < 1");
+    }
+    if (MathAdvanced.ulp(one) <= 0.0) {
+        io::println("FAIL: MathAdvanced.ulp(1) should be positive");
+    } else {
+        io::println("PASS: MathAdvanced.ulp(1) positive");
+    }
+}
+
+public fn run_all_math_advanced_tests(): void {
+    io::println("=== MathAdvanced.tr Tests ===");
+    test_mathadvanced_sqrt_cbrt();
+    test_mathadvanced_pow();
+    test_mathadvanced_exp_ln();
+    test_mathadvanced_log10_log2_log_base();
+    test_mathadvanced_expm1_log1p();
+    test_mathadvanced_hypot_fma();
+    test_mathadvanced_copySign();
+    test_mathadvanced_floorDiv_floorMod();
+    test_mathadvanced_exact_arithmetic();
+    test_mathadvanced_scalb_getExponent();
+    test_mathadvanced_nextUp_nextDown();
+}
