@@ -1,0 +1,293 @@
+// Test file for Regex.tr
+// Exercises the public API of the Regex class and its top-level functions.
+import tt::regex::Regex;
+import tt::regex::Match;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_regex_init_getPattern(): void {
+    let r: Regex = new Regex("[0-9]+");
+    if (r.getPattern() != "[0-9]+") {
+        io::println("FAIL: Regex.getPattern returned " + r.getPattern());
+    } else {
+        io::println("PASS: Regex.init/getPattern works");
+    }
+}
+
+public fn test_regex_initWithFlags(): void {
+    let r: Regex = new Regex("abc");
+    r.initWithFlags("abc", "i");
+    if (r.flags() != "i") {
+        io::println("FAIL: Regex.flags returned " + r.flags());
+    } else {
+        io::println("PASS: Regex.initWithFlags/flags works");
+    }
+}
+
+public fn test_regex_match(): void {
+    let r: Regex = new Regex("[0-9]+");
+    if (!r.match("abc123def")) {
+        io::println("FAIL: Regex.match should find digits in abc123def");
+    } else if (r.match("abcdef")) {
+        io::println("FAIL: Regex.match should not match abcdef");
+    } else {
+        io::println("PASS: Regex.match works");
+    }
+}
+
+public fn test_regex_find(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let m: Match = r.find("abc123def");
+    if (m == null) {
+        io::println("FAIL: Regex.find returned null for abc123def");
+    } else if (m.getMatched() != "123") {
+        io::println("FAIL: Regex.find matched=" + m.getMatched() + ", expected 123");
+    } else {
+        io::println("PASS: Regex.find works");
+    }
+}
+
+public fn test_regex_find_no_match(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let m: Match = r.find("abcdef");
+    if (m != null) {
+        io::println("FAIL: Regex.find should return null for abcdef");
+    } else {
+        io::println("PASS: Regex.find returns null when no match");
+    }
+}
+
+public fn test_regex_findAll(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let matches: ArrayList<Match> = r.findAll("a1b22c333");
+    if (matches.size() != 3) {
+        io::println("FAIL: Regex.findAll size=" + Integer.toString(matches.size()) + ", expected 3");
+    } else {
+        io::println("PASS: Regex.findAll works");
+    }
+}
+
+public fn test_regex_matchAll(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let matches: ArrayList<Match> = r.matchAll("a1b22c333");
+    if (matches.size() != 3) {
+        io::println("FAIL: Regex.matchAll size=" + Integer.toString(matches.size()));
+    } else {
+        io::println("PASS: Regex.matchAll works");
+    }
+}
+
+public fn test_regex_replaceAll(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let result: string = r.replaceAll("a1b22c333", "X");
+    if (result != "aXbXcX") {
+        io::println("FAIL: Regex.replaceAll returned " + result + ", expected aXbXcX");
+    } else {
+        io::println("PASS: Regex.replaceAll works");
+    }
+}
+
+public fn test_regex_replaceAll_with_count(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let result: string = r.replaceAll("a1b22c333", "X", 2);
+    if (result != "aXbXc333") {
+        io::println("FAIL: Regex.replaceAll(count) returned " + result + ", expected aXbXc333");
+    } else {
+        io::println("PASS: Regex.replaceAll with count works");
+    }
+}
+
+public fn test_regex_replaceFirst(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let result: string = r.replaceFirst("a1b22c333", "X");
+    if (result != "aXb22c333") {
+        io::println("FAIL: Regex.replaceFirst returned " + result + ", expected aXb22c333");
+    } else {
+        io::println("PASS: Regex.replaceFirst works");
+    }
+}
+
+public fn test_regex_split(): void {
+    let r: Regex = new Regex(",");
+    let parts: ArrayList<string> = r.split("a,b,c,d");
+    if (parts.size() != 4) {
+        io::println("FAIL: Regex.split size=" + Integer.toString(parts.size()) + ", expected 4");
+    } else if (parts.get(0) != "a" || parts.get(3) != "d") {
+        io::println("FAIL: Regex.split values wrong");
+    } else {
+        io::println("PASS: Regex.split works");
+    }
+}
+
+public fn test_regex_splitWithLimit(): void {
+    let r: Regex = new Regex(",");
+    let parts: ArrayList<string> = r.splitWithLimit("a,b,c,d", 2);
+    if (parts.size() != 3) {
+        io::println("FAIL: Regex.splitWithLimit size=" + Integer.toString(parts.size()) + ", expected 3");
+    } else {
+        io::println("PASS: Regex.splitWithLimit works");
+    }
+}
+
+public fn test_regex_groupCount(): void {
+    let r: Regex = new Regex("(a)(b)(c)");
+    let count: int = r.groupCount();
+    if (count != 3) {
+        io::println("FAIL: Regex.groupCount returned " + Integer.toString(count) + ", expected 3");
+    } else {
+        io::println("PASS: Regex.groupCount works");
+    }
+}
+
+public fn test_regex_fullmatch(): void {
+    let r: Regex = new Regex("[0-9]+");
+    if (!r.fullmatch("123")) {
+        io::println("FAIL: Regex.fullmatch should match 123");
+    } else if (r.fullmatch("12a")) {
+        io::println("FAIL: Regex.fullmatch should not match 12a");
+    } else {
+        io::println("PASS: Regex.fullmatch works");
+    }
+}
+
+public fn test_regex_matches(): void {
+    let r: Regex = new Regex("[0-9]+");
+    if (!r.matches("123")) {
+        io::println("FAIL: Regex.matches should match 123");
+    } else if (r.matches("12a")) {
+        io::println("FAIL: Regex.matches should not match 12a");
+    } else {
+        io::println("PASS: Regex.matches works");
+    }
+}
+
+public fn test_regex_quote(): void {
+    let r: Regex = new Regex("x");
+    let quoted: string = r.quote("a.b*c");
+    if (quoted != "a\\.b\\*c") {
+        io::println("FAIL: Regex.quote returned " + quoted + ", expected a\\.b\\*c");
+    } else {
+        io::println("PASS: Regex.quote works");
+    }
+}
+
+public fn test_regex_namedGroups(): void {
+    let r: Regex = new Regex("(?<year>[0-9]+)-(?<month>[0-9]+)");
+    let names: ArrayList<string> = r.namedGroups();
+    if (names.size() != 2) {
+        io::println("FAIL: Regex.namedGroups size=" + Integer.toString(names.size()) + ", expected 2");
+    } else if (names.get(0) != "year" || names.get(1) != "month") {
+        io::println("FAIL: Regex.namedGroups names wrong");
+    } else {
+        io::println("PASS: Regex.namedGroups works");
+    }
+}
+
+public fn test_regex_finditer(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let iter = r.finditer("a1b22c333");
+    if (iter == null) {
+        io::println("FAIL: Regex.finditer returned null");
+    } else {
+        io::println("PASS: Regex.finditer works");
+    }
+}
+
+public fn test_regex_subn(): void {
+    let r: Regex = new Regex("[0-9]+");
+    let result = r.subn("a1b22c333", "X");
+    if (result.second != 3) {
+        io::println("FAIL: Regex.subn count=" + Integer.toString(result.second) + ", expected 3");
+    } else if (result.first != "aXbXcX") {
+        io::println("FAIL: Regex.subn result=" + result.first + ", expected aXbXcX");
+    } else {
+        io::println("PASS: Regex.subn works");
+    }
+}
+
+// --- Top-level function tests ---
+
+public fn test_regex_toplevel_replaceFirst(): void {
+    let result: string = Regex.replaceFirst("a1b22c333", "[0-9]+", "X");
+    if (result != "aXb22c333") {
+        io::println("FAIL: Regex.replaceFirst (top-level) returned " + result);
+    } else {
+        io::println("PASS: Regex.replaceFirst (top-level) works");
+    }
+}
+
+public fn test_regex_toplevel_matches(): void {
+    if (!Regex.matches("123", "[0-9]+")) {
+        io::println("FAIL: Regex.matches (top-level) should match 123");
+    } else if (Regex.matches("12a", "[0-9]+")) {
+        io::println("FAIL: Regex.matches (top-level) should not match 12a");
+    } else {
+        io::println("PASS: Regex.matches (top-level) works");
+    }
+}
+
+public fn test_regex_toplevel_findAll(): void {
+    let matches: ArrayList<Match> = Regex.findAll("a1b22c333", "[0-9]+");
+    if (matches.size() != 3) {
+        io::println("FAIL: Regex.findAll (top-level) size=" + Integer.toString(matches.size()));
+    } else {
+        io::println("PASS: Regex.findAll (top-level) works");
+    }
+}
+
+public fn test_regex_toplevel_quote(): void {
+    let quoted: string = Regex.quote("a.b*c");
+    if (quoted != "a\\.b\\*c") {
+        io::println("FAIL: Regex.quote (top-level) returned " + quoted);
+    } else {
+        io::println("PASS: Regex.quote (top-level) works");
+    }
+}
+
+public fn test_regex_toplevel_escape(): void {
+    let escaped: string = Regex.escape("a.b*c");
+    if (escaped != "a\\.b\\*c") {
+        io::println("FAIL: Regex.escape returned " + escaped);
+    } else {
+        io::println("PASS: Regex.escape works");
+    }
+}
+
+public fn test_regex_toplevel_subN(): void {
+    let result: string = Regex.subN("[0-9]+", "X", "a1b22c333", 2);
+    if (result != "aXbXc333") {
+        io::println("FAIL: Regex.subN returned " + result + ", expected aXbXc333");
+    } else {
+        io::println("PASS: Regex.subN works");
+    }
+}
+
+public fn run_all_regex_tests(): void {
+    io::println("=== Regex.tr Tests ===");
+    test_regex_init_getPattern();
+    test_regex_initWithFlags();
+    test_regex_match();
+    test_regex_find();
+    test_regex_find_no_match();
+    test_regex_findAll();
+    test_regex_matchAll();
+    test_regex_replaceAll();
+    test_regex_replaceAll_with_count();
+    test_regex_replaceFirst();
+    test_regex_split();
+    test_regex_splitWithLimit();
+    test_regex_groupCount();
+    test_regex_fullmatch();
+    test_regex_matches();
+    test_regex_quote();
+    test_regex_namedGroups();
+    test_regex_finditer();
+    test_regex_subn();
+    test_regex_toplevel_replaceFirst();
+    test_regex_toplevel_matches();
+    test_regex_toplevel_findAll();
+    test_regex_toplevel_quote();
+    test_regex_toplevel_escape();
+    test_regex_toplevel_subN();
+}
