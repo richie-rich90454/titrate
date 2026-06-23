@@ -1,0 +1,60 @@
+// Test file for Ssl.tr
+// Exercises the public API of SslContext and SslConnection, focusing on
+// construction and the close lifecycle (network-dependent connect is not
+// exercised here).
+import tt::net::Ssl;
+import tt::lang::Integer;
+
+public fn test_sslcontext_init_close(): void {
+    let ctx: SslContext = new SslContext();
+    // init() calls Ssl_contextNew(); we verify the context is constructed.
+    io::println("PASS: SslContext constructed");
+    // close() delegates to native; should not throw.
+    ctx.close();
+    io::println("PASS: SslContext.close executes without throwing");
+}
+
+public fn test_sslconnection_init_state(): void {
+    let conn: SslConnection = new SslConnection(0);
+    io::println("PASS: SslConnection constructed with handle");
+}
+
+public fn test_sslconnection_close_idempotent(): void {
+    let conn: SslConnection = new SslConnection(1);
+    conn.close();
+    // Second close should be a no-op (closed flag guards it)
+    conn.close();
+    io::println("PASS: SslConnection.close idempotent");
+}
+
+public fn test_sslconnection_recv_callable(): void {
+    let conn: SslConnection = new SslConnection(1);
+    // Native-backed; we verify recv is callable and returns a string.
+    let data: string = conn.recv(1024);
+    if (data == null) {
+        io::println("FAIL: SslConnection.recv returned null");
+    } else {
+        io::println("PASS: SslConnection.recv callable");
+    }
+    conn.close();
+}
+
+public fn test_sslconnection_getPeerCertificate_callable(): void {
+    let conn: SslConnection = new SslConnection(1);
+    let cert: string = conn.getPeerCertificate();
+    if (cert == null) {
+        io::println("FAIL: SslConnection.getPeerCertificate returned null");
+    } else {
+        io::println("PASS: SslConnection.getPeerCertificate callable");
+    }
+    conn.close();
+}
+
+public fn run_all_ssl_tests(): void {
+    io::println("=== Ssl.tr Tests ===");
+    test_sslcontext_init_close();
+    test_sslconnection_init_state();
+    test_sslconnection_close_idempotent();
+    test_sslconnection_recv_callable();
+    test_sslconnection_getPeerCertificate_callable();
+}
