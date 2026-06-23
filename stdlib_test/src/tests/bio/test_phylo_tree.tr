@@ -1,0 +1,130 @@
+// Test file for bio/PhyloTree.tr
+// Exercises PhyloNode, PhyloTree, parseNewick, tree construction.
+import tt::bio::PhyloTree;
+import tt::lang::Integer;
+
+public fn test_phylo_node_construction(): void {
+    let n: PhyloNode = new PhyloNode("leaf1", 1.5);
+    if (n.name != "leaf1" || n.distance != 1.5) {
+        io::println("FAIL: PhyloNode construction");
+    } else {
+        io::println("PASS: PhyloNode construction works");
+    }
+    if (!n.isLeaf()) {
+        io::println("FAIL: PhyloNode should be leaf initially");
+    } else {
+        io::println("PASS: PhyloNode is leaf initially");
+    }
+}
+
+public fn test_phylo_node_add_child(): void {
+    let parent: PhyloNode = new PhyloNode("parent", 0.0);
+    let child: PhyloNode = new PhyloNode("child", 1.0);
+    parent.addChild(child);
+    if (parent.children.size() != 1) {
+        io::println("FAIL: addChild size");
+    } else {
+        io::println("PASS: addChild size = 1");
+    }
+    if (parent.isLeaf()) {
+        io::println("FAIL: parent should not be leaf after addChild");
+    } else {
+        io::println("PASS: parent is not leaf after addChild");
+    }
+    if (child.parent == null || child.parent.name != "parent") {
+        io::println("FAIL: child parent not set");
+    } else {
+        io::println("PASS: child parent set correctly");
+    }
+}
+
+public fn test_phylo_node_leaf_count(): void {
+    let root: PhyloNode = new PhyloNode("root", 0.0);
+    let c1: PhyloNode = new PhyloNode("c1", 1.0);
+    let c2: PhyloNode = new PhyloNode("c2", 1.0);
+    let c3: PhyloNode = new PhyloNode("c3", 1.0);
+    root.addChild(c1);
+    root.addChild(c2);
+    root.addChild(c3);
+    if (root.leafCount() != 3) {
+        io::println("FAIL: leafCount expected 3");
+    } else {
+        io::println("PASS: leafCount = 3");
+    }
+}
+
+public fn test_phylo_tree_construction(): void {
+    let root: PhyloNode = new PhyloNode("root", 0.0);
+    let tree: PhyloTree = new PhyloTree(root);
+    if (tree.root.name != "root") {
+        io::println("FAIL: PhyloTree construction");
+    } else {
+        io::println("PASS: PhyloTree construction works");
+    }
+}
+
+public fn test_phylo_tree_get_leaves(): void {
+    let root: PhyloNode = new PhyloNode("root", 0.0);
+    let c1: PhyloNode = new PhyloNode("c1", 1.0);
+    let c2: PhyloNode = new PhyloNode("c2", 1.0);
+    root.addChild(c1);
+    root.addChild(c2);
+    let tree: PhyloTree = new PhyloTree(root);
+    let leaves = tree.getLeaves();
+    if (leaves.size() != 2) {
+        io::println("FAIL: getLeaves size expected 2");
+    } else {
+        io::println("PASS: getLeaves size = 2");
+    }
+}
+
+public fn test_phylo_tree_to_newick(): void {
+    let root: PhyloNode = new PhyloNode("root", 0.0);
+    let c1: PhyloNode = new PhyloNode("A", 1.0);
+    let c2: PhyloNode = new PhyloNode("B", 1.0);
+    root.addChild(c1);
+    root.addChild(c2);
+    let tree: PhyloTree = new PhyloTree(root);
+    let newick: string = tree.toNewick();
+    if (String.length(newick) == 0) {
+        io::println("FAIL: toNewick empty");
+    } else {
+        io::println("PASS: toNewick non-empty: " + newick);
+    }
+}
+
+public fn test_phylo_tree_depth(): void {
+    let root: PhyloNode = new PhyloNode("root", 0.0);
+    let c1: PhyloNode = new PhyloNode("c1", 1.0);
+    let c2: PhyloNode = new PhyloNode("c2", 1.0);
+    root.addChild(c1);
+    root.addChild(c2);
+    let tree: PhyloTree = new PhyloTree(root);
+    let d: int = tree.depth();
+    if (d != 1) {
+        io::println("FAIL: depth expected 1 got " + Integer.toString(d));
+    } else {
+        io::println("PASS: depth = 1");
+    }
+}
+
+public fn test_parse_newick(): void {
+    let tree: PhyloTree = PhyloTree.parseNewick("(A,B)root;");
+    if (tree == null) {
+        io::println("FAIL: parseNewick returned null");
+    } else {
+        io::println("PASS: parseNewick returns tree");
+    }
+}
+
+public fn run_all_phylo_tree_tests(): void {
+    io::println("=== bio/PhyloTree.tr Tests ===");
+    test_phylo_node_construction();
+    test_phylo_node_add_child();
+    test_phylo_node_leaf_count();
+    test_phylo_tree_construction();
+    test_phylo_tree_get_leaves();
+    test_phylo_tree_to_newick();
+    test_phylo_tree_depth();
+    test_parse_newick();
+}
