@@ -1,0 +1,169 @@
+// Test file for DoubleExt.tr
+// Exercises the public API of the DoubleExt module.
+import tt::lang::DoubleExt;
+import tt::lang::Double;
+import tt::lang::Long;
+import tt::lang::String;
+
+public fn test_isFinite(): void {
+    if (!DoubleExt.isFinite(1.0) || DoubleExt.isFinite(Double.POSITIVE_INFINITY())) {
+        io::println("FAIL: DoubleExt.isFinite");
+    } else {
+        io::println("PASS: DoubleExt.isFinite");
+    }
+}
+
+public fn test_isInfinite(): void {
+    if (!DoubleExt.isInfinite(Double.POSITIVE_INFINITY()) || DoubleExt.isInfinite(1.0)) {
+        io::println("FAIL: DoubleExt.isInfinite");
+    } else {
+        io::println("PASS: DoubleExt.isInfinite");
+    }
+}
+
+public fn test_isNaN(): void {
+    if (!DoubleExt.isNaN(Double.NaN()) || DoubleExt.isNaN(1.0)) {
+        io::println("FAIL: DoubleExt.isNaN");
+    } else {
+        io::println("PASS: DoubleExt.isNaN");
+    }
+}
+
+public fn test_parseDouble(): void {
+    let v: double = DoubleExt.parseDouble("3.14");
+    if (v != 3.14) {
+        io::println("FAIL: DoubleExt.parseDouble(3.14) = " + Double.toString(v));
+    } else {
+        io::println("PASS: DoubleExt.parseDouble(3.14) = 3.14");
+    }
+}
+
+public fn test_doubleToLongBits_zero(): void {
+    let bits: long = DoubleExt.doubleToLongBits(0.0);
+    if (bits != 0L) {
+        io::println("FAIL: DoubleExt.doubleToLongBits(0.0) = " + Long.toString(bits));
+    } else {
+        io::println("PASS: DoubleExt.doubleToLongBits(0.0) = 0");
+    }
+}
+
+public fn test_doubleToLongBits_nan(): void {
+    let bits: long = DoubleExt.doubleToLongBits(Double.NaN());
+    // NaN canonical bit pattern
+    if (bits != 0x7ff8000000000000) {
+        io::println("FAIL: DoubleExt.doubleToLongBits(NaN) = " + Long.toString(bits));
+    } else {
+        io::println("PASS: DoubleExt.doubleToLongBits(NaN) = canonical");
+    }
+}
+
+public fn test_doubleToLongBits_inf(): void {
+    let bits: long = DoubleExt.doubleToLongBits(Double.POSITIVE_INFINITY());
+    if (bits != 0x7ff0000000000000) {
+        io::println("FAIL: DoubleExt.doubleToLongBits(+Inf) = " + Long.toString(bits));
+    } else {
+        io::println("PASS: DoubleExt.doubleToLongBits(+Inf) = canonical");
+    }
+}
+
+public fn test_doubleToLongBits_negInf(): void {
+    let bits: long = DoubleExt.doubleToLongBits(Double.NEGATIVE_INFINITY());
+    if (bits != 0xfff0000000000000) {
+        io::println("FAIL: DoubleExt.doubleToLongBits(-Inf) = " + Long.toString(bits));
+    } else {
+        io::println("PASS: DoubleExt.doubleToLongBits(-Inf) = canonical");
+    }
+}
+
+public fn test_longBitsToDouble_zero(): void {
+    let d: double = DoubleExt.longBitsToDouble(0L);
+    if (d != 0.0) {
+        io::println("FAIL: DoubleExt.longBitsToDouble(0) = " + Double.toString(d));
+    } else {
+        io::println("PASS: DoubleExt.longBitsToDouble(0) = 0.0");
+    }
+}
+
+public fn test_toHexString_zero(): void {
+    let s: string = DoubleExt.toHexString(0.0);
+    if (s != "0x0.0p0") {
+        io::println("FAIL: DoubleExt.toHexString(0.0) = " + s);
+    } else {
+        io::println("PASS: DoubleExt.toHexString(0.0) = 0x0.0p0");
+    }
+}
+
+public fn test_toHexString_nan(): void {
+    let s: string = DoubleExt.toHexString(Double.NaN());
+    if (s != "NaN") {
+        io::println("FAIL: DoubleExt.toHexString(NaN) = " + s);
+    } else {
+        io::println("PASS: DoubleExt.toHexString(NaN) = NaN");
+    }
+}
+
+public fn test_toHexString_inf(): void {
+    let s: string = DoubleExt.toHexString(Double.POSITIVE_INFINITY());
+    if (s != "Infinity") {
+        io::println("FAIL: DoubleExt.toHexString(+Inf) = " + s);
+    } else {
+        io::println("PASS: DoubleExt.toHexString(+Inf) = Infinity");
+    }
+}
+
+public fn test_toEngineeringString_zero(): void {
+    let s: string = DoubleExt.toEngineeringString(0.0);
+    if (s != "0E0") {
+        io::println("FAIL: DoubleExt.toEngineeringString(0.0) = " + s);
+    } else {
+        io::println("PASS: DoubleExt.toEngineeringString(0.0) = 0E0");
+    }
+}
+
+public fn test_toEngineeringString_nan(): void {
+    let s: string = DoubleExt.toEngineeringString(Double.NaN());
+    if (s != "NaN") {
+        io::println("FAIL: DoubleExt.toEngineeringString(NaN) = " + s);
+    } else {
+        io::println("PASS: DoubleExt.toEngineeringString(NaN) = NaN");
+    }
+}
+
+public fn test_toEngineeringString_inf(): void {
+    let s: string = DoubleExt.toEngineeringString(Double.POSITIVE_INFINITY());
+    if (s != "Infinity") {
+        io::println("FAIL: DoubleExt.toEngineeringString(+Inf) = " + s);
+    } else {
+        io::println("PASS: DoubleExt.toEngineeringString(+Inf) = Infinity");
+    }
+}
+
+public fn test_toEngineeringString_normal(): void {
+    let s: string = DoubleExt.toEngineeringString(1500.0);
+    // 1500 -> 1.5E3
+    if (String.length(s) == 0) {
+        io::println("FAIL: DoubleExt.toEngineeringString(1500) empty");
+    } else {
+        io::println("PASS: DoubleExt.toEngineeringString(1500) = " + s);
+    }
+}
+
+public fn run_all_double_ext_tests(): void {
+    io::println("=== DoubleExt.tr Tests ===");
+    test_isFinite();
+    test_isInfinite();
+    test_isNaN();
+    test_parseDouble();
+    test_doubleToLongBits_zero();
+    test_doubleToLongBits_nan();
+    test_doubleToLongBits_inf();
+    test_doubleToLongBits_negInf();
+    test_longBitsToDouble_zero();
+    test_toHexString_zero();
+    test_toHexString_nan();
+    test_toHexString_inf();
+    test_toEngineeringString_zero();
+    test_toEngineeringString_nan();
+    test_toEngineeringString_inf();
+    test_toEngineeringString_normal();
+}
