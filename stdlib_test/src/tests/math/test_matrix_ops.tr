@@ -1,0 +1,254 @@
+// Test file for linalg/MatrixOps.tr
+// Exercises matrix operations: cross, outerProduct, concat, subMatrix, diag, triu/tril, vandermonde.
+import tt::math::linalg::Matrix;
+import tt::math::linalg::MatrixOps;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn test_matrixops_cross(): void {
+    // cross of (1,0,0) x (0,1,0) = (0,0,1) as column vectors
+    let a: Matrix = new Matrix(3, 1);
+    a.set(0, 0, 1.0);
+    a.set(1, 0, 0.0);
+    a.set(2, 0, 0.0);
+    let b: Matrix = new Matrix(3, 1);
+    b.set(0, 0, 0.0);
+    b.set(1, 0, 1.0);
+    b.set(2, 0, 0.0);
+    let c: Matrix = MatrixOps.cross(a, b);
+    if (c.get(0, 0) != 0.0 || c.get(1, 0) != 0.0 || c.get(2, 0) != 1.0) {
+        io::println("FAIL: MatrixOps.cross unitX x unitY");
+    } else {
+        io::println("PASS: MatrixOps.cross unitX x unitY = (0,0,1)");
+    }
+    // cross of parallel vectors is zero
+    let p: Matrix = new Matrix(3, 1);
+    p.set(0, 0, 2.0);
+    p.set(1, 0, 0.0);
+    p.set(2, 0, 0.0);
+    let q: Matrix = new Matrix(3, 1);
+    q.set(0, 0, 3.0);
+    q.set(1, 0, 0.0);
+    q.set(2, 0, 0.0);
+    let cz: Matrix = MatrixOps.cross(p, q);
+    if (cz.get(0, 0) != 0.0 || cz.get(1, 0) != 0.0 || cz.get(2, 0) != 0.0) {
+        io::println("FAIL: MatrixOps.cross parallel");
+    } else {
+        io::println("PASS: MatrixOps.cross parallel = (0,0,0)");
+    }
+}
+
+public fn test_matrixops_outerProduct(): void {
+    // outer product of (1,2) and (3,4) = [[3,4],[6,8]]
+    let a: Matrix = new Matrix(2, 1);
+    a.set(0, 0, 1.0);
+    a.set(1, 0, 2.0);
+    let b: Matrix = new Matrix(2, 1);
+    b.set(0, 0, 3.0);
+    b.set(1, 0, 4.0);
+    let op: Matrix = MatrixOps.outerProduct(a, b);
+    if (op.get(0, 0) != 3.0 || op.get(0, 1) != 4.0 || op.get(1, 0) != 6.0 || op.get(1, 1) != 8.0) {
+        io::println("FAIL: MatrixOps.outerProduct");
+    } else {
+        io::println("PASS: MatrixOps.outerProduct works");
+    }
+}
+
+public fn test_matrixops_concat(): void {
+    let a: Matrix = new Matrix(2, 2);
+    a.set(0, 0, 1.0);
+    a.set(0, 1, 2.0);
+    a.set(1, 0, 3.0);
+    a.set(1, 1, 4.0);
+    let b: Matrix = new Matrix(2, 1);
+    b.set(0, 0, 5.0);
+    b.set(1, 0, 6.0);
+    // Horizontal concat: 2x3
+    let h: Matrix = MatrixOps.concatHorizontal(a, b);
+    if (h.rows() != 2 || h.cols() != 3) {
+        io::println("FAIL: MatrixOps.concatHorizontal dims");
+    } else {
+        io::println("PASS: MatrixOps.concatHorizontal dims = 2x3");
+    }
+    if (h.get(0, 2) != 5.0 || h.get(1, 2) != 6.0) {
+        io::println("FAIL: MatrixOps.concatHorizontal values");
+    } else {
+        io::println("PASS: MatrixOps.concatHorizontal values correct");
+    }
+    // Vertical concat: 4x2
+    let v: Matrix = MatrixOps.concatVertical(a, a);
+    if (v.rows() != 4 || v.cols() != 2) {
+        io::println("FAIL: MatrixOps.concatVertical dims");
+    } else {
+        io::println("PASS: MatrixOps.concatVertical dims = 4x2");
+    }
+    if (v.get(2, 0) != 1.0 || v.get(3, 1) != 4.0) {
+        io::println("FAIL: MatrixOps.concatVertical values");
+    } else {
+        io::println("PASS: MatrixOps.concatVertical values correct");
+    }
+}
+
+public fn test_matrixops_subMatrix(): void {
+    let m: Matrix = new Matrix(3, 3);
+    var i: int = 0;
+    while (i < 3) {
+        var j: int = 0;
+        while (j < 3) {
+            m.set(i, j, (i * 3 + j) as double);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    // subMatrix rows 1..3, cols 1..3 -> 2x2 = [[4,5],[7,8]]
+    let sub: Matrix = MatrixOps.subMatrix(m, 1, 3, 1, 3);
+    if (sub.rows() != 2 || sub.cols() != 2) {
+        io::println("FAIL: MatrixOps.subMatrix dims");
+    } else {
+        io::println("PASS: MatrixOps.subMatrix dims = 2x2");
+    }
+    if (sub.get(0, 0) != 4.0 || sub.get(0, 1) != 5.0 || sub.get(1, 0) != 7.0 || sub.get(1, 1) != 8.0) {
+        io::println("FAIL: MatrixOps.subMatrix values");
+    } else {
+        io::println("PASS: MatrixOps.subMatrix values correct");
+    }
+}
+
+public fn test_matrixops_diag(): void {
+    let v: ArrayList<double> = new ArrayList<double>();
+    v.add(1.0);
+    v.add(2.0);
+    v.add(3.0);
+    let d: Matrix = MatrixOps.diagFromList(v);
+    if (d.rows() != 3 || d.cols() != 3) {
+        io::println("FAIL: MatrixOps.diagFromList dims");
+    } else {
+        io::println("PASS: MatrixOps.diagFromList dims = 3x3");
+    }
+    if (d.get(0, 0) != 1.0 || d.get(1, 1) != 2.0 || d.get(2, 2) != 3.0) {
+        io::println("FAIL: MatrixOps.diagFromList values");
+    } else {
+        io::println("PASS: MatrixOps.diagFromList values correct");
+    }
+    // Off-diagonal should be zero
+    if (d.get(0, 1) != 0.0 || d.get(1, 0) != 0.0) {
+        io::println("FAIL: MatrixOps.diagFromList off-diagonal");
+    } else {
+        io::println("PASS: MatrixOps.diagFromList off-diagonal zero");
+    }
+    // diagFromMatrix extracts diagonal
+    let diag: ArrayList<double> = MatrixOps.diagFromMatrix(d);
+    if (diag.size() != 3 || diag.get(0) != 1.0 || diag.get(2) != 3.0) {
+        io::println("FAIL: MatrixOps.diagFromMatrix");
+    } else {
+        io::println("PASS: MatrixOps.diagFromMatrix works");
+    }
+}
+
+public fn test_matrixops_triu_tril(): void {
+    let m: Matrix = new Matrix(3, 3);
+    var i: int = 0;
+    while (i < 3) {
+        var j: int = 0;
+        while (j < 3) {
+            m.set(i, j, (i * 3 + j + 1) as double);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    // m = [[1,2,3],[4,5,6],[7,8,9]]
+    let u: Matrix = MatrixOps.triu(m);
+    // Lower part (below diagonal) should be zero
+    if (u.get(1, 0) != 0.0 || u.get(2, 0) != 0.0 || u.get(2, 1) != 0.0) {
+        io::println("FAIL: MatrixOps.triu below diagonal");
+    } else {
+        io::println("PASS: MatrixOps.triu below diagonal zero");
+    }
+    if (u.get(0, 0) != 1.0 || u.get(0, 2) != 3.0 || u.get(1, 1) != 5.0) {
+        io::println("FAIL: MatrixOps.triu values");
+    } else {
+        io::println("PASS: MatrixOps.triu values correct");
+    }
+    let l: Matrix = MatrixOps.tril(m);
+    // Upper part (above diagonal) should be zero
+    if (l.get(0, 1) != 0.0 || l.get(0, 2) != 0.0 || l.get(1, 2) != 0.0) {
+        io::println("FAIL: MatrixOps.tril above diagonal");
+    } else {
+        io::println("PASS: MatrixOps.tril above diagonal zero");
+    }
+    if (l.get(0, 0) != 1.0 || l.get(2, 2) != 9.0 || l.get(2, 0) != 7.0) {
+        io::println("FAIL: MatrixOps.tril values");
+    } else {
+        io::println("PASS: MatrixOps.tril values correct");
+    }
+}
+
+public fn test_matrixops_vandermonde(): void {
+    // Vandermonde of [1,2,3] with n=3:
+    // [[1,1,1],[4,2,1],[9,3,1]]  (element [i,j] = v[i]^(n-1-j))
+    let v: ArrayList<double> = new ArrayList<double>();
+    v.add(1.0);
+    v.add(2.0);
+    v.add(3.0);
+    let m: Matrix = MatrixOps.vandermonde(v, 3);
+    if (m.rows() != 3 || m.cols() != 3) {
+        io::println("FAIL: MatrixOps.vandermonde dims");
+    } else {
+        io::println("PASS: MatrixOps.vandermonde dims = 3x3");
+    }
+    // [0,0] = 1^2 = 1, [1,0] = 2^2 = 4, [2,0] = 3^2 = 9
+    // [0,2] = 1^0 = 1, [1,2] = 2^0 = 1, [2,2] = 3^0 = 1
+    if (m.get(0, 0) != 1.0 || m.get(1, 0) != 4.0 || m.get(2, 0) != 9.0) {
+        io::println("FAIL: MatrixOps.vandermonde first column");
+    } else {
+        io::println("PASS: MatrixOps.vandermonde first column correct");
+    }
+    if (m.get(0, 2) != 1.0 || m.get(1, 2) != 1.0 || m.get(2, 2) != 1.0) {
+        io::println("FAIL: MatrixOps.vandermonde last column");
+    } else {
+        io::println("PASS: MatrixOps.vandermonde last column correct");
+    }
+}
+
+public fn test_matrixops_bandMatrix(): void {
+    // 3x3 with main diagonal [1,1,1] and first superdiagonal [2,2]
+    let bands: HashMap<int, ArrayList<double>> = new HashMap<int, ArrayList<double>>();
+    let main: ArrayList<double> = new ArrayList<double>();
+    main.add(1.0);
+    main.add(1.0);
+    main.add(1.0);
+    bands.put(0, main);
+    let super1: ArrayList<double> = new ArrayList<double>();
+    super1.add(2.0);
+    super1.add(2.0);
+    bands.put(1, super1);
+    let m: Matrix = MatrixOps.bandMatrix(3, bands);
+    if (m.get(0, 0) != 1.0 || m.get(1, 1) != 1.0 || m.get(2, 2) != 1.0) {
+        io::println("FAIL: MatrixOps.bandMatrix main diagonal");
+    } else {
+        io::println("PASS: MatrixOps.bandMatrix main diagonal correct");
+    }
+    if (m.get(0, 1) != 2.0 || m.get(1, 2) != 2.0) {
+        io::println("FAIL: MatrixOps.bandMatrix superdiagonal");
+    } else {
+        io::println("PASS: MatrixOps.bandMatrix superdiagonal correct");
+    }
+    // Off-band should be zero
+    if (m.get(0, 2) != 0.0 || m.get(1, 0) != 0.0) {
+        io::println("FAIL: MatrixOps.bandMatrix off-band");
+    } else {
+        io::println("PASS: MatrixOps.bandMatrix off-band zero");
+    }
+}
+
+public fn run_all_matrix_ops_tests(): void {
+    io::println("=== linalg/MatrixOps.tr Tests ===");
+    test_matrixops_cross();
+    test_matrixops_outerProduct();
+    test_matrixops_concat();
+    test_matrixops_subMatrix();
+    test_matrixops_diag();
+    test_matrixops_triu_tril();
+    test_matrixops_vandermonde();
+    test_matrixops_bandMatrix();
+}
