@@ -1,0 +1,186 @@
+// Test file for Copy.tr
+// Exercises the public API of the Copy module's top-level functions.
+import tt::copy::Copy;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_copy_shallowCopy_null(): void {
+    let result: ArrayList<int> = Copy.shallowCopy<ArrayList<int>>(null);
+    if (result != null) {
+        io::println("FAIL: Copy.shallowCopy(null) should return null");
+    } else {
+        io::println("PASS: Copy.shallowCopy(null) works");
+    }
+}
+
+public fn test_copy_shallowCopyList(): void {
+    let original: ArrayList<int> = new ArrayList<int>();
+    original.add(1);
+    original.add(2);
+    original.add(3);
+    let copy: ArrayList<int> = Copy.shallowCopyList<int>(original);
+    if (copy.size() != 3) {
+        io::println("FAIL: Copy.shallowCopyList size wrong");
+    } else if (copy.get(0) != 1 || copy.get(2) != 3) {
+        io::println("FAIL: Copy.shallowCopyList values wrong");
+    } else {
+        io::println("PASS: Copy.shallowCopyList works");
+    }
+}
+
+public fn test_copy_shallowCopyList_independent(): void {
+    let original: ArrayList<int> = new ArrayList<int>();
+    original.add(1);
+    original.add(2);
+    let copy: ArrayList<int> = Copy.shallowCopyList<int>(original);
+    copy.add(3);
+    if (original.size() == 3) {
+        io::println("FAIL: Copy.shallowCopyList should be independent");
+    } else {
+        io::println("PASS: Copy.shallowCopyList is independent");
+    }
+}
+
+public fn test_copy_deepCopyList(): void {
+    let original: ArrayList<int> = new ArrayList<int>();
+    original.add(10);
+    original.add(20);
+    let copy: ArrayList<int> = Copy.deepCopyList<int>(original);
+    if (copy.size() != 2) {
+        io::println("FAIL: Copy.deepCopyList size wrong");
+    } else if (copy.get(0) != 10 || copy.get(1) != 20) {
+        io::println("FAIL: Copy.deepCopyList values wrong");
+    } else {
+        io::println("PASS: Copy.deepCopyList works");
+    }
+}
+
+public fn test_copy_shallowCopyMap(): void {
+    let original: HashMap<string, int> = new HashMap<string, int>();
+    original.put("a", 1);
+    original.put("b", 2);
+    let copy: HashMap<string, int> = Copy.shallowCopyMap<string, int>(original);
+    if (!copy.containsKey("a") || copy.get("a") != 1) {
+        io::println("FAIL: Copy.shallowCopyMap a wrong");
+    } else if (!copy.containsKey("b") || copy.get("b") != 2) {
+        io::println("FAIL: Copy.shallowCopyMap b wrong");
+    } else {
+        io::println("PASS: Copy.shallowCopyMap works");
+    }
+}
+
+public fn test_copy_shallowCopyMap_independent(): void {
+    let original: HashMap<string, int> = new HashMap<string, int>();
+    original.put("a", 1);
+    let copy: HashMap<string, int> = Copy.shallowCopyMap<string, int>(original);
+    copy.put("c", 3);
+    if (original.containsKey("c")) {
+        io::println("FAIL: Copy.shallowCopyMap should be independent");
+    } else {
+        io::println("PASS: Copy.shallowCopyMap is independent");
+    }
+}
+
+public fn test_copy_deepCopyMap(): void {
+    let original: HashMap<string, int> = new HashMap<string, int>();
+    original.put("x", 100);
+    original.put("y", 200);
+    let copy: HashMap<string, int> = Copy.deepCopyMap<string, int>(original);
+    if (!copy.containsKey("x") || copy.get("x") != 100) {
+        io::println("FAIL: Copy.deepCopyMap x wrong");
+    } else if (!copy.containsKey("y") || copy.get("y") != 200) {
+        io::println("FAIL: Copy.deepCopyMap y wrong");
+    } else {
+        io::println("PASS: Copy.deepCopyMap works");
+    }
+}
+
+public fn test_copy_shallowCopy_list(): void {
+    let original: ArrayList<int> = new ArrayList<int>();
+    original.add(5);
+    original.add(10);
+    let copy: ArrayList<int> = Copy.shallowCopy<ArrayList<int>>(original);
+    if (copy.size() != 2 || copy.get(0) != 5) {
+        io::println("FAIL: Copy.shallowCopy on list wrong");
+    } else {
+        io::println("PASS: Copy.shallowCopy on list works");
+    }
+}
+
+public fn test_copy_deepCopy_list(): void {
+    let original: ArrayList<int> = new ArrayList<int>();
+    original.add(7);
+    let copy: ArrayList<int> = Copy.deepCopy<ArrayList<int>>(original);
+    if (copy.size() != 1 || copy.get(0) != 7) {
+        io::println("FAIL: Copy.deepCopy on list wrong");
+    } else {
+        io::println("PASS: Copy.deepCopy on list works");
+    }
+}
+
+public fn test_copy_shallowCopy_map(): void {
+    let original: HashMap<string, int> = new HashMap<string, int>();
+    original.put("k", 42);
+    let copy: HashMap<string, int> = Copy.shallowCopy<HashMap<string, int>>(original);
+    if (!copy.containsKey("k") || copy.get("k") != 42) {
+        io::println("FAIL: Copy.shallowCopy on map wrong");
+    } else {
+        io::println("PASS: Copy.shallowCopy on map works");
+    }
+}
+
+public fn test_copy_deepCopy_map(): void {
+    let original: HashMap<string, int> = new HashMap<string, int>();
+    original.put("k", 99);
+    let copy: HashMap<string, int> = Copy.deepCopy<HashMap<string, int>>(original);
+    if (!copy.containsKey("k") || copy.get("k") != 99) {
+        io::println("FAIL: Copy.deepCopy on map wrong");
+    } else {
+        io::println("PASS: Copy.deepCopy on map works");
+    }
+}
+
+public fn test_copy_shallowCopy_primitive(): void {
+    // For non-collection objects, shallowCopy returns the same reference
+    let result: int = Copy.shallowCopy<int>(42);
+    if (result != 42) {
+        io::println("FAIL: Copy.shallowCopy on primitive wrong");
+    } else {
+        io::println("PASS: Copy.shallowCopy on primitive works");
+    }
+}
+
+public fn test_copy_deepCopy_nested_list(): void {
+    let inner: ArrayList<int> = new ArrayList<int>();
+    inner.add(1);
+    inner.add(2);
+    let outer: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    outer.add(inner);
+    let copy: ArrayList<ArrayList<int>> = Copy.deepCopy<ArrayList<ArrayList<int>>>(outer);
+    if (copy.size() != 1) {
+        io::println("FAIL: Copy.deepCopy nested size wrong");
+    } else if (copy.get(0).size() != 2) {
+        io::println("FAIL: Copy.deepCopy nested inner size wrong");
+    } else {
+        io::println("PASS: Copy.deepCopy nested list works");
+    }
+}
+
+public fn run_all_copy_tests(): void {
+    io::println("=== Copy.tr Tests ===");
+    test_copy_shallowCopy_null();
+    test_copy_shallowCopyList();
+    test_copy_shallowCopyList_independent();
+    test_copy_deepCopyList();
+    test_copy_shallowCopyMap();
+    test_copy_shallowCopyMap_independent();
+    test_copy_deepCopyMap();
+    test_copy_shallowCopy_list();
+    test_copy_deepCopy_list();
+    test_copy_shallowCopy_map();
+    test_copy_deepCopy_map();
+    test_copy_shallowCopy_primitive();
+    test_copy_deepCopy_nested_list();
+}
