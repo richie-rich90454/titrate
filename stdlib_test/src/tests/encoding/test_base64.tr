@@ -1,0 +1,173 @@
+// Test file for Base64.tr
+// Exercises the public API of the Base64 class and its top-level encoding functions.
+import tt::encoding::Base64;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_base64_encode(): void {
+    let b: Base64 = new Base64();
+    let encoded: string = b.encode("hello");
+    if (encoded != "aGVsbG8=") {
+        io::println("FAIL: Base64.encode returned " + encoded + ", expected aGVsbG8=");
+    } else {
+        io::println("PASS: Base64.encode works");
+    }
+}
+
+public fn test_base64_decode(): void {
+    let b: Base64 = new Base64();
+    let decoded: string = b.decode("aGVsbG8=");
+    if (decoded != "hello") {
+        io::println("FAIL: Base64.decode returned " + decoded + ", expected hello");
+    } else {
+        io::println("PASS: Base64.decode works");
+    }
+}
+
+public fn test_base64_encode_decode_roundtrip(): void {
+    let b: Base64 = new Base64();
+    let original: string = "Titrate programming language";
+    let encoded: string = b.encode(original);
+    let decoded: string = b.decode(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Base64 roundtrip failed: " + decoded);
+    } else {
+        io::println("PASS: Base64 encode/decode roundtrip works");
+    }
+}
+
+public fn test_base64_encode_empty(): void {
+    let b: Base64 = new Base64();
+    let encoded: string = b.encode("");
+    if (encoded != "") {
+        io::println("FAIL: Base64.encode empty returned " + encoded);
+    } else {
+        io::println("PASS: Base64.encode empty works");
+    }
+}
+
+public fn test_base64_encodeUrlSafe(): void {
+    let b: Base64 = new Base64();
+    // A string that produces + and / in standard base64
+    let encoded: string = b.encodeUrlSafe("??");
+    if (String.indexOf(encoded, "+") >= 0 || String.indexOf(encoded, "/") >= 0) {
+        io::println("FAIL: Base64.encodeUrlSafe contains + or /: " + encoded);
+    } else if (String.indexOf(encoded, "=") >= 0) {
+        io::println("FAIL: Base64.encodeUrlSafe contains padding: " + encoded);
+    } else {
+        io::println("PASS: Base64.encodeUrlSafe works: " + encoded);
+    }
+}
+
+public fn test_base64_decodeUrlSafe(): void {
+    let b: Base64 = new Base64();
+    let original: string = "??";
+    let encoded: string = b.encodeUrlSafe(original);
+    let decoded: string = b.decodeUrlSafe(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Base64.decodeUrlSafe returned " + decoded + ", expected " + original);
+    } else {
+        io::println("PASS: Base64.decodeUrlSafe works");
+    }
+}
+
+public fn test_base64_encodeWithoutPadding(): void {
+    let b: Base64 = new Base64();
+    let encoded: string = b.encodeWithoutPadding("hello");
+    if (String.indexOf(encoded, "=") >= 0) {
+        io::println("FAIL: Base64.encodeWithoutPadding contains padding: " + encoded);
+    } else {
+        io::println("PASS: Base64.encodeWithoutPadding works: " + encoded);
+    }
+}
+
+public fn test_base64_encodeBytes(): void {
+    let b: Base64 = new Base64();
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(104); // h
+    bytes.add(101); // e
+    bytes.add(108); // l
+    bytes.add(108); // l
+    bytes.add(111); // o
+    let encoded: string = b.encodeBytes(bytes);
+    if (encoded != "aGVsbG8=") {
+        io::println("FAIL: Base64.encodeBytes returned " + encoded + ", expected aGVsbG8=");
+    } else {
+        io::println("PASS: Base64.encodeBytes works");
+    }
+}
+
+public fn test_base64_decodeToBytes(): void {
+    let b: Base64 = new Base64();
+    let bytes: ArrayList<int> = b.decodeToBytes("aGVsbG8=");
+    if (bytes.size() != 5) {
+        io::println("FAIL: Base64.decodeToBytes size=" + Integer.toString(bytes.size()) + ", expected 5");
+    } else if (bytes.get(0) != 104 || bytes.get(4) != 111) {
+        io::println("FAIL: Base64.decodeToBytes values wrong");
+    } else {
+        io::println("PASS: Base64.decodeToBytes works");
+    }
+}
+
+public fn test_base64_encode_long_string(): void {
+    let b: Base64 = new Base64();
+    let original: string = "The quick brown fox jumps over the lazy dog";
+    let encoded: string = b.encode(original);
+    let decoded: string = b.decode(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Base64 long string roundtrip failed");
+    } else {
+        io::println("PASS: Base64 long string roundtrip works");
+    }
+}
+
+// --- Top-level Base32 functions ---
+
+public fn test_base64_encodeBase32(): void {
+    let encoded: string = Base64.encodeBase32("hello");
+    if (String.length(encoded) == 0) {
+        io::println("FAIL: Base64.encodeBase32 returned empty");
+    } else {
+        io::println("PASS: Base64.encodeBase32 works: " + encoded);
+    }
+}
+
+public fn test_base64_decodeBase32(): void {
+    let original: string = "hello";
+    let encoded: string = Base64.encodeBase32(original);
+    let decoded: string = Base64.decodeBase32(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Base64.decodeBase32 returned " + decoded + ", expected " + original);
+    } else {
+        io::println("PASS: Base64.decodeBase32 works");
+    }
+}
+
+public fn test_base64_base32_roundtrip(): void {
+    let original: string = "Titrate";
+    let encoded: string = Base64.encodeBase32(original);
+    let decoded: string = Base64.decodeBase32(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Base32 roundtrip failed: " + decoded);
+    } else {
+        io::println("PASS: Base32 roundtrip works");
+    }
+}
+
+public fn run_all_base64_tests(): void {
+    io::println("=== Base64.tr Tests ===");
+    test_base64_encode();
+    test_base64_decode();
+    test_base64_encode_decode_roundtrip();
+    test_base64_encode_empty();
+    test_base64_encodeUrlSafe();
+    test_base64_decodeUrlSafe();
+    test_base64_encodeWithoutPadding();
+    test_base64_encodeBytes();
+    test_base64_decodeToBytes();
+    test_base64_encode_long_string();
+    test_base64_encodeBase32();
+    test_base64_decodeBase32();
+    test_base64_base32_roundtrip();
+}
