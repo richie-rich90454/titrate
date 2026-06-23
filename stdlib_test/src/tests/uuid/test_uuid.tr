@@ -1,0 +1,229 @@
+// Test file for Uuid.tr
+// Exercises the public API of the UUID class and its top-level functions.
+import tt::uuid::Uuid;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_uuid_isValid_valid(): void {
+    let valid: string = "550e8400-e29b-41d4-a716-446655440000";
+    if (!Uuid.isValid(valid)) {
+        io::println("FAIL: Uuid.isValid should accept valid UUID");
+    } else {
+        io::println("PASS: Uuid.isValid accepts valid UUID");
+    }
+}
+
+public fn test_uuid_isValid_invalid_short(): void {
+    if (Uuid.isValid("550e8400")) {
+        io::println("FAIL: Uuid.isValid should reject short string");
+    } else {
+        io::println("PASS: Uuid.isValid rejects short string");
+    }
+}
+
+public fn test_uuid_isValid_invalid_no_dashes(): void {
+    if (Uuid.isValid("550e8400e29b41d4a716446655440000")) {
+        io::println("FAIL: Uuid.isValid should reject no-dashes string");
+    } else {
+        io::println("PASS: Uuid.isValid rejects no-dashes string");
+    }
+}
+
+public fn test_uuid_isValid_invalid_null(): void {
+    if (Uuid.isValid(null)) {
+        io::println("FAIL: Uuid.isValid should reject null");
+    } else {
+        io::println("PASS: Uuid.isValid rejects null");
+    }
+}
+
+public fn test_uuid_isValid_invalid_bad_chars(): void {
+    if (Uuid.isValid("550e8400-e29b-41d4-a716-44665544000g")) {
+        io::println("FAIL: Uuid.isValid should reject bad chars");
+    } else {
+        io::println("PASS: Uuid.isValid rejects bad chars");
+    }
+}
+
+public fn test_uuid_uuid4_format(): void {
+    let u: string = Uuid.uuid4();
+    if (!Uuid.isValid(u)) {
+        io::println("FAIL: Uuid.uuid4 produced invalid UUID: " + u);
+    } else {
+        io::println("PASS: Uuid.uuid4 produces valid format");
+    }
+}
+
+public fn test_uuid_uuid4_version(): void {
+    let u: string = Uuid.uuid4();
+    // Version 4 UUID has '4' at position 14
+    let v: string = String.charAt(u, 14);
+    if (v != "4") {
+        io::println("FAIL: Uuid.uuid4 version nibble is " + v + ", expected 4");
+    } else {
+        io::println("PASS: Uuid.uuid4 has version 4");
+    }
+}
+
+public fn test_uuid_uuid4_unique(): void {
+    let u1: string = Uuid.uuid4();
+    let u2: string = Uuid.uuid4();
+    if (u1 == u2) {
+        io::println("FAIL: Uuid.uuid4 produced duplicate UUIDs");
+    } else {
+        io::println("PASS: Uuid.uuid4 produces unique values");
+    }
+}
+
+public fn test_uuid_random_format(): void {
+    let u: string = Uuid.random();
+    if (!Uuid.isValid(u)) {
+        io::println("FAIL: Uuid.random produced invalid UUID: " + u);
+    } else {
+        io::println("PASS: Uuid.random produces valid format");
+    }
+}
+
+public fn test_uuid_uuid4Obj(): void {
+    let u: Uuid = Uuid.uuid4Obj();
+    if (u == null) {
+        io::println("FAIL: Uuid.uuid4Obj returned null");
+    } else if (u.version != 4) {
+        io::println("FAIL: Uuid.uuid4Obj version=" + Integer.toString(u.version) + ", expected 4");
+    } else {
+        io::println("PASS: Uuid.uuid4Obj works");
+    }
+}
+
+public fn test_uuid_uuid1(): void {
+    let u: Uuid = Uuid.uuid1();
+    if (u == null) {
+        io::println("FAIL: Uuid.uuid1 returned null");
+    } else if (u.version != 1) {
+        io::println("FAIL: Uuid.uuid1 version=" + Integer.toString(u.version) + ", expected 1");
+    } else {
+        io::println("PASS: Uuid.uuid1 works");
+    }
+}
+
+public fn test_uuid_uuid3(): void {
+    let u: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS, "example.com");
+    if (u == null) {
+        io::println("FAIL: Uuid.uuid3 returned null");
+    } else if (u.version != 3) {
+        io::println("FAIL: Uuid.uuid3 version=" + Integer.toString(u.version) + ", expected 3");
+    } else {
+        io::println("PASS: Uuid.uuid3 works");
+    }
+}
+
+public fn test_uuid_uuid5(): void {
+    let u: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS, "example.com");
+    if (u == null) {
+        io::println("FAIL: Uuid.uuid5 returned null");
+    } else if (u.version != 5) {
+        io::println("FAIL: Uuid.uuid5 version=" + Integer.toString(u.version) + ", expected 5");
+    } else {
+        io::println("PASS: Uuid.uuid5 works");
+    }
+}
+
+public fn test_uuid_uuid3_deterministic(): void {
+    let u1: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS, "test");
+    let u2: Uuid = Uuid.uuid3(Uuid.NAMESPACE_DNS, "test");
+    if (!u1.equals(u2)) {
+        io::println("FAIL: Uuid.uuid3 should be deterministic");
+    } else {
+        io::println("PASS: Uuid.uuid3 is deterministic");
+    }
+}
+
+public fn test_uuid_uuid5_deterministic(): void {
+    let u1: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS, "test");
+    let u2: Uuid = Uuid.uuid5(Uuid.NAMESPACE_DNS, "test");
+    if (!u1.equals(u2)) {
+        io::println("FAIL: Uuid.uuid5 should be deterministic");
+    } else {
+        io::println("PASS: Uuid.uuid5 is deterministic");
+    }
+}
+
+public fn test_uuid_init_toString(): void {
+    let u: UUID = new UUID("550e8400-e29b-41d4-a716-446655440000");
+    let s: string = u.toString();
+    if (s != "550e8400-e29b-41d4-a716-446655440000") {
+        io::println("FAIL: UUID.toString returned " + s);
+    } else {
+        io::println("PASS: UUID.init/toString works");
+    }
+}
+
+public fn test_uuid_init_hex_field(): void {
+    let u: UUID = new UUID("550e8400-e29b-41d4-a716-446655440000");
+    // hex field should have no dashes
+    if (String.indexOf(u.hex, "-") >= 0) {
+        io::println("FAIL: UUID.hex should not contain dashes: " + u.hex);
+    } else {
+        io::println("PASS: UUID.hex has no dashes");
+    }
+}
+
+public fn test_uuid_init_urn(): void {
+    let u: UUID = new UUID("550e8400-e29b-41d4-a716-446655440000");
+    if (String.indexOf(u.urn, "urn:uuid:") != 0) {
+        io::println("FAIL: UUID.urn should start with urn:uuid: " + u.urn);
+    } else {
+        io::println("PASS: UUID.urn works");
+    }
+}
+
+public fn test_uuid_equals(): void {
+    let u1: UUID = new UUID("550e8400-e29b-41d4-a716-446655440000");
+    let u2: UUID = new UUID("550e8400-e29b-41d4-a716-446655440000");
+    let u3: UUID = new UUID("550e8400-e29b-41d4-a716-446655440001");
+    if (!u1.equals(u2)) {
+        io::println("FAIL: UUID.equals should be true for same UUID");
+    } else if (u1.equals(u3)) {
+        io::println("FAIL: UUID.equals should be false for different UUID");
+    } else {
+        io::println("PASS: UUID.equals works");
+    }
+}
+
+public fn test_uuid_namespace_constants(): void {
+    if (String.length(Uuid.NAMESPACE_DNS) != 36) {
+        io::println("FAIL: NAMESPACE_DNS wrong length");
+    } else if (String.length(Uuid.NAMESPACE_URL) != 36) {
+        io::println("FAIL: NAMESPACE_URL wrong length");
+    } else if (String.length(Uuid.NAMESPACE_OID) != 36) {
+        io::println("FAIL: NAMESPACE_OID wrong length");
+    } else if (String.length(Uuid.NAMESPACE_X500) != 36) {
+        io::println("FAIL: NAMESPACE_X500 wrong length");
+    } else {
+        io::println("PASS: UUID namespace constants work");
+    }
+}
+
+public fn run_all_uuid_tests(): void {
+    io::println("=== Uuid.tr Tests ===");
+    test_uuid_isValid_valid();
+    test_uuid_isValid_invalid_short();
+    test_uuid_isValid_invalid_no_dashes();
+    test_uuid_isValid_invalid_null();
+    test_uuid_isValid_invalid_bad_chars();
+    test_uuid_uuid4_format();
+    test_uuid_uuid4_version();
+    test_uuid_uuid4_unique();
+    test_uuid_random_format();
+    test_uuid_uuid4Obj();
+    test_uuid_uuid1();
+    test_uuid_uuid3();
+    test_uuid_uuid5();
+    test_uuid_uuid3_deterministic();
+    test_uuid_uuid5_deterministic();
+    test_uuid_init_toString();
+    test_uuid_init_hex_field();
+    test_uuid_init_urn();
+    test_uuid_equals();
+    test_uuid_namespace_constants();
+}
