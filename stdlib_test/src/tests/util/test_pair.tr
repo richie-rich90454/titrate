@@ -1,0 +1,146 @@
+// Test file for Pair.tr
+// Exercises the public API of the Pair class and its factory function.
+import tt::util::Pair;
+import tt::lang::Integer;
+
+public fn test_pair_init_fields(): void {
+    let p: Pair<int, string> = new Pair<int, string>(42, "hello");
+    if (p.first != 42 || p.second != "hello") {
+        io::println("FAIL: Pair fields");
+    } else {
+        io::println("PASS: Pair init/fields works");
+    }
+}
+
+public fn test_pair_first(): void {
+    let p: Pair<string, int> = new Pair<string, int>("key", 100);
+    if (p.first != "key") {
+        io::println("FAIL: Pair.first");
+    } else {
+        io::println("PASS: Pair.first works");
+    }
+}
+
+public fn test_pair_second(): void {
+    let p: Pair<string, int> = new Pair<string, int>("key", 100);
+    if (p.second != 100) {
+        io::println("FAIL: Pair.second");
+    } else {
+        io::println("PASS: Pair.second works");
+    }
+}
+
+public fn test_pair_equals_true(): void {
+    let a: Pair<int, int> = new Pair<int, int>(1, 2);
+    let b: Pair<int, int> = new Pair<int, int>(1, 2);
+    if (!a.equals(b)) {
+        io::println("FAIL: Pair.equals true");
+    } else {
+        io::println("PASS: Pair.equals true works");
+    }
+}
+
+public fn test_pair_equals_false(): void {
+    let a: Pair<int, int> = new Pair<int, int>(1, 2);
+    let b: Pair<int, int> = new Pair<int, int>(1, 3);
+    if (a.equals(b)) {
+        io::println("FAIL: Pair.equals false");
+    } else {
+        io::println("PASS: Pair.equals false works");
+    }
+}
+
+public fn test_pair_equals_first_diff(): void {
+    let a: Pair<int, int> = new Pair<int, int>(1, 2);
+    let b: Pair<int, int> = new Pair<int, int>(9, 2);
+    if (a.equals(b)) {
+        io::println("FAIL: Pair.equals first diff");
+    } else {
+        io::println("PASS: Pair.equals first diff works");
+    }
+}
+
+public fn test_pair_swap(): void {
+    let p: Pair<int, string> = new Pair<int, string>(42, "hello");
+    let swapped: Pair<string, int> = p.swap();
+    if (swapped.first != "hello" || swapped.second != 42) {
+        io::println("FAIL: Pair.swap");
+    } else {
+        io::println("PASS: Pair.swap works");
+    }
+}
+
+public fn test_pair_makePair(): void {
+    let p: Pair<int, string> = makePair<int, string>(10, "ten");
+    if (p.first != 10 || p.second != "ten") {
+        io::println("FAIL: makePair");
+    } else {
+        io::println("PASS: makePair works");
+    }
+}
+
+public fn test_pair_toString(): void {
+    let p: Pair<int, int> = new Pair<int, int>(1, 2);
+    let s: string = p.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Pair.toString empty");
+    } else {
+        io::println("PASS: Pair.toString works");
+    }
+}
+
+public fn test_pair_same_types(): void {
+    let p: Pair<int, int> = new Pair<int, int>(5, 5);
+    if (p.first != 5 || p.second != 5) {
+        io::println("FAIL: Pair same types");
+    } else {
+        io::println("PASS: Pair same types works");
+    }
+}
+
+public fn test_pair_nested(): void {
+    let inner: Pair<int, int> = new Pair<int, int>(1, 2);
+    let outer: Pair<Pair<int, int>, int> = new Pair<Pair<int, int>, int>(inner, 3);
+    if (outer.first.first != 1 || outer.first.second != 2 || outer.second != 3) {
+        io::println("FAIL: Pair nested");
+    } else {
+        io::println("PASS: Pair nested works");
+    }
+}
+
+public fn test_pair_string_string(): void {
+    let p: Pair<string, string> = new Pair<string, string>("a", "b");
+    if (p.first != "a" || p.second != "b") {
+        io::println("FAIL: Pair string,string");
+    } else {
+        io::println("PASS: Pair string,string works");
+    }
+}
+
+public fn test_pair_swap_back(): void {
+    let p: Pair<int, string> = new Pair<int, string>(1, "x");
+    let swapped: Pair<string, int> = p.swap();
+    let back: Pair<int, string> = swapped.swap();
+    if (back.first != 1 || back.second != "x") {
+        io::println("FAIL: Pair swap back");
+    } else {
+        io::println("PASS: Pair swap back works");
+    }
+}
+
+public fn run_all_pair_tests(): void {
+    io::println("=== Pair.tr Tests ===");
+    test_pair_init_fields();
+    test_pair_first();
+    test_pair_second();
+    test_pair_equals_true();
+    test_pair_equals_false();
+    test_pair_equals_first_diff();
+    test_pair_swap();
+    test_pair_makePair();
+    test_pair_toString();
+    test_pair_same_types();
+    test_pair_nested();
+    test_pair_string_string();
+    test_pair_swap_back();
+}
