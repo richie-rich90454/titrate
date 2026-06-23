@@ -1,0 +1,291 @@
+// Test file for Duration.tr
+// Exercises the public API of the Duration class and its top-level factory functions.
+import tt::time::Duration;
+import tt::lang::Long;
+import tt::lang::Boolean;
+import tt::lang::Double;
+
+public fn test_duration_init_toMillis(): void {
+    let d: Duration = new Duration(5000);
+    if (d.toMillis() != 5000) {
+        io::println("FAIL: Duration.toMillis returned " + Long.toString(d.toMillis()));
+    } else {
+        io::println("PASS: Duration.init/toMillis works");
+    }
+}
+
+public fn test_duration_toSeconds(): void {
+    let d: Duration = new Duration(5000);
+    if (d.toSeconds() != 5) {
+        io::println("FAIL: Duration.toSeconds returned " + Long.toString(d.toSeconds()));
+    } else {
+        io::println("PASS: Duration.toSeconds works");
+    }
+}
+
+public fn test_duration_totalSeconds(): void {
+    let d: Duration = new Duration(1500);
+    let ts: double = d.totalSeconds();
+    if (ts < 1.4999 || ts > 1.5001) {
+        io::println("FAIL: Duration.totalSeconds returned " + Double.toString(ts));
+    } else {
+        io::println("PASS: Duration.totalSeconds works");
+    }
+}
+
+public fn test_duration_toMinutes(): void {
+    let d: Duration = new Duration(120000);
+    if (d.toMinutes() != 2) {
+        io::println("FAIL: Duration.toMinutes returned " + Long.toString(d.toMinutes()));
+    } else {
+        io::println("PASS: Duration.toMinutes works");
+    }
+}
+
+public fn test_duration_toHours(): void {
+    let d: Duration = new Duration(7200000);
+    if (d.toHours() != 2) {
+        io::println("FAIL: Duration.toHours returned " + Long.toString(d.toHours()));
+    } else {
+        io::println("PASS: Duration.toHours works");
+    }
+}
+
+public fn test_duration_toDays(): void {
+    let d: Duration = new Duration(172800000);
+    if (d.toDays() != 2) {
+        io::println("FAIL: Duration.toDays returned " + Long.toString(d.toDays()));
+    } else {
+        io::println("PASS: Duration.toDays works");
+    }
+}
+
+public fn test_duration_toNanos(): void {
+    let d: Duration = new Duration(1);
+    if (d.toNanos() != 1000000) {
+        io::println("FAIL: Duration.toNanos returned " + Long.toString(d.toNanos()));
+    } else {
+        io::println("PASS: Duration.toNanos works");
+    }
+}
+
+public fn test_duration_toMicros(): void {
+    let d: Duration = new Duration(1);
+    if (d.toMicros() != 1000) {
+        io::println("FAIL: Duration.toMicros returned " + Long.toString(d.toMicros()));
+    } else {
+        io::println("PASS: Duration.toMicros works");
+    }
+}
+
+public fn test_duration_initWithNanos(): void {
+    let d: Duration = new Duration(0);
+    d.initWithNanos(2, 500);
+    if (d.toMillis() != 2) {
+        io::println("FAIL: Duration.initWithNanos toMillis=" + Long.toString(d.toMillis()));
+    } else if (d.toNanos() != 2500) {
+        io::println("FAIL: Duration.initWithNanos toNanos=" + Long.toString(d.toNanos()));
+    } else {
+        io::println("PASS: Duration.initWithNanos works");
+    }
+}
+
+public fn test_duration_plus(): void {
+    let a: Duration = new Duration(1000);
+    let b: Duration = new Duration(2000);
+    let c: Duration = a.plus(b);
+    if (c.toMillis() != 3000) {
+        io::println("FAIL: Duration.plus returned " + Long.toString(c.toMillis()));
+    } else {
+        io::println("PASS: Duration.plus works");
+    }
+}
+
+public fn test_duration_minus(): void {
+    let a: Duration = new Duration(3000);
+    let b: Duration = new Duration(1000);
+    let c: Duration = a.minus(b);
+    if (c.toMillis() != 2000) {
+        io::println("FAIL: Duration.minus returned " + Long.toString(c.toMillis()));
+    } else {
+        io::println("PASS: Duration.minus works");
+    }
+}
+
+public fn test_duration_isNegative(): void {
+    let pos: Duration = new Duration(1000);
+    let neg: Duration = new Duration(-1000);
+    if (pos.isNegative()) {
+        io::println("FAIL: Duration.isNegative should be false for positive");
+    } else if (!neg.isNegative()) {
+        io::println("FAIL: Duration.isNegative should be true for negative");
+    } else {
+        io::println("PASS: Duration.isNegative works");
+    }
+}
+
+public fn test_duration_isZero(): void {
+    let z: Duration = new Duration(0);
+    let nz: Duration = new Duration(1);
+    if (!z.isZero()) {
+        io::println("FAIL: Duration.isZero should be true for 0");
+    } else if (nz.isZero()) {
+        io::println("FAIL: Duration.isZero should be false for 1");
+    } else {
+        io::println("PASS: Duration.isZero works");
+    }
+}
+
+public fn test_duration_multipliedBy(): void {
+    let d: Duration = new Duration(1000);
+    let m: Duration = d.multipliedBy(5);
+    if (m.toMillis() != 5000) {
+        io::println("FAIL: Duration.multipliedBy returned " + Long.toString(m.toMillis()));
+    } else {
+        io::println("PASS: Duration.multipliedBy works");
+    }
+}
+
+public fn test_duration_dividedBy(): void {
+    let d: Duration = new Duration(10000);
+    let m: Duration = d.dividedBy(2);
+    if (m.toMillis() != 5000) {
+        io::println("FAIL: Duration.dividedBy returned " + Long.toString(m.toMillis()));
+    } else {
+        io::println("PASS: Duration.dividedBy works");
+    }
+}
+
+public fn test_duration_negated(): void {
+    let d: Duration = new Duration(1000);
+    let n: Duration = d.negated();
+    if (n.toMillis() != -1000) {
+        io::println("FAIL: Duration.negated returned " + Long.toString(n.toMillis()));
+    } else {
+        io::println("PASS: Duration.negated works");
+    }
+}
+
+public fn test_duration_abs(): void {
+    let neg: Duration = new Duration(-1000);
+    let a: Duration = neg.abs();
+    if (a.toMillis() != 1000) {
+        io::println("FAIL: Duration.abs returned " + Long.toString(a.toMillis()));
+    } else {
+        io::println("PASS: Duration.abs works");
+    }
+}
+
+public fn test_duration_toString(): void {
+    let d: Duration = new Duration(1500);
+    let s: string = d.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Duration.toString empty");
+    } else {
+        io::println("PASS: Duration.toString works: " + s);
+    }
+}
+
+public fn test_duration_public_field(): void {
+    let d: Duration = new Duration(7777);
+    if (d.millis != 7777) {
+        io::println("FAIL: Duration.millis field wrong");
+    } else {
+        io::println("PASS: Duration.millis public field accessible");
+    }
+}
+
+// --- Top-level factory function tests ---
+
+public fn test_duration_ofMillis(): void {
+    let d: Duration = Duration.ofMillis(3000);
+    if (d.toMillis() != 3000) {
+        io::println("FAIL: Duration.ofMillis returned " + Long.toString(d.toMillis()));
+    } else {
+        io::println("PASS: Duration.ofMillis works");
+    }
+}
+
+public fn test_duration_ofSeconds(): void {
+    let d: Duration = Duration.ofSeconds(5);
+    if (d.toMillis() != 5000) {
+        io::println("FAIL: Duration.ofSeconds returned " + Long.toString(d.toMillis()));
+    } else {
+        io::println("PASS: Duration.ofSeconds works");
+    }
+}
+
+public fn test_duration_ofMinutes(): void {
+    let d: Duration = Duration.ofMinutes(2);
+    if (d.toMillis() != 120000) {
+        io::println("FAIL: Duration.ofMinutes returned " + Long.toString(d.toMillis()));
+    } else {
+        io::println("PASS: Duration.ofMinutes works");
+    }
+}
+
+public fn test_duration_ofHours(): void {
+    let d: Duration = Duration.ofHours(3);
+    if (d.toMillis() != 10800000) {
+        io::println("FAIL: Duration.ofHours returned " + Long.toString(d.toMillis()));
+    } else {
+        io::println("PASS: Duration.ofHours works");
+    }
+}
+
+public fn test_duration_ofDays(): void {
+    let d: Duration = Duration.ofDays(2);
+    if (d.toMillis() != 172800000) {
+        io::println("FAIL: Duration.ofDays returned " + Long.toString(d.toMillis()));
+    } else {
+        io::println("PASS: Duration.ofDays works");
+    }
+}
+
+public fn test_duration_ofNanos(): void {
+    let d: Duration = Duration.ofNanos(2000000);
+    if (d.toMillis() != 2) {
+        io::println("FAIL: Duration.ofNanos returned " + Long.toString(d.toMillis()));
+    } else {
+        io::println("PASS: Duration.ofNanos works");
+    }
+}
+
+public fn test_duration_ofMicros(): void {
+    let d: Duration = Duration.ofMicros(3000);
+    if (d.toMillis() != 3) {
+        io::println("FAIL: Duration.ofMicros returned " + Long.toString(d.toMillis()));
+    } else {
+        io::println("PASS: Duration.ofMicros works");
+    }
+}
+
+public fn run_all_duration_tests(): void {
+    io::println("=== Duration.tr Tests ===");
+    test_duration_init_toMillis();
+    test_duration_toSeconds();
+    test_duration_totalSeconds();
+    test_duration_toMinutes();
+    test_duration_toHours();
+    test_duration_toDays();
+    test_duration_toNanos();
+    test_duration_toMicros();
+    test_duration_initWithNanos();
+    test_duration_plus();
+    test_duration_minus();
+    test_duration_isNegative();
+    test_duration_isZero();
+    test_duration_multipliedBy();
+    test_duration_dividedBy();
+    test_duration_negated();
+    test_duration_abs();
+    test_duration_toString();
+    test_duration_public_field();
+    test_duration_ofMillis();
+    test_duration_ofSeconds();
+    test_duration_ofMinutes();
+    test_duration_ofHours();
+    test_duration_ofDays();
+    test_duration_ofNanos();
+    test_duration_ofMicros();
+}
