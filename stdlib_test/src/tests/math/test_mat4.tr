@@ -1,0 +1,296 @@
+import tt::math::transform::Mat4;
+import tt::math::vec::Vec3;
+import tt::math::vec::Vec4;
+import tt::math::MathTrig;
+import tt::math::Math;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn test_identity(): void {
+    let m: Mat4 = mat4Identity();
+    let pass: bool = true;
+    if (!approxEq(m.get(0, 0), 1.0, 1e-12)) { pass = false; }
+    if (!approxEq(m.get(1, 1), 1.0, 1e-12)) { pass = false; }
+    if (!approxEq(m.get(2, 2), 1.0, 1e-12)) { pass = false; }
+    if (!approxEq(m.get(3, 3), 1.0, 1e-12)) { pass = false; }
+    if (!approxEq(m.get(0, 1), 0.0, 1e-12)) { pass = false; }
+    if (pass) {
+        io::println("PASS test_identity: identity matrix has 1s on diagonal, 0s elsewhere");
+    } else {
+        io::println("FAIL test_identity: incorrect identity");
+    }
+}
+
+fn test_zero(): void {
+    let m: Mat4 = mat4Zero();
+    if (approxEq(m.get(0, 0), 0.0, 1e-12) && approxEq(m.get(3, 3), 0.0, 1e-12)) {
+        io::println("PASS test_zero: zero matrix is all zeros");
+    } else {
+        io::println("FAIL test_zero: not all zeros");
+    }
+}
+
+fn test_get_set(): void {
+    let m: Mat4 = mat4Identity();
+    m.set(1, 2, 5.0);
+    if (approxEq(m.get(1, 2), 5.0, 1e-12)) {
+        io::println("PASS test_get_set: set then get returns set value");
+    } else {
+        io::println("FAIL test_get_set: expected 5.0, got " + Double.toString(m.get(1, 2)));
+    }
+}
+
+fn test_multiply_identity(): void {
+    let m: Mat4 = mat4Translation(1.0, 2.0, 3.0);
+    let id: Mat4 = mat4Identity();
+    let p: Mat4 = m.multiply(id);
+    // Multiplying by identity should not change the matrix
+    if (approxEq(p.get(0, 3), 1.0, 1e-12) && approxEq(p.get(1, 3), 2.0, 1e-12) && approxEq(p.get(2, 3), 3.0, 1e-12)) {
+        io::println("PASS test_multiply_identity: M * I = M");
+    } else {
+        io::println("FAIL test_multiply_identity: translation lost");
+    }
+}
+
+fn test_translation_transform(): void {
+    let m: Mat4 = mat4Translation(10.0, 20.0, 30.0);
+    let v: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let r: Vec3 = m.transformPoint(v);
+    if (approxEq(r.x, 11.0, 1e-9) && approxEq(r.y, 22.0, 1e-9) && approxEq(r.z, 33.0, 1e-9)) {
+        io::println("PASS test_translation_transform: point translated by (10,20,30)");
+    } else {
+        io::println("FAIL test_translation_transform: x=" + Double.toString(r.x) + " y=" + Double.toString(r.y) + " z=" + Double.toString(r.z));
+    }
+}
+
+fn test_scaling_transform(): void {
+    let m: Mat4 = mat4Scaling(2.0, 3.0, 4.0);
+    let v: Vec3 = new Vec3(1.0, 1.0, 1.0);
+    let r: Vec3 = m.transformVector(v);
+    if (approxEq(r.x, 2.0, 1e-9) && approxEq(r.y, 3.0, 1e-9) && approxEq(r.z, 4.0, 1e-9)) {
+        io::println("PASS test_scaling_transform: vector scaled by (2,3,4)");
+    } else {
+        io::println("FAIL test_scaling_transform: incorrect scaling");
+    }
+}
+
+fn test_rotationX(): void {
+    // Rotate (1,0,0) by any angle around X -> still (1,0,0)
+    let m: Mat4 = mat4RotationX(Math.PI() / 4.0);
+    let v: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let r: Vec3 = m.transformVector(v);
+    if (approxEq(r.x, 1.0, 1e-9) && approxEq(r.y, 0.0, 1e-9) && approxEq(r.z, 0.0, 1e-9)) {
+        io::println("PASS test_rotationX: X-axis invariant under X rotation");
+    } else {
+        io::println("FAIL test_rotationX: x=" + Double.toString(r.x) + " y=" + Double.toString(r.y) + " z=" + Double.toString(r.z));
+    }
+}
+
+fn test_rotationX_y_to_z(): void {
+    // Rotate (0,1,0) by 90 degrees around X -> (0,0,1)
+    let m: Mat4 = mat4RotationX(Math.PI() / 2.0);
+    let v: Vec3 = new Vec3(0.0, 1.0, 0.0);
+    let r: Vec3 = m.transformVector(v);
+    if (approxEq(r.x, 0.0, 1e-9) && approxEq(r.y, 0.0, 1e-9) && approxEq(r.z, 1.0, 1e-9)) {
+        io::println("PASS test_rotationX_y_to_z: (0,1,0) -> (0,0,1) under 90deg X rotation");
+    } else {
+        io::println("FAIL test_rotationX_y_to_z: y=" + Double.toString(r.y) + " z=" + Double.toString(r.z));
+    }
+}
+
+fn test_rotationY(): void {
+    // Rotate (0,0,1) by 90 degrees around Y -> (1,0,0)
+    let m: Mat4 = mat4RotationY(Math.PI() / 2.0);
+    let v: Vec3 = new Vec3(0.0, 0.0, 1.0);
+    let r: Vec3 = m.transformVector(v);
+    if (approxEq(r.x, 1.0, 1e-9) && approxEq(r.y, 0.0, 1e-9) && approxEq(r.z, 0.0, 1e-9)) {
+        io::println("PASS test_rotationY: (0,0,1) -> (1,0,0) under 90deg Y rotation");
+    } else {
+        io::println("FAIL test_rotationY: x=" + Double.toString(r.x) + " z=" + Double.toString(r.z));
+    }
+}
+
+fn test_rotationZ(): void {
+    // Rotate (1,0,0) by 90 degrees around Z -> (0,1,0)
+    let m: Mat4 = mat4RotationZ(Math.PI() / 2.0);
+    let v: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let r: Vec3 = m.transformVector(v);
+    if (approxEq(r.x, 0.0, 1e-9) && approxEq(r.y, 1.0, 1e-9) && approxEq(r.z, 0.0, 1e-9)) {
+        io::println("PASS test_rotationZ: (1,0,0) -> (0,1,0) under 90deg Z rotation");
+    } else {
+        io::println("FAIL test_rotationZ: x=" + Double.toString(r.x) + " y=" + Double.toString(r.y));
+    }
+}
+
+fn test_transpose(): void {
+    let m: Mat4 = mat4Translation(1.0, 2.0, 3.0);
+    let t: Mat4 = m.transpose();
+    // Translation matrix has (1,2,3) at (0,3),(1,3),(2,3); transpose moves them to (3,0),(3,1),(3,2)
+    if (approxEq(t.get(3, 0), 1.0, 1e-12) && approxEq(t.get(3, 1), 2.0, 1e-12) && approxEq(t.get(3, 2), 3.0, 1e-12)) {
+        io::println("PASS test_transpose: translation elements moved to last row");
+    } else {
+        io::println("FAIL test_transpose: incorrect transpose");
+    }
+}
+
+fn test_determinant_identity(): void {
+    let m: Mat4 = mat4Identity();
+    let d: double = m.determinant();
+    if (approxEq(d, 1.0, 1e-9)) {
+        io::println("PASS test_determinant_identity: det(I) = 1");
+    } else {
+        io::println("FAIL test_determinant_identity: expected 1.0, got " + Double.toString(d));
+    }
+}
+
+fn test_determinant_scaling(): void {
+    let m: Mat4 = mat4Scaling(2.0, 3.0, 4.0);
+    let d: double = m.determinant();
+    if (approxEq(d, 24.0, 1e-9)) {
+        io::println("PASS test_determinant_scaling: det(scale(2,3,4)) = 24");
+    } else {
+        io::println("FAIL test_determinant_scaling: expected 24.0, got " + Double.toString(d));
+    }
+}
+
+fn test_inverse_identity(): void {
+    let m: Mat4 = mat4Identity();
+    let inv: Mat4 = m.inverse();
+    if (approxEq(inv.get(0, 0), 1.0, 1e-9) && approxEq(inv.get(1, 1), 1.0, 1e-9) && approxEq(inv.get(2, 2), 1.0, 1e-9) && approxEq(inv.get(3, 3), 1.0, 1e-9)) {
+        io::println("PASS test_inverse_identity: inverse(I) = I");
+    } else {
+        io::println("FAIL test_inverse_identity: not identity");
+    }
+}
+
+fn test_inverse_translation(): void {
+    let m: Mat4 = mat4Translation(5.0, 10.0, 15.0);
+    let inv: Mat4 = m.inverse();
+    let prod: Mat4 = m.multiply(inv);
+    // M * M^-1 should be identity
+    let pass: bool = approxEq(prod.get(0, 0), 1.0, 1e-9) && approxEq(prod.get(1, 1), 1.0, 1e-9) && approxEq(prod.get(2, 2), 1.0, 1e-9) && approxEq(prod.get(3, 3), 1.0, 1e-9) && approxEq(prod.get(0, 3), 0.0, 1e-9);
+    if (pass) {
+        io::println("PASS test_inverse_translation: M * M^-1 = I for translation");
+    } else {
+        io::println("FAIL test_inverse_translation: product not identity");
+    }
+}
+
+fn test_multiplyVec4(): void {
+    let m: Mat4 = mat4Identity();
+    let v: Vec4 = new Vec4(1.0, 2.0, 3.0, 1.0);
+    let r: Vec4 = m.multiplyVec4(v);
+    if (approxEq(r.x, 1.0, 1e-9) && approxEq(r.y, 2.0, 1e-9) && approxEq(r.z, 3.0, 1e-9) && approxEq(r.w, 1.0, 1e-9)) {
+        io::println("PASS test_multiplyVec4: I * v = v");
+    } else {
+        io::println("FAIL test_multiplyVec4: incorrect");
+    }
+}
+
+fn test_transformVector_no_translation(): void {
+    // transformVector ignores translation column
+    let m: Mat4 = mat4Translation(100.0, 200.0, 300.0);
+    let v: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let r: Vec3 = m.transformVector(v);
+    if (approxEq(r.x, 1.0, 1e-9) && approxEq(r.y, 0.0, 1e-9) && approxEq(r.z, 0.0, 1e-9)) {
+        io::println("PASS test_transformVector_no_translation: translation ignored for vectors");
+    } else {
+        io::println("FAIL test_transformVector_no_translation: translation applied");
+    }
+}
+
+fn test_transformDirection_normalized(): void {
+    let m: Mat4 = mat4Scaling(2.0, 2.0, 2.0);
+    let v: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let r: Vec3 = m.transformDirection(v);
+    // Direction is normalized, so scaling should be undone
+    let len: double = Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z);
+    if (approxEq(len, 1.0, 1e-9)) {
+        io::println("PASS test_transformDirection_normalized: result is unit length");
+    } else {
+        io::println("FAIL test_transformDirection_normalized: length=" + Double.toString(len));
+    }
+}
+
+fn test_rotationAxis(): void {
+    // Rotate around Y axis by 90 degrees: same as mat4RotationY
+    let axis: Vec3 = new Vec3(0.0, 1.0, 0.0);
+    let m: Mat4 = mat4RotationAxis(axis, Math.PI() / 2.0);
+    let v: Vec3 = new Vec3(0.0, 0.0, 1.0);
+    let r: Vec3 = m.transformVector(v);
+    if (approxEq(r.x, 1.0, 1e-9) && approxEq(r.z, 0.0, 1e-9)) {
+        io::println("PASS test_rotationAxis: axis-angle Y 90deg matches Y rotation");
+    } else {
+        io::println("FAIL test_rotationAxis: x=" + Double.toString(r.x) + " z=" + Double.toString(r.z));
+    }
+}
+
+fn test_orthographic(): void {
+    let m: Mat4 = mat4Orthographic(-1.0, 1.0, -1.0, 1.0, 0.1, 100.0);
+    // Origin should map to origin in orthographic
+    let v: Vec3 = new Vec3(0.0, 0.0, 0.0);
+    let r: Vec3 = m.transformPoint(v);
+    if (approxEq(r.x, 0.0, 1e-9) && approxEq(r.y, 0.0, 1e-9)) {
+        io::println("PASS test_orthographic: origin maps near origin");
+    } else {
+        io::println("FAIL test_orthographic: x=" + Double.toString(r.x) + " y=" + Double.toString(r.y));
+    }
+}
+
+fn test_lookAt(): void {
+    let eye: Vec3 = new Vec3(0.0, 0.0, 5.0);
+    let center: Vec3 = new Vec3(0.0, 0.0, 0.0);
+    let up: Vec3 = new Vec3(0.0, 1.0, 0.0);
+    let m: Mat4 = mat4LookAt(eye, center, up);
+    // The eye should be transformed to origin
+    let r: Vec3 = m.transformPoint(eye);
+    if (approxEq(r.x, 0.0, 1e-9) && approxEq(r.y, 0.0, 1e-9) && approxEq(r.z, 0.0, 1e-9)) {
+        io::println("PASS test_lookAt: eye maps to origin");
+    } else {
+        io::println("FAIL test_lookAt: x=" + Double.toString(r.x) + " y=" + Double.toString(r.y) + " z=" + Double.toString(r.z));
+    }
+}
+
+fn test_toString(): void {
+    let m: Mat4 = mat4Identity();
+    let s: string = m.toString();
+    if (String.indexOf(s, "Mat4") >= 0) {
+        io::println("PASS test_toString: contains 'Mat4'");
+    } else {
+        io::println("FAIL test_toString: missing 'Mat4'");
+    }
+}
+
+public fn run_all_mat4_tests(): void {
+    io::println("=== Mat4 tests ===");
+    test_identity();
+    test_zero();
+    test_get_set();
+    test_multiply_identity();
+    test_translation_transform();
+    test_scaling_transform();
+    test_rotationX();
+    test_rotationX_y_to_z();
+    test_rotationY();
+    test_rotationZ();
+    test_transpose();
+    test_determinant_identity();
+    test_determinant_scaling();
+    test_inverse_identity();
+    test_inverse_translation();
+    test_multiplyVec4();
+    test_transformVector_no_translation();
+    test_transformDirection_normalized();
+    test_rotationAxis();
+    test_orthographic();
+    test_lookAt();
+    test_toString();
+}
