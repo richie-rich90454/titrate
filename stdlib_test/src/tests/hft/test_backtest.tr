@@ -1,0 +1,139 @@
+// Test file for hft/Backtest.tr
+// Exercises BarData, BacktestResult, and BacktestEngine classes.
+import tt::hft::Backtest;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_bar_data(): void {
+    let bar: BarData = new BarData(100.0, 105.0, 95.0, 102.0, 1000.0, 1.0);
+    if (absDiff(bar.open, 100.0) > 1e-9) {
+        io::println("FAIL: BarData open");
+    } else {
+        io::println("PASS: BarData open = 100.0");
+    }
+    if (absDiff(bar.close, 102.0) > 1e-9) {
+        io::println("FAIL: BarData close");
+    } else {
+        io::println("PASS: BarData close = 102.0");
+    }
+}
+
+public fn test_backtest_result(): void {
+    let result: BacktestResult = new BacktestResult();
+    if (absDiff(result.totalReturn, 0.0) > 1e-9) {
+        io::println("FAIL: BacktestResult totalReturn init");
+    } else {
+        io::println("PASS: BacktestResult totalReturn = 0");
+    }
+    if (result.equity.size() != 0) {
+        io::println("FAIL: BacktestResult equity init");
+    } else {
+        io::println("PASS: BacktestResult equity empty");
+    }
+}
+
+public fn test_backtest_engine_init(): void {
+    let engine: BacktestEngine = new BacktestEngine(100000.0, 5.0, 0.01);
+    if (absDiff(engine.initialCapital, 100000.0) > 1e-9) {
+        io::println("FAIL: BacktestEngine initialCapital");
+    } else {
+        io::println("PASS: BacktestEngine initialCapital = 100000");
+    }
+    if (absDiff(engine.capital, 100000.0) > 1e-9) {
+        io::println("FAIL: BacktestEngine capital");
+    } else {
+        io::println("PASS: BacktestEngine capital = 100000");
+    }
+    if (absDiff(engine.position, 0.0) > 1e-9) {
+        io::println("FAIL: BacktestEngine position");
+    } else {
+        io::println("PASS: BacktestEngine position = 0");
+    }
+}
+
+public fn test_backtest_buy(): void {
+    let engine: BacktestEngine = new BacktestEngine(100000.0, 5.0, 0.01);
+    engine.buy(100.0, 10.0);
+    if (absDiff(engine.position, 10.0) > 1e-9) {
+        io::println("FAIL: position after buy expected 10");
+    } else {
+        io::println("PASS: position after buy = 10");
+    }
+    if (engine.totalTrades != 1) {
+        io::println("FAIL: totalTrades after buy expected 1");
+    } else {
+        io::println("PASS: totalTrades after buy = 1");
+    }
+}
+
+public fn test_backtest_sell(): void {
+    let engine: BacktestEngine = new BacktestEngine(100000.0, 5.0, 0.01);
+    engine.buy(100.0, 10.0);
+    engine.sell(110.0, 10.0);
+    if (absDiff(engine.position, 0.0) > 1e-9) {
+        io::println("FAIL: position after sell expected 0");
+    } else {
+        io::println("PASS: position after sell = 0");
+    }
+    if (engine.totalTrades != 2) {
+        io::println("FAIL: totalTrades after sell expected 2");
+    } else {
+        io::println("PASS: totalTrades after sell = 2");
+    }
+}
+
+public fn test_backtest_update_equity(): void {
+    let engine: BacktestEngine = new BacktestEngine(100000.0, 5.0, 0.01);
+    engine.updateEquity(100.0);
+    if (engine.equity.size() != 1) {
+        io::println("FAIL: equity size after update expected 1");
+    } else {
+        io::println("PASS: equity size after update = 1");
+    }
+    engine.updateEquity(101.0);
+    if (engine.returns.size() != 1) {
+        io::println("FAIL: returns size after 2 updates expected 1");
+    } else {
+        io::println("PASS: returns size after 2 updates = 1");
+    }
+}
+
+public fn test_backtest_get_result(): void {
+    let engine: BacktestEngine = new BacktestEngine(100000.0, 5.0, 0.01);
+    engine.updateEquity(100.0);
+    engine.updateEquity(105.0);
+    let result: BacktestResult = engine.getResult();
+    if (result.equity.size() != 2) {
+        io::println("FAIL: result equity size expected 2");
+    } else {
+        io::println("PASS: result equity size = 2");
+    }
+}
+
+public fn test_backtest_sharpe_ratio(): void {
+    let engine: BacktestEngine = new BacktestEngine(100000.0, 5.0, 0.01);
+    // No returns yet
+    let s: double = engine.sharpeRatio();
+    if (absDiff(s, 0.0) > 1e-9) {
+        io::println("FAIL: sharpeRatio no returns expected 0");
+    } else {
+        io::println("PASS: sharpeRatio no returns = 0");
+    }
+}
+
+public fn run_all_backtest_tests(): void {
+    io::println("=== hft/Backtest.tr Tests ===");
+    test_bar_data();
+    test_backtest_result();
+    test_backtest_engine_init();
+    test_backtest_buy();
+    test_backtest_sell();
+    test_backtest_update_equity();
+    test_backtest_get_result();
+    test_backtest_sharpe_ratio();
+}
