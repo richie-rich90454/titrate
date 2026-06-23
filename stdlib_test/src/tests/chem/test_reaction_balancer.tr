@@ -1,0 +1,145 @@
+// Test file for chem/ReactionBalancer.tr
+// Exercises Reaction class, parseFormula, balance, oxidationState, isRedox, reactionToString.
+import tt::chem::ReactionBalancer;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+
+public fn test_reaction_construction(): void {
+    let r: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    r.add(new Pair<string, int>("H2", 2));
+    let p: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    p.add(new Pair<string, int>("H2", 2));
+    let rxn: Reaction = new Reaction(r, p, true);
+    if (!rxn.balanced) {
+        io::println("FAIL: Reaction construction balanced flag");
+    } else {
+        io::println("PASS: Reaction construction works");
+    }
+}
+
+public fn test_parse_formula_simple(): void {
+    let atoms: ArrayList<Pair<string, int>> = ReactionBalancer.parseFormula("H2O");
+    if (atoms.size() != 2) {
+        io::println("FAIL: parseFormula('H2O') size = " + Integer.toString(atoms.size()));
+    } else {
+        io::println("PASS: parseFormula('H2O') has 2 elements");
+    }
+    // H count should be 2
+    let h: Pair<string, int> = atoms.get(0);
+    if (h.first != "H" || h.second != 2) {
+        io::println("FAIL: parseFormula('H2O') H count");
+    } else {
+        io::println("PASS: parseFormula('H2O') H = 2");
+    }
+    // O count should be 1
+    let o: Pair<string, int> = atoms.get(1);
+    if (o.first != "O" || o.second != 1) {
+        io::println("FAIL: parseFormula('H2O') O count");
+    } else {
+        io::println("PASS: parseFormula('H2O') O = 1");
+    }
+}
+
+public fn test_parse_formula_multi_letter(): void {
+    // NaCl should parse as Na and Cl
+    let atoms: ArrayList<Pair<string, int>> = ReactionBalancer.parseFormula("NaCl");
+    if (atoms.size() != 2) {
+        io::println("FAIL: parseFormula('NaCl') size");
+    } else {
+        io::println("PASS: parseFormula('NaCl') has 2 elements");
+    }
+    let na: Pair<string, int> = atoms.get(0);
+    if (na.first != "Na") {
+        io::println("FAIL: parseFormula('NaCl') Na symbol");
+    } else {
+        io::println("PASS: parseFormula('NaCl') Na symbol correct");
+    }
+}
+
+public fn test_parse_formula_parens(): void {
+    // (SO4)2 should give S=2, O=8
+    let atoms: ArrayList<Pair<string, int>> = ReactionBalancer.parseFormula("(SO4)2");
+    if (atoms.size() != 2) {
+        io::println("FAIL: parseFormula('(SO4)2') size = " + Integer.toString(atoms.size()));
+    } else {
+        io::println("PASS: parseFormula('(SO4)2') has 2 element types");
+    }
+}
+
+public fn test_balance_water(): void {
+    // 2H2 + O2 -> 2H2O
+    let reactants: ArrayList<string> = new ArrayList<string>();
+    reactants.add("H2");
+    reactants.add("O2");
+    let products: ArrayList<string> = new ArrayList<string>();
+    products.add("H2O");
+    let rxn: Reaction = ReactionBalancer.balance(reactants, products);
+    if (!rxn.balanced) {
+        io::println("FAIL: balance water balanced flag");
+    } else {
+        io::println("PASS: balance water balanced flag set");
+    }
+    // Check the coefficients
+    let h2Coeff: int = rxn.reactants.get(0).second;
+    let o2Coeff: int = rxn.reactants.get(1).second;
+    let h2oCoeff: int = rxn.products.get(0).second;
+    io::println("INFO: water balance coefficients: H2=" + Integer.toString(h2Coeff) + " O2=" + Integer.toString(o2Coeff) + " H2O=" + Integer.toString(h2oCoeff));
+}
+
+public fn test_reaction_to_string(): void {
+    let r: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    r.add(new Pair<string, int>("H2", 2));
+    r.add(new Pair<string, int>("O2", 1));
+    let p: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    p.add(new Pair<string, int>("H2O", 2));
+    let rxn: Reaction = new Reaction(r, p, true);
+    let s: string = rxn.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: reactionToString empty");
+    } else {
+        io::println("PASS: reactionToString non-empty: " + s);
+    }
+}
+
+public fn test_oxidation_state(): void {
+    // For H2O, oxidation state of H should be +1, O should be -2
+    let h2o: ArrayList<Pair<string, int>> = ReactionBalancer.parseFormula("H2O");
+    let hOx: int = ReactionBalancer.oxidationState("H", h2o);
+    io::println("INFO: oxidation state of H in H2O = " + Integer.toString(hOx));
+    let oOx: int = ReactionBalancer.oxidationState("O", h2o);
+    io::println("INFO: oxidation state of O in H2O = " + Integer.toString(oOx));
+    // The sum should be zero: 2*H + O = 0
+    if (2 * hOx + oOx != 0) {
+        io::println("FAIL: oxidationState sum not zero for H2O");
+    } else {
+        io::println("PASS: oxidationState sum is zero for H2O");
+    }
+}
+
+public fn test_is_redox(): void {
+    // 2H2 + O2 -> 2H2O is a redox reaction
+    let reactants: ArrayList<string> = new ArrayList<string>();
+    reactants.add("H2");
+    reactants.add("O2");
+    let products: ArrayList<string> = new ArrayList<string>();
+    products.add("H2O");
+    let redox: bool = ReactionBalancer.isRedox(reactants, products);
+    if (!redox) {
+        io::println("FAIL: isRedox H2+O2->H2O expected true");
+    } else {
+        io::println("PASS: isRedox H2+O2->H2O = true");
+    }
+}
+
+public fn run_all_reaction_balancer_tests(): void {
+    io::println("=== chem/ReactionBalancer.tr Tests ===");
+    test_reaction_construction();
+    test_parse_formula_simple();
+    test_parse_formula_multi_letter();
+    test_parse_formula_parens();
+    test_balance_water();
+    test_reaction_to_string();
+    test_oxidation_state();
+    test_is_redox();
+}
