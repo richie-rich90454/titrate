@@ -1,0 +1,213 @@
+// Test file for materials/Elasticity.tr
+// Exercises StressTensor, StrainTensor, ElasticConstants, Hooke's law.
+import tt::materials::Elasticity;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_stress_tensor(): void {
+    let s: StressTensor = new StressTensor();
+    s.xx = 100.0;
+    s.yy = 100.0;
+    s.zz = 100.0;
+    let h: double = s.hydrostaticStress();
+    if (absDiff(h, 100.0) > 1e-9) {
+        io::println("FAIL: hydrostaticStress expected 100");
+    } else {
+        io::println("PASS: hydrostaticStress = 100");
+    }
+}
+
+public fn test_stress_tensor_init(): void {
+    let s: StressTensor = new StressTensor();
+    if (absDiff(s.xx, 0.0) > 1e-9) {
+        io::println("FAIL: StressTensor init xx");
+    } else {
+        io::println("PASS: StressTensor init xx = 0");
+    }
+}
+
+public fn test_von_mises_stress(): void {
+    let s: StressTensor = new StressTensor();
+    s.xx = 100.0;
+    s.yy = 0.0;
+    s.zz = 0.0;
+    let vm: double = s.vonMisesStress();
+    if (vm <= 0.0) {
+        io::println("FAIL: vonMisesStress should be > 0");
+    } else {
+        io::println("PASS: vonMisesStress > 0");
+    }
+}
+
+public fn test_von_mises_zero(): void {
+    let s: StressTensor = new StressTensor();
+    let vm: double = s.vonMisesStress();
+    if (absDiff(vm, 0.0) > 1e-9) {
+        io::println("FAIL: vonMisesStress zero expected 0");
+    } else {
+        io::println("PASS: vonMisesStress zero = 0");
+    }
+}
+
+public fn test_strain_tensor(): void {
+    let e: StrainTensor = new StrainTensor();
+    e.xx = 0.001;
+    e.yy = 0.001;
+    e.zz = 0.001;
+    let v: double = e.volumetricStrain();
+    if (absDiff(v, 0.003) > 1e-9) {
+        io::println("FAIL: volumetricStrain expected 0.003");
+    } else {
+        io::println("PASS: volumetricStrain = 0.003");
+    }
+}
+
+public fn test_elastic_constants(): void {
+    let c: ElasticConstants = new ElasticConstants(210.0, 0.3);
+    if (absDiff(c.youngsModulus, 210.0) > 1e-9) {
+        io::println("FAIL: youngsModulus expected 210");
+    } else {
+        io::println("PASS: youngsModulus = 210");
+    }
+    if (absDiff(c.poissonRatio, 0.3) > 1e-9) {
+        io::println("FAIL: poissonRatio expected 0.3");
+    } else {
+        io::println("PASS: poissonRatio = 0.3");
+    }
+    // G = E / (2*(1+nu)) = 210 / 2.6 = 80.769...
+    if (absDiff(c.shearModulus, 80.769231) > 0.001) {
+        io::println("FAIL: shearModulus expected ~80.769");
+    } else {
+        io::println("PASS: shearModulus = ~80.769");
+    }
+    // K = E / (3*(1-2*nu)) = 210 / 1.2 = 175.0
+    if (absDiff(c.bulkModulus, 175.0) > 1e-6) {
+        io::println("FAIL: bulkModulus expected 175");
+    } else {
+        io::println("PASS: bulkModulus = 175");
+    }
+}
+
+public fn test_elastic_constants_from_shear_bulk(): void {
+    let c: ElasticConstants = new ElasticConstants(100.0, 0.3);
+    c.fromShearBulk(80.0, 175.0);
+    if (absDiff(c.shearModulus, 80.0) > 1e-9) {
+        io::println("FAIL: fromShearBulk G expected 80");
+    } else {
+        io::println("PASS: fromShearBulk G = 80");
+    }
+    if (absDiff(c.bulkModulus, 175.0) > 1e-9) {
+        io::println("FAIL: fromShearBulk K expected 175");
+    } else {
+        io::println("PASS: fromShearBulk K = 175");
+    }
+}
+
+public fn test_lame_lambda(): void {
+    let c: ElasticConstants = new ElasticConstants(210.0, 0.3);
+    let lambda: double = c.lameLambda();
+    if (lambda <= 0.0) {
+        io::println("FAIL: lameLambda should be > 0");
+    } else {
+        io::println("PASS: lameLambda > 0");
+    }
+}
+
+public fn test_p_wave_modulus(): void {
+    let c: ElasticConstants = new ElasticConstants(210.0, 0.3);
+    let m: double = c.pWaveModulus();
+    if (m <= 0.0) {
+        io::println("FAIL: pWaveModulus should be > 0");
+    } else {
+        io::println("PASS: pWaveModulus > 0");
+    }
+}
+
+public fn test_hooke_stress(): void {
+    let strain: StrainTensor = new StrainTensor();
+    strain.xx = 0.001;
+    strain.yy = 0.001;
+    strain.zz = 0.001;
+    let c: ElasticConstants = new ElasticConstants(210.0, 0.3);
+    let stress: StressTensor = Elasticity.hookeStress(strain, c);
+    if (stress.xx <= 0.0) {
+        io::println("FAIL: hookeStress xx should be > 0");
+    } else {
+        io::println("PASS: hookeStress xx > 0");
+    }
+}
+
+public fn test_hooke_strain(): void {
+    let stress: StressTensor = new StressTensor();
+    stress.xx = 100.0;
+    stress.yy = 100.0;
+    stress.zz = 100.0;
+    let c: ElasticConstants = new ElasticConstants(210.0, 0.3);
+    let strain: StrainTensor = Elasticity.hookeStrain(stress, c);
+    if (strain.xx <= 0.0) {
+        io::println("FAIL: hookeStrain xx should be > 0");
+    } else {
+        io::println("PASS: hookeStrain xx > 0");
+    }
+}
+
+public fn test_strain_energy_density(): void {
+    let stress: StressTensor = new StressTensor();
+    stress.xx = 100.0;
+    let strain: StrainTensor = new StrainTensor();
+    strain.xx = 0.001;
+    let u: double = Elasticity.strainEnergyDensity(stress, strain);
+    // 0.5 * 100 * 0.001 = 0.05
+    if (absDiff(u, 0.05) > 1e-9) {
+        io::println("FAIL: strainEnergyDensity expected 0.05");
+    } else {
+        io::println("PASS: strainEnergyDensity = 0.05");
+    }
+}
+
+public fn test_youngs_modulus_from_tensors(): void {
+    let stress: StressTensor = new StressTensor();
+    stress.xx = 210.0;
+    let strain: StrainTensor = new StrainTensor();
+    strain.xx = 1.0;
+    let e: double = Elasticity.youngsModulus(stress, strain);
+    if (absDiff(e, 210.0) > 1e-9) {
+        io::println("FAIL: youngsModulus expected 210");
+    } else {
+        io::println("PASS: youngsModulus = 210");
+    }
+}
+
+public fn test_youngs_modulus_zero_strain(): void {
+    let stress: StressTensor = new StressTensor();
+    stress.xx = 100.0;
+    let strain: StrainTensor = new StrainTensor();
+    let e: double = Elasticity.youngsModulus(stress, strain);
+    if (absDiff(e, 0.0) > 1e-9) {
+        io::println("FAIL: youngsModulus zero strain expected 0");
+    } else {
+        io::println("PASS: youngsModulus zero strain = 0");
+    }
+}
+
+public fn run_all_elasticity_tests(): void {
+    io::println("=== materials/Elasticity.tr Tests ===");
+    test_stress_tensor();
+    test_stress_tensor_init();
+    test_von_mises_stress();
+    test_von_mises_zero();
+    test_strain_tensor();
+    test_elastic_constants();
+    test_elastic_constants_from_shear_bulk();
+    test_lame_lambda();
+    test_p_wave_modulus();
+    test_hooke_stress();
+    test_hooke_strain();
+    test_strain_energy_density();
+    test_youngs_modulus_from_tensors();
+    test_youngs_modulus_zero_strain();
+}
