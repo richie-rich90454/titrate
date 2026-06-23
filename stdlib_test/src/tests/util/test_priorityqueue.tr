@@ -1,0 +1,173 @@
+// Test file for PriorityQueue.tr
+// Exercises the public API of the PriorityQueue class (min-heap).
+import tt::util::PriorityQueue;
+import tt::lang::Integer;
+
+public fn test_pq_push_size(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.push(3);
+    pq.push(1);
+    pq.push(2);
+    if (pq.size() != 3) {
+        io::println("FAIL: PriorityQueue.size() = " + Integer.toString(pq.size()));
+    } else {
+        io::println("PASS: PriorityQueue.push/size works");
+    }
+}
+
+public fn test_pq_peek_min(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.push(5);
+    pq.push(1);
+    pq.push(3);
+    if (pq.peek() != 1) {
+        io::println("FAIL: PriorityQueue.peek = " + Integer.toString(pq.peek()));
+    } else {
+        io::println("PASS: PriorityQueue.peek returns min");
+    }
+}
+
+public fn test_pq_pop_order(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.push(5);
+    pq.push(1);
+    pq.push(3);
+    pq.push(2);
+    pq.push(4);
+    let a: int = pq.pop();
+    let b: int = pq.pop();
+    let c: int = pq.pop();
+    let d: int = pq.pop();
+    let e: int = pq.pop();
+    if (a != 1 || b != 2 || c != 3 || d != 4 || e != 5) {
+        io::println("FAIL: PriorityQueue.pop order");
+    } else {
+        io::println("PASS: PriorityQueue.pop order works");
+    }
+}
+
+public fn test_pq_isEmpty(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    if (!pq.isEmpty()) {
+        io::println("FAIL: PriorityQueue.isEmpty new");
+    } else {
+        io::println("PASS: PriorityQueue.isEmpty new");
+    }
+    pq.push(1);
+    if (pq.isEmpty()) {
+        io::println("FAIL: PriorityQueue.isEmpty after push");
+    } else {
+        io::println("PASS: PriorityQueue.isEmpty after push");
+    }
+}
+
+public fn test_pq_contains(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.push(1);
+    pq.push(2);
+    pq.push(3);
+    if (!pq.contains(2) || pq.contains(99)) {
+        io::println("FAIL: PriorityQueue.contains");
+    } else {
+        io::println("PASS: PriorityQueue.contains works");
+    }
+}
+
+public fn test_pq_remove(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.push(1);
+    pq.push(2);
+    pq.push(3);
+    let removed: bool = pq.remove(2);
+    if (!removed || pq.size() != 2 || pq.contains(2)) {
+        io::println("FAIL: PriorityQueue.remove");
+    } else {
+        io::println("PASS: PriorityQueue.remove works");
+    }
+}
+
+public fn test_pq_remove_missing(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.push(1);
+    let removed: bool = pq.remove(99);
+    if (removed || pq.size() != 1) {
+        io::println("FAIL: PriorityQueue.remove missing");
+    } else {
+        io::println("PASS: PriorityQueue.remove missing returns false");
+    }
+}
+
+public fn test_pq_clear(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.push(1);
+    pq.push(2);
+    pq.clear();
+    if (!pq.isEmpty() || pq.size() != 0) {
+        io::println("FAIL: PriorityQueue.clear");
+    } else {
+        io::println("PASS: PriorityQueue.clear works");
+    }
+}
+
+public fn test_pq_duplicates(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.push(2);
+    pq.push(2);
+    pq.push(1);
+    pq.push(1);
+    if (pq.pop() != 1 || pq.pop() != 1 || pq.pop() != 2 || pq.pop() != 2) {
+        io::println("FAIL: PriorityQueue duplicates");
+    } else {
+        io::println("PASS: PriorityQueue handles duplicates");
+    }
+}
+
+public fn test_pq_with_comparator(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    pq.initWithComparator(fn(a: int, b: int): int { return b - a; });
+    // With b - a comparator, this is a max-heap
+    pq.push(1);
+    pq.push(5);
+    pq.push(3);
+    if (pq.pop() != 5) {
+        io::println("FAIL: PriorityQueue custom comparator");
+    } else {
+        io::println("PASS: PriorityQueue custom comparator works");
+    }
+}
+
+public fn test_pq_pop_all_sorted(): void {
+    let pq: PriorityQueue<int> = new PriorityQueue<int>();
+    var i: int = 0;
+    while (i < 20) {
+        pq.push((i * 7) % 20);
+        i = i + 1;
+    }
+    var prev: int = -1;
+    var ok: bool = true;
+    while (!pq.isEmpty()) {
+        let v: int = pq.pop();
+        if (v < prev) { ok = false; }
+        prev = v;
+    }
+    if (!ok) {
+        io::println("FAIL: PriorityQueue pop all sorted");
+    } else {
+        io::println("PASS: PriorityQueue pop all sorted works");
+    }
+}
+
+public fn run_all_priorityqueue_tests(): void {
+    io::println("=== PriorityQueue.tr Tests ===");
+    test_pq_push_size();
+    test_pq_peek_min();
+    test_pq_pop_order();
+    test_pq_isEmpty();
+    test_pq_contains();
+    test_pq_remove();
+    test_pq_remove_missing();
+    test_pq_clear();
+    test_pq_duplicates();
+    test_pq_with_comparator();
+    test_pq_pop_all_sorted();
+}
