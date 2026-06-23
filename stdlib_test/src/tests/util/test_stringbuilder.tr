@@ -1,0 +1,166 @@
+// Test file for StringBuilder.tr
+// Exercises the public API of the StringBuilder class.
+import tt::util::StringBuilder;
+import tt::lang::Integer;
+
+public fn test_sb_append_build(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("Hello");
+    sb.append(", ");
+    sb.append("World");
+    if (sb.build() != "Hello, World") {
+        io::println("FAIL: StringBuilder.append/build");
+    } else {
+        io::println("PASS: StringBuilder.append/build works");
+    }
+}
+
+public fn test_sb_length(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("Hello");
+    if (sb.length() != 5) {
+        io::println("FAIL: StringBuilder.length = " + Integer.toString(sb.length()));
+    } else {
+        io::println("PASS: StringBuilder.length works");
+    }
+}
+
+public fn test_sb_clear(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("data");
+    sb.clear();
+    if (sb.length() != 0 || sb.build() != "") {
+        io::println("FAIL: StringBuilder.clear");
+    } else {
+        io::println("PASS: StringBuilder.clear works");
+    }
+}
+
+public fn test_sb_insert(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("HelloWorld");
+    sb.insert(5, " ");
+    if (sb.build() != "Hello World") {
+        io::println("FAIL: StringBuilder.insert");
+    } else {
+        io::println("PASS: StringBuilder.insert works");
+    }
+}
+
+public fn test_sb_appendLine(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.appendLine("line1");
+    sb.appendLine("line2");
+    let result: string = sb.build();
+    if (result != "line1\nline2\n") {
+        io::println("FAIL: StringBuilder.appendLine");
+    } else {
+        io::println("PASS: StringBuilder.appendLine works");
+    }
+}
+
+public fn test_sb_substring(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("HelloWorld");
+    let sub: string = sb.substring(0, 5);
+    if (sub != "Hello") {
+        io::println("FAIL: StringBuilder.substring");
+    } else {
+        io::println("PASS: StringBuilder.substring works");
+    }
+}
+
+public fn test_sb_replace(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("HelloWorld");
+    sb.replace(0, 5, "Goodbye");
+    if (sb.build() != "GoodbyeWorld") {
+        io::println("FAIL: StringBuilder.replace");
+    } else {
+        io::println("PASS: StringBuilder.replace works");
+    }
+}
+
+public fn test_sb_reverse(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("abc");
+    sb.reverse();
+    if (sb.build() != "cba") {
+        io::println("FAIL: StringBuilder.reverse");
+    } else {
+        io::println("PASS: StringBuilder.reverse works");
+    }
+}
+
+public fn test_sb_deleteCharAt(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("abcde");
+    sb.deleteCharAt(2);
+    if (sb.build() != "abde") {
+        io::println("FAIL: StringBuilder.deleteCharAt");
+    } else {
+        io::println("PASS: StringBuilder.deleteCharAt works");
+    }
+}
+
+public fn test_sb_appendInt(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("Value: ");
+    sb.appendInt(42);
+    if (sb.build() != "Value: 42") {
+        io::println("FAIL: StringBuilder.appendInt");
+    } else {
+        io::println("PASS: StringBuilder.appendInt works");
+    }
+}
+
+public fn test_sb_empty_build(): void {
+    let sb: StringBuilder = new StringBuilder();
+    if (sb.build() != "" || sb.length() != 0) {
+        io::println("FAIL: StringBuilder empty build");
+    } else {
+        io::println("PASS: StringBuilder empty build works");
+    }
+}
+
+public fn test_sb_multiple_appends(): void {
+    let sb: StringBuilder = new StringBuilder();
+    var i: int = 0;
+    while (i < 5) {
+        sb.append("x");
+        i = i + 1;
+    }
+    if (sb.build() != "xxxxx" || sb.length() != 5) {
+        io::println("FAIL: StringBuilder multiple appends");
+    } else {
+        io::println("PASS: StringBuilder multiple appends works");
+    }
+}
+
+public fn test_sb_appendDouble(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.appendDouble(3.14);
+    let result: string = sb.build();
+    if (String.length(result) == 0) {
+        io::println("FAIL: StringBuilder.appendDouble empty");
+    } else {
+        io::println("PASS: StringBuilder.appendDouble works");
+    }
+}
+
+public fn run_all_stringbuilder_tests(): void {
+    io::println("=== StringBuilder.tr Tests ===");
+    test_sb_append_build();
+    test_sb_length();
+    test_sb_clear();
+    test_sb_insert();
+    test_sb_appendLine();
+    test_sb_substring();
+    test_sb_replace();
+    test_sb_reverse();
+    test_sb_deleteCharAt();
+    test_sb_appendInt();
+    test_sb_empty_build();
+    test_sb_multiple_appends();
+    test_sb_appendDouble();
+}
