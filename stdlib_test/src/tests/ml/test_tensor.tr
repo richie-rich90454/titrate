@@ -1,0 +1,214 @@
+// Test file for ml/Tensor.tr
+// Exercises Tensor construction, get/set, flat operations, gradient, and top-level functions.
+import tt::ml::Tensor;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_tensor_construction(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2); shape.add(3);
+    let t: Tensor = new Tensor(shape);
+    if (t.size() != 6) {
+        io::println("FAIL: Tensor size expected 6");
+    } else {
+        io::println("PASS: Tensor size = 6");
+    }
+    if (t.requiresGrad) {
+        io::println("FAIL: Tensor requiresGrad should be false");
+    } else {
+        io::println("PASS: Tensor requiresGrad = false");
+    }
+}
+
+public fn test_tensor_get_set_flat(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(3);
+    let t: Tensor = new Tensor(shape);
+    t.setFlat(0, 1.0);
+    t.setFlat(1, 2.0);
+    t.setFlat(2, 3.0);
+    if (absDiff(t.getFlat(0), 1.0) > 1e-9) {
+        io::println("FAIL: getFlat(0)");
+    } else {
+        io::println("PASS: getFlat(0) = 1.0");
+    }
+    if (absDiff(t.getFlat(2), 3.0) > 1e-9) {
+        io::println("FAIL: getFlat(2)");
+    } else {
+        io::println("PASS: getFlat(2) = 3.0");
+    }
+    // Out of bounds returns 0
+    if (absDiff(t.getFlat(10), 0.0) > 1e-9) {
+        io::println("FAIL: getFlat out of bounds");
+    } else {
+        io::println("PASS: getFlat out of bounds returns 0");
+    }
+}
+
+public fn test_tensor_get_set_indices(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2); shape.add(3);
+    let t: Tensor = new Tensor(shape);
+    let idx: ArrayList<int> = new ArrayList<int>();
+    idx.add(1); idx.add(2);
+    t.set(idx, 5.0);
+    if (absDiff(t.get(idx), 5.0) > 1e-9) {
+        io::println("FAIL: get/set indices");
+    } else {
+        io::println("PASS: get/set indices works");
+    }
+}
+
+public fn test_tensor_zero_grad(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(3);
+    let t: Tensor = new Tensor(shape);
+    t.requiresGrad = true;
+    // Set some gradients
+    var i: int = 0;
+    while (i < 3) {
+        t.grad.set(i, 1.0);
+        i = i + 1;
+    }
+    t.zeroGrad();
+    i = 0;
+    while (i < 3) {
+        if (absDiff(t.grad.get(i), 0.0) > 1e-9) {
+            io::println("FAIL: zeroGrad");
+            return;
+        }
+        i = i + 1;
+    }
+    io::println("PASS: zeroGrad works");
+}
+
+public fn test_tensor_backward_no_grad(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(3);
+    let t: Tensor = new Tensor(shape);
+    // requiresGrad = false, backward should be no-op
+    t.backward();
+    io::println("PASS: backward without requiresGrad no-op");
+}
+
+public fn test_tensor_from_1d(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let t: Tensor = Tensor.tensorFrom1D(data);
+    if (t.size() != 3) {
+        io::println("FAIL: tensorFrom1D size");
+    } else {
+        io::println("PASS: tensorFrom1D size = 3");
+    }
+    if (absDiff(t.getFlat(0), 1.0) > 1e-9) {
+        io::println("FAIL: tensorFrom1D data");
+    } else {
+        io::println("PASS: tensorFrom1D data correct");
+    }
+}
+
+public fn test_tensor_from_2d(): void {
+    let data: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(1.0); row1.add(2.0);
+    let row2: ArrayList<double> = new ArrayList<double>();
+    row2.add(3.0); row2.add(4.0);
+    data.add(row1); data.add(row2);
+    let t: Tensor = Tensor.tensorFrom2D(data);
+    if (t.size() != 4) {
+        io::println("FAIL: tensorFrom2D size");
+    } else {
+        io::println("PASS: tensorFrom2D size = 4");
+    }
+}
+
+public fn test_tensor_add(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    let a: Tensor = new Tensor(shape);
+    a.setFlat(0, 1.0); a.setFlat(1, 2.0);
+    let b: Tensor = new Tensor(shape);
+    b.setFlat(0, 3.0); b.setFlat(1, 4.0);
+    let c: Tensor = Tensor.tensorAdd(a, b);
+    if (absDiff(c.getFlat(0), 4.0) > 1e-9 || absDiff(c.getFlat(1), 6.0) > 1e-9) {
+        io::println("FAIL: tensorAdd");
+    } else {
+        io::println("PASS: tensorAdd = [4, 6]");
+    }
+}
+
+public fn test_tensor_sub(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    let a: Tensor = new Tensor(shape);
+    a.setFlat(0, 5.0); a.setFlat(1, 7.0);
+    let b: Tensor = new Tensor(shape);
+    b.setFlat(0, 2.0); b.setFlat(1, 3.0);
+    let c: Tensor = Tensor.tensorSub(a, b);
+    if (absDiff(c.getFlat(0), 3.0) > 1e-9 || absDiff(c.getFlat(1), 4.0) > 1e-9) {
+        io::println("FAIL: tensorSub");
+    } else {
+        io::println("PASS: tensorSub = [3, 4]");
+    }
+}
+
+public fn test_tensor_mul_scalar(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    let a: Tensor = new Tensor(shape);
+    a.setFlat(0, 1.0); a.setFlat(1, 2.0);
+    let c: Tensor = Tensor.tensorMulScalar(a, 3.0);
+    if (absDiff(c.getFlat(0), 3.0) > 1e-9 || absDiff(c.getFlat(1), 6.0) > 1e-9) {
+        io::println("FAIL: tensorMulScalar");
+    } else {
+        io::println("PASS: tensorMulScalar = [3, 6]");
+    }
+}
+
+public fn test_tensor_sum(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(3);
+    let a: Tensor = new Tensor(shape);
+    a.setFlat(0, 1.0); a.setFlat(1, 2.0); a.setFlat(2, 3.0);
+    let s: double = Tensor.tensorSum(a);
+    if (absDiff(s, 6.0) > 1e-9) {
+        io::println("FAIL: tensorSum expected 6.0");
+    } else {
+        io::println("PASS: tensorSum = 6.0");
+    }
+}
+
+public fn test_tensor_mean(): void {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(3);
+    let a: Tensor = new Tensor(shape);
+    a.setFlat(0, 1.0); a.setFlat(1, 2.0); a.setFlat(2, 3.0);
+    let m: double = Tensor.tensorMean(a);
+    if (absDiff(m, 2.0) > 1e-9) {
+        io::println("FAIL: tensorMean expected 2.0");
+    } else {
+        io::println("PASS: tensorMean = 2.0");
+    }
+}
+
+public fn run_all_tensor_tests(): void {
+    io::println("=== ml/Tensor.tr Tests ===");
+    test_tensor_construction();
+    test_tensor_get_set_flat();
+    test_tensor_get_set_indices();
+    test_tensor_zero_grad();
+    test_tensor_backward_no_grad();
+    test_tensor_from_1d();
+    test_tensor_from_2d();
+    test_tensor_add();
+    test_tensor_sub();
+    test_tensor_mul_scalar();
+    test_tensor_sum();
+    test_tensor_mean();
+}
