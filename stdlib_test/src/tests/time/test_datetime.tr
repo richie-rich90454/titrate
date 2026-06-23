@@ -1,0 +1,553 @@
+// Tests for the DateTime module (DateTime, TimeZone, parse helpers).
+import tt::util::ArrayList;
+import tt::time::Duration;
+import tt::time::DateTime;
+
+fn test_datetime_init(): void {
+    let dt: DateTime = new DateTime(0L);
+    if (dt == null) {
+        io::println("FAIL: test_datetime_init - new DateTime returned null");
+        return;
+    }
+    if (dt.epochMillis != 0L) {
+        io::println("FAIL: test_datetime_init - epochMillis should be 0");
+        return;
+    }
+    if (dt.tzOffsetMinutes != 0) {
+        io::println("FAIL: test_datetime_init - tzOffsetMinutes should be 0");
+        return;
+    }
+    io::println("PASS: test_datetime_init");
+}
+
+fn test_datetime_of_epoch_millis(): void {
+    let dt: DateTime = DateTime.ofEpochMillis(1000L);
+    if (dt.epochMillis != 1000L) {
+        io::println("FAIL: test_datetime_of_epoch_millis - epochMillis should be 1000");
+        return;
+    }
+    io::println("PASS: test_datetime_of_epoch_millis");
+}
+
+fn test_datetime_from_timestamp(): void {
+    let dt: DateTime = DateTime.fromTimestamp(1.0);
+    // 1.0 seconds = 1000 milliseconds
+    if (dt.epochMillis != 1000L) {
+        io::println("FAIL: test_datetime_from_timestamp - epochMillis should be 1000");
+        return;
+    }
+    io::println("PASS: test_datetime_from_timestamp");
+}
+
+fn test_datetime_from_iso(): void {
+    let dt: DateTime = DateTime.fromISO("1970-01-01T00:00:00");
+    if (dt.epochMillis != 0L) {
+        io::println("FAIL: test_datetime_from_iso - epoch millis for 1970-01-01T00:00:00 should be 0");
+        return;
+    }
+    io::println("PASS: test_datetime_from_iso");
+}
+
+fn test_datetime_from_iso_date_only(): void {
+    let dt: DateTime = DateTime.fromISO("1970-01-01");
+    if (dt.epochMillis != 0L) {
+        io::println("FAIL: test_datetime_from_iso_date_only - epoch millis for 1970-01-01 should be 0");
+        return;
+    }
+    io::println("PASS: test_datetime_from_iso_date_only");
+}
+
+fn test_datetime_get_year(): void {
+    // 2020-01-01 00:00:00 UTC
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let year: int = dt.getYear();
+    if (year != 2020) {
+        io::println("FAIL: test_datetime_get_year - year should be 2020, got " + Integer.toString(year));
+        return;
+    }
+    io::println("PASS: test_datetime_get_year");
+}
+
+fn test_datetime_get_month(): void {
+    let dt: DateTime = DateTime.fromISO("2020-06-15T00:00:00");
+    let month: int = dt.getMonth();
+    if (month != 6) {
+        io::println("FAIL: test_datetime_get_month - month should be 6, got " + Integer.toString(month));
+        return;
+    }
+    io::println("PASS: test_datetime_get_month");
+}
+
+fn test_datetime_get_day(): void {
+    let dt: DateTime = DateTime.fromISO("2020-06-15T00:00:00");
+    let day: int = dt.getDay();
+    if (day != 15) {
+        io::println("FAIL: test_datetime_get_day - day should be 15, got " + Integer.toString(day));
+        return;
+    }
+    io::println("PASS: test_datetime_get_day");
+}
+
+fn test_datetime_get_hour_minute_second(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T13:30:45");
+    if (dt.getHour() != 13) {
+        io::println("FAIL: test_datetime_get_hour_minute_second - hour should be 13");
+        return;
+    }
+    if (dt.getMinute() != 30) {
+        io::println("FAIL: test_datetime_get_hour_minute_second - minute should be 30");
+        return;
+    }
+    if (dt.getSecond() != 45) {
+        io::println("FAIL: test_datetime_get_hour_minute_second - second should be 45");
+        return;
+    }
+    io::println("PASS: test_datetime_get_hour_minute_second");
+}
+
+fn test_datetime_timestamp(): void {
+    let dt: DateTime = new DateTime(5000L);
+    let ts: double = dt.timestamp();
+    if (ts != 5.0) {
+        io::println("FAIL: test_datetime_timestamp - timestamp should be 5.0");
+        return;
+    }
+    io::println("PASS: test_datetime_timestamp");
+}
+
+fn test_datetime_is_before(): void {
+    let earlier: DateTime = new DateTime(1000L);
+    let later: DateTime = new DateTime(2000L);
+    if (!earlier.isBefore(later)) {
+        io::println("FAIL: test_datetime_is_before - earlier should be before later");
+        return;
+    }
+    if (later.isBefore(earlier)) {
+        io::println("FAIL: test_datetime_is_before - later should not be before earlier");
+        return;
+    }
+    io::println("PASS: test_datetime_is_before");
+}
+
+fn test_datetime_is_after(): void {
+    let earlier: DateTime = new DateTime(1000L);
+    let later: DateTime = new DateTime(2000L);
+    if (!later.isAfter(earlier)) {
+        io::println("FAIL: test_datetime_is_after - later should be after earlier");
+        return;
+    }
+    if (earlier.isAfter(later)) {
+        io::println("FAIL: test_datetime_is_after - earlier should not be after later");
+        return;
+    }
+    io::println("PASS: test_datetime_is_after");
+}
+
+fn test_datetime_equals(): void {
+    let a: DateTime = new DateTime(1000L);
+    let b: DateTime = new DateTime(1000L);
+    let c: DateTime = new DateTime(2000L);
+    if (!a.equals(b)) {
+        io::println("FAIL: test_datetime_equals - a should equal b");
+        return;
+    }
+    if (a.equals(c)) {
+        io::println("FAIL: test_datetime_equals - a should not equal c");
+        return;
+    }
+    io::println("PASS: test_datetime_equals");
+}
+
+fn test_datetime_plus_duration(): void {
+    let dt: DateTime = new DateTime(1000L);
+    let d: Duration = Duration.ofMillis(500L);
+    let result: DateTime = dt.plus(d);
+    if (result.epochMillis != 1500L) {
+        io::println("FAIL: test_datetime_plus_duration - epochMillis should be 1500");
+        return;
+    }
+    io::println("PASS: test_datetime_plus_duration");
+}
+
+fn test_datetime_minus_duration(): void {
+    let dt: DateTime = new DateTime(1500L);
+    let d: Duration = Duration.ofMillis(500L);
+    let result: DateTime = dt.minus(d);
+    if (result.epochMillis != 1000L) {
+        io::println("FAIL: test_datetime_minus_duration - epochMillis should be 1000");
+        return;
+    }
+    io::println("PASS: test_datetime_minus_duration");
+}
+
+fn test_datetime_plus_days(): void {
+    let dt: DateTime = new DateTime(0L);
+    let result: DateTime = dt.plusDays(1L);
+    // 1 day = 86400000 ms
+    if (result.epochMillis != 86400000L) {
+        io::println("FAIL: test_datetime_plus_days - epochMillis should be 86400000");
+        return;
+    }
+    io::println("PASS: test_datetime_plus_days");
+}
+
+fn test_datetime_minus_days(): void {
+    let dt: DateTime = new DateTime(86400000L);
+    let result: DateTime = dt.minusDays(1L);
+    if (result.epochMillis != 0L) {
+        io::println("FAIL: test_datetime_minus_days - epochMillis should be 0");
+        return;
+    }
+    io::println("PASS: test_datetime_minus_days");
+}
+
+fn test_datetime_to_iso(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let iso: string = dt.toISO();
+    if (String.indexOf(iso, "2020") < 0) {
+        io::println("FAIL: test_datetime_to_iso - ISO string should contain '2020'");
+        return;
+    }
+    if (String.indexOf(iso, "T") < 0) {
+        io::println("FAIL: test_datetime_to_iso - ISO string should contain 'T'");
+        return;
+    }
+    io::println("PASS: test_datetime_to_iso");
+}
+
+fn test_datetime_to_string(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let s: string = dt.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: test_datetime_to_string - toString returned empty string");
+        return;
+    }
+    if (String.indexOf(s, "2020") < 0) {
+        io::println("FAIL: test_datetime_to_string - toString should contain '2020'");
+        return;
+    }
+    io::println("PASS: test_datetime_to_string");
+}
+
+fn test_datetime_strftime_year(): void {
+    let dt: DateTime = DateTime.fromISO("2020-06-15T00:00:00");
+    let s: string = dt.strftime("%Y");
+    if (s != "2020") {
+        io::println("FAIL: test_datetime_strftime_year - %Y should be '2020', got '" + s + "'");
+        return;
+    }
+    io::println("PASS: test_datetime_strftime_year");
+}
+
+fn test_datetime_strftime_month(): void {
+    let dt: DateTime = DateTime.fromISO("2020-06-15T00:00:00");
+    let s: string = dt.strftime("%m");
+    if (s != "06") {
+        io::println("FAIL: test_datetime_strftime_month - %m should be '06', got '" + s + "'");
+        return;
+    }
+    io::println("PASS: test_datetime_strftime_month");
+}
+
+fn test_datetime_strftime_day(): void {
+    let dt: DateTime = DateTime.fromISO("2020-06-15T00:00:00");
+    let s: string = dt.strftime("%d");
+    if (s != "15") {
+        io::println("FAIL: test_datetime_strftime_day - %d should be '15', got '" + s + "'");
+        return;
+    }
+    io::println("PASS: test_datetime_strftime_day");
+}
+
+fn test_datetime_strftime_combined(): void {
+    let dt: DateTime = DateTime.fromISO("2020-06-15T13:30:45");
+    let s: string = dt.strftime("%Y-%m-%d %H:%M:%S");
+    if (s != "2020-06-15 13:30:45") {
+        io::println("FAIL: test_datetime_strftime_combined - got '" + s + "'");
+        return;
+    }
+    io::println("PASS: test_datetime_strftime_combined");
+}
+
+fn test_datetime_strftime_literal_percent(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let s: string = dt.strftime("%%");
+    if (s != "%") {
+        io::println("FAIL: test_datetime_strftime_literal_percent - %% should be '%', got '" + s + "'");
+        return;
+    }
+    io::println("PASS: test_datetime_strftime_literal_percent");
+}
+
+fn test_datetime_is_leap_year(): void {
+    let leap: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    if (!leap.isLeapYear()) {
+        io::println("FAIL: test_datetime_is_leap_year - 2020 should be a leap year");
+        return;
+    }
+    let nonLeap: DateTime = DateTime.fromISO("2021-01-01T00:00:00");
+    if (nonLeap.isLeapYear()) {
+        io::println("FAIL: test_datetime_is_leap_year - 2021 should not be a leap year");
+        return;
+    }
+    io::println("PASS: test_datetime_is_leap_year");
+}
+
+fn test_datetime_days_in_month(): void {
+    let jan: DateTime = DateTime.fromISO("2020-01-15T00:00:00");
+    if (jan.daysInMonth() != 31) {
+        io::println("FAIL: test_datetime_days_in_month - January should have 31 days");
+        return;
+    }
+    let febLeap: DateTime = DateTime.fromISO("2020-02-15T00:00:00");
+    if (febLeap.daysInMonth() != 29) {
+        io::println("FAIL: test_datetime_days_in_month - Feb 2020 should have 29 days");
+        return;
+    }
+    let febNonLeap: DateTime = DateTime.fromISO("2021-02-15T00:00:00");
+    if (febNonLeap.daysInMonth() != 28) {
+        io::println("FAIL: test_datetime_days_in_month - Feb 2021 should have 28 days");
+        return;
+    }
+    io::println("PASS: test_datetime_days_in_month");
+}
+
+fn test_datetime_day_of_year(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let doy: int = dt.dayOfYear();
+    if (doy != 1) {
+        io::println("FAIL: test_datetime_day_of_year - Jan 1 should be day 1, got " + Integer.toString(doy));
+        return;
+    }
+    io::println("PASS: test_datetime_day_of_year");
+}
+
+fn test_datetime_isoweekday(): void {
+    // 1970-01-01 was a Thursday. isoweekday: Monday=1..Sunday=7, so Thursday=4.
+    let dt: DateTime = new DateTime(0L);
+    let wd: int = dt.isoweekday();
+    if (wd < 1 || wd > 7) {
+        io::println("FAIL: test_datetime_isoweekday - isoweekday should be 1-7, got " + Integer.toString(wd));
+        return;
+    }
+    io::println("PASS: test_datetime_isoweekday");
+}
+
+fn test_datetime_with_day(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let changed: DateTime = dt.withDay(15);
+    if (changed.getDay() != 15) {
+        io::println("FAIL: test_datetime_with_day - day should be 15");
+        return;
+    }
+    io::println("PASS: test_datetime_with_day");
+}
+
+fn test_datetime_with_hour(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let changed: DateTime = dt.withHour(12);
+    if (changed.getHour() != 12) {
+        io::println("FAIL: test_datetime_with_hour - hour should be 12");
+        return;
+    }
+    io::println("PASS: test_datetime_with_hour");
+}
+
+fn test_datetime_with_minute(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let changed: DateTime = dt.withMinute(30);
+    if (changed.getMinute() != 30) {
+        io::println("FAIL: test_datetime_with_minute - minute should be 30");
+        return;
+    }
+    io::println("PASS: test_datetime_with_minute");
+}
+
+fn test_datetime_with_second(): void {
+    let dt: DateTime = DateTime.fromISO("2020-01-01T00:00:00");
+    let changed: DateTime = dt.withSecond(45);
+    if (changed.getSecond() != 45) {
+        io::println("FAIL: test_datetime_with_second - second should be 45");
+        return;
+    }
+    io::println("PASS: test_datetime_with_second");
+}
+
+fn test_datetime_offset_minutes(): void {
+    let dt: DateTime = new DateTime(0L);
+    if (dt.offsetMinutes() != 0) {
+        io::println("FAIL: test_datetime_offset_minutes - default offset should be 0");
+        return;
+    }
+    io::println("PASS: test_datetime_offset_minutes");
+}
+
+fn test_datetime_to_utc(): void {
+    let dt: DateTime = new DateTime(0L);
+    let utc: DateTime = dt.toUtc();
+    if (utc.epochMillis != 0L) {
+        io::println("FAIL: test_datetime_to_utc - UTC of UTC should be unchanged");
+        return;
+    }
+    io::println("PASS: test_datetime_to_utc");
+}
+
+fn test_timezone_init(): void {
+    let tz: TimeZone = new TimeZone("UTC", 0);
+    if (tz == null) {
+        io::println("FAIL: test_timezone_init - new TimeZone returned null");
+        return;
+    }
+    if (tz.getName() != "UTC") {
+        io::println("FAIL: test_timezone_init - name should be 'UTC'");
+        return;
+    }
+    if (tz.getOffsetMinutes() != 0) {
+        io::println("FAIL: test_timezone_init - offset should be 0");
+        return;
+    }
+    io::println("PASS: test_timezone_init");
+}
+
+fn test_timezone_offset_string(): void {
+    let tz: TimeZone = new TimeZone("IST", 330);
+    let s: string = tz.getOffsetString();
+    if (s != "+05:30") {
+        io::println("FAIL: test_timezone_offset_string - offset should be '+05:30', got '" + s + "'");
+        return;
+    }
+    io::println("PASS: test_timezone_offset_string");
+}
+
+fn test_timezone_negative_offset(): void {
+    let tz: TimeZone = new TimeZone("EST", -300);
+    let s: string = tz.getOffsetString();
+    if (s != "-05:00") {
+        io::println("FAIL: test_timezone_negative_offset - offset should be '-05:00', got '" + s + "'");
+        return;
+    }
+    io::println("PASS: test_timezone_negative_offset");
+}
+
+fn test_timezone_to_string(): void {
+    let tz: TimeZone = new TimeZone("UTC", 0);
+    let s: string = tz.toString();
+    if (String.indexOf(s, "UTC") < 0) {
+        io::println("FAIL: test_timezone_to_string - toString should contain 'UTC'");
+        return;
+    }
+    io::println("PASS: test_timezone_to_string");
+}
+
+fn test_datetime_utc_function(): void {
+    let tz: TimeZone = DateTime.utc();
+    if (tz == null) {
+        io::println("FAIL: test_datetime_utc_function - utc() returned null");
+        return;
+    }
+    if (tz.getOffsetMinutes() != 0) {
+        io::println("FAIL: test_datetime_utc_function - UTC offset should be 0");
+        return;
+    }
+    io::println("PASS: test_datetime_utc_function");
+}
+
+fn test_datetime_now(): void {
+    let dt: DateTime = DateTime.now();
+    if (dt == null) {
+        io::println("FAIL: test_datetime_now - now() returned null");
+        return;
+    }
+    // now() should return a non-negative epoch millis (post-1970)
+    if (dt.epochMillis < 0L) {
+        io::println("FAIL: test_datetime_now - epochMillis should be non-negative");
+        return;
+    }
+    io::println("PASS: test_datetime_now");
+}
+
+fn test_datetime_strptime(): void {
+    let dt: DateTime = DateTime.strptime("2020-06-15 13:30:45", "%Y-%m-%d %H:%M:%S");
+    if (dt.getYear() != 2020) {
+        io::println("FAIL: test_datetime_strptime - year should be 2020");
+        return;
+    }
+    if (dt.getMonth() != 6) {
+        io::println("FAIL: test_datetime_strptime - month should be 6");
+        return;
+    }
+    if (dt.getDay() != 15) {
+        io::println("FAIL: test_datetime_strptime - day should be 15");
+        return;
+    }
+    if (dt.getHour() != 13) {
+        io::println("FAIL: test_datetime_strptime - hour should be 13");
+        return;
+    }
+    if (dt.getMinute() != 30) {
+        io::println("FAIL: test_datetime_strptime - minute should be 30");
+        return;
+    }
+    if (dt.getSecond() != 45) {
+        io::println("FAIL: test_datetime_strptime - second should be 45");
+        return;
+    }
+    io::println("PASS: test_datetime_strptime");
+}
+
+fn test_datetime_astimezone(): void {
+    let dt: DateTime = new DateTime(0L);
+    let tz: TimeZone = new TimeZone("EST", -300);
+    let converted: DateTime = dt.astimezone(tz);
+    if (converted.tzOffsetMinutes != -300) {
+        io::println("FAIL: test_datetime_astimezone - tzOffsetMinutes should be -300");
+        return;
+    }
+    io::println("PASS: test_datetime_astimezone");
+}
+
+public fn run_all_datetime_tests(): void {
+    io::println("=== DateTime Tests ===");
+    test_datetime_init();
+    test_datetime_of_epoch_millis();
+    test_datetime_from_timestamp();
+    test_datetime_from_iso();
+    test_datetime_from_iso_date_only();
+    test_datetime_get_year();
+    test_datetime_get_month();
+    test_datetime_get_day();
+    test_datetime_get_hour_minute_second();
+    test_datetime_timestamp();
+    test_datetime_is_before();
+    test_datetime_is_after();
+    test_datetime_equals();
+    test_datetime_plus_duration();
+    test_datetime_minus_duration();
+    test_datetime_plus_days();
+    test_datetime_minus_days();
+    test_datetime_to_iso();
+    test_datetime_to_string();
+    test_datetime_strftime_year();
+    test_datetime_strftime_month();
+    test_datetime_strftime_day();
+    test_datetime_strftime_combined();
+    test_datetime_strftime_literal_percent();
+    test_datetime_is_leap_year();
+    test_datetime_days_in_month();
+    test_datetime_day_of_year();
+    test_datetime_isoweekday();
+    test_datetime_with_day();
+    test_datetime_with_hour();
+    test_datetime_with_minute();
+    test_datetime_with_second();
+    test_datetime_offset_minutes();
+    test_datetime_to_utc();
+    test_timezone_init();
+    test_timezone_offset_string();
+    test_timezone_negative_offset();
+    test_timezone_to_string();
+    test_datetime_utc_function();
+    test_datetime_now();
+    test_datetime_strptime();
+    test_datetime_astimezone();
+}
