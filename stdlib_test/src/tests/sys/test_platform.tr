@@ -1,0 +1,104 @@
+// Test file for Platform.tr
+// Exercises the public API of the Platform module: system, machine, release,
+// version, processor, titrateVersion, node, and architecture.
+import tt::sys::Platform;
+import tt::lang::Boolean;
+
+public fn test_platform_system(): void {
+    let s: string = Platform.system();
+    if (s == "" || s == null) {
+        io::println("FAIL: Platform.system empty");
+    } else {
+        io::println("PASS: Platform.system returns '" + s + "'");
+    }
+}
+
+public fn test_platform_machine(): void {
+    let m: string = Platform.machine();
+    if (m == "" || m == null) {
+        io::println("FAIL: Platform.machine empty");
+    } else {
+        io::println("PASS: Platform.machine returns '" + m + "'");
+    }
+}
+
+public fn test_platform_release(): void {
+    let r: string = Platform.release();
+    // release may be empty on some platforms, but should not be null.
+    if (r == null) {
+        io::println("FAIL: Platform.release null");
+    } else {
+        io::println("PASS: Platform.release returns a value");
+    }
+}
+
+public fn test_platform_version(): void {
+    let v: string = Platform.version();
+    if (v == null) {
+        io::println("FAIL: Platform.version null");
+    } else {
+        io::println("PASS: Platform.version returns a value");
+    }
+}
+
+public fn test_platform_processor(): void {
+    let p: string = Platform.processor();
+    // processor() delegates to machine().
+    if (p == "" || p == null) {
+        io::println("FAIL: Platform.processor empty");
+    } else {
+        io::println("PASS: Platform.processor returns a value");
+    }
+}
+
+public fn test_platform_titrateVersion(): void {
+    let v: string = Platform.titrateVersion();
+    if (v == "" || v == null) {
+        io::println("FAIL: Platform.titrateVersion empty");
+    } else {
+        io::println("PASS: Platform.titrateVersion returns '" + v + "'");
+    }
+}
+
+public fn test_platform_node(): void {
+    let n: string = Platform.node();
+    // node may be empty if no hostname env var is set.
+    if (n == null) {
+        io::println("FAIL: Platform.node null");
+    } else {
+        io::println("PASS: Platform.node returns a value");
+    }
+}
+
+public fn test_platform_architecture(): void {
+    let a: string = Platform.architecture();
+    // architecture should be "64bit" or "32bit".
+    if (a != "64bit" && a != "32bit") {
+        io::println("FAIL: Platform.architecture = '" + a + "'");
+    } else {
+        io::println("PASS: Platform.architecture returns '" + a + "'");
+    }
+}
+
+public fn test_platform_system_known(): void {
+    // system() should return one of the known OS names.
+    let s: string = Platform.system();
+    if (s == "Windows" || s == "Linux" || s == "macOS") {
+        io::println("PASS: Platform.system is a known OS name");
+    } else {
+        io::println("FAIL: Platform.system unknown value '" + s + "'");
+    }
+}
+
+public fn run_all_platform_tests(): void {
+    io::println("=== Platform.tr Tests ===");
+    test_platform_system();
+    test_platform_machine();
+    test_platform_release();
+    test_platform_version();
+    test_platform_processor();
+    test_platform_titrateVersion();
+    test_platform_node();
+    test_platform_architecture();
+    test_platform_system_known();
+}
