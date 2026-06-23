@@ -1,0 +1,189 @@
+// Test file for Counter.tr
+// Exercises the public API of the Counter class.
+import tt::util::Counter;
+import tt::util::Pair;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_counter_add_get(): void {
+    let c: Counter = new Counter();
+    c.add("a", 1);
+    c.add("b", 2);
+    c.add("a", 3);
+    if (c.get("a") != 4 || c.get("b") != 2) {
+        io::println("FAIL: Counter.add/get");
+    } else {
+        io::println("PASS: Counter.add/get works");
+    }
+}
+
+public fn test_counter_get_missing(): void {
+    let c: Counter = new Counter();
+    if (c.get("missing") != 0) {
+        io::println("FAIL: Counter.get missing");
+    } else {
+        io::println("PASS: Counter.get missing returns 0");
+    }
+}
+
+public fn test_counter_total(): void {
+    let c: Counter = new Counter();
+    c.add("a", 3);
+    c.add("b", 2);
+    c.add("c", 5);
+    if (c.total() != 10) {
+        io::println("FAIL: Counter.total = " + Integer.toString(c.total()));
+    } else {
+        io::println("PASS: Counter.total works");
+    }
+}
+
+public fn test_counter_mostCommon(): void {
+    let c: Counter = new Counter();
+    c.add("a", 3);
+    c.add("b", 1);
+    c.add("c", 2);
+    let top: ArrayList<Pair<string, int>> = c.mostCommon(2);
+    if (top.size() != 2) {
+        io::println("FAIL: Counter.mostCommon size=" + Integer.toString(top.size()));
+    } else if (top.get(0).first != "a" || top.get(0).second != 3) {
+        io::println("FAIL: Counter.mostCommon top item");
+    } else if (top.get(1).first != "c" || top.get(1).second != 2) {
+        io::println("FAIL: Counter.mostCommon second item");
+    } else {
+        io::println("PASS: Counter.mostCommon works");
+    }
+}
+
+public fn test_counter_elements(): void {
+    let c: Counter = new Counter();
+    c.add("a", 2);
+    c.add("b", 3);
+    let elems: ArrayList<string> = c.elements();
+    if (elems.size() != 5) {
+        io::println("FAIL: Counter.elements size=" + Integer.toString(elems.size()));
+    } else {
+        io::println("PASS: Counter.elements works");
+    }
+}
+
+public fn test_counter_subtract(): void {
+    let c: Counter = new Counter();
+    c.add("a", 5);
+    let other: Counter = new Counter();
+    other.add("a", 2);
+    c.subtract(other);
+    if (c.get("a") != 3) {
+        io::println("FAIL: Counter.subtract");
+    } else {
+        io::println("PASS: Counter.subtract works");
+    }
+}
+
+public fn test_counter_subtract_new_key(): void {
+    let c: Counter = new Counter();
+    c.add("a", 5);
+    let other: Counter = new Counter();
+    other.add("b", 2);
+    c.subtract(other);
+    if (c.get("b") != -2) {
+        io::println("FAIL: Counter.subtract new key = " + Integer.toString(c.get("b")));
+    } else {
+        io::println("PASS: Counter.subtract new key works");
+    }
+}
+
+public fn test_counter_update(): void {
+    let c: Counter = new Counter();
+    c.add("a", 1);
+    let other: Counter = new Counter();
+    other.add("a", 2);
+    other.add("b", 3);
+    c.update(other);
+    if (c.get("a") != 3 || c.get("b") != 3) {
+        io::println("FAIL: Counter.update");
+    } else {
+        io::println("PASS: Counter.update works");
+    }
+}
+
+public fn test_counter_union(): void {
+    let a: Counter = new Counter();
+    a.add("x", 2);
+    a.add("y", 5);
+    let b: Counter = new Counter();
+    b.add("x", 4);
+    b.add("z", 1);
+    let u: Counter = a.union(b);
+    if (u.get("x") != 4 || u.get("y") != 5 || u.get("z") != 1) {
+        io::println("FAIL: Counter.union");
+    } else {
+        io::println("PASS: Counter.union works");
+    }
+}
+
+public fn test_counter_intersection(): void {
+    let a: Counter = new Counter();
+    a.add("x", 2);
+    a.add("y", 5);
+    let b: Counter = new Counter();
+    b.add("x", 4);
+    b.add("z", 1);
+    let i: Counter = a.intersection(b);
+    if (i.get("x") != 2 || i.get("y") != 0 || i.get("z") != 0) {
+        io::println("FAIL: Counter.intersection");
+    } else {
+        io::println("PASS: Counter.intersection works");
+    }
+}
+
+public fn test_counter_clear(): void {
+    let c: Counter = new Counter();
+    c.add("a", 5);
+    c.clear();
+    if (c.total() != 0 || c.get("a") != 0) {
+        io::println("FAIL: Counter.clear");
+    } else {
+        io::println("PASS: Counter.clear works");
+    }
+}
+
+public fn test_counter_mostCommon_all(): void {
+    let c: Counter = new Counter();
+    c.add("a", 1);
+    c.add("b", 2);
+    c.add("c", 3);
+    let all: ArrayList<Pair<string, int>> = c.mostCommon(10);
+    if (all.size() != 3) {
+        io::println("FAIL: Counter.mostCommon all size=" + Integer.toString(all.size()));
+    } else {
+        io::println("PASS: Counter.mostCommon all works");
+    }
+}
+
+public fn test_counter_negative(): void {
+    let c: Counter = new Counter();
+    c.add("a", -3);
+    if (c.get("a") != -3) {
+        io::println("FAIL: Counter negative");
+    } else {
+        io::println("PASS: Counter handles negative counts");
+    }
+}
+
+public fn run_all_counter_tests(): void {
+    io::println("=== Counter.tr Tests ===");
+    test_counter_add_get();
+    test_counter_get_missing();
+    test_counter_total();
+    test_counter_mostCommon();
+    test_counter_elements();
+    test_counter_subtract();
+    test_counter_subtract_new_key();
+    test_counter_update();
+    test_counter_union();
+    test_counter_intersection();
+    test_counter_clear();
+    test_counter_mostCommon_all();
+    test_counter_negative();
+}
