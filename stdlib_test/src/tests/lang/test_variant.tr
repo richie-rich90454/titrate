@@ -1,0 +1,160 @@
+// Test file for Variant.tr
+// Exercises the public API of the Variant module.
+import tt::lang::Variant;
+import tt::lang::String;
+
+public fn test_variant_of(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    if (!v.hasTag("int")) {
+        io::println("FAIL: Variant.of hasTag");
+    } else {
+        io::println("PASS: Variant.of hasTag");
+    }
+}
+
+public fn test_variant_typeTag(): void {
+    let v: Variant = Variant.of("string", "hello" as Variant);
+    if (v.typeTag() != "string") {
+        io::println("FAIL: Variant.typeTag = " + v.typeTag());
+    } else {
+        io::println("PASS: Variant.typeTag = string");
+    }
+}
+
+public fn test_variant_hasTag_true(): void {
+    let v: Variant = Variant.of("bool", true as Variant);
+    if (!v.hasTag("bool")) {
+        io::println("FAIL: Variant.hasTag true");
+    } else {
+        io::println("PASS: Variant.hasTag true");
+    }
+}
+
+public fn test_variant_hasTag_false(): void {
+    let v: Variant = Variant.of("bool", true as Variant);
+    if (v.hasTag("int")) {
+        io::println("FAIL: Variant.hasTag false");
+    } else {
+        io::println("PASS: Variant.hasTag false");
+    }
+}
+
+public fn test_variant_empty(): void {
+    let v: Variant = Variant.empty("empty_tag");
+    if (!v.isEmpty()) {
+        io::println("FAIL: Variant.empty isEmpty=false");
+    } else {
+        io::println("PASS: Variant.empty isEmpty=true");
+    }
+}
+
+public fn test_variant_empty_hasTag(): void {
+    let v: Variant = Variant.empty("empty_tag");
+    if (!v.hasTag("empty_tag")) {
+        io::println("FAIL: Variant.empty hasTag=false");
+    } else {
+        io::println("PASS: Variant.empty hasTag=true");
+    }
+}
+
+public fn test_variant_of_notEmpty(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    if (v.isEmpty()) {
+        io::println("FAIL: Variant.of isEmpty=true");
+    } else {
+        io::println("PASS: Variant.of isEmpty=false");
+    }
+}
+
+public fn test_variant_get(): void {
+    let inner: Variant = 42 as Variant;
+    let v: Variant = Variant.of("int", inner);
+    let got: Variant = v.get();
+    if (got == null) {
+        io::println("FAIL: Variant.get null");
+    } else {
+        io::println("PASS: Variant.get non-null");
+    }
+}
+
+public fn test_variant_getOrElse_matching(): void {
+    let inner: Variant = 42 as Variant;
+    let v: Variant = Variant.of("int", inner);
+    let def: Variant = 0 as Variant;
+    let got: Variant = v.getOrElse("int", def);
+    if (got == null) {
+        io::println("FAIL: Variant.getOrElse matching null");
+    } else {
+        io::println("PASS: Variant.getOrElse matching non-null");
+    }
+}
+
+public fn test_variant_getOrElse_nonMatching(): void {
+    let inner: Variant = 42 as Variant;
+    let v: Variant = Variant.of("int", inner);
+    let def: Variant = 99 as Variant;
+    let got: Variant = v.getOrElse("string", def);
+    if (got != def) {
+        io::println("FAIL: Variant.getOrElse non-matching");
+    } else {
+        io::println("PASS: Variant.getOrElse non-matching returns default");
+    }
+}
+
+public fn test_variant_toString(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    let s: string = v.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Variant.toString empty");
+    } else {
+        io::println("PASS: Variant.toString = " + s);
+    }
+}
+
+public fn test_variant_toString_empty(): void {
+    let v: Variant = Variant.empty("empty_tag");
+    let s: string = v.toString();
+    if (s != "Variant(empty_tag, empty)") {
+        io::println("FAIL: Variant.toString empty = " + s);
+    } else {
+        io::println("PASS: Variant.toString empty = " + s);
+    }
+}
+
+public fn test_variant_equals_sameTag(): void {
+    let v1: Variant = Variant.of("int", 42 as Variant);
+    let v2: Variant = Variant.of("int", 42 as Variant);
+    if (!v1.equals(v2)) {
+        io::println("FAIL: Variant.equals same tag");
+    } else {
+        io::println("PASS: Variant.equals same tag");
+    }
+}
+
+public fn test_variant_equals_diffTag(): void {
+    let v1: Variant = Variant.of("int", 42 as Variant);
+    let v2: Variant = Variant.of("string", "x" as Variant);
+    if (v1.equals(v2)) {
+        io::println("FAIL: Variant.equals diff tag");
+    } else {
+        io::println("PASS: Variant.equals diff tag");
+    }
+}
+
+public fn run_all_variant_tests(): void {
+    io::println("=== Variant.tr Tests ===");
+    test_variant_of();
+    test_variant_typeTag();
+    test_variant_hasTag_true();
+    test_variant_hasTag_false();
+    test_variant_empty();
+    test_variant_empty_hasTag();
+    test_variant_of_notEmpty();
+    test_variant_get();
+    test_variant_getOrElse_matching();
+    test_variant_getOrElse_nonMatching();
+    test_variant_toString();
+    test_variant_toString_empty();
+    test_variant_equals_sameTag();
+    test_variant_equals_diffTag();
+}
