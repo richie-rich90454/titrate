@@ -1,0 +1,169 @@
+// Test file for Pipe.tr
+// Exercises the public API of the pipe module: PipeReader, PipeWriter,
+// createPipe, and NamedPipe (platform-aware).
+import tt::io::Pipe;
+import tt::util::Pair;
+import tt::lang::Integer;
+
+public fn test_pipe_writer_to_reader(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let reader: Pipe.PipeReader = pair.first();
+    let writer: Pipe.PipeWriter = pair.second();
+    writer.write("hello pipe");
+    let data: string = reader.read();
+    if (data != "hello pipe") {
+        io::println("FAIL: Pipe read = '" + data + "'");
+    } else {
+        io::println("PASS: PipeWriter to PipeReader transfer");
+    }
+    writer.close();
+}
+
+public fn test_pipe_writeLine_readLine(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let reader: Pipe.PipeReader = pair.first();
+    let writer: Pipe.PipeWriter = pair.second();
+    writer.writeLine("line one");
+    writer.writeLine("line two");
+    let l1: string = reader.readLine();
+    let l2: string = reader.readLine();
+    if (l1 != "line one" || l2 != "line two") {
+        io::println("FAIL: Pipe readLine l1='" + l1 + "' l2='" + l2 + "'");
+    } else {
+        io::println("PASS: Pipe writeLine/readLine works");
+    }
+    writer.close();
+}
+
+public fn test_pipe_isDataAvailable(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let reader: Pipe.PipeReader = pair.first();
+    let writer: Pipe.PipeWriter = pair.second();
+    if (reader.isDataAvailable()) {
+        io::println("FAIL: Pipe isDataAvailable true when empty");
+    } else {
+        io::println("PASS: Pipe isDataAvailable false when empty");
+    }
+    writer.write("x");
+    if (!reader.isDataAvailable()) {
+        io::println("FAIL: Pipe isDataAvailable false after write");
+    } else {
+        io::println("PASS: Pipe isDataAvailable true after write");
+    }
+    writer.close();
+}
+
+public fn test_pipe_available(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let reader: Pipe.PipeReader = pair.first();
+    let writer: Pipe.PipeWriter = pair.second();
+    writer.write("a");
+    writer.write("b");
+    if (reader.available() != 2) {
+        io::println("FAIL: Pipe available = " + Integer.toString(reader.available()));
+    } else {
+        io::println("PASS: Pipe available counts chunks");
+    }
+    writer.close();
+}
+
+public fn test_pipe_readAll(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let reader: Pipe.PipeReader = pair.first();
+    let writer: Pipe.PipeWriter = pair.second();
+    writer.write("chunk1");
+    writer.write("chunk2");
+    let all: string = reader.readAll();
+    if (all != "chunk1chunk2") {
+        io::println("FAIL: Pipe readAll = '" + all + "'");
+    } else {
+        io::println("PASS: Pipe readAll drains all chunks");
+    }
+    writer.close();
+}
+
+public fn test_pipe_read_empty(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let reader: Pipe.PipeReader = pair.first();
+    let data: string = reader.read();
+    if (data != "") {
+        io::println("FAIL: Pipe read on empty = '" + data + "'");
+    } else {
+        io::println("PASS: Pipe read on empty returns empty string");
+    }
+    pair.second().close();
+}
+
+public fn test_pipe_close_isClosed(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let reader: Pipe.PipeReader = pair.first();
+    let writer: Pipe.PipeWriter = pair.second();
+    if (reader.isClosed() || writer.isClosed()) {
+        io::println("FAIL: Pipe isClosed true before close");
+    } else {
+        io::println("PASS: Pipe isClosed false before close");
+    }
+    writer.close();
+    if (!reader.isClosed() || !writer.isClosed()) {
+        io::println("FAIL: Pipe isClosed false after writer.close");
+    } else {
+        io::println("PASS: Pipe writer.close closes both ends");
+    }
+}
+
+public fn test_pipe_getReader(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let writer: Pipe.PipeWriter = pair.second();
+    let reader: Pipe.PipeReader = writer.getReader();
+    writer.write("via getReader");
+    let data: string = reader.read();
+    if (data != "via getReader") {
+        io::println("FAIL: Pipe getReader read = '" + data + "'");
+    } else {
+        io::println("PASS: PipeWriter.getReader returns connected reader");
+    }
+    writer.close();
+}
+
+public fn test_pipe_write_after_close(): void {
+    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
+    let reader: Pipe.PipeReader = pair.first();
+    let writer: Pipe.PipeWriter = pair.second();
+    writer.close();
+    // Writing after close should be a no-op (not throw).
+    writer.write("ignored");
+    let data: string = reader.read();
+    if (data != "") {
+        io::println("FAIL: Pipe write after close delivered data");
+    } else {
+        io::println("PASS: PipeWriter write after close is ignored");
+    }
+}
+
+public fn test_namedpipe_init_state(): void {
+    let np: Pipe.NamedPipe = new Pipe.NamedPipe("test_named_pipe");
+    if (np.isOpen) {
+        io::println("FAIL: NamedPipe isOpen true at init");
+    } else {
+        io::println("PASS: NamedPipe starts closed");
+    }
+    if (np.pipeName != "test_named_pipe") {
+        io::println("FAIL: NamedPipe pipeName = '" + np.pipeName + "'");
+    } else {
+        io::println("PASS: NamedPipe stores pipe name");
+    }
+}
+
+public fn run_all_pipe_tests(): void {
+    io::println("=== Pipe.tr Tests ===");
+    test_pipe_writer_to_reader();
+    test_pipe_writeLine_readLine();
+    test_pipe_isDataAvailable();
+    test_pipe_available();
+    test_pipe_readAll();
+    test_pipe_read_empty();
+    test_pipe_close_isClosed();
+    test_pipe_getReader();
+    test_pipe_write_after_close();
+    test_namedpipe_init_state();
+}
