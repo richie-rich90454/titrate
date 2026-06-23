@@ -1,0 +1,173 @@
+// Test file for physics/Particle.tr
+// Exercises Particle construction, position/velocity/acceleration, forces, energy, momentum.
+import tt::physics::Particle;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_particle_construction(): void {
+    let p: Particle = new Particle(2.0, 1.0);
+    if (absDiff(p.mass, 2.0) > 1e-9 || absDiff(p.charge, 1.0) > 1e-9) {
+        io::println("FAIL: Particle construction");
+    } else {
+        io::println("PASS: Particle construction works");
+    }
+    // All position/velocity/acceleration should be zero
+    if (absDiff(p.x, 0.0) > 1e-9 || absDiff(p.vx, 0.0) > 1e-9 || absDiff(p.ax, 0.0) > 1e-9) {
+        io::println("FAIL: Particle default state");
+    } else {
+        io::println("PASS: Particle default state zero");
+    }
+}
+
+public fn test_particle_set_position(): void {
+    let p: Particle = new Particle(1.0, 0.0);
+    p.setPosition(1.0, 2.0, 3.0);
+    if (absDiff(p.x, 1.0) > 1e-9 || absDiff(p.y, 2.0) > 1e-9 || absDiff(p.z, 3.0) > 1e-9) {
+        io::println("FAIL: setPosition");
+    } else {
+        io::println("PASS: setPosition works");
+    }
+}
+
+public fn test_particle_set_velocity(): void {
+    let p: Particle = new Particle(1.0, 0.0);
+    p.setVelocity(1.0, 2.0, 3.0);
+    if (absDiff(p.vx, 1.0) > 1e-9 || absDiff(p.vy, 2.0) > 1e-9 || absDiff(p.vz, 3.0) > 1e-9) {
+        io::println("FAIL: setVelocity");
+    } else {
+        io::println("PASS: setVelocity works");
+    }
+}
+
+public fn test_particle_set_acceleration(): void {
+    let p: Particle = new Particle(1.0, 0.0);
+    p.setAcceleration(1.0, 2.0, 3.0);
+    if (absDiff(p.ax, 1.0) > 1e-9 || absDiff(p.ay, 2.0) > 1e-9 || absDiff(p.az, 3.0) > 1e-9) {
+        io::println("FAIL: setAcceleration");
+    } else {
+        io::println("PASS: setAcceleration works");
+    }
+}
+
+public fn test_particle_apply_force(): void {
+    let p: Particle = new Particle(2.0, 0.0);
+    p.applyForce(4.0, 0.0, 0.0);
+    // a = F/m = 4/2 = 2
+    if (absDiff(p.ax, 2.0) > 1e-9) {
+        io::println("FAIL: applyForce ax expected 2.0");
+    } else {
+        io::println("PASS: applyForce ax = 2.0");
+    }
+    // Zero mass: no change
+    let p0: Particle = new Particle(0.0, 0.0);
+    p0.applyForce(1.0, 0.0, 0.0);
+    if (absDiff(p0.ax, 0.0) > 1e-9) {
+        io::println("FAIL: applyForce zero mass");
+    } else {
+        io::println("PASS: applyForce zero mass no change");
+    }
+}
+
+public fn test_particle_update(): void {
+    let p: Particle = new Particle(1.0, 0.0);
+    p.setVelocity(1.0, 0.0, 0.0);
+    p.setAcceleration(1.0, 0.0, 0.0);
+    p.update(1.0);
+    // After dt=1: vx = 1 + 1*1 = 2, x = 0 + 2*1 = 2
+    if (absDiff(p.vx, 2.0) > 1e-9) {
+        io::println("FAIL: update vx expected 2.0");
+    } else {
+        io::println("PASS: update vx = 2.0");
+    }
+    if (absDiff(p.x, 2.0) > 1e-9) {
+        io::println("FAIL: update x expected 2.0");
+    } else {
+        io::println("PASS: update x = 2.0");
+    }
+    // Acceleration should be reset to 0 after update
+    if (absDiff(p.ax, 0.0) > 1e-9) {
+        io::println("FAIL: update should reset ax");
+    } else {
+        io::println("PASS: update resets ax to 0");
+    }
+}
+
+public fn test_particle_kinetic_energy(): void {
+    let p: Particle = new Particle(2.0, 0.0);
+    p.setVelocity(3.0, 4.0, 0.0);
+    // KE = 0.5 * m * v^2 = 0.5 * 2 * 25 = 25
+    let ke: double = p.kineticEnergy();
+    if (absDiff(ke, 25.0) > 1e-9) {
+        io::println("FAIL: kineticEnergy expected 25.0");
+    } else {
+        io::println("PASS: kineticEnergy = 25.0");
+    }
+}
+
+public fn test_particle_potential_energy(): void {
+    let p: Particle = new Particle(2.0, 0.0);
+    p.setPosition(0.0, 0.0, 10.0);
+    // PE = m * g * z = 2 * 9.8 * 10 = 196
+    let pe: double = p.potentialEnergy(9.8);
+    if (absDiff(pe, 196.0) > 1e-9) {
+        io::println("FAIL: potentialEnergy expected 196.0");
+    } else {
+        io::println("PASS: potentialEnergy = 196.0");
+    }
+}
+
+public fn test_particle_momentum(): void {
+    let p: Particle = new Particle(2.0, 0.0);
+    p.setVelocity(3.0, 4.0, 0.0);
+    // p = m * v = 2 * 5 = 10
+    let mom: double = p.momentum();
+    if (absDiff(mom, 10.0) > 1e-9) {
+        io::println("FAIL: momentum expected 10.0");
+    } else {
+        io::println("PASS: momentum = 10.0");
+    }
+}
+
+public fn test_particle_distance_to(): void {
+    let p1: Particle = new Particle(1.0, 0.0);
+    let p2: Particle = new Particle(1.0, 0.0);
+    p1.setPosition(0.0, 0.0, 0.0);
+    p2.setPosition(3.0, 4.0, 0.0);
+    let d: double = p1.distanceTo(p2);
+    if (absDiff(d, 5.0) > 1e-9) {
+        io::println("FAIL: distanceTo expected 5.0");
+    } else {
+        io::println("PASS: distanceTo = 5.0");
+    }
+}
+
+public fn test_particle_speed(): void {
+    let p: Particle = new Particle(1.0, 0.0);
+    p.setVelocity(3.0, 4.0, 0.0);
+    let s: double = p.speed();
+    if (absDiff(s, 5.0) > 1e-9) {
+        io::println("FAIL: speed expected 5.0");
+    } else {
+        io::println("PASS: speed = 5.0");
+    }
+}
+
+public fn run_all_particle_tests(): void {
+    io::println("=== physics/Particle.tr Tests ===");
+    test_particle_construction();
+    test_particle_set_position();
+    test_particle_set_velocity();
+    test_particle_set_acceleration();
+    test_particle_apply_force();
+    test_particle_update();
+    test_particle_kinetic_energy();
+    test_particle_potential_energy();
+    test_particle_momentum();
+    test_particle_distance_to();
+    test_particle_speed();
+}
