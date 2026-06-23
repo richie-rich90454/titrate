@@ -1,0 +1,252 @@
+// Test file for vec/Vec2.tr
+// Exercises 2D vector arithmetic, products, magnitude, and transformations.
+import tt::math::vec::Vec2;
+import tt::math::Math;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_vec2_construction_factories(): void {
+    let v: Vec2 = new Vec2(3.0, 4.0);
+    if (v.x != 3.0 || v.y != 4.0) {
+        io::println("FAIL: Vec2 construction");
+    } else {
+        io::println("PASS: Vec2 construction works");
+    }
+    let z: Vec2 = Vec2.zero();
+    if (z.x != 0.0 || z.y != 0.0) {
+        io::println("FAIL: Vec2.zero()");
+    } else {
+        io::println("PASS: Vec2.zero() works");
+    }
+    let o: Vec2 = Vec2.one();
+    if (o.x != 1.0 || o.y != 1.0) {
+        io::println("FAIL: Vec2.one()");
+    } else {
+        io::println("PASS: Vec2.one() works");
+    }
+    let ux: Vec2 = Vec2.unitX();
+    if (ux.x != 1.0 || ux.y != 0.0) {
+        io::println("FAIL: Vec2.unitX()");
+    } else {
+        io::println("PASS: Vec2.unitX() works");
+    }
+    let uy: Vec2 = Vec2.unitY();
+    if (uy.x != 0.0 || uy.y != 1.0) {
+        io::println("FAIL: Vec2.unitY()");
+    } else {
+        io::println("PASS: Vec2.unitY() works");
+    }
+    // fromAngle(0) = (1, 0)
+    let fa: Vec2 = Vec2.fromAngle(0.0);
+    if (absDiff(fa.x, 1.0) > 1e-12 || absDiff(fa.y, 0.0) > 1e-12) {
+        io::println("FAIL: Vec2.fromAngle(0)");
+    } else {
+        io::println("PASS: Vec2.fromAngle(0) = (1,0)");
+    }
+}
+
+public fn test_vec2_add_sub_scale(): void {
+    let a: Vec2 = new Vec2(1.0, 2.0);
+    let b: Vec2 = new Vec2(3.0, 4.0);
+    let sum: Vec2 = a.add(b);
+    if (sum.x != 4.0 || sum.y != 6.0) {
+        io::println("FAIL: Vec2.add()");
+    } else {
+        io::println("PASS: Vec2.add() = (4,6)");
+    }
+    let diff: Vec2 = a.sub(b);
+    if (diff.x != -2.0 || diff.y != -2.0) {
+        io::println("FAIL: Vec2.sub()");
+    } else {
+        io::println("PASS: Vec2.sub() = (-2,-2)");
+    }
+    let scaled: Vec2 = a.scale(3.0);
+    if (scaled.x != 3.0 || scaled.y != 6.0) {
+        io::println("FAIL: Vec2.scale(3)");
+    } else {
+        io::println("PASS: Vec2.scale(3) = (3,6)");
+    }
+}
+
+public fn test_vec2_dot_cross(): void {
+    let a: Vec2 = new Vec2(1.0, 2.0);
+    let b: Vec2 = new Vec2(3.0, 4.0);
+    // dot = 1*3 + 2*4 = 11
+    if (a.dot(b) != 11.0) {
+        io::println("FAIL: Vec2.dot()");
+    } else {
+        io::println("PASS: Vec2.dot() = 11.0");
+    }
+    // cross = 1*4 - 2*3 = -2
+    if (a.cross(b) != -2.0) {
+        io::println("FAIL: Vec2.cross()");
+    } else {
+        io::println("PASS: Vec2.cross() = -2.0");
+    }
+    // cross of parallel vectors is 0
+    let p: Vec2 = new Vec2(2.0, 4.0);
+    let q: Vec2 = new Vec2(1.0, 2.0);
+    if (p.cross(q) != 0.0) {
+        io::println("FAIL: Vec2.cross() parallel");
+    } else {
+        io::println("PASS: Vec2.cross() parallel = 0");
+    }
+}
+
+public fn test_vec2_magnitude_normalize(): void {
+    let v: Vec2 = new Vec2(3.0, 4.0);
+    if (v.magnitude() != 5.0) {
+        io::println("FAIL: Vec2.magnitude() (3,4)");
+    } else {
+        io::println("PASS: Vec2.magnitude() (3,4) = 5.0");
+    }
+    if (v.magnitudeSq() != 25.0) {
+        io::println("FAIL: Vec2.magnitudeSq() (3,4)");
+    } else {
+        io::println("PASS: Vec2.magnitudeSq() (3,4) = 25.0");
+    }
+    let n: Vec2 = v.normalize();
+    if (absDiff(n.magnitude(), 1.0) > 1e-9) {
+        io::println("FAIL: Vec2.normalize() not unit length");
+    } else {
+        io::println("PASS: Vec2.normalize() is unit length");
+    }
+    // normalize zero vector returns zero
+    let z: Vec2 = Vec2.zero().normalize();
+    if (z.x != 0.0 || z.y != 0.0) {
+        io::println("FAIL: Vec2.normalize() zero");
+    } else {
+        io::println("PASS: Vec2.normalize() zero = (0,0)");
+    }
+}
+
+public fn test_vec2_distance_angle(): void {
+    let a: Vec2 = new Vec2(0.0, 0.0);
+    let b: Vec2 = new Vec2(3.0, 4.0);
+    if (a.distance(b) != 5.0) {
+        io::println("FAIL: Vec2.distance()");
+    } else {
+        io::println("PASS: Vec2.distance() = 5.0");
+    }
+    // angle of (1, 0) = 0
+    let ux: Vec2 = Vec2.unitX();
+    if (absDiff(ux.angle(), 0.0) > 1e-12) {
+        io::println("FAIL: Vec2.angle() (1,0)");
+    } else {
+        io::println("PASS: Vec2.angle() (1,0) = 0");
+    }
+    // angle of (0, 1) = pi/2
+    let uy: Vec2 = Vec2.unitY();
+    if (absDiff(uy.angle(), Math.PI() / 2.0) > 1e-12) {
+        io::println("FAIL: Vec2.angle() (0,1)");
+    } else {
+        io::println("PASS: Vec2.angle() (0,1) = pi/2");
+    }
+    // angleBetween of perpendicular vectors = pi/2
+    if (absDiff(ux.angleBetween(uy), Math.PI() / 2.0) > 1e-9) {
+        io::println("FAIL: Vec2.angleBetween() perpendicular");
+    } else {
+        io::println("PASS: Vec2.angleBetween() perpendicular = pi/2");
+    }
+}
+
+public fn test_vec2_rotate_perp(): void {
+    // rotate (1,0) by pi/2 -> (0,1)
+    let ux: Vec2 = Vec2.unitX();
+    let r: Vec2 = ux.rotate(Math.PI() / 2.0);
+    if (absDiff(r.x, 0.0) > 1e-9 || absDiff(r.y, 1.0) > 1e-9) {
+        io::println("FAIL: Vec2.rotate(pi/2)");
+    } else {
+        io::println("PASS: Vec2.rotate(pi/2) = (0,1)");
+    }
+    // perp of (1, 0) = (0, 1)
+    let p: Vec2 = ux.perp();
+    if (absDiff(p.x, 0.0) > 1e-12 || absDiff(p.y, 1.0) > 1e-12) {
+        io::println("FAIL: Vec2.perp()");
+    } else {
+        io::println("PASS: Vec2.perp() = (0,1)");
+    }
+}
+
+public fn test_vec2_project_reflect_lerp(): void {
+    // project (3,4) onto (1,0) = (3,0)
+    let v: Vec2 = new Vec2(3.0, 4.0);
+    let ux: Vec2 = Vec2.unitX();
+    let proj: Vec2 = v.project(ux);
+    if (absDiff(proj.x, 3.0) > 1e-9 || absDiff(proj.y, 0.0) > 1e-9) {
+        io::println("FAIL: Vec2.project()");
+    } else {
+        io::println("PASS: Vec2.project() = (3,0)");
+    }
+    // reflect (1,-1) across x-axis normal (0,1) -> (1,1)
+    let incident: Vec2 = new Vec2(1.0, -1.0);
+    let normal: Vec2 = Vec2.unitY();
+    let reflected: Vec2 = incident.reflect(normal);
+    if (absDiff(reflected.x, 1.0) > 1e-9 || absDiff(reflected.y, 1.0) > 1e-9) {
+        io::println("FAIL: Vec2.reflect()");
+    } else {
+        io::println("PASS: Vec2.reflect() = (1,1)");
+    }
+    // lerp (0,0) to (10,10) at t=0.5 = (5,5)
+    let z: Vec2 = Vec2.zero();
+    let target: Vec2 = new Vec2(10.0, 10.0);
+    let mid: Vec2 = z.lerp(target, 0.5);
+    if (absDiff(mid.x, 5.0) > 1e-9 || absDiff(mid.y, 5.0) > 1e-9) {
+        io::println("FAIL: Vec2.lerp()");
+    } else {
+        io::println("PASS: Vec2.lerp() = (5,5)");
+    }
+}
+
+public fn test_vec2_rounding_equals(): void {
+    let v: Vec2 = new Vec2(1.7, -2.3);
+    let f: Vec2 = v.floor();
+    if (f.x != 1.0 || f.y != -3.0) {
+        io::println("FAIL: Vec2.floor()");
+    } else {
+        io::println("PASS: Vec2.floor() = (1,-3)");
+    }
+    let c: Vec2 = v.ceil();
+    if (c.x != 2.0 || c.y != -2.0) {
+        io::println("FAIL: Vec2.ceil()");
+    } else {
+        io::println("PASS: Vec2.ceil() = (2,-2)");
+    }
+    let a: Vec2 = new Vec2(-1.5, 2.5);
+    let ab: Vec2 = a.abs();
+    if (ab.x != 1.5 || ab.y != 2.5) {
+        io::println("FAIL: Vec2.abs()");
+    } else {
+        io::println("PASS: Vec2.abs() = (1.5,2.5)");
+    }
+    let p: Vec2 = new Vec2(1.0, 2.0);
+    let q: Vec2 = new Vec2(1.0, 2.0);
+    if (!p.equals(q)) {
+        io::println("FAIL: Vec2.equals()");
+    } else {
+        io::println("PASS: Vec2.equals() works");
+    }
+    let s: string = p.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Vec2.toString()");
+    } else {
+        io::println("PASS: Vec2.toString() non-empty");
+    }
+}
+
+public fn run_all_vec2_tests(): void {
+    io::println("=== vec/Vec2.tr Tests ===");
+    test_vec2_construction_factories();
+    test_vec2_add_sub_scale();
+    test_vec2_dot_cross();
+    test_vec2_magnitude_normalize();
+    test_vec2_distance_angle();
+    test_vec2_rotate_perp();
+    test_vec2_project_reflect_lerp();
+    test_vec2_rounding_equals();
+}
