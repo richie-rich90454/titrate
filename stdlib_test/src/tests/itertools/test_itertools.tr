@@ -1,0 +1,241 @@
+// Test file for Itertools.tr
+// Exercises the public API of the Itertools and ItertoolsSeq modules.
+import tt::itertools::Itertools;
+import tt::itertools::ItertoolsSeq;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_itertools_combinations(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    arr.add(3);
+    let result: ArrayList<ArrayList<int>> = Itertools.combinations<int>(arr, 2);
+    // C(3,2) = 3
+    if (result.size() != 3) {
+        io::println("FAIL: Itertools.combinations size=" + Integer.toString(result.size()) + ", expected 3");
+    } else {
+        io::println("PASS: Itertools.combinations works");
+    }
+}
+
+public fn test_itertools_combinations_r_too_large(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    let result: ArrayList<ArrayList<int>> = Itertools.combinations<int>(arr, 5);
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.combinations r>n should be empty");
+    } else {
+        io::println("PASS: Itertools.combinations r too large works");
+    }
+}
+
+public fn test_itertools_combinations_r_zero(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    let result: ArrayList<ArrayList<int>> = Itertools.combinations<int>(arr, 0);
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.combinations r=0 should be empty");
+    } else {
+        io::println("PASS: Itertools.combinations r=0 works");
+    }
+}
+
+public fn test_itertools_combinationsWithReplacement(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    let result: ArrayList<ArrayList<int>> = Itertools.combinationsWithReplacement<int>(arr, 2);
+    // (1,1), (1,2), (2,2) = 3
+    if (result.size() != 3) {
+        io::println("FAIL: Itertools.combinationsWithReplacement size=" + Integer.toString(result.size()) + ", expected 3");
+    } else {
+        io::println("PASS: Itertools.combinationsWithReplacement works");
+    }
+}
+
+public fn test_itertools_permutations(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    arr.add(3);
+    let result: ArrayList<ArrayList<int>> = Itertools.permutations<int>(arr, 2);
+    // P(3,2) = 6
+    if (result.size() != 6) {
+        io::println("FAIL: Itertools.permutations size=" + Integer.toString(result.size()) + ", expected 6");
+    } else {
+        io::println("PASS: Itertools.permutations works");
+    }
+}
+
+public fn test_itertools_permutations_full(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    arr.add(3);
+    let result: ArrayList<ArrayList<int>> = Itertools.permutations<int>(arr, 3);
+    // P(3,3) = 6
+    if (result.size() != 6) {
+        io::println("FAIL: Itertools.permutations full size=" + Integer.toString(result.size()) + ", expected 6");
+    } else {
+        io::println("PASS: Itertools.permutations full works");
+    }
+}
+
+public fn test_itertools_product(): void {
+    let arr1: ArrayList<int> = new ArrayList<int>();
+    arr1.add(1);
+    arr1.add(2);
+    let arr2: ArrayList<int> = new ArrayList<int>();
+    arr2.add(10);
+    arr2.add(20);
+    arr2.add(30);
+    let result = Itertools.product<int, int>(arr1, arr2);
+    // 2 * 3 = 6
+    if (result.size() != 6) {
+        io::println("FAIL: Itertools.product size=" + Integer.toString(result.size()) + ", expected 6");
+    } else {
+        io::println("PASS: Itertools.product works");
+    }
+}
+
+public fn test_itertools_product_empty(): void {
+    let arr1: ArrayList<int> = new ArrayList<int>();
+    let arr2: ArrayList<int> = new ArrayList<int>();
+    arr2.add(10);
+    let result = Itertools.product<int, int>(arr1, arr2);
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.product empty should be 0");
+    } else {
+        io::println("PASS: Itertools.product empty works");
+    }
+}
+
+// --- ItertoolsSeq tests ---
+
+public fn test_itertools_chain(): void {
+    let list1: ArrayList<int> = new ArrayList<int>();
+    list1.add(1);
+    list1.add(2);
+    let list2: ArrayList<int> = new ArrayList<int>();
+    list2.add(3);
+    list2.add(4);
+    let iterables: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    iterables.add(list1);
+    iterables.add(list2);
+    let result: ArrayList<int> = ItertoolsSeq.chain<int>(iterables);
+    if (result.size() != 4) {
+        io::println("FAIL: ItertoolsSeq.chain size=" + Integer.toString(result.size()));
+    } else if (result.get(0) != 1 || result.get(3) != 4) {
+        io::println("FAIL: ItertoolsSeq.chain values wrong");
+    } else {
+        io::println("PASS: ItertoolsSeq.chain works");
+    }
+}
+
+public fn test_itertools_accumulate(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    arr.add(3);
+    arr.add(4);
+    let adder: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let result: ArrayList<int> = ItertoolsSeq.accumulate<int>(arr, adder);
+    if (result.size() != 4) {
+        io::println("FAIL: ItertoolsSeq.accumulate size=" + Integer.toString(result.size()));
+    } else if (result.get(0) != 1 || result.get(1) != 3 || result.get(2) != 6 || result.get(3) != 10) {
+        io::println("FAIL: ItertoolsSeq.accumulate values wrong");
+    } else {
+        io::println("PASS: ItertoolsSeq.accumulate works");
+    }
+}
+
+public fn test_itertools_cycle(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    let result: ArrayList<int> = ItertoolsSeq.cycle<int>(arr, 3);
+    if (result.size() != 6) {
+        io::println("FAIL: ItertoolsSeq.cycle size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: ItertoolsSeq.cycle works");
+    }
+}
+
+public fn test_itertools_islice(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(0);
+    arr.add(1);
+    arr.add(2);
+    arr.add(3);
+    arr.add(4);
+    arr.add(5);
+    let result: ArrayList<int> = ItertoolsSeq.islice<int>(arr, 1, 5, 2);
+    // Should be [1, 3]
+    if (result.size() != 2) {
+        io::println("FAIL: ItertoolsSeq.islice size=" + Integer.toString(result.size()));
+    } else if (result.get(0) != 1 || result.get(1) != 3) {
+        io::println("FAIL: ItertoolsSeq.islice values wrong");
+    } else {
+        io::println("PASS: ItertoolsSeq.islice works");
+    }
+}
+
+public fn test_itertools_zipLongest(): void {
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1);
+    a.add(2);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(10);
+    b.add(20);
+    b.add(30);
+    let result = ItertoolsSeq.zipLongest<int, int>(a, b, 0);
+    if (result.size() != 3) {
+        io::println("FAIL: ItertoolsSeq.zipLongest size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: ItertoolsSeq.zipLongest works");
+    }
+}
+
+public fn test_itertools_chain_empty(): void {
+    let iterables: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let result: ArrayList<int> = ItertoolsSeq.chain<int>(iterables);
+    if (result.size() != 0) {
+        io::println("FAIL: ItertoolsSeq.chain empty size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: ItertoolsSeq.chain empty works");
+    }
+}
+
+public fn test_itertools_accumulate_empty(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    let adder: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let result: ArrayList<int> = ItertoolsSeq.accumulate<int>(arr, adder);
+    if (result.size() != 0) {
+        io::println("FAIL: ItertoolsSeq.accumulate empty size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: ItertoolsSeq.accumulate empty works");
+    }
+}
+
+public fn run_all_itertools_tests(): void {
+    io::println("=== Itertools.tr Tests ===");
+    test_itertools_combinations();
+    test_itertools_combinations_r_too_large();
+    test_itertools_combinations_r_zero();
+    test_itertools_combinationsWithReplacement();
+    test_itertools_permutations();
+    test_itertools_permutations_full();
+    test_itertools_product();
+    test_itertools_product_empty();
+    test_itertools_chain();
+    test_itertools_accumulate();
+    test_itertools_cycle();
+    test_itertools_islice();
+    test_itertools_zipLongest();
+    test_itertools_chain_empty();
+    test_itertools_accumulate_empty();
+}
