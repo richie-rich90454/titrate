@@ -1,0 +1,206 @@
+// Test file for ErrorCode.tr
+// Exercises the public API of the ErrorCode module.
+import tt::lang::ErrorCode;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_errorcode_init(): void {
+    let ec: ErrorCode = new ErrorCode(42, "generic", "something failed");
+    if (ec.value() != 42) {
+        io::println("FAIL: ErrorCode.value");
+    } else {
+        io::println("PASS: ErrorCode.value");
+    }
+}
+
+public fn test_errorcode_value(): void {
+    let ec: ErrorCode = new ErrorCode(7, "system", "err");
+    if (ec.value() != 7) {
+        io::println("FAIL: ErrorCode.value = " + Integer.toString(ec.value()));
+    } else {
+        io::println("PASS: ErrorCode.value = 7");
+    }
+}
+
+public fn test_errorcode_category(): void {
+    let ec: ErrorCode = new ErrorCode(1, "io", "disk error");
+    if (ec.category() != "io") {
+        io::println("FAIL: ErrorCode.category = " + ec.category());
+    } else {
+        io::println("PASS: ErrorCode.category = io");
+    }
+}
+
+public fn test_errorcode_message(): void {
+    let ec: ErrorCode = new ErrorCode(1, "io", "disk full");
+    if (ec.message() != "disk full") {
+        io::println("FAIL: ErrorCode.message = " + ec.message());
+    } else {
+        io::println("PASS: ErrorCode.message = disk full");
+    }
+}
+
+public fn test_errorcode_toString(): void {
+    let ec: ErrorCode = new ErrorCode(42, "generic", "oops");
+    let s: string = ec.toString();
+    if (String.indexOf(s, "generic") < 0 || String.indexOf(s, "42") < 0 || String.indexOf(s, "oops") < 0) {
+        io::println("FAIL: ErrorCode.toString = " + s);
+    } else {
+        io::println("PASS: ErrorCode.toString = " + s);
+    }
+}
+
+public fn test_errorcode_equals_same(): void {
+    let ec1: ErrorCode = new ErrorCode(1, "io", "a");
+    let ec2: ErrorCode = new ErrorCode(1, "io", "b");
+    if (!ec1.equals(ec2)) {
+        io::println("FAIL: ErrorCode.equals same value+category");
+    } else {
+        io::println("PASS: ErrorCode.equals same value+category");
+    }
+}
+
+public fn test_errorcode_equals_diff_value(): void {
+    let ec1: ErrorCode = new ErrorCode(1, "io", "a");
+    let ec2: ErrorCode = new ErrorCode(2, "io", "b");
+    if (ec1.equals(ec2)) {
+        io::println("FAIL: ErrorCode.equals diff value");
+    } else {
+        io::println("PASS: ErrorCode.equals diff value");
+    }
+}
+
+public fn test_errorcode_equals_diff_category(): void {
+    let ec1: ErrorCode = new ErrorCode(1, "io", "a");
+    let ec2: ErrorCode = new ErrorCode(1, "net", "b");
+    if (ec1.equals(ec2)) {
+        io::println("FAIL: ErrorCode.equals diff category");
+    } else {
+        io::println("PASS: ErrorCode.equals diff category");
+    }
+}
+
+public fn test_genericError(): void {
+    let ec: ErrorCode = ErrorCode.genericError(5, "generic fail");
+    if (ec.category() != "generic" || ec.value() != 5 || ec.message() != "generic fail") {
+        io::println("FAIL: ErrorCode.genericError");
+    } else {
+        io::println("PASS: ErrorCode.genericError");
+    }
+}
+
+public fn test_systemError(): void {
+    let ec: ErrorCode = ErrorCode.systemError(6, "system fail");
+    if (ec.category() != "system") {
+        io::println("FAIL: ErrorCode.systemError category");
+    } else {
+        io::println("PASS: ErrorCode.systemError category");
+    }
+}
+
+public fn test_ioError(): void {
+    let ec: ErrorCode = ErrorCode.ioError(7, "io fail");
+    if (ec.category() != "io") {
+        io::println("FAIL: ErrorCode.ioError category");
+    } else {
+        io::println("PASS: ErrorCode.ioError category");
+    }
+}
+
+public fn test_networkError(): void {
+    let ec: ErrorCode = ErrorCode.networkError(8, "net fail");
+    if (ec.category() != "network") {
+        io::println("FAIL: ErrorCode.networkError category");
+    } else {
+        io::println("PASS: ErrorCode.networkError category");
+    }
+}
+
+public fn test_databaseError(): void {
+    let ec: ErrorCode = ErrorCode.databaseError(9, "db fail");
+    if (ec.category() != "database") {
+        io::println("FAIL: ErrorCode.databaseError category");
+    } else {
+        io::println("PASS: ErrorCode.databaseError category");
+    }
+}
+
+public fn test_NO_ERROR_constant(): void {
+    if (ErrorCode.NO_ERROR != 0) {
+        io::println("FAIL: ErrorCode.NO_ERROR = " + Integer.toString(ErrorCode.NO_ERROR));
+    } else {
+        io::println("PASS: ErrorCode.NO_ERROR = 0");
+    }
+}
+
+public fn test_PERMISSION_DENIED_constant(): void {
+    if (ErrorCode.PERMISSION_DENIED != 1) {
+        io::println("FAIL: ErrorCode.PERMISSION_DENIED = " + Integer.toString(ErrorCode.PERMISSION_DENIED));
+    } else {
+        io::println("PASS: ErrorCode.PERMISSION_DENIED = 1");
+    }
+}
+
+public fn test_FILE_NOT_FOUND_constant(): void {
+    if (ErrorCode.FILE_NOT_FOUND != 2) {
+        io::println("FAIL: ErrorCode.FILE_NOT_FOUND = " + Integer.toString(ErrorCode.FILE_NOT_FOUND));
+    } else {
+        io::println("PASS: ErrorCode.FILE_NOT_FOUND = 2");
+    }
+}
+
+public fn test_TIMEOUT_constant(): void {
+    if (ErrorCode.TIMEOUT != 4) {
+        io::println("FAIL: ErrorCode.TIMEOUT = " + Integer.toString(ErrorCode.TIMEOUT));
+    } else {
+        io::println("PASS: ErrorCode.TIMEOUT = 4");
+    }
+}
+
+public fn test_OUT_OF_MEMORY_constant(): void {
+    if (ErrorCode.OUT_OF_MEMORY != 7) {
+        io::println("FAIL: ErrorCode.OUT_OF_MEMORY = " + Integer.toString(ErrorCode.OUT_OF_MEMORY));
+    } else {
+        io::println("PASS: ErrorCode.OUT_OF_MEMORY = 7");
+    }
+}
+
+public fn test_INVALID_ARGUMENT_constant(): void {
+    if (ErrorCode.INVALID_ARGUMENT != 8) {
+        io::println("FAIL: ErrorCode.INVALID_ARGUMENT = " + Integer.toString(ErrorCode.INVALID_ARGUMENT));
+    } else {
+        io::println("PASS: ErrorCode.INVALID_ARGUMENT = 8");
+    }
+}
+
+public fn test_NOT_SUPPORTED_constant(): void {
+    if (ErrorCode.NOT_SUPPORTED != 14) {
+        io::println("FAIL: ErrorCode.NOT_SUPPORTED = " + Integer.toString(ErrorCode.NOT_SUPPORTED));
+    } else {
+        io::println("PASS: ErrorCode.NOT_SUPPORTED = 14");
+    }
+}
+
+public fn run_all_error_code_tests(): void {
+    io::println("=== ErrorCode.tr Tests ===");
+    test_errorcode_init();
+    test_errorcode_value();
+    test_errorcode_category();
+    test_errorcode_message();
+    test_errorcode_toString();
+    test_errorcode_equals_same();
+    test_errorcode_equals_diff_value();
+    test_errorcode_equals_diff_category();
+    test_genericError();
+    test_systemError();
+    test_ioError();
+    test_networkError();
+    test_databaseError();
+    test_NO_ERROR_constant();
+    test_PERMISSION_DENIED_constant();
+    test_FILE_NOT_FOUND_constant();
+    test_TIMEOUT_constant();
+    test_OUT_OF_MEMORY_constant();
+    test_INVALID_ARGUMENT_constant();
+    test_NOT_SUPPORTED_constant();
+}
