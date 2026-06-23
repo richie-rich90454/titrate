@@ -1,0 +1,196 @@
+// Test file for IntegerExt.tr
+// Exercises the public API of the IntegerExt module.
+import tt::lang::IntegerExt;
+import tt::lang::Integer;
+
+public fn test_parseIntWithRadix_decimal(): void {
+    let v: int = IntegerExt.parseIntWithRadix("42", 10);
+    if (v != 42) {
+        io::println("FAIL: IntegerExt.parseIntWithRadix(42,10) = " + Integer.toString(v));
+    } else {
+        io::println("PASS: IntegerExt.parseIntWithRadix(42,10) = 42");
+    }
+}
+
+public fn test_parseIntWithRadix_binary(): void {
+    let v: int = IntegerExt.parseIntWithRadix("1010", 2);
+    if (v != 10) {
+        io::println("FAIL: IntegerExt.parseIntWithRadix(1010,2) = " + Integer.toString(v));
+    } else {
+        io::println("PASS: IntegerExt.parseIntWithRadix(1010,2) = 10");
+    }
+}
+
+public fn test_parseIntWithRadix_hex(): void {
+    let v: int = IntegerExt.parseIntWithRadix("ff", 16);
+    if (v != 255) {
+        io::println("FAIL: IntegerExt.parseIntWithRadix(ff,16) = " + Integer.toString(v));
+    } else {
+        io::println("PASS: IntegerExt.parseIntWithRadix(ff,16) = 255");
+    }
+}
+
+public fn test_parseIntWithRadix_hex_uppercase(): void {
+    let v: int = IntegerExt.parseIntWithRadix("FF", 16);
+    if (v != 255) {
+        io::println("FAIL: IntegerExt.parseIntWithRadix(FF,16) = " + Integer.toString(v));
+    } else {
+        io::println("PASS: IntegerExt.parseIntWithRadix(FF,16) = 255");
+    }
+}
+
+public fn test_parseIntWithRadix_negative(): void {
+    let v: int = IntegerExt.parseIntWithRadix("-a", 16);
+    if (v != -10) {
+        io::println("FAIL: IntegerExt.parseIntWithRadix(-a,16) = " + Integer.toString(v));
+    } else {
+        io::println("PASS: IntegerExt.parseIntWithRadix(-a,16) = -10");
+    }
+}
+
+public fn test_parseIntWithRadix_octal(): void {
+    let v: int = IntegerExt.parseIntWithRadix("17", 8);
+    if (v != 15) {
+        io::println("FAIL: IntegerExt.parseIntWithRadix(17,8) = " + Integer.toString(v));
+    } else {
+        io::println("PASS: IntegerExt.parseIntWithRadix(17,8) = 15");
+    }
+}
+
+public fn test_parseUnsignedInt(): void {
+    let v: int = IntegerExt.parseUnsignedInt("123");
+    if (v != 123) {
+        io::println("FAIL: IntegerExt.parseUnsignedInt(123) = " + Integer.toString(v));
+    } else {
+        io::println("PASS: IntegerExt.parseUnsignedInt(123) = 123");
+    }
+}
+
+public fn test_toUnsignedString_positive(): void {
+    let s: string = IntegerExt.toUnsignedString(42);
+    if (s != "42") {
+        io::println("FAIL: IntegerExt.toUnsignedString(42) = " + s);
+    } else {
+        io::println("PASS: IntegerExt.toUnsignedString(42) = 42");
+    }
+}
+
+public fn test_bitCount(): void {
+    if (IntegerExt.bitCount(7) != 3) {
+        io::println("FAIL: IntegerExt.bitCount(7)");
+    } else {
+        io::println("PASS: IntegerExt.bitCount(7) = 3");
+    }
+}
+
+public fn test_rotateLeft(): void {
+    if (IntegerExt.rotateLeft(1, 1) != 2) {
+        io::println("FAIL: IntegerExt.rotateLeft(1,1)");
+    } else {
+        io::println("PASS: IntegerExt.rotateLeft(1,1) = 2");
+    }
+}
+
+public fn test_rotateRight(): void {
+    if (IntegerExt.rotateRight(2, 1) != 1) {
+        io::println("FAIL: IntegerExt.rotateRight(2,1)");
+    } else {
+        io::println("PASS: IntegerExt.rotateRight(2,1) = 1");
+    }
+}
+
+public fn test_highestOneBit(): void {
+    if (IntegerExt.highestOneBit(9) != 8) {
+        io::println("FAIL: IntegerExt.highestOneBit(9)");
+    } else {
+        io::println("PASS: IntegerExt.highestOneBit(9) = 8");
+    }
+}
+
+public fn test_lowestOneBit(): void {
+    if (IntegerExt.lowestOneBit(10) != 2) {
+        io::println("FAIL: IntegerExt.lowestOneBit(10)");
+    } else {
+        io::println("PASS: IntegerExt.lowestOneBit(10) = 2");
+    }
+}
+
+public fn test_signum(): void {
+    if (IntegerExt.signum(5) != 1 || IntegerExt.signum(-5) != -1 || IntegerExt.signum(0) != 0) {
+        io::println("FAIL: IntegerExt.signum");
+    } else {
+        io::println("PASS: IntegerExt.signum");
+    }
+}
+
+public fn test_clampInt_within(): void {
+    if (IntegerExt.clampInt(5, 0, 10) != 5) {
+        io::println("FAIL: IntegerExt.clampInt within");
+    } else {
+        io::println("PASS: IntegerExt.clampInt within");
+    }
+}
+
+public fn test_clampInt_below(): void {
+    if (IntegerExt.clampInt(-5, 0, 10) != 0) {
+        io::println("FAIL: IntegerExt.clampInt below");
+    } else {
+        io::println("PASS: IntegerExt.clampInt below");
+    }
+}
+
+public fn test_clampInt_above(): void {
+    if (IntegerExt.clampInt(15, 0, 10) != 10) {
+        io::println("FAIL: IntegerExt.clampInt above");
+    } else {
+        io::println("PASS: IntegerExt.clampInt above");
+    }
+}
+
+public fn test_toBinaryString(): void {
+    if (IntegerExt.toBinaryString(5) != "101") {
+        io::println("FAIL: IntegerExt.toBinaryString(5)");
+    } else {
+        io::println("PASS: IntegerExt.toBinaryString(5) = 101");
+    }
+}
+
+public fn test_toHexString(): void {
+    if (IntegerExt.toHexString(255) != "ff") {
+        io::println("FAIL: IntegerExt.toHexString(255)");
+    } else {
+        io::println("PASS: IntegerExt.toHexString(255) = ff");
+    }
+}
+
+public fn test_toOctalString(): void {
+    if (IntegerExt.toOctalString(8) != "10") {
+        io::println("FAIL: IntegerExt.toOctalString(8)");
+    } else {
+        io::println("PASS: IntegerExt.toOctalString(8) = 10");
+    }
+}
+
+public fn run_all_integer_ext_tests(): void {
+    io::println("=== IntegerExt.tr Tests ===");
+    test_parseIntWithRadix_decimal();
+    test_parseIntWithRadix_binary();
+    test_parseIntWithRadix_hex();
+    test_parseIntWithRadix_hex_uppercase();
+    test_parseIntWithRadix_negative();
+    test_parseIntWithRadix_octal();
+    test_parseUnsignedInt();
+    test_toUnsignedString_positive();
+    test_bitCount();
+    test_rotateLeft();
+    test_rotateRight();
+    test_highestOneBit();
+    test_lowestOneBit();
+    test_signum();
+    test_clampInt_within();
+    test_clampInt_below();
+    test_clampInt_above();
+    test_toBinaryString();
+    test_toHexString();
+    test_toOctalString();
+}
