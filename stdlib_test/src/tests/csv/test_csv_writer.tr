@@ -1,0 +1,408 @@
+// Tests for the CsvWriter module (CsvWriter, DictWriter).
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::csv::CsvWriter;
+
+fn test_csv_writer_init(): void {
+    let writer: CsvWriter = new CsvWriter();
+    if (writer == null) {
+        io::println("FAIL: test_csv_writer_init - new CsvWriter returned null");
+        return;
+    }
+    if (writer.delimiter != ",") {
+        io::println("FAIL: test_csv_writer_init - default delimiter should be ','");
+        return;
+    }
+    if (writer.quote != "\"") {
+        io::println("FAIL: test_csv_writer_init - default quote should be '\"'");
+        return;
+    }
+    if (writer.newline != "\n") {
+        io::println("FAIL: test_csv_writer_init - default newline should be '\\n'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_init");
+}
+
+fn test_csv_writer_write_single_row(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row: ArrayList<string> = new ArrayList<string>();
+    row.add("a");
+    row.add("b");
+    row.add("c");
+    rows.add(row);
+    let result: string = writer.write(rows);
+    if (result != "a,b,c") {
+        io::println("FAIL: test_csv_writer_write_single_row - result should be 'a,b,c', got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_write_single_row");
+}
+
+fn test_csv_writer_write_multiple_rows(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row1: ArrayList<string> = new ArrayList<string>();
+    row1.add("a");
+    row1.add("b");
+    rows.add(row1);
+    let row2: ArrayList<string> = new ArrayList<string>();
+    row2.add("1");
+    row2.add("2");
+    rows.add(row2);
+    let result: string = writer.write(rows);
+    if (result != "a,b\n1,2") {
+        io::println("FAIL: test_csv_writer_write_multiple_rows - result should be 'a,b\\n1,2', got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_write_multiple_rows");
+}
+
+fn test_csv_writer_write_empty(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let result: string = writer.write(rows);
+    if (result != "") {
+        io::println("FAIL: test_csv_writer_write_empty - result should be empty string");
+        return;
+    }
+    io::println("PASS: test_csv_writer_write_empty");
+}
+
+fn test_csv_writer_write_with_headers(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let headers: ArrayList<string> = new ArrayList<string>();
+    headers.add("name");
+    headers.add("age");
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row1: ArrayList<string> = new ArrayList<string>();
+    row1.add("Alice");
+    row1.add("30");
+    rows.add(row1);
+    let result: string = writer.writeWithHeaders(headers, rows);
+    if (String.indexOf(result, "name,age") < 0) {
+        io::println("FAIL: test_csv_writer_write_with_headers - result should contain 'name,age'");
+        return;
+    }
+    if (String.indexOf(result, "Alice,30") < 0) {
+        io::println("FAIL: test_csv_writer_write_with_headers - result should contain 'Alice,30'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_write_with_headers");
+}
+
+fn test_csv_writer_write_with_headers_only(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let headers: ArrayList<string> = new ArrayList<string>();
+    headers.add("a");
+    headers.add("b");
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let result: string = writer.writeWithHeaders(headers, rows);
+    if (result != "a,b") {
+        io::println("FAIL: test_csv_writer_write_with_headers_only - result should be 'a,b'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_write_with_headers_only");
+}
+
+fn test_csv_writer_quoting_with_delimiter(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row: ArrayList<string> = new ArrayList<string>();
+    row.add("hello, world");
+    rows.add(row);
+    let result: string = writer.write(rows);
+    // Field containing delimiter should be quoted
+    if (result != "\"hello, world\"") {
+        io::println("FAIL: test_csv_writer_quoting_with_delimiter - result should be '\"hello, world\"', got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_quoting_with_delimiter");
+}
+
+fn test_csv_writer_quoting_with_quote(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row: ArrayList<string> = new ArrayList<string>();
+    row.add("say \"hi\"");
+    rows.add(row);
+    let result: string = writer.write(rows);
+    // Field containing quote should be quoted and the quote doubled
+    if (result != "\"say \"\"hi\"\"\"") {
+        io::println("FAIL: test_csv_writer_quoting_with_quote - got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_quoting_with_quote");
+}
+
+fn test_csv_writer_quoting_with_newline(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row: ArrayList<string> = new ArrayList<string>();
+    row.add("line1\nline2");
+    rows.add(row);
+    let result: string = writer.write(rows);
+    // Field containing newline should be quoted
+    if (String.length(result) == 0 || String.charAt(result, 0) != "\"") {
+        io::println("FAIL: test_csv_writer_quoting_with_newline - field should be quoted");
+        return;
+    }
+    io::println("PASS: test_csv_writer_quoting_with_newline");
+}
+
+fn test_csv_writer_no_quoting_for_plain_field(): void {
+    let writer: CsvWriter = new CsvWriter();
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row: ArrayList<string> = new ArrayList<string>();
+    row.add("plain");
+    rows.add(row);
+    let result: string = writer.write(rows);
+    if (result != "plain") {
+        io::println("FAIL: test_csv_writer_no_quoting_for_plain_field - plain field should not be quoted");
+        return;
+    }
+    io::println("PASS: test_csv_writer_no_quoting_for_plain_field");
+}
+
+fn test_csv_writer_custom_delimiter(): void {
+    let writer: CsvWriter = new CsvWriter();
+    writer.delimiter = ";";
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row: ArrayList<string> = new ArrayList<string>();
+    row.add("a");
+    row.add("b");
+    rows.add(row);
+    let result: string = writer.write(rows);
+    if (result != "a;b") {
+        io::println("FAIL: test_csv_writer_custom_delimiter - result should be 'a;b', got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_custom_delimiter");
+}
+
+fn test_csv_writer_custom_newline(): void {
+    let writer: CsvWriter = new CsvWriter();
+    writer.newline = "\r\n";
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row1: ArrayList<string> = new ArrayList<string>();
+    row1.add("a");
+    rows.add(row1);
+    let row2: ArrayList<string> = new ArrayList<string>();
+    row2.add("b");
+    rows.add(row2);
+    let result: string = writer.write(rows);
+    if (result != "a\r\nb") {
+        io::println("FAIL: test_csv_writer_custom_newline - result should be 'a\\r\\nb'");
+        return;
+    }
+    io::println("PASS: test_csv_writer_custom_newline");
+}
+
+fn test_csv_writer_roundtrip_with_reader(): void {
+    // Write then parse back
+    let writer: CsvWriter = new CsvWriter();
+    let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let row1: ArrayList<string> = new ArrayList<string>();
+    row1.add("name");
+    row1.add("age");
+    rows.add(row1);
+    let row2: ArrayList<string> = new ArrayList<string>();
+    row2.add("Alice");
+    row2.add("30");
+    rows.add(row2);
+    let csv: string = writer.write(rows);
+    if (String.indexOf(csv, "name,age") < 0) {
+        io::println("FAIL: test_csv_writer_roundtrip_with_reader - csv should contain header");
+        return;
+    }
+    if (String.indexOf(csv, "Alice,30") < 0) {
+        io::println("FAIL: test_csv_writer_roundtrip_with_reader - csv should contain data row");
+        return;
+    }
+    io::println("PASS: test_csv_writer_roundtrip_with_reader");
+}
+
+fn test_dict_writer_init(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let writer: DictWriter = new DictWriter(fieldnames);
+    if (writer == null) {
+        io::println("FAIL: test_dict_writer_init - new DictWriter returned null");
+        return;
+    }
+    if (writer.delimiter != ",") {
+        io::println("FAIL: test_dict_writer_init - default delimiter should be ','");
+        return;
+    }
+    if (writer.quote != "\"") {
+        io::println("FAIL: test_dict_writer_init - default quote should be '\"'");
+        return;
+    }
+    if (writer.newline != "\n") {
+        io::println("FAIL: test_dict_writer_init - default newline should be '\\n'");
+        return;
+    }
+    if (writer.extrasaction != "raise") {
+        io::println("FAIL: test_dict_writer_init - default extrasaction should be 'raise'");
+        return;
+    }
+    io::println("PASS: test_dict_writer_init");
+}
+
+fn test_dict_writer_init_with_delimiter(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    let writer: DictWriter = new DictWriter(fieldnames, ";", "'");
+    if (writer.delimiter != ";") {
+        io::println("FAIL: test_dict_writer_init_with_delimiter - delimiter should be ';'");
+        return;
+    }
+    if (writer.quote != "'") {
+        io::println("FAIL: test_dict_writer_init_with_delimiter - quote should be '''");
+        return;
+    }
+    io::println("PASS: test_dict_writer_init_with_delimiter");
+}
+
+fn test_dict_writer_init_with_extrasaction(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    let writer: DictWriter = new DictWriter(fieldnames, ",", "\"", "ignore");
+    if (writer.extrasaction != "ignore") {
+        io::println("FAIL: test_dict_writer_init_with_extrasaction - extrasaction should be 'ignore'");
+        return;
+    }
+    io::println("PASS: test_dict_writer_init_with_extrasaction");
+}
+
+fn test_dict_writer_write_header(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let writer: DictWriter = new DictWriter(fieldnames);
+    let result: string = writer.writeHeader();
+    if (result != "name,age") {
+        io::println("FAIL: test_dict_writer_write_header - result should be 'name,age', got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_dict_writer_write_header");
+}
+
+fn test_dict_writer_write_row(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let writer: DictWriter = new DictWriter(fieldnames);
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    map.put("name", "Alice");
+    map.put("age", "30");
+    let result: string = writer.writeRow(map);
+    if (result != "Alice,30") {
+        io::println("FAIL: test_dict_writer_write_row - result should be 'Alice,30', got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_dict_writer_write_row");
+}
+
+fn test_dict_writer_write_row_missing_field(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let writer: DictWriter = new DictWriter(fieldnames);
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    map.put("name", "Alice");
+    // age is missing — should default to empty string
+    let result: string = writer.writeRow(map);
+    if (result != "Alice,") {
+        io::println("FAIL: test_dict_writer_write_row_missing_field - result should be 'Alice,', got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_dict_writer_write_row_missing_field");
+}
+
+fn test_dict_writer_write_rows(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let writer: DictWriter = new DictWriter(fieldnames);
+    let list: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
+    let map1: HashMap<string, string> = new HashMap<string, string>();
+    map1.put("name", "Alice");
+    map1.put("age", "30");
+    list.add(map1);
+    let map2: HashMap<string, string> = new HashMap<string, string>();
+    map2.put("name", "Bob");
+    map2.put("age", "25");
+    list.add(map2);
+    let result: string = writer.writeRows(list);
+    if (result != "Alice,30\nBob,25") {
+        io::println("FAIL: test_dict_writer_write_rows - got '" + result + "'");
+        return;
+    }
+    io::println("PASS: test_dict_writer_write_rows");
+}
+
+fn test_dict_writer_write_rows_empty(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    let writer: DictWriter = new DictWriter(fieldnames);
+    let list: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
+    let result: string = writer.writeRows(list);
+    if (result != "") {
+        io::println("FAIL: test_dict_writer_write_rows_empty - result should be empty");
+        return;
+    }
+    io::println("PASS: test_dict_writer_write_rows_empty");
+}
+
+fn test_dict_writer_full_workflow(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let writer: DictWriter = new DictWriter(fieldnames);
+    let header: string = writer.writeHeader();
+    let list: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    map.put("name", "Alice");
+    map.put("age", "30");
+    list.add(map);
+    let rows: string = writer.writeRows(list);
+    let full: string = header + "\n" + rows;
+    if (String.indexOf(full, "name,age") < 0) {
+        io::println("FAIL: test_dict_writer_full_workflow - full output should contain header");
+        return;
+    }
+    if (String.indexOf(full, "Alice,30") < 0) {
+        io::println("FAIL: test_dict_writer_full_workflow - full output should contain data row");
+        return;
+    }
+    io::println("PASS: test_dict_writer_full_workflow");
+}
+
+public fn run_all_csv_writer_tests(): void {
+    io::println("=== CsvWriter Tests ===");
+    test_csv_writer_init();
+    test_csv_writer_write_single_row();
+    test_csv_writer_write_multiple_rows();
+    test_csv_writer_write_empty();
+    test_csv_writer_write_with_headers();
+    test_csv_writer_write_with_headers_only();
+    test_csv_writer_quoting_with_delimiter();
+    test_csv_writer_quoting_with_quote();
+    test_csv_writer_quoting_with_newline();
+    test_csv_writer_no_quoting_for_plain_field();
+    test_csv_writer_custom_delimiter();
+    test_csv_writer_custom_newline();
+    test_csv_writer_roundtrip_with_reader();
+    test_dict_writer_init();
+    test_dict_writer_init_with_delimiter();
+    test_dict_writer_init_with_extrasaction();
+    test_dict_writer_write_header();
+    test_dict_writer_write_row();
+    test_dict_writer_write_row_missing_field();
+    test_dict_writer_write_rows();
+    test_dict_writer_write_rows_empty();
+    test_dict_writer_full_workflow();
+}
