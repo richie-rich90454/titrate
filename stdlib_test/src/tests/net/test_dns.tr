@@ -1,0 +1,109 @@
+// Test file for Dns.tr
+// Exercises the public API of DnsRecord, DnsCache, and the module-level
+// DNS lookup functions.
+import tt::net::Dns;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_dnsrecord_construction_accessors(): void {
+    let rec: DnsRecord = new DnsRecord("example.com", "A", "93.184.216.34", 300);
+    if (rec.name != "example.com") {
+        io::println("FAIL: DnsRecord.name = " + rec.name);
+    } else {
+        io::println("PASS: DnsRecord.name works");
+    }
+    if (rec.recordType != "A") {
+        io::println("FAIL: DnsRecord.recordType = " + rec.recordType);
+    } else {
+        io::println("PASS: DnsRecord.recordType works");
+    }
+    if (rec.value != "93.184.216.34") {
+        io::println("FAIL: DnsRecord.value = " + rec.value);
+    } else {
+        io::println("PASS: DnsRecord.value works");
+    }
+    if (rec.ttl != 300) {
+        io::println("FAIL: DnsRecord.ttl = " + Integer.toString(rec.ttl));
+    } else {
+        io::println("PASS: DnsRecord.ttl works");
+    }
+}
+
+public fn test_dnsrecord_toString(): void {
+    let rec: DnsRecord = new DnsRecord("example.com", "A", "1.2.3.4", 60);
+    let s: string = rec.toString();
+    if (String.indexOf(s, "example.com") < 0 || String.indexOf(s, "1.2.3.4") < 0 || String.indexOf(s, "60") < 0) {
+        io::println("FAIL: DnsRecord.toString = " + s);
+    } else {
+        io::println("PASS: DnsRecord.toString contains name/value/ttl");
+    }
+}
+
+public fn test_dnscache_init_flush(): void {
+    let cache: DnsCache = new DnsCache(600);
+    if (cache.defaultTtl != 600) {
+        io::println("FAIL: DnsCache.defaultTtl = " + Integer.toString(cache.defaultTtl));
+    } else {
+        io::println("PASS: DnsCache.defaultTtl works");
+    }
+    if (cache.cache == null) {
+        io::println("FAIL: DnsCache.cache should not be null");
+    } else {
+        io::println("PASS: DnsCache.cache initialized");
+    }
+    cache.flush();
+    if (cache.cache.size() != 0) {
+        io::println("FAIL: DnsCache.cache size after flush = " + Integer.toString(cache.cache.size()));
+    } else {
+        io::println("PASS: DnsCache.flush empties the cache");
+    }
+}
+
+public fn test_dnscache_lookup_returns_list(): void {
+    let cache: DnsCache = new DnsCache(300);
+    // Network-dependent; we verify lookup returns a list (possibly empty).
+    let records: ArrayList<DnsRecord> = cache.lookup("example.com", "A");
+    if (records == null) {
+        io::println("FAIL: DnsCache.lookup returned null");
+    } else {
+        io::println("PASS: DnsCache.lookup returns a list of size " + Integer.toString(records.size()));
+    }
+}
+
+public fn test_dnslookup_callable(): void {
+    let records: ArrayList<DnsRecord> = dnsLookup("example.com", "A");
+    if (records == null) {
+        io::println("FAIL: dnsLookup returned null");
+    } else {
+        io::println("PASS: dnsLookup returns a list of size " + Integer.toString(records.size()));
+    }
+}
+
+public fn test_lookupMX_callable(): void {
+    let records: ArrayList<DnsRecord> = lookupMX("example.com");
+    if (records == null) {
+        io::println("FAIL: lookupMX returned null");
+    } else {
+        io::println("PASS: lookupMX returns a list of size " + Integer.toString(records.size()));
+    }
+}
+
+public fn test_reverseDns_callable(): void {
+    let result: string = reverseDns("8.8.8.8");
+    if (result == null) {
+        io::println("FAIL: reverseDns returned null");
+    } else {
+        io::println("PASS: reverseDns returns a string");
+    }
+}
+
+public fn run_all_dns_tests(): void {
+    io::println("=== Dns.tr Tests ===");
+    test_dnsrecord_construction_accessors();
+    test_dnsrecord_toString();
+    test_dnscache_init_flush();
+    test_dnscache_lookup_returns_list();
+    test_dnslookup_callable();
+    test_lookupMX_callable();
+    test_reverseDns_callable();
+}
