@@ -1,0 +1,286 @@
+// Test file for Fraction.tr
+// Exercises the public API of the Fraction class and its top-level functions.
+import tt::fractions::Fraction;
+import tt::lang::Long;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Boolean;
+
+public fn test_fraction_init(): void {
+    let f: Fraction = new Fraction(3L, 6L);
+    // Should be reduced to 1/2
+    if (f.numerator != 1L || f.denominator != 2L) {
+        io::println("FAIL: Fraction.init did not reduce 3/6 to 1/2, got " + Long.toString(f.numerator) + "/" + Long.toString(f.denominator));
+    } else {
+        io::println("PASS: Fraction.init reduces correctly");
+    }
+}
+
+public fn test_fraction_init_negative_den(): void {
+    let f: Fraction = new Fraction(3L, -6L);
+    // Should be -1/2
+    if (f.numerator != -1L || f.denominator != 2L) {
+        io::println("FAIL: Fraction.init negative den wrong, got " + Long.toString(f.numerator) + "/" + Long.toString(f.denominator));
+    } else {
+        io::println("PASS: Fraction.init negative denominator works");
+    }
+}
+
+public fn test_fraction_init_zero_den(): void {
+    let f: Fraction = new Fraction(5L, 0L);
+    if (f.numerator != 0L || f.denominator != 1L) {
+        io::println("FAIL: Fraction.init zero den wrong");
+    } else {
+        io::println("PASS: Fraction.init zero denominator works");
+    }
+}
+
+public fn test_fraction_add(): void {
+    let a: Fraction = new Fraction(1L, 2L);
+    let b: Fraction = new Fraction(1L, 3L);
+    let c: Fraction = a.add(b);
+    // 1/2 + 1/3 = 5/6
+    if (c.numerator != 5L || c.denominator != 6L) {
+        io::println("FAIL: Fraction.add wrong, got " + Long.toString(c.numerator) + "/" + Long.toString(c.denominator));
+    } else {
+        io::println("PASS: Fraction.add works");
+    }
+}
+
+public fn test_fraction_sub(): void {
+    let a: Fraction = new Fraction(1L, 2L);
+    let b: Fraction = new Fraction(1L, 3L);
+    let c: Fraction = a.sub(b);
+    // 1/2 - 1/3 = 1/6
+    if (c.numerator != 1L || c.denominator != 6L) {
+        io::println("FAIL: Fraction.sub wrong");
+    } else {
+        io::println("PASS: Fraction.sub works");
+    }
+}
+
+public fn test_fraction_mul(): void {
+    let a: Fraction = new Fraction(2L, 3L);
+    let b: Fraction = new Fraction(3L, 4L);
+    let c: Fraction = a.mul(b);
+    // 2/3 * 3/4 = 6/12 = 1/2
+    if (c.numerator != 1L || c.denominator != 2L) {
+        io::println("FAIL: Fraction.mul wrong");
+    } else {
+        io::println("PASS: Fraction.mul works");
+    }
+}
+
+public fn test_fraction_div(): void {
+    let a: Fraction = new Fraction(2L, 3L);
+    let b: Fraction = new Fraction(4L, 5L);
+    let c: Fraction = a.div(b);
+    // 2/3 / 4/5 = 10/12 = 5/6
+    if (c.numerator != 5L || c.denominator != 6L) {
+        io::println("FAIL: Fraction.div wrong");
+    } else {
+        io::println("PASS: Fraction.div works");
+    }
+}
+
+public fn test_fraction_negate(): void {
+    let a: Fraction = new Fraction(3L, 4L);
+    let n: Fraction = a.negate();
+    if (n.numerator != -3L || n.denominator != 4L) {
+        io::println("FAIL: Fraction.negate wrong");
+    } else {
+        io::println("PASS: Fraction.negate works");
+    }
+}
+
+public fn test_fraction_reciprocal(): void {
+    let a: Fraction = new Fraction(3L, 4L);
+    let r: Fraction = a.reciprocal();
+    if (r.numerator != 4L || r.denominator != 3L) {
+        io::println("FAIL: Fraction.reciprocal wrong");
+    } else {
+        io::println("PASS: Fraction.reciprocal works");
+    }
+}
+
+public fn test_fraction_toDouble(): void {
+    let f: Fraction = new Fraction(1L, 2L);
+    let d: double = f.toDouble();
+    if (d < 0.4999 || d > 0.5001) {
+        io::println("FAIL: Fraction.toDouble returned " + Double.toString(d));
+    } else {
+        io::println("PASS: Fraction.toDouble works");
+    }
+}
+
+public fn test_fraction_toInt(): void {
+    let f: Fraction = new Fraction(7L, 3L);
+    let i: int = f.toInt();
+    if (i != 2) {
+        io::println("FAIL: Fraction.toInt returned " + Integer.toString(i) + ", expected 2");
+    } else {
+        io::println("PASS: Fraction.toInt works");
+    }
+}
+
+public fn test_fraction_abs(): void {
+    let f: Fraction = new Fraction(-3L, 4L);
+    let a: Fraction = f.abs();
+    if (a.numerator != 3L || a.denominator != 4L) {
+        io::println("FAIL: Fraction.abs wrong");
+    } else {
+        io::println("PASS: Fraction.abs works");
+    }
+}
+
+public fn test_fraction_pow(): void {
+    let f: Fraction = new Fraction(2L, 3L);
+    let p: Fraction = f.pow(3);
+    // (2/3)^3 = 8/27
+    if (p.numerator != 8L || p.denominator != 27L) {
+        io::println("FAIL: Fraction.pow wrong, got " + Long.toString(p.numerator) + "/" + Long.toString(p.denominator));
+    } else {
+        io::println("PASS: Fraction.pow works");
+    }
+}
+
+public fn test_fraction_pow_zero(): void {
+    let f: Fraction = new Fraction(2L, 3L);
+    let p: Fraction = f.pow(0);
+    if (p.numerator != 1L || p.denominator != 1L) {
+        io::println("FAIL: Fraction.pow(0) wrong");
+    } else {
+        io::println("PASS: Fraction.pow(0) works");
+    }
+}
+
+public fn test_fraction_floor(): void {
+    let f: Fraction = new Fraction(7L, 3L);
+    if (f.floor() != 2) {
+        io::println("FAIL: Fraction.floor returned " + Integer.toString(f.floor()));
+    } else {
+        io::println("PASS: Fraction.floor works");
+    }
+}
+
+public fn test_fraction_ceil(): void {
+    let f: Fraction = new Fraction(7L, 3L);
+    if (f.ceil() != 3) {
+        io::println("FAIL: Fraction.ceil returned " + Integer.toString(f.ceil()));
+    } else {
+        io::println("PASS: Fraction.ceil works");
+    }
+}
+
+public fn test_fraction_equals(): void {
+    let a: Fraction = new Fraction(1L, 2L);
+    let b: Fraction = new Fraction(2L, 4L);
+    let c: Fraction = new Fraction(1L, 3L);
+    if (!a.equals(b)) {
+        io::println("FAIL: Fraction.equals 1/2 should equal 2/4");
+    } else if (a.equals(c)) {
+        io::println("FAIL: Fraction.equals 1/2 should not equal 1/3");
+    } else {
+        io::println("PASS: Fraction.equals works");
+    }
+}
+
+public fn test_fraction_compareTo(): void {
+    let a: Fraction = new Fraction(1L, 2L);
+    let b: Fraction = new Fraction(1L, 3L);
+    if (a.compareTo(b) <= 0) {
+        io::println("FAIL: Fraction.compareTo 1/2 > 1/3");
+    } else if (b.compareTo(a) >= 0) {
+        io::println("FAIL: Fraction.compareTo 1/3 < 1/2");
+    } else {
+        io::println("PASS: Fraction.compareTo works");
+    }
+}
+
+public fn test_fraction_toString(): void {
+    let f: Fraction = new Fraction(3L, 4L);
+    let s: string = f.toString();
+    if (s != "3/4") {
+        io::println("FAIL: Fraction.toString returned " + s + ", expected 3/4");
+    } else {
+        io::println("PASS: Fraction.toString works");
+    }
+}
+
+public fn test_fraction_toString_whole(): void {
+    let f: Fraction = new Fraction(6L, 2L);
+    let s: string = f.toString();
+    if (s != "3") {
+        io::println("FAIL: Fraction.toString whole returned " + s + ", expected 3");
+    } else {
+        io::println("PASS: Fraction.toString whole works");
+    }
+}
+
+// --- Top-level function tests ---
+
+public fn test_fraction_gcd(): void {
+    let g: long = Fraction.gcd(12L, 18L);
+    if (g != 6L) {
+        io::println("FAIL: Fraction.gcd returned " + Long.toString(g) + ", expected 6");
+    } else {
+        io::println("PASS: Fraction.gcd works");
+    }
+}
+
+public fn test_fraction_lcm(): void {
+    let l: long = Fraction.lcm(4L, 6L);
+    if (l != 12L) {
+        io::println("FAIL: Fraction.lcm returned " + Long.toString(l) + ", expected 12");
+    } else {
+        io::println("PASS: Fraction.lcm works");
+    }
+}
+
+public fn test_fraction_absLong(): void {
+    let r: long = Fraction.absLong(-5L);
+    if (r != 5L) {
+        io::println("FAIL: Fraction.absLong returned " + Long.toString(r));
+    } else {
+        io::println("PASS: Fraction.absLong works");
+    }
+}
+
+public fn test_fraction_limitDenominator(): void {
+    let f: Fraction = new Fraction(355L, 113L);
+    let limited: Fraction = f.limitDenominator(10);
+    // Should approximate pi with denominator <= 10, e.g., 22/7
+    if (limited.denominator > 10L) {
+        io::println("FAIL: Fraction.limitDenominator denominator too large");
+    } else {
+        io::println("PASS: Fraction.limitDenominator works: " + limited.toString());
+    }
+}
+
+public fn run_all_fraction_tests(): void {
+    io::println("=== Fraction.tr Tests ===");
+    test_fraction_init();
+    test_fraction_init_negative_den();
+    test_fraction_init_zero_den();
+    test_fraction_add();
+    test_fraction_sub();
+    test_fraction_mul();
+    test_fraction_div();
+    test_fraction_negate();
+    test_fraction_reciprocal();
+    test_fraction_toDouble();
+    test_fraction_toInt();
+    test_fraction_abs();
+    test_fraction_pow();
+    test_fraction_pow_zero();
+    test_fraction_floor();
+    test_fraction_ceil();
+    test_fraction_equals();
+    test_fraction_compareTo();
+    test_fraction_toString();
+    test_fraction_toString_whole();
+    test_fraction_gcd();
+    test_fraction_lcm();
+    test_fraction_absLong();
+    test_fraction_limitDenominator();
+}
