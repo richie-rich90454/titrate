@@ -21,6 +21,8 @@ use std::rc::Rc;
 use trc::bytecode::value::{NativeFn, Value};
 use trc::bytecode::vm::natives::lookup_builtin_native;
 
+pub mod wrappers;
+
 // ---------------------------------------------------------------------------
 // Allocator header (shared with malloc/free)
 // ---------------------------------------------------------------------------
