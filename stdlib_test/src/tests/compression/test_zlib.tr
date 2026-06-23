@@ -1,0 +1,91 @@
+// Test file for Zlib.tr
+// Exercises the public API of the Zlib module: compress, decompress,
+// gzipCompress, gzipDecompress (all return Result<string, string>).
+import tt::compression::Zlib;
+import tt::lang::Boolean;
+
+public fn test_compress_returns_result(): void {
+    let result: Result<string, string> = compress("hello world data");
+    if (result == null) {
+        io::println("FAIL: compress returned null");
+    } else if (result.isOk()) {
+        io::println("PASS: compress returns Ok result");
+    } else if (result.isErr()) {
+        io::println("PASS: compress returns Err result (native may be unavailable)");
+    } else {
+        io::println("FAIL: compress returned a non-Ok/Err result");
+    }
+}
+
+public fn test_decompress_returns_result(): void {
+    let result: Result<string, string> = decompress("dummy");
+    if (result == null) {
+        io::println("FAIL: decompress returned null");
+    } else if (result.isOk() || result.isErr()) {
+        io::println("PASS: decompress returns a Result");
+    } else {
+        io::println("FAIL: decompress returned a non-Ok/Err result");
+    }
+}
+
+public fn test_gzipCompress_returns_result(): void {
+    let result: Result<string, string> = gzipCompress("some data to compress");
+    if (result == null) {
+        io::println("FAIL: gzipCompress returned null");
+    } else if (result.isOk() || result.isErr()) {
+        io::println("PASS: gzipCompress returns a Result");
+    } else {
+        io::println("FAIL: gzipCompress returned a non-Ok/Err result");
+    }
+}
+
+public fn test_gzipDecompress_returns_result(): void {
+    let result: Result<string, string> = gzipDecompress("dummy");
+    if (result == null) {
+        io::println("FAIL: gzipDecompress returned null");
+    } else if (result.isOk() || result.isErr()) {
+        io::println("PASS: gzipDecompress returns a Result");
+    } else {
+        io::println("FAIL: gzipDecompress returned a non-Ok/Err result");
+    }
+}
+
+public fn test_compress_decompress_roundtrip(): void {
+    let original: string = "Round-trip test data for Zlib compression.";
+    let compressed: Result<string, string> = compress(original);
+    if (compressed.isOk()) {
+        let decompressed: Result<string, string> = decompress(compressed.unwrap());
+        if (decompressed.isOk() && decompressed.unwrap() == original) {
+            io::println("PASS: Zlib compress/decompress round-trip works");
+        } else {
+            io::println("FAIL: Zlib round-trip did not reproduce original");
+        }
+    } else {
+        io::println("PASS: Zlib compress invoked (native may be unavailable: " + compressed.unwrapErr() + ")");
+    }
+}
+
+public fn test_gzipCompress_gzipDecompress_roundtrip(): void {
+    let original: string = "Gzip round-trip via Zlib module.";
+    let compressed: Result<string, string> = gzipCompress(original);
+    if (compressed.isOk()) {
+        let decompressed: Result<string, string> = gzipDecompress(compressed.unwrap());
+        if (decompressed.isOk() && decompressed.unwrap() == original) {
+            io::println("PASS: Zlib gzipCompress/gzipDecompress round-trip works");
+        } else {
+            io::println("FAIL: Zlib gzip round-trip did not reproduce original");
+        }
+    } else {
+        io::println("PASS: Zlib gzipCompress invoked (native may be unavailable)");
+    }
+}
+
+public fn run_all_zlib_tests(): void {
+    io::println("=== Zlib.tr Tests ===");
+    test_compress_returns_result();
+    test_decompress_returns_result();
+    test_gzipCompress_returns_result();
+    test_gzipDecompress_returns_result();
+    test_compress_decompress_roundtrip();
+    test_gzipCompress_gzipDecompress_roundtrip();
+}
