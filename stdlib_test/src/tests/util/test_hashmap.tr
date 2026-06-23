@@ -1,0 +1,279 @@
+// Test file for HashMap.tr
+// Exercises the public API of the HashMap class and its utility functions.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_hashmap_put_get(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.put("c", 3);
+    if (map.get("a") != 1 || map.get("b") != 2 || map.get("c") != 3) {
+        io::println("FAIL: HashMap.put/get");
+    } else {
+        io::println("PASS: HashMap.put/get works");
+    }
+}
+
+public fn test_hashmap_size(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    if (map.size() != 0) {
+        io::println("FAIL: HashMap.size() empty = " + Integer.toString(map.size()));
+    } else {
+        io::println("PASS: HashMap.size() empty = 0");
+    }
+    map.put("x", 10);
+    map.put("y", 20);
+    if (map.size() != 2) {
+        io::println("FAIL: HashMap.size() = " + Integer.toString(map.size()));
+    } else {
+        io::println("PASS: HashMap.size() = 2");
+    }
+}
+
+public fn test_hashmap_containsKey(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("key", 42);
+    if (!map.containsKey("key") || map.containsKey("missing")) {
+        io::println("FAIL: HashMap.containsKey");
+    } else {
+        io::println("PASS: HashMap.containsKey works");
+    }
+}
+
+public fn test_hashmap_remove(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    map.remove("a");
+    if (map.size() != 1 || map.containsKey("a")) {
+        io::println("FAIL: HashMap.remove");
+    } else {
+        io::println("PASS: HashMap.remove works");
+    }
+}
+
+public fn test_hashmap_isEmpty_clear(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    if (!map.isEmpty()) {
+        io::println("FAIL: HashMap.isEmpty new map");
+    } else {
+        io::println("PASS: HashMap.isEmpty new map");
+    }
+    map.put("k", 1);
+    if (map.isEmpty()) {
+        io::println("FAIL: HashMap.isEmpty after put");
+    } else {
+        io::println("PASS: HashMap.isEmpty after put");
+    }
+    map.clear();
+    if (!map.isEmpty()) {
+        io::println("FAIL: HashMap.clear");
+    } else {
+        io::println("PASS: HashMap.clear works");
+    }
+}
+
+public fn test_hashmap_keys_values(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    let keys: ArrayList<string> = map.keys();
+    let vals: ArrayList<int> = map.values();
+    if (keys.size() != 2 || vals.size() != 2) {
+        io::println("FAIL: HashMap.keys/values size");
+    } else {
+        io::println("PASS: HashMap.keys/values works");
+    }
+}
+
+public fn test_hashmap_entries(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.put("b", 2);
+    let entries: ArrayList<(string, int)> = map.entries();
+    if (entries.size() != 2) {
+        io::println("FAIL: HashMap.entries size=" + Integer.toString(entries.size()));
+    } else {
+        io::println("PASS: HashMap.entries works");
+    }
+}
+
+public fn test_hashmap_getOrDefault(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    if (map.getOrDefault("a", 99) != 1) {
+        io::println("FAIL: HashMap.getOrDefault existing");
+    } else if (map.getOrDefault("missing", 99) != 99) {
+        io::println("FAIL: HashMap.getOrDefault missing");
+    } else {
+        io::println("PASS: HashMap.getOrDefault works");
+    }
+}
+
+public fn test_hashmap_putIfAbsent(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    let r1: int = map.putIfAbsent("a", 99);
+    let r2: int = map.putIfAbsent("b", 2);
+    if (r1 != 1 || map.get("a") != 1) {
+        io::println("FAIL: HashMap.putIfAbsent existing");
+    } else if (r2 != 2 || map.get("b") != 2) {
+        io::println("FAIL: HashMap.putIfAbsent new");
+    } else {
+        io::println("PASS: HashMap.putIfAbsent works");
+    }
+}
+
+public fn test_hashmap_replace(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    let old: int = map.replace("a", 5);
+    if (old != 1 || map.get("a") != 5) {
+        io::println("FAIL: HashMap.replace");
+    } else {
+        io::println("PASS: HashMap.replace works");
+    }
+}
+
+public fn test_hashmap_containsValue(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 10);
+    map.put("b", 20);
+    if (!map.containsValue(10) || map.containsValue(99)) {
+        io::println("FAIL: HashMap.containsValue");
+    } else {
+        io::println("PASS: HashMap.containsValue works");
+    }
+}
+
+public fn test_hashmap_pop(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    let v: int = map.pop("a");
+    if (v != 1 || map.containsKey("a")) {
+        io::println("FAIL: HashMap.pop");
+    } else {
+        io::println("PASS: HashMap.pop works");
+    }
+}
+
+public fn test_hashmap_pop_default(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    let v: int = map.pop("missing", 42);
+    if (v != 42) {
+        io::println("FAIL: HashMap.pop default");
+    } else {
+        io::println("PASS: HashMap.pop default works");
+    }
+}
+
+public fn test_hashmap_update(): void {
+    let a: HashMap<string, int> = new HashMap<string, int>();
+    a.put("a", 1);
+    let b: HashMap<string, int> = new HashMap<string, int>();
+    b.put("b", 2);
+    b.put("a", 9);
+    a.update(b);
+    if (a.size() != 2 || a.get("a") != 9 || a.get("b") != 2) {
+        io::println("FAIL: HashMap.update");
+    } else {
+        io::println("PASS: HashMap.update works");
+    }
+}
+
+public fn test_hashmap_clone(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    let copy: HashMap<string, int> = map.clone();
+    copy.put("b", 2);
+    if (map.size() != 1 || copy.size() != 2) {
+        io::println("FAIL: HashMap.clone independence");
+    } else {
+        io::println("PASS: HashMap.clone works");
+    }
+}
+
+public fn test_hashmap_computeIfAbsent(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    let v1: int = map.computeIfAbsent("a", fn(k: string): int { return 42; });
+    let v2: int = map.computeIfAbsent("a", fn(k: string): int { return 99; });
+    if (v1 != 42 || v2 != 42 || map.get("a") != 42) {
+        io::println("FAIL: HashMap.computeIfAbsent");
+    } else {
+        io::println("PASS: HashMap.computeIfAbsent works");
+    }
+}
+
+public fn test_hashmap_merge(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.merge("a", 2, fn(oldV: int, newV: int): int { return oldV + newV; });
+    if (map.get("a") != 3) {
+        io::println("FAIL: HashMap.merge");
+    } else {
+        io::println("PASS: HashMap.merge works");
+    }
+}
+
+public fn test_hashmap_fromKeys(): void {
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("a");
+    keys.add("b");
+    let map: HashMap<string, string> = fromKeys(keys, "default");
+    if (map.size() != 2 || map.get("a") != "default" || map.get("b") != "default") {
+        io::println("FAIL: fromKeys");
+    } else {
+        io::println("PASS: fromKeys works");
+    }
+}
+
+public fn test_hashmap_setDefault(): void {
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    map.put("a", "existing");
+    let r1: string = setDefault(map, "a", "new");
+    let r2: string = setDefault(map, "b", "new");
+    if (r1 != "existing" || r2 != "new" || map.get("b") != "new") {
+        io::println("FAIL: setDefault");
+    } else {
+        io::println("PASS: setDefault works");
+    }
+}
+
+public fn test_hashmap_mapMerge(): void {
+    let target: HashMap<string, string> = new HashMap<string, string>();
+    target.put("a", "1");
+    let source: HashMap<string, string> = new HashMap<string, string>();
+    source.put("b", "2");
+    mapMerge(target, source);
+    if (target.size() != 2 || target.get("b") != "2") {
+        io::println("FAIL: mapMerge");
+    } else {
+        io::println("PASS: mapMerge works");
+    }
+}
+
+public fn run_all_hashmap_tests(): void {
+    io::println("=== HashMap.tr Tests ===");
+    test_hashmap_put_get();
+    test_hashmap_size();
+    test_hashmap_containsKey();
+    test_hashmap_remove();
+    test_hashmap_isEmpty_clear();
+    test_hashmap_keys_values();
+    test_hashmap_entries();
+    test_hashmap_getOrDefault();
+    test_hashmap_putIfAbsent();
+    test_hashmap_replace();
+    test_hashmap_containsValue();
+    test_hashmap_pop();
+    test_hashmap_pop_default();
+    test_hashmap_update();
+    test_hashmap_clone();
+    test_hashmap_computeIfAbsent();
+    test_hashmap_merge();
+    test_hashmap_fromKeys();
+    test_hashmap_setDefault();
+    test_hashmap_mapMerge();
+}
