@@ -1,0 +1,279 @@
+// Test file for complex/Complex.tr
+// Exercises complex number arithmetic, transcendental functions, and factories.
+import tt::math::complex::Complex;
+import tt::math::Math;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_complex_construction_factories(): void {
+    let z: Complex = new Complex(3.0, 4.0);
+    if (z.real != 3.0 || z.imag != 4.0) {
+        io::println("FAIL: Complex construction");
+    } else {
+        io::println("PASS: Complex construction works");
+    }
+    let zero: Complex = Complex.zero();
+    if (zero.real != 0.0 || zero.imag != 0.0) {
+        io::println("FAIL: Complex.zero()");
+    } else {
+        io::println("PASS: Complex.zero() works");
+    }
+    let one: Complex = Complex.one();
+    if (one.real != 1.0 || one.imag != 0.0) {
+        io::println("FAIL: Complex.one()");
+    } else {
+        io::println("PASS: Complex.one() works");
+    }
+    let i: Complex = Complex.i();
+    if (i.real != 0.0 || i.imag != 1.0) {
+        io::println("FAIL: Complex.i()");
+    } else {
+        io::println("PASS: Complex.i() works");
+    }
+    // fromPolar(1, 0) = (1, 0)
+    let p: Complex = Complex.fromPolar(1.0, 0.0);
+    if (absDiff(p.real, 1.0) > 1e-12 || absDiff(p.imag, 0.0) > 1e-12) {
+        io::println("FAIL: Complex.fromPolar(1,0)");
+    } else {
+        io::println("PASS: Complex.fromPolar(1,0) = (1,0)");
+    }
+}
+
+public fn test_complex_abs_arg_norm_conj(): void {
+    let z: Complex = new Complex(3.0, 4.0);
+    if (z.abs() != 5.0) {
+        io::println("FAIL: Complex.abs() (3,4)");
+    } else {
+        io::println("PASS: Complex.abs() (3,4) = 5.0");
+    }
+    if (z.norm() != 25.0) {
+        io::println("FAIL: Complex.norm() (3,4)");
+    } else {
+        io::println("PASS: Complex.norm() (3,4) = 25.0");
+    }
+    // arg(1, 0) = 0
+    let one: Complex = new Complex(1.0, 0.0);
+    if (absDiff(one.arg(), 0.0) > 1e-12) {
+        io::println("FAIL: Complex.arg() (1,0)");
+    } else {
+        io::println("PASS: Complex.arg() (1,0) = 0.0");
+    }
+    // conj(3, 4) = (3, -4)
+    let c: Complex = z.conj();
+    if (c.real != 3.0 || c.imag != -4.0) {
+        io::println("FAIL: Complex.conj()");
+    } else {
+        io::println("PASS: Complex.conj() works");
+    }
+}
+
+public fn test_complex_add_sub(): void {
+    let a: Complex = new Complex(1.0, 2.0);
+    let b: Complex = new Complex(3.0, 4.0);
+    let sum: Complex = a.add(b);
+    if (sum.real != 4.0 || sum.imag != 6.0) {
+        io::println("FAIL: Complex.add()");
+    } else {
+        io::println("PASS: Complex.add() = (4,6)");
+    }
+    let diff: Complex = a.sub(b);
+    if (diff.real != -2.0 || diff.imag != -2.0) {
+        io::println("FAIL: Complex.sub()");
+    } else {
+        io::println("PASS: Complex.sub() = (-2,-2)");
+    }
+    let neg: Complex = a.negate();
+    if (neg.real != -1.0 || neg.imag != -2.0) {
+        io::println("FAIL: Complex.negate()");
+    } else {
+        io::println("PASS: Complex.negate() = (-1,-2)");
+    }
+}
+
+public fn test_complex_mul_div(): void {
+    let a: Complex = new Complex(1.0, 2.0);
+    let b: Complex = new Complex(3.0, 4.0);
+    // (1+2i)(3+4i) = 3 + 4i + 6i + 8i^2 = 3 - 8 + 10i = -5 + 10i
+    let prod: Complex = a.mul(b);
+    if (prod.real != -5.0 || prod.imag != 10.0) {
+        io::println("FAIL: Complex.mul() = (" + Double.toString(prod.real) + "," + Double.toString(prod.imag) + ")");
+    } else {
+        io::println("PASS: Complex.mul() = (-5,10)");
+    }
+    // (1+2i)/(3+4i) = (1+2i)(3-4i)/(9+16) = (3+8 + (6-4)i)/25 = (11 + 2i)/25
+    let quot: Complex = a.div(b);
+    if (absDiff(quot.real, 0.44) > 1e-9 || absDiff(quot.imag, 0.08) > 1e-9) {
+        io::println("FAIL: Complex.div()");
+    } else {
+        io::println("PASS: Complex.div() = (0.44,0.08)");
+    }
+    // i * i = -1
+    let ii: Complex = Complex.i().mul(Complex.i());
+    if (absDiff(ii.real, -1.0) > 1e-12 || absDiff(ii.imag, 0.0) > 1e-12) {
+        io::println("FAIL: Complex i*i");
+    } else {
+        io::println("PASS: Complex i*i = -1");
+    }
+}
+
+public fn test_complex_exp_log(): void {
+    // exp(0) = 1
+    let zero: Complex = new Complex(0.0, 0.0);
+    let e0: Complex = zero.exp();
+    if (absDiff(e0.real, 1.0) > 1e-9 || absDiff(e0.imag, 0.0) > 1e-9) {
+        io::println("FAIL: Complex.exp(0)");
+    } else {
+        io::println("PASS: Complex.exp(0) = 1");
+    }
+    // log(1) = 0
+    let one: Complex = new Complex(1.0, 0.0);
+    let l1: Complex = one.log();
+    if (absDiff(l1.real, 0.0) > 1e-9 || absDiff(l1.imag, 0.0) > 1e-9) {
+        io::println("FAIL: Complex.log(1)");
+    } else {
+        io::println("PASS: Complex.log(1) = 0");
+    }
+    // exp(log(z)) = z
+    let z: Complex = new Complex(2.0, 1.0);
+    let roundtrip: Complex = z.log().exp();
+    if (absDiff(roundtrip.real, 2.0) > 1e-9 || absDiff(roundtrip.imag, 1.0) > 1e-9) {
+        io::println("FAIL: Complex exp(log(z)) roundtrip");
+    } else {
+        io::println("PASS: Complex exp(log(z)) roundtrip works");
+    }
+}
+
+public fn test_complex_pow_sqrt(): void {
+    // (1)^5 = 1
+    let one: Complex = new Complex(1.0, 0.0);
+    let p: Complex = one.pow(5.0);
+    if (absDiff(p.real, 1.0) > 1e-9 || absDiff(p.imag, 0.0) > 1e-9) {
+        io::println("FAIL: Complex.pow(5) of 1");
+    } else {
+        io::println("PASS: Complex.pow(5) of 1 = 1");
+    }
+    // sqrt(4) = 2
+    let four: Complex = new Complex(4.0, 0.0);
+    let s: Complex = four.sqrt();
+    if (absDiff(s.real, 2.0) > 1e-9 || absDiff(s.imag, 0.0) > 1e-9) {
+        io::println("FAIL: Complex.sqrt(4)");
+    } else {
+        io::println("PASS: Complex.sqrt(4) = 2");
+    }
+    // sqrt(-1) = i
+    let negOne: Complex = new Complex(-1.0, 0.0);
+    let si: Complex = negOne.sqrt();
+    if (absDiff(si.real, 0.0) > 1e-9 || absDiff(si.imag, 1.0) > 1e-9) {
+        io::println("FAIL: Complex.sqrt(-1)");
+    } else {
+        io::println("PASS: Complex.sqrt(-1) = i");
+    }
+}
+
+public fn test_complex_trig_hyperbolic(): void {
+    // sin(0) = 0
+    let zero: Complex = new Complex(0.0, 0.0);
+    let s0: Complex = zero.sin();
+    if (absDiff(s0.real, 0.0) > 1e-9 || absDiff(s0.imag, 0.0) > 1e-9) {
+        io::println("FAIL: Complex.sin(0)");
+    } else {
+        io::println("PASS: Complex.sin(0) = 0");
+    }
+    // cos(0) = 1
+    let c0: Complex = zero.cos();
+    if (absDiff(c0.real, 1.0) > 1e-9 || absDiff(c0.imag, 0.0) > 1e-9) {
+        io::println("FAIL: Complex.cos(0)");
+    } else {
+        io::println("PASS: Complex.cos(0) = 1");
+    }
+    // sinh(0) = 0
+    let sh0: Complex = zero.sinh();
+    if (absDiff(sh0.real, 0.0) > 1e-9 || absDiff(sh0.imag, 0.0) > 1e-9) {
+        io::println("FAIL: Complex.sinh(0)");
+    } else {
+        io::println("PASS: Complex.sinh(0) = 0");
+    }
+    // cosh(0) = 1
+    let ch0: Complex = zero.cosh();
+    if (absDiff(ch0.real, 1.0) > 1e-9 || absDiff(ch0.imag, 0.0) > 1e-9) {
+        io::println("FAIL: Complex.cosh(0)");
+    } else {
+        io::println("PASS: Complex.cosh(0) = 1");
+    }
+}
+
+public fn test_complex_classification_equals(): void {
+    let z: Complex = new Complex(3.0, 4.0);
+    if (!z.isFinite()) {
+        io::println("FAIL: Complex.isFinite(3,4)");
+    } else {
+        io::println("PASS: Complex.isFinite(3,4) = true");
+    }
+    let inf: Complex = Complex.complexInf();
+    if (!inf.isInf()) {
+        io::println("FAIL: Complex.isInf");
+    } else {
+        io::println("PASS: Complex.isInf works");
+    }
+    let nan: Complex = Complex.complexNan();
+    if (!nan.isNaN()) {
+        io::println("FAIL: Complex.isNaN");
+    } else {
+        io::println("PASS: Complex.isNaN works");
+    }
+    // equals
+    let a: Complex = new Complex(1.0, 2.0);
+    let b: Complex = new Complex(1.0, 2.0);
+    let c: Complex = new Complex(1.0, 3.0);
+    if (!a.equals(b)) {
+        io::println("FAIL: Complex.equals (equal)");
+    } else {
+        io::println("PASS: Complex.equals (equal) works");
+    }
+    if (a.equals(c)) {
+        io::println("FAIL: Complex.equals (unequal)");
+    } else {
+        io::println("PASS: Complex.equals (unequal) works");
+    }
+    // isClose
+    if (!a.isClose(b, 1e-9, 1e-12)) {
+        io::println("FAIL: Complex.isClose (close)");
+    } else {
+        io::println("PASS: Complex.isClose (close) works");
+    }
+}
+
+public fn test_complex_toString(): void {
+    let pos: Complex = new Complex(1.0, 2.0);
+    let s1: string = pos.toString();
+    if (String.length(s1) == 0) {
+        io::println("FAIL: Complex.toString empty");
+    } else {
+        io::println("PASS: Complex.toString non-empty: " + s1);
+    }
+    let neg: Complex = new Complex(1.0, -2.0);
+    let s2: string = neg.toString();
+    if (String.length(s2) == 0) {
+        io::println("FAIL: Complex.toString (negative) empty");
+    } else {
+        io::println("PASS: Complex.toString (negative) non-empty: " + s2);
+    }
+}
+
+public fn run_all_complex_tests(): void {
+    io::println("=== complex/Complex.tr Tests ===");
+    test_complex_construction_factories();
+    test_complex_abs_arg_norm_conj();
+    test_complex_add_sub();
+    test_complex_mul_div();
+    test_complex_exp_log();
+    test_complex_pow_sqrt();
+    test_complex_trig_hyperbolic();
+    test_complex_classification_equals();
+    test_complex_toString();
+}
