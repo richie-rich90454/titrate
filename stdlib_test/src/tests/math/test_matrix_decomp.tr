@@ -1,0 +1,352 @@
+// Test file for linalg/MatrixDecomp.tr
+// Exercises matrix decompositions: LU, QR, Cholesky, solve, inverse, eigenvalues.
+import tt::math::linalg::Matrix;
+import tt::math::linalg::MatrixDecomp;
+import tt::math::linalg::MatrixProps;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_matrixdecomp_lu(): void {
+    // LU decomposition of [[4,3],[6,3]]
+    // L should be lower triangular with unit diagonal, U upper triangular
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 4.0);
+    m.set(0, 1, 3.0);
+    m.set(1, 0, 6.0);
+    m.set(1, 1, 3.0);
+    let (L, U): (Matrix, Matrix) = MatrixDecomp.luDecompose(m);
+    // L has unit diagonal
+    if (absDiff(L.get(0, 0), 1.0) > 1e-9 || absDiff(L.get(1, 1), 1.0) > 1e-9) {
+        io::println("FAIL: MatrixDecomp.luDecompose L unit diagonal");
+    } else {
+        io::println("PASS: MatrixDecomp.luDecompose L has unit diagonal");
+    }
+    // U is upper triangular (below diagonal zero)
+    if (absDiff(U.get(1, 0), 0.0) > 1e-9) {
+        io::println("FAIL: MatrixDecomp.luDecompose U upper triangular");
+    } else {
+        io::println("PASS: MatrixDecomp.luDecompose U is upper triangular");
+    }
+    // L*U reconstructs m (up to row permutation)
+    let recon: Matrix = L.mul(U);
+    // det of recon should match det of m
+    let detOrig: double = MatrixProps.determinant(m);
+    let detRecon: double = MatrixProps.determinant(recon);
+    if (absDiff(detOrig, detRecon) > 1e-6) {
+        io::println("FAIL: MatrixDecomp.luDecompose det reconstruction");
+    } else {
+        io::println("PASS: MatrixDecomp.luDecompose det reconstruction matches");
+    }
+}
+
+public fn test_matrixdecomp_qr(): void {
+    // QR decomposition: A = Q*R where Q has orthonormal columns, R upper triangular
+    let m: Matrix = new Matrix(3, 2);
+    m.set(0, 0, 1.0);
+    m.set(1, 0, 0.0);
+    m.set(2, 0, 0.0);
+    m.set(0, 1, 1.0);
+    m.set(1, 1, 1.0);
+    m.set(2, 1, 0.0);
+    let (Q, R): (Matrix, Matrix) = MatrixDecomp.qrDecompose(m);
+    // Q*R should reconstruct m
+    let recon: Matrix = Q.mul(R);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 3) {
+        var j: int = 0;
+        while (j < 2) {
+            if (absDiff(recon.get(i, j), m.get(i, j)) > 1e-9) { ok = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: MatrixDecomp.qrDecompose reconstruction");
+    } else {
+        io::println("PASS: MatrixDecomp.qrDecompose Q*R reconstructs A");
+    }
+    // R should be upper triangular
+    if (absDiff(R.get(1, 0), 0.0) > 1e-9) {
+        io::println("FAIL: MatrixDecomp.qrDecompose R upper triangular");
+    } else {
+        io::println("PASS: MatrixDecomp.qrDecompose R is upper triangular");
+    }
+}
+
+public fn test_matrixdecomp_inverse(): void {
+    // Inverse of [[1,2],[3,4]] is [[-2,1],[1.5,-0.5]]
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 2.0);
+    m.set(1, 0, 3.0);
+    m.set(1, 1, 4.0);
+    let inv: Matrix = MatrixDecomp.inverse(m);
+    // m * inv should be identity
+    let prod: Matrix = m.mul(inv);
+    let I: Matrix = Matrix.identity(2);
+    if (!prod.equals(I)) {
+        io::println("FAIL: MatrixDecomp.inverse m*inv != I");
+    } else {
+        io::println("PASS: MatrixDecomp.inverse m*inv = I");
+    }
+    // Inverse of identity is identity
+    let invI: Matrix = MatrixDecomp.inverse(Matrix.identity(3));
+    if (!invI.equals(Matrix.identity(3))) {
+        io::println("FAIL: MatrixDecomp.inverse identity");
+    } else {
+        io::println("PASS: MatrixDecomp.inverse identity = identity");
+    }
+}
+
+public fn test_matrixdecomp_solve(): void {
+    // Solve [[2,0],[0,3]] * x = [4,9] -> x = [2,3]
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 2.0);
+    m.set(0, 1, 0.0);
+    m.set(1, 0, 0.0);
+    m.set(1, 1, 3.0);
+    let b: Matrix = new Matrix(2, 1);
+    b.set(0, 0, 4.0);
+    b.set(1, 0, 9.0);
+    let x: Matrix = MatrixDecomp.solve(m, b);
+    if (absDiff(x.get(0, 0), 2.0) > 1e-9 || absDiff(x.get(1, 0), 3.0) > 1e-9) {
+        io::println("FAIL: MatrixDecomp.solve");
+    } else {
+        io::println("PASS: MatrixDecomp.solve x = [2,3]");
+    }
+}
+
+public fn test_matrixdecomp_cholesky(): void {
+    // Cholesky of [[4,2],[2,3]]: L lower triangular with L*L^T = m
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 4.0);
+    m.set(0, 1, 2.0);
+    m.set(1, 0, 2.0);
+    m.set(1, 1, 3.0);
+    let L: Matrix = MatrixDecomp.choleskyDecompose(m);
+    // L should be lower triangular
+    if (absDiff(L.get(0, 1), 0.0) > 1e-9) {
+        io::println("FAIL: MatrixDecomp.choleskyDecompose L lower triangular");
+    } else {
+        io::println("PASS: MatrixDecomp.choleskyDecompose L is lower triangular");
+    }
+    // L*L^T should reconstruct m
+    let Lt: Matrix = L.transpose();
+    let recon: Matrix = L.mul(Lt);
+    if (!recon.equals(m)) {
+        io::println("FAIL: MatrixDecomp.choleskyDecompose L*L^T reconstruction");
+    } else {
+        io::println("PASS: MatrixDecomp.choleskyDecompose L*L^T reconstructs m");
+    }
+}
+
+public fn test_matrixdecomp_gaussian_rref(): void {
+    // Gaussian elimination of [[1,2],[3,4]] -> row echelon
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 2.0);
+    m.set(1, 0, 3.0);
+    m.set(1, 1, 4.0);
+    let ref: Matrix = MatrixDecomp.gaussianElimination(m);
+    // After elimination, below-diagonal should be zero
+    if (absDiff(ref.get(1, 0), 0.0) > 1e-9) {
+        io::println("FAIL: MatrixDecomp.gaussianElimination below diagonal");
+    } else {
+        io::println("PASS: MatrixDecomp.gaussianElimination below diagonal zero");
+    }
+    // RREF of identity is identity
+    let I: Matrix = Matrix.identity(2);
+    let rref: Matrix = MatrixDecomp.rref(I);
+    if (!rref.equals(I)) {
+        io::println("FAIL: MatrixDecomp.rref identity");
+    } else {
+        io::println("PASS: MatrixDecomp.rref identity = identity");
+    }
+    // RREF of singular matrix [[1,2],[2,4]] -> [[1,2],[0,0]]
+    let s: Matrix = new Matrix(2, 2);
+    s.set(0, 0, 1.0);
+    s.set(0, 1, 2.0);
+    s.set(1, 0, 2.0);
+    s.set(1, 1, 4.0);
+    let rrefS: Matrix = MatrixDecomp.rref(s);
+    if (absDiff(rrefS.get(0, 0), 1.0) > 1e-9 || absDiff(rrefS.get(1, 0), 0.0) > 1e-9) {
+        io::println("FAIL: MatrixDecomp.rref singular");
+    } else {
+        io::println("PASS: MatrixDecomp.rref singular works");
+    }
+}
+
+public fn test_matrixdecomp_matrixPower(): void {
+    // m^0 = I
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 1.0);
+    m.set(1, 0, 0.0);
+    m.set(1, 1, 1.0);
+    let p0: Matrix = MatrixDecomp.matrixPower(m, 0);
+    if (!p0.equals(Matrix.identity(2))) {
+        io::println("FAIL: MatrixDecomp.matrixPower m^0");
+    } else {
+        io::println("PASS: MatrixDecomp.matrixPower m^0 = I");
+    }
+    // m^1 = m
+    let p1: Matrix = MatrixDecomp.matrixPower(m, 1);
+    if (!p1.equals(m)) {
+        io::println("FAIL: MatrixDecomp.matrixPower m^1");
+    } else {
+        io::println("PASS: MatrixDecomp.matrixPower m^1 = m");
+    }
+    // m^2 = m*m
+    let p2: Matrix = MatrixDecomp.matrixPower(m, 2);
+    let mm: Matrix = m.mul(m);
+    if (!p2.equals(mm)) {
+        io::println("FAIL: MatrixDecomp.matrixPower m^2");
+    } else {
+        io::println("PASS: MatrixDecomp.matrixPower m^2 = m*m");
+    }
+}
+
+public fn test_matrixdecomp_kron(): void {
+    // Kronecker product of [[1,2],[3,4]] and [[0,5],[6,7]]
+    let a: Matrix = new Matrix(2, 2);
+    a.set(0, 0, 1.0);
+    a.set(0, 1, 2.0);
+    a.set(1, 0, 3.0);
+    a.set(1, 1, 4.0);
+    let b: Matrix = new Matrix(2, 2);
+    b.set(0, 0, 0.0);
+    b.set(0, 1, 5.0);
+    b.set(1, 0, 6.0);
+    b.set(1, 1, 7.0);
+    let k: Matrix = MatrixDecomp.kron(a, b);
+    if (k.rows() != 4 || k.cols() != 4) {
+        io::println("FAIL: MatrixDecomp.kron dims");
+    } else {
+        io::println("PASS: MatrixDecomp.kron dims = 4x4");
+    }
+    // Top-left block = 1 * b
+    if (k.get(0, 0) != 0.0 || k.get(0, 1) != 5.0 || k.get(1, 0) != 6.0 || k.get(1, 1) != 7.0) {
+        io::println("FAIL: MatrixDecomp.kron top-left block");
+    } else {
+        io::println("PASS: MatrixDecomp.kron top-left block = 1*b");
+    }
+    // Top-right block = 2 * b
+    if (k.get(0, 2) != 0.0 || k.get(0, 3) != 10.0) {
+        io::println("FAIL: MatrixDecomp.kron top-right block");
+    } else {
+        io::println("PASS: MatrixDecomp.kron top-right block = 2*b");
+    }
+}
+
+public fn test_matrixdecomp_eigenvalues(): void {
+    // Eigenvalues of [[2,0],[0,3]] are 2 and 3
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 2.0);
+    m.set(0, 1, 0.0);
+    m.set(1, 0, 0.0);
+    m.set(1, 1, 3.0);
+    let evals: ArrayList<double> = MatrixDecomp.eigenvalues(m);
+    if (evals.size() != 2) {
+        io::println("FAIL: MatrixDecomp.eigenvalues size");
+    } else {
+        io::println("PASS: MatrixDecomp.eigenvalues size = 2");
+    }
+    // The set of eigenvalues should be {2, 3}
+    let e0: double = evals.get(0);
+    let e1: double = evals.get(1);
+    let ok: bool = (absDiff(e0, 2.0) < 1e-6 && absDiff(e1, 3.0) < 1e-6) || (absDiff(e0, 3.0) < 1e-6 && absDiff(e1, 2.0) < 1e-6);
+    if (!ok) {
+        io::println("FAIL: MatrixDecomp.eigenvalues values = " + Double.toString(e0) + ", " + Double.toString(e1));
+    } else {
+        io::println("PASS: MatrixDecomp.eigenvalues = {2, 3}");
+    }
+}
+
+public fn test_matrixdecomp_powerIteration(): void {
+    // Power iteration on [[2,0],[0,1]] -> dominant eigenvalue 2
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 2.0);
+    m.set(0, 1, 0.0);
+    m.set(1, 0, 0.0);
+    m.set(1, 1, 1.0);
+    let result: ArrayList<Variant> = MatrixDecomp.powerIteration(m, 100);
+    if (result.size() != 2) {
+        io::println("FAIL: MatrixDecomp.powerIteration result size");
+    } else {
+        io::println("PASS: MatrixDecomp.powerIteration returns 2 elements");
+    }
+}
+
+public fn test_matrixdecomp_svd(): void {
+    // SVD of a simple matrix - just verify it returns 3 components
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 0.0);
+    m.set(1, 0, 0.0);
+    m.set(1, 1, 2.0);
+    let result: ArrayList<Variant> = MatrixDecomp.svd(m);
+    if (result.size() != 3) {
+        io::println("FAIL: MatrixDecomp.svd result size");
+    } else {
+        io::println("PASS: MatrixDecomp.svd returns U, S, V");
+    }
+}
+
+public fn test_matrixdecomp_cramersRule(): void {
+    // Solve [[2,0],[0,3]] * x = [4,9] -> x = [2,3]
+    let a: Matrix = new Matrix(2, 2);
+    a.set(0, 0, 2.0);
+    a.set(0, 1, 0.0);
+    a.set(1, 0, 0.0);
+    a.set(1, 1, 3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(4.0);
+    b.add(9.0);
+    let x: ArrayList<double> = MatrixDecomp.cramersRule(a, b);
+    if (x.size() != 2) {
+        io::println("FAIL: MatrixDecomp.cramersRule size");
+    } else {
+        io::println("PASS: MatrixDecomp.cramersRule size = 2");
+    }
+    if (absDiff(x.get(0), 2.0) > 1e-9 || absDiff(x.get(1), 3.0) > 1e-9) {
+        io::println("FAIL: MatrixDecomp.cramersRule values");
+    } else {
+        io::println("PASS: MatrixDecomp.cramersRule x = [2,3]");
+    }
+}
+
+public fn test_matrixdecomp_matrixExp(): void {
+    // exp(0 matrix) = I
+    let z: Matrix = Matrix.zeros(2, 2);
+    let ez: Matrix = MatrixDecomp.matrixExp(z);
+    if (!ez.equals(Matrix.identity(2))) {
+        io::println("FAIL: MatrixDecomp.matrixExp zero = I");
+    } else {
+        io::println("PASS: MatrixDecomp.matrixExp zero = I");
+    }
+}
+
+public fn run_all_matrix_decomp_tests(): void {
+    io::println("=== linalg/MatrixDecomp.tr Tests ===");
+    test_matrixdecomp_lu();
+    test_matrixdecomp_qr();
+    test_matrixdecomp_inverse();
+    test_matrixdecomp_solve();
+    test_matrixdecomp_cholesky();
+    test_matrixdecomp_gaussian_rref();
+    test_matrixdecomp_matrixPower();
+    test_matrixdecomp_kron();
+    test_matrixdecomp_eigenvalues();
+    test_matrixdecomp_powerIteration();
+    test_matrixdecomp_svd();
+    test_matrixdecomp_cramersRule();
+    test_matrixdecomp_matrixExp();
+}
