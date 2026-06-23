@@ -1,0 +1,198 @@
+// Test file for chem/RHF.tr
+// Exercises RHF Hartree-Fock computation: construction, nuclear repulsion, electron count, SCF.
+import tt::chem::RHF;
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_rhf_construction(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    if (rhf.basisSize != 2) {
+        io::println("FAIL: RHF basisSize");
+    } else {
+        io::println("PASS: RHF basisSize = 2");
+    }
+    if (rhf.maxIterations != 100) {
+        io::println("FAIL: RHF maxIterations default");
+    } else {
+        io::println("PASS: RHF maxIterations = 100");
+    }
+    if (rhf.converged) {
+        io::println("FAIL: RHF converged should be false initially");
+    } else {
+        io::println("PASS: RHF converged = false initially");
+    }
+}
+
+public fn test_rhf_nuclear_repulsion(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.0, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    let enuc: double = rhf.computeNuclearRepulsion();
+    // For two H atoms (Z=1) at distance 1.0: enuc = 1*1/1.0 = 1.0
+    if (absDiff(enuc, 1.0) > 1e-6) {
+        io::println("FAIL: computeNuclearRepulsion expected 1.0 got " + Double.toString(enuc));
+    } else {
+        io::println("PASS: computeNuclearRepulsion = 1.0");
+    }
+}
+
+public fn test_rhf_total_electrons(): void {
+    let mol: Molecule = new Molecule("H2O");
+    let o: Atom = new Atom("O", 8, 15.999);
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    o.setPosition(0.0, 0.0, 0.0);
+    h1.setPosition(0.96, 0.0, 0.0);
+    h2.setPosition(-0.24, 0.93, 0.0);
+    mol.addAtom(o);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 3);
+    let nelec: int = rhf.totalElectrons();
+    if (nelec != 10) {
+        io::println("FAIL: totalElectrons expected 10 got " + Integer.toString(nelec));
+    } else {
+        io::println("PASS: totalElectrons = 10 for H2O");
+    }
+}
+
+public fn test_rhf_compute(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    let energy: double = rhf.compute();
+    // Energy should be a finite number
+    if (energy != energy) {
+        io::println("FAIL: RHF.compute NaN");
+    } else {
+        io::println("PASS: RHF.compute finite = " + Double.toString(energy));
+    }
+}
+
+public fn test_rhf_get_iterations(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    rhf.compute();
+    let iters: int = rhf.getIterations();
+    if (iters <= 0) {
+        io::println("FAIL: getIterations should be positive");
+    } else {
+        io::println("PASS: getIterations = " + Integer.toString(iters));
+    }
+}
+
+public fn test_rhf_get_total_energy(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    rhf.compute();
+    let e: double = rhf.getTotalEnergy();
+    if (e != e) {
+        io::println("FAIL: getTotalEnergy NaN");
+    } else {
+        io::println("PASS: getTotalEnergy finite = " + Double.toString(e));
+    }
+}
+
+public fn test_rhf_get_orbital_energies(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    rhf.compute();
+    let energies = rhf.getOrbitalEnergies();
+    if (energies.size() != 2) {
+        io::println("FAIL: getOrbitalEnergies size expected 2");
+    } else {
+        io::println("PASS: getOrbitalEnergies has 2 entries");
+    }
+}
+
+public fn test_rhf_get_density_matrix(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    rhf.compute();
+    let dm = rhf.getDensityMatrix();
+    if (dm.size() != 2) {
+        io::println("FAIL: getDensityMatrix rows expected 2");
+    } else {
+        io::println("PASS: getDensityMatrix has 2 rows");
+    }
+}
+
+public fn test_rhf_fock_matrix(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    rhf.compute();
+    let fm = rhf.fockMatrix();
+    if (fm.size() != 2) {
+        io::println("FAIL: fockMatrix rows expected 2");
+    } else {
+        io::println("PASS: fockMatrix has 2 rows");
+    }
+}
+
+public fn run_all_rhf_tests(): void {
+    io::println("=== chem/RHF.tr Tests ===");
+    test_rhf_construction();
+    test_rhf_nuclear_repulsion();
+    test_rhf_total_electrons();
+    test_rhf_compute();
+    test_rhf_get_iterations();
+    test_rhf_get_total_energy();
+    test_rhf_get_orbital_energies();
+    test_rhf_get_density_matrix();
+    test_rhf_fock_matrix();
+}
