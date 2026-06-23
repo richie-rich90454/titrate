@@ -1,0 +1,135 @@
+// Test file for Glob.tr
+// Exercises the public API of Glob: glob, iglob, and escape.
+import tt::file::Glob;
+import tt::io::File;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn _globSetup(dir: string): void {
+    Dir_create(dir);
+    let f1: File = new File(dir + "/a.txt");
+    f1.write("a");
+    f1.close();
+    let f2: File = new File(dir + "/b.txt");
+    f2.write("b");
+    f2.close();
+    let f3: File = new File(dir + "/c.log");
+    f3.write("c");
+    f3.close();
+}
+
+public fn _globCleanup(dir: string): void {
+    let entries: ArrayList<string> = Dir_list(dir);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let f: File = new File(dir + "/" + entries.get(i));
+        f.delete();
+        i = i + 1;
+    }
+    Dir_remove(dir);
+}
+
+public fn test_glob_star_pattern(): void {
+    let dir: string = "test_glob_dir";
+    _globSetup(dir);
+    let results: ArrayList<string> = Glob.glob(dir + "/*.txt");
+    if (results.size() != 2) {
+        io::println("FAIL: Glob.glob *.txt size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: Glob.glob *.txt matches two files");
+    }
+    _globCleanup(dir);
+}
+
+public fn test_glob_question_pattern(): void {
+    let dir: string = "test_glob_q";
+    _globSetup(dir);
+    let results: ArrayList<string> = Glob.glob(dir + "/?.txt");
+    if (results.size() != 2) {
+        io::println("FAIL: Glob.glob ?.txt size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: Glob.glob ?.txt matches single-char names");
+    }
+    _globCleanup(dir);
+}
+
+public fn test_glob_specific_extension(): void {
+    let dir: string = "test_glob_log";
+    _globSetup(dir);
+    let results: ArrayList<string> = Glob.glob(dir + "/*.log");
+    if (results.size() != 1) {
+        io::println("FAIL: Glob.glob *.log size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: Glob.glob *.log matches one file");
+    }
+    _globCleanup(dir);
+}
+
+public fn test_glob_no_match(): void {
+    let dir: string = "test_glob_none";
+    _globSetup(dir);
+    let results: ArrayList<string> = Glob.glob(dir + "/*.nomatch");
+    if (results.size() != 0) {
+        io::println("FAIL: Glob.glob no-match size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: Glob.glob returns empty for no matches");
+    }
+    _globCleanup(dir);
+}
+
+public fn test_glob_literal_path(): void {
+    let dir: string = "test_glob_literal";
+    _globSetup(dir);
+    // A literal path with no glob chars should return the path if it exists.
+    let results: ArrayList<string> = Glob.glob(dir + "/a.txt");
+    if (results.size() != 1) {
+        io::println("FAIL: Glob.glob literal size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: Glob.glob returns literal existing path");
+    }
+    _globCleanup(dir);
+}
+
+public fn test_iglob_same_as_glob(): void {
+    let dir: string = "test_iglob_dir";
+    _globSetup(dir);
+    let lazy: ArrayList<string> = Glob.iglob(dir + "/*.txt");
+    let eager: ArrayList<string> = Glob.glob(dir + "/*.txt");
+    if (lazy.size() != eager.size()) {
+        io::println("FAIL: iglob size != glob size");
+    } else {
+        io::println("PASS: iglob returns same count as glob");
+    }
+    _globCleanup(dir);
+}
+
+public fn test_glob_escape(): void {
+    let escaped: string = Glob.escape("file*[name?.txt");
+    // escape should backslash-escape *, ?, [
+    if (escaped != "file\\*\\[name\\?.txt") {
+        io::println("FAIL: Glob.escape = '" + escaped + "'");
+    } else {
+        io::println("PASS: Glob.escape escapes special characters");
+    }
+}
+
+public fn test_glob_escape_no_special(): void {
+    let escaped: string = Glob.escape("plain_name.txt");
+    if (escaped != "plain_name.txt") {
+        io::println("FAIL: Glob.escape plain = '" + escaped + "'");
+    } else {
+        io::println("PASS: Glob.escape leaves plain paths unchanged");
+    }
+}
+
+public fn run_all_glob_tests(): void {
+    io::println("=== Glob.tr Tests ===");
+    test_glob_star_pattern();
+    test_glob_question_pattern();
+    test_glob_specific_extension();
+    test_glob_no_match();
+    test_glob_literal_path();
+    test_iglob_same_as_glob();
+    test_glob_escape();
+    test_glob_escape_no_special();
+}
