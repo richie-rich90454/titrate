@@ -1,0 +1,207 @@
+// Test file for vec/Vec3.tr
+// Exercises 3D vector arithmetic, products, magnitude, and transformations.
+import tt::math::vec::Vec3;
+import tt::math::Math;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_vec3_construction_factories(): void {
+    let v: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    if (v.x != 1.0 || v.y != 2.0 || v.z != 3.0) {
+        io::println("FAIL: Vec3 construction");
+    } else {
+        io::println("PASS: Vec3 construction works");
+    }
+    let z: Vec3 = Vec3.zero();
+    if (z.x != 0.0 || z.y != 0.0 || z.z != 0.0) {
+        io::println("FAIL: Vec3.zero()");
+    } else {
+        io::println("PASS: Vec3.zero() works");
+    }
+    let o: Vec3 = Vec3.one();
+    if (o.x != 1.0 || o.y != 1.0 || o.z != 1.0) {
+        io::println("FAIL: Vec3.one()");
+    } else {
+        io::println("PASS: Vec3.one() works");
+    }
+    let ux: Vec3 = Vec3.unitX();
+    if (ux.x != 1.0 || ux.y != 0.0 || ux.z != 0.0) {
+        io::println("FAIL: Vec3.unitX()");
+    } else {
+        io::println("PASS: Vec3.unitX() works");
+    }
+    let uy: Vec3 = Vec3.unitY();
+    if (uy.x != 0.0 || uy.y != 1.0 || uy.z != 0.0) {
+        io::println("FAIL: Vec3.unitY()");
+    } else {
+        io::println("PASS: Vec3.unitY() works");
+    }
+    let uz: Vec3 = Vec3.unitZ();
+    if (uz.x != 0.0 || uz.y != 0.0 || uz.z != 1.0) {
+        io::println("FAIL: Vec3.unitZ()");
+    } else {
+        io::println("PASS: Vec3.unitZ() works");
+    }
+}
+
+public fn test_vec3_add_sub_scale(): void {
+    let a: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let b: Vec3 = new Vec3(4.0, 5.0, 6.0);
+    let sum: Vec3 = a.add(b);
+    if (sum.x != 5.0 || sum.y != 7.0 || sum.z != 9.0) {
+        io::println("FAIL: Vec3.add()");
+    } else {
+        io::println("PASS: Vec3.add() = (5,7,9)");
+    }
+    let diff: Vec3 = a.sub(b);
+    if (diff.x != -3.0 || diff.y != -3.0 || diff.z != -3.0) {
+        io::println("FAIL: Vec3.sub()");
+    } else {
+        io::println("PASS: Vec3.sub() = (-3,-3,-3)");
+    }
+    let scaled: Vec3 = a.scale(2.0);
+    if (scaled.x != 2.0 || scaled.y != 4.0 || scaled.z != 6.0) {
+        io::println("FAIL: Vec3.scale(2)");
+    } else {
+        io::println("PASS: Vec3.scale(2) = (2,4,6)");
+    }
+}
+
+public fn test_vec3_dot_cross(): void {
+    let a: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let b: Vec3 = new Vec3(4.0, 5.0, 6.0);
+    // dot = 1*4 + 2*5 + 3*6 = 32
+    if (a.dot(b) != 32.0) {
+        io::println("FAIL: Vec3.dot()");
+    } else {
+        io::println("PASS: Vec3.dot() = 32.0");
+    }
+    // cross of (1,0,0) x (0,1,0) = (0,0,1)
+    let ux: Vec3 = Vec3.unitX();
+    let uy: Vec3 = Vec3.unitY();
+    let cross: Vec3 = ux.cross(uy);
+    if (absDiff(cross.x, 0.0) > 1e-12 || absDiff(cross.y, 0.0) > 1e-12 || absDiff(cross.z, 1.0) > 1e-12) {
+        io::println("FAIL: Vec3.cross() unitX x unitY");
+    } else {
+        io::println("PASS: Vec3.cross() unitX x unitY = (0,0,1)");
+    }
+    // cross of parallel vectors is zero
+    let p: Vec3 = new Vec3(2.0, 4.0, 6.0);
+    let q: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let cz: Vec3 = p.cross(q);
+    if (absDiff(cz.x, 0.0) > 1e-9 || absDiff(cz.y, 0.0) > 1e-9 || absDiff(cz.z, 0.0) > 1e-9) {
+        io::println("FAIL: Vec3.cross() parallel");
+    } else {
+        io::println("PASS: Vec3.cross() parallel = (0,0,0)");
+    }
+}
+
+public fn test_vec3_magnitude_normalize_distance(): void {
+    let v: Vec3 = new Vec3(1.0, 2.0, 2.0);
+    // magnitude = sqrt(1+4+4) = 3
+    if (v.magnitude() != 3.0) {
+        io::println("FAIL: Vec3.magnitude() (1,2,2)");
+    } else {
+        io::println("PASS: Vec3.magnitude() (1,2,2) = 3.0");
+    }
+    if (v.magnitudeSq() != 9.0) {
+        io::println("FAIL: Vec3.magnitudeSq() (1,2,2)");
+    } else {
+        io::println("PASS: Vec3.magnitudeSq() (1,2,2) = 9.0");
+    }
+    let n: Vec3 = v.normalize();
+    if (absDiff(n.magnitude(), 1.0) > 1e-9) {
+        io::println("FAIL: Vec3.normalize() not unit length");
+    } else {
+        io::println("PASS: Vec3.normalize() is unit length");
+    }
+    // normalize zero vector returns zero
+    let z: Vec3 = Vec3.zero().normalize();
+    if (z.x != 0.0 || z.y != 0.0 || z.z != 0.0) {
+        io::println("FAIL: Vec3.normalize() zero");
+    } else {
+        io::println("PASS: Vec3.normalize() zero = (0,0,0)");
+    }
+    // distance
+    let a: Vec3 = new Vec3(0.0, 0.0, 0.0);
+    let b: Vec3 = new Vec3(3.0, 4.0, 0.0);
+    if (a.distance(b) != 5.0) {
+        io::println("FAIL: Vec3.distance()");
+    } else {
+        io::println("PASS: Vec3.distance() = 5.0");
+    }
+}
+
+public fn test_vec3_angle_project_reflect_lerp(): void {
+    // angleBetween of perpendicular vectors = pi/2
+    let ux: Vec3 = Vec3.unitX();
+    let uy: Vec3 = Vec3.unitY();
+    if (absDiff(ux.angleBetween(uy), Math.PI() / 2.0) > 1e-9) {
+        io::println("FAIL: Vec3.angleBetween() perpendicular");
+    } else {
+        io::println("PASS: Vec3.angleBetween() perpendicular = pi/2");
+    }
+    // project (3,4,5) onto (1,0,0) = (3,0,0)
+    let v: Vec3 = new Vec3(3.0, 4.0, 5.0);
+    let proj: Vec3 = v.project(ux);
+    if (absDiff(proj.x, 3.0) > 1e-9 || absDiff(proj.y, 0.0) > 1e-9 || absDiff(proj.z, 0.0) > 1e-9) {
+        io::println("FAIL: Vec3.project()");
+    } else {
+        io::println("PASS: Vec3.project() = (3,0,0)");
+    }
+    // reflect (1,-1,0) across normal (0,1,0) -> (1,1,0)
+    let incident: Vec3 = new Vec3(1.0, -1.0, 0.0);
+    let normal: Vec3 = Vec3.unitY();
+    let reflected: Vec3 = incident.reflect(normal);
+    if (absDiff(reflected.x, 1.0) > 1e-9 || absDiff(reflected.y, 1.0) > 1e-9 || absDiff(reflected.z, 0.0) > 1e-9) {
+        io::println("FAIL: Vec3.reflect()");
+    } else {
+        io::println("PASS: Vec3.reflect() = (1,1,0)");
+    }
+    // lerp (0,0,0) to (10,20,30) at t=0.5 = (5,10,15)
+    let z: Vec3 = Vec3.zero();
+    let target: Vec3 = new Vec3(10.0, 20.0, 30.0);
+    let mid: Vec3 = z.lerp(target, 0.5);
+    if (absDiff(mid.x, 5.0) > 1e-9 || absDiff(mid.y, 10.0) > 1e-9 || absDiff(mid.z, 15.0) > 1e-9) {
+        io::println("FAIL: Vec3.lerp()");
+    } else {
+        io::println("PASS: Vec3.lerp() = (5,10,15)");
+    }
+}
+
+public fn test_vec3_equals_toString(): void {
+    let a: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let b: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let c: Vec3 = new Vec3(1.0, 2.0, 4.0);
+    if (!a.equals(b)) {
+        io::println("FAIL: Vec3.equals() (equal)");
+    } else {
+        io::println("PASS: Vec3.equals() (equal) works");
+    }
+    if (a.equals(c)) {
+        io::println("FAIL: Vec3.equals() (unequal)");
+    } else {
+        io::println("PASS: Vec3.equals() (unequal) works");
+    }
+    let s: string = a.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Vec3.toString()");
+    } else {
+        io::println("PASS: Vec3.toString() non-empty");
+    }
+}
+
+public fn run_all_vec3_tests(): void {
+    io::println("=== vec/Vec3.tr Tests ===");
+    test_vec3_construction_factories();
+    test_vec3_add_sub_scale();
+    test_vec3_dot_cross();
+    test_vec3_magnitude_normalize_distance();
+    test_vec3_angle_project_reflect_lerp();
+    test_vec3_equals_toString();
+}
