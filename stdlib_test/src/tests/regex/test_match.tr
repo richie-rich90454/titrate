@@ -1,0 +1,166 @@
+// Test file for Match.tr
+// Exercises the public API of the Match class.
+import tt::regex::Match;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_match_init_getMatched(): void {
+    let m: Match = new Match("abc", 2, 5);
+    if (m.getMatched() != "abc") {
+        io::println("FAIL: Match.getMatched returned " + m.getMatched());
+    } else {
+        io::println("PASS: Match.init/getMatched works");
+    }
+}
+
+public fn test_match_getStart_getEnd(): void {
+    let m: Match = new Match("abc", 2, 5);
+    if (m.getStart() != 2 || m.getEnd() != 5) {
+        io::println("FAIL: Match.getStart/getEnd returned " + Integer.toString(m.getStart()) + "," + Integer.toString(m.getEnd()));
+    } else {
+        io::println("PASS: Match.getStart/getEnd works");
+    }
+}
+
+public fn test_match_public_fields(): void {
+    let m: Match = new Match("xyz", 10, 13);
+    if (m.matched != "xyz" || m.start != 10 || m.end != 13) {
+        io::println("FAIL: Match public fields wrong");
+    } else {
+        io::println("PASS: Match public fields accessible");
+    }
+}
+
+public fn test_match_groupCount_empty(): void {
+    let m: Match = new Match("abc", 0, 3);
+    if (m.groupCount() != 0) {
+        io::println("FAIL: Match.groupCount returned " + Integer.toString(m.groupCount()) + ", expected 0");
+    } else {
+        io::println("PASS: Match.groupCount empty works");
+    }
+}
+
+public fn test_match_getGroup_with_groups(): void {
+    let m: Match = new Match("abc", 0, 3);
+    m.groups.add("a");
+    m.groups.add("b");
+    m.groups.add("c");
+    if (m.getGroup(0) != "a" || m.getGroup(1) != "b" || m.getGroup(2) != "c") {
+        io::println("FAIL: Match.getGroup returned wrong values");
+    } else {
+        io::println("PASS: Match.getGroup works");
+    }
+}
+
+public fn test_match_group_alias(): void {
+    let m: Match = new Match("abc", 0, 3);
+    m.groups.add("x");
+    m.groups.add("y");
+    if (m.group(0) != "x" || m.group(1) != "y") {
+        io::println("FAIL: Match.group alias returned wrong values");
+    } else {
+        io::println("PASS: Match.group alias works");
+    }
+}
+
+public fn test_match_start_end_with_groups(): void {
+    let m: Match = new Match("abc", 0, 3);
+    m.groupStarts.add(0);
+    m.groupEnds.add(1);
+    m.groupStarts.add(1);
+    m.groupEnds.add(2);
+    if (m.start(0) != 0 || m.end(0) != 1) {
+        io::println("FAIL: Match.start/end group 0 wrong");
+    } else if (m.start(1) != 1 || m.end(1) != 2) {
+        io::println("FAIL: Match.start/end group 1 wrong");
+    } else {
+        io::println("PASS: Match.start/end with groups works");
+    }
+}
+
+public fn test_match_groups_list(): void {
+    let m: Match = new Match("abc", 0, 3);
+    m.groups.add("a");
+    m.groups.add("b");
+    let list: ArrayList<string> = m.groups();
+    if (list.size() != 2) {
+        io::println("FAIL: Match.groups size=" + Integer.toString(list.size()));
+    } else {
+        io::println("PASS: Match.groups works");
+    }
+}
+
+public fn test_match_range(): void {
+    let m: Match = new Match("abc", 7, 10);
+    let r: ArrayList<int> = m.range();
+    if (r.size() != 2 || r.get(0) != 7 || r.get(1) != 10) {
+        io::println("FAIL: Match.range wrong");
+    } else {
+        io::println("PASS: Match.range works");
+    }
+}
+
+public fn test_match_span_group0(): void {
+    let m: Match = new Match("abc", 7, 10);
+    let r: ArrayList<int> = m.span(0);
+    if (r.size() != 2 || r.get(0) != 7 || r.get(1) != 10) {
+        io::println("FAIL: Match.span(0) wrong");
+    } else {
+        io::println("PASS: Match.span(0) works");
+    }
+}
+
+public fn test_match_span_with_group(): void {
+    let m: Match = new Match("abc", 0, 3);
+    m.groupStarts.add(1);
+    m.groupEnds.add(2);
+    let r: ArrayList<int> = m.span(1);
+    if (r.size() != 2 || r.get(0) != 1 || r.get(1) != 2) {
+        io::println("FAIL: Match.span(1) wrong");
+    } else {
+        io::println("PASS: Match.span(1) works");
+    }
+}
+
+public fn test_match_namedGroups(): void {
+    let m: Match = new Match("2023-01", 0, 7);
+    m.groupDict.put("year", "2023");
+    m.groupDict.put("month", "01");
+    let dict: HashMap<string, string> = m.namedGroups();
+    if (!dict.containsKey("year") || dict.get("year") != "2023") {
+        io::println("FAIL: Match.namedGroups year wrong");
+    } else if (!dict.containsKey("month") || dict.get("month") != "01") {
+        io::println("FAIL: Match.namedGroups month wrong");
+    } else {
+        io::println("PASS: Match.namedGroups works");
+    }
+}
+
+public fn test_match_groupStarts_groupEnds_fields(): void {
+    let m: Match = new Match("abc", 0, 3);
+    m.groupStarts.add(0);
+    m.groupEnds.add(1);
+    if (m.groupStarts.size() != 1 || m.groupEnds.size() != 1) {
+        io::println("FAIL: Match.groupStarts/groupEnds fields wrong");
+    } else {
+        io::println("PASS: Match.groupStarts/groupEnds fields accessible");
+    }
+}
+
+public fn run_all_match_tests(): void {
+    io::println("=== Match.tr Tests ===");
+    test_match_init_getMatched();
+    test_match_getStart_getEnd();
+    test_match_public_fields();
+    test_match_groupCount_empty();
+    test_match_getGroup_with_groups();
+    test_match_group_alias();
+    test_match_start_end_with_groups();
+    test_match_groups_list();
+    test_match_range();
+    test_match_span_group0();
+    test_match_span_with_group();
+    test_match_namedGroups();
+    test_match_groupStarts_groupEnds_fields();
+}
