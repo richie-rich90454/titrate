@@ -1,0 +1,171 @@
+// Test file for Range.tr
+// Exercises the public API of the Range class and its factory functions.
+import tt::util::Range;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_range_basic(): void {
+    let r: Range = new Range(0, 5, 1);
+    if (r.start != 0 || r.stop != 5 || r.step != 1) {
+        io::println("FAIL: Range fields");
+    } else {
+        io::println("PASS: Range basic fields works");
+    }
+}
+
+public fn test_range_size(): void {
+    let r: Range = new Range(0, 10, 1);
+    if (r.size() != 10) {
+        io::println("FAIL: Range.size = " + Integer.toString(r.size()));
+    } else {
+        io::println("PASS: Range.size works");
+    }
+}
+
+public fn test_range_size_with_step(): void {
+    let r: Range = new Range(0, 10, 2);
+    if (r.size() != 5) {
+        io::println("FAIL: Range.size step = " + Integer.toString(r.size()));
+    } else {
+        io::println("PASS: Range.size with step works");
+    }
+}
+
+public fn test_range_isEmpty(): void {
+    let r: Range = new Range(0, 0, 1);
+    if (!r.isEmpty()) {
+        io::println("FAIL: Range.isEmpty empty");
+    } else {
+        io::println("PASS: Range.isEmpty works");
+    }
+}
+
+public fn test_range_isEmpty_nonempty(): void {
+    let r: Range = new Range(0, 5, 1);
+    if (r.isEmpty()) {
+        io::println("FAIL: Range.isEmpty nonempty");
+    } else {
+        io::println("PASS: Range.isEmpty nonempty works");
+    }
+}
+
+public fn test_range_contains(): void {
+    let r: Range = new Range(0, 10, 1);
+    if (!r.contains(5) || r.contains(10) || r.contains(-1)) {
+        io::println("FAIL: Range.contains");
+    } else {
+        io::println("PASS: Range.contains works");
+    }
+}
+
+public fn test_range_contains_with_step(): void {
+    let r: Range = new Range(0, 10, 2);
+    // 0, 2, 4, 6, 8
+    if (!r.contains(0) || !r.contains(4) || !r.contains(8) || r.contains(1) || r.contains(3)) {
+        io::println("FAIL: Range.contains with step");
+    } else {
+        io::println("PASS: Range.contains with step works");
+    }
+}
+
+public fn test_range_get(): void {
+    let r: Range = new Range(0, 10, 2);
+    if (r.get(0) != 0 || r.get(1) != 2 || r.get(2) != 4) {
+        io::println("FAIL: Range.get");
+    } else {
+        io::println("PASS: Range.get works");
+    }
+}
+
+public fn test_range_toArrayList(): void {
+    let r: Range = new Range(1, 4, 1);
+    let arr: ArrayList<int> = r.toArrayList();
+    if (arr.size() != 3 || arr.get(0) != 1 || arr.get(1) != 2 || arr.get(2) != 3) {
+        io::println("FAIL: Range.toArrayList");
+    } else {
+        io::println("PASS: Range.toArrayList works");
+    }
+}
+
+public fn test_range_iterator(): void {
+    let r: Range = new Range(0, 5, 1);
+    let iter: RangeIterator = r.iterator();
+    let sum: int = 0;
+    while (iter.hasNext()) {
+        sum = sum + iter.next();
+    }
+    if (sum != 10) {
+        io::println("FAIL: Range.iterator sum = " + Integer.toString(sum));
+    } else {
+        io::println("PASS: Range.iterator works");
+    }
+}
+
+public fn test_range_negative_step(): void {
+    let r: Range = new Range(5, 0, -1);
+    if (r.size() != 5) {
+        io::println("FAIL: Range negative step size = " + Integer.toString(r.size()));
+    } else {
+        let arr: ArrayList<int> = r.toArrayList();
+        if (arr.size() != 5 || arr.get(0) != 5 || arr.get(4) != 1) {
+            io::println("FAIL: Range negative step contents");
+        } else {
+            io::println("PASS: Range negative step works");
+        }
+    }
+}
+
+public fn test_range_factory_range(): void {
+    let r: Range = range(5);
+    if (r.start != 0 || r.stop != 5 || r.step != 1) {
+        io::println("FAIL: range(stop)");
+    } else {
+        io::println("PASS: range(stop) works");
+    }
+}
+
+public fn test_range_factory_rangeWithStart(): void {
+    let r: Range = rangeWithStart(2, 6);
+    if (r.start != 2 || r.stop != 6 || r.size() != 4) {
+        io::println("FAIL: rangeWithStart");
+    } else {
+        io::println("PASS: rangeWithStart works");
+    }
+}
+
+public fn test_range_factory_rangeWithStep(): void {
+    let r: Range = rangeWithStep(0, 10, 5);
+    if (r.start != 0 || r.stop != 10 || r.step != 5 || r.size() != 2) {
+        io::println("FAIL: rangeWithStep");
+    } else {
+        io::println("PASS: rangeWithStep works");
+    }
+}
+
+public fn test_range_empty_when_start_ge_stop(): void {
+    let r: Range = new Range(5, 5, 1);
+    if (!r.isEmpty() || r.size() != 0) {
+        io::println("FAIL: Range empty when start==stop");
+    } else {
+        io::println("PASS: Range empty when start==stop works");
+    }
+}
+
+public fn run_all_range_tests(): void {
+    io::println("=== Range.tr Tests ===");
+    test_range_basic();
+    test_range_size();
+    test_range_size_with_step();
+    test_range_isEmpty();
+    test_range_isEmpty_nonempty();
+    test_range_contains();
+    test_range_contains_with_step();
+    test_range_get();
+    test_range_toArrayList();
+    test_range_iterator();
+    test_range_negative_step();
+    test_range_factory_range();
+    test_range_factory_rangeWithStart();
+    test_range_factory_rangeWithStep();
+    test_range_empty_when_start_ge_stop();
+}
