@@ -1,0 +1,173 @@
+// Test file for Textwrap.tr
+// Exercises the public API of the Textwrap class.
+import tt::textwrap::Textwrap;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_textwrap_wrap_basic(): void {
+    let tw: Textwrap = new Textwrap();
+    let lines: ArrayList<string> = tw.wrap("hello world foo bar", 10);
+    if (lines.size() < 2) {
+        io::println("FAIL: Textwrap.wrap should produce multiple lines, got " + Integer.toString(lines.size()));
+    } else {
+        io::println("PASS: Textwrap.wrap basic works");
+    }
+}
+
+public fn test_textwrap_wrap_single_line(): void {
+    let tw: Textwrap = new Textwrap();
+    let lines: ArrayList<string> = tw.wrap("short", 20);
+    if (lines.size() != 1 || lines.get(0) != "short") {
+        io::println("FAIL: Textwrap.wrap single line wrong");
+    } else {
+        io::println("PASS: Textwrap.wrap single line works");
+    }
+}
+
+public fn test_textwrap_wrap_empty(): void {
+    let tw: Textwrap = new Textwrap();
+    let lines: ArrayList<string> = tw.wrap("", 10);
+    if (lines.size() != 1 || lines.get(0) != "") {
+        io::println("FAIL: Textwrap.wrap empty wrong");
+    } else {
+        io::println("PASS: Textwrap.wrap empty works");
+    }
+}
+
+public fn test_textwrap_wrap_long_word(): void {
+    let tw: Textwrap = new Textwrap();
+    let lines: ArrayList<string> = tw.wrap("verylongword", 5);
+    if (lines.size() != 1 || lines.get(0) != "verylongword") {
+        io::println("FAIL: Textwrap.wrap long word wrong");
+    } else {
+        io::println("PASS: Textwrap.wrap long word works");
+    }
+}
+
+public fn test_textwrap_fill(): void {
+    let tw: Textwrap = new Textwrap();
+    let result: string = tw.fill("hello world foo bar", 10);
+    if (String.indexOf(result, "\n") < 0) {
+        io::println("FAIL: Textwrap.fill should contain newlines");
+    } else {
+        io::println("PASS: Textwrap.fill works");
+    }
+}
+
+public fn test_textwrap_fill_single_line(): void {
+    let tw: Textwrap = new Textwrap();
+    let result: string = tw.fill("short", 20);
+    if (result != "short") {
+        io::println("FAIL: Textwrap.fill single line returned " + result);
+    } else {
+        io::println("PASS: Textwrap.fill single line works");
+    }
+}
+
+public fn test_textwrap_dedent(): void {
+    let tw: Textwrap = new Textwrap();
+    let text: string = "  hello\n  world";
+    let result: string = tw.dedent(text);
+    if (result != "hello\nworld") {
+        io::println("FAIL: Textwrap.dedent returned " + result);
+    } else {
+        io::println("PASS: Textwrap.dedent works");
+    }
+}
+
+public fn test_textwrap_dedent_no_indent(): void {
+    let tw: Textwrap = new Textwrap();
+    let text: string = "hello\nworld";
+    let result: string = tw.dedent(text);
+    if (result != "hello\nworld") {
+        io::println("FAIL: Textwrap.dedent no indent returned " + result);
+    } else {
+        io::println("PASS: Textwrap.dedent no indent works");
+    }
+}
+
+public fn test_textwrap_dedent_uneven(): void {
+    let tw: Textwrap = new Textwrap();
+    let text: string = "    hello\n  world";
+    let result: string = tw.dedent(text);
+    // Should remove the minimum common indent (2 spaces)
+    if (result != "  hello\nworld") {
+        io::println("FAIL: Textwrap.dedent uneven returned " + result);
+    } else {
+        io::println("PASS: Textwrap.dedent uneven works");
+    }
+}
+
+public fn test_textwrap_indent(): void {
+    let tw: Textwrap = new Textwrap();
+    let text: string = "hello\nworld";
+    let result: string = tw.indent(text, "  ");
+    if (result != "  hello\n  world") {
+        io::println("FAIL: Textwrap.indent returned " + result);
+    } else {
+        io::println("PASS: Textwrap.indent works");
+    }
+}
+
+public fn test_textwrap_indent_empty_lines(): void {
+    let tw: Textwrap = new Textwrap();
+    let text: string = "hello\n\nworld";
+    let result: string = tw.indent(text, "> ");
+    // Empty lines should not be indented
+    if (result != "> hello\n\n> world") {
+        io::println("FAIL: Textwrap.indent empty lines returned " + result);
+    } else {
+        io::println("PASS: Textwrap.indent empty lines works");
+    }
+}
+
+public fn test_textwrap_shorten_no_truncate(): void {
+    let tw: Textwrap = new Textwrap();
+    let result: string = tw.shorten("hello", 20);
+    if (result != "hello") {
+        io::println("FAIL: Textwrap.shorten no truncate returned " + result);
+    } else {
+        io::println("PASS: Textwrap.shorten no truncate works");
+    }
+}
+
+public fn test_textwrap_shorten_truncate(): void {
+    let tw: Textwrap = new Textwrap();
+    let result: string = tw.shorten("hello world foo bar", 10);
+    if (String.length(result) != 10) {
+        io::println("FAIL: Textwrap.shorten length=" + Integer.toString(String.length(result)) + ", expected 10");
+    } else if (String.indexOf(result, "...") != 7) {
+        io::println("FAIL: Textwrap.shorten should end with ellipsis: " + result);
+    } else {
+        io::println("PASS: Textwrap.shorten truncate works: " + result);
+    }
+}
+
+public fn test_textwrap_shorten_short_width(): void {
+    let tw: Textwrap = new Textwrap();
+    let result: string = tw.shorten("hello world", 3);
+    if (result != "...") {
+        io::println("FAIL: Textwrap.shorten width=3 returned " + result);
+    } else {
+        io::println("PASS: Textwrap.shorten short width works");
+    }
+}
+
+public fn run_all_textwrap_tests(): void {
+    io::println("=== Textwrap.tr Tests ===");
+    test_textwrap_wrap_basic();
+    test_textwrap_wrap_single_line();
+    test_textwrap_wrap_empty();
+    test_textwrap_wrap_long_word();
+    test_textwrap_fill();
+    test_textwrap_fill_single_line();
+    test_textwrap_dedent();
+    test_textwrap_dedent_no_indent();
+    test_textwrap_dedent_uneven();
+    test_textwrap_indent();
+    test_textwrap_indent_empty_lines();
+    test_textwrap_shorten_no_truncate();
+    test_textwrap_shorten_truncate();
+    test_textwrap_shorten_short_width();
+}
