@@ -1,0 +1,210 @@
+// Test file for Bisect.tr
+// Exercises the public API of the Bisect module's top-level functions.
+import tt::bisect::Bisect;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_bisect_left_basic(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(5);
+    if (Bisect.bisectLeft(arr, 3) != 1) {
+        io::println("FAIL: Bisect.bisectLeft(arr, 3) returned " + Integer.toString(Bisect.bisectLeft(arr, 3)));
+    } else {
+        io::println("PASS: Bisect.bisectLeft basic works");
+    }
+}
+
+public fn test_bisect_left_not_found(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(5);
+    if (Bisect.bisectLeft(arr, 4) != 2) {
+        io::println("FAIL: Bisect.bisectLeft(arr, 4) returned " + Integer.toString(Bisect.bisectLeft(arr, 4)));
+    } else {
+        io::println("PASS: Bisect.bisectLeft not found works");
+    }
+}
+
+public fn test_bisect_left_empty(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    if (Bisect.bisectLeft(arr, 5) != 0) {
+        io::println("FAIL: Bisect.bisectLeft empty returned " + Integer.toString(Bisect.bisectLeft(arr, 5)));
+    } else {
+        io::println("PASS: Bisect.bisectLeft empty works");
+    }
+}
+
+public fn test_bisect_left_first(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(5);
+    if (Bisect.bisectLeft(arr, 0) != 0) {
+        io::println("FAIL: Bisect.bisectLeft(arr, 0) returned " + Integer.toString(Bisect.bisectLeft(arr, 0)));
+    } else {
+        io::println("PASS: Bisect.bisectLeft first works");
+    }
+}
+
+public fn test_bisect_left_last(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(5);
+    if (Bisect.bisectLeft(arr, 6) != 3) {
+        io::println("FAIL: Bisect.bisectLeft(arr, 6) returned " + Integer.toString(Bisect.bisectLeft(arr, 6)));
+    } else {
+        io::println("PASS: Bisect.bisectLeft last works");
+    }
+}
+
+public fn test_bisect_left_duplicates(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(3);
+    arr.add(3);
+    arr.add(5);
+    if (Bisect.bisectLeft(arr, 3) != 1) {
+        io::println("FAIL: Bisect.bisectLeft duplicates returned " + Integer.toString(Bisect.bisectLeft(arr, 3)));
+    } else {
+        io::println("PASS: Bisect.bisectLeft duplicates works");
+    }
+}
+
+public fn test_bisect_right_basic(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(5);
+    if (Bisect.bisectRight(arr, 3) != 2) {
+        io::println("FAIL: Bisect.bisectRight(arr, 3) returned " + Integer.toString(Bisect.bisectRight(arr, 3)));
+    } else {
+        io::println("PASS: Bisect.bisectRight basic works");
+    }
+}
+
+public fn test_bisect_right_not_found(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(5);
+    if (Bisect.bisectRight(arr, 4) != 2) {
+        io::println("FAIL: Bisect.bisectRight(arr, 4) returned " + Integer.toString(Bisect.bisectRight(arr, 4)));
+    } else {
+        io::println("PASS: Bisect.bisectRight not found works");
+    }
+}
+
+public fn test_bisect_right_duplicates(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(3);
+    arr.add(3);
+    arr.add(5);
+    if (Bisect.bisectRight(arr, 3) != 4) {
+        io::println("FAIL: Bisect.bisectRight duplicates returned " + Integer.toString(Bisect.bisectRight(arr, 3)));
+    } else {
+        io::println("PASS: Bisect.bisectRight duplicates works");
+    }
+}
+
+public fn test_bisect_insortLeft(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(5);
+    Bisect.insortLeft(arr, 3);
+    if (arr.size() != 4) {
+        io::println("FAIL: Bisect.insortLeft size wrong");
+    } else if (arr.get(1) != 3 || arr.get(2) != 3) {
+        io::println("FAIL: Bisect.insortLeft values wrong");
+    } else {
+        io::println("PASS: Bisect.insortLeft works");
+    }
+}
+
+public fn test_bisect_insortRight(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(3);
+    arr.add(5);
+    Bisect.insortRight(arr, 3);
+    if (arr.size() != 4) {
+        io::println("FAIL: Bisect.insortRight size wrong");
+    } else if (arr.get(2) != 3 || arr.get(3) != 5) {
+        io::println("FAIL: Bisect.insortRight values wrong");
+    } else {
+        io::println("PASS: Bisect.insortRight works");
+    }
+}
+
+public fn test_bisect_insortLeft_empty(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    Bisect.insortLeft(arr, 42);
+    if (arr.size() != 1 || arr.get(0) != 42) {
+        io::println("FAIL: Bisect.insortLeft empty wrong");
+    } else {
+        io::println("PASS: Bisect.insortLeft empty works");
+    }
+}
+
+public fn test_bisect_leftD(): void {
+    let arr: ArrayList<double> = new ArrayList<double>();
+    arr.add(1.0);
+    arr.add(3.0);
+    arr.add(5.0);
+    if (Bisect.bisectLeftD(arr, 3.0) != 1) {
+        io::println("FAIL: Bisect.bisectLeftD returned " + Integer.toString(Bisect.bisectLeftD(arr, 3.0)));
+    } else {
+        io::println("PASS: Bisect.bisectLeftD works");
+    }
+}
+
+public fn test_bisect_rightD(): void {
+    let arr: ArrayList<double> = new ArrayList<double>();
+    arr.add(1.0);
+    arr.add(3.0);
+    arr.add(5.0);
+    if (Bisect.bisectRightD(arr, 3.0) != 2) {
+        io::println("FAIL: Bisect.bisectRightD returned " + Integer.toString(Bisect.bisectRightD(arr, 3.0)));
+    } else {
+        io::println("PASS: Bisect.bisectRightD works");
+    }
+}
+
+public fn test_bisect_leftD_not_found(): void {
+    let arr: ArrayList<double> = new ArrayList<double>();
+    arr.add(1.0);
+    arr.add(3.0);
+    arr.add(5.0);
+    if (Bisect.bisectLeftD(arr, 4.0) != 2) {
+        io::println("FAIL: Bisect.bisectLeftD not found returned " + Integer.toString(Bisect.bisectLeftD(arr, 4.0)));
+    } else {
+        io::println("PASS: Bisect.bisectLeftD not found works");
+    }
+}
+
+public fn run_all_bisect_tests(): void {
+    io::println("=== Bisect.tr Tests ===");
+    test_bisect_left_basic();
+    test_bisect_left_not_found();
+    test_bisect_left_empty();
+    test_bisect_left_first();
+    test_bisect_left_last();
+    test_bisect_left_duplicates();
+    test_bisect_right_basic();
+    test_bisect_right_not_found();
+    test_bisect_right_duplicates();
+    test_bisect_insortLeft();
+    test_bisect_insortRight();
+    test_bisect_insortLeft_empty();
+    test_bisect_leftD();
+    test_bisect_rightD();
+    test_bisect_leftD_not_found();
+}
