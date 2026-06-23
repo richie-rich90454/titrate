@@ -1,0 +1,126 @@
+// Test file for chem/Bond.tr
+// Exercises Bond construction, length, angle, dihedral, aromaticity, and toString.
+import tt::chem::Bond;
+import tt::chem::Atom;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_bond_construction(): void {
+    let b: Bond = new Bond(0, 1, "single", 1);
+    if (b.atom1 != 0 || b.atom2 != 1 || b.bondType != "single" || b.order != 1) {
+        io::println("FAIL: Bond construction");
+    } else {
+        io::println("PASS: Bond construction works");
+    }
+}
+
+public fn test_bond_length(): void {
+    let atoms: ArrayList<Atom> = new ArrayList<Atom>();
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(3.0, 4.0, 0.0);
+    atoms.add(a1);
+    atoms.add(a2);
+    let b: Bond = new Bond(0, 1, "single", 1);
+    let len: double = b.length(atoms);
+    if (absDiff(len, 5.0) > 1e-9) {
+        io::println("FAIL: Bond.length expected 5.0");
+    } else {
+        io::println("PASS: Bond.length = 5.0");
+    }
+}
+
+public fn test_bond_is_aromatic(): void {
+    let aromatic: Bond = new Bond(0, 1, "aromatic", 1);
+    if (!aromatic.isAromatic()) {
+        io::println("FAIL: Bond.isAromatic aromatic bond");
+    } else {
+        io::println("PASS: Bond.isAromatic true for aromatic");
+    }
+    let single: Bond = new Bond(0, 1, "single", 1);
+    if (single.isAromatic()) {
+        io::println("FAIL: Bond.isAromatic single bond");
+    } else {
+        io::println("PASS: Bond.isAromatic false for single");
+    }
+}
+
+public fn test_bond_to_string(): void {
+    let b: Bond = new Bond(2, 5, "double", 2);
+    let s: string = b.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Bond.toString empty");
+    } else {
+        io::println("PASS: Bond.toString non-empty: " + s);
+    }
+}
+
+public fn test_bond_angle(): void {
+    // Build a water-like geometry: O at origin, H1 at (1,0,0), H2 at (0,1,0)
+    // Angle H1-O-H2 should be 90 degrees = pi/2 radians
+    let atoms: ArrayList<Atom> = new ArrayList<Atom>();
+    let o: Atom = new Atom("O", 8, 15.999);
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    o.setPosition(0.0, 0.0, 0.0);
+    h1.setPosition(1.0, 0.0, 0.0);
+    h2.setPosition(0.0, 1.0, 0.0);
+    atoms.add(o);
+    atoms.add(h1);
+    atoms.add(h2);
+    // Bond 0-1 (O-H1) and bond 0-2 (O-H2) share atom 0
+    let b1: Bond = new Bond(0, 1, "single", 1);
+    let b2: Bond = new Bond(0, 2, "single", 1);
+    let angle: double = b1.angle(b2, atoms);
+    // 90 degrees = pi/2 ~ 1.5708
+    if (absDiff(angle, 1.5707963) > 1e-5) {
+        io::println("FAIL: Bond.angle expected ~1.5708 got " + Double.toString(angle));
+    } else {
+        io::println("PASS: Bond.angle = pi/2 for right angle");
+    }
+}
+
+public fn test_bond_dihedral(): void {
+    // Build a simple chain of 4 atoms along x-axis
+    // Dihedral should be 0 or pi for collinear atoms
+    let atoms: ArrayList<Atom> = new ArrayList<Atom>();
+    let a1: Atom = new Atom("C", 6, 12.011);
+    let a2: Atom = new Atom("C", 6, 12.011);
+    let a3: Atom = new Atom("C", 6, 12.011);
+    let a4: Atom = new Atom("C", 6, 12.011);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(1.0, 0.0, 0.0);
+    a3.setPosition(2.0, 0.0, 0.0);
+    a4.setPosition(3.0, 0.0, 0.0);
+    atoms.add(a1);
+    atoms.add(a2);
+    atoms.add(a3);
+    atoms.add(a4);
+    let b1: Bond = new Bond(0, 1, "single", 1);
+    let b2: Bond = new Bond(1, 2, "single", 1);
+    let b3: Bond = new Bond(2, 3, "single", 1);
+    let dihedral: double = b1.dihedral(b2, b3, atoms);
+    // For collinear atoms, dihedral is 0 (or undefined, but should be a finite number)
+    if (dihedral != dihedral) {
+        io::println("FAIL: Bond.dihedral NaN for collinear");
+    } else {
+        io::println("PASS: Bond.dihedral finite for collinear chain: " + Double.toString(dihedral));
+    }
+}
+
+public fn run_all_bond_tests(): void {
+    io::println("=== chem/Bond.tr Tests ===");
+    test_bond_construction();
+    test_bond_length();
+    test_bond_is_aromatic();
+    test_bond_to_string();
+    test_bond_angle();
+    test_bond_dihedral();
+}
