@@ -1,0 +1,136 @@
+// Test file for Sys.tr
+// Exercises the public API of the Sys module: args, env, setEnv, workingDir,
+// sleep, platform, cpuCount, pid, nanoTime, userName, hostName.
+// exit() is intentionally not tested because it terminates the process.
+import tt::sys::Sys;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Long;
+import tt::lang::Boolean;
+
+public fn test_sys_args(): void {
+    let a: ArrayList<string> = Sys.args();
+    // args() should return a list (possibly empty, possibly with program name).
+    if (a == null) {
+        io::println("FAIL: Sys.args returned null");
+    } else {
+        io::println("PASS: Sys.args returns a list");
+    }
+}
+
+public fn test_sys_env_setEnv(): void {
+    Sys.setEnv("TT_SYS_TEST", "hello");
+    let val: string = Sys.env("TT_SYS_TEST");
+    if (val != "hello") {
+        io::println("FAIL: Sys.env = '" + val + "'");
+    } else {
+        io::println("PASS: Sys.setEnv/env round-trip");
+    }
+}
+
+public fn test_sys_env_missing(): void {
+    let val: string = Sys.env("TT_SYS_DEFINITELY_MISSING");
+    if (val != null && val != "") {
+        io::println("FAIL: Sys.env missing returned '" + val + "'");
+    } else {
+        io::println("PASS: Sys.env returns null/empty for missing var");
+    }
+}
+
+public fn test_sys_workingDir(): void {
+    let wd: string = Sys.workingDir();
+    if (wd == "" || wd == null) {
+        io::println("FAIL: Sys.workingDir empty");
+    } else {
+        io::println("PASS: Sys.workingDir returns a path");
+    }
+}
+
+public fn test_sys_sleep(): void {
+    // sleep(0) should return immediately without error.
+    Sys.sleep(0);
+    io::println("PASS: Sys.sleep(0) executes without error");
+}
+
+public fn test_sys_platform(): void {
+    let p: string = Sys.platform();
+    if (p == "" || p == null) {
+        io::println("FAIL: Sys.platform empty");
+    } else {
+        io::println("PASS: Sys.platform returns a value");
+    }
+}
+
+public fn test_sys_cpuCount(): void {
+    let count: int = Sys.cpuCount();
+    if (count < 1) {
+        io::println("FAIL: Sys.cpuCount = " + Integer.toString(count));
+    } else {
+        io::println("PASS: Sys.cpuCount >= 1");
+    }
+}
+
+public fn test_sys_pid(): void {
+    let pid: int = Sys.pid();
+    if (pid <= 0) {
+        io::println("FAIL: Sys.pid = " + Integer.toString(pid));
+    } else {
+        io::println("PASS: Sys.pid returns positive id");
+    }
+}
+
+public fn test_sys_nanoTime(): void {
+    let t1: long = Sys.nanoTime();
+    Sys.sleep(1);
+    let t2: long = Sys.nanoTime();
+    if (t2 <= t1) {
+        io::println("FAIL: Sys.nanoTime did not advance");
+    } else {
+        io::println("PASS: Sys.nanoTime advances over time");
+    }
+}
+
+public fn test_sys_userName(): void {
+    let name: string = Sys.userName();
+    if (name == null || name == "") {
+        io::println("FAIL: Sys.userName empty");
+    } else {
+        io::println("PASS: Sys.userName returns a value");
+    }
+}
+
+public fn test_sys_hostName(): void {
+    let name: string = Sys.hostName();
+    if (name == null || name == "") {
+        io::println("FAIL: Sys.hostName empty");
+    } else {
+        io::println("PASS: Sys.hostName returns a value");
+    }
+}
+
+public fn test_sys_exec(): void {
+    // exec runs a command and returns stdout. Use a harmless command.
+    // On Windows, `echo hello` returns "hello".
+    let output: string = Sys.exec("echo titrate_test");
+    if (output == null) {
+        io::println("FAIL: Sys.exec returned null");
+    } else {
+        io::println("PASS: Sys.exec returns output");
+    }
+}
+
+public fn run_all_sys_tests(): void {
+    io::println("=== Sys.tr Tests ===");
+    test_sys_args();
+    test_sys_env_setEnv();
+    test_sys_env_missing();
+    test_sys_workingDir();
+    test_sys_sleep();
+    test_sys_platform();
+    test_sys_cpuCount();
+    test_sys_pid();
+    test_sys_nanoTime();
+    test_sys_userName();
+    test_sys_hostName();
+    test_sys_exec();
+}
