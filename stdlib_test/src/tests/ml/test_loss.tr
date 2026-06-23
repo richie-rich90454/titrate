@@ -1,0 +1,172 @@
+// Test file for ml/Loss.tr
+// Exercises all loss functions and gradients.
+import tt::ml::Loss;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_mse_loss(): void {
+    let pred: ArrayList<double> = new ArrayList<double>();
+    pred.add(1.0); pred.add(2.0); pred.add(3.0);
+    let actual: ArrayList<double> = new ArrayList<double>();
+    actual.add(1.0); actual.add(2.0); actual.add(3.0);
+    let loss: double = Loss.mseLoss(pred, actual);
+    if (absDiff(loss, 0.0) > 1e-9) {
+        io::println("FAIL: mseLoss zero expected");
+    } else {
+        io::println("PASS: mseLoss = 0 for equal");
+    }
+    let pred2: ArrayList<double> = new ArrayList<double>();
+    pred2.add(2.0); pred2.add(4.0);
+    let actual2: ArrayList<double> = new ArrayList<double>();
+    actual2.add(1.0); actual2.add(3.0);
+    let loss2: double = Loss.mseLoss(pred2, actual2);
+    if (absDiff(loss2, 1.0) > 1e-9) {
+        io::println("FAIL: mseLoss expected 1.0");
+    } else {
+        io::println("PASS: mseLoss = 1.0");
+    }
+}
+
+public fn test_mae_loss(): void {
+    let pred: ArrayList<double> = new ArrayList<double>();
+    pred.add(1.0); pred.add(3.0);
+    let actual: ArrayList<double> = new ArrayList<double>();
+    actual.add(1.0); actual.add(3.0);
+    let loss: double = Loss.maeLoss(pred, actual);
+    if (absDiff(loss, 0.0) > 1e-9) {
+        io::println("FAIL: maeLoss zero expected");
+    } else {
+        io::println("PASS: maeLoss = 0 for equal");
+    }
+}
+
+public fn test_cross_entropy_loss(): void {
+    let pred: ArrayList<double> = new ArrayList<double>();
+    pred.add(1.0); pred.add(0.0);
+    let actual: ArrayList<double> = new ArrayList<double>();
+    actual.add(1.0); actual.add(0.0);
+    let loss: double = Loss.crossEntropyLoss(pred, actual);
+    if (loss < -1e-9) {
+        io::println("FAIL: crossEntropyLoss should be >= 0");
+    } else {
+        io::println("PASS: crossEntropyLoss >= 0");
+    }
+}
+
+public fn test_binary_cross_entropy_loss(): void {
+    let loss: double = Loss.binaryCrossEntropyLoss(1.0, 1.0);
+    if (loss > 1e-9) {
+        io::println("FAIL: bceLoss should be ~0 for p=1,y=1");
+    } else {
+        io::println("PASS: bceLoss ~0 for p=1,y=1");
+    }
+    let loss2: double = Loss.binaryCrossEntropyLoss(0.0, 0.0);
+    if (loss2 > 1e-9) {
+        io::println("FAIL: bceLoss should be ~0 for p=0,y=0");
+    } else {
+        io::println("PASS: bceLoss ~0 for p=0,y=0");
+    }
+}
+
+public fn test_hinge_loss(): void {
+    let loss: double = Loss.hingeLoss(2.0, 1.0);
+    if (absDiff(loss, 0.0) > 1e-9) {
+        io::println("FAIL: hingeLoss expected 0");
+    } else {
+        io::println("PASS: hingeLoss = 0 for correct");
+    }
+    let loss2: double = Loss.hingeLoss(-1.0, 1.0);
+    if (absDiff(loss2, 2.0) > 1e-9) {
+        io::println("FAIL: hingeLoss expected 2.0");
+    } else {
+        io::println("PASS: hingeLoss = 2.0 for wrong");
+    }
+}
+
+public fn test_huber_loss(): void {
+    // Small diff: quadratic
+    let loss1: double = Loss.huberLoss(1.0, 0.0, 1.0);
+    if (absDiff(loss1, 0.5) > 1e-9) {
+        io::println("FAIL: huberLoss quadratic expected 0.5");
+    } else {
+        io::println("PASS: huberLoss quadratic = 0.5");
+    }
+    // Large diff: linear
+    let loss2: double = Loss.huberLoss(5.0, 0.0, 1.0);
+    if (absDiff(loss2, 4.5) > 1e-9) {
+        io::println("FAIL: huberLoss linear expected 4.5");
+    } else {
+        io::println("PASS: huberLoss linear = 4.5");
+    }
+}
+
+public fn test_huber_loss_vec(): void {
+    let pred: ArrayList<double> = new ArrayList<double>();
+    pred.add(1.0); pred.add(5.0);
+    let actual: ArrayList<double> = new ArrayList<double>();
+    actual.add(0.0); actual.add(0.0);
+    let loss: double = Loss.huberLossVec(pred, actual, 1.0);
+    if (loss <= 0.0) {
+        io::println("FAIL: huberLossVec should be > 0");
+    } else {
+        io::println("PASS: huberLossVec > 0");
+    }
+}
+
+public fn test_kl_divergence(): void {
+    let p: ArrayList<double> = new ArrayList<double>();
+    p.add(0.5); p.add(0.5);
+    let q: ArrayList<double> = new ArrayList<double>();
+    q.add(0.5); q.add(0.5);
+    let kl: double = Loss.klDivergence(p, q);
+    if (absDiff(kl, 0.0) > 1e-9) {
+        io::println("FAIL: klDivergence expected 0 for equal");
+    } else {
+        io::println("PASS: klDivergence = 0 for equal");
+    }
+}
+
+public fn test_mse_gradient(): void {
+    let pred: ArrayList<double> = new ArrayList<double>();
+    pred.add(2.0); pred.add(4.0);
+    let actual: ArrayList<double> = new ArrayList<double>();
+    actual.add(1.0); actual.add(3.0);
+    let grad: ArrayList<double> = Loss.mseGradient(pred, actual);
+    if (absDiff(grad.get(0), 1.0) > 1e-9 || absDiff(grad.get(1), 1.0) > 1e-9) {
+        io::println("FAIL: mseGradient expected [1.0, 1.0]");
+    } else {
+        io::println("PASS: mseGradient = [1.0, 1.0]");
+    }
+}
+
+public fn test_cross_entropy_gradient(): void {
+    let pred: ArrayList<double> = new ArrayList<double>();
+    pred.add(1.0); pred.add(0.0);
+    let actual: ArrayList<double> = new ArrayList<double>();
+    actual.add(1.0); actual.add(0.0);
+    let grad: ArrayList<double> = Loss.crossEntropyGradient(pred, actual);
+    if (grad.size() != 2) {
+        io::println("FAIL: crossEntropyGradient size");
+    } else {
+        io::println("PASS: crossEntropyGradient size = 2");
+    }
+}
+
+public fn run_all_loss_tests(): void {
+    io::println("=== ml/Loss.tr Tests ===");
+    test_mse_loss();
+    test_mae_loss();
+    test_cross_entropy_loss();
+    test_binary_cross_entropy_loss();
+    test_hinge_loss();
+    test_huber_loss();
+    test_huber_loss_vec();
+    test_kl_divergence();
+    test_mse_gradient();
+    test_cross_entropy_gradient();
+}
