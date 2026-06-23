@@ -1,0 +1,150 @@
+// Test file for materials/PhaseDiagram.tr
+// Exercises PhasePoint, BinaryPhaseDiagram, lever rule, phase fractions, cooling curve.
+import tt::materials::PhaseDiagram;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_phase_point(): void {
+    let p: PhasePoint = new PhasePoint(1000.0, 0.5, "liquid");
+    if (absDiff(p.temperature, 1000.0) > 1e-9) {
+        io::println("FAIL: PhasePoint temperature");
+    } else {
+        io::println("PASS: PhasePoint temperature = 1000");
+    }
+    if (p.phase != "liquid") {
+        io::println("FAIL: PhasePoint phase");
+    } else {
+        io::println("PASS: PhasePoint phase = liquid");
+    }
+}
+
+public fn test_binary_phase_diagram(): void {
+    let diagram: BinaryPhaseDiagram = new BinaryPhaseDiagram("Cu", "Ni");
+    if (diagram.componentA != "Cu") {
+        io::println("FAIL: componentA expected Cu");
+    } else {
+        io::println("PASS: componentA = Cu");
+    }
+    if (diagram.componentB != "Ni") {
+        io::println("FAIL: componentB expected Ni");
+    } else {
+        io::println("PASS: componentB = Ni");
+    }
+    if (diagram.liquidus.size() != 0) {
+        io::println("FAIL: liquidus init empty");
+    } else {
+        io::println("PASS: liquidus init empty");
+    }
+}
+
+public fn test_add_liquidus_point(): void {
+    let diagram: BinaryPhaseDiagram = new BinaryPhaseDiagram("A", "B");
+    diagram.addLiquidusPoint(1500.0, 0.3);
+    if (diagram.liquidus.size() != 1) {
+        io::println("FAIL: liquidus size expected 1");
+    } else {
+        io::println("PASS: liquidus size = 1");
+    }
+}
+
+public fn test_add_solidus_point(): void {
+    let diagram: BinaryPhaseDiagram = new BinaryPhaseDiagram("A", "B");
+    diagram.addSolidusPoint(1400.0, 0.2);
+    if (diagram.solidus.size() != 1) {
+        io::println("FAIL: solidus size expected 1");
+    } else {
+        io::println("PASS: solidus size = 1");
+    }
+}
+
+public fn test_set_eutectic(): void {
+    let diagram: BinaryPhaseDiagram = new BinaryPhaseDiagram("A", "B");
+    diagram.setEutectic(577.0, 0.126);
+    if (absDiff(diagram.eutecticTemp, 577.0) > 1e-9) {
+        io::println("FAIL: eutecticTemp expected 577");
+    } else {
+        io::println("PASS: eutecticTemp = 577");
+    }
+    if (absDiff(diagram.eutecticComp, 0.126) > 1e-9) {
+        io::println("FAIL: eutecticComp expected 0.126");
+    } else {
+        io::println("PASS: eutecticComp = 0.126");
+    }
+}
+
+public fn test_set_peritectic(): void {
+    let diagram: BinaryPhaseDiagram = new BinaryPhaseDiagram("A", "B");
+    diagram.setPeritectic(1495.0, 0.17);
+    if (absDiff(diagram.peritecticTemp, 1495.0) > 1e-9) {
+        io::println("FAIL: peritecticTemp expected 1495");
+    } else {
+        io::println("PASS: peritecticTemp = 1495");
+    }
+}
+
+public fn test_lever_rule(): void {
+    // comp=0.4, alpha=0.2, beta=0.8 -> (0.4-0.2)/(0.8-0.2) = 0.2/0.6 = 0.333
+    let f: double = PhaseDiagram.leverRule(0.4, 0.2, 0.8);
+    if (absDiff(f, 0.333333) > 0.001) {
+        io::println("FAIL: leverRule expected ~0.333");
+    } else {
+        io::println("PASS: leverRule = ~0.333");
+    }
+}
+
+public fn test_lever_rule_equal(): void {
+    let f: double = PhaseDiagram.leverRule(0.5, 0.3, 0.3);
+    if (absDiff(f, 0.5) > 1e-9) {
+        io::println("FAIL: leverRule equal comp expected 0.5");
+    } else {
+        io::println("PASS: leverRule equal comp = 0.5");
+    }
+}
+
+public fn test_phase_fractions(): void {
+    let result: ArrayList<double> = PhaseDiagram.phaseFractions(0.4, 0.2, 0.8);
+    if (result.size() != 2) {
+        io::println("FAIL: phaseFractions size expected 2");
+    } else {
+        io::println("PASS: phaseFractions size = 2");
+    }
+    // fAlpha + fBeta should = 1
+    if (result.size() == 2) {
+        let sum: double = result.get(0) + result.get(1);
+        if (absDiff(sum, 1.0) > 1e-6) {
+            io::println("FAIL: phaseFractions sum expected 1.0");
+        } else {
+            io::println("PASS: phaseFractions sum = 1.0");
+        }
+    }
+}
+
+public fn test_cooling_curve(): void {
+    let diagram: BinaryPhaseDiagram = new BinaryPhaseDiagram("A", "B");
+    diagram.setEutectic(500.0, 0.3);
+    let curve: ArrayList<double> = PhaseDiagram.coolingCurve(diagram, 0.3, 1000.0, 100.0, 10);
+    if (curve.size() < 10) {
+        io::println("FAIL: coolingCurve size expected >= 10");
+    } else {
+        io::println("PASS: coolingCurve size >= 10");
+    }
+}
+
+public fn run_all_phase_diagram_tests(): void {
+    io::println("=== materials/PhaseDiagram.tr Tests ===");
+    test_phase_point();
+    test_binary_phase_diagram();
+    test_add_liquidus_point();
+    test_add_solidus_point();
+    test_set_eutectic();
+    test_set_peritectic();
+    test_lever_rule();
+    test_lever_rule_equal();
+    test_phase_fractions();
+    test_cooling_curve();
+}
