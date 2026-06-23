@@ -27,6 +27,7 @@ pub mod tuple_codegen;
 pub mod types;
 pub mod vtable;
 pub mod enum_codegen;
+pub mod native_bridge;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -1172,6 +1173,23 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Ok(i32_ty.const_int(0, false).into());
                 }
             }
+        }
+
+        // Native function call: Math.sin(x), String.length(s), parseInt(s), etc.
+        // This is a fallback after user-defined functions have been checked.
+        if let Some(native_name) = native_bridge::try_native_call_name(callee) {
+            let mut arg_vals: Vec<BasicValueEnum> = Vec::new();
+            let mut arg_types: Vec<Type> = Vec::new();
+            for arg in args {
+                let arg_ty = self.infer_expr_type(arg);
+                let val = self.compile_expr(arg)?;
+                arg_vals.push(val);
+                arg_types.push(arg_ty);
+            }
+            return native_bridge::emit_native_call(
+                self.context, &self.builder, &self.module,
+                &native_name, &arg_vals, &arg_types,
+            );
         }
 
         // Method call on a class instance: obj.method(args)
