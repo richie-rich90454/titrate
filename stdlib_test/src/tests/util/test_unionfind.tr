@@ -1,0 +1,176 @@
+// Test file for UnionFind.tr
+// Exercises the public API of the UnionFind class (disjoint-set / union-find).
+import tt::util::UnionFind;
+import tt::lang::Integer;
+
+public fn test_uf_init_count(): void {
+    let uf: UnionFind = new UnionFind(5);
+    if (uf.count != 5) {
+        io::println("FAIL: UnionFind.count = " + Integer.toString(uf.count));
+    } else {
+        io::println("PASS: UnionFind init count works");
+    }
+}
+
+public fn test_uf_find_self(): void {
+    let uf: UnionFind = new UnionFind(5);
+    if (uf.find(0) != 0 || uf.find(4) != 4) {
+        io::println("FAIL: UnionFind.find self");
+    } else {
+        io::println("PASS: UnionFind.find self works");
+    }
+}
+
+public fn test_uf_union_connected(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    if (!uf.connected(0, 1)) {
+        io::println("FAIL: UnionFind.connected after union");
+    } else {
+        io::println("PASS: UnionFind.union/connected works");
+    }
+}
+
+public fn test_uf_not_connected(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    if (uf.connected(0, 2)) {
+        io::println("FAIL: UnionFind not connected");
+    } else {
+        io::println("PASS: UnionFind not connected works");
+    }
+}
+
+public fn test_uf_count_decreases(): void {
+    let uf: UnionFind = new UnionFind(5);
+    let initial: int = uf.componentCount();
+    uf.union(0, 1);
+    uf.union(2, 3);
+    if (uf.componentCount() != initial - 2) {
+        io::println("FAIL: UnionFind.componentCount = " + Integer.toString(uf.componentCount()));
+    } else {
+        io::println("PASS: UnionFind.componentCount decreases");
+    }
+}
+
+public fn test_uf_union_already_connected(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    let before: int = uf.componentCount();
+    uf.union(0, 1);
+    let after: int = uf.componentCount();
+    if (before != after) {
+        io::println("FAIL: UnionFind union already connected");
+    } else {
+        io::println("PASS: UnionFind union already connected works");
+    }
+}
+
+public fn test_uf_transitive(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    uf.union(1, 2);
+    if (!uf.connected(0, 2)) {
+        io::println("FAIL: UnionFind transitive");
+    } else {
+        io::println("PASS: UnionFind transitive works");
+    }
+}
+
+public fn test_uf_componentSize(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    uf.union(0, 2);
+    if (uf.componentSize(0) != 3) {
+        io::println("FAIL: UnionFind.componentSize = " + Integer.toString(uf.componentSize(0)));
+    } else {
+        io::println("PASS: UnionFind.componentSize works");
+    }
+}
+
+public fn test_uf_setSize(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    uf.union(2, 3);
+    if (uf.setSize(0) != 2 || uf.setSize(2) != 2 || uf.setSize(4) != 1) {
+        io::println("FAIL: UnionFind.setSize");
+    } else {
+        io::println("PASS: UnionFind.setSize works");
+    }
+}
+
+public fn test_uf_reset(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    uf.union(2, 3);
+    uf.reset();
+    if (uf.count != 5 || uf.connected(0, 1)) {
+        io::println("FAIL: UnionFind.reset");
+    } else {
+        io::println("PASS: UnionFind.reset works");
+    }
+}
+
+public fn test_uf_path_compression(): void {
+    let uf: UnionFind = new UnionFind(10);
+    // Create a chain: 0-1-2-3-4
+    uf.union(0, 1);
+    uf.union(1, 2);
+    uf.union(2, 3);
+    uf.union(3, 4);
+    // All should be connected
+    if (!uf.connected(0, 4) || !uf.connected(1, 3)) {
+        io::println("FAIL: UnionFind path compression");
+    } else {
+        io::println("PASS: UnionFind path compression works");
+    }
+}
+
+public fn test_uf_large_union(): void {
+    let uf: UnionFind = new UnionFind(20);
+    // Union even indices together, odd indices together
+    var i: int = 2;
+    while (i < 20) {
+        uf.union(0, i);
+        i = i + 2;
+    }
+    i = 1;
+    while (i < 20) {
+        uf.union(1, i);
+        i = i + 2;
+    }
+    if (uf.componentCount() != 2) {
+        io::println("FAIL: UnionFind large union count=" + Integer.toString(uf.componentCount()));
+    } else if (!uf.connected(0, 18) || !uf.connected(1, 19) || uf.connected(0, 1)) {
+        io::println("FAIL: UnionFind large union connectivity");
+    } else {
+        io::println("PASS: UnionFind large union works");
+    }
+}
+
+public fn test_uf_toString(): void {
+    let uf: UnionFind = new UnionFind(3);
+    let s: string = uf.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: UnionFind.toString empty");
+    } else {
+        io::println("PASS: UnionFind.toString works");
+    }
+}
+
+public fn run_all_unionfind_tests(): void {
+    io::println("=== UnionFind.tr Tests ===");
+    test_uf_init_count();
+    test_uf_find_self();
+    test_uf_union_connected();
+    test_uf_not_connected();
+    test_uf_count_decreases();
+    test_uf_union_already_connected();
+    test_uf_transitive();
+    test_uf_componentSize();
+    test_uf_setSize();
+    test_uf_reset();
+    test_uf_path_compression();
+    test_uf_large_union();
+    test_uf_toString();
+}
