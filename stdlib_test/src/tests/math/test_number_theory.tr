@@ -1,0 +1,271 @@
+// Test file for NumberTheory.tr
+// Exercises modular arithmetic, primality, factorization, and arithmetic functions.
+import tt::math::NumberTheory;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_numbertheory_modPow(): void {
+    // 2^10 mod 1000 = 1024 mod 1000 = 24
+    if (NumberTheory.modPow(2, 10, 1000) != 24) {
+        io::println("FAIL: NumberTheory.modPow(2,10,1000)");
+    } else {
+        io::println("PASS: NumberTheory.modPow(2,10,1000) = 24");
+    }
+    // mod 1 always 0
+    if (NumberTheory.modPow(5, 3, 1) != 0) {
+        io::println("FAIL: NumberTheory.modPow(5,3,1)");
+    } else {
+        io::println("PASS: NumberTheory.modPow(5,3,1) = 0");
+    }
+    // 3^5 mod 7 = 243 mod 7 = 5
+    if (NumberTheory.modPow(3, 5, 7) != 5) {
+        io::println("FAIL: NumberTheory.modPow(3,5,7)");
+    } else {
+        io::println("PASS: NumberTheory.modPow(3,5,7) = 5");
+    }
+}
+
+public fn test_numbertheory_isPrime(): void {
+    if (!NumberTheory.isPrime(2)) {
+        io::println("FAIL: NumberTheory.isPrime(2)");
+    } else {
+        io::println("PASS: NumberTheory.isPrime(2) = true");
+    }
+    if (NumberTheory.isPrime(1)) {
+        io::println("FAIL: NumberTheory.isPrime(1) should be false");
+    } else {
+        io::println("PASS: NumberTheory.isPrime(1) = false");
+    }
+    if (!NumberTheory.isPrime(17)) {
+        io::println("FAIL: NumberTheory.isPrime(17)");
+    } else {
+        io::println("PASS: NumberTheory.isPrime(17) = true");
+    }
+    if (NumberTheory.isPrime(15)) {
+        io::println("FAIL: NumberTheory.isPrime(15) should be false");
+    } else {
+        io::println("PASS: NumberTheory.isPrime(15) = false");
+    }
+    if (!NumberTheory.isPrime(2147483647)) {
+        io::println("FAIL: NumberTheory.isPrime(2147483647) Mersenne prime");
+    } else {
+        io::println("PASS: NumberTheory.isPrime(2147483647) = true");
+    }
+}
+
+public fn test_numbertheory_primeSieve(): void {
+    let primes: ArrayList<int> = NumberTheory.primeSieve(20);
+    // Primes up to 20: 2, 3, 5, 7, 11, 13, 17, 19
+    if (primes.size() != 8) {
+        io::println("FAIL: NumberTheory.primeSieve(20) size = " + Integer.toString(primes.size()));
+    } else {
+        io::println("PASS: NumberTheory.primeSieve(20) has 8 primes");
+    }
+    if (primes.get(0) != 2 || primes.get(1) != 3 || primes.get(7) != 19) {
+        io::println("FAIL: NumberTheory.primeSieve(20) values");
+    } else {
+        io::println("PASS: NumberTheory.primeSieve(20) values correct");
+    }
+    let empty: ArrayList<int> = NumberTheory.primeSieve(1);
+    if (empty.size() != 0) {
+        io::println("FAIL: NumberTheory.primeSieve(1) should be empty");
+    } else {
+        io::println("PASS: NumberTheory.primeSieve(1) is empty");
+    }
+}
+
+public fn test_numbertheory_factorize(): void {
+    // 12 = 2 * 2 * 3
+    let factors: ArrayList<int> = NumberTheory.factorize(12);
+    if (factors.size() != 3 || factors.get(0) != 2 || factors.get(1) != 2 || factors.get(2) != 3) {
+        io::println("FAIL: NumberTheory.factorize(12)");
+    } else {
+        io::println("PASS: NumberTheory.factorize(12) = [2,2,3]");
+    }
+    // 17 is prime
+    let primeFactors: ArrayList<int> = NumberTheory.factorize(17);
+    if (primeFactors.size() != 1 || primeFactors.get(0) != 17) {
+        io::println("FAIL: NumberTheory.factorize(17)");
+    } else {
+        io::println("PASS: NumberTheory.factorize(17) = [17]");
+    }
+    // 1 and 0 return empty
+    if (NumberTheory.factorize(1).size() != 0 || NumberTheory.factorize(0).size() != 0) {
+        io::println("FAIL: NumberTheory.factorize(0/1) should be empty");
+    } else {
+        io::println("PASS: NumberTheory.factorize(0/1) is empty");
+    }
+}
+
+public fn test_numbertheory_primeFactorization(): void {
+    // 360 = 2^3 * 3^2 * 5
+    let pf: HashMap<string, int> = NumberTheory.primeFactorization(360);
+    if (pf.get("2") != 3 || pf.get("3") != 2 || pf.get("5") != 1) {
+        io::println("FAIL: NumberTheory.primeFactorization(360)");
+    } else {
+        io::println("PASS: NumberTheory.primeFactorization(360) = 2^3 * 3^2 * 5");
+    }
+}
+
+public fn test_numbertheory_eulerTotient(): void {
+    // phi(1) = 1, phi(9) = 6, phi(10) = 4, phi(12) = 4
+    if (NumberTheory.eulerTotient(1) != 1) {
+        io::println("FAIL: NumberTheory.eulerTotient(1)");
+    } else {
+        io::println("PASS: NumberTheory.eulerTotient(1) = 1");
+    }
+    if (NumberTheory.eulerTotient(9) != 6) {
+        io::println("FAIL: NumberTheory.eulerTotient(9)");
+    } else {
+        io::println("PASS: NumberTheory.eulerTotient(9) = 6");
+    }
+    if (NumberTheory.eulerTotient(10) != 4) {
+        io::println("FAIL: NumberTheory.eulerTotient(10)");
+    } else {
+        io::println("PASS: NumberTheory.eulerTotient(10) = 4");
+    }
+    // phi(prime p) = p - 1
+    if (NumberTheory.eulerTotient(13) != 12) {
+        io::println("FAIL: NumberTheory.eulerTotient(13)");
+    } else {
+        io::println("PASS: NumberTheory.eulerTotient(13) = 12");
+    }
+}
+
+public fn test_numbertheory_mobius(): void {
+    // mu(1) = 1, mu(2) = -1, mu(6) = 1 (2*3, two primes), mu(30) = -1 (2*3*5), mu(4) = 0 (2^2)
+    if (NumberTheory.mobius(1) != 1) {
+        io::println("FAIL: NumberTheory.mobius(1)");
+    } else {
+        io::println("PASS: NumberTheory.mobius(1) = 1");
+    }
+    if (NumberTheory.mobius(2) != -1) {
+        io::println("FAIL: NumberTheory.mobius(2)");
+    } else {
+        io::println("PASS: NumberTheory.mobius(2) = -1");
+    }
+    if (NumberTheory.mobius(6) != 1) {
+        io::println("FAIL: NumberTheory.mobius(6)");
+    } else {
+        io::println("PASS: NumberTheory.mobius(6) = 1");
+    }
+    if (NumberTheory.mobius(30) != -1) {
+        io::println("FAIL: NumberTheory.mobius(30)");
+    } else {
+        io::println("PASS: NumberTheory.mobius(30) = -1");
+    }
+    if (NumberTheory.mobius(4) != 0) {
+        io::println("FAIL: NumberTheory.mobius(4)");
+    } else {
+        io::println("PASS: NumberTheory.mobius(4) = 0");
+    }
+}
+
+public fn test_numbertheory_extendedGcd_modularInverse(): void {
+    // gcd(30, 12) = 6; 30*(-1) + 12*3 = -30 + 36 = 6 (one valid solution)
+    let r: ArrayList<int> = NumberTheory.extendedGcd(30, 12);
+    if (r.get(0) != 6) {
+        io::println("FAIL: NumberTheory.extendedGcd(30,12) gcd");
+    } else {
+        io::println("PASS: NumberTheory.extendedGcd(30,12) gcd = 6");
+    }
+    // Verify Bezout: a*x + b*y = gcd
+    let a: int = 30;
+    let b: int = 12;
+    let g: int = r.get(0);
+    let x: int = r.get(1);
+    let y: int = r.get(2);
+    if (a * x + b * y != g) {
+        io::println("FAIL: NumberTheory.extendedGcd Bezout identity");
+    } else {
+        io::println("PASS: NumberTheory.extendedGcd Bezout identity holds");
+    }
+    // modularInverse(3, 11) = 4 since 3*4 = 12 = 1 mod 11
+    if (NumberTheory.modularInverse(3, 11) != 4) {
+        io::println("FAIL: NumberTheory.modularInverse(3,11)");
+    } else {
+        io::println("PASS: NumberTheory.modularInverse(3,11) = 4");
+    }
+    // modularInverse(2, 4) = -1 since gcd(2,4) != 1
+    if (NumberTheory.modularInverse(2, 4) != -1) {
+        io::println("FAIL: NumberTheory.modularInverse(2,4) should be -1");
+    } else {
+        io::println("PASS: NumberTheory.modularInverse(2,4) = -1");
+    }
+}
+
+public fn test_numbertheory_chineseRemainder(): void {
+    // x = 2 (mod 3), x = 3 (mod 5), x = 2 (mod 7) -> x = 23 (mod 105)
+    let remainders: ArrayList<int> = new ArrayList<int>();
+    remainders.add(2);
+    remainders.add(3);
+    remainders.add(2);
+    let moduli: ArrayList<int> = new ArrayList<int>();
+    moduli.add(3);
+    moduli.add(5);
+    moduli.add(7);
+    let x: int = NumberTheory.chineseRemainder(remainders, moduli);
+    if (x != 23) {
+        io::println("FAIL: NumberTheory.chineseRemainder = " + Integer.toString(x));
+    } else {
+        io::println("PASS: NumberTheory.chineseRemainder = 23");
+    }
+}
+
+public fn test_numbertheory_legendre_jacobi(): void {
+    // Legendre (a|p): (2|7) = 1 since 2 is QR mod 7 (3^2=9=2)
+    if (NumberTheory.legendreSymbol(2, 7) != 1) {
+        io::println("FAIL: NumberTheory.legendreSymbol(2,7)");
+    } else {
+        io::println("PASS: NumberTheory.legendreSymbol(2,7) = 1");
+    }
+    // (3|7) = -1 since 3 is not a QR mod 7
+    if (NumberTheory.legendreSymbol(3, 7) != -1) {
+        io::println("FAIL: NumberTheory.legendreSymbol(3,7)");
+    } else {
+        io::println("PASS: NumberTheory.legendreSymbol(3,7) = -1");
+    }
+    // Jacobi (1|n) = 1
+    if (NumberTheory.jacobiSymbol(1, 15) != 1) {
+        io::println("FAIL: NumberTheory.jacobiSymbol(1,15)");
+    } else {
+        io::println("PASS: NumberTheory.jacobiSymbol(1,15) = 1");
+    }
+}
+
+public fn test_numbertheory_isCarmichael(): void {
+    // 561 is the smallest Carmichael number
+    if (!NumberTheory.isCarmichael(561)) {
+        io::println("FAIL: NumberTheory.isCarmichael(561)");
+    } else {
+        io::println("PASS: NumberTheory.isCarmichael(561) = true");
+    }
+    // Primes are not Carmichael
+    if (NumberTheory.isCarmichael(17)) {
+        io::println("FAIL: NumberTheory.isCarmichael(17) should be false");
+    } else {
+        io::println("PASS: NumberTheory.isCarmichael(17) = false");
+    }
+    // 15 is not Carmichael (3-1=2 does not divide 14)
+    if (NumberTheory.isCarmichael(15)) {
+        io::println("FAIL: NumberTheory.isCarmichael(15) should be false");
+    } else {
+        io::println("PASS: NumberTheory.isCarmichael(15) = false");
+    }
+}
+
+public fn run_all_number_theory_tests(): void {
+    io::println("=== NumberTheory.tr Tests ===");
+    test_numbertheory_modPow();
+    test_numbertheory_isPrime();
+    test_numbertheory_primeSieve();
+    test_numbertheory_factorize();
+    test_numbertheory_primeFactorization();
+    test_numbertheory_eulerTotient();
+    test_numbertheory_mobius();
+    test_numbertheory_extendedGcd_modularInverse();
+    test_numbertheory_chineseRemainder();
+    test_numbertheory_legendre_jacobi();
+    test_numbertheory_isCarmichael();
+}
