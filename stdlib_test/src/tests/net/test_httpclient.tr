@@ -1,0 +1,121 @@
+// Test file for HttpClient.tr
+// Exercises the public API of HttpResponse, HttpException, BadStatusLine,
+// RemoteDisconnected, and HttpClient (configuration methods).
+import tt::net::HttpClient;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_httpresponse_construction_accessors(): void {
+    let headers: HashMap<string, string> = new HashMap<string, string>();
+    headers.put("Content-Type", "text/plain");
+    let resp: HttpResponse = new HttpResponse(200, headers, "hello");
+    if (resp.getStatusCode() != 200) {
+        io::println("FAIL: HttpResponse.getStatusCode = " + Integer.toString(resp.getStatusCode()));
+    } else {
+        io::println("PASS: HttpResponse.getStatusCode works");
+    }
+    if (resp.getBody() != "hello") {
+        io::println("FAIL: HttpResponse.getBody = " + resp.getBody());
+    } else {
+        io::println("PASS: HttpResponse.getBody works");
+    }
+    if (resp.getReason() != "") {
+        io::println("FAIL: HttpResponse.getReason default = " + resp.getReason());
+    } else {
+        io::println("PASS: HttpResponse.getReason default empty");
+    }
+    resp.setReason("OK");
+    if (resp.getReason() != "OK") {
+        io::println("FAIL: HttpResponse.getReason after set = " + resp.getReason());
+    } else {
+        io::println("PASS: HttpResponse.setReason works");
+    }
+    let got: HashMap<string, string> = resp.getHeaders();
+    if (got.get("Content-Type") != "text/plain") {
+        io::println("FAIL: HttpResponse.getHeaders missing Content-Type");
+    } else {
+        io::println("PASS: HttpResponse.getHeaders works");
+    }
+}
+
+public fn test_httpresponse_toString(): void {
+    let headers: HashMap<string, string> = new HashMap<string, string>();
+    let resp: HttpResponse = new HttpResponse(404, headers, "not found");
+    let s: string = resp.toString();
+    if (String.indexOf(s, "404") < 0 || String.indexOf(s, "not found") < 0) {
+        io::println("FAIL: HttpResponse.toString = " + s);
+    } else {
+        io::println("PASS: HttpResponse.toString contains status and body");
+    }
+}
+
+public fn test_httpexception_accessors(): void {
+    let ex: HttpException = new HttpException("boom");
+    if (ex.getMessage() != "boom") {
+        io::println("FAIL: HttpException.getMessage = " + ex.getMessage());
+    } else {
+        io::println("PASS: HttpException.getMessage works");
+    }
+    let s: string = ex.toString();
+    if (String.indexOf(s, "boom") < 0 || String.indexOf(s, "HttpException") < 0) {
+        io::println("FAIL: HttpException.toString = " + s);
+    } else {
+        io::println("PASS: HttpException.toString works");
+    }
+}
+
+public fn test_badstatusline_accessors(): void {
+    let bsl: BadStatusLine = new BadStatusLine("HTTP/9 200 OK");
+    if (bsl.getLine() != "HTTP/9 200 OK") {
+        io::println("FAIL: BadStatusLine.getLine = " + bsl.getLine());
+    } else {
+        io::println("PASS: BadStatusLine.getLine works");
+    }
+    if (String.indexOf(bsl.getMessage(), "HTTP/9 200 OK") < 0) {
+        io::println("FAIL: BadStatusLine.getMessage = " + bsl.getMessage());
+    } else {
+        io::println("PASS: BadStatusLine.getMessage works");
+    }
+    if (String.indexOf(bsl.toString(), "HTTP/9 200 OK") < 0) {
+        io::println("FAIL: BadStatusLine.toString = " + bsl.toString());
+    } else {
+        io::println("PASS: BadStatusLine.toString works");
+    }
+}
+
+public fn test_remotedisconnected_accessors(): void {
+    let rd: RemoteDisconnected = new RemoteDisconnected("peer closed");
+    if (String.indexOf(rd.getMessage(), "peer closed") < 0) {
+        io::println("FAIL: RemoteDisconnected.getMessage = " + rd.getMessage());
+    } else {
+        io::println("PASS: RemoteDisconnected.getMessage works");
+    }
+    if (String.indexOf(rd.toString(), "RemoteDisconnected") < 0) {
+        io::println("FAIL: RemoteDisconnected.toString = " + rd.toString());
+    } else {
+        io::println("PASS: RemoteDisconnected.toString works");
+    }
+}
+
+public fn test_httpclient_init_defaults(): void {
+    let client: HttpClient = new HttpClient();
+    // Configuration setters should not throw; verify they execute.
+    client.setHeader("Accept", "application/json");
+    client.setHeader("X-Custom", "abc");
+    client.setTimeout(5000);
+    client.setFollowRedirects(false);
+    client.setFollowRedirects(true);
+    client.setUserAgent("TestAgent/2.0");
+    io::println("PASS: HttpClient configuration setters execute");
+}
+
+public fn run_all_httpclient_tests(): void {
+    io::println("=== HttpClient.tr Tests ===");
+    test_httpresponse_construction_accessors();
+    test_httpresponse_toString();
+    test_httpexception_accessors();
+    test_badstatusline_accessors();
+    test_remotedisconnected_accessors();
+    test_httpclient_init_defaults();
+}
