@@ -1,0 +1,210 @@
+// Test file for UrlBuilder.tr
+// Exercises the public API of the Url class and the module-level URL
+// utility functions (parseUrl, urlJoin, urlNormalize, urlEncode, urlDecode).
+import tt::net::UrlBuilder;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_url_builder_basic(): void {
+    let url: Url = new Url();
+    url.withScheme("https");
+    url.withHost("example.com");
+    url.withPath("/api/v1");
+    let built: string = url.build();
+    if (built != "https://example.com/api/v1") {
+        io::println("FAIL: Url.build basic = " + built);
+    } else {
+        io::println("PASS: Url.build basic works");
+    }
+}
+
+public fn test_url_builder_with_port(): void {
+    let url: Url = new Url();
+    url.withScheme("http");
+    url.withHost("localhost");
+    url.withPort(8080);
+    url.withPath("search");
+    let built: string = url.build();
+    if (built != "http://localhost:8080/search") {
+        io::println("FAIL: Url.build with port = " + built);
+    } else {
+        io::println("PASS: Url.build with port works");
+    }
+}
+
+public fn test_url_builder_default_port_omitted(): void {
+    let url: Url = new Url();
+    url.withScheme("http");
+    url.withHost("example.com");
+    url.withPort(80);
+    let built: string = url.build();
+    if (built != "http://example.com") {
+        io::println("FAIL: Url.build default http port = " + built);
+    } else {
+        io::println("PASS: Url.build omits default http port");
+    }
+    let url2: Url = new Url();
+    url2.withScheme("https");
+    url2.withHost("example.com");
+    url2.withPort(443);
+    if (url2.build() != "https://example.com") {
+        io::println("FAIL: Url.build default https port = " + url2.build());
+    } else {
+        io::println("PASS: Url.build omits default https port");
+    }
+}
+
+public fn test_url_builder_query_fragment(): void {
+    let url: Url = new Url();
+    url.withScheme("https");
+    url.withHost("example.com");
+    url.withQuery("q", "hello world");
+    url.withQuery("page", "1");
+    url.withFragment("top");
+    let built: string = url.build();
+    // Query params order depends on HashMap iteration; check components.
+    if (String.indexOf(built, "https://example.com?") != 0) {
+        io::println("FAIL: Url.build query prefix = " + built);
+    } else if (String.indexOf(built, "q=hello%20world") < 0) {
+        io::println("FAIL: Url.build query encoding = " + built);
+    } else if (String.indexOf(built, "page=1") < 0) {
+        io::println("FAIL: Url.build second query = " + built);
+    } else if (String.indexOf(built, "#top") < 0) {
+        io::println("FAIL: Url.build fragment = " + built);
+    } else {
+        io::println("PASS: Url.build query and fragment works");
+    }
+}
+
+public fn test_url_builder_userinfo(): void {
+    let url: Url = new Url();
+    url.withScheme("https");
+    url.withUserInfo("user:pass");
+    url.withHost("example.com");
+    let built: string = url.build();
+    if (built != "https://user:pass@example.com") {
+        io::println("FAIL: Url.build userinfo = " + built);
+    } else {
+        io::println("PASS: Url.build userinfo works");
+    }
+}
+
+public fn test_url_toString_equals_build(): void {
+    let url: Url = new Url();
+    url.withScheme("ftp");
+    url.withHost("files.example.com");
+    if (url.toString() != url.build()) {
+        io::println("FAIL: Url.toString should equal build()");
+    } else {
+        io::println("PASS: Url.toString equals build()");
+    }
+}
+
+public fn test_parseUrl_basic(): void {
+    let parsed: Url = parseUrl("https://example.com:8443/path/to/resource?q=1#frag");
+    if (parsed.scheme != "https") {
+        io::println("FAIL: parseUrl scheme = " + parsed.scheme);
+    } else {
+        io::println("PASS: parseUrl scheme works");
+    }
+    if (parsed.host != "example.com") {
+        io::println("FAIL: parseUrl host = " + parsed.host);
+    } else {
+        io::println("PASS: parseUrl host works");
+    }
+    if (parsed.port != 8443) {
+        io::println("FAIL: parseUrl port = " + Integer.toString(parsed.port));
+    } else {
+        io::println("PASS: parseUrl port works");
+    }
+    if (parsed.path != "/path/to/resource") {
+        io::println("FAIL: parseUrl path = " + parsed.path);
+    } else {
+        io::println("PASS: parseUrl path works");
+    }
+    if (parsed.fragment != "frag") {
+        io::println("FAIL: parseUrl fragment = " + parsed.fragment);
+    } else {
+        io::println("PASS: parseUrl fragment works");
+    }
+}
+
+public fn test_parseUrl_query(): void {
+    let parsed: Url = parseUrl("http://host/?a=1&b=2");
+    if (parsed.query.get("a") != "1" || parsed.query.get("b") != "2") {
+        io::println("FAIL: parseUrl query a=" + parsed.query.get("a") + " b=" + parsed.query.get("b"));
+    } else {
+        io::println("PASS: parseUrl query works");
+    }
+}
+
+public fn test_urlEncode_urlDecode(): void {
+    let encoded: string = urlEncode("hello world&foo=bar");
+    if (encoded != "hello%20world%26foo%3Dbar") {
+        io::println("FAIL: urlEncode = " + encoded);
+    } else {
+        io::println("PASS: urlEncode works");
+    }
+    let decoded: string = urlDecode("hello%20world%26foo%3Dbar");
+    if (decoded != "hello world&foo=bar") {
+        io::println("FAIL: urlDecode = " + decoded);
+    } else {
+        io::println("PASS: urlDecode works");
+    }
+    // urlDecode converts '+' to space
+    let plus: string = urlDecode("a+b");
+    if (plus != "a b") {
+        io::println("FAIL: urlDecode plus = " + plus);
+    } else {
+        io::println("PASS: urlDecode converts + to space");
+    }
+}
+
+public fn test_urlJoin(): void {
+    let j1: string = urlJoin("https://example.com/api/", "users");
+    if (j1 != "https://example.com/api/users") {
+        io::println("FAIL: urlJoin relative = " + j1);
+    } else {
+        io::println("PASS: urlJoin relative works");
+    }
+    let j2: string = urlJoin("https://example.com/api/v1", "/v2/items");
+    if (j2 != "https://example.com/v2/items") {
+        io::println("FAIL: urlJoin absolute = " + j2);
+    } else {
+        io::println("PASS: urlJoin absolute works");
+    }
+    let j3: string = urlJoin("https://example.com/", "https://other.com/x");
+    if (j3 != "https://other.com/x") {
+        io::println("FAIL: urlJoin full url = " + j3);
+    } else {
+        io::println("PASS: urlJoin full url works");
+    }
+}
+
+public fn test_urlNormalize(): void {
+    let n1: string = urlNormalize("http://example.com:80/a//b/../c");
+    if (String.indexOf(n1, ":80") >= 0) {
+        io::println("FAIL: urlNormalize should remove default port = " + n1);
+    } else if (String.indexOf(n1, "//") >= 0) {
+        io::println("FAIL: urlNormalize should collapse slashes = " + n1);
+    } else if (String.indexOf(n1, "..") >= 0) {
+        io::println("FAIL: urlNormalize should resolve dot segments = " + n1);
+    } else {
+        io::println("PASS: urlNormalize works, result = " + n1);
+    }
+}
+
+public fn run_all_urlbuilder_tests(): void {
+    io::println("=== UrlBuilder.tr Tests ===");
+    test_url_builder_basic();
+    test_url_builder_with_port();
+    test_url_builder_default_port_omitted();
+    test_url_builder_query_fragment();
+    test_url_builder_userinfo();
+    test_url_toString_equals_build();
+    test_parseUrl_basic();
+    test_parseUrl_query();
+    test_urlEncode_urlDecode();
+    test_urlJoin();
+    test_urlNormalize();
+}
