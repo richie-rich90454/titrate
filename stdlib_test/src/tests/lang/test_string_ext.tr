@@ -1,0 +1,267 @@
+// Test file for StringExt.tr
+// Exercises the public API of the StringExt module.
+import tt::lang::StringExt;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public fn test_splitWithLimit(): void {
+    let parts: ArrayList<string> = StringExt.splitWithLimit("a,b,c,d", ",", 2);
+    if (parts.size() != 2 || parts.get(0) != "a" || parts.get(1) != "b,c,d") {
+        io::println("FAIL: StringExt.splitWithLimit size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: StringExt.splitWithLimit");
+    }
+}
+
+public fn test_splitWithLimit_one(): void {
+    let parts: ArrayList<string> = StringExt.splitWithLimit("a,b,c", ",", 1);
+    if (parts.size() != 1 || parts.get(0) != "a,b,c") {
+        io::println("FAIL: StringExt.splitWithLimit one");
+    } else {
+        io::println("PASS: StringExt.splitWithLimit one");
+    }
+}
+
+public fn test_rsplit(): void {
+    let parts: ArrayList<string> = StringExt.rsplit("a,b,c,d", ",", 2);
+    if (parts.size() != 2 || parts.get(0) != "a,b,c" || parts.get(1) != "d") {
+        io::println("FAIL: StringExt.rsplit size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: StringExt.rsplit");
+    }
+}
+
+public fn test_partition_found(): void {
+    let parts: ArrayList<string> = StringExt.partition("a,b,c", ",");
+    if (parts.size() != 3 || parts.get(0) != "a" || parts.get(1) != "," || parts.get(2) != "b,c") {
+        io::println("FAIL: StringExt.partition found");
+    } else {
+        io::println("PASS: StringExt.partition found");
+    }
+}
+
+public fn test_partition_notFound(): void {
+    let parts: ArrayList<string> = StringExt.partition("abc", ",");
+    if (parts.size() != 3 || parts.get(0) != "abc" || parts.get(1) != "" || parts.get(2) != "") {
+        io::println("FAIL: StringExt.partition notFound");
+    } else {
+        io::println("PASS: StringExt.partition notFound");
+    }
+}
+
+public fn test_rpartition_found(): void {
+    let parts: ArrayList<string> = StringExt.rpartition("a,b,c", ",");
+    if (parts.size() != 3 || parts.get(0) != "a,b" || parts.get(1) != "," || parts.get(2) != "c") {
+        io::println("FAIL: StringExt.rpartition found");
+    } else {
+        io::println("PASS: StringExt.rpartition found");
+    }
+}
+
+public fn test_center(): void {
+    let result: string = StringExt.center("hi", 6, "-");
+    if (result != "--hi--") {
+        io::println("FAIL: StringExt.center = " + result);
+    } else {
+        io::println("PASS: StringExt.center = --hi--");
+    }
+}
+
+public fn test_ljust(): void {
+    let result: string = StringExt.ljust("hi", 5, "-");
+    if (result != "hi---") {
+        io::println("FAIL: StringExt.ljust = " + result);
+    } else {
+        io::println("PASS: StringExt.ljust = hi---");
+    }
+}
+
+public fn test_rjust(): void {
+    let result: string = StringExt.rjust("hi", 5, "-");
+    if (result != "---hi") {
+        io::println("FAIL: StringExt.rjust = " + result);
+    } else {
+        io::println("PASS: StringExt.rjust = ---hi");
+    }
+}
+
+public fn test_zfill(): void {
+    let result: string = StringExt.zfill("42", 5);
+    if (result != "00042") {
+        io::println("FAIL: StringExt.zfill = " + result);
+    } else {
+        io::println("PASS: StringExt.zfill = 00042");
+    }
+}
+
+public fn test_zfill_negative(): void {
+    let result: string = StringExt.zfill("-42", 5);
+    if (result != "-0042") {
+        io::println("FAIL: StringExt.zfill negative = " + result);
+    } else {
+        io::println("PASS: StringExt.zfill negative = -0042");
+    }
+}
+
+public fn test_swapcase(): void {
+    let result: string = StringExt.swapcase("Hello World");
+    if (result != "hELLO wORLD") {
+        io::println("FAIL: StringExt.swapcase = " + result);
+    } else {
+        io::println("PASS: StringExt.swapcase = hELLO wORLD");
+    }
+}
+
+public fn test_title(): void {
+    let result: string = StringExt.title("hello world");
+    if (result != "Hello World") {
+        io::println("FAIL: StringExt.title = " + result);
+    } else {
+        io::println("PASS: StringExt.title = Hello World");
+    }
+}
+
+public fn test_capitalize(): void {
+    let result: string = StringExt.capitalize("hello WORLD");
+    if (result != "Hello world") {
+        io::println("FAIL: StringExt.capitalize = " + result);
+    } else {
+        io::println("PASS: StringExt.capitalize = Hello world");
+    }
+}
+
+public fn test_isAlpha(): void {
+    if (!StringExt.isAlpha("hello") || StringExt.isAlpha("hello1")) {
+        io::println("FAIL: StringExt.isAlpha");
+    } else {
+        io::println("PASS: StringExt.isAlpha");
+    }
+}
+
+public fn test_isDigit(): void {
+    if (!StringExt.isDigit("123") || StringExt.isDigit("12a")) {
+        io::println("FAIL: StringExt.isDigit");
+    } else {
+        io::println("PASS: StringExt.isDigit");
+    }
+}
+
+public fn test_isSpace(): void {
+    if (!StringExt.isSpace("   \t\n") || StringExt.isSpace("  x ")) {
+        io::println("FAIL: StringExt.isSpace");
+    } else {
+        io::println("PASS: StringExt.isSpace");
+    }
+}
+
+public fn test_isUpper(): void {
+    if (!StringExt.isUpper("HELLO") || StringExt.isUpper("Hello")) {
+        io::println("FAIL: StringExt.isUpper");
+    } else {
+        io::println("PASS: StringExt.isUpper");
+    }
+}
+
+public fn test_isLower(): void {
+    if (!StringExt.isLower("hello") || StringExt.isLower("Hello")) {
+        io::println("FAIL: StringExt.isLower");
+    } else {
+        io::println("PASS: StringExt.isLower");
+    }
+}
+
+public fn test_join(): void {
+    let parts: ArrayList<string> = new ArrayList<string>();
+    parts.add("x");
+    parts.add("y");
+    parts.add("z");
+    let result: string = StringExt.join("-", parts);
+    if (result != "x-y-z") {
+        io::println("FAIL: StringExt.join = " + result);
+    } else {
+        io::println("PASS: StringExt.join = x-y-z");
+    }
+}
+
+public fn test_repeat(): void {
+    let result: string = StringExt.repeat("ab", 3);
+    if (result != "ababab") {
+        io::println("FAIL: StringExt.repeat = " + result);
+    } else {
+        io::println("PASS: StringExt.repeat = ababab");
+    }
+}
+
+public fn test_startsWith(): void {
+    if (!StringExt.startsWith("hello", "he") || StringExt.startsWith("hello", "world")) {
+        io::println("FAIL: StringExt.startsWith");
+    } else {
+        io::println("PASS: StringExt.startsWith");
+    }
+}
+
+public fn test_endsWith(): void {
+    if (!StringExt.endsWith("hello", "lo") || StringExt.endsWith("hello", "he")) {
+        io::println("FAIL: StringExt.endsWith");
+    } else {
+        io::println("PASS: StringExt.endsWith");
+    }
+}
+
+public fn test_removePrefix(): void {
+    let result: string = StringExt.removePrefix("HelloWorld", "Hello");
+    if (result != "World") {
+        io::println("FAIL: StringExt.removePrefix = " + result);
+    } else {
+        io::println("PASS: StringExt.removePrefix = World");
+    }
+}
+
+public fn test_removeSuffix(): void {
+    let result: string = StringExt.removeSuffix("HelloWorld", "World");
+    if (result != "Hello") {
+        io::println("FAIL: StringExt.removeSuffix = " + result);
+    } else {
+        io::println("PASS: StringExt.removeSuffix = Hello");
+    }
+}
+
+public fn test_orEmpty_notNull(): void {
+    let result: string = StringExt.orEmpty("hi");
+    if (result != "hi") {
+        io::println("FAIL: StringExt.orEmpty notNull");
+    } else {
+        io::println("PASS: StringExt.orEmpty notNull");
+    }
+}
+
+public fn run_all_string_ext_tests(): void {
+    io::println("=== StringExt.tr Tests ===");
+    test_splitWithLimit();
+    test_splitWithLimit_one();
+    test_rsplit();
+    test_partition_found();
+    test_partition_notFound();
+    test_rpartition_found();
+    test_center();
+    test_ljust();
+    test_rjust();
+    test_zfill();
+    test_zfill_negative();
+    test_swapcase();
+    test_title();
+    test_capitalize();
+    test_isAlpha();
+    test_isDigit();
+    test_isSpace();
+    test_isUpper();
+    test_isLower();
+    test_join();
+    test_repeat();
+    test_startsWith();
+    test_endsWith();
+    test_removePrefix();
+    test_removeSuffix();
+    test_orEmpty_notNull();
+}
