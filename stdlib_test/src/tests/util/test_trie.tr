@@ -1,0 +1,218 @@
+// Test file for Trie.tr
+// Exercises the public API of the Trie class (prefix tree).
+import tt::util::Trie;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_trie_insert_search(): void {
+    let trie: Trie = new Trie();
+    trie.insert("hello");
+    trie.insert("world");
+    if (!trie.search("hello") || !trie.search("world")) {
+        io::println("FAIL: Trie.insert/search");
+    } else {
+        io::println("PASS: Trie.insert/search works");
+    }
+}
+
+public fn test_trie_search_missing(): void {
+    let trie: Trie = new Trie();
+    trie.insert("hello");
+    if (trie.search("hell") || trie.search("helloo") || trie.search("xyz")) {
+        io::println("FAIL: Trie.search missing");
+    } else {
+        io::println("PASS: Trie.search missing returns false");
+    }
+}
+
+public fn test_trie_startsWith(): void {
+    let trie: Trie = new Trie();
+    trie.insert("apple");
+    trie.insert("app");
+    if (!trie.startsWith("app") || !trie.startsWith("apple") || trie.startsWith("apt")) {
+        io::println("FAIL: Trie.startsWith");
+    } else {
+        io::println("PASS: Trie.startsWith works");
+    }
+}
+
+public fn test_trie_startsWith_empty(): void {
+    let trie: Trie = new Trie();
+    trie.insert("a");
+    // empty prefix should match the root
+    if (!trie.startsWith("")) {
+        io::println("FAIL: Trie.startsWith empty");
+    } else {
+        io::println("PASS: Trie.startsWith empty works");
+    }
+}
+
+public fn test_trie_size(): void {
+    let trie: Trie = new Trie();
+    trie.insert("a");
+    trie.insert("b");
+    trie.insert("c");
+    if (trie.size() != 3) {
+        io::println("FAIL: Trie.size = " + Integer.toString(trie.size()));
+    } else {
+        io::println("PASS: Trie.size works");
+    }
+}
+
+public fn test_trie_isEmpty(): void {
+    let trie: Trie = new Trie();
+    if (!trie.isEmpty()) {
+        io::println("FAIL: Trie.isEmpty new");
+    } else {
+        io::println("PASS: Trie.isEmpty new");
+    }
+    trie.insert("x");
+    if (trie.isEmpty()) {
+        io::println("FAIL: Trie.isEmpty after insert");
+    } else {
+        io::println("PASS: Trie.isEmpty after insert");
+    }
+}
+
+public fn test_trie_delete(): void {
+    let trie: Trie = new Trie();
+    trie.insert("hello");
+    let removed: bool = trie.delete("hello");
+    if (!removed || trie.search("hello") || trie.size() != 0) {
+        io::println("FAIL: Trie.delete");
+    } else {
+        io::println("PASS: Trie.delete works");
+    }
+}
+
+public fn test_trie_delete_missing(): void {
+    let trie: Trie = new Trie();
+    trie.insert("hello");
+    let removed: bool = trie.delete("world");
+    if (removed || trie.size() != 1) {
+        io::println("FAIL: Trie.delete missing");
+    } else {
+        io::println("PASS: Trie.delete missing returns false");
+    }
+}
+
+public fn test_trie_autoComplete(): void {
+    let trie: Trie = new Trie();
+    trie.insert("app");
+    trie.insert("apple");
+    trie.insert("application");
+    trie.insert("banana");
+    let results: ArrayList<string> = trie.autoComplete("app");
+    if (results.size() != 3) {
+        io::println("FAIL: Trie.autoComplete size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: Trie.autoComplete works");
+    }
+}
+
+public fn test_trie_autoComplete_no_match(): void {
+    let trie: Trie = new Trie();
+    trie.insert("hello");
+    let results: ArrayList<string> = trie.autoComplete("xyz");
+    if (results.size() != 0) {
+        io::println("FAIL: Trie.autoComplete no match");
+    } else {
+        io::println("PASS: Trie.autoComplete no match works");
+    }
+}
+
+public fn test_trie_keysWithPrefix(): void {
+    let trie: Trie = new Trie();
+    trie.insert("car");
+    trie.insert("card");
+    trie.insert("care");
+    trie.insert("dog");
+    let results: ArrayList<string> = trie.keysWithPrefix("car");
+    if (results.size() != 3) {
+        io::println("FAIL: Trie.keysWithPrefix size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: Trie.keysWithPrefix works");
+    }
+}
+
+public fn test_trie_longestPrefixOf(): void {
+    let trie: Trie = new Trie();
+    trie.insert("app");
+    trie.insert("apple");
+    let lp: string = trie.longestPrefixOf("appletree");
+    if (lp != "apple") {
+        io::println("FAIL: Trie.longestPrefixOf = " + lp);
+    } else {
+        io::println("PASS: Trie.longestPrefixOf works");
+    }
+}
+
+public fn test_trie_keys(): void {
+    let trie: Trie = new Trie();
+    trie.insert("a");
+    trie.insert("b");
+    trie.insert("c");
+    let keys: ArrayList<string> = trie.keys();
+    if (keys.size() != 3) {
+        io::println("FAIL: Trie.keys size=" + Integer.toString(keys.size()));
+    } else {
+        io::println("PASS: Trie.keys works");
+    }
+}
+
+public fn test_trie_clear(): void {
+    let trie: Trie = new Trie();
+    trie.insert("a");
+    trie.insert("b");
+    trie.clear();
+    if (!trie.isEmpty() || trie.size() != 0) {
+        io::println("FAIL: Trie.clear");
+    } else {
+        io::println("PASS: Trie.clear works");
+    }
+}
+
+public fn test_trie_insert_duplicate(): void {
+    let trie: Trie = new Trie();
+    trie.insert("hello");
+    trie.insert("hello");
+    if (trie.size() != 1) {
+        io::println("FAIL: Trie.insert duplicate size=" + Integer.toString(trie.size()));
+    } else {
+        io::println("PASS: Trie.insert duplicate ignored");
+    }
+}
+
+public fn test_trie_prefix_sharing(): void {
+    let trie: Trie = new Trie();
+    trie.insert("the");
+    trie.insert("there");
+    trie.insert("therefore");
+    if (!trie.search("the") || !trie.search("there") || !trie.search("therefore")) {
+        io::println("FAIL: Trie prefix sharing");
+    } else if (trie.search("ther")) {
+        io::println("FAIL: Trie prefix sharing false positive");
+    } else {
+        io::println("PASS: Trie prefix sharing works");
+    }
+}
+
+public fn run_all_trie_tests(): void {
+    io::println("=== Trie.tr Tests ===");
+    test_trie_insert_search();
+    test_trie_search_missing();
+    test_trie_startsWith();
+    test_trie_startsWith_empty();
+    test_trie_size();
+    test_trie_isEmpty();
+    test_trie_delete();
+    test_trie_delete_missing();
+    test_trie_autoComplete();
+    test_trie_autoComplete_no_match();
+    test_trie_keysWithPrefix();
+    test_trie_longestPrefixOf();
+    test_trie_keys();
+    test_trie_clear();
+    test_trie_insert_duplicate();
+    test_trie_prefix_sharing();
+}
