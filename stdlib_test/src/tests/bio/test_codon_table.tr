@@ -1,0 +1,147 @@
+// Test file for bio/CodonTable.tr
+// Exercises codon lookup, start/stop codons, translation, table queries.
+import tt::bio::CodonTable;
+import tt::lang::Integer;
+
+public fn test_lookup(): void {
+    // ATG is the start codon (Methionine)
+    let aa: string = CodonTable.lookup("ATG");
+    if (aa == "???") {
+        io::println("FAIL: lookup('ATG') returned unknown");
+    } else {
+        io::println("PASS: lookup('ATG') = " + aa);
+    }
+}
+
+public fn test_lookup_single_letter(): void {
+    let aa: string = CodonTable.lookupSingleLetter("ATG");
+    if (aa == "?") {
+        io::println("FAIL: lookupSingleLetter('ATG') returned unknown");
+    } else {
+        io::println("PASS: lookupSingleLetter('ATG') = " + aa);
+    }
+}
+
+public fn test_lookup_unknown_codon(): void {
+    let aa: string = CodonTable.lookup("XYZ");
+    if (aa != "???") {
+        io::println("FAIL: lookup unknown should return '???'");
+    } else {
+        io::println("PASS: lookup unknown returns '???'");
+    }
+}
+
+public fn test_is_start_codon(): void {
+    // ATG is a start codon
+    let isStart: bool = CodonTable.isStartCodon("ATG");
+    if (!isStart) {
+        io::println("FAIL: isStartCodon('ATG') expected true");
+    } else {
+        io::println("PASS: isStartCodon('ATG') = true");
+    }
+    // AAA is not a start codon
+    let isStart2: bool = CodonTable.isStartCodon("AAA");
+    if (isStart2) {
+        io::println("FAIL: isStartCodon('AAA') expected false");
+    } else {
+        io::println("PASS: isStartCodon('AAA') = false");
+    }
+}
+
+public fn test_is_stop_codon(): void {
+    // TAA, TAG, TGA are stop codons
+    let isStop: bool = CodonTable.isStopCodon("TAA");
+    if (!isStop) {
+        io::println("FAIL: isStopCodon('TAA') expected true");
+    } else {
+        io::println("PASS: isStopCodon('TAA') = true");
+    }
+    // ATG is not a stop codon
+    let isStop2: bool = CodonTable.isStopCodon("ATG");
+    if (isStop2) {
+        io::println("FAIL: isStopCodon('ATG') expected false");
+    } else {
+        io::println("PASS: isStopCodon('ATG') = false");
+    }
+}
+
+public fn test_is_start_alias(): void {
+    let r1: bool = CodonTable.isStart("ATG");
+    let r2: bool = CodonTable.isStartCodon("ATG");
+    if (r1 != r2) {
+        io::println("FAIL: isStart should equal isStartCodon");
+    } else {
+        io::println("PASS: isStart = isStartCodon");
+    }
+}
+
+public fn test_is_stop_alias(): void {
+    let r1: bool = CodonTable.isStop("TAA");
+    let r2: bool = CodonTable.isStopCodon("TAA");
+    if (r1 != r2) {
+        io::println("FAIL: isStop should equal isStopCodon");
+    } else {
+        io::println("PASS: isStop = isStopCodon");
+    }
+}
+
+public fn test_get_start_codons(): void {
+    let starts = CodonTable.getStartCodons();
+    if (starts.size() == 0) {
+        io::println("FAIL: getStartCodons empty");
+    } else {
+        io::println("PASS: getStartCodons has " + Integer.toString(starts.size()) + " entries");
+    }
+}
+
+public fn test_get_stop_codons(): void {
+    let stops = CodonTable.getStopCodons();
+    if (stops.size() == 0) {
+        io::println("FAIL: getStopCodons empty");
+    } else {
+        io::println("PASS: getStopCodons has " + Integer.toString(stops.size()) + " entries");
+    }
+}
+
+public fn test_available_tables(): void {
+    let tables = CodonTable.availableTables();
+    io::println("PASS: availableTables returns list of size " + Integer.toString(tables.size()));
+}
+
+public fn test_get_codon_table(): void {
+    let table = CodonTable.getCodonTable("standard");
+    io::println("PASS: getCodonTable('standard') returns map of size " + Integer.toString(table.size()));
+}
+
+public fn test_translate(): void {
+    // ATG codes for M, then TTT for F -> "MF"
+    let protein: string = CodonTable.translate("ATGTTT");
+    if (String.length(protein) == 0) {
+        io::println("FAIL: translate empty result");
+    } else {
+        io::println("PASS: translate('ATGTTT') = '" + protein + "'");
+    }
+}
+
+public fn test_translate_with_stops(): void {
+    // ATG TAA ATG -> first ORF: M, then stop, then M
+    let orfs = CodonTable.translateWithStops("ATGTAAATG");
+    io::println("PASS: translateWithStops returns list of size " + Integer.toString(orfs.size()));
+}
+
+public fn run_all_codon_table_tests(): void {
+    io::println("=== bio/CodonTable.tr Tests ===");
+    test_lookup();
+    test_lookup_single_letter();
+    test_lookup_unknown_codon();
+    test_is_start_codon();
+    test_is_stop_codon();
+    test_is_start_alias();
+    test_is_stop_alias();
+    test_get_start_codons();
+    test_get_stop_codons();
+    test_available_tables();
+    test_get_codon_table();
+    test_translate();
+    test_translate_with_stops();
+}
