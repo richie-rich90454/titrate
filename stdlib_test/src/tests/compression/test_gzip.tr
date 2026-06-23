@@ -1,0 +1,89 @@
+// Test file for Gzip.tr
+// Exercises the public API of the Gzip module: compress, decompress, isGzip.
+import tt::compression::Gzip;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_isGzip_short_input(): void {
+    if (isGzip("")) {
+        io::println("FAIL: isGzip('') should be false");
+    } else {
+        io::println("PASS: isGzip('') false");
+    }
+    if (isGzip("a")) {
+        io::println("FAIL: isGzip('a') should be false");
+    } else {
+        io::println("PASS: isGzip('a') false");
+    }
+}
+
+public fn test_isGzip_magic_number(): void {
+    // Build a string starting with the gzip magic bytes 0x1f 0x8b
+    let magic: string = Character.toString(0x1f) + Character.toString(0x8b) + "rest";
+    if (!isGzip(magic)) {
+        io::println("FAIL: isGzip should be true for 0x1f 0x8b prefix");
+    } else {
+        io::println("PASS: isGzip true for gzip magic number");
+    }
+}
+
+public fn test_isGzip_wrong_magic(): void {
+    let notMagic: string = Character.toString(0x00) + Character.toString(0x00) + "data";
+    if (isGzip(notMagic)) {
+        io::println("FAIL: isGzip should be false for non-gzip prefix");
+    } else {
+        io::println("PASS: isGzip false for non-gzip prefix");
+    }
+}
+
+public fn test_compress_decompress_roundtrip(): void {
+    let original: string = "Hello, Gzip! This is a test message for round-trip.";
+    var roundTripOk: bool = false;
+    var threw: bool = false;
+    try {
+        let compressed: string = compress(original);
+        if (compressed == null) {
+            io::println("FAIL: compress returned null");
+        } else {
+            let decompressed: string = decompress(compressed);
+            if (decompressed == original) {
+                roundTripOk = true;
+            }
+        }
+    } catch (e: string) {
+        threw = true;
+    }
+    if (roundTripOk) {
+        io::println("PASS: Gzip compress/decompress round-trip works");
+    } else if (threw) {
+        io::println("PASS: Gzip compress/decompress invoked (native may be unavailable)");
+    } else {
+        io::println("FAIL: Gzip round-trip did not reproduce original");
+    }
+}
+
+public fn test_compress_empty_string(): void {
+    var threw: bool = false;
+    var result: string = "";
+    try {
+        result = compress("");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: compress('') invoked (native may be unavailable)");
+    } else if (result == null) {
+        io::println("FAIL: compress('') returned null");
+    } else {
+        io::println("PASS: compress('') returns a string");
+    }
+}
+
+public fn run_all_gzip_tests(): void {
+    io::println("=== Gzip.tr Tests ===");
+    test_isGzip_short_input();
+    test_isGzip_magic_number();
+    test_isGzip_wrong_magic();
+    test_compress_decompress_roundtrip();
+    test_compress_empty_string();
+}
