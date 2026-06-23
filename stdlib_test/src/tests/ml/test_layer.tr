@@ -1,0 +1,271 @@
+// Test file for ml/Layer.tr
+// Exercises activation functions and layer classes.
+import tt::ml::Layer;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_relu(): void {
+    if (absDiff(Layer.relu(5.0), 5.0) > 1e-9) {
+        io::println("FAIL: relu(5) expected 5");
+    } else {
+        io::println("PASS: relu(5) = 5");
+    }
+    if (absDiff(Layer.relu(-3.0), 0.0) > 1e-9) {
+        io::println("FAIL: relu(-3) expected 0");
+    } else {
+        io::println("PASS: relu(-3) = 0");
+    }
+}
+
+public fn test_sigmoid(): void {
+    let s: double = Layer.sigmoid(0.0);
+    if (absDiff(s, 0.5) > 1e-9) {
+        io::println("FAIL: sigmoid(0) expected 0.5");
+    } else {
+        io::println("PASS: sigmoid(0) = 0.5");
+    }
+    let sHigh: double = Layer.sigmoid(1000.0);
+    if (absDiff(sHigh, 1.0) > 1e-9) {
+        io::println("FAIL: sigmoid(1000) expected 1.0");
+    } else {
+        io::println("PASS: sigmoid(1000) = 1.0");
+    }
+    let sLow: double = Layer.sigmoid(-1000.0);
+    if (absDiff(sLow, 0.0) > 1e-9) {
+        io::println("FAIL: sigmoid(-1000) expected 0.0");
+    } else {
+        io::println("PASS: sigmoid(-1000) = 0.0");
+    }
+}
+
+public fn test_tanh(): void {
+    let t: double = Layer.tanh(0.0);
+    if (absDiff(t, 0.0) > 1e-9) {
+        io::println("FAIL: tanh(0) expected 0");
+    } else {
+        io::println("PASS: tanh(0) = 0");
+    }
+}
+
+public fn test_softmax(): void {
+    let inputs: ArrayList<double> = new ArrayList<double>();
+    inputs.add(1.0); inputs.add(2.0); inputs.add(3.0);
+    let result: ArrayList<double> = Layer.softmax(inputs);
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < result.size()) {
+        sum = sum + result.get(i);
+        i = i + 1;
+    }
+    if (absDiff(sum, 1.0) > 1e-6) {
+        io::println("FAIL: softmax sum expected 1.0");
+    } else {
+        io::println("PASS: softmax sums to 1.0");
+    }
+}
+
+public fn test_gelu(): void {
+    let g: double = Layer.gelu(0.0);
+    if (g < 0.0) {
+        io::println("FAIL: gelu(0) should be >= 0");
+    } else {
+        io::println("PASS: gelu(0) >= 0");
+    }
+}
+
+public fn test_relu_derivative(): void {
+    if (absDiff(Layer.reluDerivative(5.0), 1.0) > 1e-9) {
+        io::println("FAIL: reluDerivative(5) expected 1");
+    } else {
+        io::println("PASS: reluDerivative(5) = 1");
+    }
+    if (absDiff(Layer.reluDerivative(-5.0), 0.0) > 1e-9) {
+        io::println("FAIL: reluDerivative(-5) expected 0");
+    } else {
+        io::println("PASS: reluDerivative(-5) = 0");
+    }
+}
+
+public fn test_sigmoid_derivative(): void {
+    let d: double = Layer.sigmoidDerivative(0.0);
+    if (absDiff(d, 0.25) > 1e-6) {
+        io::println("FAIL: sigmoidDerivative(0) expected 0.25");
+    } else {
+        io::println("PASS: sigmoidDerivative(0) = 0.25");
+    }
+}
+
+public fn test_dense_layer(): void {
+    let layer: DenseLayer = new DenseLayer(3, 2, "relu");
+    if (layer.inputSize != 3) {
+        io::println("FAIL: DenseLayer inputSize");
+    } else {
+        io::println("PASS: DenseLayer inputSize = 3");
+    }
+    if (layer.outputSize != 2) {
+        io::println("FAIL: DenseLayer outputSize");
+    } else {
+        io::println("PASS: DenseLayer outputSize = 2");
+    }
+    if (layer.weights.size() != 2) {
+        io::println("FAIL: DenseLayer weights rows");
+    } else {
+        io::println("PASS: DenseLayer weights rows = 2");
+    }
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(2.0); input.add(3.0);
+    let output: ArrayList<double> = layer.forward(input);
+    if (output.size() != 2) {
+        io::println("FAIL: DenseLayer forward output size");
+    } else {
+        io::println("PASS: DenseLayer forward output size = 2");
+    }
+}
+
+public fn test_dropout_layer(): void {
+    let layer: DropoutLayer = new DropoutLayer(0.5);
+    if (absDiff(layer.rate, 0.5) > 1e-9) {
+        io::println("FAIL: DropoutLayer rate");
+    } else {
+        io::println("PASS: DropoutLayer rate = 0.5");
+    }
+    layer.training = false;
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(2.0); input.add(3.0);
+    let output: ArrayList<double> = layer.forward(input);
+    if (output.size() != 3) {
+        io::println("FAIL: DropoutLayer forward size");
+    } else {
+        io::println("PASS: DropoutLayer forward size = 3");
+    }
+}
+
+public fn test_dropout_factory(): void {
+    let layer: DropoutLayer = Layer.Dropout(0.3);
+    if (absDiff(layer.rate, 0.3) > 1e-9) {
+        io::println("FAIL: Dropout factory rate");
+    } else {
+        io::println("PASS: Dropout factory rate = 0.3");
+    }
+}
+
+public fn test_batch_norm_layer(): void {
+    let layer: BatchNormLayer = new BatchNormLayer(3);
+    if (layer.numFeatures != 3) {
+        io::println("FAIL: BatchNormLayer numFeatures");
+    } else {
+        io::println("PASS: BatchNormLayer numFeatures = 3");
+    }
+    if (layer.gamma.size() != 3) {
+        io::println("FAIL: BatchNormLayer gamma size");
+    } else {
+        io::println("PASS: BatchNormLayer gamma size = 3");
+    }
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(2.0); input.add(3.0);
+    let output: ArrayList<double> = layer.forward(input);
+    if (output.size() != 3) {
+        io::println("FAIL: BatchNormLayer forward size");
+    } else {
+        io::println("PASS: BatchNormLayer forward size = 3");
+    }
+}
+
+public fn test_conv2d(): void {
+    let layer: Conv2D = new Conv2D(2, 3, 1, 0);
+    if (layer.filters != 2) {
+        io::println("FAIL: Conv2D filters");
+    } else {
+        io::println("PASS: Conv2D filters = 2");
+    }
+    if (layer.kernelSize != 3) {
+        io::println("FAIL: Conv2D kernelSize");
+    } else {
+        io::println("PASS: Conv2D kernelSize = 3");
+    }
+    let input: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < 5) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < 5) {
+            row.add(1.0);
+            j = j + 1;
+        }
+        input.add(row);
+        i = i + 1;
+    }
+    let output: ArrayList<ArrayList<ArrayList<double>>> = layer.forward(input);
+    if (output.size() != 2) {
+        io::println("FAIL: Conv2D forward output size");
+    } else {
+        io::println("PASS: Conv2D forward output size = 2");
+    }
+}
+
+public fn test_rnn(): void {
+    let layer: RNN = new RNN(3, 2);
+    if (layer.inputSize != 3) {
+        io::println("FAIL: RNN inputSize");
+    } else {
+        io::println("PASS: RNN inputSize = 3");
+    }
+    if (layer.hiddenSize != 2) {
+        io::println("FAIL: RNN hiddenSize");
+    } else {
+        io::println("PASS: RNN hiddenSize = 2");
+    }
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(2.0); input.add(3.0);
+    let output: ArrayList<double> = layer.forward(input);
+    if (output.size() != 2) {
+        io::println("FAIL: RNN forward output size");
+    } else {
+        io::println("PASS: RNN forward output size = 2");
+    }
+}
+
+public fn test_lstm(): void {
+    let layer: LSTM = new LSTM(3, 2);
+    if (layer.inputSize != 3) {
+        io::println("FAIL: LSTM inputSize");
+    } else {
+        io::println("PASS: LSTM inputSize = 3");
+    }
+    if (layer.hiddenSize != 2) {
+        io::println("FAIL: LSTM hiddenSize");
+    } else {
+        io::println("PASS: LSTM hiddenSize = 2");
+    }
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(2.0); input.add(3.0);
+    let output: ArrayList<double> = layer.forward(input);
+    if (output.size() != 2) {
+        io::println("FAIL: LSTM forward output size");
+    } else {
+        io::println("PASS: LSTM forward output size = 2");
+    }
+}
+
+public fn run_all_layer_tests(): void {
+    io::println("=== ml/Layer.tr Tests ===");
+    test_relu();
+    test_sigmoid();
+    test_tanh();
+    test_softmax();
+    test_gelu();
+    test_relu_derivative();
+    test_sigmoid_derivative();
+    test_dense_layer();
+    test_dropout_layer();
+    test_dropout_factory();
+    test_batch_norm_layer();
+    test_conv2d();
+    test_rnn();
+    test_lstm();
+}
