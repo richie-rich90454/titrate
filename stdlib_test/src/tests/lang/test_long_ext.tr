@@ -1,0 +1,148 @@
+// Test file for LongExt.tr
+// Exercises the public API of the LongExt module.
+import tt::lang::LongExt;
+import tt::lang::Long;
+import tt::lang::Integer;
+
+public fn test_parseLong(): void {
+    let v: long = LongExt.parseLong("42");
+    if (v != 42L) {
+        io::println("FAIL: LongExt.parseLong(42) = " + Long.toString(v));
+    } else {
+        io::println("PASS: LongExt.parseLong(42) = 42");
+    }
+}
+
+public fn test_parseLong_negative(): void {
+    let v: long = LongExt.parseLong("-100");
+    if (v != -100L) {
+        io::println("FAIL: LongExt.parseLong(-100) = " + Long.toString(v));
+    } else {
+        io::println("PASS: LongExt.parseLong(-100) = -100");
+    }
+}
+
+public fn test_divideUnsigned_simple(): void {
+    let v: long = LongExt.divideUnsigned(100L, 10L);
+    if (v != 10L) {
+        io::println("FAIL: LongExt.divideUnsigned(100,10) = " + Long.toString(v));
+    } else {
+        io::println("PASS: LongExt.divideUnsigned(100,10) = 10");
+    }
+}
+
+public fn test_divideUnsigned_smaller(): void {
+    let v: long = LongExt.divideUnsigned(5L, 10L);
+    if (v != 0L) {
+        io::println("FAIL: LongExt.divideUnsigned(5,10) = " + Long.toString(v));
+    } else {
+        io::println("PASS: LongExt.divideUnsigned(5,10) = 0");
+    }
+}
+
+public fn test_remainderUnsigned_simple(): void {
+    let v: long = LongExt.remainderUnsigned(17L, 5L);
+    if (v != 2L) {
+        io::println("FAIL: LongExt.remainderUnsigned(17,5) = " + Long.toString(v));
+    } else {
+        io::println("PASS: LongExt.remainderUnsigned(17,5) = 2");
+    }
+}
+
+public fn test_remainderUnsigned_smaller(): void {
+    let v: long = LongExt.remainderUnsigned(3L, 5L);
+    if (v != 3L) {
+        io::println("FAIL: LongExt.remainderUnsigned(3,5) = " + Long.toString(v));
+    } else {
+        io::println("PASS: LongExt.remainderUnsigned(3,5) = 3");
+    }
+}
+
+public fn test_numberOfLeadingZeros(): void {
+    // 1L has 63 leading zeros in 64-bit
+    if (LongExt.numberOfLeadingZeros(1L) != 63) {
+        io::println("FAIL: LongExt.numberOfLeadingZeros(1L) = " + Integer.toString(LongExt.numberOfLeadingZeros(1L)));
+    } else {
+        io::println("PASS: LongExt.numberOfLeadingZeros(1L) = 63");
+    }
+}
+
+public fn test_numberOfLeadingZeros_zero(): void {
+    if (LongExt.numberOfLeadingZeros(0L) != 64) {
+        io::println("FAIL: LongExt.numberOfLeadingZeros(0L)");
+    } else {
+        io::println("PASS: LongExt.numberOfLeadingZeros(0L) = 64");
+    }
+}
+
+public fn test_numberOfTrailingZeros(): void {
+    // 8L = 0b1000 -> 3 trailing zeros
+    if (LongExt.numberOfTrailingZeros(8L) != 3) {
+        io::println("FAIL: LongExt.numberOfTrailingZeros(8L) = " + Integer.toString(LongExt.numberOfTrailingZeros(8L)));
+    } else {
+        io::println("PASS: LongExt.numberOfTrailingZeros(8L) = 3");
+    }
+}
+
+public fn test_numberOfTrailingZeros_zero(): void {
+    if (LongExt.numberOfTrailingZeros(0L) != 64) {
+        io::println("FAIL: LongExt.numberOfTrailingZeros(0L)");
+    } else {
+        io::println("PASS: LongExt.numberOfTrailingZeros(0L) = 64");
+    }
+}
+
+public fn test_bitCountLong(): void {
+    // 7L = 0b111 -> 3 bits
+    if (LongExt.bitCountLong(7L) != 3) {
+        io::println("FAIL: LongExt.bitCountLong(7L) = " + Integer.toString(LongExt.bitCountLong(7L)));
+    } else {
+        io::println("PASS: LongExt.bitCountLong(7L) = 3");
+    }
+}
+
+public fn test_bitCountLong_zero(): void {
+    if (LongExt.bitCountLong(0L) != 0) {
+        io::println("FAIL: LongExt.bitCountLong(0L)");
+    } else {
+        io::println("PASS: LongExt.bitCountLong(0L) = 0");
+    }
+}
+
+public fn test_reverse(): void {
+    // reverse of 1L is 1L << 63 (the highest bit set)
+    let v: long = LongExt.reverse(1L);
+    if (v <= 0L) {
+        io::println("FAIL: LongExt.reverse(1L) not positive high bit");
+    } else {
+        io::println("PASS: LongExt.reverse(1L) sets high bit");
+    }
+}
+
+public fn test_reverseBytes(): void {
+    // reverseBytes of 0x0102L should be 0x0201000000000000
+    let v: long = LongExt.reverseBytes(0x0102L);
+    if (v == 0L) {
+        io::println("FAIL: LongExt.reverseBytes(0x0102L) = 0");
+    } else {
+        io::println("PASS: LongExt.reverseBytes(0x0102L) non-zero");
+    }
+}
+
+public fn run_all_long_ext_tests(): void {
+    io::println("=== LongExt.tr Tests ===");
+    test_parseLong();
+    test_parseLong_negative();
+    test_divideUnsigned_simple();
+    test_divideUnsigned_smaller();
+    test_remainderUnsigned_simple();
+    test_remainderUnsigned_smaller();
+    test_numberOfLeadingZeros();
+    test_numberOfLeadingZeros_zero();
+    test_numberOfTrailingZeros();
+    test_numberOfTrailingZeros_zero();
+    test_bitCountLong();
+    test_bitCountLong_zero();
+    test_reverse();
+    test_reverseBytes();
+}
