@@ -1,0 +1,196 @@
+// Test file for Result.tr
+// Exercises the public API of the Result module.
+import tt::lang::Result;
+import tt::lang::String;
+
+public fn test_result_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(42);
+    if (!r.isOk() || r.isErr()) {
+        io::println("FAIL: Result.ok isOk");
+    } else {
+        io::println("PASS: Result.ok isOk");
+    }
+}
+
+public fn test_result_err(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    if (r.isOk() || !r.isErr()) {
+        io::println("FAIL: Result.err isErr");
+    } else {
+        io::println("PASS: Result.err isErr");
+    }
+}
+
+public fn test_result_unwrap_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(42);
+    if (r.unwrap() != 42) {
+        io::println("FAIL: Result.unwrap ok");
+    } else {
+        io::println("PASS: Result.unwrap ok");
+    }
+}
+
+public fn test_result_unwrap_err(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    // unwrap on Err returns null per implementation
+    let v: int = r.unwrap();
+    if (v != null) {
+        io::println("FAIL: Result.unwrap err expected null");
+    } else {
+        io::println("PASS: Result.unwrap err returns null");
+    }
+}
+
+public fn test_result_unwrapOr_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(42);
+    if (r.unwrapOr(99) != 42) {
+        io::println("FAIL: Result.unwrapOr ok");
+    } else {
+        io::println("PASS: Result.unwrapOr ok");
+    }
+}
+
+public fn test_result_unwrapOr_err(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    if (r.unwrapOr(99) != 99) {
+        io::println("FAIL: Result.unwrapOr err");
+    } else {
+        io::println("PASS: Result.unwrapOr err");
+    }
+}
+
+public fn test_result_unwrapErr(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    if (r.unwrapErr() != "bad") {
+        io::println("FAIL: Result.unwrapErr");
+    } else {
+        io::println("PASS: Result.unwrapErr");
+    }
+}
+
+public fn test_result_map_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(5);
+    let mapper: fn(int): int = fn(x: int): int { return x * 2; };
+    let mapped: Result<int, string> = r.map(mapper);
+    if (!mapped.isOk() || mapped.unwrap() != 10) {
+        io::println("FAIL: Result.map ok");
+    } else {
+        io::println("PASS: Result.map ok");
+    }
+}
+
+public fn test_result_map_err(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    let mapper: fn(int): int = fn(x: int): int { return x * 2; };
+    let mapped: Result<int, string> = r.map(mapper);
+    if (mapped.isOk()) {
+        io::println("FAIL: Result.map err");
+    } else {
+        io::println("PASS: Result.map err");
+    }
+}
+
+public fn test_result_mapErr(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    let mapper: fn(string): string = fn(e: string): string { return e + "!"; };
+    let mapped: Result<int, string> = r.mapErr(mapper);
+    if (mapped.isOk() || mapped.unwrapErr() != "bad!") {
+        io::println("FAIL: Result.mapErr");
+    } else {
+        io::println("PASS: Result.mapErr");
+    }
+}
+
+public fn test_result_andThen_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(5);
+    let mapper: fn(int): Result<int, string> = fn(x: int): Result<int, string> { return Result<int, string>::ok(x + 1); };
+    let mapped: Result<int, string> = r.andThen(mapper);
+    if (!mapped.isOk() || mapped.unwrap() != 6) {
+        io::println("FAIL: Result.andThen ok");
+    } else {
+        io::println("PASS: Result.andThen ok");
+    }
+}
+
+public fn test_result_andThen_err(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    let mapper: fn(int): Result<int, string> = fn(x: int): Result<int, string> { return Result<int, string>::ok(x + 1); };
+    let mapped: Result<int, string> = r.andThen(mapper);
+    if (mapped.isOk()) {
+        io::println("FAIL: Result.andThen err");
+    } else {
+        io::println("PASS: Result.andThen err");
+    }
+}
+
+public fn test_result_orElse_err(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    let mapper: fn(string): Result<int, string> = fn(e: string): Result<int, string> { return Result<int, string>::ok(0); };
+    let mapped: Result<int, string> = r.orElse(mapper);
+    if (!mapped.isOk() || mapped.unwrap() != 0) {
+        io::println("FAIL: Result.orElse err");
+    } else {
+        io::println("PASS: Result.orElse err");
+    }
+}
+
+public fn test_result_isOkAnd(): void {
+    let r: Result<int, string> = Result<int, string>::ok(5);
+    let pred: fn(int): bool = fn(x: int): bool { return x > 0; };
+    if (!r.isOkAnd(pred)) {
+        io::println("FAIL: Result.isOkAnd true");
+    } else {
+        io::println("PASS: Result.isOkAnd true");
+    }
+}
+
+public fn test_result_isErrAnd(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    let pred: fn(string): bool = fn(e: string): bool { return String.length(e) > 0; };
+    if (!r.isErrAnd(pred)) {
+        io::println("FAIL: Result.isErrAnd true");
+    } else {
+        io::println("PASS: Result.isErrAnd true");
+    }
+}
+
+public fn test_result_expect_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(42);
+    if (r.expect("msg") != 42) {
+        io::println("FAIL: Result.expect ok");
+    } else {
+        io::println("PASS: Result.expect ok");
+    }
+}
+
+public fn test_result_inspect_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(42);
+    let action: fn(int): void = fn(x: int): void { };
+    let result: Result<int, string> = r.inspect(action);
+    if (!result.isOk() || result.unwrap() != 42) {
+        io::println("FAIL: Result.inspect ok");
+    } else {
+        io::println("PASS: Result.inspect ok");
+    }
+}
+
+public fn run_all_result_tests(): void {
+    io::println("=== Result.tr Tests ===");
+    test_result_ok();
+    test_result_err();
+    test_result_unwrap_ok();
+    test_result_unwrap_err();
+    test_result_unwrapOr_ok();
+    test_result_unwrapOr_err();
+    test_result_unwrapErr();
+    test_result_map_ok();
+    test_result_map_err();
+    test_result_mapErr();
+    test_result_andThen_ok();
+    test_result_andThen_err();
+    test_result_orElse_err();
+    test_result_isOkAnd();
+    test_result_isErrAnd();
+    test_result_expect_ok();
+    test_result_inspect_ok();
+}
