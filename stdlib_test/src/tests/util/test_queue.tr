@@ -1,0 +1,135 @@
+// Test file for Queue.tr
+// Exercises the public API of the Queue class (FIFO queue).
+import tt::util::Queue;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_queue_enqueue_size(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(1);
+    q.enqueue(2);
+    q.enqueue(3);
+    if (q.size() != 3) {
+        io::println("FAIL: Queue.size() = " + Integer.toString(q.size()));
+    } else {
+        io::println("PASS: Queue.enqueue/size works");
+    }
+}
+
+public fn test_queue_dequeue(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(1);
+    q.enqueue(2);
+    q.enqueue(3);
+    let d: int = q.dequeue();
+    if (d != 1 || q.size() != 2) {
+        io::println("FAIL: Queue.dequeue returned " + Integer.toString(d));
+    } else {
+        io::println("PASS: Queue.dequeue works");
+    }
+}
+
+public fn test_queue_peek(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(10);
+    q.enqueue(20);
+    if (q.peek() != 10) {
+        io::println("FAIL: Queue.peek = " + Integer.toString(q.peek()));
+    } else if (q.size() != 2) {
+        io::println("FAIL: Queue.peek modified size");
+    } else {
+        io::println("PASS: Queue.peek works");
+    }
+}
+
+public fn test_queue_isEmpty(): void {
+    let q: Queue<int> = new Queue<int>();
+    if (!q.isEmpty()) {
+        io::println("FAIL: Queue.isEmpty new");
+    } else {
+        io::println("PASS: Queue.isEmpty new");
+    }
+    q.enqueue(1);
+    if (q.isEmpty()) {
+        io::println("FAIL: Queue.isEmpty after enqueue");
+    } else {
+        io::println("PASS: Queue.isEmpty after enqueue");
+    }
+}
+
+public fn test_queue_fifo_order(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(1);
+    q.enqueue(2);
+    q.enqueue(3);
+    let a: int = q.dequeue();
+    let b: int = q.dequeue();
+    let c: int = q.dequeue();
+    if (a != 1 || b != 2 || c != 3) {
+        io::println("FAIL: Queue FIFO order");
+    } else {
+        io::println("PASS: Queue FIFO order works");
+    }
+}
+
+public fn test_queue_contains(): void {
+    let q: Queue<string> = new Queue<string>();
+    q.enqueue("a");
+    q.enqueue("b");
+    if (!q.contains("a") || q.contains("z")) {
+        io::println("FAIL: Queue.contains");
+    } else {
+        io::println("PASS: Queue.contains works");
+    }
+}
+
+public fn test_queue_clear(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(1);
+    q.enqueue(2);
+    q.clear();
+    if (!q.isEmpty() || q.size() != 0) {
+        io::println("FAIL: Queue.clear");
+    } else {
+        io::println("PASS: Queue.clear works");
+    }
+}
+
+public fn test_queue_toArray(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(1);
+    q.enqueue(2);
+    q.enqueue(3);
+    let arr: ArrayList<int> = q.toArray();
+    if (arr.size() != 3 || arr.get(0) != 1 || arr.get(1) != 2 || arr.get(2) != 3) {
+        io::println("FAIL: Queue.toArray");
+    } else {
+        io::println("PASS: Queue.toArray works");
+    }
+}
+
+public fn test_queue_peek_after_dequeue(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(1);
+    q.enqueue(2);
+    q.enqueue(3);
+    q.dequeue();
+    if (q.peek() != 2) {
+        io::println("FAIL: Queue.peek after dequeue = " + Integer.toString(q.peek()));
+    } else {
+        io::println("PASS: Queue.peek after dequeue works");
+    }
+}
+
+public fn run_all_queue_tests(): void {
+    io::println("=== Queue.tr Tests ===");
+    test_queue_enqueue_size();
+    test_queue_dequeue();
+    test_queue_peek();
+    test_queue_isEmpty();
+    test_queue_fifo_order();
+    test_queue_contains();
+    test_queue_clear();
+    test_queue_toArray();
+    test_queue_peek_after_dequeue();
+}
