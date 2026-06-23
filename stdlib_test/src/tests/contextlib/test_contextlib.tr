@@ -1,0 +1,161 @@
+// Test file for Contextlib.tr
+// Exercises the public API of the Contextlib module's classes and functions.
+import tt::contextlib::Contextlib;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_contextlib_contextmanager_enter_exit(): void {
+    let entered: ArrayList<int> = new ArrayList<int>();
+    let setup: fn(): Variant = fn(): Variant {
+        entered.add(1);
+        return 42;
+    };
+    let cleanup: fn(): void = fn(): void {
+        entered.add(2);
+    };
+    let cm: Contextlib.ContextManager = Contextlib.contextmanager(setup, cleanup);
+    let val: Variant = cm.enter();
+    if (entered.size() != 1 || entered.get(0) != 1) {
+        io::println("FAIL: ContextManager.enter did not call setup");
+    } else {
+        io::println("PASS: ContextManager.enter works");
+    }
+    cm.exit();
+    if (entered.size() != 2 || entered.get(1) != 2) {
+        io::println("FAIL: ContextManager.exit did not call cleanup");
+    } else {
+        io::println("PASS: ContextManager.exit works");
+    }
+}
+
+public fn test_contextlib_contextmanager_returns_value(): void {
+    let setup: fn(): Variant = fn(): Variant { return 99; };
+    let cleanup: fn(): void = fn(): void { };
+    let cm: Contextlib.ContextManager = Contextlib.contextmanager(setup, cleanup);
+    let val: Variant = cm.enter();
+    if (val == null) {
+        io::println("FAIL: ContextManager.enter returned null");
+    } else {
+        io::println("PASS: ContextManager.enter returns value");
+    }
+}
+
+public fn test_contextlib_nullcontext(): void {
+    let ncm: Contextlib.NullContextManager = Contextlib.nullcontext(42);
+    if (ncm == null) {
+        io::println("FAIL: Contextlib.nullcontext returned null");
+    } else {
+        io::println("PASS: Contextlib.nullcontext works");
+    }
+}
+
+public fn test_contextlib_nullcontext_enter(): void {
+    let ncm: Contextlib.NullContextManager = Contextlib.nullcontext(42);
+    let val: Variant = ncm.enter();
+    if (val == null) {
+        io::println("FAIL: NullContextManager.enter returned null");
+    } else {
+        io::println("PASS: NullContextManager.enter works");
+    }
+}
+
+public fn test_contextlib_nullcontext_exit(): void {
+    let ncm: Contextlib.NullContextManager = Contextlib.nullcontext(42);
+    ncm.exit();
+    // exit is a no-op, just verify it doesn't throw
+    io::println("PASS: NullContextManager.exit works");
+}
+
+public fn test_contextlib_exitstack_init(): void {
+    let es: Contextlib.ExitStack = new Contextlib.ExitStack();
+    if (es == null) {
+        io::println("FAIL: ExitStack.init returned null");
+    } else {
+        io::println("PASS: ExitStack.init works");
+    }
+}
+
+public fn test_contextlib_exitstack_enterContext(): void {
+    let setup: fn(): Variant = fn(): Variant { return 1; };
+    let cleanup: fn(): void = fn(): void { };
+    let cm: Contextlib.ContextManager = Contextlib.contextmanager(setup, cleanup);
+    let es: Contextlib.ExitStack = new Contextlib.ExitStack();
+    let val: Variant = es.enterContext(cm);
+    if (val == null) {
+        io::println("FAIL: ExitStack.enterContext returned null");
+    } else {
+        io::println("PASS: ExitStack.enterContext works");
+    }
+}
+
+public fn test_contextlib_exitstack_exitAll(): void {
+    let order: ArrayList<int> = new ArrayList<int>();
+    let setup1: fn(): Variant = fn(): Variant { order.add(1); return 1; };
+    let cleanup1: fn(): void = fn(): void { order.add(3); };
+    let setup2: fn(): Variant = fn(): Variant { order.add(2); return 2; };
+    let cleanup2: fn(): void = fn(): void { order.add(4); };
+    let cm1: Contextlib.ContextManager = Contextlib.contextmanager(setup1, cleanup1);
+    let cm2: Contextlib.ContextManager = Contextlib.contextmanager(setup2, cleanup2);
+    let es: Contextlib.ExitStack = new Contextlib.ExitStack();
+    es.enterContext(cm1);
+    es.enterContext(cm2);
+    es.exitAll();
+    // LIFO: cleanup2 (4) should come before cleanup1 (3)
+    if (order.size() != 4) {
+        io::println("FAIL: ExitStack.exitAll order size=" + Integer.toString(order.size()));
+    } else if (order.get(2) != 4 || order.get(3) != 3) {
+        io::println("FAIL: ExitStack.exitAll LIFO order wrong");
+    } else {
+        io::println("PASS: ExitStack.exitAll LIFO works");
+    }
+}
+
+public fn test_contextlib_exitstack_push(): void {
+    let called: ArrayList<int> = new ArrayList<int>();
+    let cb: fn(): void = fn(): void { called.add(1); };
+    let es: Contextlib.ExitStack = new Contextlib.ExitStack();
+    es.push(cb);
+    es.exitAll();
+    if (called.size() != 1) {
+        io::println("FAIL: ExitStack.push callback not called");
+    } else {
+        io::println("PASS: ExitStack.push works");
+    }
+}
+
+public fn test_contextlib_redirectStdout(): void {
+    let called: ArrayList<int> = new ArrayList<int>();
+    let block: fn(): void = fn(): void { called.add(1); };
+    Contextlib.redirectStdout(block);
+    if (called.size() != 1) {
+        io::println("FAIL: Contextlib.redirectStdout did not call block");
+    } else {
+        io::println("PASS: Contextlib.redirectStdout works");
+    }
+}
+
+public fn test_contextlib_suppress(): void {
+    let block: fn(): Variant = fn(): Variant { return 42; };
+    let result: Variant = Contextlib.suppress("ValueError", block);
+    if (result == null) {
+        io::println("FAIL: Contextlib.suppress returned null for non-error");
+    } else {
+        io::println("PASS: Contextlib.suppress works");
+    }
+}
+
+public fn run_all_contextlib_tests(): void {
+    io::println("=== Contextlib.tr Tests ===");
+    test_contextlib_contextmanager_enter_exit();
+    test_contextlib_contextmanager_returns_value();
+    test_contextlib_nullcontext();
+    test_contextlib_nullcontext_enter();
+    test_contextlib_nullcontext_exit();
+    test_contextlib_exitstack_init();
+    test_contextlib_exitstack_enterContext();
+    test_contextlib_exitstack_exitAll();
+    test_contextlib_exitstack_push();
+    test_contextlib_redirectStdout();
+    test_contextlib_suppress();
+}
