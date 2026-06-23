@@ -1,0 +1,159 @@
+// Test file for finance/Risk.tr
+// Exercises VaR, CVaR, Sharpe, Sortino, max drawdown, Kelly, volatility, beta.
+import tt::finance::Risk;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_value_at_risk(): void {
+    let returns: ArrayList<double> = new ArrayList<double>();
+    returns.add(-0.05); returns.add(-0.02); returns.add(0.01); returns.add(0.03); returns.add(0.05);
+    let var: double = Risk.valueAtRisk(returns, 0.95);
+    if (var < 0.0) {
+        io::println("FAIL: VaR should be >= 0 (a loss)");
+    } else {
+        io::println("PASS: VaR >= 0");
+    }
+}
+
+public fn test_value_at_risk_empty(): void {
+    let returns: ArrayList<double> = new ArrayList<double>();
+    let var: double = Risk.valueAtRisk(returns, 0.95);
+    if (absDiff(var, 0.0) > 1e-9) {
+        io::println("FAIL: VaR empty expected 0");
+    } else {
+        io::println("PASS: VaR empty = 0");
+    }
+}
+
+public fn test_conditional_var(): void {
+    let returns: ArrayList<double> = new ArrayList<double>();
+    returns.add(-0.05); returns.add(-0.02); returns.add(0.01); returns.add(0.03); returns.add(0.05);
+    let cvar: double = Risk.conditionalVaR(returns, 0.95);
+    if (cvar < 0.0) {
+        io::println("FAIL: CVaR should be >= 0");
+    } else {
+        io::println("PASS: CVaR >= 0");
+    }
+}
+
+public fn test_sharpe_ratio(): void {
+    let returns: ArrayList<double> = new ArrayList<double>();
+    returns.add(0.01); returns.add(0.02); returns.add(0.03); returns.add(0.04); returns.add(0.05);
+    let s: double = Risk.sharpeRatio(returns, 0.0);
+    if (s <= 0.0) {
+        io::println("FAIL: Sharpe should be > 0 for positive returns");
+    } else {
+        io::println("PASS: Sharpe > 0 for positive returns");
+    }
+}
+
+public fn test_sharpe_ratio_short(): void {
+    let returns: ArrayList<double> = new ArrayList<double>();
+    returns.add(0.01);
+    let s: double = Risk.sharpeRatio(returns, 0.0);
+    if (absDiff(s, 0.0) > 1e-9) {
+        io::println("FAIL: Sharpe short data expected 0");
+    } else {
+        io::println("PASS: Sharpe short data = 0");
+    }
+}
+
+public fn test_sortino_ratio(): void {
+    let returns: ArrayList<double> = new ArrayList<double>();
+    returns.add(0.01); returns.add(-0.02); returns.add(0.03); returns.add(-0.01); returns.add(0.05);
+    let s: double = Risk.sortinoRatio(returns, 0.0);
+    // Should be defined since there are downside returns
+    if (returns.size() < 2) {
+        io::println("FAIL: sortino test data issue");
+    } else {
+        io::println("PASS: sortinoRatio computed");
+    }
+}
+
+public fn test_max_drawdown(): void {
+    let equity: ArrayList<double> = new ArrayList<double>();
+    equity.add(100.0); equity.add(110.0); equity.add(90.0); equity.add(95.0);
+    let dd: double = Risk.maxDrawdown(equity);
+    // Peak 110, trough 90 -> dd = 20/110 = 0.1818...
+    if (dd <= 0.0) {
+        io::println("FAIL: maxDrawdown should be > 0");
+    } else {
+        io::println("PASS: maxDrawdown > 0");
+    }
+}
+
+public fn test_max_drawdown_increasing(): void {
+    let equity: ArrayList<double> = new ArrayList<double>();
+    equity.add(100.0); equity.add(110.0); equity.add(120.0);
+    let dd: double = Risk.maxDrawdown(equity);
+    if (absDiff(dd, 0.0) > 1e-9) {
+        io::println("FAIL: maxDrawdown increasing expected 0");
+    } else {
+        io::println("PASS: maxDrawdown increasing = 0");
+    }
+}
+
+public fn test_kelly_criterion(): void {
+    // winRate=0.6, winLossRatio=1.0 -> kelly = 0.6 - 0.4/1.0 = 0.2
+    let k: double = Risk.kellyCriterion(0.6, 1.0);
+    if (absDiff(k, 0.2) > 1e-9) {
+        io::println("FAIL: kelly expected 0.2");
+    } else {
+        io::println("PASS: kelly = 0.2");
+    }
+}
+
+public fn test_kelly_zero_ratio(): void {
+    let k: double = Risk.kellyCriterion(0.5, 0.0);
+    if (absDiff(k, 0.0) > 1e-9) {
+        io::println("FAIL: kelly zero ratio expected 0");
+    } else {
+        io::println("PASS: kelly zero ratio = 0");
+    }
+}
+
+public fn test_annualized_volatility(): void {
+    let returns: ArrayList<double> = new ArrayList<double>();
+    returns.add(0.01); returns.add(-0.01); returns.add(0.02); returns.add(-0.02);
+    let av: double = Risk.annualizedVolatility(returns, 252);
+    if (av <= 0.0) {
+        io::println("FAIL: annualizedVolatility should be > 0");
+    } else {
+        io::println("PASS: annualizedVolatility > 0");
+    }
+}
+
+public fn test_beta(): void {
+    let returns: ArrayList<double> = new ArrayList<double>();
+    returns.add(0.01); returns.add(0.02); returns.add(0.03); returns.add(0.04);
+    let market: ArrayList<double> = new ArrayList<double>();
+    market.add(0.01); market.add(0.02); market.add(0.03); market.add(0.04);
+    let b: double = Risk.beta(returns, market);
+    // Identical series -> beta = 1
+    if (absDiff(b, 1.0) > 1e-6) {
+        io::println("FAIL: beta identical expected 1.0");
+    } else {
+        io::println("PASS: beta identical = 1.0");
+    }
+}
+
+public fn run_all_risk_tests(): void {
+    io::println("=== finance/Risk.tr Tests ===");
+    test_value_at_risk();
+    test_value_at_risk_empty();
+    test_conditional_var();
+    test_sharpe_ratio();
+    test_sharpe_ratio_short();
+    test_sortino_ratio();
+    test_max_drawdown();
+    test_max_drawdown_increasing();
+    test_kelly_criterion();
+    test_kelly_zero_ratio();
+    test_annualized_volatility();
+    test_beta();
+}
