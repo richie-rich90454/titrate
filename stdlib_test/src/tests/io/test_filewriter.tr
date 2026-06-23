@@ -1,0 +1,108 @@
+// Test file for FileWriter.tr
+// Exercises the public API of FileWriter: write, writeLine, flush, close,
+// and the open() factory function.
+import tt::io::FileWriter;
+import tt::io::File;
+import tt::lang::Integer;
+
+public fn test_filewriter_write(): void {
+    let path: string = "test_fw_write.txt";
+    let writer: FileWriter = new FileWriter(path);
+    writer.write("plain text");
+    writer.close();
+    let f: File = new File(path);
+    let content: string = f.readAll();
+    if (content != "plain text") {
+        io::println("FAIL: FileWriter.write content = '" + content + "'");
+    } else {
+        io::println("PASS: FileWriter.write persists text");
+    }
+    f.delete();
+}
+
+public fn test_filewriter_writeLine(): void {
+    let path: string = "test_fw_writeline.txt";
+    let writer: FileWriter = new FileWriter(path);
+    writer.writeLine("first");
+    writer.writeLine("second");
+    writer.close();
+    let f: File = new File(path);
+    let content: string = f.readAll();
+    if (content != "first\nsecond\n") {
+        io::println("FAIL: FileWriter.writeLine content = '" + content + "'");
+    } else {
+        io::println("PASS: FileWriter.writeLine appends newlines");
+    }
+    f.delete();
+}
+
+public fn test_filewriter_flush(): void {
+    let path: string = "test_fw_flush.txt";
+    let writer: FileWriter = new FileWriter(path);
+    writer.write("flushed");
+    writer.flush();
+    // flush should not throw and content should be readable after close.
+    writer.close();
+    let f: File = new File(path);
+    let content: string = f.readAll();
+    if (content != "flushed") {
+        io::println("FAIL: FileWriter.flush content = '" + content + "'");
+    } else {
+        io::println("PASS: FileWriter.flush works without error");
+    }
+    f.delete();
+}
+
+public fn test_filewriter_close_idempotent(): void {
+    let path: string = "test_fw_close.txt";
+    let writer: FileWriter = new FileWriter(path);
+    writer.write("x");
+    writer.close();
+    // Second close should be a no-op, not an error.
+    writer.close();
+    io::println("PASS: FileWriter.close is idempotent");
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_filewriter_open_factory(): void {
+    let path: string = "test_fw_open.txt";
+    let writer: FileWriter = FileWriter.open(path);
+    writer.writeLine("via factory");
+    writer.close();
+    let f: File = new File(path);
+    let content: string = f.readAll();
+    if (content != "via factory\n") {
+        io::println("FAIL: FileWriter.open content = '" + content + "'");
+    } else {
+        io::println("PASS: FileWriter.open factory works");
+    }
+    f.delete();
+}
+
+public fn test_filewriter_mixed_write_writeline(): void {
+    let path: string = "test_fw_mixed.txt";
+    let writer: FileWriter = new FileWriter(path);
+    writer.write("a");
+    writer.writeLine("b");
+    writer.write("c");
+    writer.close();
+    let f: File = new File(path);
+    let content: string = f.readAll();
+    if (content != "ab\nc") {
+        io::println("FAIL: FileWriter mixed content = '" + content + "'");
+    } else {
+        io::println("PASS: FileWriter mixed write/writeLine works");
+    }
+    f.delete();
+}
+
+public fn run_all_filewriter_tests(): void {
+    io::println("=== FileWriter.tr Tests ===");
+    test_filewriter_write();
+    test_filewriter_writeLine();
+    test_filewriter_flush();
+    test_filewriter_close_idempotent();
+    test_filewriter_open_factory();
+    test_filewriter_mixed_write_writeline();
+}
