@@ -1,0 +1,73 @@
+// Test file for bio/FastaReader.tr
+// Exercises FastaRecord construction, id/description extraction, readFasta.
+import tt::bio::FastaReader;
+import tt::lang::Integer;
+
+public fn test_fasta_record_construction(): void {
+    let rec: FastaRecord = new FastaRecord("seq1 description here", "ACGTACGT");
+    if (rec.header != "seq1 description here" || rec.sequence != "ACGTACGT") {
+        io::println("FAIL: FastaRecord construction");
+    } else {
+        io::println("PASS: FastaRecord construction works");
+    }
+}
+
+public fn test_fasta_record_id(): void {
+    let rec: FastaRecord = new FastaRecord("seq1 description here", "ACGT");
+    let id: string = rec.id();
+    if (id != "seq1") {
+        io::println("FAIL: FastaRecord.id expected 'seq1' got '" + id + "'");
+    } else {
+        io::println("PASS: FastaRecord.id = 'seq1'");
+    }
+}
+
+public fn test_fasta_record_id_no_space(): void {
+    let rec: FastaRecord = new FastaRecord("seq1", "ACGT");
+    let id: string = rec.id();
+    if (id != "seq1") {
+        io::println("FAIL: FastaRecord.id no space expected 'seq1'");
+    } else {
+        io::println("PASS: FastaRecord.id no space = 'seq1'");
+    }
+}
+
+public fn test_fasta_record_description(): void {
+    let rec: FastaRecord = new FastaRecord("seq1 description here", "ACGT");
+    let desc: string = rec.description();
+    if (desc != "description here") {
+        io::println("FAIL: FastaRecord.description expected 'description here' got '" + desc + "'");
+    } else {
+        io::println("PASS: FastaRecord.description = 'description here'");
+    }
+}
+
+public fn test_fasta_record_description_no_space(): void {
+    let rec: FastaRecord = new FastaRecord("seq1", "ACGT");
+    let desc: string = rec.description();
+    if (desc != "") {
+        io::println("FAIL: FastaRecord.description no space expected empty");
+    } else {
+        io::println("PASS: FastaRecord.description no space = empty");
+    }
+}
+
+public fn test_read_fasta_nonexistent(): void {
+    // Reading a nonexistent file should return an empty list
+    let records = FastaReader.readFasta("nonexistent_file.fasta");
+    if (records.size() != 0) {
+        io::println("FAIL: readFasta nonexistent expected empty");
+    } else {
+        io::println("PASS: readFasta nonexistent returns empty list");
+    }
+}
+
+public fn run_all_fasta_reader_tests(): void {
+    io::println("=== bio/FastaReader.tr Tests ===");
+    test_fasta_record_construction();
+    test_fasta_record_id();
+    test_fasta_record_id_no_space();
+    test_fasta_record_description();
+    test_fasta_record_description_no_space();
+    test_read_fasta_nonexistent();
+}
