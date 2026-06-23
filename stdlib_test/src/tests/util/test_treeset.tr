@@ -1,0 +1,187 @@
+// Test file for TreeSet.tr
+// Exercises the public API of the TreeSet class (red-black tree sorted set).
+import tt::util::TreeSet;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_treeset_add_size(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    set.add(3);
+    set.add(1);
+    set.add(2);
+    if (set.size() != 3) {
+        io::println("FAIL: TreeSet.size() = " + Integer.toString(set.size()));
+    } else {
+        io::println("PASS: TreeSet add/size works");
+    }
+}
+
+public fn test_treeset_add_duplicate(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    set.add(1);
+    set.add(1);
+    if (set.size() != 1) {
+        io::println("FAIL: TreeSet.add duplicate size=" + Integer.toString(set.size()));
+    } else {
+        io::println("PASS: TreeSet.add duplicate ignored");
+    }
+}
+
+public fn test_treeset_contains(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    set.add(5);
+    set.add(10);
+    if (!set.contains(5) || set.contains(99)) {
+        io::println("FAIL: TreeSet.contains");
+    } else {
+        io::println("PASS: TreeSet.contains works");
+    }
+}
+
+public fn test_treeset_first_last(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    set.add(10);
+    set.add(5);
+    set.add(20);
+    if (set.first() != 5) {
+        io::println("FAIL: TreeSet.first = " + Integer.toString(set.first()));
+    } else if (set.last() != 20) {
+        io::println("FAIL: TreeSet.last = " + Integer.toString(set.last()));
+    } else {
+        io::println("PASS: TreeSet.first/last works");
+    }
+}
+
+public fn test_treeset_remove(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    set.add(1);
+    set.add(2);
+    let r1: bool = set.remove(1);
+    let r2: bool = set.remove(99);
+    if (!r1 || r2 || set.size() != 1 || set.contains(1)) {
+        io::println("FAIL: TreeSet.remove");
+    } else {
+        io::println("PASS: TreeSet.remove works");
+    }
+}
+
+public fn test_treeset_isEmpty_clear(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    if (!set.isEmpty()) {
+        io::println("FAIL: TreeSet.isEmpty new");
+    } else {
+        io::println("PASS: TreeSet.isEmpty new");
+    }
+    set.add(1);
+    if (set.isEmpty()) {
+        io::println("FAIL: TreeSet.isEmpty after add");
+    } else {
+        io::println("PASS: TreeSet.isEmpty after add");
+    }
+    set.clear();
+    if (!set.isEmpty()) {
+        io::println("FAIL: TreeSet.clear");
+    } else {
+        io::println("PASS: TreeSet.clear works");
+    }
+}
+
+public fn test_treeset_toArray_sorted(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    set.add(3);
+    set.add(1);
+    set.add(2);
+    let arr: ArrayList<int> = set.toArray();
+    if (arr.size() != 3 || arr.get(0) != 1 || arr.get(1) != 2 || arr.get(2) != 3) {
+        io::println("FAIL: TreeSet.toArray not sorted");
+    } else {
+        io::println("PASS: TreeSet.toArray sorted works");
+    }
+}
+
+public fn test_treeset_union(): void {
+    let a: TreeSet<int> = new TreeSet<int>();
+    a.add(1);
+    a.add(2);
+    let b: TreeSet<int> = new TreeSet<int>();
+    b.add(2);
+    b.add(3);
+    let u: TreeSet<int> = a.union(b);
+    if (u.size() != 3 || !u.contains(1) || !u.contains(3)) {
+        io::println("FAIL: TreeSet.union size=" + Integer.toString(u.size()));
+    } else {
+        io::println("PASS: TreeSet.union works");
+    }
+}
+
+public fn test_treeset_intersection(): void {
+    let a: TreeSet<int> = new TreeSet<int>();
+    a.add(1);
+    a.add(2);
+    a.add(3);
+    let b: TreeSet<int> = new TreeSet<int>();
+    b.add(2);
+    b.add(3);
+    b.add(4);
+    let i: TreeSet<int> = a.intersection(b);
+    if (i.size() != 2 || !i.contains(2) || !i.contains(3) || i.contains(1)) {
+        io::println("FAIL: TreeSet.intersection size=" + Integer.toString(i.size()));
+    } else {
+        io::println("PASS: TreeSet.intersection works");
+    }
+}
+
+public fn test_treeset_difference(): void {
+    let a: TreeSet<int> = new TreeSet<int>();
+    a.add(1);
+    a.add(2);
+    a.add(3);
+    let b: TreeSet<int> = new TreeSet<int>();
+    b.add(2);
+    let d: TreeSet<int> = a.difference(b);
+    if (d.size() != 2 || !d.contains(1) || !d.contains(3) || d.contains(2)) {
+        io::println("FAIL: TreeSet.difference size=" + Integer.toString(d.size()));
+    } else {
+        io::println("PASS: TreeSet.difference works");
+    }
+}
+
+public fn test_treeset_ceiling(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    set.add(10);
+    set.add(20);
+    set.add(30);
+    if (set.ceiling(15) != 20) {
+        io::println("FAIL: TreeSet.ceiling = " + Integer.toString(set.ceiling(15)));
+    } else {
+        io::println("PASS: TreeSet.ceiling works");
+    }
+}
+
+public fn test_treeset_floor(): void {
+    let set: TreeSet<int> = new TreeSet<int>();
+    set.add(10);
+    set.add(20);
+    set.add(30);
+    if (set.floor(25) != 20) {
+        io::println("FAIL: TreeSet.floor = " + Integer.toString(set.floor(25)));
+    } else {
+        io::println("PASS: TreeSet.floor works");
+    }
+}
+
+public fn run_all_treeset_tests(): void {
+    io::println("=== TreeSet.tr Tests ===");
+    test_treeset_add_size();
+    test_treeset_add_duplicate();
+    test_treeset_contains();
+    test_treeset_first_last();
+    test_treeset_remove();
+    test_treeset_isEmpty_clear();
+    test_treeset_toArray_sorted();
+    test_treeset_union();
+    test_treeset_intersection();
+    test_treeset_difference();
+    test_treeset_ceiling();
+    test_treeset_floor();
+}
