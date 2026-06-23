@@ -1,0 +1,253 @@
+// Test file for Bit.tr
+// Exercises bit manipulation utilities: popcount, shifts, rotations, masks.
+import tt::math::Bit;
+import tt::lang::Integer;
+
+public fn test_bit_popcount(): void {
+    if (Bit.popcount(0) != 0) {
+        io::println("FAIL: Bit.popcount(0)");
+    } else {
+        io::println("PASS: Bit.popcount(0) = 0");
+    }
+    if (Bit.popcount(7) != 3) {
+        io::println("FAIL: Bit.popcount(7)");
+    } else {
+        io::println("PASS: Bit.popcount(7) = 3");
+    }
+    if (Bit.popcount(256) != 1) {
+        io::println("FAIL: Bit.popcount(256)");
+    } else {
+        io::println("PASS: Bit.popcount(256) = 1");
+    }
+    if (Bit.popcount(255) != 8) {
+        io::println("FAIL: Bit.popcount(255)");
+    } else {
+        io::println("PASS: Bit.popcount(255) = 8");
+    }
+}
+
+public fn test_bit_countlZero_countrZero(): void {
+    // countlZero(0) = 32
+    if (Bit.countlZero(0) != 32) {
+        io::println("FAIL: Bit.countlZero(0)");
+    } else {
+        io::println("PASS: Bit.countlZero(0) = 32");
+    }
+    // countlZero(1) = 31 (leading bit at position 0)
+    if (Bit.countlZero(1) != 31) {
+        io::println("FAIL: Bit.countlZero(1)");
+    } else {
+        io::println("PASS: Bit.countlZero(1) = 31");
+    }
+    // countrZero(0) = 32
+    if (Bit.countrZero(0) != 32) {
+        io::println("FAIL: Bit.countrZero(0)");
+    } else {
+        io::println("PASS: Bit.countrZero(0) = 32");
+    }
+    // countrZero(8) = 3 (8 = 1000)
+    if (Bit.countrZero(8) != 3) {
+        io::println("FAIL: Bit.countrZero(8)");
+    } else {
+        io::println("PASS: Bit.countrZero(8) = 3");
+    }
+}
+
+public fn test_bit_floor2_ceil2(): void {
+    // floor2(7) = 4, floor2(8) = 8, floor2(1) = 1
+    if (Bit.floor2(7) != 4) {
+        io::println("FAIL: Bit.floor2(7)");
+    } else {
+        io::println("PASS: Bit.floor2(7) = 4");
+    }
+    if (Bit.floor2(8) != 8) {
+        io::println("FAIL: Bit.floor2(8)");
+    } else {
+        io::println("PASS: Bit.floor2(8) = 8");
+    }
+    if (Bit.floor2(1) != 1) {
+        io::println("FAIL: Bit.floor2(1)");
+    } else {
+        io::println("PASS: Bit.floor2(1) = 1");
+    }
+    if (Bit.floor2(0) != 0) {
+        io::println("FAIL: Bit.floor2(0)");
+    } else {
+        io::println("PASS: Bit.floor2(0) = 0");
+    }
+    // ceil2(5) = 8, ceil2(8) = 8, ceil2(1) = 1
+    if (Bit.ceil2(5) != 8) {
+        io::println("FAIL: Bit.ceil2(5)");
+    } else {
+        io::println("PASS: Bit.ceil2(5) = 8");
+    }
+    if (Bit.ceil2(8) != 8) {
+        io::println("FAIL: Bit.ceil2(8)");
+    } else {
+        io::println("PASS: Bit.ceil2(8) = 8");
+    }
+    if (Bit.ceil2(1) != 1) {
+        io::println("FAIL: Bit.ceil2(1)");
+    } else {
+        io::println("PASS: Bit.ceil2(1) = 1");
+    }
+    // Aliases
+    if (Bit.bitFloor(7) != 4 || Bit.bitCeil(5) != 8) {
+        io::println("FAIL: Bit.bitFloor/bitCeil aliases");
+    } else {
+        io::println("PASS: Bit.bitFloor/bitCeil aliases work");
+    }
+}
+
+public fn test_bit_hasSingleBit_bitWidth(): void {
+    if (!Bit.hasSingleBit(8)) {
+        io::println("FAIL: Bit.hasSingleBit(8)");
+    } else {
+        io::println("PASS: Bit.hasSingleBit(8) = true");
+    }
+    if (Bit.hasSingleBit(6)) {
+        io::println("FAIL: Bit.hasSingleBit(6) should be false");
+    } else {
+        io::println("PASS: Bit.hasSingleBit(6) = false");
+    }
+    if (Bit.hasSingleBit(0)) {
+        io::println("FAIL: Bit.hasSingleBit(0) should be false");
+    } else {
+        io::println("PASS: Bit.hasSingleBit(0) = false");
+    }
+    // bitWidth(0) = 0, bitWidth(1) = 1, bitWidth(7) = 3, bitWidth(8) = 4
+    if (Bit.bitWidth(0) != 0) {
+        io::println("FAIL: Bit.bitWidth(0)");
+    } else {
+        io::println("PASS: Bit.bitWidth(0) = 0");
+    }
+    if (Bit.bitWidth(7) != 3) {
+        io::println("FAIL: Bit.bitWidth(7)");
+    } else {
+        io::println("PASS: Bit.bitWidth(7) = 3");
+    }
+    if (Bit.bitWidth(8) != 4) {
+        io::println("FAIL: Bit.bitWidth(8)");
+    } else {
+        io::println("PASS: Bit.bitWidth(8) = 4");
+    }
+}
+
+public fn test_bit_rotl_rotr(): void {
+    // rotl(1, 1) = 2
+    if (Bit.rotl(1, 1) != 2) {
+        io::println("FAIL: Bit.rotl(1,1)");
+    } else {
+        io::println("PASS: Bit.rotl(1,1) = 2");
+    }
+    // rotr(2, 1) = 1
+    if (Bit.rotr(2, 1) != 1) {
+        io::println("FAIL: Bit.rotr(2,1)");
+    } else {
+        io::println("PASS: Bit.rotr(2,1) = 1");
+    }
+    // rotl by 0 is identity
+    if (Bit.rotl(123, 0) != 123) {
+        io::println("FAIL: Bit.rotl(123,0)");
+    } else {
+        io::println("PASS: Bit.rotl(123,0) = 123");
+    }
+    // rotl then rotr by same amount returns original
+    if (Bit.rotr(Bit.rotl(0x12345678, 5), 5) != 0x12345678) {
+        io::println("FAIL: Bit.rotl/rotr inverse");
+    } else {
+        io::println("PASS: Bit.rotl/rotr are inverses");
+    }
+}
+
+public fn test_bit_get_set_clear_toggle(): void {
+    // getBit(0b1010, 1) = 1, getBit(0b1010, 0) = 0
+    if (Bit.getBit(0b1010, 1) != 1) {
+        io::println("FAIL: Bit.getBit(10,1)");
+    } else {
+        io::println("PASS: Bit.getBit(10,1) = 1");
+    }
+    if (Bit.getBit(0b1010, 0) != 0) {
+        io::println("FAIL: Bit.getBit(10,0)");
+    } else {
+        io::println("PASS: Bit.getBit(10,0) = 0");
+    }
+    // setBit(0, 3) = 8
+    if (Bit.setBit(0, 3) != 8) {
+        io::println("FAIL: Bit.setBit(0,3)");
+    } else {
+        io::println("PASS: Bit.setBit(0,3) = 8");
+    }
+    // clearBit(0b1111, 1) = 0b1101 = 13
+    if (Bit.clearBit(0b1111, 1) != 13) {
+        io::println("FAIL: Bit.clearBit(15,1)");
+    } else {
+        io::println("PASS: Bit.clearBit(15,1) = 13");
+    }
+    // toggleBit(0b1010, 0) = 0b1011 = 11
+    if (Bit.toggleBit(0b1010, 0) != 11) {
+        io::println("FAIL: Bit.toggleBit(10,0)");
+    } else {
+        io::println("PASS: Bit.toggleBit(10,0) = 11");
+    }
+    // toggle twice returns original
+    if (Bit.toggleBit(Bit.toggleBit(0b1010, 2), 2) != 0b1010) {
+        io::println("FAIL: Bit.toggleBit twice");
+    } else {
+        io::println("PASS: Bit.toggleBit twice returns original");
+    }
+}
+
+public fn test_bit_mask_reverseBits_byteSwap(): void {
+    // mask(4) = 0b1111 = 15
+    if (Bit.mask(4) != 15) {
+        io::println("FAIL: Bit.mask(4)");
+    } else {
+        io::println("PASS: Bit.mask(4) = 15");
+    }
+    // mask(0) = 0
+    if (Bit.mask(0) != 0) {
+        io::println("FAIL: Bit.mask(0)");
+    } else {
+        io::println("PASS: Bit.mask(0) = 0");
+    }
+    // reverseBits twice returns original
+    if (Bit.reverseBits(Bit.reverseBits(0x12345678)) != 0x12345678) {
+        io::println("FAIL: Bit.reverseBits twice");
+    } else {
+        io::println("PASS: Bit.reverseBits twice returns original");
+    }
+    // byteSwap twice returns original
+    if (Bit.byteSwap(Bit.byteSwap(0x12345678)) != 0x12345678) {
+        io::println("FAIL: Bit.byteSwap twice");
+    } else {
+        io::println("PASS: Bit.byteSwap twice returns original");
+    }
+    // byteSwap(0x000000FF) = 0xFF000000 (sign-extended may be negative)
+    // Just verify it's different
+    if (Bit.byteSwap(0x000000FF) == 0x000000FF) {
+        io::println("FAIL: Bit.byteSwap(0xFF) should differ");
+    } else {
+        io::println("PASS: Bit.byteSwap(0xFF) differs from input");
+    }
+}
+
+public fn test_bit_bitCast(): void {
+    if (Bit.bitCast(42) != 42) {
+        io::println("FAIL: Bit.bitCast(42)");
+    } else {
+        io::println("PASS: Bit.bitCast(42) = 42");
+    }
+}
+
+public fn run_all_bit_tests(): void {
+    io::println("=== Bit.tr Tests ===");
+    test_bit_popcount();
+    test_bit_countlZero_countrZero();
+    test_bit_floor2_ceil2();
+    test_bit_hasSingleBit_bitWidth();
+    test_bit_rotl_rotr();
+    test_bit_get_set_clear_toggle();
+    test_bit_mask_reverseBits_byteSwap();
+    test_bit_bitCast();
+}
