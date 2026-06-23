@@ -1,0 +1,214 @@
+// Test file for Operator.tr
+// Exercises the public API of the Operator module's top-level functions.
+import tt::operator::Operator;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+import tt::lang::Double;
+
+public fn test_operator_add(): void {
+    if (Operator.add(3, 4) != 7) {
+        io::println("FAIL: Operator.add returned " + Integer.toString(Operator.add(3, 4)));
+    } else {
+        io::println("PASS: Operator.add works");
+    }
+}
+
+public fn test_operator_sub(): void {
+    if (Operator.sub(10, 4) != 6) {
+        io::println("FAIL: Operator.sub returned " + Integer.toString(Operator.sub(10, 4)));
+    } else {
+        io::println("PASS: Operator.sub works");
+    }
+}
+
+public fn test_operator_mul(): void {
+    if (Operator.mul(3, 5) != 15) {
+        io::println("FAIL: Operator.mul returned " + Integer.toString(Operator.mul(3, 5)));
+    } else {
+        io::println("PASS: Operator.mul works");
+    }
+}
+
+public fn test_operator_truediv(): void {
+    let r: double = Operator.truediv(10.0, 4.0);
+    if (r < 2.4999 || r > 2.5001) {
+        io::println("FAIL: Operator.truediv returned " + Double.toString(r));
+    } else {
+        io::println("PASS: Operator.truediv works");
+    }
+}
+
+public fn test_operator_mod(): void {
+    if (Operator.mod(10, 3) != 1) {
+        io::println("FAIL: Operator.mod returned " + Integer.toString(Operator.mod(10, 3)));
+    } else {
+        io::println("PASS: Operator.mod works");
+    }
+}
+
+public fn test_operator_neg(): void {
+    let r: double = Operator.neg(5.0);
+    if (r != -5.0) {
+        io::println("FAIL: Operator.neg returned " + Double.toString(r));
+    } else {
+        io::println("PASS: Operator.neg works");
+    }
+}
+
+public fn test_operator_pos(): void {
+    let r: double = Operator.pos(5.0);
+    if (r != 5.0) {
+        io::println("FAIL: Operator.pos returned " + Double.toString(r));
+    } else {
+        io::println("PASS: Operator.pos works");
+    }
+}
+
+public fn test_operator_abs(): void {
+    let r: double = Operator.abs(-5.0);
+    if (r != 5.0) {
+        io::println("FAIL: Operator.abs returned " + Double.toString(r));
+    } else {
+        io::println("PASS: Operator.abs works");
+    }
+}
+
+public fn test_operator_eq(): void {
+    if (!Operator.eq<int>(5, 5)) {
+        io::println("FAIL: Operator.eq should be true for 5==5");
+    } else if (Operator.eq<int>(5, 6)) {
+        io::println("FAIL: Operator.eq should be false for 5==6");
+    } else {
+        io::println("PASS: Operator.eq works");
+    }
+}
+
+public fn test_operator_ne(): void {
+    if (Operator.ne<int>(5, 5)) {
+        io::println("FAIL: Operator.ne should be false for 5!=5");
+    } else if (!Operator.ne<int>(5, 6)) {
+        io::println("FAIL: Operator.ne should be true for 5!=6");
+    } else {
+        io::println("PASS: Operator.ne works");
+    }
+}
+
+public fn test_operator_lt(): void {
+    if (!Operator.lt(3, 5)) {
+        io::println("FAIL: Operator.lt should be true for 3<5");
+    } else if (Operator.lt(5, 3)) {
+        io::println("FAIL: Operator.lt should be false for 5<3");
+    } else {
+        io::println("PASS: Operator.lt works");
+    }
+}
+
+public fn test_operator_le(): void {
+    if (!Operator.le(3, 3)) {
+        io::println("FAIL: Operator.le should be true for 3<=3");
+    } else if (!Operator.le(3, 5)) {
+        io::println("FAIL: Operator.le should be true for 3<=5");
+    } else if (Operator.le(5, 3)) {
+        io::println("FAIL: Operator.le should be false for 5<=3");
+    } else {
+        io::println("PASS: Operator.le works");
+    }
+}
+
+public fn test_operator_gt(): void {
+    if (!Operator.gt(5, 3)) {
+        io::println("FAIL: Operator.gt should be true for 5>3");
+    } else if (Operator.gt(3, 5)) {
+        io::println("FAIL: Operator.gt should be false for 3>5");
+    } else {
+        io::println("PASS: Operator.gt works");
+    }
+}
+
+public fn test_operator_ge(): void {
+    if (!Operator.ge(5, 5)) {
+        io::println("FAIL: Operator.ge should be true for 5>=5");
+    } else if (!Operator.ge(5, 3)) {
+        io::println("FAIL: Operator.ge should be true for 5>=3");
+    } else if (Operator.ge(3, 5)) {
+        io::println("FAIL: Operator.ge should be false for 3>=5");
+    } else {
+        io::println("PASS: Operator.ge works");
+    }
+}
+
+public fn test_operator_not(): void {
+    if (!Operator.not(false)) {
+        io::println("FAIL: Operator.not(false) should be true");
+    } else if (Operator.not(true)) {
+        io::println("FAIL: Operator.not(true) should be false");
+    } else {
+        io::println("PASS: Operator.not works");
+    }
+}
+
+public fn test_operator_and(): void {
+    if (!Operator.and(true, true)) {
+        io::println("FAIL: Operator.and(true,true) should be true");
+    } else if (Operator.and(true, false)) {
+        io::println("FAIL: Operator.and(true,false) should be false");
+    } else {
+        io::println("PASS: Operator.and works");
+    }
+}
+
+public fn test_operator_or(): void {
+    if (!Operator.or(true, false)) {
+        io::println("FAIL: Operator.or(true,false) should be true");
+    } else if (Operator.or(false, false)) {
+        io::println("FAIL: Operator.or(false,false) should be false");
+    } else {
+        io::println("PASS: Operator.or works");
+    }
+}
+
+public fn test_operator_itemGetter(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10);
+    list.add(20);
+    list.add(30);
+    let v: int = Operator.itemGetter<int>(list, 1);
+    if (v != 20) {
+        io::println("FAIL: Operator.itemGetter returned " + Integer.toString(v));
+    } else {
+        io::println("PASS: Operator.itemGetter works");
+    }
+}
+
+public fn test_operator_attrGetter(): void {
+    let v: Variant = Operator.attrGetter<int>(5, "x");
+    if (v != null) {
+        io::println("FAIL: Operator.attrGetter should return null");
+    } else {
+        io::println("PASS: Operator.attrGetter works");
+    }
+}
+
+public fn run_all_operator_tests(): void {
+    io::println("=== Operator.tr Tests ===");
+    test_operator_add();
+    test_operator_sub();
+    test_operator_mul();
+    test_operator_truediv();
+    test_operator_mod();
+    test_operator_neg();
+    test_operator_pos();
+    test_operator_abs();
+    test_operator_eq();
+    test_operator_ne();
+    test_operator_lt();
+    test_operator_le();
+    test_operator_gt();
+    test_operator_ge();
+    test_operator_not();
+    test_operator_and();
+    test_operator_or();
+    test_operator_itemGetter();
+    test_operator_attrGetter();
+}
