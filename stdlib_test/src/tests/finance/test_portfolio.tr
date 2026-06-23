@@ -1,0 +1,164 @@
+// Test file for finance/Portfolio.tr
+// Exercises Markowitz, efficient frontier, Black-Litterman, risk parity, Sharpe, variance.
+import tt::finance::Portfolio;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn makeReturns(): ArrayList<ArrayList<double>> {
+    let data: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(0.01); r1.add(0.02);
+    let r2: ArrayList<double> = new ArrayList<double>();
+    r2.add(0.02); r2.add(0.01);
+    let r3: ArrayList<double> = new ArrayList<double>();
+    r3.add(0.03); r3.add(0.0);
+    data.add(r1); data.add(r2); data.add(r3);
+    return data;
+}
+
+public fn test_mean_variance_optimize(): void {
+    let returns: ArrayList<ArrayList<double>> = makeReturns();
+    let weights: ArrayList<double> = Portfolio.meanVarianceOptimize(returns, 0.015);
+    if (weights.size() != 2) {
+        io::println("FAIL: meanVarianceOptimize size expected 2");
+    } else {
+        io::println("PASS: meanVarianceOptimize size = 2");
+    }
+}
+
+public fn test_mean_variance_empty(): void {
+    let returns: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let weights: ArrayList<double> = Portfolio.meanVarianceOptimize(returns, 0.0);
+    if (weights.size() != 0) {
+        io::println("FAIL: meanVarianceOptimize empty expected empty");
+    } else {
+        io::println("PASS: meanVarianceOptimize empty = empty");
+    }
+}
+
+public fn test_efficient_frontier(): void {
+    let returns: ArrayList<ArrayList<double>> = makeReturns();
+    let frontier: ArrayList<ArrayList<double>> = Portfolio.efficientFrontier(returns, 5);
+    if (frontier.size() != 5) {
+        io::println("FAIL: efficientFrontier size expected 5");
+    } else {
+        io::println("PASS: efficientFrontier size = 5");
+    }
+}
+
+public fn test_efficient_frontier_zero_points(): void {
+    let returns: ArrayList<ArrayList<double>> = makeReturns();
+    let frontier: ArrayList<ArrayList<double>> = Portfolio.efficientFrontier(returns, 0);
+    if (frontier.size() != 0) {
+        io::println("FAIL: efficientFrontier 0 points expected empty");
+    } else {
+        io::println("PASS: efficientFrontier 0 points = empty");
+    }
+}
+
+public fn test_black_litterman_no_views(): void {
+    let mktWeights: ArrayList<double> = new ArrayList<double>();
+    mktWeights.add(0.5); mktWeights.add(0.5);
+    let cov: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(0.01); r1.add(0.0);
+    let r2: ArrayList<double> = new ArrayList<double>();
+    r2.add(0.0); r2.add(0.01);
+    cov.add(r1); cov.add(r2);
+    let views: ArrayList<double> = new ArrayList<double>();
+    let viewMatrix: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let result: ArrayList<double> = Portfolio.blackLitterman(mktWeights, cov, views, viewMatrix, 0.05);
+    // With no views, should return implied returns = cov * mktWeights
+    if (result.size() != 2) {
+        io::println("FAIL: blackLitterman no views size expected 2");
+    } else {
+        io::println("PASS: blackLitterman no views size = 2");
+    }
+}
+
+public fn test_risk_parity(): void {
+    let cov: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(0.04); r1.add(0.01);
+    let r2: ArrayList<double> = new ArrayList<double>();
+    r2.add(0.01); r2.add(0.04);
+    cov.add(r1); cov.add(r2);
+    let weights: ArrayList<double> = Portfolio.riskParity(cov);
+    if (weights.size() != 2) {
+        io::println("FAIL: riskParity size expected 2");
+    } else {
+        io::println("PASS: riskParity size = 2");
+    }
+    // For symmetric covariance, weights should be ~equal
+    if (weights.size() == 2 && absDiff(weights.get(0), weights.get(1)) > 0.01) {
+        io::println("FAIL: riskParity symmetric should be ~equal");
+    } else {
+        io::println("PASS: riskParity symmetric ~equal");
+    }
+}
+
+public fn test_risk_parity_empty(): void {
+    let cov: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let weights: ArrayList<double> = Portfolio.riskParity(cov);
+    if (weights.size() != 0) {
+        io::println("FAIL: riskParity empty expected empty");
+    } else {
+        io::println("PASS: riskParity empty = empty");
+    }
+}
+
+public fn test_sharpe_ratio(): void {
+    let s: double = Portfolio.sharpeRatio(0.1, 0.02, 0.15);
+    // (0.1 - 0.02) / 0.15 = 0.5333...
+    if (absDiff(s, 0.533333) > 0.001) {
+        io::println("FAIL: sharpeRatio expected ~0.533");
+    } else {
+        io::println("PASS: sharpeRatio = ~0.533");
+    }
+}
+
+public fn test_sharpe_ratio_zero_vol(): void {
+    let s: double = Portfolio.sharpeRatio(0.1, 0.02, 0.0);
+    if (absDiff(s, 0.0) > 1e-9) {
+        io::println("FAIL: sharpeRatio zero vol expected 0");
+    } else {
+        io::println("PASS: sharpeRatio zero vol = 0");
+    }
+}
+
+public fn test_portfolio_variance(): void {
+    let weights: ArrayList<double> = new ArrayList<double>();
+    weights.add(0.5); weights.add(0.5);
+    let cov: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(0.04); r1.add(0.0);
+    let r2: ArrayList<double> = new ArrayList<double>();
+    r2.add(0.0); r2.add(0.04);
+    cov.add(r1); cov.add(r2);
+    let v: double = Portfolio.portfolioVariance(weights, cov);
+    // 0.5^2 * 0.04 + 0.5^2 * 0.04 = 0.01 + 0.01 = 0.02
+    if (absDiff(v, 0.02) > 1e-9) {
+        io::println("FAIL: portfolioVariance expected 0.02");
+    } else {
+        io::println("PASS: portfolioVariance = 0.02");
+    }
+}
+
+public fn run_all_portfolio_tests(): void {
+    io::println("=== finance/Portfolio.tr Tests ===");
+    test_mean_variance_optimize();
+    test_mean_variance_empty();
+    test_efficient_frontier();
+    test_efficient_frontier_zero_points();
+    test_black_litterman_no_views();
+    test_risk_parity();
+    test_risk_parity_empty();
+    test_sharpe_ratio();
+    test_sharpe_ratio_zero_vol();
+    test_portfolio_variance();
+}
