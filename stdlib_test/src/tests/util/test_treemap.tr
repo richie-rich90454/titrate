@@ -1,0 +1,214 @@
+// Test file for TreeMap.tr
+// Exercises the public API of the TreeMap class (red-black tree sorted map).
+import tt::util::TreeMap;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+
+public fn test_treemap_put_get_size(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(3, "c");
+    map.put(1, "a");
+    map.put(2, "b");
+    if (map.size() != 3) {
+        io::println("FAIL: TreeMap.size() = " + Integer.toString(map.size()));
+    } else if (map.get(1) != "a" || map.get(2) != "b" || map.get(3) != "c") {
+        io::println("FAIL: TreeMap.get");
+    } else {
+        io::println("PASS: TreeMap.put/get/size works");
+    }
+}
+
+public fn test_treemap_containsKey(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(5, "x");
+    if (!map.containsKey(5) || map.containsKey(99)) {
+        io::println("FAIL: TreeMap.containsKey");
+    } else {
+        io::println("PASS: TreeMap.containsKey works");
+    }
+}
+
+public fn test_treemap_isEmpty(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    if (!map.isEmpty()) {
+        io::println("FAIL: TreeMap.isEmpty new");
+    } else {
+        io::println("PASS: TreeMap.isEmpty new");
+    }
+    map.put(1, "a");
+    if (map.isEmpty()) {
+        io::println("FAIL: TreeMap.isEmpty after put");
+    } else {
+        io::println("PASS: TreeMap.isEmpty after put");
+    }
+}
+
+public fn test_treemap_firstKey_lastKey(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(10, "ten");
+    map.put(5, "five");
+    map.put(20, "twenty");
+    if (map.firstKey() != 5) {
+        io::println("FAIL: TreeMap.firstKey = " + Integer.toString(map.firstKey()));
+    } else if (map.lastKey() != 20) {
+        io::println("FAIL: TreeMap.lastKey = " + Integer.toString(map.lastKey()));
+    } else {
+        io::println("PASS: TreeMap.firstKey/lastKey works");
+    }
+}
+
+public fn test_treemap_keys_sorted(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(3, "c");
+    map.put(1, "a");
+    map.put(2, "b");
+    let keys: ArrayList<int> = map.keys();
+    if (keys.size() != 3 || keys.get(0) != 1 || keys.get(1) != 2 || keys.get(2) != 3) {
+        io::println("FAIL: TreeMap.keys not sorted");
+    } else {
+        io::println("PASS: TreeMap.keys sorted works");
+    }
+}
+
+public fn test_treemap_values_sorted(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(3, "c");
+    map.put(1, "a");
+    map.put(2, "b");
+    let vals: ArrayList<string> = map.values();
+    if (vals.size() != 3 || vals.get(0) != "a" || vals.get(1) != "b" || vals.get(2) != "c") {
+        io::println("FAIL: TreeMap.values not sorted");
+    } else {
+        io::println("PASS: TreeMap.values sorted works");
+    }
+}
+
+public fn test_treemap_entries(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(2, "b");
+    map.put(1, "a");
+    let entries: ArrayList<Pair<int, string>> = map.entries();
+    if (entries.size() != 2) {
+        io::println("FAIL: TreeMap.entries size=" + Integer.toString(entries.size()));
+    } else {
+        io::println("PASS: TreeMap.entries works");
+    }
+}
+
+public fn test_treemap_remove(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(1, "a");
+    map.put(2, "b");
+    let removed: bool = map.remove(1);
+    if (!removed || map.size() != 1 || map.containsKey(1)) {
+        io::println("FAIL: TreeMap.remove");
+    } else {
+        io::println("PASS: TreeMap.remove works");
+    }
+}
+
+public fn test_treemap_remove_missing(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(1, "a");
+    let removed: bool = map.remove(99);
+    if (removed || map.size() != 1) {
+        io::println("FAIL: TreeMap.remove missing");
+    } else {
+        io::println("PASS: TreeMap.remove missing returns false");
+    }
+}
+
+public fn test_treemap_overwrite(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(1, "a");
+    map.put(1, "b");
+    if (map.size() != 1 || map.get(1) != "b") {
+        io::println("FAIL: TreeMap.overwrite");
+    } else {
+        io::println("PASS: TreeMap.overwrite works");
+    }
+}
+
+public fn test_treemap_clear(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(1, "a");
+    map.put(2, "b");
+    map.clear();
+    if (!map.isEmpty() || map.size() != 0) {
+        io::println("FAIL: TreeMap.clear");
+    } else {
+        io::println("PASS: TreeMap.clear works");
+    }
+}
+
+public fn test_treemap_firstEntry_lastEntry(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(10, "ten");
+    map.put(5, "five");
+    map.put(20, "twenty");
+    let first: Pair<int, string> = map.firstEntry();
+    let last: Pair<int, string> = map.lastEntry();
+    if (first.first != 5 || first.second != "five") {
+        io::println("FAIL: TreeMap.firstEntry");
+    } else if (last.first != 20 || last.second != "twenty") {
+        io::println("FAIL: TreeMap.lastEntry");
+    } else {
+        io::println("PASS: TreeMap.firstEntry/lastEntry works");
+    }
+}
+
+public fn test_treemap_ceilingKey(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(10, "a");
+    map.put(20, "b");
+    map.put(30, "c");
+    if (map.ceilingKey(15) != 20) {
+        io::println("FAIL: TreeMap.ceilingKey = " + Integer.toString(map.ceilingKey(15)));
+    } else {
+        io::println("PASS: TreeMap.ceilingKey works");
+    }
+}
+
+public fn test_treemap_floorKey(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(10, "a");
+    map.put(20, "b");
+    map.put(30, "c");
+    if (map.floorKey(25) != 20) {
+        io::println("FAIL: TreeMap.floorKey = " + Integer.toString(map.floorKey(25)));
+    } else {
+        io::println("PASS: TreeMap.floorKey works");
+    }
+}
+
+public fn test_treemap_equalRange(): void {
+    let map: TreeMap<int, string> = new TreeMap<int, string>();
+    map.put(5, "a");
+    map.put(10, "b");
+    let r: ArrayList<int> = map.equalRange(10);
+    if (r.size() != 1 || r.get(0) != 10) {
+        io::println("FAIL: TreeMap.equalRange");
+    } else {
+        io::println("PASS: TreeMap.equalRange works");
+    }
+}
+
+public fn run_all_treemap_tests(): void {
+    io::println("=== TreeMap.tr Tests ===");
+    test_treemap_put_get_size();
+    test_treemap_containsKey();
+    test_treemap_isEmpty();
+    test_treemap_firstKey_lastKey();
+    test_treemap_keys_sorted();
+    test_treemap_values_sorted();
+    test_treemap_entries();
+    test_treemap_remove();
+    test_treemap_remove_missing();
+    test_treemap_overwrite();
+    test_treemap_clear();
+    test_treemap_firstEntry_lastEntry();
+    test_treemap_ceilingKey();
+    test_treemap_floorKey();
+    test_treemap_equalRange();
+}
