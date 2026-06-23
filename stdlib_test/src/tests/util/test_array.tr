@@ -1,0 +1,197 @@
+// Test file for Array.tr
+// Exercises the public API of the Array class and its factory functions.
+import tt::util::Array;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_array_create_size(): void {
+    let arr: Array<int> = new Array<int>(5);
+    if (arr.size() != 5) {
+        io::println("FAIL: Array.size = " + Integer.toString(arr.size()));
+    } else {
+        io::println("PASS: Array create/size works");
+    }
+}
+
+public fn test_array_get_set(): void {
+    let arr: Array<int> = new Array<int>(3);
+    arr.set(0, 10);
+    arr.set(1, 20);
+    arr.set(2, 30);
+    if (arr.get(0) != 10 || arr.get(1) != 20 || arr.get(2) != 30) {
+        io::println("FAIL: Array.get/set");
+    } else {
+        io::println("PASS: Array.get/set works");
+    }
+}
+
+public fn test_array_isEmpty(): void {
+    let arr: Array<int> = new Array<int>(0);
+    if (!arr.isEmpty()) {
+        io::println("FAIL: Array.isEmpty empty");
+    } else {
+        io::println("PASS: Array.isEmpty empty works");
+    }
+    let arr2: Array<int> = new Array<int>(3);
+    if (arr2.isEmpty()) {
+        io::println("FAIL: Array.isEmpty nonempty");
+    } else {
+        io::println("PASS: Array.isEmpty nonempty works");
+    }
+}
+
+public fn test_array_fill(): void {
+    let arr: Array<int> = new Array<int>(5);
+    arr.fill(42);
+    if (arr.get(0) != 42 || arr.get(4) != 42) {
+        io::println("FAIL: Array.fill");
+    } else {
+        io::println("PASS: Array.fill works");
+    }
+}
+
+public fn test_array_toArrayList(): void {
+    let arr: Array<int> = new Array<int>(3);
+    arr.set(0, 1);
+    arr.set(1, 2);
+    arr.set(2, 3);
+    let list: ArrayList<int> = arr.toArrayList();
+    if (list.size() != 3 || list.get(0) != 1 || list.get(1) != 2 || list.get(2) != 3) {
+        io::println("FAIL: Array.toArrayList");
+    } else {
+        io::println("PASS: Array.toArrayList works");
+    }
+}
+
+public fn test_array_clone(): void {
+    let arr: Array<int> = new Array<int>(3);
+    arr.set(0, 1);
+    arr.set(1, 2);
+    let copy: Array<int> = arr.clone();
+    copy.set(0, 99);
+    if (arr.get(0) != 1 || copy.get(0) != 99) {
+        io::println("FAIL: Array.clone independence");
+    } else {
+        io::println("PASS: Array.clone works");
+    }
+}
+
+public fn test_array_map(): void {
+    let arr: Array<int> = new Array<int>(3);
+    arr.set(0, 1);
+    arr.set(1, 2);
+    arr.set(2, 3);
+    let squared: Array<int> = arr.map(fn(x: int): int { return x * x; });
+    if (squared.get(0) != 1 || squared.get(1) != 4 || squared.get(2) != 9) {
+        io::println("FAIL: Array.map");
+    } else {
+        io::println("PASS: Array.map works");
+    }
+}
+
+public fn test_array_forEach(): void {
+    let arr: Array<int> = new Array<int>(3);
+    arr.set(0, 1);
+    arr.set(1, 2);
+    arr.set(2, 3);
+    arr.forEach(fn(x: int): void { });
+    if (arr.size() != 3) {
+        io::println("FAIL: Array.forEach");
+    } else {
+        io::println("PASS: Array.forEach works");
+    }
+}
+
+public fn test_array_of(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("a");
+    list.add("b");
+    list.add("c");
+    let arr: Array<string> = of<string>(list);
+    if (arr.size() != 3 || arr.get(0) != "a" || arr.get(1) != "b" || arr.get(2) != "c") {
+        io::println("FAIL: Array.of");
+    } else {
+        io::println("PASS: Array.of works");
+    }
+}
+
+public fn test_array_filled(): void {
+    let arr: Array<int> = filled<int>(4, 7);
+    if (arr.size() != 4) {
+        io::println("FAIL: Array.filled size");
+    } else if (arr.get(0) != 7 || arr.get(3) != 7) {
+        io::println("FAIL: Array.filled values");
+    } else {
+        io::println("PASS: Array.filled works");
+    }
+}
+
+public fn test_array_get_out_of_bounds(): void {
+    let arr: Array<int> = new Array<int>(3);
+    try {
+        arr.get(5);
+        io::println("FAIL: Array.get out of bounds did not throw");
+    } catch (e: string) {
+        io::println("PASS: Array.get out of bounds throws");
+    }
+}
+
+public fn test_array_set_out_of_bounds(): void {
+    let arr: Array<int> = new Array<int>(3);
+    try {
+        arr.set(10, 1);
+        io::println("FAIL: Array.set out of bounds did not throw");
+    } catch (e: string) {
+        io::println("PASS: Array.set out of bounds throws");
+    }
+}
+
+public fn test_array_overwrite(): void {
+    let arr: Array<int> = new Array<int>(3);
+    arr.set(0, 1);
+    arr.set(0, 99);
+    if (arr.get(0) != 99) {
+        io::println("FAIL: Array.overwrite");
+    } else {
+        io::println("PASS: Array.overwrite works");
+    }
+}
+
+public fn test_array_zero_size(): void {
+    let arr: Array<int> = new Array<int>(0);
+    if (arr.size() != 0 || !arr.isEmpty()) {
+        io::println("FAIL: Array zero size");
+    } else {
+        io::println("PASS: Array zero size works");
+    }
+}
+
+public fn test_array_string_elements(): void {
+    let arr: Array<string> = new Array<string>(2);
+    arr.set(0, "hello");
+    arr.set(1, "world");
+    if (arr.get(0) != "hello" || arr.get(1) != "world") {
+        io::println("FAIL: Array string elements");
+    } else {
+        io::println("PASS: Array string elements works");
+    }
+}
+
+public fn run_all_array_tests(): void {
+    io::println("=== Array.tr Tests ===");
+    test_array_create_size();
+    test_array_get_set();
+    test_array_isEmpty();
+    test_array_fill();
+    test_array_toArrayList();
+    test_array_clone();
+    test_array_map();
+    test_array_forEach();
+    test_array_of();
+    test_array_filled();
+    test_array_get_out_of_bounds();
+    test_array_set_out_of_bounds();
+    test_array_overwrite();
+    test_array_zero_size();
+    test_array_string_elements();
+}
