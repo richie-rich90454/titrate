@@ -1,0 +1,181 @@
+// Test file for image/Image.tr
+// Exercises Image construction, pixel operations, crop, resize, flip, rotate, grayscale.
+import tt::image::Image;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_image_construction(): void {
+    let img: Image = new Image(3, 2, 1);
+    if (img.width != 3) {
+        io::println("FAIL: Image width expected 3");
+    } else {
+        io::println("PASS: Image width = 3");
+    }
+    if (img.height != 2) {
+        io::println("FAIL: Image height expected 2");
+    } else {
+        io::println("PASS: Image height = 2");
+    }
+    if (img.channels != 1) {
+        io::println("FAIL: Image channels expected 1");
+    } else {
+        io::println("PASS: Image channels = 1");
+    }
+    if (img.data.size() != 6) {
+        io::println("FAIL: Image data size expected 6");
+    } else {
+        io::println("PASS: Image data size = 6");
+    }
+}
+
+public fn test_get_set_pixel(): void {
+    let img: Image = new Image(3, 2, 1);
+    img.setPixel(0, 0, 0, 5.0);
+    img.setPixel(2, 1, 0, 10.0);
+    if (absDiff(img.getPixel(0, 0, 0), 5.0) > 1e-9) {
+        io::println("FAIL: getPixel(0,0) expected 5.0");
+    } else {
+        io::println("PASS: getPixel(0,0) = 5.0");
+    }
+    if (absDiff(img.getPixel(2, 1, 0), 10.0) > 1e-9) {
+        io::println("FAIL: getPixel(2,1) expected 10.0");
+    } else {
+        io::println("PASS: getPixel(2,1) = 10.0");
+    }
+}
+
+public fn test_get_pixel_out_of_bounds(): void {
+    let img: Image = new Image(2, 2, 1);
+    if (absDiff(img.getPixel(10, 10, 0), 0.0) > 1e-9) {
+        io::println("FAIL: getPixel OOB expected 0");
+    } else {
+        io::println("PASS: getPixel OOB = 0");
+    }
+}
+
+public fn test_crop(): void {
+    let img: Image = new Image(4, 4, 1);
+    img.setPixel(1, 1, 0, 7.0);
+    let cropped: Image = img.crop(1, 1, 2, 2);
+    if (cropped.width != 2 || cropped.height != 2) {
+        io::println("FAIL: crop dimensions");
+    } else {
+        io::println("PASS: crop dimensions = 2x2");
+    }
+    if (absDiff(cropped.getPixel(0, 0, 0), 7.0) > 1e-9) {
+        io::println("FAIL: crop pixel value");
+    } else {
+        io::println("PASS: crop pixel value = 7.0");
+    }
+}
+
+public fn test_resize(): void {
+    let img: Image = new Image(4, 4, 1);
+    img.setPixel(0, 0, 0, 1.0);
+    let resized: Image = img.resize(2, 2);
+    if (resized.width != 2 || resized.height != 2) {
+        io::println("FAIL: resize dimensions");
+    } else {
+        io::println("PASS: resize dimensions = 2x2");
+    }
+}
+
+public fn test_flip_horizontal(): void {
+    let img: Image = new Image(3, 1, 1);
+    img.setPixel(0, 0, 0, 1.0);
+    img.setPixel(2, 0, 0, 3.0);
+    let flipped: Image = img.flipHorizontal();
+    if (absDiff(flipped.getPixel(0, 0, 0), 3.0) > 1e-9) {
+        io::println("FAIL: flipHorizontal[0] expected 3.0");
+    } else {
+        io::println("PASS: flipHorizontal[0] = 3.0");
+    }
+    if (absDiff(flipped.getPixel(2, 0, 0), 1.0) > 1e-9) {
+        io::println("FAIL: flipHorizontal[2] expected 1.0");
+    } else {
+        io::println("PASS: flipHorizontal[2] = 1.0");
+    }
+}
+
+public fn test_flip_vertical(): void {
+    let img: Image = new Image(1, 3, 1);
+    img.setPixel(0, 0, 0, 1.0);
+    img.setPixel(0, 2, 0, 3.0);
+    let flipped: Image = img.flipVertical();
+    if (absDiff(flipped.getPixel(0, 0, 0), 3.0) > 1e-9) {
+        io::println("FAIL: flipVertical[0] expected 3.0");
+    } else {
+        io::println("PASS: flipVertical[0] = 3.0");
+    }
+}
+
+public fn test_rotate90(): void {
+    let img: Image = new Image(2, 3, 1);
+    let rotated: Image = img.rotate90();
+    if (rotated.width != 3 || rotated.height != 2) {
+        io::println("FAIL: rotate90 dimensions");
+    } else {
+        io::println("PASS: rotate90 dimensions = 3x2");
+    }
+}
+
+public fn test_rotate180(): void {
+    let img: Image = new Image(2, 2, 1);
+    img.setPixel(0, 0, 0, 1.0);
+    img.setPixel(1, 1, 0, 4.0);
+    let rotated: Image = img.rotate180();
+    if (absDiff(rotated.getPixel(0, 0, 0), 4.0) > 1e-9) {
+        io::println("FAIL: rotate180[0,0] expected 4.0");
+    } else {
+        io::println("PASS: rotate180[0,0] = 4.0");
+    }
+}
+
+public fn test_to_grayscale(): void {
+    let img: Image = new Image(2, 2, 3);
+    img.setPixel(0, 0, 0, 100.0);
+    img.setPixel(0, 0, 1, 100.0);
+    img.setPixel(0, 0, 2, 100.0);
+    let gray: Image = img.toGrayscale();
+    if (gray.channels != 1) {
+        io::println("FAIL: toGrayscale channels expected 1");
+    } else {
+        io::println("PASS: toGrayscale channels = 1");
+    }
+    // gray = 0.299*100 + 0.587*100 + 0.114*100 = 100
+    if (absDiff(gray.getPixel(0, 0, 0), 100.0) > 1e-6) {
+        io::println("FAIL: toGrayscale pixel expected 100");
+    } else {
+        io::println("PASS: toGrayscale pixel = 100");
+    }
+}
+
+public fn test_to_grayscale_already_gray(): void {
+    let img: Image = new Image(2, 2, 1);
+    img.setPixel(0, 0, 0, 50.0);
+    let gray: Image = img.toGrayscale();
+    if (absDiff(gray.getPixel(0, 0, 0), 50.0) > 1e-9) {
+        io::println("FAIL: toGrayscale already gray expected 50");
+    } else {
+        io::println("PASS: toGrayscale already gray = 50");
+    }
+}
+
+public fn run_all_image_tests(): void {
+    io::println("=== image/Image.tr Tests ===");
+    test_image_construction();
+    test_get_set_pixel();
+    test_get_pixel_out_of_bounds();
+    test_crop();
+    test_resize();
+    test_flip_horizontal();
+    test_flip_vertical();
+    test_rotate90();
+    test_rotate180();
+    test_to_grayscale();
+    test_to_grayscale_already_gray();
+}
