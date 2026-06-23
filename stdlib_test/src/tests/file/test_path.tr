@@ -1,0 +1,227 @@
+// Test file for Path.tr
+// Exercises the public API of the Path class: join, basename, dirname,
+// extension, exists, isFile, isDir, normalize, parent, fileName, stem,
+// isAbsolute, toString, withExtension, withName, readText, writeText,
+// fileSize, and lexists.
+import tt::file::Path;
+import tt::io::File;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_path_toString(): void {
+    let p: Path = new Path("foo/bar.txt");
+    if (p.toString() != "foo/bar.txt") {
+        io::println("FAIL: Path.toString = '" + p.toString() + "'");
+    } else {
+        io::println("PASS: Path.toString returns the path string");
+    }
+}
+
+public fn test_path_basename(): void {
+    let p: Path = new Path("dir/subdir/file.txt");
+    let base: string = p.basename();
+    if (base != "file.txt") {
+        io::println("FAIL: Path.basename = '" + base + "'");
+    } else {
+        io::println("PASS: Path.basename returns file name");
+    }
+}
+
+public fn test_path_dirname(): void {
+    let p: Path = new Path("dir/subdir/file.txt");
+    let dir: string = p.dirname();
+    if (dir != "dir/subdir") {
+        io::println("FAIL: Path.dirname = '" + dir + "'");
+    } else {
+        io::println("PASS: Path.dirname returns directory portion");
+    }
+}
+
+public fn test_path_extension(): void {
+    let p: Path = new Path("archive.tar.gz");
+    let ext: string = p.extension();
+    if (ext != "gz") {
+        io::println("FAIL: Path.extension = '" + ext + "'");
+    } else {
+        io::println("PASS: Path.extension returns last extension");
+    }
+}
+
+public fn test_path_stem(): void {
+    let p: Path = new Path("report.pdf");
+    let stem: string = p.stem();
+    if (stem != "report") {
+        io::println("FAIL: Path.stem = '" + stem + "'");
+    } else {
+        io::println("PASS: Path.stem returns name without extension");
+    }
+}
+
+public fn test_path_join(): void {
+    let p: Path = new Path("base");
+    let joined: string = p.join("child.txt");
+    if (joined != "base/child.txt") {
+        io::println("FAIL: Path.join = '" + joined + "'");
+    } else {
+        io::println("PASS: Path.join concatenates with separator");
+    }
+}
+
+public fn test_path_parent(): void {
+    let p: Path = new Path("a/b/c");
+    let parent: string = p.parent();
+    if (parent != "a/b") {
+        io::println("FAIL: Path.parent = '" + parent + "'");
+    } else {
+        io::println("PASS: Path.parent returns parent directory");
+    }
+}
+
+public fn test_path_fileName(): void {
+    let p: Path = new Path("x/y/z.txt");
+    let name: string = p.fileName();
+    if (name != "z.txt") {
+        io::println("FAIL: Path.fileName = '" + name + "'");
+    } else {
+        io::println("PASS: Path.fileName returns base name");
+    }
+}
+
+public fn test_path_isAbsolute(): void {
+    let abs: Path = new Path("/home/user");
+    let rel: Path = new Path("relative/path");
+    if (!abs.isAbsolute()) {
+        io::println("FAIL: Path.isAbsolute false for /home/user");
+    } else if (rel.isAbsolute()) {
+        io::println("FAIL: Path.isAbsolute true for relative/path");
+    } else {
+        io::println("PASS: Path.isAbsolute distinguishes absolute/relative");
+    }
+}
+
+public fn test_path_normalize(): void {
+    let p: Path = new Path("a/b/../c");
+    let norm: string = p.normalize();
+    if (norm != "a/c") {
+        io::println("FAIL: Path.normalize = '" + norm + "'");
+    } else {
+        io::println("PASS: Path.normalize resolves .. segments");
+    }
+}
+
+public fn test_path_withExtension(): void {
+    let p: Path = new Path("dir/data.txt");
+    let result: string = p.withExtension("csv");
+    if (result != "dir/data.csv") {
+        io::println("FAIL: Path.withExtension = '" + result + "'");
+    } else {
+        io::println("PASS: Path.withExtension replaces extension");
+    }
+}
+
+public fn test_path_withName(): void {
+    let p: Path = new Path("dir/old.txt");
+    let result: string = p.withName("new.txt");
+    if (result != "dir/new.txt") {
+        io::println("FAIL: Path.withName = '" + result + "'");
+    } else {
+        io::println("PASS: Path.withName replaces file name");
+    }
+}
+
+public fn test_path_exists_isFile_isDir(): void {
+    let p: Path = new Path("test_path_exists.txt");
+    p.writeText("content");
+    if (!p.exists()) {
+        io::println("FAIL: Path.exists false after writeText");
+    } else if (!p.isFile()) {
+        io::println("FAIL: Path.isFile false for regular file");
+    } else if (p.isDir()) {
+        io::println("FAIL: Path.isDir true for regular file");
+    } else {
+        io::println("PASS: Path.exists/isFile/isDir correct for file");
+    }
+    let f: File = new File("test_path_exists.txt");
+    f.delete();
+}
+
+public fn test_path_readText_writeText(): void {
+    let p: Path = new Path("test_path_rw.txt");
+    p.writeText("read me");
+    let content: string = p.readText();
+    if (content != "read me") {
+        io::println("FAIL: Path.readText = '" + content + "'");
+    } else {
+        io::println("PASS: Path.writeText/readText round-trip");
+    }
+    let f: File = new File("test_path_rw.txt");
+    f.delete();
+}
+
+public fn test_path_fileSize(): void {
+    let p: Path = new Path("test_path_size.txt");
+    p.writeText("12345");
+    let sz: int = p.fileSize();
+    if (sz != 5) {
+        io::println("FAIL: Path.fileSize = " + Integer.toString(sz));
+    } else {
+        io::println("PASS: Path.fileSize returns byte count");
+    }
+    let f: File = new File("test_path_size.txt");
+    f.delete();
+}
+
+public fn test_path_parents(): void {
+    let p: Path = new Path("a/b/c");
+    let parents: ArrayList<string> = p.parents();
+    if (parents.size() < 1) {
+        io::println("FAIL: Path.parents empty");
+    } else {
+        io::println("PASS: Path.parents returns ancestor list (size=" + Integer.toString(parents.size()) + ")");
+    }
+}
+
+public fn test_path_lexists(): void {
+    let p: Path = new Path("test_path_lexists.txt");
+    p.writeText("x");
+    if (!p.lexists()) {
+        io::println("FAIL: Path.lexists false for existing file");
+    } else {
+        io::println("PASS: Path.lexists true for existing file");
+    }
+    let f: File = new File("test_path_lexists.txt");
+    f.delete();
+}
+
+public fn test_path_commonPath(): void {
+    let p: Path = new Path("a/b/c");
+    let common: string = p.commonPath("a/b/d");
+    if (common != "a/b") {
+        io::println("FAIL: Path.commonPath = '" + common + "'");
+    } else {
+        io::println("PASS: Path.commonPath finds shared prefix");
+    }
+}
+
+public fn run_all_path_tests(): void {
+    io::println("=== Path.tr Tests ===");
+    test_path_toString();
+    test_path_basename();
+    test_path_dirname();
+    test_path_extension();
+    test_path_stem();
+    test_path_join();
+    test_path_parent();
+    test_path_fileName();
+    test_path_isAbsolute();
+    test_path_normalize();
+    test_path_withExtension();
+    test_path_withName();
+    test_path_exists_isFile_isDir();
+    test_path_readText_writeText();
+    test_path_fileSize();
+    test_path_parents();
+    test_path_lexists();
+    test_path_commonPath();
+}
