@@ -1,0 +1,181 @@
+// Test file for Stopwatch.tr
+// Exercises the public API of the Stopwatch class.
+import tt::time::Stopwatch;
+import tt::time::Duration;
+import tt::time::Time;
+import tt::lang::Long;
+import tt::lang::Double;
+import tt::lang::Boolean;
+
+public fn test_stopwatch_init(): void {
+    let sw: Stopwatch = new Stopwatch();
+    if (sw.isRunning()) {
+        io::println("FAIL: Stopwatch should not be running after init");
+    } else {
+        io::println("PASS: Stopwatch.init/isRunning works");
+    }
+}
+
+public fn test_stopwatch_start(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    if (!sw.isRunning()) {
+        io::println("FAIL: Stopwatch should be running after start");
+    } else {
+        io::println("PASS: Stopwatch.start works");
+    }
+}
+
+public fn test_stopwatch_stop(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    Time.sleep(5);
+    sw.stop();
+    if (sw.isRunning()) {
+        io::println("FAIL: Stopwatch should not be running after stop");
+    } else {
+        io::println("PASS: Stopwatch.stop works");
+    }
+}
+
+public fn test_stopwatch_elapsed_after_stop(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    Time.sleep(10);
+    sw.stop();
+    let d: Duration = sw.elapsed();
+    if (d.toMillis() < 0) {
+        io::println("FAIL: Stopwatch.elapsed negative");
+    } else {
+        io::println("PASS: Stopwatch.elapsed works: " + Long.toString(d.toMillis()) + "ms");
+    }
+}
+
+public fn test_stopwatch_elapsedNanos(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    Time.sleep(5);
+    sw.stop();
+    let ns: long = sw.elapsedNanos();
+    if (ns < 0) {
+        io::println("FAIL: Stopwatch.elapsedNanos negative");
+    } else {
+        io::println("PASS: Stopwatch.elapsedNanos works");
+    }
+}
+
+public fn test_stopwatch_elapsedMillis(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    Time.sleep(5);
+    sw.stop();
+    let ms: double = sw.elapsedMillis();
+    if (ms < 0.0) {
+        io::println("FAIL: Stopwatch.elapsedMillis negative");
+    } else {
+        io::println("PASS: Stopwatch.elapsedMillis works: " + Double.toString(ms));
+    }
+}
+
+public fn test_stopwatch_elapsedSeconds(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    Time.sleep(5);
+    sw.stop();
+    let s: double = sw.elapsedSeconds();
+    if (s < 0.0) {
+        io::println("FAIL: Stopwatch.elapsedSeconds negative");
+    } else {
+        io::println("PASS: Stopwatch.elapsedSeconds works");
+    }
+}
+
+public fn test_stopwatch_reset(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    Time.sleep(5);
+    sw.stop();
+    sw.reset();
+    let ns: long = sw.elapsedNanos();
+    if (ns != 0) {
+        io::println("FAIL: Stopwatch.reset did not zero elapsed, ns=" + Long.toString(ns));
+    } else if (sw.isRunning()) {
+        io::println("FAIL: Stopwatch.reset should stop the watch");
+    } else {
+        io::println("PASS: Stopwatch.reset works");
+    }
+}
+
+public fn test_stopwatch_restart(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    Time.sleep(10);
+    sw.stop();
+    sw.restart();
+    if (!sw.isRunning()) {
+        io::println("FAIL: Stopwatch.restart should start running");
+    } else {
+        io::println("PASS: Stopwatch.restart works");
+    }
+}
+
+public fn test_stopwatch_toString(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    Time.sleep(2);
+    sw.stop();
+    let s: string = sw.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Stopwatch.toString empty");
+    } else {
+        io::println("PASS: Stopwatch.toString works: " + s);
+    }
+}
+
+public fn test_stopwatch_start_returns_self(): void {
+    let sw: Stopwatch = new Stopwatch();
+    let returned: Stopwatch = sw.start();
+    if (returned != sw) {
+        io::println("FAIL: Stopwatch.start should return self");
+    } else {
+        io::println("PASS: Stopwatch.start returns self");
+    }
+}
+
+public fn test_stopwatch_stop_returns_self(): void {
+    let sw: Stopwatch = new Stopwatch();
+    sw.start();
+    let returned: Stopwatch = sw.stop();
+    if (returned != sw) {
+        io::println("FAIL: Stopwatch.stop should return self");
+    } else {
+        io::println("PASS: Stopwatch.stop returns self");
+    }
+}
+
+public fn test_stopwatch_reset_returns_self(): void {
+    let sw: Stopwatch = new Stopwatch();
+    let returned: Stopwatch = sw.reset();
+    if (returned != sw) {
+        io::println("FAIL: Stopwatch.reset should return self");
+    } else {
+        io::println("PASS: Stopwatch.reset returns self");
+    }
+}
+
+public fn run_all_stopwatch_tests(): void {
+    io::println("=== Stopwatch.tr Tests ===");
+    test_stopwatch_init();
+    test_stopwatch_start();
+    test_stopwatch_stop();
+    test_stopwatch_elapsed_after_stop();
+    test_stopwatch_elapsedNanos();
+    test_stopwatch_elapsedMillis();
+    test_stopwatch_elapsedSeconds();
+    test_stopwatch_reset();
+    test_stopwatch_restart();
+    test_stopwatch_toString();
+    test_stopwatch_start_returns_self();
+    test_stopwatch_stop_returns_self();
+    test_stopwatch_reset_returns_self();
+}
