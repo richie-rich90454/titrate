@@ -1,0 +1,198 @@
+// Test file for Format.tr
+// Exercises the public API of the Format module: format() and sprintf()
+// across integer, float, string, hex, octal, binary, char, scientific, and
+// percent specifiers, plus width/precision/flag handling.
+import tt::io::Format;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_format_string_spec(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add("world");
+    let result: string = Format.format("hello %s", args);
+    if (result != "hello world") {
+        io::println("FAIL: format %s = '" + result + "'");
+    } else {
+        io::println("PASS: format %s works");
+    }
+}
+
+public fn test_format_int_spec(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(42);
+    let result: string = Format.format("value=%d", args);
+    if (result != "value=42") {
+        io::println("FAIL: format %d = '" + result + "'");
+    } else {
+        io::println("PASS: format %d works");
+    }
+}
+
+public fn test_format_float_precision(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(3.14159);
+    let result: string = Format.format("%.2f", args);
+    if (result != "3.14") {
+        io::println("FAIL: format %.2f = '" + result + "'");
+    } else {
+        io::println("PASS: format %.2f works");
+    }
+}
+
+public fn test_format_hex_spec(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(255);
+    let result: string = Format.format("%x", args);
+    if (result != "ff") {
+        io::println("FAIL: format %x = '" + result + "'");
+    } else {
+        io::println("PASS: format %x works");
+    }
+}
+
+public fn test_format_hex_upper(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(255);
+    let result: string = Format.format("%X", args);
+    if (result != "FF") {
+        io::println("FAIL: format %X = '" + result + "'");
+    } else {
+        io::println("PASS: format %X works");
+    }
+}
+
+public fn test_format_octal_spec(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(8);
+    let result: string = Format.format("%o", args);
+    if (result != "10") {
+        io::println("FAIL: format %o = '" + result + "'");
+    } else {
+        io::println("PASS: format %o works");
+    }
+}
+
+public fn test_format_binary_spec(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(5);
+    let result: string = Format.format("%b", args);
+    if (result != "101") {
+        io::println("FAIL: format %b = '" + result + "'");
+    } else {
+        io::println("PASS: format %b (binary) works");
+    }
+}
+
+public fn test_format_escaped_percent(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    let result: string = Format.format("100%%", args);
+    if (result != "100%") {
+        io::println("FAIL: format %% = '" + result + "'");
+    } else {
+        io::println("PASS: format %% escapes to %");
+    }
+}
+
+public fn test_format_width_padding(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(42);
+    let result: string = Format.format("[%5d]", args);
+    if (result != "[   42]") {
+        io::println("FAIL: format %5d = '" + result + "'");
+    } else {
+        io::println("PASS: format %5d width padding works");
+    }
+}
+
+public fn test_format_left_align(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(42);
+    let result: string = Format.format("[%-5d]", args);
+    if (result != "[42   ]") {
+        io::println("FAIL: format %-5d = '" + result + "'");
+    } else {
+        io::println("PASS: format %-5d left-align works");
+    }
+}
+
+public fn test_format_zero_pad(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(42);
+    let result: string = Format.format("[%05d]", args);
+    if (result != "[00042]") {
+        io::println("FAIL: format %05d = '" + result + "'");
+    } else {
+        io::println("PASS: format %05d zero-pad works");
+    }
+}
+
+public fn test_format_show_sign(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(42);
+    let result: string = Format.format("%+d", args);
+    if (result != "+42") {
+        io::println("FAIL: format %+d = '" + result + "'");
+    } else {
+        io::println("PASS: format %+d show-sign works");
+    }
+}
+
+public fn test_format_multiple_args(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(1);
+    args.add("two");
+    args.add(3.0);
+    let result: string = Format.format("%d %s %f", args);
+    if (result != "1 two 3") {
+        // %f without precision may render "3.0" or "3"; accept either form
+        if (result == "1 two 3.0") {
+            io::println("PASS: format multiple args works (3.0 form)");
+        } else {
+            io::println("FAIL: format multiple args = '" + result + "'");
+        }
+    } else {
+        io::println("PASS: format multiple args works");
+    }
+}
+
+public fn test_sprintf_alias(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add("sprintf");
+    let result: string = Format.sprintf("hello %s", args);
+    if (result != "hello sprintf") {
+        io::println("FAIL: sprintf = '" + result + "'");
+    } else {
+        io::println("PASS: sprintf alias works");
+    }
+}
+
+public fn test_format_char_spec(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(65);
+    let result: string = Format.format("%c", args);
+    if (result != "A") {
+        io::println("FAIL: format %c = '" + result + "'");
+    } else {
+        io::println("PASS: format %c (char) works");
+    }
+}
+
+public fn run_all_format_tests(): void {
+    io::println("=== Format.tr Tests ===");
+    test_format_string_spec();
+    test_format_int_spec();
+    test_format_float_precision();
+    test_format_hex_spec();
+    test_format_hex_upper();
+    test_format_octal_spec();
+    test_format_binary_spec();
+    test_format_escaped_percent();
+    test_format_width_padding();
+    test_format_left_align();
+    test_format_zero_pad();
+    test_format_show_sign();
+    test_format_multiple_args();
+    test_sprintf_alias();
+    test_format_char_spec();
+}
