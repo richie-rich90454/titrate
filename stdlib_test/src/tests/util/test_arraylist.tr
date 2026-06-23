@@ -1,0 +1,293 @@
+// Test file for ArrayList.tr
+// Exercises the public API of the ArrayList class and its utility functions.
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_arraylist_add_size(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    if (list.size() != 3) {
+        io::println("FAIL: ArrayList.size() = " + Integer.toString(list.size()) + ", expected 3");
+    } else {
+        io::println("PASS: ArrayList add/size works");
+    }
+}
+
+public fn test_arraylist_get_set(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10);
+    list.add(20);
+    list.add(30);
+    if (list.get(0) != 10 || list.get(1) != 20 || list.get(2) != 30) {
+        io::println("FAIL: ArrayList.get returned wrong values");
+    } else {
+        io::println("PASS: ArrayList.get works");
+    }
+    list.set(1, 99);
+    if (list.get(1) != 99) {
+        io::println("FAIL: ArrayList.set did not update value");
+    } else {
+        io::println("PASS: ArrayList.set works");
+    }
+}
+
+public fn test_arraylist_remove_index(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("a");
+    list.add("b");
+    list.add("c");
+    let removed: string = list.remove(1);
+    if (removed != "b" || list.size() != 2 || list.get(1) != "c") {
+        io::println("FAIL: ArrayList.remove(index) removed=" + removed + " size=" + Integer.toString(list.size()));
+    } else {
+        io::println("PASS: ArrayList.remove(index) works");
+    }
+}
+
+public fn test_arraylist_pop(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    let popped: int = list.pop();
+    if (popped != 3 || list.size() != 2) {
+        io::println("FAIL: ArrayList.pop returned " + Integer.toString(popped));
+    } else {
+        io::println("PASS: ArrayList.pop works");
+    }
+}
+
+public fn test_arraylist_contains_indexOf(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("x");
+    list.add("y");
+    list.add("z");
+    if (!list.contains("y") || list.contains("w")) {
+        io::println("FAIL: ArrayList.contains");
+    } else {
+        io::println("PASS: ArrayList.contains works");
+    }
+    if (list.indexOf("z") != 2 || list.indexOf("w") != -1) {
+        io::println("FAIL: ArrayList.indexOf");
+    } else {
+        io::println("PASS: ArrayList.indexOf works");
+    }
+}
+
+public fn test_arraylist_isEmpty_clear(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    if (!list.isEmpty()) {
+        io::println("FAIL: ArrayList.isEmpty should be true for new list");
+    } else {
+        io::println("PASS: ArrayList.isEmpty on new list");
+    }
+    list.add(5);
+    if (list.isEmpty()) {
+        io::println("FAIL: ArrayList.isEmpty should be false after add");
+    } else {
+        io::println("PASS: ArrayList.isEmpty false after add");
+    }
+    list.clear();
+    if (!list.isEmpty()) {
+        io::println("FAIL: ArrayList.clear did not empty the list");
+    } else {
+        io::println("PASS: ArrayList.clear works");
+    }
+}
+
+public fn test_arraylist_clone(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    let copy: ArrayList<int> = list.clone();
+    copy.add(3);
+    if (list.size() != 2 || copy.size() != 3) {
+        io::println("FAIL: ArrayList.clone independence broken");
+    } else {
+        io::println("PASS: ArrayList.clone is independent");
+    }
+}
+
+public fn test_arraylist_addAll(): void {
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1);
+    a.add(2);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(3);
+    b.add(4);
+    a.addAll(b);
+    if (a.size() != 4 || a.get(2) != 3 || a.get(3) != 4) {
+        io::println("FAIL: ArrayList.addAll size=" + Integer.toString(a.size()));
+    } else {
+        io::println("PASS: ArrayList.addAll works");
+    }
+}
+
+public fn test_arraylist_subList(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10);
+    list.add(20);
+    list.add(30);
+    list.add(40);
+    let sub: ArrayList<int> = list.subList(1, 3);
+    if (sub.size() != 2 || sub.get(0) != 20 || sub.get(1) != 30) {
+        io::println("FAIL: ArrayList.subList size=" + Integer.toString(sub.size()));
+    } else {
+        io::println("PASS: ArrayList.subList works");
+    }
+}
+
+public fn test_arraylist_lastIndexOf(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(1);
+    list.add(3);
+    if (list.lastIndexOf(1) != 2) {
+        io::println("FAIL: ArrayList.lastIndexOf = " + Integer.toString(list.lastIndexOf(1)));
+    } else {
+        io::println("PASS: ArrayList.lastIndexOf works");
+    }
+}
+
+public fn test_arraylist_add_at_index(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(3);
+    list.add(1, 2);
+    if (list.get(0) != 1 || list.get(1) != 2 || list.get(2) != 3) {
+        io::println("FAIL: ArrayList.add(index, value)");
+    } else {
+        io::println("PASS: ArrayList.add(index, value) works");
+    }
+}
+
+public fn test_arraylist_filter(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    list.add(4);
+    let evens: ArrayList<int> = list.filter(fn(x: int): bool { return x % 2 == 0; });
+    if (evens.size() != 2 || evens.get(0) != 2 || evens.get(1) != 4) {
+        io::println("FAIL: ArrayList.filter size=" + Integer.toString(evens.size()));
+    } else {
+        io::println("PASS: ArrayList.filter works");
+    }
+}
+
+public fn test_arraylist_map(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    let squared: ArrayList<int> = list.map(fn(x: int): int { return x * x; });
+    if (squared.get(0) != 1 || squared.get(1) != 4 || squared.get(2) != 9) {
+        io::println("FAIL: ArrayList.map");
+    } else {
+        io::println("PASS: ArrayList.map works");
+    }
+}
+
+public fn test_arraylist_reverseList(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("a");
+    list.add("b");
+    list.add("c");
+    reverseList(list);
+    if (list.get(0) != "c" || list.get(1) != "b" || list.get(2) != "a") {
+        io::println("FAIL: reverseList");
+    } else {
+        io::println("PASS: reverseList works");
+    }
+}
+
+public fn test_arraylist_copyList(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("x");
+    list.add("y");
+    let copy: ArrayList<string> = copyList(list);
+    if (copy.size() != 2 || copy.get(0) != "x" || copy.get(1) != "y") {
+        io::println("FAIL: copyList");
+    } else {
+        io::println("PASS: copyList works");
+    }
+}
+
+public fn test_arraylist_extendList(): void {
+    let target: ArrayList<string> = new ArrayList<string>();
+    target.add("a");
+    let source: ArrayList<string> = new ArrayList<string>();
+    source.add("b");
+    source.add("c");
+    extendList(target, source);
+    if (target.size() != 3 || target.get(1) != "b" || target.get(2) != "c") {
+        io::println("FAIL: extendList size=" + Integer.toString(target.size()));
+    } else {
+        io::println("PASS: extendList works");
+    }
+}
+
+public fn test_arraylist_countItem(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("a");
+    list.add("b");
+    list.add("a");
+    list.add("a");
+    if (countItem(list, "a") != 3) {
+        io::println("FAIL: countItem");
+    } else {
+        io::println("PASS: countItem works");
+    }
+}
+
+public fn test_arraylist_removeItem(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("a");
+    list.add("b");
+    list.add("c");
+    let removed: bool = removeItem(list, "b");
+    if (!removed || list.size() != 2 || list.get(1) != "c") {
+        io::println("FAIL: removeItem");
+    } else {
+        io::println("PASS: removeItem works");
+    }
+}
+
+public fn test_arraylist_indexOf_with_start(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("a");
+    list.add("b");
+    list.add("a");
+    if (indexOf(list, "a", 1) != 2) {
+        io::println("FAIL: indexOf with start");
+    } else {
+        io::println("PASS: indexOf with start works");
+    }
+}
+
+public fn run_all_arraylist_tests(): void {
+    io::println("=== ArrayList.tr Tests ===");
+    test_arraylist_add_size();
+    test_arraylist_get_set();
+    test_arraylist_remove_index();
+    test_arraylist_pop();
+    test_arraylist_contains_indexOf();
+    test_arraylist_isEmpty_clear();
+    test_arraylist_clone();
+    test_arraylist_addAll();
+    test_arraylist_subList();
+    test_arraylist_lastIndexOf();
+    test_arraylist_add_at_index();
+    test_arraylist_filter();
+    test_arraylist_map();
+    test_arraylist_reverseList();
+    test_arraylist_copyList();
+    test_arraylist_extendList();
+    test_arraylist_countItem();
+    test_arraylist_removeItem();
+    test_arraylist_indexOf_with_start();
+}
