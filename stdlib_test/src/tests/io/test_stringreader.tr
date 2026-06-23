@@ -1,0 +1,135 @@
+// Test file for StringReader.tr
+// Exercises the public API of StringReader: read, readLine, readAll, close,
+// pos, and hasMore.
+import tt::io::StringReader;
+import tt::lang::Integer;
+
+public fn test_stringreader_read_char(): void {
+    let reader: StringReader = new StringReader("abc");
+    let c1: string = reader.read();
+    let c2: string = reader.read();
+    if (c1 != "a" || c2 != "b") {
+        io::println("FAIL: StringReader.read c1='" + c1 + "' c2='" + c2 + "'");
+    } else {
+        io::println("PASS: StringReader.read returns characters one at a time");
+    }
+    reader.close();
+}
+
+public fn test_stringreader_readLine(): void {
+    let reader: StringReader = new StringReader("line1\nline2\nline3");
+    let l1: string = reader.readLine();
+    let l2: string = reader.readLine();
+    let l3: string = reader.readLine();
+    if (l1 != "line1" || l2 != "line2" || l3 != "line3") {
+        io::println("FAIL: StringReader.readLine l1='" + l1 + "' l2='" + l2 + "' l3='" + l3 + "'");
+    } else {
+        io::println("PASS: StringReader.readLine splits on newlines");
+    }
+    reader.close();
+}
+
+public fn test_stringreader_readLine_crlf(): void {
+    let reader: StringReader = new StringReader("a\r\nb");
+    let l1: string = reader.readLine();
+    let l2: string = reader.readLine();
+    if (l1 != "a" || l2 != "b") {
+        io::println("FAIL: StringReader.readLine CRLF l1='" + l1 + "' l2='" + l2 + "'");
+    } else {
+        io::println("PASS: StringReader.readLine handles CRLF");
+    }
+    reader.close();
+}
+
+public fn test_stringreader_readAll(): void {
+    let reader: StringReader = new StringReader("hello world");
+    let all: string = reader.readAll();
+    if (all != "hello world") {
+        io::println("FAIL: StringReader.readAll = '" + all + "'");
+    } else {
+        io::println("PASS: StringReader.readAll returns remaining content");
+    }
+    reader.close();
+}
+
+public fn test_stringreader_readAll_after_partial(): void {
+    let reader: StringReader = new StringReader("abcdef");
+    reader.read();
+    reader.read();
+    let rest: string = reader.readAll();
+    if (rest != "cdef") {
+        io::println("FAIL: StringReader.readAll after partial = '" + rest + "'");
+    } else {
+        io::println("PASS: StringReader.readAll returns remainder after reads");
+    }
+    reader.close();
+}
+
+public fn test_stringreader_pos(): void {
+    let reader: StringReader = new StringReader("xyz");
+    reader.read();
+    reader.read();
+    if (reader.pos() != 2) {
+        io::println("FAIL: StringReader.pos = " + Integer.toString(reader.pos()));
+    } else {
+        io::println("PASS: StringReader.pos tracks position");
+    }
+    reader.close();
+}
+
+public fn test_stringreader_hasMore(): void {
+    let reader: StringReader = new StringReader("ab");
+    if (!reader.hasMore()) {
+        io::println("FAIL: StringReader.hasMore false at start");
+    } else {
+        io::println("PASS: StringReader.hasMore true when content remains");
+    }
+    reader.read();
+    reader.read();
+    if (reader.hasMore()) {
+        io::println("FAIL: StringReader.hasMore true when exhausted");
+    } else {
+        io::println("PASS: StringReader.hasMore false when exhausted");
+    }
+    reader.close();
+}
+
+public fn test_stringreader_close(): void {
+    let reader: StringReader = new StringReader("data");
+    reader.close();
+    // After close, position should be at end and hasMore false.
+    if (reader.hasMore()) {
+        io::println("FAIL: StringReader.hasMore true after close");
+    } else {
+        io::println("PASS: StringReader.close consumes remaining content");
+    }
+}
+
+public fn test_stringreader_empty_source(): void {
+    let reader: StringReader = new StringReader("");
+    if (reader.hasMore()) {
+        io::println("FAIL: StringReader.hasMore true for empty source");
+    } else {
+        io::println("PASS: StringReader empty source has no more");
+    }
+    let line: string = reader.readLine();
+    if (line != "") {
+        io::println("FAIL: StringReader.readLine on empty = '" + line + "'");
+    } else {
+        io::println("PASS: StringReader.readLine on empty returns empty string");
+    }
+    reader.close();
+}
+
+public fn run_all_stringreader_tests(): void {
+    io::println("=== StringReader.tr Tests ===");
+    test_stringreader_read_char();
+    test_stringreader_readLine();
+    test_stringreader_readLine_crlf();
+    test_stringreader_readAll();
+    test_stringreader_readAll_after_partial();
+    test_stringreader_pos();
+    test_stringreader_hasMore();
+    test_stringreader_close();
+    test_stringreader_empty_source();
+}
