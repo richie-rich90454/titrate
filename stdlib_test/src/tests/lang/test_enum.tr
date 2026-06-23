@@ -1,0 +1,239 @@
+// Test file for Enum.tr
+// Exercises the public API of the Enum module.
+import tt::lang::Enum;
+import tt::lang::String;
+import tt::util::ArrayList;
+
+public fn test_enumvalue_init(): void {
+    let e: EnumValue = new EnumValue("Red", 0);
+    if (e.getName() != "Red" || e.getOrdinal() != 0) {
+        io::println("FAIL: EnumValue.init");
+    } else {
+        io::println("PASS: EnumValue.init");
+    }
+}
+
+public fn test_enumvalue_toString(): void {
+    let e: EnumValue = new EnumValue("Green", 1);
+    if (e.toString() != "Green") {
+        io::println("FAIL: EnumValue.toString = " + e.toString());
+    } else {
+        io::println("PASS: EnumValue.toString = Green");
+    }
+}
+
+public fn test_enumvalue_getOrdinal(): void {
+    let e: EnumValue = new EnumValue("Blue", 2);
+    if (e.getOrdinal() != 2) {
+        io::println("FAIL: EnumValue.getOrdinal");
+    } else {
+        io::println("PASS: EnumValue.getOrdinal");
+    }
+}
+
+public fn test_enumvalue_getName(): void {
+    let e: EnumValue = new EnumValue("Yellow", 3);
+    if (e.getName() != "Yellow") {
+        io::println("FAIL: EnumValue.getName");
+    } else {
+        io::println("PASS: EnumValue.getName");
+    }
+}
+
+public fn test_enumvalue_getValue(): void {
+    let e: EnumValue = new EnumValue("Red", 0);
+    // value defaults to ordinal
+    if (e.getValue() != 0) {
+        io::println("FAIL: EnumValue.getValue default");
+    } else {
+        io::println("PASS: EnumValue.getValue default");
+    }
+}
+
+public fn test_enumvalue_initWithValue(): void {
+    let e: EnumValue = new EnumValue("Custom", 0);
+    e.initWithValue("Custom", 2, 100);
+    if (e.getValue() != 100 || e.getOrdinal() != 2) {
+        io::println("FAIL: EnumValue.initWithValue");
+    } else {
+        io::println("PASS: EnumValue.initWithValue");
+    }
+}
+
+public fn test_enumvalue_equals_same(): void {
+    let e1: EnumValue = new EnumValue("Red", 0);
+    let e2: EnumValue = new EnumValue("Red", 0);
+    if (!e1.equals(e2)) {
+        io::println("FAIL: EnumValue.equals same");
+    } else {
+        io::println("PASS: EnumValue.equals same");
+    }
+}
+
+public fn test_enumvalue_equals_diff(): void {
+    let e1: EnumValue = new EnumValue("Red", 0);
+    let e2: EnumValue = new EnumValue("Blue", 2);
+    if (e1.equals(e2)) {
+        io::println("FAIL: EnumValue.equals diff");
+    } else {
+        io::println("PASS: EnumValue.equals diff");
+    }
+}
+
+public fn test_intenum_init(): void {
+    let e: IntEnum = new IntEnum("READ", 1);
+    if (e.getName() != "READ" || e.getValue() != 1) {
+        io::println("FAIL: IntEnum.init");
+    } else {
+        io::println("PASS: IntEnum.init");
+    }
+}
+
+public fn test_intenum_toString(): void {
+    let e: IntEnum = new IntEnum("WRITE", 2);
+    if (e.toString() != "WRITE") {
+        io::println("FAIL: IntEnum.toString");
+    } else {
+        io::println("PASS: IntEnum.toString");
+    }
+}
+
+public fn test_intenum_equals_same(): void {
+    let e1: IntEnum = new IntEnum("READ", 1);
+    let e2: IntEnum = new IntEnum("READ", 1);
+    if (!e1.equals(e2)) {
+        io::println("FAIL: IntEnum.equals same");
+    } else {
+        io::println("PASS: IntEnum.equals same");
+    }
+}
+
+public fn test_auto_increments(): void {
+    Enum.resetAuto();
+    let a: int = Enum.auto();
+    let b: int = Enum.auto();
+    let c: int = Enum.auto();
+    if (a != 0 || b != 1 || c != 2) {
+        io::println("FAIL: Enum.auto increments");
+    } else {
+        io::println("PASS: Enum.auto increments");
+    }
+}
+
+public fn test_auto_reset(): void {
+    Enum.resetAuto();
+    let a: int = Enum.auto();
+    Enum.resetAuto();
+    let b: int = Enum.auto();
+    if (a != 0 || b != 0) {
+        io::println("FAIL: Enum.auto reset");
+    } else {
+        io::println("PASS: Enum.auto reset");
+    }
+}
+
+public fn test_auto_setStart(): void {
+    Enum.setAutoStart(10);
+    let a: int = Enum.auto();
+    if (a != 10) {
+        io::println("FAIL: Enum.setAutoStart");
+    } else {
+        io::println("PASS: Enum.setAutoStart");
+    }
+    Enum.resetAuto();
+}
+
+public fn test_enumValueOf_found(): void {
+    let values: ArrayList<EnumValue> = new ArrayList<EnumValue>();
+    values.add(new EnumValue("Red", 0));
+    values.add(new EnumValue("Green", 1));
+    values.add(new EnumValue("Blue", 2));
+    let result: EnumValue = Enum.enumValueOf(values, "Green");
+    if (result.getName() != "Green") {
+        io::println("FAIL: Enum.enumValueOf found = " + result.getName());
+    } else {
+        io::println("PASS: Enum.enumValueOf found");
+    }
+}
+
+public fn test_enumValueOf_notFound(): void {
+    let values: ArrayList<EnumValue> = new ArrayList<EnumValue>();
+    values.add(new EnumValue("Red", 0));
+    let result: EnumValue = Enum.enumValueOf(values, "Missing");
+    if (result.getName() != "UNKNOWN") {
+        io::println("FAIL: Enum.enumValueOf notFound = " + result.getName());
+    } else {
+        io::println("PASS: Enum.enumValueOf notFound");
+    }
+}
+
+public fn test_enumFromOrdinal_valid(): void {
+    let values: ArrayList<EnumValue> = new ArrayList<EnumValue>();
+    values.add(new EnumValue("Red", 0));
+    values.add(new EnumValue("Green", 1));
+    let result: EnumValue = Enum.enumFromOrdinal(values, 1);
+    if (result.getName() != "Green") {
+        io::println("FAIL: Enum.enumFromOrdinal valid");
+    } else {
+        io::println("PASS: Enum.enumFromOrdinal valid");
+    }
+}
+
+public fn test_enumFromOrdinal_invalid(): void {
+    let values: ArrayList<EnumValue> = new ArrayList<EnumValue>();
+    values.add(new EnumValue("Red", 0));
+    let result: EnumValue = Enum.enumFromOrdinal(values, 5);
+    if (result.getName() != "UNKNOWN") {
+        io::println("FAIL: Enum.enumFromOrdinal invalid");
+    } else {
+        io::println("PASS: Enum.enumFromOrdinal invalid");
+    }
+}
+
+public fn test_intEnumValueOf_found(): void {
+    let values: ArrayList<IntEnum> = new ArrayList<IntEnum>();
+    values.add(new IntEnum("READ", 1));
+    values.add(new IntEnum("WRITE", 2));
+    let result: IntEnum = Enum.intEnumValueOf(values, "WRITE");
+    if (result.getName() != "WRITE") {
+        io::println("FAIL: Enum.intEnumValueOf found");
+    } else {
+        io::println("PASS: Enum.intEnumValueOf found");
+    }
+}
+
+public fn test_intEnumFromValue_found(): void {
+    let values: ArrayList<IntEnum> = new ArrayList<IntEnum>();
+    values.add(new IntEnum("READ", 1));
+    values.add(new IntEnum("WRITE", 2));
+    let result: IntEnum = Enum.intEnumFromValue(values, 2);
+    if (result.getName() != "WRITE") {
+        io::println("FAIL: Enum.intEnumFromValue found");
+    } else {
+        io::println("PASS: Enum.intEnumFromValue found");
+    }
+}
+
+public fn run_all_enum_tests(): void {
+    io::println("=== Enum.tr Tests ===");
+    test_enumvalue_init();
+    test_enumvalue_toString();
+    test_enumvalue_getOrdinal();
+    test_enumvalue_getName();
+    test_enumvalue_getValue();
+    test_enumvalue_initWithValue();
+    test_enumvalue_equals_same();
+    test_enumvalue_equals_diff();
+    test_intenum_init();
+    test_intenum_toString();
+    test_intenum_equals_same();
+    test_auto_increments();
+    test_auto_reset();
+    test_auto_setStart();
+    test_enumValueOf_found();
+    test_enumValueOf_notFound();
+    test_enumFromOrdinal_valid();
+    test_enumFromOrdinal_invalid();
+    test_intEnumValueOf_found();
+    test_intEnumFromValue_found();
+}
