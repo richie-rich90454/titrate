@@ -1,0 +1,115 @@
+// Test file for Mmap.tr
+// Exercises the public API of Mmap: init, get, set, size, flush, close,
+// isClosed, and asString.
+import tt::io::Mmap;
+import tt::io::File;
+import tt::lang::Integer;
+
+public fn _mmapWriteFile(path: string, content: string): void {
+    let f: File = new File(path);
+    f.write(content);
+    f.close();
+}
+
+public fn test_mmap_size(): void {
+    let path: string = "test_mmap_size.txt";
+    _mmapWriteFile(path, "hello");
+    let m: Mmap = new Mmap(path);
+    if (m.size() != 5) {
+        io::println("FAIL: Mmap.size = " + Integer.toString(m.size()));
+    } else {
+        io::println("PASS: Mmap.size returns file length");
+    }
+    m.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_mmap_get(): void {
+    let path: string = "test_mmap_get.txt";
+    _mmapWriteFile(path, "ABC");
+    let m: Mmap = new Mmap(path);
+    let b0: int = m.get(0);
+    let b1: int = m.get(1);
+    // 'A' = 65, 'B' = 66
+    if (b0 != 65 || b1 != 66) {
+        io::println("FAIL: Mmap.get b0=" + Integer.toString(b0) + " b1=" + Integer.toString(b1));
+    } else {
+        io::println("PASS: Mmap.get returns byte values");
+    }
+    m.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_mmap_set(): void {
+    let path: string = "test_mmap_set.txt";
+    _mmapWriteFile(path, "abc");
+    let m: Mmap = new Mmap(path);
+    m.set(0, 65); // 'A'
+    m.flush();
+    m.close();
+    let f: File = new File(path);
+    let content: string = f.readAll();
+    if (content != "Abc") {
+        io::println("FAIL: Mmap.set result = '" + content + "'");
+    } else {
+        io::println("PASS: Mmap.set writes byte to file");
+    }
+    f.delete();
+}
+
+public fn test_mmap_asString(): void {
+    let path: string = "test_mmap_asstring.txt";
+    _mmapWriteFile(path, "data");
+    let m: Mmap = new Mmap(path);
+    let s: string = m.asString();
+    if (s != "data") {
+        io::println("FAIL: Mmap.asString = '" + s + "'");
+    } else {
+        io::println("PASS: Mmap.asString returns full content");
+    }
+    m.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_mmap_isClosed(): void {
+    let path: string = "test_mmap_isclosed.txt";
+    _mmapWriteFile(path, "x");
+    let m: Mmap = new Mmap(path);
+    if (m.isClosed()) {
+        io::println("FAIL: Mmap.isClosed true before close");
+    } else {
+        io::println("PASS: Mmap.isClosed false before close");
+    }
+    m.close();
+    if (!m.isClosed()) {
+        io::println("FAIL: Mmap.isClosed false after close");
+    } else {
+        io::println("PASS: Mmap.isClosed true after close");
+    }
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_mmap_flush_noop_safe(): void {
+    let path: string = "test_mmap_flush.txt";
+    _mmapWriteFile(path, "flush");
+    let m: Mmap = new Mmap(path);
+    m.flush();
+    io::println("PASS: Mmap.flush executes without error");
+    m.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn run_all_mmap_tests(): void {
+    io::println("=== Mmap.tr Tests ===");
+    test_mmap_size();
+    test_mmap_get();
+    test_mmap_set();
+    test_mmap_asString();
+    test_mmap_isClosed();
+    test_mmap_flush_noop_safe();
+}
