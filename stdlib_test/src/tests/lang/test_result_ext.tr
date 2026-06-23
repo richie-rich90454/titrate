@@ -1,0 +1,178 @@
+// Test file for ResultExt.tr
+// Exercises the public API of the ResultExt module.
+import tt::lang::ResultExt;
+import tt::lang::Result;
+import tt::lang::Variant;
+
+public fn test_andThen_ok(): void {
+    let r: Result = Result.ok(5 as Variant);
+    let f: fn(Variant): Result = fn(x: Variant): Result { return Result.ok((x as int + 1) as Variant); };
+    let result: Result = ResultExt.andThen(r, f);
+    if (!result.isOk()) {
+        io::println("FAIL: ResultExt.andThen ok");
+    } else {
+        io::println("PASS: ResultExt.andThen ok");
+    }
+}
+
+public fn test_andThen_err(): void {
+    let r: Result = Result.err("bad" as Variant);
+    let f: fn(Variant): Result = fn(x: Variant): Result { return Result.ok(x); };
+    let result: Result = ResultExt.andThen(r, f);
+    if (result.isOk()) {
+        io::println("FAIL: ResultExt.andThen err");
+    } else {
+        io::println("PASS: ResultExt.andThen err");
+    }
+}
+
+public fn test_orElse_err(): void {
+    let r: Result = Result.err("bad" as Variant);
+    let f: fn(Variant): Result = fn(e: Variant): Result { return Result.ok(0 as Variant); };
+    let result: Result = ResultExt.orElse(r, f);
+    if (!result.isOk()) {
+        io::println("FAIL: ResultExt.orElse err");
+    } else {
+        io::println("PASS: ResultExt.orElse err");
+    }
+}
+
+public fn test_orElse_ok(): void {
+    let r: Result = Result.ok(5 as Variant);
+    let f: fn(Variant): Result = fn(e: Variant): Result { return Result.ok(0 as Variant); };
+    let result: Result = ResultExt.orElse(r, f);
+    if (!result.isOk()) {
+        io::println("FAIL: ResultExt.orElse ok");
+    } else {
+        io::println("PASS: ResultExt.orElse ok");
+    }
+}
+
+public fn test_unwrapOr_ok(): void {
+    let r: Result = Result.ok(42 as Variant);
+    let result: Variant = ResultExt.unwrapOr(r, 99 as Variant);
+    if (result == null || result == (99 as Variant)) {
+        io::println("FAIL: ResultExt.unwrapOr ok");
+    } else {
+        io::println("PASS: ResultExt.unwrapOr ok");
+    }
+}
+
+public fn test_unwrapOr_err(): void {
+    let r: Result = Result.err("bad" as Variant);
+    let result: Variant = ResultExt.unwrapOr(r, 99 as Variant);
+    if (result != (99 as Variant)) {
+        io::println("FAIL: ResultExt.unwrapOr err");
+    } else {
+        io::println("PASS: ResultExt.unwrapOr err");
+    }
+}
+
+public fn test_unwrapOrElse_ok(): void {
+    let r: Result = Result.ok(42 as Variant);
+    let f: fn(Variant): Variant = fn(e: Variant): Variant { return 99 as Variant; };
+    let result: Variant = ResultExt.unwrapOrElse(r, f);
+    if (result == null) {
+        io::println("FAIL: ResultExt.unwrapOrElse ok null");
+    } else {
+        io::println("PASS: ResultExt.unwrapOrElse ok");
+    }
+}
+
+public fn test_unwrapOrElse_err(): void {
+    let r: Result = Result.err("bad" as Variant);
+    let f: fn(Variant): Variant = fn(e: Variant): Variant { return 99 as Variant; };
+    let result: Variant = ResultExt.unwrapOrElse(r, f);
+    if (result != (99 as Variant)) {
+        io::println("FAIL: ResultExt.unwrapOrElse err");
+    } else {
+        io::println("PASS: ResultExt.unwrapOrElse err");
+    }
+}
+
+public fn test_expect_ok(): void {
+    let r: Result = Result.ok(42 as Variant);
+    let result: Variant = ResultExt.expect(r, "should be ok");
+    if (result == null) {
+        io::println("FAIL: ResultExt.expect ok null");
+    } else {
+        io::println("PASS: ResultExt.expect ok");
+    }
+}
+
+public fn test_expect_err_throws(): void {
+    let r: Result = Result.err("bad" as Variant);
+    let threw: bool = false;
+    try {
+        ResultExt.expect(r, "should be ok");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: ResultExt.expect err did not throw");
+    } else {
+        io::println("PASS: ResultExt.expect err throws");
+    }
+}
+
+public fn test_mapResult_ok(): void {
+    let r: Result = Result.ok(5 as Variant);
+    let f: fn(Variant): Variant = fn(x: Variant): Variant { return (x as int * 2) as Variant; };
+    let result: Result = ResultExt.mapResult(r, f);
+    if (!result.isOk()) {
+        io::println("FAIL: ResultExt.mapResult ok");
+    } else {
+        io::println("PASS: ResultExt.mapResult ok");
+    }
+}
+
+public fn test_mapResult_err(): void {
+    let r: Result = Result.err("bad" as Variant);
+    let f: fn(Variant): Variant = fn(x: Variant): Variant { return x; };
+    let result: Result = ResultExt.mapResult(r, f);
+    if (result.isOk()) {
+        io::println("FAIL: ResultExt.mapResult err");
+    } else {
+        io::println("PASS: ResultExt.mapResult err");
+    }
+}
+
+public fn test_mapErr_err(): void {
+    let r: Result = Result.err("bad" as Variant);
+    let f: fn(Variant): Variant = fn(e: Variant): Variant { return (e as string + "!") as Variant; };
+    let result: Result = ResultExt.mapErr(r, f);
+    if (result.isOk()) {
+        io::println("FAIL: ResultExt.mapErr err");
+    } else {
+        io::println("PASS: ResultExt.mapErr err");
+    }
+}
+
+public fn test_mapErr_ok(): void {
+    let r: Result = Result.ok(5 as Variant);
+    let f: fn(Variant): Variant = fn(e: Variant): Variant { return e; };
+    let result: Result = ResultExt.mapErr(r, f);
+    if (!result.isOk()) {
+        io::println("FAIL: ResultExt.mapErr ok");
+    } else {
+        io::println("PASS: ResultExt.mapErr ok");
+    }
+}
+
+public fn run_all_result_ext_tests(): void {
+    io::println("=== ResultExt.tr Tests ===");
+    test_andThen_ok();
+    test_andThen_err();
+    test_orElse_err();
+    test_orElse_ok();
+    test_unwrapOr_ok();
+    test_unwrapOr_err();
+    test_unwrapOrElse_ok();
+    test_unwrapOrElse_err();
+    test_expect_ok();
+    test_expect_err_throws();
+    test_mapResult_ok();
+    test_mapResult_err();
+    test_mapErr_err();
+    test_mapErr_ok();
+}
