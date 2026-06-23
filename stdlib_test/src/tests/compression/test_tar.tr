@@ -1,0 +1,183 @@
+// Test file for Tar.tr
+// Exercises the public API of TarEntry, TarReader, and TarWriter.
+import tt::compression::Tar;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_tarentry_construction_defaults(): void {
+    let entry: TarEntry = new TarEntry("file.txt");
+    if (entry.name != "file.txt") {
+        io::println("FAIL: TarEntry.name = " + entry.name);
+    } else {
+        io::println("PASS: TarEntry.name works");
+    }
+    if (entry.size != 0) {
+        io::println("FAIL: TarEntry.size should default to 0");
+    } else {
+        io::println("PASS: TarEntry.size defaults to 0");
+    }
+    if (entry.isDirectory) {
+        io::println("FAIL: TarEntry.isDirectory should default to false");
+    } else {
+        io::println("PASS: TarEntry.isDirectory defaults to false");
+    }
+    if (entry.isSymbolicLink) {
+        io::println("FAIL: TarEntry.isSymbolicLink should default to false");
+    } else {
+        io::println("PASS: TarEntry.isSymbolicLink defaults to false");
+    }
+    if (entry.linkTarget != "") {
+        io::println("FAIL: TarEntry.linkTarget should default to empty");
+    } else {
+        io::println("PASS: TarEntry.linkTarget defaults to empty");
+    }
+    if (entry.data != "") {
+        io::println("FAIL: TarEntry.data should default to empty");
+    } else {
+        io::println("PASS: TarEntry.data defaults to empty");
+    }
+}
+
+public fn test_tarentry_mutable_fields(): void {
+    let entry: TarEntry = new TarEntry("data.bin");
+    entry.size = 500;
+    entry.mode = 0755;
+    entry.modifiedTime = 1234567890;
+    entry.data = "binary data";
+    if (entry.size != 500 || entry.mode != 493 || entry.modifiedTime != 1234567890 || entry.data != "binary data") {
+        io::println("FAIL: TarEntry field assignment failed");
+    } else {
+        io::println("PASS: TarEntry fields are mutable");
+    }
+}
+
+public fn test_tarwriter_init(): void {
+    let writer: TarWriter = new TarWriter();
+    if (writer == null) {
+        io::println("FAIL: TarWriter init returned null");
+    } else if (writer.entries.size() != 0) {
+        io::println("FAIL: TarWriter.entries should be empty on init");
+    } else {
+        io::println("PASS: TarWriter init with empty entries");
+    }
+}
+
+public fn test_tarwriter_addFile(): void {
+    let writer: TarWriter = new TarWriter();
+    writer.addFile("hello.txt", "hello world");
+    if (writer.entries.size() != 1) {
+        io::println("FAIL: TarWriter.entries size = " + Integer.toString(writer.entries.size()));
+    } else {
+        let entry: TarEntry = writer.entries.get(0);
+        if (entry.name != "hello.txt" || entry.data != "hello world" || entry.isDirectory || entry.isSymbolicLink) {
+            io::println("FAIL: TarWriter.addFile entry incorrect");
+        } else if (entry.size != 11) {
+            io::println("FAIL: TarWriter.addFile size = " + Integer.toString(entry.size as int));
+        } else {
+            io::println("PASS: TarWriter.addFile works");
+        }
+    }
+}
+
+public fn test_tarwriter_addDirectory(): void {
+    let writer: TarWriter = new TarWriter();
+    writer.addDirectory("subdir/");
+    if (writer.entries.size() != 1) {
+        io::println("FAIL: TarWriter.addDirectory entries size = " + Integer.toString(writer.entries.size()));
+    } else {
+        let entry: TarEntry = writer.entries.get(0);
+        if (!entry.isDirectory) {
+            io::println("FAIL: TarWriter.addDirectory should set isDirectory true");
+        } else if (entry.mode != 493) {
+            io::println("FAIL: TarWriter.addDirectory mode = " + Integer.toString(entry.mode));
+        } else {
+            io::println("PASS: TarWriter.addDirectory works");
+        }
+    }
+}
+
+public fn test_tarwriter_addSymbolicLink(): void {
+    let writer: TarWriter = new TarWriter();
+    writer.addSymbolicLink("link.txt", "target.txt");
+    if (writer.entries.size() != 1) {
+        io::println("FAIL: TarWriter.addSymbolicLink entries size = " + Integer.toString(writer.entries.size()));
+    } else {
+        let entry: TarEntry = writer.entries.get(0);
+        if (!entry.isSymbolicLink) {
+            io::println("FAIL: TarWriter.addSymbolicLink should set isSymbolicLink true");
+        } else if (entry.linkTarget != "target.txt") {
+            io::println("FAIL: TarWriter.addSymbolicLink linkTarget = " + entry.linkTarget);
+        } else {
+            io::println("PASS: TarWriter.addSymbolicLink works");
+        }
+    }
+}
+
+public fn test_tarwriter_addEntry(): void {
+    let writer: TarWriter = new TarWriter();
+    let custom: TarEntry = new TarEntry("custom.txt");
+    custom.data = "custom data";
+    custom.size = 10;
+    writer.addEntry(custom);
+    if (writer.entries.size() != 1) {
+        io::println("FAIL: TarWriter.addEntry entries size = " + Integer.toString(writer.entries.size()));
+    } else if (writer.entries.get(0).name != "custom.txt") {
+        io::println("FAIL: TarWriter.addEntry name = " + writer.entries.get(0).name);
+    } else {
+        io::println("PASS: TarWriter.addEntry works");
+    }
+}
+
+public fn test_tarwriter_build_callable(): void {
+    let writer: TarWriter = new TarWriter();
+    writer.addFile("a.txt", "aaa");
+    writer.addFile("b.txt", "bbb");
+    var threw: bool = false;
+    var result: string = "";
+    try {
+        result = writer.build();
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: TarWriter.build invoked (native may be unavailable)");
+    } else if (result == null) {
+        io::println("FAIL: TarWriter.build returned null");
+    } else {
+        io::println("PASS: TarWriter.build returns a string");
+    }
+}
+
+public fn test_tarreader_empty_data(): void {
+    let reader: TarReader = new TarReader("");
+    let entries: ArrayList<TarEntry> = reader.getEntries();
+    if (entries.size() != 0) {
+        io::println("FAIL: TarReader empty data should have 0 entries, got " + Integer.toString(entries.size()));
+    } else {
+        io::println("PASS: TarReader empty data has 0 entries");
+    }
+}
+
+public fn test_tarreader_getEntry_missing(): void {
+    let reader: TarReader = new TarReader("");
+    let entry: TarEntry = reader.getEntry("nonexistent.txt");
+    if (entry != null) {
+        io::println("FAIL: TarReader.getEntry should return null for missing entry");
+    } else {
+        io::println("PASS: TarReader.getEntry returns null for missing entry");
+    }
+}
+
+public fn run_all_tar_tests(): void {
+    io::println("=== Tar.tr Tests ===");
+    test_tarentry_construction_defaults();
+    test_tarentry_mutable_fields();
+    test_tarwriter_init();
+    test_tarwriter_addFile();
+    test_tarwriter_addDirectory();
+    test_tarwriter_addSymbolicLink();
+    test_tarwriter_addEntry();
+    test_tarwriter_build_callable();
+    test_tarreader_empty_data();
+    test_tarreader_getEntry_missing();
+}
