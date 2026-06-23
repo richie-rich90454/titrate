@@ -178,6 +178,42 @@ pub fn emit_new_allocation<'ctx>(
         _ => return Err("titrate_malloc did not return a value".to_string()),
     };
 
+    // Zero-initialize the allocated memory using llvm.memset so that all
+    // fields start at their default (zero) value before the constructor
+    // runs. This is faster than emitting per-field stores and avoids
+    // use-of-uninitialized-memory issues.
+    {
+        let i8_ty = context.i8_type();
+        let i64_ty = context.i64_type();
+        let i1_ty = context.bool_type();
+        let i8_ptr_ty = context.ptr_type(AddressSpace::default());
+        let void_ty = context.void_type();
+        let memset_fn = match module.get_function("llvm.memset.p0i8.i64") {
+            Some(f) => f,
+            None => {
+                let fn_ty = void_ty.fn_type(
+                    &[i8_ptr_ty.into(), i8_ty.into(), i64_ty.into(), i1_ty.into()],
+                    false,
+                );
+                module.add_function("llvm.memset.p0i8.i64", fn_ty, None)
+            }
+        };
+        let zero_val = i8_ty.const_int(0, false);
+        let is_volatile = i1_ty.const_int(0, false);
+        builder
+            .build_call(
+                memset_fn,
+                &[
+                    instance_ptr.into(),
+                    zero_val.into(),
+                    size.into(),
+                    is_volatile.into(),
+                ],
+                "new.memset",
+            )
+            .map_err(|e| format!("build_call memset failed: {:?}", e))?;
+    }
+
     // Cast the i8* to the class struct pointer type.
     let struct_ptr_type = context.ptr_type(AddressSpace::default());
     let struct_ptr = if instance_ptr.get_type() == struct_ptr_type {
