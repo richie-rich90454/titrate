@@ -1,0 +1,158 @@
+// Test file for finance/Indicators.tr
+// Exercises SMA, EMA, EWMA, RSI, MACD, Bollinger Bands, VWAP.
+import tt::finance::Indicators;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_sma(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = Indicators.sma(data, 3);
+    // SMA(3): [2.0, 3.0, 4.0]
+    if (result.size() != 3) {
+        io::println("FAIL: sma size expected 3");
+    } else {
+        io::println("PASS: sma size = 3");
+    }
+    if (result.size() >= 3 && absDiff(result.get(0), 2.0) > 1e-9) {
+        io::println("FAIL: sma[0] expected 2.0");
+    } else {
+        io::println("PASS: sma[0] = 2.0");
+    }
+}
+
+public fn test_sma_short_data(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0);
+    let result: ArrayList<double> = Indicators.sma(data, 5);
+    if (result.size() != 0) {
+        io::println("FAIL: sma should be empty for short data");
+    } else {
+        io::println("PASS: sma empty for short data");
+    }
+}
+
+public fn test_ema(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0); data.add(20.0);
+    let result: ArrayList<double> = Indicators.ema(data, 5);
+    if (result.size() != 2) {
+        io::println("FAIL: ema size expected 2");
+    } else {
+        io::println("PASS: ema size = 2");
+    }
+    if (result.size() >= 1 && absDiff(result.get(0), 10.0) > 1e-9) {
+        io::println("FAIL: ema[0] expected 10.0");
+    } else {
+        io::println("PASS: ema[0] = 10.0");
+    }
+}
+
+public fn test_ewma(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let result: ArrayList<double> = Indicators.ewma(data, 0.5);
+    if (result.size() != 3) {
+        io::println("FAIL: ewma size expected 3");
+    } else {
+        io::println("PASS: ewma size = 3");
+    }
+    // ewma[0] = data[0] = 1.0
+    if (result.size() >= 1 && absDiff(result.get(0), 1.0) > 1e-9) {
+        io::println("FAIL: ewma[0] expected 1.0");
+    } else {
+        io::println("PASS: ewma[0] = 1.0");
+    }
+}
+
+public fn test_rsi(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    data.add(6.0); data.add(7.0);
+    let result: ArrayList<double> = Indicators.rsi(data, 3);
+    // All gains, no losses -> RSI should be 100
+    if (result.size() == 0) {
+        io::println("FAIL: rsi should not be empty");
+    } else {
+        if (absDiff(result.get(0), 100.0) > 1e-6) {
+            io::println("FAIL: rsi[0] expected 100 for all gains");
+        } else {
+            io::println("PASS: rsi[0] = 100 for all gains");
+        }
+    }
+}
+
+public fn test_macd(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 20) {
+        data.add(i as double);
+        i = i + 1;
+    }
+    let result: ArrayList<double> = Indicators.macd(data, 5, 10, 3);
+    if (result.size() != 20) {
+        io::println("FAIL: macd size expected 20");
+    } else {
+        io::println("PASS: macd size = 20");
+    }
+}
+
+public fn test_bollinger_bands(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = Indicators.bollingerBands(data, 3, 2.0);
+    if (result.size() != 3) {
+        io::println("FAIL: bollingerBands size expected 3");
+    } else {
+        io::println("PASS: bollingerBands size = 3");
+    }
+    // Upper band should be > mean
+    if (result.size() >= 1 && result.get(0) <= 2.0) {
+        io::println("FAIL: bollingerBands upper should be > mean");
+    } else {
+        io::println("PASS: bollingerBands upper > mean");
+    }
+}
+
+public fn test_vwap(): void {
+    let prices: ArrayList<double> = new ArrayList<double>();
+    prices.add(10.0); prices.add(20.0); prices.add(30.0);
+    let volumes: ArrayList<double> = new ArrayList<double>();
+    volumes.add(100.0); volumes.add(200.0); volumes.add(300.0);
+    let v: double = Indicators.vwap(prices, volumes);
+    // (10*100 + 20*200 + 30*300) / (100+200+300) = 14000/600 = 23.333...
+    if (absDiff(v, 23.333333) > 0.01) {
+        io::println("FAIL: vwap expected ~23.33");
+    } else {
+        io::println("PASS: vwap = ~23.33");
+    }
+}
+
+public fn test_vwap_empty(): void {
+    let prices: ArrayList<double> = new ArrayList<double>();
+    let volumes: ArrayList<double> = new ArrayList<double>();
+    let v: double = Indicators.vwap(prices, volumes);
+    if (absDiff(v, 0.0) > 1e-9) {
+        io::println("FAIL: vwap empty expected 0");
+    } else {
+        io::println("PASS: vwap empty = 0");
+    }
+}
+
+public fn run_all_indicators_tests(): void {
+    io::println("=== finance/Indicators.tr Tests ===");
+    test_sma();
+    test_sma_short_data();
+    test_ema();
+    test_ewma();
+    test_rsi();
+    test_macd();
+    test_bollinger_bands();
+    test_vwap();
+    test_vwap_empty();
+}
