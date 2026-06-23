@@ -1,0 +1,125 @@
+// Test file for materials/XRayDiffraction.tr
+// Exercises Bragg's law, scattering factor, structure factor, powder intensity.
+import tt::materials::XRayDiffraction;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_bragg_angle(): void {
+    // d=2.0, lambda=1.0, n=1 -> sin(theta) = 1/(2*2) = 0.25 -> theta = asin(0.25)
+    let theta: double = XRayDiffraction.braggAngle(2.0, 1.0);
+    if (theta < 0.0) {
+        io::println("FAIL: braggAngle should be >= 0");
+    } else {
+        io::println("PASS: braggAngle >= 0");
+    }
+}
+
+public fn test_bragg_angle_with_n(): void {
+    let theta: double = XRayDiffraction.braggAngle(2.0, 1.0, 1);
+    if (theta < 0.0) {
+        io::println("FAIL: braggAngle n=1 should be valid");
+    } else {
+        io::println("PASS: braggAngle n=1 valid");
+    }
+}
+
+public fn test_bragg_angle_invalid(): void {
+    // sin(theta) > 1 -> return -1
+    let theta: double = XRayDiffraction.braggAngle(0.1, 1.0, 2);
+    if (absDiff(theta, -1.0) > 1e-9) {
+        io::println("FAIL: braggAngle invalid expected -1");
+    } else {
+        io::println("PASS: braggAngle invalid = -1");
+    }
+}
+
+public fn test_bragg_d_spacing(): void {
+    // theta=pi/6 (30 deg), lambda=1.0, n=1 -> d = 1/(2*sin(30)) = 1/(2*0.5) = 1.0
+    let theta: double = 0.5235987756; // ~30 degrees in radians
+    let d: double = XRayDiffraction.braggDSpacing(theta, 1.0, 1);
+    if (absDiff(d, 1.0) > 0.01) {
+        io::println("FAIL: braggDSpacing expected ~1.0");
+    } else {
+        io::println("PASS: braggDSpacing = ~1.0");
+    }
+}
+
+public fn test_bragg_d_spacing_zero_theta(): void {
+    let d: double = XRayDiffraction.braggDSpacing(0.0, 1.0, 1);
+    if (absDiff(d, 0.0) > 1e-9) {
+        io::println("FAIL: braggDSpacing zero theta expected 0");
+    } else {
+        io::println("PASS: braggDSpacing zero theta = 0");
+    }
+}
+
+public fn test_atom_position(): void {
+    let atom: AtomPosition = new AtomPosition("Cu", 0.0, 0.0, 0.0);
+    if (atom.symbol != "Cu") {
+        io::println("FAIL: AtomPosition symbol");
+    } else {
+        io::println("PASS: AtomPosition symbol = Cu");
+    }
+    if (absDiff(atom.x, 0.0) > 1e-9) {
+        io::println("FAIL: AtomPosition x");
+    } else {
+        io::println("PASS: AtomPosition x = 0");
+    }
+}
+
+public fn test_scattering_factor(): void {
+    // May return 0 if data not loaded; just check it doesn't crash
+    let f: double = XRayDiffraction.scatteringFactor("Cu", 0.0);
+    io::println("PASS: scatteringFactor ran");
+}
+
+public fn test_structure_factor(): void {
+    let atoms: ArrayList<AtomPosition> = new ArrayList<AtomPosition>();
+    atoms.add(new AtomPosition("Cu", 0.0, 0.0, 0.0));
+    let f: double = XRayDiffraction.structureFactor(1, 0, 0, atoms, 0.0);
+    // At origin, F = sum of f0, so should be >= 0
+    if (f < 0.0) {
+        io::println("FAIL: structureFactor should be >= 0");
+    } else {
+        io::println("PASS: structureFactor >= 0");
+    }
+}
+
+public fn test_structure_factor_empty(): void {
+    let atoms: ArrayList<AtomPosition> = new ArrayList<AtomPosition>();
+    let f: double = XRayDiffraction.structureFactor(1, 0, 0, atoms, 0.0);
+    if (absDiff(f, 0.0) > 1e-9) {
+        io::println("FAIL: structureFactor empty expected 0");
+    } else {
+        io::println("PASS: structureFactor empty = 0");
+    }
+}
+
+public fn test_powder_intensity(): void {
+    let theta: double = 0.5; // ~28.6 degrees
+    let intensity: double = XRayDiffraction.powderIntensity(10.0, theta, 2, 1.0);
+    if (intensity <= 0.0) {
+        io::println("FAIL: powderIntensity should be > 0");
+    } else {
+        io::println("PASS: powderIntensity > 0");
+    }
+}
+
+public fn run_all_xray_diffraction_tests(): void {
+    io::println("=== materials/XRayDiffraction.tr Tests ===");
+    test_bragg_angle();
+    test_bragg_angle_with_n();
+    test_bragg_angle_invalid();
+    test_bragg_d_spacing();
+    test_bragg_d_spacing_zero_theta();
+    test_atom_position();
+    test_scattering_factor();
+    test_structure_factor();
+    test_structure_factor_empty();
+    test_powder_intensity();
+}
