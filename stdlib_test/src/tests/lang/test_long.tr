@@ -1,0 +1,90 @@
+// Test file for Long.tr
+// Exercises the public API of the Long module.
+import tt::lang::Long;
+
+public fn test_long_parse(): void {
+    let v: long = Long.parse("42");
+    if (v != 42L) {
+        io::println("FAIL: Long.parse(\"42\") = " + Long.toString(v));
+    } else {
+        io::println("PASS: Long.parse(\"42\") = 42");
+    }
+}
+
+public fn test_long_parse_negative(): void {
+    let v: long = Long.parse("-100");
+    if (v != -100L) {
+        io::println("FAIL: Long.parse(\"-100\") = " + Long.toString(v));
+    } else {
+        io::println("PASS: Long.parse(\"-100\") = -100");
+    }
+}
+
+public fn test_long_toString(): void {
+    let s: string = Long.toString(123L);
+    if (s != "123") {
+        io::println("FAIL: Long.toString(123L) = " + s);
+    } else {
+        io::println("PASS: Long.toString(123L) = 123");
+    }
+}
+
+public fn test_long_toString_negative(): void {
+    let s: string = Long.toString(-99L);
+    if (s != "-99") {
+        io::println("FAIL: Long.toString(-99L) = " + s);
+    } else {
+        io::println("PASS: Long.toString(-99L) = -99");
+    }
+}
+
+public fn test_long_MAX_VALUE(): void {
+    let v: long = Long.MAX_VALUE();
+    if (v != 9223372036854775807L) {
+        io::println("FAIL: Long.MAX_VALUE = " + Long.toString(v));
+    } else {
+        io::println("PASS: Long.MAX_VALUE = 9223372036854775807");
+    }
+}
+
+public fn test_long_MIN_VALUE(): void {
+    let v: long = Long.MIN_VALUE();
+    if (v != -9223372036854775808L) {
+        io::println("FAIL: Long.MIN_VALUE = " + Long.toString(v));
+    } else {
+        io::println("PASS: Long.MIN_VALUE = -9223372036854775808");
+    }
+}
+
+public fn test_long_toString_large(): void {
+    let v: long = 1000000000L;
+    let s: string = Long.toString(v);
+    if (s != "1000000000") {
+        io::println("FAIL: Long.toString(1000000000L) = " + s);
+    } else {
+        io::println("PASS: Long.toString(1000000000L) = 1000000000");
+    }
+}
+
+public fn test_long_MAX_greater_than_int(): void {
+    // Long.MAX_VALUE should exceed int max
+    let lv: long = Long.MAX_VALUE();
+    let iv: int = 2147483647;
+    if (lv <= (iv as long)) {
+        io::println("FAIL: Long.MAX_VALUE not greater than int max");
+    } else {
+        io::println("PASS: Long.MAX_VALUE greater than int max");
+    }
+}
+
+public fn run_all_long_tests(): void {
+    io::println("=== Long.tr Tests ===");
+    test_long_parse();
+    test_long_parse_negative();
+    test_long_toString();
+    test_long_toString_negative();
+    test_long_MAX_VALUE();
+    test_long_MIN_VALUE();
+    test_long_toString_large();
+    test_long_MAX_greater_than_int();
+}
