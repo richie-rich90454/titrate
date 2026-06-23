@@ -1,0 +1,217 @@
+// Test file for Functools.tr
+// Exercises the public API of the Functools module's top-level functions.
+import tt::functools::Functools;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_functools_reduce(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    arr.add(3);
+    arr.add(4);
+    let adder: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let result: int = Functools.reduce<int>(arr, adder, 0);
+    if (result != 10) {
+        io::println("FAIL: Functools.reduce returned " + Integer.toString(result) + ", expected 10");
+    } else {
+        io::println("PASS: Functools.reduce works");
+    }
+}
+
+public fn test_functools_reduce_with_init(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    arr.add(2);
+    arr.add(3);
+    let adder: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let result: int = Functools.reduce<int>(arr, adder, 100);
+    if (result != 106) {
+        io::println("FAIL: Functools.reduce with init returned " + Integer.toString(result));
+    } else {
+        io::println("PASS: Functools.reduce with init works");
+    }
+}
+
+public fn test_functools_reduce_empty(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    let adder: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let result: int = Functools.reduce<int>(arr, adder, 42);
+    if (result != 42) {
+        io::println("FAIL: Functools.reduce empty returned " + Integer.toString(result));
+    } else {
+        io::println("PASS: Functools.reduce empty works");
+    }
+}
+
+public fn test_functools_identity(): void {
+    let result: int = Functools.identity<int>(42);
+    if (result != 42) {
+        io::println("FAIL: Functools.identity returned " + Integer.toString(result));
+    } else {
+        io::println("PASS: Functools.identity works");
+    }
+}
+
+public fn test_functools_identity_string(): void {
+    let result: string = Functools.identity<string>("hello");
+    if (result != "hello") {
+        io::println("FAIL: Functools.identity string returned " + result);
+    } else {
+        io::println("PASS: Functools.identity string works");
+    }
+}
+
+public fn test_functools_constant(): void {
+    let k: fn(): int = Functools.constant<int>(99);
+    let r1: int = k();
+    let r2: int = k();
+    if (r1 != 99 || r2 != 99) {
+        io::println("FAIL: Functools.constant returned inconsistent values");
+    } else {
+        io::println("PASS: Functools.constant works");
+    }
+}
+
+public fn test_functools_flip(): void {
+    let subtractor: fn(int, int): int = fn(a: int, b: int): int { return a - b; };
+    let flipped: fn(int, int): int = Functools.flip<int, int, int>(subtractor);
+    let result: int = flipped(3, 10);
+    // flipped(3, 10) = subtractor(10, 3) = 7
+    if (result != 7) {
+        io::println("FAIL: Functools.flip returned " + Integer.toString(result) + ", expected 7");
+    } else {
+        io::println("PASS: Functools.flip works");
+    }
+}
+
+public fn test_functools_pipe(): void {
+    let doubleIt: fn(int): int = fn(x: int): int { return x * 2; };
+    let addOne: fn(int): int = fn(x: int): int { return x + 1; };
+    let piped: fn(int): int = Functools.pipe<int, int, int>(doubleIt, addOne);
+    // pipe: addOne(doubleIt(5)) = addOne(10) = 11
+    let result: int = piped(5);
+    if (result != 11) {
+        io::println("FAIL: Functools.pipe returned " + Integer.toString(result) + ", expected 11");
+    } else {
+        io::println("PASS: Functools.pipe works");
+    }
+}
+
+public fn test_functools_compose(): void {
+    let doubleIt: fn(int): int = fn(x: int): int { return x * 2; };
+    let addOne: fn(int): int = fn(x: int): int { return x + 1; };
+    let composed: fn(int): int = Functools.compose<int, int, int>(doubleIt, addOne);
+    // compose: doubleIt(addOne(5)) = doubleIt(6) = 12
+    let result: int = composed(5);
+    if (result != 12) {
+        io::println("FAIL: Functools.compose returned " + Integer.toString(result) + ", expected 12");
+    } else {
+        io::println("PASS: Functools.compose works");
+    }
+}
+
+public fn test_functools_curry(): void {
+    let adder: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let curried: fn(int): fn(int): int = Functools.curry<int, int, int>(adder);
+    let add5: fn(int): int = curried(5);
+    let result: int = add5(10);
+    if (result != 15) {
+        io::println("FAIL: Functools.curry returned " + Integer.toString(result) + ", expected 15");
+    } else {
+        io::println("PASS: Functools.curry works");
+    }
+}
+
+public fn test_functools_memoize(): void {
+    let square: fn(int): int = fn(x: int): int { return x * x; };
+    let memoized: fn(int): int = Functools.memoize<int, int>(square);
+    let r1: int = memoized(5);
+    let r2: int = memoized(5);
+    if (r1 != 25 || r2 != 25) {
+        io::println("FAIL: Functools.memoize returned wrong values");
+    } else {
+        io::println("PASS: Functools.memoize works");
+    }
+}
+
+public fn test_functools_lruCache(): void {
+    let callCount: ArrayList<int> = new ArrayList<int>();
+    callCount.add(0);
+    let square: fn(int): int = fn(x: int): int {
+        callCount.set(0, callCount.get(0) + 1);
+        return x * x;
+    };
+    let cached: fn(int): int = Functools.lruCache<int, int>(square, 3);
+    let r1: int = cached(5);
+    let r2: int = cached(5);
+    if (r1 != 25 || r2 != 25) {
+        io::println("FAIL: Functools.lruCache returned wrong values");
+    } else if (callCount.get(0) != 1) {
+        io::println("FAIL: Functools.lruCache did not cache, callCount=" + Integer.toString(callCount.get(0)));
+    } else {
+        io::println("PASS: Functools.lruCache works");
+    }
+}
+
+public fn test_functools_totalOrdering(): void {
+    let result: Variant = Functools.totalOrdering("test");
+    if (result != "test") {
+        io::println("FAIL: Functools.totalOrdering should return input unchanged");
+    } else {
+        io::println("PASS: Functools.totalOrdering works");
+    }
+}
+
+public fn test_functools_cmpToKey(): void {
+    let cmp: fn(int, int): int = fn(a: int, b: int): int { return a - b; };
+    let key = Functools.cmpToKey<int>(cmp);
+    if (key == null) {
+        io::println("FAIL: Functools.cmpToKey returned null");
+    } else {
+        io::println("PASS: Functools.cmpToKey works");
+    }
+}
+
+public fn test_functools_partial(): void {
+    let boundArgs: ArrayList<Variant> = new ArrayList<Variant>();
+    boundArgs.add(10);
+    let fnRef: fn(ArrayList<Variant>): int = fn(args: ArrayList<Variant>): int {
+        let sum: int = 0;
+        let i: int = 0;
+        while (i < args.size()) {
+            sum = sum + (args.get(i) as int);
+            i = i + 1;
+        }
+        return sum;
+    };
+    let p = Functools.partial<fn(ArrayList<Variant>): int, int>(fnRef, boundArgs);
+    let extraArgs: ArrayList<Variant> = new ArrayList<Variant>();
+    extraArgs.add(5);
+    let result: int = p.call(extraArgs);
+    if (result != 15) {
+        io::println("FAIL: Functools.partial returned " + Integer.toString(result) + ", expected 15");
+    } else {
+        io::println("PASS: Functools.partial works");
+    }
+}
+
+public fn run_all_functools_tests(): void {
+    io::println("=== Functools.tr Tests ===");
+    test_functools_reduce();
+    test_functools_reduce_with_init();
+    test_functools_reduce_empty();
+    test_functools_identity();
+    test_functools_identity_string();
+    test_functools_constant();
+    test_functools_flip();
+    test_functools_pipe();
+    test_functools_compose();
+    test_functools_curry();
+    test_functools_memoize();
+    test_functools_lruCache();
+    test_functools_totalOrdering();
+    test_functools_cmpToKey();
+    test_functools_partial();
+}
