@@ -1,0 +1,194 @@
+// Test file for image/Kernel.tr
+// Exercises Kernel class and all kernel factory functions.
+import tt::image::Kernel;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_kernel_construction(): void {
+    let k: Kernel = new Kernel(3, 3);
+    if (k.width != 3) {
+        io::println("FAIL: Kernel width expected 3");
+    } else {
+        io::println("PASS: Kernel width = 3");
+    }
+    if (k.height != 3) {
+        io::println("FAIL: Kernel height expected 3");
+    } else {
+        io::println("PASS: Kernel height = 3");
+    }
+    if (k.data.size() != 3) {
+        io::println("FAIL: Kernel data rows expected 3");
+    } else {
+        io::println("PASS: Kernel data rows = 3");
+    }
+}
+
+public fn test_kernel_set_get(): void {
+    let k: Kernel = new Kernel(3, 3);
+    k.set(1, 1, 5.0);
+    if (absDiff(k.get(1, 1), 5.0) > 1e-9) {
+        io::println("FAIL: Kernel get/set expected 5.0");
+    } else {
+        io::println("PASS: Kernel get/set = 5.0");
+    }
+}
+
+public fn test_gaussian_blur(): void {
+    let k: Kernel = Kernel.gaussianBlur(5, 1.0);
+    if (k.width != 5 || k.height != 5) {
+        io::println("FAIL: gaussianBlur dimensions expected 5x5");
+    } else {
+        io::println("PASS: gaussianBlur dimensions = 5x5");
+    }
+    // Center should be the largest value
+    if (k.get(2, 2) <= k.get(0, 0)) {
+        io::println("FAIL: gaussianBlur center should be largest");
+    } else {
+        io::println("PASS: gaussianBlur center is largest");
+    }
+}
+
+public fn test_sharpen(): void {
+    let k: Kernel = Kernel.sharpen();
+    if (k.width != 3 || k.height != 3) {
+        io::println("FAIL: sharpen dimensions expected 3x3");
+    } else {
+        io::println("PASS: sharpen dimensions = 3x3");
+    }
+    // Center should be 5.0
+    if (absDiff(k.get(1, 1), 5.0) > 1e-9) {
+        io::println("FAIL: sharpen center expected 5.0");
+    } else {
+        io::println("PASS: sharpen center = 5.0");
+    }
+}
+
+public fn test_edge_detect(): void {
+    let k: Kernel = Kernel.edgeDetect();
+    if (k.width != 3 || k.height != 3) {
+        io::println("FAIL: edgeDetect dimensions expected 3x3");
+    } else {
+        io::println("PASS: edgeDetect dimensions = 3x3");
+    }
+    // Center should be 8.0
+    if (absDiff(k.get(1, 1), 8.0) > 1e-9) {
+        io::println("FAIL: edgeDetect center expected 8.0");
+    } else {
+        io::println("PASS: edgeDetect center = 8.0");
+    }
+}
+
+public fn test_sobel_x(): void {
+    let k: Kernel = Kernel.sobelX();
+    if (k.width != 3 || k.height != 3) {
+        io::println("FAIL: sobelX dimensions expected 3x3");
+    } else {
+        io::println("PASS: sobelX dimensions = 3x3");
+    }
+    // Top-left should be -1.0
+    if (absDiff(k.get(0, 0), -1.0) > 1e-9) {
+        io::println("FAIL: sobelX[0,0] expected -1.0");
+    } else {
+        io::println("PASS: sobelX[0,0] = -1.0");
+    }
+    // Top-right should be 1.0
+    if (absDiff(k.get(0, 2), 1.0) > 1e-9) {
+        io::println("FAIL: sobelX[0,2] expected 1.0");
+    } else {
+        io::println("PASS: sobelX[0,2] = 1.0");
+    }
+}
+
+public fn test_sobel_y(): void {
+    let k: Kernel = Kernel.sobelY();
+    if (k.width != 3 || k.height != 3) {
+        io::println("FAIL: sobelY dimensions expected 3x3");
+    } else {
+        io::println("PASS: sobelY dimensions = 3x3");
+    }
+    // Top-left should be -1.0
+    if (absDiff(k.get(0, 0), -1.0) > 1e-9) {
+        io::println("FAIL: sobelY[0,0] expected -1.0");
+    } else {
+        io::println("PASS: sobelY[0,0] = -1.0");
+    }
+}
+
+public fn test_laplacian(): void {
+    let k: Kernel = Kernel.laplacian();
+    if (k.width != 3 || k.height != 3) {
+        io::println("FAIL: laplacian dimensions expected 3x3");
+    } else {
+        io::println("PASS: laplacian dimensions = 3x3");
+    }
+    // Center should be -4.0
+    if (absDiff(k.get(1, 1), -4.0) > 1e-9) {
+        io::println("FAIL: laplacian center expected -4.0");
+    } else {
+        io::println("PASS: laplacian center = -4.0");
+    }
+}
+
+public fn test_unsharp_mask(): void {
+    let k: Kernel = Kernel.unsharpMask(0.5);
+    if (k.width != 3 || k.height != 3) {
+        io::println("FAIL: unsharpMask dimensions expected 3x3");
+    } else {
+        io::println("PASS: unsharpMask dimensions = 3x3");
+    }
+    // Center should be 1.0 + 4.0 * 0.5 = 3.0
+    if (absDiff(k.get(1, 1), 3.0) > 1e-9) {
+        io::println("FAIL: unsharpMask center expected 3.0");
+    } else {
+        io::println("PASS: unsharpMask center = 3.0");
+    }
+}
+
+public fn test_emboss(): void {
+    let k: Kernel = Kernel.emboss();
+    if (k.width != 3 || k.height != 3) {
+        io::println("FAIL: emboss dimensions expected 3x3");
+    } else {
+        io::println("PASS: emboss dimensions = 3x3");
+    }
+    // Top-left should be -2.0
+    if (absDiff(k.get(0, 0), -2.0) > 1e-9) {
+        io::println("FAIL: emboss[0,0] expected -2.0");
+    } else {
+        io::println("PASS: emboss[0,0] = -2.0");
+    }
+}
+
+public fn test_box_blur(): void {
+    let k: Kernel = Kernel.boxBlur(3);
+    if (k.width != 3 || k.height != 3) {
+        io::println("FAIL: boxBlur dimensions expected 3x3");
+    } else {
+        io::println("PASS: boxBlur dimensions = 3x3");
+    }
+    // Each value should be 1/9
+    if (absDiff(k.get(0, 0), 1.0 / 9.0) > 1e-9) {
+        io::println("FAIL: boxBlur[0,0] expected 1/9");
+    } else {
+        io::println("PASS: boxBlur[0,0] = 1/9");
+    }
+}
+
+public fn run_all_kernel_tests(): void {
+    io::println("=== image/Kernel.tr Tests ===");
+    test_kernel_construction();
+    test_kernel_set_get();
+    test_gaussian_blur();
+    test_sharpen();
+    test_edge_detect();
+    test_sobel_x();
+    test_sobel_y();
+    test_laplacian();
+    test_unsharp_mask();
+    test_emboss();
+    test_box_blur();
+}
