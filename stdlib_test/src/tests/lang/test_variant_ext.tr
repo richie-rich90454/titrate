@@ -1,0 +1,160 @@
+// Test file for VariantExt.tr
+// Exercises the public API of the VariantExt module.
+import tt::lang::VariantExt;
+import tt::lang::Variant;
+import tt::util::HashMap;
+
+public fn test_holdsAlternative_true(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    if (!VariantExt.holdsAlternative(v, "int")) {
+        io::println("FAIL: VariantExt.holdsAlternative true");
+    } else {
+        io::println("PASS: VariantExt.holdsAlternative true");
+    }
+}
+
+public fn test_holdsAlternative_false(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    if (VariantExt.holdsAlternative(v, "string")) {
+        io::println("FAIL: VariantExt.holdsAlternative false");
+    } else {
+        io::println("PASS: VariantExt.holdsAlternative false");
+    }
+}
+
+public fn test_getVariant_matching(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    let result: Variant = VariantExt.getVariant(v, "int");
+    if (result == null) {
+        io::println("FAIL: VariantExt.getVariant matching null");
+    } else {
+        io::println("PASS: VariantExt.getVariant matching");
+    }
+}
+
+public fn test_getVariant_nonMatching(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    let result: Variant = VariantExt.getVariant(v, "string");
+    if (result != null) {
+        io::println("FAIL: VariantExt.getVariant non-matching not null");
+    } else {
+        io::println("PASS: VariantExt.getVariant non-matching null");
+    }
+}
+
+public fn test_getIf_matching_pass(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    let pred: fn(Variant): bool = fn(x: Variant): bool { return true; };
+    let result: Variant = VariantExt.getIf(v, "int", pred);
+    if (result == null) {
+        io::println("FAIL: VariantExt.getIf matching pass null");
+    } else {
+        io::println("PASS: VariantExt.getIf matching pass");
+    }
+}
+
+public fn test_getIf_matching_fail(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    let pred: fn(Variant): bool = fn(x: Variant): bool { return false; };
+    let result: Variant = VariantExt.getIf(v, "int", pred);
+    if (result != null) {
+        io::println("FAIL: VariantExt.getIf matching fail not null");
+    } else {
+        io::println("PASS: VariantExt.getIf matching fail null");
+    }
+}
+
+public fn test_getIf_nonMatching(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    let pred: fn(Variant): bool = fn(x: Variant): bool { return true; };
+    let result: Variant = VariantExt.getIf(v, "string", pred);
+    if (result != null) {
+        io::println("FAIL: VariantExt.getIf non-matching not null");
+    } else {
+        io::println("PASS: VariantExt.getIf non-matching null");
+    }
+}
+
+public fn test_visit_matching(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    let visitors: HashMap<string, fn(Variant): Variant> = new HashMap<string, fn(Variant): Variant>();
+    let intVisitor: fn(Variant): Variant = fn(x: Variant): Variant { return x; };
+    visitors.put("int", intVisitor);
+    let result: Variant = VariantExt.visit(v, visitors);
+    if (result == null) {
+        io::println("FAIL: VariantExt.visit matching null");
+    } else {
+        io::println("PASS: VariantExt.visit matching");
+    }
+}
+
+public fn test_visit_default(): void {
+    let v: Variant = Variant.of("unknown", 42 as Variant);
+    let visitors: HashMap<string, fn(Variant): Variant> = new HashMap<string, fn(Variant): Variant>();
+    let defaultVisitor: fn(Variant): Variant = fn(x: Variant): Variant { return x; };
+    visitors.put("default", defaultVisitor);
+    let result: Variant = VariantExt.visit(v, visitors);
+    if (result == null) {
+        io::println("FAIL: VariantExt.visit default null");
+    } else {
+        io::println("PASS: VariantExt.visit default");
+    }
+}
+
+public fn test_visit_noMatch(): void {
+    let v: Variant = Variant.of("unknown", 42 as Variant);
+    let visitors: HashMap<string, fn(Variant): Variant> = new HashMap<string, fn(Variant): Variant>();
+    let result: Variant = VariantExt.visit(v, visitors);
+    if (result != null) {
+        io::println("FAIL: VariantExt.visit noMatch not null");
+    } else {
+        io::println("PASS: VariantExt.visit noMatch null");
+    }
+}
+
+public fn test_variantTypeName(): void {
+    let v: Variant = Variant.of("mytype", 42 as Variant);
+    if (VariantExt.variantTypeName(v) != "mytype") {
+        io::println("FAIL: VariantExt.variantTypeName");
+    } else {
+        io::println("PASS: VariantExt.variantTypeName");
+    }
+}
+
+public fn test_variantIndex(): void {
+    let v: Variant = Variant.of("int", 42 as Variant);
+    let idx: int = VariantExt.variantIndex(v);
+    // Should be a non-negative hash
+    if (idx < 0) {
+        io::println("FAIL: VariantExt.variantIndex negative");
+    } else {
+        io::println("PASS: VariantExt.variantIndex non-negative");
+    }
+}
+
+public fn test_variantIndex_emptyTag(): void {
+    let v: Variant = Variant.empty("empty_tag");
+    let idx: int = VariantExt.variantIndex(v);
+    if (idx < 0) {
+        io::println("FAIL: VariantExt.variantIndex emptyTag negative");
+    } else {
+        io::println("PASS: VariantExt.variantIndex emptyTag non-negative");
+    }
+}
+
+public fn run_all_variant_ext_tests(): void {
+    io::println("=== VariantExt.tr Tests ===");
+    test_holdsAlternative_true();
+    test_holdsAlternative_false();
+    test_getVariant_matching();
+    test_getVariant_nonMatching();
+    test_getIf_matching_pass();
+    test_getIf_matching_fail();
+    test_getIf_nonMatching();
+    test_visit_matching();
+    test_visit_default();
+    test_visit_noMatch();
+    test_variantTypeName();
+    test_variantIndex();
+    test_variantIndex_emptyTag();
+}
