@@ -1,0 +1,159 @@
+// Test file for physics/NBodySimulator.tr
+// Exercises Body, NBodySimulator, integration, and force computation.
+import tt::physics::NBodySimulator;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_body_construction(): void {
+    let b: Body = new Body(1.0, 0.0, 0.0, 0.0);
+    if (absDiff(b.mass, 1.0) > 1e-9) {
+        io::println("FAIL: Body mass");
+    } else {
+        io::println("PASS: Body mass = 1.0");
+    }
+    if (absDiff(b.x, 0.0) > 1e-9 || absDiff(b.vx, 0.0) > 1e-9 || absDiff(b.ax, 0.0) > 1e-9) {
+        io::println("FAIL: Body default state");
+    } else {
+        io::println("PASS: Body default state zero");
+    }
+}
+
+public fn test_nbody_simulator_construction(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.1, 0.01);
+    if (absDiff(sim.G, 1.0) > 1e-9 || absDiff(sim.dt, 0.01) > 1e-9) {
+        io::println("FAIL: NBodySimulator construction");
+    } else {
+        io::println("PASS: NBodySimulator construction works");
+    }
+    if (sim.bodies.size() != 0) {
+        io::println("FAIL: NBodySimulator bodies empty");
+    } else {
+        io::println("PASS: NBodySimulator bodies empty initially");
+    }
+}
+
+public fn test_nbody_add_body(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.1, 0.01);
+    sim.addBody(new Body(1.0, 0.0, 0.0, 0.0));
+    sim.addBody(new Body(1.0, 1.0, 0.0, 0.0));
+    if (sim.bodies.size() != 2) {
+        io::println("FAIL: addBody count");
+    } else {
+        io::println("PASS: addBody count = 2");
+    }
+}
+
+public fn test_nbody_compute_accelerations(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.0, 0.01);
+    sim.addBody(new Body(1.0, 0.0, 0.0, 0.0));
+    sim.addBody(new Body(1.0, 1.0, 0.0, 0.0));
+    sim.computeAccelerations();
+    // Body 0 should be pulled toward body 1 (positive x direction)
+    let b0: Body = sim.bodies.get(0);
+    if (b0.ax <= 0.0) {
+        io::println("FAIL: computeAccelerations body 0 ax should be positive");
+    } else {
+        io::println("PASS: computeAccelerations body 0 ax positive");
+    }
+    // Body 1 should be pulled toward body 0 (negative x direction)
+    let b1: Body = sim.bodies.get(1);
+    if (b1.ax >= 0.0) {
+        io::println("FAIL: computeAccelerations body 1 ax should be negative");
+    } else {
+        io::println("PASS: computeAccelerations body 1 ax negative");
+    }
+}
+
+public fn test_nbody_step_leapfrog(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.1, 0.01);
+    sim.addBody(new Body(1.0, 0.0, 0.0, 0.0));
+    sim.addBody(new Body(1.0, 1.0, 0.0, 0.0));
+    sim.stepLeapfrog();
+    // After a step, positions should change
+    let b0: Body = sim.bodies.get(0);
+    if (b0.x == 0.0) {
+        io::println("FAIL: stepLeapfrog body 0 x should change");
+    } else {
+        io::println("PASS: stepLeapfrog body 0 x changed");
+    }
+}
+
+public fn test_nbody_step(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.1, 0.01);
+    sim.addBody(new Body(1.0, 0.0, 0.0, 0.0));
+    sim.addBody(new Body(1.0, 1.0, 0.0, 0.0));
+    sim.step();
+    // Step should work without error
+    io::println("PASS: step() executes without error");
+}
+
+public fn test_nbody_run(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.1, 0.01);
+    sim.addBody(new Body(1.0, 0.0, 0.0, 0.0));
+    sim.addBody(new Body(1.0, 1.0, 0.0, 0.0));
+    sim.run(10);
+    // After 10 steps, positions should change
+    let b0: Body = sim.bodies.get(0);
+    if (b0.x == 0.0) {
+        io::println("FAIL: run(10) body 0 x should change");
+    } else {
+        io::println("PASS: run(10) body 0 x changed");
+    }
+}
+
+public fn test_nbody_total_energy(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.1, 0.01);
+    sim.addBody(new Body(1.0, 0.0, 0.0, 0.0));
+    sim.addBody(new Body(1.0, 1.0, 0.0, 0.0));
+    let e: double = sim.totalEnergy();
+    if (e != e) {
+        io::println("FAIL: totalEnergy NaN");
+    } else {
+        io::println("PASS: totalEnergy finite = " + Double.toString(e));
+    }
+}
+
+public fn test_nbody_center_of_mass(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.1, 0.01);
+    sim.addBody(new Body(1.0, 0.0, 0.0, 0.0));
+    sim.addBody(new Body(1.0, 2.0, 0.0, 0.0));
+    let com = sim.centerOfMass();
+    // COM should be at (1, 0, 0) for equal masses at x=0 and x=2
+    if (absDiff(com.get(0), 1.0) > 1e-9) {
+        io::println("FAIL: centerOfMass x expected 1.0");
+    } else {
+        io::println("PASS: centerOfMass x = 1.0");
+    }
+}
+
+public fn test_compute_forces_direct(): void {
+    let sim: NBodySimulator = new NBodySimulator(1.0, 0.1, 0.01);
+    sim.addBody(new Body(1.0, 0.0, 0.0, 0.0));
+    sim.addBody(new Body(1.0, 1.0, 0.0, 0.0));
+    let forces = NBodySimulator.computeForcesDirect(sim.bodies, 1.0, 0.1);
+    if (forces.size() != 2) {
+        io::println("FAIL: computeForcesDirect size");
+    } else {
+        io::println("PASS: computeForcesDirect has 2 entries");
+    }
+}
+
+public fn run_all_nbody_tests(): void {
+    io::println("=== physics/NBodySimulator.tr Tests ===");
+    test_body_construction();
+    test_nbody_simulator_construction();
+    test_nbody_add_body();
+    test_nbody_compute_accelerations();
+    test_nbody_step_leapfrog();
+    test_nbody_step();
+    test_nbody_run();
+    test_nbody_total_energy();
+    test_nbody_center_of_mass();
+    test_compute_forces_direct();
+}
