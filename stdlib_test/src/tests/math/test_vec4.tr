@@ -1,0 +1,160 @@
+// Test file for vec/Vec4.tr
+// Exercises 4D vector arithmetic, products, magnitude, and interpolation.
+import tt::math::vec::Vec4;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_vec4_construction_factories(): void {
+    let v: Vec4 = new Vec4(1.0, 2.0, 3.0, 4.0);
+    if (v.x != 1.0 || v.y != 2.0 || v.z != 3.0 || v.w != 4.0) {
+        io::println("FAIL: Vec4 construction");
+    } else {
+        io::println("PASS: Vec4 construction works");
+    }
+    let z: Vec4 = Vec4.zero();
+    if (z.x != 0.0 || z.y != 0.0 || z.z != 0.0 || z.w != 0.0) {
+        io::println("FAIL: Vec4.zero()");
+    } else {
+        io::println("PASS: Vec4.zero() works");
+    }
+    let o: Vec4 = Vec4.one();
+    if (o.x != 1.0 || o.y != 1.0 || o.z != 1.0 || o.w != 1.0) {
+        io::println("FAIL: Vec4.one()");
+    } else {
+        io::println("PASS: Vec4.one() works");
+    }
+    let uw: Vec4 = Vec4.unitW();
+    if (uw.x != 0.0 || uw.y != 0.0 || uw.z != 0.0 || uw.w != 1.0) {
+        io::println("FAIL: Vec4.unitW()");
+    } else {
+        io::println("PASS: Vec4.unitW() works");
+    }
+}
+
+public fn test_vec4_add_sub_scale(): void {
+    let a: Vec4 = new Vec4(1.0, 2.0, 3.0, 4.0);
+    let b: Vec4 = new Vec4(5.0, 6.0, 7.0, 8.0);
+    let sum: Vec4 = a.add(b);
+    if (sum.x != 6.0 || sum.y != 8.0 || sum.z != 10.0 || sum.w != 12.0) {
+        io::println("FAIL: Vec4.add()");
+    } else {
+        io::println("PASS: Vec4.add() = (6,8,10,12)");
+    }
+    let diff: Vec4 = a.sub(b);
+    if (diff.x != -4.0 || diff.y != -4.0 || diff.z != -4.0 || diff.w != -4.0) {
+        io::println("FAIL: Vec4.sub()");
+    } else {
+        io::println("PASS: Vec4.sub() = (-4,-4,-4,-4)");
+    }
+    let scaled: Vec4 = a.scale(2.0);
+    if (scaled.x != 2.0 || scaled.y != 4.0 || scaled.z != 6.0 || scaled.w != 8.0) {
+        io::println("FAIL: Vec4.scale(2)");
+    } else {
+        io::println("PASS: Vec4.scale(2) = (2,4,6,8)");
+    }
+}
+
+public fn test_vec4_dot(): void {
+    let a: Vec4 = new Vec4(1.0, 2.0, 3.0, 4.0);
+    let b: Vec4 = new Vec4(5.0, 6.0, 7.0, 8.0);
+    // dot = 1*5 + 2*6 + 3*7 + 4*8 = 5+12+21+32 = 70
+    if (a.dot(b) != 70.0) {
+        io::println("FAIL: Vec4.dot()");
+    } else {
+        io::println("PASS: Vec4.dot() = 70.0");
+    }
+    // dot with itself = magnitudeSq
+    let self: Vec4 = new Vec4(1.0, 2.0, 3.0, 4.0);
+    if (self.dot(self) != 30.0) {
+        io::println("FAIL: Vec4.dot() self");
+    } else {
+        io::println("PASS: Vec4.dot() self = 30.0");
+    }
+}
+
+public fn test_vec4_magnitude_normalize(): void {
+    let v: Vec4 = new Vec4(1.0, 1.0, 1.0, 1.0);
+    // magnitude = sqrt(4) = 2
+    if (v.magnitude() != 2.0) {
+        io::println("FAIL: Vec4.magnitude() (1,1,1,1)");
+    } else {
+        io::println("PASS: Vec4.magnitude() (1,1,1,1) = 2.0");
+    }
+    let n: Vec4 = v.normalize();
+    if (absDiff(n.magnitude(), 1.0) > 1e-9) {
+        io::println("FAIL: Vec4.normalize() not unit length");
+    } else {
+        io::println("PASS: Vec4.normalize() is unit length");
+    }
+    // normalize zero vector returns zero
+    let z: Vec4 = Vec4.zero().normalize();
+    if (z.x != 0.0 || z.y != 0.0 || z.z != 0.0 || z.w != 0.0) {
+        io::println("FAIL: Vec4.normalize() zero");
+    } else {
+        io::println("PASS: Vec4.normalize() zero = (0,0,0,0)");
+    }
+}
+
+public fn test_vec4_lerp(): void {
+    // lerp (0,0,0,0) to (10,20,30,40) at t=0.5 = (5,10,15,20)
+    let z: Vec4 = Vec4.zero();
+    let target: Vec4 = new Vec4(10.0, 20.0, 30.0, 40.0);
+    let mid: Vec4 = z.lerp(target, 0.5);
+    if (absDiff(mid.x, 5.0) > 1e-9 || absDiff(mid.y, 10.0) > 1e-9 || absDiff(mid.z, 15.0) > 1e-9 || absDiff(mid.w, 20.0) > 1e-9) {
+        io::println("FAIL: Vec4.lerp()");
+    } else {
+        io::println("PASS: Vec4.lerp() = (5,10,15,20)");
+    }
+    // lerp at t=0 returns start
+    let start: Vec4 = new Vec4(1.0, 2.0, 3.0, 4.0);
+    let at0: Vec4 = start.lerp(target, 0.0);
+    if (!at0.equals(start)) {
+        io::println("FAIL: Vec4.lerp() at t=0");
+    } else {
+        io::println("PASS: Vec4.lerp() at t=0 returns start");
+    }
+    // lerp at t=1 returns end
+    let at1: Vec4 = start.lerp(target, 1.0);
+    if (!at1.equals(target)) {
+        io::println("FAIL: Vec4.lerp() at t=1");
+    } else {
+        io::println("PASS: Vec4.lerp() at t=1 returns end");
+    }
+}
+
+public fn test_vec4_equals_toString(): void {
+    let a: Vec4 = new Vec4(1.0, 2.0, 3.0, 4.0);
+    let b: Vec4 = new Vec4(1.0, 2.0, 3.0, 4.0);
+    let c: Vec4 = new Vec4(1.0, 2.0, 3.0, 5.0);
+    if (!a.equals(b)) {
+        io::println("FAIL: Vec4.equals() (equal)");
+    } else {
+        io::println("PASS: Vec4.equals() (equal) works");
+    }
+    if (a.equals(c)) {
+        io::println("FAIL: Vec4.equals() (unequal)");
+    } else {
+        io::println("PASS: Vec4.equals() (unequal) works");
+    }
+    let s: string = a.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Vec4.toString()");
+    } else {
+        io::println("PASS: Vec4.toString() non-empty");
+    }
+}
+
+public fn run_all_vec4_tests(): void {
+    io::println("=== vec/Vec4.tr Tests ===");
+    test_vec4_construction_factories();
+    test_vec4_add_sub_scale();
+    test_vec4_dot();
+    test_vec4_magnitude_normalize();
+    test_vec4_lerp();
+    test_vec4_equals_toString();
+}
