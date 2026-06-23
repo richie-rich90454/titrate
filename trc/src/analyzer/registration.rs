@@ -29,7 +29,21 @@ impl Analyzer {
         // Built-in objects (used as namespaces for static methods)
         for name in &["io", "Integer", "Double", "Float", "Long", "Byte", "Short",
                        "Half", "Quad", "Vast", "Uvast", "Boolean", "Char",
-                       "malloc", "free"] {
+                       "malloc", "free",
+                       // Native module namespaces — these map directly to
+                       // C-ABI wrappers (titrate_<Module>_<method>) in the
+                       // LLVM native backend, so they are always available
+                       // without an explicit import.
+                       "Math", "MathAdvanced", "MathTrig", "String",
+                       "Path", "File", "Dir", "Fs", "Os", "Time",
+                       "Random", "Regex", "Json", "Base64", "Hex", "Url",
+                       "Hash", "Hasher", "Hmac", "TypeName", "Gc",
+                       "Socket", "UdpSocket", "Ssl", "Sqlite", "Mmap",
+                       "ZipFile", "ZipWriter", "Thread", "Mutex",
+                       "RecursiveMutex", "SharedMutex", "CondVar",
+                       "Semaphore", "OnceFlag", "AtomicInt", "AtomicBool",
+                       "AtomicLong", "AtomicRef", "Process", "Subprocess",
+                       "Env", "Signal", "Sys"] {
             scope.borrow_mut().define(
                 name.to_string(),
                 Symbol::Variable {
@@ -68,6 +82,31 @@ impl Analyzer {
                         ast::Type::simple("any"),
                         ast::Type::simple("any"),
                     ])),
+                    body: vec![],
+                    sugar: false,
+                    where_clause: vec![],
+                    span: ast::Span::unknown(),
+                }),
+            );
+        }
+        // Bare native functions (no module prefix) — these map directly to
+        // C-ABI wrappers (titrate_<name>) in the LLVM native backend.
+        for (name, ret_ty) in &[
+            ("println", "void"),
+            ("toString", "string"),
+            ("parseInt", "int"),
+        ] {
+            scope.borrow_mut().define(
+                name.to_string(),
+                Symbol::Function(ast::FnDecl {
+                    access: ast::Access::Public,
+                    name: name.to_string(),
+                    type_params: vec![],
+                    params: vec![ast::Param {
+                        name: "value".to_string(),
+                        typ: ast::Type::simple("any"),
+                    }],
+                    return_type: Some(ast::Type::simple(ret_ty)),
                     body: vec![],
                     sugar: false,
                     where_clause: vec![],

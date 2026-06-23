@@ -3085,6 +3085,74 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(())
     }
 
+    /// Compile a typed program to LLVM IR text (without writing an object file).
+    ///
+    /// This runs the same codegen pipeline as [`compile_program`] but skips
+    /// the target-machine / object-file step, returning the IR as a string
+    /// instead. Useful for testing and debugging.
+    pub fn compile_program_to_ir_text(&mut self, program: &Program) -> Result<String, String> {
+        self.declare_natives();
+
+        // First pass: compile all enum declarations.
+        for decl in &program.declarations {
+            if let Declaration::Enum(enum_decl) = decl {
+                let enum_info = compile_enum_decl(self.context, &self.module, enum_decl)?;
+                self.enum_infos.insert(enum_decl.name.clone(), enum_info);
+            }
+        }
+
+        // Pass: compile all interface declarations.
+        for decl in &program.declarations {
+            if let Declaration::Interface(iface_decl) = decl {
+                self.compile_interface_decl(iface_decl)?;
+            }
+        }
+
+        // Second pass: compile all class declarations.
+        for decl in &program.declarations {
+            if let Declaration::Class(class_decl) = decl {
+                self.compile_class_decl(class_decl)?;
+            }
+        }
+
+        // Register all function declarations first (for recursion).
+        for decl in &program.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.type_params.is_empty() {
+                    self.function_decls.insert(f.name.clone(), f.clone());
+                }
+            }
+        }
+
+        // Compile all non-generic, non-main functions first.
+        for decl in &program.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    self.compile_function(f)?;
+                }
+            }
+        }
+
+        // Find and compile main.
+        let main_decl = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .ok_or("codegen: no `main` function found")?;
+
+        self.compile_main(main_decl)?;
+
+        // Verify the module.
+        if let Err(err) = self.module.verify() {
+            return Err(format!("LLVM module verification failed:\n{}", err.to_string()));
+        }
+
+        Ok(self.module.print_to_string().to_string())
+    }
+
     /// Write the module to an object file using the native target.
     fn write_object(&self, path: &Path, release: bool) -> Result<(), String> {
         let init_config = InitializationConfig::default();
@@ -3133,6 +3201,19 @@ pub fn compile(
     let context = Context::create();
     let mut backend = LlvmBackend::new(&context, "titrate_main");
     backend.compile_program(program, object_path, release)
+}
+
+/// Compile a typed Titrate program to LLVM IR text (without writing an object file).
+///
+/// This is useful for testing and debugging: it runs the full codegen
+/// pipeline (including module verification) but returns the IR as a string
+/// instead of invoking the system target machine.
+///
+/// `program` is the typed AST produced by `analyzer::analyze`.
+pub fn compile_to_ir_text(program: &Program) -> Result<String, String> {
+    let context = Context::create();
+    let mut backend = LlvmBackend::new(&context, "titrate_main");
+    backend.compile_program_to_ir_text(program)
 }
 
 #[cfg(test)]

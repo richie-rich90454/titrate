@@ -509,6 +509,18 @@ impl Analyzer {
                             "Integer", "Double", "Float", "Long", "Byte", "Short",
                             "Half", "Quad", "Vast", "Uvast", "Boolean", "Char",
                             "String_", "io", "Result", "Ok", "Err",
+                            // Native module namespaces — allow static calls
+                            // (e.g. Math::sin(x)) that map to C-ABI wrappers.
+                            "Math", "MathAdvanced", "MathTrig", "String",
+                            "Path", "File", "Dir", "Fs", "Os", "Time",
+                            "Random", "Regex", "Json", "Base64", "Hex", "Url",
+                            "Hash", "Hasher", "Hmac", "TypeName", "Gc",
+                            "Socket", "UdpSocket", "Ssl", "Sqlite", "Mmap",
+                            "ZipFile", "ZipWriter", "Thread", "Mutex",
+                            "RecursiveMutex", "SharedMutex", "CondVar",
+                            "Semaphore", "OnceFlag", "AtomicInt", "AtomicBool",
+                            "AtomicLong", "AtomicRef", "Process", "Subprocess",
+                            "Env", "Signal", "Sys",
                         ];
                         if !builtin_wrappers.contains(&class_name.as_str()) {
                             self.error(CompileError::new(format!(
