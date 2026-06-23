@@ -1,0 +1,223 @@
+// Test file for StringView.tr
+// Exercises the public API of the StringView module.
+import tt::lang::StringView;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_stringview_init(): void {
+    let sv: StringView = new StringView("hello world", 0, 5);
+    if (sv.length() != 5) {
+        io::println("FAIL: StringView.init length");
+    } else {
+        io::println("PASS: StringView.init length");
+    }
+}
+
+public fn test_stringview_source(): void {
+    let sv: StringView = new StringView("hello world", 0, 5);
+    if (sv.source() != "hello world") {
+        io::println("FAIL: StringView.source");
+    } else {
+        io::println("PASS: StringView.source");
+    }
+}
+
+public fn test_stringview_start(): void {
+    let sv: StringView = new StringView("hello world", 6, 5);
+    if (sv.start() != 6) {
+        io::println("FAIL: StringView.start");
+    } else {
+        io::println("PASS: StringView.start");
+    }
+}
+
+public fn test_stringview_length(): void {
+    let sv: StringView = new StringView("hello", 0, 3);
+    if (sv.length() != 3) {
+        io::println("FAIL: StringView.length");
+    } else {
+        io::println("PASS: StringView.length");
+    }
+}
+
+public fn test_stringview_toString(): void {
+    let sv: StringView = new StringView("hello world", 0, 5);
+    if (sv.toString() != "hello") {
+        io::println("FAIL: StringView.toString = " + sv.toString());
+    } else {
+        io::println("PASS: StringView.toString = hello");
+    }
+}
+
+public fn test_stringview_toString_offset(): void {
+    let sv: StringView = new StringView("hello world", 6, 5);
+    if (sv.toString() != "world") {
+        io::println("FAIL: StringView.toString offset = " + sv.toString());
+    } else {
+        io::println("PASS: StringView.toString offset = world");
+    }
+}
+
+public fn test_stringview_slice(): void {
+    let sv: StringView = new StringView("hello world", 0, 11);
+    let sliced: StringView = sv.slice(0, 5);
+    if (sliced.toString() != "hello") {
+        io::println("FAIL: StringView.slice = " + sliced.toString());
+    } else {
+        io::println("PASS: StringView.slice = hello");
+    }
+}
+
+public fn test_stringview_charAt(): void {
+    let sv: StringView = new StringView("hello", 0, 5);
+    if (sv.charAt(0) != "h" || sv.charAt(4) != "o") {
+        io::println("FAIL: StringView.charAt");
+    } else {
+        io::println("PASS: StringView.charAt");
+    }
+}
+
+public fn test_stringview_charAt_offset(): void {
+    let sv: StringView = new StringView("hello world", 6, 5);
+    if (sv.charAt(0) != "w") {
+        io::println("FAIL: StringView.charAt offset = " + sv.charAt(0));
+    } else {
+        io::println("PASS: StringView.charAt offset = w");
+    }
+}
+
+public fn test_stringview_equals_same(): void {
+    let sv1: StringView = new StringView("hello", 0, 5);
+    let sv2: StringView = new StringView("hello", 0, 5);
+    if (!sv1.equals(sv2)) {
+        io::println("FAIL: StringView.equals same");
+    } else {
+        io::println("PASS: StringView.equals same");
+    }
+}
+
+public fn test_stringview_equals_diff_source(): void {
+    let sv1: StringView = new StringView("hello", 0, 5);
+    let sv2: StringView = new StringView("world", 0, 5);
+    if (sv1.equals(sv2)) {
+        io::println("FAIL: StringView.equals diff source");
+    } else {
+        io::println("PASS: StringView.equals diff source");
+    }
+}
+
+public fn test_stringview_equals_diff_length(): void {
+    let sv1: StringView = new StringView("hello", 0, 5);
+    let sv2: StringView = new StringView("hello", 0, 3);
+    if (sv1.equals(sv2)) {
+        io::println("FAIL: StringView.equals diff length");
+    } else {
+        io::println("PASS: StringView.equals diff length");
+    }
+}
+
+public fn test_stringview_startsWith_true(): void {
+    let sv: StringView = new StringView("hello world", 0, 5);
+    if (!sv.startsWith("he")) {
+        io::println("FAIL: StringView.startsWith true");
+    } else {
+        io::println("PASS: StringView.startsWith true");
+    }
+}
+
+public fn test_stringview_startsWith_false(): void {
+    let sv: StringView = new StringView("hello world", 0, 5);
+    if (sv.startsWith("wo")) {
+        io::println("FAIL: StringView.startsWith false");
+    } else {
+        io::println("PASS: StringView.startsWith false");
+    }
+}
+
+public fn test_stringview_endsWith_true(): void {
+    let sv: StringView = new StringView("hello world", 0, 5);
+    if (!sv.endsWith("lo")) {
+        io::println("FAIL: StringView.endsWith true");
+    } else {
+        io::println("PASS: StringView.endsWith true");
+    }
+}
+
+public fn test_stringview_endsWith_false(): void {
+    let sv: StringView = new StringView("hello world", 0, 5);
+    if (sv.endsWith("he")) {
+        io::println("FAIL: StringView.endsWith false");
+    } else {
+        io::println("PASS: StringView.endsWith false");
+    }
+}
+
+public fn test_stringview_contains_true(): void {
+    let sv: StringView = new StringView("hello world", 0, 11);
+    if (!sv.contains("world")) {
+        io::println("FAIL: StringView.contains true");
+    } else {
+        io::println("PASS: StringView.contains true");
+    }
+}
+
+public fn test_stringview_contains_false(): void {
+    let sv: StringView = new StringView("hello world", 0, 5);
+    if (sv.contains("world")) {
+        io::println("FAIL: StringView.contains false");
+    } else {
+        io::println("PASS: StringView.contains false");
+    }
+}
+
+public fn test_stringview_indexOf_found(): void {
+    let sv: StringView = new StringView("hello world", 0, 11);
+    if (sv.indexOf("world") != 6) {
+        io::println("FAIL: StringView.indexOf found = " + Integer.toString(sv.indexOf("world")));
+    } else {
+        io::println("PASS: StringView.indexOf found = 6");
+    }
+}
+
+public fn test_stringview_indexOf_notFound(): void {
+    let sv: StringView = new StringView("hello", 0, 5);
+    if (sv.indexOf("xyz") != -1) {
+        io::println("FAIL: StringView.indexOf notFound");
+    } else {
+        io::println("PASS: StringView.indexOf notFound = -1");
+    }
+}
+
+public fn test_stringview_indexOf_empty(): void {
+    let sv: StringView = new StringView("hello", 0, 5);
+    if (sv.indexOf("") != 0) {
+        io::println("FAIL: StringView.indexOf empty");
+    } else {
+        io::println("PASS: StringView.indexOf empty = 0");
+    }
+}
+
+public fn run_all_stringview_tests(): void {
+    io::println("=== StringView.tr Tests ===");
+    test_stringview_init();
+    test_stringview_source();
+    test_stringview_start();
+    test_stringview_length();
+    test_stringview_toString();
+    test_stringview_toString_offset();
+    test_stringview_slice();
+    test_stringview_charAt();
+    test_stringview_charAt_offset();
+    test_stringview_equals_same();
+    test_stringview_equals_diff_source();
+    test_stringview_equals_diff_length();
+    test_stringview_startsWith_true();
+    test_stringview_startsWith_false();
+    test_stringview_endsWith_true();
+    test_stringview_endsWith_false();
+    test_stringview_contains_true();
+    test_stringview_contains_false();
+    test_stringview_indexOf_found();
+    test_stringview_indexOf_notFound();
+    test_stringview_indexOf_empty();
+}
