@@ -1,0 +1,241 @@
+// Test file for linalg/MatrixProps.tr
+// Exercises matrix properties: determinant, rank, symmetry, norms, etc.
+import tt::math::linalg::Matrix;
+import tt::math::linalg::MatrixProps;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_matrixprops_determinant(): void {
+    // 2x2 det: |1 2; 3 4| = 1*4 - 2*3 = -2
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 2.0);
+    m.set(1, 0, 3.0);
+    m.set(1, 1, 4.0);
+    if (absDiff(MatrixProps.determinant(m), -2.0) > 1e-9) {
+        io::println("FAIL: MatrixProps.determinant 2x2");
+    } else {
+        io::println("PASS: MatrixProps.determinant 2x2 = -2.0");
+    }
+    // Identity determinant = 1
+    let I: Matrix = Matrix.identity(3);
+    if (absDiff(MatrixProps.determinant(I), 1.0) > 1e-9) {
+        io::println("FAIL: MatrixProps.determinant identity");
+    } else {
+        io::println("PASS: MatrixProps.determinant identity = 1.0");
+    }
+    // Singular matrix det = 0
+    let s: Matrix = new Matrix(2, 2);
+    s.set(0, 0, 1.0);
+    s.set(0, 1, 2.0);
+    s.set(1, 0, 2.0);
+    s.set(1, 1, 4.0);
+    if (absDiff(MatrixProps.determinant(s), 0.0) > 1e-9) {
+        io::println("FAIL: MatrixProps.determinant singular");
+    } else {
+        io::println("PASS: MatrixProps.determinant singular = 0.0");
+    }
+    // 3x3 det
+    let m3: Matrix = new Matrix(3, 3);
+    m3.set(0, 0, 6.0);
+    m3.set(0, 1, 1.0);
+    m3.set(0, 2, 1.0);
+    m3.set(1, 0, 4.0);
+    m3.set(1, 1, -2.0);
+    m3.set(1, 2, 5.0);
+    m3.set(2, 0, 2.0);
+    m3.set(2, 1, 8.0);
+    m3.set(2, 2, 7.0);
+    // det = 6*(-2*7 - 5*8) - 1*(4*7 - 5*2) + 1*(4*8 - (-2)*2)
+    //    = 6*(-14-40) - 1*(28-10) + 1*(32+4) = 6*(-54) - 18 + 36 = -324 - 18 + 36 = -306
+    if (absDiff(MatrixProps.determinant(m3), -306.0) > 1e-6) {
+        io::println("FAIL: MatrixProps.determinant 3x3 = " + Double.toString(MatrixProps.determinant(m3)));
+    } else {
+        io::println("PASS: MatrixProps.determinant 3x3 = -306.0");
+    }
+}
+
+public fn test_matrixprops_rank(): void {
+    // Full rank identity
+    let I: Matrix = Matrix.identity(3);
+    if (MatrixProps.rank(I) != 3) {
+        io::println("FAIL: MatrixProps.rank identity");
+    } else {
+        io::println("PASS: MatrixProps.rank identity = 3");
+    }
+    // Rank 1 matrix (all rows multiples)
+    let r1: Matrix = new Matrix(2, 2);
+    r1.set(0, 0, 1.0);
+    r1.set(0, 1, 2.0);
+    r1.set(1, 0, 2.0);
+    r1.set(1, 1, 4.0);
+    if (MatrixProps.rank(r1) != 1) {
+        io::println("FAIL: MatrixProps.rank 1");
+    } else {
+        io::println("PASS: MatrixProps.rank 1 = 1");
+    }
+    // Zero matrix rank 0
+    let z: Matrix = Matrix.zeros(2, 2);
+    if (MatrixProps.rank(z) != 0) {
+        io::println("FAIL: MatrixProps.rank zero");
+    } else {
+        io::println("PASS: MatrixProps.rank zero = 0");
+    }
+}
+
+public fn test_matrixprops_symmetry_diagonal(): void {
+    let sym: Matrix = new Matrix(2, 2);
+    sym.set(0, 0, 1.0);
+    sym.set(0, 1, 2.0);
+    sym.set(1, 0, 2.0);
+    sym.set(1, 1, 3.0);
+    if (!MatrixProps.isSymmetric(sym)) {
+        io::println("FAIL: MatrixProps.isSymmetric true");
+    } else {
+        io::println("PASS: MatrixProps.isSymmetric true works");
+    }
+    let asym: Matrix = new Matrix(2, 2);
+    asym.set(0, 0, 1.0);
+    asym.set(0, 1, 2.0);
+    asym.set(1, 0, 3.0);
+    asym.set(1, 1, 4.0);
+    if (MatrixProps.isSymmetric(asym)) {
+        io::println("FAIL: MatrixProps.isSymmetric false");
+    } else {
+        io::println("PASS: MatrixProps.isSymmetric false works");
+    }
+    // Diagonal matrix
+    let diag: Matrix = Matrix.identity(3);
+    if (!MatrixProps.isDiagonal(diag)) {
+        io::println("FAIL: MatrixProps.isDiagonal identity");
+    } else {
+        io::println("PASS: MatrixProps.isDiagonal identity = true");
+    }
+    if (MatrixProps.isDiagonal(sym)) {
+        io::println("FAIL: MatrixProps.isDiagonal non-diagonal");
+    } else {
+        io::println("PASS: MatrixProps.isDiagonal non-diagonal = false");
+    }
+}
+
+public fn test_matrixprops_positive_definite(): void {
+    // Identity is positive definite
+    let I: Matrix = Matrix.identity(2);
+    if (!MatrixProps.isPositiveDefinite(I)) {
+        io::println("FAIL: MatrixProps.isPositiveDefinite identity");
+    } else {
+        io::println("PASS: MatrixProps.isPositiveDefinite identity = true");
+    }
+    // [[2,1],[1,2]] is positive definite
+    let pd: Matrix = new Matrix(2, 2);
+    pd.set(0, 0, 2.0);
+    pd.set(0, 1, 1.0);
+    pd.set(1, 0, 1.0);
+    pd.set(1, 1, 2.0);
+    if (!MatrixProps.isPositiveDefinite(pd)) {
+        io::println("FAIL: MatrixProps.isPositiveDefinite [[2,1],[1,2]]");
+    } else {
+        io::println("PASS: MatrixProps.isPositiveDefinite [[2,1],[1,2]] = true");
+    }
+    // [[1,2],[2,1]] is not positive definite
+    let npd: Matrix = new Matrix(2, 2);
+    npd.set(0, 0, 1.0);
+    npd.set(0, 1, 2.0);
+    npd.set(1, 0, 2.0);
+    npd.set(1, 1, 1.0);
+    if (MatrixProps.isPositiveDefinite(npd)) {
+        io::println("FAIL: MatrixProps.isPositiveDefinite [[1,2],[2,1]] should be false");
+    } else {
+        io::println("PASS: MatrixProps.isPositiveDefinite [[1,2],[2,1]] = false");
+    }
+}
+
+public fn test_matrixprops_norms(): void {
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 3.0);
+    m.set(0, 1, 0.0);
+    m.set(1, 0, 0.0);
+    m.set(1, 1, 4.0);
+    // Frobenius norm = sqrt(9+16) = 5
+    if (absDiff(MatrixProps.norm(m), 5.0) > 1e-9) {
+        io::println("FAIL: MatrixProps.norm");
+    } else {
+        io::println("PASS: MatrixProps.norm = 5.0");
+    }
+    // 1-norm = max column sum = max(3, 4) = 4
+    if (absDiff(MatrixProps.norm1(m), 4.0) > 1e-9) {
+        io::println("FAIL: MatrixProps.norm1");
+    } else {
+        io::println("PASS: MatrixProps.norm1 = 4.0");
+    }
+    // Inf-norm = max row sum = max(3, 4) = 4
+    if (absDiff(MatrixProps.normInf(m), 4.0) > 1e-9) {
+        io::println("FAIL: MatrixProps.normInf");
+    } else {
+        io::println("PASS: MatrixProps.normInf = 4.0");
+    }
+}
+
+public fn test_matrixprops_orthogonal_nilpotent(): void {
+    // Identity is orthogonal
+    let I: Matrix = Matrix.identity(3);
+    if (!MatrixProps.isOrthogonal(I)) {
+        io::println("FAIL: MatrixProps.isOrthogonal identity");
+    } else {
+        io::println("PASS: MatrixProps.isOrthogonal identity = true");
+    }
+    // A simple rotation matrix is orthogonal
+    let r: Matrix = new Matrix(2, 2);
+    r.set(0, 0, 0.0);
+    r.set(0, 1, -1.0);
+    r.set(1, 0, 1.0);
+    r.set(1, 1, 0.0);
+    if (!MatrixProps.isOrthogonal(r)) {
+        io::println("FAIL: MatrixProps.isOrthogonal rotation");
+    } else {
+        io::println("PASS: MatrixProps.isOrthogonal rotation = true");
+    }
+    // Nilpotent: strictly upper triangular 2x2 [[0,1],[0,0]] squared is zero
+    let n: Matrix = new Matrix(2, 2);
+    n.set(0, 0, 0.0);
+    n.set(0, 1, 1.0);
+    n.set(1, 0, 0.0);
+    n.set(1, 1, 0.0);
+    if (!MatrixProps.isNilpotent(n)) {
+        io::println("FAIL: MatrixProps.isNilpotent");
+    } else {
+        io::println("PASS: MatrixProps.isNilpotent = true");
+    }
+    // Identity is not nilpotent
+    if (MatrixProps.isNilpotent(I)) {
+        io::println("FAIL: MatrixProps.isNilpotent identity should be false");
+    } else {
+        io::println("PASS: MatrixProps.isNilpotent identity = false");
+    }
+}
+
+public fn test_matrixprops_traceRatio(): void {
+    let I: Matrix = Matrix.identity(3);
+    // trace = 3, rows = 3, ratio = 1.0
+    if (absDiff(MatrixProps.traceRatio(I), 1.0) > 1e-9) {
+        io::println("FAIL: MatrixProps.traceRatio identity");
+    } else {
+        io::println("PASS: MatrixProps.traceRatio identity = 1.0");
+    }
+}
+
+public fn run_all_matrix_props_tests(): void {
+    io::println("=== linalg/MatrixProps.tr Tests ===");
+    test_matrixprops_determinant();
+    test_matrixprops_rank();
+    test_matrixprops_symmetry_diagonal();
+    test_matrixprops_positive_definite();
+    test_matrixprops_norms();
+    test_matrixprops_orthogonal_nilpotent();
+    test_matrixprops_traceRatio();
+}
