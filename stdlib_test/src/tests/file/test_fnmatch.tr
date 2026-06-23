@@ -1,0 +1,150 @@
+// Test file for Fnmatch.tr
+// Exercises the public API of Fnmatch: fnmatch, fnmatchCase, filter, and
+// translate.
+import tt::file::Fnmatch;
+import tt::util::ArrayList;
+import tt::lang::Boolean;
+import tt::lang::Integer;
+
+public fn test_fnmatch_star(): void {
+    if (!Fnmatch.fnmatch("hello.txt", "*.txt")) {
+        io::println("FAIL: fnmatch *.txt should match hello.txt");
+    } else {
+        io::println("PASS: fnmatch * matches any prefix");
+    }
+}
+
+public fn test_fnmatch_star_no_match(): void {
+    if (Fnmatch.fnmatch("hello.log", "*.txt")) {
+        io::println("FAIL: fnmatch *.txt should not match hello.log");
+    } else {
+        io::println("PASS: fnmatch * rejects non-matching suffix");
+    }
+}
+
+public fn test_fnmatch_question(): void {
+    if (!Fnmatch.fnmatch("a.txt", "?.txt")) {
+        io::println("FAIL: fnmatch ?.txt should match a.txt");
+    } else {
+        io::println("PASS: fnmatch ? matches single character");
+    }
+}
+
+public fn test_fnmatch_question_no_match(): void {
+    if (Fnmatch.fnmatch("ab.txt", "?.txt")) {
+        io::println("FAIL: fnmatch ?.txt should not match ab.txt");
+    } else {
+        io::println("PASS: fnmatch ? rejects multiple characters");
+    }
+}
+
+public fn test_fnmatch_literal(): void {
+    if (!Fnmatch.fnmatch("file.txt", "file.txt")) {
+        io::println("FAIL: fnmatch literal should match identical string");
+    } else {
+        io::println("PASS: fnmatch matches literal pattern");
+    }
+}
+
+public fn test_fnmatch_bracket_range(): void {
+    if (!Fnmatch.fnmatch("b.txt", "[a-c].txt")) {
+        io::println("FAIL: fnmatch [a-c] should match b.txt");
+    } else {
+        io::println("PASS: fnmatch bracket range matches");
+    }
+}
+
+public fn test_fnmatch_bracket_negate(): void {
+    if (Fnmatch.fnmatch("a.txt", "[!a].txt")) {
+        io::println("FAIL: fnmatch [!a] should not match a.txt");
+    } else {
+        io::println("PASS: fnmatch negated bracket excludes");
+    }
+}
+
+public fn test_fnmatch_case_sensitive(): void {
+    // fnmatchCase is case-sensitive.
+    if (!Fnmatch.fnmatchCase("File.TXT", "*.TXT")) {
+        io::println("FAIL: fnmatchCase *.TXT should match File.TXT");
+    } else {
+        io::println("PASS: fnmatchCase is case-sensitive");
+    }
+}
+
+public fn test_fnmatch_case_sensitive_no_match(): void {
+    if (Fnmatch.fnmatchCase("File.txt", "*.TXT")) {
+        io::println("FAIL: fnmatchCase *.TXT should not match File.txt");
+    } else {
+        io::println("PASS: fnmatchCase rejects wrong case");
+    }
+}
+
+public fn test_fnmatch_filter(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("a.txt");
+    names.add("b.log");
+    names.add("c.txt");
+    names.add("d.md");
+    let filtered: ArrayList<string> = Fnmatch.filter(names, "*.txt");
+    if (filtered.size() != 2) {
+        io::println("FAIL: fnmatch.filter size=" + Integer.toString(filtered.size()));
+    } else {
+        io::println("PASS: fnmatch.filter selects matching names");
+    }
+}
+
+public fn test_fnmatch_filter_empty(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    let filtered: ArrayList<string> = Fnmatch.filter(names, "*.txt");
+    if (filtered.size() != 0) {
+        io::println("FAIL: fnmatch.filter on empty list size=" + Integer.toString(filtered.size()));
+    } else {
+        io::println("PASS: fnmatch.filter on empty list returns empty");
+    }
+}
+
+public fn test_fnmatch_translate_star(): void {
+    let regex: string = Fnmatch.translate("*.txt");
+    // translate converts * to .* and . to \.
+    if (regex != ".*\\.txt") {
+        io::println("FAIL: fnmatch.translate *.txt = '" + regex + "'");
+    } else {
+        io::println("PASS: fnmatch.translate converts * to .*");
+    }
+}
+
+public fn test_fnmatch_translate_question(): void {
+    let regex: string = Fnmatch.translate("?.txt");
+    if (regex != ".\\.txt") {
+        io::println("FAIL: fnmatch.translate ?.txt = '" + regex + "'");
+    } else {
+        io::println("PASS: fnmatch.translate converts ? to .");
+    }
+}
+
+public fn test_fnmatch_star_matches_empty(): void {
+    // * should match the empty string as well.
+    if (!Fnmatch.fnmatch("", "*")) {
+        io::println("FAIL: fnmatch * should match empty string");
+    } else {
+        io::println("PASS: fnmatch * matches empty string");
+    }
+}
+
+public fn run_all_fnmatch_tests(): void {
+    io::println("=== Fnmatch.tr Tests ===");
+    test_fnmatch_star();
+    test_fnmatch_star_no_match();
+    test_fnmatch_question();
+    test_fnmatch_question_no_match();
+    test_fnmatch_literal();
+    test_fnmatch_bracket_range();
+    test_fnmatch_bracket_negate();
+    test_fnmatch_case_sensitive();
+    test_fnmatch_case_sensitive_no_match();
+    test_fnmatch_filter();
+    test_fnmatch_filter_empty();
+    test_fnmatch_translate_star();
+    test_fnmatch_translate_question();
+    test_fnmatch_star_matches_empty();
+}
