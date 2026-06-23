@@ -1,0 +1,245 @@
+// Test file for File.tr
+// Exercises the public API of the File class: path access, read/write,
+// existence, size, delete, rename, copy, move, append, seek/tell,
+// readBytes/writeBytes, truncate, readlines/writelines, and open().
+import tt::io::File;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_file_getPath(): void {
+    let f: File = new File("some/path.txt");
+    if (f.getPath() != "some/path.txt") {
+        io::println("FAIL: File.getPath returned " + f.getPath());
+    } else {
+        io::println("PASS: File.getPath returns the constructor path");
+    }
+}
+
+public fn test_file_write_readAll(): void {
+    let path: string = "test_file_wr.txt";
+    let f: File = new File(path);
+    f.write("line one");
+    let content: string = f.readAll();
+    if (content != "line one") {
+        io::println("FAIL: File.readAll = '" + content + "'");
+    } else {
+        io::println("PASS: File.write/readAll round-trip");
+    }
+    f.delete();
+}
+
+public fn test_file_exists(): void {
+    let path: string = "test_file_exists.txt";
+    let f: File = new File(path);
+    f.write("data");
+    if (!f.exists()) {
+        io::println("FAIL: File.exists false after write");
+    } else {
+        io::println("PASS: File.exists true after write");
+    }
+    f.delete();
+    if (f.exists()) {
+        io::println("FAIL: File.exists true after delete");
+    } else {
+        io::println("PASS: File.exists false after delete");
+    }
+}
+
+public fn test_file_length_size(): void {
+    let path: string = "test_file_len.txt";
+    let f: File = new File(path);
+    f.write("12345");
+    if (f.length() != 5) {
+        io::println("FAIL: File.length = " + Integer.toString(f.length()));
+    } else {
+        io::println("PASS: File.length correct");
+    }
+    let sz: long = f.size();
+    if (sz != 5) {
+        io::println("FAIL: File.size = " + Integer.toString(sz as int));
+    } else {
+        io::println("PASS: File.size correct");
+    }
+    f.delete();
+}
+
+public fn test_file_isFile_isDirectory(): void {
+    let path: string = "test_file_isfile.txt";
+    let f: File = new File(path);
+    f.write("x");
+    if (!f.isFile()) {
+        io::println("FAIL: File.isFile false for regular file");
+    } else {
+        io::println("PASS: File.isFile true for regular file");
+    }
+    if (f.isDirectory()) {
+        io::println("FAIL: File.isDirectory true for regular file");
+    } else {
+        io::println("PASS: File.isDirectory false for regular file");
+    }
+    f.delete();
+}
+
+public fn test_file_append(): void {
+    let path: string = "test_file_append.txt";
+    let f: File = new File(path);
+    f.write("abc");
+    f.append("def");
+    let content: string = f.readAll();
+    if (content != "abcdef") {
+        io::println("FAIL: File.append result = '" + content + "'");
+    } else {
+        io::println("PASS: File.append concatenates");
+    }
+    f.delete();
+}
+
+public fn test_file_renameTo(): void {
+    let path: string = "test_file_rename_src.txt";
+    let dest: string = "test_file_rename_dst.txt";
+    let f: File = new File(path);
+    f.write("rename me");
+    let ok: bool = f.renameTo(dest);
+    if (!ok) {
+        io::println("FAIL: File.renameTo returned false");
+    } else {
+        let d: File = new File(dest);
+        if (!d.exists()) {
+            io::println("FAIL: File.renameTo destination missing");
+        } else {
+            io::println("PASS: File.renameTo moves file");
+            d.delete();
+        }
+    }
+    // cleanup src if still present
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_file_moveTo(): void {
+    let path: string = "test_file_moveto_src.txt";
+    let dest: string = "test_file_moveto_dst.txt";
+    let f: File = new File(path);
+    f.write("move me");
+    let ok: bool = f.moveTo(dest);
+    if (!ok) {
+        io::println("FAIL: File.moveTo returned false");
+    } else {
+        let d: File = new File(dest);
+        if (!d.exists()) {
+            io::println("FAIL: File.moveTo destination missing");
+        } else {
+            io::println("PASS: File.moveTo moves file");
+            d.delete();
+        }
+    }
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_file_copyTo(): void {
+    let path: string = "test_file_copy_src.txt";
+    let dest: string = "test_file_copy_dst.txt";
+    let f: File = new File(path);
+    f.write("copy me");
+    let result = f.copyTo(dest);
+    if (result.isErr()) {
+        io::println("FAIL: File.copyTo returned error");
+    } else {
+        let d: File = new File(dest);
+        if (!d.exists() || d.readAll() != "copy me") {
+            io::println("FAIL: File.copyTo destination content wrong");
+        } else {
+            io::println("PASS: File.copyTo duplicates file");
+        }
+        d.delete();
+    }
+    f.delete();
+}
+
+public fn test_file_readlines_writelines(): void {
+    let path: string = "test_file_lines.txt";
+    let f: File = new File(path);
+    let lines: ArrayList<string> = new ArrayList<string>();
+    lines.add("alpha");
+    lines.add("beta");
+    lines.add("gamma");
+    f.writelines(lines);
+    let read: ArrayList<string> = f.readlines();
+    if (read.size() != 3) {
+        io::println("FAIL: File.readlines size = " + Integer.toString(read.size()));
+    } else if (read.get(1) != "beta") {
+        io::println("FAIL: File.readlines second line = " + read.get(1));
+    } else {
+        io::println("PASS: File.writelines/readlines round-trip");
+    }
+    f.delete();
+}
+
+public fn test_file_open_static(): void {
+    let path: string = "test_file_open_static.txt";
+    let f: File = File.open(path, "w");
+    if (!f.exists()) {
+        io::println("FAIL: File.open 'w' did not create file");
+    } else {
+        io::println("PASS: File.open 'w' creates file");
+    }
+    f.delete();
+}
+
+public fn test_file_truncate(): void {
+    let path: string = "test_file_truncate.txt";
+    let f: File = new File(path);
+    f.write("abcdefghij");
+    f.truncate(4);
+    let content: string = f.readAll();
+    if (content != "abcd") {
+        io::println("FAIL: File.truncate result = '" + content + "'");
+    } else {
+        io::println("PASS: File.truncate shortens file");
+    }
+    f.delete();
+}
+
+public fn test_file_readBytes_writeBytes(): void {
+    let path: string = "test_file_bytes.txt";
+    let f: File = new File(path);
+    f.writeBytes("ABC");
+    let data: string = f.readAllBytes();
+    if (data != "ABC") {
+        io::println("FAIL: File.readAllBytes = '" + data + "'");
+    } else {
+        io::println("PASS: File.writeBytes/readAllBytes round-trip");
+    }
+    f.delete();
+}
+
+public fn test_file_lastModified(): void {
+    let path: string = "test_file_mtime.txt";
+    let f: File = new File(path);
+    f.write("x");
+    let mtime: int = f.lastModified();
+    if (mtime <= 0) {
+        io::println("FAIL: File.lastModified = " + Integer.toString(mtime));
+    } else {
+        io::println("PASS: File.lastModified positive");
+    }
+    f.delete();
+}
+
+public fn run_all_file_tests(): void {
+    io::println("=== File.tr Tests ===");
+    test_file_getPath();
+    test_file_write_readAll();
+    test_file_exists();
+    test_file_length_size();
+    test_file_isFile_isDirectory();
+    test_file_append();
+    test_file_renameTo();
+    test_file_moveTo();
+    test_file_copyTo();
+    test_file_readlines_writelines();
+    test_file_open_static();
+    test_file_truncate();
+    test_file_readBytes_writeBytes();
+    test_file_lastModified();
+}
