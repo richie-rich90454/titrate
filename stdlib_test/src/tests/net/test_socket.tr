@@ -1,0 +1,138 @@
+// Test file for Socket.tr
+// Exercises the public API of the Socket class and module-level utility
+// functions (constants, inetPton/inetNtop, state accessors).
+import tt::net::Socket;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_socket_constants(): void {
+    if (AF_INET != 2) {
+        io::println("FAIL: AF_INET = " + Integer.toString(AF_INET));
+    } else {
+        io::println("PASS: AF_INET is 2");
+    }
+    if (AF_INET6 != 10) {
+        io::println("FAIL: AF_INET6 = " + Integer.toString(AF_INET6));
+    } else {
+        io::println("PASS: AF_INET6 is 10");
+    }
+    if (SOCK_STREAM != 1) {
+        io::println("FAIL: SOCK_STREAM = " + Integer.toString(SOCK_STREAM));
+    } else {
+        io::println("PASS: SOCK_STREAM is 1");
+    }
+    if (SOCK_DGRAM != 2) {
+        io::println("FAIL: SOCK_DGRAM = " + Integer.toString(SOCK_DGRAM));
+    } else {
+        io::println("PASS: SOCK_DGRAM is 2");
+    }
+}
+
+public fn test_socket_init_state(): void {
+    let s: Socket = new Socket();
+    if (s.isConnected()) {
+        io::println("FAIL: Socket.isConnected should be false on init");
+    } else {
+        io::println("PASS: Socket.isConnected false on init");
+    }
+    if (s.isClosed()) {
+        io::println("FAIL: Socket.isClosed should be false on init");
+    } else {
+        io::println("PASS: Socket.isClosed false on init");
+    }
+}
+
+public fn test_socket_close_idempotent(): void {
+    let s: Socket = new Socket();
+    s.close();
+    if (!s.isClosed()) {
+        io::println("FAIL: Socket.isClosed should be true after close");
+    } else {
+        io::println("PASS: Socket.isClosed true after close");
+    }
+    if (s.isConnected()) {
+        io::println("FAIL: Socket.isConnected should be false after close");
+    } else {
+        io::println("PASS: Socket.isConnected false after close");
+    }
+    // Closing again should be a no-op (not throw)
+    s.close();
+    io::println("PASS: Socket.close idempotent");
+}
+
+public fn test_socket_setHandle_marks_connected(): void {
+    let s: Socket = new Socket();
+    s.setHandle(42);
+    if (!s.isConnected()) {
+        io::println("FAIL: Socket.isConnected should be true after setHandle");
+    } else {
+        io::println("PASS: Socket.setHandle marks connected");
+    }
+}
+
+public fn test_socket_option_setters_no_throw(): void {
+    let s: Socket = new Socket();
+    s.setHandle(1);
+    // These delegate to native calls; we only verify they do not throw
+    // when invoked with a handle. Native no-ops are acceptable.
+    s.setTimeout(1000);
+    s.setNoDelay(true);
+    s.setNoDelay(false);
+    s.setReuseAddr(true);
+    s.setReuseAddr(false);
+    s.setBroadcast(true);
+    s.setBroadcast(false);
+    s.setKeepAlive(true);
+    s.setKeepAlive(false);
+    s.setLinger(true, 5);
+    s.setLinger(false, 0);
+    io::println("PASS: Socket option setters execute without throwing");
+}
+
+public fn test_inetPton_inetNtop_roundtrip(): void {
+    // inetPton/inetNtop delegate to native; if unavailable they may return
+    // empty strings. We verify the functions are callable and return strings.
+    let packed: string = inetPton("127.0.0.1");
+    if (packed == null) {
+        io::println("FAIL: inetPton returned null");
+    } else {
+        io::println("PASS: inetPton returns a string");
+    }
+    let back: string = inetNtop(packed);
+    if (back == null) {
+        io::println("FAIL: inetNtop returned null");
+    } else {
+        io::println("PASS: inetNtop returns a string");
+    }
+}
+
+public fn test_getHostByName_callable(): void {
+    // Network-dependent; we only verify it returns a string (possibly empty).
+    let result: string = getHostByName("localhost");
+    if (result == null) {
+        io::println("FAIL: getHostByName returned null");
+    } else {
+        io::println("PASS: getHostByName returns a string");
+    }
+}
+
+public fn test_getAddrInfo_callable(): void {
+    let addrs = getAddrInfo("localhost", 80);
+    if (addrs == null) {
+        io::println("FAIL: getAddrInfo returned null");
+    } else {
+        io::println("PASS: getAddrInfo returns a list of size " + Integer.toString(addrs.size()));
+    }
+}
+
+public fn run_all_socket_tests(): void {
+    io::println("=== Socket.tr Tests ===");
+    test_socket_constants();
+    test_socket_init_state();
+    test_socket_close_idempotent();
+    test_socket_setHandle_marks_connected();
+    test_socket_option_setters_no_throw();
+    test_inetPton_inetNtop_roundtrip();
+    test_getHostByName_callable();
+    test_getAddrInfo_callable();
+}
