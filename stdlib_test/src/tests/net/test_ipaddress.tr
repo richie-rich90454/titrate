@@ -1,0 +1,248 @@
+// Test file for IpAddress.tr
+// Exercises the public API of IpAddress, IPv4Network, IPv6Network, and the
+// module-level validation/factory functions.
+import tt::net::IpAddress;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_ipaddress_isV4_isV6_detection(): void {
+    let ip4: IpAddress = new IpAddress("192.168.1.1");
+    if (!ip4.isV4() || ip4.isV6()) {
+        io::println("FAIL: IpAddress v4 detection");
+    } else {
+        io::println("PASS: IpAddress detects IPv4");
+    }
+    let ip6: IpAddress = new IpAddress("::1");
+    if (!ip6.isV6() || ip6.isV4()) {
+        io::println("FAIL: IpAddress v6 detection");
+    } else {
+        io::println("PASS: IpAddress detects IPv6");
+    }
+}
+
+public fn test_ipaddress_loopback(): void {
+    let loop4: IpAddress = new IpAddress("127.0.0.1");
+    if (!loop4.isLoopback()) {
+        io::println("FAIL: 127.0.0.1 should be loopback");
+    } else {
+        io::println("PASS: 127.0.0.1 is loopback");
+    }
+    let loop6: IpAddress = new IpAddress("::1");
+    if (!loop6.isLoopback()) {
+        io::println("FAIL: ::1 should be loopback");
+    } else {
+        io::println("PASS: ::1 is loopback");
+    }
+    let notLoop: IpAddress = new IpAddress("8.8.8.8");
+    if (notLoop.isLoopback()) {
+        io::println("FAIL: 8.8.8.8 should not be loopback");
+    } else {
+        io::println("PASS: 8.8.8.8 is not loopback");
+    }
+}
+
+public fn test_ipaddress_private(): void {
+    let priv10: IpAddress = new IpAddress("10.0.0.1");
+    if (!priv10.isPrivate()) {
+        io::println("FAIL: 10.0.0.1 should be private");
+    } else {
+        io::println("PASS: 10.0.0.1 is private");
+    }
+    let priv192: IpAddress = new IpAddress("192.168.0.1");
+    if (!priv192.isPrivate()) {
+        io::println("FAIL: 192.168.0.1 should be private");
+    } else {
+        io::println("PASS: 192.168.0.1 is private");
+    }
+    let priv172: IpAddress = new IpAddress("172.16.0.1");
+    if (!priv172.isPrivate()) {
+        io::println("FAIL: 172.16.0.1 should be private");
+    } else {
+        io::println("PASS: 172.16.0.1 is private");
+    }
+    let pub: IpAddress = new IpAddress("8.8.8.8");
+    if (pub.isPrivate()) {
+        io::println("FAIL: 8.8.8.8 should not be private");
+    } else {
+        io::println("PASS: 8.8.8.8 is not private");
+    }
+}
+
+public fn test_ipaddress_linklocal(): void {
+    let ll: IpAddress = new IpAddress("169.254.1.1");
+    if (!ll.isLinkLocal()) {
+        io::println("FAIL: 169.254.1.1 should be link-local");
+    } else {
+        io::println("PASS: 169.254.1.1 is link-local");
+    }
+}
+
+public fn test_ipaddress_toString_equals(): void {
+    let ip: IpAddress = new IpAddress("1.2.3.4");
+    if (ip.toString() != "1.2.3.4") {
+        io::println("FAIL: IpAddress.toString = " + ip.toString());
+    } else {
+        io::println("PASS: IpAddress.toString works");
+    }
+    let same: IpAddress = new IpAddress("1.2.3.4");
+    let other: IpAddress = new IpAddress("1.2.3.5");
+    if (!ip.equals(same)) {
+        io::println("FAIL: IpAddress.equals should be true for same address");
+    } else {
+        io::println("PASS: IpAddress.equals true for same");
+    }
+    if (ip.equals(other)) {
+        io::println("FAIL: IpAddress.equals should be false for different address");
+    } else {
+        io::println("PASS: IpAddress.equals false for different");
+    }
+}
+
+public fn test_module_isV4_isV6(): void {
+    if (!isV4("1.2.3.4")) {
+        io::println("FAIL: isV4('1.2.3.4') should be true");
+    } else {
+        io::println("PASS: isV4('1.2.3.4') true");
+    }
+    if (isV4("::1")) {
+        io::println("FAIL: isV4('::1') should be false");
+    } else {
+        io::println("PASS: isV4('::1') false");
+    }
+    if (!isV6("::1")) {
+        io::println("FAIL: isV6('::1') should be true");
+    } else {
+        io::println("PASS: isV6('::1') true");
+    }
+    if (isV6("1.2.3.4")) {
+        io::println("FAIL: isV6('1.2.3.4') should be false");
+    } else {
+        io::println("PASS: isV6('1.2.3.4') false");
+    }
+}
+
+public fn test_validate(): void {
+    if (!validate("192.168.1.1")) {
+        io::println("FAIL: validate('192.168.1.1') should be true");
+    } else {
+        io::println("PASS: validate('192.168.1.1') true");
+    }
+    if (!validate("255.255.255.255")) {
+        io::println("FAIL: validate('255.255.255.255') should be true");
+    } else {
+        io::println("PASS: validate('255.255.255.255') true");
+    }
+    if (validate("999.1.1.1")) {
+        io::println("FAIL: validate('999.1.1.1') should be false");
+    } else {
+        io::println("PASS: validate('999.1.1.1') false");
+    }
+    if (validate("1.2.3")) {
+        io::println("FAIL: validate('1.2.3') should be false");
+    } else {
+        io::println("PASS: validate('1.2.3') false");
+    }
+}
+
+public fn test_ipv4_ipv6_factories(): void {
+    let v4: IpAddress = ipv4("10.0.0.1");
+    if (v4.isV6()) {
+        io::println("FAIL: ipv4() should produce a v4 address");
+    } else {
+        io::println("PASS: ipv4() produces a v4 address");
+    }
+    // Passing a v6 string to ipv4 should yield 0.0.0.0
+    let v4fallback: IpAddress = ipv4("::1");
+    if (v4fallback.address != "0.0.0.0") {
+        io::println("FAIL: ipv4('::1') should fall back to 0.0.0.0, got " + v4fallback.address);
+    } else {
+        io::println("PASS: ipv4('::1') falls back to 0.0.0.0");
+    }
+    let v6: IpAddress = ipv6("::1");
+    if (!v6.isV6()) {
+        io::println("FAIL: ipv6() should produce a v6 address");
+    } else {
+        io::println("PASS: ipv6() produces a v6 address");
+    }
+    let v6fallback: IpAddress = ipv6("1.2.3.4");
+    if (v6fallback.address != "::") {
+        io::println("FAIL: ipv6('1.2.3.4') should fall back to ::, got " + v6fallback.address);
+    } else {
+        io::println("PASS: ipv6('1.2.3.4') falls back to ::");
+    }
+}
+
+public fn test_ipv4network_basic(): void {
+    let net: IPv4Network = new IPv4Network("192.168.1.0", 24);
+    if (net.networkAddress() != "192.168.1.0") {
+        io::println("FAIL: IPv4Network.networkAddress = " + net.networkAddress());
+    } else {
+        io::println("PASS: IPv4Network.networkAddress works");
+    }
+    if (net.broadcastAddress() != "192.168.1.255") {
+        io::println("FAIL: IPv4Network.broadcastAddress = " + net.broadcastAddress());
+    } else {
+        io::println("PASS: IPv4Network.broadcastAddress works");
+    }
+    if (net.netmask() != "255.255.255.0") {
+        io::println("FAIL: IPv4Network.netmask = " + net.netmask());
+    } else {
+        io::println("PASS: IPv4Network.netmask works");
+    }
+    if (net.numAddresses() != 256) {
+        io::println("FAIL: IPv4Network.numAddresses = " + Integer.toString(net.numAddresses()));
+    } else {
+        io::println("PASS: IPv4Network.numAddresses works");
+    }
+}
+
+public fn test_ipv4network_contains(): void {
+    let net: IPv4Network = new IPv4Network("192.168.1.0", 24);
+    if (!net.contains("192.168.1.100")) {
+        io::println("FAIL: 192.168.1.100 should be in 192.168.1.0/24");
+    } else {
+        io::println("PASS: 192.168.1.100 in 192.168.1.0/24");
+    }
+    if (net.contains("192.168.2.1")) {
+        io::println("FAIL: 192.168.2.1 should not be in 192.168.1.0/24");
+    } else {
+        io::println("PASS: 192.168.2.1 not in 192.168.1.0/24");
+    }
+}
+
+public fn test_ipv4network_subnets_hosts(): void {
+    let net: IPv4Network = new IPv4Network("192.168.1.0", 24);
+    let subs = net.subnets();
+    if (subs.size() != 2) {
+        io::println("FAIL: IPv4Network.subnets size = " + Integer.toString(subs.size()));
+    } else {
+        io::println("PASS: IPv4Network.subnets returns 2 subnets");
+    }
+    let hosts = net.hosts();
+    // /24 has 256 addresses, minus network and broadcast = 254 hosts
+    if (hosts.size() != 254) {
+        io::println("FAIL: IPv4Network.hosts size = " + Integer.toString(hosts.size()));
+    } else {
+        io::println("PASS: IPv4Network.hosts returns 254 hosts");
+    }
+    if (net.toString() != "192.168.1.0/24") {
+        io::println("FAIL: IPv4Network.toString = " + net.toString());
+    } else {
+        io::println("PASS: IPv4Network.toString works");
+    }
+}
+
+public fn run_all_ipaddress_tests(): void {
+    io::println("=== IpAddress.tr Tests ===");
+    test_ipaddress_isV4_isV6_detection();
+    test_ipaddress_loopback();
+    test_ipaddress_private();
+    test_ipaddress_linklocal();
+    test_ipaddress_toString_equals();
+    test_module_isV4_isV6();
+    test_validate();
+    test_ipv4_ipv6_factories();
+    test_ipv4network_basic();
+    test_ipv4network_contains();
+    test_ipv4network_subnets_hosts();
+}
