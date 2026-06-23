@@ -1,0 +1,313 @@
+import tt::math::transform::Quaternion;
+import tt::math::vec::Vec3;
+import tt::math::Math;
+import tt::math::MathTrig;
+import tt::math::MathAdvanced;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn test_identity(): void {
+    let q: Quaternion = quatIdentity();
+    if (approxEq(q.w, 1.0, 1e-12) && approxEq(q.x, 0.0, 1e-12) && approxEq(q.y, 0.0, 1e-12) && approxEq(q.z, 0.0, 1e-12)) {
+        io::println("PASS test_identity: identity quaternion is (1,0,0,0)");
+    } else {
+        io::println("FAIL test_identity: incorrect");
+    }
+}
+
+fn test_construct(): void {
+    let q: Quaternion = new Quaternion(0.5, 0.5, 0.5, 0.5);
+    if (approxEq(q.w, 0.5, 1e-12)) {
+        io::println("PASS test_construct: w stored correctly");
+    } else {
+        io::println("FAIL test_construct: incorrect w");
+    }
+}
+
+fn test_norm(): void {
+    let q: Quaternion = new Quaternion(1.0, 2.0, 2.0, 2.0);
+    let n: double = q.norm();
+    // sqrt(1 + 4 + 4 + 4) = sqrt(13) ~ 3.6055
+    if (approxEq(n, MathAdvanced.sqrt(13.0), 1e-9)) {
+        io::println("PASS test_norm: norm = sqrt(13)");
+    } else {
+        io::println("FAIL test_norm: expected sqrt(13), got " + Double.toString(n));
+    }
+}
+
+fn test_normalize(): void {
+    let q: Quaternion = new Quaternion(2.0, 0.0, 0.0, 0.0);
+    let n: Quaternion = q.normalize();
+    if (approxEq(n.w, 1.0, 1e-9) && approxEq(n.x, 0.0, 1e-9)) {
+        io::println("PASS test_normalize: normalized to unit quaternion");
+    } else {
+        io::println("FAIL test_normalize: w=" + Double.toString(n.w));
+    }
+}
+
+fn test_normalize_zero(): void {
+    let q: Quaternion = new Quaternion(0.0, 0.0, 0.0, 0.0);
+    let n: Quaternion = q.normalize();
+    // Should return identity to avoid division by zero
+    if (approxEq(n.w, 1.0, 1e-9)) {
+        io::println("PASS test_normalize_zero: zero quaternion normalizes to identity");
+    } else {
+        io::println("FAIL test_normalize_zero: w=" + Double.toString(n.w));
+    }
+}
+
+fn test_conjugate(): void {
+    let q: Quaternion = new Quaternion(1.0, 2.0, 3.0, 4.0);
+    let c: Quaternion = q.conjugate();
+    if (approxEq(c.w, 1.0, 1e-12) && approxEq(c.x, -2.0, 1e-12) && approxEq(c.y, -3.0, 1e-12) && approxEq(c.z, -4.0, 1e-12)) {
+        io::println("PASS test_conjugate: (w,-x,-y,-z)");
+    } else {
+        io::println("FAIL test_conjugate: incorrect");
+    }
+}
+
+fn test_inverse(): void {
+    let q: Quaternion = new Quaternion(1.0, 0.0, 0.0, 0.0);
+    let inv: Quaternion = q.inverse();
+    // Inverse of identity is identity
+    if (approxEq(inv.w, 1.0, 1e-9)) {
+        io::println("PASS test_inverse: inverse of identity is identity");
+    } else {
+        io::println("FAIL test_inverse: w=" + Double.toString(inv.w));
+    }
+}
+
+fn test_inverse_unit(): void {
+    // For unit quaternion, inverse == conjugate
+    let q: Quaternion = quatFromAxisAngle(new Vec3(0.0, 1.0, 0.0), Math.PI() / 4.0);
+    let inv: Quaternion = q.inverse();
+    let conj: Quaternion = q.conjugate();
+    if (approxEq(inv.w, conj.w, 1e-9) && approxEq(inv.x, conj.x, 1e-9) && approxEq(inv.y, conj.y, 1e-9) && approxEq(inv.z, conj.z, 1e-9)) {
+        io::println("PASS test_inverse_unit: inverse == conjugate for unit quaternion");
+    } else {
+        io::println("FAIL test_inverse_unit: mismatch");
+    }
+}
+
+fn test_multiply_identity(): void {
+    let q: Quaternion = new Quaternion(0.7, 0.1, 0.2, 0.3);
+    let id: Quaternion = quatIdentity();
+    let p: Quaternion = q.multiply(id);
+    if (approxEq(p.w, q.w, 1e-9) && approxEq(p.x, q.x, 1e-9) && approxEq(p.y, q.y, 1e-9) && approxEq(p.z, q.z, 1e-9)) {
+        io::println("PASS test_multiply_identity: q * identity = q");
+    } else {
+        io::println("FAIL test_multiply_identity: incorrect");
+    }
+}
+
+fn test_dot(): void {
+    let q1: Quaternion = new Quaternion(1.0, 2.0, 3.0, 4.0);
+    let q2: Quaternion = new Quaternion(1.0, 0.0, 0.0, 0.0);
+    let d: double = q1.dot(q2);
+    if (approxEq(d, 1.0, 1e-9)) {
+        io::println("PASS test_dot: dot with (1,0,0,0) returns w component");
+    } else {
+        io::println("FAIL test_dot: expected 1.0, got " + Double.toString(d));
+    }
+}
+
+fn test_rotateVector_identity(): void {
+    let q: Quaternion = quatIdentity();
+    let v: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let r: Vec3 = q.rotateVector(v);
+    if (approxEq(r.x, 1.0, 1e-9) && approxEq(r.y, 2.0, 1e-9) && approxEq(r.z, 3.0, 1e-9)) {
+        io::println("PASS test_rotateVector_identity: identity rotation leaves vector unchanged");
+    } else {
+        io::println("FAIL test_rotateVector_identity: vector changed");
+    }
+}
+
+fn test_rotateVector_90deg(): void {
+    // Rotate (1,0,0) by 90 degrees around Z -> (0,1,0)
+    let q: Quaternion = quatFromAxisAngle(new Vec3(0.0, 0.0, 1.0), Math.PI() / 2.0);
+    let v: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let r: Vec3 = q.rotateVector(v);
+    if (approxEq(r.x, 0.0, 1e-9) && approxEq(r.y, 1.0, 1e-9) && approxEq(r.z, 0.0, 1e-9)) {
+        io::println("PASS test_rotateVector_90deg: (1,0,0) -> (0,1,0) under 90deg Z rotation");
+    } else {
+        io::println("FAIL test_rotateVector_90deg: x=" + Double.toString(r.x) + " y=" + Double.toString(r.y));
+    }
+}
+
+fn test_quatFromAxisAngle(): void {
+    let axis: Vec3 = new Vec3(0.0, 0.0, 1.0);
+    let q: Quaternion = quatFromAxisAngle(axis, 0.0);
+    // Zero angle -> identity
+    if (approxEq(q.w, 1.0, 1e-9) && approxEq(q.x, 0.0, 1e-9) && approxEq(q.y, 0.0, 1e-9) && approxEq(q.z, 0.0, 1e-9)) {
+        io::println("PASS test_quatFromAxisAngle: zero angle gives identity");
+    } else {
+        io::println("FAIL test_quatFromAxisAngle: w=" + Double.toString(q.w));
+    }
+}
+
+fn test_angle(): void {
+    let q: Quaternion = quatFromAxisAngle(new Vec3(0.0, 1.0, 0.0), Math.PI() / 2.0);
+    let a: double = q.angle();
+    if (approxEq(a, Math.PI() / 2.0, 1e-9)) {
+        io::println("PASS test_angle: 90deg rotation has angle pi/2");
+    } else {
+        io::println("FAIL test_angle: expected pi/2, got " + Double.toString(a));
+    }
+}
+
+fn test_angle_zero(): void {
+    let q: Quaternion = quatIdentity();
+    let a: double = q.angle();
+    if (approxEq(a, 0.0, 1e-9)) {
+        io::println("PASS test_angle_zero: identity has angle 0");
+    } else {
+        io::println("FAIL test_angle_zero: expected 0, got " + Double.toString(a));
+    }
+}
+
+fn test_lerp_endpoints(): void {
+    let a: Quaternion = quatIdentity();
+    let b: Quaternion = quatFromAxisAngle(new Vec3(0.0, 1.0, 0.0), Math.PI() / 2.0);
+    let at0: Quaternion = a.lerp(b, 0.0);
+    let at1: Quaternion = a.lerp(b, 1.0);
+    if (at0.equals(a.normalize()) && at1.equals(b.normalize())) {
+        io::println("PASS test_lerp_endpoints: lerp at 0 and 1 returns endpoints");
+    } else {
+        io::println("FAIL test_lerp_endpoints: endpoints not preserved");
+    }
+}
+
+fn test_slerp_endpoints(): void {
+    let a: Quaternion = quatIdentity();
+    let b: Quaternion = quatFromAxisAngle(new Vec3(0.0, 1.0, 0.0), Math.PI() / 2.0);
+    let at0: Quaternion = a.slerp(b, 0.0);
+    let at1: Quaternion = a.slerp(b, 1.0);
+    if (approxEq(at0.w, a.w, 1e-9) && approxEq(at1.w, b.w, 1e-9)) {
+        io::println("PASS test_slerp_endpoints: slerp at 0 and 1 returns endpoints");
+    } else {
+        io::println("FAIL test_slerp_endpoints: at0.w=" + Double.toString(at0.w) + " at1.w=" + Double.toString(at1.w));
+    }
+}
+
+fn test_slerp_identity(): void {
+    // slerp between identical quaternions returns same quaternion
+    let a: Quaternion = quatIdentity();
+    let mid: Quaternion = a.slerp(a, 0.5);
+    if (approxEq(mid.w, 1.0, 1e-9)) {
+        io::println("PASS test_slerp_identity: slerp of identical quaternions is identity");
+    } else {
+        io::println("FAIL test_slerp_identity: w=" + Double.toString(mid.w));
+    }
+}
+
+fn test_toMat4_identity(): void {
+    let q: Quaternion = quatIdentity();
+    let m = q.toMat4();
+    // Identity quaternion -> identity matrix
+    if (approxEq(m.get(0, 0), 1.0, 1e-9) && approxEq(m.get(1, 1), 1.0, 1e-9) && approxEq(m.get(2, 2), 1.0, 1e-9)) {
+        io::println("PASS test_toMat4_identity: identity quaternion -> identity matrix");
+    } else {
+        io::println("FAIL test_toMat4_identity: not identity");
+    }
+}
+
+fn test_toEuler_identity(): void {
+    let q: Quaternion = quatIdentity();
+    let e: Vec3 = q.toEuler();
+    if (approxEq(e.x, 0.0, 1e-9) && approxEq(e.y, 0.0, 1e-9) && approxEq(e.z, 0.0, 1e-9)) {
+        io::println("PASS test_toEuler_identity: identity -> (0,0,0)");
+    } else {
+        io::println("FAIL test_toEuler_identity: x=" + Double.toString(e.x) + " y=" + Double.toString(e.y) + " z=" + Double.toString(e.z));
+    }
+}
+
+fn test_quatFromEuler_zero(): void {
+    let q: Quaternion = quatFromEuler(0.0, 0.0, 0.0);
+    if (approxEq(q.w, 1.0, 1e-9) && approxEq(q.x, 0.0, 1e-9) && approxEq(q.y, 0.0, 1e-9) && approxEq(q.z, 0.0, 1e-9)) {
+        io::println("PASS test_quatFromEuler_zero: zero Euler angles -> identity");
+    } else {
+        io::println("FAIL test_quatFromEuler_zero: w=" + Double.toString(q.w));
+    }
+}
+
+fn test_quatFromToRotation_same(): void {
+    let f: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let t: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let q: Quaternion = quatFromToRotation(f, t);
+    if (approxEq(q.w, 1.0, 1e-9)) {
+        io::println("PASS test_quatFromToRotation_same: same vectors -> identity");
+    } else {
+        io::println("FAIL test_quatFromToRotation_same: w=" + Double.toString(q.w));
+    }
+}
+
+fn test_quatFromToRotation_90deg(): void {
+    // Rotate (1,0,0) to (0,1,0) -> 90deg around Z
+    let f: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let t: Vec3 = new Vec3(0.0, 1.0, 0.0);
+    let q: Quaternion = quatFromToRotation(f, t);
+    let r: Vec3 = q.rotateVector(f);
+    if (approxEq(r.x, 0.0, 1e-9) && approxEq(r.y, 1.0, 1e-9)) {
+        io::println("PASS test_quatFromToRotation_90deg: rotates (1,0,0) to (0,1,0)");
+    } else {
+        io::println("FAIL test_quatFromToRotation_90deg: x=" + Double.toString(r.x) + " y=" + Double.toString(r.y));
+    }
+}
+
+fn test_equals(): void {
+    let a: Quaternion = new Quaternion(1.0, 2.0, 3.0, 4.0);
+    let b: Quaternion = new Quaternion(1.0, 2.0, 3.0, 4.0);
+    let c: Quaternion = new Quaternion(1.0, 2.0, 3.0, 5.0);
+    if (a.equals(b) && !a.equals(c)) {
+        io::println("PASS test_equals: equal quaternions compare equal");
+    } else {
+        io::println("FAIL test_equals: incorrect equality");
+    }
+}
+
+fn test_toString(): void {
+    let q: Quaternion = new Quaternion(1.0, 0.0, 0.0, 0.0);
+    let s: string = q.toString();
+    if (String.indexOf(s, "Quaternion") >= 0) {
+        io::println("PASS test_toString: contains 'Quaternion'");
+    } else {
+        io::println("FAIL test_toString: missing 'Quaternion'");
+    }
+}
+
+public fn run_all_quaternion_tests(): void {
+    io::println("=== Quaternion tests ===");
+    test_identity();
+    test_construct();
+    test_norm();
+    test_normalize();
+    test_normalize_zero();
+    test_conjugate();
+    test_inverse();
+    test_inverse_unit();
+    test_multiply_identity();
+    test_dot();
+    test_rotateVector_identity();
+    test_rotateVector_90deg();
+    test_quatFromAxisAngle();
+    test_angle();
+    test_angle_zero();
+    test_lerp_endpoints();
+    test_slerp_endpoints();
+    test_slerp_identity();
+    test_toMat4_identity();
+    test_toEuler_identity();
+    test_quatFromEuler_zero();
+    test_quatFromToRotation_same();
+    test_quatFromToRotation_90deg();
+    test_equals();
+    test_toString();
+}
