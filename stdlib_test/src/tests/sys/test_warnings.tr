@@ -1,0 +1,143 @@
+// Test file for Warnings.tr
+// Exercises the public API of the Warnings module: warn, filterWarnings,
+// simplefilter, resetFilters, getFilters, and the category constants.
+import tt::sys::Warnings;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_warnings_constants(): void {
+    if (Warnings.WARNING != "Warning") {
+        io::println("FAIL: Warnings.WARNING = '" + Warnings.WARNING + "'");
+    } else if (Warnings.USER_WARNING != "UserWarning") {
+        io::println("FAIL: Warnings.USER_WARNING = '" + Warnings.USER_WARNING + "'");
+    } else if (Warnings.DEPRECATION_WARNING != "DeprecationWarning") {
+        io::println("FAIL: Warnings.DEPRECATION_WARNING = '" + Warnings.DEPRECATION_WARNING + "'");
+    } else {
+        io::println("PASS: Warnings category constants correct");
+    }
+}
+
+public fn test_warnings_warn_default(): void {
+    Warnings.resetFilters();
+    // Default action is "warn" which prints the message. Should not throw.
+    Warnings.warn("default warning test", Warnings.WARNING);
+    io::println("PASS: Warnings.warn default action executes");
+}
+
+public fn test_warnings_filterWarnings_ignore(): void {
+    Warnings.resetFilters();
+    Warnings.filterWarnings("ignore", Warnings.WARNING);
+    // With "ignore" action, warn should produce no output and not throw.
+    Warnings.warn("ignored warning", Warnings.WARNING);
+    io::println("PASS: Warnings.warn with ignore filter executes");
+    Warnings.resetFilters();
+}
+
+public fn test_warnings_filterWarnings_error(): void {
+    Warnings.resetFilters();
+    Warnings.filterWarnings("error", Warnings.WARNING);
+    // With "error" action, warn prints an error-prefixed line.
+    Warnings.warn("error warning", Warnings.WARNING);
+    io::println("PASS: Warnings.warn with error filter executes");
+    Warnings.resetFilters();
+}
+
+public fn test_warnings_filterWarnings_always(): void {
+    Warnings.resetFilters();
+    Warnings.filterWarnings("always", Warnings.WARNING);
+    Warnings.warn("always warning", Warnings.WARNING);
+    io::println("PASS: Warnings.warn with always filter executes");
+    Warnings.resetFilters();
+}
+
+public fn test_warnings_getFilters_empty(): void {
+    Warnings.resetFilters();
+    let filters: ArrayList<HashMap<string, string>> = Warnings.getFilters();
+    if (filters.size() != 0) {
+        io::println("FAIL: Warnings.getFilters size = " + Integer.toString(filters.size()));
+    } else {
+        io::println("PASS: Warnings.getFilters empty after reset");
+    }
+}
+
+public fn test_warnings_filterWarnings_adds_entry(): void {
+    Warnings.resetFilters();
+    Warnings.filterWarnings("ignore", Warnings.DEPRECATION_WARNING);
+    let filters: ArrayList<HashMap<string, string>> = Warnings.getFilters();
+    if (filters.size() != 1) {
+        io::println("FAIL: Warnings.getFilters size = " + Integer.toString(filters.size()));
+    } else {
+        let entry: HashMap<string, string> = filters.get(0);
+        if (entry.get("action") != "ignore" || entry.get("category") != Warnings.DEPRECATION_WARNING) {
+            io::println("FAIL: Warnings.filter entry wrong");
+        } else {
+            io::println("PASS: Warnings.filterWarnings adds an entry");
+        }
+    }
+    Warnings.resetFilters();
+}
+
+public fn test_warnings_simplefilter_prepends(): void {
+    Warnings.resetFilters();
+    Warnings.filterWarnings("ignore", "CatA");
+    Warnings.simplefilter("error", "CatB");
+    let filters: ArrayList<HashMap<string, string>> = Warnings.getFilters();
+    // simplefilter should insert at the beginning.
+    if (filters.size() != 2) {
+        io::println("FAIL: Warnings.simplefilter size = " + Integer.toString(filters.size()));
+    } else {
+        let first: HashMap<string, string> = filters.get(0);
+        if (first.get("category") != "CatB") {
+            io::println("FAIL: Warnings.simplefilter did not prepend");
+        } else {
+            io::println("PASS: Warnings.simplefilter prepends to filter list");
+        }
+    }
+    Warnings.resetFilters();
+}
+
+public fn test_warnings_resetFilters(): void {
+    Warnings.filterWarnings("ignore", "X");
+    Warnings.filterWarnings("error", "Y");
+    Warnings.resetFilters();
+    let filters: ArrayList<HashMap<string, string>> = Warnings.getFilters();
+    if (filters.size() != 0) {
+        io::println("FAIL: Warnings.resetFilters size = " + Integer.toString(filters.size()));
+    } else {
+        io::println("PASS: Warnings.resetFilters clears all filters");
+    }
+}
+
+public fn test_warnings_warn_deprecation_category(): void {
+    Warnings.resetFilters();
+    // Verify warn works with the deprecation category.
+    Warnings.warn("deprecated feature", Warnings.DEPRECATION_WARNING);
+    io::println("PASS: Warnings.warn with DeprecationWarning executes");
+    Warnings.resetFilters();
+}
+
+public fn test_warnings_filter_category_match(): void {
+    Warnings.resetFilters();
+    // Filter for WARNING category should not affect USER_WARNING.
+    Warnings.filterWarnings("ignore", Warnings.WARNING);
+    // USER_WARNING has no filter, so default "warn" action applies.
+    Warnings.warn("user warning", Warnings.USER_WARNING);
+    io::println("PASS: Warnings category-specific filter does not affect other categories");
+    Warnings.resetFilters();
+}
+
+public fn run_all_warnings_tests(): void {
+    io::println("=== Warnings.tr Tests ===");
+    test_warnings_constants();
+    test_warnings_warn_default();
+    test_warnings_filterWarnings_ignore();
+    test_warnings_filterWarnings_error();
+    test_warnings_filterWarnings_always();
+    test_warnings_getFilters_empty();
+    test_warnings_filterWarnings_adds_entry();
+    test_warnings_simplefilter_prepends();
+    test_warnings_resetFilters();
+    test_warnings_warn_deprecation_category();
+    test_warnings_filter_category_match();
+}
