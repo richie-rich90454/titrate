@@ -1,0 +1,213 @@
+// Test file for Integer.tr
+// Exercises the public API of the Integer module.
+import tt::lang::Integer;
+
+public fn test_integer_parseInt(): void {
+    let v: int = Integer.parseInt("42");
+    if (v != 42) {
+        io::println("FAIL: Integer.parseInt(\"42\") = " + Integer.toString(v));
+    } else {
+        io::println("PASS: Integer.parseInt(\"42\") = 42");
+    }
+}
+
+public fn test_integer_parse(): void {
+    let v: int = Integer.parse("-7");
+    if (v != -7) {
+        io::println("FAIL: Integer.parse(\"-7\") = " + Integer.toString(v));
+    } else {
+        io::println("PASS: Integer.parse(\"-7\") = -7");
+    }
+}
+
+public fn test_integer_toString(): void {
+    let s: string = Integer.toString(123);
+    if (s != "123") {
+        io::println("FAIL: Integer.toString(123) = " + s);
+    } else {
+        io::println("PASS: Integer.toString(123) = 123");
+    }
+}
+
+public fn test_integer_toString_negative(): void {
+    let s: string = Integer.toString(-99);
+    if (s != "-99") {
+        io::println("FAIL: Integer.toString(-99) = " + s);
+    } else {
+        io::println("PASS: Integer.toString(-99) = -99");
+    }
+}
+
+public fn test_integer_MAX_VALUE(): void {
+    let v: int = Integer.MAX_VALUE();
+    if (v != 2147483647) {
+        io::println("FAIL: Integer.MAX_VALUE = " + Integer.toString(v));
+    } else {
+        io::println("PASS: Integer.MAX_VALUE = 2147483647");
+    }
+}
+
+public fn test_integer_MIN_VALUE(): void {
+    let v: int = Integer.MIN_VALUE();
+    if (v != -2147483648) {
+        io::println("FAIL: Integer.MIN_VALUE = " + Integer.toString(v));
+    } else {
+        io::println("PASS: Integer.MIN_VALUE = -2147483648");
+    }
+}
+
+public fn test_integer_compare(): void {
+    if (Integer.compare(1, 2) >= 0 || Integer.compare(2, 1) <= 0 || Integer.compare(5, 5) != 0) {
+        io::println("FAIL: Integer.compare");
+    } else {
+        io::println("PASS: Integer.compare");
+    }
+}
+
+public fn test_integer_max(): void {
+    if (Integer.max(3, 7) != 7 || Integer.max(9, 2) != 9) {
+        io::println("FAIL: Integer.max");
+    } else {
+        io::println("PASS: Integer.max");
+    }
+}
+
+public fn test_integer_min(): void {
+    if (Integer.min(3, 7) != 3 || Integer.min(9, 2) != 2) {
+        io::println("FAIL: Integer.min");
+    } else {
+        io::println("PASS: Integer.min");
+    }
+}
+
+public fn test_integer_toHexString(): void {
+    let s: string = Integer.toHexString(255);
+    if (s != "ff") {
+        io::println("FAIL: Integer.toHexString(255) = " + s);
+    } else {
+        io::println("PASS: Integer.toHexString(255) = ff");
+    }
+}
+
+public fn test_integer_toBinaryString(): void {
+    let s: string = Integer.toBinaryString(5);
+    if (s != "101") {
+        io::println("FAIL: Integer.toBinaryString(5) = " + s);
+    } else {
+        io::println("PASS: Integer.toBinaryString(5) = 101");
+    }
+}
+
+public fn test_integer_toOctalString(): void {
+    let s: string = Integer.toOctalString(8);
+    if (s != "10") {
+        io::println("FAIL: Integer.toOctalString(8) = " + s);
+    } else {
+        io::println("PASS: Integer.toOctalString(8) = 10");
+    }
+}
+
+public fn test_integer_bitCount(): void {
+    // 7 = 0b111 -> 3 bits
+    if (Integer.bitCount(7) != 3) {
+        io::println("FAIL: Integer.bitCount(7) = " + Integer.toString(Integer.bitCount(7)));
+    } else {
+        io::println("PASS: Integer.bitCount(7) = 3");
+    }
+}
+
+public fn test_integer_signum(): void {
+    if (Integer.signum(5) != 1 || Integer.signum(-5) != -1 || Integer.signum(0) != 0) {
+        io::println("FAIL: Integer.signum");
+    } else {
+        io::println("PASS: Integer.signum");
+    }
+}
+
+public fn test_integer_highestOneBit(): void {
+    // 9 = 0b1001 -> highest one bit is 8
+    if (Integer.highestOneBit(9) != 8) {
+        io::println("FAIL: Integer.highestOneBit(9) = " + Integer.toString(Integer.highestOneBit(9)));
+    } else {
+        io::println("PASS: Integer.highestOneBit(9) = 8");
+    }
+}
+
+public fn test_integer_lowestOneBit(): void {
+    // 10 = 0b1010 -> lowest one bit is 2
+    if (Integer.lowestOneBit(10) != 2) {
+        io::println("FAIL: Integer.lowestOneBit(10) = " + Integer.toString(Integer.lowestOneBit(10)));
+    } else {
+        io::println("PASS: Integer.lowestOneBit(10) = 2");
+    }
+}
+
+public fn test_integer_numberOfLeadingZeros(): void {
+    // 1 has 31 leading zeros in 32-bit
+    if (Integer.numberOfLeadingZeros(1) != 31) {
+        io::println("FAIL: Integer.numberOfLeadingZeros(1) = " + Integer.toString(Integer.numberOfLeadingZeros(1)));
+    } else {
+        io::println("PASS: Integer.numberOfLeadingZeros(1) = 31");
+    }
+}
+
+public fn test_integer_numberOfTrailingZeros(): void {
+    // 8 = 0b1000 -> 3 trailing zeros
+    if (Integer.numberOfTrailingZeros(8) != 3) {
+        io::println("FAIL: Integer.numberOfTrailingZeros(8) = " + Integer.toString(Integer.numberOfTrailingZeros(8)));
+    } else {
+        io::println("PASS: Integer.numberOfTrailingZeros(8) = 3");
+    }
+}
+
+public fn test_integer_rotateLeft(): void {
+    // rotate 1 left by 1 -> 2
+    if (Integer.rotateLeft(1, 1) != 2) {
+        io::println("FAIL: Integer.rotateLeft(1,1) = " + Integer.toString(Integer.rotateLeft(1, 1)));
+    } else {
+        io::println("PASS: Integer.rotateLeft(1,1) = 2");
+    }
+}
+
+public fn test_integer_rotateRight(): void {
+    // rotate 2 right by 1 -> 1
+    if (Integer.rotateRight(2, 1) != 1) {
+        io::println("FAIL: Integer.rotateRight(2,1) = " + Integer.toString(Integer.rotateRight(2, 1)));
+    } else {
+        io::println("PASS: Integer.rotateRight(2,1) = 1");
+    }
+}
+
+public fn test_integer_parseOr_valid(): void {
+    let v: int = Integer.parseOr("42", 0);
+    if (v != 42) {
+        io::println("FAIL: Integer.parseOr(\"42\",0) = " + Integer.toString(v));
+    } else {
+        io::println("PASS: Integer.parseOr(\"42\",0) = 42");
+    }
+}
+
+public fn run_all_integer_tests(): void {
+    io::println("=== Integer.tr Tests ===");
+    test_integer_parseInt();
+    test_integer_parse();
+    test_integer_toString();
+    test_integer_toString_negative();
+    test_integer_MAX_VALUE();
+    test_integer_MIN_VALUE();
+    test_integer_compare();
+    test_integer_max();
+    test_integer_min();
+    test_integer_toHexString();
+    test_integer_toBinaryString();
+    test_integer_toOctalString();
+    test_integer_bitCount();
+    test_integer_signum();
+    test_integer_highestOneBit();
+    test_integer_lowestOneBit();
+    test_integer_numberOfLeadingZeros();
+    test_integer_numberOfTrailingZeros();
+    test_integer_rotateLeft();
+    test_integer_rotateRight();
+    test_integer_parseOr_valid();
+}
