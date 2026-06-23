@@ -1,0 +1,187 @@
+// Test file for StringUtils.tr
+// Exercises the public API of the StringUtils module.
+import tt::lang::StringUtils;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public fn test_wordWrapString(): void {
+    let s: string = "The quick brown fox";
+    let result: string = StringUtils.wordWrapString(s, 10);
+    // Should contain a newline
+    if (String.indexOf(result, "\n") < 0) {
+        io::println("FAIL: StringUtils.wordWrapString no newline");
+    } else {
+        io::println("PASS: StringUtils.wordWrapString");
+    }
+}
+
+public fn test_wordWrap(): void {
+    let s: string = "aaa bbb ccc";
+    let lines: ArrayList<string> = StringUtils.wordWrap(s, 7);
+    // "aaa bbb" fits in 7, "ccc" on next line
+    if (lines.size() < 2) {
+        io::println("FAIL: StringUtils.wordWrap size=" + Integer.toString(lines.size()));
+    } else {
+        io::println("PASS: StringUtils.wordWrap size=" + Integer.toString(lines.size()));
+    }
+}
+
+public fn test_wordWrap_empty(): void {
+    let lines: ArrayList<string> = StringUtils.wordWrap("", 10);
+    if (lines.size() != 1 || lines.get(0) != "") {
+        io::println("FAIL: StringUtils.wordWrap empty");
+    } else {
+        io::println("PASS: StringUtils.wordWrap empty");
+    }
+}
+
+public fn test_dedent(): void {
+    let s: string = "  line1\n  line2";
+    let result: string = StringUtils.dedent(s);
+    if (String.indexOf(result, "line1") != 0) {
+        io::println("FAIL: StringUtils.dedent = " + result);
+    } else {
+        io::println("PASS: StringUtils.dedent");
+    }
+}
+
+public fn test_indent(): void {
+    let s: string = "line1\nline2";
+    let result: string = StringUtils.indent(s, "  ");
+    if (String.indexOf(result, "  line1") != 0) {
+        io::println("FAIL: StringUtils.indent = " + result);
+    } else {
+        io::println("PASS: StringUtils.indent");
+    }
+}
+
+public fn test_camelToSnake(): void {
+    let result: string = StringUtils.camelToSnake("helloWorld");
+    if (result != "hello_world") {
+        io::println("FAIL: StringUtils.camelToSnake = " + result);
+    } else {
+        io::println("PASS: StringUtils.camelToSnake = hello_world");
+    }
+}
+
+public fn test_camelToSnake_multi(): void {
+    let result: string = StringUtils.camelToSnake("getHTTPResponse");
+    if (result != "get_h_t_t_p_response") {
+        io::println("FAIL: StringUtils.camelToSnake multi = " + result);
+    } else {
+        io::println("PASS: StringUtils.camelToSnake multi = " + result);
+    }
+}
+
+public fn test_snakeToCamel(): void {
+    let result: string = StringUtils.snakeToCamel("hello_world");
+    if (result != "helloWorld") {
+        io::println("FAIL: StringUtils.snakeToCamel = " + result);
+    } else {
+        io::println("PASS: StringUtils.snakeToCamel = helloWorld");
+    }
+}
+
+public fn test_pluralize_simple(): void {
+    let result: string = StringUtils.pluralize("cat");
+    if (result != "cats") {
+        io::println("FAIL: StringUtils.pluralize(cat) = " + result);
+    } else {
+        io::println("PASS: StringUtils.pluralize(cat) = cats");
+    }
+}
+
+public fn test_pluralize_s(): void {
+    let result: string = StringUtils.pluralize("bus");
+    if (result != "buses") {
+        io::println("FAIL: StringUtils.pluralize(bus) = " + result);
+    } else {
+        io::println("PASS: StringUtils.pluralize(bus) = buses");
+    }
+}
+
+public fn test_pluralize_x(): void {
+    let result: string = StringUtils.pluralize("box");
+    if (result != "boxes") {
+        io::println("FAIL: StringUtils.pluralize(box) = " + result);
+    } else {
+        io::println("PASS: StringUtils.pluralize(box) = boxes");
+    }
+}
+
+public fn test_pluralize_ch(): void {
+    let result: string = StringUtils.pluralize("church");
+    if (result != "churches") {
+        io::println("FAIL: StringUtils.pluralize(church) = " + result);
+    } else {
+        io::println("PASS: StringUtils.pluralize(church) = churches");
+    }
+}
+
+public fn test_pluralize_y(): void {
+    let result: string = StringUtils.pluralize("city");
+    if (result != "cities") {
+        io::println("FAIL: StringUtils.pluralize(city) = " + result);
+    } else {
+        io::println("PASS: StringUtils.pluralize(city) = cities");
+    }
+}
+
+public fn test_levenshteinDistance_same(): void {
+    let d: int = StringUtils.levenshteinDistance("hello", "hello");
+    if (d != 0) {
+        io::println("FAIL: StringUtils.levenshteinDistance same = " + Integer.toString(d));
+    } else {
+        io::println("PASS: StringUtils.levenshteinDistance same = 0");
+    }
+}
+
+public fn test_levenshteinDistance_empty(): void {
+    let d: int = StringUtils.levenshteinDistance("", "abc");
+    if (d != 3) {
+        io::println("FAIL: StringUtils.levenshteinDistance empty = " + Integer.toString(d));
+    } else {
+        io::println("PASS: StringUtils.levenshteinDistance empty = 3");
+    }
+}
+
+public fn test_levenshteinDistance_diff(): void {
+    let d: int = StringUtils.levenshteinDistance("kitten", "sitting");
+    // kitten -> sitten -> sittin -> sitting = 3 edits
+    if (d != 3) {
+        io::println("FAIL: StringUtils.levenshteinDistance kitten/sitting = " + Integer.toString(d));
+    } else {
+        io::println("PASS: StringUtils.levenshteinDistance kitten/sitting = 3");
+    }
+}
+
+public fn test_levenshteinDistance_one(): void {
+    let d: int = StringUtils.levenshteinDistance("cat", "cot");
+    if (d != 1) {
+        io::println("FAIL: StringUtils.levenshteinDistance cat/cot = " + Integer.toString(d));
+    } else {
+        io::println("PASS: StringUtils.levenshteinDistance cat/cot = 1");
+    }
+}
+
+public fn run_all_string_utils_tests(): void {
+    io::println("=== StringUtils.tr Tests ===");
+    test_wordWrapString();
+    test_wordWrap();
+    test_wordWrap_empty();
+    test_dedent();
+    test_indent();
+    test_camelToSnake();
+    test_camelToSnake_multi();
+    test_snakeToCamel();
+    test_pluralize_simple();
+    test_pluralize_s();
+    test_pluralize_x();
+    test_pluralize_ch();
+    test_pluralize_y();
+    test_levenshteinDistance_same();
+    test_levenshteinDistance_empty();
+    test_levenshteinDistance_diff();
+    test_levenshteinDistance_one();
+}
