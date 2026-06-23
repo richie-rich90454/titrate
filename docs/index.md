@@ -22,6 +22,10 @@ features:
     title: Bytecode VM
     details: Compile to optimized bytecode and run on the Titrate VM with built-in garbage-free memory management. Significantly faster than tree-walking interpretation.
   - icon:
+      src: /icons/compat.svg
+    title: LLVM Native Backend
+    details: Compile to standalone native executables via LLVM. Release-mode builds run 3–6× faster than the bytecode VM for compute-bound workloads. One flag, one binary.
+  - icon:
       src: /icons/shield.svg
     title: Ownership and Regions
     details: Move semantics, borrowing, and region-based allocation -- memory safety without garbage collection or manual free.
@@ -37,10 +41,6 @@ features:
       src: /icons/flask.svg
     title: Scientific Computing
     details: Bioinformatics, physics simulation, materials science, signal processing, image/audio processing, ML, computational geometry, and more -- all in the standard library.
-  - icon:
-      src: /icons/compat.svg
-    title: C-family Compatibility
-    details: Familiar syntax for developers from C, C++, and ECMAScript. Sugar forms like `int x = 5` and `++i` alongside canonical Titrate style.
   - icon:
       src: /icons/result.svg
     title: Result-Based Error Handling
@@ -68,7 +68,18 @@ trc hello.tr
 # Or use the build tool
 pipette new myproject
 pipette run
+
+# Compile to a standalone native executable (3–6× faster for compute-bound code)
+trc --native --release hello.tr
 ```
+
+::: tip Native Backend
+Titrate ships with an LLVM native backend that compiles `.tr` programs
+to standalone executables. For compute-bound workloads — simulations,
+numerical kernels, signal processing — release-mode native builds run
+**3–6× faster** than the bytecode VM. See the
+[native backend guides](/guide/native-intro) to get started.
+:::
 
 ## Language at a Glance
 

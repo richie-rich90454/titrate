@@ -50,6 +50,7 @@ export default defineConfig({
         ],
       },
       { text: 'Stdlib', link: '/stdlib/lang', activeMatch: '/stdlib/' },
+      { text: 'Blog', link: '/blog/native-backend-announcement', activeMatch: '/blog/' },
       {
         text: 'Community',
         items: [
@@ -135,8 +136,18 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'Compiler Architecture', link: '/guide/architecture' },
-            { text: 'Native Backend', link: '/guide/native-md' },
             { text: 'Contributing', link: '/guide/contributing' },
+          ],
+        },
+        {
+          text: 'Native Backend',
+          collapsed: false,
+          items: [
+            { text: 'Why Native?', link: '/guide/native-intro' },
+            { text: 'Building Native Binaries', link: '/guide/native-build' },
+            { text: 'Ownership on LLVM', link: '/guide/native-ownership' },
+            { text: 'Wrapping C Libraries', link: '/guide/native-cbind' },
+            { text: 'Native MD Simulation', link: '/guide/native-md' },
           ],
         },
         {
@@ -156,6 +167,19 @@ export default defineConfig({
             { text: 'Grammar', link: '/reference/grammar' },
             { text: 'Types', link: '/reference/types' },
             { text: 'Memory Model', link: '/reference/memory-model' },
+          ],
+        },
+      ],
+      '/blog/': [
+        {
+          text: 'Blog',
+          collapsed: false,
+          items: [
+            { text: 'Announcing the Native Backend', link: '/blog/native-backend-announcement' },
+            { text: 'LLVM Ownership Lowering', link: '/blog/llvm-ownership-lowering' },
+            { text: 'Native Bridge Design', link: '/blog/native-bridge-design' },
+            { text: 'Native Performance War Story', link: '/blog/native-perf-warstory' },
+            { text: 'Native MD Simulation Deep Dive', link: '/blog/native-md-deepdive' },
           ],
         },
       ],

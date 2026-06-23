@@ -41,9 +41,28 @@ Understanding how the Titrate compiler works internally — from source text to 
   ┌────────────────┐
   │  Interpreter    │  Tree-walking execution (fast prototyping)
   └────────────────┘
+
+  ── or, with the native backend ──
+
+  Analyzer
+      │
+      ▼
+  ┌──────────────────┐
+  │  LLVM Codegen     │  AST → LLVM IR
+  └───────┬──────────┘
+          │
+          ▼
+  ┌──────────────────┐
+  │  LLVM Optimizer   │  O3, inlining, vectorization
+  └───────┬──────────┘
+          │
+          ▼
+  ┌──────────────────┐
+  │  System Linker    │  + titrate_native → standalone executable
+  └──────────────────┘
 ```
 
-The compiler is written in Rust and lives in `trc/src/`. Each stage is a separate module with clear responsibilities.
+The compiler is written in Rust and lives in `trc/src/`. Each stage is a separate module with clear responsibilities. Titrate has two execution backends — a bytecode VM (the default) and an LLVM native backend — that share the same front-end (lexer, parser, analyzer) and standard library.
 
 ## The Compilation Pipeline
 
@@ -162,6 +181,134 @@ Native functions are dispatched via the `CALL_NATIVE` opcode with a function ind
 
 In addition to the bytecode compiler and VM, Titrate also supports a tree-walking interpreter for fast prototyping and development. The interpreter walks the analyzed AST directly without compiling to bytecode, making it ideal for exploratory programming and quick feedback cycles.
 
+## The LLVM Native Backend
+
+In addition to the bytecode VM and the tree-walking interpreter, Titrate
+ships with an **LLVM native backend** that compiles `.tr` source to
+standalone native executables. The native backend shares the same
+front-end (lexer, parser, analyzer) and standard library as the
+bytecode VM; it plugs in at the same point in the pipeline — right
+after the analyzer — and produces LLVM IR instead of bytecode.
+
+```
+  Analyzer
+      │
+      ▼
+  ┌──────────────────┐
+  │  LLVM Codegen     │  AST → LLVM IR
+  └───────┬──────────┘
+          │
+          ▼
+  ┌──────────────────┐
+  │  LLVM Optimizer   │  O3, inlining, vectorization
+  └───────┬──────────┘
+          │
+          ▼
+  ┌──────────────────┐
+  │  System Linker    │  + titrate_native → standalone executable
+  └──────────────────┘
+```
+
+### Module: `trc/src/codegen/llvm/`
+
+The LLVM codegen lives in `trc/src/codegen/llvm/` and is organized into
+focused submodules:
+
+| File | Responsibility |
+|------|----------------|
+| `mod.rs` | The `LlvmBackend` entry point, top-level codegen driver |
+| `types.rs` | Mapping from Titrate types to LLVM types |
+| `ownership.rs` | Lowering of `Owned<T>`, borrows, regions, `unsafe` |
+| `native_bridge.rs` | Marshalling and call emission for native functions |
+| `vtable.rs` | Virtual dispatch tables for class methods |
+| `enum_codegen.rs` | Enum construction and pattern matching |
+| `tuple_codegen.rs` | Tuple construction and destructuring |
+| `target_wrappers.rs` | Platform-specific wrappers (entry point, etc.) |
+| `linker.rs` | Invoking the system linker to produce the executable |
+
+### The Native Bridge
+
+The native backend doesn't reimplement the 353 native functions
+(`Math_sin`, `String_length`, `HashMap_put`, etc.) that the bytecode
+VM uses. Instead, it links against the **`titrate_native` crate**
+(`titrate_native/src/lib.rs`), which exposes them as `extern "C"`
+functions with a uniform C-ABI signature.
+
+The bridge uses a 24-byte tagged-union struct, `TitrateValue`, to
+marshal values between LLVM IR and the Rust runtime:
+
+```c
+typedef struct {
+    int32_t tag;        // type tag (TV_INT, TV_DOUBLE, TV_STRING, ...)
+    int32_t pad;        // alignment padding
+    uint8_t  payload[16]; // type-specific data
+} TitrateValue;
+```
+
+Every native wrapper has the same signature:
+`TitrateValue titrate_<Name>(const TitrateValue* args, size_t arg_count)`.
+
+A handful of hot-path functions (`titrate_println`,
+`titrate_string_concat`, `titrate_malloc`, `titrate_free`) bypass the
+generic marshalling path and have custom signatures. The codegen
+recognizes them by name and emits the right call pattern.
+
+For the full story on the bridge — including how to wrap a new C
+library — see [Wrapping C Libraries](./native-cbind).
+
+### Ownership Lowering
+
+The native backend lowers Titrate's ownership constructs to LLVM IR
+without any runtime checks (the analyzer has already enforced the
+rules):
+
+- **`Owned<T>`** — a heap pointer (`i8*`) with a per-variable `i1`
+  drop flag. Moves clear the source's drop flag. At scope exit, the
+  flag is checked and `titrate_free` is called if still true.
+- **`&T` / `&mut T`** — raw pointers (`*const T` / `*mut T`). The
+  borrow-checker ran in the analyzer; the codegen just emits the
+  address.
+- **`region` blocks** — `alloca` plus `llvm.lifetime.start` /
+  `llvm.lifetime.end` intrinsics.
+- **`unsafe` blocks** — transparent to codegen. The body is emitted
+  verbatim.
+
+For the full story, see [Ownership on LLVM](./native-ownership).
+
+### Release-Mode Optimizations
+
+In release mode (`--release`), the codegen applies optimization hints
+that let LLVM produce dramatically faster code:
+
+- `alwaysinline` on small internal helpers (eliminates call overhead).
+- `fastcc` calling convention for internal functions.
+- `llvm.loop.vectorize.enable` / `llvm.loop.vectorize.width` metadata
+  on loops.
+- `llvm.memset.p0i8.i64` for zero-initializing class allocations.
+- Pointer-arithmetic array loops (hoists base pointer, increments by
+  element size).
+
+For compute-bound workloads, release-mode native builds are typically
+**3–6× faster** than the bytecode VM. See [Native MD Simulation](./native-md)
+for benchmark numbers.
+
+### How It Fits Alongside the Bytecode VM
+
+The two backends are **complementary**, not competing:
+
+- **Bytecode VM** — fast compilation, instant startup, portable. Use
+  for development, I/O-bound programs, and quick iteration.
+- **Native backend** — slower compilation, fixed link-time cost, but
+  dramatically faster runtime for compute-bound code. Use for release
+  builds, distribution, and performance-critical workloads.
+
+Both backends share the same front-end, so a program that type-checks
+will compile under either. The standard library works identically in
+both (the native bridge calls the same Rust native functions the
+bytecode VM uses). You can switch between them with a single flag
+(`--native`), and the `pipette bench --compare-native` command makes
+side-by-side benchmarking trivial.
+
 ## Instruction Set Overview
 
 The VM has over 100 opcodes organized into categories:
@@ -270,5 +417,10 @@ Notice how the stack-based model works: values are pushed, operated on, and the 
 ## What's Next?
 
 - [Optimizations](./optimizations) — compiler optimization passes
+- [Why Native?](./native-intro) — what the LLVM native backend is and when to use it
+- [Building Native Binaries](./native-build) — prerequisites and flags for native compilation
+- [Ownership on LLVM](./native-ownership) — how `Owned<T>`, borrows, and regions lower to LLVM IR
+- [Wrapping C Libraries](./native-cbind) — the native bridge and how to extend it
+- [Native MD Simulation](./native-md) — benchmarks and profiling tips for the native backend
 - [Contributing](./contributing) — how to contribute to the compiler
 - [Grammar Reference](../reference/grammar) — formal grammar specification
