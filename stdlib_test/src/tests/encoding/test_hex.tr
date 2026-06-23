@@ -1,0 +1,171 @@
+// Test file for Hex.tr
+// Exercises the public API of the Hex class.
+import tt::encoding::Hex;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_hex_encode(): void {
+    let h: Hex = new Hex();
+    let encoded: string = h.encode("A");
+    if (encoded != "41") {
+        io::println("FAIL: Hex.encode returned " + encoded + ", expected 41");
+    } else {
+        io::println("PASS: Hex.encode works");
+    }
+}
+
+public fn test_hex_decode(): void {
+    let h: Hex = new Hex();
+    let decoded: string = h.decode("48656c6c6f");
+    if (decoded != "Hello") {
+        io::println("FAIL: Hex.decode returned " + decoded + ", expected Hello");
+    } else {
+        io::println("PASS: Hex.decode works");
+    }
+}
+
+public fn test_hex_encode_decode_roundtrip(): void {
+    let h: Hex = new Hex();
+    let original: string = "Titrate language";
+    let encoded: string = h.encode(original);
+    let decoded: string = h.decode(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Hex roundtrip failed: " + decoded);
+    } else {
+        io::println("PASS: Hex encode/decode roundtrip works");
+    }
+}
+
+public fn test_hex_encode_empty(): void {
+    let h: Hex = new Hex();
+    let encoded: string = h.encode("");
+    if (encoded != "") {
+        io::println("FAIL: Hex.encode empty returned " + encoded);
+    } else {
+        io::println("PASS: Hex.encode empty works");
+    }
+}
+
+public fn test_hex_encodeUpperCase(): void {
+    let h: Hex = new Hex();
+    let encoded: string = h.encodeUpperCase("abc");
+    // Check that result contains only uppercase hex chars
+    if (String.length(encoded) == 0) {
+        io::println("FAIL: Hex.encodeUpperCase returned empty");
+    } else {
+        let hasLower: bool = false;
+        let i: int = 0;
+        while (i < String.length(encoded)) {
+            let c: string = String.charAt(encoded, i);
+            if (c >= "a" && c <= "f") {
+                hasLower = true;
+            }
+            i = i + 1;
+        }
+        if (hasLower) {
+            io::println("FAIL: Hex.encodeUpperCase contains lowercase: " + encoded);
+        } else {
+            io::println("PASS: Hex.encodeUpperCase works: " + encoded);
+        }
+    }
+}
+
+public fn test_hex_encodeLowerCase(): void {
+    let h: Hex = new Hex();
+    let encoded: string = h.encodeLowerCase("ABC");
+    // Check that result contains only lowercase hex chars
+    let hasUpper: bool = false;
+    let i: int = 0;
+    while (i < String.length(encoded)) {
+        let c: string = String.charAt(encoded, i);
+        if (c >= "A" && c <= "F") {
+            hasUpper = true;
+        }
+        i = i + 1;
+    }
+    if (hasUpper) {
+        io::println("FAIL: Hex.encodeLowerCase contains uppercase: " + encoded);
+    } else {
+        io::println("PASS: Hex.encodeLowerCase works: " + encoded);
+    }
+}
+
+public fn test_hex_encodeBytes(): void {
+    let h: Hex = new Hex();
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0xFF);
+    bytes.add(0x00);
+    bytes.add(0x41);
+    let encoded: string = h.encodeBytes(bytes);
+    if (encoded != "ff0041") {
+        io::println("FAIL: Hex.encodeBytes returned " + encoded + ", expected ff0041");
+    } else {
+        io::println("PASS: Hex.encodeBytes works");
+    }
+}
+
+public fn test_hex_decodeToBytes(): void {
+    let h: Hex = new Hex();
+    let bytes: ArrayList<int> = h.decodeToBytes("ff0041");
+    if (bytes.size() != 3) {
+        io::println("FAIL: Hex.decodeToBytes size=" + Integer.toString(bytes.size()) + ", expected 3");
+    } else if (bytes.get(0) != 255 || bytes.get(1) != 0 || bytes.get(2) != 65) {
+        io::println("FAIL: Hex.decodeToBytes values wrong");
+    } else {
+        io::println("PASS: Hex.decodeToBytes works");
+    }
+}
+
+public fn test_hex_encodeBytes_roundtrip(): void {
+    let h: Hex = new Hex();
+    let original: ArrayList<int> = new ArrayList<int>();
+    original.add(0);
+    original.add(127);
+    original.add(128);
+    original.add(255);
+    let encoded: string = h.encodeBytes(original);
+    let decoded: ArrayList<int> = h.decodeToBytes(encoded);
+    if (decoded.size() != original.size()) {
+        io::println("FAIL: Hex bytes roundtrip size mismatch");
+    } else {
+        let ok: bool = true;
+        let i: int = 0;
+        while (i < original.size()) {
+            if (decoded.get(i) != original.get(i)) {
+                ok = false;
+            }
+            i = i + 1;
+        }
+        if (!ok) {
+            io::println("FAIL: Hex bytes roundtrip values wrong");
+        } else {
+            io::println("PASS: Hex bytes roundtrip works");
+        }
+    }
+}
+
+public fn test_hex_encode_special_chars(): void {
+    let h: Hex = new Hex();
+    let encoded: string = h.encode("\n\t");
+    // \n = 0x0a, \t = 0x09
+    if (encoded != "0a09") {
+        io::println("FAIL: Hex.encode special chars returned " + encoded + ", expected 0a09");
+    } else {
+        io::println("PASS: Hex.encode special chars works");
+    }
+}
+
+public fn run_all_hex_tests(): void {
+    io::println("=== Hex.tr Tests ===");
+    test_hex_encode();
+    test_hex_decode();
+    test_hex_encode_decode_roundtrip();
+    test_hex_encode_empty();
+    test_hex_encodeUpperCase();
+    test_hex_encodeLowerCase();
+    test_hex_encodeBytes();
+    test_hex_decodeToBytes();
+    test_hex_encodeBytes_roundtrip();
+    test_hex_encode_special_chars();
+}
