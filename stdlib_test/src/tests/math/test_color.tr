@@ -1,0 +1,323 @@
+import tt::math::transform::Color;
+import tt::math::transform::RGBA;
+import tt::math::transform::Color as ColorMod;
+import tt::math::vec::Vec3;
+import tt::math::Math;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn test_color_construct(): void {
+    let c: Color = new Color(0.5, 0.25, 0.75);
+    if (approxEq(c.r, 0.5, 1e-12) && approxEq(c.g, 0.25, 1e-12) && approxEq(c.b, 0.75, 1e-12)) {
+        io::println("PASS test_color_construct: RGB values stored");
+    } else {
+        io::println("FAIL test_color_construct: incorrect values");
+    }
+}
+
+fn test_color_clamp(): void {
+    // Values out of [0,1] should be clamped
+    let c: Color = new Color(2.0, -1.0, 0.5);
+    if (approxEq(c.r, 1.0, 1e-12) && approxEq(c.g, 0.0, 1e-12) && approxEq(c.b, 0.5, 1e-12)) {
+        io::println("PASS test_color_clamp: RGB clamped to [0,1]");
+    } else {
+        io::println("FAIL test_color_clamp: r=" + Double.toString(c.r) + " g=" + Double.toString(c.g));
+    }
+}
+
+fn test_color_lerp(): void {
+    let a: Color = new Color(0.0, 0.0, 0.0);
+    let b: Color = new Color(1.0, 1.0, 1.0);
+    let mid: Color = a.lerp(b, 0.5);
+    if (approxEq(mid.r, 0.5, 1e-12) && approxEq(mid.g, 0.5, 1e-12) && approxEq(mid.b, 0.5, 1e-12)) {
+        io::println("PASS test_color_lerp: midpoint of black and white is gray");
+    } else {
+        io::println("FAIL test_color_lerp: incorrect lerp");
+    }
+}
+
+fn test_color_lerp_endpoints(): void {
+    let a: Color = new Color(0.2, 0.4, 0.6);
+    let b: Color = new Color(0.8, 0.6, 0.4);
+    let at0: Color = a.lerp(b, 0.0);
+    let at1: Color = a.lerp(b, 1.0);
+    if (at0.equals(a) && at1.equals(b)) {
+        io::println("PASS test_color_lerp_endpoints: lerp at t=0 and t=1 returns endpoints");
+    } else {
+        io::println("FAIL test_color_lerp_endpoints: endpoints not preserved");
+    }
+}
+
+fn test_color_toRGBA(): void {
+    let c: Color = new Color(0.5, 0.5, 0.5);
+    let rgba: RGBA = c.toRGBA(0.75);
+    if (approxEq(rgba.a, 0.75, 1e-12)) {
+        io::println("PASS test_color_toRGBA: alpha set correctly");
+    } else {
+        io::println("FAIL test_color_toRGBA: expected a=0.75, got " + Double.toString(rgba.a));
+    }
+}
+
+fn test_color_toHSV_red(): void {
+    // Red -> H=0, S=1, V=1
+    let c: Color = new Color(1.0, 0.0, 0.0);
+    let hsv: Vec3 = c.toHSV();
+    if (approxEq(hsv.x, 0.0, 1e-9) && approxEq(hsv.y, 1.0, 1e-9) && approxEq(hsv.z, 1.0, 1e-9)) {
+        io::println("PASS test_color_toHSV_red: red -> (0, 1, 1)");
+    } else {
+        io::println("FAIL test_color_toHSV_red: h=" + Double.toString(hsv.x) + " s=" + Double.toString(hsv.y) + " v=" + Double.toString(hsv.z));
+    }
+}
+
+fn test_color_toHSV_green(): void {
+    // Green -> H=120, S=1, V=1
+    let c: Color = new Color(0.0, 1.0, 0.0);
+    let hsv: Vec3 = c.toHSV();
+    if (approxEq(hsv.x, 120.0, 1e-9) && approxEq(hsv.y, 1.0, 1e-9) && approxEq(hsv.z, 1.0, 1e-9)) {
+        io::println("PASS test_color_toHSV_green: green -> (120, 1, 1)");
+    } else {
+        io::println("FAIL test_color_toHSV_green: h=" + Double.toString(hsv.x));
+    }
+}
+
+fn test_color_toHSV_blue(): void {
+    // Blue -> H=240, S=1, V=1
+    let c: Color = new Color(0.0, 0.0, 1.0);
+    let hsv: Vec3 = c.toHSV();
+    if (approxEq(hsv.x, 240.0, 1e-9) && approxEq(hsv.y, 1.0, 1e-9) && approxEq(hsv.z, 1.0, 1e-9)) {
+        io::println("PASS test_color_toHSV_blue: blue -> (240, 1, 1)");
+    } else {
+        io::println("FAIL test_color_toHSV_blue: h=" + Double.toString(hsv.x));
+    }
+}
+
+fn test_color_toHSV_black(): void {
+    // Black -> V=0, S=0
+    let c: Color = new Color(0.0, 0.0, 0.0);
+    let hsv: Vec3 = c.toHSV();
+    if (approxEq(hsv.z, 0.0, 1e-9) && approxEq(hsv.y, 0.0, 1e-9)) {
+        io::println("PASS test_color_toHSV_black: black -> V=0, S=0");
+    } else {
+        io::println("FAIL test_color_toHSV_black: v=" + Double.toString(hsv.z) + " s=" + Double.toString(hsv.y));
+    }
+}
+
+fn test_color_toHex(): void {
+    let c: Color = new Color(1.0, 0.0, 0.0);
+    let hex: string = c.toHex();
+    if (hex == "#ff0000") {
+        io::println("PASS test_color_toHex: red -> #ff0000");
+    } else {
+        io::println("FAIL test_color_toHex: expected #ff0000, got '" + hex + "'");
+    }
+}
+
+fn test_color_luminance(): void {
+    // White luminance = 1.0
+    let c: Color = new Color(1.0, 1.0, 1.0);
+    let l: double = c.luminance();
+    if (approxEq(l, 1.0, 1e-9)) {
+        io::println("PASS test_color_luminance: white luminance = 1.0");
+    } else {
+        io::println("FAIL test_color_luminance: expected 1.0, got " + Double.toString(l));
+    }
+}
+
+fn test_color_luminance_black(): void {
+    let c: Color = new Color(0.0, 0.0, 0.0);
+    let l: double = c.luminance();
+    if (approxEq(l, 0.0, 1e-9)) {
+        io::println("PASS test_color_luminance_black: black luminance = 0.0");
+    } else {
+        io::println("FAIL test_color_luminance_black: expected 0.0, got " + Double.toString(l));
+    }
+}
+
+fn test_color_equals(): void {
+    let a: Color = new Color(0.5, 0.5, 0.5);
+    let b: Color = new Color(0.5, 0.5, 0.5);
+    let c: Color = new Color(0.5, 0.5, 0.6);
+    if (a.equals(b) && !a.equals(c)) {
+        io::println("PASS test_color_equals: equal colors compare equal, different don't");
+    } else {
+        io::println("FAIL test_color_equals: incorrect equality");
+    }
+}
+
+fn test_color_toString(): void {
+    let c: Color = new Color(0.5, 0.25, 0.75);
+    let s: string = c.toString();
+    if (String.indexOf(s, "Color") >= 0) {
+        io::println("PASS test_color_toString: contains 'Color'");
+    } else {
+        io::println("FAIL test_color_toString: missing 'Color' in '" + s + "'");
+    }
+}
+
+fn test_rgba_construct(): void {
+    let c: RGBA = new RGBA(0.5, 0.25, 0.75, 0.5);
+    if (approxEq(c.a, 0.5, 1e-12)) {
+        io::println("PASS test_rgba_construct: alpha stored");
+    } else {
+        io::println("FAIL test_rgba_construct: incorrect alpha");
+    }
+}
+
+fn test_rgba_clamp(): void {
+    let c: RGBA = new RGBA(2.0, 2.0, 2.0, 2.0);
+    if (approxEq(c.a, 1.0, 1e-12) && approxEq(c.r, 1.0, 1e-12)) {
+        io::println("PASS test_rgba_clamp: all channels clamped to [0,1]");
+    } else {
+        io::println("FAIL test_rgba_clamp: a=" + Double.toString(c.a) + " r=" + Double.toString(c.r));
+    }
+}
+
+fn test_rgba_lerp(): void {
+    let a: RGBA = new RGBA(0.0, 0.0, 0.0, 0.0);
+    let b: RGBA = new RGBA(1.0, 1.0, 1.0, 1.0);
+    let mid: RGBA = a.lerp(b, 0.5);
+    if (approxEq(mid.a, 0.5, 1e-12)) {
+        io::println("PASS test_rgba_lerp: alpha lerped correctly");
+    } else {
+        io::println("FAIL test_rgba_lerp: expected a=0.5, got " + Double.toString(mid.a));
+    }
+}
+
+fn test_rgba_toRGB(): void {
+    let c: RGBA = new RGBA(0.5, 0.25, 0.75, 0.5);
+    let rgb: Color = c.toRGB();
+    if (approxEq(rgb.r, 0.5, 1e-12) && approxEq(rgb.g, 0.25, 1e-12) && approxEq(rgb.b, 0.75, 1e-12)) {
+        io::println("PASS test_rgba_toRGB: RGB channels preserved");
+    } else {
+        io::println("FAIL test_rgba_toRGB: incorrect conversion");
+    }
+}
+
+fn test_rgba_withAlpha(): void {
+    let c: RGBA = new RGBA(0.5, 0.5, 0.5, 0.5);
+    let d: RGBA = c.withAlpha(0.9);
+    if (approxEq(d.a, 0.9, 1e-12) && approxEq(d.r, 0.5, 1e-12)) {
+        io::println("PASS test_rgba_withAlpha: alpha replaced, RGB preserved");
+    } else {
+        io::println("FAIL test_rgba_withAlpha: incorrect");
+    }
+}
+
+fn test_rgba_premultiply(): void {
+    let c: RGBA = new RGBA(1.0, 1.0, 1.0, 0.5);
+    let p: RGBA = c.premultiply();
+    if (approxEq(p.r, 0.5, 1e-12) && approxEq(p.g, 0.5, 1e-12) && approxEq(p.b, 0.5, 1e-12) && approxEq(p.a, 0.5, 1e-12)) {
+        io::println("PASS test_rgba_premultiply: RGB multiplied by alpha");
+    } else {
+        io::println("FAIL test_rgba_premultiply: r=" + Double.toString(p.r) + " a=" + Double.toString(p.a));
+    }
+}
+
+fn test_rgba_toHex(): void {
+    let c: RGBA = new RGBA(1.0, 0.0, 0.0, 1.0);
+    let hex: string = c.toHex();
+    if (hex == "#ff0000ff") {
+        io::println("PASS test_rgba_toHex: red opaque -> #ff0000ff");
+    } else {
+        io::println("FAIL test_rgba_toHex: expected #ff0000ff, got '" + hex + "'");
+    }
+}
+
+fn test_colorFromHSV(): void {
+    // H=0, S=1, V=1 -> red
+    let c: Color = colorFromHSV(0.0, 1.0, 1.0);
+    if (approxEq(c.r, 1.0, 1e-9) && approxEq(c.g, 0.0, 1e-9) && approxEq(c.b, 0.0, 1e-9)) {
+        io::println("PASS test_colorFromHSV: HSV(0,1,1) -> red");
+    } else {
+        io::println("FAIL test_colorFromHSV: r=" + Double.toString(c.r) + " g=" + Double.toString(c.g) + " b=" + Double.toString(c.b));
+    }
+}
+
+fn test_colorFromHex(): void {
+    let c: Color = colorFromHex("#ff0000");
+    if (approxEq(c.r, 1.0, 1e-9) && approxEq(c.g, 0.0, 1e-9) && approxEq(c.b, 0.0, 1e-9)) {
+        io::println("PASS test_colorFromHex: #ff0000 -> red");
+    } else {
+        io::println("FAIL test_colorFromHex: r=" + Double.toString(c.r));
+    }
+}
+
+fn test_colorFromHex_noHash(): void {
+    let c: Color = colorFromHex("00ff00");
+    if (approxEq(c.g, 1.0, 1e-9)) {
+        io::println("PASS test_colorFromHex_noHash: '00ff00' -> green");
+    } else {
+        io::println("FAIL test_colorFromHex_noHash: g=" + Double.toString(c.g));
+    }
+}
+
+fn test_rgbaFromHex(): void {
+    let c: RGBA = rgbaFromHex("#ff0000ff");
+    if (approxEq(c.r, 1.0, 1e-9) && approxEq(c.a, 1.0, 1e-9)) {
+        io::println("PASS test_rgbaFromHex: #ff0000ff -> red opaque");
+    } else {
+        io::println("FAIL test_rgbaFromHex: r=" + Double.toString(c.r) + " a=" + Double.toString(c.a));
+    }
+}
+
+fn test_colorLerp(): void {
+    let a: Color = new Color(0.0, 0.0, 0.0);
+    let b: Color = new Color(1.0, 1.0, 1.0);
+    let mid: Color = colorLerp(a, b, 0.5);
+    if (approxEq(mid.r, 0.5, 1e-12)) {
+        io::println("PASS test_colorLerp: top-level colorLerp works");
+    } else {
+        io::println("FAIL test_colorLerp: incorrect");
+    }
+}
+
+fn test_color_roundtrip_hsv(): void {
+    // red -> HSV -> back to red
+    let c: Color = new Color(1.0, 0.0, 0.0);
+    let hsv: Vec3 = c.toHSV();
+    let back: Color = colorFromHSV(hsv.x, hsv.y, hsv.z);
+    if (back.equals(c)) {
+        io::println("PASS test_color_roundtrip_hsv: red -> HSV -> red");
+    } else {
+        io::println("FAIL test_color_roundtrip_hsv: r=" + Double.toString(back.r) + " g=" + Double.toString(back.g) + " b=" + Double.toString(back.b));
+    }
+}
+
+public fn run_all_color_tests(): void {
+    io::println("=== Color tests ===");
+    test_color_construct();
+    test_color_clamp();
+    test_color_lerp();
+    test_color_lerp_endpoints();
+    test_color_toRGBA();
+    test_color_toHSV_red();
+    test_color_toHSV_green();
+    test_color_toHSV_blue();
+    test_color_toHSV_black();
+    test_color_toHex();
+    test_color_luminance();
+    test_color_luminance_black();
+    test_color_equals();
+    test_color_toString();
+    test_rgba_construct();
+    test_rgba_clamp();
+    test_rgba_lerp();
+    test_rgba_toRGB();
+    test_rgba_withAlpha();
+    test_rgba_premultiply();
+    test_rgba_toHex();
+    test_colorFromHSV();
+    test_colorFromHex();
+    test_colorFromHex_noHash();
+    test_rgbaFromHex();
+    test_colorLerp();
+    test_color_roundtrip_hsv();
+}
