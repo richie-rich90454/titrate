@@ -1,0 +1,135 @@
+// Test file for sigproc/FFT2.tr
+// Exercises FFT, IFFT, fftFreq, fftShift, ifftShift, fftMagnitudes, windowedFft.
+import tt::sigproc::FFT2;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_fft(): void {
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(0.0); input.add(0.0); input.add(0.0);
+    let spectrum = FFT2.fft(input);
+    if (spectrum.size() != 4) {
+        io::println("FAIL: fft size expected 4");
+    } else {
+        io::println("PASS: fft size = 4");
+    }
+}
+
+public fn test_fft_dc_signal(): void {
+    // DC signal: all ones -> FFT should have large DC component
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(1.0); input.add(1.0); input.add(1.0);
+    let spectrum = FFT2.fft(input);
+    if (spectrum.size() != 4) {
+        io::println("FAIL: fft DC size expected 4");
+    } else {
+        io::println("PASS: fft DC size = 4");
+    }
+}
+
+public fn test_ifft(): void {
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(0.0); input.add(0.0); input.add(0.0);
+    let spectrum = FFT2.fft(input);
+    let reconstructed = FFT2.ifft(spectrum);
+    if (reconstructed.size() != 4) {
+        io::println("FAIL: ifft size expected 4");
+    } else {
+        io::println("PASS: ifft size = 4");
+    }
+}
+
+public fn test_fft_freq(): void {
+    let freqs: ArrayList<double> = FFT2.fftfreq(8, 8.0);
+    if (freqs.size() != 8) {
+        io::println("FAIL: fftFreq size expected 8");
+    } else {
+        io::println("PASS: fftFreq size = 8");
+    }
+    // First bin should be 0
+    if (absDiff(freqs.get(0), 0.0) > 1e-9) {
+        io::println("FAIL: fftFreq[0] expected 0");
+    } else {
+        io::println("PASS: fftFreq[0] = 0");
+    }
+}
+
+public fn test_fft_shift(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0); data.add(1.0); data.add(2.0); data.add(3.0);
+    let shifted: ArrayList<double> = FFT2.fftShift(data);
+    if (shifted.size() != 4) {
+        io::println("FAIL: fftShift size expected 4");
+    } else {
+        io::println("PASS: fftShift size = 4");
+    }
+    // [0,1,2,3] -> [2,3,0,1]
+    if (absDiff(shifted.get(0), 2.0) > 1e-9) {
+        io::println("FAIL: fftShift[0] expected 2.0");
+    } else {
+        io::println("PASS: fftShift[0] = 2.0");
+    }
+    if (absDiff(shifted.get(3), 1.0) > 1e-9) {
+        io::println("FAIL: fftShift[3] expected 1.0");
+    } else {
+        io::println("PASS: fftShift[3] = 1.0");
+    }
+}
+
+public fn test_ifft_shift(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(2.0); data.add(3.0); data.add(0.0); data.add(1.0);
+    let unshifted: ArrayList<double> = FFT2.ifftShift(data);
+    if (unshifted.size() != 4) {
+        io::println("FAIL: ifftShift size expected 4");
+    } else {
+        io::println("PASS: ifftShift size = 4");
+    }
+}
+
+public fn test_fft_magnitudes(): void {
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(0.0); input.add(0.0); input.add(0.0);
+    let mags: ArrayList<double> = FFT2.fftMagnitudes(input);
+    if (mags.size() != 4) {
+        io::println("FAIL: fftMagnitudes size expected 4");
+    } else {
+        io::println("PASS: fftMagnitudes size = 4");
+    }
+    // DC magnitude should be 1.0
+    if (absDiff(mags.get(0), 1.0) > 1e-6) {
+        io::println("FAIL: fftMagnitudes[0] expected 1.0");
+    } else {
+        io::println("PASS: fftMagnitudes[0] = 1.0");
+    }
+}
+
+public fn test_windowed_fft(): void {
+    let input: ArrayList<double> = new ArrayList<double>();
+    input.add(1.0); input.add(1.0); input.add(1.0); input.add(1.0);
+    let window: ArrayList<double> = new ArrayList<double>();
+    window.add(0.5); window.add(0.5); window.add(0.5); window.add(0.5);
+    let spectrum = FFT2.windowedFft(input, window);
+    if (spectrum.size() != 4) {
+        io::println("FAIL: windowedFft size expected 4");
+    } else {
+        io::println("PASS: windowedFft size = 4");
+    }
+}
+
+public fn run_all_fft2_tests(): void {
+    io::println("=== sigproc/FFT2.tr Tests ===");
+    test_fft();
+    test_fft_dc_signal();
+    test_ifft();
+    test_fft_freq();
+    test_fft_shift();
+    test_ifft_shift();
+    test_fft_magnitudes();
+    test_windowed_fft();
+}
