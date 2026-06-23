@@ -1,0 +1,108 @@
+// Test file for sigproc/Convolution.tr
+// Exercises 1D/2D convolution, correlation, overlap-save, deconvolution.
+import tt::sigproc::Convolution;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_convolve1d(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0); signal.add(2.0); signal.add(3.0);
+    let kernel: ArrayList<double> = new ArrayList<double>();
+    kernel.add(1.0); kernel.add(1.0);
+    let result: ArrayList<double> = Convolution.convolve1D(signal, kernel);
+    // Result length = 3 + 2 - 1 = 4
+    if (result.size() != 4) {
+        io::println("FAIL: convolve1D size expected 4");
+    } else {
+        io::println("PASS: convolve1D size = 4");
+    }
+    // [1,2,3] * [1,1] = [1, 3, 5, 3]
+    if (absDiff(result.get(0), 1.0) > 1e-9) {
+        io::println("FAIL: convolve1D[0] expected 1.0");
+    } else {
+        io::println("PASS: convolve1D[0] = 1.0");
+    }
+    if (absDiff(result.get(1), 3.0) > 1e-9) {
+        io::println("FAIL: convolve1D[1] expected 3.0");
+    } else {
+        io::println("PASS: convolve1D[1] = 3.0");
+    }
+}
+
+public fn test_correlate1d(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0); signal.add(2.0); signal.add(3.0);
+    let kernel: ArrayList<double> = new ArrayList<double>();
+    kernel.add(1.0); kernel.add(1.0);
+    let result: ArrayList<double> = Convolution.correlate1D(signal, kernel);
+    if (result.size() != 4) {
+        io::println("FAIL: correlate1D size expected 4");
+    } else {
+        io::println("PASS: correlate1D size = 4");
+    }
+}
+
+public fn test_convolve2d(): void {
+    let image: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let r1: ArrayList<double> = new ArrayList<double>();
+    r1.add(1.0); r1.add(2.0);
+    let r2: ArrayList<double> = new ArrayList<double>();
+    r2.add(3.0); r2.add(4.0);
+    image.add(r1); image.add(r2);
+    let kernel: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let k1: ArrayList<double> = new ArrayList<double>();
+    k1.add(1.0); k1.add(0.0);
+    let k2: ArrayList<double> = new ArrayList<double>();
+    k2.add(0.0); k2.add(0.0);
+    kernel.add(k1); kernel.add(k2);
+    let result: ArrayList<ArrayList<double>> = Convolution.convolve2D(image, kernel);
+    if (result.size() != 2) {
+        io::println("FAIL: convolve2D rows expected 2");
+    } else {
+        io::println("PASS: convolve2D rows = 2");
+    }
+}
+
+public fn test_overlap_save(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 20) {
+        signal.add(i as double);
+        i = i + 1;
+    }
+    let kernel: ArrayList<double> = new ArrayList<double>();
+    kernel.add(1.0); kernel.add(0.0);
+    let result: ArrayList<double> = Convolution.overlapSave(signal, kernel, 8);
+    if (result.size() <= 0) {
+        io::println("FAIL: overlapSave should produce output");
+    } else {
+        io::println("PASS: overlapSave produced output");
+    }
+}
+
+public fn test_deconvolve1d(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0); signal.add(2.0); signal.add(3.0);
+    let kernel: ArrayList<double> = new ArrayList<double>();
+    kernel.add(1.0); kernel.add(0.0);
+    let result: ArrayList<double> = Convolution.deconvolve1D(signal, kernel, 0.01);
+    if (result.size() != 3) {
+        io::println("FAIL: deconvolve1D size expected 3");
+    } else {
+        io::println("PASS: deconvolve1D size = 3");
+    }
+}
+
+public fn run_all_convolution_tests(): void {
+    io::println("=== sigproc/Convolution.tr Tests ===");
+    test_convolve1d();
+    test_correlate1d();
+    test_convolve2d();
+    test_overlap_save();
+    test_deconvolve1d();
+}
