@@ -1,0 +1,301 @@
+// Test file for AssertExt.tr
+// Exercises the public API of the AssertExt module.
+import tt::lang::AssertExt;
+import tt::lang::Variant;
+import tt::util::ArrayList;
+
+public fn test_assertEqual_pass(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertEqual(5 as Variant, 5 as Variant, "should be equal");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertEqual pass threw");
+    } else {
+        io::println("PASS: AssertExt.assertEqual pass");
+    }
+}
+
+public fn test_assertEqual_fail(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertEqual(5 as Variant, 6 as Variant, "should be equal");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: AssertExt.assertEqual fail did not throw");
+    } else {
+        io::println("PASS: AssertExt.assertEqual fail throws");
+    }
+}
+
+public fn test_assertNotEqual_pass(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertNotEqual(5 as Variant, 6 as Variant, "should not be equal");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertNotEqual pass threw");
+    } else {
+        io::println("PASS: AssertExt.assertNotEqual pass");
+    }
+}
+
+public fn test_assertNotEqual_fail(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertNotEqual(5 as Variant, 5 as Variant, "should not be equal");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: AssertExt.assertNotEqual fail did not throw");
+    } else {
+        io::println("PASS: AssertExt.assertNotEqual fail throws");
+    }
+}
+
+public fn test_assertTrue_pass(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertTrue(true, "should be true");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertTrue pass threw");
+    } else {
+        io::println("PASS: AssertExt.assertTrue pass");
+    }
+}
+
+public fn test_assertTrue_fail(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertTrue(false, "should be true");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: AssertExt.assertTrue fail did not throw");
+    } else {
+        io::println("PASS: AssertExt.assertTrue fail throws");
+    }
+}
+
+public fn test_assertFalse_pass(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertFalse(false, "should be false");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertFalse pass threw");
+    } else {
+        io::println("PASS: AssertExt.assertFalse pass");
+    }
+}
+
+public fn test_assertFalse_fail(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertFalse(true, "should be false");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: AssertExt.assertFalse fail did not throw");
+    } else {
+        io::println("PASS: AssertExt.assertFalse fail throws");
+    }
+}
+
+public fn test_assertAlmostEqualTolerance_pass(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertAlmostEqualTolerance(1.0, 1.001, 0.01, "within tolerance");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertAlmostEqualTolerance pass threw");
+    } else {
+        io::println("PASS: AssertExt.assertAlmostEqualTolerance pass");
+    }
+}
+
+public fn test_assertAlmostEqualTolerance_fail(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertAlmostEqualTolerance(1.0, 2.0, 0.01, "within tolerance");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: AssertExt.assertAlmostEqualTolerance fail did not throw");
+    } else {
+        io::println("PASS: AssertExt.assertAlmostEqualTolerance fail throws");
+    }
+}
+
+public fn test_assertAlmostEqual_pass(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertAlmostEqual(1.0, 1.0001, 3, "close enough");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertAlmostEqual pass threw");
+    } else {
+        io::println("PASS: AssertExt.assertAlmostEqual pass");
+    }
+}
+
+public fn test_assertGreater_pass(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertGreater(5.0, 3.0, "5 > 3");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertGreater pass threw");
+    } else {
+        io::println("PASS: AssertExt.assertGreater pass");
+    }
+}
+
+public fn test_assertGreater_fail(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertGreater(3.0, 5.0, "3 > 5");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: AssertExt.assertGreater fail did not throw");
+    } else {
+        io::println("PASS: AssertExt.assertGreater fail throws");
+    }
+}
+
+public fn test_assertLess_pass(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertLess(3.0, 5.0, "3 < 5");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertLess pass threw");
+    } else {
+        io::println("PASS: AssertExt.assertLess pass");
+    }
+}
+
+public fn test_assertLess_fail(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertLess(5.0, 3.0, "5 < 3");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: AssertExt.assertLess fail did not throw");
+    } else {
+        io::println("PASS: AssertExt.assertLess fail throws");
+    }
+}
+
+public fn test_assertIsNotNone(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertIsNotNone(5 as Variant, "should not be none");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertIsNotNone threw");
+    } else {
+        io::println("PASS: AssertExt.assertIsNotNone");
+    }
+}
+
+public fn test_assertIsNone(): void {
+    let threw: bool = false;
+    try {
+        AssertExt.assertIsNone(null as Variant, "should be none");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertIsNone threw");
+    } else {
+        io::println("PASS: AssertExt.assertIsNone");
+    }
+}
+
+public fn test_assertIn_found(): void {
+    let coll: ArrayList<Variant> = new ArrayList<Variant>();
+    coll.add(1 as Variant);
+    coll.add(2 as Variant);
+    coll.add(3 as Variant);
+    let threw: bool = false;
+    try {
+        AssertExt.assertIn(2 as Variant, coll, "should be in");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: AssertExt.assertIn found threw");
+    } else {
+        io::println("PASS: AssertExt.assertIn found");
+    }
+}
+
+public fn test_assertIn_notFound(): void {
+    let coll: ArrayList<Variant> = new ArrayList<Variant>();
+    coll.add(1 as Variant);
+    coll.add(2 as Variant);
+    let threw: bool = false;
+    try {
+        AssertExt.assertIn(99 as Variant, coll, "should be in");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: AssertExt.assertIn notFound did not throw");
+    } else {
+        io::println("PASS: AssertExt.assertIn notFound throws");
+    }
+}
+
+public fn run_all_assert_ext_tests(): void {
+    io::println("=== AssertExt.tr Tests ===");
+    test_assertEqual_pass();
+    test_assertEqual_fail();
+    test_assertNotEqual_pass();
+    test_assertNotEqual_fail();
+    test_assertTrue_pass();
+    test_assertTrue_fail();
+    test_assertFalse_pass();
+    test_assertFalse_fail();
+    test_assertAlmostEqualTolerance_pass();
+    test_assertAlmostEqualTolerance_fail();
+    test_assertAlmostEqual_pass();
+    test_assertGreater_pass();
+    test_assertGreater_fail();
+    test_assertLess_pass();
+    test_assertLess_fail();
+    test_assertIsNotNone();
+    test_assertIsNone();
+    test_assertIn_found();
+    test_assertIn_notFound();
+}
