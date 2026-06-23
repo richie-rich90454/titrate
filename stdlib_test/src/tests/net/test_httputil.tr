@@ -1,0 +1,132 @@
+// Test file for HttpUtil.tr
+// Exercises the public API of CookieJar, MultipartForm, HttpCache,
+// ConnectionPool, and the multipartFormData factory function.
+import tt::net::HttpUtil;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_cookiejar_add_get_clear(): void {
+    let jar: CookieJar = new CookieJar();
+    jar.add("https://example.com/page", "session", "abc123", "example.com", "/", true, true);
+    jar.add("https://example.com/other", "token", "xyz", "example.com", "/other", false, false);
+    let matches: ArrayList<HashMap<string, string>> = jar.get("https://example.com/page");
+    // Both cookies match domain example.com; the secure cookie matches https.
+    if (matches.size() < 1) {
+        io::println("FAIL: CookieJar.get returned " + Integer.toString(matches.size()) + " cookies");
+    } else {
+        io::println("PASS: CookieJar.get returns matching cookies");
+    }
+    jar.clear();
+    let after: ArrayList<HashMap<string, string>> = jar.get("https://example.com/page");
+    if (after.size() != 0) {
+        io::println("FAIL: CookieJar.clear should empty the jar, got " + Integer.toString(after.size()));
+    } else {
+        io::println("PASS: CookieJar.clear works");
+    }
+}
+
+public fn test_multipartform_addField_build(): void {
+    let form: MultipartForm = new MultipartForm();
+    form.addField("username", "alice");
+    form.addField("email", "alice@example.com");
+    let body: string = form.build();
+    if (String.indexOf(body, "username") < 0 || String.indexOf(body, "alice") < 0) {
+        io::println("FAIL: MultipartForm.build missing field data");
+    } else if (String.indexOf(body, "Content-Disposition: form-data") < 0) {
+        io::println("FAIL: MultipartForm.build missing content-disposition");
+    } else if (String.indexOf(body, form.boundary) < 0) {
+        io::println("FAIL: MultipartForm.build missing boundary");
+    } else {
+        io::println("PASS: MultipartForm.addField/build works");
+    }
+}
+
+public fn test_multipartform_addFile_build(): void {
+    let form: MultipartForm = new MultipartForm();
+    form.addFile("upload", "data.txt", "text/plain", "file contents here");
+    let body: string = form.build();
+    if (String.indexOf(body, "filename=\"data.txt\"") < 0) {
+        io::println("FAIL: MultipartForm.build missing filename");
+    } else if (String.indexOf(body, "Content-Type: text/plain") < 0) {
+        io::println("FAIL: MultipartForm.build missing content-type");
+    } else if (String.indexOf(body, "file contents here") < 0) {
+        io::println("FAIL: MultipartForm.build missing file data");
+    } else {
+        io::println("PASS: MultipartForm.addFile/build works");
+    }
+}
+
+public fn test_multipartFormData_factory(): void {
+    let form: MultipartForm = multipartFormData("CUSTOMBOUNDARY");
+    if (form.boundary != "CUSTOMBOUNDARY") {
+        io::println("FAIL: multipartFormData boundary = " + form.boundary);
+    } else {
+        io::println("PASS: multipartFormData sets custom boundary");
+    }
+    // Empty boundary falls back to default
+    let form2: MultipartForm = multipartFormData("");
+    if (String.length(form2.boundary) == 0) {
+        io::println("FAIL: multipartFormData empty boundary should use default");
+    } else {
+        io::println("PASS: multipartFormData empty boundary uses default");
+    }
+}
+
+public fn test_httpcache_put_get_invalidate(): void {
+    let cache: HttpCache = new HttpCache(3);
+    cache.put("http://a.com", "response-a", 60);
+    cache.put("http://b.com", "response-b", 60);
+    if (cache.get("http://a.com") != "response-a") {
+        io::println("FAIL: HttpCache.get a = " + cache.get("http://a.com"));
+    } else {
+        io::println("PASS: HttpCache.get works");
+    }
+    cache.invalidate("http://a.com");
+    if (cache.get("http://a.com") != null) {
+        io::println("FAIL: HttpCache.invalidate did not remove entry");
+    } else {
+        io::println("PASS: HttpCache.invalidate works");
+    }
+}
+
+public fn test_connectionpool_return_get_clear(): void {
+    let pool: ConnectionPool = new ConnectionPool(10, 2, 5000);
+    let conn: Variant = "dummy-conn" as Variant;
+    pool.returnConnection("example.com", 443, conn);
+    if (pool.totalConnections() != 1) {
+        io::println("FAIL: ConnectionPool.totalConnections = " + Integer.toString(pool.totalConnections()));
+    } else {
+        io::println("PASS: ConnectionPool.returnConnection works");
+    }
+    let got: Variant = pool.getConnection("example.com", 443);
+    if (got == null) {
+        io::println("FAIL: ConnectionPool.getConnection returned null");
+    } else {
+        io::println("PASS: ConnectionPool.getConnection returns connection");
+    }
+    if (pool.totalConnections() != 0) {
+        io::println("FAIL: ConnectionPool should be empty after get, got " + Integer.toString(pool.totalConnections()));
+    } else {
+        io::println("PASS: ConnectionPool empty after getConnection");
+    }
+    pool.returnConnection("h.com", 80, conn);
+    pool.clear();
+    if (pool.totalConnections() != 0) {
+        io::println("FAIL: ConnectionPool.clear did not empty pool");
+    } else {
+        io::println("PASS: ConnectionPool.clear works");
+    }
+}
+
+public fn run_all_httputil_tests(): void {
+    io::println("=== HttpUtil.tr Tests ===");
+    test_cookiejar_add_get_clear();
+    test_multipartform_addField_build();
+    test_multipartform_addFile_build();
+    test_multipartFormData_factory();
+    test_httpcache_put_get_invalidate();
+    test_connectionpool_return_get_clear();
+}
