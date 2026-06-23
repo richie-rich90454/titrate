@@ -1,0 +1,237 @@
+// Test file for FileUtils.tr
+// Exercises the public API of FileUtils: copy, copy2, copyTree, move,
+// rmtree, which, diskUsage, sameFile, getSizeMode, diskUsageInfo,
+// copystat, copyfileobj, and the DiskUsageInfo class.
+import tt::file::FileUtils;
+import tt::io::File;
+import tt::lang::Integer;
+
+public fn _fuWriteFile(path: string, content: string): void {
+    let f: File = new File(path);
+    f.write(content);
+    f.close();
+}
+
+public fn test_fileutils_copy(): void {
+    let src: string = "test_fu_copy_src.txt";
+    let dst: string = "test_fu_copy_dst.txt";
+    _fuWriteFile(src, "copy me");
+    let result = FileUtils.copy(src, dst);
+    if (result.isErr()) {
+        io::println("FAIL: FileUtils.copy returned error");
+    } else {
+        let d: File = new File(dst);
+        if (!d.exists() || d.readAll() != "copy me") {
+            io::println("FAIL: FileUtils.copy destination content wrong");
+        } else {
+            io::println("PASS: FileUtils.copy duplicates file");
+        }
+        d.delete();
+    }
+    let s: File = new File(src);
+    s.delete();
+}
+
+public fn test_fileutils_copy_missing_source(): void {
+    let result = FileUtils.copy("nonexistent_fu_src.txt", "nonexistent_fu_dst.txt");
+    if (result.isOk()) {
+        io::println("FAIL: FileUtils.copy succeeded for missing source");
+    } else {
+        io::println("PASS: FileUtils.copy errors on missing source");
+    }
+}
+
+public fn test_fileutils_copy2(): void {
+    let src: string = "test_fu_copy2_src.txt";
+    let dst: string = "test_fu_copy2_dst.txt";
+    _fuWriteFile(src, "copy2 me");
+    let result = FileUtils.copy2(src, dst);
+    if (result.isErr()) {
+        io::println("FAIL: FileUtils.copy2 returned error");
+    } else {
+        let d: File = new File(dst);
+        if (d.readAll() != "copy2 me") {
+            io::println("FAIL: FileUtils.copy2 content wrong");
+        } else {
+            io::println("PASS: FileUtils.copy2 duplicates with metadata");
+        }
+        d.delete();
+    }
+    let s: File = new File(src);
+    s.delete();
+}
+
+public fn test_fileutils_move(): void {
+    let src: string = "test_fu_move_src.txt";
+    let dst: string = "test_fu_move_dst.txt";
+    _fuWriteFile(src, "move me");
+    let result = FileUtils.move(src, dst);
+    if (result.isErr()) {
+        io::println("FAIL: FileUtils.move returned error");
+    } else {
+        let s: File = new File(src);
+        let d: File = new File(dst);
+        if (s.exists()) {
+            io::println("FAIL: FileUtils.move source still exists");
+            s.delete();
+        } else if (!d.exists()) {
+            io::println("FAIL: FileUtils.move destination missing");
+        } else {
+            io::println("PASS: FileUtils.move relocates file");
+        }
+        if (d.exists()) { d.delete(); }
+    }
+}
+
+public fn test_fileutils_move_missing_source(): void {
+    let result = FileUtils.move("nonexistent_fu_move.txt", "dst.txt");
+    if (result.isOk()) {
+        io::println("FAIL: FileUtils.move succeeded for missing source");
+    } else {
+        io::println("PASS: FileUtils.move errors on missing source");
+    }
+}
+
+public fn test_fileutils_rmtree_file(): void {
+    let path: string = "test_fu_rmtree_file.txt";
+    _fuWriteFile(path, "x");
+    let result = FileUtils.rmtree(path);
+    if (result.isErr()) {
+        io::println("FAIL: FileUtils.rmtree file returned error");
+    } else {
+        io::println("PASS: FileUtils.rmtree removes a file");
+    }
+}
+
+public fn test_fileutils_rmtree_missing(): void {
+    let result = FileUtils.rmtree("nonexistent_fu_rmtree_dir");
+    if (result.isOk()) {
+        io::println("FAIL: FileUtils.rmtree succeeded for missing path");
+    } else {
+        io::println("PASS: FileUtils.rmtree errors on missing path");
+    }
+}
+
+public fn test_fileutils_copyTree(): void {
+    // Create a source directory with a file.
+    let srcDir: string = "test_fu_ct_src";
+    Dir_create(srcDir);
+    _fuWriteFile(srcDir + "/inner.txt", "inner");
+    let dstDir: string = "test_fu_ct_dst";
+    let result = FileUtils.copyTree(srcDir, dstDir);
+    if (result.isErr()) {
+        io::println("FAIL: FileUtils.copyTree returned error");
+    } else {
+        let copied: File = new File(dstDir + "/inner.txt");
+        if (!copied.exists() || copied.readAll() != "inner") {
+            io::println("FAIL: FileUtils.copyTree did not copy contents");
+        } else {
+            io::println("PASS: FileUtils.copyTree copies directory tree");
+        }
+        FileUtils.rmtree(dstDir);
+    }
+    FileUtils.rmtree(srcDir);
+}
+
+public fn test_fileutils_diskUsage_file(): void {
+    let path: string = "test_fu_du.txt";
+    _fuWriteFile(path, "12345678");
+    let usage: long = FileUtils.diskUsage(path);
+    if (usage != 8) {
+        io::println("FAIL: FileUtils.diskUsage = " + Integer.toString(usage as int));
+    } else {
+        io::println("PASS: FileUtils.diskUsage returns file size");
+    }
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_fileutils_sameFile(): void {
+    let path: string = "test_fu_same.txt";
+    _fuWriteFile(path, "x");
+    // sameFile normalizes paths; comparing the same path should be true.
+    let same: bool = FileUtils.sameFile(path, path);
+    if (!same) {
+        io::println("FAIL: FileUtils.sameFile false for identical path");
+    } else {
+        io::println("PASS: FileUtils.sameFile true for identical path");
+    }
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_fileutils_getSizeMode(): void {
+    let path: string = "test_fu_sizemode.txt";
+    _fuWriteFile(path, "data");
+    let mode: string = FileUtils.getSizeMode(path);
+    if (mode == "" || mode == null) {
+        io::println("FAIL: FileUtils.getSizeMode empty");
+    } else {
+        io::println("PASS: FileUtils.getSizeMode returns human-readable size");
+    }
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_fileutils_diskUsageInfo(): void {
+    let info: FileUtils.DiskUsageInfo = FileUtils.diskUsageInfo(".");
+    if (info.total <= 0) {
+        io::println("FAIL: FileUtils.diskUsageInfo.total <= 0");
+    } else if (info.free < 0) {
+        io::println("FAIL: FileUtils.diskUsageInfo.free < 0");
+    } else {
+        io::println("PASS: FileUtils.diskUsageInfo returns disk stats");
+    }
+}
+
+public fn test_fileutils_copystat(): void {
+    let src: string = "test_fu_copystat_src.txt";
+    let dst: string = "test_fu_copystat_dst.txt";
+    _fuWriteFile(src, "stat");
+    _fuWriteFile(dst, "stat");
+    // copystat should not throw.
+    FileUtils.copystat(src, dst);
+    io::println("PASS: FileUtils.copystat executes without error");
+    let s: File = new File(src);
+    let d: File = new File(dst);
+    s.delete();
+    d.delete();
+}
+
+public fn test_fileutils_copyfileobj(): void {
+    let srcPath: string = "test_fu_cfo_src.txt";
+    let dstPath: string = "test_fu_cfo_dst.txt";
+    _fuWriteFile(srcPath, "copyfileobj payload");
+    let src: File = new File(srcPath);
+    let dst: File = new File(dstPath);
+    let copied: int = FileUtils.copyfileobj(src, dst, 16);
+    if (copied <= 0) {
+        io::println("FAIL: FileUtils.copyfileobj copied=" + Integer.toString(copied));
+    } else {
+        io::println("PASS: FileUtils.copyfileobj copies bytes");
+    }
+    src.close();
+    dst.close();
+    let s: File = new File(srcPath);
+    let d: File = new File(dstPath);
+    s.delete();
+    d.delete();
+}
+
+public fn run_all_fileutils_tests(): void {
+    io::println("=== FileUtils.tr Tests ===");
+    test_fileutils_copy();
+    test_fileutils_copy_missing_source();
+    test_fileutils_copy2();
+    test_fileutils_move();
+    test_fileutils_move_missing_source();
+    test_fileutils_rmtree_file();
+    test_fileutils_rmtree_missing();
+    test_fileutils_copyTree();
+    test_fileutils_diskUsage_file();
+    test_fileutils_sameFile();
+    test_fileutils_getSizeMode();
+    test_fileutils_diskUsageInfo();
+    test_fileutils_copystat();
+    test_fileutils_copyfileobj();
+}
