@@ -1,0 +1,432 @@
+// Test file for Math.tr
+// Exercises the public API of the Math module: constants, utilities,
+// number-theoretic helpers, classification, and interpolation functions.
+import tt::math::Math;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+import tt::lang::Long;
+import tt::lang::Double;
+import tt::lang::Boolean;
+
+// Helper: absolute difference between two doubles.
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_math_constants(): void {
+    let pi: double = Math.PI();
+    let e: double = Math.E();
+    if (absDiff(pi, 3.141592653589793) > 1e-12) {
+        io::println("FAIL: Math.PI() = " + Double.toString(pi));
+    } else {
+        io::println("PASS: Math.PI() correct");
+    }
+    if (absDiff(e, 2.718281828459045) > 1e-12) {
+        io::println("FAIL: Math.E() = " + Double.toString(e));
+    } else {
+        io::println("PASS: Math.E() correct");
+    }
+    let tau: double = Math.tau();
+    if (absDiff(tau, 6.283185307179586) > 1e-12) {
+        io::println("FAIL: Math.tau() = " + Double.toString(tau));
+    } else {
+        io::println("PASS: Math.tau() correct");
+    }
+}
+
+public fn test_math_abs(): void {
+    if (Math.abs(-5.0) != 5.0) {
+        io::println("FAIL: Math.abs(-5.0)");
+    } else {
+        io::println("PASS: Math.abs(-5.0) = 5.0");
+    }
+    if (Math.abs(5.0) != 5.0) {
+        io::println("FAIL: Math.abs(5.0)");
+    } else {
+        io::println("PASS: Math.abs(5.0) = 5.0");
+    }
+    if (Math.abs(0.0) != 0.0) {
+        io::println("FAIL: Math.abs(0.0)");
+    } else {
+        io::println("PASS: Math.abs(0.0) = 0.0");
+    }
+    if (Math.fabs(-3.5) != 3.5) {
+        io::println("FAIL: Math.fabs(-3.5)");
+    } else {
+        io::println("PASS: Math.fabs(-3.5) = 3.5");
+    }
+    if (Math.absInt(-7) != 7) {
+        io::println("FAIL: Math.absInt(-7)");
+    } else {
+        io::println("PASS: Math.absInt(-7) = 7");
+    }
+}
+
+public fn test_math_floor_ceil_round(): void {
+    if (Math.floor(3.7) != 3.0) {
+        io::println("FAIL: Math.floor(3.7)");
+    } else {
+        io::println("PASS: Math.floor(3.7) = 3.0");
+    }
+    if (Math.floor(-3.2) != -4.0) {
+        io::println("FAIL: Math.floor(-3.2)");
+    } else {
+        io::println("PASS: Math.floor(-3.2) = -4.0");
+    }
+    if (Math.ceil(3.2) != 4.0) {
+        io::println("FAIL: Math.ceil(3.2)");
+    } else {
+        io::println("PASS: Math.ceil(3.2) = 4.0");
+    }
+    if (Math.ceil(-3.7) != -3.0) {
+        io::println("FAIL: Math.ceil(-3.7)");
+    } else {
+        io::println("PASS: Math.ceil(-3.7) = -3.0");
+    }
+    if (Math.round(3.5) != 4L) {
+        io::println("FAIL: Math.round(3.5)");
+    } else {
+        io::println("PASS: Math.round(3.5) = 4");
+    }
+    if (Math.round(3.4) != 3L) {
+        io::println("FAIL: Math.round(3.4)");
+    } else {
+        io::println("PASS: Math.round(3.4) = 3");
+    }
+    if (Math.trunc(3.9) != 3.0) {
+        io::println("FAIL: Math.trunc(3.9)");
+    } else {
+        io::println("PASS: Math.trunc(3.9) = 3.0");
+    }
+    if (Math.trunc(-3.9) != -3.0) {
+        io::println("FAIL: Math.trunc(-3.9)");
+    } else {
+        io::println("PASS: Math.trunc(-3.9) = -3.0");
+    }
+}
+
+public fn test_math_min_max_clamp_sign(): void {
+    if (Math.min(3.0, 7.0) != 3.0) {
+        io::println("FAIL: Math.min(3,7)");
+    } else {
+        io::println("PASS: Math.min(3,7) = 3");
+    }
+    if (Math.max(3.0, 7.0) != 7.0) {
+        io::println("FAIL: Math.max(3,7)");
+    } else {
+        io::println("PASS: Math.max(3,7) = 7");
+    }
+    if (Math.clamp(5.0, 0.0, 10.0) != 5.0) {
+        io::println("FAIL: Math.clamp(5,0,10)");
+    } else {
+        io::println("PASS: Math.clamp(5,0,10) = 5");
+    }
+    if (Math.clamp(-1.0, 0.0, 10.0) != 0.0) {
+        io::println("FAIL: Math.clamp(-1,0,10)");
+    } else {
+        io::println("PASS: Math.clamp(-1,0,10) = 0");
+    }
+    if (Math.clamp(15.0, 0.0, 10.0) != 10.0) {
+        io::println("FAIL: Math.clamp(15,0,10)");
+    } else {
+        io::println("PASS: Math.clamp(15,0,10) = 10");
+    }
+    if (Math.sign(-5.0) != -1 || Math.sign(5.0) != 1 || Math.sign(0.0) != 0) {
+        io::println("FAIL: Math.sign");
+    } else {
+        io::println("PASS: Math.sign works");
+    }
+    if (Math.signum(-5.0) != -1.0 || Math.signum(5.0) != 1.0 || Math.signum(0.0) != 0.0) {
+        io::println("FAIL: Math.signum");
+    } else {
+        io::println("PASS: Math.signum works");
+    }
+}
+
+public fn test_math_gcd_lcm(): void {
+    if (Math.gcd(12, 18) != 6) {
+        io::println("FAIL: Math.gcd(12,18)");
+    } else {
+        io::println("PASS: Math.gcd(12,18) = 6");
+    }
+    if (Math.gcd(0, 5) != 5) {
+        io::println("FAIL: Math.gcd(0,5)");
+    } else {
+        io::println("PASS: Math.gcd(0,5) = 5");
+    }
+    if (Math.gcd(-12, 18) != 6) {
+        io::println("FAIL: Math.gcd(-12,18)");
+    } else {
+        io::println("PASS: Math.gcd(-12,18) = 6");
+    }
+    if (Math.lcm(4, 6) != 12) {
+        io::println("FAIL: Math.lcm(4,6)");
+    } else {
+        io::println("PASS: Math.lcm(4,6) = 12");
+    }
+    if (Math.lcm(0, 5) != 0) {
+        io::println("FAIL: Math.lcm(0,5)");
+    } else {
+        io::println("PASS: Math.lcm(0,5) = 0");
+    }
+}
+
+public fn test_math_factorial_comb_perm_isqrt(): void {
+    if (Math.factorial(0) != 1 || Math.factorial(1) != 1 || Math.factorial(5) != 120) {
+        io::println("FAIL: Math.factorial");
+    } else {
+        io::println("PASS: Math.factorial works");
+    }
+    if (Math.factorial(-1) != 0) {
+        io::println("FAIL: Math.factorial(-1)");
+    } else {
+        io::println("PASS: Math.factorial(-1) = 0");
+    }
+    if (Math.comb(5, 2) != 10) {
+        io::println("FAIL: Math.comb(5,2)");
+    } else {
+        io::println("PASS: Math.comb(5,2) = 10");
+    }
+    if (Math.comb(5, 0) != 1 || Math.comb(5, 5) != 1) {
+        io::println("FAIL: Math.comb boundaries");
+    } else {
+        io::println("PASS: Math.comb boundaries work");
+    }
+    if (Math.comb(5, 6) != 0) {
+        io::println("FAIL: Math.comb(5,6)");
+    } else {
+        io::println("PASS: Math.comb(5,6) = 0");
+    }
+    if (Math.perm(5, 2) != 20) {
+        io::println("FAIL: Math.perm(5,2)");
+    } else {
+        io::println("PASS: Math.perm(5,2) = 20");
+    }
+    if (Math.isqrt(16) != 4 || Math.isqrt(17) != 4 || Math.isqrt(0) != 0) {
+        io::println("FAIL: Math.isqrt");
+    } else {
+        io::println("PASS: Math.isqrt works");
+    }
+}
+
+public fn test_math_classification(): void {
+    if (!Math.isfinite(3.14)) {
+        io::println("FAIL: Math.isfinite(3.14)");
+    } else {
+        io::println("PASS: Math.isfinite(3.14) = true");
+    }
+    if (Math.isinf(Math.INF())) {
+        // expected
+        io::println("PASS: Math.isinf(INF) = true");
+    } else {
+        io::println("FAIL: Math.isinf(INF)");
+    }
+    if (Math.isnan(Math.NAN())) {
+        io::println("PASS: Math.isnan(NAN) = true");
+    } else {
+        io::println("FAIL: Math.isnan(NAN)");
+    }
+    if (!Math.isclose(1.0, 1.0 + 1e-15)) {
+        io::println("FAIL: Math.isclose near-equal");
+    } else {
+        io::println("PASS: Math.isclose near-equal works");
+    }
+    if (Math.isclose(1.0, 2.0)) {
+        io::println("FAIL: Math.isclose(1,2) should be false");
+    } else {
+        io::println("PASS: Math.isclose(1,2) = false");
+    }
+}
+
+public fn test_math_fsum_prod(): void {
+    let vals: ArrayList<double> = new ArrayList<double>();
+    vals.add(1.0);
+    vals.add(2.0);
+    vals.add(3.0);
+    vals.add(4.0);
+    if (Math.fsum(vals) != 10.0) {
+        io::println("FAIL: Math.fsum");
+    } else {
+        io::println("PASS: Math.fsum = 10.0");
+    }
+    if (Math.prod(vals) != 24.0) {
+        io::println("FAIL: Math.prod");
+    } else {
+        io::println("PASS: Math.prod = 24.0");
+    }
+    if (Math.prodWithStart(vals, 2.0) != 48.0) {
+        io::println("FAIL: Math.prodWithStart");
+    } else {
+        io::println("PASS: Math.prodWithStart = 48.0");
+    }
+}
+
+public fn test_math_lerp_midpoint_hypot(): void {
+    if (Math.lerp(0.0, 10.0, 0.5) != 5.0) {
+        io::println("FAIL: Math.lerp(0,10,0.5)");
+    } else {
+        io::println("PASS: Math.lerp(0,10,0.5) = 5.0");
+    }
+    if (Math.midpoint(0.0, 10.0) != 5.0) {
+        io::println("FAIL: Math.midpoint(0,10)");
+    } else {
+        io::println("PASS: Math.midpoint(0,10) = 5.0");
+    }
+    if (Math.hypot(3.0, 4.0) != 5.0) {
+        io::println("FAIL: Math.hypot(3,4)");
+    } else {
+        io::println("PASS: Math.hypot(3,4) = 5.0");
+    }
+    if (Math.inverseLerp(0.0, 10.0, 5.0) != 0.5) {
+        io::println("FAIL: Math.inverseLerp");
+    } else {
+        io::println("PASS: Math.inverseLerp works");
+    }
+}
+
+public fn test_math_dist(): void {
+    let d: double = Math.dist(0.0, 0.0, 3.0, 4.0);
+    if (d != 5.0) {
+        io::println("FAIL: Math.dist = " + Double.toString(d));
+    } else {
+        io::println("PASS: Math.dist(0,0,3,4) = 5.0");
+    }
+    let p1: ArrayList<double> = new ArrayList<double>();
+    p1.add(0.0);
+    p1.add(0.0);
+    p1.add(0.0);
+    let p2: ArrayList<double> = new ArrayList<double>();
+    p2.add(1.0);
+    p2.add(2.0);
+    p2.add(2.0);
+    let dn: double = Math.distN(p1, p2);
+    if (dn != 3.0) {
+        io::println("FAIL: Math.distN = " + Double.toString(dn));
+    } else {
+        io::println("PASS: Math.distN = 3.0");
+    }
+}
+
+public fn test_math_wrap_remap_clamp_to_multiple(): void {
+    if (Math.wrap(7.5, 0.0, 5.0) != 2.5) {
+        io::println("FAIL: Math.wrap(7.5,0,5)");
+    } else {
+        io::println("PASS: Math.wrap(7.5,0,5) = 2.5");
+    }
+    if (Math.remap(5.0, 0.0, 10.0, 0.0, 100.0) != 50.0) {
+        io::println("FAIL: Math.remap");
+    } else {
+        io::println("PASS: Math.remap works");
+    }
+    if (Math.roundTo(7.0, 5.0) != 5.0) {
+        io::println("FAIL: Math.roundTo(7,5)");
+    } else {
+        io::println("PASS: Math.roundTo(7,5) = 5.0");
+    }
+    if (Math.roundTo(8.0, 5.0) != 10.0) {
+        io::println("FAIL: Math.roundTo(8,5)");
+    } else {
+        io::println("PASS: Math.roundTo(8,5) = 10.0");
+    }
+    if (Math.floorTo(7.0, 5.0) != 5.0) {
+        io::println("FAIL: Math.floorTo(7,5)");
+    } else {
+        io::println("PASS: Math.floorTo(7,5) = 5.0");
+    }
+    if (Math.ceilTo(7.0, 5.0) != 10.0) {
+        io::println("FAIL: Math.ceilTo(7,5)");
+    } else {
+        io::println("PASS: Math.ceilTo(7,5) = 10.0");
+    }
+}
+
+public fn test_math_smoothstep_repeat(): void {
+    if (Math.smoothStep(0.0, 1.0, 0.5) != 0.5) {
+        io::println("FAIL: Math.smoothStep(0,1,0.5)");
+    } else {
+        io::println("PASS: Math.smoothStep(0,1,0.5) = 0.5");
+    }
+    if (Math.repeat(7.5, 5.0) != 2.5) {
+        io::println("FAIL: Math.repeat(7.5,5)");
+    } else {
+        io::println("PASS: Math.repeat(7.5,5) = 2.5");
+    }
+    if (Math.pingPong(7.5, 5.0) != 2.5) {
+        io::println("FAIL: Math.pingPong(7.5,5)");
+    } else {
+        io::println("PASS: Math.pingPong(7.5,5) = 2.5");
+    }
+}
+
+public fn test_math_pascals_triangle(): void {
+    let row: ArrayList<long> = Math.binomialExpansion(4);
+    // 1 4 6 4 1
+    if (row.size() != 5 || row.get(0) != 1L || row.get(1) != 4L || row.get(2) != 6L || row.get(3) != 4L || row.get(4) != 1L) {
+        io::println("FAIL: Math.binomialExpansion(4)");
+    } else {
+        io::println("PASS: Math.binomialExpansion(4) = 1 4 6 4 1");
+    }
+    let tri: ArrayList<ArrayList<long>> = Math.pascalsTriangle(3);
+    if (tri.size() != 4) {
+        io::println("FAIL: Math.pascalsTriangle(3) size");
+    } else {
+        io::println("PASS: Math.pascalsTriangle(3) has 4 rows");
+    }
+}
+
+public fn test_math_isPowerOf_nearestPowerOf(): void {
+    if (!Math.isPowerOf(8.0, 2.0)) {
+        io::println("FAIL: Math.isPowerOf(8,2)");
+    } else {
+        io::println("PASS: Math.isPowerOf(8,2) = true");
+    }
+    if (Math.isPowerOf(6.0, 2.0)) {
+        io::println("FAIL: Math.isPowerOf(6,2) should be false");
+    } else {
+        io::println("PASS: Math.isPowerOf(6,2) = false");
+    }
+    if (Math.nearestPowerOf(7.0, 2.0) != 8.0) {
+        io::println("FAIL: Math.nearestPowerOf(7,2)");
+    } else {
+        io::println("PASS: Math.nearestPowerOf(7,2) = 8.0");
+    }
+}
+
+public fn test_math_triangle_area(): void {
+    // Right triangle with legs 3, 4 -> area 6
+    let area: double = Math.triangleArea(3.0, 4.0, Math.PI() / 2.0);
+    if (absDiff(area, 6.0) > 1e-9) {
+        io::println("FAIL: Math.triangleArea = " + Double.toString(area));
+    } else {
+        io::println("PASS: Math.triangleArea = 6.0");
+    }
+    // Heron's formula on 3-4-5 triangle
+    let heron: double = Math.triangleAreaHeron(3.0, 4.0, 5.0);
+    if (absDiff(heron, 6.0) > 1e-9) {
+        io::println("FAIL: Math.triangleAreaHeron = " + Double.toString(heron));
+    } else {
+        io::println("PASS: Math.triangleAreaHeron = 6.0");
+    }
+}
+
+public fn run_all_math_tests(): void {
+    io::println("=== Math.tr Tests ===");
+    test_math_constants();
+    test_math_abs();
+    test_math_floor_ceil_round();
+    test_math_min_max_clamp_sign();
+    test_math_gcd_lcm();
+    test_math_factorial_comb_perm_isqrt();
+    test_math_classification();
+    test_math_fsum_prod();
+    test_math_lerp_midpoint_hypot();
+    test_math_dist();
+    test_math_wrap_remap_clamp_to_multiple();
+    test_math_smoothstep_repeat();
+    test_math_pascals_triangle();
+    test_math_isPowerOf_nearestPowerOf();
+    test_math_triangle_area();
+}
