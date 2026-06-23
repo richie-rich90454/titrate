@@ -1,0 +1,140 @@
+// Test file for hft/FixParser.tr
+// Exercises FixMessage class, parse/build functions, and checksum.
+import tt::hft::FixParser;
+import tt::util::ArrayList;
+
+public fn test_fix_message_set_get(): void {
+    let msg: FixMessage = new FixMessage();
+    msg.setField("35", "D");
+    msg.setField("49", "SENDER");
+    msg.setField("56", "TARGET");
+    if (msg.getField("35") != "D") {
+        io::println("FAIL: getField(35) expected D");
+    } else {
+        io::println("PASS: getField(35) = D");
+    }
+    if (msg.getField("49") != "SENDER") {
+        io::println("FAIL: getField(49) expected SENDER");
+    } else {
+        io::println("PASS: getField(49) = SENDER");
+    }
+}
+
+public fn test_fix_message_missing_field(): void {
+    let msg: FixMessage = new FixMessage();
+    if (msg.getField("99") != "") {
+        io::println("FAIL: missing field expected empty");
+    } else {
+        io::println("PASS: missing field = empty");
+    }
+}
+
+public fn test_fix_message_msg_type(): void {
+    let msg: FixMessage = new FixMessage();
+    msg.setField("35", "8");
+    if (msg.msgType() != "8") {
+        io::println("FAIL: msgType expected 8");
+    } else {
+        io::println("PASS: msgType = 8");
+    }
+}
+
+public fn test_fix_message_sender_comp_id(): void {
+    let msg: FixMessage = new FixMessage();
+    msg.setField("49", "BROKER");
+    if (msg.senderCompId() != "BROKER") {
+        io::println("FAIL: senderCompId expected BROKER");
+    } else {
+        io::println("PASS: senderCompId = BROKER");
+    }
+}
+
+public fn test_fix_message_target_comp_id(): void {
+    let msg: FixMessage = new FixMessage();
+    msg.setField("56", "EXCHANGE");
+    if (msg.targetCompId() != "EXCHANGE") {
+        io::println("FAIL: targetCompId expected EXCHANGE");
+    } else {
+        io::println("PASS: targetCompId = EXCHANGE");
+    }
+}
+
+public fn test_fix_message_checksum(): void {
+    let msg: FixMessage = new FixMessage();
+    msg.setField("10", "123");
+    if (msg.checksum() != "123") {
+        io::println("FAIL: checksum expected 123");
+    } else {
+        io::println("PASS: checksum = 123");
+    }
+}
+
+public fn test_parse_fix_message(): void {
+    // Use SOH delimiter (\x01)
+    let raw: string = "8=FIX.4.2\x0135=D\x0149=SENDER\x0156=TARGET\x01";
+    let msg: FixMessage = FixParser.parseFixMessage(raw);
+    if (msg.getField("8") != "FIX.4.2") {
+        io::println("FAIL: parseFixMessage field 8");
+    } else {
+        io::println("PASS: parseFixMessage field 8 = FIX.4.2");
+    }
+    if (msg.msgType() != "D") {
+        io::println("FAIL: parseFixMessage msgType");
+    } else {
+        io::println("PASS: parseFixMessage msgType = D");
+    }
+}
+
+public fn test_parse_fix_message_empty(): void {
+    let msg: FixMessage = FixParser.parseFixMessage("");
+    if (msg.msgType() != "") {
+        io::println("FAIL: parseFixMessage empty msgType expected empty");
+    } else {
+        io::println("PASS: parseFixMessage empty msgType = empty");
+    }
+}
+
+public fn test_build_fix_message(): void {
+    let msg: FixMessage = new FixMessage();
+    msg.setField("35", "D");
+    msg.setField("49", "SENDER");
+    msg.setField("56", "TARGET");
+    let raw: string = FixParser.buildFixMessage(msg);
+    // Should contain the fields and a checksum (tag 10)
+    let has35: bool = String.indexOf(raw, "35=D") >= 0;
+    let has10: bool = String.indexOf(raw, "10=") >= 0;
+    if (!has35) {
+        io::println("FAIL: buildFixMessage missing 35=D");
+    } else {
+        io::println("PASS: buildFixMessage has 35=D");
+    }
+    if (!has10) {
+        io::println("FAIL: buildFixMessage missing checksum 10=");
+    } else {
+        io::println("PASS: buildFixMessage has checksum 10=");
+    }
+}
+
+public fn test_checksum(): void {
+    let cs: string = FixParser.checksum("8=FIX.4.2");
+    // Checksum is 3 digits
+    if (String.length(cs) != 3) {
+        io::println("FAIL: checksum length expected 3");
+    } else {
+        io::println("PASS: checksum length = 3");
+    }
+}
+
+public fn run_all_fixparser_tests(): void {
+    io::println("=== hft/FixParser.tr Tests ===");
+    test_fix_message_set_get();
+    test_fix_message_missing_field();
+    test_fix_message_msg_type();
+    test_fix_message_sender_comp_id();
+    test_fix_message_target_comp_id();
+    test_fix_message_checksum();
+    test_parse_fix_message();
+    test_parse_fix_message_empty();
+    test_build_fix_message();
+    test_checksum();
+}
