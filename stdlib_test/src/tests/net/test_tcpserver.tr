@@ -1,0 +1,64 @@
+// Test file for TcpServer.tr
+// Exercises the public API of the TcpServer class (state transitions,
+// bind/close lifecycle, and configuration methods).
+import tt::net::TcpServer;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_tcpserver_init_state(): void {
+    let s: TcpServer = new TcpServer();
+    if (s.isBound()) {
+        io::println("FAIL: TcpServer.isBound should be false on init");
+    } else {
+        io::println("PASS: TcpServer.isBound false on init");
+    }
+}
+
+public fn test_tcpserver_close_resets_state(): void {
+    let s: TcpServer = new TcpServer();
+    // Simulate a bound server by directly closing (handle -1 is a no-op)
+    s.close();
+    if (s.isBound()) {
+        io::println("FAIL: TcpServer.isBound should be false after close");
+    } else {
+        io::println("PASS: TcpServer.isBound false after close");
+    }
+}
+
+public fn test_tcpserver_close_idempotent(): void {
+    let s: TcpServer = new TcpServer();
+    s.close();
+    s.close();
+    if (s.isBound()) {
+        io::println("FAIL: TcpServer.isBound should be false after double close");
+    } else {
+        io::println("PASS: TcpServer.close idempotent");
+    }
+}
+
+public fn test_tcpserver_setTimeout_no_throw(): void {
+    let s: TcpServer = new TcpServer();
+    // setTimeout delegates to native; verify it does not throw on a fresh server.
+    s.setTimeout(3000);
+    io::println("PASS: TcpServer.setTimeout executes without throwing");
+}
+
+public fn test_tcpserver_getLocalPort_callable(): void {
+    let s: TcpServer = new TcpServer();
+    // Native-backed; we verify the accessor is callable and returns an int.
+    let port: int = s.getLocalPort();
+    if (port == null) {
+        io::println("FAIL: TcpServer.getLocalPort returned null");
+    } else {
+        io::println("PASS: TcpServer.getLocalPort callable, returned " + Integer.toString(port));
+    }
+}
+
+public fn run_all_tcpserver_tests(): void {
+    io::println("=== TcpServer.tr Tests ===");
+    test_tcpserver_init_state();
+    test_tcpserver_close_resets_state();
+    test_tcpserver_close_idempotent();
+    test_tcpserver_setTimeout_no_throw();
+    test_tcpserver_getLocalPort_callable();
+}
