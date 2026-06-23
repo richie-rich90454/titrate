@@ -135,6 +135,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'Compiler Architecture', link: '/guide/architecture' },
+            { text: 'Native Backend', link: '/guide/native-md' },
             { text: 'Contributing', link: '/guide/contributing' },
           ],
         },
