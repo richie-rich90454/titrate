@@ -1,0 +1,217 @@
+// Test file for ml/Optimizer.tr
+// Exercises SGD, Adam, AdamW, RMSProp, AdaGrad optimizers and LR schedulers.
+import tt::ml::Optimizer;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn makeWeights(rows: int, cols: int, val: double): ArrayList<ArrayList<double>> {
+    let m: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(val);
+            j = j + 1;
+        }
+        m.add(row);
+        i = i + 1;
+    }
+    return m;
+}
+
+public fn test_sgd_optimizer(): void {
+    let opt: SGDOptimizer = new SGDOptimizer(0.1, 0.0, false);
+    if (absDiff(opt.learningRate, 0.1) > 1e-9) {
+        io::println("FAIL: SGDOptimizer learningRate");
+    } else {
+        io::println("PASS: SGDOptimizer learningRate = 0.1");
+    }
+    let weights: ArrayList<ArrayList<double>> = makeWeights(1, 2, 1.0);
+    let grads: ArrayList<ArrayList<double>> = makeWeights(1, 2, 0.5);
+    opt.step(weights, grads);
+    // w = 1.0 - 0.1 * 0.5 = 0.95
+    if (absDiff(weights.get(0).get(0), 0.95) > 1e-9) {
+        io::println("FAIL: SGD step expected 0.95");
+    } else {
+        io::println("PASS: SGD step = 0.95");
+    }
+}
+
+public fn test_sgd_nesterov(): void {
+    let opt: SGDOptimizer = new SGDOptimizer(0.1, 0.9, true);
+    if (!opt.nesterov) {
+        io::println("FAIL: SGDOptimizer nesterov should be true");
+    } else {
+        io::println("PASS: SGDOptimizer nesterov = true");
+    }
+    let weights: ArrayList<ArrayList<double>> = makeWeights(1, 1, 1.0);
+    let grads: ArrayList<ArrayList<double>> = makeWeights(1, 1, 0.5);
+    opt.step(weights, grads);
+    if (weights.get(0).get(0) >= 1.0) {
+        io::println("FAIL: SGD nesterov should decrease weight");
+    } else {
+        io::println("PASS: SGD nesterov decreased weight");
+    }
+}
+
+public fn test_adam_optimizer(): void {
+    let opt: AdamOptimizer = new AdamOptimizer(0.01);
+    if (absDiff(opt.learningRate, 0.01) > 1e-9) {
+        io::println("FAIL: AdamOptimizer learningRate");
+    } else {
+        io::println("PASS: AdamOptimizer learningRate = 0.01");
+    }
+    if (absDiff(opt.beta1, 0.9) > 1e-9) {
+        io::println("FAIL: AdamOptimizer beta1");
+    } else {
+        io::println("PASS: AdamOptimizer beta1 = 0.9");
+    }
+    let weights: ArrayList<ArrayList<double>> = makeWeights(1, 2, 1.0);
+    let grads: ArrayList<ArrayList<double>> = makeWeights(1, 2, 0.1);
+    opt.step(weights, grads);
+    if (opt.t != 1) {
+        io::println("FAIL: AdamOptimizer t should be 1");
+    } else {
+        io::println("PASS: AdamOptimizer t = 1");
+    }
+    if (weights.get(0).get(0) >= 1.0) {
+        io::println("FAIL: Adam step should decrease weight");
+    } else {
+        io::println("PASS: Adam step decreased weight");
+    }
+}
+
+public fn test_step_function(): void {
+    let opt: SGDOptimizer = new SGDOptimizer(0.5, 0.0, false);
+    let weights: ArrayList<ArrayList<double>> = makeWeights(1, 1, 2.0);
+    let grads: ArrayList<ArrayList<double>> = makeWeights(1, 1, 1.0);
+    Optimizer.step(opt, weights, grads);
+    // w = 2.0 - 0.5 * 1.0 = 1.5
+    if (absDiff(weights.get(0).get(0), 1.5) > 1e-9) {
+        io::println("FAIL: step function expected 1.5");
+    } else {
+        io::println("PASS: step function = 1.5");
+    }
+}
+
+public fn test_step_lr(): void {
+    let lr: double = Optimizer.stepLR(0.1, 10, 0.5, 25);
+    // 0.1 * 0.5^(25/10) = 0.1 * 0.5^2 = 0.1 * 0.25 = 0.025
+    if (lr <= 0.0) {
+        io::println("FAIL: stepLR should be > 0");
+    } else {
+        io::println("PASS: stepLR > 0");
+    }
+}
+
+public fn test_cosine_lr(): void {
+    let lr: double = Optimizer.cosineLR(0.1, 0.0, 100, 0);
+    if (absDiff(lr, 0.1) > 1e-6) {
+        io::println("FAIL: cosineLR(0) expected ~0.1");
+    } else {
+        io::println("PASS: cosineLR(0) ~ 0.1");
+    }
+    let lrMid: double = Optimizer.cosineLR(0.1, 0.0, 100, 50);
+    if (lrMid >= 0.1 || lrMid < 0.0) {
+        io::println("FAIL: cosineLR(50) should be between 0 and 0.1");
+    } else {
+        io::println("PASS: cosineLR(50) between 0 and 0.1");
+    }
+}
+
+public fn test_warmup_lr(): void {
+    let lr0: double = Optimizer.warmupLR(0.1, 10, 0);
+    if (absDiff(lr0, 0.0) > 1e-9) {
+        io::println("FAIL: warmupLR(0) expected 0");
+    } else {
+        io::println("PASS: warmupLR(0) = 0");
+    }
+    let lr10: double = Optimizer.warmupLR(0.1, 10, 10);
+    if (absDiff(lr10, 0.1) > 1e-9) {
+        io::println("FAIL: warmupLR(10) expected 0.1");
+    } else {
+        io::println("PASS: warmupLR(10) = 0.1");
+    }
+    let lr20: double = Optimizer.warmupLR(0.1, 10, 20);
+    if (absDiff(lr20, 0.1) > 1e-9) {
+        io::println("FAIL: warmupLR(20) expected 0.1");
+    } else {
+        io::println("PASS: warmupLR(20) = 0.1");
+    }
+}
+
+public fn test_adamw(): void {
+    let opt: AdamW = new AdamW(0.01, 0.01);
+    if (absDiff(opt.learningRate, 0.01) > 1e-9) {
+        io::println("FAIL: AdamW learningRate");
+    } else {
+        io::println("PASS: AdamW learningRate = 0.01");
+    }
+    if (absDiff(opt.weightDecay, 0.01) > 1e-9) {
+        io::println("FAIL: AdamW weightDecay");
+    } else {
+        io::println("PASS: AdamW weightDecay = 0.01");
+    }
+    let weights: ArrayList<ArrayList<double>> = makeWeights(1, 2, 1.0);
+    let grads: ArrayList<ArrayList<double>> = makeWeights(1, 2, 0.1);
+    opt.step(weights, grads);
+    if (weights.get(0).get(0) >= 1.0) {
+        io::println("FAIL: AdamW step should decrease weight");
+    } else {
+        io::println("PASS: AdamW step decreased weight");
+    }
+}
+
+public fn test_rmsprop(): void {
+    let opt: RMSProp = new RMSProp(0.01);
+    if (absDiff(opt.learningRate, 0.01) > 1e-9) {
+        io::println("FAIL: RMSProp learningRate");
+    } else {
+        io::println("PASS: RMSProp learningRate = 0.01");
+    }
+    let weights: ArrayList<ArrayList<double>> = makeWeights(1, 2, 1.0);
+    let grads: ArrayList<ArrayList<double>> = makeWeights(1, 2, 0.1);
+    opt.step(weights, grads);
+    if (weights.get(0).get(0) >= 1.0) {
+        io::println("FAIL: RMSProp step should decrease weight");
+    } else {
+        io::println("PASS: RMSProp step decreased weight");
+    }
+}
+
+public fn test_adagrad(): void {
+    let opt: AdaGrad = new AdaGrad(0.1);
+    if (absDiff(opt.learningRate, 0.1) > 1e-9) {
+        io::println("FAIL: AdaGrad learningRate");
+    } else {
+        io::println("PASS: AdaGrad learningRate = 0.1");
+    }
+    let weights: ArrayList<ArrayList<double>> = makeWeights(1, 2, 1.0);
+    let grads: ArrayList<ArrayList<double>> = makeWeights(1, 2, 0.1);
+    opt.step(weights, grads);
+    if (weights.get(0).get(0) >= 1.0) {
+        io::println("FAIL: AdaGrad step should decrease weight");
+    } else {
+        io::println("PASS: AdaGrad step decreased weight");
+    }
+}
+
+public fn run_all_optimizer_tests(): void {
+    io::println("=== ml/Optimizer.tr Tests ===");
+    test_sgd_optimizer();
+    test_sgd_nesterov();
+    test_adam_optimizer();
+    test_step_function();
+    test_step_lr();
+    test_cosine_lr();
+    test_warmup_lr();
+    test_adamw();
+    test_rmsprop();
+    test_adagrad();
+}
