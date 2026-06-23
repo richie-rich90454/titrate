@@ -1,0 +1,194 @@
+// Test file for physics/RigidBody.tr
+// Exercises RigidBody construction, position/velocity, inertia, forces, torques, energy.
+import tt::physics::RigidBody;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_rigid_body_construction(): void {
+    let rb: RigidBody = new RigidBody(2.0);
+    if (absDiff(rb.mass, 2.0) > 1e-9) {
+        io::println("FAIL: RigidBody mass");
+    } else {
+        io::println("PASS: RigidBody mass = 2.0");
+    }
+    // Default quaternion should be (0, 0, 0, 1) - identity
+    if (absDiff(rb.qw, 1.0) > 1e-9) {
+        io::println("FAIL: RigidBody default quaternion");
+    } else {
+        io::println("PASS: RigidBody default quaternion identity");
+    }
+    // Default inertia should be 1.0
+    if (absDiff(rb.Ixx, 1.0) > 1e-9) {
+        io::println("FAIL: RigidBody default inertia");
+    } else {
+        io::println("PASS: RigidBody default inertia = 1.0");
+    }
+}
+
+public fn test_rigid_body_set_position(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setPosition(1.0, 2.0, 3.0);
+    if (absDiff(rb.x, 1.0) > 1e-9 || absDiff(rb.y, 2.0) > 1e-9 || absDiff(rb.z, 3.0) > 1e-9) {
+        io::println("FAIL: setPosition");
+    } else {
+        io::println("PASS: setPosition works");
+    }
+}
+
+public fn test_rigid_body_set_velocity(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setVelocity(1.0, 2.0, 3.0);
+    if (absDiff(rb.vx, 1.0) > 1e-9 || absDiff(rb.vy, 2.0) > 1e-9 || absDiff(rb.vz, 3.0) > 1e-9) {
+        io::println("FAIL: setVelocity");
+    } else {
+        io::println("PASS: setVelocity works");
+    }
+}
+
+public fn test_rigid_body_set_angular_velocity(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setAngularVelocity(1.0, 2.0, 3.0);
+    if (absDiff(rb.angVx, 1.0) > 1e-9 || absDiff(rb.angVy, 2.0) > 1e-9 || absDiff(rb.angVz, 3.0) > 1e-9) {
+        io::println("FAIL: setAngularVelocity");
+    } else {
+        io::println("PASS: setAngularVelocity works");
+    }
+}
+
+public fn test_rigid_body_set_inertia_tensor(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setInertiaTensor(2.0, 3.0, 4.0);
+    if (absDiff(rb.Ixx, 2.0) > 1e-9 || absDiff(rb.Iyy, 3.0) > 1e-9 || absDiff(rb.Izz, 4.0) > 1e-9) {
+        io::println("FAIL: setInertiaTensor");
+    } else {
+        io::println("PASS: setInertiaTensor works");
+    }
+}
+
+public fn test_rigid_body_set_box_inertia(): void {
+    let rb: RigidBody = new RigidBody(12.0);
+    rb.setBoxInertia(1.0, 1.0, 1.0);
+    // For a cube of mass 12 and side 1: I = (12/12) * (1+1) = 2
+    if (absDiff(rb.Ixx, 2.0) > 1e-9) {
+        io::println("FAIL: setBoxInertia Ixx expected 2.0");
+    } else {
+        io::println("PASS: setBoxInertia Ixx = 2.0");
+    }
+}
+
+public fn test_rigid_body_set_sphere_inertia(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setSphereInertia(1.0);
+    // I = 0.4 * m * r^2 = 0.4
+    if (absDiff(rb.Ixx, 0.4) > 1e-9) {
+        io::println("FAIL: setSphereInertia Ixx expected 0.4");
+    } else {
+        io::println("PASS: setSphereInertia Ixx = 0.4");
+    }
+}
+
+public fn test_rigid_body_apply_force(): void {
+    let rb: RigidBody = new RigidBody(2.0);
+    rb.applyForce(4.0, 0.0, 0.0, 1.0);
+    // dv = F/m * dt = 4/2 * 1 = 2
+    if (absDiff(rb.vx, 2.0) > 1e-9) {
+        io::println("FAIL: applyForce vx expected 2.0");
+    } else {
+        io::println("PASS: applyForce vx = 2.0");
+    }
+    // Zero mass: no change
+    let rb0: RigidBody = new RigidBody(0.0);
+    rb0.applyForce(1.0, 0.0, 0.0, 1.0);
+    if (absDiff(rb0.vx, 0.0) > 1e-9) {
+        io::println("FAIL: applyForce zero mass");
+    } else {
+        io::println("PASS: applyForce zero mass no change");
+    }
+}
+
+public fn test_rigid_body_apply_torque(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setInertiaTensor(2.0, 2.0, 2.0);
+    rb.applyTorque(4.0, 0.0, 0.0, 1.0);
+    // domega = T/I * dt = 4/2 * 1 = 2
+    if (absDiff(rb.angVx, 2.0) > 1e-9) {
+        io::println("FAIL: applyTorque angVx expected 2.0");
+    } else {
+        io::println("PASS: applyTorque angVx = 2.0");
+    }
+}
+
+public fn test_rigid_body_apply_force_at_point(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setInertiaTensor(1.0, 1.0, 1.0);
+    // Force at (0, 1, 0) in z direction: torque = r x F = (1*1-0*0, 0*0-0*1, 0*0-1*0) = (1, 0, 0)
+    rb.applyForceAtPoint(0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+    if (absDiff(rb.vz, 1.0) > 1e-9) {
+        io::println("FAIL: applyForceAtPoint vz expected 1.0");
+    } else {
+        io::println("PASS: applyForceAtPoint vz = 1.0");
+    }
+    if (absDiff(rb.angVx, 1.0) > 1e-9) {
+        io::println("FAIL: applyForceAtPoint angVx expected 1.0");
+    } else {
+        io::println("PASS: applyForceAtPoint angVx = 1.0");
+    }
+}
+
+public fn test_rigid_body_update(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setVelocity(1.0, 0.0, 0.0);
+    rb.update(1.0);
+    if (absDiff(rb.x, 1.0) > 1e-9) {
+        io::println("FAIL: update x expected 1.0");
+    } else {
+        io::println("PASS: update x = 1.0");
+    }
+}
+
+public fn test_rigid_body_kinetic_energy(): void {
+    let rb: RigidBody = new RigidBody(2.0);
+    rb.setVelocity(3.0, 0.0, 0.0);
+    // KE = 0.5 * m * v^2 = 0.5 * 2 * 9 = 9
+    let ke: double = rb.kineticEnergy();
+    if (absDiff(ke, 9.0) > 1e-9) {
+        io::println("FAIL: kineticEnergy expected 9.0");
+    } else {
+        io::println("PASS: kineticEnergy = 9.0");
+    }
+}
+
+public fn test_rigid_body_angular_momentum(): void {
+    let rb: RigidBody = new RigidBody(1.0);
+    rb.setInertiaTensor(2.0, 0.0, 0.0);
+    rb.setAngularVelocity(3.0, 0.0, 0.0);
+    // L = I * omega = 2 * 3 = 6
+    let l: double = rb.angularMomentum();
+    if (absDiff(l, 6.0) > 1e-9) {
+        io::println("FAIL: angularMomentum expected 6.0");
+    } else {
+        io::println("PASS: angularMomentum = 6.0");
+    }
+}
+
+public fn run_all_rigid_body_tests(): void {
+    io::println("=== physics/RigidBody.tr Tests ===");
+    test_rigid_body_construction();
+    test_rigid_body_set_position();
+    test_rigid_body_set_velocity();
+    test_rigid_body_set_angular_velocity();
+    test_rigid_body_set_inertia_tensor();
+    test_rigid_body_set_box_inertia();
+    test_rigid_body_set_sphere_inertia();
+    test_rigid_body_apply_force();
+    test_rigid_body_apply_torque();
+    test_rigid_body_apply_force_at_point();
+    test_rigid_body_update();
+    test_rigid_body_kinetic_energy();
+    test_rigid_body_angular_momentum();
+}
