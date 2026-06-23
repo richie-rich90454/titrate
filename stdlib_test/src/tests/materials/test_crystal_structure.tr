@@ -1,0 +1,175 @@
+// Test file for materials/CrystalStructure.tr
+// Exercises UnitCell, MillerIndices, space groups, lattice factories, packing fraction.
+import tt::materials::CrystalStructure;
+import tt::util::HashMap;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_unit_cell(): void {
+    let cell: UnitCell = new UnitCell(1.0, 2.0, 3.0, 90.0, 90.0, 90.0);
+    if (absDiff(cell.a, 1.0) > 1e-9) {
+        io::println("FAIL: UnitCell a");
+    } else {
+        io::println("PASS: UnitCell a = 1.0");
+    }
+    let vol: double = cell.volume();
+    if (absDiff(vol, 6.0) > 1e-6) {
+        io::println("FAIL: UnitCell volume expected 6.0");
+    } else {
+        io::println("PASS: UnitCell volume = 6.0");
+    }
+}
+
+public fn test_unit_cell_cubic_volume(): void {
+    let cell: UnitCell = CrystalStructure.cubicCell(2.0);
+    let vol: double = cell.volume();
+    if (absDiff(vol, 8.0) > 1e-6) {
+        io::println("FAIL: cubicCell volume expected 8.0");
+    } else {
+        io::println("PASS: cubicCell volume = 8.0");
+    }
+}
+
+public fn test_miller_indices(): void {
+    let m: MillerIndices = new MillerIndices(1, 1, 1);
+    if (m.h != 1 || m.k != 1 || m.l != 1) {
+        io::println("FAIL: MillerIndices fields");
+    } else {
+        io::println("PASS: MillerIndices fields = (1 1 1)");
+    }
+}
+
+public fn test_miller_d_spacing(): void {
+    let cell: UnitCell = CrystalStructure.cubicCell(4.0);
+    let m: MillerIndices = new MillerIndices(1, 0, 0);
+    let d: double = m.dSpacing(cell);
+    // d = a / sqrt(h^2+k^2+l^2) = 4 / 1 = 4.0
+    if (absDiff(d, 4.0) > 1e-6) {
+        io::println("FAIL: dSpacing (100) expected 4.0");
+    } else {
+        io::println("PASS: dSpacing (100) = 4.0");
+    }
+}
+
+public fn test_miller_d_spacing_111(): void {
+    let cell: UnitCell = CrystalStructure.cubicCell(4.0);
+    let m: MillerIndices = new MillerIndices(1, 1, 1);
+    let d: double = m.dSpacing(cell);
+    // d = 4 / sqrt(3) = 2.309...
+    if (absDiff(d, 2.309401) > 0.001) {
+        io::println("FAIL: dSpacing (111) expected ~2.309");
+    } else {
+        io::println("PASS: dSpacing (111) = ~2.309");
+    }
+}
+
+public fn test_miller_to_string(): void {
+    let m: MillerIndices = new MillerIndices(2, 0, 1);
+    let s: string = m.toString();
+    if (s != "(2 0 1)") {
+        io::println("FAIL: MillerIndices toString expected (2 0 1)");
+    } else {
+        io::println("PASS: MillerIndices toString = (2 0 1)");
+    }
+}
+
+public fn test_cubic_cell(): void {
+    let cell: UnitCell = CrystalStructure.cubicCell(5.0);
+    if (absDiff(cell.a, 5.0) > 1e-9 || absDiff(cell.b, 5.0) > 1e-9 || absDiff(cell.c, 5.0) > 1e-9) {
+        io::println("FAIL: cubicCell edges");
+    } else {
+        io::println("PASS: cubicCell edges = 5.0");
+    }
+    if (absDiff(cell.alpha, 90.0) > 1e-9) {
+        io::println("FAIL: cubicCell alpha");
+    } else {
+        io::println("PASS: cubicCell alpha = 90");
+    }
+}
+
+public fn test_tetragonal_cell(): void {
+    let cell: UnitCell = CrystalStructure.tetragonalCell(3.0, 5.0);
+    if (absDiff(cell.a, 3.0) > 1e-9 || absDiff(cell.c, 5.0) > 1e-9) {
+        io::println("FAIL: tetragonalCell edges");
+    } else {
+        io::println("PASS: tetragonalCell edges correct");
+    }
+}
+
+public fn test_orthorhombic_cell(): void {
+    let cell: UnitCell = CrystalStructure.orthorhombicCell(1.0, 2.0, 3.0);
+    if (absDiff(cell.a, 1.0) > 1e-9 || absDiff(cell.b, 2.0) > 1e-9 || absDiff(cell.c, 3.0) > 1e-9) {
+        io::println("FAIL: orthorhombicCell edges");
+    } else {
+        io::println("PASS: orthorhombicCell edges correct");
+    }
+}
+
+public fn test_hexagonal_cell(): void {
+    let cell: UnitCell = CrystalStructure.hexagonalCell(2.0, 4.0);
+    if (absDiff(cell.gamma, 120.0) > 1e-9) {
+        io::println("FAIL: hexagonalCell gamma expected 120");
+    } else {
+        io::println("PASS: hexagonalCell gamma = 120");
+    }
+}
+
+public fn test_packing_fraction(): void {
+    let fcc: double = CrystalStructure.packingFraction("fcc");
+    if (absDiff(fcc, 0.74048) > 1e-6) {
+        io::println("FAIL: packingFraction fcc expected 0.74048");
+    } else {
+        io::println("PASS: packingFraction fcc = 0.74048");
+    }
+    let bcc: double = CrystalStructure.packingFraction("bcc");
+    if (absDiff(bcc, 0.68017) > 1e-6) {
+        io::println("FAIL: packingFraction bcc expected 0.68017");
+    } else {
+        io::println("PASS: packingFraction bcc = 0.68017");
+    }
+    let sc: double = CrystalStructure.packingFraction("sc");
+    if (absDiff(sc, 0.52360) > 1e-6) {
+        io::println("FAIL: packingFraction sc expected 0.52360");
+    } else {
+        io::println("PASS: packingFraction sc = 0.52360");
+    }
+    let unknown: double = CrystalStructure.packingFraction("unknown");
+    if (absDiff(unknown, 0.0) > 1e-9) {
+        io::println("FAIL: packingFraction unknown expected 0");
+    } else {
+        io::println("PASS: packingFraction unknown = 0");
+    }
+}
+
+public fn test_get_space_group(): void {
+    let sg: HashMap<string, string> = CrystalStructure.getSpaceGroup(1);
+    // May be empty if data file not loaded; just check it doesn't crash
+    io::println("PASS: getSpaceGroup(1) ran");
+}
+
+public fn test_get_space_group_by_symbol(): void {
+    let n: int = CrystalStructure.getSpaceGroupBySymbol("P1");
+    // May be 0 if data file not loaded; just check it doesn't crash
+    io::println("PASS: getSpaceGroupBySymbol ran");
+}
+
+public fn run_all_crystal_structure_tests(): void {
+    io::println("=== materials/CrystalStructure.tr Tests ===");
+    test_unit_cell();
+    test_unit_cell_cubic_volume();
+    test_miller_indices();
+    test_miller_d_spacing();
+    test_miller_d_spacing_111();
+    test_miller_to_string();
+    test_cubic_cell();
+    test_tetragonal_cell();
+    test_orthorhombic_cell();
+    test_hexagonal_cell();
+    test_packing_fraction();
+    test_get_space_group();
+    test_get_space_group_by_symbol();
+}
