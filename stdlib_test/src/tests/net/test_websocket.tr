@@ -1,0 +1,145 @@
+// Test file for WebSocket.tr
+// Exercises the public API of WebSocketFrame, WebSocketClient, and the
+// module-level parseFrame/buildFrame functions.
+import tt::net::WebSocket;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_websocketframe_text(): void {
+    let frame: WebSocketFrame = new WebSocketFrame(0x1, "hello");
+    if (!frame.isText()) {
+        io::println("FAIL: WebSocketFrame.isText should be true for opcode 0x1");
+    } else {
+        io::println("PASS: WebSocketFrame.isText works");
+    }
+    if (frame.isBinary() || frame.isClose() || frame.isPing() || frame.isPong()) {
+        io::println("FAIL: WebSocketFrame text frame should not be other types");
+    } else {
+        io::println("PASS: WebSocketFrame text frame excludes other types");
+    }
+}
+
+public fn test_websocketframe_binary(): void {
+    let frame: WebSocketFrame = new WebSocketFrame(0x2, "data");
+    if (!frame.isBinary()) {
+        io::println("FAIL: WebSocketFrame.isBinary should be true for opcode 0x2");
+    } else {
+        io::println("PASS: WebSocketFrame.isBinary works");
+    }
+}
+
+public fn test_websocketframe_close_ping_pong(): void {
+    let close: WebSocketFrame = new WebSocketFrame(0x8, "");
+    if (!close.isClose()) {
+        io::println("FAIL: WebSocketFrame.isClose should be true for opcode 0x8");
+    } else {
+        io::println("PASS: WebSocketFrame.isClose works");
+    }
+    let ping: WebSocketFrame = new WebSocketFrame(0x9, "");
+    if (!ping.isPing()) {
+        io::println("FAIL: WebSocketFrame.isPing should be true for opcode 0x9");
+    } else {
+        io::println("PASS: WebSocketFrame.isPing works");
+    }
+    let pong: WebSocketFrame = new WebSocketFrame(0xA, "");
+    if (!pong.isPong()) {
+        io::println("FAIL: WebSocketFrame.isPong should be true for opcode 0xA");
+    } else {
+        io::println("PASS: WebSocketFrame.isPong works");
+    }
+}
+
+public fn test_websocketframe_defaults(): void {
+    let frame: WebSocketFrame = new WebSocketFrame(0x1, "x");
+    if (!frame.fin) {
+        io::println("FAIL: WebSocketFrame.fin should default to true");
+    } else {
+        io::println("PASS: WebSocketFrame.fin defaults to true");
+    }
+    if (frame.masked) {
+        io::println("FAIL: WebSocketFrame.masked should default to false");
+    } else {
+        io::println("PASS: WebSocketFrame.masked defaults to false");
+    }
+}
+
+public fn test_websocketframe_toString(): void {
+    let frame: WebSocketFrame = new WebSocketFrame(0x1, "hi");
+    let s: string = frame.toString();
+    if (String.indexOf(s, "0x1") >= 0 || String.indexOf(s, "1") < 0 || String.indexOf(s, "hi") < 0) {
+        // toString uses Integer.toString(opcode) so "1" should appear
+        if (String.indexOf(s, "hi") < 0) {
+            io::println("FAIL: WebSocketFrame.toString missing payload = " + s);
+        } else {
+            io::println("PASS: WebSocketFrame.toString contains payload");
+        }
+    } else {
+        io::println("PASS: WebSocketFrame.toString contains opcode and payload");
+    }
+}
+
+public fn test_buildFrame_small_payload(): void {
+    let frame: WebSocketFrame = new WebSocketFrame(0x1, "abc");
+    frame.fin = true;
+    frame.masked = false;
+    let bytes: string = buildFrame(frame);
+    if (String.length(bytes) < 2) {
+        io::println("FAIL: buildFrame produced too few bytes");
+    } else {
+        // First byte: FIN bit set + opcode 0x1 = 0x81
+        let first: int = String.charAt(bytes, 0) as int;
+        let second: int = String.charAt(bytes, 1) as int;
+        if (first != 0x81) {
+            io::println("FAIL: buildFrame first byte = " + Integer.toString(first) + ", expected 129");
+        } else if (second != 3) {
+            io::println("FAIL: buildFrame second byte = " + Integer.toString(second) + ", expected 3");
+        } else {
+            io::println("PASS: buildFrame small payload header correct");
+        }
+    }
+}
+
+public fn test_parseFrame_short_input_returns_null(): void {
+    let result: WebSocketFrame = parseFrame("a");
+    if (result != null) {
+        io::println("FAIL: parseFrame should return null for short input");
+    } else {
+        io::println("PASS: parseFrame returns null for short input");
+    }
+}
+
+public fn test_websocketclient_init(): void {
+    let client: WebSocketClient = new WebSocketClient("wss://example.com/ws");
+    if (client.url != "wss://example.com/ws") {
+        io::println("FAIL: WebSocketClient.url = " + client.url);
+    } else {
+        io::println("PASS: WebSocketClient.url works");
+    }
+    if (client.isConnected()) {
+        io::println("FAIL: WebSocketClient.isConnected should be false on init");
+    } else {
+        io::println("PASS: WebSocketClient.isConnected false on init");
+    }
+}
+
+public fn test_websocketclient_send_when_disconnected(): void {
+    let client: WebSocketClient = new WebSocketClient("wss://example.com/ws");
+    // send/sendBinary/ping should be no-ops when not connected (no throw)
+    client.send("hello");
+    client.sendBinary("data");
+    client.ping();
+    io::println("PASS: WebSocketClient send methods are no-ops when disconnected");
+}
+
+public fn run_all_websocket_tests(): void {
+    io::println("=== WebSocket.tr Tests ===");
+    test_websocketframe_text();
+    test_websocketframe_binary();
+    test_websocketframe_close_ping_pong();
+    test_websocketframe_defaults();
+    test_websocketframe_toString();
+    test_buildFrame_small_payload();
+    test_parseFrame_short_input_returns_null();
+    test_websocketclient_init();
+    test_websocketclient_send_when_disconnected();
+}
