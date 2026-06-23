@@ -1,0 +1,101 @@
+// Test file for StringWriter.tr
+// Exercises the public API of StringWriter: write, writeLine, flush, close,
+// toString, clear, and size.
+import tt::io::StringWriter;
+import tt::lang::Integer;
+
+public fn test_stringwriter_write(): void {
+    let w: StringWriter = new StringWriter();
+    w.write("hello");
+    if (w.toString() != "hello") {
+        io::println("FAIL: StringWriter.write toString = '" + w.toString() + "'");
+    } else {
+        io::println("PASS: StringWriter.write accumulates text");
+    }
+    w.close();
+}
+
+public fn test_stringwriter_writeLine(): void {
+    let w: StringWriter = new StringWriter();
+    w.writeLine("a");
+    w.writeLine("b");
+    if (w.toString() != "a\nb\n") {
+        io::println("FAIL: StringWriter.writeLine = '" + w.toString() + "'");
+    } else {
+        io::println("PASS: StringWriter.writeLine appends newlines");
+    }
+    w.close();
+}
+
+public fn test_stringwriter_mixed(): void {
+    let w: StringWriter = new StringWriter();
+    w.write("x");
+    w.writeLine("y");
+    w.write("z");
+    if (w.toString() != "xy\nz") {
+        io::println("FAIL: StringWriter mixed = '" + w.toString() + "'");
+    } else {
+        io::println("PASS: StringWriter mixed write/writeLine works");
+    }
+    w.close();
+}
+
+public fn test_stringwriter_size(): void {
+    let w: StringWriter = new StringWriter();
+    w.write("abc");
+    if (w.size() != 3) {
+        io::println("FAIL: StringWriter.size = " + Integer.toString(w.size()));
+    } else {
+        io::println("PASS: StringWriter.size returns char count");
+    }
+    w.close();
+}
+
+public fn test_stringwriter_clear(): void {
+    let w: StringWriter = new StringWriter();
+    w.write("data");
+    w.clear();
+    if (w.size() != 0 || w.toString() != "") {
+        io::println("FAIL: StringWriter.clear size=" + Integer.toString(w.size()));
+    } else {
+        io::println("PASS: StringWriter.clear resets buffer");
+    }
+    w.close();
+}
+
+public fn test_stringwriter_flush_close_noop(): void {
+    let w: StringWriter = new StringWriter();
+    w.write("x");
+    w.flush();
+    w.close();
+    // After close the buffer should still be readable (no-ops).
+    if (w.toString() != "x") {
+        io::println("FAIL: StringWriter after flush/close = '" + w.toString() + "'");
+    } else {
+        io::println("PASS: StringWriter flush/close are no-ops");
+    }
+}
+
+public fn test_stringwriter_multiple_writes(): void {
+    let w: StringWriter = new StringWriter();
+    w.write("one ");
+    w.write("two ");
+    w.write("three");
+    if (w.toString() != "one two three") {
+        io::println("FAIL: StringWriter multiple writes = '" + w.toString() + "'");
+    } else {
+        io::println("PASS: StringWriter multiple writes concatenate");
+    }
+    w.close();
+}
+
+public fn run_all_stringwriter_tests(): void {
+    io::println("=== StringWriter.tr Tests ===");
+    test_stringwriter_write();
+    test_stringwriter_writeLine();
+    test_stringwriter_mixed();
+    test_stringwriter_size();
+    test_stringwriter_clear();
+    test_stringwriter_flush_close_noop();
+    test_stringwriter_multiple_writes();
+}
