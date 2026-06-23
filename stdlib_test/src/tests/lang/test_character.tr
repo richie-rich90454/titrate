@@ -1,0 +1,143 @@
+// Test file for Character.tr
+// Exercises the public API of the Character module.
+import tt::lang::Character;
+
+public fn test_character_toString(): void {
+    let s: string = Character.toString('a');
+    if (s != "a") {
+        io::println("FAIL: Character.toString('a') = " + s);
+    } else {
+        io::println("PASS: Character.toString('a') = a");
+    }
+}
+
+public fn test_character_isDigit_true(): void {
+    if (!Character.isDigit('5')) {
+        io::println("FAIL: Character.isDigit('5') = false");
+    } else {
+        io::println("PASS: Character.isDigit('5') = true");
+    }
+}
+
+public fn test_character_isDigit_false(): void {
+    if (Character.isDigit('a')) {
+        io::println("FAIL: Character.isDigit('a') = true");
+    } else {
+        io::println("PASS: Character.isDigit('a') = false");
+    }
+}
+
+public fn test_character_isLetter_true(): void {
+    if (!Character.isLetter('a') || !Character.isLetter('Z')) {
+        io::println("FAIL: Character.isLetter");
+    } else {
+        io::println("PASS: Character.isLetter");
+    }
+}
+
+public fn test_character_isLetter_false(): void {
+    if (Character.isLetter('1') || Character.isLetter(' ')) {
+        io::println("FAIL: Character.isLetter false");
+    } else {
+        io::println("PASS: Character.isLetter false");
+    }
+}
+
+public fn test_character_isWhitespace(): void {
+    if (!Character.isWhitespace(' ') || !Character.isWhitespace('\t') || !Character.isWhitespace('\n') || Character.isWhitespace('a')) {
+        io::println("FAIL: Character.isWhitespace");
+    } else {
+        io::println("PASS: Character.isWhitespace");
+    }
+}
+
+public fn test_character_isUpperCase(): void {
+    if (!Character.isUpperCase('A') || Character.isUpperCase('a')) {
+        io::println("FAIL: Character.isUpperCase");
+    } else {
+        io::println("PASS: Character.isUpperCase");
+    }
+}
+
+public fn test_character_isLowerCase(): void {
+    if (!Character.isLowerCase('a') || Character.isLowerCase('A')) {
+        io::println("FAIL: Character.isLowerCase");
+    } else {
+        io::println("PASS: Character.isLowerCase");
+    }
+}
+
+public fn test_character_toUpperCase(): void {
+    if (Character.toUpperCase('a') != 'A' || Character.toUpperCase('A') != 'A') {
+        io::println("FAIL: Character.toUpperCase");
+    } else {
+        io::println("PASS: Character.toUpperCase");
+    }
+}
+
+public fn test_character_toLowerCase(): void {
+    if (Character.toLowerCase('A') != 'a' || Character.toLowerCase('a') != 'a') {
+        io::println("FAIL: Character.toLowerCase");
+    } else {
+        io::println("PASS: Character.toLowerCase");
+    }
+}
+
+public fn test_character_getNumericValue_digit(): void {
+    if (Character.getNumericValue('5') != 5) {
+        io::println("FAIL: Character.getNumericValue('5')");
+    } else {
+        io::println("PASS: Character.getNumericValue('5') = 5");
+    }
+}
+
+public fn test_character_getNumericValue_letter(): void {
+    if (Character.getNumericValue('A') != 10 || Character.getNumericValue('a') != 10) {
+        io::println("FAIL: Character.getNumericValue('A')");
+    } else {
+        io::println("PASS: Character.getNumericValue('A') = 10");
+    }
+}
+
+public fn test_character_getNumericValue_invalid(): void {
+    if (Character.getNumericValue('!') != -1) {
+        io::println("FAIL: Character.getNumericValue('!')");
+    } else {
+        io::println("PASS: Character.getNumericValue('!') = -1");
+    }
+}
+
+public fn test_character_isAlphabetic(): void {
+    if (!Character.isAlphabetic('a') || !Character.isAlphabetic('Z') || Character.isAlphabetic('1')) {
+        io::println("FAIL: Character.isAlphabetic");
+    } else {
+        io::println("PASS: Character.isAlphabetic");
+    }
+}
+
+public fn test_character_isISOControl(): void {
+    if (!Character.isISOControl('\n') || !Character.isISOControl('\t') || Character.isISOControl('a')) {
+        io::println("FAIL: Character.isISOControl");
+    } else {
+        io::println("PASS: Character.isISOControl");
+    }
+}
+
+public fn run_all_character_tests(): void {
+    io::println("=== Character.tr Tests ===");
+    test_character_toString();
+    test_character_isDigit_true();
+    test_character_isDigit_false();
+    test_character_isLetter_true();
+    test_character_isLetter_false();
+    test_character_isWhitespace();
+    test_character_isUpperCase();
+    test_character_isLowerCase();
+    test_character_toUpperCase();
+    test_character_toLowerCase();
+    test_character_getNumericValue_digit();
+    test_character_getNumericValue_letter();
+    test_character_getNumericValue_invalid();
+    test_character_isAlphabetic();
+    test_character_isISOControl();
+}
