@@ -1,0 +1,321 @@
+// Test file for Os.tr
+// Exercises the public API of the Os module: environment access, process
+// info, working directory, directory listing/creation/removal, file status,
+// path separators, scandir, walk, and related helpers.
+import tt::sys::Os;
+import tt::io::File;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_os_getEnv_setEnv(): void {
+    Os.setEnv("TT_TEST_VAR", "abc123");
+    let val: string = Os.getEnv("TT_TEST_VAR");
+    if (val != "abc123") {
+        io::println("FAIL: Os.getEnv = '" + val + "'");
+    } else {
+        io::println("PASS: Os.setEnv/getEnv round-trip");
+    }
+    Os.unsetEnv("TT_TEST_VAR");
+}
+
+public fn test_os_getEnv_missing(): void {
+    let val: string = Os.getEnv("TT_DEFINITELY_MISSING_VAR_xyz");
+    if (val != null && val != "") {
+        io::println("FAIL: Os.getEnv missing returned '" + val + "'");
+    } else {
+        io::println("PASS: Os.getEnv returns null/empty for missing var");
+    }
+}
+
+public fn test_os_cpuCount(): void {
+    let count: int = Os.cpuCount();
+    if (count < 1) {
+        io::println("FAIL: Os.cpuCount = " + Integer.toString(count));
+    } else {
+        io::println("PASS: Os.cpuCount >= 1");
+    }
+}
+
+public fn test_os_pid(): void {
+    let pid: int = Os.pid();
+    if (pid <= 0) {
+        io::println("FAIL: Os.pid = " + Integer.toString(pid));
+    } else {
+        io::println("PASS: Os.pid returns positive id");
+    }
+}
+
+public fn test_os_getpid(): void {
+    let pid: int = Os.getpid();
+    if (pid <= 0) {
+        io::println("FAIL: Os.getpid = " + Integer.toString(pid));
+    } else {
+        io::println("PASS: Os.getpid returns positive id");
+    }
+}
+
+public fn test_os_userName(): void {
+    let name: string = Os.userName();
+    if (name == null || name == "") {
+        io::println("FAIL: Os.userName empty");
+    } else {
+        io::println("PASS: Os.userName returns a value");
+    }
+}
+
+public fn test_os_hostName(): void {
+    let name: string = Os.hostName();
+    if (name == null || name == "") {
+        io::println("FAIL: Os.hostName empty");
+    } else {
+        io::println("PASS: Os.hostName returns a value");
+    }
+}
+
+public fn test_os_urandom(): void {
+    let bytes: string = Os.urandom(8);
+    if (bytes == null || bytes == "") {
+        io::println("FAIL: Os.urandom returned empty");
+    } else {
+        io::println("PASS: Os.urandom returns random bytes");
+    }
+}
+
+public fn test_os_workingDir_getcwd(): void {
+    let wd: string = Os.workingDir();
+    let cwd: string = Os.getcwd();
+    if (wd == "" || wd == null) {
+        io::println("FAIL: Os.workingDir empty");
+    } else if (wd != cwd) {
+        io::println("FAIL: Os.workingDir != Os.getcwd");
+    } else {
+        io::println("PASS: Os.workingDir matches getcwd");
+    }
+}
+
+public fn test_os_mkdir_remove(): void {
+    let dir: string = "test_os_mkdir";
+    let r = Os.mkdir(dir);
+    if (r.isErr()) {
+        io::println("FAIL: Os.mkdir returned error");
+    } else if (!Os.exists(dir)) {
+        io::println("FAIL: Os.mkdir did not create directory");
+    } else {
+        io::println("PASS: Os.mkdir creates directory");
+    }
+    let rr = Os.remove(dir);
+    if (rr.isErr()) {
+        io::println("FAIL: Os.remove returned error");
+    } else {
+        io::println("PASS: Os.remove deletes directory");
+    }
+}
+
+public fn test_os_exists(): void {
+    let path: string = "test_os_exists.txt";
+    let f: File = new File(path);
+    f.write("x");
+    if (!Os.exists(path)) {
+        io::println("FAIL: Os.exists false for existing file");
+    } else {
+        io::println("PASS: Os.exists true for existing file");
+    }
+    f.delete();
+    if (Os.exists(path)) {
+        io::println("FAIL: Os.exists true after delete");
+    } else {
+        io::println("PASS: Os.exists false after delete");
+    }
+}
+
+public fn test_os_listDir(): void {
+    let dir: string = "test_os_listdir";
+    Dir_create(dir);
+    let f: File = new File(dir + "/a.txt");
+    f.write("a");
+    f.close();
+    let entries: ArrayList<string> = Os.listDir(dir);
+    if (entries.size() != 1) {
+        io::println("FAIL: Os.listDir size=" + Integer.toString(entries.size()));
+    } else {
+        io::println("PASS: Os.listDir returns entries");
+    }
+    f.delete();
+    Dir_remove(dir);
+}
+
+public fn test_os_rename(): void {
+    let src: string = "test_os_rename_src.txt";
+    let dst: string = "test_os_rename_dst.txt";
+    let f: File = new File(src);
+    f.write("rename");
+    let r = Os.rename(src, dst);
+    if (r.isErr()) {
+        io::println("FAIL: Os.rename returned error");
+    } else {
+        let d: File = new File(dst);
+        if (!d.exists()) {
+            io::println("FAIL: Os.rename destination missing");
+        } else {
+            io::println("PASS: Os.rename moves file");
+        }
+        d.delete();
+    }
+}
+
+public fn test_os_access_exists(): void {
+    let path: string = "test_os_access.txt";
+    let f: File = new File(path);
+    f.write("x");
+    // mode 1 = exists
+    if (!Os.access(path, 1)) {
+        io::println("FAIL: Os.access mode 1 false for existing file");
+    } else {
+        io::println("PASS: Os.access mode 1 true for existing file");
+    }
+    f.delete();
+}
+
+public fn test_os_stat(): void {
+    let path: string = "test_os_stat.txt";
+    let f: File = new File(path);
+    f.write("stat");
+    let r = Os.stat(path);
+    if (r.isErr()) {
+        io::println("FAIL: Os.stat returned error");
+    } else {
+        let info: HashMap<string, int> = r.unwrap();
+        if (info.get("size") != 4) {
+            io::println("FAIL: Os.stat size=" + Integer.toString(info.get("size")));
+        } else {
+            io::println("PASS: Os.stat returns file info");
+        }
+    }
+    f.delete();
+}
+
+public fn test_os_getFileSize(): void {
+    let path: string = "test_os_gfs.txt";
+    let f: File = new File(path);
+    f.write("12345");
+    let sz: int = Os.getFileSize(path);
+    if (sz != 5) {
+        io::println("FAIL: Os.getFileSize = " + Integer.toString(sz));
+    } else {
+        io::println("PASS: Os.getFileSize returns byte count");
+    }
+    f.delete();
+}
+
+public fn test_os_pathSeparator(): void {
+    let sep: string = Os.pathSeparator();
+    if (sep == "" || sep == null) {
+        io::println("FAIL: Os.pathSeparator empty");
+    } else {
+        io::println("PASS: Os.pathSeparator returns a value");
+    }
+}
+
+public fn test_os_separator(): void {
+    let sep: string = Os.separator();
+    if (sep == "" || sep == null) {
+        io::println("FAIL: Os.separator empty");
+    } else {
+        io::println("PASS: Os.separator returns a value");
+    }
+}
+
+public fn test_os_linesep(): void {
+    let sep: string = Os.linesep();
+    if (sep == "" || sep == null) {
+        io::println("FAIL: Os.linesep empty");
+    } else {
+        io::println("PASS: Os.linesep returns a value");
+    }
+}
+
+public fn test_os_devNull(): void {
+    let dn: string = Os.devNull();
+    if (dn == "" || dn == null) {
+        io::println("FAIL: Os.devNull empty");
+    } else {
+        io::println("PASS: Os.devNull returns a value");
+    }
+}
+
+public fn test_os_environ(): void {
+    let env: string = Os.environ();
+    if (env == "" || env == null) {
+        io::println("FAIL: Os.environ empty");
+    } else {
+        io::println("PASS: Os.environ returns environment string");
+    }
+}
+
+public fn test_os_environMap(): void {
+    let map: HashMap<string, string> = Os.environMap();
+    if (map.size() <= 0) {
+        io::println("FAIL: Os.environMap empty");
+    } else {
+        io::println("PASS: Os.environMap returns entries");
+    }
+}
+
+public fn test_os_scandir(): void {
+    let dir: string = "test_os_scandir";
+    Dir_create(dir);
+    let f: File = new File(dir + "/x.txt");
+    f.write("x");
+    f.close();
+    let entries: ArrayList<Os.DirEntry> = Os.scandir(dir);
+    if (entries.size() != 1) {
+        io::println("FAIL: Os.scandir size=" + Integer.toString(entries.size()));
+    } else {
+        io::println("PASS: Os.scandir returns DirEntry list");
+    }
+    f.delete();
+    Dir_remove(dir);
+}
+
+public fn test_os_strerror(): void {
+    let msg: string = Os.strerror(0);
+    // strerror may return empty on some platforms; just verify it runs.
+    io::println("PASS: Os.strerror executes without error");
+}
+
+public fn test_os_uname(): void {
+    let name: string = Os.uname();
+    // uname may return empty on some platforms; just verify it runs.
+    io::println("PASS: Os.uname executes without error");
+}
+
+public fn run_all_os_tests(): void {
+    io::println("=== Os.tr Tests ===");
+    test_os_getEnv_setEnv();
+    test_os_getEnv_missing();
+    test_os_cpuCount();
+    test_os_pid();
+    test_os_getpid();
+    test_os_userName();
+    test_os_hostName();
+    test_os_urandom();
+    test_os_workingDir_getcwd();
+    test_os_mkdir_remove();
+    test_os_exists();
+    test_os_listDir();
+    test_os_rename();
+    test_os_access_exists();
+    test_os_stat();
+    test_os_getFileSize();
+    test_os_pathSeparator();
+    test_os_separator();
+    test_os_linesep();
+    test_os_devNull();
+    test_os_environ();
+    test_os_environMap();
+    test_os_scandir();
+    test_os_strerror();
+    test_os_uname();
+}
