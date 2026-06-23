@@ -1,0 +1,466 @@
+import tt::util::ArrayList;
+import tt::math::special::Special;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn test_beta(): void {
+    // B(1,1) = gamma(1)*gamma(1)/gamma(2) = 1*1/1 = 1
+    let v: double = Special.beta(1.0, 1.0);
+    if (approxEq(v, 1.0, 1e-9)) {
+        io::println("PASS test_beta: B(1,1) = 1");
+    } else {
+        io::println("FAIL test_beta: expected 1.0, got " + Double.toString(v));
+    }
+}
+
+fn test_beta_symmetric(): void {
+    // B(a,b) = B(b,a)
+    let v1: double = Special.beta(2.0, 3.0);
+    let v2: double = Special.beta(3.0, 2.0);
+    if (approxEq(v1, v2, 1e-9)) {
+        io::println("PASS test_beta_symmetric: B(2,3) == B(3,2)");
+    } else {
+        io::println("FAIL test_beta_symmetric: " + Double.toString(v1) + " != " + Double.toString(v2));
+    }
+}
+
+fn test_betaIncomplete_bounds(): void {
+    // I_0(a,b) = 0, I_1(a,b) = 1
+    let v0: double = Special.betaIncomplete(2.0, 3.0, 0.0);
+    let v1: double = Special.betaIncomplete(2.0, 3.0, 1.0);
+    if (approxEq(v0, 0.0, 1e-9) && approxEq(v1, 1.0, 1e-9)) {
+        io::println("PASS test_betaIncomplete_bounds: I_0=0, I_1=1");
+    } else {
+        io::println("FAIL test_betaIncomplete_bounds: v0=" + Double.toString(v0) + " v1=" + Double.toString(v1));
+    }
+}
+
+fn test_zeta(): void {
+    // zeta(2) = pi^2/6 ~ 1.6449
+    let v: double = Special.zeta(2.0);
+    let expected: double = Math.PI() * Math.PI() / 6.0;
+    if (approxEq(v, expected, 1e-6)) {
+        io::println("PASS test_zeta: zeta(2) = pi^2/6");
+    } else {
+        io::println("FAIL test_zeta: expected " + Double.toString(expected) + ", got " + Double.toString(v));
+    }
+}
+
+fn test_zeta_one(): void {
+    // zeta(1) = infinity
+    let v: double = Special.zeta(1.0);
+    if (v == Math.INF() || v > 1e10) {
+        io::println("PASS test_zeta_one: zeta(1) is infinite");
+    } else {
+        io::println("FAIL test_zeta_one: expected inf, got " + Double.toString(v));
+    }
+}
+
+fn test_zetaPartial(): void {
+    // sum 1/k^2 for k=1..2 = 1 + 1/4 = 1.25
+    let v: double = Special.zetaPartial(2.0, 2);
+    if (approxEq(v, 1.25, 1e-9)) {
+        io::println("PASS test_zetaPartial: partial zeta(2, n=2) = 1.25");
+    } else {
+        io::println("FAIL test_zetaPartial: expected 1.25, got " + Double.toString(v));
+    }
+}
+
+fn test_digamma(): void {
+    // digamma(1) = -gamma (Euler-Mascheroni) ~ -0.5772
+    let v: double = Special.digamma(1.0);
+    let expected: double = -0.5772156649015329;
+    if (approxEq(v, expected, 1e-6)) {
+        io::println("PASS test_digamma: digamma(1) = -gamma");
+    } else {
+        io::println("FAIL test_digamma: expected " + Double.toString(expected) + ", got " + Double.toString(v));
+    }
+}
+
+fn test_trigamma(): void {
+    // trigamma(1) = pi^2/6 ~ 1.6449
+    let v: double = Special.trigamma(1.0);
+    let expected: double = Math.PI() * Math.PI() / 6.0;
+    if (approxEq(v, expected, 1e-5)) {
+        io::println("PASS test_trigamma: trigamma(1) = pi^2/6");
+    } else {
+        io::println("FAIL test_trigamma: expected " + Double.toString(expected) + ", got " + Double.toString(v));
+    }
+}
+
+fn test_polygamma(): void {
+    // polygamma(0, x) = digamma(x); polygamma(1, x) = trigamma(x)
+    let v0: double = Special.polygamma(0, 1.0);
+    let v1: double = Special.polygamma(1, 1.0);
+    let d0: double = Special.digamma(1.0);
+    let d1: double = Special.trigamma(1.0);
+    if (approxEq(v0, d0, 1e-6) && approxEq(v1, d1, 1e-5)) {
+        io::println("PASS test_polygamma: polygamma(0,x)=digamma, polygamma(1,x)=trigamma");
+    } else {
+        io::println("FAIL test_polygamma: mismatch");
+    }
+}
+
+fn test_sigmoid(): void {
+    // sigmoid(0) = 0.5
+    let v: double = Special.sigmoid(0.0);
+    if (approxEq(v, 0.5, 1e-12)) {
+        io::println("PASS test_sigmoid: sigmoid(0) = 0.5");
+    } else {
+        io::println("FAIL test_sigmoid: expected 0.5, got " + Double.toString(v));
+    }
+}
+
+fn test_sigmoid_bounds(): void {
+    // sigmoid(large positive) -> 1, sigmoid(large negative) -> 0
+    let v1: double = Special.sigmoid(100.0);
+    let v2: double = Special.sigmoid(-100.0);
+    if (approxEq(v1, 1.0, 1e-9) && approxEq(v2, 0.0, 1e-9)) {
+        io::println("PASS test_sigmoid_bounds: sigmoid saturates at 0 and 1");
+    } else {
+        io::println("FAIL test_sigmoid_bounds: v1=" + Double.toString(v1) + " v2=" + Double.toString(v2));
+    }
+}
+
+fn test_relu(): void {
+    if (Special.relu(5.0) == 5.0 && Special.relu(-3.0) == 0.0 && Special.relu(0.0) == 0.0) {
+        io::println("PASS test_relu: max(0, x) behavior");
+    } else {
+        io::println("FAIL test_relu: incorrect ReLU");
+    }
+}
+
+fn test_leakyRelu(): void {
+    // leakyRelu(-2, 0.1) = -0.2
+    let v: double = Special.leakyRelu(-2.0, 0.1);
+    if (approxEq(v, -0.2, 1e-12)) {
+        io::println("PASS test_leakyRelu: leakyRelu(-2, 0.1) = -0.2");
+    } else {
+        io::println("FAIL test_leakyRelu: expected -0.2, got " + Double.toString(v));
+    }
+}
+
+fn test_swish(): void {
+    // swish(0) = 0 * sigmoid(0) = 0
+    let v: double = Special.swish(0.0);
+    if (approxEq(v, 0.0, 1e-12)) {
+        io::println("PASS test_swish: swish(0) = 0");
+    } else {
+        io::println("FAIL test_swish: expected 0.0, got " + Double.toString(v));
+    }
+}
+
+fn test_softmax(): void {
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(1.0); xs.add(2.0); xs.add(3.0);
+    let sm: ArrayList<double> = Special.softmax(xs);
+    var sum: double = 0.0;
+    let i: int = 0;
+    while (i < sm.size()) {
+        sum = sum + sm.get(i);
+        i = i + 1;
+    }
+    if (approxEq(sum, 1.0, 1e-9)) {
+        io::println("PASS test_softmax: softmax outputs sum to 1");
+    } else {
+        io::println("FAIL test_softmax: sum=" + Double.toString(sum));
+    }
+}
+
+fn test_softmax_empty(): void {
+    let xs: ArrayList<double> = new ArrayList<double>();
+    let sm: ArrayList<double> = Special.softmax(xs);
+    if (sm.size() == 0) {
+        io::println("PASS test_softmax_empty: empty input returns empty");
+    } else {
+        io::println("FAIL test_softmax_empty: expected size 0, got " + Integer.toString(sm.size()));
+    }
+}
+
+fn test_logSumExp(): void {
+    // logSumExp([0, 0]) = log(2) ~ 0.693
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0); xs.add(0.0);
+    let v: double = Special.logSumExp(xs);
+    let expected: double = MathAdvanced.ln(2.0);
+    if (approxEq(v, expected, 1e-9)) {
+        io::println("PASS test_logSumExp: logSumExp([0,0]) = ln(2)");
+    } else {
+        io::println("FAIL test_logSumExp: expected " + Double.toString(expected) + ", got " + Double.toString(v));
+    }
+}
+
+fn test_geometricSumInfinite(): void {
+    // a/(1-r) for a=1, r=0.5 = 2
+    let v: double = Special.geometricSumInfinite(1.0, 0.5);
+    if (approxEq(v, 2.0, 1e-9)) {
+        io::println("PASS test_geometricSumInfinite: 1/(1-0.5) = 2");
+    } else {
+        io::println("FAIL test_geometricSumInfinite: expected 2.0, got " + Double.toString(v));
+    }
+}
+
+fn test_geometricSumInfinite_diverge(): void {
+    // |r| >= 1 -> inf
+    let v: double = Special.geometricSumInfinite(1.0, 1.5);
+    if (v == Math.INF()) {
+        io::println("PASS test_geometricSumInfinite_diverge: |r|>=1 returns inf");
+    } else {
+        io::println("FAIL test_geometricSumInfinite_diverge: expected inf, got " + Double.toString(v));
+    }
+}
+
+fn test_dirichletEta(): void {
+    // eta(1) = ln(2)
+    let v: double = Special.dirichletEta(1.0);
+    let expected: double = MathAdvanced.ln(2.0);
+    if (approxEq(v, expected, 1e-9)) {
+        io::println("PASS test_dirichletEta: eta(1) = ln(2)");
+    } else {
+        io::println("FAIL test_dirichletEta: expected " + Double.toString(expected) + ", got " + Double.toString(v));
+    }
+}
+
+fn test_logBeta(): void {
+    // logBeta(a,b) = lgamma(a) + lgamma(b) - lgamma(a+b)
+    let v: double = Special.logBeta(2.0, 3.0);
+    let expected: double = Math.lgamma(2.0) + Math.lgamma(3.0) - Math.lgamma(5.0);
+    if (approxEq(v, expected, 1e-9)) {
+        io::println("PASS test_logBeta: logBeta(2,3) matches lgamma formula");
+    } else {
+        io::println("FAIL test_logBeta: expected " + Double.toString(expected) + ", got " + Double.toString(v));
+    }
+}
+
+fn test_ellipticK(): void {
+    // K(0) = pi/2
+    let v: double = Special.ellipticK(0.0);
+    let expected: double = Math.PI() / 2.0;
+    if (approxEq(v, expected, 1e-9)) {
+        io::println("PASS test_ellipticK: K(0) = pi/2");
+    } else {
+        io::println("FAIL test_ellipticK: expected " + Double.toString(expected) + ", got " + Double.toString(v));
+    }
+}
+
+fn test_ellipticE(): void {
+    // E(0) = pi/2, E(1) = 1
+    let v0: double = Special.ellipticE(0.0);
+    let v1: double = Special.ellipticE(1.0);
+    if (approxEq(v0, Math.PI() / 2.0, 1e-9) && approxEq(v1, 1.0, 1e-9)) {
+        io::println("PASS test_ellipticE: E(0)=pi/2, E(1)=1");
+    } else {
+        io::println("FAIL test_ellipticE: v0=" + Double.toString(v0) + " v1=" + Double.toString(v1));
+    }
+}
+
+fn test_legendreP(): void {
+    // P_0(x) = 1, P_1(x) = x, P_2(x) = (3x^2-1)/2
+    let p0: double = Special.legendreP(0, 0.5);
+    let p1: double = Special.legendreP(1, 0.5);
+    let p2: double = Special.legendreP(2, 0.5);
+    if (approxEq(p0, 1.0, 1e-12) && approxEq(p1, 0.5, 1e-12) && approxEq(p2, -0.125, 1e-12)) {
+        io::println("PASS test_legendreP: P_0=1, P_1=x, P_2=(3x^2-1)/2 at x=0.5");
+    } else {
+        io::println("FAIL test_legendreP: p0=" + Double.toString(p0) + " p1=" + Double.toString(p1) + " p2=" + Double.toString(p2));
+    }
+}
+
+fn test_chebyshevT(): void {
+    // T_0(x) = 1, T_1(x) = x, T_2(x) = 2x^2 - 1
+    let t0: double = Special.chebyshevT(0, 0.5);
+    let t1: double = Special.chebyshevT(1, 0.5);
+    let t2: double = Special.chebyshevT(2, 0.5);
+    if (approxEq(t0, 1.0, 1e-12) && approxEq(t1, 0.5, 1e-12) && approxEq(t2, -0.5, 1e-12)) {
+        io::println("PASS test_chebyshevT: T_0=1, T_1=x, T_2=2x^2-1 at x=0.5");
+    } else {
+        io::println("FAIL test_chebyshevT: t0=" + Double.toString(t0) + " t1=" + Double.toString(t1) + " t2=" + Double.toString(t2));
+    }
+}
+
+fn test_chebyshevU(): void {
+    // U_0(x) = 1, U_1(x) = 2x, U_2(x) = 4x^2 - 1
+    let u0: double = Special.chebyshevU(0, 0.5);
+    let u1: double = Special.chebyshevU(1, 0.5);
+    let u2: double = Special.chebyshevU(2, 0.5);
+    if (approxEq(u0, 1.0, 1e-12) && approxEq(u1, 1.0, 1e-12) && approxEq(u2, 0.0, 1e-12)) {
+        io::println("PASS test_chebyshevU: U_0=1, U_1=2x, U_2=4x^2-1 at x=0.5");
+    } else {
+        io::println("FAIL test_chebyshevU: u0=" + Double.toString(u0) + " u1=" + Double.toString(u1) + " u2=" + Double.toString(u2));
+    }
+}
+
+fn test_hermiteH(): void {
+    // H_0(x) = 1, H_1(x) = 2x, H_2(x) = 4x^2 - 2
+    let h0: double = Special.hermiteH(0, 0.5);
+    let h1: double = Special.hermiteH(1, 0.5);
+    let h2: double = Special.hermiteH(2, 0.5);
+    if (approxEq(h0, 1.0, 1e-12) && approxEq(h1, 1.0, 1e-12) && approxEq(h2, -1.0, 1e-12)) {
+        io::println("PASS test_hermiteH: H_0=1, H_1=2x, H_2=4x^2-2 at x=0.5");
+    } else {
+        io::println("FAIL test_hermiteH: h0=" + Double.toString(h0) + " h1=" + Double.toString(h1) + " h2=" + Double.toString(h2));
+    }
+}
+
+fn test_laguerreL(): void {
+    // L_0(x) = 1, L_1(x) = 1 - x
+    let l0: double = Special.laguerreL(0, 0.5);
+    let l1: double = Special.laguerreL(1, 0.5);
+    if (approxEq(l0, 1.0, 1e-12) && approxEq(l1, 0.5, 1e-12)) {
+        io::println("PASS test_laguerreL: L_0=1, L_1=1-x at x=0.5");
+    } else {
+        io::println("FAIL test_laguerreL: l0=" + Double.toString(l0) + " l1=" + Double.toString(l1));
+    }
+}
+
+fn test_besselI0(): void {
+    // I_0(0) = 1
+    let v: double = Special.besselI0(0.0);
+    if (approxEq(v, 1.0, 1e-12)) {
+        io::println("PASS test_besselI0: I_0(0) = 1");
+    } else {
+        io::println("FAIL test_besselI0: expected 1.0, got " + Double.toString(v));
+    }
+}
+
+fn test_besselI1(): void {
+    // I_1(0) = 0
+    let v: double = Special.besselI1(0.0);
+    if (approxEq(v, 0.0, 1e-12)) {
+        io::println("PASS test_besselI1: I_1(0) = 0");
+    } else {
+        io::println("FAIL test_besselI1: expected 0.0, got " + Double.toString(v));
+    }
+}
+
+fn test_airyAi_zero(): void {
+    // Ai(0) ~ 0.35502805
+    let v: double = Special.airyAi(0.0);
+    if (approxEq(v, 0.355028053887817, 1e-6)) {
+        io::println("PASS test_airyAi_zero: Ai(0) ~ 0.35502805");
+    } else {
+        io::println("FAIL test_airyAi_zero: expected 0.35502805, got " + Double.toString(v));
+    }
+}
+
+fn test_fresnel_zero(): void {
+    // S(0) = 0, C(0) = 0
+    let s: double = Special.fresnelS(0.0);
+    let c: double = Special.fresnelC(0.0);
+    if (approxEq(s, 0.0, 1e-12) && approxEq(c, 0.0, 1e-12)) {
+        io::println("PASS test_fresnel_zero: S(0)=0, C(0)=0");
+    } else {
+        io::println("FAIL test_fresnel_zero: s=" + Double.toString(s) + " c=" + Double.toString(c));
+    }
+}
+
+fn test_dawson_zero(): void {
+    let v: double = Special.dawson(0.0);
+    if (approxEq(v, 0.0, 1e-12)) {
+        io::println("PASS test_dawson_zero: F(0) = 0");
+    } else {
+        io::println("FAIL test_dawson_zero: expected 0.0, got " + Double.toString(v));
+    }
+}
+
+fn test_hypergeometric0F1(): void {
+    // 0F1(;b;0) = 1
+    let v: double = Special.hypergeometric0F1(1.0, 0.0);
+    if (approxEq(v, 1.0, 1e-12)) {
+        io::println("PASS test_hypergeometric0F1: 0F1(;b;0) = 1");
+    } else {
+        io::println("FAIL test_hypergeometric0F1: expected 1.0, got " + Double.toString(v));
+    }
+}
+
+fn test_hypergeometric1F1(): void {
+    // 1F1(a;b;0) = 1
+    let v: double = Special.hypergeometric1F1(1.0, 2.0, 0.0);
+    if (approxEq(v, 1.0, 1e-12)) {
+        io::println("PASS test_hypergeometric1F1: 1F1(a;b;0) = 1");
+    } else {
+        io::println("FAIL test_hypergeometric1F1: expected 1.0, got " + Double.toString(v));
+    }
+}
+
+fn test_hypergeometric2F1(): void {
+    // 2F1(a,b;c;0) = 1
+    let v: double = Special.hypergeometric2F1(1.0, 1.0, 2.0, 0.0);
+    if (approxEq(v, 1.0, 1e-12)) {
+        io::println("PASS test_hypergeometric2F1: 2F1(a,b;c;0) = 1");
+    } else {
+        io::println("FAIL test_hypergeometric2F1: expected 1.0, got " + Double.toString(v));
+    }
+}
+
+fn test_incompleteGamma_zero(): void {
+    // P(a, 0) = 0
+    let v: double = Special.incompleteGamma(2.0, 0.0);
+    if (approxEq(v, 0.0, 1e-12)) {
+        io::println("PASS test_incompleteGamma_zero: P(a, 0) = 0");
+    } else {
+        io::println("FAIL test_incompleteGamma_zero: expected 0.0, got " + Double.toString(v));
+    }
+}
+
+fn test_incompleteGammaUpper_zero(): void {
+    // Q(a, 0) = 1
+    let v: double = Special.incompleteGammaUpper(2.0, 0.0);
+    if (approxEq(v, 1.0, 1e-12)) {
+        io::println("PASS test_incompleteGammaUpper_zero: Q(a, 0) = 1");
+    } else {
+        io::println("FAIL test_incompleteGammaUpper_zero: expected 1.0, got " + Double.toString(v));
+    }
+}
+
+public fn run_all_special_tests(): void {
+    io::println("=== Special tests ===");
+    test_beta();
+    test_beta_symmetric();
+    test_betaIncomplete_bounds();
+    test_zeta();
+    test_zeta_one();
+    test_zetaPartial();
+    test_digamma();
+    test_trigamma();
+    test_polygamma();
+    test_sigmoid();
+    test_sigmoid_bounds();
+    test_relu();
+    test_leakyRelu();
+    test_swish();
+    test_softmax();
+    test_softmax_empty();
+    test_logSumExp();
+    test_geometricSumInfinite();
+    test_geometricSumInfinite_diverge();
+    test_dirichletEta();
+    test_logBeta();
+    test_ellipticK();
+    test_ellipticE();
+    test_legendreP();
+    test_chebyshevT();
+    test_chebyshevU();
+    test_hermiteH();
+    test_laguerreL();
+    test_besselI0();
+    test_besselI1();
+    test_airyAi_zero();
+    test_fresnel_zero();
+    test_dawson_zero();
+    test_hypergeometric0F1();
+    test_hypergeometric1F1();
+    test_hypergeometric2F1();
+    test_incompleteGamma_zero();
+    test_incompleteGammaUpper_zero();
+}
