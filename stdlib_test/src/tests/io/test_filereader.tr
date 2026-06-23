@@ -1,0 +1,111 @@
+// Test file for FileReader.tr
+// Exercises the public API of FileReader: read, readLine, readAll, close,
+// and the open() factory function.
+import tt::io::FileReader;
+import tt::io::File;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn _frWriteFile(path: string, content: string): void {
+    let f: File = new File(path);
+    f.write(content);
+    f.close();
+}
+
+public fn test_filereader_readLine(): void {
+    let path: string = "test_fr_readline.txt";
+    _frWriteFile(path, "alpha\nbeta");
+    let reader: FileReader = new FileReader(path);
+    let l1: string = reader.readLine();
+    let l2: string = reader.readLine();
+    if (l1 != "alpha" || l2 != "beta") {
+        io::println("FAIL: FileReader.readLine l1='" + l1 + "' l2='" + l2 + "'");
+    } else {
+        io::println("PASS: FileReader.readLine reads sequential lines");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_filereader_read(): void {
+    let path: string = "test_fr_read.txt";
+    _frWriteFile(path, "single");
+    let reader: FileReader = new FileReader(path);
+    let line: string = reader.read();
+    if (line != "single") {
+        io::println("FAIL: FileReader.read = '" + line + "'");
+    } else {
+        io::println("PASS: FileReader.read returns first line");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_filereader_readAll(): void {
+    let path: string = "test_fr_readall.txt";
+    _frWriteFile(path, "one\ntwo\nthree");
+    let reader: FileReader = new FileReader(path);
+    let content: string = reader.readAll();
+    if (content != "one\ntwo\nthree\n") {
+        io::println("FAIL: FileReader.readAll = '" + content + "'");
+    } else {
+        io::println("PASS: FileReader.readAll returns full content with newlines");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_filereader_close_idempotent(): void {
+    let path: string = "test_fr_close.txt";
+    _frWriteFile(path, "data");
+    let reader: FileReader = new FileReader(path);
+    reader.close();
+    // Calling close again should not throw.
+    reader.close();
+    io::println("PASS: FileReader.close is idempotent");
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_filereader_open_factory(): void {
+    let path: string = "test_fr_open.txt";
+    _frWriteFile(path, "factory");
+    let reader: FileReader = FileReader.open(path);
+    let line: string = reader.readLine();
+    if (line != "factory") {
+        io::println("FAIL: FileReader.open line='" + line + "'");
+    } else {
+        io::println("PASS: FileReader.open factory works");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_filereader_empty_file(): void {
+    let path: string = "test_fr_empty.txt";
+    _frWriteFile(path, "");
+    let reader: FileReader = new FileReader(path);
+    let content: string = reader.readAll();
+    if (content != "") {
+        io::println("FAIL: FileReader.readAll on empty = '" + content + "'");
+    } else {
+        io::println("PASS: FileReader.readAll on empty file returns empty string");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn run_all_filereader_tests(): void {
+    io::println("=== FileReader.tr Tests ===");
+    test_filereader_readLine();
+    test_filereader_read();
+    test_filereader_readAll();
+    test_filereader_close_idempotent();
+    test_filereader_open_factory();
+    test_filereader_empty_file();
+}
