@@ -1,0 +1,89 @@
+// Test file for bio/Alignment.tr
+// Exercises AlignmentResult, needlemanWunsch, smithWaterman alignment algorithms.
+import tt::bio::Alignment;
+import tt::lang::Integer;
+
+public fn test_alignment_result_construction(): void {
+    let ar: AlignmentResult = new AlignmentResult("ACGT", "ACGT", 10, 1.0);
+    if (ar.seq1Aligned != "ACGT" || ar.seq2Aligned != "ACGT") {
+        io::println("FAIL: AlignmentResult construction");
+    } else {
+        io::println("PASS: AlignmentResult construction works");
+    }
+    if (ar.score != 10) {
+        io::println("FAIL: AlignmentResult score");
+    } else {
+        io::println("PASS: AlignmentResult score = 10");
+    }
+}
+
+public fn test_needleman_wunsch_identical(): void {
+    let ar: AlignmentResult = Alignment.needlemanWunsch("ACGT", "ACGT", -1);
+    // Identical sequences should have high identity
+    if (ar.identity < 0.99) {
+        io::println("FAIL: needlemanWunsch identical identity expected ~1.0 got " + Double.toString(ar.identity));
+    } else {
+        io::println("PASS: needlemanWunsch identical identity = 1.0");
+    }
+}
+
+public fn test_needleman_wunsch_different(): void {
+    let ar: AlignmentResult = Alignment.needlemanWunsch("ACGT", "TGCA", -1);
+    // Different sequences should have lower identity
+    if (ar.identity > 0.99) {
+        io::println("FAIL: needlemanWunsch different identity should be < 1.0");
+    } else {
+        io::println("PASS: needlemanWunsch different identity < 1.0");
+    }
+}
+
+public fn test_needleman_wunsch_score(): void {
+    let ar: AlignmentResult = Alignment.needlemanWunsch("AAAA", "AAAA", -1);
+    // Identical sequences should have positive score
+    if (ar.score <= 0) {
+        io::println("FAIL: needlemanWunsch identical score should be positive");
+    } else {
+        io::println("PASS: needlemanWunsch identical score = " + Integer.toString(ar.score));
+    }
+}
+
+public fn test_smith_waterman_identical(): void {
+    let ar: AlignmentResult = Alignment.smithWaterman("ACGT", "ACGT", -1);
+    // Identical sequences should have high identity
+    if (ar.identity < 0.99) {
+        io::println("FAIL: smithWaterman identical identity expected ~1.0");
+    } else {
+        io::println("PASS: smithWaterman identical identity = 1.0");
+    }
+}
+
+public fn test_smith_waterman_partial_match(): void {
+    // "ACGT" and "TTACGTAA" share "ACGT"
+    let ar: AlignmentResult = Alignment.smithWaterman("ACGT", "TTACGTAA", -1);
+    // Should find a local alignment
+    if (ar.score <= 0) {
+        io::println("FAIL: smithWaterman partial match score should be positive");
+    } else {
+        io::println("PASS: smithWaterman partial match score = " + Integer.toString(ar.score));
+    }
+}
+
+public fn test_smith_waterman_affine(): void {
+    let ar: AlignmentResult = Alignment.smithWatermanAffine("ACGT", "ACGT", 5, 2, 1);
+    if (ar.identity < 0.99) {
+        io::println("FAIL: smithWatermanAffine identical identity expected ~1.0");
+    } else {
+        io::println("PASS: smithWatermanAffine identical identity = 1.0");
+    }
+}
+
+public fn run_all_alignment_tests(): void {
+    io::println("=== bio/Alignment.tr Tests ===");
+    test_alignment_result_construction();
+    test_needleman_wunsch_identical();
+    test_needleman_wunsch_different();
+    test_needleman_wunsch_score();
+    test_smith_waterman_identical();
+    test_smith_waterman_partial_match();
+    test_smith_waterman_affine();
+}
