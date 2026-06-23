@@ -1,0 +1,128 @@
+// Test file for Gc.tr
+// Exercises the public API of the Gc module: enable, disable, collect,
+// isEnabled, getStats, and resetStats.
+import tt::sys::Gc;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_gc_isEnabled_default(): void {
+    // GC should be enabled by default.
+    Gc.enable();
+    if (!Gc.isEnabled()) {
+        io::println("FAIL: Gc.isEnabled false after enable");
+    } else {
+        io::println("PASS: Gc.isEnabled true by default");
+    }
+}
+
+public fn test_gc_disable_enable(): void {
+    Gc.disable();
+    if (Gc.isEnabled()) {
+        io::println("FAIL: Gc.isEnabled true after disable");
+    } else {
+        io::println("PASS: Gc.isEnabled false after disable");
+    }
+    Gc.enable();
+    if (!Gc.isEnabled()) {
+        io::println("FAIL: Gc.isEnabled false after re-enable");
+    } else {
+        io::println("PASS: Gc.isEnabled true after re-enable");
+    }
+}
+
+public fn test_gc_collect_when_enabled(): void {
+    Gc.enable();
+    Gc.resetStats();
+    Gc.collect();
+    let stats: HashMap<string, int> = Gc.getStats();
+    let count: int = stats.get("collections");
+    if (count < 1) {
+        io::println("FAIL: Gc.collect did not increment collections (count=" + Integer.toString(count) + ")");
+    } else {
+        io::println("PASS: Gc.collect increments collection count when enabled");
+    }
+}
+
+public fn test_gc_collect_when_disabled(): void {
+    Gc.disable();
+    Gc.resetStats();
+    Gc.collect();
+    let stats: HashMap<string, int> = Gc.getStats();
+    let count: int = stats.get("collections");
+    if (count != 0) {
+        io::println("FAIL: Gc.collect incremented when disabled (count=" + Integer.toString(count) + ")");
+    } else {
+        io::println("PASS: Gc.collect is a no-op when disabled");
+    }
+    Gc.enable();
+}
+
+public fn test_gc_resetStats(): void {
+    Gc.enable();
+    Gc.collect();
+    Gc.collect();
+    Gc.resetStats();
+    let stats: HashMap<string, int> = Gc.getStats();
+    let count: int = stats.get("collections");
+    if (count != 0) {
+        io::println("FAIL: Gc.resetStats did not zero collections (count=" + Integer.toString(count) + ")");
+    } else {
+        io::println("PASS: Gc.resetStats zeroes collection count");
+    }
+}
+
+public fn test_gc_getStats_keys(): void {
+    Gc.enable();
+    let stats: HashMap<string, int> = Gc.getStats();
+    // getStats should include "collections", "enabled", and "pid" keys.
+    if (!stats.containsKey("collections")) {
+        io::println("FAIL: Gc.getStats missing 'collections' key");
+    } else if (!stats.containsKey("enabled")) {
+        io::println("FAIL: Gc.getStats missing 'enabled' key");
+    } else if (!stats.containsKey("pid")) {
+        io::println("FAIL: Gc.getStats missing 'pid' key");
+    } else {
+        io::println("PASS: Gc.getStats contains expected keys");
+    }
+}
+
+public fn test_gc_getStats_enabled_flag(): void {
+    Gc.enable();
+    let stats: HashMap<string, int> = Gc.getStats();
+    if (stats.get("enabled") != 1) {
+        io::println("FAIL: Gc.getStats enabled flag not 1 when enabled");
+    } else {
+        io::println("PASS: Gc.getStats enabled flag is 1 when enabled");
+    }
+    Gc.disable();
+    let stats2: HashMap<string, int> = Gc.getStats();
+    if (stats2.get("enabled") != 0) {
+        io::println("FAIL: Gc.getStats enabled flag not 0 when disabled");
+    } else {
+        io::println("PASS: Gc.getStats enabled flag is 0 when disabled");
+    }
+    Gc.enable();
+}
+
+public fn test_gc_getStats_pid(): void {
+    let stats: HashMap<string, int> = Gc.getStats();
+    let pid: int = stats.get("pid");
+    if (pid <= 0) {
+        io::println("FAIL: Gc.getStats pid = " + Integer.toString(pid));
+    } else {
+        io::println("PASS: Gc.getStats pid is positive");
+    }
+}
+
+public fn run_all_gc_tests(): void {
+    io::println("=== Gc.tr Tests ===");
+    test_gc_isEnabled_default();
+    test_gc_disable_enable();
+    test_gc_collect_when_enabled();
+    test_gc_collect_when_disabled();
+    test_gc_resetStats();
+    test_gc_getStats_keys();
+    test_gc_getStats_enabled_flag();
+    test_gc_getStats_pid();
+}
