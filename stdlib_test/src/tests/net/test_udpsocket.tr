@@ -1,0 +1,50 @@
+// Test file for UdpSocket.tr
+// Exercises the public API of the UdpSocket class (state transitions,
+// close lifecycle, and configuration methods).
+import tt::net::UdpSocket;
+import tt::lang::Boolean;
+
+public fn test_udpsocket_init_state(): void {
+    let s: UdpSocket = new UdpSocket();
+    if (s.isClosed()) {
+        io::println("FAIL: UdpSocket.isClosed should be false on init");
+    } else {
+        io::println("PASS: UdpSocket.isClosed false on init");
+    }
+}
+
+public fn test_udpsocket_close_marks_closed(): void {
+    let s: UdpSocket = new UdpSocket();
+    s.close();
+    if (!s.isClosed()) {
+        io::println("FAIL: UdpSocket.isClosed should be true after close");
+    } else {
+        io::println("PASS: UdpSocket.isClosed true after close");
+    }
+}
+
+public fn test_udpsocket_close_idempotent(): void {
+    let s: UdpSocket = new UdpSocket();
+    s.close();
+    s.close();
+    if (!s.isClosed()) {
+        io::println("FAIL: UdpSocket.isClosed should be true after double close");
+    } else {
+        io::println("PASS: UdpSocket.close idempotent");
+    }
+}
+
+public fn test_udpsocket_setTimeout_no_throw(): void {
+    let s: UdpSocket = new UdpSocket();
+    // setTimeout delegates to native; verify it does not throw on a fresh socket.
+    s.setTimeout(1500);
+    io::println("PASS: UdpSocket.setTimeout executes without throwing");
+}
+
+public fn run_all_udpsocket_tests(): void {
+    io::println("=== UdpSocket.tr Tests ===");
+    test_udpsocket_init_state();
+    test_udpsocket_close_marks_closed();
+    test_udpsocket_close_idempotent();
+    test_udpsocket_setTimeout_no_throw();
+}
