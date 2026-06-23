@@ -1,0 +1,183 @@
+// Test file for Double.tr
+// Exercises the public API of the Double module.
+import tt::lang::Double;
+import tt::lang::Integer;
+
+public fn test_double_parse(): void {
+    let v: double = Double.parse("3.14");
+    if (v != 3.14) {
+        io::println("FAIL: Double.parse(\"3.14\") = " + Double.toString(v));
+    } else {
+        io::println("PASS: Double.parse(\"3.14\") = 3.14");
+    }
+}
+
+public fn test_double_toString(): void {
+    let s: string = Double.toString(2.5);
+    if (s != "2.5") {
+        io::println("FAIL: Double.toString(2.5) = " + s);
+    } else {
+        io::println("PASS: Double.toString(2.5) = 2.5");
+    }
+}
+
+public fn test_double_isNaN_true(): void {
+    let nan: double = Double.NaN();
+    if (!Double.isNaN(nan)) {
+        io::println("FAIL: Double.isNaN(NaN) = false");
+    } else {
+        io::println("PASS: Double.isNaN(NaN) = true");
+    }
+}
+
+public fn test_double_isNaN_false(): void {
+    if (Double.isNaN(3.14)) {
+        io::println("FAIL: Double.isNaN(3.14) = true");
+    } else {
+        io::println("PASS: Double.isNaN(3.14) = false");
+    }
+}
+
+public fn test_double_isInfinite(): void {
+    let inf: double = Double.POSITIVE_INFINITY();
+    if (!Double.isInfinite(inf)) {
+        io::println("FAIL: Double.isInfinite(+Inf) = false");
+    } else {
+        io::println("PASS: Double.isInfinite(+Inf) = true");
+    }
+}
+
+public fn test_double_isInfinite_negative(): void {
+    let ninf: double = Double.NEGATIVE_INFINITY();
+    if (!Double.isInfinite(ninf)) {
+        io::println("FAIL: Double.isInfinite(-Inf) = false");
+    } else {
+        io::println("PASS: Double.isInfinite(-Inf) = true");
+    }
+}
+
+public fn test_double_isFinite(): void {
+    if (!Double.isFinite(1.0) || Double.isFinite(Double.POSITIVE_INFINITY()) || Double.isFinite(Double.NaN())) {
+        io::println("FAIL: Double.isFinite");
+    } else {
+        io::println("PASS: Double.isFinite");
+    }
+}
+
+public fn test_double_MAX_VALUE(): void {
+    let v: double = Double.MAX_VALUE();
+    if (v != 1.7976931348623157e308) {
+        io::println("FAIL: Double.MAX_VALUE = " + Double.toString(v));
+    } else {
+        io::println("PASS: Double.MAX_VALUE");
+    }
+}
+
+public fn test_double_MIN_VALUE(): void {
+    let v: double = Double.MIN_VALUE();
+    if (v != 4.9e-324) {
+        io::println("FAIL: Double.MIN_VALUE = " + Double.toString(v));
+    } else {
+        io::println("PASS: Double.MIN_VALUE");
+    }
+}
+
+public fn test_double_EPSILON(): void {
+    let v: double = Double.EPSILON();
+    if (v != 2.220446049250313e-16) {
+        io::println("FAIL: Double.EPSILON = " + Double.toString(v));
+    } else {
+        io::println("PASS: Double.EPSILON");
+    }
+}
+
+public fn test_double_compare(): void {
+    if (Double.compare(1.0, 2.0) >= 0 || Double.compare(2.0, 1.0) <= 0 || Double.compare(1.5, 1.5) != 0) {
+        io::println("FAIL: Double.compare");
+    } else {
+        io::println("PASS: Double.compare");
+    }
+}
+
+public fn test_double_max(): void {
+    if (Double.max(3.0, 7.0) != 7.0) {
+        io::println("FAIL: Double.max");
+    } else {
+        io::println("PASS: Double.max");
+    }
+}
+
+public fn test_double_min(): void {
+    if (Double.min(3.0, 7.0) != 3.0) {
+        io::println("FAIL: Double.min");
+    } else {
+        io::println("PASS: Double.min");
+    }
+}
+
+public fn test_double_parseOr_valid(): void {
+    let v: double = Double.parseOr("2.5", 0.0);
+    if (v != 2.5) {
+        io::println("FAIL: Double.parseOr(\"2.5\",0) = " + Double.toString(v));
+    } else {
+        io::println("PASS: Double.parseOr(\"2.5\",0) = 2.5");
+    }
+}
+
+public fn test_double_POSITIVE_INFINITY(): void {
+    let inf: double = Double.POSITIVE_INFINITY();
+    if (!(inf > 1.0e308)) {
+        io::println("FAIL: Double.POSITIVE_INFINITY not large");
+    } else {
+        io::println("PASS: Double.POSITIVE_INFINITY is large");
+    }
+}
+
+public fn test_double_NEGATIVE_INFINITY(): void {
+    let ninf: double = Double.NEGATIVE_INFINITY();
+    if (!(ninf < -1.0e308)) {
+        io::println("FAIL: Double.NEGATIVE_INFINITY not small");
+    } else {
+        io::println("PASS: Double.NEGATIVE_INFINITY is small");
+    }
+}
+
+public fn test_double_toHexString_zero(): void {
+    let s: string = Double.toHexString(0.0);
+    if (s != "0x0.0p0") {
+        io::println("FAIL: Double.toHexString(0.0) = " + s);
+    } else {
+        io::println("PASS: Double.toHexString(0.0) = 0x0.0p0");
+    }
+}
+
+public fn test_double_toHexString_nan(): void {
+    let s: string = Double.toHexString(Double.NaN());
+    if (s != "NaN") {
+        io::println("FAIL: Double.toHexString(NaN) = " + s);
+    } else {
+        io::println("PASS: Double.toHexString(NaN) = NaN");
+    }
+}
+
+public fn run_all_double_tests(): void {
+    io::println("=== Double.tr Tests ===");
+    test_double_parse();
+    test_double_toString();
+    test_double_isNaN_true();
+    test_double_isNaN_false();
+    test_double_isInfinite();
+    test_double_isInfinite_negative();
+    test_double_isFinite();
+    test_double_MAX_VALUE();
+    test_double_MIN_VALUE();
+    test_double_EPSILON();
+    test_double_compare();
+    test_double_max();
+    test_double_min();
+    test_double_parseOr_valid();
+    test_double_POSITIVE_INFINITY();
+    test_double_NEGATIVE_INFINITY();
+    test_double_toHexString_zero();
+    test_double_toHexString_nan();
+}
