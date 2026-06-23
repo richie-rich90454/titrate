@@ -1,0 +1,205 @@
+// Test file for HashSet.tr
+// Exercises the public API of the HashSet class.
+import tt::util::HashSet;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_hashset_add_size(): void {
+    let set: HashSet<string> = new HashSet<string>();
+    set.add("a");
+    set.add("b");
+    set.add("c");
+    if (set.size() != 3) {
+        io::println("FAIL: HashSet.size() = " + Integer.toString(set.size()));
+    } else {
+        io::println("PASS: HashSet add/size works");
+    }
+}
+
+public fn test_hashset_add_duplicate(): void {
+    let set: HashSet<string> = new HashSet<string>();
+    let r1: bool = set.add("a");
+    let r2: bool = set.add("a");
+    if (!r1 || r2 || set.size() != 1) {
+        io::println("FAIL: HashSet.add duplicate");
+    } else {
+        io::println("PASS: HashSet.add duplicate returns false");
+    }
+}
+
+public fn test_hashset_contains(): void {
+    let set: HashSet<string> = new HashSet<string>();
+    set.add("x");
+    set.add("y");
+    if (!set.contains("x") || set.contains("z")) {
+        io::println("FAIL: HashSet.contains");
+    } else {
+        io::println("PASS: HashSet.contains works");
+    }
+}
+
+public fn test_hashset_remove(): void {
+    let set: HashSet<string> = new HashSet<string>();
+    set.add("a");
+    set.add("b");
+    let r1: bool = set.remove("a");
+    let r2: bool = set.remove("missing");
+    if (!r1 || r2 || set.size() != 1 || set.contains("a")) {
+        io::println("FAIL: HashSet.remove");
+    } else {
+        io::println("PASS: HashSet.remove works");
+    }
+}
+
+public fn test_hashset_isEmpty_clear(): void {
+    let set: HashSet<string> = new HashSet<string>();
+    if (!set.isEmpty()) {
+        io::println("FAIL: HashSet.isEmpty new");
+    } else {
+        io::println("PASS: HashSet.isEmpty new");
+    }
+    set.add("a");
+    if (set.isEmpty()) {
+        io::println("FAIL: HashSet.isEmpty after add");
+    } else {
+        io::println("PASS: HashSet.isEmpty after add");
+    }
+    set.clear();
+    if (!set.isEmpty()) {
+        io::println("FAIL: HashSet.clear");
+    } else {
+        io::println("PASS: HashSet.clear works");
+    }
+}
+
+public fn test_hashset_union(): void {
+    let a: HashSet<string> = new HashSet<string>();
+    a.add("a");
+    a.add("b");
+    let b: HashSet<string> = new HashSet<string>();
+    b.add("b");
+    b.add("c");
+    let u: HashSet<string> = a.union(b);
+    if (u.size() != 3 || !u.contains("a") || !u.contains("b") || !u.contains("c")) {
+        io::println("FAIL: HashSet.union size=" + Integer.toString(u.size()));
+    } else {
+        io::println("PASS: HashSet.union works");
+    }
+}
+
+public fn test_hashset_intersection(): void {
+    let a: HashSet<string> = new HashSet<string>();
+    a.add("a");
+    a.add("b");
+    a.add("c");
+    let b: HashSet<string> = new HashSet<string>();
+    b.add("b");
+    b.add("c");
+    b.add("d");
+    let i: HashSet<string> = a.intersection(b);
+    if (i.size() != 2 || !i.contains("b") || !i.contains("c") || i.contains("a")) {
+        io::println("FAIL: HashSet.intersection size=" + Integer.toString(i.size()));
+    } else {
+        io::println("PASS: HashSet.intersection works");
+    }
+}
+
+public fn test_hashset_difference(): void {
+    let a: HashSet<string> = new HashSet<string>();
+    a.add("a");
+    a.add("b");
+    a.add("c");
+    let b: HashSet<string> = new HashSet<string>();
+    b.add("b");
+    let d: HashSet<string> = a.difference(b);
+    if (d.size() != 2 || !d.contains("a") || !d.contains("c") || d.contains("b")) {
+        io::println("FAIL: HashSet.difference size=" + Integer.toString(d.size()));
+    } else {
+        io::println("PASS: HashSet.difference works");
+    }
+}
+
+public fn test_hashset_symmetricDifference(): void {
+    let a: HashSet<string> = new HashSet<string>();
+    a.add("a");
+    a.add("b");
+    let b: HashSet<string> = new HashSet<string>();
+    b.add("b");
+    b.add("c");
+    let s: HashSet<string> = a.symmetricDifference(b);
+    if (s.size() != 2 || !s.contains("a") || !s.contains("c") || s.contains("b")) {
+        io::println("FAIL: HashSet.symmetricDifference size=" + Integer.toString(s.size()));
+    } else {
+        io::println("PASS: HashSet.symmetricDifference works");
+    }
+}
+
+public fn test_hashset_isSubsetOf(): void {
+    let a: HashSet<string> = new HashSet<string>();
+    a.add("a");
+    a.add("b");
+    let b: HashSet<string> = new HashSet<string>();
+    b.add("a");
+    b.add("b");
+    b.add("c");
+    if (!a.isSubsetOf(b) || !b.isSupersetOf(a)) {
+        io::println("FAIL: HashSet.isSubsetOf/isSupersetOf");
+    } else {
+        io::println("PASS: HashSet.isSubsetOf/isSupersetOf works");
+    }
+}
+
+public fn test_hashset_toArrayList(): void {
+    let set: HashSet<string> = new HashSet<string>();
+    set.add("a");
+    set.add("b");
+    let arr: ArrayList<string> = set.toArrayList();
+    if (arr.size() != 2) {
+        io::println("FAIL: HashSet.toArrayList size=" + Integer.toString(arr.size()));
+    } else {
+        io::println("PASS: HashSet.toArrayList works");
+    }
+}
+
+public fn test_hashset_clone(): void {
+    let set: HashSet<string> = new HashSet<string>();
+    set.add("a");
+    let copy: HashSet<string> = set.clone();
+    copy.add("b");
+    if (set.size() != 1 || copy.size() != 2) {
+        io::println("FAIL: HashSet.clone independence");
+    } else {
+        io::println("PASS: HashSet.clone works");
+    }
+}
+
+public fn test_hashset_forEach(): void {
+    let set: HashSet<string> = new HashSet<string>();
+    set.add("a");
+    set.add("b");
+    set.add("c");
+    let collected: ArrayList<string> = new ArrayList<string>();
+    set.forEach(fn(s: string): void { collected.add(s); });
+    if (collected.size() != 3) {
+        io::println("FAIL: HashSet.forEach count=" + Integer.toString(collected.size()));
+    } else {
+        io::println("PASS: HashSet.forEach works");
+    }
+}
+
+public fn run_all_hashset_tests(): void {
+    io::println("=== HashSet.tr Tests ===");
+    test_hashset_add_size();
+    test_hashset_add_duplicate();
+    test_hashset_contains();
+    test_hashset_remove();
+    test_hashset_isEmpty_clear();
+    test_hashset_union();
+    test_hashset_intersection();
+    test_hashset_difference();
+    test_hashset_symmetricDifference();
+    test_hashset_isSubsetOf();
+    test_hashset_toArrayList();
+    test_hashset_clone();
+    test_hashset_forEach();
+}
