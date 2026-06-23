@@ -1,0 +1,210 @@
+// Test file for Url.tr
+// Exercises the public API of the Url class, ParseResult class, and top-level functions.
+import tt::encoding::Url;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_url_encode(): void {
+    let u: Url = new Url();
+    let encoded: string = u.encode("hello world");
+    if (encoded != "hello%20world") {
+        io::println("FAIL: Url.encode returned " + encoded + ", expected hello%20world");
+    } else {
+        io::println("PASS: Url.encode works");
+    }
+}
+
+public fn test_url_decode(): void {
+    let u: Url = new Url();
+    let decoded: string = u.decode("hello%20world");
+    if (decoded != "hello world") {
+        io::println("FAIL: Url.decode returned " + decoded + ", expected hello world");
+    } else {
+        io::println("PASS: Url.decode works");
+    }
+}
+
+public fn test_url_encode_decode_roundtrip(): void {
+    let u: Url = new Url();
+    let original: string = "test value with spaces";
+    let encoded: string = u.encode(original);
+    let decoded: string = u.decode(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Url roundtrip failed: " + decoded);
+    } else {
+        io::println("PASS: Url encode/decode roundtrip works");
+    }
+}
+
+public fn test_url_encode_no_special(): void {
+    let u: Url = new Url();
+    let encoded: string = u.encode("hello");
+    if (encoded != "hello") {
+        io::println("FAIL: Url.encode no special returned " + encoded);
+    } else {
+        io::println("PASS: Url.encode no special works");
+    }
+}
+
+public fn test_url_encodeComponent(): void {
+    let u: Url = new Url();
+    let encoded: string = u.encodeComponent("a b&c");
+    // Space, & should be encoded
+    if (encoded == "a b&c") {
+        io::println("FAIL: Url.encodeComponent did not encode special chars");
+    } else {
+        io::println("PASS: Url.encodeComponent works: " + encoded);
+    }
+}
+
+public fn test_url_decodeComponent(): void {
+    let u: Url = new Url();
+    let decoded: string = u.decodeComponent("a%20b");
+    if (decoded != "a b") {
+        io::println("FAIL: Url.decodeComponent returned " + decoded + ", expected a b");
+    } else {
+        io::println("PASS: Url.decodeComponent works");
+    }
+}
+
+public fn test_url_encodeComponent_decodeComponent_roundtrip(): void {
+    let u: Url = new Url();
+    let original: string = "key=value&name=John Doe";
+    let encoded: string = u.encodeComponent(original);
+    let decoded: string = u.decodeComponent(encoded);
+    if (decoded != original) {
+        io::println("FAIL: Url.encodeComponent roundtrip failed: " + decoded);
+    } else {
+        io::println("PASS: Url.encodeComponent roundtrip works");
+    }
+}
+
+public fn test_url_parseQueryString(): void {
+    let u: Url = new Url();
+    let qs: string = "name=John&age=30";
+    let map: HashMap<string, string> = u.parseQueryString(qs);
+    if (!map.containsKey("name") || map.get("name") != "John") {
+        io::println("FAIL: Url.parseQueryString name wrong");
+    } else if (!map.containsKey("age") || map.get("age") != "30") {
+        io::println("FAIL: Url.parseQueryString age wrong");
+    } else {
+        io::println("PASS: Url.parseQueryString works");
+    }
+}
+
+public fn test_url_parseQueryString_with_question(): void {
+    let u: Url = new Url();
+    let qs: string = "?name=John";
+    let map: HashMap<string, string> = u.parseQueryString(qs);
+    if (!map.containsKey("name") || map.get("name") != "John") {
+        io::println("FAIL: Url.parseQueryString with ? wrong");
+    } else {
+        io::println("PASS: Url.parseQueryString with ? works");
+    }
+}
+
+public fn test_url_parseQueryString_empty(): void {
+    let u: Url = new Url();
+    let map: HashMap<string, string> = u.parseQueryString("");
+    if (map.size() != 0) {
+        io::println("FAIL: Url.parseQueryString empty should be empty map");
+    } else {
+        io::println("PASS: Url.parseQueryString empty works");
+    }
+}
+
+public fn test_url_buildQueryString(): void {
+    let u: Url = new Url();
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    map.put("name", "John");
+    map.put("age", "30");
+    let qs: string = u.buildQueryString(map);
+    if (String.length(qs) == 0) {
+        io::println("FAIL: Url.buildQueryString returned empty");
+    } else {
+        io::println("PASS: Url.buildQueryString works: " + qs);
+    }
+}
+
+public fn test_url_buildQueryString_empty(): void {
+    let u: Url = new Url();
+    let map: HashMap<string, string> = new HashMap<string, string>();
+    let qs: string = u.buildQueryString(map);
+    if (qs != "") {
+        io::println("FAIL: Url.buildQueryString empty returned " + qs);
+    } else {
+        io::println("PASS: Url.buildQueryString empty works");
+    }
+}
+
+public fn test_url_parse(): void {
+    let pr: Url.ParseResult = Url.parse("https://example.com/path?query=1#frag");
+    if (pr == null) {
+        io::println("FAIL: Url.parse returned null");
+    } else if (pr.scheme != "https") {
+        io::println("FAIL: Url.parse scheme wrong: " + pr.scheme);
+    } else {
+        io::println("PASS: Url.parse works");
+    }
+}
+
+public fn test_url_parse_fields(): void {
+    let pr: Url.ParseResult = Url.parse("http://host:8080/path/to/file?q=1#section");
+    if (pr.scheme != "http") {
+        io::println("FAIL: Url.parse scheme wrong");
+    } else if (String.length(pr.path) == 0) {
+        io::println("FAIL: Url.parse path empty");
+    } else {
+        io::println("PASS: Url.parse fields work");
+    }
+}
+
+public fn test_url_join(): void {
+    let result: string = Url.join("http://example.com/base", "relative");
+    if (String.length(result) == 0) {
+        io::println("FAIL: Url.join returned empty");
+    } else {
+        io::println("PASS: Url.join works: " + result);
+    }
+}
+
+public fn test_url_unparse(): void {
+    let pr: Url.ParseResult = Url.parse("http://example.com/path?q=1#f");
+    let result: string = Url.unparse(pr);
+    if (String.length(result) == 0) {
+        io::println("FAIL: Url.unparse returned empty");
+    } else {
+        io::println("PASS: Url.unparse works: " + result);
+    }
+}
+
+public fn test_url_ParseResult_init(): void {
+    let pr: Url.ParseResult = new Url.ParseResult("http", "host", "/path", "", "q=1", "frag");
+    if (pr.scheme != "http" || pr.netloc != "host" || pr.path != "/path") {
+        io::println("FAIL: ParseResult.init fields wrong");
+    } else {
+        io::println("PASS: ParseResult.init works");
+    }
+}
+
+public fn run_all_url_tests(): void {
+    io::println("=== Url.tr Tests ===");
+    test_url_encode();
+    test_url_decode();
+    test_url_encode_decode_roundtrip();
+    test_url_encode_no_special();
+    test_url_encodeComponent();
+    test_url_decodeComponent();
+    test_url_encodeComponent_decodeComponent_roundtrip();
+    test_url_parseQueryString();
+    test_url_parseQueryString_with_question();
+    test_url_parseQueryString_empty();
+    test_url_buildQueryString();
+    test_url_buildQueryString_empty();
+    test_url_parse();
+    test_url_parse_fields();
+    test_url_join();
+    test_url_unparse();
+    test_url_ParseResult_init();
+}
