@@ -1,0 +1,355 @@
+// Tests for the Toml module (TomlTable, TomlArray, parse, dumps, parseFile).
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::config::Toml;
+
+fn test_toml_table_init(): void {
+    let t: TomlTable = new TomlTable();
+    if (t == null) {
+        io::println("FAIL: test_toml_table_init - new TomlTable returned null");
+        return;
+    }
+    // A fresh table should have no keys.
+    if (t.keys().size() != 0) {
+        io::println("FAIL: test_toml_table_init - fresh table should have no keys");
+        return;
+    }
+    io::println("PASS: test_toml_table_init");
+}
+
+fn test_toml_table_set_get(): void {
+    let t: TomlTable = new TomlTable();
+    t.set("name", "Titrate");
+    t.set("version", 1);
+    if (!t.hasKey("name")) {
+        io::println("FAIL: test_toml_table_set_get - hasKey(name) should be true");
+        return;
+    }
+    if (!t.hasKey("version")) {
+        io::println("FAIL: test_toml_table_set_get - hasKey(version) should be true");
+        return;
+    }
+    if (t.hasKey("missing")) {
+        io::println("FAIL: test_toml_table_set_get - hasKey(missing) should be false");
+        return;
+    }
+    let keys: ArrayList<string> = t.keys();
+    if (keys.size() != 2) {
+        io::println("FAIL: test_toml_table_set_get - keys().size() should be 2");
+        return;
+    }
+    io::println("PASS: test_toml_table_set_get");
+}
+
+fn test_toml_table_data_keys(): void {
+    let t: TomlTable = new TomlTable();
+    t.set("a", 1);
+    t.set("b", 2);
+    let dataKeys: ArrayList<string> = t.dataKeys();
+    if (dataKeys.size() != 2) {
+        io::println("FAIL: test_toml_table_data_keys - dataKeys().size() should be 2");
+        return;
+    }
+    io::println("PASS: test_toml_table_data_keys");
+}
+
+fn test_toml_table_nested_table(): void {
+    let root: TomlTable = new TomlTable();
+    let nested: TomlTable = new TomlTable();
+    nested.set("inner", 42);
+    root.setTable("section", nested);
+    if (!root.hasKey("section")) {
+        io::println("FAIL: test_toml_table_nested_table - hasKey(section) should be true");
+        return;
+    }
+    let tableKeys: ArrayList<string> = root.tableKeys();
+    if (tableKeys.size() != 1) {
+        io::println("FAIL: test_toml_table_nested_table - tableKeys().size() should be 1");
+        return;
+    }
+    let retrieved: TomlTable = root.getTable("section");
+    if (retrieved == null) {
+        io::println("FAIL: test_toml_table_nested_table - getTable returned null");
+        return;
+    }
+    io::println("PASS: test_toml_table_nested_table");
+}
+
+fn test_toml_table_array(): void {
+    let t: TomlTable = new TomlTable();
+    let arr: ArrayList<Variant> = new ArrayList<Variant>();
+    arr.add(1);
+    arr.add(2);
+    arr.add(3);
+    t.setArray("items", arr);
+    if (!t.hasKey("items")) {
+        io::println("FAIL: test_toml_table_array - hasKey(items) should be true");
+        return;
+    }
+    let arrayKeys: ArrayList<string> = t.arrayKeys();
+    if (arrayKeys.size() != 1) {
+        io::println("FAIL: test_toml_table_array - arrayKeys().size() should be 1");
+        return;
+    }
+    let retrieved: ArrayList<Variant> = t.getArray("items");
+    if (retrieved == null) {
+        io::println("FAIL: test_toml_table_array - getArray returned null");
+        return;
+    }
+    if (retrieved.size() != 3) {
+        io::println("FAIL: test_toml_table_array - retrieved.size() should be 3");
+        return;
+    }
+    io::println("PASS: test_toml_table_array");
+}
+
+fn test_toml_array_class(): void {
+    let arr: TomlArray = new TomlArray();
+    if (arr.size() != 0) {
+        io::println("FAIL: test_toml_array_class - fresh TomlArray should have size 0");
+        return;
+    }
+    let t1: TomlTable = new TomlTable();
+    t1.set("id", 1);
+    let t2: TomlTable = new TomlTable();
+    t2.set("id", 2);
+    arr.add(t1);
+    arr.add(t2);
+    if (arr.size() != 2) {
+        io::println("FAIL: test_toml_array_class - size() should be 2 after adds");
+        return;
+    }
+    let first: TomlTable = arr.get(0);
+    if (first == null) {
+        io::println("FAIL: test_toml_array_class - get(0) returned null");
+        return;
+    }
+    let all: ArrayList<TomlTable> = arr.tables();
+    if (all.size() != 2) {
+        io::println("FAIL: test_toml_array_class - tables().size() should be 2");
+        return;
+    }
+    io::println("PASS: test_toml_array_class");
+}
+
+fn test_toml_table_toml_array(): void {
+    let root: TomlTable = new TomlTable();
+    let arr: TomlArray = new TomlArray();
+    let entry: TomlTable = new TomlTable();
+    entry.set("name", "first");
+    arr.add(entry);
+    root.setTomlArray("records", arr);
+    if (!root.hasKey("records")) {
+        io::println("FAIL: test_toml_table_toml_array - hasKey(records) should be true");
+        return;
+    }
+    let taKeys: ArrayList<string> = root.tomlArrayKeys();
+    if (taKeys.size() != 1) {
+        io::println("FAIL: test_toml_table_toml_array - tomlArrayKeys().size() should be 1");
+        return;
+    }
+    let retrieved: TomlArray = root.getTomlArray("records");
+    if (retrieved == null) {
+        io::println("FAIL: test_toml_table_toml_array - getTomlArray returned null");
+        return;
+    }
+    if (retrieved.size() != 1) {
+        io::println("FAIL: test_toml_table_toml_array - retrieved.size() should be 1");
+        return;
+    }
+    io::println("PASS: test_toml_table_toml_array");
+}
+
+fn test_toml_parse_simple(): void {
+    let input: string = "name = \"Titrate\"\nversion = 1\n";
+    let root: TomlTable = Toml.parse(input);
+    if (root == null) {
+        io::println("FAIL: test_toml_parse_simple - parse returned null");
+        return;
+    }
+    if (!root.hasKey("name")) {
+        io::println("FAIL: test_toml_parse_simple - hasKey(name) should be true");
+        return;
+    }
+    if (!root.hasKey("version")) {
+        io::println("FAIL: test_toml_parse_simple - hasKey(version) should be true");
+        return;
+    }
+    io::println("PASS: test_toml_parse_simple");
+}
+
+fn test_toml_parse_section(): void {
+    let input: string = "[server]\nhost = \"localhost\"\nport = 8080\n";
+    let root: TomlTable = Toml.parse(input);
+    if (root == null) {
+        io::println("FAIL: test_toml_parse_section - parse returned null");
+        return;
+    }
+    if (!root.hasKey("server")) {
+        io::println("FAIL: test_toml_parse_section - hasKey(server) should be true");
+        return;
+    }
+    let server: TomlTable = root.getTable("server");
+    if (server == null) {
+        io::println("FAIL: test_toml_parse_section - getTable(server) returned null");
+        return;
+    }
+    if (!server.hasKey("host")) {
+        io::println("FAIL: test_toml_parse_section - server.hasKey(host) should be true");
+        return;
+    }
+    if (!server.hasKey("port")) {
+        io::println("FAIL: test_toml_parse_section - server.hasKey(port) should be true");
+        return;
+    }
+    io::println("PASS: test_toml_parse_section");
+}
+
+fn test_toml_parse_comments(): void {
+    let input: string = "# This is a comment\nname = \"value\"\n# Another comment\n";
+    let root: TomlTable = Toml.parse(input);
+    if (root == null) {
+        io::println("FAIL: test_toml_parse_comments - parse returned null");
+        return;
+    }
+    if (!root.hasKey("name")) {
+        io::println("FAIL: test_toml_parse_comments - hasKey(name) should be true");
+        return;
+    }
+    io::println("PASS: test_toml_parse_comments");
+}
+
+fn test_toml_parse_empty_lines(): void {
+    let input: string = "\n\nname = \"value\"\n\n\n";
+    let root: TomlTable = Toml.parse(input);
+    if (root == null) {
+        io::println("FAIL: test_toml_parse_empty_lines - parse returned null");
+        return;
+    }
+    if (!root.hasKey("name")) {
+        io::println("FAIL: test_toml_parse_empty_lines - hasKey(name) should be true");
+        return;
+    }
+    io::println("PASS: test_toml_parse_empty_lines");
+}
+
+fn test_toml_parse_array_of_tables(): void {
+    let input: string = "[[fruits]]\nname = \"apple\"\n[[fruits]]\nname = \"banana\"\n";
+    let root: TomlTable = Toml.parse(input);
+    if (root == null) {
+        io::println("FAIL: test_toml_parse_array_of_tables - parse returned null");
+        return;
+    }
+    if (!root.hasKey("fruits")) {
+        io::println("FAIL: test_toml_parse_array_of_tables - hasKey(fruits) should be true");
+        return;
+    }
+    let arr: TomlArray = root.getTomlArray("fruits");
+    if (arr == null) {
+        io::println("FAIL: test_toml_parse_array_of_tables - getTomlArray returned null");
+        return;
+    }
+    if (arr.size() != 2) {
+        io::println("FAIL: test_toml_parse_array_of_tables - arr.size() should be 2");
+        return;
+    }
+    io::println("PASS: test_toml_parse_array_of_tables");
+}
+
+fn test_toml_dumps_basic(): void {
+    let t: TomlTable = new TomlTable();
+    t.set("name", "test");
+    t.set("count", 5);
+    let output: string = Toml.dumps(t);
+    if (String.length(output) == 0) {
+        io::println("FAIL: test_toml_dumps_basic - dumps returned empty string");
+        return;
+    }
+    if (String.indexOf(output, "name") < 0) {
+        io::println("FAIL: test_toml_dumps_basic - dumps output should contain 'name'");
+        return;
+    }
+    if (String.indexOf(output, "count") < 0) {
+        io::println("FAIL: test_toml_dumps_basic - dumps output should contain 'count'");
+        return;
+    }
+    io::println("PASS: test_toml_dumps_basic");
+}
+
+fn test_toml_dumps_table(): void {
+    let root: TomlTable = new TomlTable();
+    let nested: TomlTable = new TomlTable();
+    nested.set("x", 1);
+    root.setTable("section", nested);
+    let output: string = Toml.dumps(root);
+    if (String.indexOf(output, "[section]") < 0) {
+        io::println("FAIL: test_toml_dumps_table - dumps output should contain '[section]'");
+        return;
+    }
+    io::println("PASS: test_toml_dumps_table");
+}
+
+fn test_toml_table_to_string(): void {
+    let t: TomlTable = new TomlTable();
+    t.set("name", "value");
+    let s: string = t.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: test_toml_table_to_string - toString returned empty string");
+        return;
+    }
+    if (String.indexOf(s, "name") < 0) {
+        io::println("FAIL: test_toml_table_to_string - toString should contain 'name'");
+        return;
+    }
+    io::println("PASS: test_toml_table_to_string");
+}
+
+fn test_toml_parse_dumps_roundtrip(): void {
+    let input: string = "name = \"roundtrip\"\nvalue = 42\n";
+    let root: TomlTable = Toml.parse(input);
+    let output: string = Toml.dumps(root);
+    if (String.indexOf(output, "name") < 0) {
+        io::println("FAIL: test_toml_parse_dumps_roundtrip - dumps output should contain 'name'");
+        return;
+    }
+    if (String.indexOf(output, "value") < 0) {
+        io::println("FAIL: test_toml_parse_dumps_roundtrip - dumps output should contain 'value'");
+        return;
+    }
+    io::println("PASS: test_toml_parse_dumps_roundtrip");
+}
+
+fn test_toml_parse_file(): void {
+    // parseFile returns Result<TomlTable, string>; a missing file should yield Err.
+    let r: Result = Toml.parseFile("nonexistent_path_does_not_exist.toml");
+    if (r == null) {
+        io::println("FAIL: test_toml_parse_file - parseFile returned null");
+        return;
+    }
+    if (r.isOk()) {
+        io::println("FAIL: test_toml_parse_file - parseFile of missing file should be Err");
+        return;
+    }
+    io::println("PASS: test_toml_parse_file");
+}
+
+public fn run_all_toml_tests(): void {
+    io::println("=== Toml Tests ===");
+    test_toml_table_init();
+    test_toml_table_set_get();
+    test_toml_table_data_keys();
+    test_toml_table_nested_table();
+    test_toml_table_array();
+    test_toml_array_class();
+    test_toml_table_toml_array();
+    test_toml_parse_simple();
+    test_toml_parse_section();
+    test_toml_parse_comments();
+    test_toml_parse_empty_lines();
+    test_toml_parse_array_of_tables();
+    test_toml_dumps_basic();
+    test_toml_dumps_table();
+    test_toml_table_to_string();
+    test_toml_parse_dumps_roundtrip();
+    test_toml_parse_file();
+}
