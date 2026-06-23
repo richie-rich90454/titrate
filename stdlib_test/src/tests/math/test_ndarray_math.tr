@@ -1,0 +1,294 @@
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArrayMath;
+import tt::math::MathTrig;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn shape2(r: int, c: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(r); s.add(c);
+    return s;
+}
+
+fn makeArr(): NDArray<double> {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0);
+    return fromData<double>(shape1(4), data);
+}
+
+fn test_map(): void {
+    let a: NDArray<double> = makeArr();
+    let b: NDArray<double> = NDArrayMath.map<double>(a, fn(x: double): double { return x * 2.0; });
+    if (approxEq(b.getFlat(0), 2.0, 1e-9) && approxEq(b.getFlat(3), 8.0, 1e-9)) {
+        io::println("PASS test_map: doubled each element");
+    } else {
+        io::println("FAIL test_map: incorrect");
+    }
+}
+
+fn test_zipMap(): void {
+    let a: NDArray<double> = makeArr();
+    let b: NDArray<double> = makeArr();
+    let c: NDArray<double> = NDArrayMath.zipMap<double>(a, b, fn(x: double, y: double): double { return x + y; });
+    if (approxEq(c.getFlat(0), 2.0, 1e-9) && approxEq(c.getFlat(3), 8.0, 1e-9)) {
+        io::println("PASS test_zipMap: added two arrays element-wise");
+    } else {
+        io::println("FAIL test_zipMap: incorrect");
+    }
+}
+
+fn test_dot(): void {
+    let a: NDArray<double> = makeArr();
+    let b: NDArray<double> = makeArr();
+    let d: double = NDArrayMath.dot<double>(a, b);
+    // 1*1 + 2*2 + 3*3 + 4*4 = 30
+    if (approxEq(d, 30.0, 1e-9)) {
+        io::println("PASS test_dot: dot product = 30");
+    } else {
+        io::println("FAIL test_dot: expected 30.0, got " + Double.toString(d));
+    }
+}
+
+fn test_norm(): void {
+    let a: NDArray<double> = makeArr();
+    let n: double = NDArrayMath.norm<double>(a);
+    // sqrt(1 + 4 + 9 + 16) = sqrt(30)
+    if (approxEq(n, MathAdvanced.sqrt(30.0), 1e-9)) {
+        io::println("PASS test_norm: norm = sqrt(30)");
+    } else {
+        io::println("FAIL test_norm: expected sqrt(30), got " + Double.toString(n));
+    }
+}
+
+fn test_ndSin(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0); data.add(Math.PI() / 2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndSin(a);
+    if (approxEq(b.getFlat(0), 0.0, 1e-9) && approxEq(b.getFlat(1), 1.0, 1e-9)) {
+        io::println("PASS test_ndSin: sin(0)=0, sin(pi/2)=1");
+    } else {
+        io::println("FAIL test_ndSin: incorrect");
+    }
+}
+
+fn test_ndCos(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0); data.add(Math.PI() / 2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndCos(a);
+    if (approxEq(b.getFlat(0), 1.0, 1e-9) && approxEq(b.getFlat(1), 0.0, 1e-9)) {
+        io::println("PASS test_ndCos: cos(0)=1, cos(pi/2)=0");
+    } else {
+        io::println("FAIL test_ndCos: incorrect");
+    }
+}
+
+fn test_ndExp(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0);
+    let a: NDArray<double> = fromData<double>(shape1(1), data);
+    let b: NDArray<double> = NDArrayMath.ndExp(a);
+    if (approxEq(b.getFlat(0), 1.0, 1e-9)) {
+        io::println("PASS test_ndExp: exp(0) = 1");
+    } else {
+        io::println("FAIL test_ndExp: expected 1.0, got " + Double.toString(b.getFlat(0)));
+    }
+}
+
+fn test_ndLog(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    let a: NDArray<double> = fromData<double>(shape1(1), data);
+    let b: NDArray<double> = NDArrayMath.ndLog(a);
+    if (approxEq(b.getFlat(0), 0.0, 1e-9)) {
+        io::println("PASS test_ndLog: ln(1) = 0");
+    } else {
+        io::println("FAIL test_ndLog: expected 0.0, got " + Double.toString(b.getFlat(0)));
+    }
+}
+
+fn test_ndSqrt(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(4.0); data.add(9.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndSqrt(a);
+    if (approxEq(b.getFlat(0), 2.0, 1e-9) && approxEq(b.getFlat(1), 3.0, 1e-9)) {
+        io::println("PASS test_ndSqrt: sqrt(4)=2, sqrt(9)=3");
+    } else {
+        io::println("FAIL test_ndSqrt: incorrect");
+    }
+}
+
+fn test_ndAbs(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(-5.0); data.add(3.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndAbs(a);
+    if (approxEq(b.getFlat(0), 5.0, 1e-9) && approxEq(b.getFlat(1), 3.0, 1e-9)) {
+        io::println("PASS test_ndAbs: abs(-5)=5, abs(3)=3");
+    } else {
+        io::println("FAIL test_ndAbs: incorrect");
+    }
+}
+
+fn test_ndSquare(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(2.0); data.add(3.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndSquare(a);
+    if (approxEq(b.getFlat(0), 4.0, 1e-9) && approxEq(b.getFlat(1), 9.0, 1e-9)) {
+        io::println("PASS test_ndSquare: 2^2=4, 3^2=9");
+    } else {
+        io::println("FAIL test_ndSquare: incorrect");
+    }
+}
+
+fn test_ndNegative(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(2.0); data.add(-3.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndNegative(a);
+    if (approxEq(b.getFlat(0), -2.0, 1e-9) && approxEq(b.getFlat(1), 3.0, 1e-9)) {
+        io::println("PASS test_ndNegative: negated values");
+    } else {
+        io::println("FAIL test_ndNegative: incorrect");
+    }
+}
+
+fn test_ndReciprocal(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(2.0); data.add(4.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndReciprocal(a);
+    if (approxEq(b.getFlat(0), 0.5, 1e-9) && approxEq(b.getFlat(1), 0.25, 1e-9)) {
+        io::println("PASS test_ndReciprocal: 1/2=0.5, 1/4=0.25");
+    } else {
+        io::println("FAIL test_ndReciprocal: incorrect");
+    }
+}
+
+fn test_ndFloor(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(2.7); data.add(-1.3);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndFloor(a);
+    if (approxEq(b.getFlat(0), 2.0, 1e-9) && approxEq(b.getFlat(1), -2.0, 1e-9)) {
+        io::println("PASS test_ndFloor: floor(2.7)=2, floor(-1.3)=-2");
+    } else {
+        io::println("FAIL test_ndFloor: incorrect");
+    }
+}
+
+fn test_ndCeil(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(2.1); data.add(-1.9);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = NDArrayMath.ndCeil(a);
+    if (approxEq(b.getFlat(0), 3.0, 1e-9) && approxEq(b.getFlat(1), -1.0, 1e-9)) {
+        io::println("PASS test_ndCeil: ceil(2.1)=3, ceil(-1.9)=-1");
+    } else {
+        io::println("FAIL test_ndCeil: incorrect");
+    }
+}
+
+fn test_ndTanh(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0);
+    let a: NDArray<double> = fromData<double>(shape1(1), data);
+    let b: NDArray<double> = NDArrayMath.ndTanh(a);
+    if (approxEq(b.getFlat(0), 0.0, 1e-9)) {
+        io::println("PASS test_ndTanh: tanh(0) = 0");
+    } else {
+        io::println("FAIL test_ndTanh: expected 0.0, got " + Double.toString(b.getFlat(0)));
+    }
+}
+
+fn test_ndLog2(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(8.0);
+    let a: NDArray<double> = fromData<double>(shape1(1), data);
+    let b: NDArray<double> = NDArrayMath.ndLog2(a);
+    if (approxEq(b.getFlat(0), 3.0, 1e-9)) {
+        io::println("PASS test_ndLog2: log2(8) = 3");
+    } else {
+        io::println("FAIL test_ndLog2: expected 3.0, got " + Double.toString(b.getFlat(0)));
+    }
+}
+
+fn test_ndLog10(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(100.0);
+    let a: NDArray<double> = fromData<double>(shape1(1), data);
+    let b: NDArray<double> = NDArrayMath.ndLog10(a);
+    if (approxEq(b.getFlat(0), 2.0, 1e-9)) {
+        io::println("PASS test_ndLog10: log10(100) = 2");
+    } else {
+        io::println("FAIL test_ndLog10: expected 2.0, got " + Double.toString(b.getFlat(0)));
+    }
+}
+
+fn test_ndCbrt(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(27.0);
+    let a: NDArray<double> = fromData<double>(shape1(1), data);
+    let b: NDArray<double> = NDArrayMath.ndCbrt(a);
+    if (approxEq(b.getFlat(0), 3.0, 1e-9)) {
+        io::println("PASS test_ndCbrt: cbrt(27) = 3");
+    } else {
+        io::println("FAIL test_ndCbrt: expected 3.0, got " + Double.toString(b.getFlat(0)));
+    }
+}
+
+fn test_ndSign(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(-5.0); data.add(0.0); data.add(5.0);
+    let a: NDArray<double> = fromData<double>(shape1(3), data);
+    let b: NDArray<double> = NDArrayMath.ndSign(a);
+    if (approxEq(b.getFlat(0), -1.0, 1e-9) && approxEq(b.getFlat(2), 1.0, 1e-9)) {
+        io::println("PASS test_ndSign: sign(-5)=-1, sign(5)=1");
+    } else {
+        io::println("FAIL test_ndSign: incorrect");
+    }
+}
+
+public fn run_all_ndarray_math_tests(): void {
+    io::println("=== NDArrayMath tests ===");
+    test_map();
+    test_zipMap();
+    test_dot();
+    test_norm();
+    test_ndSin();
+    test_ndCos();
+    test_ndExp();
+    test_ndLog();
+    test_ndSqrt();
+    test_ndAbs();
+    test_ndSquare();
+    test_ndNegative();
+    test_ndReciprocal();
+    test_ndFloor();
+    test_ndCeil();
+    test_ndTanh();
+    test_ndLog2();
+    test_ndLog10();
+    test_ndCbrt();
+    test_ndSign();
+}
