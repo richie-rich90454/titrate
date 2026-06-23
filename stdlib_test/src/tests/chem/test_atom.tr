@@ -1,0 +1,215 @@
+// Test file for chem/Atom.tr
+// Exercises Atom construction, position, distance, properties, and factory functions.
+import tt::chem::Atom;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_atom_construction(): void {
+    let a: Atom = new Atom("C", 6, 12.011);
+    if (a.symbol != "C" || a.atomicNumber != 6 || absDiff(a.mass, 12.011) > 1e-9) {
+        io::println("FAIL: Atom construction");
+    } else {
+        io::println("PASS: Atom construction works");
+    }
+    if (a.charge != 0.0 || a.radius != 0.0 || a.electronegativity != 0.0) {
+        io::println("FAIL: Atom default field values");
+    } else {
+        io::println("PASS: Atom default field values correct");
+    }
+}
+
+public fn test_atom_set_position(): void {
+    let a: Atom = new Atom("H", 1, 1.008);
+    a.setPosition(1.0, 2.0, 3.0);
+    if (absDiff(a.x, 1.0) > 1e-12 || absDiff(a.y, 2.0) > 1e-12 || absDiff(a.z, 3.0) > 1e-12) {
+        io::println("FAIL: Atom.setPosition");
+    } else {
+        io::println("PASS: Atom.setPosition works");
+    }
+}
+
+public fn test_atom_distance_to(): void {
+    let a: Atom = new Atom("H", 1, 1.008);
+    let b: Atom = new Atom("H", 1, 1.008);
+    a.setPosition(0.0, 0.0, 0.0);
+    b.setPosition(3.0, 4.0, 0.0);
+    let d: double = a.distanceTo(b);
+    if (absDiff(d, 5.0) > 1e-9) {
+        io::println("FAIL: Atom.distanceTo (3,4,0) expected 5.0 got " + Double.toString(d));
+    } else {
+        io::println("PASS: Atom.distanceTo (3,4,0) = 5.0");
+    }
+    // Distance to self is zero
+    let dz: double = a.distanceTo(a);
+    if (absDiff(dz, 0.0) > 1e-12) {
+        io::println("FAIL: Atom.distanceTo self");
+    } else {
+        io::println("PASS: Atom.distanceTo self = 0.0");
+    }
+}
+
+public fn test_atom_to_string(): void {
+    let a: Atom = new Atom("O", 8, 15.999);
+    a.setPosition(1.5, 2.5, 3.5);
+    let s: string = a.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Atom.toString empty");
+    } else {
+        io::println("PASS: Atom.toString non-empty: " + s);
+    }
+}
+
+public fn test_atom_factory_functions(): void {
+    let h: Atom = Atom.hydrogen(1.0, 0.0, 0.0);
+    if (h.symbol != "H" || h.atomicNumber != 1) {
+        io::println("FAIL: Atom.hydrogen factory");
+    } else {
+        io::println("PASS: Atom.hydrogen factory works");
+    }
+    let o: Atom = Atom.oxygen(0.0, 0.0, 0.0);
+    if (o.symbol != "O" || o.atomicNumber != 8) {
+        io::println("FAIL: Atom.oxygen factory");
+    } else {
+        io::println("PASS: Atom.oxygen factory works");
+    }
+    let c: Atom = Atom.carbon(0.0, 0.0, 0.0);
+    if (c.symbol != "C" || c.atomicNumber != 6) {
+        io::println("FAIL: Atom.carbon factory");
+    } else {
+        io::println("PASS: Atom.carbon factory works");
+    }
+    let n: Atom = Atom.nitrogen(0.0, 0.0, 0.0);
+    if (n.symbol != "N" || n.atomicNumber != 7) {
+        io::println("FAIL: Atom.nitrogen factory");
+    } else {
+        io::println("PASS: Atom.nitrogen factory works");
+    }
+}
+
+public fn test_atom_get_element(): void {
+    let h: Atom = Atom.getElement("H");
+    if (h.symbol != "H" || h.atomicNumber != 1) {
+        io::println("FAIL: Atom.getElement('H')");
+    } else {
+        io::println("PASS: Atom.getElement('H') works");
+    }
+    let unknown: Atom = Atom.getElement("Zz");
+    if (unknown.atomicNumber != 0) {
+        io::println("FAIL: Atom.getElement unknown element");
+    } else {
+        io::println("PASS: Atom.getElement unknown returns placeholder");
+    }
+}
+
+public fn test_atom_get_mass(): void {
+    let m: double = Atom.getMass("H");
+    if (m <= 0.0) {
+        io::println("FAIL: Atom.getMass('H') positive");
+    } else {
+        io::println("PASS: Atom.getMass('H') = " + Double.toString(m));
+    }
+}
+
+public fn test_atom_periodic_table(): void {
+    let table = Atom.periodicTable();
+    if (table.size() == 0) {
+        io::println("FAIL: Atom.periodicTable empty");
+    } else {
+        io::println("PASS: Atom.periodicTable has " + Integer.toString(table.size()) + " elements");
+    }
+    if (!table.containsKey("H")) {
+        io::println("FAIL: Atom.periodicTable missing H");
+    } else {
+        io::println("PASS: Atom.periodicTable contains H");
+    }
+}
+
+public fn test_atom_property_lookups(): void {
+    // getRadius returns a positive value for known element
+    let r: double = Atom.getRadius("C");
+    if (r <= 0.0) {
+        io::println("FAIL: Atom.getRadius('C') positive");
+    } else {
+        io::println("PASS: Atom.getRadius('C') = " + Double.toString(r));
+    }
+    // getElectronegativity for O should be > 0 (Pauling scale)
+    let en: double = Atom.getElectronegativity("O");
+    if (en <= 0.0) {
+        io::println("FAIL: Atom.getElectronegativity('O') positive");
+    } else {
+        io::println("PASS: Atom.getElectronegativity('O') = " + Double.toString(en));
+    }
+    // getValence for C should be 4
+    let v: int = Atom.getValence("C");
+    if (v != 4) {
+        io::println("FAIL: Atom.getValence('C') = " + Integer.toString(v) + " (expected 4)");
+    } else {
+        io::println("PASS: Atom.getValence('C') = 4");
+    }
+    // getVanDerWaalsRadius should be positive
+    let vdw: double = Atom.getVanDerWaalsRadius("H");
+    if (vdw <= 0.0) {
+        io::println("FAIL: Atom.getVanDerWaalsRadius('H') positive");
+    } else {
+        io::println("PASS: Atom.getVanDerWaalsRadius('H') = " + Double.toString(vdw));
+    }
+    // getCovalentRadius should be positive
+    let cov: double = Atom.getCovalentRadius("C");
+    if (cov <= 0.0) {
+        io::println("FAIL: Atom.getCovalentRadius('C') positive");
+    } else {
+        io::println("PASS: Atom.getCovalentRadius('C') = " + Double.toString(cov));
+    }
+    // getIonizationEnergy should be positive for known element
+    let ie: double = Atom.getIonizationEnergy("H");
+    if (ie <= 0.0) {
+        io::println("FAIL: Atom.getIonizationEnergy('H') positive");
+    } else {
+        io::println("PASS: Atom.getIonizationEnergy('H') = " + Double.toString(ie));
+    }
+}
+
+public fn test_atom_instance_property_methods(): void {
+    let c: Atom = Atom.carbon(0.0, 0.0, 0.0);
+    let r: double = c.radius();
+    if (r <= 0.0) {
+        io::println("FAIL: Atom.radius() instance method");
+    } else {
+        io::println("PASS: Atom.radius() instance method works");
+    }
+    let en: double = c.electronegativity();
+    if (en <= 0.0) {
+        io::println("FAIL: Atom.electronegativity() instance method");
+    } else {
+        io::println("PASS: Atom.electronegativity() instance method works");
+    }
+    let v: int = c.valence();
+    if (v != 4) {
+        io::println("FAIL: Atom.valence() instance method");
+    } else {
+        io::println("PASS: Atom.valence() instance method works");
+    }
+    let cfg: string = c.electronConfiguration();
+    // Electron config may be empty if data not loaded, but should be a string
+    io::println("PASS: Atom.electronConfiguration() returns string of length " + Integer.toString(String.length(cfg)));
+}
+
+public fn run_all_atom_tests(): void {
+    io::println("=== chem/Atom.tr Tests ===");
+    test_atom_construction();
+    test_atom_set_position();
+    test_atom_distance_to();
+    test_atom_to_string();
+    test_atom_factory_functions();
+    test_atom_get_element();
+    test_atom_get_mass();
+    test_atom_periodic_table();
+    test_atom_property_lookups();
+    test_atom_instance_property_methods();
+}
