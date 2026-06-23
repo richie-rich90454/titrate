@@ -1,0 +1,187 @@
+// Test file for Tuple.tr
+// Exercises the public API of the Tuple module.
+import tt::lang::Tuple;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_tuple2_init(): void {
+    let t: Tuple2<int, string> = new Tuple2<int, string>(1, "hello");
+    if (t.get0() != 1 || t.get1() != "hello") {
+        io::println("FAIL: Tuple2.init");
+    } else {
+        io::println("PASS: Tuple2.init");
+    }
+}
+
+public fn test_tuple2_get0(): void {
+    let t: Tuple2<int, string> = new Tuple2<int, string>(42, "x");
+    if (t.get0() != 42) {
+        io::println("FAIL: Tuple2.get0");
+    } else {
+        io::println("PASS: Tuple2.get0");
+    }
+}
+
+public fn test_tuple2_get1(): void {
+    let t: Tuple2<int, string> = new Tuple2<int, string>(1, "world");
+    if (t.get1() != "world") {
+        io::println("FAIL: Tuple2.get1");
+    } else {
+        io::println("PASS: Tuple2.get1");
+    }
+}
+
+public fn test_tuple2_toString(): void {
+    let t: Tuple2<int, int> = new Tuple2<int, int>(1, 2);
+    let s: string = t.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Tuple2.toString empty");
+    } else {
+        io::println("PASS: Tuple2.toString = " + s);
+    }
+}
+
+public fn test_tuple2_equals_same(): void {
+    let t1: Tuple2<int, int> = new Tuple2<int, int>(1, 2);
+    let t2: Tuple2<int, int> = new Tuple2<int, int>(1, 2);
+    if (!t1.equals(t2)) {
+        io::println("FAIL: Tuple2.equals same");
+    } else {
+        io::println("PASS: Tuple2.equals same");
+    }
+}
+
+public fn test_tuple2_equals_diff(): void {
+    let t1: Tuple2<int, int> = new Tuple2<int, int>(1, 2);
+    let t2: Tuple2<int, int> = new Tuple2<int, int>(1, 3);
+    if (t1.equals(t2)) {
+        io::println("FAIL: Tuple2.equals diff");
+    } else {
+        io::println("PASS: Tuple2.equals diff");
+    }
+}
+
+public fn test_tuple3_init(): void {
+    let t: Tuple3<int, int, int> = new Tuple3<int, int, int>(1, 2, 3);
+    if (t.get0() != 1 || t.get1() != 2 || t.get2() != 3) {
+        io::println("FAIL: Tuple3.init");
+    } else {
+        io::println("PASS: Tuple3.init");
+    }
+}
+
+public fn test_tuple3_get2(): void {
+    let t: Tuple3<int, string, int> = new Tuple3<int, string, int>(1, "x", 99);
+    if (t.get2() != 99) {
+        io::println("FAIL: Tuple3.get2");
+    } else {
+        io::println("PASS: Tuple3.get2");
+    }
+}
+
+public fn test_tuple3_toString(): void {
+    let t: Tuple3<int, int, int> = new Tuple3<int, int, int>(1, 2, 3);
+    let s: string = t.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Tuple3.toString empty");
+    } else {
+        io::println("PASS: Tuple3.toString = " + s);
+    }
+}
+
+public fn test_tuple3_equals(): void {
+    let t1: Tuple3<int, int, int> = new Tuple3<int, int, int>(1, 2, 3);
+    let t2: Tuple3<int, int, int> = new Tuple3<int, int, int>(1, 2, 3);
+    if (!t1.equals(t2)) {
+        io::println("FAIL: Tuple3.equals same");
+    } else {
+        io::println("PASS: Tuple3.equals same");
+    }
+}
+
+public fn test_tuple4_init(): void {
+    let t: Tuple4<int, int, int, int> = new Tuple4<int, int, int, int>(1, 2, 3, 4);
+    if (t.get0() != 1 || t.get1() != 2 || t.get2() != 3 || t.get3() != 4) {
+        io::println("FAIL: Tuple4.init");
+    } else {
+        io::println("PASS: Tuple4.init");
+    }
+}
+
+public fn test_tuple4_get3(): void {
+    let t: Tuple4<int, int, int, string> = new Tuple4<int, int, int, string>(1, 2, 3, "end");
+    if (t.get3() != "end") {
+        io::println("FAIL: Tuple4.get3");
+    } else {
+        io::println("PASS: Tuple4.get3");
+    }
+}
+
+public fn test_tuple4_toString(): void {
+    let t: Tuple4<int, int, int, int> = new Tuple4<int, int, int, int>(1, 2, 3, 4);
+    let s: string = t.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Tuple4.toString empty");
+    } else {
+        io::println("PASS: Tuple4.toString = " + s);
+    }
+}
+
+public fn test_makeTuple2(): void {
+    let t: Tuple2<int, string> = Tuple.makeTuple2<int, string>(5, "five");
+    if (t.get0() != 5 || t.get1() != "five") {
+        io::println("FAIL: makeTuple2");
+    } else {
+        io::println("PASS: makeTuple2");
+    }
+}
+
+public fn test_makeTuple3(): void {
+    let t: Tuple3<int, int, int> = Tuple.makeTuple3<int, int, int>(1, 2, 3);
+    if (t.get0() != 1 || t.get2() != 3) {
+        io::println("FAIL: makeTuple3");
+    } else {
+        io::println("PASS: makeTuple3");
+    }
+}
+
+public fn test_makeTuple4(): void {
+    let t: Tuple4<int, int, int, int> = Tuple.makeTuple4<int, int, int, int>(1, 2, 3, 4);
+    if (t.get0() != 1 || t.get3() != 4) {
+        io::println("FAIL: makeTuple4");
+    } else {
+        io::println("PASS: makeTuple4");
+    }
+}
+
+public fn test_tupleCat2(): void {
+    let t1: Tuple2<int, int> = new Tuple2<int, int>(1, 2);
+    let t2: Tuple2<int, int> = new Tuple2<int, int>(3, 4);
+    let t: Tuple4<int, int, int, int> = Tuple.tupleCat2<int, int, int, int>(t1, t2);
+    if (t.get0() != 1 || t.get1() != 2 || t.get2() != 3 || t.get3() != 4) {
+        io::println("FAIL: tupleCat2");
+    } else {
+        io::println("PASS: tupleCat2");
+    }
+}
+
+public fn run_all_tuple_tests(): void {
+    io::println("=== Tuple.tr Tests ===");
+    test_tuple2_init();
+    test_tuple2_get0();
+    test_tuple2_get1();
+    test_tuple2_toString();
+    test_tuple2_equals_same();
+    test_tuple2_equals_diff();
+    test_tuple3_init();
+    test_tuple3_get2();
+    test_tuple3_toString();
+    test_tuple3_equals();
+    test_tuple4_init();
+    test_tuple4_get3();
+    test_tuple4_toString();
+    test_makeTuple2();
+    test_makeTuple3();
+    test_makeTuple4();
+    test_tupleCat2();
+}
