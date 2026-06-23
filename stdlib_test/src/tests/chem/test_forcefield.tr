@@ -1,0 +1,157 @@
+// Test file for chem/ForceField.tr
+// Exercises ForceField energies, gradient, and top-level compute functions.
+import tt::chem::ForceField;
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::chem::Bond;
+import tt::util::ArrayList;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_forcefield_construction(): void {
+    let ff: ForceField = new ForceField();
+    if (absDiff(ff.bondK, 300.0) > 1e-9 || absDiff(ff.bondR0, 1.5) > 1e-9) {
+        io::println("FAIL: ForceField default construction");
+    } else {
+        io::println("PASS: ForceField default construction works");
+    }
+}
+
+public fn test_forcefield_bond_energy(): void {
+    // Two atoms at equilibrium distance -> zero bond energy
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);  // equilibrium distance
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let e: double = ff.bondEnergy(mol);
+    if (absDiff(e, 0.0) > 1e-9) {
+        io::println("FAIL: bondEnergy at equilibrium expected 0 got " + Double.toString(e));
+    } else {
+        io::println("PASS: bondEnergy at equilibrium = 0");
+    }
+    // Stretch bond -> positive energy
+    h2.setPosition(2.5, 0.0, 0.0);
+    let e2: double = ff.bondEnergy(mol);
+    if (e2 <= 0.0) {
+        io::println("FAIL: bondEnergy stretched should be positive");
+    } else {
+        io::println("PASS: bondEnergy stretched = " + Double.toString(e2));
+    }
+}
+
+public fn test_forcefield_total_energy(): void {
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(2.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let total: double = ff.totalEnergy(mol);
+    // Total energy should be a finite number
+    if (total != total) {
+        io::println("FAIL: totalEnergy NaN");
+    } else {
+        io::println("PASS: totalEnergy finite = " + Double.toString(total));
+    }
+}
+
+public fn test_forcefield_gradient(): void {
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(2.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let grad: ArrayList<ArrayList<double>> = ff.gradient(mol);
+    if (grad.size() != 2) {
+        io::println("FAIL: gradient size");
+    } else {
+        io::println("PASS: gradient has 2 entries");
+    }
+    // Each gradient entry should have 3 components
+    let g0: ArrayList<double> = grad.get(0);
+    if (g0.size() != 3) {
+        io::println("FAIL: gradient[0] size");
+    } else {
+        io::println("PASS: gradient[0] has 3 components");
+    }
+}
+
+public fn test_compute_angle(): void {
+    // Three atoms forming a right angle at center
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let center: Atom = new Atom("O", 8, 15.999);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(1.0, 0.0, 0.0);
+    center.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(0.0, 1.0, 0.0);
+    let angle: double = ForceField.computeAngle(a1, center, a2);
+    if (absDiff(angle, 1.5707963) > 1e-5) {
+        io::println("FAIL: computeAngle expected pi/2 got " + Double.toString(angle));
+    } else {
+        io::println("PASS: computeAngle = pi/2 for right angle");
+    }
+}
+
+public fn test_compute_dihedral(): void {
+    // Four collinear atoms -> dihedral should be finite
+    let a1: Atom = new Atom("C", 6, 12.011);
+    let a2: Atom = new Atom("C", 6, 12.011);
+    let a3: Atom = new Atom("C", 6, 12.011);
+    let a4: Atom = new Atom("C", 6, 12.011);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(1.0, 0.0, 0.0);
+    a3.setPosition(2.0, 0.0, 0.0);
+    a4.setPosition(3.0, 0.0, 0.0);
+    let d: double = ForceField.computeDihedral(a1, a2, a3, a4);
+    if (d != d) {
+        io::println("FAIL: computeDihedral NaN");
+    } else {
+        io::println("PASS: computeDihedral finite = " + Double.toString(d));
+    }
+}
+
+public fn test_compute_improper(): void {
+    // Planar configuration -> improper angle should be 0
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let center: Atom = new Atom("C", 6, 12.011);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    let a3: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(1.0, 0.0, 0.0);
+    center.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(0.0, 1.0, 0.0);
+    a3.setPosition(-1.0, 0.0, 0.0);
+    let imp: double = ForceField.computeImproper(a1, center, a2, a3);
+    if (imp != imp) {
+        io::println("FAIL: computeImproper NaN");
+    } else {
+        io::println("PASS: computeImproper finite = " + Double.toString(imp));
+    }
+}
+
+public fn run_all_forcefield_tests(): void {
+    io::println("=== chem/ForceField.tr Tests ===");
+    test_forcefield_construction();
+    test_forcefield_bond_energy();
+    test_forcefield_total_energy();
+    test_forcefield_gradient();
+    test_compute_angle();
+    test_compute_dihedral();
+    test_compute_improper();
+}
