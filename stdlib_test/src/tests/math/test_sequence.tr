@@ -1,0 +1,322 @@
+import tt::util::ArrayList;
+import tt::math::sequence::Sequence;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn test_arithmeticSequence(): void {
+    let s: ArrayList<double> = Sequence.arithmeticSequence(1.0, 2.0, 5);
+    // [1, 3, 5, 7, 9]
+    if (s.size() == 5 && approxEq(s.get(0), 1.0, 1e-9) && approxEq(s.get(4), 9.0, 1e-9)) {
+        io::println("PASS test_arithmeticSequence: 1,3,5,7,9");
+    } else {
+        io::println("FAIL test_arithmeticSequence: incorrect");
+    }
+}
+
+fn test_arithmeticSequence_negative(): void {
+    let s: ArrayList<double> = Sequence.arithmeticSequence(10.0, -2.0, 4);
+    // [10, 8, 6, 4]
+    if (s.size() == 4 && approxEq(s.get(0), 10.0, 1e-9) && approxEq(s.get(3), 4.0, 1e-9)) {
+        io::println("PASS test_arithmeticSequence_negative: 10,8,6,4");
+    } else {
+        io::println("FAIL test_arithmeticSequence_negative: incorrect");
+    }
+}
+
+fn test_arithmeticSequence_zero(): void {
+    let s: ArrayList<double> = Sequence.arithmeticSequence(1.0, 1.0, 0);
+    if (s.size() == 0) {
+        io::println("PASS test_arithmeticSequence_zero: n=0 returns empty");
+    } else {
+        io::println("FAIL test_arithmeticSequence_zero: expected size 0");
+    }
+}
+
+fn test_geometricSequence(): void {
+    let s: ArrayList<double> = Sequence.geometricSequence(1.0, 2.0, 5);
+    // [1, 2, 4, 8, 16]
+    if (s.size() == 5 && approxEq(s.get(0), 1.0, 1e-9) && approxEq(s.get(4), 16.0, 1e-9)) {
+        io::println("PASS test_geometricSequence: 1,2,4,8,16");
+    } else {
+        io::println("FAIL test_geometricSequence: incorrect");
+    }
+}
+
+fn test_geometricSequence_ratio_half(): void {
+    let s: ArrayList<double> = Sequence.geometricSequence(16.0, 0.5, 5);
+    // [16, 8, 4, 2, 1]
+    if (s.size() == 5 && approxEq(s.get(0), 16.0, 1e-9) && approxEq(s.get(4), 1.0, 1e-9)) {
+        io::println("PASS test_geometricSequence_ratio_half: 16,8,4,2,1");
+    } else {
+        io::println("FAIL test_geometricSequence_ratio_half: incorrect");
+    }
+}
+
+fn test_fibonacci(): void {
+    let s: ArrayList<long> = Sequence.fibonacci(7);
+    // [0, 1, 1, 2, 3, 5, 8]
+    if (s.size() == 7 && s.get(0) == 0L && s.get(1) == 1L && s.get(6) == 8L) {
+        io::println("PASS test_fibonacci: first 7 Fibonacci numbers");
+    } else {
+        io::println("FAIL test_fibonacci: incorrect");
+    }
+}
+
+fn test_fibonacci_one(): void {
+    let s: ArrayList<long> = Sequence.fibonacci(1);
+    if (s.size() == 1 && s.get(0) == 0L) {
+        io::println("PASS test_fibonacci_one: n=1 returns [0]");
+    } else {
+        io::println("FAIL test_fibonacci_one: incorrect");
+    }
+}
+
+fn test_fibonacci_zero(): void {
+    let s: ArrayList<long> = Sequence.fibonacci(0);
+    if (s.size() == 0) {
+        io::println("PASS test_fibonacci_zero: n=0 returns empty");
+    } else {
+        io::println("FAIL test_fibonacci_zero: expected empty");
+    }
+}
+
+fn test_triangular(): void {
+    let s: ArrayList<int> = Sequence.triangular(4);
+    // [1, 3, 6, 10]
+    if (s.size() == 4 && s.get(0) == 1 && s.get(3) == 10) {
+        io::println("PASS test_triangular: 1,3,6,10");
+    } else {
+        io::println("FAIL test_triangular: incorrect");
+    }
+}
+
+fn test_squareNumbers(): void {
+    let s: ArrayList<int> = Sequence.squareNumbers(4);
+    // [1, 4, 9, 16]
+    if (s.size() == 4 && s.get(0) == 1 && s.get(3) == 16) {
+        io::println("PASS test_squareNumbers: 1,4,9,16");
+    } else {
+        io::println("FAIL test_squareNumbers: incorrect");
+    }
+}
+
+fn test_pascalsTriangle(): void {
+    let t: ArrayList<ArrayList<long>> = Sequence.pascalsTriangle(3);
+    // Row 0: [1], Row 1: [1,1], Row 2: [1,2,1]
+    if (t.size() == 3 && t.get(2).size() == 3 && t.get(2).get(0) == 1L && t.get(2).get(1) == 2L && t.get(2).get(2) == 1L) {
+        io::println("PASS test_pascalsTriangle: 3 rows, row 2 = [1,2,1]");
+    } else {
+        io::println("FAIL test_pascalsTriangle: incorrect");
+    }
+}
+
+fn test_binomialExpansion(): void {
+    let c: ArrayList<double> = Sequence.binomialExpansion(3);
+    // [1, 3, 3, 1]
+    if (c.size() == 4 && approxEq(c.get(0), 1.0, 1e-9) && approxEq(c.get(1), 3.0, 1e-9) && approxEq(c.get(3), 1.0, 1e-9)) {
+        io::println("PASS test_binomialExpansion: (x+1)^3 coeffs = [1,3,3,1]");
+    } else {
+        io::println("FAIL test_binomialExpansion: incorrect");
+    }
+}
+
+fn test_arithmeticSum(): void {
+    // Sum 1+2+...+10 = 55
+    let s: double = Sequence.arithmeticSum(1.0, 10.0, 10);
+    if (approxEq(s, 55.0, 1e-9)) {
+        io::println("PASS test_arithmeticSum: 1+2+...+10 = 55");
+    } else {
+        io::println("FAIL test_arithmeticSum: expected 55.0, got " + Double.toString(s));
+    }
+}
+
+fn test_geometricSum(): void {
+    // 1 + 2 + 4 + 8 = 15
+    let s: double = Sequence.geometricSum(1.0, 2.0, 4);
+    if (approxEq(s, 15.0, 1e-9)) {
+        io::println("PASS test_geometricSum: 1+2+4+8 = 15");
+    } else {
+        io::println("FAIL test_geometricSum: expected 15.0, got " + Double.toString(s));
+    }
+}
+
+fn test_geometricSum_ratio_one(): void {
+    // When ratio=1, sum = first * n
+    let s: double = Sequence.geometricSum(5.0, 1.0, 3);
+    if (approxEq(s, 15.0, 1e-9)) {
+        io::println("PASS test_geometricSum_ratio_one: 5*3 = 15");
+    } else {
+        io::println("FAIL test_geometricSum_ratio_one: expected 15.0, got " + Double.toString(s));
+    }
+}
+
+fn test_geometricSumInfinite(): void {
+    // 1/(1-0.5) = 2
+    let s: double = Sequence.geometricSumInfinite(1.0, 0.5);
+    if (approxEq(s, 2.0, 1e-9)) {
+        io::println("PASS test_geometricSumInfinite: 1/(1-0.5) = 2");
+    } else {
+        io::println("FAIL test_geometricSumInfinite: expected 2.0, got " + Double.toString(s));
+    }
+}
+
+fn test_geometricSumInfinite_diverge(): void {
+    let s: double = Sequence.geometricSumInfinite(1.0, 2.0);
+    if (s == Math.INF()) {
+        io::println("PASS test_geometricSumInfinite_diverge: |ratio|>=1 returns inf");
+    } else {
+        io::println("FAIL test_geometricSumInfinite_diverge: expected inf");
+    }
+}
+
+fn test_partialSum(): void {
+    // sum of i^2 for i=1..3 = 1 + 4 + 9 = 14
+    let s: double = Sequence.partialSum(fn(i: int): double { return (i as double) * (i as double); }, 1, 3);
+    if (approxEq(s, 14.0, 1e-9)) {
+        io::println("PASS test_partialSum: sum of i^2 for i=1..3 = 14");
+    } else {
+        io::println("FAIL test_partialSum: expected 14.0, got " + Double.toString(s));
+    }
+}
+
+fn test_powerSeriesSum(): void {
+    // 1 + 2*x + 3*x^2 at x=2 = 1 + 4 + 12 = 17
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+    coeffs.add(1.0); coeffs.add(2.0); coeffs.add(3.0);
+    let s: double = Sequence.powerSeriesSum(coeffs, 2.0);
+    if (approxEq(s, 17.0, 1e-9)) {
+        io::println("PASS test_powerSeriesSum: 1+2*2+3*4 = 17");
+    } else {
+        io::println("FAIL test_powerSeriesSum: expected 17.0, got " + Double.toString(s));
+    }
+}
+
+fn test_telescopingSum(): void {
+    // terms(i) = i; telescoping sum from 1 to 5 = 1 - 5 = -4
+    let s: double = Sequence.telescopingSum(fn(i: int): double { return i as double; }, 1, 5);
+    if (approxEq(s, -4.0, 1e-9)) {
+        io::println("PASS test_telescopingSum: terms(1) - terms(5) = -4");
+    } else {
+        io::println("FAIL test_telescopingSum: expected -4.0, got " + Double.toString(s));
+    }
+}
+
+fn test_isArithmetic_true(): void {
+    let s: ArrayList<double> = Sequence.arithmeticSequence(1.0, 3.0, 5);
+    if (Sequence.isArithmetic(s)) {
+        io::println("PASS test_isArithmetic_true: arithmetic sequence detected");
+    } else {
+        io::println("FAIL test_isArithmetic_true: not detected");
+    }
+}
+
+fn test_isArithmetic_false(): void {
+    let s: ArrayList<double> = new ArrayList<double>();
+    s.add(1.0); s.add(2.0); s.add(4.0);
+    if (!Sequence.isArithmetic(s)) {
+        io::println("PASS test_isArithmetic_false: non-arithmetic sequence rejected");
+    } else {
+        io::println("FAIL test_isArithmetic_false: incorrectly detected");
+    }
+}
+
+fn test_isGeometric_true(): void {
+    let s: ArrayList<double> = Sequence.geometricSequence(1.0, 2.0, 5);
+    if (Sequence.isGeometric(s)) {
+        io::println("PASS test_isGeometric_true: geometric sequence detected");
+    } else {
+        io::println("FAIL test_isGeometric_true: not detected");
+    }
+}
+
+fn test_isGeometric_false(): void {
+    let s: ArrayList<double> = new ArrayList<double>();
+    s.add(1.0); s.add(2.0); s.add(5.0);
+    if (!Sequence.isGeometric(s)) {
+        io::println("PASS test_isGeometric_false: non-geometric sequence rejected");
+    } else {
+        io::println("FAIL test_isGeometric_false: incorrectly detected");
+    }
+}
+
+fn test_findCommonDifference(): void {
+    let s: ArrayList<double> = Sequence.arithmeticSequence(5.0, 3.0, 4);
+    let d: double = Sequence.findCommonDifference(s);
+    if (approxEq(d, 3.0, 1e-9)) {
+        io::println("PASS test_findCommonDifference: diff = 3");
+    } else {
+        io::println("FAIL test_findCommonDifference: expected 3.0, got " + Double.toString(d));
+    }
+}
+
+fn test_findCommonRatio(): void {
+    let s: ArrayList<double> = Sequence.geometricSequence(2.0, 3.0, 4);
+    let r: double = Sequence.findCommonRatio(s);
+    if (approxEq(r, 3.0, 1e-9)) {
+        io::println("PASS test_findCommonRatio: ratio = 3");
+    } else {
+        io::println("FAIL test_findCommonRatio: expected 3.0, got " + Double.toString(r));
+    }
+}
+
+fn test_nthTermArithmetic(): void {
+    // first=2, diff=3, n=5 -> 2 + 4*3 = 14
+    let v: double = Sequence.nthTermArithmetic(2.0, 3.0, 5);
+    if (approxEq(v, 14.0, 1e-9)) {
+        io::println("PASS test_nthTermArithmetic: 5th term = 14");
+    } else {
+        io::println("FAIL test_nthTermArithmetic: expected 14.0, got " + Double.toString(v));
+    }
+}
+
+fn test_nthTermGeometric(): void {
+    // first=2, ratio=3, n=4 -> 2 * 3^3 = 54
+    let v: double = Sequence.nthTermGeometric(2.0, 3.0, 4);
+    if (approxEq(v, 54.0, 1e-9)) {
+        io::println("PASS test_nthTermGeometric: 4th term = 54");
+    } else {
+        io::println("FAIL test_nthTermGeometric: expected 54.0, got " + Double.toString(v));
+    }
+}
+
+public fn run_all_sequence_tests(): void {
+    io::println("=== Sequence tests ===");
+    test_arithmeticSequence();
+    test_arithmeticSequence_negative();
+    test_arithmeticSequence_zero();
+    test_geometricSequence();
+    test_geometricSequence_ratio_half();
+    test_fibonacci();
+    test_fibonacci_one();
+    test_fibonacci_zero();
+    test_triangular();
+    test_squareNumbers();
+    test_pascalsTriangle();
+    test_binomialExpansion();
+    test_arithmeticSum();
+    test_geometricSum();
+    test_geometricSum_ratio_one();
+    test_geometricSumInfinite();
+    test_geometricSumInfinite_diverge();
+    test_partialSum();
+    test_powerSeriesSum();
+    test_telescopingSum();
+    test_isArithmetic_true();
+    test_isArithmetic_false();
+    test_isGeometric_true();
+    test_isGeometric_false();
+    test_findCommonDifference();
+    test_findCommonRatio();
+    test_nthTermArithmetic();
+    test_nthTermGeometric();
+}
