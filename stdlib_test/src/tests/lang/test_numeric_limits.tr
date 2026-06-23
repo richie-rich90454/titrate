@@ -1,0 +1,243 @@
+// Test file for NumericLimits.tr
+// Exercises the public API of the NumericLimits module.
+import tt::lang::NumericLimits;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+public fn test_intMax(): void {
+    if (NumericLimits.intMax() != 2147483647) {
+        io::println("FAIL: NumericLimits.intMax");
+    } else {
+        io::println("PASS: NumericLimits.intMax");
+    }
+}
+
+public fn test_intMin(): void {
+    if (NumericLimits.intMin() != -2147483648) {
+        io::println("FAIL: NumericLimits.intMin");
+    } else {
+        io::println("PASS: NumericLimits.intMin");
+    }
+}
+
+public fn test_longMax(): void {
+    if (NumericLimits.longMax() != 9223372036854775807L) {
+        io::println("FAIL: NumericLimits.longMax");
+    } else {
+        io::println("PASS: NumericLimits.longMax");
+    }
+}
+
+public fn test_longMin(): void {
+    if (NumericLimits.longMin() != -9223372036854775808L) {
+        io::println("FAIL: NumericLimits.longMin");
+    } else {
+        io::println("PASS: NumericLimits.longMin");
+    }
+}
+
+public fn test_doubleMax(): void {
+    if (NumericLimits.doubleMax() != 1.7976931348623157e308) {
+        io::println("FAIL: NumericLimits.doubleMax");
+    } else {
+        io::println("PASS: NumericLimits.doubleMax");
+    }
+}
+
+public fn test_doubleMin(): void {
+    if (NumericLimits.doubleMin() != 4.9e-324) {
+        io::println("FAIL: NumericLimits.doubleMin");
+    } else {
+        io::println("PASS: NumericLimits.doubleMin");
+    }
+}
+
+public fn test_doubleEpsilon(): void {
+    if (NumericLimits.doubleEpsilon() != 2.220446049250313e-16) {
+        io::println("FAIL: NumericLimits.doubleEpsilon");
+    } else {
+        io::println("PASS: NumericLimits.doubleEpsilon");
+    }
+}
+
+public fn test_byteMax(): void {
+    if (NumericLimits.byteMax() != 127) {
+        io::println("FAIL: NumericLimits.byteMax");
+    } else {
+        io::println("PASS: NumericLimits.byteMax");
+    }
+}
+
+public fn test_byteMin(): void {
+    if (NumericLimits.byteMin() != -128) {
+        io::println("FAIL: NumericLimits.byteMin");
+    } else {
+        io::println("PASS: NumericLimits.byteMin");
+    }
+}
+
+public fn test_shortMax(): void {
+    if (NumericLimits.shortMax() != 32767) {
+        io::println("FAIL: NumericLimits.shortMax");
+    } else {
+        io::println("PASS: NumericLimits.shortMax");
+    }
+}
+
+public fn test_shortMin(): void {
+    if (NumericLimits.shortMin() != -32768) {
+        io::println("FAIL: NumericLimits.shortMin");
+    } else {
+        io::println("PASS: NumericLimits.shortMin");
+    }
+}
+
+public fn test_u8Max(): void {
+    if (NumericLimits.u8Max() != 255) {
+        io::println("FAIL: NumericLimits.u8Max");
+    } else {
+        io::println("PASS: NumericLimits.u8Max");
+    }
+}
+
+public fn test_u16Max(): void {
+    if (NumericLimits.u16Max() != 65535) {
+        io::println("FAIL: NumericLimits.u16Max");
+    } else {
+        io::println("PASS: NumericLimits.u16Max");
+    }
+}
+
+public fn test_u32Max(): void {
+    if (NumericLimits.u32Max() != 4294967295L) {
+        io::println("FAIL: NumericLimits.u32Max");
+    } else {
+        io::println("PASS: NumericLimits.u32Max");
+    }
+}
+
+public fn test_isFinite(): void {
+    if (!NumericLimits.isFinite(1.0) || NumericLimits.isFinite(NumericLimits.doubleInf())) {
+        io::println("FAIL: NumericLimits.isFinite");
+    } else {
+        io::println("PASS: NumericLimits.isFinite");
+    }
+}
+
+public fn test_isInfinite(): void {
+    if (!NumericLimits.isInfinite(NumericLimits.doubleInf()) || NumericLimits.isInfinite(1.0)) {
+        io::println("FAIL: NumericLimits.isInfinite");
+    } else {
+        io::println("PASS: NumericLimits.isInfinite");
+    }
+}
+
+public fn test_isNaN(): void {
+    if (!NumericLimits.isNaN(NumericLimits.doubleNaN()) || NumericLimits.isNaN(1.0)) {
+        io::println("FAIL: NumericLimits.isNaN");
+    } else {
+        io::println("PASS: NumericLimits.isNaN");
+    }
+}
+
+public fn test_doubleNaN(): void {
+    if (!Double.isNaN(NumericLimits.doubleNaN())) {
+        io::println("FAIL: NumericLimits.doubleNaN");
+    } else {
+        io::println("PASS: NumericLimits.doubleNaN");
+    }
+}
+
+public fn test_doubleInf(): void {
+    if (!Double.isInfinite(NumericLimits.doubleInf())) {
+        io::println("FAIL: NumericLimits.doubleInf");
+    } else {
+        io::println("PASS: NumericLimits.doubleInf");
+    }
+}
+
+public fn test_doubleNegInf(): void {
+    if (!Double.isInfinite(NumericLimits.doubleNegInf())) {
+        io::println("FAIL: NumericLimits.doubleNegInf");
+    } else {
+        io::println("PASS: NumericLimits.doubleNegInf");
+    }
+}
+
+public fn test_infinity(): void {
+    if (!Double.isInfinite(NumericLimits.infinity())) {
+        io::println("FAIL: NumericLimits.infinity");
+    } else {
+        io::println("PASS: NumericLimits.infinity");
+    }
+}
+
+public fn test_quietNaN(): void {
+    if (!Double.isNaN(NumericLimits.quietNaN())) {
+        io::println("FAIL: NumericLimits.quietNaN");
+    } else {
+        io::println("PASS: NumericLimits.quietNaN");
+    }
+}
+
+public fn test_halfMax(): void {
+    if (NumericLimits.halfMax() != 65504.0) {
+        io::println("FAIL: NumericLimits.halfMax");
+    } else {
+        io::println("PASS: NumericLimits.halfMax");
+    }
+}
+
+public fn test_floatMax(): void {
+    if (NumericLimits.floatMax() != 3.4028234663852886e+38) {
+        io::println("FAIL: NumericLimits.floatMax");
+    } else {
+        io::println("PASS: NumericLimits.floatMax");
+    }
+}
+
+public fn test_signbit_negative(): void {
+    if (!NumericLimits.signbit(-1.0)) {
+        io::println("FAIL: NumericLimits.signbit(-1.0)");
+    } else {
+        io::println("PASS: NumericLimits.signbit(-1.0)");
+    }
+}
+
+public fn test_signbit_positive(): void {
+    if (NumericLimits.signbit(1.0)) {
+        io::println("FAIL: NumericLimits.signbit(1.0)");
+    } else {
+        io::println("PASS: NumericLimits.signbit(1.0)");
+    }
+}
+
+public fn run_all_numeric_limits_tests(): void {
+    io::println("=== NumericLimits.tr Tests ===");
+    test_intMax();
+    test_intMin();
+    test_longMax();
+    test_longMin();
+    test_doubleMax();
+    test_doubleMin();
+    test_doubleEpsilon();
+    test_byteMax();
+    test_byteMin();
+    test_shortMax();
+    test_shortMin();
+    test_u8Max();
+    test_u16Max();
+    test_u32Max();
+    test_isFinite();
+    test_isInfinite();
+    test_isNaN();
+    test_doubleNaN();
+    test_doubleInf();
+    test_doubleNegInf();
+    test_infinity();
+    test_quietNaN();
+    test_halfMax();
+    test_floatMax();
+    test_signbit_negative();
+    test_signbit_positive();
+}
