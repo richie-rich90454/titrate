@@ -1,0 +1,151 @@
+// Test file for CharacterExt.tr
+// Exercises the public API of the CharacterExt module.
+import tt::lang::CharacterExt;
+
+public fn test_isLetter_true(): void {
+    if (!CharacterExt.isLetter("a") || !CharacterExt.isLetter("Z")) {
+        io::println("FAIL: CharacterExt.isLetter true");
+    } else {
+        io::println("PASS: CharacterExt.isLetter true");
+    }
+}
+
+public fn test_isLetter_false(): void {
+    if (CharacterExt.isLetter("1") || CharacterExt.isLetter("")) {
+        io::println("FAIL: CharacterExt.isLetter false");
+    } else {
+        io::println("PASS: CharacterExt.isLetter false");
+    }
+}
+
+public fn test_isDigitChar_true(): void {
+    if (!CharacterExt.isDigitChar("5")) {
+        io::println("FAIL: CharacterExt.isDigitChar true");
+    } else {
+        io::println("PASS: CharacterExt.isDigitChar true");
+    }
+}
+
+public fn test_isDigitChar_false(): void {
+    if (CharacterExt.isDigitChar("a") || CharacterExt.isDigitChar("")) {
+        io::println("FAIL: CharacterExt.isDigitChar false");
+    } else {
+        io::println("PASS: CharacterExt.isDigitChar false");
+    }
+}
+
+public fn test_isWhitespace(): void {
+    if (!CharacterExt.isWhitespace(" ") || !CharacterExt.isWhitespace("\t") || CharacterExt.isWhitespace("a") || CharacterExt.isWhitespace("")) {
+        io::println("FAIL: CharacterExt.isWhitespace");
+    } else {
+        io::println("PASS: CharacterExt.isWhitespace");
+    }
+}
+
+public fn test_isUpperCase(): void {
+    if (!CharacterExt.isUpperCase("A") || CharacterExt.isUpperCase("a") || CharacterExt.isUpperCase("")) {
+        io::println("FAIL: CharacterExt.isUpperCase");
+    } else {
+        io::println("PASS: CharacterExt.isUpperCase");
+    }
+}
+
+public fn test_isLowerCase(): void {
+    if (!CharacterExt.isLowerCase("a") || CharacterExt.isLowerCase("A") || CharacterExt.isLowerCase("")) {
+        io::println("FAIL: CharacterExt.isLowerCase");
+    } else {
+        io::println("PASS: CharacterExt.isLowerCase");
+    }
+}
+
+public fn test_toUpperCase(): void {
+    if (CharacterExt.toUpperCase("a") != "A" || CharacterExt.toUpperCase("A") != "A") {
+        io::println("FAIL: CharacterExt.toUpperCase");
+    } else {
+        io::println("PASS: CharacterExt.toUpperCase");
+    }
+}
+
+public fn test_toLowerCase(): void {
+    if (CharacterExt.toLowerCase("A") != "a" || CharacterExt.toLowerCase("a") != "a") {
+        io::println("FAIL: CharacterExt.toLowerCase");
+    } else {
+        io::println("PASS: CharacterExt.toLowerCase");
+    }
+}
+
+public fn test_toUpperCase_empty(): void {
+    if (CharacterExt.toUpperCase("") != "") {
+        io::println("FAIL: CharacterExt.toUpperCase empty");
+    } else {
+        io::println("PASS: CharacterExt.toUpperCase empty");
+    }
+}
+
+public fn test_toLowerCase_empty(): void {
+    if (CharacterExt.toLowerCase("") != "") {
+        io::println("FAIL: CharacterExt.toLowerCase empty");
+    } else {
+        io::println("PASS: CharacterExt.toLowerCase empty");
+    }
+}
+
+public fn test_getNumericValue_digit(): void {
+    if (CharacterExt.getNumericValue("5") != 5) {
+        io::println("FAIL: CharacterExt.getNumericValue(5)");
+    } else {
+        io::println("PASS: CharacterExt.getNumericValue(5) = 5");
+    }
+}
+
+public fn test_getNumericValue_letter(): void {
+    if (CharacterExt.getNumericValue("A") != 10 || CharacterExt.getNumericValue("a") != 10) {
+        io::println("FAIL: CharacterExt.getNumericValue(A)");
+    } else {
+        io::println("PASS: CharacterExt.getNumericValue(A) = 10");
+    }
+}
+
+public fn test_getNumericValue_invalid(): void {
+    if (CharacterExt.getNumericValue("!") != -1 || CharacterExt.getNumericValue("") != -1) {
+        io::println("FAIL: CharacterExt.getNumericValue(!)");
+    } else {
+        io::println("PASS: CharacterExt.getNumericValue(!) = -1");
+    }
+}
+
+public fn test_isAlphabetic(): void {
+    if (!CharacterExt.isAlphabetic("a") || !CharacterExt.isAlphabetic("Z") || CharacterExt.isAlphabetic("1") || CharacterExt.isAlphabetic("")) {
+        io::println("FAIL: CharacterExt.isAlphabetic");
+    } else {
+        io::println("PASS: CharacterExt.isAlphabetic");
+    }
+}
+
+public fn test_isDefined(): void {
+    if (!CharacterExt.isDefined("a") || CharacterExt.isDefined("")) {
+        io::println("FAIL: CharacterExt.isDefined");
+    } else {
+        io::println("PASS: CharacterExt.isDefined");
+    }
+}
+
+public fn run_all_character_ext_tests(): void {
+    io::println("=== CharacterExt.tr Tests ===");
+    test_isLetter_true();
+    test_isLetter_false();
+    test_isDigitChar_true();
+    test_isDigitChar_false();
+    test_isWhitespace();
+    test_isUpperCase();
+    test_isLowerCase();
+    test_toUpperCase();
+    test_toLowerCase();
+    test_toUpperCase_empty();
+    test_toLowerCase_empty();
+    test_getNumericValue_digit();
+    test_getNumericValue_letter();
+    test_getNumericValue_invalid();
+    test_isAlphabetic();
+    test_isDefined();
+}
