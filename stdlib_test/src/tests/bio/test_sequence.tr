@@ -1,0 +1,167 @@
+// Test file for bio/Sequence.tr
+// Exercises Sequence construction, length, complement, reverseComplement, transcribe, translate, gcContent.
+import tt::bio::Sequence;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_sequence_construction(): void {
+    let s: Sequence = new Sequence("ACGT", "dna");
+    if (s.seq != "ACGT" || s.seqType != "dna") {
+        io::println("FAIL: Sequence construction");
+    } else {
+        io::println("PASS: Sequence construction works");
+    }
+}
+
+public fn test_sequence_length(): void {
+    let s: Sequence = new Sequence("ACGTACGT", "dna");
+    if (s.length() != 8) {
+        io::println("FAIL: Sequence.length");
+    } else {
+        io::println("PASS: Sequence.length = 8");
+    }
+}
+
+public fn test_sequence_substring(): void {
+    let s: Sequence = new Sequence("ACGTACGT", "dna");
+    let sub: Sequence = s.substring(2, 6);
+    if (sub.seq != "GTAC") {
+        io::println("FAIL: Sequence.substring expected 'GTAC'");
+    } else {
+        io::println("PASS: Sequence.substring = 'GTAC'");
+    }
+}
+
+public fn test_sequence_complement(): void {
+    let s: Sequence = new Sequence("ACGT", "dna");
+    let c: Sequence = s.complement();
+    if (c.seq != "TGCA") {
+        io::println("FAIL: Sequence.complement expected 'TGCA' got '" + c.seq + "'");
+    } else {
+        io::println("PASS: Sequence.complement = 'TGCA'");
+    }
+}
+
+public fn test_sequence_reverse_complement(): void {
+    let s: Sequence = new Sequence("ACGT", "dna");
+    let rc: Sequence = s.reverseComplement();
+    // complement = TGCA, reversed = ACGT
+    if (rc.seq != "ACGT") {
+        io::println("FAIL: Sequence.reverseComplement expected 'ACGT' got '" + rc.seq + "'");
+    } else {
+        io::println("PASS: Sequence.reverseComplement = 'ACGT'");
+    }
+}
+
+public fn test_sequence_transcribe_dna_to_rna(): void {
+    let s: Sequence = new Sequence("ACGT", "dna");
+    let rna: Sequence = s.transcribe();
+    if (rna.seq != "ACGU") {
+        io::println("FAIL: transcribe DNA->RNA expected 'ACGU' got '" + rna.seq + "'");
+    } else {
+        io::println("PASS: transcribe DNA->RNA = 'ACGU'");
+    }
+    if (rna.seqType != "rna") {
+        io::println("FAIL: transcribe seqType should be 'rna'");
+    } else {
+        io::println("PASS: transcribe seqType = 'rna'");
+    }
+}
+
+public fn test_sequence_transcribe_rna_to_dna(): void {
+    let s: Sequence = new Sequence("ACGU", "rna");
+    let dna: Sequence = s.transcribe();
+    if (dna.seq != "ACGT") {
+        io::println("FAIL: transcribe RNA->DNA expected 'ACGT'");
+    } else {
+        io::println("PASS: transcribe RNA->DNA = 'ACGT'");
+    }
+}
+
+public fn test_sequence_gc_content(): void {
+    let s: Sequence = new Sequence("ACGT", "dna");
+    // GC = 2 out of 4 = 50%
+    let gc: double = s.gcContent();
+    if (absDiff(gc, 50.0) > 1e-9) {
+        io::println("FAIL: gcContent expected 50.0 got " + Double.toString(gc));
+    } else {
+        io::println("PASS: gcContent = 50.0");
+    }
+}
+
+public fn test_sequence_gc_content_empty(): void {
+    let s: Sequence = new Sequence("", "dna");
+    let gc: double = s.gcContent();
+    if (absDiff(gc, 0.0) > 1e-9) {
+        io::println("FAIL: gcContent empty expected 0.0");
+    } else {
+        io::println("PASS: gcContent empty = 0.0");
+    }
+}
+
+public fn test_sequence_mutation(): void {
+    let s: Sequence = new Sequence("ACGT", "dna");
+    let m: Sequence = s.mutation(1, "G");
+    if (m.seq != "AGGT") {
+        io::println("FAIL: mutation expected 'AGGT' got '" + m.seq + "'");
+    } else {
+        io::println("PASS: mutation = 'AGGT'");
+    }
+    // Out of bounds returns original
+    let m2: Sequence = s.mutation(10, "G");
+    if (m2.seq != "ACGT") {
+        io::println("FAIL: mutation out of bounds");
+    } else {
+        io::println("PASS: mutation out of bounds returns original");
+    }
+}
+
+public fn test_sequence_count_base(): void {
+    let s: Sequence = new Sequence("ACGTACGT", "dna");
+    let count: int = s.countBase("A");
+    if (count != 2) {
+        io::println("FAIL: countBase('A') expected 2 got " + Integer.toString(count));
+    } else {
+        io::println("PASS: countBase('A') = 2");
+    }
+}
+
+public fn test_sequence_to_string(): void {
+    let s: Sequence = new Sequence("ACGT", "dna");
+    if (s.toString() != "ACGT") {
+        io::println("FAIL: toString");
+    } else {
+        io::println("PASS: toString = 'ACGT'");
+    }
+}
+
+public fn test_sequence_get_type(): void {
+    let s: Sequence = new Sequence("ACGT", "dna");
+    if (s.getType() != "dna") {
+        io::println("FAIL: getType");
+    } else {
+        io::println("PASS: getType = 'dna'");
+    }
+}
+
+public fn run_all_sequence_tests(): void {
+    io::println("=== bio/Sequence.tr Tests ===");
+    test_sequence_construction();
+    test_sequence_length();
+    test_sequence_substring();
+    test_sequence_complement();
+    test_sequence_reverse_complement();
+    test_sequence_transcribe_dna_to_rna();
+    test_sequence_transcribe_rna_to_dna();
+    test_sequence_gc_content();
+    test_sequence_gc_content_empty();
+    test_sequence_mutation();
+    test_sequence_count_base();
+    test_sequence_to_string();
+    test_sequence_get_type();
+}
