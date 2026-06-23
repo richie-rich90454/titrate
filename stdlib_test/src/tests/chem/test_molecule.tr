@@ -1,0 +1,253 @@
+// Test file for chem/Molecule.tr
+// Exercises Molecule construction, atom/bond management, geometry, and fromXYZ.
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::chem::Bond;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_molecule_construction(): void {
+    let mol: Molecule = new Molecule("water");
+    if (mol.name != "water" || mol.atomCount() != 0 || mol.bondCount() != 0) {
+        io::println("FAIL: Molecule construction");
+    } else {
+        io::println("PASS: Molecule construction works");
+    }
+}
+
+public fn test_molecule_add_atom_bond(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    let idx1: int = mol.addAtom(h1);
+    let idx2: int = mol.addAtom(h2);
+    if (idx1 != 0 || idx2 != 1) {
+        io::println("FAIL: addAtom returns index");
+    } else {
+        io::println("PASS: addAtom returns correct indices");
+    }
+    mol.addBond(new Bond(0, 1, "single", 1));
+    if (mol.atomCount() != 2 || mol.bondCount() != 1) {
+        io::println("FAIL: atomCount/bondCount");
+    } else {
+        io::println("PASS: atomCount=2, bondCount=1");
+    }
+}
+
+public fn test_molecule_get_atom_bond(): void {
+    let mol: Molecule = new Molecule("test");
+    let h: Atom = new Atom("H", 1, 1.008);
+    mol.addAtom(h);
+    mol.addBond(new Bond(0, 0, "single", 1));
+    let a: Atom = mol.getAtom(0);
+    if (a.symbol != "H") {
+        io::println("FAIL: getAtom");
+    } else {
+        io::println("PASS: getAtom works");
+    }
+    let b: Bond = mol.getBond(0);
+    if (b.atom1 != 0 || b.atom2 != 0) {
+        io::println("FAIL: getBond");
+    } else {
+        io::println("PASS: getBond works");
+    }
+}
+
+public fn test_molecule_find_bond(): void {
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addBond(new Bond(0, 1, "single", 1));
+    mol.addBond(new Bond(1, 2, "single", 1));
+    let idx: int = mol.findBond(0, 1);
+    if (idx != 0) {
+        io::println("FAIL: findBond(0,1)");
+    } else {
+        io::println("PASS: findBond(0,1) = 0");
+    }
+    let idx2: int = mol.findBond(1, 0);
+    if (idx2 != 0) {
+        io::println("FAIL: findBond(1,0) reverse");
+    } else {
+        io::println("PASS: findBond(1,0) = 0 (reverse)");
+    }
+    let idx3: int = mol.findBond(0, 2);
+    if (idx3 != -1) {
+        io::println("FAIL: findBond(0,2) should be -1");
+    } else {
+        io::println("PASS: findBond(0,2) = -1 (no bond)");
+    }
+}
+
+public fn test_molecule_get_bonds_of(): void {
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addBond(new Bond(0, 1, "single", 1));
+    mol.addBond(new Bond(0, 2, "single", 1));
+    let bonds: ArrayList<Bond> = mol.getBondsOf(0);
+    if (bonds.size() != 2) {
+        io::println("FAIL: getBondsOf(0) size");
+    } else {
+        io::println("PASS: getBondsOf(0) has 2 bonds");
+    }
+}
+
+public fn test_molecule_get_neighbors_of(): void {
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addBond(new Bond(0, 1, "single", 1));
+    mol.addBond(new Bond(0, 2, "single", 1));
+    let neighbors: ArrayList<int> = mol.getNeighborsOf(0);
+    if (neighbors.size() != 2) {
+        io::println("FAIL: getNeighborsOf(0) size");
+    } else {
+        io::println("PASS: getNeighborsOf(0) has 2 neighbors");
+    }
+}
+
+public fn test_molecule_centroid(): void {
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(2.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    let c: ArrayList<double> = mol.centroid();
+    if (absDiff(c.get(0), 1.0) > 1e-9) {
+        io::println("FAIL: centroid x");
+    } else {
+        io::println("PASS: centroid x = 1.0");
+    }
+}
+
+public fn test_molecule_translate(): void {
+    let mol: Molecule = new Molecule("test");
+    let a: Atom = new Atom("H", 1, 1.008);
+    a.setPosition(1.0, 2.0, 3.0);
+    mol.addAtom(a);
+    mol.translate(1.0, 1.0, 1.0);
+    if (absDiff(a.x, 2.0) > 1e-9 || absDiff(a.y, 3.0) > 1e-9 || absDiff(a.z, 4.0) > 1e-9) {
+        io::println("FAIL: translate");
+    } else {
+        io::println("PASS: translate works");
+    }
+}
+
+public fn test_molecule_center_of_mass(): void {
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("O", 8, 15.999);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(2.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    let com: ArrayList<double> = mol.centerOfMass();
+    // COM should be between the two atoms, closer to O
+    if (com.get(0) <= 0.0 || com.get(0) >= 2.0) {
+        io::println("FAIL: centerOfMass x out of range");
+    } else {
+        io::println("PASS: centerOfMass x = " + Double.toString(com.get(0)));
+    }
+}
+
+public fn test_molecule_molecular_weight(): void {
+    let mol: Molecule = new Molecule("H2O");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("O", 8, 15.999));
+    let mw: double = mol.molecularWeight();
+    if (absDiff(mw, 18.015) > 1e-3) {
+        io::println("FAIL: molecularWeight expected ~18.015 got " + Double.toString(mw));
+    } else {
+        io::println("PASS: molecularWeight = " + Double.toString(mw));
+    }
+}
+
+public fn test_molecule_to_string(): void {
+    let mol: Molecule = new Molecule("water");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("O", 8, 15.999));
+    let s: string = mol.toString();
+    // Hill system: H2O
+    if (s != "H2O") {
+        io::println("FAIL: toString expected 'H2O' got '" + s + "'");
+    } else {
+        io::println("PASS: toString = 'H2O'");
+    }
+}
+
+public fn test_molecule_to_xyz(): void {
+    let mol: Molecule = new Molecule("test");
+    let h: Atom = new Atom("H", 1, 1.008);
+    h.setPosition(0.0, 0.0, 0.0);
+    mol.addAtom(h);
+    let xyz: string = mol.toXYZ();
+    if (String.length(xyz) == 0) {
+        io::println("FAIL: toXYZ empty");
+    } else {
+        io::println("PASS: toXYZ non-empty");
+    }
+}
+
+public fn test_molecule_from_xyz(): void {
+    let xyz: string = "2\ntest\nH 0.0 0.0 0.0\nH 1.0 0.0 0.0\n";
+    let mol: Molecule = Molecule.fromXYZ(xyz);
+    if (mol.atomCount() != 2) {
+        io::println("FAIL: fromXYZ atom count");
+    } else {
+        io::println("PASS: fromXYZ has 2 atoms");
+    }
+}
+
+public fn test_molecule_remove_atom(): void {
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addBond(new Bond(0, 1, "single", 1));
+    mol.addBond(new Bond(1, 2, "single", 1));
+    mol.removeAtom(1);
+    if (mol.atomCount() != 2) {
+        io::println("FAIL: removeAtom atom count");
+    } else {
+        io::println("PASS: removeAtom leaves 2 atoms");
+    }
+    // Bonds involving atom 1 should be removed
+    if (mol.bondCount() != 0) {
+        io::println("FAIL: removeAtom bond count");
+    } else {
+        io::println("PASS: removeAtom removes associated bonds");
+    }
+}
+
+public fn run_all_molecule_tests(): void {
+    io::println("=== chem/Molecule.tr Tests ===");
+    test_molecule_construction();
+    test_molecule_add_atom_bond();
+    test_molecule_get_atom_bond();
+    test_molecule_find_bond();
+    test_molecule_get_bonds_of();
+    test_molecule_get_neighbors_of();
+    test_molecule_centroid();
+    test_molecule_translate();
+    test_molecule_center_of_mass();
+    test_molecule_molecular_weight();
+    test_molecule_to_string();
+    test_molecule_to_xyz();
+    test_molecule_from_xyz();
+    test_molecule_remove_atom();
+}
