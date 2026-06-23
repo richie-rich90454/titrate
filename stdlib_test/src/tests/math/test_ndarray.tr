@@ -1,0 +1,308 @@
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArray as ND;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn shape2(r: int, c: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(r); s.add(c);
+    return s;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn test_zeros(): void {
+    let a: NDArray<double> = zeros(shape2(2, 3));
+    if (a.size() == 6 && a.rows() == 2 && a.cols() == 3) {
+        let pass: bool = true;
+        let i: int = 0;
+        while (i < 6) {
+            if (!approxEq(a.getFlat(i), 0.0, 1e-12)) { pass = false; }
+            i = i + 1;
+        }
+        if (pass) {
+            io::println("PASS test_zeros: 2x3 zeros array has 6 zeros");
+        } else {
+            io::println("FAIL test_zeros: not all zeros");
+        }
+    } else {
+        io::println("FAIL test_zeros: size=" + Integer.toString(a.size()));
+    }
+}
+
+fn test_ones(): void {
+    let a: NDArray<double> = ones(shape2(2, 2));
+    let pass: bool = approxEq(a.getFlat(0), 1.0, 1e-12) && approxEq(a.getFlat(3), 1.0, 1e-12);
+    if (pass) {
+        io::println("PASS test_ones: 2x2 ones array filled with 1.0");
+    } else {
+        io::println("FAIL test_ones: incorrect values");
+    }
+}
+
+fn test_filled(): void {
+    let a: NDArray<double> = filled(shape2(2, 2), 3.5);
+    if (approxEq(a.getFlat(0), 3.5, 1e-12) && approxEq(a.getFlat(3), 3.5, 1e-12)) {
+        io::println("PASS test_filled: array filled with 3.5");
+    } else {
+        io::println("FAIL test_filled: incorrect");
+    }
+}
+
+fn test_fromData(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0);
+    let a: NDArray<double> = fromData<double>(shape2(2, 2), data);
+    if (approxEq(a.get2D(0, 0), 1.0, 1e-12) && approxEq(a.get2D(1, 1), 4.0, 1e-12)) {
+        io::println("PASS test_fromData: data placed correctly in 2x2 array");
+    } else {
+        io::println("FAIL test_fromData: incorrect");
+    }
+}
+
+fn test_get_set_2D(): void {
+    let a: NDArray<double> = zeros(shape2(3, 3));
+    a.set2D(1, 1, 9.0);
+    if (approxEq(a.get2D(1, 1), 9.0, 1e-12)) {
+        io::println("PASS test_get_set_2D: set2D/get2D roundtrip");
+    } else {
+        io::println("FAIL test_get_set_2D: incorrect");
+    }
+}
+
+fn test_get_set_indices(): void {
+    let a: NDArray<double> = zeros(shape2(2, 2));
+    let idx: ArrayList<int> = new ArrayList<int>();
+    idx.add(1); idx.add(0);
+    a.set(idx, 7.0);
+    if (approxEq(a.get(idx), 7.0, 1e-12)) {
+        io::println("PASS test_get_set_indices: set/get with index list");
+    } else {
+        io::println("FAIL test_get_set_indices: incorrect");
+    }
+}
+
+fn test_getFlat_setFlat(): void {
+    let a: NDArray<double> = zeros(shape1(5));
+    a.setFlat(2, 42.0);
+    if (approxEq(a.getFlat(2), 42.0, 1e-12)) {
+        io::println("PASS test_getFlat_setFlat: flat indexing works");
+    } else {
+        io::println("FAIL test_getFlat_setFlat: incorrect");
+    }
+}
+
+fn test_get1D(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0); data.add(20.0); data.add(30.0);
+    let a: NDArray<double> = fromData<double>(shape1(3), data);
+    if (approxEq(a.get1D(0), 10.0, 1e-12) && approxEq(a.get1D(2), 30.0, 1e-12)) {
+        io::println("PASS test_get1D: 1D indexing returns correct values");
+    } else {
+        io::println("FAIL test_get1D: incorrect");
+    }
+}
+
+fn test_get3D(): void {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(2); s.add(2); s.add(2);
+    let a: NDArray<double> = zeros(s);
+    a.set3D(1, 0, 1, 5.0);
+    if (approxEq(a.get3D(1, 0, 1), 5.0, 1e-12)) {
+        io::println("PASS test_get3D: 3D indexing works");
+    } else {
+        io::println("FAIL test_get3D: incorrect");
+    }
+}
+
+fn test_size(): void {
+    let a: NDArray<double> = zeros(shape2(3, 4));
+    if (a.size() == 12) {
+        io::println("PASS test_size: 3x4 array has 12 elements");
+    } else {
+        io::println("FAIL test_size: expected 12, got " + Integer.toString(a.size()));
+    }
+}
+
+fn test_ndim(): void {
+    let a: NDArray<double> = zeros(shape2(2, 2));
+    if (a.ndim() == 2) {
+        io::println("PASS test_ndim: 2D array has ndim=2");
+    } else {
+        io::println("FAIL test_ndim: expected 2, got " + Integer.toString(a.ndim()));
+    }
+}
+
+fn test_rows_cols(): void {
+    let a: NDArray<double> = zeros(shape2(3, 5));
+    if (a.rows() == 3 && a.cols() == 5) {
+        io::println("PASS test_rows_cols: 3x5 array has rows=3, cols=5");
+    } else {
+        io::println("FAIL test_rows_cols: rows=" + Integer.toString(a.rows()) + " cols=" + Integer.toString(a.cols()));
+    }
+}
+
+fn test_totalElements(): void {
+    let a: NDArray<double> = zeros(shape2(2, 3));
+    if (a.totalElements() == 6) {
+        io::println("PASS test_totalElements: 2x3 array has 6 total elements");
+    } else {
+        io::println("FAIL test_totalElements: expected 6, got " + Integer.toString(a.totalElements()));
+    }
+}
+
+fn test_clone(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let b: NDArray<double> = a.clone();
+    a.setFlat(0, 99.0);
+    // Clone should be independent
+    if (approxEq(b.getFlat(0), 1.0, 1e-12)) {
+        io::println("PASS test_clone: clone is independent of original");
+    } else {
+        io::println("FAIL test_clone: clone was modified");
+    }
+}
+
+fn test_fill(): void {
+    let a: NDArray<double> = zeros(shape2(2, 2));
+    a.fill(7.0);
+    if (approxEq(a.getFlat(0), 7.0, 1e-12) && approxEq(a.getFlat(3), 7.0, 1e-12)) {
+        io::println("PASS test_fill: all elements set to 7.0");
+    } else {
+        io::println("FAIL test_fill: incorrect");
+    }
+}
+
+fn test_equals(): void {
+    let a: NDArray<double> = ones(shape2(2, 2));
+    let b: NDArray<double> = ones(shape2(2, 2));
+    let c: NDArray<double> = zeros(shape2(2, 2));
+    if (a.equals(b) && !a.equals(c)) {
+        io::println("PASS test_equals: equal arrays compare equal");
+    } else {
+        io::println("FAIL test_equals: incorrect equality");
+    }
+}
+
+fn test_reshape(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0); data.add(6.0);
+    let a: NDArray<double> = fromData<double>(shape2(2, 3), data);
+    let b: NDArray<double> = a.reshape(shape2(3, 2));
+    if (b.rows() == 3 && b.cols() == 2 && b.size() == 6) {
+        io::println("PASS test_reshape: 2x3 reshaped to 3x2");
+    } else {
+        io::println("FAIL test_reshape: rows=" + Integer.toString(b.rows()) + " cols=" + Integer.toString(b.cols()));
+    }
+}
+
+fn test_flatten(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0);
+    let a: NDArray<double> = fromData<double>(shape2(2, 2), data);
+    let f: NDArray<double> = a.flatten();
+    if (f.ndim() == 1 && f.size() == 4) {
+        io::println("PASS test_flatten: 2x2 flattened to 1D of size 4");
+    } else {
+        io::println("FAIL test_flatten: ndim=" + Integer.toString(f.ndim()) + " size=" + Integer.toString(f.size()));
+    }
+}
+
+fn test_transpose(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0);
+    let a: NDArray<double> = fromData<double>(shape2(2, 2), data);
+    let t: NDArray<double> = a.transpose();
+    // Original [1,2;3,4] -> transpose [1,3;2,4]
+    if (approxEq(t.get2D(0, 1), 2.0, 1e-12) && approxEq(t.get2D(1, 0), 3.0, 1e-12)) {
+        io::println("PASS test_transpose: 2x2 transposed correctly");
+    } else {
+        io::println("FAIL test_transpose: (0,1)=" + Double.toString(t.get2D(0, 1)) + " (1,0)=" + Double.toString(t.get2D(1, 0)));
+    }
+}
+
+fn test_toString_1D(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let s: string = a.toString();
+    if (String.indexOf(s, "[") >= 0) {
+        io::println("PASS test_toString_1D: contains '['");
+    } else {
+        io::println("FAIL test_toString_1D: missing '['");
+    }
+}
+
+fn test_toString_2D(): void {
+    let a: NDArray<double> = zeros(shape2(2, 2));
+    let s: string = a.toString();
+    if (String.indexOf(s, "[") >= 0) {
+        io::println("PASS test_toString_2D: contains '['");
+    } else {
+        io::println("FAIL test_toString_2D: missing '['");
+    }
+}
+
+fn test_computeStrides(): void {
+    let a: NDArray<double> = zeros(shape2(2, 3));
+    // For 2x3 array, strides should be [3, 1]
+    if (a.strides.size() == 2 && a.strides.get(0) == 3 && a.strides.get(1) == 1) {
+        io::println("PASS test_computeStrides: 2x3 strides = [3, 1]");
+    } else {
+        io::println("FAIL test_computeStrides: incorrect strides");
+    }
+}
+
+fn test_flatIndex(): void {
+    let a: NDArray<double> = zeros(shape2(2, 3));
+    let idx: ArrayList<int> = new ArrayList<int>();
+    idx.add(1); idx.add(2);
+    // flatIndex = 1*3 + 2*1 = 5
+    if (a.flatIndex(idx) == 5) {
+        io::println("PASS test_flatIndex: (1,2) in 2x3 -> flat 5");
+    } else {
+        io::println("FAIL test_flatIndex: incorrect");
+    }
+}
+
+public fn run_all_ndarray_tests(): void {
+    io::println("=== NDArray tests ===");
+    test_zeros();
+    test_ones();
+    test_filled();
+    test_fromData();
+    test_get_set_2D();
+    test_get_set_indices();
+    test_getFlat_setFlat();
+    test_get1D();
+    test_get3D();
+    test_size();
+    test_ndim();
+    test_rows_cols();
+    test_totalElements();
+    test_clone();
+    test_fill();
+    test_equals();
+    test_reshape();
+    test_flatten();
+    test_transpose();
+    test_toString_1D();
+    test_toString_2D();
+    test_computeStrides();
+    test_flatIndex();
+}
