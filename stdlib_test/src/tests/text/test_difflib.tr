@@ -1,0 +1,216 @@
+// Test file for Difflib.tr
+// Exercises the public API of the Difflib module's top-level functions and SequenceMatcher class.
+import tt::text::Difflib;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Boolean;
+
+public fn test_difflib_ratio_identical(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    a.add("a");
+    a.add("b");
+    a.add("c");
+    let b: ArrayList<string> = new ArrayList<string>();
+    b.add("a");
+    b.add("b");
+    b.add("c");
+    let r: double = Difflib.ratio(a, b);
+    if (r < 0.9999 || r > 1.0001) {
+        io::println("FAIL: Difflib.ratio identical returned " + Double.toString(r) + ", expected 1.0");
+    } else {
+        io::println("PASS: Difflib.ratio identical works");
+    }
+}
+
+public fn test_difflib_ratio_different(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    a.add("a");
+    a.add("b");
+    a.add("c");
+    let b: ArrayList<string> = new ArrayList<string>();
+    b.add("x");
+    b.add("y");
+    b.add("z");
+    let r: double = Difflib.ratio(a, b);
+    if (r > 0.0001) {
+        io::println("FAIL: Difflib.ratio different returned " + Double.toString(r) + ", expected 0.0");
+    } else {
+        io::println("PASS: Difflib.ratio different works");
+    }
+}
+
+public fn test_difflib_ratio_partial(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    a.add("a");
+    a.add("b");
+    a.add("c");
+    let b: ArrayList<string> = new ArrayList<string>();
+    b.add("a");
+    b.add("x");
+    b.add("c");
+    let r: double = Difflib.ratio(a, b);
+    // 2 matches out of 6 total = 2*2/6 = 0.666...
+    if (r < 0.6 || r > 0.7) {
+        io::println("FAIL: Difflib.ratio partial returned " + Double.toString(r));
+    } else {
+        io::println("PASS: Difflib.ratio partial works");
+    }
+}
+
+public fn test_difflib_ratio_empty_both(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    let b: ArrayList<string> = new ArrayList<string>();
+    let r: double = Difflib.ratio(a, b);
+    if (r < 0.9999 || r > 1.0001) {
+        io::println("FAIL: Difflib.ratio empty both returned " + Double.toString(r));
+    } else {
+        io::println("PASS: Difflib.ratio empty both works");
+    }
+}
+
+public fn test_difflib_ratio_empty_one(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    a.add("a");
+    let b: ArrayList<string> = new ArrayList<string>();
+    let r: double = Difflib.ratio(a, b);
+    if (r > 0.0001) {
+        io::println("FAIL: Difflib.ratio empty one returned " + Double.toString(r));
+    } else {
+        io::println("PASS: Difflib.ratio empty one works");
+    }
+}
+
+public fn test_difflib_unifiedDiff(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    a.add("line1");
+    a.add("line2");
+    a.add("line3");
+    let b: ArrayList<string> = new ArrayList<string>();
+    b.add("line1");
+    b.add("changed");
+    b.add("line3");
+    let result: ArrayList<string> = Difflib.unifiedDiff(a, b, "a.txt", "b.txt");
+    if (result.size() < 2) {
+        io::println("FAIL: Difflib.unifiedDiff too small");
+    } else if (result.get(0) != "--- a.txt" || result.get(1) != "+++ b.txt") {
+        io::println("FAIL: Difflib.unifiedDiff headers wrong");
+    } else {
+        io::println("PASS: Difflib.unifiedDiff works");
+    }
+}
+
+public fn test_difflib_contextDiff(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    a.add("line1");
+    let b: ArrayList<string> = new ArrayList<string>();
+    b.add("line2");
+    let result: ArrayList<string> = Difflib.contextDiff(a, b, "a.txt", "b.txt");
+    if (result.size() < 2) {
+        io::println("FAIL: Difflib.contextDiff too small");
+    } else if (result.get(0) != "*** a.txt" || result.get(1) != "--- b.txt") {
+        io::println("FAIL: Difflib.contextDiff headers wrong");
+    } else {
+        io::println("PASS: Difflib.contextDiff works");
+    }
+}
+
+public fn test_difflib_diffLines(): void {
+    let a: string = "line1\nline2\nline3";
+    let b: string = "line1\nchanged\nline3";
+    let result: ArrayList<string> = Difflib.diffLines(a, b);
+    if (result.size() < 2) {
+        io::println("FAIL: Difflib.diffLines too small");
+    } else {
+        io::println("PASS: Difflib.diffLines works");
+    }
+}
+
+public fn test_difflib_diffLines_identical(): void {
+    let a: string = "same\ncontent";
+    let b: string = "same\ncontent";
+    let result: ArrayList<string> = Difflib.diffLines(a, b);
+    // Should still have headers
+    if (result.size() < 2) {
+        io::println("FAIL: Difflib.diffLines identical too small");
+    } else {
+        io::println("PASS: Difflib.diffLines identical works");
+    }
+}
+
+public fn test_difflib_getCloseMatches(): void {
+    let possibilities: ArrayList<string> = new ArrayList<string>();
+    possibilities.add("hello");
+    possibilities.add("help");
+    possibilities.add("held");
+    possibilities.add("world");
+    let result: ArrayList<string> = Difflib.getCloseMatches("hello", possibilities, 2, 0.5);
+    if (result.size() == 0) {
+        io::println("FAIL: Difflib.getCloseMatches returned empty");
+    } else {
+        io::println("PASS: Difflib.getCloseMatches works, size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_difflib_getCloseMatches_no_match(): void {
+    let possibilities: ArrayList<string> = new ArrayList<string>();
+    possibilities.add("xyz");
+    possibilities.add("abc");
+    let result: ArrayList<string> = Difflib.getCloseMatches("hello", possibilities, 2, 0.9);
+    if (result.size() != 0) {
+        io::println("FAIL: Difflib.getCloseMatches should return empty for no matches");
+    } else {
+        io::println("PASS: Difflib.getCloseMatches no match works");
+    }
+}
+
+public fn test_difflib_SequenceMatcher_ratio(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    a.add("a");
+    a.add("b");
+    let b: ArrayList<string> = new ArrayList<string>();
+    b.add("a");
+    b.add("b");
+    let sm: Difflib.SequenceMatcher = new Difflib.SequenceMatcher(a, b);
+    let r: double = sm.ratio();
+    if (r < 0.9999 || r > 1.0001) {
+        io::println("FAIL: SequenceMatcher.ratio returned " + Double.toString(r));
+    } else {
+        io::println("PASS: SequenceMatcher.ratio works");
+    }
+}
+
+public fn test_difflib_SequenceMatcher_getMatchingBlocks(): void {
+    let a: ArrayList<string> = new ArrayList<string>();
+    a.add("a");
+    a.add("b");
+    a.add("c");
+    let b: ArrayList<string> = new ArrayList<string>();
+    b.add("a");
+    b.add("b");
+    b.add("c");
+    let sm: Difflib.SequenceMatcher = new Difflib.SequenceMatcher(a, b);
+    let blocks: ArrayList<ArrayList<int>> = sm.getMatchingBlocks();
+    if (blocks.size() == 0) {
+        io::println("FAIL: SequenceMatcher.getMatchingBlocks returned empty");
+    } else {
+        io::println("PASS: SequenceMatcher.getMatchingBlocks works");
+    }
+}
+
+public fn run_all_difflib_tests(): void {
+    io::println("=== Difflib.tr Tests ===");
+    test_difflib_ratio_identical();
+    test_difflib_ratio_different();
+    test_difflib_ratio_partial();
+    test_difflib_ratio_empty_both();
+    test_difflib_ratio_empty_one();
+    test_difflib_unifiedDiff();
+    test_difflib_contextDiff();
+    test_difflib_diffLines();
+    test_difflib_diffLines_identical();
+    test_difflib_getCloseMatches();
+    test_difflib_getCloseMatches_no_match();
+    test_difflib_SequenceMatcher_ratio();
+    test_difflib_SequenceMatcher_getMatchingBlocks();
+}
