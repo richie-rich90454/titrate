@@ -1,0 +1,222 @@
+// Test file for Sqlite.tr
+// Exercises the public API of SqliteConnection, SqliteResultSet, Row, and the
+// exception classes (DatabaseError, IntegrityError, OperationalError).
+import tt::db::Sqlite;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_databaseError_accessors(): void {
+    let ex: DatabaseError = new DatabaseError("disk full");
+    if (ex.getMessage() != "disk full") {
+        io::println("FAIL: DatabaseError.getMessage = " + ex.getMessage());
+    } else {
+        io::println("PASS: DatabaseError.getMessage works");
+    }
+    let s: string = ex.toString();
+    if (String.indexOf(s, "disk full") < 0 || String.indexOf(s, "DatabaseError") < 0) {
+        io::println("FAIL: DatabaseError.toString = " + s);
+    } else {
+        io::println("PASS: DatabaseError.toString works");
+    }
+}
+
+public fn test_integrityError_accessors(): void {
+    let ex: IntegrityError = new IntegrityError("unique violation");
+    if (ex.getMessage() != "unique violation") {
+        io::println("FAIL: IntegrityError.getMessage = " + ex.getMessage());
+    } else {
+        io::println("PASS: IntegrityError.getMessage works");
+    }
+    if (String.indexOf(ex.toString(), "IntegrityError") < 0) {
+        io::println("FAIL: IntegrityError.toString = " + ex.toString());
+    } else {
+        io::println("PASS: IntegrityError.toString works");
+    }
+}
+
+public fn test_operationalError_accessors(): void {
+    let ex: OperationalError = new OperationalError("database locked");
+    if (ex.getMessage() != "database locked") {
+        io::println("FAIL: OperationalError.getMessage = " + ex.getMessage());
+    } else {
+        io::println("PASS: OperationalError.getMessage works");
+    }
+    if (String.indexOf(ex.toString(), "OperationalError") < 0) {
+        io::println("FAIL: OperationalError.toString = " + ex.toString());
+    } else {
+        io::println("PASS: OperationalError.toString works");
+    }
+}
+
+public fn test_row_construction_keys(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("id");
+    names.add("name");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(42 as Variant);
+    values.add("alice" as Variant);
+    let row: Row = new Row(names, values);
+    let keys: ArrayList<string> = row.keys();
+    if (keys.size() != 2 || keys.get(0) != "id" || keys.get(1) != "name") {
+        io::println("FAIL: Row.keys size=" + Integer.toString(keys.size()));
+    } else {
+        io::println("PASS: Row.keys works");
+    }
+}
+
+public fn test_row_getValueByName(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("id");
+    names.add("name");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(7 as Variant);
+    values.add("bob" as Variant);
+    let row: Row = new Row(names, values);
+    let v: Variant = row.getValueByName("name");
+    if (v == null) {
+        io::println("FAIL: Row.getValueByName returned null for existing column");
+    } else {
+        io::println("PASS: Row.getValueByName works");
+    }
+    let missing: Variant = row.getValueByName("nonexistent");
+    if (missing != null) {
+        io::println("FAIL: Row.getValueByName should return null for missing column");
+    } else {
+        io::println("PASS: Row.getValueByName returns null for missing column");
+    }
+}
+
+public fn test_row_getValueByIndex(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("a");
+    names.add("b");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(1 as Variant);
+    values.add(2 as Variant);
+    let row: Row = new Row(names, values);
+    let v0: Variant = row.getValueByIndex(0);
+    let v1: Variant = row.getValueByIndex(1);
+    if (v0 == null || v1 == null) {
+        io::println("FAIL: Row.getValueByIndex returned null");
+    } else {
+        io::println("PASS: Row.getValueByIndex works");
+    }
+}
+
+public fn test_row_toString(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("id");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(99 as Variant);
+    let row: Row = new Row(names, values);
+    let s: string = row.toString();
+    if (String.indexOf(s, "id") < 0 || String.indexOf(s, "99") < 0) {
+        io::println("FAIL: Row.toString = " + s);
+    } else {
+        io::println("PASS: Row.toString works");
+    }
+}
+
+public fn test_sqliteconnection_open_close(): void {
+    let db: SqliteConnection = new SqliteConnection(":memory:");
+    if (db.isClosed()) {
+        io::println("FAIL: SqliteConnection should not be closed after open");
+    } else {
+        io::println("PASS: SqliteConnection open sets isClosed false");
+    }
+    db.close();
+    if (!db.isClosed()) {
+        io::println("FAIL: SqliteConnection should be closed after close");
+    } else {
+        io::println("PASS: SqliteConnection close sets isClosed true");
+    }
+}
+
+public fn test_sqliteconnection_close_idempotent(): void {
+    let db: SqliteConnection = new SqliteConnection(":memory:");
+    db.close();
+    db.close();
+    if (!db.isClosed()) {
+        io::println("FAIL: SqliteConnection close should be idempotent");
+    } else {
+        io::println("PASS: SqliteConnection.close idempotent");
+    }
+}
+
+public fn test_sqliteconnection_execute_query(): void {
+    let db: SqliteConnection = new SqliteConnection(":memory:");
+    db.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)");
+    db.execute("INSERT INTO items (name) VALUES ('apple')");
+    let rs: SqliteResultSet = db.query("SELECT id, name FROM items");
+    let hasRow: bool = rs.next();
+    if (!hasRow) {
+        io::println("FAIL: SqliteResultSet.next should return true after insert");
+    } else {
+        io::println("PASS: SqliteResultSet.next returns true");
+    }
+    let name: string = rs.getString(1);
+    if (name != "apple") {
+        io::println("FAIL: SqliteResultSet.getString = " + name);
+    } else {
+        io::println("PASS: SqliteResultSet.getString works");
+    }
+    let colCount: int = rs.getColumnCount();
+    if (colCount != 2) {
+        io::println("FAIL: SqliteResultSet.getColumnCount = " + Integer.toString(colCount));
+    } else {
+        io::println("PASS: SqliteResultSet.getColumnCount works");
+    }
+    rs.close();
+    db.close();
+}
+
+public fn test_sqliteconnection_transaction_methods(): void {
+    let db: SqliteConnection = new SqliteConnection(":memory:");
+    db.execute("CREATE TABLE t (x INTEGER)");
+    db.beginTransaction();
+    db.execute("INSERT INTO t (x) VALUES (1)");
+    db.rollback();
+    let rs: SqliteResultSet = db.query("SELECT COUNT(*) FROM t");
+    rs.next();
+    let count: int = rs.getInt(0);
+    rs.close();
+    if (count != 0) {
+        io::println("FAIL: rollback should leave table empty, count=" + Integer.toString(count));
+    } else {
+        io::println("PASS: beginTransaction/rollback works");
+    }
+    db.close();
+}
+
+public fn test_sqliteconnection_executeScript(): void {
+    let db: SqliteConnection = new SqliteConnection(":memory:");
+    db.executeScript("CREATE TABLE a (x INTEGER); INSERT INTO a (x) VALUES (5);");
+    let rs: SqliteResultSet = db.query("SELECT x FROM a");
+    rs.next();
+    let val: int = rs.getInt(0);
+    rs.close();
+    if (val != 5) {
+        io::println("FAIL: executeScript value = " + Integer.toString(val));
+    } else {
+        io::println("PASS: executeScript works");
+    }
+    db.close();
+}
+
+public fn run_all_sqlite_tests(): void {
+    io::println("=== Sqlite.tr Tests ===");
+    test_databaseError_accessors();
+    test_integrityError_accessors();
+    test_operationalError_accessors();
+    test_row_construction_keys();
+    test_row_getValueByName();
+    test_row_getValueByIndex();
+    test_row_toString();
+    test_sqliteconnection_open_close();
+    test_sqliteconnection_close_idempotent();
+    test_sqliteconnection_execute_query();
+    test_sqliteconnection_transaction_methods();
+    test_sqliteconnection_executeScript();
+}
