@@ -1,0 +1,148 @@
+// Test file for Signal.tr
+// Exercises the public API of the Signal module: signal constants, register,
+// registerWithSignal, getSignal, raise, and ignoreHandler.
+// defaultHandler is not invoked because it calls Sys_exit.
+import tt::sys::Signal;
+import tt::lang::Integer;
+
+// Module-level counter to verify handler invocation.
+var _signalCallCount: int = 0;
+
+public fn test_signal_constants(): void {
+    // Standard signal numbers should be positive.
+    if (Signal.SIGHUP() < 1) {
+        io::println("FAIL: SIGHUP < 1");
+    } else if (Signal.SIGINT() < 1) {
+        io::println("FAIL: SIGINT < 1");
+    } else if (Signal.SIGKILL() < 1) {
+        io::println("FAIL: SIGKILL < 1");
+    } else if (Signal.SIGTERM() < 1) {
+        io::println("FAIL: SIGTERM < 1");
+    } else {
+        io::println("PASS: Signal constants return positive numbers");
+    }
+}
+
+public fn test_signal_sigint_value(): void {
+    // SIGINT is conventionally 2.
+    if (Signal.SIGINT() != 2) {
+        io::println("FAIL: SIGINT = " + Integer.toString(Signal.SIGINT()));
+    } else {
+        io::println("PASS: SIGINT equals 2");
+    }
+}
+
+public fn test_signal_sigkill_value(): void {
+    // SIGKILL is conventionally 9.
+    if (Signal.SIGKILL() != 9) {
+        io::println("FAIL: SIGKILL = " + Integer.toString(Signal.SIGKILL()));
+    } else {
+        io::println("PASS: SIGKILL equals 9");
+    }
+}
+
+public fn test_signal_sigterm_value(): void {
+    // SIGTERM is conventionally 15.
+    if (Signal.SIGTERM() != 15) {
+        io::println("FAIL: SIGTERM = " + Integer.toString(Signal.SIGTERM()));
+    } else {
+        io::println("PASS: SIGTERM equals 15");
+    }
+}
+
+public fn test_signal_register_raise(): void {
+    _signalCallCount = 0;
+    let sig: int = Signal.SIGUSR1();
+    Signal.register(sig, fn(): void {
+        _signalCallCount = _signalCallCount + 1;
+    });
+    Signal.raise(sig);
+    if (_signalCallCount != 1) {
+        io::println("FAIL: register/raise count = " + Integer.toString(_signalCallCount));
+    } else {
+        io::println("PASS: register/raise invokes handler");
+    }
+}
+
+public fn test_signal_registerWithSignal(): void {
+    _signalCallCount = 0;
+    let received: int = 0;
+    let sig: int = Signal.SIGUSR2();
+    Signal.registerWithSignal(sig, fn(s: int): void {
+        _signalCallCount = _signalCallCount + 1;
+    });
+    Signal.raise(sig);
+    if (_signalCallCount != 1) {
+        io::println("FAIL: registerWithSignal/raise count = " + Integer.toString(_signalCallCount));
+    } else {
+        io::println("PASS: registerWithSignal/raise invokes handler");
+    }
+}
+
+public fn test_signal_getSignal_registered(): void {
+    let sig: int = Signal.SIGUSR1();
+    Signal.register(sig, fn(): void {
+        io::println("handler");
+    });
+    let handler: fn(int): void = Signal.getSignal(sig);
+    if (handler == null) {
+        io::println("FAIL: getSignal returned null for registered signal");
+    } else {
+        io::println("PASS: getSignal returns registered handler");
+    }
+}
+
+public fn test_signal_getSignal_unregistered(): void {
+    // Use an unlikely signal number.
+    let handler: fn(int): void = Signal.getSignal(9999);
+    if (handler != null) {
+        io::println("FAIL: getSignal returned non-null for unregistered signal");
+    } else {
+        io::println("PASS: getSignal returns null for unregistered signal");
+    }
+}
+
+public fn test_signal_raise_no_handler(): void {
+    // Raising a signal with no handler should be a no-op.
+    Signal.raise(9998);
+    io::println("PASS: raise with no handler is a no-op");
+}
+
+public fn test_signal_ignoreHandler(): void {
+    let sig: int = Signal.SIGUSR1();
+    let ign: fn(int): void = Signal.ignoreHandler(sig);
+    if (ign == null) {
+        io::println("FAIL: ignoreHandler returned null");
+    } else {
+        // Invoking the ignore handler should not throw or change state.
+        ign(sig);
+        io::println("PASS: ignoreHandler returns a no-op function");
+    }
+}
+
+public fn test_signal_defaultHandler_returns_fn(): void {
+    // defaultHandler returns a function; we do NOT invoke it because it
+    // calls Sys_exit. We only verify it returns a non-null callable.
+    let sig: int = Signal.SIGTERM();
+    let dh: fn(int): void = Signal.defaultHandler(sig);
+    if (dh == null) {
+        io::println("FAIL: defaultHandler returned null");
+    } else {
+        io::println("PASS: defaultHandler returns a callable");
+    }
+}
+
+public fn run_all_signal_tests(): void {
+    io::println("=== Signal.tr Tests ===");
+    test_signal_constants();
+    test_signal_sigint_value();
+    test_signal_sigkill_value();
+    test_signal_sigterm_value();
+    test_signal_register_raise();
+    test_signal_registerWithSignal();
+    test_signal_getSignal_registered();
+    test_signal_getSignal_unregistered();
+    test_signal_raise_no_handler();
+    test_signal_ignoreHandler();
+    test_signal_defaultHandler_returns_fn();
+}
