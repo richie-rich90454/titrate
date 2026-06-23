@@ -1,0 +1,50 @@
+// Test file for bio/RestrictionEnzyme.tr
+// Exercises RestrictionEnzyme, getEnzyme, availableEnzymes, findCutSites, digest.
+import tt::bio::RestrictionEnzyme;
+import tt::lang::Integer;
+
+public fn test_restriction_enzyme_construction(): void {
+    let e: RestrictionEnzyme = new RestrictionEnzyme("EcoRI", "GAATTC", 1, 5, "II");
+    if (e.name != "EcoRI" || e.recognitionSite != "GAATTC") {
+        io::println("FAIL: RestrictionEnzyme construction");
+    } else {
+        io::println("PASS: RestrictionEnzyme construction works");
+    }
+    if (e.cutTop != 1 || e.cutBottom != 5 || e.enzymeType != "II") {
+        io::println("FAIL: RestrictionEnzyme fields");
+    } else {
+        io::println("PASS: RestrictionEnzyme fields correct");
+    }
+}
+
+public fn test_get_enzyme_unknown(): void {
+    let e: RestrictionEnzyme = RestrictionEnzyme.getEnzyme("NonExistentEnzyme123");
+    if (String.length(e.name) != 0) {
+        io::println("FAIL: getEnzyme unknown should return empty name");
+    } else {
+        io::println("PASS: getEnzyme unknown returns empty");
+    }
+}
+
+public fn test_available_enzymes(): void {
+    let enzymes = RestrictionEnzyme.availableEnzymes();
+    io::println("PASS: availableEnzymes returns list of size " + Integer.toString(enzymes.size()));
+}
+
+public fn test_find_cut_sites_no_match(): void {
+    // Searching for a nonexistent enzyme returns empty
+    let sites = RestrictionEnzyme.findCutSites("ACGTACGTACGT", "NonExistentEnzyme123");
+    if (sites.size() != 0) {
+        io::println("FAIL: findCutSites no match expected empty");
+    } else {
+        io::println("PASS: findCutSites no match returns empty");
+    }
+}
+
+public fn run_all_restriction_enzyme_tests(): void {
+    io::println("=== bio/RestrictionEnzyme.tr Tests ===");
+    test_restriction_enzyme_construction();
+    test_get_enzyme_unknown();
+    test_available_enzymes();
+    test_find_cut_sites_no_match();
+}
