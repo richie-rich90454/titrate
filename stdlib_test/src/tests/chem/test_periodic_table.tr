@@ -1,0 +1,120 @@
+// Test file for chem/PeriodicTable.tr
+// Exercises Element class, getElement, getElementByNumber, allElements, and category filters.
+import tt::chem::PeriodicTable;
+import tt::lang::Integer;
+
+public fn test_element_construction(): void {
+    let e: Element = new Element("H", "Hydrogen", 1, 1.008, "1s1", 2.20, 0.53, 13.598, 1, 1, "nonmetal");
+    if (e.symbol != "H" || e.name != "Hydrogen" || e.number != 1) {
+        io::println("FAIL: Element construction");
+    } else {
+        io::println("PASS: Element construction works");
+    }
+    if (absDiff(e.atomicWeight, 1.008) > 1e-9) {
+        io::println("FAIL: Element.atomicWeight");
+    } else {
+        io::println("PASS: Element.atomicWeight correct");
+    }
+}
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_element_to_string(): void {
+    let e: Element = new Element("O", "Oxygen", 8, 15.999, "1s2 2s2 2p4", 3.44, 0.48, 13.618, 16, 2, "nonmetal");
+    let s: string = e.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Element.toString empty");
+    } else {
+        io::println("PASS: Element.toString non-empty: " + s);
+    }
+}
+
+public fn test_get_element_by_symbol(): void {
+    let h: Element = PeriodicTable.getElement("H");
+    if (h.number != 1) {
+        io::println("FAIL: getElement('H') number");
+    } else {
+        io::println("PASS: getElement('H') number = 1");
+    }
+    let unknown: Element = PeriodicTable.getElement("Zz");
+    if (unknown.number != 0) {
+        io::println("FAIL: getElement unknown element");
+    } else {
+        io::println("PASS: getElement unknown returns placeholder");
+    }
+}
+
+public fn test_get_element_by_number(): void {
+    let h: Element = PeriodicTable.getElementByNumber(1);
+    if (h.symbol != "H") {
+        io::println("FAIL: getElementByNumber(1) symbol");
+    } else {
+        io::println("PASS: getElementByNumber(1) = H");
+    }
+    let c: Element = PeriodicTable.getElementByNumber(6);
+    if (c.symbol != "C") {
+        io::println("FAIL: getElementByNumber(6) symbol");
+    } else {
+        io::println("PASS: getElementByNumber(6) = C");
+    }
+}
+
+public fn test_all_elements(): void {
+    let all: ArrayList<Element> = PeriodicTable.allElements();
+    if (all.size() == 0) {
+        io::println("FAIL: allElements empty");
+    } else {
+        io::println("PASS: allElements has " + Integer.toString(all.size()) + " entries");
+    }
+}
+
+public fn test_elements_in_range(): void {
+    let first10: ArrayList<Element> = PeriodicTable.elementsInRange(1, 10);
+    if (first10.size() != 10) {
+        io::println("FAIL: elementsInRange(1,10) size = " + Integer.toString(first10.size()));
+    } else {
+        io::println("PASS: elementsInRange(1,10) has 10 entries");
+    }
+}
+
+public fn test_category_filters(): void {
+    let alkali: ArrayList<Element> = PeriodicTable.alkaliMetals();
+    if (alkali.size() == 0) {
+        io::println("FAIL: alkaliMetals empty");
+    } else {
+        io::println("PASS: alkaliMetals has " + Integer.toString(alkali.size()) + " entries");
+    }
+    let noble: ArrayList<Element> = PeriodicTable.nobleGases();
+    if (noble.size() == 0) {
+        io::println("FAIL: nobleGases empty");
+    } else {
+        io::println("PASS: nobleGases has " + Integer.toString(noble.size()) + " entries");
+    }
+    let halogens: ArrayList<Element> = PeriodicTable.halogens();
+    if (halogens.size() == 0) {
+        io::println("FAIL: halogens empty");
+    } else {
+        io::println("PASS: halogens has " + Integer.toString(halogens.size()) + " entries");
+    }
+    let transition: ArrayList<Element> = PeriodicTable.transitionMetals();
+    if (transition.size() == 0) {
+        io::println("FAIL: transitionMetals empty");
+    } else {
+        io::println("PASS: transitionMetals has " + Integer.toString(transition.size()) + " entries");
+    }
+}
+
+public fn run_all_periodic_table_tests(): void {
+    io::println("=== chem/PeriodicTable.tr Tests ===");
+    test_element_construction();
+    test_element_to_string();
+    test_get_element_by_symbol();
+    test_get_element_by_number();
+    test_all_elements();
+    test_elements_in_range();
+    test_category_filters();
+}
