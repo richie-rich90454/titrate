@@ -1,0 +1,106 @@
+// Test file for chem/Electrochemistry.tr
+// Exercises Nernst potential, cell potential, Gibbs from potential, Faraday electrolysis, concentration cell.
+import tt::chem::Electrochemistry;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_cell_potential(): void {
+    // E°cell = E°cathode - E°anode
+    let e: double = Electrochemistry.cellPotential(0.34, -0.76);
+    if (absDiff(e, 1.10) > 1e-9) {
+        io::println("FAIL: cellPotential expected 1.10");
+    } else {
+        io::println("PASS: cellPotential = 1.10 V (Daniell cell)");
+    }
+}
+
+public fn test_gibbs_from_potential(): void {
+    // ΔG° = -nFE°
+    // For n=2, E=1.10: ΔG° = -2 * 96485 * 1.10 = -212267 J/mol
+    let g: double = Electrochemistry.gibbsFromPotential(1.10, 2);
+    let expected: double = -2.0 * 96485.0 * 1.10;
+    if (absDiff(g, expected) > 1.0) {
+        io::println("FAIL: gibbsFromPotential expected " + Double.toString(expected));
+    } else {
+        io::println("PASS: gibbsFromPotential = " + Double.toString(g));
+    }
+}
+
+public fn test_faraday_electrolysis(): void {
+    // moles = (I * t) / (n * F)
+    // For I=1A, t=96485s, n=1: moles = 1
+    let m: double = Electrochemistry.faradayElectrolysis(1.0, 96485.0, 1);
+    if (absDiff(m, 1.0) > 1e-3) {
+        io::println("FAIL: faradayElectrolysis expected ~1.0 got " + Double.toString(m));
+    } else {
+        io::println("PASS: faradayElectrolysis = ~1.0 mol");
+    }
+    // n <= 0 returns 0
+    let m2: double = Electrochemistry.faradayElectrolysis(1.0, 100.0, 0);
+    if (absDiff(m2, 0.0) > 1e-9) {
+        io::println("FAIL: faradayElectrolysis n=0 expected 0");
+    } else {
+        io::println("PASS: faradayElectrolysis n=0 returns 0");
+    }
+}
+
+public fn test_nernst_potential(): void {
+    // With Q=1 (equal concentrations), E = E°
+    let products: ArrayList<Pair<string, double>> = new ArrayList<Pair<string, double>>();
+    products.add(new Pair<string, double>("Zn2+", 1.0));
+    let reactants: ArrayList<Pair<string, double>> = new ArrayList<Pair<string, double>>();
+    reactants.add(new Pair<string, double>("Cu2+", 1.0));
+    let e: double = Electrochemistry.nernstPotential(1.10, 2, products, reactants, 298.15);
+    if (absDiff(e, 1.10) > 1e-6) {
+        io::println("FAIL: nernstPotential Q=1 expected E° got " + Double.toString(e));
+    } else {
+        io::println("PASS: nernstPotential Q=1 = E°");
+    }
+    // n <= 0 returns e0
+    let e2: double = Electrochemistry.nernstPotential(0.5, 0, products, reactants, 298.15);
+    if (absDiff(e2, 0.5) > 1e-9) {
+        io::println("FAIL: nernstPotential n=0 expected e0");
+    } else {
+        io::println("PASS: nernstPotential n=0 returns e0");
+    }
+}
+
+public fn test_concentration_cell_potential(): void {
+    // Equal concentrations -> ln(1) = 0 -> E = e0
+    let e: double = Electrochemistry.concentrationCellPotential(0.0, 2, 1.0, 1.0);
+    if (absDiff(e, 0.0) > 1e-9) {
+        io::println("FAIL: concentrationCellPotential equal conc expected 0");
+    } else {
+        io::println("PASS: concentrationCellPotential equal conc = 0");
+    }
+    // n <= 0 returns e0
+    let e2: double = Electrochemistry.concentrationCellPotential(0.5, 0, 1.0, 2.0);
+    if (absDiff(e2, 0.5) > 1e-9) {
+        io::println("FAIL: concentrationCellPotential n=0 expected e0");
+    } else {
+        io::println("PASS: concentrationCellPotential n=0 returns e0");
+    }
+    // c1 <= 0 returns e0
+    let e3: double = Electrochemistry.concentrationCellPotential(0.5, 2, 0.0, 1.0);
+    if (absDiff(e3, 0.5) > 1e-9) {
+        io::println("FAIL: concentrationCellPotential c1=0 expected e0");
+    } else {
+        io::println("PASS: concentrationCellPotential c1=0 returns e0");
+    }
+}
+
+public fn run_all_electrochemistry_tests(): void {
+    io::println("=== chem/Electrochemistry.tr Tests ===");
+    test_cell_potential();
+    test_gibbs_from_potential();
+    test_faraday_electrolysis();
+    test_nernst_potential();
+    test_concentration_cell_potential();
+}
