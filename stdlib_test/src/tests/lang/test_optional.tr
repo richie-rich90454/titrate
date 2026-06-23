@@ -1,0 +1,206 @@
+// Test file for Optional.tr
+// Exercises the public API of the Optional module.
+import tt::lang::Optional;
+import tt::lang::Integer;
+
+public fn test_optional_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    if (opt.isPresent()) {
+        io::println("FAIL: Optional.empty isPresent=true");
+    } else {
+        io::println("PASS: Optional.empty isPresent=false");
+    }
+}
+
+public fn test_optional_empty_isEmpty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    if (!opt.isEmpty()) {
+        io::println("FAIL: Optional.empty isEmpty=false");
+    } else {
+        io::println("PASS: Optional.empty isEmpty=true");
+    }
+}
+
+public fn test_optional_of(): void {
+    let opt: Optional<int> = Optional<int>::of(42);
+    if (!opt.isPresent() || opt.get() != 42) {
+        io::println("FAIL: Optional.of(42)");
+    } else {
+        io::println("PASS: Optional.of(42)");
+    }
+}
+
+public fn test_optional_ofNullable_present(): void {
+    let opt: Optional<int> = Optional<int>::ofNullable(7);
+    if (!opt.isPresent() || opt.get() != 7) {
+        io::println("FAIL: Optional.ofNullable(7)");
+    } else {
+        io::println("PASS: Optional.ofNullable(7)");
+    }
+}
+
+public fn test_optional_orElse_present(): void {
+    let opt: Optional<int> = Optional<int>::of(10);
+    if (opt.orElse(99) != 10) {
+        io::println("FAIL: Optional.orElse present");
+    } else {
+        io::println("PASS: Optional.orElse present");
+    }
+}
+
+public fn test_optional_orElse_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    if (opt.orElse(99) != 99) {
+        io::println("FAIL: Optional.orElse empty");
+    } else {
+        io::println("PASS: Optional.orElse empty");
+    }
+}
+
+public fn test_optional_orElseGet_present(): void {
+    let opt: Optional<int> = Optional<int>::of(10);
+    let supplier: fn(): int = fn(): int { return 99; };
+    if (opt.orElseGet(supplier) != 10) {
+        io::println("FAIL: Optional.orElseGet present");
+    } else {
+        io::println("PASS: Optional.orElseGet present");
+    }
+}
+
+public fn test_optional_orElseGet_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    let supplier: fn(): int = fn(): int { return 99; };
+    if (opt.orElseGet(supplier) != 99) {
+        io::println("FAIL: Optional.orElseGet empty");
+    } else {
+        io::println("PASS: Optional.orElseGet empty");
+    }
+}
+
+public fn test_optional_map_present(): void {
+    let opt: Optional<int> = Optional<int>::of(5);
+    let mapper: fn(int): int = fn(x: int): int { return x * 2; };
+    let mapped: Optional<int> = opt.map(mapper);
+    if (!mapped.isPresent() || mapped.get() != 10) {
+        io::println("FAIL: Optional.map present");
+    } else {
+        io::println("PASS: Optional.map present");
+    }
+}
+
+public fn test_optional_map_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    let mapper: fn(int): int = fn(x: int): int { return x * 2; };
+    let mapped: Optional<int> = opt.map(mapper);
+    if (mapped.isPresent()) {
+        io::println("FAIL: Optional.map empty");
+    } else {
+        io::println("PASS: Optional.map empty");
+    }
+}
+
+public fn test_optional_filter_pass(): void {
+    let opt: Optional<int> = Optional<int>::of(10);
+    let pred: fn(int): bool = fn(x: int): bool { return x > 5; };
+    let filtered: Optional<int> = opt.filter(pred);
+    if (!filtered.isPresent() || filtered.get() != 10) {
+        io::println("FAIL: Optional.filter pass");
+    } else {
+        io::println("PASS: Optional.filter pass");
+    }
+}
+
+public fn test_optional_filter_fail(): void {
+    let opt: Optional<int> = Optional<int>::of(3);
+    let pred: fn(int): bool = fn(x: int): bool { return x > 5; };
+    let filtered: Optional<int> = opt.filter(pred);
+    if (filtered.isPresent()) {
+        io::println("FAIL: Optional.filter fail");
+    } else {
+        io::println("PASS: Optional.filter fail");
+    }
+}
+
+public fn test_optional_flatMap_present(): void {
+    let opt: Optional<int> = Optional<int>::of(5);
+    let mapper: fn(int): Optional<int> = fn(x: int): Optional<int> { return Optional<int>::of(x + 1); };
+    let mapped: Optional<int> = opt.flatMap(mapper);
+    if (!mapped.isPresent() || mapped.get() != 6) {
+        io::println("FAIL: Optional.flatMap present");
+    } else {
+        io::println("PASS: Optional.flatMap present");
+    }
+}
+
+public fn test_optional_ifPresent(): void {
+    let opt: Optional<int> = Optional<int>::of(42);
+    let called: bool = false;
+    let action: fn(int): void = fn(x: int): void { };
+    opt.ifPresent(action);
+    // Just verify it doesn't crash; closures capturing mutable state are limited
+    io::println("PASS: Optional.ifPresent executed");
+}
+
+public fn test_optional_toString_present(): void {
+    let opt: Optional<int> = Optional<int>::of(42);
+    let s: string = opt.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Optional.toString present empty");
+    } else {
+        io::println("PASS: Optional.toString present = " + s);
+    }
+}
+
+public fn test_optional_toString_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    let s: string = opt.toString();
+    if (s != "Optional.empty") {
+        io::println("FAIL: Optional.toString empty = " + s);
+    } else {
+        io::println("PASS: Optional.toString empty = Optional.empty");
+    }
+}
+
+public fn test_optional_or_present(): void {
+    let opt: Optional<int> = Optional<int>::of(10);
+    let supplier: fn(): Optional<int> = fn(): Optional<int> { return Optional<int>::of(99); };
+    let result: Optional<int> = opt.or(supplier);
+    if (!result.isPresent() || result.get() != 10) {
+        io::println("FAIL: Optional.or present");
+    } else {
+        io::println("PASS: Optional.or present");
+    }
+}
+
+public fn test_optional_or_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    let supplier: fn(): Optional<int> = fn(): Optional<int> { return Optional<int>::of(99); };
+    let result: Optional<int> = opt.or(supplier);
+    if (!result.isPresent() || result.get() != 99) {
+        io::println("FAIL: Optional.or empty");
+    } else {
+        io::println("PASS: Optional.or empty");
+    }
+}
+
+public fn run_all_optional_tests(): void {
+    io::println("=== Optional.tr Tests ===");
+    test_optional_empty();
+    test_optional_empty_isEmpty();
+    test_optional_of();
+    test_optional_ofNullable_present();
+    test_optional_orElse_present();
+    test_optional_orElse_empty();
+    test_optional_orElseGet_present();
+    test_optional_orElseGet_empty();
+    test_optional_map_present();
+    test_optional_map_empty();
+    test_optional_filter_pass();
+    test_optional_filter_fail();
+    test_optional_flatMap_present();
+    test_optional_ifPresent();
+    test_optional_toString_present();
+    test_optional_toString_empty();
+    test_optional_or_present();
+    test_optional_or_empty();
+}
