@@ -1,0 +1,208 @@
+// Test file for Shlex.tr
+// Exercises the public API of the Shlex class and its top-level functions.
+import tt::text::Shlex;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_shlex_split_simple(): void {
+    let sh: Shlex = new Shlex();
+    let parts: ArrayList<string> = sh.split("hello world");
+    if (parts.size() != 2) {
+        io::println("FAIL: Shlex.split simple size=" + Integer.toString(parts.size()));
+    } else if (parts.get(0) != "hello" || parts.get(1) != "world") {
+        io::println("FAIL: Shlex.split simple values wrong");
+    } else {
+        io::println("PASS: Shlex.split simple works");
+    }
+}
+
+public fn test_shlex_split_single(): void {
+    let sh: Shlex = new Shlex();
+    let parts: ArrayList<string> = sh.split("hello");
+    if (parts.size() != 1 || parts.get(0) != "hello") {
+        io::println("FAIL: Shlex.split single wrong");
+    } else {
+        io::println("PASS: Shlex.split single works");
+    }
+}
+
+public fn test_shlex_split_empty(): void {
+    let sh: Shlex = new Shlex();
+    let parts: ArrayList<string> = sh.split("");
+    if (parts.size() != 0) {
+        io::println("FAIL: Shlex.split empty size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: Shlex.split empty works");
+    }
+}
+
+public fn test_shlex_split_with_quotes(): void {
+    let sh: Shlex = new Shlex();
+    let parts: ArrayList<string> = sh.split("hello 'world foo' bar");
+    if (parts.size() != 3) {
+        io::println("FAIL: Shlex.split quotes size=" + Integer.toString(parts.size()));
+    } else if (parts.get(1) != "world foo") {
+        io::println("FAIL: Shlex.split quotes value wrong: " + parts.get(1));
+    } else {
+        io::println("PASS: Shlex.split with quotes works");
+    }
+}
+
+public fn test_shlex_split_double_quotes(): void {
+    let sh: Shlex = new Shlex();
+    let parts: ArrayList<string> = sh.split("hello \"world foo\" bar");
+    if (parts.size() != 3) {
+        io::println("FAIL: Shlex.split double quotes size=" + Integer.toString(parts.size()));
+    } else if (parts.get(1) != "world foo") {
+        io::println("FAIL: Shlex.split double quotes value wrong: " + parts.get(1));
+    } else {
+        io::println("PASS: Shlex.split with double quotes works");
+    }
+}
+
+public fn test_shlex_split_multiple_spaces(): void {
+    let sh: Shlex = new Shlex();
+    let parts: ArrayList<string> = sh.split("a   b   c");
+    if (parts.size() != 3) {
+        io::println("FAIL: Shlex.split multiple spaces size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: Shlex.split multiple spaces works");
+    }
+}
+
+public fn test_shlex_split_with_escape(): void {
+    let sh: Shlex = new Shlex();
+    let parts: ArrayList<string> = sh.split("hello\\ world");
+    if (parts.size() != 1) {
+        io::println("FAIL: Shlex.split escape size=" + Integer.toString(parts.size()));
+    } else if (parts.get(0) != "hello world") {
+        io::println("FAIL: Shlex.split escape value wrong: " + parts.get(0));
+    } else {
+        io::println("PASS: Shlex.split with escape works");
+    }
+}
+
+public fn test_shlex_split_tabs(): void {
+    let sh: Shlex = new Shlex();
+    let parts: ArrayList<string> = sh.split("hello\tworld");
+    if (parts.size() != 2) {
+        io::println("FAIL: Shlex.split tabs size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: Shlex.split tabs works");
+    }
+}
+
+public fn test_shlex_init_fields(): void {
+    let sh: Shlex = new Shlex();
+    if (sh.whitespace != " \t\r\n") {
+        io::println("FAIL: Shlex.whitespace wrong");
+    } else if (sh.posix != true) {
+        io::println("FAIL: Shlex.posix should be true");
+    } else {
+        io::println("PASS: Shlex.init fields work");
+    }
+}
+
+// --- Top-level function tests ---
+
+public fn test_shlex_toplevel_split(): void {
+    let parts: ArrayList<string> = Shlex.split("hello world");
+    if (parts.size() != 2) {
+        io::println("FAIL: Shlex.split (top-level) size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: Shlex.split (top-level) works");
+    }
+}
+
+public fn test_shlex_quote_simple(): void {
+    let result: string = Shlex.quote("hello");
+    if (result != "hello") {
+        io::println("FAIL: Shlex.quote simple returned " + result);
+    } else {
+        io::println("PASS: Shlex.quote simple works");
+    }
+}
+
+public fn test_shlex_quote_with_space(): void {
+    let result: string = Shlex.quote("hello world");
+    if (result != "'hello world'") {
+        io::println("FAIL: Shlex.quote with space returned " + result);
+    } else {
+        io::println("PASS: Shlex.quote with space works");
+    }
+}
+
+public fn test_shlex_quote_with_special(): void {
+    let result: string = Shlex.quote("hello;rm -rf");
+    // Should be quoted since it contains special chars
+    if (String.length(result) == 0 || String.charAt(result, 0) != "'") {
+        io::println("FAIL: Shlex.quote with special should be quoted: " + result);
+    } else {
+        io::println("PASS: Shlex.quote with special works");
+    }
+}
+
+public fn test_shlex_quote_empty(): void {
+    let result: string = Shlex.quote("");
+    if (result != "''") {
+        io::println("FAIL: Shlex.quote empty returned " + result + ", expected ''");
+    } else {
+        io::println("PASS: Shlex.quote empty works");
+    }
+}
+
+public fn test_shlex_join(): void {
+    let parts: ArrayList<string> = new ArrayList<string>();
+    parts.add("hello");
+    parts.add("world");
+    let result: string = Shlex.join(parts);
+    if (result != "hello world") {
+        io::println("FAIL: Shlex.join returned " + result);
+    } else {
+        io::println("PASS: Shlex.join works");
+    }
+}
+
+public fn test_shlex_join_with_spaces(): void {
+    let parts: ArrayList<string> = new ArrayList<string>();
+    parts.add("hello world");
+    parts.add("foo");
+    let result: string = Shlex.join(parts);
+    if (result != "'hello world' foo") {
+        io::println("FAIL: Shlex.join with spaces returned " + result);
+    } else {
+        io::println("PASS: Shlex.join with spaces works");
+    }
+}
+
+public fn test_shlex_join_empty(): void {
+    let parts: ArrayList<string> = new ArrayList<string>();
+    let result: string = Shlex.join(parts);
+    if (result != "") {
+        io::println("FAIL: Shlex.join empty returned " + result);
+    } else {
+        io::println("PASS: Shlex.join empty works");
+    }
+}
+
+public fn run_all_shlex_tests(): void {
+    io::println("=== Shlex.tr Tests ===");
+    test_shlex_split_simple();
+    test_shlex_split_single();
+    test_shlex_split_empty();
+    test_shlex_split_with_quotes();
+    test_shlex_split_double_quotes();
+    test_shlex_split_multiple_spaces();
+    test_shlex_split_with_escape();
+    test_shlex_split_tabs();
+    test_shlex_init_fields();
+    test_shlex_toplevel_split();
+    test_shlex_quote_simple();
+    test_shlex_quote_with_space();
+    test_shlex_quote_with_special();
+    test_shlex_quote_empty();
+    test_shlex_join();
+    test_shlex_join_with_spaces();
+    test_shlex_join_empty();
+}
