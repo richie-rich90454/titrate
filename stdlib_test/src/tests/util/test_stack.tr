@@ -1,0 +1,146 @@
+// Test file for Stack.tr
+// Exercises the public API of the Stack class (LIFO stack).
+import tt::util::Stack;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_stack_push_size(): void {
+    let stack: Stack<int> = new Stack<int>();
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+    if (stack.size() != 3) {
+        io::println("FAIL: Stack.size() = " + Integer.toString(stack.size()));
+    } else {
+        io::println("PASS: Stack.push/size works");
+    }
+}
+
+public fn test_stack_pop(): void {
+    let stack: Stack<int> = new Stack<int>();
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+    let popped: int = stack.pop();
+    if (popped != 3 || stack.size() != 2) {
+        io::println("FAIL: Stack.pop returned " + Integer.toString(popped));
+    } else {
+        io::println("PASS: Stack.pop works");
+    }
+}
+
+public fn test_stack_peek(): void {
+    let stack: Stack<int> = new Stack<int>();
+    stack.push(10);
+    stack.push(20);
+    if (stack.peek() != 20) {
+        io::println("FAIL: Stack.peek = " + Integer.toString(stack.peek()));
+    } else if (stack.size() != 2) {
+        io::println("FAIL: Stack.peek modified size");
+    } else {
+        io::println("PASS: Stack.peek works");
+    }
+}
+
+public fn test_stack_isEmpty(): void {
+    let stack: Stack<int> = new Stack<int>();
+    if (!stack.isEmpty()) {
+        io::println("FAIL: Stack.isEmpty new");
+    } else {
+        io::println("PASS: Stack.isEmpty new");
+    }
+    stack.push(1);
+    if (stack.isEmpty()) {
+        io::println("FAIL: Stack.isEmpty after push");
+    } else {
+        io::println("PASS: Stack.isEmpty after push");
+    }
+}
+
+public fn test_stack_lifo_order(): void {
+    let stack: Stack<int> = new Stack<int>();
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+    let a: int = stack.pop();
+    let b: int = stack.pop();
+    let c: int = stack.pop();
+    if (a != 3 || b != 2 || c != 1) {
+        io::println("FAIL: Stack LIFO order");
+    } else {
+        io::println("PASS: Stack LIFO order works");
+    }
+}
+
+public fn test_stack_contains(): void {
+    let stack: Stack<string> = new Stack<string>();
+    stack.push("a");
+    stack.push("b");
+    if (!stack.contains("a") || stack.contains("z")) {
+        io::println("FAIL: Stack.contains");
+    } else {
+        io::println("PASS: Stack.contains works");
+    }
+}
+
+public fn test_stack_search(): void {
+    let stack: Stack<int> = new Stack<int>();
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+    // search returns 1-based distance from top; top is 3
+    if (stack.search(3) != 1 || stack.search(1) != 3) {
+        io::println("FAIL: Stack.search");
+    } else {
+        io::println("PASS: Stack.search works");
+    }
+}
+
+public fn test_stack_search_notFound(): void {
+    let stack: Stack<int> = new Stack<int>();
+    stack.push(1);
+    if (stack.search(99) != -1) {
+        io::println("FAIL: Stack.search not found");
+    } else {
+        io::println("PASS: Stack.search not found returns -1");
+    }
+}
+
+public fn test_stack_clear(): void {
+    let stack: Stack<int> = new Stack<int>();
+    stack.push(1);
+    stack.push(2);
+    stack.clear();
+    if (!stack.isEmpty() || stack.size() != 0) {
+        io::println("FAIL: Stack.clear");
+    } else {
+        io::println("PASS: Stack.clear works");
+    }
+}
+
+public fn test_stack_toArray(): void {
+    let stack: Stack<int> = new Stack<int>();
+    stack.push(1);
+    stack.push(2);
+    stack.push(3);
+    let arr: ArrayList<int> = stack.toArray();
+    if (arr.size() != 3) {
+        io::println("FAIL: Stack.toArray size=" + Integer.toString(arr.size()));
+    } else {
+        io::println("PASS: Stack.toArray works");
+    }
+}
+
+public fn run_all_stack_tests(): void {
+    io::println("=== Stack.tr Tests ===");
+    test_stack_push_size();
+    test_stack_pop();
+    test_stack_peek();
+    test_stack_isEmpty();
+    test_stack_lifo_order();
+    test_stack_contains();
+    test_stack_search();
+    test_stack_search_notFound();
+    test_stack_clear();
+    test_stack_toArray();
+}
