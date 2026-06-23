@@ -2077,6 +2077,152 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(())
     }
 
+    /// Emit an optimized array-iteration loop using pointer arithmetic.
+    ///
+    /// Instead of recomputing `array[i]` via GEP on each iteration (which
+    /// requires a multiply + add for the index), this loads the base pointer
+    /// once and increments it by the element size on each iteration. This is
+    /// the canonical pattern LLVM's loop vectorizer recognizes.
+    ///
+    /// The emitted loop structure is:
+    ///   ```text
+    ///   ptr = base; end = base + count;
+    ///   while (ptr != end) {
+    ///       elem = load ptr;
+    ///       ... body ...
+    ///       ptr = ptr + 1;  // gep by element size
+    ///   }
+    ///   ```
+    ///
+    /// This is used as the foundation for `for (x in array)` loops once array
+    /// iteration is fully supported by the codegen.
+    #[allow(dead_code)]
+    fn emit_array_loop(
+        &mut self,
+        base_ptr: PointerValue<'ctx>,
+        count: IntValue<'ctx>,
+        elem_ty: BasicTypeEnum<'ctx>,
+        var_name: &str,
+        body: impl FnOnce(&mut Self, BasicValueEnum<'ctx>) -> Result<(), String>,
+    ) -> Result<(), String> {
+        let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
+
+        // Compute the end pointer: end = base + count (GEP by element).
+        let end_ptr = unsafe {
+            self.builder.build_in_bounds_gep(
+                elem_ty,
+                base_ptr,
+                &[count],
+                "arr.end.ptr",
+            )
+        }
+        .map_err(|e| format!("build_gep arr.end.ptr failed: {:?}", e))?;
+
+        // Allocate the loop pointer (current position).
+        let cur_ptr_alloca = self.builder.build_alloca(i8_ptr_ty, "arr.cur.ptr")
+            .map_err(|e| format!("build_alloca arr.cur.ptr failed: {:?}", e))?;
+        // Store the base pointer into it.
+        let base_as_i8 = self.builder.build_bit_cast(base_ptr, i8_ptr_ty, "arr.base.i8")
+            .map_err(|e| format!("build_bit_cast base failed: {:?}", e))?;
+        self.builder.build_store(cur_ptr_alloca, base_as_i8)
+            .map_err(|e| format!("build_store cur.ptr failed: {:?}", e))?;
+
+        // Allocate the loop variable (visible to the body).
+        let loop_var_alloca = self.builder.build_alloca(elem_ty, var_name)
+            .map_err(|e| format!("build_alloca '{}' failed: {:?}", var_name, e))?;
+
+        let current_block = self.builder.get_insert_block()
+            .ok_or("codegen: no insert block for array loop")?;
+        let cond_block = self.context.insert_basic_block_after(current_block, "arr.cond");
+        let body_block = self.context.insert_basic_block_after(cond_block, "arr.body");
+        let inc_block = self.context.insert_basic_block_after(body_block, "arr.inc");
+        let end_block = self.context.insert_basic_block_after(inc_block, "arr.end");
+
+        self.builder.build_unconditional_branch(cond_block)
+            .map_err(|e| format!("build_br arr.cond failed: {:?}", e))?;
+
+        // Condition block: while cur_ptr != end_ptr.
+        self.builder.position_at_end(cond_block);
+        let cur_ptr_val = self.builder.build_load(i8_ptr_ty, cur_ptr_alloca, "arr.cur.val")
+            .map_err(|e| format!("build_load arr.cur failed: {:?}", e))?
+            .into_pointer_value();
+        let end_as_i8 = self.builder.build_bit_cast(end_ptr, i8_ptr_ty, "arr.end.i8")
+            .map_err(|e| format!("build_bit_cast end failed: {:?}", e))?
+            .into_pointer_value();
+        // Convert pointers to integers for comparison.
+        let intptr_ty = if cfg!(target_pointer_width = "64") {
+            self.context.i64_type()
+        } else {
+            self.context.i32_type()
+        };
+        let cur_int = self.builder.build_ptr_to_int(cur_ptr_val, intptr_ty, "arr.cur.int")
+            .map_err(|e| format!("build_ptr_to_int cur failed: {:?}", e))?;
+        let end_int = self.builder.build_ptr_to_int(end_as_i8, intptr_ty, "arr.end.int")
+            .map_err(|e| format!("build_ptr_to_int end failed: {:?}", e))?;
+        let cmp = self.builder.build_int_compare(
+            inkwell::IntPredicate::EQ,
+            cur_int,
+            end_int,
+            "arr.cmp",
+        )
+        .map_err(|e| format!("build_int_compare arr failed: {:?}", e))?;
+        // If equal, we're done; otherwise enter body.
+        self.builder.build_conditional_branch(cmp, end_block, body_block)
+            .map_err(|e| format!("build_cond_br arr failed: {:?}", e))?;
+
+        // Body block: load the current element and run the body.
+        self.builder.position_at_end(body_block);
+        let cur_for_elem = self.builder.build_load(i8_ptr_ty, cur_ptr_alloca, "arr.body.ptr")
+            .map_err(|e| format!("build_load arr.body.ptr failed: {:?}", e))?
+            .into_pointer_value();
+        // Cast back to the element pointer type.
+        let elem_ptr = self.builder.build_bit_cast(cur_for_elem, i8_ptr_ty, "arr.elem.ptr")
+            .map_err(|e| format!("build_bit_cast elem.ptr failed: {:?}", e))?
+            .into_pointer_value();
+        let elem_val = self.builder.build_load(elem_ty, elem_ptr, "arr.elem")
+            .map_err(|e| format!("build_load arr.elem failed: {:?}", e))?;
+        self.builder.build_store(loop_var_alloca, elem_val)
+            .map_err(|e| format!("build_store arr.elem failed: {:?}", e))?;
+
+        // Run the body closure.
+        body(self, elem_val)?;
+
+        if self.builder.get_insert_block().and_then(|b| b.get_terminator()).is_none() {
+            self.builder.build_unconditional_branch(inc_block)
+                .map_err(|e| format!("build_br arr.inc failed: {:?}", e))?;
+        }
+
+        // Increment block: advance the pointer by one element.
+        self.builder.position_at_end(inc_block);
+        let cur_ptr_val = self.builder.build_load(i8_ptr_ty, cur_ptr_alloca, "arr.inc.ptr")
+            .map_err(|e| format!("build_load arr.inc.ptr failed: {:?}", e))?
+            .into_pointer_value();
+        // Advance by the element size in bytes.
+        let elem_size = elem_ty.size_of()
+            .ok_or_else(|| "codegen: cannot compute element size".to_string())?;
+        let next_ptr = unsafe {
+            self.builder.build_in_bounds_gep(
+                self.context.i8_type(),
+                cur_ptr_val,
+                &[elem_size],
+                "arr.next.ptr",
+            )
+        }
+        .map_err(|e| format!("build_gep arr.next.ptr failed: {:?}", e))?;
+        self.builder.build_store(cur_ptr_alloca, next_ptr)
+            .map_err(|e| format!("build_store arr.next failed: {:?}", e))?;
+        self.builder.build_unconditional_branch(cond_block)
+            .map_err(|e| format!("build_br arr.cond 2 failed: {:?}", e))?;
+
+        // In release mode, attach vectorization hints.
+        if self.release_mode {
+            let _ = self.add_vectorize_metadata(inc_block);
+        }
+
+        self.builder.position_at_end(end_block);
+        Ok(())
+    }
+
     /// Compile a C-style for loop.
     fn compile_c_for(&mut self, cfor_stmt: &crate::ast::CForStmt) -> Result<(), String> {
         let current_block = self.builder.get_insert_block()

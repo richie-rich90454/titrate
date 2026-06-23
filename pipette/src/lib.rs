@@ -24,7 +24,7 @@ pub use doc::doc;
 pub use clean::clean;
 pub use lint::lint;
 pub use format::fmt;
-pub use bench::bench;
+pub use bench::{bench, bench_compare_native, bench_native_vs_bytecode};
 pub use deps::{outdated, tree};
 pub use watch::watch;
 

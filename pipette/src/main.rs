@@ -140,7 +140,12 @@ fn main() {
                     process::exit(1);
                 }
             };
-            if let Err(e) = pipette::bench(&project_dir) {
+            if args.len() > 2 && args[2] == "--compare-native" {
+                if let Err(e) = pipette::bench_compare_native(&project_dir) {
+                    eprintln!("Benchmarks failed: {}", e);
+                    process::exit(1);
+                }
+            } else if let Err(e) = pipette::bench(&project_dir) {
                 eprintln!("Benchmarks failed: {}", e);
                 process::exit(1);
             }
@@ -205,7 +210,7 @@ fn print_usage() {
     eprintln!("  build          Compile the project [--release for optimized build]");
     eprintln!("  run            Build and run the project");
     eprintln!("  test           Run tests");
-    eprintln!("  bench          Run benchmark files");
+    eprintln!("  bench          Run benchmark files [--compare-native for native vs bytecode]");
     eprintln!("  doc            Generate API documentation");
     eprintln!("  watch          Watch for changes and rebuild");
     eprintln!("  clean          Remove build output directory");
