@@ -1,0 +1,225 @@
+// Test file for LinkedList.tr
+// Exercises the public API of the LinkedList class (doubly-linked list).
+import tt::util::LinkedList;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_linkedlist_addFirst_addLast(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addFirst(2);
+    list.addFirst(1);
+    list.addLast(3);
+    if (list.size() != 3) {
+        io::println("FAIL: LinkedList.size() = " + Integer.toString(list.size()));
+    } else if (list.getFirst() != 1 || list.getLast() != 3) {
+        io::println("FAIL: LinkedList.addFirst/addLast");
+    } else {
+        io::println("PASS: LinkedList.addFirst/addLast works");
+    }
+}
+
+public fn test_linkedlist_removeFirst_removeLast(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(1);
+    list.addLast(2);
+    list.addLast(3);
+    let first: int = list.removeFirst();
+    let last: int = list.removeLast();
+    if (first != 1 || last != 3 || list.size() != 1) {
+        io::println("FAIL: LinkedList.removeFirst/removeLast");
+    } else {
+        io::println("PASS: LinkedList.removeFirst/removeLast works");
+    }
+}
+
+public fn test_linkedlist_get(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(10);
+    list.addLast(20);
+    list.addLast(30);
+    if (list.get(0) != 10 || list.get(1) != 20 || list.get(2) != 30) {
+        io::println("FAIL: LinkedList.get");
+    } else {
+        io::println("PASS: LinkedList.get works");
+    }
+}
+
+public fn test_linkedlist_add_at_index(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(1);
+    list.addLast(3);
+    list.add(1, 2);
+    if (list.get(0) != 1 || list.get(1) != 2 || list.get(2) != 3) {
+        io::println("FAIL: LinkedList.add(index, value)");
+    } else {
+        io::println("PASS: LinkedList.add(index, value) works");
+    }
+}
+
+public fn test_linkedlist_remove_index(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(1);
+    list.addLast(2);
+    list.addLast(3);
+    let removed: int = list.remove(1);
+    if (removed != 2 || list.size() != 2 || list.get(1) != 3) {
+        io::println("FAIL: LinkedList.remove(index)");
+    } else {
+        io::println("PASS: LinkedList.remove(index) works");
+    }
+}
+
+public fn test_linkedlist_indexOf_contains(): void {
+    let list: LinkedList<string> = new LinkedList<string>();
+    list.addLast("a");
+    list.addLast("b");
+    list.addLast("c");
+    if (list.indexOf("b") != 1 || list.indexOf("z") != -1) {
+        io::println("FAIL: LinkedList.indexOf");
+    } else if (!list.contains("a") || list.contains("z")) {
+        io::println("FAIL: LinkedList.contains");
+    } else {
+        io::println("PASS: LinkedList.indexOf/contains works");
+    }
+}
+
+public fn test_linkedlist_isEmpty_clear(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    if (!list.isEmpty()) {
+        io::println("FAIL: LinkedList.isEmpty new");
+    } else {
+        io::println("PASS: LinkedList.isEmpty new");
+    }
+    list.addLast(1);
+    if (list.isEmpty()) {
+        io::println("FAIL: LinkedList.isEmpty after add");
+    } else {
+        io::println("PASS: LinkedList.isEmpty after add");
+    }
+    list.clear();
+    if (!list.isEmpty()) {
+        io::println("FAIL: LinkedList.clear");
+    } else {
+        io::println("PASS: LinkedList.clear works");
+    }
+}
+
+public fn test_linkedlist_toArray(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(1);
+    list.addLast(2);
+    list.addLast(3);
+    let arr: ArrayList<int> = list.toArray();
+    if (arr.size() != 3 || arr.get(0) != 1 || arr.get(1) != 2 || arr.get(2) != 3) {
+        io::println("FAIL: LinkedList.toArray");
+    } else {
+        io::println("PASS: LinkedList.toArray works");
+    }
+}
+
+public fn test_linkedlist_reverse(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(1);
+    list.addLast(2);
+    list.addLast(3);
+    list.reverse();
+    if (list.getFirst() != 3 || list.getLast() != 1 || list.get(1) != 2) {
+        io::println("FAIL: LinkedList.reverse");
+    } else {
+        io::println("PASS: LinkedList.reverse works");
+    }
+}
+
+public fn test_linkedlist_getFirst_empty(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    if (list.getFirst() != null) {
+        io::println("FAIL: LinkedList.getFirst empty");
+    } else {
+        io::println("PASS: LinkedList.getFirst empty returns null");
+    }
+}
+
+public fn test_linkedlist_removeFirst_empty(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    if (list.removeFirst() != null) {
+        io::println("FAIL: LinkedList.removeFirst empty");
+    } else {
+        io::println("PASS: LinkedList.removeFirst empty returns null");
+    }
+}
+
+public fn test_linkedlist_sort(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(3);
+    list.addLast(1);
+    list.addLast(2);
+    let sorted: LinkedList<int> = list.sort(fn(a: int, b: int): int { return a - b; });
+    if (sorted.get(0) != 1 || sorted.get(1) != 2 || sorted.get(2) != 3) {
+        io::println("FAIL: LinkedList.sort");
+    } else {
+        io::println("PASS: LinkedList.sort works");
+    }
+}
+
+public fn test_linkedlist_merge(): void {
+    let a: LinkedList<int> = new LinkedList<int>();
+    a.addLast(1);
+    a.addLast(3);
+    let b: LinkedList<int> = new LinkedList<int>();
+    b.addLast(2);
+    b.addLast(4);
+    let merged: LinkedList<int> = a.merge(b, fn(x: int, y: int): int { return x - y; });
+    if (merged.size() != 4 || merged.get(0) != 1 || merged.get(1) != 2 || merged.get(2) != 3 || merged.get(3) != 4) {
+        io::println("FAIL: LinkedList.merge");
+    } else {
+        io::println("PASS: LinkedList.merge works");
+    }
+}
+
+public fn test_linkedlist_removeIf(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(1);
+    list.addLast(2);
+    list.addLast(3);
+    list.addLast(4);
+    list.removeIf(fn(x: int): bool { return x % 2 == 0; });
+    if (list.size() != 2 || list.get(0) != 1 || list.get(1) != 3) {
+        io::println("FAIL: LinkedList.removeIf size=" + Integer.toString(list.size()));
+    } else {
+        io::println("PASS: LinkedList.removeIf works");
+    }
+}
+
+public fn test_linkedlist_unique(): void {
+    let list: LinkedList<int> = new LinkedList<int>();
+    list.addLast(1);
+    list.addLast(1);
+    list.addLast(2);
+    list.addLast(2);
+    list.addLast(3);
+    list.unique();
+    if (list.size() != 3 || list.get(0) != 1 || list.get(1) != 2 || list.get(2) != 3) {
+        io::println("FAIL: LinkedList.unique size=" + Integer.toString(list.size()));
+    } else {
+        io::println("PASS: LinkedList.unique works");
+    }
+}
+
+public fn run_all_linkedlist_tests(): void {
+    io::println("=== LinkedList.tr Tests ===");
+    test_linkedlist_addFirst_addLast();
+    test_linkedlist_removeFirst_removeLast();
+    test_linkedlist_get();
+    test_linkedlist_add_at_index();
+    test_linkedlist_remove_index();
+    test_linkedlist_indexOf_contains();
+    test_linkedlist_isEmpty_clear();
+    test_linkedlist_toArray();
+    test_linkedlist_reverse();
+    test_linkedlist_getFirst_empty();
+    test_linkedlist_removeFirst_empty();
+    test_linkedlist_sort();
+    test_linkedlist_merge();
+    test_linkedlist_removeIf();
+    test_linkedlist_unique();
+}
