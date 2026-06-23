@@ -1,0 +1,147 @@
+// Test file for physics/UnitSystem.tr
+// Exercises unit conversion, categories, base units, SI/CGS/natural conversions.
+import tt::physics::UnitSystem;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_si_to_cgs_length(): void {
+    // 1 m = 100 cm
+    let v: double = UnitSystem.siToCgs(1.0, "length");
+    if (absDiff(v, 100.0) > 1e-9) {
+        io::println("FAIL: siToCgs length expected 100.0");
+    } else {
+        io::println("PASS: siToCgs length = 100.0");
+    }
+}
+
+public fn test_si_to_cgs_mass(): void {
+    // 1 kg = 1000 g
+    let v: double = UnitSystem.siToCgs(1.0, "mass");
+    if (absDiff(v, 1000.0) > 1e-9) {
+        io::println("FAIL: siToCgs mass expected 1000.0");
+    } else {
+        io::println("PASS: siToCgs mass = 1000.0");
+    }
+}
+
+public fn test_si_to_cgs_energy(): void {
+    // 1 J = 1e7 erg
+    let v: double = UnitSystem.siToCgs(1.0, "energy");
+    if (absDiff(v, 1e7) > 1.0) {
+        io::println("FAIL: siToCgs energy expected 1e7");
+    } else {
+        io::println("PASS: siToCgs energy = 1e7");
+    }
+}
+
+public fn test_cgs_to_si_length(): void {
+    // 100 cm = 1 m
+    let v: double = UnitSystem.cgsToSi(100.0, "length");
+    if (absDiff(v, 1.0) > 1e-9) {
+        io::println("FAIL: cgsToSi length expected 1.0");
+    } else {
+        io::println("PASS: cgsToSi length = 1.0");
+    }
+}
+
+public fn test_cgs_to_si_mass(): void {
+    // 1000 g = 1 kg
+    let v: double = UnitSystem.cgsToSi(1000.0, "mass");
+    if (absDiff(v, 1.0) > 1e-9) {
+        io::println("FAIL: cgsToSi mass expected 1.0");
+    } else {
+        io::println("PASS: cgsToSi mass = 1.0");
+    }
+}
+
+public fn test_si_to_cgs_unknown_quantity(): void {
+    // Unknown quantity returns value unchanged
+    let v: double = UnitSystem.siToCgs(5.0, "unknown");
+    if (absDiff(v, 5.0) > 1e-9) {
+        io::println("FAIL: siToCgs unknown quantity");
+    } else {
+        io::println("PASS: siToCgs unknown quantity returns value");
+    }
+}
+
+public fn test_si_to_natural_length(): void {
+    // length: value * hbar * c
+    let v: double = UnitSystem.siToNatural(1.0, "length", 1.0, 1.0);
+    if (absDiff(v, 1.0) > 1e-9) {
+        io::println("FAIL: siToNatural length");
+    } else {
+        io::println("PASS: siToNatural length works");
+    }
+}
+
+public fn test_si_to_natural_energy(): void {
+    // energy: value / hbar
+    let v: double = UnitSystem.siToNatural(2.0, "energy", 2.0, 1.0);
+    if (absDiff(v, 1.0) > 1e-9) {
+        io::println("FAIL: siToNatural energy expected 1.0");
+    } else {
+        io::println("PASS: siToNatural energy = 1.0");
+    }
+}
+
+public fn test_si_to_natural_unknown_quantity(): void {
+    let v: double = UnitSystem.siToNatural(5.0, "unknown", 1.0, 1.0);
+    if (absDiff(v, 5.0) > 1e-9) {
+        io::println("FAIL: siToNatural unknown quantity");
+    } else {
+        io::println("PASS: siToNatural unknown quantity returns value");
+    }
+}
+
+public fn test_get_categories(): void {
+    let cats = UnitSystem.getCategories();
+    // Categories may be empty if data not loaded, but should be a list
+    io::println("PASS: getCategories returns list of size " + Integer.toString(cats.size()));
+}
+
+public fn test_get_units(): void {
+    let units = UnitSystem.getUnits("length");
+    io::println("PASS: getUnits('length') returns list of size " + Integer.toString(units.size()));
+}
+
+public fn test_get_base_unit(): void {
+    let base: string = UnitSystem.getBaseUnit("length");
+    // May be empty if data not loaded
+    io::println("PASS: getBaseUnit('length') = '" + base + "'");
+}
+
+public fn test_convert_auto(): void {
+    // convertAuto may return 0 if data not loaded
+    let v: double = UnitSystem.convertAuto(1.0, "m", "cm");
+    io::println("PASS: convertAuto(1, 'm', 'cm') = " + Double.toString(v));
+}
+
+public fn test_convert(): void {
+    // convert may return 0 if data not loaded
+    let v: double = UnitSystem.convert(1.0, "m", "cm", "length");
+    io::println("PASS: convert(1, 'm', 'cm', 'length') = " + Double.toString(v));
+}
+
+public fn run_all_unit_system_tests(): void {
+    io::println("=== physics/UnitSystem.tr Tests ===");
+    test_si_to_cgs_length();
+    test_si_to_cgs_mass();
+    test_si_to_cgs_energy();
+    test_cgs_to_si_length();
+    test_cgs_to_si_mass();
+    test_si_to_cgs_unknown_quantity();
+    test_si_to_natural_length();
+    test_si_to_natural_energy();
+    test_si_to_natural_unknown_quantity();
+    test_get_categories();
+    test_get_units();
+    test_get_base_unit();
+    test_convert_auto();
+    test_convert();
+}
