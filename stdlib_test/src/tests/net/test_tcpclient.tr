@@ -1,0 +1,86 @@
+// Test file for TcpClient.tr
+// Exercises the public API of the TcpClient class (state transitions,
+// handle management, and configuration methods).
+import tt::net::TcpClient;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_tcpclient_init_state(): void {
+    let c: TcpClient = new TcpClient();
+    if (c.isConnected()) {
+        io::println("FAIL: TcpClient.isConnected should be false on init");
+    } else {
+        io::println("PASS: TcpClient.isConnected false on init");
+    }
+}
+
+public fn test_tcpclient_setHandle_marks_connected(): void {
+    let c: TcpClient = new TcpClient();
+    c.setHandle(100);
+    if (!c.isConnected()) {
+        io::println("FAIL: TcpClient.isConnected should be true after setHandle");
+    } else {
+        io::println("PASS: TcpClient.setHandle marks connected");
+    }
+}
+
+public fn test_tcpclient_close_resets_state(): void {
+    let c: TcpClient = new TcpClient();
+    c.setHandle(50);
+    c.close();
+    if (c.isConnected()) {
+        io::println("FAIL: TcpClient.isConnected should be false after close");
+    } else {
+        io::println("PASS: TcpClient.isConnected false after close");
+    }
+}
+
+public fn test_tcpclient_close_idempotent(): void {
+    let c: TcpClient = new TcpClient();
+    // Closing a fresh client (handle -1) should be a no-op
+    c.close();
+    if (c.isConnected()) {
+        io::println("FAIL: TcpClient.isConnected should be false after close on fresh client");
+    } else {
+        io::println("PASS: TcpClient.close on fresh client is a no-op");
+    }
+    // Double close on a connected client
+    c.setHandle(7);
+    c.close();
+    c.close();
+    if (c.isConnected()) {
+        io::println("FAIL: TcpClient.isConnected should be false after double close");
+    } else {
+        io::println("PASS: TcpClient.close idempotent on connected client");
+    }
+}
+
+public fn test_tcpclient_setTimeout_no_throw(): void {
+    let c: TcpClient = new TcpClient();
+    c.setHandle(1);
+    c.setTimeout(2500);
+    io::println("PASS: TcpClient.setTimeout executes without throwing");
+}
+
+public fn test_tcpclient_address_accessors_callable(): void {
+    let c: TcpClient = new TcpClient();
+    c.setHandle(1);
+    // Native-backed; we verify the accessors are callable and return strings.
+    let local: string = c.getLocalAddress();
+    let remote: string = c.getRemoteAddress();
+    if (local == null || remote == null) {
+        io::println("FAIL: TcpClient address accessor returned null");
+    } else {
+        io::println("PASS: TcpClient getLocalAddress/getRemoteAddress callable");
+    }
+}
+
+public fn run_all_tcpclient_tests(): void {
+    io::println("=== TcpClient.tr Tests ===");
+    test_tcpclient_init_state();
+    test_tcpclient_setHandle_marks_connected();
+    test_tcpclient_close_resets_state();
+    test_tcpclient_close_idempotent();
+    test_tcpclient_setTimeout_no_throw();
+    test_tcpclient_address_accessors_callable();
+}
