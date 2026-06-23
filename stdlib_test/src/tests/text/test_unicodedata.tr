@@ -1,0 +1,217 @@
+// Test file for Unicodedata.tr
+// Exercises the public API of the Unicodedata module's top-level functions.
+import tt::text::Unicodedata;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Boolean;
+
+public fn test_unicodedata_category_uppercase(): void {
+    let cat: string = Unicodedata.category("A");
+    if (cat != "Lu") {
+        io::println("FAIL: Unicodedata.category(A) returned " + cat + ", expected Lu");
+    } else {
+        io::println("PASS: Unicodedata.category uppercase works");
+    }
+}
+
+public fn test_unicodedata_category_lowercase(): void {
+    let cat: string = Unicodedata.category("a");
+    if (cat != "Ll") {
+        io::println("FAIL: Unicodedata.category(a) returned " + cat + ", expected Ll");
+    } else {
+        io::println("PASS: Unicodedata.category lowercase works");
+    }
+}
+
+public fn test_unicodedata_category_digit(): void {
+    let cat: string = Unicodedata.category("5");
+    if (cat != "Nd") {
+        io::println("FAIL: Unicodedata.category(5) returned " + cat + ", expected Nd");
+    } else {
+        io::println("PASS: Unicodedata.category digit works");
+    }
+}
+
+public fn test_unicodedata_category_space(): void {
+    let cat: string = Unicodedata.category(" ");
+    if (cat != "Zs") {
+        io::println("FAIL: Unicodedata.category(space) returned " + cat + ", expected Zs");
+    } else {
+        io::println("PASS: Unicodedata.category space works");
+    }
+}
+
+public fn test_unicodedata_decimal(): void {
+    let d: int = Unicodedata.decimal("7");
+    if (d != 7) {
+        io::println("FAIL: Unicodedata.decimal(7) returned " + Integer.toString(d));
+    } else {
+        io::println("PASS: Unicodedata.decimal works");
+    }
+}
+
+public fn test_unicodedata_decimal_non_digit(): void {
+    let d: int = Unicodedata.decimal("a");
+    if (d != -1) {
+        io::println("FAIL: Unicodedata.decimal(a) returned " + Integer.toString(d) + ", expected -1");
+    } else {
+        io::println("PASS: Unicodedata.decimal non-digit works");
+    }
+}
+
+public fn test_unicodedata_numeric(): void {
+    let n: double = Unicodedata.numeric("3");
+    if (n < 2.9999 || n > 3.0001) {
+        io::println("FAIL: Unicodedata.numeric(3) returned " + Double.toString(n));
+    } else {
+        io::println("PASS: Unicodedata.numeric works");
+    }
+}
+
+public fn test_unicodedata_numeric_non_digit(): void {
+    let n: double = Unicodedata.numeric("x");
+    if (n != -1.0) {
+        io::println("FAIL: Unicodedata.numeric(x) returned " + Double.toString(n) + ", expected -1.0");
+    } else {
+        io::println("PASS: Unicodedata.numeric non-digit works");
+    }
+}
+
+public fn test_unicodedata_isLetter(): void {
+    if (!Unicodedata.isLetter("A")) {
+        io::println("FAIL: Unicodedata.isLetter(A) should be true");
+    } else if (Unicodedata.isLetter("5")) {
+        io::println("FAIL: Unicodedata.isLetter(5) should be false");
+    } else {
+        io::println("PASS: Unicodedata.isLetter works");
+    }
+}
+
+public fn test_unicodedata_isDigit(): void {
+    if (!Unicodedata.isDigit("5")) {
+        io::println("FAIL: Unicodedata.isDigit(5) should be true");
+    } else if (Unicodedata.isDigit("a")) {
+        io::println("FAIL: Unicodedata.isDigit(a) should be false");
+    } else {
+        io::println("PASS: Unicodedata.isDigit works");
+    }
+}
+
+public fn test_unicodedata_isSpace(): void {
+    if (!Unicodedata.isSpace(" ")) {
+        io::println("FAIL: Unicodedata.isSpace(space) should be true");
+    } else if (Unicodedata.isSpace("a")) {
+        io::println("FAIL: Unicodedata.isSpace(a) should be false");
+    } else {
+        io::println("PASS: Unicodedata.isSpace works");
+    }
+}
+
+public fn test_unicodedata_isUpper(): void {
+    if (!Unicodedata.isUpper("A")) {
+        io::println("FAIL: Unicodedata.isUpper(A) should be true");
+    } else if (Unicodedata.isUpper("a")) {
+        io::println("FAIL: Unicodedata.isUpper(a) should be false");
+    } else {
+        io::println("PASS: Unicodedata.isUpper works");
+    }
+}
+
+public fn test_unicodedata_isLower(): void {
+    if (!Unicodedata.isLower("a")) {
+        io::println("FAIL: Unicodedata.isLower(a) should be true");
+    } else if (Unicodedata.isLower("A")) {
+        io::println("FAIL: Unicodedata.isLower(A) should be false");
+    } else {
+        io::println("PASS: Unicodedata.isLower works");
+    }
+}
+
+public fn test_unicodedata_isTitle(): void {
+    // ASCII chars are not titlecase
+    if (Unicodedata.isTitle("A")) {
+        io::println("FAIL: Unicodedata.isTitle(A) should be false");
+    } else {
+        io::println("PASS: Unicodedata.isTitle works");
+    }
+}
+
+public fn test_unicodedata_normalize_nfc(): void {
+    let result: string = Unicodedata.normalize("NFC", "hello");
+    if (result != "hello") {
+        io::println("FAIL: Unicodedata.normalize NFC returned " + result);
+    } else {
+        io::println("PASS: Unicodedata.normalize NFC works");
+    }
+}
+
+public fn test_unicodedata_normalize_nfd(): void {
+    let result: string = Unicodedata.normalize("NFD", "hello");
+    if (result != "hello") {
+        io::println("FAIL: Unicodedata.normalize NFD returned " + result);
+    } else {
+        io::println("PASS: Unicodedata.normalize NFD works");
+    }
+}
+
+public fn test_unicodedata_name(): void {
+    let n: string = Unicodedata.name("A");
+    if (String.length(n) == 0) {
+        io::println("FAIL: Unicodedata.name(A) returned empty");
+    } else {
+        io::println("PASS: Unicodedata.name works: " + n);
+    }
+}
+
+public fn test_unicodedata_combining(): void {
+    // ASCII letters have combining class 0
+    let c: int = Unicodedata.combining("A");
+    if (c != 0) {
+        io::println("FAIL: Unicodedata.combining(A) returned " + Integer.toString(c) + ", expected 0");
+    } else {
+        io::println("PASS: Unicodedata.combining works");
+    }
+}
+
+public fn test_unicodedata_mirrored(): void {
+    // ASCII letters are not mirrored
+    let m: int = Unicodedata.mirrored("A");
+    if (m != 0) {
+        io::println("FAIL: Unicodedata.mirrored(A) returned " + Integer.toString(m) + ", expected 0");
+    } else {
+        io::println("PASS: Unicodedata.mirrored works");
+    }
+}
+
+public fn test_unicodedata_bidirectional(): void {
+    let bd: string = Unicodedata.bidirectional("A");
+    if (String.length(bd) == 0) {
+        io::println("FAIL: Unicodedata.bidirectional(A) returned empty");
+    } else {
+        io::println("PASS: Unicodedata.bidirectional works: " + bd);
+    }
+}
+
+public fn run_all_unicodedata_tests(): void {
+    io::println("=== Unicodedata.tr Tests ===");
+    test_unicodedata_category_uppercase();
+    test_unicodedata_category_lowercase();
+    test_unicodedata_category_digit();
+    test_unicodedata_category_space();
+    test_unicodedata_decimal();
+    test_unicodedata_decimal_non_digit();
+    test_unicodedata_numeric();
+    test_unicodedata_numeric_non_digit();
+    test_unicodedata_isLetter();
+    test_unicodedata_isDigit();
+    test_unicodedata_isSpace();
+    test_unicodedata_isUpper();
+    test_unicodedata_isLower();
+    test_unicodedata_isTitle();
+    test_unicodedata_normalize_nfc();
+    test_unicodedata_normalize_nfd();
+    test_unicodedata_name();
+    test_unicodedata_combining();
+    test_unicodedata_mirrored();
+    test_unicodedata_bidirectional();
+}
