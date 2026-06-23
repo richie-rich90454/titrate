@@ -1,0 +1,194 @@
+// Test file for physics/ForceField.tr
+// Exercises Vec3, gravitational, Coulomb, Lorentz, spring, and Lennard-Jones forces.
+import tt::physics::ForceField;
+import tt::physics::Particle;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_vec3_construction(): void {
+    let v: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    if (absDiff(v.x, 1.0) > 1e-9 || absDiff(v.y, 2.0) > 1e-9 || absDiff(v.z, 3.0) > 1e-9) {
+        io::println("FAIL: Vec3 construction");
+    } else {
+        io::println("PASS: Vec3 construction works");
+    }
+}
+
+public fn test_vec3_magnitude(): void {
+    let v: Vec3 = new Vec3(3.0, 4.0, 0.0);
+    let m: double = v.magnitude();
+    if (absDiff(m, 5.0) > 1e-9) {
+        io::println("FAIL: Vec3.magnitude expected 5.0");
+    } else {
+        io::println("PASS: Vec3.magnitude = 5.0");
+    }
+}
+
+public fn test_vec3_add(): void {
+    let a: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let b: Vec3 = new Vec3(4.0, 5.0, 6.0);
+    let c: Vec3 = a.add(b);
+    if (absDiff(c.x, 5.0) > 1e-9 || absDiff(c.y, 7.0) > 1e-9 || absDiff(c.z, 9.0) > 1e-9) {
+        io::println("FAIL: Vec3.add");
+    } else {
+        io::println("PASS: Vec3.add works");
+    }
+}
+
+public fn test_vec3_scale(): void {
+    let v: Vec3 = new Vec3(1.0, 2.0, 3.0);
+    let s: Vec3 = v.scale(2.0);
+    if (absDiff(s.x, 2.0) > 1e-9 || absDiff(s.y, 4.0) > 1e-9 || absDiff(s.z, 6.0) > 1e-9) {
+        io::println("FAIL: Vec3.scale");
+    } else {
+        io::println("PASS: Vec3.scale works");
+    }
+}
+
+public fn test_gravitational_force(): void {
+    // F = G*m1*m2/r^2
+    let r: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let f: Vec3 = ForceField.gravitationalForce(1.0, 1.0, r, 1.0);
+    // Force magnitude = 1, direction = -x (attractive)
+    if (absDiff(f.x, -1.0) > 1e-9) {
+        io::println("FAIL: gravitationalForce x expected -1.0 got " + Double.toString(f.x));
+    } else {
+        io::println("PASS: gravitationalForce x = -1.0");
+    }
+    // Zero distance returns zero
+    let r0: Vec3 = new Vec3(0.0, 0.0, 0.0);
+    let f0: Vec3 = ForceField.gravitationalForce(1.0, 1.0, r0, 1.0);
+    if (absDiff(f0.x, 0.0) > 1e-9) {
+        io::println("FAIL: gravitationalForce zero distance");
+    } else {
+        io::println("PASS: gravitationalForce zero distance returns 0");
+    }
+}
+
+public fn test_coulomb_force(): void {
+    // Like charges repel: F = k*q1*q2/r^2
+    let r: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let f: Vec3 = ForceField.coulombForce(1.0, 1.0, r, 1.0);
+    // Force magnitude = 1, direction = +x (repulsive for like charges)
+    if (absDiff(f.x, 1.0) > 1e-9) {
+        io::println("FAIL: coulombForce x expected 1.0 got " + Double.toString(f.x));
+    } else {
+        io::println("PASS: coulombForce x = 1.0 (repulsive)");
+    }
+}
+
+public fn test_coulomb_with_particles(): void {
+    let p1: Particle = new Particle(1.0, 1.0);
+    let p2: Particle = new Particle(1.0, 1.0);
+    p1.setPosition(0.0, 0.0, 0.0);
+    p2.setPosition(1.0, 0.0, 0.0);
+    let f: Vec3 = ForceField.coulomb(p1, p2, 1.0);
+    if (absDiff(f.x, 1.0) > 1e-9) {
+        io::println("FAIL: coulomb particles x expected 1.0");
+    } else {
+        io::println("PASS: coulomb particles x = 1.0");
+    }
+}
+
+public fn test_lorentz_force(): void {
+    // F = q(E + v x B)
+    // E = (1, 0, 0), v = (0, 1, 0), B = (0, 0, 1)
+    // v x B = (1*1 - 0*0, 0*0 - 0*1, 0*0 - 1*0) = (1, 0, 0)
+    // F = 1 * (1+1, 0, 0) = (2, 0, 0)
+    let e: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let v: Vec3 = new Vec3(0.0, 1.0, 0.0);
+    let b: Vec3 = new Vec3(0.0, 0.0, 1.0);
+    let f: Vec3 = ForceField.lorentzForce(1.0, e, v, b);
+    if (absDiff(f.x, 2.0) > 1e-9) {
+        io::println("FAIL: lorentzForce x expected 2.0 got " + Double.toString(f.x));
+    } else {
+        io::println("PASS: lorentzForce x = 2.0");
+    }
+}
+
+public fn test_spring_force(): void {
+    // F = -k * displacement
+    let d: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let f: Vec3 = ForceField.springForce(d, 2.0);
+    if (absDiff(f.x, -2.0) > 1e-9) {
+        io::println("FAIL: springForce x expected -2.0");
+    } else {
+        io::println("PASS: springForce x = -2.0");
+    }
+}
+
+public fn test_spring_force_with_rest(): void {
+    // At rest length, force is zero
+    let d: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let f: Vec3 = ForceField.springForceWithRest(d, 2.0, 1.0);
+    if (absDiff(f.x, 0.0) > 1e-9) {
+        io::println("FAIL: springForceWithRest at rest expected 0");
+    } else {
+        io::println("PASS: springForceWithRest at rest = 0");
+    }
+    // Stretched: positive stretch -> negative force (restoring)
+    let d2: Vec3 = new Vec3(2.0, 0.0, 0.0);
+    let f2: Vec3 = ForceField.springForceWithRest(d2, 2.0, 1.0);
+    if (f2.x >= 0.0) {
+        io::println("FAIL: springForceWithRest stretched should be negative");
+    } else {
+        io::println("PASS: springForceWithRest stretched is negative");
+    }
+}
+
+public fn test_lennard_jones_force(): void {
+    // At r = sigma, force should be finite
+    let r: Vec3 = new Vec3(1.0, 0.0, 0.0);
+    let f: Vec3 = ForceField.lennardJonesForce(r, 1.0, 1.0);
+    if (f.x != f.x) {
+        io::println("FAIL: lennardJonesForce NaN");
+    } else {
+        io::println("PASS: lennardJonesForce finite = " + Double.toString(f.x));
+    }
+    // Zero distance returns zero
+    let r0: Vec3 = new Vec3(0.0, 0.0, 0.0);
+    let f0: Vec3 = ForceField.lennardJonesForce(r0, 1.0, 1.0);
+    if (absDiff(f0.x, 0.0) > 1e-9) {
+        io::println("FAIL: lennardJonesForce zero distance");
+    } else {
+        io::println("PASS: lennardJonesForce zero distance returns 0");
+    }
+}
+
+public fn test_lennard_jones_potential(): void {
+    // At r = sigma, V = 4*eps*(1 - 1) = 0
+    let v: double = ForceField.lennardJonesPotential(1.0, 1.0, 1.0);
+    if (absDiff(v, 0.0) > 1e-9) {
+        io::println("FAIL: lennardJonesPotential at sigma expected 0");
+    } else {
+        io::println("PASS: lennardJonesPotential at sigma = 0");
+    }
+    // Zero distance returns 0
+    let v0: double = ForceField.lennardJonesPotential(0.0, 1.0, 1.0);
+    if (absDiff(v0, 0.0) > 1e-9) {
+        io::println("FAIL: lennardJonesPotential zero distance");
+    } else {
+        io::println("PASS: lennardJonesPotential zero distance returns 0");
+    }
+}
+
+public fn run_all_physics_forcefield_tests(): void {
+    io::println("=== physics/ForceField.tr Tests ===");
+    test_vec3_construction();
+    test_vec3_magnitude();
+    test_vec3_add();
+    test_vec3_scale();
+    test_gravitational_force();
+    test_coulomb_force();
+    test_coulomb_with_particles();
+    test_lorentz_force();
+    test_spring_force();
+    test_spring_force_with_rest();
+    test_lennard_jones_force();
+    test_lennard_jones_potential();
+}
