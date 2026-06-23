@@ -1,0 +1,171 @@
+// Test file for OptionalExt.tr
+// Exercises the public API of the OptionalExt module.
+import tt::lang::OptionalExt;
+import tt::lang::Optional;
+import tt::lang::Variant;
+
+public fn test_mapOptional_present(): void {
+    let opt: Optional = Optional.of(5 as Variant);
+    let f: fn(Variant): Variant = fn(x: Variant): Variant { return (x as int + 1) as Variant; };
+    let result: Optional = OptionalExt.mapOptional(opt, f);
+    if (!result.isPresent()) {
+        io::println("FAIL: OptionalExt.mapOptional present");
+    } else {
+        io::println("PASS: OptionalExt.mapOptional present");
+    }
+}
+
+public fn test_mapOptional_empty(): void {
+    let opt: Optional = Optional.empty();
+    let f: fn(Variant): Variant = fn(x: Variant): Variant { return (x as int + 1) as Variant; };
+    let result: Optional = OptionalExt.mapOptional(opt, f);
+    if (result.isPresent()) {
+        io::println("FAIL: OptionalExt.mapOptional empty");
+    } else {
+        io::println("PASS: OptionalExt.mapOptional empty");
+    }
+}
+
+public fn test_flatMap_present(): void {
+    let opt: Optional = Optional.of(5 as Variant);
+    let f: fn(Variant): Optional = fn(x: Variant): Optional { return Optional.of((x as int + 1) as Variant); };
+    let result: Optional = OptionalExt.flatMap(opt, f);
+    if (!result.isPresent()) {
+        io::println("FAIL: OptionalExt.flatMap present");
+    } else {
+        io::println("PASS: OptionalExt.flatMap present");
+    }
+}
+
+public fn test_flatMap_empty(): void {
+    let opt: Optional = Optional.empty();
+    let f: fn(Variant): Optional = fn(x: Variant): Optional { return Optional.of(x); };
+    let result: Optional = OptionalExt.flatMap(opt, f);
+    if (result.isPresent()) {
+        io::println("FAIL: OptionalExt.flatMap empty");
+    } else {
+        io::println("PASS: OptionalExt.flatMap empty");
+    }
+}
+
+public fn test_filterOptional_pass(): void {
+    let opt: Optional = Optional.of(10 as Variant);
+    let pred: fn(Variant): bool = fn(x: Variant): bool { return (x as int) > 5; };
+    let result: Optional = OptionalExt.filterOptional(opt, pred);
+    if (!result.isPresent()) {
+        io::println("FAIL: OptionalExt.filterOptional pass");
+    } else {
+        io::println("PASS: OptionalExt.filterOptional pass");
+    }
+}
+
+public fn test_filterOptional_fail(): void {
+    let opt: Optional = Optional.of(3 as Variant);
+    let pred: fn(Variant): bool = fn(x: Variant): bool { return (x as int) > 5; };
+    let result: Optional = OptionalExt.filterOptional(opt, pred);
+    if (result.isPresent()) {
+        io::println("FAIL: OptionalExt.filterOptional fail");
+    } else {
+        io::println("PASS: OptionalExt.filterOptional fail");
+    }
+}
+
+public fn test_orElseOptional_present(): void {
+    let opt: Optional = Optional.of(10 as Variant);
+    let supplier: fn(): Variant = fn(): Variant { return 99 as Variant; };
+    let result: Variant = OptionalExt.orElseOptional(opt, supplier);
+    if (result == null) {
+        io::println("FAIL: OptionalExt.orElseOptional present null");
+    } else {
+        io::println("PASS: OptionalExt.orElseOptional present");
+    }
+}
+
+public fn test_orElseOptional_empty(): void {
+    let opt: Optional = Optional.empty();
+    let supplier: fn(): Variant = fn(): Variant { return 99 as Variant; };
+    let result: Variant = OptionalExt.orElseOptional(opt, supplier);
+    if (result == null) {
+        io::println("FAIL: OptionalExt.orElseOptional empty null");
+    } else {
+        io::println("PASS: OptionalExt.orElseOptional empty");
+    }
+}
+
+public fn test_isPresent_present(): void {
+    let opt: Optional = Optional.of(1 as Variant);
+    if (!OptionalExt.isPresent(opt)) {
+        io::println("FAIL: OptionalExt.isPresent present");
+    } else {
+        io::println("PASS: OptionalExt.isPresent present");
+    }
+}
+
+public fn test_isPresent_empty(): void {
+    let opt: Optional = Optional.empty();
+    if (OptionalExt.isPresent(opt)) {
+        io::println("FAIL: OptionalExt.isPresent empty");
+    } else {
+        io::println("PASS: OptionalExt.isPresent empty");
+    }
+}
+
+public fn test_isEmpty_present(): void {
+    let opt: Optional = Optional.of(1 as Variant);
+    if (OptionalExt.isEmpty(opt)) {
+        io::println("FAIL: OptionalExt.isEmpty present");
+    } else {
+        io::println("PASS: OptionalExt.isEmpty present");
+    }
+}
+
+public fn test_isEmpty_empty(): void {
+    let opt: Optional = Optional.empty();
+    if (!OptionalExt.isEmpty(opt)) {
+        io::println("FAIL: OptionalExt.isEmpty empty");
+    } else {
+        io::println("PASS: OptionalExt.isEmpty empty");
+    }
+}
+
+public fn test_ifPresent_executes(): void {
+    let opt: Optional = Optional.of(42 as Variant);
+    let action: fn(Variant): void = fn(x: Variant): void { };
+    OptionalExt.ifPresent(opt, action);
+    io::println("PASS: OptionalExt.ifPresent executed");
+}
+
+public fn test_ifPresentOrElse_present(): void {
+    let opt: Optional = Optional.of(42 as Variant);
+    let action: fn(Variant): void = fn(x: Variant): void { };
+    let emptyAction: fn(): void = fn(): void { };
+    OptionalExt.ifPresentOrElse(opt, action, emptyAction);
+    io::println("PASS: OptionalExt.ifPresentOrElse present");
+}
+
+public fn test_ifPresentOrElse_empty(): void {
+    let opt: Optional = Optional.empty();
+    let action: fn(Variant): void = fn(x: Variant): void { };
+    let emptyAction: fn(): void = fn(): void { };
+    OptionalExt.ifPresentOrElse(opt, action, emptyAction);
+    io::println("PASS: OptionalExt.ifPresentOrElse empty");
+}
+
+public fn run_all_optional_ext_tests(): void {
+    io::println("=== OptionalExt.tr Tests ===");
+    test_mapOptional_present();
+    test_mapOptional_empty();
+    test_flatMap_present();
+    test_flatMap_empty();
+    test_filterOptional_pass();
+    test_filterOptional_fail();
+    test_orElseOptional_present();
+    test_orElseOptional_empty();
+    test_isPresent_present();
+    test_isPresent_empty();
+    test_isEmpty_present();
+    test_isEmpty_empty();
+    test_ifPresent_executes();
+    test_ifPresentOrElse_present();
+    test_ifPresentOrElse_empty();
+}
