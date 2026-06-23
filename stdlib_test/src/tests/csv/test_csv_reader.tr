@@ -1,0 +1,511 @@
+// Tests for the CsvReader module (CsvReader, DictReader, Dialect, Sniffer).
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::csv::CsvReader;
+
+fn test_csv_reader_init(): void {
+    let reader: CsvReader = new CsvReader();
+    if (reader == null) {
+        io::println("FAIL: test_csv_reader_init - new CsvReader returned null");
+        return;
+    }
+    if (reader.delimiter != ",") {
+        io::println("FAIL: test_csv_reader_init - default delimiter should be ','");
+        return;
+    }
+    if (reader.quote != "\"") {
+        io::println("FAIL: test_csv_reader_init - default quote should be '\"'");
+        return;
+    }
+    if (!reader.hasHeader) {
+        io::println("FAIL: test_csv_reader_init - default hasHeader should be true");
+        return;
+    }
+    io::println("PASS: test_csv_reader_init");
+}
+
+fn test_csv_reader_set_delimiter(): void {
+    let reader: CsvReader = new CsvReader();
+    reader.setDelimiter(";");
+    if (reader.delimiter != ";") {
+        io::println("FAIL: test_csv_reader_set_delimiter - delimiter should be ';'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_set_delimiter");
+}
+
+fn test_csv_reader_set_quote(): void {
+    let reader: CsvReader = new CsvReader();
+    reader.setQuote("'");
+    if (reader.quote != "'") {
+        io::println("FAIL: test_csv_reader_set_quote - quote should be '''");
+        return;
+    }
+    io::println("PASS: test_csv_reader_set_quote");
+}
+
+fn test_csv_reader_set_has_header(): void {
+    let reader: CsvReader = new CsvReader();
+    reader.setHasHeader(false);
+    if (reader.hasHeader) {
+        io::println("FAIL: test_csv_reader_set_has_header - hasHeader should be false");
+        return;
+    }
+    io::println("PASS: test_csv_reader_set_has_header");
+}
+
+fn test_csv_reader_parse_simple(): void {
+    let reader: CsvReader = new CsvReader();
+    let rows: ArrayList<ArrayList<string>> = reader.parse("a,b,c\n1,2,3\n");
+    if (rows.size() != 2) {
+        io::println("FAIL: test_csv_reader_parse_simple - rows.size() should be 2, got " + Integer.toString(rows.size()));
+        return;
+    }
+    let first: ArrayList<string> = rows.get(0);
+    if (first.size() != 3) {
+        io::println("FAIL: test_csv_reader_parse_simple - first row should have 3 fields");
+        return;
+    }
+    if (first.get(0) != "a") {
+        io::println("FAIL: test_csv_reader_parse_simple - first field should be 'a'");
+        return;
+    }
+    if (first.get(1) != "b") {
+        io::println("FAIL: test_csv_reader_parse_simple - second field should be 'b'");
+        return;
+    }
+    if (first.get(2) != "c") {
+        io::println("FAIL: test_csv_reader_parse_simple - third field should be 'c'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_parse_simple");
+}
+
+fn test_csv_reader_parse_quoted(): void {
+    let reader: CsvReader = new CsvReader();
+    let rows: ArrayList<ArrayList<string>> = reader.parse("\"hello, world\",\"foo\"\n");
+    if (rows.size() != 1) {
+        io::println("FAIL: test_csv_reader_parse_quoted - rows.size() should be 1");
+        return;
+    }
+    let row: ArrayList<string> = rows.get(0);
+    if (row.get(0) != "hello, world") {
+        io::println("FAIL: test_csv_reader_parse_quoted - first field should be 'hello, world'");
+        return;
+    }
+    if (row.get(1) != "foo") {
+        io::println("FAIL: test_csv_reader_parse_quoted - second field should be 'foo'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_parse_quoted");
+}
+
+fn test_csv_reader_parse_escaped_quote(): void {
+    let reader: CsvReader = new CsvReader();
+    // Doubled quote inside a quoted field is an escaped quote
+    let rows: ArrayList<ArrayList<string>> = reader.parse("\"say \"\"hi\"\"\"\n");
+    if (rows.size() != 1) {
+        io::println("FAIL: test_csv_reader_parse_escaped_quote - rows.size() should be 1");
+        return;
+    }
+    let row: ArrayList<string> = rows.get(0);
+    if (row.get(0) != "say \"hi\"") {
+        io::println("FAIL: test_csv_reader_parse_escaped_quote - field should be 'say \"hi\"'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_parse_escaped_quote");
+}
+
+fn test_csv_reader_parse_empty(): void {
+    let reader: CsvReader = new CsvReader();
+    let rows: ArrayList<ArrayList<string>> = reader.parse("");
+    if (rows.size() != 0) {
+        io::println("FAIL: test_csv_reader_parse_empty - rows.size() should be 0 for empty input");
+        return;
+    }
+    io::println("PASS: test_csv_reader_parse_empty");
+}
+
+fn test_csv_reader_parse_single_row(): void {
+    let reader: CsvReader = new CsvReader();
+    let rows: ArrayList<ArrayList<string>> = reader.parse("a,b,c");
+    if (rows.size() != 1) {
+        io::println("FAIL: test_csv_reader_parse_single_row - rows.size() should be 1");
+        return;
+    }
+    if (rows.get(0).size() != 3) {
+        io::println("FAIL: test_csv_reader_parse_single_row - row should have 3 fields");
+        return;
+    }
+    io::println("PASS: test_csv_reader_parse_single_row");
+}
+
+fn test_csv_reader_parse_crlf(): void {
+    let reader: CsvReader = new CsvReader();
+    let rows: ArrayList<ArrayList<string>> = reader.parse("a,b\r\n1,2\r\n");
+    if (rows.size() != 2) {
+        io::println("FAIL: test_csv_reader_parse_crlf - rows.size() should be 2");
+        return;
+    }
+    io::println("PASS: test_csv_reader_parse_crlf");
+}
+
+fn test_csv_reader_skip_lines(): void {
+    let reader: CsvReader = new CsvReader();
+    let result: string = reader.skipLines("skip1\nskip2\nkeep1\nkeep2\n", 2);
+    if (String.indexOf(result, "keep1") < 0) {
+        io::println("FAIL: test_csv_reader_skip_lines - result should contain 'keep1'");
+        return;
+    }
+    if (String.indexOf(result, "skip1") >= 0) {
+        io::println("FAIL: test_csv_reader_skip_lines - result should not contain 'skip1'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_skip_lines");
+}
+
+fn test_csv_reader_get_column(): void {
+    let reader: CsvReader = new CsvReader();
+    let rows: ArrayList<ArrayList<string>> = reader.parse("a,b,c\n1,2,3\n4,5,6\n");
+    let col: ArrayList<string> = reader.getColumn(rows, 1);
+    if (col.size() != 3) {
+        io::println("FAIL: test_csv_reader_get_column - column size should be 3");
+        return;
+    }
+    if (col.get(0) != "b") {
+        io::println("FAIL: test_csv_reader_get_column - first entry should be 'b'");
+        return;
+    }
+    if (col.get(1) != "2") {
+        io::println("FAIL: test_csv_reader_get_column - second entry should be '2'");
+        return;
+    }
+    if (col.get(2) != "5") {
+        io::println("FAIL: test_csv_reader_get_column - third entry should be '5'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_get_column");
+}
+
+fn test_csv_reader_get_column_by_name(): void {
+    let reader: CsvReader = new CsvReader();
+    let rows: ArrayList<ArrayList<string>> = reader.parse("name,age\nAlice,30\nBob,25\n");
+    let col: ArrayList<string> = reader.getColumnByName(rows, "age");
+    // getColumnByName skips the header row
+    if (col.size() != 2) {
+        io::println("FAIL: test_csv_reader_get_column_by_name - column size should be 2");
+        return;
+    }
+    if (col.get(0) != "30") {
+        io::println("FAIL: test_csv_reader_get_column_by_name - first entry should be '30'");
+        return;
+    }
+    if (col.get(1) != "25") {
+        io::println("FAIL: test_csv_reader_get_column_by_name - second entry should be '25'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_get_column_by_name");
+}
+
+fn test_csv_reader_get_column_by_name_missing(): void {
+    let reader: CsvReader = new CsvReader();
+    let rows: ArrayList<ArrayList<string>> = reader.parse("name,age\nAlice,30\n");
+    let col: ArrayList<string> = reader.getColumnByName(rows, "missing");
+    if (col.size() != 0) {
+        io::println("FAIL: test_csv_reader_get_column_by_name_missing - column should be empty for missing name");
+        return;
+    }
+    io::println("PASS: test_csv_reader_get_column_by_name_missing");
+}
+
+fn test_csv_reader_get_headers(): void {
+    let reader: CsvReader = new CsvReader();
+    let headers: ArrayList<string> = reader.getHeaders("name,age,city\nAlice,30,NYC\n");
+    if (headers.size() != 3) {
+        io::println("FAIL: test_csv_reader_get_headers - headers.size() should be 3");
+        return;
+    }
+    if (headers.get(0) != "name") {
+        io::println("FAIL: test_csv_reader_get_headers - first header should be 'name'");
+        return;
+    }
+    if (headers.get(1) != "age") {
+        io::println("FAIL: test_csv_reader_get_headers - second header should be 'age'");
+        return;
+    }
+    if (headers.get(2) != "city") {
+        io::println("FAIL: test_csv_reader_get_headers - third header should be 'city'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_get_headers");
+}
+
+fn test_csv_reader_get_headers_no_header(): void {
+    let reader: CsvReader = new CsvReader();
+    reader.setHasHeader(false);
+    let headers: ArrayList<string> = reader.getHeaders("a,b,c\n");
+    if (headers.size() != 0) {
+        io::println("FAIL: test_csv_reader_get_headers_no_header - headers should be empty when hasHeader is false");
+        return;
+    }
+    io::println("PASS: test_csv_reader_get_headers_no_header");
+}
+
+fn test_csv_reader_parse_to_maps(): void {
+    let reader: CsvReader = new CsvReader();
+    let maps: ArrayList<HashMap<string, string>> = reader.parseToMaps("name,age\nAlice,30\nBob,25\n");
+    if (maps.size() != 2) {
+        io::println("FAIL: test_csv_reader_parse_to_maps - maps.size() should be 2");
+        return;
+    }
+    let first: HashMap<string, string> = maps.get(0);
+    if (first.get("name") != "Alice") {
+        io::println("FAIL: test_csv_reader_parse_to_maps - first name should be 'Alice'");
+        return;
+    }
+    if (first.get("age") != "30") {
+        io::println("FAIL: test_csv_reader_parse_to_maps - first age should be '30'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_parse_to_maps");
+}
+
+fn test_csv_reader_parse_to_maps_no_header(): void {
+    let reader: CsvReader = new CsvReader();
+    reader.setHasHeader(false);
+    let maps: ArrayList<HashMap<string, string>> = reader.parseToMaps("Alice,30\nBob,25\n");
+    if (maps.size() != 2) {
+        io::println("FAIL: test_csv_reader_parse_to_maps_no_header - maps.size() should be 2");
+        return;
+    }
+    // With no header, keys are numeric column indices "0", "1"
+    let first: HashMap<string, string> = maps.get(0);
+    if (first.get("0") != "Alice") {
+        io::println("FAIL: test_csv_reader_parse_to_maps_no_header - column 0 should be 'Alice'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_parse_to_maps_no_header");
+}
+
+fn test_csv_reader_custom_delimiter(): void {
+    let reader: CsvReader = new CsvReader();
+    reader.setDelimiter(";");
+    let rows: ArrayList<ArrayList<string>> = reader.parse("a;b;c\n1;2;3\n");
+    if (rows.size() != 2) {
+        io::println("FAIL: test_csv_reader_custom_delimiter - rows.size() should be 2");
+        return;
+    }
+    if (rows.get(0).size() != 3) {
+        io::println("FAIL: test_csv_reader_custom_delimiter - first row should have 3 fields");
+        return;
+    }
+    if (rows.get(0).get(1) != "b") {
+        io::println("FAIL: test_csv_reader_custom_delimiter - second field should be 'b'");
+        return;
+    }
+    io::println("PASS: test_csv_reader_custom_delimiter");
+}
+
+fn test_dict_reader_init_with_fieldnames(): void {
+    let reader: DictReader = new DictReader("Alice,30\nBob,25\n", new ArrayList<string>());
+    // Provide fieldnames explicitly
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let reader2: DictReader = new DictReader("Alice,30\nBob,25\n", fieldnames);
+    if (reader2 == null) {
+        io::println("FAIL: test_dict_reader_init_with_fieldnames - DictReader should not be null");
+        return;
+    }
+    io::println("PASS: test_dict_reader_init_with_fieldnames");
+}
+
+fn test_dict_reader_read_row(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let reader: DictReader = new DictReader("Alice,30\nBob,25\n", fieldnames);
+    let row: HashMap<string, string> = reader.readRow();
+    if (row == null) {
+        io::println("FAIL: test_dict_reader_read_row - first readRow should not be null");
+        return;
+    }
+    if (row.get("name") != "Alice") {
+        io::println("FAIL: test_dict_reader_read_row - name should be 'Alice'");
+        return;
+    }
+    if (row.get("age") != "30") {
+        io::println("FAIL: test_dict_reader_read_row - age should be '30'");
+        return;
+    }
+    io::println("PASS: test_dict_reader_read_row");
+}
+
+fn test_dict_reader_read_all(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    fieldnames.add("age");
+    let reader: DictReader = new DictReader("Alice,30\nBob,25\n", fieldnames);
+    let all: ArrayList<HashMap<string, string>> = reader.readAll();
+    if (all.size() != 2) {
+        io::println("FAIL: test_dict_reader_read_all - readAll should return 2 rows");
+        return;
+    }
+    io::println("PASS: test_dict_reader_read_all");
+}
+
+fn test_dict_reader_reset(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    let reader: DictReader = new DictReader("Alice\nBob\n", fieldnames);
+    let first: HashMap<string, string> = reader.readRow();
+    reader.reset();
+    let firstAgain: HashMap<string, string> = reader.readRow();
+    if (firstAgain == null) {
+        io::println("FAIL: test_dict_reader_reset - readRow after reset should not be null");
+        return;
+    }
+    if (firstAgain.get("name") != "Alice") {
+        io::println("FAIL: test_dict_reader_reset - first row after reset should be 'Alice'");
+        return;
+    }
+    io::println("PASS: test_dict_reader_reset");
+}
+
+fn test_dict_reader_exhausted(): void {
+    let fieldnames: ArrayList<string> = new ArrayList<string>();
+    fieldnames.add("name");
+    let reader: DictReader = new DictReader("Alice\n", fieldnames);
+    reader.readRow();
+    let exhausted: HashMap<string, string> = reader.readRow();
+    if (exhausted != null) {
+        io::println("FAIL: test_dict_reader_exhausted - readRow should return null when exhausted");
+        return;
+    }
+    io::println("PASS: test_dict_reader_exhausted");
+}
+
+fn test_dialect_init_default(): void {
+    let d: Dialect = new Dialect();
+    if (d.delimiter != ",") {
+        io::println("FAIL: test_dialect_init_default - default delimiter should be ','");
+        return;
+    }
+    if (d.quoteChar != "\"") {
+        io::println("FAIL: test_dialect_init_default - default quoteChar should be '\"'");
+        return;
+    }
+    if (!d.hasHeader) {
+        io::println("FAIL: test_dialect_init_default - default hasHeader should be true");
+        return;
+    }
+    io::println("PASS: test_dialect_init_default");
+}
+
+fn test_dialect_init_custom(): void {
+    let d: Dialect = new Dialect(";", "'", false);
+    if (d.delimiter != ";") {
+        io::println("FAIL: test_dialect_init_custom - delimiter should be ';'");
+        return;
+    }
+    if (d.quoteChar != "'") {
+        io::println("FAIL: test_dialect_init_custom - quoteChar should be '''");
+        return;
+    }
+    if (d.hasHeader) {
+        io::println("FAIL: test_dialect_init_custom - hasHeader should be false");
+        return;
+    }
+    io::println("PASS: test_dialect_init_custom");
+}
+
+fn test_sniffer_init(): void {
+    let s: Sniffer = new Sniffer();
+    if (s == null) {
+        io::println("FAIL: test_sniffer_init - new Sniffer returned null");
+        return;
+    }
+    io::println("PASS: test_sniffer_init");
+}
+
+fn test_sniffer_sniff_comma(): void {
+    let s: Sniffer = new Sniffer();
+    let d: Dialect = s.sniff("a,b,c\n1,2,3\n4,5,6\n");
+    if (d == null) {
+        io::println("FAIL: test_sniffer_sniff_comma - sniff returned null");
+        return;
+    }
+    if (d.delimiter != ",") {
+        io::println("FAIL: test_sniffer_sniff_comma - delimiter should be ','");
+        return;
+    }
+    io::println("PASS: test_sniffer_sniff_comma");
+}
+
+fn test_sniffer_sniff_semicolon(): void {
+    let s: Sniffer = new Sniffer();
+    let d: Dialect = s.sniff("a;b;c\n1;2;3\n4;5;6\n");
+    if (d == null) {
+        io::println("FAIL: test_sniffer_sniff_semicolon - sniff returned null");
+        return;
+    }
+    if (d.delimiter != ";") {
+        io::println("FAIL: test_sniffer_sniff_semicolon - delimiter should be ';'");
+        return;
+    }
+    io::println("PASS: test_sniffer_sniff_semicolon");
+}
+
+fn test_csv_quote_constants(): void {
+    if (QUOTE_MINIMAL != 0) {
+        io::println("FAIL: test_csv_quote_constants - QUOTE_MINIMAL should be 0");
+        return;
+    }
+    if (QUOTE_ALL != 1) {
+        io::println("FAIL: test_csv_quote_constants - QUOTE_ALL should be 1");
+        return;
+    }
+    if (QUOTE_NONNUMERIC != 2) {
+        io::println("FAIL: test_csv_quote_constants - QUOTE_NONNUMERIC should be 2");
+        return;
+    }
+    if (QUOTE_NONE != 3) {
+        io::println("FAIL: test_csv_quote_constants - QUOTE_NONE should be 3");
+        return;
+    }
+    io::println("PASS: test_csv_quote_constants");
+}
+
+public fn run_all_csv_reader_tests(): void {
+    io::println("=== CsvReader Tests ===");
+    test_csv_reader_init();
+    test_csv_reader_set_delimiter();
+    test_csv_reader_set_quote();
+    test_csv_reader_set_has_header();
+    test_csv_reader_parse_simple();
+    test_csv_reader_parse_quoted();
+    test_csv_reader_parse_escaped_quote();
+    test_csv_reader_parse_empty();
+    test_csv_reader_parse_single_row();
+    test_csv_reader_parse_crlf();
+    test_csv_reader_skip_lines();
+    test_csv_reader_get_column();
+    test_csv_reader_get_column_by_name();
+    test_csv_reader_get_column_by_name_missing();
+    test_csv_reader_get_headers();
+    test_csv_reader_get_headers_no_header();
+    test_csv_reader_parse_to_maps();
+    test_csv_reader_parse_to_maps_no_header();
+    test_csv_reader_custom_delimiter();
+    test_dict_reader_init_with_fieldnames();
+    test_dict_reader_read_row();
+    test_dict_reader_read_all();
+    test_dict_reader_reset();
+    test_dict_reader_exhausted();
+    test_dialect_init_default();
+    test_dialect_init_custom();
+    test_sniffer_init();
+    test_sniffer_sniff_comma();
+    test_sniffer_sniff_semicolon();
+    test_csv_quote_constants();
+}
