@@ -1,0 +1,82 @@
+// Test file for Boolean.tr
+// Exercises the public API of the Boolean module.
+import tt::lang::Boolean;
+
+public fn test_boolean_toString_true(): void {
+    let s: string = Boolean.toString(true);
+    if (s != "true") {
+        io::println("FAIL: Boolean.toString(true) = " + s);
+    } else {
+        io::println("PASS: Boolean.toString(true) = true");
+    }
+}
+
+public fn test_boolean_toString_false(): void {
+    let s: string = Boolean.toString(false);
+    if (s != "false") {
+        io::println("FAIL: Boolean.toString(false) = " + s);
+    } else {
+        io::println("PASS: Boolean.toString(false) = false");
+    }
+}
+
+public fn test_boolean_parseBoolean_true(): void {
+    if (!Boolean.parseBoolean("true")) {
+        io::println("FAIL: Boolean.parseBoolean(\"true\") = false");
+    } else {
+        io::println("PASS: Boolean.parseBoolean(\"true\") = true");
+    }
+}
+
+public fn test_boolean_parseBoolean_false(): void {
+    if (Boolean.parseBoolean("false")) {
+        io::println("FAIL: Boolean.parseBoolean(\"false\") = true");
+    } else {
+        io::println("PASS: Boolean.parseBoolean(\"false\") = false");
+    }
+}
+
+public fn test_boolean_parseBoolean_other(): void {
+    // Any non-"true" string returns false
+    if (Boolean.parseBoolean("yes") || Boolean.parseBoolean("TRUE") || Boolean.parseBoolean("")) {
+        io::println("FAIL: Boolean.parseBoolean non-true returned true");
+    } else {
+        io::println("PASS: Boolean.parseBoolean non-true returns false");
+    }
+}
+
+public fn test_boolean_logicalAnd(): void {
+    if (!Boolean.logicalAnd(true, true) || Boolean.logicalAnd(true, false) || Boolean.logicalAnd(false, true) || Boolean.logicalAnd(false, false)) {
+        io::println("FAIL: Boolean.logicalAnd");
+    } else {
+        io::println("PASS: Boolean.logicalAnd");
+    }
+}
+
+public fn test_boolean_logicalOr(): void {
+    if (Boolean.logicalOr(false, false) || !Boolean.logicalOr(true, false) || !Boolean.logicalOr(false, true) || !Boolean.logicalOr(true, true)) {
+        io::println("FAIL: Boolean.logicalOr");
+    } else {
+        io::println("PASS: Boolean.logicalOr");
+    }
+}
+
+public fn test_boolean_logicalNot(): void {
+    if (Boolean.logicalNot(true) || !Boolean.logicalNot(false)) {
+        io::println("FAIL: Boolean.logicalNot");
+    } else {
+        io::println("PASS: Boolean.logicalNot");
+    }
+}
+
+public fn run_all_boolean_tests(): void {
+    io::println("=== Boolean.tr Tests ===");
+    test_boolean_toString_true();
+    test_boolean_toString_false();
+    test_boolean_parseBoolean_true();
+    test_boolean_parseBoolean_false();
+    test_boolean_parseBoolean_other();
+    test_boolean_logicalAnd();
+    test_boolean_logicalOr();
+    test_boolean_logicalNot();
+}
