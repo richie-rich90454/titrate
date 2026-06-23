@@ -1,0 +1,108 @@
+// Test file for Smtp.tr
+// Exercises the public API of SmtpClient and the module-level sendHtml
+// function, focusing on construction defaults and the connected-state guards.
+import tt::net::Smtp;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_smtpclient_init_defaults(): void {
+    let client: SmtpClient = new SmtpClient("smtp.example.com", 587);
+    if (client.host != "smtp.example.com") {
+        io::println("FAIL: SmtpClient.host = " + client.host);
+    } else {
+        io::println("PASS: SmtpClient.host works");
+    }
+    if (client.port != 587) {
+        io::println("FAIL: SmtpClient.port = " + Integer.toString(client.port));
+    } else {
+        io::println("PASS: SmtpClient.port works");
+    }
+    if (client.useTls) {
+        io::println("FAIL: SmtpClient.useTls should be false for port 587");
+    } else {
+        io::println("PASS: SmtpClient.useTls false for port 587");
+    }
+    if (client.connected) {
+        io::println("FAIL: SmtpClient.connected should be false on init");
+    } else {
+        io::println("PASS: SmtpClient.connected false on init");
+    }
+}
+
+public fn test_smtpclient_tls_on_465(): void {
+    let client: SmtpClient = new SmtpClient("smtp.example.com", 465);
+    if (!client.useTls) {
+        io::println("FAIL: SmtpClient.useTls should be true for port 465");
+    } else {
+        io::println("PASS: SmtpClient.useTls true for port 465");
+    }
+}
+
+public fn test_smtpclient_send_requires_connection(): void {
+    let client: SmtpClient = new SmtpClient("smtp.example.com", 587);
+    let recipients: ArrayList<string> = new ArrayList<string>();
+    recipients.add("to@example.com");
+    let result: bool = client.send("from@example.com", recipients, "Subject", "Body");
+    if (result) {
+        io::println("FAIL: SmtpClient.send should return false when not connected");
+    } else {
+        io::println("PASS: SmtpClient.send returns false when not connected");
+    }
+}
+
+public fn test_smtpclient_sendHtml_requires_connection(): void {
+    let client: SmtpClient = new SmtpClient("smtp.example.com", 587);
+    let recipients: ArrayList<string> = new ArrayList<string>();
+    recipients.add("to@example.com");
+    let result: bool = client.sendHtml("from@example.com", recipients, "Subject", "<p>Hi</p>");
+    if (result) {
+        io::println("FAIL: SmtpClient.sendHtml should return false when not connected");
+    } else {
+        io::println("PASS: SmtpClient.sendHtml returns false when not connected");
+    }
+}
+
+public fn test_smtpclient_sendWithAttachment_requires_connection(): void {
+    let client: SmtpClient = new SmtpClient("smtp.example.com", 587);
+    let recipients: ArrayList<string> = new ArrayList<string>();
+    recipients.add("to@example.com");
+    let result: bool = client.sendWithAttachment("from@example.com", recipients, "Subject", "Body", "file.txt", "data");
+    if (result) {
+        io::println("FAIL: SmtpClient.sendWithAttachment should return false when not connected");
+    } else {
+        io::println("PASS: SmtpClient.sendWithAttachment returns false when not connected");
+    }
+}
+
+public fn test_smtpclient_authenticate_requires_connection(): void {
+    let client: SmtpClient = new SmtpClient("smtp.example.com", 587);
+    let result: bool = client.authenticate("user", "pass");
+    if (result) {
+        io::println("FAIL: SmtpClient.authenticate should return false when not connected");
+    } else {
+        io::println("PASS: SmtpClient.authenticate returns false when not connected");
+    }
+}
+
+public fn test_smtpclient_disconnect_noop_when_not_connected(): void {
+    let client: SmtpClient = new SmtpClient("smtp.example.com", 587);
+    // Should not throw; connected stays false.
+    client.disconnect();
+    if (client.connected) {
+        io::println("FAIL: SmtpClient.disconnect should keep connected false");
+    } else {
+        io::println("PASS: SmtpClient.disconnect is a no-op when not connected");
+    }
+}
+
+public fn run_all_smtp_tests(): void {
+    io::println("=== Smtp.tr Tests ===");
+    test_smtpclient_init_defaults();
+    test_smtpclient_tls_on_465();
+    test_smtpclient_send_requires_connection();
+    test_smtpclient_sendHtml_requires_connection();
+    test_smtpclient_sendWithAttachment_requires_connection();
+    test_smtpclient_authenticate_requires_connection();
+    test_smtpclient_disconnect_noop_when_not_connected();
+}
