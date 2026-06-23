@@ -15,6 +15,7 @@ pub mod bench;
 pub mod deps;
 pub mod watch;
 pub mod serialize;
+pub mod coverage;
 
 // Re-export public API so that main.rs can use `pipette::build`, etc.
 pub use build::{build, build_with_profile};
@@ -27,6 +28,7 @@ pub use format::fmt;
 pub use bench::{bench, bench_compare_native, bench_native_vs_bytecode};
 pub use deps::{outdated, tree};
 pub use watch::watch;
+pub use coverage::coverage;
 
 // ---------------------------------------------------------------------------
 // Build Profile

@@ -1,3 +1,44 @@
 [workspace]
 members = ["trc", "pipette", "titrate_native"]
 resolver = "2"
+
+# ---------------------------------------------------------------------------
+# Coverage profile
+# ---------------------------------------------------------------------------
+#
+# A dedicated profile for collecting test coverage. It keeps full debug info
+# (so source lines map cleanly to bytecode/IR) and disables optimization
+# (so the compiler does not inline or elide the lines under test).
+#
+# Build with it using:
+#
+#     cargo build --workspace --profile coverage
+#     cargo test  --workspace --profile coverage
+#
+# To actually collect coverage data you also need a coverage tool. Two are
+# supported:
+#
+# ## cargo-tarpaulin (Linux/Windows, easiest)
+#
+#     cargo install cargo-tarpaulin
+#     cargo tarpaulin --workspace --profile coverage --out Html --output-dir coverage/
+#
+# ## grcov (works with the built-in `-Cinstrument-coverage` rustflag)
+#
+#     # 1. Install grcov and the llvm-tools-preview component
+#     cargo install grcov
+#     rustup component add llvm-tools-preview
+#
+#     # 2. Build and run tests with coverage instrumentation
+#     $env:RUSTFLAGS = "-Cinstrument-coverage"
+#     $env:LLVM_PROFILE_FILE = "coverage/%p-%m.profraw"
+#     cargo test --workspace --profile coverage
+#
+#     # 3. Merge the .profraw files and generate a report
+#     grcov coverage/ --binary-path target/coverage -s . -t html -o coverage/html
+#
+# See docs/guide/coverage.md for the full walkthrough.
+[profile.coverage]
+inherits = "release"
+debug = true
+opt-level = 0

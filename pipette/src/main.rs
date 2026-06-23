@@ -189,6 +189,25 @@ fn main() {
                 process::exit(1);
             }
         }
+        "coverage" => {
+            // Coverage operates on the Rust workspace, not a Titrate project,
+            // so we look for the workspace root (a directory containing a
+            // Cargo.toml with a [workspace] section) instead of Titrate.toml.
+            let workspace_dir = match find_workspace_root() {
+                Some(dir) => dir,
+                None => {
+                    eprintln!(
+                        "Error: No workspace Cargo.toml found in current or parent directories"
+                    );
+                    process::exit(1);
+                }
+            };
+            let native = args.iter().any(|a| a == "--native");
+            if let Err(e) = pipette::coverage(&workspace_dir, native) {
+                eprintln!("Coverage failed: {}", e);
+                process::exit(1);
+            }
+        }
         "help" | "--help" | "-h" => {
             print_usage();
         }
@@ -211,6 +230,7 @@ fn print_usage() {
     eprintln!("  run            Build and run the project");
     eprintln!("  test           Run tests");
     eprintln!("  bench          Run benchmark files [--compare-native for native vs bytecode]");
+    eprintln!("  coverage       Run tests and collect coverage [--native for native builds]");
     eprintln!("  doc            Generate API documentation");
     eprintln!("  watch          Watch for changes and rebuild");
     eprintln!("  clean          Remove build output directory");
@@ -218,4 +238,24 @@ fn print_usage() {
     eprintln!("  fmt            Format .tr source files");
     eprintln!("  outdated       Check for newer versions of dependencies");
     eprintln!("  tree           Show the dependency tree");
+}
+
+/// Walk up from the current directory looking for a `Cargo.toml` that
+/// declares a `[workspace]` section. Used by the `coverage` subcommand,
+/// which instruments the Rust toolchain rather than a Titrate project.
+fn find_workspace_root() -> Option<std::path::PathBuf> {
+    let mut dir = std::env::current_dir().ok()?;
+    loop {
+        let cargo_toml = dir.join("Cargo.toml");
+        if cargo_toml.is_file() {
+            if let Ok(contents) = std::fs::read_to_string(&cargo_toml) {
+                if contents.contains("[workspace]") {
+                    return Some(dir);
+                }
+            }
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
 }

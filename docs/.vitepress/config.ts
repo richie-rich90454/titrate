@@ -136,6 +136,8 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'Compiler Architecture', link: '/guide/architecture' },
+            { text: 'Code Coverage', link: '/guide/coverage' },
+            { text: 'Coverage Exceptions', link: '/guide/coverage-exceptions' },
             { text: 'Contributing', link: '/guide/contributing' },
           ],
         },
