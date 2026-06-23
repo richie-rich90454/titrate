@@ -1,0 +1,208 @@
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArrayGen;
+import tt::math::MathAdvanced;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn test_linspace(): void {
+    let a: NDArray<double> = NDArrayGen.linspace(0.0, 1.0, 5);
+    if (a.size() == 5 && approxEq(a.getFlat(0), 0.0, 1e-9) && approxEq(a.getFlat(4), 1.0, 1e-9)) {
+        io::println("PASS test_linspace: 5 points from 0 to 1");
+    } else {
+        io::println("FAIL test_linspace: size=" + Integer.toString(a.size()));
+    }
+}
+
+fn test_linspace_step(): void {
+    let a: NDArray<double> = NDArrayGen.linspace(0.0, 10.0, 6);
+    // Should be 0, 2, 4, 6, 8, 10
+    if (approxEq(a.getFlat(1), 2.0, 1e-9) && approxEq(a.getFlat(3), 6.0, 1e-9)) {
+        io::println("PASS test_linspace_step: step = 2 between points");
+    } else {
+        io::println("FAIL test_linspace_step: idx1=" + Double.toString(a.getFlat(1)) + " idx3=" + Double.toString(a.getFlat(3)));
+    }
+}
+
+fn test_linspace_one(): void {
+    let a: NDArray<double> = NDArrayGen.linspace(5.0, 10.0, 1);
+    if (a.size() == 1 && approxEq(a.getFlat(0), 5.0, 1e-9)) {
+        io::println("PASS test_linspace_one: single point returns start");
+    } else {
+        io::println("FAIL test_linspace_one: size=" + Integer.toString(a.size()));
+    }
+}
+
+fn test_linspace_zero(): void {
+    let a: NDArray<double> = NDArrayGen.linspace(0.0, 1.0, 0);
+    if (a.size() == 0) {
+        io::println("PASS test_linspace_zero: num=0 returns empty");
+    } else {
+        io::println("FAIL test_linspace_zero: expected size 0, got " + Integer.toString(a.size()));
+    }
+}
+
+fn test_linspace_negative(): void {
+    let a: NDArray<double> = NDArrayGen.linspace(-2.0, 2.0, 5);
+    // Should be -2, -1, 0, 1, 2
+    if (approxEq(a.getFlat(0), -2.0, 1e-9) && approxEq(a.getFlat(2), 0.0, 1e-9) && approxEq(a.getFlat(4), 2.0, 1e-9)) {
+        io::println("PASS test_linspace_negative: -2 to 2 in 5 steps");
+    } else {
+        io::println("FAIL test_linspace_negative: incorrect");
+    }
+}
+
+fn test_arange(): void {
+    let a: NDArray<double> = NDArrayGen.arange(0.0, 5.0, 1.0);
+    if (a.size() == 5 && approxEq(a.getFlat(0), 0.0, 1e-9) && approxEq(a.getFlat(4), 4.0, 1e-9)) {
+        io::println("PASS test_arange: 0 to 5 step 1 = [0,1,2,3,4]");
+    } else {
+        io::println("FAIL test_arange: size=" + Integer.toString(a.size()));
+    }
+}
+
+fn test_arange_step2(): void {
+    let a: NDArray<double> = NDArrayGen.arange(0.0, 10.0, 2.0);
+    if (a.size() == 5 && approxEq(a.getFlat(1), 2.0, 1e-9) && approxEq(a.getFlat(4), 8.0, 1e-9)) {
+        io::println("PASS test_arange_step2: 0 to 10 step 2 = [0,2,4,6,8]");
+    } else {
+        io::println("FAIL test_arange_step2: size=" + Integer.toString(a.size()));
+    }
+}
+
+fn test_arange_negative_step(): void {
+    let a: NDArray<double> = NDArrayGen.arange(5.0, 0.0, -1.0);
+    if (a.size() == 5 && approxEq(a.getFlat(0), 5.0, 1e-9) && approxEq(a.getFlat(4), 1.0, 1e-9)) {
+        io::println("PASS test_arange_negative_step: 5 to 0 step -1");
+    } else {
+        io::println("FAIL test_arange_negative_step: size=" + Integer.toString(a.size()));
+    }
+}
+
+fn test_arange_zero_step(): void {
+    let a: NDArray<double> = NDArrayGen.arange(0.0, 5.0, 0.0);
+    if (a.size() == 0) {
+        io::println("PASS test_arange_zero_step: step=0 returns empty");
+    } else {
+        io::println("FAIL test_arange_zero_step: expected size 0, got " + Integer.toString(a.size()));
+    }
+}
+
+fn test_arange_empty(): void {
+    let a: NDArray<double> = NDArrayGen.arange(5.0, 0.0, 1.0);
+    // start > stop with positive step -> empty
+    if (a.size() == 0) {
+        io::println("PASS test_arange_empty: start>stop with positive step is empty");
+    } else {
+        io::println("FAIL test_arange_empty: expected size 0, got " + Integer.toString(a.size()));
+    }
+}
+
+fn test_logspace(): void {
+    let a: NDArray<double> = NDArrayGen.logspace(0.0, 2.0, 3);
+    // 10^0=1, 10^1=10, 10^2=100
+    if (a.size() == 3 && approxEq(a.getFlat(0), 1.0, 1e-9) && approxEq(a.getFlat(2), 100.0, 1e-9)) {
+        io::println("PASS test_logspace: 10^0, 10^1, 10^2");
+    } else {
+        io::println("FAIL test_logspace: incorrect");
+    }
+}
+
+fn test_logspace_base2(): void {
+    let a: NDArray<double> = NDArrayGen.logspace(0.0, 3.0, 4, 2.0);
+    // 2^0=1, 2^1=2, 2^2=4, 2^3=8
+    if (a.size() == 4 && approxEq(a.getFlat(0), 1.0, 1e-9) && approxEq(a.getFlat(3), 8.0, 1e-9)) {
+        io::println("PASS test_logspace_base2: 2^0..2^3");
+    } else {
+        io::println("FAIL test_logspace_base2: incorrect");
+    }
+}
+
+fn test_geomspace(): void {
+    let a: NDArray<double> = NDArrayGen.geomspace(1.0, 1000.0, 4);
+    // 1, 10, 100, 1000
+    if (a.size() == 4 && approxEq(a.getFlat(0), 1.0, 1e-9) && approxEq(a.getFlat(3), 1000.0, 1e-9)) {
+        io::println("PASS test_geomspace: 1, 10, 100, 1000");
+    } else {
+        io::println("FAIL test_geomspace: incorrect");
+    }
+}
+
+fn test_geomspace_ratio(): void {
+    let a: NDArray<double> = NDArrayGen.geomspace(2.0, 8.0, 3);
+    // 2, 4, 8 (ratio 2)
+    if (a.size() == 3 && approxEq(a.getFlat(0), 2.0, 1e-9) && approxEq(a.getFlat(1), 4.0, 1e-9) && approxEq(a.getFlat(2), 8.0, 1e-9)) {
+        io::println("PASS test_geomspace_ratio: 2, 4, 8");
+    } else {
+        io::println("FAIL test_geomspace_ratio: incorrect");
+    }
+}
+
+fn test_geomspace_invalid(): void {
+    // Negative start should return empty
+    let a: NDArray<double> = NDArrayGen.geomspace(-1.0, 10.0, 3);
+    if (a.size() == 0) {
+        io::println("PASS test_geomspace_invalid: negative start returns empty");
+    } else {
+        io::println("FAIL test_geomspace_invalid: expected size 0, got " + Integer.toString(a.size()));
+    }
+}
+
+fn test_meshgrid(): void {
+    let x: NDArray<double> = NDArrayGen.linspace(0.0, 1.0, 2);
+    let y: NDArray<double> = NDArrayGen.linspace(0.0, 1.0, 2);
+    let grids: ArrayList<NDArray<double>> = NDArrayGen.meshgrid(x, y);
+    if (grids.size() == 2) {
+        let X: NDArray<double> = grids.get(0);
+        let Y: NDArray<double> = grids.get(1);
+        if (X.size() == 4 && Y.size() == 4) {
+            io::println("PASS test_meshgrid: 2x2 meshgrid produces 2 arrays of size 4");
+        } else {
+            io::println("FAIL test_meshgrid: X.size=" + Integer.toString(X.size()) + " Y.size=" + Integer.toString(Y.size()));
+        }
+    } else {
+        io::println("FAIL test_meshgrid: expected 2 grids, got " + Integer.toString(grids.size()));
+    }
+}
+
+fn test_meshgrid_values(): void {
+    let x: NDArray<double> = NDArrayGen.arange(1.0, 3.0, 1.0); // [1, 2]
+    let y: NDArray<double> = NDArrayGen.arange(10.0, 30.0, 10.0); // [10, 20]
+    let grids: ArrayList<NDArray<double>> = NDArrayGen.meshgrid(x, y);
+    let X: NDArray<double> = grids.get(0);
+    // X should be [[1,2],[1,2]] -> flat [1,2,1,2]
+    if (approxEq(X.getFlat(0), 1.0, 1e-9) && approxEq(X.getFlat(1), 2.0, 1e-9) && approxEq(X.getFlat(2), 1.0, 1e-9)) {
+        io::println("PASS test_meshgrid_values: X grid has x values tiled across rows");
+    } else {
+        io::println("FAIL test_meshgrid_values: incorrect X values");
+    }
+}
+
+public fn run_all_ndarray_gen_tests(): void {
+    io::println("=== NDArrayGen tests ===");
+    test_linspace();
+    test_linspace_step();
+    test_linspace_one();
+    test_linspace_zero();
+    test_linspace_negative();
+    test_arange();
+    test_arange_step2();
+    test_arange_negative_step();
+    test_arange_zero_step();
+    test_arange_empty();
+    test_logspace();
+    test_logspace_base2();
+    test_geomspace();
+    test_geomspace_ratio();
+    test_geomspace_invalid();
+    test_meshgrid();
+    test_meshgrid_values();
+}
