@@ -1,0 +1,174 @@
+// Test file for BytesIO.tr
+// Exercises the public API of BytesIO: init, initWithData, read, readAll,
+// write, seek, tell, size, truncate, toString, reset, clear, close, flush.
+import tt::io::BytesIO;
+import tt::lang::Integer;
+
+public fn test_bytesio_init_empty(): void {
+    let b: BytesIO = new BytesIO();
+    if (b.size() != 0) {
+        io::println("FAIL: BytesIO initial size = " + Integer.toString(b.size()));
+    } else {
+        io::println("PASS: BytesIO starts empty");
+    }
+}
+
+public fn test_bytesio_initWithData(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("hello");
+    if (b.size() != 5) {
+        io::println("FAIL: BytesIO.initWithData size = " + Integer.toString(b.size()));
+    } else {
+        io::println("PASS: BytesIO.initWithData loads data");
+    }
+}
+
+public fn test_bytesio_read(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("abcdef");
+    let part: string = b.read(3);
+    if (part != "abc") {
+        io::println("FAIL: BytesIO.read(3) = '" + part + "'");
+    } else {
+        io::println("PASS: BytesIO.read returns first N bytes");
+    }
+}
+
+public fn test_bytesio_readAll(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("xyz");
+    let all: string = b.readAll();
+    if (all != "xyz") {
+        io::println("FAIL: BytesIO.readAll = '" + all + "'");
+    } else {
+        io::println("PASS: BytesIO.readAll returns remaining bytes");
+    }
+}
+
+public fn test_bytesio_write(): void {
+    let b: BytesIO = new BytesIO();
+    b.write("hi");
+    if (b.size() != 2) {
+        io::println("FAIL: BytesIO.write size = " + Integer.toString(b.size()));
+    } else {
+        io::println("PASS: BytesIO.write appends bytes");
+    }
+}
+
+public fn test_bytesio_seek_tell(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("abcdef");
+    let pos: int = b.seek(3);
+    if (pos != 3 || b.tell() != 3) {
+        io::println("FAIL: BytesIO.seek/tell pos=" + Integer.toString(pos) + " tell=" + Integer.toString(b.tell()));
+    } else {
+        io::println("PASS: BytesIO.seek/tell position correct");
+    }
+}
+
+public fn test_bytesio_read_after_seek(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("abcdef");
+    b.seek(2);
+    let part: string = b.read(2);
+    if (part != "cd") {
+        io::println("FAIL: BytesIO read after seek = '" + part + "'");
+    } else {
+        io::println("PASS: BytesIO read after seek returns bytes from position");
+    }
+}
+
+public fn test_bytesio_toString(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("data");
+    if (b.toString() != "data") {
+        io::println("FAIL: BytesIO.toString = '" + b.toString() + "'");
+    } else {
+        io::println("PASS: BytesIO.toString returns full buffer");
+    }
+}
+
+public fn test_bytesio_reset(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("abc");
+    b.read(2);
+    b.reset();
+    if (b.tell() != 0) {
+        io::println("FAIL: BytesIO.reset tell = " + Integer.toString(b.tell()));
+    } else {
+        io::println("PASS: BytesIO.reset moves position to start");
+    }
+}
+
+public fn test_bytesio_clear(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("abc");
+    b.clear();
+    if (b.size() != 0) {
+        io::println("FAIL: BytesIO.clear size = " + Integer.toString(b.size()));
+    } else {
+        io::println("PASS: BytesIO.clear empties buffer");
+    }
+}
+
+public fn test_bytesio_truncate(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("abcdef");
+    b.truncate(3);
+    if (b.size() != 3) {
+        io::println("FAIL: BytesIO.truncate size = " + Integer.toString(b.size()));
+    } else {
+        io::println("PASS: BytesIO.truncate shortens buffer");
+    }
+}
+
+public fn test_bytesio_truncate_at_pos(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("abcdef");
+    b.seek(2);
+    b.truncate(-1);
+    if (b.size() != 2) {
+        io::println("FAIL: BytesIO.truncate(-1) size = " + Integer.toString(b.size()));
+    } else {
+        io::println("PASS: BytesIO.truncate(-1) truncates at current position");
+    }
+}
+
+public fn test_bytesio_close_flush_noop(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("x");
+    b.close();
+    b.flush();
+    io::println("PASS: BytesIO.close/flush are no-ops");
+}
+
+public fn test_bytesio_write_overwrite(): void {
+    let b: BytesIO = new BytesIO();
+    b.initWithData("abcdef");
+    b.seek(1);
+    b.write("XY");
+    let result: string = b.toString();
+    if (result != "aXYdef") {
+        io::println("FAIL: BytesIO overwrite = '" + result + "'");
+    } else {
+        io::println("PASS: BytesIO.write overwrites at position");
+    }
+}
+
+public fn run_all_bytesio_tests(): void {
+    io::println("=== BytesIO.tr Tests ===");
+    test_bytesio_init_empty();
+    test_bytesio_initWithData();
+    test_bytesio_read();
+    test_bytesio_readAll();
+    test_bytesio_write();
+    test_bytesio_seek_tell();
+    test_bytesio_read_after_seek();
+    test_bytesio_toString();
+    test_bytesio_reset();
+    test_bytesio_clear();
+    test_bytesio_truncate();
+    test_bytesio_truncate_at_pos();
+    test_bytesio_close_flush_noop();
+    test_bytesio_write_overwrite();
+}
