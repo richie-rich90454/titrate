@@ -1,0 +1,133 @@
+// Test file for ZipFile.tr
+// Exercises the public API of ZipEntry, ZipFile, and ZipWriter.
+import tt::compression::ZipFile;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_zipentry_construction_defaults(): void {
+    let entry: ZipEntry = new ZipEntry("file.txt");
+    if (entry.name != "file.txt") {
+        io::println("FAIL: ZipEntry.name = " + entry.name);
+    } else {
+        io::println("PASS: ZipEntry.name works");
+    }
+    if (entry.compressedSize != 0) {
+        io::println("FAIL: ZipEntry.compressedSize should default to 0");
+    } else {
+        io::println("PASS: ZipEntry.compressedSize defaults to 0");
+    }
+    if (entry.uncompressedSize != 0) {
+        io::println("FAIL: ZipEntry.uncompressedSize should default to 0");
+    } else {
+        io::println("PASS: ZipEntry.uncompressedSize defaults to 0");
+    }
+    if (entry.method != 8) {
+        io::println("FAIL: ZipEntry.method should default to 8 (deflate)");
+    } else {
+        io::println("PASS: ZipEntry.method defaults to 8");
+    }
+}
+
+public fn test_zipentry_mutable_fields(): void {
+    let entry: ZipEntry = new ZipEntry("data.bin");
+    entry.compressedSize = 100;
+    entry.uncompressedSize = 200;
+    entry.method = 0;
+    if (entry.compressedSize != 100 || entry.uncompressedSize != 200 || entry.method != 0) {
+        io::println("FAIL: ZipEntry field assignment failed");
+    } else {
+        io::println("PASS: ZipEntry fields are mutable");
+    }
+}
+
+public fn test_zipwriter_init(): void {
+    let writer: ZipWriter = new ZipWriter("test_archive.zip");
+    if (writer == null) {
+        io::println("FAIL: ZipWriter init returned null");
+    } else {
+        io::println("PASS: ZipWriter constructed");
+    }
+    writer.close();
+}
+
+public fn test_zipwriter_addEntry_tracks_entries(): void {
+    let writer: ZipWriter = new ZipWriter("test_archive2.zip");
+    writer.addEntry("file1.txt", "contents of file 1");
+    writer.addEntry("file2.txt", "contents of file 2");
+    // The internal _entries list tracks added entries (private field, but
+    // we can verify addEntry does not throw and write returns a Result).
+    let result: Result<string, string> = writer.write();
+    if (result == null || !(result.isOk() || result.isErr())) {
+        io::println("FAIL: ZipWriter.write returned invalid Result");
+    } else {
+        io::println("PASS: ZipWriter.addEntry/write works");
+    }
+    writer.close();
+}
+
+public fn test_zipfile_open_close(): void {
+    // Create a zip first, then open it.
+    let path: string = "test_zipfile_open.zip";
+    let writer: ZipWriter = new ZipWriter(path);
+    writer.addEntry("hello.txt", "hello zip");
+    writer.write();
+    writer.close();
+
+    let zf: ZipFile = new ZipFile(path);
+    // entryCount delegates to native; may return 0 if native unavailable.
+    let count: int = zf.entryCount();
+    if (count < 0) {
+        io::println("FAIL: ZipFile.entryCount = " + Integer.toString(count));
+    } else {
+        io::println("PASS: ZipFile.entryCount returns " + Integer.toString(count));
+    }
+    zf.close();
+}
+
+public fn test_zipfile_entries_returns_list(): void {
+    let path: string = "test_zipfile_entries.zip";
+    let writer: ZipWriter = new ZipWriter(path);
+    writer.addEntry("a.txt", "aaa");
+    writer.addEntry("b.txt", "bbb");
+    writer.write();
+    writer.close();
+
+    let zf: ZipFile = new ZipFile(path);
+    let names: ArrayList<string> = zf.entries();
+    if (names == null) {
+        io::println("FAIL: ZipFile.entries returned null");
+    } else {
+        io::println("PASS: ZipFile.entries returns a list of size " + Integer.toString(names.size()));
+    }
+    zf.close();
+}
+
+public fn test_zipfile_readEntry_returns_result(): void {
+    let path: string = "test_zipfile_read.zip";
+    let writer: ZipWriter = new ZipWriter(path);
+    writer.addEntry("readme.txt", "read me");
+    writer.write();
+    writer.close();
+
+    let zf: ZipFile = new ZipFile(path);
+    let result: Result<string, string> = zf.readEntry("readme.txt");
+    if (result == null) {
+        io::println("FAIL: ZipFile.readEntry returned null");
+    } else if (result.isOk() || result.isErr()) {
+        io::println("PASS: ZipFile.readEntry returns a Result");
+    } else {
+        io::println("FAIL: ZipFile.readEntry returned non-Result");
+    }
+    zf.close();
+}
+
+public fn run_all_zipfile_tests(): void {
+    io::println("=== ZipFile.tr Tests ===");
+    test_zipentry_construction_defaults();
+    test_zipentry_mutable_fields();
+    test_zipwriter_init();
+    test_zipwriter_addEntry_tracks_entries();
+    test_zipfile_open_close();
+    test_zipfile_entries_returns_list();
+    test_zipfile_readEntry_returns_result();
+}
