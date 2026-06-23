@@ -1,0 +1,256 @@
+// Test file for Combinatorics.tr
+// Exercises combinatorial functions: factorial, binomial, Stirling, Bell, Catalan, etc.
+import tt::math::Combinatorics;
+import tt::util::ArrayList;
+import tt::lang::Long;
+
+public fn test_combinatorics_factorial(): void {
+    if (Combinatorics.factorial(0) != 1L) {
+        io::println("FAIL: Combinatorics.factorial(0)");
+    } else {
+        io::println("PASS: Combinatorics.factorial(0) = 1");
+    }
+    if (Combinatorics.factorial(1) != 1L) {
+        io::println("FAIL: Combinatorics.factorial(1)");
+    } else {
+        io::println("PASS: Combinatorics.factorial(1) = 1");
+    }
+    if (Combinatorics.factorial(5) != 120L) {
+        io::println("FAIL: Combinatorics.factorial(5)");
+    } else {
+        io::println("PASS: Combinatorics.factorial(5) = 120");
+    }
+    if (Combinatorics.factorial(10) != 3628800L) {
+        io::println("FAIL: Combinatorics.factorial(10)");
+    } else {
+        io::println("PASS: Combinatorics.factorial(10) = 3628800");
+    }
+    if (Combinatorics.factorial(-1) != 0L) {
+        io::println("FAIL: Combinatorics.factorial(-1)");
+    } else {
+        io::println("PASS: Combinatorics.factorial(-1) = 0");
+    }
+}
+
+public fn test_combinatorics_binomial(): void {
+    if (Combinatorics.binomial(5, 2) != 10L) {
+        io::println("FAIL: Combinatorics.binomial(5,2)");
+    } else {
+        io::println("PASS: Combinatorics.binomial(5,2) = 10");
+    }
+    if (Combinatorics.binomial(10, 3) != 120L) {
+        io::println("FAIL: Combinatorics.binomial(10,3)");
+    } else {
+        io::println("PASS: Combinatorics.binomial(10,3) = 120");
+    }
+    if (Combinatorics.binomial(5, 0) != 1L || Combinatorics.binomial(5, 5) != 1L) {
+        io::println("FAIL: Combinatorics.binomial boundaries");
+    } else {
+        io::println("PASS: Combinatorics.binomial boundaries work");
+    }
+    if (Combinatorics.binomial(5, 6) != 0L) {
+        io::println("FAIL: Combinatorics.binomial(5,6)");
+    } else {
+        io::println("PASS: Combinatorics.binomial(5,6) = 0");
+    }
+    // Symmetry: C(n,k) = C(n, n-k)
+    if (Combinatorics.binomial(10, 3) != Combinatorics.binomial(10, 7)) {
+        io::println("FAIL: Combinatorics.binomial symmetry");
+    } else {
+        io::println("PASS: Combinatorics.binomial symmetry holds");
+    }
+}
+
+public fn test_combinatorics_fibonacci(): void {
+    // F(0)=0, F(1)=1, F(2)=1, F(3)=2, F(4)=3, F(5)=5, F(10)=55
+    if (Combinatorics.fibonacci(0) != 0L) {
+        io::println("FAIL: Combinatorics.fibonacci(0)");
+    } else {
+        io::println("PASS: Combinatorics.fibonacci(0) = 0");
+    }
+    if (Combinatorics.fibonacci(1) != 1L) {
+        io::println("FAIL: Combinatorics.fibonacci(1)");
+    } else {
+        io::println("PASS: Combinatorics.fibonacci(1) = 1");
+    }
+    if (Combinatorics.fibonacci(10) != 55L) {
+        io::println("FAIL: Combinatorics.fibonacci(10)");
+    } else {
+        io::println("PASS: Combinatorics.fibonacci(10) = 55");
+    }
+    if (Combinatorics.fibonacci(-1) != 0L) {
+        io::println("FAIL: Combinatorics.fibonacci(-1)");
+    } else {
+        io::println("PASS: Combinatorics.fibonacci(-1) = 0");
+    }
+}
+
+public fn test_combinatorics_lucas(): void {
+    // L(0)=2, L(1)=1, L(2)=3, L(3)=4, L(4)=7, L(5)=11
+    if (Combinatorics.lucasNumber(0) != 2L) {
+        io::println("FAIL: Combinatorics.lucasNumber(0)");
+    } else {
+        io::println("PASS: Combinatorics.lucasNumber(0) = 2");
+    }
+    if (Combinatorics.lucasNumber(1) != 1L) {
+        io::println("FAIL: Combinatorics.lucasNumber(1)");
+    } else {
+        io::println("PASS: Combinatorics.lucasNumber(1) = 1");
+    }
+    if (Combinatorics.lucasNumber(5) != 11L) {
+        io::println("FAIL: Combinatorics.lucasNumber(5)");
+    } else {
+        io::println("PASS: Combinatorics.lucasNumber(5) = 11");
+    }
+}
+
+public fn test_combinatorics_stirling(): void {
+    // Stirling2: S(0,0)=1, S(1,1)=1, S(2,1)=1, S(2,2)=1, S(3,1)=1, S(3,2)=3, S(3,3)=1
+    if (Combinatorics.stirling2(0, 0) != 1L) {
+        io::println("FAIL: Combinatorics.stirling2(0,0)");
+    } else {
+        io::println("PASS: Combinatorics.stirling2(0,0) = 1");
+    }
+    if (Combinatorics.stirling2(3, 2) != 3L) {
+        io::println("FAIL: Combinatorics.stirling2(3,2)");
+    } else {
+        io::println("PASS: Combinatorics.stirling2(3,2) = 3");
+    }
+    if (Combinatorics.stirling2(4, 2) != 7L) {
+        io::println("FAIL: Combinatorics.stirling2(4,2)");
+    } else {
+        io::println("PASS: Combinatorics.stirling2(4,2) = 7");
+    }
+    // Stirling1: c(3,1)=2, c(3,2)=3, c(3,3)=1
+    if (Combinatorics.stirling1(3, 1) != 2L) {
+        io::println("FAIL: Combinatorics.stirling1(3,1)");
+    } else {
+        io::println("PASS: Combinatorics.stirling1(3,1) = 2");
+    }
+    if (Combinatorics.stirling1(3, 3) != 1L) {
+        io::println("FAIL: Combinatorics.stirling1(3,3)");
+    } else {
+        io::println("PASS: Combinatorics.stirling1(3,3) = 1");
+    }
+}
+
+public fn test_combinatorics_bell_catalan(): void {
+    // Bell: B(0)=1, B(1)=1, B(2)=2, B(3)=5, B(4)=15
+    if (Combinatorics.bellNumber(0) != 1L) {
+        io::println("FAIL: Combinatorics.bellNumber(0)");
+    } else {
+        io::println("PASS: Combinatorics.bellNumber(0) = 1");
+    }
+    if (Combinatorics.bellNumber(3) != 5L) {
+        io::println("FAIL: Combinatorics.bellNumber(3)");
+    } else {
+        io::println("PASS: Combinatorics.bellNumber(3) = 5");
+    }
+    if (Combinatorics.bellNumber(4) != 15L) {
+        io::println("FAIL: Combinatorics.bellNumber(4)");
+    } else {
+        io::println("PASS: Combinatorics.bellNumber(4) = 15");
+    }
+    // Catalan: C(0)=1, C(1)=1, C(2)=2, C(3)=5, C(4)=14
+    if (Combinatorics.catalanNumber(0) != 1L) {
+        io::println("FAIL: Combinatorics.catalanNumber(0)");
+    } else {
+        io::println("PASS: Combinatorics.catalanNumber(0) = 1");
+    }
+    if (Combinatorics.catalanNumber(3) != 5L) {
+        io::println("FAIL: Combinatorics.catalanNumber(3)");
+    } else {
+        io::println("PASS: Combinatorics.catalanNumber(3) = 5");
+    }
+    if (Combinatorics.catalanNumber(4) != 14L) {
+        io::println("FAIL: Combinatorics.catalanNumber(4)");
+    } else {
+        io::println("PASS: Combinatorics.catalanNumber(4) = 14");
+    }
+}
+
+public fn test_combinatorics_partition_derangement(): void {
+    // Partition: p(0)=1, p(1)=1, p(2)=2, p(3)=3, p(4)=5, p(5)=7
+    if (Combinatorics.partitionNumber(0) != 1L) {
+        io::println("FAIL: Combinatorics.partitionNumber(0)");
+    } else {
+        io::println("PASS: Combinatorics.partitionNumber(0) = 1");
+    }
+    if (Combinatorics.partitionNumber(5) != 7L) {
+        io::println("FAIL: Combinatorics.partitionNumber(5)");
+    } else {
+        io::println("PASS: Combinatorics.partitionNumber(5) = 7");
+    }
+    // Derangement: !0=1, !1=0, !2=1, !3=2, !4=9
+    if (Combinatorics.derangement(0) != 1L) {
+        io::println("FAIL: Combinatorics.derangement(0)");
+    } else {
+        io::println("PASS: Combinatorics.derangement(0) = 1");
+    }
+    if (Combinatorics.derangement(1) != 0L) {
+        io::println("FAIL: Combinatorics.derangement(1)");
+    } else {
+        io::println("PASS: Combinatorics.derangement(1) = 0");
+    }
+    if (Combinatorics.derangement(4) != 9L) {
+        io::println("FAIL: Combinatorics.derangement(4)");
+    } else {
+        io::println("PASS: Combinatorics.derangement(4) = 9");
+    }
+}
+
+public fn test_combinatorics_permutations_multinomial(): void {
+    // P(5,2) = 20, P(5,0) = 1, P(5,5) = 120
+    if (Combinatorics.permutations(5, 2) != 20L) {
+        io::println("FAIL: Combinatorics.permutations(5,2)");
+    } else {
+        io::println("PASS: Combinatorics.permutations(5,2) = 20");
+    }
+    if (Combinatorics.permutations(5, 0) != 1L) {
+        io::println("FAIL: Combinatorics.permutations(5,0)");
+    } else {
+        io::println("PASS: Combinatorics.permutations(5,0) = 1");
+    }
+    if (Combinatorics.permutations(5, 5) != 120L) {
+        io::println("FAIL: Combinatorics.permutations(5,5)");
+    } else {
+        io::println("PASS: Combinatorics.permutations(5,5) = 120");
+    }
+    // Multinomial: 6! / (2! * 2! * 2!) = 720 / 8 = 90
+    let groups: ArrayList<int> = new ArrayList<int>();
+    groups.add(2);
+    groups.add(2);
+    groups.add(2);
+    if (Combinatorics.multinomial(6, groups) != 90L) {
+        io::println("FAIL: Combinatorics.multinomial(6, [2,2,2])");
+    } else {
+        io::println("PASS: Combinatorics.multinomial(6, [2,2,2]) = 90");
+    }
+}
+
+public fn test_combinatorics_combinations_with_repetition(): void {
+    // C(n+k-1, k): C(3+2-1, 2) = C(4,2) = 6
+    if (Combinatorics.combinationsWithRepetition(3, 2) != 6L) {
+        io::println("FAIL: Combinatorics.combinationsWithRepetition(3,2)");
+    } else {
+        io::println("PASS: Combinatorics.combinationsWithRepetition(3,2) = 6");
+    }
+    if (Combinatorics.combinationsWithRepetition(5, 0) != 1L) {
+        io::println("FAIL: Combinatorics.combinationsWithRepetition(5,0)");
+    } else {
+        io::println("PASS: Combinatorics.combinationsWithRepetition(5,0) = 1");
+    }
+}
+
+public fn run_all_combinatorics_tests(): void {
+    io::println("=== Combinatorics.tr Tests ===");
+    test_combinatorics_factorial();
+    test_combinatorics_binomial();
+    test_combinatorics_fibonacci();
+    test_combinatorics_lucas();
+    test_combinatorics_stirling();
+    test_combinatorics_bell_catalan();
+    test_combinatorics_partition_derangement();
+    test_combinatorics_permutations_multinomial();
+    test_combinatorics_combinations_with_repetition();
+}
