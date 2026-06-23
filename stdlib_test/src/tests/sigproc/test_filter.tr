@@ -1,0 +1,145 @@
+// Test file for sigproc/Filter.tr
+// Exercises FilterCoeffs, Butterworth, notch, FIR filters, and applyFilter.
+import tt::sigproc::Filter;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_filter_coeffs_init(): void {
+    let coeffs: FilterCoeffs = new FilterCoeffs();
+    if (coeffs.b.size() != 0) {
+        io::println("FAIL: FilterCoeffs b init empty");
+    } else {
+        io::println("PASS: FilterCoeffs b init empty");
+    }
+    if (coeffs.a.size() != 1) {
+        io::println("FAIL: FilterCoeffs a init size expected 1");
+    } else {
+        io::println("PASS: FilterCoeffs a init size = 1");
+    }
+    if (absDiff(coeffs.a.get(0), 1.0) > 1e-9) {
+        io::println("FAIL: FilterCoeffs a[0] expected 1.0");
+    } else {
+        io::println("PASS: FilterCoeffs a[0] = 1.0");
+    }
+}
+
+public fn test_butterworth_lowpass(): void {
+    let coeffs: FilterCoeffs = Filter.butterworthLowpass(2, 10.0, 100.0);
+    if (coeffs.b.size() != 3) {
+        io::println("FAIL: butterworthLowpass order 2 b size expected 3");
+    } else {
+        io::println("PASS: butterworthLowpass order 2 b size = 3");
+    }
+    if (coeffs.a.size() != 3) {
+        io::println("FAIL: butterworthLowpass order 2 a size expected 3");
+    } else {
+        io::println("PASS: butterworthLowpass order 2 a size = 3");
+    }
+}
+
+public fn test_butterworth_lowpass_order1(): void {
+    let coeffs: FilterCoeffs = Filter.butterworthLowpass(1, 10.0, 100.0);
+    if (coeffs.b.size() != 2) {
+        io::println("FAIL: butterworthLowpass order 1 b size expected 2");
+    } else {
+        io::println("PASS: butterworthLowpass order 1 b size = 2");
+    }
+}
+
+public fn test_butterworth_lowpass_order4(): void {
+    let coeffs: FilterCoeffs = Filter.butterworthLowpass(4, 10.0, 100.0);
+    if (coeffs.b.size() != 5) {
+        io::println("FAIL: butterworthLowpass order 4 b size expected 5");
+    } else {
+        io::println("PASS: butterworthLowpass order 4 b size = 5");
+    }
+}
+
+public fn test_butterworth_highpass(): void {
+    let coeffs: FilterCoeffs = Filter.butterworthHighpass(2, 10.0, 100.0);
+    if (coeffs.b.size() != 3) {
+        io::println("FAIL: butterworthHighpass order 2 b size expected 3");
+    } else {
+        io::println("PASS: butterworthHighpass order 2 b size = 3");
+    }
+}
+
+public fn test_apply_filter(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0); signal.add(2.0); signal.add(3.0); signal.add(4.0);
+    let coeffs: FilterCoeffs = Filter.butterworthLowpass(2, 10.0, 100.0);
+    let result: ArrayList<double> = Filter.applyFilter(signal, coeffs);
+    if (result.size() != 4) {
+        io::println("FAIL: applyFilter size expected 4");
+    } else {
+        io::println("PASS: applyFilter size = 4");
+    }
+}
+
+public fn test_apply_filter_identity(): void {
+    // With b=[1.0] and a=[1.0], filter should be identity
+    let coeffs: FilterCoeffs = new FilterCoeffs();
+    coeffs.b.add(1.0);
+    // a already has [1.0]
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(5.0); signal.add(10.0); signal.add(15.0);
+    let result: ArrayList<double> = Filter.applyFilter(signal, coeffs);
+    if (absDiff(result.get(0), 5.0) > 1e-9) {
+        io::println("FAIL: applyFilter identity[0] expected 5.0");
+    } else {
+        io::println("PASS: applyFilter identity[0] = 5.0");
+    }
+    if (absDiff(result.get(1), 10.0) > 1e-9) {
+        io::println("FAIL: applyFilter identity[1] expected 10.0");
+    } else {
+        io::println("PASS: applyFilter identity[1] = 10.0");
+    }
+}
+
+public fn test_notch_filter(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 100) {
+        signal.add(MathTrig.sin(2.0 * Math.PI() * 10.0 * i as double / 100.0));
+        i = i + 1;
+    }
+    let result: ArrayList<double> = Filter.notchFilter(signal, 10.0, 30.0, 100.0);
+    if (result.size() != 100) {
+        io::println("FAIL: notchFilter size expected 100");
+    } else {
+        io::println("PASS: notchFilter size = 100");
+    }
+}
+
+public fn test_fir_lowpass(): void {
+    let window: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 11) {
+        window.add(1.0);
+        i = i + 1;
+    }
+    let coeffs: FilterCoeffs = Filter.firLowpass(11, 10.0, 100.0, window);
+    if (coeffs.b.size() != 11) {
+        io::println("FAIL: firLowpass b size expected 11");
+    } else {
+        io::println("PASS: firLowpass b size = 11");
+    }
+}
+
+public fn run_all_filter_tests(): void {
+    io::println("=== sigproc/Filter.tr Tests ===");
+    test_filter_coeffs_init();
+    test_butterworth_lowpass();
+    test_butterworth_lowpass_order1();
+    test_butterworth_lowpass_order4();
+    test_butterworth_highpass();
+    test_apply_filter();
+    test_apply_filter_identity();
+    test_notch_filter();
+    test_fir_lowpass();
+}
