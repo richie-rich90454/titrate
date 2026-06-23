@@ -1,0 +1,259 @@
+// Test file for linalg/Matrix.tr
+// Exercises matrix construction, element access, arithmetic, and factories.
+import tt::math::linalg::Matrix;
+import tt::math::ndarray::NDArray;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_matrix_construction(): void {
+    let m: Matrix = new Matrix(2, 3);
+    if (m.rows() != 2 || m.cols() != 3) {
+        io::println("FAIL: Matrix construction dimensions");
+    } else {
+        io::println("PASS: Matrix(2,3) dimensions correct");
+    }
+    // New matrix is zero-initialized
+    if (m.get(0, 0) != 0.0 || m.get(1, 2) != 0.0) {
+        io::println("FAIL: Matrix not zero-initialized");
+    } else {
+        io::println("PASS: Matrix zero-initialized");
+    }
+}
+
+public fn test_matrix_get_set(): void {
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 2.0);
+    m.set(1, 0, 3.0);
+    m.set(1, 1, 4.0);
+    if (m.get(0, 0) != 1.0 || m.get(0, 1) != 2.0 || m.get(1, 0) != 3.0 || m.get(1, 1) != 4.0) {
+        io::println("FAIL: Matrix get/set");
+    } else {
+        io::println("PASS: Matrix get/set works");
+    }
+}
+
+public fn test_matrix_identity(): void {
+    let I: Matrix = Matrix.identity(3);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 3) {
+        var j: int = 0;
+        while (j < 3) {
+            let expected: double = 0.0;
+            if (i == j) { expected = 1.0; }
+            if (I.get(i, j) != expected) { ok = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: Matrix.identity(3)");
+    } else {
+        io::println("PASS: Matrix.identity(3) correct");
+    }
+}
+
+public fn test_matrix_zeros_ones(): void {
+    let z: Matrix = Matrix.zeros(2, 2);
+    if (z.get(0, 0) != 0.0 || z.get(1, 1) != 0.0) {
+        io::println("FAIL: Matrix.zeros()");
+    } else {
+        io::println("PASS: Matrix.zeros() works");
+    }
+    let o: Matrix = Matrix.ones(2, 3);
+    if (o.get(0, 0) != 1.0 || o.get(1, 2) != 1.0) {
+        io::println("FAIL: Matrix.ones()");
+    } else {
+        io::println("PASS: Matrix.ones() works");
+    }
+}
+
+public fn test_matrix_add_sub(): void {
+    let a: Matrix = new Matrix(2, 2);
+    a.set(0, 0, 1.0);
+    a.set(0, 1, 2.0);
+    a.set(1, 0, 3.0);
+    a.set(1, 1, 4.0);
+    let b: Matrix = new Matrix(2, 2);
+    b.set(0, 0, 5.0);
+    b.set(0, 1, 6.0);
+    b.set(1, 0, 7.0);
+    b.set(1, 1, 8.0);
+    let sum: Matrix = a.add(b);
+    if (sum.get(0, 0) != 6.0 || sum.get(0, 1) != 8.0 || sum.get(1, 0) != 10.0 || sum.get(1, 1) != 12.0) {
+        io::println("FAIL: Matrix.add()");
+    } else {
+        io::println("PASS: Matrix.add() works");
+    }
+    let diff: Matrix = a.sub(b);
+    if (diff.get(0, 0) != -4.0 || diff.get(1, 1) != -4.0) {
+        io::println("FAIL: Matrix.sub()");
+    } else {
+        io::println("PASS: Matrix.sub() works");
+    }
+}
+
+public fn test_matrix_multiply(): void {
+    // 2x3 * 3x2 = 2x2
+    let a: Matrix = new Matrix(2, 3);
+    a.set(0, 0, 1.0);
+    a.set(0, 1, 2.0);
+    a.set(0, 2, 3.0);
+    a.set(1, 0, 4.0);
+    a.set(1, 1, 5.0);
+    a.set(1, 2, 6.0);
+    let b: Matrix = new Matrix(3, 2);
+    b.set(0, 0, 7.0);
+    b.set(0, 1, 8.0);
+    b.set(1, 0, 9.0);
+    b.set(1, 1, 10.0);
+    b.set(2, 0, 11.0);
+    b.set(2, 1, 12.0);
+    let c: Matrix = a.mul(b);
+    // Row 0: 1*7+2*9+3*11=58, 1*8+2*10+3*12=64
+    // Row 1: 4*7+5*9+6*11=139, 4*8+5*10+6*12=154
+    if (c.get(0, 0) != 58.0 || c.get(0, 1) != 64.0 || c.get(1, 0) != 139.0 || c.get(1, 1) != 154.0) {
+        io::println("FAIL: Matrix.mul()");
+    } else {
+        io::println("PASS: Matrix.mul() works");
+    }
+    // Identity multiplication is a no-op
+    let I: Matrix = Matrix.identity(2);
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 2.0);
+    m.set(1, 0, 3.0);
+    m.set(1, 1, 4.0);
+    let im: Matrix = I.mul(m);
+    if (!im.equals(m)) {
+        io::println("FAIL: Matrix I*M = M");
+    } else {
+        io::println("PASS: Matrix I*M = M");
+    }
+    // Dimension mismatch returns empty matrix
+    let bad: Matrix = a.mul(I);
+    if (bad.rows() != 0) {
+        io::println("FAIL: Matrix.mul() dimension mismatch");
+    } else {
+        io::println("PASS: Matrix.mul() dimension mismatch returns empty");
+    }
+}
+
+public fn test_matrix_scale_transpose(): void {
+    let m: Matrix = new Matrix(2, 3);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 2.0);
+    m.set(0, 2, 3.0);
+    m.set(1, 0, 4.0);
+    m.set(1, 1, 5.0);
+    m.set(1, 2, 6.0);
+    let scaled: Matrix = m.scale(2.0);
+    if (scaled.get(0, 0) != 2.0 || scaled.get(1, 2) != 12.0) {
+        io::println("FAIL: Matrix.scale()");
+    } else {
+        io::println("PASS: Matrix.scale() works");
+    }
+    let t: Matrix = m.transpose();
+    if (t.rows() != 3 || t.cols() != 2) {
+        io::println("FAIL: Matrix.transpose() dimensions");
+    } else {
+        io::println("PASS: Matrix.transpose() dimensions correct");
+    }
+    // transposed: m[i][j] = t[j][i]
+    if (t.get(0, 0) != 1.0 || t.get(1, 0) != 2.0 || t.get(2, 1) != 6.0) {
+        io::println("FAIL: Matrix.transpose() values");
+    } else {
+        io::println("PASS: Matrix.transpose() values correct");
+    }
+    // Double transpose returns original
+    let tt: Matrix = t.transpose();
+    if (!tt.equals(m)) {
+        io::println("FAIL: Matrix double transpose");
+    } else {
+        io::println("PASS: Matrix double transpose returns original");
+    }
+}
+
+public fn test_matrix_trace(): void {
+    let m: Matrix = new Matrix(3, 3);
+    m.set(0, 0, 1.0);
+    m.set(1, 1, 2.0);
+    m.set(2, 2, 3.0);
+    if (m.trace() != 6.0) {
+        io::println("FAIL: Matrix.trace()");
+    } else {
+        io::println("PASS: Matrix.trace() = 6.0");
+    }
+    // Trace of identity(n) = n
+    let I: Matrix = Matrix.identity(4);
+    if (I.trace() != 4.0) {
+        io::println("FAIL: Matrix.identity(4).trace()");
+    } else {
+        io::println("PASS: Matrix.identity(4).trace() = 4.0");
+    }
+}
+
+public fn test_matrix_clone_equals(): void {
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(0, 1, 2.0);
+    m.set(1, 0, 3.0);
+    m.set(1, 1, 4.0);
+    let c: Matrix = m.clone();
+    if (!c.equals(m)) {
+        io::println("FAIL: Matrix.clone/equals");
+    } else {
+        io::println("PASS: Matrix.clone/equals works");
+    }
+    // Modifying clone does not affect original
+    c.set(0, 0, 99.0);
+    if (m.get(0, 0) != 1.0) {
+        io::println("FAIL: Matrix.clone independence");
+    } else {
+        io::println("PASS: Matrix.clone is independent");
+    }
+    let other: Matrix = new Matrix(2, 2);
+    other.set(0, 0, 1.0);
+    other.set(0, 1, 2.0);
+    other.set(1, 0, 3.0);
+    other.set(1, 1, 5.0);
+    if (m.equals(other)) {
+        io::println("FAIL: Matrix.equals (unequal)");
+    } else {
+        io::println("PASS: Matrix.equals (unequal) works");
+    }
+}
+
+public fn test_matrix_toString(): void {
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(1, 1, 1.0);
+    let s: string = m.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Matrix.toString()");
+    } else {
+        io::println("PASS: Matrix.toString() non-empty");
+    }
+}
+
+public fn run_all_matrix_tests(): void {
+    io::println("=== linalg/Matrix.tr Tests ===");
+    test_matrix_construction();
+    test_matrix_get_set();
+    test_matrix_identity();
+    test_matrix_zeros_ones();
+    test_matrix_add_sub();
+    test_matrix_multiply();
+    test_matrix_scale_transpose();
+    test_matrix_trace();
+    test_matrix_clone_equals();
+    test_matrix_toString();
+}
