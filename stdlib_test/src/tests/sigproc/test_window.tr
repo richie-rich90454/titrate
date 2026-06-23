@@ -1,0 +1,143 @@
+// Test file for sigproc/Window.tr
+// Exercises Hamming, Hanning, Blackman, Bartlett, rectangular, flattop, Kaiser, Gaussian, apply.
+import tt::sigproc::Window;
+import tt::util::ArrayList;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_hamming(): void {
+    let w: ArrayList<double> = Window.hamming(8);
+    if (w.size() != 8) {
+        io::println("FAIL: hamming size expected 8");
+    } else {
+        io::println("PASS: hamming size = 8");
+    }
+    // First value: 0.54 - 0.46*cos(0) = 0.54 - 0.46 = 0.08
+    if (absDiff(w.get(0), 0.08) > 1e-6) {
+        io::println("FAIL: hamming[0] expected 0.08");
+    } else {
+        io::println("PASS: hamming[0] = 0.08");
+    }
+}
+
+public fn test_hanning(): void {
+    let w: ArrayList<double> = Window.hanning(8);
+    if (w.size() != 8) {
+        io::println("FAIL: hanning size expected 8");
+    } else {
+        io::println("PASS: hanning size = 8");
+    }
+    // First value: 0.5 * (1 - cos(0)) = 0
+    if (absDiff(w.get(0), 0.0) > 1e-6) {
+        io::println("FAIL: hanning[0] expected 0");
+    } else {
+        io::println("PASS: hanning[0] = 0");
+    }
+}
+
+public fn test_blackman(): void {
+    let w: ArrayList<double> = Window.blackman(8);
+    if (w.size() != 8) {
+        io::println("FAIL: blackman size expected 8");
+    } else {
+        io::println("PASS: blackman size = 8");
+    }
+}
+
+public fn test_bartlett(): void {
+    let w: ArrayList<double> = Window.bartlett(7);
+    if (w.size() != 7) {
+        io::println("FAIL: bartlett size expected 7");
+    } else {
+        io::println("PASS: bartlett size = 7");
+    }
+    // Middle value should be 1.0 (peak)
+    if (absDiff(w.get(3), 1.0) > 1e-6) {
+        io::println("FAIL: bartlett[3] expected 1.0");
+    } else {
+        io::println("PASS: bartlett[3] = 1.0");
+    }
+}
+
+public fn test_rectangular(): void {
+    let w: ArrayList<double> = Window.rectangular(5);
+    if (w.size() != 5) {
+        io::println("FAIL: rectangular size expected 5");
+    } else {
+        io::println("PASS: rectangular size = 5");
+    }
+    // All values should be 1.0
+    var i: int = 0;
+    var ok: bool = true;
+    while (i < 5) {
+        if (absDiff(w.get(i), 1.0) > 1e-9) { ok = false; }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: rectangular all 1.0");
+    } else {
+        io::println("PASS: rectangular all 1.0");
+    }
+}
+
+public fn test_flattop(): void {
+    let w: ArrayList<double> = Window.flattop(8);
+    if (w.size() != 8) {
+        io::println("FAIL: flattop size expected 8");
+    } else {
+        io::println("PASS: flattop size = 8");
+    }
+}
+
+public fn test_kaiser(): void {
+    let w: ArrayList<double> = Window.kaiser(8, 5.0);
+    if (w.size() != 8) {
+        io::println("FAIL: kaiser size expected 8");
+    } else {
+        io::println("PASS: kaiser size = 8");
+    }
+}
+
+public fn test_gaussian(): void {
+    let w: ArrayList<double> = Window.gaussian(8, 1.0);
+    if (w.size() != 8) {
+        io::println("FAIL: gaussian size expected 8");
+    } else {
+        io::println("PASS: gaussian size = 8");
+    }
+}
+
+public fn test_apply(): void {
+    let window: ArrayList<double> = new ArrayList<double>();
+    window.add(0.5); window.add(0.5); window.add(0.5);
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(2.0); signal.add(4.0); signal.add(6.0);
+    let result: ArrayList<double> = Window.apply(window, signal);
+    if (result.size() != 3) {
+        io::println("FAIL: apply size expected 3");
+    } else {
+        io::println("PASS: apply size = 3");
+    }
+    if (absDiff(result.get(0), 1.0) > 1e-9) {
+        io::println("FAIL: apply[0] expected 1.0");
+    } else {
+        io::println("PASS: apply[0] = 1.0");
+    }
+}
+
+public fn run_all_window_tests(): void {
+    io::println("=== sigproc/Window.tr Tests ===");
+    test_hamming();
+    test_hanning();
+    test_blackman();
+    test_bartlett();
+    test_rectangular();
+    test_flattop();
+    test_kaiser();
+    test_gaussian();
+    test_apply();
+}
