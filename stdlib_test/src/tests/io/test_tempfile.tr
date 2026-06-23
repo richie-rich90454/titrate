@@ -1,0 +1,151 @@
+// Test file for Tempfile.tr
+// Exercises the public API of the tempfile module: TemporaryFile,
+// SpooledTemporaryFile, mkstemp, and mkdtemp.
+import tt::io::Tempfile;
+import tt::util::Pair;
+import tt::io::File;
+import tt::lang::Integer;
+
+public fn test_tempfile_create_and_write(): void {
+    let tf: Tempfile.TemporaryFile = new Tempfile.TemporaryFile("tt_", ".tmp", false);
+    tf.write("temp content");
+    let content: string = tf.read();
+    if (content != "temp content") {
+        io::println("FAIL: TemporaryFile.read = '" + content + "'");
+    } else {
+        io::println("PASS: TemporaryFile write/read round-trip");
+    }
+    tf.close();
+    // cleanup (deleteOnClose was false)
+    let f: File = new File(tf.getName());
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_tempfile_getName(): void {
+    let tf: Tempfile.TemporaryFile = new Tempfile.TemporaryFile("nm_", ".tmp", false);
+    let name: string = tf.getName();
+    if (name == "" || name == null) {
+        io::println("FAIL: TemporaryFile.getName empty");
+    } else {
+        io::println("PASS: TemporaryFile.getName returns path");
+    }
+    tf.close();
+    let f: File = new File(name);
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_tempfile_delete_on_close(): void {
+    let tf: Tempfile.TemporaryFile = new Tempfile.TemporaryFile("dc_", ".tmp", true);
+    tf.write("will be deleted");
+    let path: string = tf.getName();
+    tf.close();
+    let f: File = new File(path);
+    if (f.exists()) {
+        io::println("FAIL: TemporaryFile deleteOnClose did not remove file");
+        f.delete();
+    } else {
+        io::println("PASS: TemporaryFile deleteOnClose removes file");
+    }
+}
+
+public fn test_tempfile_multiple_writes(): void {
+    let tf: Tempfile.TemporaryFile = new Tempfile.TemporaryFile("mw_", ".tmp", false);
+    tf.write("part1-");
+    tf.write("part2");
+    let content: string = tf.read();
+    if (content != "part1-part2") {
+        io::println("FAIL: TemporaryFile multiple writes = '" + content + "'");
+    } else {
+        io::println("PASS: TemporaryFile multiple writes concatenate");
+    }
+    tf.close();
+    let f: File = new File(tf.getName());
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_spooled_in_memory(): void {
+    let sp: Tempfile.SpooledTemporaryFile = new Tempfile.SpooledTemporaryFile(1024);
+    sp.write("in-memory data");
+    let content: string = sp.read();
+    if (content != "in-memory data") {
+        io::println("FAIL: SpooledTemporaryFile in-memory read = '" + content + "'");
+    } else {
+        io::println("PASS: SpooledTemporaryFile buffers in memory");
+    }
+}
+
+public fn test_spooled_rollover(): void {
+    let sp: Tempfile.SpooledTemporaryFile = new Tempfile.SpooledTemporaryFile(4);
+    sp.write("overflow data beyond threshold");
+    // Writing more than maxSize should trigger rollover to disk.
+    let content: string = sp.read();
+    if (content != "overflow data beyond threshold") {
+        io::println("FAIL: SpooledTemporaryFile rollover read = '" + content + "'");
+    } else {
+        io::println("PASS: SpooledTemporaryFile rollover to disk works");
+    }
+    // cleanup the spool file if created
+    if (sp.path != "" && sp.path != null) {
+        let f: File = new File(sp.path);
+        if (f.exists()) { f.delete(); }
+    }
+}
+
+public fn test_spooled_explicit_rollover(): void {
+    let sp: Tempfile.SpooledTemporaryFile = new Tempfile.SpooledTemporaryFile(1024);
+    sp.write("small");
+    sp.rollover();
+    if (!sp.rolledOver) {
+        io::println("FAIL: SpooledTemporaryFile.rollover did not set rolledOver");
+    } else {
+        io::println("PASS: SpooledTemporaryFile.rollover switches to disk");
+    }
+    let content: string = sp.read();
+    if (content != "small") {
+        io::println("FAIL: SpooledTemporaryFile after rollover read = '" + content + "'");
+    } else {
+        io::println("PASS: SpooledTemporaryFile preserves data on rollover");
+    }
+    if (sp.path != "" && sp.path != null) {
+        let f: File = new File(sp.path);
+        if (f.exists()) { f.delete(); }
+    }
+}
+
+public fn test_mkstemp(): void {
+    let result: Pair<string, string> = Tempfile.mkstemp("mk_", ".tmp");
+    let fd: string = result.first();
+    let path: string = result.second();
+    let f: File = new File(path);
+    if (!f.exists()) {
+        io::println("FAIL: mkstemp did not create file");
+    } else {
+        io::println("PASS: mkstemp creates a temporary file");
+        f.delete();
+    }
+}
+
+public fn test_mkdtemp(): void {
+    let dirPath: string = Tempfile.mkdtemp("dir_");
+    let f: File = new File(dirPath);
+    if (!f.isDirectory()) {
+        io::println("FAIL: mkdtemp did not create directory");
+    } else {
+        io::println("PASS: mkdtemp creates a temporary directory");
+        // remove the directory
+        f.delete();
+    }
+}
+
+public fn run_all_tempfile_tests(): void {
+    io::println("=== Tempfile.tr Tests ===");
+    test_tempfile_create_and_write();
+    test_tempfile_getName();
+    test_tempfile_delete_on_close();
+    test_tempfile_multiple_writes();
+    test_spooled_in_memory();
+    test_spooled_rollover();
+    test_spooled_explicit_rollover();
+    test_mkstemp();
+    test_mkdtemp();
+}
