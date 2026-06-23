@@ -1,0 +1,228 @@
+// Test file for Heapq.tr
+// Exercises the public API of the Heapq module's top-level functions.
+import tt::heapq::Heapq;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_heapq_heapify(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(5);
+    arr.add(3);
+    arr.add(8);
+    arr.add(1);
+    arr.add(2);
+    Heapq.heapify<int>(arr);
+    // After heapify, the root (index 0) should be the minimum
+    if (arr.get(0) != 1) {
+        io::println("FAIL: Heapq.heapify root=" + Integer.toString(arr.get(0)) + ", expected 1");
+    } else {
+        io::println("PASS: Heapq.heapify works");
+    }
+}
+
+public fn test_heapq_heappush(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    Heapq.heappush<int>(arr, 5);
+    Heapq.heappush<int>(arr, 3);
+    Heapq.heappush<int>(arr, 8);
+    Heapq.heappush<int>(arr, 1);
+    if (arr.get(0) != 1) {
+        io::println("FAIL: Heapq.heappush root=" + Integer.toString(arr.get(0)) + ", expected 1");
+    } else {
+        io::println("PASS: Heapq.heappush works");
+    }
+}
+
+public fn test_heapq_heappop(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    Heapq.heappush<int>(arr, 5);
+    Heapq.heappush<int>(arr, 3);
+    Heapq.heappush<int>(arr, 8);
+    Heapq.heappush<int>(arr, 1);
+    let popped: int = Heapq.heappop<int>(arr);
+    if (popped != 1) {
+        io::println("FAIL: Heapq.heappop returned " + Integer.toString(popped) + ", expected 1");
+    } else if (arr.get(0) != 3) {
+        io::println("FAIL: Heapq.heappop new root=" + Integer.toString(arr.get(0)) + ", expected 3");
+    } else {
+        io::println("PASS: Heapq.heappop works");
+    }
+}
+
+public fn test_heapq_heappop_sorted(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    Heapq.heappush<int>(arr, 5);
+    Heapq.heappush<int>(arr, 3);
+    Heapq.heappush<int>(arr, 8);
+    Heapq.heappush<int>(arr, 1);
+    Heapq.heappush<int>(arr, 2);
+    let result: ArrayList<int> = new ArrayList<int>();
+    while (arr.size() > 0) {
+        result.add(Heapq.heappop<int>(arr));
+    }
+    // Should be sorted ascending
+    let ok: bool = true;
+    let i: int = 0;
+    while (i < result.size()) {
+        if (result.get(i) != i + 1) {
+            ok = false;
+        }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: Heapq.heappop did not produce sorted output");
+    } else {
+        io::println("PASS: Heapq.heappop produces sorted output");
+    }
+}
+
+public fn test_heapq_heappushpop(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    Heapq.heappush<int>(arr, 3);
+    Heapq.heappush<int>(arr, 5);
+    Heapq.heappush<int>(arr, 8);
+    // Push 1, should pop 1 (since 1 < 3)
+    let popped: int = Heapq.heappushpop<int>(arr, 1);
+    if (popped != 1) {
+        io::println("FAIL: Heapq.heappushpop(1) returned " + Integer.toString(popped));
+    } else {
+        io::println("PASS: Heapq.heappushpop works");
+    }
+}
+
+public fn test_heapq_heappushpop_larger(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    Heapq.heappush<int>(arr, 3);
+    Heapq.heappush<int>(arr, 5);
+    Heapq.heappush<int>(arr, 8);
+    // Push 10, should pop 3 (since 3 < 10)
+    let popped: int = Heapq.heappushpop<int>(arr, 10);
+    if (popped != 3) {
+        io::println("FAIL: Heapq.heappushpop(10) returned " + Integer.toString(popped) + ", expected 3");
+    } else {
+        io::println("PASS: Heapq.heappushpop larger works");
+    }
+}
+
+public fn test_heapq_heapreplace(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    Heapq.heappush<int>(arr, 3);
+    Heapq.heappush<int>(arr, 5);
+    Heapq.heappush<int>(arr, 8);
+    let popped: int = Heapq.heapreplace<int>(arr, 10);
+    if (popped != 3) {
+        io::println("FAIL: Heapq.heapreplace returned " + Integer.toString(popped) + ", expected 3");
+    } else if (arr.size() != 3) {
+        io::println("FAIL: Heapq.heapreplace size wrong");
+    } else {
+        io::println("PASS: Heapq.heapreplace works");
+    }
+}
+
+public fn test_heapq_nlargest(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(5);
+    arr.add(3);
+    arr.add(8);
+    arr.add(1);
+    arr.add(2);
+    let result: ArrayList<int> = Heapq.nlargest<int>(arr, 3);
+    if (result.size() != 3) {
+        io::println("FAIL: Heapq.nlargest size=" + Integer.toString(result.size()));
+    } else if (result.get(0) != 8 || result.get(1) != 5 || result.get(2) != 3) {
+        io::println("FAIL: Heapq.nlargest values wrong");
+    } else {
+        io::println("PASS: Heapq.nlargest works");
+    }
+}
+
+public fn test_heapq_nsmallest(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(5);
+    arr.add(3);
+    arr.add(8);
+    arr.add(1);
+    arr.add(2);
+    let result: ArrayList<int> = Heapq.nsmallest<int>(arr, 3);
+    if (result.size() != 3) {
+        io::println("FAIL: Heapq.nsmallest size=" + Integer.toString(result.size()));
+    } else if (result.get(0) != 1 || result.get(1) != 2 || result.get(2) != 3) {
+        io::println("FAIL: Heapq.nsmallest values wrong");
+    } else {
+        io::println("PASS: Heapq.nsmallest works");
+    }
+}
+
+public fn test_heapq_nlargest_zero(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(5);
+    arr.add(3);
+    let result: ArrayList<int> = Heapq.nlargest<int>(arr, 0);
+    if (result.size() != 0) {
+        io::println("FAIL: Heapq.nlargest(0) size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Heapq.nlargest(0) works");
+    }
+}
+
+public fn test_heapq_nsmallest_zero(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(5);
+    arr.add(3);
+    let result: ArrayList<int> = Heapq.nsmallest<int>(arr, 0);
+    if (result.size() != 0) {
+        io::println("FAIL: Heapq.nsmallest(0) size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Heapq.nsmallest(0) works");
+    }
+}
+
+public fn test_heapq_merge(): void {
+    let list1: ArrayList<int> = new ArrayList<int>();
+    list1.add(1);
+    list1.add(4);
+    list1.add(7);
+    let list2: ArrayList<int> = new ArrayList<int>();
+    list2.add(2);
+    list2.add(5);
+    list2.add(8);
+    let lists: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    lists.add(list1);
+    lists.add(list2);
+    let result: ArrayList<int> = Heapq.merge<int>(lists);
+    if (result.size() != 6) {
+        io::println("FAIL: Heapq.merge size=" + Integer.toString(result.size()));
+    } else if (result.get(0) != 1 || result.get(5) != 8) {
+        io::println("FAIL: Heapq.merge values wrong");
+    } else {
+        io::println("PASS: Heapq.merge works");
+    }
+}
+
+public fn test_heapq_merge_empty(): void {
+    let lists: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let result: ArrayList<int> = Heapq.merge<int>(lists);
+    if (result.size() != 0) {
+        io::println("FAIL: Heapq.merge empty size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Heapq.merge empty works");
+    }
+}
+
+public fn run_all_heapq_tests(): void {
+    io::println("=== Heapq.tr Tests ===");
+    test_heapq_heapify();
+    test_heapq_heappush();
+    test_heapq_heappop();
+    test_heapq_heappop_sorted();
+    test_heapq_heappushpop();
+    test_heapq_heappushpop_larger();
+    test_heapq_heapreplace();
+    test_heapq_nlargest();
+    test_heapq_nsmallest();
+    test_heapq_nlargest_zero();
+    test_heapq_nsmallest_zero();
+    test_heapq_merge();
+    test_heapq_merge_empty();
+}
