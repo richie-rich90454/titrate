@@ -1,0 +1,247 @@
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArrayReduce;
+import tt::math::MathAdvanced;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    return absDiff(a, b) < tol;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn makeArr(): NDArray<double> {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0);
+    return fromData<double>(shape1(4), data);
+}
+
+fn test_sum(): void {
+    let a: NDArray<double> = makeArr();
+    let s: double = NDArrayReduce.sum<double>(a);
+    if (approxEq(s, 10.0, 1e-9)) {
+        io::println("PASS test_sum: 1+2+3+4 = 10");
+    } else {
+        io::println("FAIL test_sum: expected 10.0, got " + Double.toString(s));
+    }
+}
+
+fn test_mean(): void {
+    let a: NDArray<double> = makeArr();
+    let m: double = NDArrayReduce.mean<double>(a);
+    if (approxEq(m, 2.5, 1e-9)) {
+        io::println("PASS test_mean: mean of [1,2,3,4] = 2.5");
+    } else {
+        io::println("FAIL test_mean: expected 2.5, got " + Double.toString(m));
+    }
+}
+
+fn test_min(): void {
+    let a: NDArray<double> = makeArr();
+    let m: double = NDArrayReduce.min<double>(a);
+    if (approxEq(m, 1.0, 1e-9)) {
+        io::println("PASS test_min: min of [1,2,3,4] = 1");
+    } else {
+        io::println("FAIL test_min: expected 1.0, got " + Double.toString(m));
+    }
+}
+
+fn test_max(): void {
+    let a: NDArray<double> = makeArr();
+    let m: double = NDArrayReduce.max<double>(a);
+    if (approxEq(m, 4.0, 1e-9)) {
+        io::println("PASS test_max: max of [1,2,3,4] = 4");
+    } else {
+        io::println("FAIL test_max: expected 4.0, got " + Double.toString(m));
+    }
+}
+
+fn test_variance(): void {
+    let a: NDArray<double> = makeArr();
+    let v: double = NDArrayReduce.variance<double>(a);
+    // mean=2.5, variance = ((1.5)^2 + (0.5)^2 + (0.5)^2 + (1.5)^2)/4 = (2.25+0.25+0.25+2.25)/4 = 5/4 = 1.25
+    if (approxEq(v, 1.25, 1e-9)) {
+        io::println("PASS test_variance: variance of [1,2,3,4] = 1.25");
+    } else {
+        io::println("FAIL test_variance: expected 1.25, got " + Double.toString(v));
+    }
+}
+
+fn test_stddev(): void {
+    let a: NDArray<double> = makeArr();
+    let s: double = NDArrayReduce.stddev<double>(a);
+    if (approxEq(s, MathAdvanced.sqrt(1.25), 1e-9)) {
+        io::println("PASS test_stddev: stddev = sqrt(1.25)");
+    } else {
+        io::println("FAIL test_stddev: expected sqrt(1.25), got " + Double.toString(s));
+    }
+}
+
+fn test_any_true(): void {
+    let a: NDArray<double> = makeArr();
+    if (NDArrayReduce.any<double>(a)) {
+        io::println("PASS test_any_true: array with nonzero elements returns true");
+    } else {
+        io::println("FAIL test_any_true: expected true");
+    }
+}
+
+fn test_any_false(): void {
+    let a: NDArray<double> = zeros(shape1(3));
+    if (!NDArrayReduce.any<double>(a)) {
+        io::println("PASS test_any_false: all-zero array returns false");
+    } else {
+        io::println("FAIL test_any_false: expected false");
+    }
+}
+
+fn test_all_true(): void {
+    let a: NDArray<double> = makeArr();
+    if (NDArrayReduce.all<double>(a)) {
+        io::println("PASS test_all_true: array with all nonzero returns true");
+    } else {
+        io::println("FAIL test_all_true: expected true");
+    }
+}
+
+fn test_all_false(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(0.0); data.add(3.0);
+    let a: NDArray<double> = fromData<double>(shape1(3), data);
+    if (!NDArrayReduce.all<double>(a)) {
+        io::println("PASS test_all_false: array with a zero returns false");
+    } else {
+        io::println("FAIL test_all_false: expected false");
+    }
+}
+
+fn test_argMax(): void {
+    let a: NDArray<double> = makeArr();
+    let idx: int = NDArrayReduce.argMax<double>(a);
+    if (idx == 3) {
+        io::println("PASS test_argMax: max of [1,2,3,4] at index 3");
+    } else {
+        io::println("FAIL test_argMax: expected 3, got " + Integer.toString(idx));
+    }
+}
+
+fn test_argMin(): void {
+    let a: NDArray<double> = makeArr();
+    let idx: int = NDArrayReduce.argMin<double>(a);
+    if (idx == 0) {
+        io::println("PASS test_argMin: min of [1,2,3,4] at index 0");
+    } else {
+        io::println("FAIL test_argMin: expected 0, got " + Integer.toString(idx));
+    }
+}
+
+fn test_argMax_empty(): void {
+    let a: NDArray<double> = new NDArray<double>();
+    let idx: int = NDArrayReduce.argMax<double>(a);
+    if (idx == -1) {
+        io::println("PASS test_argMax_empty: empty array returns -1");
+    } else {
+        io::println("FAIL test_argMax_empty: expected -1, got " + Integer.toString(idx));
+    }
+}
+
+fn test_mean_empty(): void {
+    let a: NDArray<double> = new NDArray<double>();
+    let m: double = NDArrayReduce.mean<double>(a);
+    if (approxEq(m, 0.0, 1e-12)) {
+        io::println("PASS test_mean_empty: empty array mean = 0");
+    } else {
+        io::println("FAIL test_mean_empty: expected 0.0, got " + Double.toString(m));
+    }
+}
+
+fn test_sum_single(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(42.0);
+    let a: NDArray<double> = fromData<double>(shape1(1), data);
+    let s: double = NDArrayReduce.sum<double>(a);
+    if (approxEq(s, 42.0, 1e-9)) {
+        io::println("PASS test_sum_single: single element sum = 42");
+    } else {
+        io::println("FAIL test_sum_single: expected 42.0, got " + Double.toString(s));
+    }
+}
+
+fn test_min_negative(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(-5.0); data.add(-1.0); data.add(-10.0);
+    let a: NDArray<double> = fromData<double>(shape1(3), data);
+    let m: double = NDArrayReduce.min<double>(a);
+    if (approxEq(m, -10.0, 1e-9)) {
+        io::println("PASS test_min_negative: min of negatives = -10");
+    } else {
+        io::println("FAIL test_min_negative: expected -10.0, got " + Double.toString(m));
+    }
+}
+
+fn test_max_negative(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(-5.0); data.add(-1.0); data.add(-10.0);
+    let a: NDArray<double> = fromData<double>(shape1(3), data);
+    let m: double = NDArrayReduce.max<double>(a);
+    if (approxEq(m, -1.0, 1e-9)) {
+        io::println("PASS test_max_negative: max of negatives = -1");
+    } else {
+        io::println("FAIL test_max_negative: expected -1.0, got " + Double.toString(m));
+    }
+}
+
+fn test_variance_constant(): void {
+    let a: NDArray<double> = filled(shape1(4), 5.0);
+    let v: double = NDArrayReduce.variance<double>(a);
+    if (approxEq(v, 0.0, 1e-9)) {
+        io::println("PASS test_variance_constant: variance of constant array = 0");
+    } else {
+        io::println("FAIL test_variance_constant: expected 0.0, got " + Double.toString(v));
+    }
+}
+
+fn test_argMin_tie(): void {
+    // When there are ties, argMin returns the first occurrence
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(5.0); data.add(1.0); data.add(1.0); data.add(3.0);
+    let a: NDArray<double> = fromData<double>(shape1(4), data);
+    let idx: int = NDArrayReduce.argMin<double>(a);
+    if (idx == 1) {
+        io::println("PASS test_argMin_tie: returns first min index on tie");
+    } else {
+        io::println("FAIL test_argMin_tie: expected 1, got " + Integer.toString(idx));
+    }
+}
+
+public fn run_all_ndarray_reduce_tests(): void {
+    io::println("=== NDArrayReduce tests ===");
+    test_sum();
+    test_mean();
+    test_min();
+    test_max();
+    test_variance();
+    test_stddev();
+    test_any_true();
+    test_any_false();
+    test_all_true();
+    test_all_false();
+    test_argMax();
+    test_argMin();
+    test_argMax_empty();
+    test_mean_empty();
+    test_sum_single();
+    test_min_negative();
+    test_max_negative();
+    test_variance_constant();
+    test_argMin_tie();
+}
