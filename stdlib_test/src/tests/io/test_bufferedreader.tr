@@ -1,0 +1,169 @@
+// Test file for BufferedReader.tr
+// Exercises the public API of BufferedReader: read, readLine, readAll,
+// lines, peek, readChar, mark/reset, skip, close, and the open() factory.
+import tt::io::BufferedReader;
+import tt::io::File;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn _writeMultiLineFile(path: string, content: string): void {
+    let f: File = new File(path);
+    f.write(content);
+    f.close();
+}
+
+public fn test_bufferedreader_readLine(): void {
+    let path: string = "test_br_readline.txt";
+    _writeMultiLineFile(path, "first\nsecond\nthird");
+    let reader: BufferedReader = new BufferedReader(path);
+    let l1: string = reader.readLine();
+    let l2: string = reader.readLine();
+    if (l1 != "first" || l2 != "second") {
+        io::println("FAIL: BufferedReader.readLine l1='" + l1 + "' l2='" + l2 + "'");
+    } else {
+        io::println("PASS: BufferedReader.readLine reads sequential lines");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_bufferedreader_read(): void {
+    let path: string = "test_br_read.txt";
+    _writeMultiLineFile(path, "data");
+    let reader: BufferedReader = new BufferedReader(path);
+    let line: string = reader.read();
+    if (line != "data") {
+        io::println("FAIL: BufferedReader.read = '" + line + "'");
+    } else {
+        io::println("PASS: BufferedReader.read returns first line");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_bufferedreader_lines(): void {
+    let path: string = "test_br_lines.txt";
+    _writeMultiLineFile(path, "a\nb\nc");
+    let reader: BufferedReader = new BufferedReader(path);
+    let all: ArrayList<string> = reader.lines();
+    if (all.size() != 3 || all.get(0) != "a" || all.get(2) != "c") {
+        io::println("FAIL: BufferedReader.lines size=" + Integer.toString(all.size()));
+    } else {
+        io::println("PASS: BufferedReader.lines collects all lines");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_bufferedreader_readAll(): void {
+    let path: string = "test_br_readall.txt";
+    _writeMultiLineFile(path, "x\ny");
+    let reader: BufferedReader = new BufferedReader(path);
+    let content: string = reader.readAll();
+    // readAll joins lines with newlines
+    if (content != "x\ny\n") {
+        io::println("FAIL: BufferedReader.readAll = '" + content + "'");
+    } else {
+        io::println("PASS: BufferedReader.readAll returns full content");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_bufferedreader_peek(): void {
+    let path: string = "test_br_peek.txt";
+    _writeMultiLineFile(path, "peeked");
+    let reader: BufferedReader = new BufferedReader(path);
+    let peeked: string = reader.peek();
+    let read: string = reader.readLine();
+    if (peeked != "peeked" || read != "peeked") {
+        io::println("FAIL: BufferedReader.peek peeked='" + peeked + "' read='" + read + "'");
+    } else {
+        io::println("PASS: BufferedReader.peek does not advance position");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_bufferedreader_mark_reset(): void {
+    let path: string = "test_br_mark.txt";
+    _writeMultiLineFile(path, "one\ntwo\nthree");
+    let reader: BufferedReader = new BufferedReader(path);
+    reader.readLine(); // consume "one"
+    reader.mark();     // mark before "two"
+    let a: string = reader.readLine(); // "two"
+    reader.reset();    // back to mark
+    let b: string = reader.readLine(); // "two" again
+    if (a != "two" || b != "two") {
+        io::println("FAIL: BufferedReader.mark/reset a='" + a + "' b='" + b + "'");
+    } else {
+        io::println("PASS: BufferedReader.mark/reset re-reads line");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_bufferedreader_skip(): void {
+    let path: string = "test_br_skip.txt";
+    _writeMultiLineFile(path, "l1\nl2\nl3\nl4");
+    let reader: BufferedReader = new BufferedReader(path);
+    let skipped: int = reader.skip(2);
+    let line: string = reader.readLine();
+    if (skipped != 2 || line != "l3") {
+        io::println("FAIL: BufferedReader.skip skipped=" + Integer.toString(skipped) + " line='" + line + "'");
+    } else {
+        io::println("PASS: BufferedReader.skip advances past lines");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_bufferedreader_open_factory(): void {
+    let path: string = "test_br_open.txt";
+    _writeMultiLineFile(path, "factory");
+    let reader: BufferedReader = BufferedReader.open(path);
+    let line: string = reader.readLine();
+    if (line != "factory") {
+        io::println("FAIL: BufferedReader.open line='" + line + "'");
+    } else {
+        io::println("PASS: BufferedReader.open factory works");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn test_bufferedreader_readChar(): void {
+    let path: string = "test_br_readchar.txt";
+    _writeMultiLineFile(path, "Hi");
+    let reader: BufferedReader = new BufferedReader(path);
+    let ch: string = reader.readChar();
+    if (ch != "H") {
+        io::println("FAIL: BufferedReader.readChar = '" + ch + "'");
+    } else {
+        io::println("PASS: BufferedReader.readChar returns first char");
+    }
+    reader.close();
+    let f: File = new File(path);
+    f.delete();
+}
+
+public fn run_all_bufferedreader_tests(): void {
+    io::println("=== BufferedReader.tr Tests ===");
+    test_bufferedreader_readLine();
+    test_bufferedreader_read();
+    test_bufferedreader_lines();
+    test_bufferedreader_readAll();
+    test_bufferedreader_peek();
+    test_bufferedreader_mark_reset();
+    test_bufferedreader_skip();
+    test_bufferedreader_open_factory();
+    test_bufferedreader_readChar();
+}
