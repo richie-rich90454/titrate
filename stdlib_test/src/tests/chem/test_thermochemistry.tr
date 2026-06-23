@@ -1,0 +1,115 @@
+// Test file for chem/Thermochemistry.tr
+// Exercises enthalpy, Hess's law, Gibbs free energy, entropy, heat capacity, and van 't Hoff.
+import tt::chem::Thermochemistry;
+import tt::util::ArrayList;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_enthalpy_of_formation(): void {
+    // Unknown compound returns 0
+    let h: double = Thermochemistry.enthalpyOfFormation("UnknownCompound123");
+    if (absDiff(h, 0.0) > 1e-9) {
+        io::println("FAIL: enthalpyOfFormation unknown expected 0");
+    } else {
+        io::println("PASS: enthalpyOfFormation unknown returns 0");
+    }
+}
+
+public fn test_hess_law(): void {
+    let reactions: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    let r1: ArrayList<string> = new ArrayList<string>();
+    r1.add("H2"); r1.add("0.5O2"); r1.add("->"); r1.add("H2O"); r1.add("-285.8");
+    reactions.add(r1);
+    let r2: ArrayList<string> = new ArrayList<string>();
+    r2.add("C"); r2.add("O2"); r2.add("->"); r2.add("CO2"); r2.add("-393.5");
+    reactions.add(r2);
+    let target: ArrayList<string> = new ArrayList<string>();
+    target.add("target");
+    let dh: double = Thermochemistry.hessLaw(reactions, target);
+    if (absDiff(dh, -679.3) > 1e-3) {
+        io::println("FAIL: hessLaw expected -679.3 got " + Double.toString(dh));
+    } else {
+        io::println("PASS: hessLaw = -679.3");
+    }
+}
+
+public fn test_gibbs_free_energy(): void {
+    // ΔG = ΔH - TΔS
+    let g: double = Thermochemistry.gibbsFreeEnergy(-100.0, 0.1, 300.0);
+    // -100 - 300 * 0.1 = -100 - 30 = -130
+    if (absDiff(g, -130.0) > 1e-9) {
+        io::println("FAIL: gibbsFreeEnergy expected -130.0");
+    } else {
+        io::println("PASS: gibbsFreeEnergy = -130.0");
+    }
+}
+
+public fn test_entropy_change(): void {
+    // ΔS = ΔH / T
+    let s: double = Thermochemistry.entropyChange(100.0, 200.0);
+    if (absDiff(s, 0.5) > 1e-9) {
+        io::println("FAIL: entropyChange expected 0.5");
+    } else {
+        io::println("PASS: entropyChange = 0.5");
+    }
+    // T = 0 returns 0
+    let s2: double = Thermochemistry.entropyChange(100.0, 0.0);
+    if (absDiff(s2, 0.0) > 1e-9) {
+        io::println("FAIL: entropyChange T=0 expected 0");
+    } else {
+        io::println("PASS: entropyChange T=0 returns 0");
+    }
+}
+
+public fn test_heat_capacity_change(): void {
+    // q = Cp * ΔT
+    let q: double = Thermochemistry.heatCapacityChange(300.0, 350.0, 2.0);
+    if (absDiff(q, 100.0) > 1e-9) {
+        io::println("FAIL: heatCapacityChange expected 100.0");
+    } else {
+        io::println("PASS: heatCapacityChange = 100.0");
+    }
+}
+
+public fn test_phase_transition_energy(): void {
+    // Q = m * L
+    let q: double = Thermochemistry.phaseTransitionEnergy(10.0, 2260.0);
+    if (absDiff(q, 22600.0) > 1e-9) {
+        io::println("FAIL: phaseTransitionEnergy expected 22600.0");
+    } else {
+        io::println("PASS: phaseTransitionEnergy = 22600.0");
+    }
+}
+
+public fn test_van_thoff(): void {
+    // Same K1, K2 at same T -> invDiff = 0, returns 0
+    let dh: double = Thermochemistry.vanTHoff(1.0, 1.0, 300.0, 300.0);
+    if (absDiff(dh, 0.0) > 1e-9) {
+        io::println("FAIL: vanTHoff same T expected 0");
+    } else {
+        io::println("PASS: vanTHoff same T returns 0");
+    }
+    // Invalid inputs return 0
+    let dh2: double = Thermochemistry.vanTHoff(0.0, 1.0, 300.0, 310.0);
+    if (absDiff(dh2, 0.0) > 1e-9) {
+        io::println("FAIL: vanTHoff K1=0 expected 0");
+    } else {
+        io::println("PASS: vanTHoff K1=0 returns 0");
+    }
+}
+
+public fn run_all_thermochemistry_tests(): void {
+    io::println("=== chem/Thermochemistry.tr Tests ===");
+    test_enthalpy_of_formation();
+    test_hess_law();
+    test_gibbs_free_energy();
+    test_entropy_change();
+    test_heat_capacity_change();
+    test_phase_transition_energy();
+    test_van_thoff();
+}
