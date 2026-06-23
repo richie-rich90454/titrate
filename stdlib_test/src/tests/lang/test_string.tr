@@ -1,0 +1,395 @@
+// Test file for String.tr
+// Exercises the public API of the String module.
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public fn test_string_length(): void {
+    let s: string = "hello";
+    let len: int = String.length(s);
+    if (len != 5) {
+        io::println("FAIL: String.length(\"hello\") = " + Integer.toString(len) + ", expected 5");
+    } else {
+        io::println("PASS: String.length(\"hello\") = 5");
+    }
+}
+
+public fn test_string_length_empty(): void {
+    let len: int = String.length("");
+    if (len != 0) {
+        io::println("FAIL: String.length(\"\") = " + Integer.toString(len) + ", expected 0");
+    } else {
+        io::println("PASS: String.length(\"\") = 0");
+    }
+}
+
+public fn test_string_concat(): void {
+    let result: string = String.concat("foo", "bar");
+    if (result != "foobar") {
+        io::println("FAIL: String.concat(\"foo\",\"bar\") = " + result);
+    } else {
+        io::println("PASS: String.concat(\"foo\",\"bar\") = foobar");
+    }
+}
+
+public fn test_string_toString(): void {
+    let result: string = String.toString("literal");
+    if (result != "literal") {
+        io::println("FAIL: String.toString = " + result);
+    } else {
+        io::println("PASS: String.toString = literal");
+    }
+}
+
+public fn test_string_toUpperCase(): void {
+    let result: string = String.toUpperCase("Hello World");
+    if (result != "HELLO WORLD") {
+        io::println("FAIL: String.toUpperCase = " + result);
+    } else {
+        io::println("PASS: String.toUpperCase(\"Hello World\") = HELLO WORLD");
+    }
+}
+
+public fn test_string_toLowerCase(): void {
+    let result: string = String.toLowerCase("Hello World");
+    if (result != "hello world") {
+        io::println("FAIL: String.toLowerCase = " + result);
+    } else {
+        io::println("PASS: String.toLowerCase(\"Hello World\") = hello world");
+    }
+}
+
+public fn test_string_replace(): void {
+    let result: string = String.replace("hello world", "world", "there");
+    if (result != "hello there") {
+        io::println("FAIL: String.replace = " + result);
+    } else {
+        io::println("PASS: String.replace = hello there");
+    }
+}
+
+public fn test_string_isEmpty(): void {
+    if (!String.isEmpty("") || String.isEmpty("x")) {
+        io::println("FAIL: String.isEmpty");
+    } else {
+        io::println("PASS: String.isEmpty");
+    }
+}
+
+public fn test_string_isBlank(): void {
+    if (!String.isBlank("   \t\n") || String.isBlank("  x ")) {
+        io::println("FAIL: String.isBlank");
+    } else {
+        io::println("PASS: String.isBlank");
+    }
+}
+
+public fn test_string_repeat(): void {
+    let result: string = String.repeat("ab", 3);
+    if (result != "ababab") {
+        io::println("FAIL: String.repeat = " + result);
+    } else {
+        io::println("PASS: String.repeat(\"ab\",3) = ababab");
+    }
+}
+
+public fn test_string_reverse(): void {
+    let result: string = String.reverse("abc");
+    if (result != "cba") {
+        io::println("FAIL: String.reverse = " + result);
+    } else {
+        io::println("PASS: String.reverse(\"abc\") = cba");
+    }
+}
+
+public fn test_string_substring(): void {
+    let result: string = String.substring("hello world", 0, 5);
+    if (result != "hello") {
+        io::println("FAIL: String.substring = " + result);
+    } else {
+        io::println("PASS: String.substring(\"hello world\",0,5) = hello");
+    }
+}
+
+public fn test_string_indexOf(): void {
+    let idx: int = String.indexOf("hello world", "world");
+    if (idx != 6) {
+        io::println("FAIL: String.indexOf = " + Integer.toString(idx));
+    } else {
+        io::println("PASS: String.indexOf(\"hello world\",\"world\") = 6");
+    }
+}
+
+public fn test_string_indexOf_notFound(): void {
+    let idx: int = String.indexOf("hello", "xyz");
+    if (idx != -1) {
+        io::println("FAIL: String.indexOf not found = " + Integer.toString(idx));
+    } else {
+        io::println("PASS: String.indexOf not found = -1");
+    }
+}
+
+public fn test_string_indexOf_empty(): void {
+    let idx: int = String.indexOf("hello", "");
+    if (idx != 0) {
+        io::println("FAIL: String.indexOf empty = " + Integer.toString(idx));
+    } else {
+        io::println("PASS: String.indexOf empty = 0");
+    }
+}
+
+public fn test_string_lastIndexOf(): void {
+    let idx: int = String.lastIndexOf("hello hello", "hello");
+    if (idx != 6) {
+        io::println("FAIL: String.lastIndexOf = " + Integer.toString(idx));
+    } else {
+        io::println("PASS: String.lastIndexOf = 6");
+    }
+}
+
+public fn test_string_startsWith(): void {
+    if (!String.startsWith("hello world", "hello") || String.startsWith("hello", "world")) {
+        io::println("FAIL: String.startsWith");
+    } else {
+        io::println("PASS: String.startsWith");
+    }
+}
+
+public fn test_string_endsWith(): void {
+    if (!String.endsWith("hello world", "world") || String.endsWith("hello", "world")) {
+        io::println("FAIL: String.endsWith");
+    } else {
+        io::println("PASS: String.endsWith");
+    }
+}
+
+public fn test_string_trim(): void {
+    let result: string = String.trim("  hello  ");
+    if (result != "hello") {
+        io::println("FAIL: String.trim = '" + result + "'");
+    } else {
+        io::println("PASS: String.trim = hello");
+    }
+}
+
+public fn test_string_split(): void {
+    let parts: ArrayList<string> = String.split("a,b,c", ",");
+    if (parts.size() != 3 || parts.get(0) != "a" || parts.get(1) != "b" || parts.get(2) != "c") {
+        io::println("FAIL: String.split size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: String.split(\"a,b,c\",\",\") = [a,b,c]");
+    }
+}
+
+public fn test_string_join(): void {
+    let parts: ArrayList<string> = new ArrayList<string>();
+    parts.add("a");
+    parts.add("b");
+    parts.add("c");
+    let result: string = String.join(parts, ",");
+    if (result != "a,b,c") {
+        io::println("FAIL: String.join = " + result);
+    } else {
+        io::println("PASS: String.join = a,b,c");
+    }
+}
+
+public fn test_string_contains(): void {
+    if (!String.contains("hello world", "world") || String.contains("hello", "xyz")) {
+        io::println("FAIL: String.contains");
+    } else {
+        io::println("PASS: String.contains");
+    }
+}
+
+public fn test_string_compareTo(): void {
+    if (String.compareTo("abc", "abc") != 0 || String.compareTo("abc", "abd") >= 0 || String.compareTo("abd", "abc") <= 0) {
+        io::println("FAIL: String.compareTo");
+    } else {
+        io::println("PASS: String.compareTo");
+    }
+}
+
+public fn test_string_count(): void {
+    let n: int = String.count("aaa", "a");
+    if (n != 3) {
+        io::println("FAIL: String.count = " + Integer.toString(n));
+    } else {
+        io::println("PASS: String.count(\"aaa\",\"a\") = 3");
+    }
+}
+
+public fn test_string_rfind(): void {
+    let idx: int = String.rfind("hello hello", "hello");
+    if (idx != 6) {
+        io::println("FAIL: String.rfind = " + Integer.toString(idx));
+    } else {
+        io::println("PASS: String.rfind = 6");
+    }
+}
+
+public fn test_string_padLeft(): void {
+    let result: string = String.padLeft("5", 3, "0");
+    if (result != "005") {
+        io::println("FAIL: String.padLeft = " + result);
+    } else {
+        io::println("PASS: String.padLeft = 005");
+    }
+}
+
+public fn test_string_padRight(): void {
+    let result: string = String.padRight("5", 3, "0");
+    if (result != "500") {
+        io::println("FAIL: String.padRight = " + result);
+    } else {
+        io::println("PASS: String.padRight = 500");
+    }
+}
+
+public fn test_string_isAscii(): void {
+    if (!String.isAscii("hello") || String.isAscii("héllo")) {
+        io::println("FAIL: String.isAscii");
+    } else {
+        io::println("PASS: String.isAscii");
+    }
+}
+
+public fn test_string_removePrefix(): void {
+    let result: string = String.removePrefix("HelloWorld", "Hello");
+    if (result != "World") {
+        io::println("FAIL: String.removePrefix = " + result);
+    } else {
+        io::println("PASS: String.removePrefix = World");
+    }
+}
+
+public fn test_string_removeSuffix(): void {
+    let result: string = String.removeSuffix("HelloWorld", "World");
+    if (result != "Hello") {
+        io::println("FAIL: String.removeSuffix = " + result);
+    } else {
+        io::println("PASS: String.removeSuffix = Hello");
+    }
+}
+
+public fn test_string_strip(): void {
+    let result: string = String.strip("  hello  ");
+    if (result != "hello") {
+        io::println("FAIL: String.strip = '" + result + "'");
+    } else {
+        io::println("PASS: String.strip = hello");
+    }
+}
+
+public fn test_string_lines(): void {
+    let parts: ArrayList<string> = String.lines("a\nb\nc");
+    if (parts.size() != 3 || parts.get(0) != "a" || parts.get(1) != "b" || parts.get(2) != "c") {
+        io::println("FAIL: String.lines size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: String.lines");
+    }
+}
+
+public fn test_string_chunked(): void {
+    let parts: ArrayList<string> = String.chunked("abcdef", 2);
+    if (parts.size() != 3 || parts.get(0) != "ab" || parts.get(1) != "cd" || parts.get(2) != "ef") {
+        io::println("FAIL: String.chunked size=" + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: String.chunked");
+    }
+}
+
+public fn test_string_capitalize(): void {
+    let result: string = String.capitalize("hello WORLD");
+    if (result != "Hello world") {
+        io::println("FAIL: String.capitalize = " + result);
+    } else {
+        io::println("PASS: String.capitalize = Hello world");
+    }
+}
+
+public fn test_string_isAlpha(): void {
+    if (!String.isAlpha("hello") || String.isAlpha("hello1")) {
+        io::println("FAIL: String.isAlpha");
+    } else {
+        io::println("PASS: String.isAlpha");
+    }
+}
+
+public fn test_string_isDigit(): void {
+    if (!String.isDigit("123") || String.isDigit("12a")) {
+        io::println("FAIL: String.isDigit");
+    } else {
+        io::println("PASS: String.isDigit");
+    }
+}
+
+public fn test_string_fromCharCode(): void {
+    let result: string = String.fromCharCode(65);
+    if (result != "A") {
+        io::println("FAIL: String.fromCharCode(65) = " + result);
+    } else {
+        io::println("PASS: String.fromCharCode(65) = A");
+    }
+}
+
+public fn test_string_partition(): void {
+    let parts: ArrayList<string> = String.partition("a,b,c", ",");
+    if (parts.size() != 3 || parts.get(0) != "a" || parts.get(1) != "," || parts.get(2) != "b,c") {
+        io::println("FAIL: String.partition");
+    } else {
+        io::println("PASS: String.partition");
+    }
+}
+
+public fn test_string_zfill(): void {
+    let result: string = String.zfill("-5", 4);
+    if (result != "-005") {
+        io::println("FAIL: String.zfill = " + result);
+    } else {
+        io::println("PASS: String.zfill = -005");
+    }
+}
+
+public fn run_all_string_tests(): void {
+    io::println("=== String.tr Tests ===");
+    test_string_length();
+    test_string_length_empty();
+    test_string_concat();
+    test_string_toString();
+    test_string_toUpperCase();
+    test_string_toLowerCase();
+    test_string_replace();
+    test_string_isEmpty();
+    test_string_isBlank();
+    test_string_repeat();
+    test_string_reverse();
+    test_string_substring();
+    test_string_indexOf();
+    test_string_indexOf_notFound();
+    test_string_indexOf_empty();
+    test_string_lastIndexOf();
+    test_string_startsWith();
+    test_string_endsWith();
+    test_string_trim();
+    test_string_split();
+    test_string_join();
+    test_string_contains();
+    test_string_compareTo();
+    test_string_count();
+    test_string_rfind();
+    test_string_padLeft();
+    test_string_padRight();
+    test_string_isAscii();
+    test_string_removePrefix();
+    test_string_removeSuffix();
+    test_string_strip();
+    test_string_lines();
+    test_string_chunked();
+    test_string_capitalize();
+    test_string_isAlpha();
+    test_string_isDigit();
+    test_string_fromCharCode();
+    test_string_partition();
+    test_string_zfill();
+}
