@@ -1,0 +1,271 @@
+// Test file for BitSet.tr
+// Exercises the public API of the BitSet class.
+import tt::util::BitSet;
+import tt::lang::Integer;
+
+public fn test_bitset_set_get(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(0);
+    bs.set(5);
+    bs.set(10);
+    if (!bs.get(0) || !bs.get(5) || !bs.get(10)) {
+        io::println("FAIL: BitSet.set/get");
+    } else {
+        io::println("PASS: BitSet.set/get works");
+    }
+}
+
+public fn test_bitset_get_unset(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(5);
+    if (bs.get(0) || bs.get(6)) {
+        io::println("FAIL: BitSet.get unset bit");
+    } else {
+        io::println("PASS: BitSet.get unset returns false");
+    }
+}
+
+public fn test_bitset_clear(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(3);
+    bs.clear(3);
+    if (bs.get(3)) {
+        io::println("FAIL: BitSet.clear");
+    } else {
+        io::println("PASS: BitSet.clear works");
+    }
+}
+
+public fn test_bitset_flip(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.flip(5);
+    if (!bs.get(5)) {
+        io::println("FAIL: BitSet.flip set");
+    } else {
+        bs.flip(5);
+        if (bs.get(5)) {
+            io::println("FAIL: BitSet.flip clear");
+        } else {
+            io::println("PASS: BitSet.flip works");
+        }
+    }
+}
+
+public fn test_bitset_cardinality(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(0);
+    bs.set(5);
+    bs.set(10);
+    bs.set(15);
+    if (bs.cardinality() != 4) {
+        io::println("FAIL: BitSet.cardinality = " + Integer.toString(bs.cardinality()));
+    } else {
+        io::println("PASS: BitSet.cardinality works");
+    }
+}
+
+public fn test_bitset_size(): void {
+    let bs: BitSet = new BitSet(128);
+    if (bs.size() != 128) {
+        io::println("FAIL: BitSet.size = " + Integer.toString(bs.size()));
+    } else {
+        io::println("PASS: BitSet.size works");
+    }
+}
+
+public fn test_bitset_isEmpty(): void {
+    let bs: BitSet = new BitSet(64);
+    if (!bs.isEmpty()) {
+        io::println("FAIL: BitSet.isEmpty new");
+    } else {
+        io::println("PASS: BitSet.isEmpty new");
+    }
+    bs.set(0);
+    if (bs.isEmpty()) {
+        io::println("FAIL: BitSet.isEmpty after set");
+    } else {
+        io::println("PASS: BitSet.isEmpty after set");
+    }
+}
+
+public fn test_bitset_length(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(0);
+    bs.set(10);
+    bs.set(20);
+    // length is index of highest set bit + 1
+    if (bs.length() != 21) {
+        io::println("FAIL: BitSet.length = " + Integer.toString(bs.length()));
+    } else {
+        io::println("PASS: BitSet.length works");
+    }
+}
+
+public fn test_bitset_nextSetBit(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(3);
+    bs.set(7);
+    bs.set(15);
+    if (bs.nextSetBit(0) != 3 || bs.nextSetBit(4) != 7 || bs.nextSetBit(8) != 15) {
+        io::println("FAIL: BitSet.nextSetBit");
+    } else {
+        io::println("PASS: BitSet.nextSetBit works");
+    }
+}
+
+public fn test_bitset_nextSetBit_none(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(3);
+    if (bs.nextSetBit(4) != -1) {
+        io::println("FAIL: BitSet.nextSetBit none");
+    } else {
+        io::println("PASS: BitSet.nextSetBit none returns -1");
+    }
+}
+
+public fn test_bitset_nextClearBit(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(0);
+    bs.set(1);
+    if (bs.nextClearBit(0) != 2) {
+        io::println("FAIL: BitSet.nextClearBit = " + Integer.toString(bs.nextClearBit(0)));
+    } else {
+        io::println("PASS: BitSet.nextClearBit works");
+    }
+}
+
+public fn test_bitset_or(): void {
+    let a: BitSet = new BitSet(64);
+    a.set(0);
+    a.set(1);
+    let b: BitSet = new BitSet(64);
+    b.set(1);
+    b.set(2);
+    let r: BitSet = a.or(b);
+    if (!r.get(0) || !r.get(1) || !r.get(2) || r.cardinality() != 3) {
+        io::println("FAIL: BitSet.or");
+    } else {
+        io::println("PASS: BitSet.or works");
+    }
+}
+
+public fn test_bitset_and(): void {
+    let a: BitSet = new BitSet(64);
+    a.set(0);
+    a.set(1);
+    a.set(2);
+    let b: BitSet = new BitSet(64);
+    b.set(1);
+    b.set(2);
+    b.set(3);
+    let r: BitSet = a.and(b);
+    if (r.cardinality() != 2 || !r.get(1) || !r.get(2) || r.get(0)) {
+        io::println("FAIL: BitSet.and");
+    } else {
+        io::println("PASS: BitSet.and works");
+    }
+}
+
+public fn test_bitset_xor(): void {
+    let a: BitSet = new BitSet(64);
+    a.set(0);
+    a.set(1);
+    let b: BitSet = new BitSet(64);
+    b.set(1);
+    b.set(2);
+    let r: BitSet = a.xor(b);
+    // 0 and 2 set, 1 cleared
+    if (r.cardinality() != 2 || !r.get(0) || !r.get(2) || r.get(1)) {
+        io::println("FAIL: BitSet.xor");
+    } else {
+        io::println("PASS: BitSet.xor works");
+    }
+}
+
+public fn test_bitset_setRange(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.setRange(5, 10);
+    if (bs.cardinality() != 6) {
+        io::println("FAIL: BitSet.setRange cardinality=" + Integer.toString(bs.cardinality()));
+    } else if (!bs.get(5) || !bs.get(10) || bs.get(4) || bs.get(11)) {
+        io::println("FAIL: BitSet.setRange bounds");
+    } else {
+        io::println("PASS: BitSet.setRange works");
+    }
+}
+
+public fn test_bitset_clearAll(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(0);
+    bs.set(5);
+    bs.clearAll();
+    if (bs.cardinality() != 0 || !bs.isEmpty()) {
+        io::println("FAIL: BitSet.clearAll");
+    } else {
+        io::println("PASS: BitSet.clearAll works");
+    }
+}
+
+public fn test_bitset_clone(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(1);
+    bs.set(2);
+    let copy: BitSet = bs.clone();
+    copy.set(3);
+    if (bs.cardinality() != 2 || copy.cardinality() != 3) {
+        io::println("FAIL: BitSet.clone independence");
+    } else {
+        io::println("PASS: BitSet.clone works");
+    }
+}
+
+public fn test_bitset_intersects(): void {
+    let a: BitSet = new BitSet(64);
+    a.set(1);
+    a.set(2);
+    let b: BitSet = new BitSet(64);
+    b.set(2);
+    b.set(3);
+    let c: BitSet = new BitSet(64);
+    c.set(10);
+    if (!a.intersects(b) || a.intersects(c)) {
+        io::println("FAIL: BitSet.intersects");
+    } else {
+        io::println("PASS: BitSet.intersects works");
+    }
+}
+
+public fn test_bitset_large_index(): void {
+    // Test bits beyond the first 64-bit word
+    let bs: BitSet = new BitSet(200);
+    bs.set(70);
+    bs.set(150);
+    if (!bs.get(70) || !bs.get(150) || bs.cardinality() != 2) {
+        io::println("FAIL: BitSet large index");
+    } else {
+        io::println("PASS: BitSet large index works");
+    }
+}
+
+public fn run_all_bitset_tests(): void {
+    io::println("=== BitSet.tr Tests ===");
+    test_bitset_set_get();
+    test_bitset_get_unset();
+    test_bitset_clear();
+    test_bitset_flip();
+    test_bitset_cardinality();
+    test_bitset_size();
+    test_bitset_isEmpty();
+    test_bitset_length();
+    test_bitset_nextSetBit();
+    test_bitset_nextSetBit_none();
+    test_bitset_nextClearBit();
+    test_bitset_or();
+    test_bitset_and();
+    test_bitset_xor();
+    test_bitset_setRange();
+    test_bitset_clearAll();
+    test_bitset_clone();
+    test_bitset_intersects();
+    test_bitset_large_index();
+}
