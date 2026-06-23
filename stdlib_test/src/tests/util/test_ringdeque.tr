@@ -1,0 +1,189 @@
+// Test file for RingDeque.tr
+// Exercises the public API of the RingDeque class (ring buffer double-ended queue).
+import tt::util::RingDeque;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_ringdeque_pushBack_size(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(1);
+    d.pushBack(2);
+    d.pushBack(3);
+    if (d.size() != 3) {
+        io::println("FAIL: RingDeque.size() = " + Integer.toString(d.size()));
+    } else {
+        io::println("PASS: RingDeque.pushBack/size works");
+    }
+}
+
+public fn test_ringdeque_pushFront(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(2);
+    d.pushBack(3);
+    d.pushFront(1);
+    if (d.size() != 3 || d.peekFront() != 1) {
+        io::println("FAIL: RingDeque.pushFront");
+    } else {
+        io::println("PASS: RingDeque.pushFront works");
+    }
+}
+
+public fn test_ringdeque_popFront(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(1);
+    d.pushBack(2);
+    d.pushBack(3);
+    let v: int = d.popFront();
+    if (v != 1 || d.size() != 2) {
+        io::println("FAIL: RingDeque.popFront = " + Integer.toString(v));
+    } else {
+        io::println("PASS: RingDeque.popFront works");
+    }
+}
+
+public fn test_ringdeque_popBack(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(1);
+    d.pushBack(2);
+    d.pushBack(3);
+    let v: int = d.popBack();
+    if (v != 3 || d.size() != 2) {
+        io::println("FAIL: RingDeque.popBack = " + Integer.toString(v));
+    } else {
+        io::println("PASS: RingDeque.popBack works");
+    }
+}
+
+public fn test_ringdeque_peekFront_peekBack(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(10);
+    d.pushBack(20);
+    d.pushBack(30);
+    if (d.peekFront() != 10 || d.peekBack() != 30) {
+        io::println("FAIL: RingDeque.peekFront/peekBack");
+    } else if (d.size() != 3) {
+        io::println("FAIL: RingDeque.peek modified size");
+    } else {
+        io::println("PASS: RingDeque.peekFront/peekBack works");
+    }
+}
+
+public fn test_ringdeque_isEmpty(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    if (!d.isEmpty()) {
+        io::println("FAIL: RingDeque.isEmpty new");
+    } else {
+        io::println("PASS: RingDeque.isEmpty new");
+    }
+    d.pushBack(1);
+    if (d.isEmpty()) {
+        io::println("FAIL: RingDeque.isEmpty after push");
+    } else {
+        io::println("PASS: RingDeque.isEmpty after push");
+    }
+}
+
+public fn test_ringdeque_clear(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(1);
+    d.pushBack(2);
+    d.clear();
+    if (!d.isEmpty() || d.size() != 0) {
+        io::println("FAIL: RingDeque.clear");
+    } else {
+        io::println("PASS: RingDeque.clear works");
+    }
+}
+
+public fn test_ringdeque_contains(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(1);
+    d.pushBack(2);
+    d.pushBack(3);
+    if (!d.contains(2) || d.contains(99)) {
+        io::println("FAIL: RingDeque.contains");
+    } else {
+        io::println("PASS: RingDeque.contains works");
+    }
+}
+
+public fn test_ringdeque_toArray(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(1);
+    d.pushBack(2);
+    d.pushBack(3);
+    let arr: ArrayList<int> = d.toArray();
+    if (arr.size() != 3 || arr.get(0) != 1 || arr.get(1) != 2 || arr.get(2) != 3) {
+        io::println("FAIL: RingDeque.toArray");
+    } else {
+        io::println("PASS: RingDeque.toArray works");
+    }
+}
+
+public fn test_ringdeque_mixed_ops(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    d.pushBack(1);
+    d.pushFront(0);
+    d.pushBack(2);
+    // [0, 1, 2]
+    let f: int = d.popFront();
+    let b: int = d.popBack();
+    // remaining: [1]
+    if (f != 0 || b != 2 || d.size() != 1 || d.peekFront() != 1) {
+        io::println("FAIL: RingDeque mixed ops");
+    } else {
+        io::println("PASS: RingDeque mixed ops works");
+    }
+}
+
+public fn test_ringdeque_grow(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    // Initial capacity is 16; push more to force a grow
+    var i: int = 0;
+    while (i < 50) {
+        d.pushBack(i);
+        i = i + 1;
+    }
+    if (d.size() != 50) {
+        io::println("FAIL: RingDeque.grow size=" + Integer.toString(d.size()));
+    } else if (d.peekFront() != 0 || d.peekBack() != 49) {
+        io::println("FAIL: RingDeque.grow contents");
+    } else {
+        io::println("PASS: RingDeque.grow works");
+    }
+}
+
+public fn test_ringdeque_pop_empty(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    if (d.popFront() != null || d.popBack() != null) {
+        io::println("FAIL: RingDeque.pop empty");
+    } else {
+        io::println("PASS: RingDeque.pop empty returns null");
+    }
+}
+
+public fn test_ringdeque_peek_empty(): void {
+    let d: RingDeque<int> = new RingDeque<int>();
+    if (d.peekFront() != null || d.peekBack() != null) {
+        io::println("FAIL: RingDeque.peek empty");
+    } else {
+        io::println("PASS: RingDeque.peek empty returns null");
+    }
+}
+
+public fn run_all_ringdeque_tests(): void {
+    io::println("=== RingDeque.tr Tests ===");
+    test_ringdeque_pushBack_size();
+    test_ringdeque_pushFront();
+    test_ringdeque_popFront();
+    test_ringdeque_popBack();
+    test_ringdeque_peekFront_peekBack();
+    test_ringdeque_isEmpty();
+    test_ringdeque_clear();
+    test_ringdeque_contains();
+    test_ringdeque_toArray();
+    test_ringdeque_mixed_ops();
+    test_ringdeque_grow();
+    test_ringdeque_pop_empty();
+    test_ringdeque_peek_empty();
+}
