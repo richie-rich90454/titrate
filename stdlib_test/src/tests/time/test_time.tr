@@ -1,0 +1,131 @@
+// Test file for Time.tr
+// Exercises the public API of the Time module's top-level functions.
+import tt::time::Time;
+import tt::time::Duration;
+import tt::time::Stopwatch;
+import tt::lang::Long;
+import tt::lang::Double;
+import tt::lang::Boolean;
+
+public fn test_time_millis(): void {
+    let m: long = Time.millis();
+    if (m <= 0) {
+        io::println("FAIL: Time.millis returned " + Long.toString(m));
+    } else {
+        io::println("PASS: Time.millis works: " + Long.toString(m));
+    }
+}
+
+public fn test_time_micros(): void {
+    let m: long = Time.micros();
+    if (m <= 0) {
+        io::println("FAIL: Time.micros returned " + Long.toString(m));
+    } else {
+        io::println("PASS: Time.micros works");
+    }
+}
+
+public fn test_time_nanos(): void {
+    let n: long = Time.nanos();
+    if (n <= 0) {
+        io::println("FAIL: Time.nanos returned " + Long.toString(n));
+    } else {
+        io::println("PASS: Time.nanos works");
+    }
+}
+
+public fn test_time_monotonic(): void {
+    let m1: long = Time.monotonic();
+    let m2: long = Time.monotonic();
+    if (m1 <= 0) {
+        io::println("FAIL: Time.monotonic returned " + Long.toString(m1));
+    } else if (m2 < m1) {
+        io::println("FAIL: Time.monotonic went backwards");
+    } else {
+        io::println("PASS: Time.monotonic works");
+    }
+}
+
+public fn test_time_perfCounter(): void {
+    let p: long = Time.perfCounter();
+    if (p <= 0) {
+        io::println("FAIL: Time.perfCounter returned " + Long.toString(p));
+    } else {
+        io::println("PASS: Time.perfCounter works");
+    }
+}
+
+public fn test_time_epochSeconds(): void {
+    let e: double = Time.epochSeconds();
+    if (e <= 0.0) {
+        io::println("FAIL: Time.epochSeconds returned " + Double.toString(e));
+    } else {
+        io::println("PASS: Time.epochSeconds works");
+    }
+}
+
+public fn test_time_sleep(): void {
+    let before: long = Time.millis();
+    Time.sleep(10);
+    let after: long = Time.millis();
+    if (after < before) {
+        io::println("FAIL: Time.sleep clock went backwards");
+    } else {
+        io::println("PASS: Time.sleep works");
+    }
+}
+
+public fn test_time_sleepDuration(): void {
+    let d: Duration = new Duration(5);
+    let before: long = Time.millis();
+    Time.sleepDuration(d);
+    let after: long = Time.millis();
+    if (after < before) {
+        io::println("FAIL: Time.sleepDuration clock went backwards");
+    } else {
+        io::println("PASS: Time.sleepDuration works");
+    }
+}
+
+public fn test_time_measure(): void {
+    let noop: fn(): void = fn(): void { Time.sleep(2); };
+    let d: Duration = Time.measure(noop);
+    if (d.toMillis() < 0) {
+        io::println("FAIL: Time.measure returned negative duration");
+    } else {
+        io::println("PASS: Time.measure works: " + Long.toString(d.toMillis()) + "ms");
+    }
+}
+
+public fn test_time_stopwatch(): void {
+    let sw: Stopwatch = Time.stopwatch();
+    if (sw == null) {
+        io::println("FAIL: Time.stopwatch returned null");
+    } else {
+        io::println("PASS: Time.stopwatch works");
+    }
+}
+
+public fn test_time_now(): void {
+    let dt = Time.now();
+    if (dt == null) {
+        io::println("FAIL: Time.now returned null");
+    } else {
+        io::println("PASS: Time.now works");
+    }
+}
+
+public fn run_all_time_tests(): void {
+    io::println("=== Time.tr Tests ===");
+    test_time_millis();
+    test_time_micros();
+    test_time_nanos();
+    test_time_monotonic();
+    test_time_perfCounter();
+    test_time_epochSeconds();
+    test_time_sleep();
+    test_time_sleepDuration();
+    test_time_measure();
+    test_time_stopwatch();
+    test_time_now();
+}
