@@ -1,0 +1,272 @@
+// Test file for Vec.tr
+// Exercises the public API of the Vec class (resizable vector).
+import tt::util::Vec;
+import tt::lang::Integer;
+
+public fn test_vec_push_size(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    if (v.size() != 3) {
+        io::println("FAIL: Vec.size() = " + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: Vec.push/size works");
+    }
+}
+
+public fn test_vec_get(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(10);
+    v.push(20);
+    v.push(30);
+    if (v.get(0) != 10 || v.get(1) != 20 || v.get(2) != 30) {
+        io::println("FAIL: Vec.get");
+    } else {
+        io::println("PASS: Vec.get works");
+    }
+}
+
+public fn test_vec_set(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.set(0, 99);
+    if (v.get(0) != 99 || v.get(1) != 2) {
+        io::println("FAIL: Vec.set");
+    } else {
+        io::println("PASS: Vec.set works");
+    }
+}
+
+public fn test_vec_pop(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    let popped: int = v.pop();
+    if (popped != 3 || v.size() != 2) {
+        io::println("FAIL: Vec.pop");
+    } else {
+        io::println("PASS: Vec.pop works");
+    }
+}
+
+public fn test_vec_isEmpty(): void {
+    let v: Vec<int> = new Vec<int>();
+    if (!v.isEmpty()) {
+        io::println("FAIL: Vec.isEmpty new");
+    } else {
+        io::println("PASS: Vec.isEmpty new");
+    }
+    v.push(1);
+    if (v.isEmpty()) {
+        io::println("FAIL: Vec.isEmpty after push");
+    } else {
+        io::println("PASS: Vec.isEmpty after push");
+    }
+}
+
+public fn test_vec_contains(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    if (!v.contains(2) || v.contains(99)) {
+        io::println("FAIL: Vec.contains");
+    } else {
+        io::println("PASS: Vec.contains works");
+    }
+}
+
+public fn test_vec_indexOf(): void {
+    let v: Vec<string> = new Vec<string>();
+    v.push("a");
+    v.push("b");
+    v.push("c");
+    if (v.indexOf("b") != 1 || v.indexOf("z") != -1) {
+        io::println("FAIL: Vec.indexOf");
+    } else {
+        io::println("PASS: Vec.indexOf works");
+    }
+}
+
+public fn test_vec_first_last(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(10);
+    v.push(20);
+    v.push(30);
+    if (v.first() != 10 || v.last() != 30) {
+        io::println("FAIL: Vec.first/last");
+    } else {
+        io::println("PASS: Vec.first/last works");
+    }
+}
+
+public fn test_vec_reverse(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    v.reverse();
+    if (v.get(0) != 3 || v.get(1) != 2 || v.get(2) != 1) {
+        io::println("FAIL: Vec.reverse");
+    } else {
+        io::println("PASS: Vec.reverse works");
+    }
+}
+
+public fn test_vec_take(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    v.push(4);
+    let t: Vec<int> = v.take(2);
+    if (t.size() != 2 || t.get(0) != 1 || t.get(1) != 2) {
+        io::println("FAIL: Vec.take");
+    } else {
+        io::println("PASS: Vec.take works");
+    }
+}
+
+public fn test_vec_drop(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    v.push(4);
+    let d: Vec<int> = v.drop(2);
+    if (d.size() != 2 || d.get(0) != 3 || d.get(1) != 4) {
+        io::println("FAIL: Vec.drop");
+    } else {
+        io::println("PASS: Vec.drop works");
+    }
+}
+
+public fn test_vec_insert(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(3);
+    v.insert(1, 2);
+    if (v.get(0) != 1 || v.get(1) != 2 || v.get(2) != 3) {
+        io::println("FAIL: Vec.insert");
+    } else {
+        io::println("PASS: Vec.insert works");
+    }
+}
+
+public fn test_vec_removeAt(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    let removed: int = v.removeAt(1);
+    if (removed != 2 || v.size() != 2 || v.get(1) != 3) {
+        io::println("FAIL: Vec.removeAt");
+    } else {
+        io::println("PASS: Vec.removeAt works");
+    }
+}
+
+public fn test_vec_clear(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.clear();
+    if (!v.isEmpty() || v.size() != 0) {
+        io::println("FAIL: Vec.clear");
+    } else {
+        io::println("PASS: Vec.clear works");
+    }
+}
+
+public fn test_vec_clone(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    let c: Vec<int> = v.clone();
+    c.push(3);
+    if (v.size() != 2 || c.size() != 3) {
+        io::println("FAIL: Vec.clone independence");
+    } else {
+        io::println("PASS: Vec.clone works");
+    }
+}
+
+public fn test_vec_map(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    let squared: Vec<int> = v.map(fn(x: int): int { return x * x; });
+    if (squared.get(0) != 1 || squared.get(1) != 4 || squared.get(2) != 9) {
+        io::println("FAIL: Vec.map");
+    } else {
+        io::println("PASS: Vec.map works");
+    }
+}
+
+public fn test_vec_filter(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    v.push(4);
+    let evens: Vec<int> = v.filter(fn(x: int): bool { return x % 2 == 0; });
+    if (evens.size() != 2 || evens.get(0) != 2 || evens.get(1) != 4) {
+        io::println("FAIL: Vec.filter");
+    } else {
+        io::println("PASS: Vec.filter works");
+    }
+}
+
+public fn test_vec_reduce(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    let sum: int = v.reduce(fn(a: int, b: int): int { return a + b; }, 0);
+    if (sum != 6) {
+        io::println("FAIL: Vec.reduce = " + Integer.toString(sum));
+    } else {
+        io::println("PASS: Vec.reduce works");
+    }
+}
+
+public fn test_vec_forEach(): void {
+    let v: Vec<int> = new Vec<int>();
+    v.push(1);
+    v.push(2);
+    v.push(3);
+    // forEach should iterate without changing size
+    v.forEach(fn(x: int): void { });
+    if (v.size() != 3) {
+        io::println("FAIL: Vec.forEach size=" + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: Vec.forEach works");
+    }
+}
+
+public fn run_all_vec_tests(): void {
+    io::println("=== Vec.tr Tests ===");
+    test_vec_push_size();
+    test_vec_get();
+    test_vec_set();
+    test_vec_pop();
+    test_vec_isEmpty();
+    test_vec_contains();
+    test_vec_indexOf();
+    test_vec_first_last();
+    test_vec_reverse();
+    test_vec_take();
+    test_vec_drop();
+    test_vec_insert();
+    test_vec_removeAt();
+    test_vec_clear();
+    test_vec_clone();
+    test_vec_map();
+    test_vec_filter();
+    test_vec_reduce();
+    test_vec_forEach();
+}
