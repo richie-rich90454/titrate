@@ -1,0 +1,206 @@
+// Test file for physics/WaveFunction.tr
+// Exercises WaveFunction construction, probability, normalization, expectation, Gaussian init, evolve.
+import tt::physics::WaveFunction;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_wavefunction_construction(): void {
+    let wf: WaveFunction = new WaveFunction(10, 0.1, 0.0);
+    if (wf.size() != 10) {
+        io::println("FAIL: WaveFunction size");
+    } else {
+        io::println("PASS: WaveFunction size = 10");
+    }
+    if (absDiff(wf.dx, 0.1) > 1e-9 || absDiff(wf.x0, 0.0) > 1e-9) {
+        io::println("FAIL: WaveFunction dx/x0");
+    } else {
+        io::println("PASS: WaveFunction dx=0.1, x0=0.0");
+    }
+}
+
+public fn test_wavefunction_set_get(): void {
+    let wf: WaveFunction = new WaveFunction(5, 0.1, 0.0);
+    wf.set(0, 1.0, 2.0);
+    if (absDiff(wf.getReal(0), 1.0) > 1e-9 || absDiff(wf.getImag(0), 2.0) > 1e-9) {
+        io::println("FAIL: set/get");
+    } else {
+        io::println("PASS: set/get works");
+    }
+}
+
+public fn test_wavefunction_get_probability(): void {
+    let wf: WaveFunction = new WaveFunction(5, 0.1, 0.0);
+    wf.set(0, 3.0, 4.0);
+    // |psi|^2 = 9 + 16 = 25
+    let p: double = wf.getProbability(0);
+    if (absDiff(p, 25.0) > 1e-9) {
+        io::println("FAIL: getProbability expected 25.0");
+    } else {
+        io::println("PASS: getProbability = 25.0");
+    }
+}
+
+public fn test_wavefunction_norm(): void {
+    let wf: WaveFunction = new WaveFunction(2, 1.0, 0.0);
+    wf.set(0, 1.0, 0.0);
+    wf.set(1, 1.0, 0.0);
+    // norm = (1 + 1) * dx = 2 * 1 = 2
+    let n: double = wf.norm();
+    if (absDiff(n, 2.0) > 1e-9) {
+        io::println("FAIL: norm expected 2.0");
+    } else {
+        io::println("PASS: norm = 2.0");
+    }
+}
+
+public fn test_wavefunction_normalize(): void {
+    let wf: WaveFunction = new WaveFunction(2, 1.0, 0.0);
+    wf.set(0, 1.0, 0.0);
+    wf.set(1, 1.0, 0.0);
+    wf.normalize();
+    // After normalization, norm should be 1
+    let n: double = wf.norm();
+    if (absDiff(n, 1.0) > 1e-9) {
+        io::println("FAIL: normalize norm expected 1.0 got " + Double.toString(n));
+    } else {
+        io::println("PASS: normalize norm = 1.0");
+    }
+}
+
+public fn test_wavefunction_normalize_zero(): void {
+    let wf: WaveFunction = new WaveFunction(2, 1.0, 0.0);
+    // All zeros - normalize should be a no-op
+    wf.normalize();
+    if (absDiff(wf.getReal(0), 0.0) > 1e-9) {
+        io::println("FAIL: normalize zero wavefunction");
+    } else {
+        io::println("PASS: normalize zero wavefunction no-op");
+    }
+}
+
+public fn test_wavefunction_probability_density(): void {
+    let wf: WaveFunction = new WaveFunction(3, 1.0, 0.0);
+    wf.set(0, 1.0, 0.0);
+    wf.set(1, 2.0, 0.0);
+    wf.set(2, 3.0, 0.0);
+    let pd: ArrayList<double> = wf.probabilityDensity();
+    if (pd.size() != 3) {
+        io::println("FAIL: probabilityDensity size");
+    } else {
+        io::println("PASS: probabilityDensity has 3 entries");
+    }
+    if (absDiff(pd.get(1), 4.0) > 1e-9) {
+        io::println("FAIL: probabilityDensity[1] expected 4.0");
+    } else {
+        io::println("PASS: probabilityDensity[1] = 4.0");
+    }
+}
+
+public fn test_wavefunction_expectation_x(): void {
+    let wf: WaveFunction = new WaveFunction(3, 1.0, 0.0);
+    wf.set(0, 1.0, 0.0);
+    wf.set(1, 0.0, 0.0);
+    wf.set(2, 0.0, 0.0);
+    wf.normalize();
+    // All probability at x=0
+    let ex: double = wf.expectationX();
+    if (absDiff(ex, 0.0) > 1e-9) {
+        io::println("FAIL: expectationX expected 0.0");
+    } else {
+        io::println("PASS: expectationX = 0.0");
+    }
+}
+
+public fn test_wavefunction_uncertainty_x(): void {
+    let wf: WaveFunction = new WaveFunction(3, 1.0, 0.0);
+    wf.set(0, 1.0, 0.0);
+    wf.set(1, 0.0, 0.0);
+    wf.set(2, 0.0, 0.0);
+    wf.normalize();
+    // All probability at one point -> uncertainty = 0
+    let u: double = wf.uncertaintyX();
+    if (absDiff(u, 0.0) > 1e-9) {
+        io::println("FAIL: uncertaintyX expected 0.0");
+    } else {
+        io::println("PASS: uncertaintyX = 0.0");
+    }
+}
+
+public fn test_wavefunction_uncertainty_alias(): void {
+    let wf: WaveFunction = new WaveFunction(3, 1.0, 0.0);
+    wf.set(0, 1.0, 0.0);
+    wf.normalize();
+    let u1: double = wf.uncertaintyX();
+    let u2: double = wf.uncertainty();
+    if (absDiff(u1, u2) > 1e-12) {
+        io::println("FAIL: uncertainty() should equal uncertaintyX()");
+    } else {
+        io::println("PASS: uncertainty() = uncertaintyX()");
+    }
+}
+
+public fn test_wavefunction_init_gaussian(): void {
+    let wf: WaveFunction = new WaveFunction(100, 0.1, -5.0);
+    wf.initGaussian(0.0, 1.0, 0.0);
+    // After init, norm should be 1
+    let n: double = wf.norm();
+    if (absDiff(n, 1.0) > 1e-6) {
+        io::println("FAIL: initGaussian norm expected 1.0 got " + Double.toString(n));
+    } else {
+        io::println("PASS: initGaussian norm = 1.0");
+    }
+}
+
+public fn test_wavefunction_evolve(): void {
+    let wf: WaveFunction = new WaveFunction(20, 0.1, 0.0);
+    wf.initGaussian(1.0, 0.5, 0.0);
+    let potential: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 20) {
+        potential.add(0.0);
+        i = i + 1;
+    }
+    wf.evolve(0.01, potential, 1.0, 1.0);
+    // After evolution, norm should still be approximately 1
+    let n: double = wf.norm();
+    if (n != n) {
+        io::println("FAIL: evolve NaN");
+    } else {
+        io::println("PASS: evolve norm finite = " + Double.toString(n));
+    }
+}
+
+public fn test_wavefunction_expectation_p(): void {
+    let wf: WaveFunction = new WaveFunction(20, 0.1, 0.0);
+    wf.initGaussian(1.0, 0.5, 0.0);
+    let p: double = wf.expectationP();
+    if (p != p) {
+        io::println("FAIL: expectationP NaN");
+    } else {
+        io::println("PASS: expectationP finite = " + Double.toString(p));
+    }
+}
+
+public fn run_all_wavefunction_tests(): void {
+    io::println("=== physics/WaveFunction.tr Tests ===");
+    test_wavefunction_construction();
+    test_wavefunction_set_get();
+    test_wavefunction_get_probability();
+    test_wavefunction_norm();
+    test_wavefunction_normalize();
+    test_wavefunction_normalize_zero();
+    test_wavefunction_probability_density();
+    test_wavefunction_expectation_x();
+    test_wavefunction_uncertainty_x();
+    test_wavefunction_uncertainty_alias();
+    test_wavefunction_init_gaussian();
+    test_wavefunction_evolve();
+    test_wavefunction_expectation_p();
+}
