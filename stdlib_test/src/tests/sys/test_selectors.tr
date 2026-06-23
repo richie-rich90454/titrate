@@ -1,0 +1,184 @@
+// Test file for Selectors.tr
+// Exercises the public API of the Selectors module: Selector class methods
+// (register, unregister, modify, isRegistered, select, selectWithEvents,
+// close, isClosed, size, getEvents) and the createSelector factory.
+import tt::sys::Selectors;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+// Event constants mirror the module's internal EVENT_READ/EVENT_WRITE.
+const READ: int = 1;
+const WRITE: int = 2;
+
+public fn test_selector_init_size(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    if (sel.size() != 0) {
+        io::println("FAIL: Selector.size = " + Integer.toString(sel.size()));
+    } else {
+        io::println("PASS: Selector starts empty");
+    }
+    sel.close();
+}
+
+public fn test_selector_register_isRegistered(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    sel.register(10, READ);
+    if (!sel.isRegistered(10)) {
+        io::println("FAIL: Selector.isRegistered false after register");
+    } else {
+        io::println("PASS: Selector.register then isRegistered");
+    }
+    sel.close();
+}
+
+public fn test_selector_unregister(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    sel.register(10, READ);
+    sel.unregister(10);
+    if (sel.isRegistered(10)) {
+        io::println("FAIL: Selector.isRegistered true after unregister");
+    } else {
+        io::println("PASS: Selector.unregister removes handle");
+    }
+    sel.close();
+}
+
+public fn test_selector_modify(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    sel.register(5, READ);
+    sel.modify(5, WRITE);
+    let events: int = sel.getEvents(5);
+    if (events != WRITE) {
+        io::println("FAIL: Selector.getEvents = " + Integer.toString(events));
+    } else {
+        io::println("PASS: Selector.modify updates events");
+    }
+    sel.close();
+}
+
+public fn test_selector_modify_unregistered(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    // modify on an unregistered handle should be a no-op.
+    sel.modify(99, READ);
+    if (sel.isRegistered(99)) {
+        io::println("FAIL: Selector.modify registered an unregistered handle");
+    } else {
+        io::println("PASS: Selector.modify ignores unregistered handle");
+    }
+    sel.close();
+}
+
+public fn test_selector_getEvents_unregistered(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    let events: int = sel.getEvents(42);
+    if (events != 0) {
+        io::println("FAIL: Selector.getEvents unregistered = " + Integer.toString(events));
+    } else {
+        io::println("PASS: Selector.getEvents returns 0 for unregistered handle");
+    }
+    sel.close();
+}
+
+public fn test_selector_size(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    sel.register(1, READ);
+    sel.register(2, WRITE);
+    sel.register(3, READ);
+    if (sel.size() != 3) {
+        io::println("FAIL: Selector.size = " + Integer.toString(sel.size()));
+    } else {
+        io::println("PASS: Selector.size counts registered handles");
+    }
+    sel.close();
+}
+
+public fn test_selector_select_nonblocking(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    sel.register(1, READ);
+    sel.register(2, WRITE);
+    // timeout 0 means non-blocking.
+    let ready: ArrayList<int> = sel.select(0);
+    if (ready.size() != 2) {
+        io::println("FAIL: Selector.select(0) size = " + Integer.toString(ready.size()));
+    } else {
+        io::println("PASS: Selector.select(0) returns all registered handles");
+    }
+    sel.close();
+}
+
+public fn test_selector_selectWithEvents(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    sel.register(7, READ);
+    let result: ArrayList<Variant> = sel.selectWithEvents(0);
+    if (result.size() != 1) {
+        io::println("FAIL: Selector.selectWithEvents size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Selector.selectWithEvents returns handle/event tuples");
+    }
+    sel.close();
+}
+
+public fn test_selector_close_isClosed(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    if (sel.isClosed()) {
+        io::println("FAIL: Selector.isClosed true before close");
+    } else {
+        io::println("PASS: Selector.isClosed false before close");
+    }
+    sel.close();
+    if (!sel.isClosed()) {
+        io::println("FAIL: Selector.isClosed false after close");
+    } else {
+        io::println("PASS: Selector.isClosed true after close");
+    }
+}
+
+public fn test_selector_select_after_close(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    sel.register(1, READ);
+    sel.close();
+    let ready: ArrayList<int> = sel.select(0);
+    if (ready.size() != 0) {
+        io::println("FAIL: Selector.select after close size = " + Integer.toString(ready.size()));
+    } else {
+        io::println("PASS: Selector.select after close returns empty");
+    }
+}
+
+public fn test_selector_register_after_close(): void {
+    let sel: Selectors.Selector = new Selectors.Selector();
+    sel.close();
+    sel.register(1, READ);
+    if (sel.isRegistered(1)) {
+        io::println("FAIL: Selector.register after close succeeded");
+    } else {
+        io::println("PASS: Selector.register after close is ignored");
+    }
+}
+
+public fn test_createSelector_factory(): void {
+    let sel: Selectors.Selector = Selectors.createSelector();
+    if (sel == null) {
+        io::println("FAIL: createSelector returned null");
+    } else {
+        io::println("PASS: createSelector returns a Selector");
+    }
+    sel.close();
+}
+
+public fn run_all_selectors_tests(): void {
+    io::println("=== Selectors.tr Tests ===");
+    test_selector_init_size();
+    test_selector_register_isRegistered();
+    test_selector_unregister();
+    test_selector_modify();
+    test_selector_modify_unregistered();
+    test_selector_getEvents_unregistered();
+    test_selector_size();
+    test_selector_select_nonblocking();
+    test_selector_selectWithEvents();
+    test_selector_close_isClosed();
+    test_selector_select_after_close();
+    test_selector_register_after_close();
+    test_createSelector_factory();
+}
