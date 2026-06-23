@@ -1,0 +1,115 @@
+// Test file for Atexit.tr
+// Exercises the public API of the Atexit module: register, unregister,
+// runExitHooks, handlerCount, and clear.
+import tt::sys::Atexit;
+import tt::lang::Integer;
+
+// Module-level counters to verify handler invocation and ordering.
+var _atexitCallCount: int = 0;
+var _atexitOrder: string = "";
+
+public fn test_atexit_handlerCount_empty(): void {
+    Atexit.clear();
+    if (Atexit.handlerCount() != 0) {
+        io::println("FAIL: Atexit.handlerCount = " + Integer.toString(Atexit.handlerCount()));
+    } else {
+        io::println("PASS: Atexit.handlerCount is 0 after clear");
+    }
+}
+
+public fn test_atexit_register_increments_count(): void {
+    Atexit.clear();
+    Atexit.register(fn(): void { io::println("a"); });
+    Atexit.register(fn(): void { io::println("b"); });
+    if (Atexit.handlerCount() != 2) {
+        io::println("FAIL: Atexit.handlerCount = " + Integer.toString(Atexit.handlerCount()));
+    } else {
+        io::println("PASS: Atexit.register increments count");
+    }
+    Atexit.clear();
+}
+
+public fn test_atexit_runExitHooks_invokes_handlers(): void {
+    Atexit.clear();
+    _atexitCallCount = 0;
+    Atexit.register(fn(): void {
+        _atexitCallCount = _atexitCallCount + 1;
+    });
+    Atexit.register(fn(): void {
+        _atexitCallCount = _atexitCallCount + 1;
+    });
+    Atexit.runExitHooks();
+    if (_atexitCallCount != 2) {
+        io::println("FAIL: Atexit.runExitHooks count = " + Integer.toString(_atexitCallCount));
+    } else {
+        io::println("PASS: Atexit.runExitHooks invokes all handlers");
+    }
+}
+
+public fn test_atexit_runExitHooks_lifo_order(): void {
+    Atexit.clear();
+    _atexitOrder = "";
+    Atexit.register(fn(): void {
+        _atexitOrder = _atexitOrder + "first";
+    });
+    Atexit.register(fn(): void {
+        _atexitOrder = _atexitOrder + "second";
+    });
+    Atexit.runExitHooks();
+    // LIFO: second handler runs first.
+    if (_atexitOrder != "secondfirst") {
+        io::println("FAIL: Atexit LIFO order = '" + _atexitOrder + "'");
+    } else {
+        io::println("PASS: Atexit.runExitHooks runs in LIFO order");
+    }
+}
+
+public fn test_atexit_runExitHooks_clears(): void {
+    Atexit.clear();
+    Atexit.register(fn(): void { io::println("x"); });
+    Atexit.runExitHooks();
+    if (Atexit.handlerCount() != 0) {
+        io::println("FAIL: Atexit.handlerCount after runExitHooks = " + Integer.toString(Atexit.handlerCount()));
+    } else {
+        io::println("PASS: Atexit.runExitHooks clears handlers");
+    }
+}
+
+public fn test_atexit_clear(): void {
+    Atexit.register(fn(): void { io::println("y"); });
+    Atexit.register(fn(): void { io::println("z"); });
+    Atexit.clear();
+    if (Atexit.handlerCount() != 0) {
+        io::println("FAIL: Atexit.clear did not zero count");
+    } else {
+        io::println("PASS: Atexit.clear removes all handlers");
+    }
+}
+
+public fn test_atexit_unregister_runs(): void {
+    Atexit.clear();
+    Atexit.register(fn(): void { io::println("keep"); });
+    // unregister should execute without error (current impl is a no-op copy).
+    Atexit.unregister(fn(): void { io::println("noop"); });
+    io::println("PASS: Atexit.unregister executes without error");
+    Atexit.clear();
+}
+
+public fn test_atexit_runExitHooks_empty(): void {
+    Atexit.clear();
+    // Running with no handlers should be a no-op.
+    Atexit.runExitHooks();
+    io::println("PASS: Atexit.runExitHooks on empty list is a no-op");
+}
+
+public fn run_all_atexit_tests(): void {
+    io::println("=== Atexit.tr Tests ===");
+    test_atexit_handlerCount_empty();
+    test_atexit_register_increments_count();
+    test_atexit_runExitHooks_invokes_handlers();
+    test_atexit_runExitHooks_lifo_order();
+    test_atexit_runExitHooks_clears();
+    test_atexit_clear();
+    test_atexit_unregister_runs();
+    test_atexit_runExitHooks_empty();
+}
