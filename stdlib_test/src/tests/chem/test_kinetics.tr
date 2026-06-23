@@ -1,0 +1,159 @@
+// Test file for chem/Kinetics.tr
+// Exercises rate laws, half-life, Arrhenius equation, and steady-state approximation.
+import tt::chem::Kinetics;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_zero_order_rate(): void {
+    // [A] = [A]0 - kt; function returns kt
+    let r: double = Kinetics.zeroOrderRate(2.0, 3.0);
+    if (absDiff(r, 6.0) > 1e-9) {
+        io::println("FAIL: zeroOrderRate expected 6.0");
+    } else {
+        io::println("PASS: zeroOrderRate = 6.0");
+    }
+}
+
+public fn test_first_order_rate(): void {
+    // Returns e^(-kt); for k=0, returns 1.0
+    let r: double = Kinetics.firstOrderRate(0.0, 5.0);
+    if (absDiff(r, 1.0) > 1e-9) {
+        io::println("FAIL: firstOrderRate(0, t) expected 1.0");
+    } else {
+        io::println("PASS: firstOrderRate(0, t) = 1.0");
+    }
+    // For k=1, t=0, returns 1.0
+    let r2: double = Kinetics.firstOrderRate(1.0, 0.0);
+    if (absDiff(r2, 1.0) > 1e-9) {
+        io::println("FAIL: firstOrderRate(k, 0) expected 1.0");
+    } else {
+        io::println("PASS: firstOrderRate(k, 0) = 1.0");
+    }
+}
+
+public fn test_second_order_rate(): void {
+    // 1/[A] = 1/[A]0 + kt; for k=0, returns a0
+    let r: double = Kinetics.secondOrderRate(0.0, 5.0, 2.0);
+    if (absDiff(r, 2.0) > 1e-9) {
+        io::println("FAIL: secondOrderRate(0, t, 2) expected 2.0");
+    } else {
+        io::println("PASS: secondOrderRate(0, t, 2) = 2.0");
+    }
+    // a0 = 0 returns 0
+    let r2: double = Kinetics.secondOrderRate(1.0, 1.0, 0.0);
+    if (absDiff(r2, 0.0) > 1e-9) {
+        io::println("FAIL: secondOrderRate a0=0 expected 0");
+    } else {
+        io::println("PASS: secondOrderRate a0=0 returns 0");
+    }
+}
+
+public fn test_half_life_order_0(): void {
+    // t½ = [A]0 / (2k)
+    let t: double = Kinetics.halfLife(0, 2.0, 4.0);
+    if (absDiff(t, 1.0) > 1e-9) {
+        io::println("FAIL: halfLife(0, 2, 4) expected 1.0");
+    } else {
+        io::println("PASS: halfLife(0, 2, 4) = 1.0");
+    }
+}
+
+public fn test_half_life_order_1(): void {
+    // t½ = ln(2) / k
+    let t: double = Kinetics.halfLife(1, 1.0, 0.0);
+    let expected: double = 0.6931471805599453;
+    if (absDiff(t, expected) > 1e-9) {
+        io::println("FAIL: halfLife(1, 1, 0) expected ln(2)");
+    } else {
+        io::println("PASS: halfLife(1, 1, 0) = ln(2)");
+    }
+}
+
+public fn test_half_life_order_2(): void {
+    // t½ = 1 / (k * [A]0)
+    let t: double = Kinetics.halfLife(2, 1.0, 2.0);
+    if (absDiff(t, 0.5) > 1e-9) {
+        io::println("FAIL: halfLife(2, 1, 2) expected 0.5");
+    } else {
+        io::println("PASS: halfLife(2, 1, 2) = 0.5");
+    }
+}
+
+public fn test_half_life_zero_k(): void {
+    let t: double = Kinetics.halfLife(1, 0.0, 1.0);
+    if (absDiff(t, 0.0) > 1e-9) {
+        io::println("FAIL: halfLife k=0 expected 0");
+    } else {
+        io::println("PASS: halfLife k=0 returns 0");
+    }
+}
+
+public fn test_arrhenius_rate(): void {
+    // For Ea = 0, k = A
+    let k: double = Kinetics.arrheniusRate(1.0e10, 0.0, 298.15);
+    if (absDiff(k, 1.0e10) > 1.0) {
+        io::println("FAIL: arrheniusRate Ea=0 expected A");
+    } else {
+        io::println("PASS: arrheniusRate Ea=0 = A");
+    }
+    // T <= 0 returns 0
+    let k2: double = Kinetics.arrheniusRate(1.0e10, 1000.0, 0.0);
+    if (absDiff(k2, 0.0) > 1e-9) {
+        io::println("FAIL: arrheniusRate T=0 expected 0");
+    } else {
+        io::println("PASS: arrheniusRate T=0 returns 0");
+    }
+}
+
+public fn test_arrhenius_ea(): void {
+    // Same k1, k2 at same T -> 0 (but invDiff = 0, returns 0)
+    let ea: double = Kinetics.arrheniusEa(1.0, 1.0, 300.0, 300.0);
+    if (absDiff(ea, 0.0) > 1e-9) {
+        io::println("FAIL: arrheniusEa same T expected 0");
+    } else {
+        io::println("PASS: arrheniusEa same T returns 0");
+    }
+    // Invalid inputs return 0
+    let ea2: double = Kinetics.arrheniusEa(0.0, 1.0, 300.0, 310.0);
+    if (absDiff(ea2, 0.0) > 1e-9) {
+        io::println("FAIL: arrheniusEa k1=0 expected 0");
+    } else {
+        io::println("PASS: arrheniusEa k1=0 returns 0");
+    }
+}
+
+public fn test_steady_state_approximation(): void {
+    // [B]ss = k1[A] / (k2 + k3)
+    let b: double = Kinetics.steadyStateApproximation(1.0, 1.0, 1.0, 1.0);
+    if (absDiff(b, 0.5) > 1e-9) {
+        io::println("FAIL: steadyStateApproximation expected 0.5");
+    } else {
+        io::println("PASS: steadyStateApproximation = 0.5");
+    }
+    // k2 + k3 = 0 returns 0
+    let b2: double = Kinetics.steadyStateApproximation(1.0, 1.0, -1.0, 1.0);
+    if (absDiff(b2, 0.0) > 1e-9) {
+        io::println("FAIL: steadyStateApproximation denom=0 expected 0");
+    } else {
+        io::println("PASS: steadyStateApproximation denom=0 returns 0");
+    }
+}
+
+public fn run_all_kinetics_tests(): void {
+    io::println("=== chem/Kinetics.tr Tests ===");
+    test_zero_order_rate();
+    test_first_order_rate();
+    test_second_order_rate();
+    test_half_life_order_0();
+    test_half_life_order_1();
+    test_half_life_order_2();
+    test_half_life_zero_k();
+    test_arrhenius_rate();
+    test_arrhenius_ea();
+    test_steady_state_approximation();
+}
