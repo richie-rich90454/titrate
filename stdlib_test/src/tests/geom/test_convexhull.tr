@@ -1,0 +1,204 @@
+// Test file for geom/ConvexHull.tr
+// Exercises the public API: Point2D, grahamScan, hullArea, hullPerimeter,
+// perimeter, quickHull.
+import tt::geom::ConvexHull;
+import tt::util::ArrayList;
+
+public fn test_point2d_init(): void {
+    let p: Point2D = new Point2D(3.0, 4.0);
+    if (p.x != 3.0 || p.y != 4.0) {
+        io::println("FAIL: point2d init");
+    } else {
+        io::println("PASS: point2d init");
+    }
+}
+
+public fn test_point2d_zero(): void {
+    let p: Point2D = new Point2D(0.0, 0.0);
+    if (p.x != 0.0 || p.y != 0.0) {
+        io::println("FAIL: point2d zero");
+    } else {
+        io::println("PASS: point2d zero");
+    }
+}
+
+public fn test_point2d_negative(): void {
+    let p: Point2D = new Point2D(-1.5, -2.5);
+    if (p.x != -1.5 || p.y != -2.5) {
+        io::println("FAIL: point2d negative");
+    } else {
+        io::println("PASS: point2d negative");
+    }
+}
+
+public fn test_grahamScan_square(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(4.0, 0.0));
+    points.add(new Point2D(4.0, 4.0));
+    points.add(new Point2D(0.0, 4.0));
+    points.add(new Point2D(2.0, 2.0));
+    let hull: ArrayList<Point2D> = grahamScan(points);
+    if (hull.size() != 4) {
+        io::println("FAIL: grahamScan square size=" + Integer.toString(hull.size()));
+    } else {
+        io::println("PASS: grahamScan square");
+    }
+}
+
+public fn test_grahamScan_triangle(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(4.0, 0.0));
+    points.add(new Point2D(2.0, 4.0));
+    let hull: ArrayList<Point2D> = grahamScan(points);
+    if (hull.size() != 3) {
+        io::println("FAIL: grahamScan triangle size=" + Integer.toString(hull.size()));
+    } else {
+        io::println("PASS: grahamScan triangle");
+    }
+}
+
+public fn test_grahamScan_collinear(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(1.0, 0.0));
+    points.add(new Point2D(2.0, 0.0));
+    let hull: ArrayList<Point2D> = grahamScan(points);
+    if (hull.size() != 3) {
+        io::println("FAIL: grahamScan collinear");
+    } else {
+        io::println("PASS: grahamScan collinear");
+    }
+}
+
+public fn test_hullArea_square(): void {
+    let hull: ArrayList<Point2D> = new ArrayList<Point2D>();
+    hull.add(new Point2D(0.0, 0.0));
+    hull.add(new Point2D(4.0, 0.0));
+    hull.add(new Point2D(4.0, 4.0));
+    hull.add(new Point2D(0.0, 4.0));
+    let area: double = hullArea(hull);
+    if (area < 15.9 || area > 16.1) {
+        io::println("FAIL: hullArea square area=" + Double.toString(area));
+    } else {
+        io::println("PASS: hullArea square");
+    }
+}
+
+public fn test_hullArea_triangle(): void {
+    let hull: ArrayList<Point2D> = new ArrayList<Point2D>();
+    hull.add(new Point2D(0.0, 0.0));
+    hull.add(new Point2D(4.0, 0.0));
+    hull.add(new Point2D(2.0, 4.0));
+    let area: double = hullArea(hull);
+    if (area < 7.9 || area > 8.1) {
+        io::println("FAIL: hullArea triangle area=" + Double.toString(area));
+    } else {
+        io::println("PASS: hullArea triangle");
+    }
+}
+
+public fn test_hullPerimeter_square(): void {
+    let hull: ArrayList<Point2D> = new ArrayList<Point2D>();
+    hull.add(new Point2D(0.0, 0.0));
+    hull.add(new Point2D(3.0, 0.0));
+    hull.add(new Point2D(3.0, 3.0));
+    hull.add(new Point2D(0.0, 3.0));
+    let p: double = hullPerimeter(hull);
+    if (p < 11.9 || p > 12.1) {
+        io::println("FAIL: hullPerimeter square p=" + Double.toString(p));
+    } else {
+        io::println("PASS: hullPerimeter square");
+    }
+}
+
+public fn test_perimeter_alias(): void {
+    let hull: ArrayList<Point2D> = new ArrayList<Point2D>();
+    hull.add(new Point2D(0.0, 0.0));
+    hull.add(new Point2D(3.0, 0.0));
+    hull.add(new Point2D(3.0, 3.0));
+    hull.add(new Point2D(0.0, 3.0));
+    let p: double = perimeter(hull);
+    if (p < 11.9 || p > 12.1) {
+        io::println("FAIL: perimeter alias");
+    } else {
+        io::println("PASS: perimeter alias");
+    }
+}
+
+public fn test_quickHull_square(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(4.0, 0.0));
+    points.add(new Point2D(4.0, 4.0));
+    points.add(new Point2D(0.0, 4.0));
+    points.add(new Point2D(2.0, 2.0));
+    let hull: ArrayList<Point2D> = quickHull(points);
+    if (hull.size() < 3) {
+        io::println("FAIL: quickHull square size=" + Integer.toString(hull.size()));
+    } else {
+        io::println("PASS: quickHull square");
+    }
+}
+
+public fn test_quickHull_triangle(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(4.0, 0.0));
+    points.add(new Point2D(2.0, 4.0));
+    let hull: ArrayList<Point2D> = quickHull(points);
+    if (hull.size() != 3) {
+        io::println("FAIL: quickHull triangle size=" + Integer.toString(hull.size()));
+    } else {
+        io::println("PASS: quickHull triangle");
+    }
+}
+
+public fn test_grahamScan_with_interior(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(10.0, 0.0));
+    points.add(new Point2D(10.0, 10.0));
+    points.add(new Point2D(0.0, 10.0));
+    points.add(new Point2D(5.0, 5.0));
+    points.add(new Point2D(3.0, 3.0));
+    points.add(new Point2D(7.0, 7.0));
+    let hull: ArrayList<Point2D> = grahamScan(points);
+    if (hull.size() != 4) {
+        io::println("FAIL: grahamScan with interior size=" + Integer.toString(hull.size()));
+    } else {
+        io::println("PASS: grahamScan with interior");
+    }
+}
+
+public fn test_hullArea_unit(): void {
+    let hull: ArrayList<Point2D> = new ArrayList<Point2D>();
+    hull.add(new Point2D(0.0, 0.0));
+    hull.add(new Point2D(1.0, 0.0));
+    hull.add(new Point2D(1.0, 1.0));
+    hull.add(new Point2D(0.0, 1.0));
+    let area: double = hullArea(hull);
+    if (area < 0.9 || area > 1.1) {
+        io::println("FAIL: hullArea unit area=" + Double.toString(area));
+    } else {
+        io::println("PASS: hullArea unit");
+    }
+}
+
+public fn run_all_convexhull_tests(): void {
+    test_point2d_init();
+    test_point2d_zero();
+    test_point2d_negative();
+    test_grahamScan_square();
+    test_grahamScan_triangle();
+    test_grahamScan_collinear();
+    test_hullArea_square();
+    test_hullArea_triangle();
+    test_hullPerimeter_square();
+    test_perimeter_alias();
+    test_quickHull_square();
+    test_quickHull_triangle();
+    test_grahamScan_with_interior();
+    test_hullArea_unit();
+}
