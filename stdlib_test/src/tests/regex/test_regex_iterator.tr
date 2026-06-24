@@ -1,0 +1,132 @@
+// Test file for regex/RegexIterator.tr
+// Exercises the public API of RegexIterator.
+import tt::regex::RegexIterator;
+import tt::regex::Match;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_regexiterator_init(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "abc123def");
+    if (it.pattern != "[0-9]+") {
+        io::println("FAIL: RegexIterator.pattern wrong");
+    } else if (it.input != "abc123def") {
+        io::println("FAIL: RegexIterator.input wrong");
+    } else if (it.position != 0) {
+        io::println("FAIL: RegexIterator.position should start at 0");
+    } else {
+        io::println("PASS: RegexIterator.init works");
+    }
+}
+
+public fn test_regexiterator_hasNext_true(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "abc123def");
+    if (!it.hasNext()) {
+        io::println("FAIL: RegexIterator.hasNext should be true for abc123def");
+    } else {
+        io::println("PASS: RegexIterator.hasNext true when match exists");
+    }
+}
+
+public fn test_regexiterator_hasNext_false(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "abcdef");
+    if (it.hasNext()) {
+        io::println("FAIL: RegexIterator.hasNext should be false for abcdef");
+    } else {
+        io::println("PASS: RegexIterator.hasNext false when no match");
+    }
+}
+
+public fn test_regexiterator_next(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "abc123def");
+    let m: Match = it.next();
+    if (m == null) {
+        io::println("FAIL: RegexIterator.next returned null");
+    } else if (m.getMatched() != "123") {
+        io::println("FAIL: RegexIterator.next matched=" + m.getMatched() + ", expected 123");
+    } else {
+        io::println("PASS: RegexIterator.next works");
+    }
+}
+
+public fn test_regexiterator_next_no_match(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "abcdef");
+    let m: Match = it.next();
+    if (m != null) {
+        io::println("FAIL: RegexIterator.next should return null for no match");
+    } else {
+        io::println("PASS: RegexIterator.next returns null when no match");
+    }
+}
+
+public fn test_regexiterator_iteration_multiple(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "a1b22c333");
+    let count: int = 0;
+    while (it.hasNext()) {
+        let m: Match = it.next();
+        if (m != null) {
+            count = count + 1;
+        }
+    }
+    if (count != 3) {
+        io::println("FAIL: RegexIterator iteration count=" + Integer.toString(count) + ", expected 3");
+    } else {
+        io::println("PASS: RegexIterator iterates multiple matches");
+    }
+}
+
+public fn test_regexiterator_position_advances(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "a1b22c333");
+    it.next();
+    if (it.position <= 0) {
+        io::println("FAIL: RegexIterator.position should advance after next");
+    } else {
+        io::println("PASS: RegexIterator.position advances");
+    }
+}
+
+public fn test_regexiterator_match_start_offset(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "abc123def");
+    let m: Match = it.next();
+    if (m == null) {
+        io::println("FAIL: RegexIterator match null");
+    } else if (m.getStart() < 3) {
+        io::println("FAIL: RegexIterator match start=" + Integer.toString(m.getStart()) + ", expected >= 3");
+    } else {
+        io::println("PASS: RegexIterator match start offset works");
+    }
+}
+
+public fn test_regexiterator_empty_input(): void {
+    let it: RegexIterator = new RegexIterator("[0-9]+", "");
+    if (it.hasNext()) {
+        io::println("FAIL: RegexIterator.hasNext should be false for empty input");
+    } else {
+        io::println("PASS: RegexIterator empty input works");
+    }
+}
+
+public fn test_regexiterator_groups(): void {
+    let it: RegexIterator = new RegexIterator("([a-z])([0-9])", "a1b2c3");
+    let m: Match = it.next();
+    if (m == null) {
+        io::println("FAIL: RegexIterator groups match null");
+    } else if (m.groupCount() < 2) {
+        io::println("FAIL: RegexIterator groups count=" + Integer.toString(m.groupCount()));
+    } else {
+        io::println("PASS: RegexIterator captures groups");
+    }
+}
+
+public fn run_all_regex_iterator_tests(): void {
+    io::println("=== RegexIterator.tr Tests ===");
+    test_regexiterator_init();
+    test_regexiterator_hasNext_true();
+    test_regexiterator_hasNext_false();
+    test_regexiterator_next();
+    test_regexiterator_next_no_match();
+    test_regexiterator_iteration_multiple();
+    test_regexiterator_position_advances();
+    test_regexiterator_match_start_offset();
+    test_regexiterator_empty_input();
+    test_regexiterator_groups();
+}
