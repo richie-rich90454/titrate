@@ -1,0 +1,279 @@
+// Test file for argparse/ArgumentParser.tr
+// Exercises the public API: SUPPRESS, Argument, ArgumentGroup, MutuallyExclusiveGroup,
+// Subparsers, ArgumentParser, Namespace, parseKnownArgs.
+import tt::argparse::ArgumentParser;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn test_argument_init(): void {
+    let arg: Argument = new Argument("--input", "string", null, true, "input file");
+    if (arg.name != "--input" || !arg.required) {
+        io::println("FAIL: argument init");
+    } else {
+        io::println("PASS: argument init");
+    }
+}
+
+public fn test_argument_fields(): void {
+    let arg: Argument = new Argument("--count", "int", 0, false, "count value");
+    if (arg.typ != "int" || arg.help != "count value") {
+        io::println("FAIL: argument fields");
+    } else {
+        io::println("PASS: argument fields");
+    }
+}
+
+public fn test_argumentGroup_init(): void {
+    let g: ArgumentGroup = new ArgumentGroup("group1");
+    if (g.title != "group1" || g.arguments.size() != 0) {
+        io::println("FAIL: argumentGroup init");
+    } else {
+        io::println("PASS: argumentGroup init");
+    }
+}
+
+public fn test_argumentGroup_addArgument(): void {
+    let g: ArgumentGroup = new ArgumentGroup("group1");
+    g.addArgument("--x", "int", 0, false, "x value");
+    if (g.arguments.size() != 1) {
+        io::println("FAIL: argumentGroup addArgument");
+    } else {
+        io::println("PASS: argumentGroup addArgument");
+    }
+}
+
+public fn test_mutuallyExclusiveGroup_init(): void {
+    let g: MutuallyExclusiveGroup = new MutuallyExclusiveGroup(true);
+    if (!g.required || g.arguments.size() != 0) {
+        io::println("FAIL: mutuallyExclusiveGroup init");
+    } else {
+        io::println("PASS: mutuallyExclusiveGroup init");
+    }
+}
+
+public fn test_mutuallyExclusiveGroup_addArgument(): void {
+    let g: MutuallyExclusiveGroup = new MutuallyExclusiveGroup(false);
+    g.addArgument("--foo", "string", null, false, "foo");
+    g.addArgument("--bar", "string", null, false, "bar");
+    if (g.arguments.size() != 2) {
+        io::println("FAIL: mutuallyExclusiveGroup addArgument");
+    } else {
+        io::println("PASS: mutuallyExclusiveGroup addArgument");
+    }
+}
+
+public fn test_subparsers_init(): void {
+    let sp: Subparsers = new Subparsers("commands", "command");
+    if (sp.title != "commands" || sp.dest != "command") {
+        io::println("FAIL: subparsers init");
+    } else {
+        io::println("PASS: subparsers init");
+    }
+}
+
+public fn test_subparsers_addParser(): void {
+    let sp: Subparsers = new Subparsers("commands", "command");
+    let p: ArgumentParser = sp.addParser("install", "install help");
+    if (p == null || sp.parsers.size() != 1) {
+        io::println("FAIL: subparsers addParser");
+    } else {
+        io::println("PASS: subparsers addParser");
+    }
+}
+
+public fn test_argumentParser_init(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "a test program");
+    if (parser.name != "prog" || parser.description != "a test program") {
+        io::println("FAIL: argumentParser init");
+    } else {
+        io::println("PASS: argumentParser init");
+    }
+}
+
+public fn test_argumentParser_addArgument(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    parser.addArgument("--input", "string", null, true, "input file");
+    if (parser.arguments.size() != 1) {
+        io::println("FAIL: argumentParser addArgument");
+    } else {
+        io::println("PASS: argumentParser addArgument");
+    }
+}
+
+public fn test_argumentParser_addFlag(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    parser.addFlag("--verbose", "verbose mode");
+    if (parser.arguments.size() != 1) {
+        io::println("FAIL: argumentParser addFlag");
+    } else {
+        io::println("PASS: argumentParser addFlag");
+    }
+}
+
+public fn test_argumentParser_addArgumentGroup(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    let g: ArgumentGroup = parser.addArgumentGroup("group1");
+    if (g == null || parser.groups.size() != 1) {
+        io::println("FAIL: argumentParser addArgumentGroup");
+    } else {
+        io::println("PASS: argumentParser addArgumentGroup");
+    }
+}
+
+public fn test_argumentParser_addMutuallyExclusiveGroup(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    let g: MutuallyExclusiveGroup = parser.addMutuallyExclusiveGroup(false);
+    if (g == null || parser.mutexGroups.size() != 1) {
+        io::println("FAIL: argumentParser addMutuallyExclusiveGroup");
+    } else {
+        io::println("PASS: argumentParser addMutuallyExclusiveGroup");
+    }
+}
+
+public fn test_argumentParser_addSubparsers(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    let sp: Subparsers = parser.addSubparsers("commands", "command");
+    if (sp == null || parser.subparsers == null) {
+        io::println("FAIL: argumentParser addSubparsers");
+    } else {
+        io::println("PASS: argumentParser addSubparsers");
+    }
+}
+
+public fn test_argumentParser_parseArgs_default(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    parser.addArgument("--count", "int", 5, false, "count");
+    let args: ArrayList<string> = new ArrayList<string>();
+    let result: HashMap<string, Variant> = parser.parseArgs(args);
+    if (result.get("count") != 5) {
+        io::println("FAIL: argumentParser parseArgs default");
+    } else {
+        io::println("PASS: argumentParser parseArgs default");
+    }
+}
+
+public fn test_argumentParser_parseArgs_with_value(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    parser.addArgument("--name", "string", "default", false, "name");
+    let args: ArrayList<string> = new ArrayList<string>();
+    args.add("--name"); args.add("alice");
+    let result: HashMap<string, Variant> = parser.parseArgs(args);
+    if (result.get("name") != "alice") {
+        io::println("FAIL: argumentParser parseArgs with value");
+    } else {
+        io::println("PASS: argumentParser parseArgs with value");
+    }
+}
+
+public fn test_argumentParser_parseArgs_flag(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    parser.addFlag("--verbose", "verbose");
+    let args: ArrayList<string> = new ArrayList<string>();
+    args.add("--verbose");
+    let result: HashMap<string, Variant> = parser.parseArgs(args);
+    if (result.get("verbose") != true) {
+        io::println("FAIL: argumentParser parseArgs flag");
+    } else {
+        io::println("PASS: argumentParser parseArgs flag");
+    }
+}
+
+public fn test_namespace_init_empty(): void {
+    let ns: Namespace = new Namespace();
+    if (ns.attrs.size() != 0) {
+        io::println("FAIL: namespace init empty");
+    } else {
+        io::println("PASS: namespace init empty");
+    }
+}
+
+public fn test_namespace_init_with_attrs(): void {
+    let attrs: HashMap<string, Variant> = new HashMap<string, Variant>();
+    attrs.put("x", 10);
+    let ns: Namespace = new Namespace(attrs);
+    if (ns.get("x") != 10) {
+        io::println("FAIL: namespace init with attrs");
+    } else {
+        io::println("PASS: namespace init with attrs");
+    }
+}
+
+public fn test_namespace_set(): void {
+    let ns: Namespace = new Namespace();
+    ns.set("key", "value");
+    if (ns.get("key") != "value") {
+        io::println("FAIL: namespace set");
+    } else {
+        io::println("PASS: namespace set");
+    }
+}
+
+public fn test_namespace_keys(): void {
+    let ns: Namespace = new Namespace();
+    ns.set("a", 1); ns.set("b", 2);
+    let keys: ArrayList<string> = ns.keys();
+    if (keys.size() != 2) {
+        io::println("FAIL: namespace keys");
+    } else {
+        io::println("PASS: namespace keys");
+    }
+}
+
+public fn test_namespace_toString(): void {
+    let ns: Namespace = new Namespace();
+    ns.set("x", 1);
+    let s: string = ns.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: namespace toString");
+    } else {
+        io::println("PASS: namespace toString");
+    }
+}
+
+public fn test_parseKnownArgs_basic(): void {
+    let parser: ArgumentParser = new ArgumentParser("prog", "desc");
+    parser.addArgument("--known", "string", null, false, "known arg");
+    let args: ArrayList<string> = new ArrayList<string>();
+    args.add("--known"); args.add("val"); args.add("--unknown"); args.add("x");
+    let result: ArrayList<Variant> = parseKnownArgs(parser, args);
+    if (result.size() < 1) {
+        io::println("FAIL: parseKnownArgs basic");
+    } else {
+        io::println("PASS: parseKnownArgs basic");
+    }
+}
+
+public fn test_SUPPRESS_constant(): void {
+    if (SUPPRESS != "==SUPPRESS==") {
+        io::println("FAIL: SUPPRESS constant");
+    } else {
+        io::println("PASS: SUPPRESS constant");
+    }
+}
+
+public fn run_all_argparse_tests(): void {
+    test_argument_init();
+    test_argument_fields();
+    test_argumentGroup_init();
+    test_argumentGroup_addArgument();
+    test_mutuallyExclusiveGroup_init();
+    test_mutuallyExclusiveGroup_addArgument();
+    test_subparsers_init();
+    test_subparsers_addParser();
+    test_argumentParser_init();
+    test_argumentParser_addArgument();
+    test_argumentParser_addFlag();
+    test_argumentParser_addArgumentGroup();
+    test_argumentParser_addMutuallyExclusiveGroup();
+    test_argumentParser_addSubparsers();
+    test_argumentParser_parseArgs_default();
+    test_argumentParser_parseArgs_with_value();
+    test_argumentParser_parseArgs_flag();
+    test_namespace_init_empty();
+    test_namespace_init_with_attrs();
+    test_namespace_set();
+    test_namespace_keys();
+    test_namespace_toString();
+    test_parseKnownArgs_basic();
+    test_SUPPRESS_constant();
+}
