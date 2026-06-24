@@ -1,0 +1,446 @@
+// Test file for algorithms/Algorithms.tr
+// Exercises the public API: sort, stableSort, find, findIf, binarySearch,
+// lowerBound, upperBound, count, countIf, transform, replace, remove, unique,
+// reverse, rotate, shuffle, partition, minElement, maxElement, accumulate,
+// gcd, lcm, clamp, merge, anyOf, allOf, noneOf, forEach, fill, iota, isSorted, equal.
+import tt::algorithms::Algorithms;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_sort_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(3); data.add(1); data.add(4); data.add(1); data.add(5);
+    let result: ArrayList<int> = sort<int>(data);
+    if (result.get(0) != 1 || result.get(4) != 5) {
+        io::println("FAIL: sort basic");
+    } else {
+        io::println("PASS: sort basic");
+    }
+}
+
+public fn test_sort_empty(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    let result: ArrayList<int> = sort<int>(data);
+    if (result.size() != 0) {
+        io::println("FAIL: sort empty");
+    } else {
+        io::println("PASS: sort empty");
+    }
+}
+
+public fn test_stableSort_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(3); data.add(1); data.add(4); data.add(1); data.add(5);
+    let result: ArrayList<int> = stableSort<int>(data);
+    if (result.get(0) != 1 || result.get(4) != 5) {
+        io::println("FAIL: stableSort basic");
+    } else {
+        io::println("PASS: stableSort basic");
+    }
+}
+
+public fn test_find_found(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(3); data.add(1); data.add(4); data.add(1); data.add(5);
+    let idx: int = find<int>(data, 4);
+    if (idx != 2) {
+        io::println("FAIL: find found idx=" + Integer.toString(idx));
+    } else {
+        io::println("PASS: find found");
+    }
+}
+
+public fn test_find_notFound(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(3); data.add(1); data.add(4);
+    let idx: int = find<int>(data, 99);
+    if (idx != -1) {
+        io::println("FAIL: find notFound");
+    } else {
+        io::println("PASS: find notFound");
+    }
+}
+
+public fn test_findIf_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(3); data.add(5); data.add(7);
+    let idx: int = findIf<int>(data, fn(x: int): bool { return x > 4; });
+    if (idx != 2) {
+        io::println("FAIL: findIf basic idx=" + Integer.toString(idx));
+    } else {
+        io::println("PASS: findIf basic");
+    }
+}
+
+public fn test_binarySearch_found(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(3); data.add(5); data.add(7); data.add(9);
+    let idx: int = binarySearch<int>(data, 5);
+    if (idx != 2) {
+        io::println("FAIL: binarySearch found idx=" + Integer.toString(idx));
+    } else {
+        io::println("PASS: binarySearch found");
+    }
+}
+
+public fn test_binarySearch_notFound(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(3); data.add(5); data.add(7); data.add(9);
+    let idx: int = binarySearch<int>(data, 6);
+    if (idx != -1) {
+        io::println("FAIL: binarySearch notFound");
+    } else {
+        io::println("PASS: binarySearch notFound");
+    }
+}
+
+public fn test_lowerBound_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(3); data.add(3); data.add(5); data.add(7);
+    let idx: int = lowerBound<int>(data, 3);
+    if (idx != 1) {
+        io::println("FAIL: lowerBound basic idx=" + Integer.toString(idx));
+    } else {
+        io::println("PASS: lowerBound basic");
+    }
+}
+
+public fn test_upperBound_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(3); data.add(3); data.add(5); data.add(7);
+    let idx: int = upperBound<int>(data, 3);
+    if (idx != 3) {
+        io::println("FAIL: upperBound basic idx=" + Integer.toString(idx));
+    } else {
+        io::println("PASS: upperBound basic");
+    }
+}
+
+public fn test_count_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(3); data.add(3); data.add(5); data.add(3);
+    let c: int = count<int>(data, 3);
+    if (c != 3) {
+        io::println("FAIL: count basic c=" + Integer.toString(c));
+    } else {
+        io::println("PASS: count basic");
+    }
+}
+
+public fn test_countIf_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3); data.add(4); data.add(5);
+    let c: int = countIf<int>(data, fn(x: int): bool { return x % 2 == 0; });
+    if (c != 2) {
+        io::println("FAIL: countIf basic c=" + Integer.toString(c));
+    } else {
+        io::println("PASS: countIf basic");
+    }
+}
+
+public fn test_transform_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3);
+    let result: ArrayList<int> = transform<int, int>(data, fn(x: int): int { return x * 2; });
+    if (result.get(0) != 2 || result.get(2) != 6) {
+        io::println("FAIL: transform basic");
+    } else {
+        io::println("PASS: transform basic");
+    }
+}
+
+public fn test_replace_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(1); data.add(3);
+    replace<int>(data, 1, 9);
+    if (data.get(0) != 9 || data.get(2) != 9) {
+        io::println("FAIL: replace basic");
+    } else {
+        io::println("PASS: replace basic");
+    }
+}
+
+public fn test_remove_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(1); data.add(3);
+    let result: ArrayList<int> = remove<int>(data, 1);
+    if (result.size() != 2 || result.get(0) != 2) {
+        io::println("FAIL: remove basic");
+    } else {
+        io::println("PASS: remove basic");
+    }
+}
+
+public fn test_unique_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(1); data.add(2); data.add(2); data.add(3);
+    let result: ArrayList<int> = unique<int>(data);
+    if (result.size() != 3) {
+        io::println("FAIL: unique basic size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: unique basic");
+    }
+}
+
+public fn test_reverse_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3); data.add(4);
+    let result: ArrayList<int> = reverse<int>(data);
+    if (result.get(0) != 4 || result.get(3) != 1) {
+        io::println("FAIL: reverse basic");
+    } else {
+        io::println("PASS: reverse basic");
+    }
+}
+
+public fn test_rotate_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3); data.add(4); data.add(5);
+    let result: ArrayList<int> = rotate<int>(data, 2);
+    if (result.get(0) != 3 || result.get(4) != 2) {
+        io::println("FAIL: rotate basic");
+    } else {
+        io::println("PASS: rotate basic");
+    }
+}
+
+public fn test_shuffle_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3); data.add(4); data.add(5);
+    let result: ArrayList<int> = shuffle<int>(data);
+    if (result.size() != 5) {
+        io::println("FAIL: shuffle basic size");
+    } else {
+        io::println("PASS: shuffle basic");
+    }
+}
+
+public fn test_partition_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3); data.add(4); data.add(5);
+    let parts: ArrayList<ArrayList<int>> = partition<int>(data, fn(x: int): bool { return x % 2 == 0; });
+    if (parts.get(0).size() != 2 || parts.get(1).size() != 3) {
+        io::println("FAIL: partition basic");
+    } else {
+        io::println("PASS: partition basic");
+    }
+}
+
+public fn test_minElement_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(5); data.add(2); data.add(8); data.add(1); data.add(9);
+    let m: int = minElement<int>(data);
+    if (m != 1) {
+        io::println("FAIL: minElement basic m=" + Integer.toString(m));
+    } else {
+        io::println("PASS: minElement basic");
+    }
+}
+
+public fn test_maxElement_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(5); data.add(2); data.add(8); data.add(1); data.add(9);
+    let m: int = maxElement<int>(data);
+    if (m != 9) {
+        io::println("FAIL: maxElement basic m=" + Integer.toString(m));
+    } else {
+        io::println("PASS: maxElement basic");
+    }
+}
+
+public fn test_accumulate_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3); data.add(4);
+    let sum: int = accumulate<int>(data, 0, fn(a: int, b: int): int { return a + b; });
+    if (sum != 10) {
+        io::println("FAIL: accumulate basic sum=" + Integer.toString(sum));
+    } else {
+        io::println("PASS: accumulate basic");
+    }
+}
+
+public fn test_gcd_basic(): void {
+    let g: int = gcd(12, 18);
+    if (g != 6) {
+        io::println("FAIL: gcd basic g=" + Integer.toString(g));
+    } else {
+        io::println("PASS: gcd basic");
+    }
+}
+
+public fn test_lcm_basic(): void {
+    let l: int = lcm(4, 6);
+    if (l != 12) {
+        io::println("FAIL: lcm basic l=" + Integer.toString(l));
+    } else {
+        io::println("PASS: lcm basic");
+    }
+}
+
+public fn test_clamp_basic(): void {
+    let v: int = clamp<int>(15, 0, 10);
+    if (v != 10) {
+        io::println("FAIL: clamp basic v=" + Integer.toString(v));
+    } else {
+        io::println("PASS: clamp basic");
+    }
+}
+
+public fn test_clamp_within(): void {
+    let v: int = clamp<int>(5, 0, 10);
+    if (v != 5) {
+        io::println("FAIL: clamp within v=" + Integer.toString(v));
+    } else {
+        io::println("PASS: clamp within");
+    }
+}
+
+public fn test_merge_basic(): void {
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1); a.add(3); a.add(5);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(2); b.add(4); b.add(6);
+    let result: ArrayList<int> = merge<int>(a, b);
+    if (result.size() != 6 || result.get(0) != 1 || result.get(5) != 6) {
+        io::println("FAIL: merge basic");
+    } else {
+        io::println("PASS: merge basic");
+    }
+}
+
+public fn test_anyOf_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3);
+    let r: bool = anyOf<int>(data, fn(x: int): bool { return x > 2; });
+    if (!r) {
+        io::println("FAIL: anyOf basic");
+    } else {
+        io::println("PASS: anyOf basic");
+    }
+}
+
+public fn test_allOf_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3);
+    let r: bool = allOf<int>(data, fn(x: int): bool { return x > 0; });
+    if (!r) {
+        io::println("FAIL: allOf basic");
+    } else {
+        io::println("PASS: allOf basic");
+    }
+}
+
+public fn test_noneOf_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3);
+    let r: bool = noneOf<int>(data, fn(x: int): bool { return x > 10; });
+    if (!r) {
+        io::println("FAIL: noneOf basic");
+    } else {
+        io::println("PASS: noneOf basic");
+    }
+}
+
+public fn test_fill_basic(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0); data.add(0); data.add(0);
+    fill<int>(data, 7);
+    if (data.get(0) != 7 || data.get(2) != 7) {
+        io::println("FAIL: fill basic");
+    } else {
+        io::println("PASS: fill basic");
+    }
+}
+
+public fn test_iota_basic(): void {
+    let result: ArrayList<int> = iota(5, 3);
+    if (result.size() != 3 || result.get(0) != 5 || result.get(2) != 7) {
+        io::println("FAIL: iota basic");
+    } else {
+        io::println("PASS: iota basic");
+    }
+}
+
+public fn test_isSorted_true(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3); data.add(4);
+    if (!isSorted<int>(data)) {
+        io::println("FAIL: isSorted true");
+    } else {
+        io::println("PASS: isSorted true");
+    }
+}
+
+public fn test_isSorted_false(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(3); data.add(2); data.add(4);
+    if (isSorted<int>(data)) {
+        io::println("FAIL: isSorted false");
+    } else {
+        io::println("PASS: isSorted false");
+    }
+}
+
+public fn test_equal_true(): void {
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1); a.add(2); a.add(3);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(1); b.add(2); b.add(3);
+    if (!equal<int>(a, b)) {
+        io::println("FAIL: equal true");
+    } else {
+        io::println("PASS: equal true");
+    }
+}
+
+public fn test_equal_false(): void {
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1); a.add(2); a.add(3);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(1); b.add(2); b.add(4);
+    if (equal<int>(a, b)) {
+        io::println("FAIL: equal false");
+    } else {
+        io::println("PASS: equal false");
+    }
+}
+
+public fn run_all_algorithms_tests(): void {
+    test_sort_basic();
+    test_sort_empty();
+    test_stableSort_basic();
+    test_find_found();
+    test_find_notFound();
+    test_findIf_basic();
+    test_binarySearch_found();
+    test_binarySearch_notFound();
+    test_lowerBound_basic();
+    test_upperBound_basic();
+    test_count_basic();
+    test_countIf_basic();
+    test_transform_basic();
+    test_replace_basic();
+    test_remove_basic();
+    test_unique_basic();
+    test_reverse_basic();
+    test_rotate_basic();
+    test_shuffle_basic();
+    test_partition_basic();
+    test_minElement_basic();
+    test_maxElement_basic();
+    test_accumulate_basic();
+    test_gcd_basic();
+    test_lcm_basic();
+    test_clamp_basic();
+    test_clamp_within();
+    test_merge_basic();
+    test_anyOf_basic();
+    test_allOf_basic();
+    test_noneOf_basic();
+    test_fill_basic();
+    test_iota_basic();
+    test_isSorted_true();
+    test_isSorted_false();
+    test_equal_true();
+    test_equal_false();
+}
