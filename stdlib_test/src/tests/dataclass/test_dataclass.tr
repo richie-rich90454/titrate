@@ -1,0 +1,243 @@
+// Test file for dataclass/Dataclass.tr
+// Exercises the public API: DataclassInfo, create, newInstance, toString, equals,
+// copyWith, field, asdict, astuple, replace, fields.
+import tt::dataclass::Dataclass;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn test_dataclassInfo_init(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(0); defaults.add(0);
+    let info: DataclassInfo = new DataclassInfo("Point", fields, defaults);
+    if (info.name != "Point" || info.fields.size() != 2) {
+        io::println("FAIL: dataclassInfo init");
+    } else {
+        io::println("PASS: dataclassInfo init");
+    }
+}
+
+public fn test_create_basic(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    if (dc == null) {
+        io::println("FAIL: create basic");
+    } else {
+        io::println("PASS: create basic");
+    }
+}
+
+public fn test_newInstance_basic(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(10); values.add(20);
+    let inst: Variant = newInstance(dc, values);
+    if (inst == null) {
+        io::println("FAIL: newInstance basic");
+    } else {
+        io::println("PASS: newInstance basic");
+    }
+}
+
+public fn test_newInstance_with_defaults(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(0); defaults.add(0);
+    let dc: Variant = create("Point", fields, defaults);
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(10);
+    let inst: Variant = newInstance(dc, values);
+    if (inst == null) {
+        io::println("FAIL: newInstance with defaults");
+    } else {
+        io::println("PASS: newInstance with defaults");
+    }
+}
+
+public fn test_toString_basic(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(10); values.add(20);
+    let inst: Variant = newInstance(dc, values);
+    let s: string = toString(inst, "Point", fields);
+    if (String.length(s) == 0) {
+        io::println("FAIL: toString basic");
+    } else {
+        io::println("PASS: toString basic");
+    }
+}
+
+public fn test_equals_true(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    let v1: ArrayList<Variant> = new ArrayList<Variant>();
+    v1.add(10); v1.add(20);
+    let v2: ArrayList<Variant> = new ArrayList<Variant>();
+    v2.add(10); v2.add(20);
+    let a: Variant = newInstance(dc, v1);
+    let b: Variant = newInstance(dc, v2);
+    if (!equals(a, b, fields)) {
+        io::println("FAIL: equals true");
+    } else {
+        io::println("PASS: equals true");
+    }
+}
+
+public fn test_equals_false(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    let v1: ArrayList<Variant> = new ArrayList<Variant>();
+    v1.add(10); v1.add(20);
+    let v2: ArrayList<Variant> = new ArrayList<Variant>();
+    v2.add(10); v2.add(30);
+    let a: Variant = newInstance(dc, v1);
+    let b: Variant = newInstance(dc, v2);
+    if (equals(a, b, fields)) {
+        io::println("FAIL: equals false");
+    } else {
+        io::println("PASS: equals false");
+    }
+}
+
+public fn test_field_basic(): void {
+    let meta: HashMap<string, Variant> = field(42, "count", true, true);
+    if (meta.get("name") != "count") {
+        io::println("FAIL: field basic");
+    } else {
+        io::println("PASS: field basic");
+    }
+}
+
+public fn test_field_default(): void {
+    let meta: HashMap<string, Variant> = field(99, "val", true, true);
+    if (meta.get("default") != 99) {
+        io::println("FAIL: field default");
+    } else {
+        io::println("PASS: field default");
+    }
+}
+
+public fn test_asdict_basic(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(10); values.add(20);
+    let inst: Variant = newInstance(dc, values);
+    let map: HashMap<string, Variant> = inst as HashMap<string, Variant>;
+    let d: HashMap<string, Variant> = asdict(map, fields);
+    if (d.get("x") != 10) {
+        io::println("FAIL: asdict basic");
+    } else {
+        io::println("PASS: asdict basic");
+    }
+}
+
+public fn test_astuple_basic(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(10); values.add(20);
+    let inst: Variant = newInstance(dc, values);
+    let map: HashMap<string, Variant> = inst as HashMap<string, Variant>;
+    let t: ArrayList<Variant> = astuple(map, fields);
+    if (t.size() != 2) {
+        io::println("FAIL: astuple basic");
+    } else {
+        io::println("PASS: astuple basic");
+    }
+}
+
+public fn test_replace_basic(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(10); values.add(20);
+    let inst: Variant = newInstance(dc, values);
+    let map: HashMap<string, Variant> = inst as HashMap<string, Variant>;
+    let overrides: HashMap<string, Variant> = new HashMap<string, Variant>();
+    overrides.put("x", 99);
+    let replaced: HashMap<string, Variant> = replace(map, fields, overrides);
+    if (replaced.get("x") != 99 || replaced.get("y") != 20) {
+        io::println("FAIL: replace basic");
+    } else {
+        io::println("PASS: replace basic");
+    }
+}
+
+public fn test_copyWith_basic(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("x"); fields.add("y");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null);
+    let dc: Variant = create("Point", fields, defaults);
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(10); values.add(20);
+    let inst: Variant = newInstance(dc, values);
+    let overrides: HashMap<string, Variant> = new HashMap<string, Variant>();
+    overrides.put("y", 99);
+    let copy: Variant = copyWith(inst, fields, overrides);
+    if (copy == null) {
+        io::println("FAIL: copyWith basic");
+    } else {
+        io::println("PASS: copyWith basic");
+    }
+}
+
+public fn test_fields_function(): void {
+    let fieldList: ArrayList<string> = new ArrayList<string>();
+    fieldList.add("a"); fieldList.add("b"); fieldList.add("c");
+    let defaults: ArrayList<Variant> = new ArrayList<Variant>();
+    defaults.add(null); defaults.add(null); defaults.add(null);
+    let info: DataclassInfo = new DataclassInfo("Test", fieldList, defaults);
+    let result: ArrayList<string> = fields(info);
+    if (result.size() != 3) {
+        io::println("FAIL: fields function");
+    } else {
+        io::println("PASS: fields function");
+    }
+}
+
+public fn run_all_dataclass_tests(): void {
+    test_dataclassInfo_init();
+    test_create_basic();
+    test_newInstance_basic();
+    test_newInstance_with_defaults();
+    test_toString_basic();
+    test_equals_true();
+    test_equals_false();
+    test_field_basic();
+    test_field_default();
+    test_asdict_basic();
+    test_astuple_basic();
+    test_replace_basic();
+    test_copyWith_basic();
+    test_fields_function();
+}
