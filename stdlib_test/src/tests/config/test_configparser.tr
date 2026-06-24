@@ -1,0 +1,288 @@
+// Test file for config/ConfigParser.tr
+// Exercises the public API: ConfigParser class and top-level parse/parseFile.
+import tt::config::ConfigParser;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn test_configParser_init(): void {
+    let cp: ConfigParser = new ConfigParser();
+    if (cp == null) {
+        io::println("FAIL: configParser init");
+    } else {
+        io::println("PASS: configParser init");
+    }
+}
+
+public fn test_configParser_set_get(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("section1", "key1", "value1");
+    if (cp.get("section1", "key1") != "value1") {
+        io::println("FAIL: configParser set get");
+    } else {
+        io::println("PASS: configParser set get");
+    }
+}
+
+public fn test_configParser_get_missing_section(): void {
+    let cp: ConfigParser = new ConfigParser();
+    if (cp.get("nonexistent", "key") != "") {
+        io::println("FAIL: configParser get missing section");
+    } else {
+        io::println("PASS: configParser get missing section");
+    }
+}
+
+public fn test_configParser_getOrElse_existing(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "val");
+    if (cp.getOrElse("s", "k", "default") != "val") {
+        io::println("FAIL: configParser getOrElse existing");
+    } else {
+        io::println("PASS: configParser getOrElse existing");
+    }
+}
+
+public fn test_configParser_getOrElse_default(): void {
+    let cp: ConfigParser = new ConfigParser();
+    if (cp.getOrElse("s", "k", "default") != "default") {
+        io::println("FAIL: configParser getOrElse default");
+    } else {
+        io::println("PASS: configParser getOrElse default");
+    }
+}
+
+public fn test_configParser_getInt(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "42");
+    if (cp.getInt("s", "k") != 42) {
+        io::println("FAIL: configParser getInt");
+    } else {
+        io::println("PASS: configParser getInt");
+    }
+}
+
+public fn test_configParser_getInt_missing(): void {
+    let cp: ConfigParser = new ConfigParser();
+    if (cp.getInt("s", "k") != 0) {
+        io::println("FAIL: configParser getInt missing");
+    } else {
+        io::println("PASS: configParser getInt missing");
+    }
+}
+
+public fn test_configParser_getDouble(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "3.14");
+    let v: double = cp.getDouble("s", "k");
+    if (v < 3.13 || v > 3.15) {
+        io::println("FAIL: configParser getDouble");
+    } else {
+        io::println("PASS: configParser getDouble");
+    }
+}
+
+public fn test_configParser_getBool_true(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "true");
+    if (!cp.getBool("s", "k")) {
+        io::println("FAIL: configParser getBool true");
+    } else {
+        io::println("PASS: configParser getBool true");
+    }
+}
+
+public fn test_configParser_getBool_yes(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "yes");
+    if (!cp.getBool("s", "k")) {
+        io::println("FAIL: configParser getBool yes");
+    } else {
+        io::println("PASS: configParser getBool yes");
+    }
+}
+
+public fn test_configParser_getBool_false(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "false");
+    if (cp.getBool("s", "k")) {
+        io::println("FAIL: configParser getBool false");
+    } else {
+        io::println("PASS: configParser getBool false");
+    }
+}
+
+public fn test_configParser_getList(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "a, b, c");
+    let list: ArrayList<string> = cp.getList("s", "k");
+    if (list.size() != 3) {
+        io::println("FAIL: configParser getList size=" + Integer.toString(list.size()));
+    } else {
+        io::println("PASS: configParser getList");
+    }
+}
+
+public fn test_configParser_getList_empty(): void {
+    let cp: ConfigParser = new ConfigParser();
+    let list: ArrayList<string> = cp.getList("s", "k");
+    if (list.size() != 0) {
+        io::println("FAIL: configParser getList empty");
+    } else {
+        io::println("PASS: configParser getList empty");
+    }
+}
+
+public fn test_configParser_hasSection(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "v");
+    if (!cp.hasSection("s") || cp.hasSection("other")) {
+        io::println("FAIL: configParser hasSection");
+    } else {
+        io::println("PASS: configParser hasSection");
+    }
+}
+
+public fn test_configParser_hasKey(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "v");
+    if (!cp.hasKey("s", "k") || cp.hasKey("s", "other")) {
+        io::println("FAIL: configParser hasKey");
+    } else {
+        io::println("PASS: configParser hasKey");
+    }
+}
+
+public fn test_configParser_sections(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s1", "k", "v");
+    cp.set("s2", "k", "v");
+    let secs: ArrayList<string> = cp.sections();
+    if (secs.size() != 2) {
+        io::println("FAIL: configParser sections");
+    } else {
+        io::println("PASS: configParser sections");
+    }
+}
+
+public fn test_configParser_keys(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k1", "v");
+    cp.set("s", "k2", "v");
+    let keys: ArrayList<string> = cp.keys("s");
+    if (keys.size() != 2) {
+        io::println("FAIL: configParser keys");
+    } else {
+        io::println("PASS: configParser keys");
+    }
+}
+
+public fn test_configParser_removeSection(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "v");
+    cp.removeSection("s");
+    if (cp.hasSection("s")) {
+        io::println("FAIL: configParser removeSection");
+    } else {
+        io::println("PASS: configParser removeSection");
+    }
+}
+
+public fn test_configParser_removeKey(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "v");
+    cp.removeKey("s", "k");
+    if (cp.hasKey("s", "k")) {
+        io::println("FAIL: configParser removeKey");
+    } else {
+        io::println("PASS: configParser removeKey");
+    }
+}
+
+public fn test_configParser_readString_basic(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.readString("[section1]\nkey1 = value1\nkey2 = value2");
+    if (cp.get("section1", "key1") != "value1") {
+        io::println("FAIL: configParser readString basic");
+    } else {
+        io::println("PASS: configParser readString basic");
+    }
+}
+
+public fn test_configParser_readString_comments(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.readString("[s]\n; comment\n# comment\nk = v");
+    if (cp.get("s", "k") != "v") {
+        io::println("FAIL: configParser readString comments");
+    } else {
+        io::println("PASS: configString comments");
+    }
+}
+
+public fn test_configParser_readString_multiple_sections(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.readString("[s1]\nk1 = v1\n[s2]\nk2 = v2");
+    if (cp.get("s1", "k1") != "v1" || cp.get("s2", "k2") != "v2") {
+        io::println("FAIL: configParser readString multiple sections");
+    } else {
+        io::println("PASS: configParser readString multiple sections");
+    }
+}
+
+public fn test_configParser_toString(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("s", "k", "v");
+    let s: string = cp.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: configParser toString");
+    } else {
+        io::println("PASS: configParser toString");
+    }
+}
+
+public fn test_configParser_defaults(): void {
+    let cp: ConfigParser = new ConfigParser();
+    cp.set("DEFAULT", "k", "v");
+    let d: HashMap<string, string> = cp.defaults();
+    if (d.get("k") != "v") {
+        io::println("FAIL: configParser defaults");
+    } else {
+        io::println("PASS: configParser defaults");
+    }
+}
+
+public fn test_parse_top_level(): void {
+    let cp: ConfigParser = parse("[s]\nk = v");
+    if (cp.get("s", "k") != "v") {
+        io::println("FAIL: parse top level");
+    } else {
+        io::println("PASS: parse top level");
+    }
+}
+
+public fn run_all_configparser_tests(): void {
+    test_configParser_init();
+    test_configParser_set_get();
+    test_configParser_get_missing_section();
+    test_configParser_getOrElse_existing();
+    test_configParser_getOrElse_default();
+    test_configParser_getInt();
+    test_configParser_getInt_missing();
+    test_configParser_getDouble();
+    test_configParser_getBool_true();
+    test_configParser_getBool_yes();
+    test_configParser_getBool_false();
+    test_configParser_getList();
+    test_configParser_getList_empty();
+    test_configParser_hasSection();
+    test_configParser_hasKey();
+    test_configParser_sections();
+    test_configParser_keys();
+    test_configParser_removeSection();
+    test_configParser_removeKey();
+    test_configParser_readString_basic();
+    test_configParser_readString_comments();
+    test_configParser_readString_multiple_sections();
+    test_configParser_toString();
+    test_configParser_defaults();
+    test_parse_top_level();
+}
