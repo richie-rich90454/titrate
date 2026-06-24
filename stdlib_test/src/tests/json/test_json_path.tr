@@ -1,0 +1,294 @@
+// Test file for json/JsonPath.tr
+// Exercises the public API: JsonPathExpression, compile, query.
+import tt::json::JsonPath;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_jsonpath_expression_init(): void {
+    let expr: JsonPathExpression = new JsonPathExpression("$.a");
+    if (expr == null) {
+        io::println("FAIL: JsonPathExpression.init returned null");
+    } else {
+        io::println("PASS: JsonPathExpression.init works");
+    }
+}
+
+public fn test_jsonpath_expression_path_field(): void {
+    let expr: JsonPathExpression = new JsonPathExpression("$.a.b");
+    if (expr.path != "$.a.b") {
+        io::println("FAIL: JsonPathExpression.path=" + expr.path);
+    } else {
+        io::println("PASS: JsonPathExpression.path field works");
+    }
+}
+
+public fn test_jsonpath_evaluate_root(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let expr: JsonPathExpression = new JsonPathExpression("$");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 1) {
+        io::println("FAIL: evaluate root size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: evaluate root works");
+    }
+}
+
+public fn test_jsonpath_evaluate_child(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    obj.put("b", JsonValue.ofNum(2.0));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let expr: JsonPathExpression = new JsonPathExpression("$.a");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 1) {
+        io::println("FAIL: evaluate child size=" + Integer.toString(results.size()));
+    } else if (results.get(0).asNumber() != 1.0) {
+        io::println("FAIL: evaluate child wrong value");
+    } else {
+        io::println("PASS: evaluate child works");
+    }
+}
+
+public fn test_jsonpath_evaluate_nested_child(): void {
+    let inner: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    inner.put("b", JsonValue.ofNum(42.0));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofObject(inner));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let expr: JsonPathExpression = new JsonPathExpression("$.a.b");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 1) {
+        io::println("FAIL: evaluate nested child size=" + Integer.toString(results.size()));
+    } else if (results.get(0).asNumber() != 42.0) {
+        io::println("FAIL: evaluate nested child wrong value");
+    } else {
+        io::println("PASS: evaluate nested child works");
+    }
+}
+
+public fn test_jsonpath_evaluate_missing_child(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let expr: JsonPathExpression = new JsonPathExpression("$.missing");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 0) {
+        io::println("FAIL: evaluate missing child size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: evaluate missing child works");
+    }
+}
+
+public fn test_jsonpath_evaluate_index(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(10.0));
+    arr.add(JsonValue.ofNum(20.0));
+    arr.add(JsonValue.ofNum(30.0));
+    let data: JsonValue = JsonValue.ofArray(arr);
+    let expr: JsonPathExpression = new JsonPathExpression("$[1]");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 1) {
+        io::println("FAIL: evaluate index size=" + Integer.toString(results.size()));
+    } else if (results.get(0).asNumber() != 20.0) {
+        io::println("FAIL: evaluate index wrong value");
+    } else {
+        io::println("PASS: evaluate index works");
+    }
+}
+
+public fn test_jsonpath_evaluate_negative_index(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(10.0));
+    arr.add(JsonValue.ofNum(20.0));
+    arr.add(JsonValue.ofNum(30.0));
+    let data: JsonValue = JsonValue.ofArray(arr);
+    let expr: JsonPathExpression = new JsonPathExpression("$[-1]");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 1) {
+        io::println("FAIL: evaluate negative index size=" + Integer.toString(results.size()));
+    } else if (results.get(0).asNumber() != 30.0) {
+        io::println("FAIL: evaluate negative index wrong value");
+    } else {
+        io::println("PASS: evaluate negative index works");
+    }
+}
+
+public fn test_jsonpath_evaluate_wildcard_object(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    obj.put("b", JsonValue.ofNum(2.0));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let expr: JsonPathExpression = new JsonPathExpression("$.*");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 2) {
+        io::println("FAIL: evaluate wildcard object size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: evaluate wildcard object works");
+    }
+}
+
+public fn test_jsonpath_evaluate_wildcard_array(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    arr.add(JsonValue.ofNum(2.0));
+    arr.add(JsonValue.ofNum(3.0));
+    let data: JsonValue = JsonValue.ofArray(arr);
+    let expr: JsonPathExpression = new JsonPathExpression("$.*");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 3) {
+        io::println("FAIL: evaluate wildcard array size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: evaluate wildcard array works");
+    }
+}
+
+public fn test_jsonpath_evaluate_slice(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(10.0));
+    arr.add(JsonValue.ofNum(20.0));
+    arr.add(JsonValue.ofNum(30.0));
+    arr.add(JsonValue.ofNum(40.0));
+    arr.add(JsonValue.ofNum(50.0));
+    let data: JsonValue = JsonValue.ofArray(arr);
+    let expr: JsonPathExpression = new JsonPathExpression("$[1:3]");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 2) {
+        io::println("FAIL: evaluate slice size=" + Integer.toString(results.size()));
+    } else if (results.get(0).asNumber() != 20.0) {
+        io::println("FAIL: evaluate slice first wrong");
+    } else if (results.get(1).asNumber() != 30.0) {
+        io::println("FAIL: evaluate slice second wrong");
+    } else {
+        io::println("PASS: evaluate slice works");
+    }
+}
+
+public fn test_jsonpath_evaluate_recursive_descent(): void {
+    let inner: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    inner.put("name", JsonValue.ofStr("inner"));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("name", JsonValue.ofStr("outer"));
+    obj.put("child", JsonValue.ofObject(inner));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let expr: JsonPathExpression = new JsonPathExpression("$..name");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 2) {
+        io::println("FAIL: evaluate recursive descent size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: evaluate recursive descent works");
+    }
+}
+
+public fn test_jsonpath_evaluate_union_indices(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(10.0));
+    arr.add(JsonValue.ofNum(20.0));
+    arr.add(JsonValue.ofNum(30.0));
+    arr.add(JsonValue.ofNum(40.0));
+    let data: JsonValue = JsonValue.ofArray(arr);
+    let expr: JsonPathExpression = new JsonPathExpression("$[0,2]");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 2) {
+        io::println("FAIL: evaluate union indices size=" + Integer.toString(results.size()));
+    } else if (results.get(0).asNumber() != 10.0) {
+        io::println("FAIL: evaluate union indices first wrong");
+    } else if (results.get(1).asNumber() != 30.0) {
+        io::println("FAIL: evaluate union indices second wrong");
+    } else {
+        io::println("PASS: evaluate union indices works");
+    }
+}
+
+public fn test_jsonpath_evaluate_filter(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    let o1: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    o1.put("age", JsonValue.ofNum(25.0));
+    arr.add(JsonValue.ofObject(o1));
+    let o2: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    o2.put("age", JsonValue.ofNum(40.0));
+    arr.add(JsonValue.ofObject(o2));
+    let data: JsonValue = JsonValue.ofArray(arr);
+    let expr: JsonPathExpression = new JsonPathExpression("$[?(@.age>30)]");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 1) {
+        io::println("FAIL: evaluate filter size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: evaluate filter works");
+    }
+}
+
+public fn test_jsonpath_compile(): void {
+    let expr: JsonPathExpression = compile("$.a.b");
+    if (expr == null) {
+        io::println("FAIL: compile returned null");
+    } else if (expr.path != "$.a.b") {
+        io::println("FAIL: compile path wrong");
+    } else {
+        io::println("PASS: compile works");
+    }
+}
+
+public fn test_jsonpath_query(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let results: ArrayList<JsonValue> = query(data, "$.a");
+    if (results.size() != 1) {
+        io::println("FAIL: query size=" + Integer.toString(results.size()));
+    } else if (results.get(0).asNumber() != 1.0) {
+        io::println("FAIL: query wrong value");
+    } else {
+        io::println("PASS: query works");
+    }
+}
+
+public fn test_jsonpath_query_empty_result(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let results: ArrayList<JsonValue> = query(data, "$.missing");
+    if (results.size() != 0) {
+        io::println("FAIL: query empty result size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: query empty result works");
+    }
+}
+
+public fn test_jsonpath_compile_and_evaluate(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(7.0));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let expr: JsonPathExpression = compile("$.a");
+    let results: ArrayList<JsonValue> = expr.evaluate(data);
+    if (results.size() != 1) {
+        io::println("FAIL: compile and evaluate size=" + Integer.toString(results.size()));
+    } else if (results.get(0).asNumber() != 7.0) {
+        io::println("FAIL: compile and evaluate wrong value");
+    } else {
+        io::println("PASS: compile and evaluate works");
+    }
+}
+
+public fn run_all_json_path_tests(): void {
+    io::println("=== JsonPath.tr Tests ===");
+    test_jsonpath_expression_init();
+    test_jsonpath_expression_path_field();
+    test_jsonpath_evaluate_root();
+    test_jsonpath_evaluate_child();
+    test_jsonpath_evaluate_nested_child();
+    test_jsonpath_evaluate_missing_child();
+    test_jsonpath_evaluate_index();
+    test_jsonpath_evaluate_negative_index();
+    test_jsonpath_evaluate_wildcard_object();
+    test_jsonpath_evaluate_wildcard_array();
+    test_jsonpath_evaluate_slice();
+    test_jsonpath_evaluate_recursive_descent();
+    test_jsonpath_evaluate_union_indices();
+    test_jsonpath_evaluate_filter();
+    test_jsonpath_compile();
+    test_jsonpath_query();
+    test_jsonpath_query_empty_result();
+    test_jsonpath_compile_and_evaluate();
+}
