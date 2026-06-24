@@ -1,0 +1,338 @@
+// Test file for xml/XmlNode.tr
+// Exercises the public API: XmlNode class and factory functions.
+import tt::xml::XmlNode;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_xmlnode_init(): void {
+    let node: XmlNode = new XmlNode("root");
+    if (node == null) {
+        io::println("FAIL: XmlNode.init returned null");
+    } else if (node.tag != "root") {
+        io::println("FAIL: XmlNode.init tag=" + node.tag);
+    } else {
+        io::println("PASS: XmlNode.init works");
+    }
+}
+
+public fn test_xmlnode_default_fields(): void {
+    let node: XmlNode = new XmlNode("root");
+    if (node.text != "") {
+        io::println("FAIL: XmlNode default text wrong");
+    } else if (node.children.size() != 0) {
+        io::println("FAIL: XmlNode default children wrong");
+    } else if (node.attributes.size() != 0) {
+        io::println("FAIL: XmlNode default attributes wrong");
+    } else if (node.nodeType != "element") {
+        io::println("FAIL: XmlNode default nodeType wrong");
+    } else {
+        io::println("PASS: XmlNode default fields work");
+    }
+}
+
+public fn test_xmlnode_getTag(): void {
+    let node: XmlNode = new XmlNode("item");
+    if (node.getTag() != "item") {
+        io::println("FAIL: XmlNode.getTag wrong");
+    } else {
+        io::println("PASS: XmlNode.getTag works");
+    }
+}
+
+public fn test_xmlnode_getText(): void {
+    let node: XmlNode = new XmlNode("root");
+    node.text = "hello";
+    if (node.getText() != "hello") {
+        io::println("FAIL: XmlNode.getText wrong");
+    } else {
+        io::println("PASS: XmlNode.getText works");
+    }
+}
+
+public fn test_xmlnode_setAttr(): void {
+    let node: XmlNode = new XmlNode("root");
+    node.setAttr("id", "42");
+    if (node.getAttr("id") != "42") {
+        io::println("FAIL: XmlNode.setAttr/getAttr wrong");
+    } else {
+        io::println("PASS: XmlNode.setAttr/getAttr works");
+    }
+}
+
+public fn test_xmlnode_getAttr_missing(): void {
+    let node: XmlNode = new XmlNode("root");
+    if (node.getAttr("missing") != "") {
+        io::println("FAIL: XmlNode.getAttr missing should return empty");
+    } else {
+        io::println("PASS: XmlNode.getAttr missing works");
+    }
+}
+
+public fn test_xmlnode_hasAttr(): void {
+    let node: XmlNode = new XmlNode("root");
+    node.setAttr("a", "1");
+    if (!node.hasAttr("a")) {
+        io::println("FAIL: XmlNode.hasAttr a should be true");
+    } else if (node.hasAttr("b")) {
+        io::println("FAIL: XmlNode.hasAttr b should be false");
+    } else {
+        io::println("PASS: XmlNode.hasAttr works");
+    }
+}
+
+public fn test_xmlnode_removeAttr(): void {
+    let node: XmlNode = new XmlNode("root");
+    node.setAttr("a", "1");
+    node.removeAttr("a");
+    if (node.hasAttr("a")) {
+        io::println("FAIL: XmlNode.removeAttr did not remove");
+    } else {
+        io::println("PASS: XmlNode.removeAttr works");
+    }
+}
+
+public fn test_xmlnode_addChild(): void {
+    let parent: XmlNode = new XmlNode("parent");
+    let child: XmlNode = new XmlNode("child");
+    parent.addChild(child);
+    if (parent.children.size() != 1) {
+        io::println("FAIL: XmlNode.addChild size wrong");
+    } else if (parent.children.get(0).tag != "child") {
+        io::println("FAIL: XmlNode.addChild child tag wrong");
+    } else {
+        io::println("PASS: XmlNode.addChild works");
+    }
+}
+
+public fn test_xmlnode_getChildren(): void {
+    let parent: XmlNode = new XmlNode("parent");
+    parent.addChild(new XmlNode("a"));
+    parent.addChild(new XmlNode("b"));
+    let kids: ArrayList<XmlNode> = parent.getChildren();
+    if (kids.size() != 2) {
+        io::println("FAIL: XmlNode.getChildren size wrong");
+    } else {
+        io::println("PASS: XmlNode.getChildren works");
+    }
+}
+
+public fn test_xmlnode_getChildrenByTag(): void {
+    let parent: XmlNode = new XmlNode("parent");
+    parent.addChild(new XmlNode("a"));
+    parent.addChild(new XmlNode("b"));
+    parent.addChild(new XmlNode("a"));
+    let aKids: ArrayList<XmlNode> = parent.getChildrenByTag("a");
+    if (aKids.size() != 2) {
+        io::println("FAIL: XmlNode.getChildrenByTag size=" + Integer.toString(aKids.size()));
+    } else {
+        io::println("PASS: XmlNode.getChildrenByTag works");
+    }
+}
+
+public fn test_xmlnode_removeChild(): void {
+    let parent: XmlNode = new XmlNode("parent");
+    let child: XmlNode = new XmlNode("child");
+    parent.addChild(child);
+    parent.removeChild(child);
+    if (parent.children.size() != 0) {
+        io::println("FAIL: XmlNode.removeChild size wrong");
+    } else {
+        io::println("PASS: XmlNode.removeChild works");
+    }
+}
+
+public fn test_xmlnode_replaceChild(): void {
+    let parent: XmlNode = new XmlNode("parent");
+    let old: XmlNode = new XmlNode("old");
+    let replacement: XmlNode = new XmlNode("new");
+    parent.addChild(old);
+    parent.replaceChild(old, replacement);
+    if (parent.children.size() != 1) {
+        io::println("FAIL: XmlNode.replaceChild size wrong");
+    } else if (parent.children.get(0).tag != "new") {
+        io::println("FAIL: XmlNode.replaceChild tag wrong");
+    } else {
+        io::println("PASS: XmlNode.replaceChild works");
+    }
+}
+
+public fn test_xmlnode_textContent(): void {
+    let root: XmlNode = new XmlNode("root");
+    root.text = "Hello ";
+    let child: XmlNode = new XmlNode("b");
+    child.text = "World";
+    root.addChild(child);
+    if (root.textContent() != "Hello World") {
+        io::println("FAIL: XmlNode.textContent=" + root.textContent());
+    } else {
+        io::println("PASS: XmlNode.textContent works");
+    }
+}
+
+public fn test_xmlnode_cloneNode_shallow(): void {
+    let node: XmlNode = new XmlNode("root");
+    node.setAttr("a", "1");
+    node.text = "hello";
+    node.addChild(new XmlNode("child"));
+    let clone: XmlNode = node.cloneNode(false);
+    if (clone.tag != "root") {
+        io::println("FAIL: XmlNode.cloneNode shallow tag wrong");
+    } else if (clone.getAttr("a") != "1") {
+        io::println("FAIL: XmlNode.cloneNode shallow attr wrong");
+    } else if (clone.children.size() != 0) {
+        io::println("FAIL: XmlNode.cloneNode shallow should have no children");
+    } else {
+        io::println("PASS: XmlNode.cloneNode shallow works");
+    }
+}
+
+public fn test_xmlnode_cloneNode_deep(): void {
+    let node: XmlNode = new XmlNode("root");
+    node.setAttr("a", "1");
+    node.addChild(new XmlNode("child"));
+    let clone: XmlNode = node.cloneNode(true);
+    if (clone.children.size() != 1) {
+        io::println("FAIL: XmlNode.cloneNode deep children wrong");
+    } else if (clone.children.get(0).tag != "child") {
+        io::println("FAIL: XmlNode.cloneNode deep child tag wrong");
+    } else {
+        io::println("PASS: XmlNode.cloneNode deep works");
+    }
+}
+
+public fn test_xmlnode_getElementByTagName(): void {
+    let root: XmlNode = new XmlNode("root");
+    let child: XmlNode = new XmlNode("target");
+    root.addChild(child);
+    let found: XmlNode = root.getElementByTagName("target");
+    if (found == null) {
+        io::println("FAIL: XmlNode.getElementByTagName not found");
+    } else if (found.tag != "target") {
+        io::println("FAIL: XmlNode.getElementByTagName wrong tag");
+    } else {
+        io::println("PASS: XmlNode.getElementByTagName works");
+    }
+}
+
+public fn test_xmlnode_getElementByTagName_not_found(): void {
+    let root: XmlNode = new XmlNode("root");
+    let found: XmlNode = root.getElementByTagName("missing");
+    if (found != null) {
+        io::println("FAIL: XmlNode.getElementByTagName should return null");
+    } else {
+        io::println("PASS: XmlNode.getElementByTagName not found works");
+    }
+}
+
+public fn test_xmlnode_toString(): void {
+    let node: XmlNode = new XmlNode("root");
+    node.text = "hello";
+    let s: string = node.toString();
+    if (s == "") {
+        io::println("FAIL: XmlNode.toString empty");
+    } else {
+        io::println("PASS: XmlNode.toString works");
+    }
+}
+
+public fn test_newTextNode(): void {
+    let node: XmlNode = newTextNode("hello");
+    if (node == null) {
+        io::println("FAIL: newTextNode returned null");
+    } else if (node.nodeType != "text") {
+        io::println("FAIL: newTextNode nodeType=" + node.nodeType);
+    } else if (node.text != "hello") {
+        io::println("FAIL: newTextNode text wrong");
+    } else {
+        io::println("PASS: newTextNode works");
+    }
+}
+
+public fn test_newCDataNode(): void {
+    let node: XmlNode = newCDataNode("data");
+    if (node == null) {
+        io::println("FAIL: newCDataNode returned null");
+    } else if (node.nodeType != "cdata") {
+        io::println("FAIL: newCDataNode nodeType=" + node.nodeType);
+    } else {
+        io::println("PASS: newCDataNode works");
+    }
+}
+
+public fn test_newCommentNode(): void {
+    let node: XmlNode = newCommentNode("comment");
+    if (node == null) {
+        io::println("FAIL: newCommentNode returned null");
+    } else if (node.nodeType != "comment") {
+        io::println("FAIL: newCommentNode nodeType=" + node.nodeType);
+    } else {
+        io::println("PASS: newCommentNode works");
+    }
+}
+
+public fn test_newPINode(): void {
+    let node: XmlNode = newPINode("xml-stylesheet", "type='text/xsl'");
+    if (node == null) {
+        io::println("FAIL: newPINode returned null");
+    } else if (node.nodeType != "pi") {
+        io::println("FAIL: newPINode nodeType=" + node.nodeType);
+    } else if (node.piTarget != "xml-stylesheet") {
+        io::println("FAIL: newPINode piTarget wrong");
+    } else {
+        io::println("PASS: newPINode works");
+    }
+}
+
+public fn test_newDeclarationNode(): void {
+    let node: XmlNode = newDeclarationNode("1.0", "UTF-8");
+    if (node == null) {
+        io::println("FAIL: newDeclarationNode returned null");
+    } else if (node.nodeType != "declaration") {
+        io::println("FAIL: newDeclarationNode nodeType=" + node.nodeType);
+    } else {
+        io::println("PASS: newDeclarationNode works");
+    }
+}
+
+public fn test_xmlnode_normalize(): void {
+    let root: XmlNode = new XmlNode("root");
+    root.addChild(newTextNode("Hello "));
+    root.addChild(newTextNode("World"));
+    root.normalize();
+    if (root.children.size() != 1) {
+        io::println("FAIL: XmlNode.normalize size=" + Integer.toString(root.children.size()));
+    } else if (root.children.get(0).text != "Hello World") {
+        io::println("FAIL: XmlNode.normalize text=" + root.children.get(0).text);
+    } else {
+        io::println("PASS: XmlNode.normalize works");
+    }
+}
+
+public fn run_all_xmlnode_tests(): void {
+    io::println("=== XmlNode.tr Tests ===");
+    test_xmlnode_init();
+    test_xmlnode_default_fields();
+    test_xmlnode_getTag();
+    test_xmlnode_getText();
+    test_xmlnode_setAttr();
+    test_xmlnode_getAttr_missing();
+    test_xmlnode_hasAttr();
+    test_xmlnode_removeAttr();
+    test_xmlnode_addChild();
+    test_xmlnode_getChildren();
+    test_xmlnode_getChildrenByTag();
+    test_xmlnode_removeChild();
+    test_xmlnode_replaceChild();
+    test_xmlnode_textContent();
+    test_xmlnode_cloneNode_shallow();
+    test_xmlnode_cloneNode_deep();
+    test_xmlnode_getElementByTagName();
+    test_xmlnode_getElementByTagName_not_found();
+    test_xmlnode_toString();
+    test_newTextNode();
+    test_newCDataNode();
+    test_newCommentNode();
+    test_newPINode();
+    test_newDeclarationNode();
+    test_xmlnode_normalize();
+}
