@@ -1,0 +1,167 @@
+// Test file for concurrent/CircuitBreaker.tr
+// Exercises the public API: CircuitBreaker.
+import tt::concurrent::CircuitBreaker;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_circuitbreaker_init(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    if (cb == null) {
+        io::println("FAIL: CircuitBreaker.init returned null");
+    } else {
+        io::println("PASS: CircuitBreaker.init works");
+    }
+}
+
+public fn test_circuitbreaker_getState_default(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    if (cb.getState() != "closed") {
+        io::println("FAIL: CircuitBreaker.getState default=" + cb.getState());
+    } else {
+        io::println("PASS: CircuitBreaker.getState default works");
+    }
+}
+
+public fn test_circuitbreaker_failureThreshold(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(5, 1000);
+    if (cb.failureThreshold != 5) {
+        io::println("FAIL: CircuitBreaker.failureThreshold=" + Integer.toString(cb.failureThreshold));
+    } else {
+        io::println("PASS: CircuitBreaker.failureThreshold works");
+    }
+}
+
+public fn test_circuitbreaker_resetTimeoutMs(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 5000);
+    if (cb.resetTimeoutMs != 5000) {
+        io::println("FAIL: CircuitBreaker.resetTimeoutMs wrong");
+    } else {
+        io::println("PASS: CircuitBreaker.resetTimeoutMs works");
+    }
+}
+
+public fn test_circuitbreaker_getFailureCount_default(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    if (cb.getFailureCount() != 0) {
+        io::println("FAIL: CircuitBreaker.getFailureCount default wrong");
+    } else {
+        io::println("PASS: CircuitBreaker.getFailureCount default works");
+    }
+}
+
+public fn test_circuitbreaker_execute_success(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    let result: Variant = cb.execute(fn(): Variant { return Variant.of(42); });
+    if (result == null) {
+        io::println("FAIL: CircuitBreaker.execute success returned null");
+    } else {
+        io::println("PASS: CircuitBreaker.execute success works");
+    }
+}
+
+public fn test_circuitbreaker_execute_keeps_closed(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    cb.execute(fn(): Variant { return Variant.of(1); });
+    if (cb.getState() != "closed") {
+        io::println("FAIL: CircuitBreaker should stay closed after success");
+    } else {
+        io::println("PASS: CircuitBreaker execute keeps closed works");
+    }
+}
+
+public fn test_circuitbreaker_execute_failure(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    try {
+        cb.execute(fn(): Variant { throw "error"; });
+    } catch (e: string) {
+        // Expected
+    }
+    if (cb.getFailureCount() != 1) {
+        io::println("FAIL: CircuitBreaker.getFailureCount=" + Integer.toString(cb.getFailureCount()));
+    } else {
+        io::println("PASS: CircuitBreaker.execute failure works");
+    }
+}
+
+public fn test_circuitbreaker_trip(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    cb.trip();
+    if (cb.getState() != "open") {
+        io::println("FAIL: CircuitBreaker.trip state=" + cb.getState());
+    } else {
+        io::println("PASS: CircuitBreaker.trip works");
+    }
+}
+
+public fn test_circuitbreaker_reset(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    cb.trip();
+    cb.reset();
+    if (cb.getState() != "closed") {
+        io::println("FAIL: CircuitBreaker.reset state=" + cb.getState());
+    } else if (cb.getFailureCount() != 0) {
+        io::println("FAIL: CircuitBreaker.reset failureCount not 0");
+    } else {
+        io::println("PASS: CircuitBreaker.reset works");
+    }
+}
+
+public fn test_circuitbreaker_execute_open_throws(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 100000);
+    cb.trip();
+    var threw: bool = false;
+    try {
+        cb.execute(fn(): Variant { return Variant.of(1); });
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: CircuitBreaker.execute open should throw");
+    } else {
+        io::println("PASS: CircuitBreaker.execute open throws works");
+    }
+}
+
+public fn test_circuitbreaker_multiple_failures_trip(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(2, 100000);
+    var i: int = 0;
+    while (i < 2) {
+        try {
+            cb.execute(fn(): Variant { throw "error"; });
+        } catch (e: string) {
+            // Expected
+        }
+        i = i + 1;
+    }
+    if (cb.getState() != "open") {
+        io::println("FAIL: CircuitBreaker should be open after 2 failures");
+    } else {
+        io::println("PASS: CircuitBreaker multiple failures trip works");
+    }
+}
+
+public fn test_circuitbreaker_successCount_default(): void {
+    let cb: CircuitBreaker = new CircuitBreaker(3, 1000);
+    if (cb.successCount != 0) {
+        io::println("FAIL: CircuitBreaker.successCount default wrong");
+    } else {
+        io::println("PASS: CircuitBreaker.successCount default works");
+    }
+}
+
+public fn run_all_circuitbreaker_tests(): void {
+    io::println("=== CircuitBreaker.tr Tests ===");
+    test_circuitbreaker_init();
+    test_circuitbreaker_getState_default();
+    test_circuitbreaker_failureThreshold();
+    test_circuitbreaker_resetTimeoutMs();
+    test_circuitbreaker_getFailureCount_default();
+    test_circuitbreaker_execute_success();
+    test_circuitbreaker_execute_keeps_closed();
+    test_circuitbreaker_execute_failure();
+    test_circuitbreaker_trip();
+    test_circuitbreaker_reset();
+    test_circuitbreaker_execute_open_throws();
+    test_circuitbreaker_multiple_failures_trip();
+    test_circuitbreaker_successCount_default();
+}
