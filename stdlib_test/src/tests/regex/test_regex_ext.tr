@@ -1,0 +1,200 @@
+// Test file for regex/RegexExt.tr
+// Exercises the public API: MatchExt, namedCapture, namedCaptures, conditionalPattern,
+// atomicGroup, possessiveQuantifier, escape, regexEscape, regexFullMatch, regexSubN, matchWithGroups.
+import tt::regex::RegexExt;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_matchext_init(): void {
+    let m: MatchExt = new MatchExt(0, 5, "hello");
+    if (m.start != 0) {
+        io::println("FAIL: MatchExt.start wrong");
+    } else if (m.end != 5) {
+        io::println("FAIL: MatchExt.end wrong");
+    } else if (m.group != "hello") {
+        io::println("FAIL: MatchExt.group wrong");
+    } else {
+        io::println("PASS: MatchExt.init works");
+    }
+}
+
+public fn test_matchext_span(): void {
+    let m: MatchExt = new MatchExt(2, 7, "abc");
+    let s: ArrayList<int> = m.span();
+    if (s.size() != 2) {
+        io::println("FAIL: MatchExt.span size=" + Integer.toString(s.size()));
+    } else if (s.get(0) != 2 || s.get(1) != 7) {
+        io::println("FAIL: MatchExt.span values wrong");
+    } else {
+        io::println("PASS: MatchExt.span works");
+    }
+}
+
+public fn test_matchext_groupDict(): void {
+    let m: MatchExt = new MatchExt(0, 1, "a");
+    if (m.groupDict == null) {
+        io::println("FAIL: MatchExt.groupDict is null");
+    } else {
+        io::println("PASS: MatchExt.groupDict initialized");
+    }
+}
+
+public fn test_namedCapture(): void {
+    let result: string = RegexExt.namedCapture("(?<year>[0-9]+)", "2024abc", "year");
+    if (result != "2024") {
+        io::println("FAIL: namedCapture returned " + result + ", expected 2024");
+    } else {
+        io::println("PASS: namedCapture works");
+    }
+}
+
+public fn test_namedCapture_no_match(): void {
+    let result: string = RegexExt.namedCapture("(?<year>[0-9]+)", "abc", "year");
+    if (result != "") {
+        io::println("FAIL: namedCapture no match returned " + result);
+    } else {
+        io::println("PASS: namedCapture returns empty for no match");
+    }
+}
+
+public fn test_namedCaptures(): void {
+    let result: HashMap<string, string> = RegexExt.namedCaptures("(?<year>[0-9]+)-(?<month>[0-9]+)", "2024-06");
+    if (result == null) {
+        io::println("FAIL: namedCaptures returned null");
+    } else {
+        io::println("PASS: namedCaptures works");
+    }
+}
+
+public fn test_conditionalPattern(): void {
+    let result: string = RegexExt.conditionalPattern("1", "yes", "no");
+    if (result != "(?(1)yes|no)") {
+        io::println("FAIL: conditionalPattern returned " + result);
+    } else {
+        io::println("PASS: conditionalPattern works");
+    }
+}
+
+public fn test_atomicGroup(): void {
+    let result: string = RegexExt.atomicGroup("abc");
+    if (result != "(?>abc)") {
+        io::println("FAIL: atomicGroup returned " + result);
+    } else {
+        io::println("PASS: atomicGroup works");
+    }
+}
+
+public fn test_possessiveQuantifier(): void {
+    let result: string = RegexExt.possessiveQuantifier("a", 1, 3);
+    if (result != "a{1,3}+") {
+        io::println("FAIL: possessiveQuantifier returned " + result);
+    } else {
+        io::println("PASS: possessiveQuantifier works");
+    }
+}
+
+public fn test_escape(): void {
+    let result: string = RegexExt.escape("a.b*c");
+    if (result != "a\\.b\\*c") {
+        io::println("FAIL: escape returned " + result);
+    } else {
+        io::println("PASS: escape works");
+    }
+}
+
+public fn test_escape_all_specials(): void {
+    let result: string = RegexExt.escape(".^$*+?{}[]|()\\");
+    // Each special char should be preceded by a backslash
+    if (String.length(result) != 24) {
+        io::println("FAIL: escape all specials length=" + Integer.toString(String.length(result)) + ", expected 24");
+    } else {
+        io::println("PASS: escape all specials works");
+    }
+}
+
+public fn test_regexEscape(): void {
+    let result: string = RegexExt.regexEscape("a.b*c");
+    if (result != "a\\.b\\*c") {
+        io::println("FAIL: regexEscape returned " + result);
+    } else {
+        io::println("PASS: regexEscape works");
+    }
+}
+
+public fn test_regexEscape_no_specials(): void {
+    let result: string = RegexExt.regexEscape("abc");
+    if (result != "abc") {
+        io::println("FAIL: regexEscape no specials returned " + result);
+    } else {
+        io::println("PASS: regexEscape no specials works");
+    }
+}
+
+public fn test_regexFullMatch_match(): void {
+    let ok: bool = RegexExt.regexFullMatch("[0-9]+", "12345");
+    if (!ok) {
+        io::println("FAIL: regexFullMatch should match 12345");
+    } else {
+        io::println("PASS: regexFullMatch matches full string");
+    }
+}
+
+public fn test_regexFullMatch_no_match(): void {
+    let ok: bool = RegexExt.regexFullMatch("[0-9]+", "12a45");
+    if (ok) {
+        io::println("FAIL: regexFullMatch should not match 12a45");
+    } else {
+        io::println("PASS: regexFullMatch rejects partial match");
+    }
+}
+
+public fn test_regexSubN(): void {
+    let result: string = RegexExt.regexSubN("[0-9]+", "X", "a1b22c333", 2);
+    if (result != "aXbXc333") {
+        io::println("FAIL: regexSubN returned " + result + ", expected aXbXc333");
+    } else {
+        io::println("PASS: regexSubN works");
+    }
+}
+
+public fn test_matchWithGroups(): void {
+    let m: MatchExt = RegexExt.matchWithGroups("([0-9]+)", "abc123def");
+    if (m == null) {
+        io::println("FAIL: matchWithGroups returned null");
+    } else {
+        io::println("PASS: matchWithGroups works");
+    }
+}
+
+public fn test_matchWithGroups_no_match(): void {
+    let m: MatchExt = RegexExt.matchWithGroups("[0-9]+", "abcdef");
+    if (m != null) {
+        io::println("FAIL: matchWithGroups should return null for no match");
+    } else {
+        io::println("PASS: matchWithGroups returns null for no match");
+    }
+}
+
+public fn run_all_regex_ext_tests(): void {
+    io::println("=== RegexExt.tr Tests ===");
+    test_matchext_init();
+    test_matchext_span();
+    test_matchext_groupDict();
+    test_namedCapture();
+    test_namedCapture_no_match();
+    test_namedCaptures();
+    test_conditionalPattern();
+    test_atomicGroup();
+    test_possessiveQuantifier();
+    test_escape();
+    test_escape_all_specials();
+    test_regexEscape();
+    test_regexEscape_no_specials();
+    test_regexFullMatch_match();
+    test_regexFullMatch_no_match();
+    test_regexSubN();
+    test_matchWithGroups();
+    test_matchWithGroups_no_match();
+}
