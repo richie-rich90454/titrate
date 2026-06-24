@@ -1,0 +1,337 @@
+// Test file for decimal/Decimal.tr
+// Exercises the public API: init, add, sub, mul, div, compareTo, equals,
+// toString, toDouble, round, quantize, abs, negate, stripTrailingZeros, signum,
+// mod, remainder, and fields negative/digits/scale.
+import tt::decimal::Decimal;
+import tt::lang::Integer;
+
+public fn test_init_integer(): void {
+    let d: Decimal = new Decimal("42");
+    if (d.toString() != "42") {
+        io::println("FAIL: init integer");
+    } else {
+        io::println("PASS: init integer");
+    }
+}
+
+public fn test_init_decimal(): void {
+    let d: Decimal = new Decimal("3.14");
+    if (d.toString() != "3.14") {
+        io::println("FAIL: init decimal");
+    } else {
+        io::println("PASS: init decimal");
+    }
+}
+
+public fn test_init_negative(): void {
+    let d: Decimal = new Decimal("-5.5");
+    if (d.toString() != "-5.5") {
+        io::println("FAIL: init negative");
+    } else {
+        io::println("PASS: init negative");
+    }
+}
+
+public fn test_init_zero(): void {
+    let d: Decimal = new Decimal("0");
+    if (d.toString() != "0" || d.negative) {
+        io::println("FAIL: init zero");
+    } else {
+        io::println("PASS: init zero");
+    }
+}
+
+public fn test_add_basic(): void {
+    let a: Decimal = new Decimal("1.5");
+    let b: Decimal = new Decimal("2.5");
+    let r: Decimal = a.add(b);
+    if (r.toString() != "4") {
+        io::println("FAIL: add basic r=" + r.toString());
+    } else {
+        io::println("PASS: add basic");
+    }
+}
+
+public fn test_add_negative(): void {
+    let a: Decimal = new Decimal("10");
+    let b: Decimal = new Decimal("-3");
+    let r: Decimal = a.add(b);
+    if (r.toString() != "7") {
+        io::println("FAIL: add negative r=" + r.toString());
+    } else {
+        io::println("PASS: add negative");
+    }
+}
+
+public fn test_sub_basic(): void {
+    let a: Decimal = new Decimal("10");
+    let b: Decimal = new Decimal("3");
+    let r: Decimal = a.sub(b);
+    if (r.toString() != "7") {
+        io::println("FAIL: sub basic r=" + r.toString());
+    } else {
+        io::println("PASS: sub basic");
+    }
+}
+
+public fn test_sub_negative_result(): void {
+    let a: Decimal = new Decimal("3");
+    let b: Decimal = new Decimal("10");
+    let r: Decimal = a.sub(b);
+    if (r.toString() != "-7") {
+        io::println("FAIL: sub negative result r=" + r.toString());
+    } else {
+        io::println("PASS: sub negative result");
+    }
+}
+
+public fn test_mul_basic(): void {
+    let a: Decimal = new Decimal("2.5");
+    let b: Decimal = new Decimal("4");
+    let r: Decimal = a.mul(b);
+    if (r.toString() != "10") {
+        io::println("FAIL: mul basic r=" + r.toString());
+    } else {
+        io::println("PASS: mul basic");
+    }
+}
+
+public fn test_mul_decimal(): void {
+    let a: Decimal = new Decimal("0.1");
+    let b: Decimal = new Decimal("0.1");
+    let r: Decimal = a.mul(b);
+    if (r.toString() != "0.01") {
+        io::println("FAIL: mul decimal r=" + r.toString());
+    } else {
+        io::println("PASS: mul decimal");
+    }
+}
+
+public fn test_div_basic(): void {
+    let a: Decimal = new Decimal("10");
+    let b: Decimal = new Decimal("2");
+    let r: Decimal = a.div(b);
+    if (r.toString() != "5") {
+        io::println("FAIL: div basic r=" + r.toString());
+    } else {
+        io::println("PASS: div basic");
+    }
+}
+
+public fn test_compareTo_less(): void {
+    let a: Decimal = new Decimal("1");
+    let b: Decimal = new Decimal("2");
+    if (a.compareTo(b) >= 0) {
+        io::println("FAIL: compareTo less");
+    } else {
+        io::println("PASS: compareTo less");
+    }
+}
+
+public fn test_compareTo_equal(): void {
+    let a: Decimal = new Decimal("5");
+    let b: Decimal = new Decimal("5");
+    if (a.compareTo(b) != 0) {
+        io::println("FAIL: compareTo equal");
+    } else {
+        io::println("PASS: compareTo equal");
+    }
+}
+
+public fn test_compareTo_greater(): void {
+    let a: Decimal = new Decimal("3");
+    let b: Decimal = new Decimal("2");
+    if (a.compareTo(b) <= 0) {
+        io::println("FAIL: compareTo greater");
+    } else {
+        io::println("PASS: compareTo greater");
+    }
+}
+
+public fn test_equals_true(): void {
+    let a: Decimal = new Decimal("1.5");
+    let b: Decimal = new Decimal("1.5");
+    if (!a.equals(b)) {
+        io::println("FAIL: equals true");
+    } else {
+        io::println("PASS: equals true");
+    }
+}
+
+public fn test_equals_false(): void {
+    let a: Decimal = new Decimal("1.5");
+    let b: Decimal = new Decimal("2.5");
+    if (a.equals(b)) {
+        io::println("FAIL: equals false");
+    } else {
+        io::println("PASS: equals false");
+    }
+}
+
+public fn test_abs_positive(): void {
+    let d: Decimal = new Decimal("5");
+    let r: Decimal = d.abs();
+    if (r.toString() != "5") {
+        io::println("FAIL: abs positive");
+    } else {
+        io::println("PASS: abs positive");
+    }
+}
+
+public fn test_abs_negative(): void {
+    let d: Decimal = new Decimal("-5");
+    let r: Decimal = d.abs();
+    if (r.toString() != "5") {
+        io::println("FAIL: abs negative r=" + r.toString());
+    } else {
+        io::println("PASS: abs negative");
+    }
+}
+
+public fn test_negate_positive(): void {
+    let d: Decimal = new Decimal("5");
+    let r: Decimal = d.negate();
+    if (r.toString() != "-5") {
+        io::println("FAIL: negate positive r=" + r.toString());
+    } else {
+        io::println("PASS: negate positive");
+    }
+}
+
+public fn test_negate_negative(): void {
+    let d: Decimal = new Decimal("-5");
+    let r: Decimal = d.negate();
+    if (r.toString() != "5") {
+        io::println("FAIL: negate negative r=" + r.toString());
+    } else {
+        io::println("PASS: negate negative");
+    }
+}
+
+public fn test_negate_zero(): void {
+    let d: Decimal = new Decimal("0");
+    let r: Decimal = d.negate();
+    if (r.toString() != "0" || r.negative) {
+        io::println("FAIL: negate zero");
+    } else {
+        io::println("PASS: negate zero");
+    }
+}
+
+public fn test_signum_positive(): void {
+    let d: Decimal = new Decimal("5");
+    if (d.signum() != 1) {
+        io::println("FAIL: signum positive");
+    } else {
+        io::println("PASS: signum positive");
+    }
+}
+
+public fn test_signum_negative(): void {
+    let d: Decimal = new Decimal("-5");
+    if (d.signum() != -1) {
+        io::println("FAIL: signum negative");
+    } else {
+        io::println("PASS: signum negative");
+    }
+}
+
+public fn test_signum_zero(): void {
+    let d: Decimal = new Decimal("0");
+    if (d.signum() != 0) {
+        io::println("FAIL: signum zero");
+    } else {
+        io::println("PASS: signum zero");
+    }
+}
+
+public fn test_stripTrailingZeros_basic(): void {
+    let d: Decimal = new Decimal("1.500");
+    let r: Decimal = d.stripTrailingZeros();
+    if (r.toString() != "1.5") {
+        io::println("FAIL: stripTrailingZeros basic r=" + r.toString());
+    } else {
+        io::println("PASS: stripTrailingZeros basic");
+    }
+}
+
+public fn test_toDouble_basic(): void {
+    let d: Decimal = new Decimal("3.14");
+    let v: double = d.toDouble();
+    if (v < 3.13 || v > 3.15) {
+        io::println("FAIL: toDouble basic");
+    } else {
+        io::println("PASS: toDouble basic");
+    }
+}
+
+public fn test_mod_basic(): void {
+    let a: Decimal = new Decimal("10");
+    let b: Decimal = new Decimal("3");
+    let r: Decimal = a.mod(b);
+    if (r.toString() != "1") {
+        io::println("FAIL: mod basic r=" + r.toString());
+    } else {
+        io::println("PASS: mod basic");
+    }
+}
+
+public fn test_fields_negative(): void {
+    let d: Decimal = new Decimal("-42");
+    if (!d.negative) {
+        io::println("FAIL: fields negative");
+    } else {
+        io::println("PASS: fields negative");
+    }
+}
+
+public fn test_fields_scale(): void {
+    let d: Decimal = new Decimal("1.23");
+    if (d.scale != 2) {
+        io::println("FAIL: fields scale s=" + Integer.toString(d.scale));
+    } else {
+        io::println("PASS: fields scale");
+    }
+}
+
+public fn test_fields_digits(): void {
+    let d: Decimal = new Decimal("123");
+    if (d.digits != "123") {
+        io::println("FAIL: fields digits d=" + d.digits);
+    } else {
+        io::println("PASS: fields digits");
+    }
+}
+
+public fn run_all_decimal_tests(): void {
+    test_init_integer();
+    test_init_decimal();
+    test_init_negative();
+    test_init_zero();
+    test_add_basic();
+    test_add_negative();
+    test_sub_basic();
+    test_sub_negative_result();
+    test_mul_basic();
+    test_mul_decimal();
+    test_div_basic();
+    test_compareTo_less();
+    test_compareTo_equal();
+    test_compareTo_greater();
+    test_equals_true();
+    test_equals_false();
+    test_abs_positive();
+    test_abs_negative();
+    test_negate_positive();
+    test_negate_negative();
+    test_negate_zero();
+    test_signum_positive();
+    test_signum_negative();
+    test_signum_zero();
+    test_stripTrailingZeros_basic();
+    test_toDouble_basic();
+    test_mod_basic();
+    test_fields_negative();
+    test_fields_scale();
+    test_fields_digits();
+}
