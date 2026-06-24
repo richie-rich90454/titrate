@@ -1,0 +1,256 @@
+// Test file for concurrent/Atomic.tr
+// Exercises the public API: AtomicInt, AtomicLong, AtomicReference, AtomicBool.
+import tt::concurrent::Atomic;
+import tt::lang::Integer;
+
+public fn test_atomicint_init(): void {
+    let a: AtomicInt = new AtomicInt(42);
+    if (a == null) {
+        io::println("FAIL: AtomicInt.init returned null");
+    } else {
+        io::println("PASS: AtomicInt.init works");
+    }
+}
+
+public fn test_atomicint_get(): void {
+    let a: AtomicInt = new AtomicInt(42);
+    if (a.get() != 42) {
+        io::println("FAIL: AtomicInt.get=" + Integer.toString(a.get()));
+    } else {
+        io::println("PASS: AtomicInt.get works");
+    }
+}
+
+public fn test_atomicint_set(): void {
+    let a: AtomicInt = new AtomicInt(0);
+    a.set(99);
+    if (a.get() != 99) {
+        io::println("FAIL: AtomicInt.set wrong");
+    } else {
+        io::println("PASS: AtomicInt.set works");
+    }
+}
+
+public fn test_atomicint_fetchAdd(): void {
+    let a: AtomicInt = new AtomicInt(10);
+    let old: int = a.fetchAdd(5);
+    if (old != 10) {
+        io::println("FAIL: AtomicInt.fetchAdd old value wrong");
+    } else if (a.get() != 15) {
+        io::println("FAIL: AtomicInt.fetchAdd new value wrong");
+    } else {
+        io::println("PASS: AtomicInt.fetchAdd works");
+    }
+}
+
+public fn test_atomicint_fetchSub(): void {
+    let a: AtomicInt = new AtomicInt(10);
+    let old: int = a.fetchSub(3);
+    if (old != 10) {
+        io::println("FAIL: AtomicInt.fetchSub old value wrong");
+    } else if (a.get() != 7) {
+        io::println("FAIL: AtomicInt.fetchSub new value wrong");
+    } else {
+        io::println("PASS: AtomicInt.fetchSub works");
+    }
+}
+
+public fn test_atomicint_incrementAndGet(): void {
+    let a: AtomicInt = new AtomicInt(5);
+    let result: int = a.incrementAndGet();
+    if (result != 6) {
+        io::println("FAIL: AtomicInt.incrementAndGet=" + Integer.toString(result));
+    } else {
+        io::println("PASS: AtomicInt.incrementAndGet works");
+    }
+}
+
+public fn test_atomicint_decrementAndGet(): void {
+    let a: AtomicInt = new AtomicInt(5);
+    let result: int = a.decrementAndGet();
+    if (result != 4) {
+        io::println("FAIL: AtomicInt.decrementAndGet=" + Integer.toString(result));
+    } else {
+        io::println("PASS: AtomicInt.decrementAndGet works");
+    }
+}
+
+public fn test_atomicint_exchange(): void {
+    let a: AtomicInt = new AtomicInt(10);
+    let old: int = a.exchange(20);
+    if (old != 10) {
+        io::println("FAIL: AtomicInt.exchange old wrong");
+    } else if (a.get() != 20) {
+        io::println("FAIL: AtomicInt.exchange new wrong");
+    } else {
+        io::println("PASS: AtomicInt.exchange works");
+    }
+}
+
+public fn test_atomicint_compareAndSwap_success(): void {
+    let a: AtomicInt = new AtomicInt(10);
+    let result: bool = a.compareAndSwap(10, 20);
+    if (!result) {
+        io::println("FAIL: AtomicInt.compareAndSwap should succeed");
+    } else if (a.get() != 20) {
+        io::println("FAIL: AtomicInt.compareAndSwap value wrong");
+    } else {
+        io::println("PASS: AtomicInt.compareAndSwap success works");
+    }
+}
+
+public fn test_atomicint_compareAndSwap_failure(): void {
+    let a: AtomicInt = new AtomicInt(10);
+    let result: bool = a.compareAndSwap(99, 20);
+    if (result) {
+        io::println("FAIL: AtomicInt.compareAndSwap should fail");
+    } else if (a.get() != 10) {
+        io::println("FAIL: AtomicInt.compareAndSwap value changed on failure");
+    } else {
+        io::println("PASS: AtomicInt.compareAndSwap failure works");
+    }
+}
+
+public fn test_atomicbool_init(): void {
+    let a: AtomicBool = new AtomicBool(true);
+    if (a == null) {
+        io::println("FAIL: AtomicBool.init returned null");
+    } else {
+        io::println("PASS: AtomicBool.init works");
+    }
+}
+
+public fn test_atomicbool_get(): void {
+    let a: AtomicBool = new AtomicBool(true);
+    if (!a.get()) {
+        io::println("FAIL: AtomicBool.get should be true");
+    } else {
+        io::println("PASS: AtomicBool.get works");
+    }
+}
+
+public fn test_atomicbool_set(): void {
+    let a: AtomicBool = new AtomicBool(false);
+    a.set(true);
+    if (!a.get()) {
+        io::println("FAIL: AtomicBool.set wrong");
+    } else {
+        io::println("PASS: AtomicBool.set works");
+    }
+}
+
+public fn test_atomicbool_compareAndSwap_success(): void {
+    let a: AtomicBool = new AtomicBool(false);
+    let result: bool = a.compareAndSwap(false, true);
+    if (!result) {
+        io::println("FAIL: AtomicBool.compareAndSwap should succeed");
+    } else if (!a.get()) {
+        io::println("FAIL: AtomicBool.compareAndSwap value wrong");
+    } else {
+        io::println("PASS: AtomicBool.compareAndSwap success works");
+    }
+}
+
+public fn test_atomicbool_compareAndSwap_failure(): void {
+    let a: AtomicBool = new AtomicBool(false);
+    let result: bool = a.compareAndSwap(true, false);
+    if (result) {
+        io::println("FAIL: AtomicBool.compareAndSwap should fail");
+    } else {
+        io::println("PASS: AtomicBool.compareAndSwap failure works");
+    }
+}
+
+public fn test_atomiclong_init(): void {
+    let a: AtomicLong = new AtomicLong(100);
+    if (a == null) {
+        io::println("FAIL: AtomicLong.init returned null");
+    } else {
+        io::println("PASS: AtomicLong.init works");
+    }
+}
+
+public fn test_atomiclong_get(): void {
+    let a: AtomicLong = new AtomicLong(100);
+    if (a.get() != 100) {
+        io::println("FAIL: AtomicLong.get wrong");
+    } else {
+        io::println("PASS: AtomicLong.get works");
+    }
+}
+
+public fn test_atomiclong_fetchAdd(): void {
+    let a: AtomicLong = new AtomicLong(50);
+    let old: long = a.fetchAdd(25);
+    if (old != 50) {
+        io::println("FAIL: AtomicLong.fetchAdd old wrong");
+    } else if (a.get() != 75) {
+        io::println("FAIL: AtomicLong.fetchAdd new wrong");
+    } else {
+        io::println("PASS: AtomicLong.fetchAdd works");
+    }
+}
+
+public fn test_atomiclong_incrementAndGet(): void {
+    let a: AtomicLong = new AtomicLong(10);
+    let result: long = a.incrementAndGet();
+    if (result != 11) {
+        io::println("FAIL: AtomicLong.incrementAndGet wrong");
+    } else {
+        io::println("PASS: AtomicLong.incrementAndGet works");
+    }
+}
+
+public fn test_atomicreference_init(): void {
+    let a: AtomicReference<string> = new AtomicReference<string>("hello");
+    if (a == null) {
+        io::println("FAIL: AtomicReference.init returned null");
+    } else {
+        io::println("PASS: AtomicReference.init works");
+    }
+}
+
+public fn test_atomicreference_get(): void {
+    let a: AtomicReference<string> = new AtomicReference<string>("hello");
+    if (a.get() != "hello") {
+        io::println("FAIL: AtomicReference.get wrong");
+    } else {
+        io::println("PASS: AtomicReference.get works");
+    }
+}
+
+public fn test_atomicreference_set(): void {
+    let a: AtomicReference<string> = new AtomicReference<string>("hello");
+    a.set("world");
+    if (a.get() != "world") {
+        io::println("FAIL: AtomicReference.set wrong");
+    } else {
+        io::println("PASS: AtomicReference.set works");
+    }
+}
+
+public fn run_all_atomic_tests(): void {
+    io::println("=== Atomic.tr Tests ===");
+    test_atomicint_init();
+    test_atomicint_get();
+    test_atomicint_set();
+    test_atomicint_fetchAdd();
+    test_atomicint_fetchSub();
+    test_atomicint_incrementAndGet();
+    test_atomicint_decrementAndGet();
+    test_atomicint_exchange();
+    test_atomicint_compareAndSwap_success();
+    test_atomicint_compareAndSwap_failure();
+    test_atomicbool_init();
+    test_atomicbool_get();
+    test_atomicbool_set();
+    test_atomicbool_compareAndSwap_success();
+    test_atomicbool_compareAndSwap_failure();
+    test_atomiclong_init();
+    test_atomiclong_get();
+    test_atomiclong_fetchAdd();
+    test_atomiclong_incrementAndGet();
+    test_atomicreference_init();
+    test_atomicreference_get();
+    test_atomicreference_set();
+}
