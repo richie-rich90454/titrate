@@ -52,6 +52,8 @@ pub struct Vm {
     /// Used by call_native_fn to execute the closure argument synchronously
     /// because Value contains Rc<> which is not Send-safe across threads.
     pub(super) thread_spawn_idx: u16,
+    /// Step counter for debugging infinite loops
+    pub(super) step_count: u64,
 }
 
 impl Vm {
@@ -74,6 +76,7 @@ impl Vm {
             working_dir: None,
             max_call_depth: 10000,
             thread_spawn_idx: 0xFFFF,
+            step_count: 0,
         };
 
         // Register built-in native functions

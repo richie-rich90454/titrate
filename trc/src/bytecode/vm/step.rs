@@ -10,6 +10,10 @@ use std::rc::Rc;
 
 impl Vm {
     pub(super) fn step(&mut self) -> Result<(), String> {
+        self.step_count += 1;
+        if self.step_count > 10_000_000 {
+            return Err(format!("VM exceeded 10 million steps (infinite loop detected). frames={}, stack_len={}", self.frames.len(), self.stack.len()));
+        }
         let op_byte = self.read_u8();
         let op = OpCode::try_from(op_byte)
             .map_err(|v| format!("Unknown opcode: {}", v))?;
@@ -914,7 +918,8 @@ impl Vm {
             // -- Objects ---------------------------------------------------------
             OpCode::NEW => {
                 let class_idx = self.read_u16();
-                self.exec_new(class_idx)?;
+                let arg_count = self.read_u8();
+                self.exec_new(class_idx, arg_count)?;
             }
             OpCode::INVOKE_VIRTUAL => {
                 let method_name_idx = self.read_u16();

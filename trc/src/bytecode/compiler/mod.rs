@@ -377,19 +377,33 @@ impl Compiler {
         // Step 3: Compute dependency order (topological sort).
         let order = self.topological_sort()?;
 
-        // Step 4: Compile all modules in dependency order.
+        // Step 4a: First pass – register ALL module declarations with mangled names.
+        // This ensures every module's public symbols are available before any
+        // module's imports are resolved or code is compiled.  This is essential
+        // for handling circular imports (e.g. ArrayList ↔ ArrayListIterator ↔ Iterator).
         for &module_idx in &order {
-            if self.modules[module_idx].compiled {
-                continue;
-            }
-            // Clone to avoid borrow conflicts.
             let (prog_opt, module_name) = {
                 let m = &self.modules[module_idx];
                 (m.program.clone(), m.name.clone())
             };
             if let Some(ref prog) = prog_opt {
-                // Register public declarations from this module with mangled names.
                 self.register_module_declarations(prog, &module_name)?;
+            }
+        }
+
+        // Step 4b: Second pass – register imported symbols and compile each module.
+        for &module_idx in &order {
+            if self.modules[module_idx].compiled {
+                continue;
+            }
+            let (prog_opt, _module_name) = {
+                let m = &self.modules[module_idx];
+                (m.program.clone(), m.name.clone())
+            };
+            if let Some(ref prog) = prog_opt {
+                // Register imported symbols so the module's code can reference
+                // types and functions from its dependencies (e.g. Pair, ArrayList).
+                self.register_imported_symbols(prog)?;
                 // Compile the module's declarations.
                 self.compile_module_program(prog)?;
             }
@@ -402,7 +416,9 @@ impl Compiler {
             match decl {
                 ast::Declaration::Class(class_decl) => self.register_class(class_decl)?,
                 ast::Declaration::Enum(enum_decl) => self.register_enum(enum_decl),
-                ast::Declaration::Function(fn_decl) => self.register_function(fn_decl),
+                ast::Declaration::Function(fn_decl) => {
+                    self.register_function(fn_decl);
+                }
                 _ => {}
             }
         }
@@ -1583,10 +1599,10 @@ mod tests {
 
         let mut compiler = Compiler::new();
         let result = compiler.compile_with_modules(&main_program, &root);
-        // Circular imports should be detected and reported as an error.
-        assert!(result.is_err(), "circular import should be detected");
-        let err = result.err().unwrap();
-        assert!(err.contains("Circular import"), "error should mention circular import: {}", err);
+        // Circular imports are now handled gracefully by breaking the cycle.
+        // The compiler should succeed because declarations are registered
+        // in a first pass before compiling function bodies.
+        assert!(result.is_ok(), "circular import should be handled gracefully: {:?}", result.err());
 
         // Cleanup
         std::fs::remove_dir_all(&dir).ok();

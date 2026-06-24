@@ -135,15 +135,21 @@ impl Compiler {
 
     /// Convert a file path to a dotted module name by making it relative to
     /// the root directory and replacing separators with ".".
+    /// Strips a leading "lib" component so that files found under
+    /// `root_dir/lib/` get the same module name as if they were under
+    /// `root_dir/` directly (e.g. `lib.tt.algo.Graph` → `tt.algo.Graph`).
     pub(super) fn path_to_dotted_name(file_path: &Path, root_dir: &Path) -> String {
-        file_path
+        let relative = file_path
             .strip_prefix(root_dir)
             .unwrap_or(file_path)
-            .with_extension("")
+            .with_extension("");
+        let components: Vec<&str> = relative
             .iter()
             .filter_map(|c| c.to_str())
-            .collect::<Vec<_>>()
-            .join(".")
+            .collect();
+
+        let start = if components.first() == Some(&"lib") { 1 } else { 0 };
+        components[start..].join(".")
     }
 
     /// Register imported symbols from a program's imports into the symbol table.
@@ -474,6 +480,12 @@ impl Compiler {
                         {
                             let class_idx_usize = class_idx as usize;
 
+                            // Set current_class so that constructor delegation
+                            // (this(args)) and super() calls can resolve the
+                            // correct class.
+                            let saved_class = self.current_class;
+                            self.current_class = Some(class_idx);
+
                             // Compile field initialisers.
                             for member in &class_decl.members {
                                 if let ast::ClassMember::Field(field_decl) = member {
@@ -505,10 +517,29 @@ impl Compiler {
                                         }
                                     }
                                     ast::ClassMember::Constructor(ctor_decl) => {
-                                        let ctor_fn_idx = self
-                                            .classes
-                                            .get(class_idx_usize)
-                                            .and_then(|c| c.constructor);
+                                        // Find the constructor function entry by
+                                        // matching arity.  The class may have
+                                        // multiple constructors (overloaded by
+                                        // arity).  Each was registered with name
+                                        // "<mangled_class>.<init>" and the
+                                        // corresponding arity during
+                                        // register_module_declarations.
+                                        let mangled_class_name = self
+                                            .class_map.iter()
+                                            .find(|(_, &v)| v == class_idx)
+                                            .map(|(k, _)| k.clone());
+                                        let ctor_fn_idx = if let Some(ref cname) = mangled_class_name {
+                                            let ctor_pattern = format!("{}.<init>", cname);
+                                            let ctor_arity = ctor_decl.params.len();
+                                            self.functions.iter().enumerate()
+                                                .find(|(_, f)| f.name == ctor_pattern && f.arity == ctor_arity)
+                                                .map(|(i, _)| i as u16)
+                                        } else {
+                                            None
+                                        }.or_else(|| {
+                                            self.classes.get(class_idx_usize)
+                                                .and_then(|c| c.constructor)
+                                        });
                                         if let Some(fn_idx) = ctor_fn_idx {
                                             self.compile_method_body(
                                                 fn_idx as usize,
@@ -520,6 +551,8 @@ impl Compiler {
                                     ast::ClassMember::Field(_) => {}
                                 }
                             }
+
+                            self.current_class = saved_class;
                         }
                     }
                 }
@@ -552,10 +585,10 @@ impl Compiler {
         order: &mut Vec<usize>,
     ) -> Result<(), String> {
         if in_stack[node] {
-            return Err(format!(
-                "Circular import detected involving module '{}'",
-                self.modules[node].name
-            ));
+            // Circular import: break the cycle by skipping the back-edge.
+            // This is safe because the compiler registers all declarations
+            // in a first pass before compiling function bodies.
+            return Ok(());
         }
         if visited[node] {
             return Ok(());

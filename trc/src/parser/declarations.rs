@@ -385,8 +385,8 @@ impl Parser {
                 };
                 let where_clause = self.parse_where_clause()?;
                 let body = self.parse_block()?;
-                // fn init(params) is the constructor
-                if name == "init" {
+                // fn init(params) and fn ClassName(params) are constructors
+                if name == "init" || name == class_name {
                     return Ok(ast::ClassMember::Constructor(ast::MethodDecl {
                         access,
                         name: "new".to_string(),

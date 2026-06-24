@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 impl Vm {
-    pub(super) fn exec_new(&mut self, class_idx: u16) -> Result<(), String> {
+    pub(super) fn exec_new(&mut self, class_idx: u16, arg_count: u8) -> Result<(), String> {
         let ci = class_idx as usize;
         if ci >= self.classes.len() {
             return Err(format!("NEW: class index {} out of range", class_idx));
@@ -48,7 +48,17 @@ impl Vm {
             _ => {}
         }
 
-        let constructor = self.classes[ci].constructor;
+        // Find the constructor matching the arg count.
+        // The class may have multiple constructors (overloaded by arity).
+        // We search the function table for a function named "<class_name>.<init>"
+        // with arity matching arg_count.  If none matches, fall back to the
+        // class's default constructor field.
+        let ctor_pattern = format!("{}.<init>", class_name);
+        let constructor = self.functions.iter().enumerate()
+            .find(|(_, f)| f.name == ctor_pattern && f.arity == arg_count as usize)
+            .map(|(i, _)| i as u16)
+            .or(self.classes[ci].constructor);
+
         let field_inits: Vec<(String, Chunk)> = self.classes[ci].field_inits.clone();
         let field_names: Vec<String> = self.classes[ci].fields.iter().map(|f| f.name.clone()).collect();
         let vtable = self.classes[ci].methods.clone();
@@ -99,12 +109,15 @@ impl Vm {
 
         // If class has a constructor, call it
         if let Some(ctor_idx) = constructor {
-            let ctor_arity = self.functions[ctor_idx as usize].arity;
             // The stack is: [..., arg0, arg1, ..., instance]
             // We need:      [..., instance, arg0, arg1, ...]
             // Pop the instance, then insert it before the arguments.
             let instance_val = self.pop();
-            let arg_start = self.stack.len() - ctor_arity;
+            // Use the actual number of args passed (from the NEW opcode)
+            // rather than the constructor's arity, since they should match
+            // but arg_count is the authoritative source.
+            let num_args = arg_count as usize;
+            let arg_start = self.stack.len() - num_args;
             self.stack.insert(arg_start, instance_val.clone());
             // Now base points to the instance (which is "this")
             let base = arg_start;

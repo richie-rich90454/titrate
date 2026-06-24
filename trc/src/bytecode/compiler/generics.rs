@@ -551,14 +551,15 @@ impl Compiler {
         // Register the specialized class.
         self.register_class(&specialized_class)?;
 
+        // Get the class index and cache it BEFORE compiling methods.
+        // This prevents infinite recursion when a generic class method
+        // instantiates the same generic class with different type arguments
+        // that eventually cycle back (e.g. Pair<F,S>.swap() → Pair<S,F>).
+        let class_idx = *self.class_map.get(&mangled).unwrap();
+        self.mono_cache.insert(mangled, class_idx);
+
         // Compile the specialized class methods.
         self.compile_class_methods(&specialized_class)?;
-
-        // Get the class index.
-        let class_idx = *self.class_map.get(&mangled).unwrap();
-
-        // Cache the result.
-        self.mono_cache.insert(mangled, class_idx);
 
         Ok(class_idx)
     }

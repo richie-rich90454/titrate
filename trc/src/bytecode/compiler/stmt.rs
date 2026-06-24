@@ -101,10 +101,20 @@ impl Compiler {
                     )?;
                 }
                 ast::ClassMember::Constructor(ctor_decl) => {
-                    let ctor_fn_idx = self
-                        .classes
-                        .get(class_idx as usize)
-                        .and_then(|c| c.constructor)
+                    // Find the constructor function entry by matching arity.
+                    // The class may have multiple constructors (overloaded by
+                    // arity).  Each was registered with name "<class>.<init>"
+                    // and the corresponding arity during register_class.
+                    let class_name = &class_decl.name;
+                    let ctor_pattern = format!("{}.<init>", class_name);
+                    let ctor_arity = ctor_decl.params.len();
+                    let ctor_fn_idx = self.functions.iter().enumerate()
+                        .find(|(_, f)| f.name == ctor_pattern && f.arity == ctor_arity)
+                        .map(|(i, _)| i as u16)
+                        .or_else(|| {
+                            self.classes.get(class_idx as usize)
+                                .and_then(|c| c.constructor)
+                        })
                         .ok_or_else(|| {
                             format!("Constructor not found in class '{}'", class_decl.name)
                         })?;

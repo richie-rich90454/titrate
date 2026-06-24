@@ -103,6 +103,12 @@ impl Compiler {
         let class_idx = self.classes.len() as u16;
 
         if self.class_map.contains_key(&class_decl.name) {
+            // Specialized generic classes may already be registered via
+            // mono_cache.  Return Ok instead of erroring so that multiple
+            // compilation passes don't trip over the same specialization.
+            if class_decl.name.contains("__") {
+                return Ok(());
+            }
             return Err(format!("Duplicate class '{}'", class_decl.name));
         }
         self.class_map.insert(class_decl.name.clone(), class_idx);

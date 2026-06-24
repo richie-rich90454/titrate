@@ -434,6 +434,38 @@ impl Compiler {
             return Ok(());
         }
 
+        // Special case: this(args) call in a constructor (constructor delegation).
+        // this(args) calls another constructor of the same class with matching arity.
+        if let ast::Expr::This(_) = callee {
+            if let Some(class_idx) = self.current_class {
+                let class_name = self.classes[class_idx as usize].name.clone();
+                let ctor_pattern = format!("{}.<init>", class_name);
+                let ctor_arity = args.len();
+                // Find the constructor function entry by matching arity.
+                let ctor_fn_idx = self.functions.iter().enumerate()
+                    .find(|(_, f)| f.name == ctor_pattern && f.arity == ctor_arity)
+                    .map(|(i, _)| i as u16);
+                if let Some(fn_idx) = ctor_fn_idx {
+                    // Stack: [this, arg0, arg1, ...]
+                    // Load `this` (slot 0 in method body)
+                    self.emit_opcode(OpCode::LOAD_LOCAL, line);
+                    self.emit_u8(0, line);
+                    // Compile arguments
+                    for arg in args {
+                        self.compile_expr(arg)?;
+                    }
+                    // Use CALL_SUPER which sets base to `this` position
+                    self.emit_opcode(OpCode::CALL_SUPER, line);
+                    self.emit_u16(fn_idx, line);
+                    self.emit_u8(args.len() as u8, line);
+                    // The delegated constructor returns void; pop it.
+                    self.emit_opcode(OpCode::POP, line);
+                    self.emit_opcode(OpCode::PUSH_VOID, line);
+                    return Ok(());
+                }
+            }
+        }
+
         // Special case: Identifier("Ok") → RESULT_OK
         if let ast::Expr::Identifier(name, _) = callee {
             if name == "Ok" {
@@ -639,20 +671,34 @@ impl Compiler {
                 }
                 self.emit_opcode(OpCode::NEW, line);
                 self.emit_u16(class_idx, line);
+                self.emit_u8(args.len() as u8, line);
                 return Ok(());
             }
             _ => {}
         }
 
         // Check if it's a generic class instantiation.
-        if !type_params.is_empty() && self.generic_class_map.contains_key(class_name) {
-            let class_idx = self.instantiate_generic_class(class_name, type_params)?;
-            for arg in args {
-                self.compile_expr(arg)?;
+        if !type_params.is_empty() {
+            // Resolve the generic class name: try direct lookup first, then
+            // mangled name lookup for imported generic classes (e.g. "Pair"
+            // → "tt.util.Pair.Pair").
+            let resolved_name = if self.generic_class_map.contains_key(class_name) {
+                Some(class_name.to_string())
+            } else {
+                self.generic_class_map.keys()
+                    .find(|k| k.ends_with(&format!(".{}", class_name)))
+                    .cloned()
+            };
+            if let Some(name) = resolved_name {
+                let class_idx = self.instantiate_generic_class(&name, type_params)?;
+                for arg in args {
+                    self.compile_expr(arg)?;
+                }
+                self.emit_opcode(OpCode::NEW, line);
+                self.emit_u16(class_idx, line);
+                self.emit_u8(args.len() as u8, line);
+                return Ok(());
             }
-            self.emit_opcode(OpCode::NEW, line);
-            self.emit_u16(class_idx, line);
-            return Ok(());
         }
 
         let class_idx = if let Some(&idx) = self.class_map.get(class_name) {
@@ -678,6 +724,7 @@ impl Compiler {
 
         self.emit_opcode(OpCode::NEW, line);
         self.emit_u16(class_idx, line);
+        self.emit_u8(args.len() as u8, line);
 
         // If the class has a constructor, the VM will call it after allocation.
         // The constructor call is implicit in the NEW opcode.

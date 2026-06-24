@@ -405,9 +405,10 @@ mod tests {
         let mut chunk = Chunk::new();
         let x_idx = chunk.add_string("x");
 
-        // NEW class_idx=0 → pushes instance
+        // NEW class_idx=0, arg_count=0 → pushes instance
         chunk.write_opcode(OpCode::NEW, 1);
         chunk.write_u16(0, 1);
+        chunk.write_u8(0, 1);
         // Stack: [instance]
 
         // STORE_LOCAL 0 → store instance in local var 0
