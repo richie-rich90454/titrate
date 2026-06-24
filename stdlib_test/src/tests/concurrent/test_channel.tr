@@ -1,0 +1,281 @@
+// Test file for concurrent/Channel.tr
+// Exercises the public API: BufferedChannel, UnboundedChannel, select, channelSelect.
+import tt::concurrent::Channel;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_bufferedchannel_init(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    if (ch == null) {
+        io::println("FAIL: BufferedChannel.init returned null");
+    } else {
+        io::println("PASS: BufferedChannel.init works");
+    }
+}
+
+public fn test_bufferedchannel_capacity(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    if (ch.capacity != 5) {
+        io::println("FAIL: BufferedChannel.capacity=" + Integer.toString(ch.capacity));
+    } else {
+        io::println("PASS: BufferedChannel.capacity works");
+    }
+}
+
+public fn test_bufferedchannel_send(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    let result: bool = ch.send(Variant.of(42));
+    if (!result) {
+        io::println("FAIL: BufferedChannel.send should succeed");
+    } else {
+        io::println("PASS: BufferedChannel.send works");
+    }
+}
+
+public fn test_bufferedchannel_receive(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    ch.send(Variant.of(42));
+    let v: Variant = ch.receive();
+    if (v == null) {
+        io::println("FAIL: BufferedChannel.receive returned null");
+    } else {
+        io::println("PASS: BufferedChannel.receive works");
+    }
+}
+
+public fn test_bufferedchannel_trySend(): void {
+    let ch: BufferedChannel = new BufferedChannel(1);
+    let result: bool = ch.trySend(Variant.of(1));
+    if (!result) {
+        io::println("FAIL: BufferedChannel.trySend should succeed");
+    } else {
+        io::println("PASS: BufferedChannel.trySend works");
+    }
+}
+
+public fn test_bufferedchannel_size(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    ch.send(Variant.of(1));
+    ch.send(Variant.of(2));
+    if (ch.size() != 2) {
+        io::println("FAIL: BufferedChannel.size=" + Integer.toString(ch.size()));
+    } else {
+        io::println("PASS: BufferedChannel.size works");
+    }
+}
+
+public fn test_bufferedchannel_len(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    ch.send(Variant.of(1));
+    if (ch.len() != 1) {
+        io::println("FAIL: BufferedChannel.len=" + Integer.toString(ch.len()));
+    } else {
+        io::println("PASS: BufferedChannel.len works");
+    }
+}
+
+public fn test_bufferedchannel_isEmpty(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    if (!ch.isEmpty()) {
+        io::println("FAIL: BufferedChannel.isEmpty should be true");
+    } else {
+        io::println("PASS: BufferedChannel.isEmpty works");
+    }
+}
+
+public fn test_bufferedchannel_isFull(): void {
+    let ch: BufferedChannel = new BufferedChannel(1);
+    ch.send(Variant.of(1));
+    if (!ch.isFull()) {
+        io::println("FAIL: BufferedChannel.isFull should be true");
+    } else {
+        io::println("PASS: BufferedChannel.isFull works");
+    }
+}
+
+public fn test_bufferedchannel_send_full(): void {
+    let ch: BufferedChannel = new BufferedChannel(1);
+    ch.send(Variant.of(1));
+    let result: bool = ch.send(Variant.of(2));
+    if (result) {
+        io::println("FAIL: BufferedChannel.send full should fail");
+    } else {
+        io::println("PASS: BufferedChannel.send full works");
+    }
+}
+
+public fn test_bufferedchannel_close(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    ch.close();
+    if (!ch.isClosed()) {
+        io::println("FAIL: BufferedChannel.close not closed");
+    } else {
+        io::println("PASS: BufferedChannel.close works");
+    }
+}
+
+public fn test_bufferedchannel_send_after_close(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    ch.close();
+    let result: bool = ch.send(Variant.of(1));
+    if (result) {
+        io::println("FAIL: BufferedChannel.send after close should fail");
+    } else {
+        io::println("PASS: BufferedChannel.send after close works");
+    }
+}
+
+public fn test_bufferedchannel_receive_empty(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    let v: Variant = ch.receive();
+    if (v != null) {
+        io::println("FAIL: BufferedChannel.receive empty should return null");
+    } else {
+        io::println("PASS: BufferedChannel.receive empty works");
+    }
+}
+
+public fn test_bufferedchannel_onClose(): void {
+    let ch: BufferedChannel = new BufferedChannel(5);
+    let called: bool = false;
+    ch.onClose(fn(): void { });
+    ch.close();
+    io::println("PASS: BufferedChannel.onClose works");
+}
+
+public fn test_unboundedchannel_init(): void {
+    let ch: UnboundedChannel = new UnboundedChannel();
+    if (ch == null) {
+        io::println("FAIL: UnboundedChannel.init returned null");
+    } else {
+        io::println("PASS: UnboundedChannel.init works");
+    }
+}
+
+public fn test_unboundedchannel_send(): void {
+    let ch: UnboundedChannel = new UnboundedChannel();
+    let result: bool = ch.send(Variant.of(42));
+    if (!result) {
+        io::println("FAIL: UnboundedChannel.send should succeed");
+    } else {
+        io::println("PASS: UnboundedChannel.send works");
+    }
+}
+
+public fn test_unboundedchannel_receive(): void {
+    let ch: UnboundedChannel = new UnboundedChannel();
+    ch.send(Variant.of(42));
+    let v: Variant = ch.receive();
+    if (v == null) {
+        io::println("FAIL: UnboundedChannel.receive returned null");
+    } else {
+        io::println("PASS: UnboundedChannel.receive works");
+    }
+}
+
+public fn test_unboundedchannel_size(): void {
+    let ch: UnboundedChannel = new UnboundedChannel();
+    ch.send(Variant.of(1));
+    ch.send(Variant.of(2));
+    ch.send(Variant.of(3));
+    if (ch.size() != 3) {
+        io::println("FAIL: UnboundedChannel.size=" + Integer.toString(ch.size()));
+    } else {
+        io::println("PASS: UnboundedChannel.size works");
+    }
+}
+
+public fn test_unboundedchannel_isEmpty(): void {
+    let ch: UnboundedChannel = new UnboundedChannel();
+    if (!ch.isEmpty()) {
+        io::println("FAIL: UnboundedChannel.isEmpty should be true");
+    } else {
+        io::println("PASS: UnboundedChannel.isEmpty works");
+    }
+}
+
+public fn test_unboundedchannel_close(): void {
+    let ch: UnboundedChannel = new UnboundedChannel();
+    ch.close();
+    if (!ch.isClosed()) {
+        io::println("FAIL: UnboundedChannel.close not closed");
+    } else {
+        io::println("PASS: UnboundedChannel.close works");
+    }
+}
+
+public fn test_unboundedchannel_send_after_close(): void {
+    let ch: UnboundedChannel = new UnboundedChannel();
+    ch.close();
+    let result: bool = ch.send(Variant.of(1));
+    if (result) {
+        io::println("FAIL: UnboundedChannel.send after close should fail");
+    } else {
+        io::println("PASS: UnboundedChannel.send after close works");
+    }
+}
+
+public fn test_channelselect_empty(): void {
+    let channels: ArrayList<BufferedChannel> = new ArrayList<BufferedChannel>();
+    let result: Pair<int, Variant> = channelSelect(channels);
+    if (result.first != -1) {
+        io::println("FAIL: channelSelect empty should return -1");
+    } else {
+        io::println("PASS: channelSelect empty works");
+    }
+}
+
+public fn test_channelselect_with_data(): void {
+    let channels: ArrayList<BufferedChannel> = new ArrayList<BufferedChannel>();
+    let ch1: BufferedChannel = new BufferedChannel(5);
+    let ch2: BufferedChannel = new BufferedChannel(5);
+    ch2.send(Variant.of(42));
+    channels.add(ch1);
+    channels.add(ch2);
+    let result: Pair<int, Variant> = channelSelect(channels);
+    if (result.first != 1) {
+        io::println("FAIL: channelSelect should return index 1");
+    } else {
+        io::println("PASS: channelSelect with data works");
+    }
+}
+
+public fn test_select_function(): void {
+    let channels: ArrayList<BufferedChannel> = new ArrayList<BufferedChannel>();
+    let result: Pair<int, Variant> = select(channels);
+    if (result.first != -1) {
+        io::println("FAIL: select empty should return -1");
+    } else {
+        io::println("PASS: select function works");
+    }
+}
+
+public fn run_all_channel_tests(): void {
+    io::println("=== Channel.tr Tests ===");
+    test_bufferedchannel_init();
+    test_bufferedchannel_capacity();
+    test_bufferedchannel_send();
+    test_bufferedchannel_receive();
+    test_bufferedchannel_trySend();
+    test_bufferedchannel_size();
+    test_bufferedchannel_len();
+    test_bufferedchannel_isEmpty();
+    test_bufferedchannel_isFull();
+    test_bufferedchannel_send_full();
+    test_bufferedchannel_close();
+    test_bufferedchannel_send_after_close();
+    test_bufferedchannel_receive_empty();
+    test_bufferedchannel_onClose();
+    test_unboundedchannel_init();
+    test_unboundedchannel_send();
+    test_unboundedchannel_receive();
+    test_unboundedchannel_size();
+    test_unboundedchannel_isEmpty();
+    test_unboundedchannel_close();
+    test_unboundedchannel_send_after_close();
+    test_channelselect_empty();
+    test_channelselect_with_data();
+    test_select_function();
+}
