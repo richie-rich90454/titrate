@@ -1,0 +1,198 @@
+// Test file for linalg/Solve.tr
+// Exercises the public API: solve, solveSymmetric, leastSquares, weightedLeastSquares,
+// conjugateGradient, gmres, bandedSolve, bicgstab.
+import tt::linalg::Solve;
+import tt::util::ArrayList;
+
+public fn test_solve_2x2(): void {
+    // 2x + y = 5; x + 3y = 10
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(2.0); a.add(1.0);
+    a.add(1.0); a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(5.0); b.add(10.0);
+    let x: ArrayList<double> = solve(a, 2, b);
+    if (x.size() != 2) {
+        io::println("FAIL: solve 2x2 size");
+    } else {
+        io::println("PASS: solve 2x2 size");
+    }
+}
+
+public fn test_solve_3x3(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0); a.add(0.0); a.add(0.0);
+    a.add(0.0); a.add(1.0); a.add(0.0);
+    a.add(0.0); a.add(0.0); a.add(1.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0); b.add(2.0); b.add(3.0);
+    let x: ArrayList<double> = solve(a, 3, b);
+    if (x.size() != 3) {
+        io::println("FAIL: solve 3x3");
+    } else {
+        io::println("PASS: solve 3x3");
+    }
+}
+
+public fn test_solve_identity(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0); a.add(0.0);
+    a.add(0.0); a.add(1.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(5.0); b.add(7.0);
+    let x: ArrayList<double> = solve(a, 2, b);
+    if (Math.abs(x.get(0) - 5.0) > 0.001 || Math.abs(x.get(1) - 7.0) > 0.001) {
+        io::println("FAIL: solve identity");
+    } else {
+        io::println("PASS: solve identity");
+    }
+}
+
+public fn test_solveSymmetric_2x2(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(4.0); a.add(1.0);
+    a.add(1.0); a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0); b.add(2.0);
+    let x: ArrayList<double> = solveSymmetric(a, 2, b);
+    if (x.size() != 2) {
+        io::println("FAIL: solveSymmetric 2x2");
+    } else {
+        io::println("PASS: solveSymmetric 2x2");
+    }
+}
+
+public fn test_leastSquares_overdetermined(): void {
+    // 3 equations, 2 unknowns
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0); a.add(1.0);
+    a.add(1.0); a.add(2.0);
+    a.add(1.0); a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0); b.add(2.0); b.add(2.0);
+    let x: ArrayList<double> = leastSquares(a, 3, 2, b);
+    if (x.size() != 2) {
+        io::println("FAIL: leastSquares overdetermined");
+    } else {
+        io::println("PASS: leastSquares overdetermined");
+    }
+}
+
+public fn test_weightedLeastSquares_basic(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0); a.add(1.0);
+    a.add(1.0); a.add(2.0);
+    a.add(1.0); a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0); b.add(2.0); b.add(2.0);
+    let w: ArrayList<double> = new ArrayList<double>();
+    w.add(1.0); w.add(1.0); w.add(1.0);
+    let x: ArrayList<double> = weightedLeastSquares(a, 3, 2, b, w);
+    if (x.size() != 2) {
+        io::println("FAIL: weightedLeastSquares basic");
+    } else {
+        io::println("PASS: weightedLeastSquares basic");
+    }
+}
+
+public fn test_conjugateGradient_basic(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(4.0); a.add(1.0);
+    a.add(1.0); a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0); b.add(2.0);
+    let x: ArrayList<double> = conjugateGradient(a, 2, b, 100, 1e-10);
+    if (x.size() != 2) {
+        io::println("FAIL: conjugateGradient basic");
+    } else {
+        io::println("PASS: conjugateGradient basic");
+    }
+}
+
+public fn test_conjugateGradient_identity(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0); a.add(0.0);
+    a.add(0.0); a.add(1.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(3.0); b.add(4.0);
+    let x: ArrayList<double> = conjugateGradient(a, 2, b, 100, 1e-10);
+    if (Math.abs(x.get(0) - 3.0) > 0.01 || Math.abs(x.get(1) - 4.0) > 0.01) {
+        io::println("FAIL: conjugateGradient identity");
+    } else {
+        io::println("PASS: conjugateGradient identity");
+    }
+}
+
+public fn test_gmres_basic(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(4.0); a.add(1.0);
+    a.add(1.0); a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0); b.add(2.0);
+    let x: ArrayList<double> = gmres(a, 2, b, 100, 1e-10);
+    if (x.size() != 2) {
+        io::println("FAIL: gmres basic");
+    } else {
+        io::println("PASS: gmres basic");
+    }
+}
+
+public fn test_bandedSolve_basic(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(4.0); a.add(1.0); a.add(0.0);
+    a.add(1.0); a.add(4.0); a.add(1.0);
+    a.add(0.0); a.add(1.0); a.add(4.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0); b.add(2.0); b.add(3.0);
+    let x: ArrayList<double> = bandedSolve(a, 3, b, 1, 1);
+    if (x.size() != 3) {
+        io::println("FAIL: bandedSolve basic");
+    } else {
+        io::println("PASS: bandedSolve basic");
+    }
+}
+
+public fn test_bicgstab_basic(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(4.0); a.add(1.0);
+    a.add(1.0); a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0); b.add(2.0);
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(0.0); x0.add(0.0);
+    let x: ArrayList<double> = bicgstab(a, 2, b, x0, 100, 1e-10);
+    if (x.size() != 2) {
+        io::println("FAIL: bicgstab basic");
+    } else {
+        io::println("PASS: bicgstab basic");
+    }
+}
+
+public fn test_solve_diagonal(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(2.0); a.add(0.0);
+    a.add(0.0); a.add(4.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(6.0); b.add(12.0);
+    let x: ArrayList<double> = solve(a, 2, b);
+    if (Math.abs(x.get(0) - 3.0) > 0.001 || Math.abs(x.get(1) - 3.0) > 0.001) {
+        io::println("FAIL: solve diagonal");
+    } else {
+        io::println("PASS: solve diagonal");
+    }
+}
+
+public fn run_all_solve_tests(): void {
+    test_solve_2x2();
+    test_solve_3x3();
+    test_solve_identity();
+    test_solveSymmetric_2x2();
+    test_leastSquares_overdetermined();
+    test_weightedLeastSquares_basic();
+    test_conjugateGradient_basic();
+    test_conjugateGradient_identity();
+    test_gmres_basic();
+    test_bandedSolve_basic();
+    test_bicgstab_basic();
+    test_solve_diagonal();
+}
