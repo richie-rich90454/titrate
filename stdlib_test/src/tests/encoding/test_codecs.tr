@@ -1,0 +1,200 @@
+// Test file for encoding/Codecs.tr
+// Exercises the public API: encode, decode, register, lookup.
+import tt::encoding::Codecs;
+
+public fn test_encode_utf8(): void {
+    let r: string = encode("hello", "utf-8");
+    if (r != "hello") {
+        io::println("FAIL: encode utf8");
+    } else {
+        io::println("PASS: encode utf8");
+    }
+}
+
+public fn test_encode_utf8_uppercase(): void {
+    let r: string = encode("hello", "UTF-8");
+    if (r != "hello") {
+        io::println("FAIL: encode utf8 uppercase");
+    } else {
+        io::println("PASS: encode utf8 uppercase");
+    }
+}
+
+public fn test_encode_ascii(): void {
+    let r: string = encode("hello", "ascii");
+    if (r != "hello") {
+        io::println("FAIL: encode ascii");
+    } else {
+        io::println("PASS: encode ascii");
+    }
+}
+
+public fn test_encode_latin1(): void {
+    let r: string = encode("hello", "latin-1");
+    if (r != "hello") {
+        io::println("FAIL: encode latin1");
+    } else {
+        io::println("PASS: encode latin1");
+    }
+}
+
+public fn test_encode_empty(): void {
+    let r: string = encode("", "utf-8");
+    if (r != "") {
+        io::println("FAIL: encode empty");
+    } else {
+        io::println("PASS: encode empty");
+    }
+}
+
+public fn test_decode_utf8(): void {
+    let r: string = decode("hello", "utf-8");
+    if (r != "hello") {
+        io::println("FAIL: decode utf8");
+    } else {
+        io::println("PASS: decode utf8");
+    }
+}
+
+public fn test_decode_ascii(): void {
+    let r: string = decode("hello", "ascii");
+    if (r != "hello") {
+        io::println("FAIL: decode ascii");
+    } else {
+        io::println("PASS: decode ascii");
+    }
+}
+
+public fn test_decode_latin1(): void {
+    let r: string = decode("hello", "latin-1");
+    if (r != "hello") {
+        io::println("FAIL: decode latin1");
+    } else {
+        io::println("PASS: decode latin1");
+    }
+}
+
+public fn test_decode_empty(): void {
+    let r: string = decode("", "utf-8");
+    if (r != "") {
+        io::println("FAIL: decode empty");
+    } else {
+        io::println("PASS: decode empty");
+    }
+}
+
+public fn test_encode_decode_roundtrip_utf8(): void {
+    let original: string = "hello world";
+    let encoded: string = encode(original, "utf-8");
+    let decoded: string = decode(encoded, "utf-8");
+    if (decoded != original) {
+        io::println("FAIL: encode decode roundtrip utf8");
+    } else {
+        io::println("PASS: encode decode roundtrip utf8");
+    }
+}
+
+public fn test_encode_decode_roundtrip_ascii(): void {
+    let original: string = "test123";
+    let encoded: string = encode(original, "ascii");
+    let decoded: string = decode(encoded, "ascii");
+    if (decoded != original) {
+        io::println("FAIL: encode decode roundtrip ascii");
+    } else {
+        io::println("PASS: encode decode roundtrip ascii");
+    }
+}
+
+public fn test_lookup_utf8(): void {
+    let r: string = lookup("utf-8");
+    if (String.length(r) == 0) {
+        io::println("FAIL: lookup utf8");
+    } else {
+        io::println("PASS: lookup utf8");
+    }
+}
+
+public fn test_lookup_ascii(): void {
+    let r: string = lookup("ascii");
+    if (String.length(r) == 0) {
+        io::println("FAIL: lookup ascii");
+    } else {
+        io::println("PASS: lookup ascii");
+    }
+}
+
+public fn test_lookup_unknown(): void {
+    let r: string = lookup("nonexistent-encoding");
+    io::println("PASS: lookup unknown");
+}
+
+public fn test_register_custom(): void {
+    register("custom-enc",
+        fn(s: string): string { return s + "_enc"; },
+        fn(s: string): string { return s + "_dec"; });
+    io::println("PASS: register custom");
+}
+
+public fn test_encode_registered(): void {
+    register("test-enc",
+        fn(s: string): string { return "[" + s + "]"; },
+        fn(s: string): string { return s; });
+    let r: string = encode("hello", "test-enc");
+    if (r != "[hello]") {
+        io::println("FAIL: encode registered r=" + r);
+    } else {
+        io::println("PASS: encode registered");
+    }
+}
+
+public fn test_decode_registered(): void {
+    register("test-dec",
+        fn(s: string): string { return s; },
+        fn(s: string): string { return "{" + s + "}"; });
+    let r: string = decode("hello", "test-dec");
+    if (r != "{hello}") {
+        io::println("FAIL: decode registered r=" + r);
+    } else {
+        io::println("PASS: decode registered");
+    }
+}
+
+public fn test_encode_unknown_encoding(): void {
+    let r: string = encode("hello", "unknown-xyz");
+    if (r != "hello") {
+        io::println("FAIL: encode unknown encoding");
+    } else {
+        io::println("PASS: encode unknown encoding");
+    }
+}
+
+public fn test_decode_unknown_encoding(): void {
+    let r: string = decode("hello", "unknown-xyz");
+    if (r != "hello") {
+        io::println("FAIL: decode unknown encoding");
+    } else {
+        io::println("PASS: decode unknown encoding");
+    }
+}
+
+public fn run_all_codecs_tests(): void {
+    test_encode_utf8();
+    test_encode_utf8_uppercase();
+    test_encode_ascii();
+    test_encode_latin1();
+    test_encode_empty();
+    test_decode_utf8();
+    test_decode_ascii();
+    test_decode_latin1();
+    test_decode_empty();
+    test_encode_decode_roundtrip_utf8();
+    test_encode_decode_roundtrip_ascii();
+    test_lookup_utf8();
+    test_lookup_ascii();
+    test_lookup_unknown();
+    test_register_custom();
+    test_encode_registered();
+    test_decode_registered();
+    test_encode_unknown_encoding();
+    test_decode_unknown_encoding();
+}
