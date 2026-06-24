@@ -1,0 +1,263 @@
+// Test file for calculus/Calculus.tr
+// Exercises the public API: derivative, secondDerivative, riemannSum,
+// trapezoidRule, simpsonsRule, integrate, newtonsMethod, bisection, findMin,
+// findMax, averageValue, linearApprox, eulerMethod, rungeKutta4, taylorCoefficients.
+import tt::calculus::Calculus;
+import tt::math::MathAdvanced;
+import tt::util::ArrayList;
+
+public fn test_derivative_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let d: double = derivative(f, 3.0, 1e-6);
+    if (d < 5.9 || d > 6.1) {
+        io::println("FAIL: derivative basic d=" + Double.toString(d));
+    } else {
+        io::println("PASS: derivative basic");
+    }
+}
+
+public fn test_derivative_default_h(): void {
+    let f: fn(double): double = fn(x: double): double { return 2.0 * x; };
+    let d: double = derivative(f, 5.0);
+    if (d < 1.9 || d > 2.1) {
+        io::println("FAIL: derivative default h");
+    } else {
+        io::println("PASS: derivative default h");
+    }
+}
+
+public fn test_derivative_constant(): void {
+    let f: fn(double): double = fn(x: double): double { return 5.0; };
+    let d: double = derivative(f, 3.0, 1e-6);
+    if (d < -0.1 || d > 0.1) {
+        io::println("FAIL: derivative constant");
+    } else {
+        io::println("PASS: derivative constant");
+    }
+}
+
+public fn test_secondDerivative_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let d: double = secondDerivative(f, 3.0, 1e-4);
+    if (d < 1.9 || d > 2.1) {
+        io::println("FAIL: secondDerivative basic");
+    } else {
+        io::println("PASS: secondDerivative basic");
+    }
+}
+
+public fn test_riemannSum_left(): void {
+    let f: fn(double): double = fn(x: double): double { return x; };
+    let s: double = riemannSum(f, 0.0, 10.0, 100, "left");
+    if (s < 45.0 || s > 55.0) {
+        io::println("FAIL: riemannSum left");
+    } else {
+        io::println("PASS: riemannSum left");
+    }
+}
+
+public fn test_riemannSum_right(): void {
+    let f: fn(double): double = fn(x: double): double { return x; };
+    let s: double = riemannSum(f, 0.0, 10.0, 100, "right");
+    if (s < 45.0 || s > 55.0) {
+        io::println("FAIL: riemannSum right");
+    } else {
+        io::println("PASS: riemannSum right");
+    }
+}
+
+public fn test_riemannSum_midpoint(): void {
+    let f: fn(double): double = fn(x: double): double { return x; };
+    let s: double = riemannSum(f, 0.0, 10.0, 100, "midpoint");
+    if (s < 45.0 || s > 55.0) {
+        io::println("FAIL: riemannSum midpoint");
+    } else {
+        io::println("PASS: riemannSum midpoint");
+    }
+}
+
+public fn test_trapezoidRule_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x; };
+    let s: double = trapezoidRule(f, 0.0, 10.0, 100);
+    if (s < 45.0 || s > 55.0) {
+        io::println("FAIL: trapezoidRule basic");
+    } else {
+        io::println("PASS: trapezoidRule basic");
+    }
+}
+
+public fn test_simpsonsRule_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let s: double = simpsonsRule(f, 0.0, 3.0, 100);
+    if (s < 8.5 || s > 9.5) {
+        io::println("FAIL: simpsonsRule basic s=" + Double.toString(s));
+    } else {
+        io::println("PASS: simpsonsRule basic");
+    }
+}
+
+public fn test_integrate_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return 2.0 * x; };
+    let s: double = integrate(f, 0.0, 5.0);
+    if (s < 24.0 || s > 26.0) {
+        io::println("FAIL: integrate basic s=" + Double.toString(s));
+    } else {
+        io::println("PASS: integrate basic");
+    }
+}
+
+public fn test_newtonsMethod_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x - 4.0; };
+    let root: double = newtonsMethod(f, 3.0, 1e-10, 100);
+    if (root < 1.9 || root > 2.1) {
+        io::println("FAIL: newtonsMethod basic root=" + Double.toString(root));
+    } else {
+        io::println("PASS: newtonsMethod basic");
+    }
+}
+
+public fn test_bisection_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x - 4.0; };
+    let root: double = bisection(f, 0.0, 5.0, 1e-10, 100);
+    if (root < 1.9 || root > 2.1) {
+        io::println("FAIL: bisection basic root=" + Double.toString(root));
+    } else {
+        io::println("PASS: bisection basic");
+    }
+}
+
+public fn test_findMin_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return (x - 3.0) * (x - 3.0); };
+    let m: double = findMin(f, 0.0, 6.0, 1e-6);
+    if (m < 2.9 || m > 3.1) {
+        io::println("FAIL: findMin basic m=" + Double.toString(m));
+    } else {
+        io::println("PASS: findMin basic");
+    }
+}
+
+public fn test_findMax_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return -(x - 3.0) * (x - 3.0); };
+    let m: double = findMax(f, 0.0, 6.0, 1e-6);
+    if (m < 2.9 || m > 3.1) {
+        io::println("FAIL: findMax basic m=" + Double.toString(m));
+    } else {
+        io::println("PASS: findMax basic");
+    }
+}
+
+public fn test_averageValue_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x; };
+    let avg: double = averageValue(f, 0.0, 10.0);
+    if (avg < 4.9 || avg > 5.1) {
+        io::println("FAIL: averageValue basic");
+    } else {
+        io::println("PASS: averageValue basic");
+    }
+}
+
+public fn test_linearApprox_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let v: double = linearApprox(f, 2.0, 2.1);
+    if (v < 3.9 || v > 4.5) {
+        io::println("FAIL: linearApprox basic");
+    } else {
+        io::println("PASS: linearApprox basic");
+    }
+}
+
+public fn test_eulerMethod_basic(): void {
+    let f: fn(double, double): double = fn(x: double, y: double): double { return y; };
+    let result: ArrayList<ArrayList<double>> = eulerMethod(f, 0.0, 1.0, 1.0, 0.1);
+    if (result.size() == 0) {
+        io::println("FAIL: eulerMethod basic");
+    } else {
+        io::println("PASS: eulerMethod basic");
+    }
+}
+
+public fn test_rungeKutta4_basic(): void {
+    let f: fn(double, double): double = fn(x: double, y: double): double { return y; };
+    let result: ArrayList<ArrayList<double>> = rungeKutta4(f, 0.0, 1.0, 1.0, 0.1);
+    if (result.size() == 0) {
+        io::println("FAIL: rungeKutta4 basic");
+    } else {
+        io::println("PASS: rungeKutta4 basic");
+    }
+}
+
+public fn test_taylorCoefficients_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return MathAdvanced.exp(x); };
+    let coeffs: ArrayList<double> = taylorCoefficients(f, 0.0, 3);
+    if (coeffs.size() != 4) {
+        io::println("FAIL: taylorCoefficients basic");
+    } else {
+        io::println("PASS: taylorCoefficients basic");
+    }
+}
+
+public fn test_partialDerivative_basic(): void {
+    let f: fn(double, double): double = fn(x: double, y: double): double { return x * y; };
+    let d: double = partialDerivative(f, 2.0, 3.0, 0, 1e-6);
+    if (d < 2.9 || d > 3.1) {
+        io::println("FAIL: partialDerivative basic");
+    } else {
+        io::println("PASS: partialDerivative basic");
+    }
+}
+
+public fn test_nthDerivative_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x * x; };
+    let d: double = nthDerivative(f, 2.0, 2, 1e-4);
+    if (d < 11.5 || d > 12.5) {
+        io::println("FAIL: nthDerivative basic");
+    } else {
+        io::println("PASS: nthDerivative basic");
+    }
+}
+
+public fn test_continuityCheck_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let c: bool = continuityCheck(f, 2.0, 1e-6);
+    if (!c) {
+        io::println("FAIL: continuityCheck basic");
+    } else {
+        io::println("PASS: continuityCheck basic");
+    }
+}
+
+public fn test_differentiabilityCheck_basic(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let d: bool = differentiabilityCheck(f, 2.0, 1e-6);
+    if (!d) {
+        io::println("FAIL: differentiabilityCheck basic");
+    } else {
+        io::println("PASS: differentiabilityCheck basic");
+    }
+}
+
+public fn run_all_calculus_tests(): void {
+    test_derivative_basic();
+    test_derivative_default_h();
+    test_derivative_constant();
+    test_secondDerivative_basic();
+    test_riemannSum_left();
+    test_riemannSum_right();
+    test_riemannSum_midpoint();
+    test_trapezoidRule_basic();
+    test_simpsonsRule_basic();
+    test_integrate_basic();
+    test_newtonsMethod_basic();
+    test_bisection_basic();
+    test_findMin_basic();
+    test_findMax_basic();
+    test_averageValue_basic();
+    test_linearApprox_basic();
+    test_eulerMethod_basic();
+    test_rungeKutta4_basic();
+    test_taylorCoefficients_basic();
+    test_partialDerivative_basic();
+    test_nthDerivative_basic();
+    test_continuityCheck_basic();
+    test_differentiabilityCheck_basic();
+}
