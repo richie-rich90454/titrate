@@ -1,0 +1,217 @@
+// Test file for pprint/Pprint.tr
+// Exercises the public API: pformat, pprint, PrettyPrinter.
+import tt::pprint::Pprint;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn test_pformat_null(): void {
+    let s: string = pformat<int>(0);
+    if (String.length(s) == 0) {
+        io::println("FAIL: pformat null");
+    } else {
+        io::println("PASS: pformat null");
+    }
+}
+
+public fn test_pformat_integer(): void {
+    let s: string = pformat<int>(42);
+    if (s != "42") {
+        io::println("FAIL: pformat integer s=" + s);
+    } else {
+        io::println("PASS: pformat integer");
+    }
+}
+
+public fn test_pformat_string(): void {
+    let s: string = pformat<string>("hello");
+    if (s != "hello") {
+        io::println("FAIL: pformat string s=" + s);
+    } else {
+        io::println("PASS: pformat string");
+    }
+}
+
+public fn test_pformat_empty_list(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    let s: string = pformat<ArrayList<Variant>>(list);
+    if (s != "[]") {
+        io::println("FAIL: pformat empty list s=" + s);
+    } else {
+        io::println("PASS: pformat empty list");
+    }
+}
+
+public fn test_pformat_list_basic(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1); list.add(2); list.add(3);
+    let s: string = pformat<ArrayList<Variant>>(list);
+    if (s != "[1, 2, 3]") {
+        io::println("FAIL: pformat list basic s=" + s);
+    } else {
+        io::println("PASS: pformat list basic");
+    }
+}
+
+public fn test_pformat_empty_map(): void {
+    let map: HashMap<Variant, Variant> = new HashMap<Variant, Variant>();
+    let s: string = pformat<HashMap<Variant, Variant>>(map);
+    if (s != "{}") {
+        io::println("FAIL: pformat empty map s=" + s);
+    } else {
+        io::println("PASS: pformat empty map");
+    }
+}
+
+public fn test_pformat_with_indent(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1); list.add(2);
+    let s: string = pformat<ArrayList<Variant>>(list, 4);
+    if (String.length(s) == 0) {
+        io::println("FAIL: pformat with indent");
+    } else {
+        io::println("PASS: pformat with indent");
+    }
+}
+
+public fn test_pformat_with_indent_width(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1); list.add(2); list.add(3);
+    let s: string = pformat<ArrayList<Variant>>(list, 2, 80);
+    if (String.length(s) == 0) {
+        io::println("FAIL: pformat with indent width");
+    } else {
+        io::println("PASS: pformat with indent width");
+    }
+}
+
+public fn test_pformat_long_list_multiline(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add("aaaaaaaaaa"); list.add("bbbbbbbbbb");
+    list.add("cccccccccc"); list.add("dddddddddd");
+    let s: string = pformat<ArrayList<Variant>>(list, 2, 20);
+    if (String.length(s) == 0) {
+        io::println("FAIL: pformat long list multiline");
+    } else {
+        io::println("PASS: pformat long list multiline");
+    }
+}
+
+public fn test_pprint_basic(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1); list.add(2);
+    pprint<ArrayList<Variant>>(list);
+    io::println("PASS: pprint basic");
+}
+
+public fn test_pprint_with_indent(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1); list.add(2);
+    pprint<ArrayList<Variant>>(list, 4);
+    io::println("PASS: pprint with indent");
+}
+
+public fn test_prettyPrinter_init(): void {
+    let pp: PrettyPrinter = new PrettyPrinter(2, 80, 0, false, false);
+    if (pp._indent != 2 || pp._width != 80) {
+        io::println("FAIL: prettyPrinter init");
+    } else {
+        io::println("PASS: prettyPrinter init");
+    }
+}
+
+public fn test_prettyPrinter_fields(): void {
+    let pp: PrettyPrinter = new PrettyPrinter(4, 120, 3, true, true);
+    if (pp._depth != 3 || !pp._compact || !pp._sortDicts) {
+        io::println("FAIL: prettyPrinter fields");
+    } else {
+        io::println("PASS: prettyPrinter fields");
+    }
+}
+
+public fn test_prettyPrinter_pformat_integer(): void {
+    let pp: PrettyPrinter = new PrettyPrinter(2, 80, 0, false, false);
+    let s: string = pp.pformat(42);
+    if (s != "42") {
+        io::println("FAIL: prettyPrinter pformat integer s=" + s);
+    } else {
+        io::println("PASS: prettyPrinter pformat integer");
+    }
+}
+
+public fn test_prettyPrinter_pformat_list(): void {
+    let pp: PrettyPrinter = new PrettyPrinter(2, 80, 0, false, false);
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1); list.add(2);
+    let s: string = pp.pformat(list);
+    if (String.length(s) == 0) {
+        io::println("FAIL: prettyPrinter pformat list");
+    } else {
+        io::println("PASS: prettyPrinter pformat list");
+    }
+}
+
+public fn test_prettyPrinter_pformat_map(): void {
+    let pp: PrettyPrinter = new PrettyPrinter(2, 80, 0, false, false);
+    let map: HashMap<Variant, Variant> = new HashMap<Variant, Variant>();
+    map.put("a", 1);
+    let s: string = pp.pformat(map);
+    if (String.length(s) == 0) {
+        io::println("FAIL: prettyPrinter pformat map");
+    } else {
+        io::println("PASS: prettyPrinter pformat map");
+    }
+}
+
+public fn test_prettyPrinter_pformat_depth_limit(): void {
+    let pp: PrettyPrinter = new PrettyPrinter(2, 80, 1, false, false);
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1);
+    let s: string = pp.pformat(list);
+    if (String.length(s) == 0) {
+        io::println("FAIL: prettyPrinter pformat depth limit");
+    } else {
+        io::println("PASS: prettyPrinter pformat depth limit");
+    }
+}
+
+public fn test_prettyPrinter_pprint(): void {
+    let pp: PrettyPrinter = new PrettyPrinter(2, 80, 0, false, false);
+    pp.pprint(42);
+    io::println("PASS: prettyPrinter pprint");
+}
+
+public fn test_pformat_nested_list(): void {
+    let outer: ArrayList<Variant> = new ArrayList<Variant>();
+    let inner: ArrayList<Variant> = new ArrayList<Variant>();
+    inner.add(1); inner.add(2);
+    outer.add(inner);
+    outer.add(3);
+    let s: string = pformat<ArrayList<Variant>>(outer);
+    if (String.length(s) == 0) {
+        io::println("FAIL: pformat nested list");
+    } else {
+        io::println("PASS: pformat nested list");
+    }
+}
+
+public fn run_all_pprint_tests(): void {
+    test_pformat_null();
+    test_pformat_integer();
+    test_pformat_string();
+    test_pformat_empty_list();
+    test_pformat_list_basic();
+    test_pformat_empty_map();
+    test_pformat_with_indent();
+    test_pformat_with_indent_width();
+    test_pformat_long_list_multiline();
+    test_pprint_basic();
+    test_pprint_with_indent();
+    test_prettyPrinter_init();
+    test_prettyPrinter_fields();
+    test_prettyPrinter_pformat_integer();
+    test_prettyPrinter_pformat_list();
+    test_prettyPrinter_pformat_map();
+    test_prettyPrinter_pformat_depth_limit();
+    test_prettyPrinter_pprint();
+    test_pformat_nested_list();
+}
