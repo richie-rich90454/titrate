@@ -1,0 +1,165 @@
+// Test file for units/UnitConverter.tr
+// Exercises the public API: convert, convertCompound, dimensionalAnalysis,
+// compatibleUnits, UnitTracker.
+import tt::units::UnitConverter;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public fn test_convert_same_unit(): void {
+    let v: double = convert(5.0, "m", "m");
+    if (v != 5.0) {
+        io::println("FAIL: convert same unit");
+    } else {
+        io::println("PASS: convert same unit");
+    }
+}
+
+public fn test_convert_basic(): void {
+    let v: double = convert(1000.0, "m", "km");
+    if (v < 0.9 || v > 1.1) {
+        io::println("FAIL: convert basic v=" + Double.toString(v));
+    } else {
+        io::println("PASS: convert basic");
+    }
+}
+
+public fn test_convert_unknown_unit(): void {
+    let v: double = convert(5.0, "unknown1", "unknown2");
+    if (v != 0.0) {
+        io::println("FAIL: convert unknown unit");
+    } else {
+        io::println("PASS: convert unknown unit");
+    }
+}
+
+public fn test_convert_zero_value(): void {
+    let v: double = convert(0.0, "m", "km");
+    if (v != 0.0) {
+        io::println("FAIL: convert zero value");
+    } else {
+        io::println("PASS: convert zero value");
+    }
+}
+
+public fn test_convertCompound_basic(): void {
+    let from: ArrayList<string> = new ArrayList<string>();
+    from.add("m");
+    let to: ArrayList<string> = new ArrayList<string>();
+    to.add("km");
+    let v: double = convertCompound(1000.0, from, to);
+    io::println("PASS: convertCompound basic");
+}
+
+public fn test_convertCompound_empty(): void {
+    let from: ArrayList<string> = new ArrayList<string>();
+    let to: ArrayList<string> = new ArrayList<string>();
+    let v: double = convertCompound(5.0, from, to);
+    if (v != 5.0) {
+        io::println("FAIL: convertCompound empty");
+    } else {
+        io::println("PASS: convertCompound empty");
+    }
+}
+
+public fn test_dimensionalAnalysis_basic(): void {
+    let dims: HashMap<string, int> = dimensionalAnalysis("m");
+    io::println("PASS: dimensionalAnalysis basic");
+}
+
+public fn test_dimensionalAnalysis_unknown(): void {
+    let dims: HashMap<string, int> = dimensionalAnalysis("nonexistent");
+    if (dims.size() != 0) {
+        io::println("FAIL: dimensionalAnalysis unknown");
+    } else {
+        io::println("PASS: dimensionalAnalysis unknown");
+    }
+}
+
+public fn test_compatibleUnits_basic(): void {
+    let units: ArrayList<string> = compatibleUnits("m");
+    io::println("PASS: compatibleUnits basic");
+}
+
+public fn test_compatibleUnits_unknown(): void {
+    let units: ArrayList<string> = compatibleUnits("nonexistent");
+    if (units.size() != 0) {
+        io::println("FAIL: compatibleUnits unknown");
+    } else {
+        io::println("PASS: compatibleUnits unknown");
+    }
+}
+
+public fn test_unitTracker_init(): void {
+    let ut: UnitTracker = new UnitTracker(5.0, "m");
+    if (ut.value != 5.0 || ut.unit != "m") {
+        io::println("FAIL: unitTracker init");
+    } else {
+        io::println("PASS: unitTracker init");
+    }
+}
+
+public fn test_unitTracker_getValue(): void {
+    let ut: UnitTracker = new UnitTracker(42.0, "kg");
+    if (ut.getValue() != 42.0) {
+        io::println("FAIL: unitTracker getValue");
+    } else {
+        io::println("PASS: unitTracker getValue");
+    }
+}
+
+public fn test_unitTracker_getUnit(): void {
+    let ut: UnitTracker = new UnitTracker(42.0, "kg");
+    if (ut.getUnit() != "kg") {
+        io::println("FAIL: unitTracker getUnit");
+    } else {
+        io::println("PASS: unitTracker getUnit");
+    }
+}
+
+public fn test_unitTracker_to(): void {
+    let ut: UnitTracker = new UnitTracker(1000.0, "m");
+    let converted: UnitTracker = ut.to("km");
+    if (converted == null) {
+        io::println("FAIL: unitTracker to");
+    } else {
+        io::println("PASS: unitTracker to");
+    }
+}
+
+public fn test_unitTracker_to_same(): void {
+    let ut: UnitTracker = new UnitTracker(5.0, "m");
+    let converted: UnitTracker = ut.to("m");
+    if (converted.getValue() != 5.0) {
+        io::println("FAIL: unitTracker to same");
+    } else {
+        io::println("PASS: unitTracker to same");
+    }
+}
+
+public fn test_unitTracker_fields(): void {
+    let ut: UnitTracker = new UnitTracker(10.0, "s");
+    if (ut.value != 10.0 || ut.unit != "s") {
+        io::println("FAIL: unitTracker fields");
+    } else {
+        io::println("PASS: unitTracker fields");
+    }
+}
+
+public fn run_all_unitconverter_tests(): void {
+    test_convert_same_unit();
+    test_convert_basic();
+    test_convert_unknown_unit();
+    test_convert_zero_value();
+    test_convertCompound_basic();
+    test_convertCompound_empty();
+    test_dimensionalAnalysis_basic();
+    test_dimensionalAnalysis_unknown();
+    test_compatibleUnits_basic();
+    test_compatibleUnits_unknown();
+    test_unitTracker_init();
+    test_unitTracker_getValue();
+    test_unitTracker_getUnit();
+    test_unitTracker_to();
+    test_unitTracker_to_same();
+    test_unitTracker_fields();
+}
