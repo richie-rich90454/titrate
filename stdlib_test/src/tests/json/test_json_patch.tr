@@ -1,0 +1,344 @@
+// Test file for json/JsonPatch.tr
+// Exercises the public API: JsonPointer, JsonPatch, diff, compile.
+import tt::json::JsonPatch;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_jsonpointer_init(): void {
+    let p: JsonPointer = new JsonPointer("/a/b");
+    if (p == null) {
+        io::println("FAIL: JsonPointer.init returned null");
+    } else {
+        io::println("PASS: JsonPointer.init works");
+    }
+}
+
+public fn test_jsonpointer_toString(): void {
+    let p: JsonPointer = new JsonPointer("/a/b");
+    if (p.toString() != "/a/b") {
+        io::println("FAIL: JsonPointer.toString=" + p.toString());
+    } else {
+        io::println("PASS: JsonPointer.toString works");
+    }
+}
+
+public fn test_jsonpointer_get(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let p: JsonPointer = new JsonPointer("/a");
+    let v: JsonValue = p.get(data);
+    if (v.asNumber() != 1.0) {
+        io::println("FAIL: JsonPointer.get returned wrong value");
+    } else {
+        io::println("PASS: JsonPointer.get works");
+    }
+}
+
+public fn test_jsonpointer_get_nested(): void {
+    let inner: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    inner.put("b", JsonValue.ofNum(2.0));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofObject(inner));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let p: JsonPointer = new JsonPointer("/a/b");
+    let v: JsonValue = p.get(data);
+    if (v.asNumber() != 2.0) {
+        io::println("FAIL: JsonPointer.get nested returned wrong value");
+    } else {
+        io::println("PASS: JsonPointer.get nested works");
+    }
+}
+
+public fn test_jsonpointer_get_missing(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let p: JsonPointer = new JsonPointer("/missing");
+    let v: JsonValue = p.get(data);
+    if (!v.isNull()) {
+        io::println("FAIL: JsonPointer.get missing should return null");
+    } else {
+        io::println("PASS: JsonPointer.get missing returns null");
+    }
+}
+
+public fn test_jsonpointer_get_array(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(10.0));
+    arr.add(JsonValue.ofNum(20.0));
+    let data: JsonValue = JsonValue.ofArray(arr);
+    let p: JsonPointer = new JsonPointer("/1");
+    let v: JsonValue = p.get(data);
+    if (v.asNumber() != 20.0) {
+        io::println("FAIL: JsonPointer.get array returned wrong value");
+    } else {
+        io::println("PASS: JsonPointer.get array works");
+    }
+}
+
+public fn test_jsonpointer_set(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let p: JsonPointer = new JsonPointer("/a");
+    let newData: JsonValue = p.set(data, JsonValue.ofNum(5.0));
+    if (!newData.hasKey("a")) {
+        io::println("FAIL: JsonPointer.set did not add key");
+    } else if (newData.get("a").asNumber() != 5.0) {
+        io::println("FAIL: JsonPointer.set wrong value");
+    } else {
+        io::println("PASS: JsonPointer.set works");
+    }
+}
+
+public fn test_jsonpointer_set_non_mutating(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let p: JsonPointer = new JsonPointer("/a");
+    let newData: JsonValue = p.set(data, JsonValue.ofNum(5.0));
+    if (data.hasKey("a")) {
+        io::println("FAIL: JsonPointer.set should not mutate original");
+    } else {
+        io::println("PASS: JsonPointer.set non-mutating works");
+    }
+}
+
+public fn test_jsonpointer_remove(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    obj.put("b", JsonValue.ofNum(2.0));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let p: JsonPointer = new JsonPointer("/a");
+    let newData: JsonValue = p.remove(data);
+    if (newData.hasKey("a")) {
+        io::println("FAIL: JsonPointer.remove did not remove key");
+    } else if (!newData.hasKey("b")) {
+        io::println("FAIL: JsonPointer.remove removed wrong key");
+    } else {
+        io::println("PASS: JsonPointer.remove works");
+    }
+}
+
+public fn test_jsonpointer_has(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let data: JsonValue = JsonValue.ofObject(obj);
+    let p1: JsonPointer = new JsonPointer("/a");
+    let p2: JsonPointer = new JsonPointer("/b");
+    if (!p1.has(data)) {
+        io::println("FAIL: JsonPointer.has should be true for /a");
+    } else if (p2.has(data)) {
+        io::println("FAIL: JsonPointer.has should be false for /b");
+    } else {
+        io::println("PASS: JsonPointer.has works");
+    }
+}
+
+public fn test_jsonpatch_init(): void {
+    let p: JsonPatch = new JsonPatch();
+    if (p == null) {
+        io::println("FAIL: JsonPatch.init returned null");
+    } else {
+        io::println("PASS: JsonPatch.init works");
+    }
+}
+
+public fn test_jsonpatch_add(): void {
+    let patch: JsonPatch = new JsonPatch();
+    patch.add("/a", JsonValue.ofNum(1.0));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (!result.hasKey("a")) {
+        io::println("FAIL: JsonPatch.add did not add key");
+    } else {
+        io::println("PASS: JsonPatch.add works");
+    }
+}
+
+public fn test_jsonpatch_remove(): void {
+    let patch: JsonPatch = new JsonPatch();
+    patch.remove("/a");
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    obj.put("b", JsonValue.ofNum(2.0));
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (result.hasKey("a")) {
+        io::println("FAIL: JsonPatch.remove did not remove key");
+    } else {
+        io::println("PASS: JsonPatch.remove works");
+    }
+}
+
+public fn test_jsonpatch_replace(): void {
+    let patch: JsonPatch = new JsonPatch();
+    patch.replace("/a", JsonValue.ofNum(99.0));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (result.get("a").asNumber() != 99.0) {
+        io::println("FAIL: JsonPatch.replace did not replace value");
+    } else {
+        io::println("PASS: JsonPatch.replace works");
+    }
+}
+
+public fn test_jsonpatch_move(): void {
+    let patch: JsonPatch = new JsonPatch();
+    patch.move("/a", "/b");
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (result.hasKey("a")) {
+        io::println("FAIL: JsonPatch.move did not remove source");
+    } else if (!result.hasKey("b")) {
+        io::println("FAIL: JsonPatch.move did not add destination");
+    } else {
+        io::println("PASS: JsonPatch.move works");
+    }
+}
+
+public fn test_jsonpatch_copy(): void {
+    let patch: JsonPatch = new JsonPatch();
+    patch.copy("/a", "/b");
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (!result.hasKey("a")) {
+        io::println("FAIL: JsonPatch.copy removed source");
+    } else if (!result.hasKey("b")) {
+        io::println("FAIL: JsonPatch.copy did not add destination");
+    } else {
+        io::println("PASS: JsonPatch.copy works");
+    }
+}
+
+public fn test_jsonpatch_test_pass(): void {
+    let patch: JsonPatch = new JsonPatch();
+    patch.test("/a", JsonValue.ofNum(1.0));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (!result.hasKey("a")) {
+        io::println("FAIL: JsonPatch.test pass should return data");
+    } else {
+        io::println("PASS: JsonPatch.test pass works");
+    }
+}
+
+public fn test_jsonpatch_chaining(): void {
+    let patch: JsonPatch = new JsonPatch();
+    patch.add("/a", JsonValue.ofNum(1.0)).add("/b", JsonValue.ofNum(2.0));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (result.size() != 2) {
+        io::println("FAIL: JsonPatch chaining size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: JsonPatch chaining works");
+    }
+}
+
+public fn test_jsonpatch_multiple_ops(): void {
+    let patch: JsonPatch = new JsonPatch();
+    patch.add("/a", JsonValue.ofNum(1.0));
+    patch.add("/b", JsonValue.ofNum(2.0));
+    patch.remove("/a");
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (result.hasKey("a")) {
+        io::println("FAIL: JsonPatch multiple ops a should be removed");
+    } else if (!result.hasKey("b")) {
+        io::println("FAIL: JsonPatch multiple ops b should be present");
+    } else {
+        io::println("PASS: JsonPatch multiple ops works");
+    }
+}
+
+public fn test_jsonpatch_diff(): void {
+    let obj1: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj1.put("a", JsonValue.ofNum(1.0));
+    let obj2: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj2.put("a", JsonValue.ofNum(2.0));
+    let patch: JsonPatch = JsonPatch.diff(JsonValue.ofObject(obj1), JsonValue.ofObject(obj2));
+    if (patch == null) {
+        io::println("FAIL: JsonPatch.diff returned null");
+    } else {
+        io::println("PASS: JsonPatch.diff works");
+    }
+}
+
+public fn test_jsonpatch_diff_apply_roundtrip(): void {
+    let obj1: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj1.put("a", JsonValue.ofNum(1.0));
+    let obj2: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj2.put("a", JsonValue.ofNum(2.0));
+    let v1: JsonValue = JsonValue.ofObject(obj1);
+    let v2: JsonValue = JsonValue.ofObject(obj2);
+    let patch: JsonPatch = JsonPatch.diff(v1, v2);
+    let result: JsonValue = patch.apply(v1);
+    if (!result.equals(v2)) {
+        io::println("FAIL: JsonPatch diff/apply roundtrip not equal");
+    } else {
+        io::println("PASS: JsonPatch diff/apply roundtrip works");
+    }
+}
+
+public fn test_jsonpatch_compile(): void {
+    let ops: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    let op: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    op.put("op", JsonValue.ofStr("add"));
+    op.put("path", JsonValue.ofStr("/a"));
+    op.put("value", JsonValue.ofNum(1.0));
+    ops.add(JsonValue.ofObject(op));
+    let patch: JsonPatch = JsonPatch.compile(JsonValue.ofArray(ops));
+    if (patch == null) {
+        io::println("FAIL: JsonPatch.compile returned null");
+    } else {
+        io::println("PASS: JsonPatch.compile works");
+    }
+}
+
+public fn test_jsonpatch_compile_apply(): void {
+    let ops: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    let op: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    op.put("op", JsonValue.ofStr("add"));
+    op.put("path", JsonValue.ofStr("/a"));
+    op.put("value", JsonValue.ofNum(1.0));
+    ops.add(JsonValue.ofObject(op));
+    let patch: JsonPatch = JsonPatch.compile(JsonValue.ofArray(ops));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let result: JsonValue = patch.apply(JsonValue.ofObject(obj));
+    if (!result.hasKey("a")) {
+        io::println("FAIL: JsonPatch.compile/apply did not add key");
+    } else {
+        io::println("PASS: JsonPatch.compile/apply works");
+    }
+}
+
+public fn run_all_json_patch_tests(): void {
+    io::println("=== JsonPatch.tr Tests ===");
+    test_jsonpointer_init();
+    test_jsonpointer_toString();
+    test_jsonpointer_get();
+    test_jsonpointer_get_nested();
+    test_jsonpointer_get_missing();
+    test_jsonpointer_get_array();
+    test_jsonpointer_set();
+    test_jsonpointer_set_non_mutating();
+    test_jsonpointer_remove();
+    test_jsonpointer_has();
+    test_jsonpatch_init();
+    test_jsonpatch_add();
+    test_jsonpatch_remove();
+    test_jsonpatch_replace();
+    test_jsonpatch_move();
+    test_jsonpatch_copy();
+    test_jsonpatch_test_pass();
+    test_jsonpatch_chaining();
+    test_jsonpatch_multiple_ops();
+    test_jsonpatch_diff();
+    test_jsonpatch_diff_apply_roundtrip();
+    test_jsonpatch_compile();
+    test_jsonpatch_compile_apply();
+}
