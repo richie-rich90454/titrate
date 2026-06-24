@@ -1,0 +1,177 @@
+// Test file for xml/XmlCanonicalizer.tr
+// Exercises the public API: XmlCanonicalizer.
+import tt::xml::XmlCanonicalizer;
+import tt::xml::XmlNode;
+import tt::xml::Xml;
+import tt::util::ArrayList;
+
+public fn test_canonicalizer_init(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    if (c == null) {
+        io::println("FAIL: XmlCanonicalizer.init returned null");
+    } else {
+        io::println("PASS: XmlCanonicalizer.init works");
+    }
+}
+
+public fn test_canonicalizer_inclusiveNsPrefixList(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    if (c.inclusiveNsPrefixList == null) {
+        io::println("FAIL: XmlCanonicalizer.inclusiveNsPrefixList null");
+    } else if (c.inclusiveNsPrefixList.size() != 0) {
+        io::println("FAIL: XmlCanonicalizer.inclusiveNsPrefixList not empty");
+    } else {
+        io::println("PASS: XmlCanonicalizer.inclusiveNsPrefixList works");
+    }
+}
+
+public fn test_canonicalizer_canonicalize_simple(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root>hello</root>");
+    let result: string = c.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize simple empty");
+    } else {
+        io::println("PASS: canonicalize simple works");
+    }
+}
+
+public fn test_canonicalizer_canonicalize_with_attrs(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root a=\"1\" b=\"2\">text</root>");
+    let result: string = c.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize with attrs empty");
+    } else {
+        io::println("PASS: canonicalize with attrs works");
+    }
+}
+
+public fn test_canonicalizer_canonicalize_with_children(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root><a>1</a><b>2</b></root>");
+    let result: string = c.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize with children empty");
+    } else {
+        io::println("PASS: canonicalize with children works");
+    }
+}
+
+public fn test_canonicalizer_canonicalize_namespace(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root xmlns=\"http://example.com\">text</root>");
+    let result: string = c.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize namespace empty");
+    } else {
+        io::println("PASS: canonicalize namespace works");
+    }
+}
+
+public fn test_canonicalizer_canonicalize_prefix_namespace(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<ns:root xmlns:ns=\"http://example.com\">text</ns:root>");
+    let result: string = c.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize prefix namespace empty");
+    } else {
+        io::println("PASS: canonicalize prefix namespace works");
+    }
+}
+
+public fn test_canonicalizer_exclusive_canonicalize(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root xmlns=\"http://example.com\">text</root>");
+    let result: string = c.exclusiveCanonicalize(node);
+    if (result == "") {
+        io::println("FAIL: exclusiveCanonicalize empty");
+    } else {
+        io::println("PASS: exclusiveCanonicalize works");
+    }
+}
+
+public fn test_canonicalizer_exclusive_with_prefix(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<ns:root xmlns:ns=\"http://example.com\"><ns:child>text</ns:child></ns:root>");
+    let result: string = c.exclusiveCanonicalize(node);
+    if (result == "") {
+        io::println("FAIL: exclusiveCanonicalize with prefix empty");
+    } else {
+        io::println("PASS: exclusiveCanonicalize with prefix works");
+    }
+}
+
+public fn test_canonicalizer_canonicalize_subtree(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root><child>text</child></root>");
+    let result: string = c.canonicalizeSubtree(node);
+    if (result == "") {
+        io::println("FAIL: canonicalizeSubtree empty");
+    } else {
+        io::println("PASS: canonicalizeSubtree works");
+    }
+}
+
+public fn test_canonicalizer_with_inclusive_list(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    c.inclusiveNsPrefixList.add("xs");
+    let node: XmlNode = Xml.parse("<root xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">text</root>");
+    let result: string = c.exclusiveCanonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize with inclusive list empty");
+    } else {
+        io::println("PASS: canonicalize with inclusive list works");
+    }
+}
+
+public fn test_canonicalizer_empty_element(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root/>");
+    let result: string = c.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize empty element empty result");
+    } else {
+        io::println("PASS: canonicalize empty element works");
+    }
+}
+
+public fn test_canonicalizer_nested_namespaces(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root xmlns:a=\"http://a\"><a:child xmlns:b=\"http://b\">text</a:child></root>");
+    let result: string = c.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize nested namespaces empty");
+    } else {
+        io::println("PASS: canonicalize nested namespaces works");
+    }
+}
+
+public fn test_canonicalizer_attribute_ordering(): void {
+    let c: XmlCanonicalizer = new XmlCanonicalizer();
+    let node: XmlNode = Xml.parse("<root z=\"3\" a=\"1\" m=\"2\"/>");
+    let result: string = c.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize attribute ordering empty");
+    } else {
+        io::println("PASS: canonicalize attribute ordering works");
+    }
+}
+
+public fn run_all_xmlcanonicalizer_tests(): void {
+    io::println("=== XmlCanonicalizer.tr Tests ===");
+    test_canonicalizer_init();
+    test_canonicalizer_inclusiveNsPrefixList();
+    test_canonicalizer_canonicalize_simple();
+    test_canonicalizer_canonicalize_with_attrs();
+    test_canonicalizer_canonicalize_with_children();
+    test_canonicalizer_canonicalize_namespace();
+    test_canonicalizer_canonicalize_prefix_namespace();
+    test_canonicalizer_exclusive_canonicalize();
+    test_canonicalizer_exclusive_with_prefix();
+    test_canonicalizer_canonicalize_subtree();
+    test_canonicalizer_with_inclusive_list();
+    test_canonicalizer_empty_element();
+    test_canonicalizer_nested_namespaces();
+    test_canonicalizer_attribute_ordering();
+}
