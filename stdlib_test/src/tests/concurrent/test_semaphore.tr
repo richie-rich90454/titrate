@@ -1,0 +1,123 @@
+// Test file for concurrent/Semaphore.tr
+// Exercises the public API: Semaphore.
+import tt::concurrent::Semaphore;
+import tt::lang::Integer;
+
+public fn test_semaphore_init(): void {
+    let s: Semaphore = new Semaphore(3);
+    if (s == null) {
+        io::println("FAIL: Semaphore.init returned null");
+    } else {
+        io::println("PASS: Semaphore.init works");
+    }
+}
+
+public fn test_semaphore_availablePermits(): void {
+    let s: Semaphore = new Semaphore(3);
+    let permits: int = s.availablePermits();
+    if (permits != 3) {
+        io::println("FAIL: Semaphore.availablePermits=" + Integer.toString(permits));
+    } else {
+        io::println("PASS: Semaphore.availablePermits works");
+    }
+}
+
+public fn test_semaphore_tryAcquire(): void {
+    let s: Semaphore = new Semaphore(2);
+    let result: bool = s.tryAcquire();
+    if (!result) {
+        io::println("FAIL: Semaphore.tryAcquire should succeed");
+    } else {
+        io::println("PASS: Semaphore.tryAcquire works");
+    }
+}
+
+public fn test_semaphore_tryAcquire_decrements(): void {
+    let s: Semaphore = new Semaphore(2);
+    s.tryAcquire();
+    let permits: int = s.availablePermits();
+    if (permits != 1) {
+        io::println("FAIL: Semaphore.tryAcquire permits=" + Integer.toString(permits));
+    } else {
+        io::println("PASS: Semaphore.tryAcquire decrements works");
+    }
+}
+
+public fn test_semaphore_release(): void {
+    let s: Semaphore = new Semaphore(1);
+    s.tryAcquire();
+    s.release();
+    let permits: int = s.availablePermits();
+    if (permits != 1) {
+        io::println("FAIL: Semaphore.release permits=" + Integer.toString(permits));
+    } else {
+        io::println("PASS: Semaphore.release works");
+    }
+}
+
+public fn test_semaphore_acquire(): void {
+    let s: Semaphore = new Semaphore(1);
+    s.acquire();
+    s.release();
+    io::println("PASS: Semaphore.acquire works");
+}
+
+public fn test_semaphore_multiple_acquire(): void {
+    let s: Semaphore = new Semaphore(3);
+    s.acquire();
+    s.acquire();
+    s.acquire();
+    let permits: int = s.availablePermits();
+    if (permits != 0) {
+        io::println("FAIL: Semaphore multiple acquire permits=" + Integer.toString(permits));
+    } else {
+        io::println("PASS: Semaphore multiple acquire works");
+    }
+}
+
+public fn test_semaphore_release_increments(): void {
+    let s: Semaphore = new Semaphore(1);
+    s.acquire();
+    s.release();
+    s.release();
+    let permits: int = s.availablePermits();
+    if (permits != 2) {
+        io::println("FAIL: Semaphore release increments permits=" + Integer.toString(permits));
+    } else {
+        io::println("PASS: Semaphore release increments works");
+    }
+}
+
+public fn test_semaphore_zero_permits(): void {
+    let s: Semaphore = new Semaphore(0);
+    let permits: int = s.availablePermits();
+    if (permits != 0) {
+        io::println("FAIL: Semaphore zero permits=" + Integer.toString(permits));
+    } else {
+        io::println("PASS: Semaphore zero permits works");
+    }
+}
+
+public fn test_semaphore_tryAcquire_zero_permits(): void {
+    let s: Semaphore = new Semaphore(0);
+    let result: bool = s.tryAcquire();
+    if (result) {
+        io::println("FAIL: Semaphore.tryAcquire zero permits should fail");
+    } else {
+        io::println("PASS: Semaphore.tryAcquire zero permits works");
+    }
+}
+
+public fn run_all_semaphore_tests(): void {
+    io::println("=== Semaphore.tr Tests ===");
+    test_semaphore_init();
+    test_semaphore_availablePermits();
+    test_semaphore_tryAcquire();
+    test_semaphore_tryAcquire_decrements();
+    test_semaphore_release();
+    test_semaphore_acquire();
+    test_semaphore_multiple_acquire();
+    test_semaphore_release_increments();
+    test_semaphore_zero_permits();
+    test_semaphore_tryAcquire_zero_permits();
+}
