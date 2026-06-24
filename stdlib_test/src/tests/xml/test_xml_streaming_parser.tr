@@ -1,0 +1,197 @@
+// Test file for xml/XmlStreamingParser.tr
+// Exercises the public API: XmlStreamingParser.
+import tt::xml::XmlStreamingParser;
+
+public fn test_streaming_parser_init(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    if (p == null) {
+        io::println("FAIL: XmlStreamingParser.init returned null");
+    } else {
+        io::println("PASS: XmlStreamingParser.init works");
+    }
+}
+
+public fn test_streaming_parser_strict_default(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    if (!p.strict) {
+        io::println("FAIL: XmlStreamingParser.strict should be true by default");
+    } else {
+        io::println("PASS: XmlStreamingParser.strict default works");
+    }
+}
+
+public fn test_streaming_parser_encoding_default(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    if (p.encoding != "UTF-8") {
+        io::println("FAIL: XmlStreamingParser.encoding=" + p.encoding);
+    } else {
+        io::println("PASS: XmlStreamingParser.encoding default works");
+    }
+}
+
+public fn test_streaming_parser_strict_set(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.strict = false;
+    if (p.strict) {
+        io::println("FAIL: XmlStreamingParser.strict should be false after set");
+    } else {
+        io::println("PASS: XmlStreamingParser.strict set works");
+    }
+}
+
+public fn test_streaming_parser_encoding_set(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.encoding = "ISO-8859-1";
+    if (p.encoding != "ISO-8859-1") {
+        io::println("FAIL: XmlStreamingParser.encoding set wrong");
+    } else {
+        io::println("PASS: XmlStreamingParser.encoding set works");
+    }
+}
+
+public fn test_streaming_parser_onStartElement(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onStartElement(fn(name: string): void { io::println("start: " + name); });
+    p.parse("<root>text</root>");
+    io::println("PASS: XmlStreamingParser.onStartElement works");
+}
+
+public fn test_streaming_parser_onEndElement(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onEndElement(fn(name: string): void { io::println("end: " + name); });
+    p.parse("<root>text</root>");
+    io::println("PASS: XmlStreamingParser.onEndElement works");
+}
+
+public fn test_streaming_parser_onCharacters(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onCharacters(fn(text: string): void { io::println("chars: " + text); });
+    p.parse("<root>hello</root>");
+    io::println("PASS: XmlStreamingParser.onCharacters works");
+}
+
+public fn test_streaming_parser_onComment(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onComment(fn(text: string): void { io::println("comment: " + text); });
+    p.parse("<root><!-- comment --></root>");
+    io::println("PASS: XmlStreamingParser.onComment works");
+}
+
+public fn test_streaming_parser_onProcessingInstruction(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onProcessingInstruction(fn(data: string): void { io::println("pi: " + data); });
+    p.parse("<?xml version=\"1.0\"?><root>text</root>");
+    io::println("PASS: XmlStreamingParser.onProcessingInstruction works");
+}
+
+public fn test_streaming_parser_onStartDocument(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onStartDocument(fn(data: string): void { io::println("start doc"); });
+    p.parse("<root>text</root>");
+    io::println("PASS: XmlStreamingParser.onStartDocument works");
+}
+
+public fn test_streaming_parser_onEndDocument(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onEndDocument(fn(data: string): void { io::println("end doc"); });
+    p.parse("<root>text</root>");
+    io::println("PASS: XmlStreamingParser.onEndDocument works");
+}
+
+public fn test_streaming_parser_parse_simple(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("<root>hello</root>");
+    io::println("PASS: XmlStreamingParser.parse simple works");
+}
+
+public fn test_streaming_parser_parse_with_attrs(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("<root attr=\"value\">text</root>");
+    io::println("PASS: XmlStreamingParser.parse with attrs works");
+}
+
+public fn test_streaming_parser_parse_nested(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("<root><child>text</child></root>");
+    io::println("PASS: XmlStreamingParser.parse nested works");
+}
+
+public fn test_streaming_parser_parse_self_closing(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("<root/>");
+    io::println("PASS: XmlStreamingParser.parse self-closing works");
+}
+
+public fn test_streaming_parser_parse_with_declaration(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("<?xml version=\"1.0\"?><root>text</root>");
+    io::println("PASS: XmlStreamingParser.parse with declaration works");
+}
+
+public fn test_streaming_parser_parse_with_comment(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("<root><!-- comment --></root>");
+    io::println("PASS: XmlStreamingParser.parse with comment works");
+}
+
+public fn test_streaming_parser_parse_with_cdata(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("<root><![CDATA[raw data]]></root>");
+    io::println("PASS: XmlStreamingParser.parse with CDATA works");
+}
+
+public fn test_streaming_parser_feed(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.feed("<root>hel");
+    p.feed("lo</root>");
+    p.close();
+    io::println("PASS: XmlStreamingParser.feed works");
+}
+
+public fn test_streaming_parser_close(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("<root>text</root>");
+    p.close();
+    io::println("PASS: XmlStreamingParser.close works");
+}
+
+public fn test_streaming_parser_multiple_handlers(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.onStartElement(fn(name: string): void { io::println("start1: " + name); });
+    p.onStartElement(fn(name: string): void { io::println("start2: " + name); });
+    p.parse("<root>text</root>");
+    io::println("PASS: XmlStreamingParser multiple handlers works");
+}
+
+public fn test_streaming_parser_parse_empty(): void {
+    let p: XmlStreamingParser = new XmlStreamingParser();
+    p.parse("");
+    io::println("PASS: XmlStreamingParser.parse empty works");
+}
+
+public fn run_all_xml_streaming_parser_tests(): void {
+    io::println("=== XmlStreamingParser.tr Tests ===");
+    test_streaming_parser_init();
+    test_streaming_parser_strict_default();
+    test_streaming_parser_encoding_default();
+    test_streaming_parser_strict_set();
+    test_streaming_parser_encoding_set();
+    test_streaming_parser_onStartElement();
+    test_streaming_parser_onEndElement();
+    test_streaming_parser_onCharacters();
+    test_streaming_parser_onComment();
+    test_streaming_parser_onProcessingInstruction();
+    test_streaming_parser_onStartDocument();
+    test_streaming_parser_onEndDocument();
+    test_streaming_parser_parse_simple();
+    test_streaming_parser_parse_with_attrs();
+    test_streaming_parser_parse_nested();
+    test_streaming_parser_parse_self_closing();
+    test_streaming_parser_parse_with_declaration();
+    test_streaming_parser_parse_with_comment();
+    test_streaming_parser_parse_with_cdata();
+    test_streaming_parser_feed();
+    test_streaming_parser_close();
+    test_streaming_parser_multiple_handlers();
+    test_streaming_parser_parse_empty();
+}
