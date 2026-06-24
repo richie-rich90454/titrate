@@ -1,0 +1,277 @@
+// Test file for binary/Struct.tr
+// Exercises the public API: Struct class, pack, unpack, calcsize, packInto,
+// unpackFrom, iterUnpack.
+import tt::binary::Struct;
+import tt::util::ArrayList;
+
+public fn test_struct_init(): void {
+    let s: Struct = new Struct("i");
+    if (s == null) {
+        io::println("FAIL: struct init");
+    } else {
+        io::println("PASS: struct init");
+    }
+}
+
+public fn test_struct_withByteOrder(): void {
+    let s: Struct = new Struct("i");
+    let r: Struct = s.withByteOrder("little");
+    if (r == null) {
+        io::println("FAIL: struct withByteOrder");
+    } else {
+        io::println("PASS: struct withByteOrder");
+    }
+}
+
+public fn test_struct_pack_byte(): void {
+    let s: Struct = new Struct("b");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(65);
+    let data: string = s.pack(values);
+    if (String.length(data) != 1) {
+        io::println("FAIL: struct pack byte");
+    } else {
+        io::println("PASS: struct pack byte");
+    }
+}
+
+public fn test_struct_pack_int(): void {
+    let s: Struct = new Struct("i");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(42);
+    let data: string = s.pack(values);
+    if (String.length(data) != 4) {
+        io::println("FAIL: struct pack int len=" + Integer.toString(String.length(data)));
+    } else {
+        io::println("PASS: struct pack int");
+    }
+}
+
+public fn test_struct_pack_double(): void {
+    let s: Struct = new Struct("d");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(3.14);
+    let data: string = s.pack(values);
+    if (String.length(data) != 8) {
+        io::println("FAIL: struct pack double");
+    } else {
+        io::println("PASS: struct pack double");
+    }
+}
+
+public fn test_struct_pack_bool(): void {
+    let s: Struct = new Struct("?");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(true);
+    let data: string = s.pack(values);
+    if (String.length(data) != 1) {
+        io::println("FAIL: struct pack bool");
+    } else {
+        io::println("PASS: struct pack bool");
+    }
+}
+
+public fn test_struct_pack_pad(): void {
+    let s: Struct = new Struct("bx");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(65);
+    let data: string = s.pack(values);
+    if (String.length(data) != 2) {
+        io::println("FAIL: struct pack pad");
+    } else {
+        io::println("PASS: struct pack pad");
+    }
+}
+
+public fn test_struct_pack_multiple(): void {
+    let s: Struct = new Struct("bih");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(1); values.add(2); values.add(3);
+    let data: string = s.pack(values);
+    if (String.length(data) != 7) {
+        io::println("FAIL: struct pack multiple len=" + Integer.toString(String.length(data)));
+    } else {
+        io::println("PASS: struct pack multiple");
+    }
+}
+
+public fn test_calcsize_byte(): void {
+    let s: int = calcsize("b");
+    if (s != 1) {
+        io::println("FAIL: calcsize byte s=" + Integer.toString(s));
+    } else {
+        io::println("PASS: calcsize byte");
+    }
+}
+
+public fn test_calcsize_int(): void {
+    let s: int = calcsize("i");
+    if (s != 4) {
+        io::println("FAIL: calcsize int s=" + Integer.toString(s));
+    } else {
+        io::println("PASS: calcsize int");
+    }
+}
+
+public fn test_calcsize_double(): void {
+    let s: int = calcsize("d");
+    if (s != 8) {
+        io::println("FAIL: calcsize double s=" + Integer.toString(s));
+    } else {
+        io::println("PASS: calcsize double");
+    }
+}
+
+public fn test_calcsize_multiple(): void {
+    let s: int = calcsize("bih");
+    if (s != 7) {
+        io::println("FAIL: calcsize multiple s=" + Integer.toString(s));
+    } else {
+        io::println("PASS: calcsize multiple");
+    }
+}
+
+public fn test_calcsize_with_pad(): void {
+    let s: int = calcsize("bx");
+    if (s != 2) {
+        io::println("FAIL: calcsize with pad s=" + Integer.toString(s));
+    } else {
+        io::println("PASS: calcsize with pad");
+    }
+}
+
+public fn test_pack_top_level(): void {
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(42);
+    let data: string = pack("i", values);
+    if (String.length(data) != 4) {
+        io::println("FAIL: pack top level");
+    } else {
+        io::println("PASS: pack top level");
+    }
+}
+
+public fn test_unpack_top_level(): void {
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(42);
+    let data: string = pack("i", values);
+    let result: ArrayList<Variant> = unpack("i", data);
+    if (result.size() != 1) {
+        io::println("FAIL: unpack top level");
+    } else {
+        io::println("PASS: unpack top level");
+    }
+}
+
+public fn test_pack_unpack_roundtrip_int(): void {
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(12345);
+    let data: string = pack("i", values);
+    let result: ArrayList<Variant> = unpack("i", data);
+    let v: int = result.get(0) as int;
+    if (v != 12345) {
+        io::println("FAIL: pack unpack roundtrip int v=" + Integer.toString(v));
+    } else {
+        io::println("PASS: pack unpack roundtrip int");
+    }
+}
+
+public fn test_pack_unpack_roundtrip_byte(): void {
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(200);
+    let data: string = pack("B", values);
+    let result: ArrayList<Variant> = unpack("B", data);
+    let v: int = result.get(0) as int;
+    if (v != 200) {
+        io::println("FAIL: pack unpack roundtrip byte v=" + Integer.toString(v));
+    } else {
+        io::println("PASS: pack unpack roundtrip byte");
+    }
+}
+
+public fn test_pack_unpack_roundtrip_bool(): void {
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(true);
+    let data: string = pack("?", values);
+    let result: ArrayList<Variant> = unpack("?", data);
+    let v: bool = result.get(0) as bool;
+    if (!v) {
+        io::println("FAIL: pack unpack roundtrip bool");
+    } else {
+        io::println("PASS: pack unpack roundtrip bool");
+    }
+}
+
+public fn test_packInto_basic(): void {
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(42);
+    let buffer: string = "abcdefgh";
+    let result: string = packInto("i", values, buffer, 0);
+    if (String.length(result) != 8) {
+        io::println("FAIL: packInto basic");
+    } else {
+        io::println("PASS: packInto basic");
+    }
+}
+
+public fn test_unpackFrom_basic(): void {
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(42);
+    let data: string = pack("i", values);
+    let result: ArrayList<Variant> = unpackFrom("i", data, 0);
+    if (result.size() != 1) {
+        io::println("FAIL: unpackFrom basic");
+    } else {
+        io::println("PASS: unpackFrom basic");
+    }
+}
+
+public fn test_iterUnpack_basic(): void {
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(1); values.add(2);
+    let data: string = pack("bb", values);
+    let result: ArrayList<ArrayList<Variant>> = iterUnpack("b", data);
+    if (result.size() != 2) {
+        io::println("FAIL: iterUnpack basic size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: iterUnpack basic");
+    }
+}
+
+public fn test_struct_pack_little_endian(): void {
+    let s: Struct = new Struct("i");
+    s.withByteOrder("little");
+    let values: ArrayList<Variant> = new ArrayList<Variant>();
+    values.add(1);
+    let data: string = s.pack(values);
+    if (String.length(data) != 4) {
+        io::println("FAIL: struct pack little endian");
+    } else {
+        io::println("PASS: struct pack little endian");
+    }
+}
+
+public fn run_all_struct_tests(): void {
+    test_struct_init();
+    test_struct_withByteOrder();
+    test_struct_pack_byte();
+    test_struct_pack_int();
+    test_struct_pack_double();
+    test_struct_pack_bool();
+    test_struct_pack_pad();
+    test_struct_pack_multiple();
+    test_calcsize_byte();
+    test_calcsize_int();
+    test_calcsize_double();
+    test_calcsize_multiple();
+    test_calcsize_with_pad();
+    test_pack_top_level();
+    test_unpack_top_level();
+    test_pack_unpack_roundtrip_int();
+    test_pack_unpack_roundtrip_byte();
+    test_pack_unpack_roundtrip_bool();
+    test_packInto_basic();
+    test_unpackFrom_basic();
+    test_iterUnpack_basic();
+    test_struct_pack_little_endian();
+}
