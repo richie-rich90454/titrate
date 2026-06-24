@@ -1,0 +1,244 @@
+// Test file for xml/XmlBuilder.tr
+// Exercises the public API: XmlBuilder fluent API.
+import tt::xml::XmlBuilder;
+import tt::xml::XmlNode;
+import tt::lang::Integer;
+
+public fn test_xmlbuilder_init(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    if (b == null) {
+        io::println("FAIL: XmlBuilder.init returned null");
+    } else {
+        io::println("PASS: XmlBuilder.init works");
+    }
+}
+
+public fn test_xmlbuilder_root(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root");
+    let node: XmlNode = b.build();
+    if (node == null) {
+        io::println("FAIL: XmlBuilder.root build null");
+    } else if (node.tag != "root") {
+        io::println("FAIL: XmlBuilder.root tag=" + node.tag);
+    } else {
+        io::println("PASS: XmlBuilder.root works");
+    }
+}
+
+public fn test_xmlbuilder_elem(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").elem("child").end();
+    let node: XmlNode = b.build();
+    if (node.children.size() != 1) {
+        io::println("FAIL: XmlBuilder.elem children size=" + Integer.toString(node.children.size()));
+    } else if (node.children.get(0).tag != "child") {
+        io::println("FAIL: XmlBuilder.elem child tag wrong");
+    } else {
+        io::println("PASS: XmlBuilder.elem works");
+    }
+}
+
+public fn test_xmlbuilder_attr(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").attr("id", "42");
+    let node: XmlNode = b.build();
+    if (node.getAttr("id") != "42") {
+        io::println("FAIL: XmlBuilder.attr id=" + node.getAttr("id"));
+    } else {
+        io::println("PASS: XmlBuilder.attr works");
+    }
+}
+
+public fn test_xmlbuilder_text(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").text("hello");
+    let node: XmlNode = b.build();
+    if (node.text != "hello") {
+        io::println("FAIL: XmlBuilder.text=" + node.text);
+    } else {
+        io::println("PASS: XmlBuilder.text works");
+    }
+}
+
+public fn test_xmlbuilder_cdata(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").cdata("raw data");
+    let node: XmlNode = b.build();
+    if (node.text == "") {
+        io::println("FAIL: XmlBuilder.cdata empty text");
+    } else {
+        io::println("PASS: XmlBuilder.cdata works");
+    }
+}
+
+public fn test_xmlbuilder_comment(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").comment("a comment").end();
+    let node: XmlNode = b.build();
+    if (node.children.size() != 1) {
+        io::println("FAIL: XmlBuilder.comment children size wrong");
+    } else {
+        io::println("PASS: XmlBuilder.comment works");
+    }
+}
+
+public fn test_xmlbuilder_pi(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").pi("target", "data").end();
+    let node: XmlNode = b.build();
+    if (node.children.size() != 1) {
+        io::println("FAIL: XmlBuilder.pi children size wrong");
+    } else {
+        io::println("PASS: XmlBuilder.pi works");
+    }
+}
+
+public fn test_xmlbuilder_end(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").elem("child").end().elem("sibling").end();
+    let node: XmlNode = b.build();
+    if (node.children.size() != 2) {
+        io::println("FAIL: XmlBuilder.end children size=" + Integer.toString(node.children.size()));
+    } else {
+        io::println("PASS: XmlBuilder.end works");
+    }
+}
+
+public fn test_xmlbuilder_declaration(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.declaration("1.0", "UTF-8").root("root");
+    let s: string = b.toString();
+    if (s == "") {
+        io::println("FAIL: XmlBuilder.declaration toString empty");
+    } else {
+        io::println("PASS: XmlBuilder.declaration works");
+    }
+}
+
+public fn test_xmlbuilder_nested(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").elem("a").elem("b").text("deep").end().end();
+    let node: XmlNode = b.build();
+    if (node.children.size() != 1) {
+        io::println("FAIL: XmlBuilder nested root children wrong");
+    } else if (node.children.get(0).children.size() != 1) {
+        io::println("FAIL: XmlBuilder nested a children wrong");
+    } else if (node.children.get(0).children.get(0).text != "deep") {
+        io::println("FAIL: XmlBuilder nested b text wrong");
+    } else {
+        io::println("PASS: XmlBuilder nested works");
+    }
+}
+
+public fn test_xmlbuilder_chaining(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").attr("a", "1").attr("b", "2").text("hello");
+    let node: XmlNode = b.build();
+    if (node.getAttr("a") != "1" || node.getAttr("b") != "2") {
+        io::println("FAIL: XmlBuilder chaining attrs wrong");
+    } else if (node.text != "hello") {
+        io::println("FAIL: XmlBuilder chaining text wrong");
+    } else {
+        io::println("PASS: XmlBuilder chaining works");
+    }
+}
+
+public fn test_xmlbuilder_toString(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").text("hello");
+    let s: string = b.toString();
+    if (s == "") {
+        io::println("FAIL: XmlBuilder.toString empty");
+    } else {
+        io::println("PASS: XmlBuilder.toString works");
+    }
+}
+
+public fn test_xmlbuilder_prettyPrint(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.prettyPrint(2).root("root").elem("child").text("hi").end();
+    let s: string = b.toString();
+    if (s == "") {
+        io::println("FAIL: XmlBuilder.prettyPrint empty");
+    } else {
+        io::println("PASS: XmlBuilder.prettyPrint works");
+    }
+}
+
+public fn test_xmlbuilder_minified(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.minified().root("root").elem("child").text("hi").end();
+    let s: string = b.toString();
+    if (s == "") {
+        io::println("FAIL: XmlBuilder.minified empty");
+    } else {
+        io::println("PASS: XmlBuilder.minified works");
+    }
+}
+
+public fn test_xmlbuilder_ns(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").ns("x", "http://example.com");
+    let node: XmlNode = b.build();
+    if (node.getAttr("xmlns:x") != "http://example.com") {
+        io::println("FAIL: XmlBuilder.ns wrong");
+    } else {
+        io::println("PASS: XmlBuilder.ns works");
+    }
+}
+
+public fn test_xmlbuilder_defaultNs(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    b.root("root").defaultNs("http://default.com");
+    let node: XmlNode = b.build();
+    if (node.getAttr("xmlns") != "http://default.com") {
+        io::println("FAIL: XmlBuilder.defaultNs wrong");
+    } else {
+        io::println("PASS: XmlBuilder.defaultNs works");
+    }
+}
+
+public fn test_xmlbuilder_fromNode(): void {
+    let existing: XmlNode = new XmlNode("existing");
+    let b: XmlBuilder = new XmlBuilder();
+    b.fromNode(existing).elem("child").end();
+    if (existing.children.size() != 1) {
+        io::println("FAIL: XmlBuilder.fromNode children size wrong");
+    } else {
+        io::println("PASS: XmlBuilder.fromNode works");
+    }
+}
+
+public fn test_xmlbuilder_build_empty(): void {
+    let b: XmlBuilder = new XmlBuilder();
+    let node: XmlNode = b.build();
+    if (node != null) {
+        io::println("FAIL: XmlBuilder.build empty should return null");
+    } else {
+        io::println("PASS: XmlBuilder.build empty works");
+    }
+}
+
+public fn run_all_xmlbuilder_tests(): void {
+    io::println("=== XmlBuilder.tr Tests ===");
+    test_xmlbuilder_init();
+    test_xmlbuilder_root();
+    test_xmlbuilder_elem();
+    test_xmlbuilder_attr();
+    test_xmlbuilder_text();
+    test_xmlbuilder_cdata();
+    test_xmlbuilder_comment();
+    test_xmlbuilder_pi();
+    test_xmlbuilder_end();
+    test_xmlbuilder_declaration();
+    test_xmlbuilder_nested();
+    test_xmlbuilder_chaining();
+    test_xmlbuilder_toString();
+    test_xmlbuilder_prettyPrint();
+    test_xmlbuilder_minified();
+    test_xmlbuilder_ns();
+    test_xmlbuilder_defaultNs();
+    test_xmlbuilder_fromNode();
+    test_xmlbuilder_build_empty();
+}
