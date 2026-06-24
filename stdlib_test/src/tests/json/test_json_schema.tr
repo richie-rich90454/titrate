@@ -1,0 +1,370 @@
+// Test file for json/JsonSchema.tr
+// Exercises the public API: ValidationError, ValidationReport, JsonSchema.
+import tt::json::JsonSchema;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_validationerror_init(): void {
+    let e: ValidationError = new ValidationError();
+    if (e.path != "" || e.message != "" || e.schemaLocation != "") {
+        io::println("FAIL: ValidationError.init defaults wrong");
+    } else {
+        io::println("PASS: ValidationError.init works");
+    }
+}
+
+public fn test_validationreport_init(): void {
+    let r: ValidationReport = new ValidationReport();
+    if (!r.valid) {
+        io::println("FAIL: ValidationReport.valid should default true");
+    } else if (r.errors == null) {
+        io::println("FAIL: ValidationReport.errors is null");
+    } else if (r.errors.size() != 0) {
+        io::println("FAIL: ValidationReport.errors should be empty");
+    } else {
+        io::println("PASS: ValidationReport.init works");
+    }
+}
+
+public fn test_validationreport_addError(): void {
+    let r: ValidationReport = new ValidationReport();
+    r.addError("/a", "msg", "/schema/a");
+    if (r.valid) {
+        io::println("FAIL: ValidationReport.valid should be false after addError");
+    } else if (r.errors.size() != 1) {
+        io::println("FAIL: ValidationReport.errors size=" + Integer.toString(r.errors.size()));
+    } else {
+        io::println("PASS: ValidationReport.addError works");
+    }
+}
+
+public fn test_jsonschema_init(): void {
+    let s: JsonSchema = new JsonSchema();
+    if (s == null) {
+        io::println("FAIL: JsonSchema.init returned null");
+    } else {
+        io::println("PASS: JsonSchema.init works");
+    }
+}
+
+public fn test_jsonschema_load(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("string"));
+    s.load(JsonValue.ofObject(schema));
+    io::println("PASS: JsonSchema.load works");
+}
+
+public fn test_jsonschema_validate_type_string_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("string"));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofStr("hello"));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate string should pass for string");
+    } else {
+        io::println("PASS: JsonSchema.validate type string pass works");
+    }
+}
+
+public fn test_jsonschema_validate_type_string_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("string"));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(42.0));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate string should fail for number");
+    } else {
+        io::println("PASS: JsonSchema.validate type string fail works");
+    }
+}
+
+public fn test_jsonschema_validate_type_number_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("number"));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(42.0));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate number should pass for number");
+    } else {
+        io::println("PASS: JsonSchema.validate type number pass works");
+    }
+}
+
+public fn test_jsonschema_validate_minimum_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("number"));
+    schema.put("minimum", JsonValue.ofNum(10.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(15.0));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate minimum should pass for 15 >= 10");
+    } else {
+        io::println("PASS: JsonSchema.validate minimum pass works");
+    }
+}
+
+public fn test_jsonschema_validate_minimum_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("number"));
+    schema.put("minimum", JsonValue.ofNum(10.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(5.0));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate minimum should fail for 5 < 10");
+    } else {
+        io::println("PASS: JsonSchema.validate minimum fail works");
+    }
+}
+
+public fn test_jsonschema_validate_maximum_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("number"));
+    schema.put("maximum", JsonValue.ofNum(100.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(50.0));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate maximum should pass for 50 <= 100");
+    } else {
+        io::println("PASS: JsonSchema.validate maximum pass works");
+    }
+}
+
+public fn test_jsonschema_validate_maximum_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("number"));
+    schema.put("maximum", JsonValue.ofNum(100.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(150.0));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate maximum should fail for 150 > 100");
+    } else {
+        io::println("PASS: JsonSchema.validate maximum fail works");
+    }
+}
+
+public fn test_jsonschema_validate_minLength_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("string"));
+    schema.put("minLength", JsonValue.ofNum(3.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofStr("hello"));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate minLength should pass for hello (5 >= 3)");
+    } else {
+        io::println("PASS: JsonSchema.validate minLength pass works");
+    }
+}
+
+public fn test_jsonschema_validate_minLength_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("string"));
+    schema.put("minLength", JsonValue.ofNum(10.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofStr("hi"));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate minLength should fail for hi (2 < 10)");
+    } else {
+        io::println("PASS: JsonSchema.validate minLength fail works");
+    }
+}
+
+public fn test_jsonschema_validate_maxLength_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("string"));
+    schema.put("maxLength", JsonValue.ofNum(10.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofStr("hi"));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate maxLength should pass for hi (2 <= 10)");
+    } else {
+        io::println("PASS: JsonSchema.validate maxLength pass works");
+    }
+}
+
+public fn test_jsonschema_validate_maxLength_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("string"));
+    schema.put("maxLength", JsonValue.ofNum(3.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofStr("hello"));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate maxLength should fail for hello (5 > 3)");
+    } else {
+        io::println("PASS: JsonSchema.validate maxLength fail works");
+    }
+}
+
+public fn test_jsonschema_validate_enum_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let enumArr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    enumArr.add(JsonValue.ofStr("a"));
+    enumArr.add(JsonValue.ofStr("b"));
+    enumArr.add(JsonValue.ofStr("c"));
+    schema.put("enum", JsonValue.ofArray(enumArr));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofStr("b"));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate enum should pass for b");
+    } else {
+        io::println("PASS: JsonSchema.validate enum pass works");
+    }
+}
+
+public fn test_jsonschema_validate_enum_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let enumArr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    enumArr.add(JsonValue.ofStr("a"));
+    enumArr.add(JsonValue.ofStr("b"));
+    schema.put("enum", JsonValue.ofArray(enumArr));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofStr("z"));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate enum should fail for z");
+    } else {
+        io::println("PASS: JsonSchema.validate enum fail works");
+    }
+}
+
+public fn test_jsonschema_validate_const_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("const", JsonValue.ofNum(42.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(42.0));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate const should pass for 42");
+    } else {
+        io::println("PASS: JsonSchema.validate const pass works");
+    }
+}
+
+public fn test_jsonschema_validate_const_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("const", JsonValue.ofNum(42.0));
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(99.0));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate const should fail for 99");
+    } else {
+        io::println("PASS: JsonSchema.validate const fail works");
+    }
+}
+
+public fn test_jsonschema_validate_required_pass(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("object"));
+    let reqArr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    reqArr.add(JsonValue.ofStr("a"));
+    schema.put("required", JsonValue.ofArray(reqArr));
+    s.load(JsonValue.ofObject(schema));
+    let data: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    data.put("a", JsonValue.ofNum(1.0));
+    let report: ValidationReport = s.validate(JsonValue.ofObject(data));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate required should pass when key present");
+    } else {
+        io::println("PASS: JsonSchema.validate required pass works");
+    }
+}
+
+public fn test_jsonschema_validate_required_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("object"));
+    let reqArr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    reqArr.add(JsonValue.ofStr("a"));
+    schema.put("required", JsonValue.ofArray(reqArr));
+    s.load(JsonValue.ofObject(schema));
+    let data: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let report: ValidationReport = s.validate(JsonValue.ofObject(data));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate required should fail when key missing");
+    } else {
+        io::println("PASS: JsonSchema.validate required fail works");
+    }
+}
+
+public fn test_jsonschema_validate_minItems_fail(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("array"));
+    schema.put("minItems", JsonValue.ofNum(3.0));
+    s.load(JsonValue.ofObject(schema));
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    let report: ValidationReport = s.validate(JsonValue.ofArray(arr));
+    if (report.valid) {
+        io::println("FAIL: JsonSchema.validate minItems should fail for 1 < 3");
+    } else {
+        io::println("PASS: JsonSchema.validate minItems fail works");
+    }
+}
+
+public fn test_jsonschema_compile(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    schema.put("type", JsonValue.ofStr("string"));
+    s.load(JsonValue.ofObject(schema));
+    s.compile();
+    io::println("PASS: JsonSchema.compile works");
+}
+
+public fn test_jsonschema_validate_empty_schema(): void {
+    let s: JsonSchema = new JsonSchema();
+    let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    s.load(JsonValue.ofObject(schema));
+    let report: ValidationReport = s.validate(JsonValue.ofNum(42.0));
+    if (!report.valid) {
+        io::println("FAIL: JsonSchema.validate empty schema should pass");
+    } else {
+        io::println("PASS: JsonSchema.validate empty schema works");
+    }
+}
+
+public fn run_all_json_schema_tests(): void {
+    io::println("=== JsonSchema.tr Tests ===");
+    test_validationerror_init();
+    test_validationreport_init();
+    test_validationreport_addError();
+    test_jsonschema_init();
+    test_jsonschema_load();
+    test_jsonschema_validate_type_string_pass();
+    test_jsonschema_validate_type_string_fail();
+    test_jsonschema_validate_type_number_pass();
+    test_jsonschema_validate_minimum_pass();
+    test_jsonschema_validate_minimum_fail();
+    test_jsonschema_validate_maximum_pass();
+    test_jsonschema_validate_maximum_fail();
+    test_jsonschema_validate_minLength_pass();
+    test_jsonschema_validate_minLength_fail();
+    test_jsonschema_validate_maxLength_pass();
+    test_jsonschema_validate_maxLength_fail();
+    test_jsonschema_validate_enum_pass();
+    test_jsonschema_validate_enum_fail();
+    test_jsonschema_validate_const_pass();
+    test_jsonschema_validate_const_fail();
+    test_jsonschema_validate_required_pass();
+    test_jsonschema_validate_required_fail();
+    test_jsonschema_validate_minItems_fail();
+    test_jsonschema_compile();
+    test_jsonschema_validate_empty_schema();
+}
