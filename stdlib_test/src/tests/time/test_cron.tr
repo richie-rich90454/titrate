@@ -1,0 +1,172 @@
+// Test file for time/Cron.tr
+// Exercises the public API of CronExpression and the top-level next function.
+import tt::time::Cron;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_cron_init_fields(): void {
+    let c: CronExpression = new CronExpression("0 9 * * *");
+    if (c.minute != "0") {
+        io::println("FAIL: CronExpression.minute=" + c.minute);
+    } else if (c.hour != "9") {
+        io::println("FAIL: CronExpression.hour=" + c.hour);
+    } else if (c.dayOfMonth != "*") {
+        io::println("FAIL: CronExpression.dayOfMonth=" + c.dayOfMonth);
+    } else if (c.month != "*") {
+        io::println("FAIL: CronExpression.month=" + c.month);
+    } else if (c.dayOfWeek != "*") {
+        io::println("FAIL: CronExpression.dayOfWeek=" + c.dayOfWeek);
+    } else {
+        io::println("PASS: CronExpression.init parses fields");
+    }
+}
+
+public fn test_cron_init_default(): void {
+    let c: CronExpression = new CronExpression("short");
+    if (c.minute != "*") {
+        io::println("FAIL: CronExpression default minute=" + c.minute);
+    } else {
+        io::println("PASS: CronExpression.init defaults to *");
+    }
+}
+
+public fn test_cron_original(): void {
+    let c: CronExpression = new CronExpression("0 9 * * *");
+    if (c.original != "0 9 * * *") {
+        io::println("FAIL: CronExpression.original=" + c.original);
+    } else {
+        io::println("PASS: CronExpression.original stored");
+    }
+}
+
+public fn test_cron_isValid_star(): void {
+    let c: CronExpression = new CronExpression("* * * * *");
+    if (!c.isValid()) {
+        io::println("FAIL: CronExpression.isValid should be true for * * * * *");
+    } else {
+        io::println("PASS: CronExpression.isValid true for * * * * *");
+    }
+}
+
+public fn test_cron_isValid_specific(): void {
+    let c: CronExpression = new CronExpression("0 9 1 1 0");
+    if (!c.isValid()) {
+        io::println("FAIL: CronExpression.isValid should be true for 0 9 1 1 0");
+    } else {
+        io::println("PASS: CronExpression.isValid true for 0 9 1 1 0");
+    }
+}
+
+public fn test_cron_isValid_range(): void {
+    let c: CronExpression = new CronExpression("0-30 9 * * *");
+    if (!c.isValid()) {
+        io::println("FAIL: CronExpression.isValid should be true for 0-30 9 * * *");
+    } else {
+        io::println("PASS: CronExpression.isValid true for range");
+    }
+}
+
+public fn test_cron_isValid_step(): void {
+    let c: CronExpression = new CronExpression("*/5 * * * *");
+    if (!c.isValid()) {
+        io::println("FAIL: CronExpression.isValid should be true for */5 * * * *");
+    } else {
+        io::println("PASS: CronExpression.isValid true for step");
+    }
+}
+
+public fn test_cron_isValid_list(): void {
+    let c: CronExpression = new CronExpression("1,3,5 * * * *");
+    if (!c.isValid()) {
+        io::println("FAIL: CronExpression.isValid should be true for 1,3,5 * * * *");
+    } else {
+        io::println("PASS: CronExpression.isValid true for list");
+    }
+}
+
+public fn test_cron_isValid_invalid_minute(): void {
+    let c: CronExpression = new CronExpression("99 * * * *");
+    if (c.isValid()) {
+        io::println("FAIL: CronExpression.isValid should be false for 99 * * * *");
+    } else {
+        io::println("PASS: CronExpression.isValid false for out-of-range minute");
+    }
+}
+
+public fn test_cron_isValid_invalid_hour(): void {
+    let c: CronExpression = new CronExpression("* 99 * * *");
+    if (c.isValid()) {
+        io::println("FAIL: CronExpression.isValid should be false for * 99 * * *");
+    } else {
+        io::println("PASS: CronExpression.isValid false for out-of-range hour");
+    }
+}
+
+public fn test_cron_nextExecution_every_minute(): void {
+    let c: CronExpression = new CronExpression("* * * * *");
+    let next: string = c.nextExecution("2024-01-01 10:00");
+    if (String.length(next) == 0) {
+        io::println("FAIL: CronExpression.nextExecution returned empty");
+    } else {
+        io::println("PASS: CronExpression.nextExecution returns " + next);
+    }
+}
+
+public fn test_cron_nextExecution_specific(): void {
+    let c: CronExpression = new CronExpression("0 9 * * *");
+    let next: string = c.nextExecution("2024-01-01 08:00");
+    if (String.length(next) == 0) {
+        io::println("FAIL: CronExpression.nextExecution specific returned empty");
+    } else {
+        io::println("PASS: CronExpression.nextExecution specific returns " + next);
+    }
+}
+
+public fn test_cron_nextNExecutions(): void {
+    let c: CronExpression = new CronExpression("* * * * *");
+    let result: ArrayList<string> = c.nextNExecutions("2024-01-01 10:00", 3);
+    if (result.size() != 3) {
+        io::println("FAIL: CronExpression.nextNExecutions size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: CronExpression.nextNExecutions returns 3 entries");
+    }
+}
+
+public fn test_cron_toString(): void {
+    let c: CronExpression = new CronExpression("0 9 * * *");
+    if (c.toString() != "0 9 * * *") {
+        io::println("FAIL: CronExpression.toString=" + c.toString());
+    } else {
+        io::println("PASS: CronExpression.toString works");
+    }
+}
+
+public fn test_cron_toplevel_next(): void {
+    let c: CronExpression = new CronExpression("* * * * *");
+    let next: string = Cron.next(c, "2024-01-01 10:00");
+    if (String.length(next) == 0) {
+        io::println("FAIL: Cron.next (top-level) returned empty");
+    } else {
+        io::println("PASS: Cron.next (top-level) works");
+    }
+}
+
+public fn run_all_cron_tests(): void {
+    io::println("=== Cron.tr Tests ===");
+    test_cron_init_fields();
+    test_cron_init_default();
+    test_cron_original();
+    test_cron_isValid_star();
+    test_cron_isValid_specific();
+    test_cron_isValid_range();
+    test_cron_isValid_step();
+    test_cron_isValid_list();
+    test_cron_isValid_invalid_minute();
+    test_cron_isValid_invalid_hour();
+    test_cron_nextExecution_every_minute();
+    test_cron_nextExecution_specific();
+    test_cron_nextNExecutions();
+    test_cron_toString();
+    test_cron_toplevel_next();
+}
