@@ -1,0 +1,294 @@
+// Test file for json/JsonBinary.tr
+// Exercises the public API of the JsonBinary class (MessagePack-compatible encoding).
+import tt::json::JsonBinary;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_jsonbinary_init(): void {
+    let jb: JsonBinary = new JsonBinary();
+    if (jb == null) {
+        io::println("FAIL: JsonBinary.init returned null");
+    } else {
+        io::println("PASS: JsonBinary.init works");
+    }
+}
+
+public fn test_jsonbinary_encode_null(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = jb.encode(JsonValue.ofNull());
+    if (bytes.size() != 1) {
+        io::println("FAIL: JsonBinary.encode null size=" + Integer.toString(bytes.size()));
+    } else if (bytes.get(0) != 0xc0) {
+        io::println("FAIL: JsonBinary.encode null byte=" + Integer.toString(bytes.get(0)));
+    } else {
+        io::println("PASS: JsonBinary.encode null works");
+    }
+}
+
+public fn test_jsonbinary_encode_true(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = jb.encode(JsonValue.ofBool(true));
+    if (bytes.size() != 1 || bytes.get(0) != 0xc3) {
+        io::println("FAIL: JsonBinary.encode true wrong");
+    } else {
+        io::println("PASS: JsonBinary.encode true works");
+    }
+}
+
+public fn test_jsonbinary_encode_false(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = jb.encode(JsonValue.ofBool(false));
+    if (bytes.size() != 1 || bytes.get(0) != 0xc2) {
+        io::println("FAIL: JsonBinary.encode false wrong");
+    } else {
+        io::println("PASS: JsonBinary.encode false works");
+    }
+}
+
+public fn test_jsonbinary_encode_small_int(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = jb.encode(JsonValue.ofNum(42.0));
+    if (bytes.size() != 1 || bytes.get(0) != 42) {
+        io::println("FAIL: JsonBinary.encode small int wrong");
+    } else {
+        io::println("PASS: JsonBinary.encode small int works");
+    }
+}
+
+public fn test_jsonbinary_encode_string(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = jb.encode(JsonValue.ofStr("hi"));
+    // fixstr: 0xa0 + len(2) = 0xa2, then 'h', 'i'
+    if (bytes.size() != 3) {
+        io::println("FAIL: JsonBinary.encode string size=" + Integer.toString(bytes.size()));
+    } else if (bytes.get(0) != 0xa2) {
+        io::println("FAIL: JsonBinary.encode string prefix=" + Integer.toString(bytes.get(0)));
+    } else {
+        io::println("PASS: JsonBinary.encode string works");
+    }
+}
+
+public fn test_jsonbinary_encode_array(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    arr.add(JsonValue.ofNum(2.0));
+    let bytes: ArrayList<int> = jb.encode(JsonValue.ofArray(arr));
+    // fixarray: 0x90 + len(2) = 0x92, then 1, 2
+    if (bytes.size() != 3) {
+        io::println("FAIL: JsonBinary.encode array size=" + Integer.toString(bytes.size()));
+    } else if (bytes.get(0) != 0x92) {
+        io::println("FAIL: JsonBinary.encode array prefix=" + Integer.toString(bytes.get(0)));
+    } else {
+        io::println("PASS: JsonBinary.encode array works");
+    }
+}
+
+public fn test_jsonbinary_encode_object(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let bytes: ArrayList<int> = jb.encode(JsonValue.ofObject(obj));
+    // fixmap: 0x80 + len(1) = 0x81, then key "a", then value 1
+    if (bytes.size() < 3) {
+        io::println("FAIL: JsonBinary.encode object too small");
+    } else if ((bytes.get(0) & 0xf0) != 0x80) {
+        io::println("FAIL: JsonBinary.encode object prefix=" + Integer.toString(bytes.get(0)));
+    } else {
+        io::println("PASS: JsonBinary.encode object works");
+    }
+}
+
+public fn test_jsonbinary_decode_null(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0xc0);
+    let v: JsonValue = jb.decode(bytes);
+    if (!v.isNull()) {
+        io::println("FAIL: JsonBinary.decode null wrong");
+    } else {
+        io::println("PASS: JsonBinary.decode null works");
+    }
+}
+
+public fn test_jsonbinary_decode_true(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0xc3);
+    let v: JsonValue = jb.decode(bytes);
+    if (!v.isBool() || !v.asBool()) {
+        io::println("FAIL: JsonBinary.decode true wrong");
+    } else {
+        io::println("PASS: JsonBinary.decode true works");
+    }
+}
+
+public fn test_jsonbinary_decode_false(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(0xc2);
+    let v: JsonValue = jb.decode(bytes);
+    if (!v.isBool() || v.asBool()) {
+        io::println("FAIL: JsonBinary.decode false wrong");
+    } else {
+        io::println("PASS: JsonBinary.decode false works");
+    }
+}
+
+public fn test_jsonbinary_decode_small_int(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    bytes.add(42);
+    let v: JsonValue = jb.decode(bytes);
+    if (!v.isNumber() || v.asNumber() != 42.0) {
+        io::println("FAIL: JsonBinary.decode small int wrong");
+    } else {
+        io::println("PASS: JsonBinary.decode small int works");
+    }
+}
+
+public fn test_jsonbinary_roundtrip_null(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let original: JsonValue = JsonValue.ofNull();
+    let bytes: ArrayList<int> = jb.encode(original);
+    let decoded: JsonValue = jb.decode(bytes);
+    if (!decoded.equals(original)) {
+        io::println("FAIL: JsonBinary roundtrip null not equal");
+    } else {
+        io::println("PASS: JsonBinary roundtrip null works");
+    }
+}
+
+public fn test_jsonbinary_roundtrip_bool(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let original: JsonValue = JsonValue.ofBool(true);
+    let bytes: ArrayList<int> = jb.encode(original);
+    let decoded: JsonValue = jb.decode(bytes);
+    if (!decoded.equals(original)) {
+        io::println("FAIL: JsonBinary roundtrip bool not equal");
+    } else {
+        io::println("PASS: JsonBinary roundtrip bool works");
+    }
+}
+
+public fn test_jsonbinary_roundtrip_number(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let original: JsonValue = JsonValue.ofNum(42.0);
+    let bytes: ArrayList<int> = jb.encode(original);
+    let decoded: JsonValue = jb.decode(bytes);
+    if (!decoded.equals(original)) {
+        io::println("FAIL: JsonBinary roundtrip number not equal");
+    } else {
+        io::println("PASS: JsonBinary roundtrip number works");
+    }
+}
+
+public fn test_jsonbinary_roundtrip_string(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let original: JsonValue = JsonValue.ofStr("hello");
+    let bytes: ArrayList<int> = jb.encode(original);
+    let decoded: JsonValue = jb.decode(bytes);
+    if (!decoded.equals(original)) {
+        io::println("FAIL: JsonBinary roundtrip string not equal");
+    } else {
+        io::println("PASS: JsonBinary roundtrip string works");
+    }
+}
+
+public fn test_jsonbinary_roundtrip_array(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    arr.add(JsonValue.ofNum(2.0));
+    let original: JsonValue = JsonValue.ofArray(arr);
+    let bytes: ArrayList<int> = jb.encode(original);
+    let decoded: JsonValue = jb.decode(bytes);
+    if (!decoded.equals(original)) {
+        io::println("FAIL: JsonBinary roundtrip array not equal");
+    } else {
+        io::println("PASS: JsonBinary roundtrip array works");
+    }
+}
+
+public fn test_jsonbinary_roundtrip_object(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let original: JsonValue = JsonValue.ofObject(obj);
+    let bytes: ArrayList<int> = jb.encode(original);
+    let decoded: JsonValue = jb.decode(bytes);
+    if (!decoded.equals(original)) {
+        io::println("FAIL: JsonBinary roundtrip object not equal");
+    } else {
+        io::println("PASS: JsonBinary roundtrip object works");
+    }
+}
+
+public fn test_jsonbinary_encodeToHex(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let hex: string = jb.encodeToHex(JsonValue.ofNull());
+    if (hex != "c0") {
+        io::println("FAIL: JsonBinary.encodeToHex null=" + hex);
+    } else {
+        io::println("PASS: JsonBinary.encodeToHex works");
+    }
+}
+
+public fn test_jsonbinary_decodeFromHex(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let v: JsonValue = jb.decodeFromHex("c0");
+    if (!v.isNull()) {
+        io::println("FAIL: JsonBinary.decodeFromHex null wrong");
+    } else {
+        io::println("PASS: JsonBinary.decodeFromHex works");
+    }
+}
+
+public fn test_jsonbinary_hex_roundtrip(): void {
+    let jb: JsonBinary = new JsonBinary();
+    let original: JsonValue = JsonValue.ofNum(42.0);
+    let hex: string = jb.encodeToHex(original);
+    let decoded: JsonValue = jb.decodeFromHex(hex);
+    if (!decoded.equals(original)) {
+        io::println("FAIL: JsonBinary hex roundtrip not equal");
+    } else {
+        io::println("PASS: JsonBinary hex roundtrip works");
+    }
+}
+
+public fn test_jsonbinary_registerExtType(): void {
+    let jb: JsonBinary = new JsonBinary();
+    jb.registerExtType(1,
+        fn(v: JsonValue): ArrayList<int> { let b: ArrayList<int> = new ArrayList<int>(); b.add(0); return b; },
+        fn(b: ArrayList<int>): JsonValue { return JsonValue.ofNull(); });
+    io::println("PASS: JsonBinary.registerExtType works");
+}
+
+public fn run_all_json_binary_tests(): void {
+    io::println("=== JsonBinary.tr Tests ===");
+    test_jsonbinary_init();
+    test_jsonbinary_encode_null();
+    test_jsonbinary_encode_true();
+    test_jsonbinary_encode_false();
+    test_jsonbinary_encode_small_int();
+    test_jsonbinary_encode_string();
+    test_jsonbinary_encode_array();
+    test_jsonbinary_encode_object();
+    test_jsonbinary_decode_null();
+    test_jsonbinary_decode_true();
+    test_jsonbinary_decode_false();
+    test_jsonbinary_decode_small_int();
+    test_jsonbinary_roundtrip_null();
+    test_jsonbinary_roundtrip_bool();
+    test_jsonbinary_roundtrip_number();
+    test_jsonbinary_roundtrip_string();
+    test_jsonbinary_roundtrip_array();
+    test_jsonbinary_roundtrip_object();
+    test_jsonbinary_encodeToHex();
+    test_jsonbinary_decodeFromHex();
+    test_jsonbinary_hex_roundtrip();
+    test_jsonbinary_registerExtType();
+}
