@@ -1,0 +1,111 @@
+// Test file for concurrent/Mutex.tr
+// Exercises the public API: Mutex.
+import tt::concurrent::Mutex;
+
+public fn test_mutex_init(): void {
+    let m: Mutex = new Mutex();
+    if (m == null) {
+        io::println("FAIL: Mutex.init returned null");
+    } else {
+        io::println("PASS: Mutex.init works");
+    }
+}
+
+public fn test_mutex_getHandle(): void {
+    let m: Mutex = new Mutex();
+    let h: int = m.getHandle();
+    if (h == 0) {
+        io::println("FAIL: Mutex.getHandle returned 0");
+    } else {
+        io::println("PASS: Mutex.getHandle works");
+    }
+}
+
+public fn test_mutex_lock_unlock(): void {
+    let m: Mutex = new Mutex();
+    m.lock();
+    m.unlock();
+    io::println("PASS: Mutex.lock/unlock works");
+}
+
+public fn test_mutex_tryLock(): void {
+    let m: Mutex = new Mutex();
+    let result: bool = m.tryLock();
+    if (!result) {
+        io::println("FAIL: Mutex.tryLock should succeed on unlocked mutex");
+    } else {
+        m.unlock();
+        io::println("PASS: Mutex.tryLock works");
+    }
+}
+
+public fn test_mutex_tryLock_after_lock(): void {
+    let m: Mutex = new Mutex();
+    m.lock();
+    let result: bool = m.tryLock();
+    if (result) {
+        io::println("FAIL: Mutex.tryLock should fail on locked mutex");
+        m.unlock();
+        m.unlock();
+    } else {
+        m.unlock();
+        io::println("PASS: Mutex.tryLock after lock works");
+    }
+}
+
+public fn test_mutex_tryLockFor(): void {
+    let m: Mutex = new Mutex();
+    let result: bool = m.tryLockFor(10);
+    if (!result) {
+        io::println("FAIL: Mutex.tryLockFor should succeed on unlocked mutex");
+    } else {
+        m.unlock();
+        io::println("PASS: Mutex.tryLockFor works");
+    }
+}
+
+public fn test_mutex_multiple_locks(): void {
+    let m1: Mutex = new Mutex();
+    let m2: Mutex = new Mutex();
+    m1.lock();
+    m2.lock();
+    m1.unlock();
+    m2.unlock();
+    io::println("PASS: Mutex multiple locks works");
+}
+
+public fn test_mutex_reentrant_after_unlock(): void {
+    let m: Mutex = new Mutex();
+    m.lock();
+    m.unlock();
+    let result: bool = m.tryLock();
+    if (!result) {
+        io::println("FAIL: Mutex should be lockable after unlock");
+    } else {
+        m.unlock();
+        io::println("PASS: Mutex reentrant after unlock works");
+    }
+}
+
+public fn test_mutex_handle_unique(): void {
+    let m1: Mutex = new Mutex();
+    let m2: Mutex = new Mutex();
+    if (m1.getHandle() == m2.getHandle()) {
+        io::println("FAIL: Mutex handles should be unique");
+    } else {
+        io::println("PASS: Mutex handle unique works");
+    }
+}
+
+public fn run_all_mutex_tests(): void {
+    io::println("=== Mutex.tr Tests ===");
+    test_mutex_init();
+    test_mutex_getHandle();
+    test_mutex_lock_unlock();
+    test_mutex_tryLock();
+    test_mutex_tryLock_after_lock();
+    test_mutex_tryLockFor();
+    test_mutex_multiple_locks();
+    test_mutex_reentrant_after_unlock();
+    test_mutex_handle_unique();
+}
