@@ -1,0 +1,293 @@
+// Test file for html/Html.tr
+// Exercises the public API: Html.escape, Html.unescape, HtmlElement (init, find,
+// findAll, getText, toString), HtmlParser (init, feed, close, getResult).
+import tt::html::Html;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_html_escape_basic(): void {
+    let h: Html = new Html();
+    let r: string = h.escape("a & b < c > d", false);
+    if (r != "a &amp; b &lt; c &gt; d") {
+        io::println("FAIL: escape basic r=" + r);
+    } else {
+        io::println("PASS: escape basic");
+    }
+}
+
+public fn test_html_escape_quote(): void {
+    let h: Html = new Html();
+    let r: string = h.escape("a\"b'c", true);
+    if (r != "a&quot;b&#x27;c") {
+        io::println("FAIL: escape quote r=" + r);
+    } else {
+        io::println("PASS: escape quote");
+    }
+}
+
+public fn test_html_escape_no_quote(): void {
+    let h: Html = new Html();
+    let r: string = h.escape("a\"b'c", false);
+    if (r != "a\"b'c") {
+        io::println("FAIL: escape no quote r=" + r);
+    } else {
+        io::println("PASS: escape no quote");
+    }
+}
+
+public fn test_html_escape_empty(): void {
+    let h: Html = new Html();
+    let r: string = h.escape("", false);
+    if (r != "") {
+        io::println("FAIL: escape empty");
+    } else {
+        io::println("PASS: escape empty");
+    }
+}
+
+public fn test_html_escape_no_special(): void {
+    let h: Html = new Html();
+    let r: string = h.escape("hello world", false);
+    if (r != "hello world") {
+        io::println("FAIL: escape no special");
+    } else {
+        io::println("PASS: escape no special");
+    }
+}
+
+public fn test_html_unescape_amp(): void {
+    let h: Html = new Html();
+    let r: string = h.unescape("a &amp; b");
+    if (r != "a & b") {
+        io::println("FAIL: unescape amp r=" + r);
+    } else {
+        io::println("PASS: unescape amp");
+    }
+}
+
+public fn test_html_unescape_lt_gt(): void {
+    let h: Html = new Html();
+    let r: string = h.unescape("&lt;tag&gt;");
+    if (r != "<tag>") {
+        io::println("FAIL: unescape lt gt r=" + r);
+    } else {
+        io::println("PASS: unescape lt gt");
+    }
+}
+
+public fn test_html_unescape_numeric_decimal(): void {
+    let h: Html = new Html();
+    let r: string = h.unescape("&#65;");
+    if (r != "A") {
+        io::println("FAIL: unescape numeric decimal r=" + r);
+    } else {
+        io::println("PASS: unescape numeric decimal");
+    }
+}
+
+public fn test_html_unescape_numeric_hex(): void {
+    let h: Html = new Html();
+    let r: string = h.unescape("&#x42;");
+    if (r != "B") {
+        io::println("FAIL: unescape numeric hex r=" + r);
+    } else {
+        io::println("PASS: unescape numeric hex");
+    }
+}
+
+public fn test_html_element_init(): void {
+    let el: HtmlElement = new HtmlElement("div");
+    if (el.tag != "div") {
+        io::println("FAIL: element init");
+    } else {
+        io::println("PASS: element init");
+    }
+}
+
+public fn test_html_element_attrs(): void {
+    let el: HtmlElement = new HtmlElement("a");
+    el.attrs.put("href", "http://example.com");
+    if (el.attrs.get("href") != "http://example.com") {
+        io::println("FAIL: element attrs");
+    } else {
+        io::println("PASS: element attrs");
+    }
+}
+
+public fn test_html_element_children(): void {
+    let parent: HtmlElement = new HtmlElement("ul");
+    let child: HtmlElement = new HtmlElement("li");
+    parent.children.add(child);
+    if (parent.children.size() != 1) {
+        io::println("FAIL: element children");
+    } else {
+        io::println("PASS: element children");
+    }
+}
+
+public fn test_html_element_text(): void {
+    let el: HtmlElement = new HtmlElement("p");
+    el.text = "hello";
+    if (el.text != "hello") {
+        io::println("FAIL: element text");
+    } else {
+        io::println("PASS: element text");
+    }
+}
+
+public fn test_html_element_getText(): void {
+    let parent: HtmlElement = new HtmlElement("div");
+    parent.text = "hello ";
+    let child: HtmlElement = new HtmlElement("span");
+    child.text = "world";
+    parent.children.add(child);
+    let t: string = parent.getText();
+    if (t != "hello world") {
+        io::println("FAIL: element getText t=" + t);
+    } else {
+        io::println("PASS: element getText");
+    }
+}
+
+public fn test_html_element_find(): void {
+    let root: HtmlElement = new HtmlElement("html");
+    let body: HtmlElement = new HtmlElement("body");
+    root.children.add(body);
+    let p: HtmlElement = new HtmlElement("p");
+    body.children.add(p);
+    let found: HtmlElement = root.find("p");
+    if (found == null || found.tag != "p") {
+        io::println("FAIL: element find");
+    } else {
+        io::println("PASS: element find");
+    }
+}
+
+public fn test_html_element_find_not_found(): void {
+    let root: HtmlElement = new HtmlElement("html");
+    let found: HtmlElement = root.find("div");
+    if (found != null) {
+        io::println("FAIL: element find not found");
+    } else {
+        io::println("PASS: element find not found");
+    }
+}
+
+public fn test_html_element_findAll(): void {
+    let root: HtmlElement = new HtmlElement("html");
+    let body: HtmlElement = new HtmlElement("body");
+    root.children.add(body);
+    let p1: HtmlElement = new HtmlElement("p");
+    let p2: HtmlElement = new HtmlElement("p");
+    body.children.add(p1);
+    body.children.add(p2);
+    let results: ArrayList<HtmlElement> = root.findAll("p");
+    if (results.size() != 2) {
+        io::println("FAIL: element findAll size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: element findAll");
+    }
+}
+
+public fn test_html_element_toString(): void {
+    let el: HtmlElement = new HtmlElement("br");
+    let s: string = el.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: element toString");
+    } else {
+        io::println("PASS: element toString");
+    }
+}
+
+public fn test_html_parser_init(): void {
+    let parser: HtmlParser = new HtmlParser();
+    let root: HtmlElement = parser.getResult();
+    if (root == null) {
+        io::println("FAIL: parser init");
+    } else {
+        io::println("PASS: parser init");
+    }
+}
+
+public fn test_html_parser_simple(): void {
+    let parser: HtmlParser = new HtmlParser();
+    parser.feed("<html><body><p>hello</p></body></html>");
+    let root: HtmlElement = parser.getResult();
+    let found: HtmlElement = root.find("p");
+    if (found == null) {
+        io::println("FAIL: parser simple");
+    } else {
+        io::println("PASS: parser simple");
+    }
+}
+
+public fn test_html_parser_text(): void {
+    let parser: HtmlParser = new HtmlParser();
+    parser.feed("<p>world</p>");
+    let root: HtmlElement = parser.getResult();
+    let p: HtmlElement = root.find("p");
+    if (p == null || p.getText() != "world") {
+        io::println("FAIL: parser text");
+    } else {
+        io::println("PASS: parser text");
+    }
+}
+
+public fn test_html_parser_attrs(): void {
+    let parser: HtmlParser = new HtmlParser();
+    parser.feed("<a href=\"http://x.com\">link</a>");
+    let root: HtmlElement = parser.getResult();
+    let a: HtmlElement = root.find("a");
+    if (a == null || a.attrs.get("href") != "http://x.com") {
+        io::println("FAIL: parser attrs");
+    } else {
+        io::println("PASS: parser attrs");
+    }
+}
+
+public fn test_html_parser_close(): void {
+    let parser: HtmlParser = new HtmlParser();
+    parser.feed("<div>test</div>");
+    parser.close();
+    io::println("PASS: parser close");
+}
+
+public fn test_html_parser_nested(): void {
+    let parser: HtmlParser = new HtmlParser();
+    parser.feed("<ul><li>a</li><li>b</li></ul>");
+    let root: HtmlElement = parser.getResult();
+    let items: ArrayList<HtmlElement> = root.findAll("li");
+    if (items.size() != 2) {
+        io::println("FAIL: parser nested size=" + Integer.toString(items.size()));
+    } else {
+        io::println("PASS: parser nested");
+    }
+}
+
+public fn run_all_html_tests(): void {
+    test_html_escape_basic();
+    test_html_escape_quote();
+    test_html_escape_no_quote();
+    test_html_escape_empty();
+    test_html_escape_no_special();
+    test_html_unescape_amp();
+    test_html_unescape_lt_gt();
+    test_html_unescape_numeric_decimal();
+    test_html_unescape_numeric_hex();
+    test_html_element_init();
+    test_html_element_attrs();
+    test_html_element_children();
+    test_html_element_text();
+    test_html_element_getText();
+    test_html_element_find();
+    test_html_element_find_not_found();
+    test_html_element_findAll();
+    test_html_element_toString();
+    test_html_parser_init();
+    test_html_parser_simple();
+    test_html_parser_text();
+    test_html_parser_attrs();
+    test_html_parser_close();
+    test_html_parser_nested();
+}
