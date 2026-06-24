@@ -1,0 +1,243 @@
+// Test file for algo/Graph.tr
+// Exercises the public API: Graph class, bfs, dfs, dijkstra, bellmanFord, floydWarshall, aStar.
+import tt::algo::Graph;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+
+public fn test_graph_init(): void {
+    let g: Graph = new Graph(5);
+    if (g == null) {
+        io::println("FAIL: Graph.init returned null");
+    } else {
+        io::println("PASS: Graph.init works");
+    }
+}
+
+public fn test_graph_vertexCount(): void {
+    let g: Graph = new Graph(5);
+    if (g.vertexCount() != 5) {
+        io::println("FAIL: Graph.vertexCount=" + Integer.toString(g.vertexCount()));
+    } else {
+        io::println("PASS: Graph.vertexCount works");
+    }
+}
+
+public fn test_graph_edgeCount_default(): void {
+    let g: Graph = new Graph(5);
+    if (g.edgeCount() != 0) {
+        io::println("FAIL: Graph.edgeCount default wrong");
+    } else {
+        io::println("PASS: Graph.edgeCount default works");
+    }
+}
+
+public fn test_graph_isDirected_default(): void {
+    let g: Graph = new Graph(5);
+    if (g.isDirected()) {
+        io::println("FAIL: Graph.isDirected should be false by default");
+    } else {
+        io::println("PASS: Graph.isDirected default works");
+    }
+}
+
+public fn test_graph_isDirected_true(): void {
+    let g: Graph = new Graph(5, true);
+    if (!g.isDirected()) {
+        io::println("FAIL: Graph.isDirected should be true");
+    } else {
+        io::println("PASS: Graph.isDirected true works");
+    }
+}
+
+public fn test_graph_addEdge(): void {
+    let g: Graph = new Graph(3);
+    g.addEdge(0, 1, 1.0);
+    if (g.edgeCount() != 1) {
+        io::println("FAIL: Graph.addEdge edgeCount=" + Integer.toString(g.edgeCount()));
+    } else {
+        io::println("PASS: Graph.addEdge works");
+    }
+}
+
+public fn test_graph_addEdge_undirected(): void {
+    let g: Graph = new Graph(3, false);
+    g.addEdge(0, 1, 1.0);
+    let neighbors0: ArrayList<Pair<int, double>> = g.getNeighbors(0);
+    let neighbors1: ArrayList<Pair<int, double>> = g.getNeighbors(1);
+    if (neighbors0.size() != 1 || neighbors1.size() != 1) {
+        io::println("FAIL: Graph.addEdge undirected neighbors wrong");
+    } else {
+        io::println("PASS: Graph.addEdge undirected works");
+    }
+}
+
+public fn test_graph_addEdge_directed(): void {
+    let g: Graph = new Graph(3, true);
+    g.addEdge(0, 1, 1.0);
+    let neighbors0: ArrayList<Pair<int, double>> = g.getNeighbors(0);
+    let neighbors1: ArrayList<Pair<int, double>> = g.getNeighbors(1);
+    if (neighbors0.size() != 1 || neighbors1.size() != 0) {
+        io::println("FAIL: Graph.addEdge directed neighbors wrong");
+    } else {
+        io::println("PASS: Graph.addEdge directed works");
+    }
+}
+
+public fn test_graph_getNeighbors(): void {
+    let g: Graph = new Graph(3);
+    g.addEdge(0, 1, 5.0);
+    g.addEdge(0, 2, 3.0);
+    let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(0);
+    if (neighbors.size() != 2) {
+        io::println("FAIL: Graph.getNeighbors size=" + Integer.toString(neighbors.size()));
+    } else {
+        io::println("PASS: Graph.getNeighbors works");
+    }
+}
+
+public fn test_bfs(): void {
+    let g: Graph = new Graph(4);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(0, 2, 1.0);
+    g.addEdge(1, 3, 1.0);
+    let result: ArrayList<int> = bfs(g, 0);
+    if (result.size() != 4) {
+        io::println("FAIL: bfs size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: bfs works");
+    }
+}
+
+public fn test_bfs_start(): void {
+    let g: Graph = new Graph(4);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(0, 2, 1.0);
+    let result: ArrayList<int> = bfs(g, 0);
+    if (result.get(0) != 0) {
+        io::println("FAIL: bfs first should be start");
+    } else {
+        io::println("PASS: bfs start works");
+    }
+}
+
+public fn test_dfs(): void {
+    let g: Graph = new Graph(4);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(0, 2, 1.0);
+    g.addEdge(1, 3, 1.0);
+    let result: ArrayList<int> = dfs(g, 0);
+    if (result.size() != 4) {
+        io::println("FAIL: dfs size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: dfs works");
+    }
+}
+
+public fn test_dfs_start(): void {
+    let g: Graph = new Graph(3);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    let result: ArrayList<int> = dfs(g, 0);
+    if (result.get(0) != 0) {
+        io::println("FAIL: dfs first should be start");
+    } else {
+        io::println("PASS: dfs start works");
+    }
+}
+
+public fn test_dijkstra(): void {
+    let g: Graph = new Graph(4);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 2.0);
+    g.addEdge(0, 2, 5.0);
+    let dist: ArrayList<double> = dijkstra(g, 0);
+    if (dist.get(0) != 0.0) {
+        io::println("FAIL: dijkstra dist[0] should be 0");
+    } else if (dist.get(1) != 1.0) {
+        io::println("FAIL: dijkstra dist[1] should be 1");
+    } else if (dist.get(2) != 3.0) {
+        io::println("FAIL: dijkstra dist[2] should be 3");
+    } else {
+        io::println("PASS: dijkstra works");
+    }
+}
+
+public fn test_bellmanFord(): void {
+    let g: Graph = new Graph(3);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 2.0);
+    let dist: ArrayList<double> = bellmanFord(g, 0);
+    if (dist.get(0) != 0.0) {
+        io::println("FAIL: bellmanFord dist[0] should be 0");
+    } else {
+        io::println("PASS: bellmanFord works");
+    }
+}
+
+public fn test_floydWarshall(): void {
+    let g: Graph = new Graph(3);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 2.0);
+    let dist: ArrayList<ArrayList<double>> = floydWarshall(g);
+    if (dist.size() != 3) {
+        io::println("FAIL: floydWarshall size wrong");
+    } else {
+        io::println("PASS: floydWarshall works");
+    }
+}
+
+public fn test_aStar(): void {
+    let g: Graph = new Graph(3);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    let path: ArrayList<int> = aStar(g, 0, 2, fn(n: int): double { return 0.0; });
+    if (path.size() == 0) {
+        io::println("FAIL: aStar no path found");
+    } else {
+        io::println("PASS: aStar works");
+    }
+}
+
+public fn test_bfs_invalid_start(): void {
+    let g: Graph = new Graph(3);
+    let result: ArrayList<int> = bfs(g, 99);
+    if (result.size() != 0) {
+        io::println("FAIL: bfs invalid start should return empty");
+    } else {
+        io::println("PASS: bfs invalid start works");
+    }
+}
+
+public fn test_dfs_invalid_start(): void {
+    let g: Graph = new Graph(3);
+    let result: ArrayList<int> = dfs(g, 99);
+    if (result.size() != 0) {
+        io::println("FAIL: dfs invalid start should return empty");
+    } else {
+        io::println("PASS: dfs invalid start works");
+    }
+}
+
+public fn run_all_graph_tests(): void {
+    io::println("=== Graph.tr Tests ===");
+    test_graph_init();
+    test_graph_vertexCount();
+    test_graph_edgeCount_default();
+    test_graph_isDirected_default();
+    test_graph_isDirected_true();
+    test_graph_addEdge();
+    test_graph_addEdge_undirected();
+    test_graph_addEdge_directed();
+    test_graph_getNeighbors();
+    test_bfs();
+    test_bfs_start();
+    test_dfs();
+    test_dfs_start();
+    test_dijkstra();
+    test_bellmanFord();
+    test_floydWarshall();
+    test_aStar();
+    test_bfs_invalid_start();
+    test_dfs_invalid_start();
+}
