@@ -1,0 +1,169 @@
+// Test file for time/DateRange.tr
+// Exercises the public API: dateRange, dateRangeIntStep, periodAdd, periodSubtract, isoWeekDate, ordinalDate, fromOrdinalDate.
+import tt::time::DateRange;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_daterange_int_step(): void {
+    let result: ArrayList<string> = DateRange.dateRangeIntStep("2024-01-01", "2024-01-05", 1);
+    if (result.size() != 5) {
+        io::println("FAIL: dateRangeIntStep size=" + Integer.toString(result.size()) + ", expected 5");
+    } else if (result.get(0) != "2024-01-01" || result.get(4) != "2024-01-05") {
+        io::println("FAIL: dateRangeIntStep endpoints wrong");
+    } else {
+        io::println("PASS: dateRangeIntStep works");
+    }
+}
+
+public fn test_daterange_int_step_two(): void {
+    let result: ArrayList<string> = DateRange.dateRangeIntStep("2024-01-01", "2024-01-09", 2);
+    if (result.size() != 5) {
+        io::println("FAIL: dateRangeIntStep(2) size=" + Integer.toString(result.size()) + ", expected 5");
+    } else {
+        io::println("PASS: dateRangeIntStep with step 2 works");
+    }
+}
+
+public fn test_daterange_string_step_day(): void {
+    let result: ArrayList<string> = DateRange.dateRange("2024-01-01", "2024-01-04", "1d");
+    if (result.size() != 4) {
+        io::println("FAIL: dateRange(1d) size=" + Integer.toString(result.size()) + ", expected 4");
+    } else {
+        io::println("PASS: dateRange with 1d step works");
+    }
+}
+
+public fn test_daterange_string_step_week(): void {
+    let result: ArrayList<string> = DateRange.dateRange("2024-01-01", "2024-01-29", "1w");
+    if (result.size() != 5) {
+        io::println("FAIL: dateRange(1w) size=" + Integer.toString(result.size()) + ", expected 5");
+    } else {
+        io::println("PASS: dateRange with 1w step works");
+    }
+}
+
+public fn test_daterange_single_day(): void {
+    let result: ArrayList<string> = DateRange.dateRange("2024-01-01", "2024-01-01", "1d");
+    if (result.size() != 1) {
+        io::println("FAIL: dateRange single day size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: dateRange single day works");
+    }
+}
+
+public fn test_periodAdd_day(): void {
+    let result: string = DateRange.periodAdd("2024-01-01", "5d");
+    if (result != "2024-01-06") {
+        io::println("FAIL: periodAdd(5d) returned " + result + ", expected 2024-01-06");
+    } else {
+        io::println("PASS: periodAdd day works");
+    }
+}
+
+public fn test_periodAdd_week(): void {
+    let result: string = DateRange.periodAdd("2024-01-01", "1w");
+    if (result != "2024-01-08") {
+        io::println("FAIL: periodAdd(1w) returned " + result + ", expected 2024-01-08");
+    } else {
+        io::println("PASS: periodAdd week works");
+    }
+}
+
+public fn test_periodAdd_month(): void {
+    let result: string = DateRange.periodAdd("2024-01-15", "1M");
+    if (result != "2024-02-15") {
+        io::println("FAIL: periodAdd(1M) returned " + result + ", expected 2024-02-15");
+    } else {
+        io::println("PASS: periodAdd month works");
+    }
+}
+
+public fn test_periodAdd_year(): void {
+    let result: string = DateRange.periodAdd("2024-01-15", "1y");
+    if (result != "2025-01-15") {
+        io::println("FAIL: periodAdd(1y) returned " + result + ", expected 2025-01-15");
+    } else {
+        io::println("PASS: periodAdd year works");
+    }
+}
+
+public fn test_periodSubtract_day(): void {
+    let result: string = DateRange.periodSubtract("2024-01-10", "5d");
+    if (result != "2024-01-05") {
+        io::println("FAIL: periodSubtract(5d) returned " + result + ", expected 2024-01-05");
+    } else {
+        io::println("PASS: periodSubtract day works");
+    }
+}
+
+public fn test_periodSubtract_week(): void {
+    let result: string = DateRange.periodSubtract("2024-01-15", "1w");
+    if (result != "2024-01-08") {
+        io::println("FAIL: periodSubtract(1w) returned " + result + ", expected 2024-01-08");
+    } else {
+        io::println("PASS: periodSubtract week works");
+    }
+}
+
+public fn test_isoWeekDate(): void {
+    let result: string = DateRange.isoWeekDate("2024-01-01");
+    if (String.length(result) == 0) {
+        io::println("FAIL: isoWeekDate returned empty");
+    } else if (String.indexOf(result, "-W") < 0) {
+        io::println("FAIL: isoWeekDate malformed: " + result);
+    } else {
+        io::println("PASS: isoWeekDate works: " + result);
+    }
+}
+
+public fn test_ordinalDate(): void {
+    let result: Pair<int, int> = DateRange.ordinalDate("2024-01-01");
+    if (result.first != 2024) {
+        io::println("FAIL: ordinalDate year=" + Integer.toString(result.first));
+    } else if (result.second != 1) {
+        io::println("FAIL: ordinalDate doy=" + Integer.toString(result.second));
+    } else {
+        io::println("PASS: ordinalDate works");
+    }
+}
+
+public fn test_fromOrdinalDate(): void {
+    let result: string = DateRange.fromOrdinalDate(2024, 1);
+    if (result != "2024-01-01") {
+        io::println("FAIL: fromOrdinalDate returned " + result + ", expected 2024-01-01");
+    } else {
+        io::println("PASS: fromOrdinalDate works");
+    }
+}
+
+public fn test_fromOrdinalDate_roundtrip(): void {
+    let orig: string = "2024-03-15";
+    let ord: Pair<int, int> = DateRange.ordinalDate(orig);
+    let back: string = DateRange.fromOrdinalDate(ord.first, ord.second);
+    if (back != orig) {
+        io::println("FAIL: ordinal roundtrip orig=" + orig + " back=" + back);
+    } else {
+        io::println("PASS: ordinal roundtrip works");
+    }
+}
+
+public fn run_all_date_range_tests(): void {
+    io::println("=== DateRange.tr Tests ===");
+    test_daterange_int_step();
+    test_daterange_int_step_two();
+    test_daterange_string_step_day();
+    test_daterange_string_step_week();
+    test_daterange_single_day();
+    test_periodAdd_day();
+    test_periodAdd_week();
+    test_periodAdd_month();
+    test_periodAdd_year();
+    test_periodSubtract_day();
+    test_periodSubtract_week();
+    test_isoWeekDate();
+    test_ordinalDate();
+    test_fromOrdinalDate();
+    test_fromOrdinalDate_roundtrip();
+}
