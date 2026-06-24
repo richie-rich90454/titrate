@@ -1,0 +1,211 @@
+// Test file for algo/HeapAlgo.tr
+// Exercises the public API: isHeap, isHeapUntil, makeHeap, pushHeap, popHeap, sortHeap.
+import tt::algo::HeapAlgo;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_isHeap_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    if (!isHeap(data)) {
+        io::println("FAIL: isHeap empty should be true");
+    } else {
+        io::println("PASS: isHeap empty works");
+    }
+}
+
+public fn test_isHeap_single(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(5.0);
+    if (!isHeap(data)) {
+        io::println("FAIL: isHeap single should be true");
+    } else {
+        io::println("PASS: isHeap single works");
+    }
+}
+
+public fn test_isHeap_valid(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0);
+    data.add(5.0);
+    data.add(3.0);
+    if (!isHeap(data)) {
+        io::println("FAIL: isHeap valid should be true");
+    } else {
+        io::println("PASS: isHeap valid works");
+    }
+}
+
+public fn test_isHeap_invalid(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(5.0);
+    data.add(3.0);
+    if (isHeap(data)) {
+        io::println("FAIL: isHeap invalid should be false");
+    } else {
+        io::println("PASS: isHeap invalid works");
+    }
+}
+
+public fn test_isHeapUntil_valid(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0);
+    data.add(5.0);
+    data.add(3.0);
+    let idx: int = isHeapUntil(data);
+    if (idx != 3) {
+        io::println("FAIL: isHeapUntil valid=" + Integer.toString(idx));
+    } else {
+        io::println("PASS: isHeapUntil valid works");
+    }
+}
+
+public fn test_isHeapUntil_invalid(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(5.0);
+    let idx: int = isHeapUntil(data);
+    if (idx != 0) {
+        io::println("FAIL: isHeapUntil invalid=" + Integer.toString(idx));
+    } else {
+        io::println("PASS: isHeapUntil invalid works");
+    }
+}
+
+public fn test_makeHeap(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(3.0);
+    data.add(1.0);
+    data.add(4.0);
+    data.add(1.0);
+    data.add(5.0);
+    makeHeap(data);
+    if (!isHeap(data)) {
+        io::println("FAIL: makeHeap did not create valid heap");
+    } else {
+        io::println("PASS: makeHeap works");
+    }
+}
+
+public fn test_makeHeap_max_at_root(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(3.0);
+    data.add(1.0);
+    data.add(4.0);
+    data.add(1.0);
+    data.add(5.0);
+    makeHeap(data);
+    if (data.get(0) != 5.0) {
+        io::println("FAIL: makeHeap max at root wrong=" + data.get(0).toString());
+    } else {
+        io::println("PASS: makeHeap max at root works");
+    }
+}
+
+public fn test_pushHeap(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0);
+    data.add(5.0);
+    data.add(3.0);
+    data.add(1.0);
+    pushHeap(data);
+    if (!isHeap(data)) {
+        io::println("FAIL: pushHeap did not maintain heap");
+    } else {
+        io::println("PASS: pushHeap works");
+    }
+}
+
+public fn test_popHeap(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0);
+    data.add(5.0);
+    data.add(3.0);
+    let maxVal: double = data.get(0);
+    popHeap(data);
+    if (data.get(data.size() - 1) != maxVal) {
+        io::println("FAIL: popHeap did not move max to end");
+    } else {
+        io::println("PASS: popHeap works");
+    }
+}
+
+public fn test_sortHeap(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(5.0);
+    data.add(3.0);
+    data.add(8.0);
+    data.add(1.0);
+    data.add(9.0);
+    makeHeap(data);
+    sortHeap(data);
+    if (data.get(0) != 1.0) {
+        io::println("FAIL: sortHeap first=" + data.get(0).toString());
+    } else if (data.get(4) != 9.0) {
+        io::println("FAIL: sortHeap last=" + data.get(4).toString());
+    } else {
+        io::println("PASS: sortHeap works");
+    }
+}
+
+public fn test_makeHeap_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    makeHeap(data);
+    if (data.size() != 0) {
+        io::println("FAIL: makeHeap empty size wrong");
+    } else {
+        io::println("PASS: makeHeap empty works");
+    }
+}
+
+public fn test_makeHeap_single(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(42.0);
+    makeHeap(data);
+    if (data.get(0) != 42.0) {
+        io::println("FAIL: makeHeap single wrong");
+    } else {
+        io::println("PASS: makeHeap single works");
+    }
+}
+
+public fn test_sortHeap_sorted(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    makeHeap(data);
+    sortHeap(data);
+    var i: int = 0;
+    var sorted: bool = true;
+    while (i < data.size() - 1) {
+        if (data.get(i) > data.get(i + 1)) {
+            sorted = false;
+        }
+        i = i + 1;
+    }
+    if (!sorted) {
+        io::println("FAIL: sortHeap not sorted");
+    } else {
+        io::println("PASS: sortHeap sorted works");
+    }
+}
+
+public fn run_all_heapalgo_tests(): void {
+    io::println("=== HeapAlgo.tr Tests ===");
+    test_isHeap_empty();
+    test_isHeap_single();
+    test_isHeap_valid();
+    test_isHeap_invalid();
+    test_isHeapUntil_valid();
+    test_isHeapUntil_invalid();
+    test_makeHeap();
+    test_makeHeap_max_at_root();
+    test_pushHeap();
+    test_popHeap();
+    test_sortHeap();
+    test_makeHeap_empty();
+    test_makeHeap_single();
+    test_sortHeap_sorted();
+}
