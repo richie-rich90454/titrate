@@ -1,0 +1,152 @@
+// Test file for time/Scheduler.tr
+// Exercises the public API of Scheduler and ScheduledEvent.
+import tt::time::Scheduler;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+var _scheduler_counter: int = 0;
+
+public fn test_scheduler_init(): void {
+    let s: Scheduler = new Scheduler();
+    if (!s.empty()) {
+        io::println("FAIL: Scheduler should be empty after init");
+    } else {
+        io::println("PASS: Scheduler.init/empty works");
+    }
+}
+
+public fn test_scheduler_enter(): void {
+    let s: Scheduler = new Scheduler();
+    s.enter(0.0, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    if (s.empty()) {
+        io::println("FAIL: Scheduler should not be empty after enter");
+    } else {
+        io::println("PASS: Scheduler.enter works");
+    }
+}
+
+public fn test_scheduler_enterWithPriority(): void {
+    let s: Scheduler = new Scheduler();
+    s.enterWithPriority(0.0, 5, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    if (s.empty()) {
+        io::println("FAIL: Scheduler should not be empty after enterWithPriority");
+    } else {
+        io::println("PASS: Scheduler.enterWithPriority works");
+    }
+}
+
+public fn test_scheduler_queue(): void {
+    let s: Scheduler = new Scheduler();
+    s.enter(0.0, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    let q: ArrayList<ScheduledEvent> = s.queue();
+    if (q.size() != 1) {
+        io::println("FAIL: Scheduler.queue size=" + Integer.toString(q.size()));
+    } else {
+        io::println("PASS: Scheduler.queue works");
+    }
+}
+
+public fn test_scheduler_cancel(): void {
+    let s: Scheduler = new Scheduler();
+    let e: ScheduledEvent = s.enter(0.0, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    let ok: bool = s.cancel(e);
+    if (!ok) {
+        io::println("FAIL: Scheduler.cancel returned false");
+    } else if (!s.empty()) {
+        io::println("FAIL: Scheduler should be empty after cancel (no non-cancelled events)");
+    } else {
+        io::println("PASS: Scheduler.cancel works");
+    }
+}
+
+public fn test_scheduler_run_executes(): void {
+    let s: Scheduler = new Scheduler();
+    let before: int = _scheduler_counter;
+    s.enter(0.0, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    s.run();
+    let after: int = _scheduler_counter;
+    if (after != before + 1) {
+        io::println("FAIL: Scheduler.run did not execute action (before=" + Integer.toString(before) + " after=" + Integer.toString(after) + ")");
+    } else {
+        io::println("PASS: Scheduler.run executes actions");
+    }
+}
+
+public fn test_scheduler_run_skips_cancelled(): void {
+    let s: Scheduler = new Scheduler();
+    let before: int = _scheduler_counter;
+    let e: ScheduledEvent = s.enter(0.0, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    s.cancel(e);
+    s.run();
+    let after: int = _scheduler_counter;
+    if (after != before) {
+        io::println("FAIL: Scheduler.run executed cancelled action");
+    } else {
+        io::println("PASS: Scheduler.run skips cancelled events");
+    }
+}
+
+public fn test_scheduler_run_multiple(): void {
+    let s: Scheduler = new Scheduler();
+    let before: int = _scheduler_counter;
+    s.enter(0.0, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    s.enter(0.0, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    s.run();
+    let after: int = _scheduler_counter;
+    if (after != before + 2) {
+        io::println("FAIL: Scheduler.run multiple before=" + Integer.toString(before) + " after=" + Integer.toString(after));
+    } else {
+        io::println("PASS: Scheduler.run executes multiple actions");
+    }
+}
+
+public fn test_scheduler_empty_after_run(): void {
+    let s: Scheduler = new Scheduler();
+    s.enter(0.0, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    s.run();
+    if (!s.empty()) {
+        io::println("FAIL: Scheduler should be empty after run");
+    } else {
+        io::println("PASS: Scheduler empty after run");
+    }
+}
+
+public fn test_scheduled_event_fields(): void {
+    let e: ScheduledEvent = new ScheduledEvent(1.5, 3, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    if (e.time != 1.5) {
+        io::println("FAIL: ScheduledEvent.time wrong");
+    } else if (e.priority != 3) {
+        io::println("FAIL: ScheduledEvent.priority wrong");
+    } else if (e.cancelled) {
+        io::println("FAIL: ScheduledEvent.cancelled should default false");
+    } else {
+        io::println("PASS: ScheduledEvent fields work");
+    }
+}
+
+public fn test_scheduled_event_cancelled_field(): void {
+    let e: ScheduledEvent = new ScheduledEvent(1.5, 3, fn(): void { _scheduler_counter = _scheduler_counter + 1; });
+    e.cancelled = true;
+    if (!e.cancelled) {
+        io::println("FAIL: ScheduledEvent.cancelled should be true after set");
+    } else {
+        io::println("PASS: ScheduledEvent.cancelled mutable");
+    }
+}
+
+public fn run_all_scheduler_tests(): void {
+    io::println("=== Scheduler.tr Tests ===");
+    _scheduler_counter = 0;
+    test_scheduler_init();
+    test_scheduler_enter();
+    test_scheduler_enterWithPriority();
+    test_scheduler_queue();
+    test_scheduler_cancel();
+    test_scheduler_run_executes();
+    test_scheduler_run_skips_cancelled();
+    test_scheduler_run_multiple();
+    test_scheduler_empty_after_run();
+    test_scheduled_event_fields();
+    test_scheduled_event_cancelled_field();
+}
