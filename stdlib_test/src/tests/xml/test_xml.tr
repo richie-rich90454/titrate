@@ -1,0 +1,183 @@
+// Test file for xml/Xml.tr
+// Exercises the public API: parse, parseWithNamespaces, canonicalize, validate.
+import tt::xml::Xml;
+import tt::xml::XmlNode;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_xml_parse_simple(): void {
+    let node: XmlNode = Xml.parse("<root>hello</root>");
+    if (node == null) {
+        io::println("FAIL: parse simple returned null");
+    } else if (node.tag != "root") {
+        io::println("FAIL: parse simple tag=" + node.tag);
+    } else {
+        io::println("PASS: parse simple works");
+    }
+}
+
+public fn test_xml_parse_text(): void {
+    let node: XmlNode = Xml.parse("<root>hello world</root>");
+    if (node.text != "hello world") {
+        io::println("FAIL: parse text=" + node.text);
+    } else {
+        io::println("PASS: parse text works");
+    }
+}
+
+public fn test_xml_parse_attributes(): void {
+    let node: XmlNode = Xml.parse("<root attr1=\"value1\" attr2=\"value2\">text</root>");
+    if (!node.hasAttr("attr1")) {
+        io::println("FAIL: parse attributes attr1 missing");
+    } else if (node.getAttr("attr1") != "value1") {
+        io::println("FAIL: parse attributes attr1=" + node.getAttr("attr1"));
+    } else if (node.getAttr("attr2") != "value2") {
+        io::println("FAIL: parse attributes attr2=" + node.getAttr("attr2"));
+    } else {
+        io::println("PASS: parse attributes works");
+    }
+}
+
+public fn test_xml_parse_child(): void {
+    let node: XmlNode = Xml.parse("<root><child>inner</child></root>");
+    if (node.children.size() != 1) {
+        io::println("FAIL: parse child size=" + Integer.toString(node.children.size()));
+    } else if (node.children.get(0).tag != "child") {
+        io::println("FAIL: parse child tag=" + node.children.get(0).tag);
+    } else {
+        io::println("PASS: parse child works");
+    }
+}
+
+public fn test_xml_parse_nested_children(): void {
+    let node: XmlNode = Xml.parse("<root><a>1</a><b>2</b><c>3</c></root>");
+    if (node.children.size() != 3) {
+        io::println("FAIL: parse nested children size=" + Integer.toString(node.children.size()));
+    } else {
+        io::println("PASS: parse nested children works");
+    }
+}
+
+public fn test_xml_parse_self_closing(): void {
+    let node: XmlNode = Xml.parse("<root/>");
+    if (node == null) {
+        io::println("FAIL: parse self-closing returned null");
+    } else if (node.tag != "root") {
+        io::println("FAIL: parse self-closing tag=" + node.tag);
+    } else {
+        io::println("PASS: parse self-closing works");
+    }
+}
+
+public fn test_xml_parse_self_closing_with_attrs(): void {
+    let node: XmlNode = Xml.parse("<item id=\"42\"/>");
+    if (node.getAttr("id") != "42") {
+        io::println("FAIL: parse self-closing attrs id=" + node.getAttr("id"));
+    } else {
+        io::println("PASS: parse self-closing attrs works");
+    }
+}
+
+public fn test_xml_parse_with_namespaces(): void {
+    let node: XmlNode = Xml.parseWithNamespaces("<root xmlns=\"http://example.com\">text</root>");
+    if (node == null) {
+        io::println("FAIL: parseWithNamespaces returned null");
+    } else if (node.namespaceURI != "http://example.com") {
+        io::println("FAIL: parseWithNamespaces ns=" + node.namespaceURI);
+    } else {
+        io::println("PASS: parseWithNamespaces works");
+    }
+}
+
+public fn test_xml_parse_with_prefix_namespace(): void {
+    let node: XmlNode = Xml.parseWithNamespaces("<ns:root xmlns:ns=\"http://example.com\">text</ns:root>");
+    if (node.prefix != "ns") {
+        io::println("FAIL: parseWithNamespaces prefix=" + node.prefix);
+    } else if (node.localName != "root") {
+        io::println("FAIL: parseWithNamespaces localName=" + node.localName);
+    } else if (node.namespaceURI != "http://example.com") {
+        io::println("FAIL: parseWithNamespaces ns=" + node.namespaceURI);
+    } else {
+        io::println("PASS: parseWithNamespaces prefix works");
+    }
+}
+
+public fn test_xml_canonicalize(): void {
+    let node: XmlNode = Xml.parse("<root><child>text</child></root>");
+    let result: string = Xml.canonicalize(node);
+    if (result == "") {
+        io::println("FAIL: canonicalize returned empty");
+    } else {
+        io::println("PASS: canonicalize works");
+    }
+}
+
+public fn test_xml_parse_empty_element(): void {
+    let node: XmlNode = Xml.parse("<root></root>");
+    if (node == null) {
+        io::println("FAIL: parse empty element returned null");
+    } else if (node.children.size() != 0) {
+        io::println("FAIL: parse empty element children=" + Integer.toString(node.children.size()));
+    } else {
+        io::println("PASS: parse empty element works");
+    }
+}
+
+public fn test_xml_parse_deeply_nested(): void {
+    let node: XmlNode = Xml.parse("<a><b><c><d>deep</d></c></b></a>");
+    let found: XmlNode = node.getElementByTagName("d");
+    if (found == null) {
+        io::println("FAIL: parse deeply nested d not found");
+    } else if (found.text != "deep") {
+        io::println("FAIL: parse deeply nested text=" + found.text);
+    } else {
+        io::println("PASS: parse deeply nested works");
+    }
+}
+
+public fn test_xml_parse_text_content(): void {
+    let node: XmlNode = Xml.parse("<root>Hello <b>World</b>!</root>");
+    let content: string = node.textContent();
+    if (content != "Hello World!") {
+        io::println("FAIL: textContent=" + content);
+    } else {
+        io::println("PASS: textContent works");
+    }
+}
+
+public fn test_xml_parse_attribute_with_special_chars(): void {
+    let node: XmlNode = Xml.parse("<root attr=\"a&amp;b\"/>");
+    if (node.getAttr("attr") != "a&b") {
+        io::println("FAIL: parse attr special chars=" + node.getAttr("attr"));
+    } else {
+        io::println("PASS: parse attr special chars works");
+    }
+}
+
+public fn test_xml_parse_multiple_attributes(): void {
+    let node: XmlNode = Xml.parse("<e a=\"1\" b=\"2\" c=\"3\"/>");
+    if (node.attributes.size() != 3) {
+        io::println("FAIL: parse multiple attrs size=" + Integer.toString(node.attributes.size()));
+    } else {
+        io::println("PASS: parse multiple attrs works");
+    }
+}
+
+public fn run_all_xml_tests(): void {
+    io::println("=== Xml.tr Tests ===");
+    test_xml_parse_simple();
+    test_xml_parse_text();
+    test_xml_parse_attributes();
+    test_xml_parse_child();
+    test_xml_parse_nested_children();
+    test_xml_parse_self_closing();
+    test_xml_parse_self_closing_with_attrs();
+    test_xml_parse_with_namespaces();
+    test_xml_parse_with_prefix_namespace();
+    test_xml_canonicalize();
+    test_xml_parse_empty_element();
+    test_xml_parse_deeply_nested();
+    test_xml_parse_text_content();
+    test_xml_parse_attribute_with_special_chars();
+    test_xml_parse_multiple_attributes();
+}
