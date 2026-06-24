@@ -1,0 +1,201 @@
+// Test file for concurrent/RateLimiter.tr
+// Exercises the public API: TokenBucket, LeakyBucket, SlidingWindowRateLimiter, FixedWindowRateLimiter, tokenBucket.
+import tt::concurrent::RateLimiter;
+
+public fn test_tokenbucket_init(): void {
+    let tb: TokenBucket = new TokenBucket(10.0, 1.0);
+    if (tb == null) {
+        io::println("FAIL: TokenBucket.init returned null");
+    } else {
+        io::println("PASS: TokenBucket.init works");
+    }
+}
+
+public fn test_tokenbucket_tryAcquire(): void {
+    let tb: TokenBucket = new TokenBucket(10.0, 1.0);
+    let result: bool = tb.tryAcquire(1.0);
+    if (!result) {
+        io::println("FAIL: TokenBucket.tryAcquire should succeed");
+    } else {
+        io::println("PASS: TokenBucket.tryAcquire works");
+    }
+}
+
+public fn test_tokenbucket_tryAcquire_too_many(): void {
+    let tb: TokenBucket = new TokenBucket(1.0, 1.0);
+    let result: bool = tb.tryAcquire(2.0);
+    if (result) {
+        io::println("FAIL: TokenBucket.tryAcquire should fail for too many tokens");
+    } else {
+        io::println("PASS: TokenBucket.tryAcquire too many works");
+    }
+}
+
+public fn test_tokenbucket_availableTokens(): void {
+    let tb: TokenBucket = new TokenBucket(10.0, 1.0);
+    let tokens: double = tb.availableTokens();
+    if (tokens != 10.0) {
+        io::println("FAIL: TokenBucket.availableTokens wrong");
+    } else {
+        io::println("PASS: TokenBucket.availableTokens works");
+    }
+}
+
+public fn test_tokenbucket_tryAcquire_decrements(): void {
+    let tb: TokenBucket = new TokenBucket(10.0, 1.0);
+    tb.tryAcquire(3.0);
+    let tokens: double = tb.availableTokens();
+    if (tokens != 7.0) {
+        io::println("FAIL: TokenBucket.availableTokens after acquire wrong");
+    } else {
+        io::println("PASS: TokenBucket.tryAcquire decrements works");
+    }
+}
+
+public fn test_tokenbucket_multiple_acquire(): void {
+    let tb: TokenBucket = new TokenBucket(5.0, 1.0);
+    let r1: bool = tb.tryAcquire(2.0);
+    let r2: bool = tb.tryAcquire(2.0);
+    let r3: bool = tb.tryAcquire(2.0);
+    if (!r1 || !r2) {
+        io::println("FAIL: TokenBucket first two acquires should succeed");
+    } else if (r3) {
+        io::println("FAIL: TokenBucket third acquire should fail");
+    } else {
+        io::println("PASS: TokenBucket multiple acquire works");
+    }
+}
+
+public fn test_tokenbucket_factory(): void {
+    let tb: TokenBucket = tokenBucket(10.0, 1.0);
+    if (tb == null) {
+        io::println("FAIL: tokenBucket factory returned null");
+    } else {
+        io::println("PASS: tokenBucket factory works");
+    }
+}
+
+public fn test_leakybucket_init(): void {
+    let lb: LeakyBucket = new LeakyBucket(10.0, 1.0);
+    if (lb == null) {
+        io::println("FAIL: LeakyBucket.init returned null");
+    } else {
+        io::println("PASS: LeakyBucket.init works");
+    }
+}
+
+public fn test_leakybucket_capacity(): void {
+    let lb: LeakyBucket = new LeakyBucket(10.0, 1.0);
+    if (lb.capacity != 10.0) {
+        io::println("FAIL: LeakyBucket.capacity wrong");
+    } else {
+        io::println("PASS: LeakyBucket.capacity works");
+    }
+}
+
+public fn test_leakybucket_tryAcquire(): void {
+    let lb: LeakyBucket = new LeakyBucket(10.0, 1.0);
+    let result: bool = lb.tryAcquire();
+    if (!result) {
+        io::println("FAIL: LeakyBucket.tryAcquire should succeed");
+    } else {
+        io::println("PASS: LeakyBucket.tryAcquire works");
+    }
+}
+
+public fn test_leakybucket_water_increments(): void {
+    let lb: LeakyBucket = new LeakyBucket(10.0, 1.0);
+    lb.tryAcquire();
+    if (lb.water != 1.0) {
+        io::println("FAIL: LeakyBucket.water should be 1.0 after acquire");
+    } else {
+        io::println("PASS: LeakyBucket.water increments works");
+    }
+}
+
+public fn test_slidingwindow_init(): void {
+    let sw: SlidingWindowRateLimiter = new SlidingWindowRateLimiter(5, 1000);
+    if (sw == null) {
+        io::println("FAIL: SlidingWindowRateLimiter.init returned null");
+    } else {
+        io::println("PASS: SlidingWindowRateLimiter.init works");
+    }
+}
+
+public fn test_slidingwindow_tryAcquire(): void {
+    let sw: SlidingWindowRateLimiter = new SlidingWindowRateLimiter(5, 1000);
+    let result: bool = sw.tryAcquire();
+    if (!result) {
+        io::println("FAIL: SlidingWindowRateLimiter.tryAcquire should succeed");
+    } else {
+        io::println("PASS: SlidingWindowRateLimiter.tryAcquire works");
+    }
+}
+
+public fn test_slidingwindow_maxRequests(): void {
+    let sw: SlidingWindowRateLimiter = new SlidingWindowRateLimiter(2, 1000);
+    let r1: bool = sw.tryAcquire();
+    let r2: bool = sw.tryAcquire();
+    let r3: bool = sw.tryAcquire();
+    if (!r1 || !r2) {
+        io::println("FAIL: SlidingWindow first two should succeed");
+    } else if (r3) {
+        io::println("FAIL: SlidingWindow third should fail");
+    } else {
+        io::println("PASS: SlidingWindow maxRequests works");
+    }
+}
+
+public fn test_fixedwindow_init(): void {
+    let fw: FixedWindowRateLimiter = new FixedWindowRateLimiter(5, 1000);
+    if (fw == null) {
+        io::println("FAIL: FixedWindowRateLimiter.init returned null");
+    } else {
+        io::println("PASS: FixedWindowRateLimiter.init works");
+    }
+}
+
+public fn test_fixedwindow_tryAcquire(): void {
+    let fw: FixedWindowRateLimiter = new FixedWindowRateLimiter(5, 1000);
+    let result: bool = fw.tryAcquire();
+    if (!result) {
+        io::println("FAIL: FixedWindowRateLimiter.tryAcquire should succeed");
+    } else {
+        io::println("PASS: FixedWindowRateLimiter.tryAcquire works");
+    }
+}
+
+public fn test_fixedwindow_maxRequests(): void {
+    let fw: FixedWindowRateLimiter = new FixedWindowRateLimiter(2, 1000);
+    let r1: bool = fw.tryAcquire();
+    let r2: bool = fw.tryAcquire();
+    let r3: bool = fw.tryAcquire();
+    if (!r1 || !r2) {
+        io::println("FAIL: FixedWindow first two should succeed");
+    } else if (r3) {
+        io::println("FAIL: FixedWindow third should fail");
+    } else {
+        io::println("PASS: FixedWindow maxRequests works");
+    }
+}
+
+public fn run_all_ratelimiter_tests(): void {
+    io::println("=== RateLimiter.tr Tests ===");
+    test_tokenbucket_init();
+    test_tokenbucket_tryAcquire();
+    test_tokenbucket_tryAcquire_too_many();
+    test_tokenbucket_availableTokens();
+    test_tokenbucket_tryAcquire_decrements();
+    test_tokenbucket_multiple_acquire();
+    test_tokenbucket_factory();
+    test_leakybucket_init();
+    test_leakybucket_capacity();
+    test_leakybucket_tryAcquire();
+    test_leakybucket_water_increments();
+    test_slidingwindow_init();
+    test_slidingwindow_tryAcquire();
+    test_slidingwindow_maxRequests();
+    test_fixedwindow_init();
+    test_fixedwindow_tryAcquire();
+    test_fixedwindow_maxRequests();
+}
