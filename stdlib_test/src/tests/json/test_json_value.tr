@@ -1,0 +1,414 @@
+// Test file for json/JsonValue.tr
+// Exercises the public API of JsonValue class and its factory functions.
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_jsonvalue_ofNull(): void {
+    let v: JsonValue = JsonValue.ofNull();
+    if (!v.isNull()) {
+        io::println("FAIL: JsonValue.ofNull should be null");
+    } else {
+        io::println("PASS: JsonValue.ofNull works");
+    }
+}
+
+public fn test_jsonvalue_ofBool(): void {
+    let v: JsonValue = JsonValue.ofBool(true);
+    if (!v.isBool()) {
+        io::println("FAIL: JsonValue.ofBool should be bool");
+    } else if (!v.asBool()) {
+        io::println("FAIL: JsonValue.ofBool value=false");
+    } else {
+        io::println("PASS: JsonValue.ofBool works");
+    }
+}
+
+public fn test_jsonvalue_ofBool_false(): void {
+    let v: JsonValue = JsonValue.ofBool(false);
+    if (!v.isBool()) {
+        io::println("FAIL: JsonValue.ofBool(false) should be bool");
+    } else if (v.asBool()) {
+        io::println("FAIL: JsonValue.ofBool(false) value=true");
+    } else {
+        io::println("PASS: JsonValue.ofBool(false) works");
+    }
+}
+
+public fn test_jsonvalue_ofNum(): void {
+    let v: JsonValue = JsonValue.ofNum(42.5);
+    if (!v.isNumber()) {
+        io::println("FAIL: JsonValue.ofNum should be number");
+    } else if (v.asNumber() != 42.5) {
+        io::println("FAIL: JsonValue.ofNum value=" + Double.toString(v.asNumber()));
+    } else {
+        io::println("PASS: JsonValue.ofNum works");
+    }
+}
+
+public fn test_jsonvalue_ofStr(): void {
+    let v: JsonValue = JsonValue.ofStr("hello");
+    if (!v.isString()) {
+        io::println("FAIL: JsonValue.ofStr should be string");
+    } else if (v.asString() != "hello") {
+        io::println("FAIL: JsonValue.ofStr value=" + v.asString());
+    } else {
+        io::println("PASS: JsonValue.ofStr works");
+    }
+}
+
+public fn test_jsonvalue_ofArray(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    arr.add(JsonValue.ofNum(2.0));
+    let v: JsonValue = JsonValue.ofArray(arr);
+    if (!v.isArray()) {
+        io::println("FAIL: JsonValue.ofArray should be array");
+    } else if (v.size() != 2) {
+        io::println("FAIL: JsonValue.ofArray size=" + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: JsonValue.ofArray works");
+    }
+}
+
+public fn test_jsonvalue_ofObject(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let v: JsonValue = JsonValue.ofObject(obj);
+    if (!v.isObject()) {
+        io::println("FAIL: JsonValue.ofObject should be object");
+    } else if (v.size() != 1) {
+        io::println("FAIL: JsonValue.ofObject size=" + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: JsonValue.ofObject works");
+    }
+}
+
+public fn test_jsonvalue_get(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let v: JsonValue = JsonValue.ofObject(obj);
+    let got: JsonValue = v.get("a");
+    if (got.asNumber() != 1.0) {
+        io::println("FAIL: JsonValue.get returned wrong value");
+    } else {
+        io::println("PASS: JsonValue.get works");
+    }
+}
+
+public fn test_jsonvalue_get_missing(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let v: JsonValue = JsonValue.ofObject(obj);
+    let got: JsonValue = v.get("missing");
+    if (!got.isNull()) {
+        io::println("FAIL: JsonValue.get missing should return null");
+    } else {
+        io::println("PASS: JsonValue.get missing returns null");
+    }
+}
+
+public fn test_jsonvalue_getAt(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(10.0));
+    arr.add(JsonValue.ofNum(20.0));
+    let v: JsonValue = JsonValue.ofArray(arr);
+    let got: JsonValue = v.getAt(0);
+    if (got.asNumber() != 10.0) {
+        io::println("FAIL: JsonValue.getAt(0) returned wrong value");
+    } else {
+        io::println("PASS: JsonValue.getAt works");
+    }
+}
+
+public fn test_jsonvalue_getAt_out_of_bounds(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    let v: JsonValue = JsonValue.ofArray(arr);
+    let got: JsonValue = v.getAt(99);
+    if (!got.isNull()) {
+        io::println("FAIL: JsonValue.getAt out of bounds should return null");
+    } else {
+        io::println("PASS: JsonValue.getAt out of bounds returns null");
+    }
+}
+
+public fn test_jsonvalue_hasKey(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let v: JsonValue = JsonValue.ofObject(obj);
+    if (!v.hasKey("a")) {
+        io::println("FAIL: JsonValue.hasKey should be true for a");
+    } else if (v.hasKey("b")) {
+        io::println("FAIL: JsonValue.hasKey should be false for b");
+    } else {
+        io::println("PASS: JsonValue.hasKey works");
+    }
+}
+
+public fn test_jsonvalue_keys(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    obj.put("b", JsonValue.ofNum(2.0));
+    let v: JsonValue = JsonValue.ofObject(obj);
+    let ks: ArrayList<string> = v.keys();
+    if (ks.size() != 2) {
+        io::println("FAIL: JsonValue.keys size=" + Integer.toString(ks.size()));
+    } else {
+        io::println("PASS: JsonValue.keys works");
+    }
+}
+
+public fn test_jsonvalue_size(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    arr.add(JsonValue.ofNum(2.0));
+    arr.add(JsonValue.ofNum(3.0));
+    let v: JsonValue = JsonValue.ofArray(arr);
+    if (v.size() != 3) {
+        io::println("FAIL: JsonValue.size=" + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: JsonValue.size works");
+    }
+}
+
+public fn test_jsonvalue_deepCopy(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    let v: JsonValue = JsonValue.ofArray(arr);
+    let copy: JsonValue = v.deepCopy();
+    if (!copy.equals(v)) {
+        io::println("FAIL: JsonValue.deepCopy not equal");
+    } else {
+        io::println("PASS: JsonValue.deepCopy works");
+    }
+}
+
+public fn test_jsonvalue_equals_same(): void {
+    let a: JsonValue = JsonValue.ofNum(42.0);
+    let b: JsonValue = JsonValue.ofNum(42.0);
+    if (!a.equals(b)) {
+        io::println("FAIL: JsonValue.equals should be true for same values");
+    } else {
+        io::println("PASS: JsonValue.equals same works");
+    }
+}
+
+public fn test_jsonvalue_equals_different(): void {
+    let a: JsonValue = JsonValue.ofNum(42.0);
+    let b: JsonValue = JsonValue.ofNum(43.0);
+    if (a.equals(b)) {
+        io::println("FAIL: JsonValue.equals should be false for different values");
+    } else {
+        io::println("PASS: JsonValue.equals different works");
+    }
+}
+
+public fn test_jsonvalue_toString_null(): void {
+    let v: JsonValue = JsonValue.ofNull();
+    if (v.toString() != "null") {
+        io::println("FAIL: JsonValue.toString null=" + v.toString());
+    } else {
+        io::println("PASS: JsonValue.toString null works");
+    }
+}
+
+public fn test_jsonvalue_toString_bool(): void {
+    let v: JsonValue = JsonValue.ofBool(true);
+    if (v.toString() != "true") {
+        io::println("FAIL: JsonValue.toString bool=" + v.toString());
+    } else {
+        io::println("PASS: JsonValue.toString bool works");
+    }
+}
+
+public fn test_jsonvalue_toString_string(): void {
+    let v: JsonValue = JsonValue.ofStr("hi");
+    if (v.toString() != "\"hi\"") {
+        io::println("FAIL: JsonValue.toString string=" + v.toString());
+    } else {
+        io::println("PASS: JsonValue.toString string works");
+    }
+}
+
+public fn test_jsonvalue_path(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    let v: JsonValue = JsonValue.ofObject(obj);
+    let got: JsonValue = v.path("/a");
+    if (got.asNumber() != 1.0) {
+        io::println("FAIL: JsonValue.path returned wrong value");
+    } else {
+        io::println("PASS: JsonValue.path works");
+    }
+}
+
+public fn test_jsonvalue_set(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let v: JsonValue = JsonValue.ofObject(obj);
+    let newV: JsonValue = v.set("/a", JsonValue.ofNum(5.0));
+    if (!newV.hasKey("a")) {
+        io::println("FAIL: JsonValue.set did not add key");
+    } else {
+        io::println("PASS: JsonValue.set works");
+    }
+}
+
+public fn test_jsonvalue_merge(): void {
+    let obj1: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj1.put("a", JsonValue.ofNum(1.0));
+    let v1: JsonValue = JsonValue.ofObject(obj1);
+    let obj2: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj2.put("b", JsonValue.ofNum(2.0));
+    let v2: JsonValue = JsonValue.ofObject(obj2);
+    v1.merge(v2);
+    if (!v1.hasKey("b")) {
+        io::println("FAIL: JsonValue.merge did not add key b");
+    } else {
+        io::println("PASS: JsonValue.merge works");
+    }
+}
+
+public fn test_jsonvalue_deepMerge(): void {
+    let obj1: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj1.put("a", JsonValue.ofNum(1.0));
+    let v1: JsonValue = JsonValue.ofObject(obj1);
+    let obj2: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj2.put("b", JsonValue.ofNum(2.0));
+    let v2: JsonValue = JsonValue.ofObject(obj2);
+    let merged: JsonValue = v1.deepMerge(v2);
+    if (!merged.hasKey("a") || !merged.hasKey("b")) {
+        io::println("FAIL: JsonValue.deepMerge missing keys");
+    } else {
+        io::println("PASS: JsonValue.deepMerge works");
+    }
+}
+
+public fn test_jsonvalue_diff(): void {
+    let a: JsonValue = JsonValue.ofNum(1.0);
+    let b: JsonValue = JsonValue.ofNum(2.0);
+    let diffs: ArrayList<string> = a.diff(b);
+    if (diffs.size() != 1) {
+        io::println("FAIL: JsonValue.diff size=" + Integer.toString(diffs.size()));
+    } else {
+        io::println("PASS: JsonValue.diff works");
+    }
+}
+
+public fn test_jsonvalue_flatten(): void {
+    let inner: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    inner.put("b", JsonValue.ofNum(2.0));
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofObject(inner));
+    let v: JsonValue = JsonValue.ofObject(obj);
+    let flat: JsonValue = v.flatten();
+    if (!flat.hasKey("a.b")) {
+        io::println("FAIL: JsonValue.flatten missing a.b");
+    } else {
+        io::println("PASS: JsonValue.flatten works");
+    }
+}
+
+public fn test_jsonvalue_pick(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    obj.put("b", JsonValue.ofNum(2.0));
+    let v: JsonValue = JsonValue.ofObject(obj);
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("a");
+    let picked: JsonValue = v.pick(keys);
+    if (picked.size() != 1 || !picked.hasKey("a")) {
+        io::println("FAIL: JsonValue.pick wrong");
+    } else {
+        io::println("PASS: JsonValue.pick works");
+    }
+}
+
+public fn test_jsonvalue_omit(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("a", JsonValue.ofNum(1.0));
+    obj.put("b", JsonValue.ofNum(2.0));
+    let v: JsonValue = JsonValue.ofObject(obj);
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("a");
+    let omitted: JsonValue = v.omit(keys);
+    if (omitted.size() != 1 || omitted.hasKey("a")) {
+        io::println("FAIL: JsonValue.omit wrong");
+    } else {
+        io::println("PASS: JsonValue.omit works");
+    }
+}
+
+public fn test_jsonvalue_transform(): void {
+    let v: JsonValue = JsonValue.ofNum(1.0);
+    let result: JsonValue = v.transform(fn(x: JsonValue): JsonValue { return x; });
+    if (!result.equals(v)) {
+        io::println("FAIL: JsonValue.transform not equal");
+    } else {
+        io::println("PASS: JsonValue.transform works");
+    }
+}
+
+public fn test_jsonvalue_schema(): void {
+    let v: JsonValue = JsonValue.ofNum(42.0);
+    let s: JsonValue = v.schema();
+    if (!s.hasKey("type")) {
+        io::println("FAIL: JsonValue.schema missing type");
+    } else {
+        io::println("PASS: JsonValue.schema works");
+    }
+}
+
+public fn test_jsonvalue_escapeString(): void {
+    let s: string = JsonValue.escapeString("hello");
+    if (s != "\"hello\"") {
+        io::println("FAIL: JsonValue.escapeString returned " + s);
+    } else {
+        io::println("PASS: JsonValue.escapeString works");
+    }
+}
+
+public fn test_jsonvalue_escapeString_specials(): void {
+    let s: string = JsonValue.escapeString("a\"b\\c");
+    if (s != "\"a\\\"b\\\\c\"") {
+        io::println("FAIL: JsonValue.escapeString specials returned " + s);
+    } else {
+        io::println("PASS: JsonValue.escapeString specials works");
+    }
+}
+
+public fn run_all_json_value_tests(): void {
+    io::println("=== JsonValue.tr Tests ===");
+    test_jsonvalue_ofNull();
+    test_jsonvalue_ofBool();
+    test_jsonvalue_ofBool_false();
+    test_jsonvalue_ofNum();
+    test_jsonvalue_ofStr();
+    test_jsonvalue_ofArray();
+    test_jsonvalue_ofObject();
+    test_jsonvalue_get();
+    test_jsonvalue_get_missing();
+    test_jsonvalue_getAt();
+    test_jsonvalue_getAt_out_of_bounds();
+    test_jsonvalue_hasKey();
+    test_jsonvalue_keys();
+    test_jsonvalue_size();
+    test_jsonvalue_deepCopy();
+    test_jsonvalue_equals_same();
+    test_jsonvalue_equals_different();
+    test_jsonvalue_toString_null();
+    test_jsonvalue_toString_bool();
+    test_jsonvalue_toString_string();
+    test_jsonvalue_path();
+    test_jsonvalue_set();
+    test_jsonvalue_merge();
+    test_jsonvalue_deepMerge();
+    test_jsonvalue_diff();
+    test_jsonvalue_flatten();
+    test_jsonvalue_pick();
+    test_jsonvalue_omit();
+    test_jsonvalue_transform();
+    test_jsonvalue_schema();
+    test_jsonvalue_escapeString();
+    test_jsonvalue_escapeString_specials();
+}
