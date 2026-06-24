@@ -1,0 +1,285 @@
+// Test file for xml/XPath.tr
+// Exercises the public API: XPathStep, XPathExpression, compile, selectNodes, and utility functions.
+import tt::xml::XPath;
+import tt::xml::XmlNode;
+import tt::xml::Xml;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_xpathstep_init(): void {
+    let step: XPathStep = new XPathStep("child", "root");
+    if (step == null) {
+        io::println("FAIL: XPathStep.init returned null");
+    } else if (step.axis != "child") {
+        io::println("FAIL: XPathStep.axis wrong");
+    } else if (step.nodeTest != "root") {
+        io::println("FAIL: XPathStep.nodeTest wrong");
+    } else {
+        io::println("PASS: XPathStep.init works");
+    }
+}
+
+public fn test_xpathstep_predicates_default(): void {
+    let step: XPathStep = new XPathStep("child", "root");
+    if (step.predicates.size() != 0) {
+        io::println("FAIL: XPathStep.predicates not empty");
+    } else {
+        io::println("PASS: XPathStep.predicates default works");
+    }
+}
+
+public fn test_xpathexpression_init(): void {
+    let expr: XPathExpression = new XPathExpression("/root");
+    if (expr == null) {
+        io::println("FAIL: XPathExpression.init returned null");
+    } else {
+        io::println("PASS: XPathExpression.init works");
+    }
+}
+
+public fn test_xpathexpression_path_field(): void {
+    let expr: XPathExpression = new XPathExpression("/root/child");
+    if (expr.path != "/root/child") {
+        io::println("FAIL: XPathExpression.path=" + expr.path);
+    } else {
+        io::println("PASS: XPathExpression.path field works");
+    }
+}
+
+public fn test_xpathexpression_evaluate_root(): void {
+    let node: XmlNode = Xml.parse("<root>text</root>");
+    let expr: XPathExpression = new XPathExpression("/root");
+    let results: ArrayList<XmlNode> = expr.evaluate(node);
+    if (results.size() == 0) {
+        io::println("FAIL: XPathExpression.evaluate root no results");
+    } else {
+        io::println("PASS: XPathExpression.evaluate root works");
+    }
+}
+
+public fn test_xpathexpression_evaluate_child(): void {
+    let node: XmlNode = Xml.parse("<root><child>text</child></root>");
+    let expr: XPathExpression = new XPathExpression("/root/child");
+    let results: ArrayList<XmlNode> = expr.evaluate(node);
+    if (results.size() == 0) {
+        io::println("FAIL: XPathExpression.evaluate child no results");
+    } else {
+        io::println("PASS: XPathExpression.evaluate child works");
+    }
+}
+
+public fn test_xpathexpression_evaluateString(): void {
+    let node: XmlNode = Xml.parse("<root>hello</root>");
+    let expr: XPathExpression = new XPathExpression("/root");
+    let s: string = expr.evaluateString(node);
+    if (s == "") {
+        io::println("FAIL: XPathExpression.evaluateString empty");
+    } else {
+        io::println("PASS: XPathExpression.evaluateString works");
+    }
+}
+
+public fn test_xpathexpression_evaluateNumber(): void {
+    let node: XmlNode = Xml.parse("<root>42</root>");
+    let expr: XPathExpression = new XPathExpression("/root");
+    let n: double = expr.evaluateNumber(node);
+    if (n != 42.0) {
+        io::println("FAIL: XPathExpression.evaluateNumber=" + n.toString());
+    } else {
+        io::println("PASS: XPathExpression.evaluateNumber works");
+    }
+}
+
+public fn test_xpathexpression_bindVariable(): void {
+    let expr: XPathExpression = new XPathExpression("/root");
+    expr.bindVariable("x", "value");
+    if (!expr.hasVariable("x")) {
+        io::println("FAIL: XPathExpression.bindVariable not bound");
+    } else if (expr.getVariable("x") != "value") {
+        io::println("FAIL: XPathExpression.bindVariable value wrong");
+    } else {
+        io::println("PASS: XPathExpression.bindVariable works");
+    }
+}
+
+public fn test_xpathexpression_hasVariable_false(): void {
+    let expr: XPathExpression = new XPathExpression("/root");
+    if (expr.hasVariable("missing")) {
+        io::println("FAIL: XPathExpression.hasVariable should be false");
+    } else {
+        io::println("PASS: XPathExpression.hasVariable false works");
+    }
+}
+
+public fn test_xpathexpression_getVariable_missing(): void {
+    let expr: XPathExpression = new XPathExpression("/root");
+    if (expr.getVariable("missing") != "") {
+        io::println("FAIL: XPathExpression.getVariable missing should return empty");
+    } else {
+        io::println("PASS: XPathExpression.getVariable missing works");
+    }
+}
+
+public fn test_xpathexpression_clearVariables(): void {
+    let expr: XPathExpression = new XPathExpression("/root");
+    expr.bindVariable("x", "value");
+    expr.clearVariables();
+    if (expr.hasVariable("x")) {
+        io::println("FAIL: XPathExpression.clearVariables did not clear");
+    } else {
+        io::println("PASS: XPathExpression.clearVariables works");
+    }
+}
+
+public fn test_xpath_compile(): void {
+    let expr: XPathExpression = compile("/root");
+    if (expr == null) {
+        io::println("FAIL: compile returned null");
+    } else if (expr.path != "/root") {
+        io::println("FAIL: compile path wrong");
+    } else {
+        io::println("PASS: compile works");
+    }
+}
+
+public fn test_xpath_selectNodes(): void {
+    let node: XmlNode = Xml.parse("<root><child>text</child></root>");
+    let results: ArrayList<XmlNode> = selectNodes(node, "/root/child");
+    if (results.size() == 0) {
+        io::println("FAIL: selectNodes no results");
+    } else {
+        io::println("PASS: selectNodes works");
+    }
+}
+
+public fn test_xpath_count(): void {
+    let node: XmlNode = Xml.parse("<root><a>1</a><a>2</a><a>3</a></root>");
+    let c: int = count(node, "/root/a");
+    if (c != 3) {
+        io::println("FAIL: count=" + Integer.toString(c));
+    } else {
+        io::println("PASS: count works");
+    }
+}
+
+public fn test_xpath_stringValue(): void {
+    let node: XmlNode = Xml.parse("<root>hello</root>");
+    let s: string = stringValue(node);
+    if (s == "") {
+        io::println("FAIL: stringValue empty");
+    } else {
+        io::println("PASS: stringValue works");
+    }
+}
+
+public fn test_xpath_numberValue(): void {
+    let node: XmlNode = Xml.parse("<root>42</root>");
+    let n: double = numberValue(node);
+    if (n != 42.0) {
+        io::println("FAIL: numberValue wrong");
+    } else {
+        io::println("PASS: numberValue works");
+    }
+}
+
+public fn test_xpath_contains(): void {
+    if (!contains("hello world", "world")) {
+        io::println("FAIL: contains should be true");
+    } else {
+        io::println("PASS: contains works");
+    }
+}
+
+public fn test_xpath_startsWith(): void {
+    if (!startsWith("hello world", "hello")) {
+        io::println("FAIL: startsWith should be true");
+    } else {
+        io::println("PASS: startsWith works");
+    }
+}
+
+public fn test_xpath_stringLength(): void {
+    let len: int = stringLength("hello");
+    if (len != 5) {
+        io::println("FAIL: stringLength=" + Integer.toString(len));
+    } else {
+        io::println("PASS: stringLength works");
+    }
+}
+
+public fn test_xpath_name(): void {
+    let node: XmlNode = Xml.parse("<root>text</root>");
+    let n: string = name(node);
+    if (n != "root") {
+        io::println("FAIL: name=" + n);
+    } else {
+        io::println("PASS: name works");
+    }
+}
+
+public fn test_xpath_localName(): void {
+    let node: XmlNode = Xml.parse("<root>text</root>");
+    let n: string = localName(node);
+    if (n != "root") {
+        io::println("FAIL: localName=" + n);
+    } else {
+        io::println("PASS: localName works");
+    }
+}
+
+public fn test_xpath_not(): void {
+    if (not(false)) {
+        io::println("PASS: not works");
+    } else {
+        io::println("FAIL: not(false) should be true");
+    }
+}
+
+public fn test_xpath_sum(): void {
+    let node: XmlNode = Xml.parse("<root><a>1</a><a>2</a><a>3</a></root>");
+    let s: double = sum(node, "/root/a");
+    if (s != 6.0) {
+        io::println("FAIL: sum=" + s.toString());
+    } else {
+        io::println("PASS: sum works");
+    }
+}
+
+public fn test_xpath_selectNodes_empty(): void {
+    let node: XmlNode = Xml.parse("<root>text</root>");
+    let results: ArrayList<XmlNode> = selectNodes(node, "/root/missing");
+    if (results.size() != 0) {
+        io::println("FAIL: selectNodes empty size=" + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: selectNodes empty works");
+    }
+}
+
+public fn run_all_xpath_tests(): void {
+    io::println("=== XPath.tr Tests ===");
+    test_xpathstep_init();
+    test_xpathstep_predicates_default();
+    test_xpathexpression_init();
+    test_xpathexpression_path_field();
+    test_xpathexpression_evaluate_root();
+    test_xpathexpression_evaluate_child();
+    test_xpathexpression_evaluateString();
+    test_xpathexpression_evaluateNumber();
+    test_xpathexpression_bindVariable();
+    test_xpathexpression_hasVariable_false();
+    test_xpathexpression_getVariable_missing();
+    test_xpathexpression_clearVariables();
+    test_xpath_compile();
+    test_xpath_selectNodes();
+    test_xpath_count();
+    test_xpath_stringValue();
+    test_xpath_numberValue();
+    test_xpath_contains();
+    test_xpath_startsWith();
+    test_xpath_stringLength();
+    test_xpath_name();
+    test_xpath_localName();
+    test_xpath_not();
+    test_xpath_sum();
+    test_xpath_selectNodes_empty();
+}
