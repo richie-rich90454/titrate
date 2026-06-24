@@ -1,0 +1,189 @@
+// Test file for concurrent/Future.tr
+// Exercises the public API: Future.
+import tt::concurrent::Future;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_future_init(): void {
+    let f: Future<int> = new Future<int>();
+    if (f == null) {
+        io::println("FAIL: Future.init returned null");
+    } else {
+        io::println("PASS: Future.init works");
+    }
+}
+
+public fn test_future_isDone_default(): void {
+    let f: Future<int> = new Future<int>();
+    if (f.isDone()) {
+        io::println("FAIL: Future.isDone should be false by default");
+    } else {
+        io::println("PASS: Future.isDone default works");
+    }
+}
+
+public fn test_future_complete(): void {
+    let f: Future<int> = new Future<int>();
+    f.complete(42);
+    if (!f.isDone()) {
+        io::println("FAIL: Future.isDone should be true after complete");
+    } else {
+        io::println("PASS: Future.complete works");
+    }
+}
+
+public fn test_future_get(): void {
+    let f: Future<int> = new Future<int>();
+    f.complete(42);
+    let v: int = f.get();
+    if (v != 42) {
+        io::println("FAIL: Future.get wrong value");
+    } else {
+        io::println("PASS: Future.get works");
+    }
+}
+
+public fn test_future_isCancelled_default(): void {
+    let f: Future<int> = new Future<int>();
+    if (f.isCancelled()) {
+        io::println("FAIL: Future.isCancelled should be false by default");
+    } else {
+        io::println("PASS: Future.isCancelled default works");
+    }
+}
+
+public fn test_future_cancel(): void {
+    let f: Future<int> = new Future<int>();
+    let result: bool = f.cancel();
+    if (!result) {
+        io::println("FAIL: Future.cancel should succeed");
+    } else if (!f.isCancelled()) {
+        io::println("FAIL: Future.isCancelled should be true");
+    } else {
+        io::println("PASS: Future.cancel works");
+    }
+}
+
+public fn test_future_cancel_after_complete(): void {
+    let f: Future<int> = new Future<int>();
+    f.complete(42);
+    let result: bool = f.cancel();
+    if (result) {
+        io::println("FAIL: Future.cancel should fail after complete");
+    } else {
+        io::println("PASS: Future.cancel after complete works");
+    }
+}
+
+public fn test_future_complete_after_cancel(): void {
+    let f: Future<int> = new Future<int>();
+    f.cancel();
+    f.complete(42);
+    if (f.isDone()) {
+        io::println("FAIL: Future.complete should not work after cancel");
+    } else {
+        io::println("PASS: Future.complete after cancel works");
+    }
+}
+
+public fn test_future_completeExceptionally(): void {
+    let f: Future<int> = new Future<int>();
+    f.completeExceptionally("error occurred");
+    if (!f.isDone()) {
+        io::println("FAIL: Future.isDone should be true after completeExceptionally");
+    } else {
+        io::println("PASS: Future.completeExceptionally works");
+    }
+}
+
+public fn test_future_hasError(): void {
+    let f: Future<int> = new Future<int>();
+    f.completeExceptionally("error");
+    if (!f.hasError()) {
+        io::println("FAIL: Future.hasError should be true");
+    } else {
+        io::println("PASS: Future.hasError works");
+    }
+}
+
+public fn test_future_hasError_false(): void {
+    let f: Future<int> = new Future<int>();
+    if (f.hasError()) {
+        io::println("FAIL: Future.hasError should be false by default");
+    } else {
+        io::println("PASS: Future.hasError false works");
+    }
+}
+
+public fn test_future_getError(): void {
+    let f: Future<int> = new Future<int>();
+    f.completeExceptionally("test error");
+    let err: string = f.getError();
+    if (err != "test error") {
+        io::println("FAIL: Future.getError wrong");
+    } else {
+        io::println("PASS: Future.getError works");
+    }
+}
+
+public fn test_future_getError_null(): void {
+    let f: Future<int> = new Future<int>();
+    let err: string = f.getError();
+    if (err != null) {
+        io::println("FAIL: Future.getError should be null by default");
+    } else {
+        io::println("PASS: Future.getError null works");
+    }
+}
+
+public fn test_future_complete_twice(): void {
+    let f: Future<int> = new Future<int>();
+    f.complete(42);
+    f.complete(99);
+    if (f.get() != 42) {
+        io::println("FAIL: Future.complete twice should keep first value");
+    } else {
+        io::println("PASS: Future.complete twice works");
+    }
+}
+
+public fn test_future_cancel_with_interrupt(): void {
+    let f: Future<int> = new Future<int>();
+    let result: bool = f.cancel(true);
+    if (!result) {
+        io::println("FAIL: Future.cancel(true) should succeed");
+    } else {
+        io::println("PASS: Future.cancel with interrupt works");
+    }
+}
+
+public fn test_future_thenApply(): void {
+    let f: Future<int> = new Future<int>();
+    f.complete(10);
+    let mapped: Future<string> = f.thenApply(fn(x: int): string { return Integer.toString(x); });
+    if (!mapped.isDone()) {
+        io::println("FAIL: Future.thenApply should be done");
+    } else {
+        io::println("PASS: Future.thenApply works");
+    }
+}
+
+public fn run_all_future_tests(): void {
+    io::println("=== Future.tr Tests ===");
+    test_future_init();
+    test_future_isDone_default();
+    test_future_complete();
+    test_future_get();
+    test_future_isCancelled_default();
+    test_future_cancel();
+    test_future_cancel_after_complete();
+    test_future_complete_after_cancel();
+    test_future_completeExceptionally();
+    test_future_hasError();
+    test_future_hasError_false();
+    test_future_getError();
+    test_future_getError_null();
+    test_future_complete_twice();
+    test_future_cancel_with_interrupt();
+    test_future_thenApply();
+}
