@@ -1,0 +1,312 @@
+// Test file for json/JsonParser.tr
+// Exercises the public API of the JsonParser class.
+import tt::json::JsonParser;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_jsonparser_init(): void {
+    let p: JsonParser = new JsonParser("null");
+    if (p == null) {
+        io::println("FAIL: JsonParser.init returned null");
+    } else {
+        io::println("PASS: JsonParser.init works");
+    }
+}
+
+public fn test_jsonparser_skipWhitespace(): void {
+    let p: JsonParser = new JsonParser("   1");
+    p.skipWhitespace();
+    let c: string = p.peek();
+    if (c != "1") {
+        io::println("FAIL: JsonParser.skipWhitespace peek=" + c);
+    } else {
+        io::println("PASS: JsonParser.skipWhitespace works");
+    }
+}
+
+public fn test_jsonparser_peek(): void {
+    let p: JsonParser = new JsonParser("abc");
+    if (p.peek() != "a") {
+        io::println("FAIL: JsonParser.peek returned " + p.peek());
+    } else {
+        io::println("PASS: JsonParser.peek works");
+    }
+}
+
+public fn test_jsonparser_peek_empty(): void {
+    let p: JsonParser = new JsonParser("");
+    if (p.peek() != "") {
+        io::println("FAIL: JsonParser.peek empty returned " + p.peek());
+    } else {
+        io::println("PASS: JsonParser.peek empty works");
+    }
+}
+
+public fn test_jsonparser_advance(): void {
+    let p: JsonParser = new JsonParser("abc");
+    let c: string = p.advance();
+    if (c != "a") {
+        io::println("FAIL: JsonParser.advance returned " + c);
+    } else if (p.peek() != "b") {
+        io::println("FAIL: JsonParser.advance did not move position");
+    } else {
+        io::println("PASS: JsonParser.advance works");
+    }
+}
+
+public fn test_jsonparser_match_true(): void {
+    let p: JsonParser = new JsonParser("true");
+    if (!p.match("true")) {
+        io::println("FAIL: JsonParser.match should return true for true");
+    } else {
+        io::println("PASS: JsonParser.match true works");
+    }
+}
+
+public fn test_jsonparser_match_false(): void {
+    let p: JsonParser = new JsonParser("false");
+    if (p.match("true")) {
+        io::println("FAIL: JsonParser.match should return false for false vs true");
+    } else {
+        io::println("PASS: JsonParser.match false works");
+    }
+}
+
+public fn test_jsonparser_parseValue_null(): void {
+    let p: JsonParser = new JsonParser("null");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isNull()) {
+        io::println("FAIL: JsonParser.parseValue null should be null");
+    } else {
+        io::println("PASS: JsonParser.parseValue null works");
+    }
+}
+
+public fn test_jsonparser_parseValue_true(): void {
+    let p: JsonParser = new JsonParser("true");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isBool() || !v.asBool()) {
+        io::println("FAIL: JsonParser.parseValue true wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue true works");
+    }
+}
+
+public fn test_jsonparser_parseValue_false(): void {
+    let p: JsonParser = new JsonParser("false");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isBool() || v.asBool()) {
+        io::println("FAIL: JsonParser.parseValue false wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue false works");
+    }
+}
+
+public fn test_jsonparser_parseValue_number(): void {
+    let p: JsonParser = new JsonParser("42.5");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isNumber() || v.asNumber() != 42.5) {
+        io::println("FAIL: JsonParser.parseValue number wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue number works");
+    }
+}
+
+public fn test_jsonparser_parseValue_negative_number(): void {
+    let p: JsonParser = new JsonParser("-5");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isNumber() || v.asNumber() != -5.0) {
+        io::println("FAIL: JsonParser.parseValue negative number wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue negative number works");
+    }
+}
+
+public fn test_jsonparser_parseValue_string(): void {
+    let p: JsonParser = new JsonParser("\"hello\"");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isString() || v.asString() != "hello") {
+        io::println("FAIL: JsonParser.parseValue string wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue string works");
+    }
+}
+
+public fn test_jsonparser_parseValue_string_escapes(): void {
+    let p: JsonParser = new JsonParser("\"a\\nb\"");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isString() || v.asString() != "a\nb") {
+        io::println("FAIL: JsonParser.parseValue string escapes wrong: " + v.asString());
+    } else {
+        io::println("PASS: JsonParser.parseValue string escapes works");
+    }
+}
+
+public fn test_jsonparser_parseValue_array(): void {
+    let p: JsonParser = new JsonParser("[1,2,3]");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isArray() || v.size() != 3) {
+        io::println("FAIL: JsonParser.parseValue array wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue array works");
+    }
+}
+
+public fn test_jsonparser_parseValue_empty_array(): void {
+    let p: JsonParser = new JsonParser("[]");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isArray() || v.size() != 0) {
+        io::println("FAIL: JsonParser.parseValue empty array wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue empty array works");
+    }
+}
+
+public fn test_jsonparser_parseValue_object(): void {
+    let p: JsonParser = new JsonParser("{\"a\":1,\"b\":2}");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isObject() || v.size() != 2) {
+        io::println("FAIL: JsonParser.parseValue object wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue object works");
+    }
+}
+
+public fn test_jsonparser_parseValue_empty_object(): void {
+    let p: JsonParser = new JsonParser("{}");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isObject() || v.size() != 0) {
+        io::println("FAIL: JsonParser.parseValue empty object wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue empty object works");
+    }
+}
+
+public fn test_jsonparser_parseValue_with_whitespace(): void {
+    let p: JsonParser = new JsonParser("  {  \"a\"  :  1  }  ");
+    let v: JsonValue = p.parseValue();
+    if (!v.isObject() || v.size() != 1) {
+        io::println("FAIL: JsonParser.parseValue with whitespace wrong");
+    } else {
+        io::println("PASS: JsonParser.parseValue with whitespace works");
+    }
+}
+
+public fn test_jsonparser_parseValue_nested(): void {
+    let p: JsonParser = new JsonParser("{\"a\":[1,2],\"b\":{\"c\":3}}");
+    p.skipWhitespace();
+    let v: JsonValue = p.parseValue();
+    if (!v.isObject()) {
+        io::println("FAIL: JsonParser.parseValue nested not object");
+    } else if (!v.get("a").isArray()) {
+        io::println("FAIL: JsonParser.parseValue nested a not array");
+    } else if (!v.get("b").isObject()) {
+        io::println("FAIL: JsonParser.parseValue nested b not object");
+    } else {
+        io::println("PASS: JsonParser.parseValue nested works");
+    }
+}
+
+public fn test_jsonparser_parseNull(): void {
+    let p: JsonParser = new JsonParser("null");
+    let v: JsonValue = p.parseNull();
+    if (!v.isNull()) {
+        io::println("FAIL: JsonParser.parseNull wrong");
+    } else {
+        io::println("PASS: JsonParser.parseNull works");
+    }
+}
+
+public fn test_jsonparser_parseBool(): void {
+    let p: JsonParser = new JsonParser("true");
+    let v: JsonValue = p.parseBool();
+    if (!v.isBool() || !v.asBool()) {
+        io::println("FAIL: JsonParser.parseBool true wrong");
+    } else {
+        io::println("PASS: JsonParser.parseBool works");
+    }
+}
+
+public fn test_jsonparser_parseNumber(): void {
+    let p: JsonParser = new JsonParser("123");
+    let v: JsonValue = p.parseNumber();
+    if (!v.isNumber() || v.asNumber() != 123.0) {
+        io::println("FAIL: JsonParser.parseNumber wrong");
+    } else {
+        io::println("PASS: JsonParser.parseNumber works");
+    }
+}
+
+public fn test_jsonparser_parseString(): void {
+    let p: JsonParser = new JsonParser("\"test\"");
+    let v: JsonValue = p.parseString();
+    if (!v.isString() || v.asString() != "test") {
+        io::println("FAIL: JsonParser.parseString wrong");
+    } else {
+        io::println("PASS: JsonParser.parseString works");
+    }
+}
+
+public fn test_jsonparser_parseArray(): void {
+    let p: JsonParser = new JsonParser("[1,2,3]");
+    let v: JsonValue = p.parseArray();
+    if (!v.isArray() || v.size() != 3) {
+        io::println("FAIL: JsonParser.parseArray wrong");
+    } else {
+        io::println("PASS: JsonParser.parseArray works");
+    }
+}
+
+public fn test_jsonparser_parseObject(): void {
+    let p: JsonParser = new JsonParser("{\"a\":1}");
+    let v: JsonValue = p.parseObject();
+    if (!v.isObject() || v.size() != 1) {
+        io::println("FAIL: JsonParser.parseObject wrong");
+    } else {
+        io::println("PASS: JsonParser.parseObject works");
+    }
+}
+
+public fn run_all_json_parser_tests(): void {
+    io::println("=== JsonParser.tr Tests ===");
+    test_jsonparser_init();
+    test_jsonparser_skipWhitespace();
+    test_jsonparser_peek();
+    test_jsonparser_peek_empty();
+    test_jsonparser_advance();
+    test_jsonparser_match_true();
+    test_jsonparser_match_false();
+    test_jsonparser_parseValue_null();
+    test_jsonparser_parseValue_true();
+    test_jsonparser_parseValue_false();
+    test_jsonparser_parseValue_number();
+    test_jsonparser_parseValue_negative_number();
+    test_jsonparser_parseValue_string();
+    test_jsonparser_parseValue_string_escapes();
+    test_jsonparser_parseValue_array();
+    test_jsonparser_parseValue_empty_array();
+    test_jsonparser_parseValue_object();
+    test_jsonparser_parseValue_empty_object();
+    test_jsonparser_parseValue_with_whitespace();
+    test_jsonparser_parseValue_nested();
+    test_jsonparser_parseNull();
+    test_jsonparser_parseBool();
+    test_jsonparser_parseNumber();
+    test_jsonparser_parseString();
+    test_jsonparser_parseArray();
+    test_jsonparser_parseObject();
+}
