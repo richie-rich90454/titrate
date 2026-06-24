@@ -1,0 +1,359 @@
+// Test file for logging/Logger.tr
+// Exercises the public API: Formatter, LevelFilter, NameFilter, ConsoleHandler,
+// FileHandler, RotatingFileHandler, Logger, getLogger, getRootLogger, basicConfig,
+// debug/info/warning/error/critical, disable, shutdown, level constants.
+import tt::logging::Logger;
+
+public fn test_formatter_basic(): void {
+    let f: Formatter = new Formatter();
+    let r: string = f.format("INFO", "hello", "2026-01-01");
+    if (r != "[2026-01-01] INFO: hello") {
+        io::println("FAIL: formatter basic r=" + r);
+    } else {
+        io::println("PASS: formatter basic");
+    }
+}
+
+public fn test_levelFilter_passes(): void {
+    let f: LevelFilter = new LevelFilter(20);
+    if (!f.filter(30, "msg", "name")) {
+        io::println("FAIL: levelFilter passes");
+    } else {
+        io::println("PASS: levelFilter passes");
+    }
+}
+
+public fn test_levelFilter_blocks(): void {
+    let f: LevelFilter = new LevelFilter(30);
+    if (f.filter(20, "msg", "name")) {
+        io::println("FAIL: levelFilter blocks");
+    } else {
+        io::println("PASS: levelFilter blocks");
+    }
+}
+
+public fn test_levelFilter_threshold_field(): void {
+    let f: LevelFilter = new LevelFilter(40);
+    if (f.threshold != 40) {
+        io::println("FAIL: levelFilter threshold field");
+    } else {
+        io::println("PASS: levelFilter threshold field");
+    }
+}
+
+public fn test_nameFilter_passes(): void {
+    let f: NameFilter = new NameFilter("mylogger");
+    if (!f.filter(10, "msg", "mylogger")) {
+        io::println("FAIL: nameFilter passes");
+    } else {
+        io::println("PASS: nameFilter passes");
+    }
+}
+
+public fn test_nameFilter_blocks(): void {
+    let f: NameFilter = new NameFilter("mylogger");
+    if (f.filter(10, "msg", "other")) {
+        io::println("FAIL: nameFilter blocks");
+    } else {
+        io::println("PASS: nameFilter blocks");
+    }
+}
+
+public fn test_nameFilter_field(): void {
+    let f: NameFilter = new NameFilter("test");
+    if (f.allowedName != "test") {
+        io::println("FAIL: nameFilter field");
+    } else {
+        io::println("PASS: nameFilter field");
+    }
+}
+
+public fn test_consoleHandler_init(): void {
+    let h: ConsoleHandler = new ConsoleHandler();
+    if (h.formatter == null) {
+        io::println("FAIL: consoleHandler init");
+    } else {
+        io::println("PASS: consoleHandler init");
+    }
+}
+
+public fn test_consoleHandler_addFilter(): void {
+    let h: ConsoleHandler = new ConsoleHandler();
+    let f: LevelFilter = new LevelFilter(20);
+    h.addFilter(f);
+    if (h.filters.size() != 1) {
+        io::println("FAIL: consoleHandler addFilter");
+    } else {
+        io::println("PASS: consoleHandler addFilter");
+    }
+}
+
+public fn test_consoleHandler_passesFilters(): void {
+    let h: ConsoleHandler = new ConsoleHandler();
+    let f: LevelFilter = new LevelFilter(20);
+    h.addFilter(f);
+    if (!h.passesFilters(30, "msg", "name")) {
+        io::println("FAIL: consoleHandler passesFilters");
+    } else {
+        io::println("PASS: consoleHandler passesFilters");
+    }
+}
+
+public fn test_consoleHandler_passesFilters_blocked(): void {
+    let h: ConsoleHandler = new ConsoleHandler();
+    let f: LevelFilter = new LevelFilter(40);
+    h.addFilter(f);
+    if (h.passesFilters(20, "msg", "name")) {
+        io::println("FAIL: consoleHandler passesFilters blocked");
+    } else {
+        io::println("PASS: consoleHandler passesFilters blocked");
+    }
+}
+
+public fn test_consoleHandler_handle(): void {
+    let h: ConsoleHandler = new ConsoleHandler();
+    h.handle("INFO", "test message", "2026-01-01");
+    io::println("PASS: consoleHandler handle");
+}
+
+public fn test_logger_init(): void {
+    let logger: Logger = new Logger("test");
+    if (logger.name != "test" || logger.level != "NOTSET") {
+        io::println("FAIL: logger init");
+    } else {
+        io::println("PASS: logger init");
+    }
+}
+
+public fn test_logger_init_with_level(): void {
+    let logger: Logger = new Logger("test", "DEBUG");
+    if (logger.level != "DEBUG") {
+        io::println("FAIL: logger init with level");
+    } else {
+        io::println("PASS: logger init with level");
+    }
+}
+
+public fn test_logger_setLevel(): void {
+    let logger: Logger = new Logger("test");
+    logger.setLevel("ERROR");
+    if (logger.level != "ERROR") {
+        io::println("FAIL: logger setLevel");
+    } else {
+        io::println("PASS: logger setLevel");
+    }
+}
+
+public fn test_logger_addHandler(): void {
+    let logger: Logger = new Logger("test");
+    let h: ConsoleHandler = new ConsoleHandler();
+    logger.addHandler(h);
+    if (logger.handlers.size() != 1) {
+        io::println("FAIL: logger addHandler");
+    } else {
+        io::println("PASS: logger addHandler");
+    }
+}
+
+public fn test_logger_addFilter(): void {
+    let logger: Logger = new Logger("test");
+    let f: LevelFilter = new LevelFilter(20);
+    logger.addFilter(f);
+    if (logger.filters.size() != 1) {
+        io::println("FAIL: logger addFilter");
+    } else {
+        io::println("PASS: logger addFilter");
+    }
+}
+
+public fn test_logger_propagate_field(): void {
+    let logger: Logger = new Logger("test");
+    if (!logger.propagate) {
+        io::println("FAIL: logger propagate field");
+    } else {
+        io::println("PASS: logger propagate field");
+    }
+}
+
+public fn test_logger_children_field(): void {
+    let logger: Logger = new Logger("test");
+    if (logger.children.size() != 0) {
+        io::println("FAIL: logger children field");
+    } else {
+        io::println("PASS: logger children field");
+    }
+}
+
+public fn test_logger_debug(): void {
+    let logger: Logger = new Logger("test", "DEBUG");
+    let h: ConsoleHandler = new ConsoleHandler();
+    logger.addHandler(h);
+    logger.debug("debug message");
+    io::println("PASS: logger debug");
+}
+
+public fn test_logger_info(): void {
+    let logger: Logger = new Logger("test", "INFO");
+    let h: ConsoleHandler = new ConsoleHandler();
+    logger.addHandler(h);
+    logger.info("info message");
+    io::println("PASS: logger info");
+}
+
+public fn test_logger_warning(): void {
+    let logger: Logger = new Logger("test", "WARNING");
+    let h: ConsoleHandler = new ConsoleHandler();
+    logger.addHandler(h);
+    logger.warning("warning message");
+    io::println("PASS: logger warning");
+}
+
+public fn test_logger_error(): void {
+    let logger: Logger = new Logger("test", "ERROR");
+    let h: ConsoleHandler = new ConsoleHandler();
+    logger.addHandler(h);
+    logger.error("error message");
+    io::println("PASS: logger error");
+}
+
+public fn test_logger_critical(): void {
+    let logger: Logger = new Logger("test", "CRITICAL");
+    let h: ConsoleHandler = new ConsoleHandler();
+    logger.addHandler(h);
+    logger.critical("critical message");
+    io::println("PASS: logger critical");
+}
+
+public fn test_getLogger_basic(): void {
+    let logger: Logger = getLogger("myapp");
+    if (logger.name != "myapp") {
+        io::println("FAIL: getLogger basic");
+    } else {
+        io::println("PASS: getLogger basic");
+    }
+}
+
+public fn test_getLogger_cached(): void {
+    let a: Logger = getLogger("cached_app");
+    let b: Logger = getLogger("cached_app");
+    if (a != b) {
+        io::println("FAIL: getLogger cached");
+    } else {
+        io::println("PASS: getLogger cached");
+    }
+}
+
+public fn test_getLogger_hierarchy(): void {
+    let parent: Logger = getLogger("hier");
+    let child: Logger = getLogger("hier.child");
+    if (child.parent == null || child.parent.name != "hier") {
+        io::println("FAIL: getLogger hierarchy");
+    } else {
+        io::println("PASS: getLogger hierarchy");
+    }
+}
+
+public fn test_getRootLogger(): void {
+    let root: Logger = getRootLogger();
+    if (root.name != "root") {
+        io::println("FAIL: getRootLogger");
+    } else {
+        io::println("PASS: getRootLogger");
+    }
+}
+
+public fn test_basicConfig(): void {
+    basicConfig("ERROR");
+    let root: Logger = getRootLogger();
+    if (root.level != "ERROR") {
+        io::println("FAIL: basicConfig");
+    } else {
+        io::println("PASS: basicConfig");
+    }
+}
+
+public fn test_level_constants(): void {
+    if (NOTSET != 0 || DEBUG != 10 || INFO != 20 || WARNING != 30 || ERROR != 40 || CRITICAL != 50) {
+        io::println("FAIL: level constants");
+    } else {
+        io::println("PASS: level constants");
+    }
+}
+
+public fn test_disable(): void {
+    disable(CRITICAL);
+    let root: Logger = getRootLogger();
+    let h: ConsoleHandler = new ConsoleHandler();
+    root.addHandler(h);
+    root.setLevel("DEBUG");
+    root.debug("should be disabled");
+    disable(NOTSET);
+    io::println("PASS: disable");
+}
+
+public fn test_shutdown(): void {
+    let logger: Logger = getLogger("shutdown_test");
+    let h: ConsoleHandler = new ConsoleHandler();
+    logger.addHandler(h);
+    shutdown();
+    if (logger.handlers.size() != 0) {
+        io::println("FAIL: shutdown");
+    } else {
+        io::println("PASS: shutdown");
+    }
+}
+
+public fn test_rotatingFileHandler_init(): void {
+    let h: RotatingFileHandler = new RotatingFileHandler("test.log", 1000, 3);
+    if (h.formatter == null) {
+        io::println("FAIL: rotatingFileHandler init");
+    } else {
+        io::println("PASS: rotatingFileHandler init");
+    }
+}
+
+public fn test_rotatingFileHandler_shouldRollover(): void {
+    let h: RotatingFileHandler = new RotatingFileHandler("nonexistent_file.log", 1000, 3);
+    if (h.shouldRollover()) {
+        io::println("FAIL: rotatingFileHandler shouldRollover");
+    } else {
+        io::println("PASS: rotatingFileHandler shouldRollover");
+    }
+}
+
+public fn run_all_logger_tests(): void {
+    test_formatter_basic();
+    test_levelFilter_passes();
+    test_levelFilter_blocks();
+    test_levelFilter_threshold_field();
+    test_nameFilter_passes();
+    test_nameFilter_blocks();
+    test_nameFilter_field();
+    test_consoleHandler_init();
+    test_consoleHandler_addFilter();
+    test_consoleHandler_passesFilters();
+    test_consoleHandler_passesFilters_blocked();
+    test_consoleHandler_handle();
+    test_logger_init();
+    test_logger_init_with_level();
+    test_logger_setLevel();
+    test_logger_addHandler();
+    test_logger_addFilter();
+    test_logger_propagate_field();
+    test_logger_children_field();
+    test_logger_debug();
+    test_logger_info();
+    test_logger_warning();
+    test_logger_error();
+    test_logger_critical();
+    test_getLogger_basic();
+    test_getLogger_cached();
+    test_getLogger_hierarchy();
+    test_getRootLogger();
+    test_basicConfig();
+    test_level_constants();
+    test_disable();
+    test_shutdown();
+    test_rotatingFileHandler_init();
+    test_rotatingFileHandler_shouldRollover();
+}
