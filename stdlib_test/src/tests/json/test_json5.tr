@@ -1,0 +1,345 @@
+// Test file for json/Json5.tr
+// Exercises the public API: Json5.parse, Json5.stringify.
+import tt::json::Json5;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_json5_init(): void {
+    let p: Json5 = new Json5();
+    if (p == null) {
+        io::println("FAIL: Json5.init returned null");
+    } else {
+        io::println("PASS: Json5.init works");
+    }
+}
+
+public fn test_json5_parse_null(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("null");
+    if (!v.isNull()) {
+        io::println("FAIL: Json5.parse null not null");
+    } else {
+        io::println("PASS: Json5.parse null works");
+    }
+}
+
+public fn test_json5_parse_true(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("true");
+    if (!v.isBool() || !v.asBool()) {
+        io::println("FAIL: Json5.parse true wrong");
+    } else {
+        io::println("PASS: Json5.parse true works");
+    }
+}
+
+public fn test_json5_parse_false(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("false");
+    if (!v.isBool() || v.asBool()) {
+        io::println("FAIL: Json5.parse false wrong");
+    } else {
+        io::println("PASS: Json5.parse false works");
+    }
+}
+
+public fn test_json5_parse_number(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("42");
+    if (!v.isNumber() || v.asNumber() != 42.0) {
+        io::println("FAIL: Json5.parse number wrong");
+    } else {
+        io::println("PASS: Json5.parse number works");
+    }
+}
+
+public fn test_json5_parse_negative_number(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("-3.14");
+    if (!v.isNumber() || v.asNumber() != -3.14) {
+        io::println("FAIL: Json5.parse negative number wrong");
+    } else {
+        io::println("PASS: Json5.parse negative number works");
+    }
+}
+
+public fn test_json5_parse_string_double_quote(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("\"hello\"");
+    if (!v.isString() || v.asString() != "hello") {
+        io::println("FAIL: Json5.parse double-quoted string wrong");
+    } else {
+        io::println("PASS: Json5.parse double-quoted string works");
+    }
+}
+
+public fn test_json5_parse_string_single_quote(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("'world'");
+    if (!v.isString() || v.asString() != "world") {
+        io::println("FAIL: Json5.parse single-quoted string wrong");
+    } else {
+        io::println("PASS: Json5.parse single-quoted string works");
+    }
+}
+
+public fn test_json5_parse_array(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("[1, 2, 3]");
+    if (!v.isArray() || v.size() != 3) {
+        io::println("FAIL: Json5.parse array size=" + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: Json5.parse array works");
+    }
+}
+
+public fn test_json5_parse_array_trailing_comma(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("[1, 2, 3,]");
+    if (!v.isArray() || v.size() != 3) {
+        io::println("FAIL: Json5.parse array trailing comma size=" + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: Json5.parse array trailing comma works");
+    }
+}
+
+public fn test_json5_parse_object_unquoted_keys(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("{name: \"Alice\", age: 30}");
+    if (!v.isObject() || v.size() != 2) {
+        io::println("FAIL: Json5.parse unquoted keys size=" + Integer.toString(v.size()));
+    } else if (!v.hasKey("name")) {
+        io::println("FAIL: Json5.parse unquoted keys missing name");
+    } else {
+        io::println("PASS: Json5.parse unquoted keys works");
+    }
+}
+
+public fn test_json5_parse_object_trailing_comma(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("{\"a\": 1, \"b\": 2,}");
+    if (!v.isObject() || v.size() != 2) {
+        io::println("FAIL: Json5.parse object trailing comma size=" + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: Json5.parse object trailing comma works");
+    }
+}
+
+public fn test_json5_parse_line_comment(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("// comment\n42");
+    if (!v.isNumber() || v.asNumber() != 42.0) {
+        io::println("FAIL: Json5.parse line comment wrong");
+    } else {
+        io::println("PASS: Json5.parse line comment works");
+    }
+}
+
+public fn test_json5_parse_block_comment(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("/* comment */ 42");
+    if (!v.isNumber() || v.asNumber() != 42.0) {
+        io::println("FAIL: Json5.parse block comment wrong");
+    } else {
+        io::println("PASS: Json5.parse block comment works");
+    }
+}
+
+public fn test_json5_parse_hex_number(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("0xFF");
+    if (!v.isNumber() || v.asNumber() != 255.0) {
+        io::println("FAIL: Json5.parse hex number wrong");
+    } else {
+        io::println("PASS: Json5.parse hex number works");
+    }
+}
+
+public fn test_json5_parse_leading_dot(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse(".5");
+    if (!v.isNumber() || v.asNumber() != 0.5) {
+        io::println("FAIL: Json5.parse leading dot wrong");
+    } else {
+        io::println("PASS: Json5.parse leading dot works");
+    }
+}
+
+public fn test_json5_parse_trailing_dot(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("5.");
+    if (!v.isNumber() || v.asNumber() != 5.0) {
+        io::println("FAIL: Json5.parse trailing dot wrong");
+    } else {
+        io::println("PASS: Json5.parse trailing dot works");
+    }
+}
+
+public fn test_json5_parse_positive_sign(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("+42");
+    if (!v.isNumber() || v.asNumber() != 42.0) {
+        io::println("FAIL: Json5.parse positive sign wrong");
+    } else {
+        io::println("PASS: Json5.parse positive sign works");
+    }
+}
+
+public fn test_json5_parse_infinity(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("Infinity");
+    if (!v.isNumber()) {
+        io::println("FAIL: Json5.parse Infinity not number");
+    } else {
+        io::println("PASS: Json5.parse Infinity works");
+    }
+}
+
+public fn test_json5_parse_nested(): void {
+    let p: Json5 = new Json5();
+    let v: JsonValue = p.parse("{a: [1, 2], b: {c: 3}}");
+    if (!v.isObject() || v.size() != 2) {
+        io::println("FAIL: Json5.parse nested size=" + Integer.toString(v.size()));
+    } else if (!v.get("a").isArray()) {
+        io::println("FAIL: Json5.parse nested a not array");
+    } else {
+        io::println("PASS: Json5.parse nested works");
+    }
+}
+
+public fn test_json5_stringify_null(): void {
+    let p: Json5 = new Json5();
+    let s: string = p.stringify(JsonValue.ofNull());
+    if (s != "null") {
+        io::println("FAIL: Json5.stringify null=" + s);
+    } else {
+        io::println("PASS: Json5.stringify null works");
+    }
+}
+
+public fn test_json5_stringify_bool(): void {
+    let p: Json5 = new Json5();
+    let s: string = p.stringify(JsonValue.ofBool(true));
+    if (s != "true") {
+        io::println("FAIL: Json5.stringify bool=" + s);
+    } else {
+        io::println("PASS: Json5.stringify bool works");
+    }
+}
+
+public fn test_json5_stringify_number(): void {
+    let p: Json5 = new Json5();
+    let s: string = p.stringify(JsonValue.ofNum(42.0));
+    if (s != "42") {
+        io::println("FAIL: Json5.stringify number=" + s);
+    } else {
+        io::println("PASS: Json5.stringify number works");
+    }
+}
+
+public fn test_json5_stringify_string(): void {
+    let p: Json5 = new Json5();
+    let s: string = p.stringify(JsonValue.ofStr("hello"));
+    if (s != "\"hello\"") {
+        io::println("FAIL: Json5.stringify string=" + s);
+    } else {
+        io::println("PASS: Json5.stringify string works");
+    }
+}
+
+public fn test_json5_stringify_array(): void {
+    let p: Json5 = new Json5();
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    arr.add(JsonValue.ofNum(1.0));
+    arr.add(JsonValue.ofNum(2.0));
+    let s: string = p.stringify(JsonValue.ofArray(arr));
+    if (s != "[1, 2]") {
+        io::println("FAIL: Json5.stringify array=" + s);
+    } else {
+        io::println("PASS: Json5.stringify array works");
+    }
+}
+
+public fn test_json5_stringify_empty_array(): void {
+    let p: Json5 = new Json5();
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    let s: string = p.stringify(JsonValue.ofArray(arr));
+    if (s != "[]") {
+        io::println("FAIL: Json5.stringify empty array=" + s);
+    } else {
+        io::println("PASS: Json5.stringify empty array works");
+    }
+}
+
+public fn test_json5_stringify_object_unquoted_key(): void {
+    let p: Json5 = new Json5();
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    obj.put("name", JsonValue.ofStr("Alice"));
+    let s: string = p.stringify(JsonValue.ofObject(obj));
+    if (s != "{name: \"Alice\"}") {
+        io::println("FAIL: Json5.stringify object unquoted key=" + s);
+    } else {
+        io::println("PASS: Json5.stringify object unquoted key works");
+    }
+}
+
+public fn test_json5_stringify_empty_object(): void {
+    let p: Json5 = new Json5();
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let s: string = p.stringify(JsonValue.ofObject(obj));
+    if (s != "{}") {
+        io::println("FAIL: Json5.stringify empty object=" + s);
+    } else {
+        io::println("PASS: Json5.stringify empty object works");
+    }
+}
+
+public fn test_json5_roundtrip(): void {
+    let p: Json5 = new Json5();
+    let original: string = "{name: \"Bob\", age: 25}";
+    let v: JsonValue = p.parse(original);
+    let s: string = p.stringify(v);
+    let v2: JsonValue = p.parse(s);
+    if (!v2.hasKey("name") || v2.get("name").asString() != "Bob") {
+        io::println("FAIL: Json5 roundtrip name wrong");
+    } else if (!v2.hasKey("age") || v2.get("age").asNumber() != 25.0) {
+        io::println("FAIL: Json5 roundtrip age wrong");
+    } else {
+        io::println("PASS: Json5 roundtrip works");
+    }
+}
+
+public fn run_all_json5_tests(): void {
+    io::println("=== Json5.tr Tests ===");
+    test_json5_init();
+    test_json5_parse_null();
+    test_json5_parse_true();
+    test_json5_parse_false();
+    test_json5_parse_number();
+    test_json5_parse_negative_number();
+    test_json5_parse_string_double_quote();
+    test_json5_parse_string_single_quote();
+    test_json5_parse_array();
+    test_json5_parse_array_trailing_comma();
+    test_json5_parse_object_unquoted_keys();
+    test_json5_parse_object_trailing_comma();
+    test_json5_parse_line_comment();
+    test_json5_parse_block_comment();
+    test_json5_parse_hex_number();
+    test_json5_parse_leading_dot();
+    test_json5_parse_trailing_dot();
+    test_json5_parse_positive_sign();
+    test_json5_parse_infinity();
+    test_json5_parse_nested();
+    test_json5_stringify_null();
+    test_json5_stringify_bool();
+    test_json5_stringify_number();
+    test_json5_stringify_string();
+    test_json5_stringify_array();
+    test_json5_stringify_empty_array();
+    test_json5_stringify_object_unquoted_key();
+    test_json5_stringify_empty_object();
+    test_json5_roundtrip();
+}
