@@ -1,0 +1,283 @@
+// Test file for random/Random.tr
+// Exercises the public API: Random class and top-level distribution functions.
+import tt::random::Random;
+import tt::util::ArrayList;
+
+public fn test_random_init(): void {
+    let r: Random = new Random();
+    if (r == null) {
+        io::println("FAIL: random init");
+    } else {
+        io::println("PASS: random init");
+    }
+}
+
+public fn test_random_initWithSeed(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    if (r.state0 != 42L) {
+        io::println("FAIL: random initWithSeed");
+    } else {
+        io::println("PASS: random initWithSeed");
+    }
+}
+
+public fn test_random_nextInt(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: int = r.nextInt(100);
+    if (v < 0 || v >= 100) {
+        io::println("FAIL: random nextInt v=" + Integer.toString(v));
+    } else {
+        io::println("PASS: random nextInt");
+    }
+}
+
+public fn test_random_nextInt_range(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: int = r.nextInt(10, 20);
+    if (v < 10 || v > 20) {
+        io::println("FAIL: random nextInt range v=" + Integer.toString(v));
+    } else {
+        io::println("PASS: random nextInt range");
+    }
+}
+
+public fn test_random_nextIntRange(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: int = r.nextIntRange(10, 20);
+    if (v < 10 || v >= 20) {
+        io::println("FAIL: random nextIntRange v=" + Integer.toString(v));
+    } else {
+        io::println("PASS: random nextIntRange");
+    }
+}
+
+public fn test_random_nextLong(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: long = r.nextLong(1000L);
+    if (v < 0 || v >= 1000) {
+        io::println("FAIL: random nextLong");
+    } else {
+        io::println("PASS: random nextLong");
+    }
+}
+
+public fn test_random_nextFloat(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: float = r.nextFloat();
+    if (v < 0.0 || v >= 1.0) {
+        io::println("FAIL: random nextFloat");
+    } else {
+        io::println("PASS: random nextFloat");
+    }
+}
+
+public fn test_random_nextDouble(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: double = r.nextDouble();
+    if (v < 0.0 || v >= 1.0) {
+        io::println("FAIL: random nextDouble");
+    } else {
+        io::println("PASS: random nextDouble");
+    }
+}
+
+public fn test_random_nextBool(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: bool = r.nextBool();
+    io::println("PASS: random nextBool");
+}
+
+public fn test_random_nextGaussian(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: double = r.nextGaussian();
+    io::println("PASS: random nextGaussian");
+}
+
+public fn test_random_nextExponential(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: double = r.nextExponential();
+    if (v < 0.0) {
+        io::println("FAIL: random nextExponential");
+    } else {
+        io::println("PASS: random nextExponential");
+    }
+}
+
+public fn test_random_nextPoisson(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: int = r.nextPoisson(5.0);
+    if (v < 0) {
+        io::println("FAIL: random nextPoisson");
+    } else {
+        io::println("PASS: random nextPoisson");
+    }
+}
+
+public fn test_random_nextUniform(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: double = r.nextUniform(10.0, 20.0);
+    if (v < 10.0 || v >= 20.0) {
+        io::println("FAIL: random nextUniform");
+    } else {
+        io::println("PASS: random nextUniform");
+    }
+}
+
+public fn test_random_binomial(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: int = r.binomial(10, 0.5);
+    if (v < 0 || v > 10) {
+        io::println("FAIL: random binomial");
+    } else {
+        io::println("PASS: random binomial");
+    }
+}
+
+public fn test_random_shuffle(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let arr: ArrayList<Variant> = new ArrayList<Variant>();
+    arr.add(1); arr.add(2); arr.add(3); arr.add(4); arr.add(5);
+    r.shuffle(arr);
+    if (arr.size() != 5) {
+        io::println("FAIL: random shuffle");
+    } else {
+        io::println("PASS: random shuffle");
+    }
+}
+
+public fn test_random_sample(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let arr: ArrayList<Variant> = new ArrayList<Variant>();
+    arr.add(1); arr.add(2); arr.add(3);
+    let v: Variant = r.sample(arr);
+    if (v == null) {
+        io::println("FAIL: random sample");
+    } else {
+        io::println("PASS: random sample");
+    }
+}
+
+public fn test_random_triangular(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    let v: double = r.triangular(0.0, 10.0, 5.0);
+    if (v < 0.0 || v > 10.0) {
+        io::println("FAIL: random triangular");
+    } else {
+        io::println("PASS: random triangular");
+    }
+}
+
+public fn test_random_hasSpareGaussian_field(): void {
+    let r: Random = new Random();
+    r.initWithSeed(42L);
+    if (r.hasSpareGaussian) {
+        io::println("FAIL: random hasSpareGaussian field");
+    } else {
+        io::println("PASS: random hasSpareGaussian field");
+    }
+}
+
+public fn test_getstate(): void {
+    let state: ArrayList<double> = getstate();
+    if (state == null) {
+        io::println("FAIL: getstate");
+    } else {
+        io::println("PASS: getstate");
+    }
+}
+
+public fn test_setstate(): void {
+    let state: ArrayList<double> = new ArrayList<double>();
+    state.add(1.0); state.add(2.0);
+    setstate(state);
+    io::println("PASS: setstate");
+}
+
+public fn test_shuffle_top_level(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0);
+    shuffle(data);
+    if (data.size() != 4) {
+        io::println("FAIL: shuffle top level");
+    } else {
+        io::println("PASS: shuffle top level");
+    }
+}
+
+public fn test_sample_top_level(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = sample(data, 3);
+    if (result.size() != 3) {
+        io::println("FAIL: sample top level");
+    } else {
+        io::println("PASS: sample top level");
+    }
+}
+
+public fn test_triangular_top_level(): void {
+    let v: double = triangular(0.0, 10.0, 5.0);
+    if (v < 0.0 || v > 10.0) {
+        io::println("FAIL: triangular top level");
+    } else {
+        io::println("PASS: triangular top level");
+    }
+}
+
+public fn test_normalvariate(): void {
+    let v: double = normalvariate(0.0, 1.0);
+    io::println("PASS: normalvariate");
+}
+
+public fn test_expovariate(): void {
+    let v: double = expovariate(1.0);
+    if (v < 0.0) {
+        io::println("FAIL: expovariate");
+    } else {
+        io::println("PASS: expovariate");
+    }
+}
+
+public fn run_all_random_tests(): void {
+    test_random_init();
+    test_random_initWithSeed();
+    test_random_nextInt();
+    test_random_nextInt_range();
+    test_random_nextIntRange();
+    test_random_nextLong();
+    test_random_nextFloat();
+    test_random_nextDouble();
+    test_random_nextBool();
+    test_random_nextGaussian();
+    test_random_nextExponential();
+    test_random_nextPoisson();
+    test_random_nextUniform();
+    test_random_binomial();
+    test_random_shuffle();
+    test_random_sample();
+    test_random_triangular();
+    test_random_hasSpareGaussian_field();
+    test_getstate();
+    test_setstate();
+    test_shuffle_top_level();
+    test_sample_top_level();
+    test_triangular_top_level();
+    test_normalvariate();
+    test_expovariate();
+}
