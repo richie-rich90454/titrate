@@ -1,0 +1,145 @@
+// Test file for xml/XmlSchema.tr
+// Exercises the public API: ValidationResult, XmlSchema.
+import tt::xml::XmlSchema;
+import tt::xml::XmlNode;
+import tt::xml::Xml;
+import tt::lang::Integer;
+
+public fn test_validationresult_init(): void {
+    let r: ValidationResult = new ValidationResult();
+    if (r == null) {
+        io::println("FAIL: ValidationResult.init returned null");
+    } else if (!r.valid) {
+        io::println("FAIL: ValidationResult.init valid should be true");
+    } else if (r.errors.size() != 0) {
+        io::println("FAIL: ValidationResult.init errors not empty");
+    } else {
+        io::println("PASS: ValidationResult.init works");
+    }
+}
+
+public fn test_validationresult_addError(): void {
+    let r: ValidationResult = new ValidationResult();
+    r.addError("something went wrong");
+    if (r.valid) {
+        io::println("FAIL: ValidationResult.addError valid should be false");
+    } else if (r.errors.size() != 1) {
+        io::println("FAIL: ValidationResult.addError errors size wrong");
+    } else {
+        io::println("PASS: ValidationResult.addError works");
+    }
+}
+
+public fn test_validationresult_multiple_errors(): void {
+    let r: ValidationResult = new ValidationResult();
+    r.addError("error 1");
+    r.addError("error 2");
+    r.addError("error 3");
+    if (r.errors.size() != 3) {
+        io::println("FAIL: ValidationResult multiple errors size=" + Integer.toString(r.errors.size()));
+    } else {
+        io::println("PASS: ValidationResult multiple errors works");
+    }
+}
+
+public fn test_xmlschema_init(): void {
+    let s: XmlSchema = new XmlSchema();
+    if (s == null) {
+        io::println("FAIL: XmlSchema.init returned null");
+    } else {
+        io::println("PASS: XmlSchema.init works");
+    }
+}
+
+public fn test_xmlschema_loadSchema_nonexistent(): void {
+    let s: XmlSchema = new XmlSchema();
+    s.loadSchema("nonexistent_schema.json");
+    io::println("PASS: XmlSchema.loadSchema nonexistent works");
+}
+
+public fn test_xmlschema_validate_no_schema(): void {
+    let s: XmlSchema = new XmlSchema();
+    let node: XmlNode = Xml.parse("<root>text</root>");
+    let result: ValidationResult = s.validate(node, "root");
+    if (result == null) {
+        io::println("FAIL: XmlSchema.validate returned null");
+    } else if (result.valid) {
+        io::println("FAIL: XmlSchema.validate should be invalid without schema");
+    } else {
+        io::println("PASS: XmlSchema.validate no schema works");
+    }
+}
+
+public fn test_xmlschema_validate_returns_result(): void {
+    let s: XmlSchema = new XmlSchema();
+    let node: XmlNode = Xml.parse("<test>data</test>");
+    let result: ValidationResult = s.validate(node, "test");
+    if (result == null) {
+        io::println("FAIL: XmlSchema.validate returns result null");
+    } else if (!result.errors.isEmpty()) {
+        io::println("PASS: XmlSchema.validate returns result with errors works");
+    } else {
+        io::println("PASS: XmlSchema.validate returns result works");
+    }
+}
+
+public fn test_xmlschema_validate_different_element(): void {
+    let s: XmlSchema = new XmlSchema();
+    let node: XmlNode = Xml.parse("<other>data</other>");
+    let result: ValidationResult = s.validate(node, "missing");
+    if (result.valid) {
+        io::println("FAIL: XmlSchema.validate different element should be invalid");
+    } else {
+        io::println("PASS: XmlSchema.validate different element works");
+    }
+}
+
+public fn test_xmlschema_validate_with_attributes(): void {
+    let s: XmlSchema = new XmlSchema();
+    let node: XmlNode = Xml.parse("<root attr=\"value\"/>");
+    let result: ValidationResult = s.validate(node, "root");
+    if (result == null) {
+        io::println("FAIL: XmlSchema.validate with attrs null");
+    } else {
+        io::println("PASS: XmlSchema.validate with attrs works");
+    }
+}
+
+public fn test_xmlschema_validate_nested(): void {
+    let s: XmlSchema = new XmlSchema();
+    let node: XmlNode = Xml.parse("<root><child>text</child></root>");
+    let result: ValidationResult = s.validate(node, "root");
+    if (result == null) {
+        io::println("FAIL: XmlSchema.validate nested null");
+    } else {
+        io::println("PASS: XmlSchema.validate nested works");
+    }
+}
+
+public fn test_validationresult_errors_content(): void {
+    let r: ValidationResult = new ValidationResult();
+    r.addError("first error");
+    r.addError("second error");
+    if (r.errors.get(0) != "first error") {
+        io::println("FAIL: ValidationResult errors content first wrong");
+    } else if (r.errors.get(1) != "second error") {
+        io::println("FAIL: ValidationResult errors content second wrong");
+    } else {
+        io::println("PASS: ValidationResult errors content works");
+    }
+}
+
+public fn run_all_xmlschema_tests(): void {
+    io::println("=== XmlSchema.tr Tests ===");
+    test_validationresult_init();
+    test_validationresult_addError();
+    test_validationresult_multiple_errors();
+    test_xmlschema_init();
+    test_xmlschema_loadSchema_nonexistent();
+    test_xmlschema_validate_no_schema();
+    test_xmlschema_validate_returns_result();
+    test_xmlschema_validate_different_element();
+    test_xmlschema_validate_with_attributes();
+    test_xmlschema_validate_nested();
+    test_validationresult_errors_content();
+}
