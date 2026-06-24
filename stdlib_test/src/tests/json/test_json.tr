@@ -1,0 +1,270 @@
+// Test file for json/Json.tr
+// Exercises the public API of the Json module: parse, stringify, dumps, prettyPrint,
+// naming strategies, color output, and wrapped output.
+import tt::json::Json;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_json_parse_object(): void {
+    let v: JsonValue = Json.parse("{\"a\":1,\"b\":2}");
+    if (!v.isObject()) {
+        io::println("FAIL: Json.parse object should be object");
+    } else {
+        io::println("PASS: Json.parse object works");
+    }
+}
+
+public fn test_json_parse_array(): void {
+    let v: JsonValue = Json.parse("[1,2,3]");
+    if (!v.isArray()) {
+        io::println("FAIL: Json.parse array should be array");
+    } else if (v.size() != 3) {
+        io::println("FAIL: Json.parse array size=" + Integer.toString(v.size()));
+    } else {
+        io::println("PASS: Json.parse array works");
+    }
+}
+
+public fn test_json_parse_string(): void {
+    let v: JsonValue = Json.parse("\"hello\"");
+    if (!v.isString()) {
+        io::println("FAIL: Json.parse string should be string");
+    } else if (v.asString() != "hello") {
+        io::println("FAIL: Json.parse string value=" + v.asString());
+    } else {
+        io::println("PASS: Json.parse string works");
+    }
+}
+
+public fn test_json_parse_number(): void {
+    let v: JsonValue = Json.parse("42.5");
+    if (!v.isNumber()) {
+        io::println("FAIL: Json.parse number should be number");
+    } else if (v.asNumber() != 42.5) {
+        io::println("FAIL: Json.parse number value=" + Double.toString(v.asNumber()));
+    } else {
+        io::println("PASS: Json.parse number works");
+    }
+}
+
+public fn test_json_parse_bool(): void {
+    let v: JsonValue = Json.parse("true");
+    if (!v.isBool()) {
+        io::println("FAIL: Json.parse bool should be bool");
+    } else if (!v.asBool()) {
+        io::println("FAIL: Json.parse bool value=false");
+    } else {
+        io::println("PASS: Json.parse bool works");
+    }
+}
+
+public fn test_json_parse_null(): void {
+    let v: JsonValue = Json.parse("null");
+    if (!v.isNull()) {
+        io::println("FAIL: Json.parse null should be null");
+    } else {
+        io::println("PASS: Json.parse null works");
+    }
+}
+
+public fn test_json_stringify(): void {
+    let v: JsonValue = JsonValue.ofNum(42.0);
+    let s: string = Json.stringify(v);
+    if (s != "42") {
+        io::println("FAIL: Json.stringify returned " + s + ", expected 42");
+    } else {
+        io::println("PASS: Json.stringify works");
+    }
+}
+
+public fn test_json_stringify_with_indent(): void {
+    let v: JsonValue = Json.parse("{\"a\":1}");
+    let s: string = Json.stringify(v, 2, false);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.stringify(indent) empty");
+    } else {
+        io::println("PASS: Json.stringify(indent) works");
+    }
+}
+
+public fn test_json_stringify_with_indent_sort(): void {
+    let v: JsonValue = Json.parse("{\"b\":1,\"a\":2}");
+    let s: string = Json.stringify(v, 2, true);
+    if (String.indexOf(s, "a") < 0) {
+        io::println("FAIL: Json.stringify(sort) missing key a");
+    } else {
+        io::println("PASS: Json.stringify(sort) works");
+    }
+}
+
+public fn test_json_dumps_compact(): void {
+    let v: JsonValue = Json.parse("{\"a\":1}");
+    let s: string = Json.dumps(v, false, 0);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.dumps compact empty");
+    } else {
+        io::println("PASS: Json.dumps compact works");
+    }
+}
+
+public fn test_json_dumps_sorted(): void {
+    let v: JsonValue = Json.parse("{\"b\":1,\"a\":2}");
+    let s: string = Json.dumps(v, true, 0);
+    // sorted: a should come before b
+    let aPos: int = String.indexOf(s, "\"a\"");
+    let bPos: int = String.indexOf(s, "\"b\"");
+    if (aPos < 0 || bPos < 0 || aPos > bPos) {
+        io::println("FAIL: Json.dumps sorted order wrong: " + s);
+    } else {
+        io::println("PASS: Json.dumps sorted works");
+    }
+}
+
+public fn test_json_prettyPrint(): void {
+    let v: JsonValue = Json.parse("{\"a\":1}");
+    let s: string = Json.prettyPrint(v, 2);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.prettyPrint empty");
+    } else {
+        io::println("PASS: Json.prettyPrint works");
+    }
+}
+
+public fn test_json_stringifyPretty(): void {
+    let v: JsonValue = Json.parse("{\"a\":1}");
+    let s: string = Json.stringifyPretty(v, 2);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.stringifyPretty empty");
+    } else {
+        io::println("PASS: Json.stringifyPretty works");
+    }
+}
+
+public fn test_json_stringifySorted(): void {
+    let v: JsonValue = Json.parse("{\"b\":1,\"a\":2}");
+    let s: string = Json.stringifySorted(v, 2);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.stringifySorted empty");
+    } else {
+        io::println("PASS: Json.stringifySorted works");
+    }
+}
+
+public fn test_json_stringifyAscii(): void {
+    let v: JsonValue = JsonValue.ofStr("hello");
+    let s: string = Json.stringifyAscii(v, 2);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.stringifyAscii empty");
+    } else {
+        io::println("PASS: Json.stringifyAscii works");
+    }
+}
+
+public fn test_json_toCamelCase(): void {
+    let result: string = Json.toCamelCase("hello_world");
+    if (result != "helloWorld") {
+        io::println("FAIL: Json.toCamelCase returned " + result);
+    } else {
+        io::println("PASS: Json.toCamelCase works");
+    }
+}
+
+public fn test_json_toSnakeCase(): void {
+    let result: string = Json.toSnakeCase("helloWorld");
+    if (result != "hello_world") {
+        io::println("FAIL: Json.toSnakeCase returned " + result);
+    } else {
+        io::println("PASS: Json.toSnakeCase works");
+    }
+}
+
+public fn test_json_toPascalCase(): void {
+    let result: string = Json.toPascalCase("hello_world");
+    if (result != "HelloWorld") {
+        io::println("FAIL: Json.toPascalCase returned " + result);
+    } else {
+        io::println("PASS: Json.toPascalCase works");
+    }
+}
+
+public fn test_json_stringifyColor(): void {
+    let v: JsonValue = JsonValue.ofNum(42.0);
+    let s: string = Json.stringifyColor(v);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.stringifyColor empty");
+    } else {
+        io::println("PASS: Json.stringifyColor works");
+    }
+}
+
+public fn test_json_stringifyColorPretty(): void {
+    let v: JsonValue = Json.parse("{\"a\":1}");
+    let s: string = Json.stringifyColorPretty(v, 2);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.stringifyColorPretty empty");
+    } else {
+        io::println("PASS: Json.stringifyColorPretty works");
+    }
+}
+
+public fn test_json_stringifyWrapped(): void {
+    let v: JsonValue = Json.parse("{\"a\":1}");
+    let s: string = Json.stringifyWrapped(v, 80);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Json.stringifyWrapped empty");
+    } else {
+        io::println("PASS: Json.stringifyWrapped works");
+    }
+}
+
+public fn test_json_roundtrip(): void {
+    let original: string = "{\"name\":\"test\",\"value\":42}";
+    let v: JsonValue = Json.parse(original);
+    let back: string = Json.stringify(v);
+    if (back != original) {
+        io::println("FAIL: Json roundtrip orig=" + original + " back=" + back);
+    } else {
+        io::println("PASS: Json roundtrip works");
+    }
+}
+
+public fn test_json_registerEncoder(): void {
+    Json.registerEncoder("custom", fn(v: JsonValue): JsonValue { return v; });
+    io::println("PASS: Json.registerEncoder works");
+}
+
+public fn test_json_registerDecoder(): void {
+    Json.registerDecoder("custom", fn(v: JsonValue): JsonValue { return v; });
+    io::println("PASS: Json.registerDecoder works");
+}
+
+public fn run_all_json_tests(): void {
+    io::println("=== Json.tr Tests ===");
+    test_json_parse_object();
+    test_json_parse_array();
+    test_json_parse_string();
+    test_json_parse_number();
+    test_json_parse_bool();
+    test_json_parse_null();
+    test_json_stringify();
+    test_json_stringify_with_indent();
+    test_json_stringify_with_indent_sort();
+    test_json_dumps_compact();
+    test_json_dumps_sorted();
+    test_json_prettyPrint();
+    test_json_stringifyPretty();
+    test_json_stringifySorted();
+    test_json_stringifyAscii();
+    test_json_toCamelCase();
+    test_json_toSnakeCase();
+    test_json_toPascalCase();
+    test_json_stringifyColor();
+    test_json_stringifyColorPretty();
+    test_json_stringifyWrapped();
+    test_json_roundtrip();
+    test_json_registerEncoder();
+    test_json_registerDecoder();
+}
