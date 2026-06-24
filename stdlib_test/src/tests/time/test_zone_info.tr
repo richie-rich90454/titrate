@@ -1,0 +1,187 @@
+// Test file for time/ZoneInfo.tr
+// Exercises the public API of ZoneInfo and top-level timezone functions.
+import tt::time::ZoneInfo;
+import tt::time::DateTime;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_zoneinfo_init(): void {
+    let z: ZoneInfo = new ZoneInfo("UTC", 0.0);
+    if (z.name() != "UTC") {
+        io::println("FAIL: ZoneInfo.name=" + z.name());
+    } else {
+        io::println("PASS: ZoneInfo.init/name works");
+    }
+}
+
+public fn test_zoneinfo_offset_zero(): void {
+    let z: ZoneInfo = new ZoneInfo("UTC", 0.0);
+    if (z.offset() != 0.0) {
+        io::println("FAIL: ZoneInfo.offset=" + Double.toString(z.offset()));
+    } else {
+        io::println("PASS: ZoneInfo.offset zero works");
+    }
+}
+
+public fn test_zoneinfo_offset_positive(): void {
+    let z: ZoneInfo = new ZoneInfo("JST", 9.0);
+    if (z.offset() != 9.0) {
+        io::println("FAIL: ZoneInfo.offset=" + Double.toString(z.offset()));
+    } else {
+        io::println("PASS: ZoneInfo.offset positive works");
+    }
+}
+
+public fn test_zoneinfo_offset_negative(): void {
+    let z: ZoneInfo = new ZoneInfo("PST", -8.0);
+    if (z.offset() != -8.0) {
+        io::println("FAIL: ZoneInfo.offset=" + Double.toString(z.offset()));
+    } else {
+        io::println("PASS: ZoneInfo.offset negative works");
+    }
+}
+
+public fn test_zoneinfo_offsetSeconds_zero(): void {
+    let z: ZoneInfo = new ZoneInfo("UTC", 0.0);
+    if (z.offsetSeconds() != 0) {
+        io::println("FAIL: ZoneInfo.offsetSeconds=" + Integer.toString(z.offsetSeconds()));
+    } else {
+        io::println("PASS: ZoneInfo.offsetSeconds zero works");
+    }
+}
+
+public fn test_zoneinfo_offsetSeconds_positive(): void {
+    let z: ZoneInfo = new ZoneInfo("JST", 9.0);
+    if (z.offsetSeconds() != 32400) {
+        io::println("FAIL: ZoneInfo.offsetSeconds=" + Integer.toString(z.offsetSeconds()) + ", expected 32400");
+    } else {
+        io::println("PASS: ZoneInfo.offsetSeconds positive works");
+    }
+}
+
+public fn test_zoneinfo_offsetSeconds_negative(): void {
+    let z: ZoneInfo = new ZoneInfo("PST", -8.0);
+    if (z.offsetSeconds() != -28800) {
+        io::println("FAIL: ZoneInfo.offsetSeconds=" + Integer.toString(z.offsetSeconds()) + ", expected -28800");
+    } else {
+        io::println("PASS: ZoneInfo.offsetSeconds negative works");
+    }
+}
+
+public fn test_zoneinfo_toString(): void {
+    let z: ZoneInfo = new ZoneInfo("UTC", 0.0);
+    let s: string = z.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: ZoneInfo.toString empty");
+    } else {
+        io::println("PASS: ZoneInfo.toString works: " + s);
+    }
+}
+
+public fn test_zoneinfo_toString_positive(): void {
+    let z: ZoneInfo = new ZoneInfo("JST", 9.0);
+    let s: string = z.toString();
+    if (String.indexOf(s, "UTC+") < 0) {
+        io::println("FAIL: ZoneInfo.toString positive missing UTC+: " + s);
+    } else {
+        io::println("PASS: ZoneInfo.toString positive works: " + s);
+    }
+}
+
+public fn test_zoneinfo_toString_negative(): void {
+    let z: ZoneInfo = new ZoneInfo("PST", -8.0);
+    let s: string = z.toString();
+    if (String.indexOf(s, "UTC-") < 0) {
+        io::println("FAIL: ZoneInfo.toString negative missing UTC-: " + s);
+    } else {
+        io::println("PASS: ZoneInfo.toString negative works: " + s);
+    }
+}
+
+public fn test_zoneinfo_convert(): void {
+    let utc: ZoneInfo = new ZoneInfo("UTC", 0.0);
+    let jst: ZoneInfo = new ZoneInfo("JST", 9.0);
+    let dt: DateTime = DateTime.fromISO("2024-01-01T00:00:00");
+    let converted: DateTime = jst.convert(dt, utc);
+    if (converted == null) {
+        io::println("FAIL: ZoneInfo.convert returned null");
+    } else {
+        io::println("PASS: ZoneInfo.convert works");
+    }
+}
+
+public fn test_zoneinfo_utc(): void {
+    let z: ZoneInfo = ZoneInfo.utc();
+    if (z == null) {
+        io::println("FAIL: ZoneInfo.utc returned null");
+    } else if (z.name() != "UTC") {
+        io::println("FAIL: ZoneInfo.utc name=" + z.name());
+    } else {
+        io::println("PASS: ZoneInfo.utc works");
+    }
+}
+
+public fn test_zoneinfo_gmt(): void {
+    let z: ZoneInfo = ZoneInfo.gmt();
+    if (z == null) {
+        io::println("FAIL: ZoneInfo.gmt returned null");
+    } else {
+        io::println("PASS: ZoneInfo.gmt works");
+    }
+}
+
+public fn test_zoneinfo_timezone_lookup(): void {
+    let z: ZoneInfo = ZoneInfo.timezone("UTC");
+    if (z == null) {
+        io::println("FAIL: ZoneInfo.timezone returned null");
+    } else {
+        io::println("PASS: ZoneInfo.timezone works");
+    }
+}
+
+public fn test_zoneinfo_timezone_unknown(): void {
+    let z: ZoneInfo = ZoneInfo.timezone("Nonexistent/Zone");
+    if (z == null) {
+        io::println("FAIL: ZoneInfo.timezone unknown returned null");
+    } else {
+        io::println("PASS: ZoneInfo.timezone unknown falls back to UTC");
+    }
+}
+
+public fn test_zoneinfo_predefined_shortcuts(): void {
+    let eastern: ZoneInfo = ZoneInfo.eastern();
+    let central: ZoneInfo = ZoneInfo.central();
+    let mountain: ZoneInfo = ZoneInfo.mountain();
+    let pacific: ZoneInfo = ZoneInfo.pacific();
+    let cet: ZoneInfo = ZoneInfo.cet();
+    let jst: ZoneInfo = ZoneInfo.jst();
+    let cst: ZoneInfo = ZoneInfo.cst();
+    let ist: ZoneInfo = ZoneInfo.ist();
+    let aest: ZoneInfo = ZoneInfo.aest();
+    if (eastern == null || central == null || mountain == null || pacific == null ||
+        cet == null || jst == null || cst == null || ist == null || aest == null) {
+        io::println("FAIL: ZoneInfo predefined shortcuts returned null");
+    } else {
+        io::println("PASS: ZoneInfo predefined shortcuts work");
+    }
+}
+
+public fn run_all_zone_info_tests(): void {
+    io::println("=== ZoneInfo.tr Tests ===");
+    test_zoneinfo_init();
+    test_zoneinfo_offset_zero();
+    test_zoneinfo_offset_positive();
+    test_zoneinfo_offset_negative();
+    test_zoneinfo_offsetSeconds_zero();
+    test_zoneinfo_offsetSeconds_positive();
+    test_zoneinfo_offsetSeconds_negative();
+    test_zoneinfo_toString();
+    test_zoneinfo_toString_positive();
+    test_zoneinfo_toString_negative();
+    test_zoneinfo_convert();
+    test_zoneinfo_utc();
+    test_zoneinfo_gmt();
+    test_zoneinfo_timezone_lookup();
+    test_zoneinfo_timezone_unknown();
+    test_zoneinfo_predefined_shortcuts();
+}
