@@ -1,0 +1,178 @@
+// Test file for time/BusinessCalendar.tr
+// Exercises the public API of BusinessCalendar.
+import tt::time::BusinessCalendar;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Boolean;
+
+public fn test_businesscalendar_init(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    if (cal.holidays == null) {
+        io::println("FAIL: BusinessCalendar.holidays is null");
+    } else if (cal.weekendDays == null) {
+        io::println("FAIL: BusinessCalendar.weekendDays is null");
+    } else {
+        io::println("PASS: BusinessCalendar.init works");
+    }
+}
+
+public fn test_businesscalendar_weekend_days(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    if (cal.weekendDays.size() != 2) {
+        io::println("FAIL: BusinessCalendar.weekendDays size=" + Integer.toString(cal.weekendDays.size()));
+    } else if (cal.weekendDays.get(0) != 5 || cal.weekendDays.get(1) != 6) {
+        io::println("FAIL: BusinessCalendar.weekendDays values wrong");
+    } else {
+        io::println("PASS: BusinessCalendar.weekendDays defaults to Sat/Sun");
+    }
+}
+
+public fn test_businesscalendar_isBusinessDay_weekday(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    // 2024-01-03 is a Wednesday
+    if (!cal.isBusinessDay("2024-01-03")) {
+        io::println("FAIL: BusinessCalendar.isBusinessDay should be true for 2024-01-03 (Wed)");
+    } else {
+        io::println("PASS: BusinessCalendar.isBusinessDay true for weekday");
+    }
+}
+
+public fn test_businesscalendar_isBusinessDay_weekend(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    // 2024-01-06 is a Saturday
+    if (cal.isBusinessDay("2024-01-06")) {
+        io::println("FAIL: BusinessCalendar.isBusinessDay should be false for 2024-01-06 (Sat)");
+    } else {
+        io::println("PASS: BusinessCalendar.isBusinessDay false for weekend");
+    }
+}
+
+public fn test_businesscalendar_isBusinessDay_sunday(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    // 2024-01-07 is a Sunday
+    if (cal.isBusinessDay("2024-01-07")) {
+        io::println("FAIL: BusinessCalendar.isBusinessDay should be false for 2024-01-07 (Sun)");
+    } else {
+        io::println("PASS: BusinessCalendar.isBusinessDay false for Sunday");
+    }
+}
+
+public fn test_businesscalendar_addHoliday(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    let before: int = cal.holidays.size();
+    cal.addHoliday("2024-07-04");
+    let after: int = cal.holidays.size();
+    if (after != before + 1) {
+        io::println("FAIL: BusinessCalendar.addHoliday size before=" + Integer.toString(before) + " after=" + Integer.toString(after));
+    } else {
+        io::println("PASS: BusinessCalendar.addHoliday works");
+    }
+}
+
+public fn test_businesscalendar_addHoliday_isBusinessDay(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    cal.addHoliday("2024-01-03");
+    // 2024-01-03 is a Wednesday but now a holiday
+    if (cal.isBusinessDay("2024-01-03")) {
+        io::println("FAIL: BusinessCalendar.isBusinessDay should be false for added holiday");
+    } else {
+        io::println("PASS: BusinessCalendar.addHoliday affects isBusinessDay");
+    }
+}
+
+public fn test_businesscalendar_removeHoliday(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    cal.addHoliday("2024-07-04");
+    let before: int = cal.holidays.size();
+    cal.removeHoliday("2024-07-04");
+    let after: int = cal.holidays.size();
+    if (after != before - 1) {
+        io::println("FAIL: BusinessCalendar.removeHoliday size before=" + Integer.toString(before) + " after=" + Integer.toString(after));
+    } else {
+        io::println("PASS: BusinessCalendar.removeHoliday works");
+    }
+}
+
+public fn test_businesscalendar_removeHoliday_missing(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    let before: int = cal.holidays.size();
+    cal.removeHoliday("1999-12-31");
+    let after: int = cal.holidays.size();
+    if (after != before) {
+        io::println("FAIL: BusinessCalendar.removeHoliday missing changed size");
+    } else {
+        io::println("PASS: BusinessCalendar.removeHoliday no-op for missing");
+    }
+}
+
+public fn test_businesscalendar_nextBusinessDay(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    // 2024-01-05 is a Friday; next business day should be Monday 2024-01-08
+    let next: string = cal.nextBusinessDay("2024-01-05");
+    if (next != "2024-01-08") {
+        io::println("FAIL: BusinessCalendar.nextBusinessDay returned " + next + ", expected 2024-01-08");
+    } else {
+        io::println("PASS: BusinessCalendar.nextBusinessDay skips weekend");
+    }
+}
+
+public fn test_businesscalendar_previousBusinessDay(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    // 2024-01-08 is a Monday; previous business day should be Friday 2024-01-05
+    let prev: string = cal.previousBusinessDay("2024-01-08");
+    if (prev != "2024-01-05") {
+        io::println("FAIL: BusinessCalendar.previousBusinessDay returned " + prev + ", expected 2024-01-05");
+    } else {
+        io::println("PASS: BusinessCalendar.previousBusinessDay skips weekend");
+    }
+}
+
+public fn test_businesscalendar_addBusinessDays_positive(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    // 2024-01-03 (Wed) + 3 business days = 2024-01-08 (Mon)
+    let result: string = cal.addBusinessDays("2024-01-03", 3);
+    if (result != "2024-01-08") {
+        io::println("FAIL: BusinessCalendar.addBusinessDays returned " + result + ", expected 2024-01-08");
+    } else {
+        io::println("PASS: BusinessCalendar.addBusinessDays positive works");
+    }
+}
+
+public fn test_businesscalendar_addBusinessDays_zero(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    let result: string = cal.addBusinessDays("2024-01-03", 0);
+    if (result != "2024-01-03") {
+        io::println("FAIL: BusinessCalendar.addBusinessDays(0) returned " + result);
+    } else {
+        io::println("PASS: BusinessCalendar.addBusinessDays(0) returns same date");
+    }
+}
+
+public fn test_businesscalendar_businessDaysBetween(): void {
+    let cal: BusinessCalendar = new BusinessCalendar("US");
+    // 2024-01-01 (Mon) to 2024-01-08 (Mon) exclusive: Mon-Fri = 5 business days
+    let count: int = cal.businessDaysBetween("2024-01-01", "2024-01-08");
+    if (count != 5) {
+        io::println("FAIL: BusinessCalendar.businessDaysBetween returned " + Integer.toString(count) + ", expected 5");
+    } else {
+        io::println("PASS: BusinessCalendar.businessDaysBetween works");
+    }
+}
+
+public fn run_all_business_calendar_tests(): void {
+    io::println("=== BusinessCalendar.tr Tests ===");
+    test_businesscalendar_init();
+    test_businesscalendar_weekend_days();
+    test_businesscalendar_isBusinessDay_weekday();
+    test_businesscalendar_isBusinessDay_weekend();
+    test_businesscalendar_isBusinessDay_sunday();
+    test_businesscalendar_addHoliday();
+    test_businesscalendar_addHoliday_isBusinessDay();
+    test_businesscalendar_removeHoliday();
+    test_businesscalendar_removeHoliday_missing();
+    test_businesscalendar_nextBusinessDay();
+    test_businesscalendar_previousBusinessDay();
+    test_businesscalendar_addBusinessDays_positive();
+    test_businesscalendar_addBusinessDays_zero();
+    test_businesscalendar_businessDaysBetween();
+}
