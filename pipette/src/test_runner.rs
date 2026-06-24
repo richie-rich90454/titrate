@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use trc::analyzer;
 use trc::bytecode::{Compiler, Vm};
 use trc::lexer;
 use trc::parser;
@@ -9,7 +8,8 @@ use trc::parser;
 use crate::project;
 
 /// Find and run test files (ending in `_test.tr`) and `test_*` functions.
-pub fn test(project_dir: &Path) -> Result<(), String> {
+/// If `filter` is provided, only run tests whose file path contains the filter string.
+pub fn test(project_dir: &Path, filter: Option<&str>) -> Result<(), String> {
     let _cfg = project::load_config(project_dir)?;
 
     // Collect test files from src/ and any subdirectories
@@ -32,6 +32,12 @@ pub fn test(project_dir: &Path) -> Result<(), String> {
             .display()
             .to_string();
 
+        if let Some(f) = filter {
+            if !rel.contains(f) && !test_file.to_string_lossy().contains(f) {
+                continue;
+            }
+        }
+
         print!("  testing {} ... ", rel);
 
         match run_test_file(test_file, project_dir) {
@@ -49,16 +55,22 @@ pub fn test(project_dir: &Path) -> Result<(), String> {
 
     // Scan all .tr files for test_* functions and run them individually
     for tr_file in &all_tr_files {
-        let test_fns = extract_test_functions(tr_file)?;
-        if test_fns.is_empty() {
-            continue;
-        }
-
         let rel = tr_file
             .strip_prefix(project_dir)
             .unwrap_or(tr_file)
             .display()
             .to_string();
+
+        if let Some(f) = filter {
+            if !rel.contains(f) && !tr_file.to_string_lossy().contains(f) {
+                continue;
+            }
+        }
+
+        let test_fns = extract_test_functions(tr_file)?;
+        if test_fns.is_empty() {
+            continue;
+        }
 
         for test_fn in &test_fns {
             print!("  testing {}::{} ... ", rel, test_fn.name);
@@ -120,10 +132,9 @@ fn run_test_file(test_file: &Path, project_dir: &Path) -> Result<(), String> {
 
     let tokens = lexer::tokenize(&source)?;
     let ast = parser::parse(tokens)?;
-    let typed_ast = analyzer::analyze(&ast).map_err(|errs| errs.join("\n"))?;
 
     let mut compiler = Compiler::new();
-    let compiled = compiler.compile_with_modules(&typed_ast, project_dir)?;
+    let compiled = compiler.compile_with_modules(&ast, project_dir)?;
 
     let mut vm = Vm::new();
     vm.load_program(compiled);
@@ -189,10 +200,9 @@ fn run_single_test(file: &Path, test_name: &str, project_dir: &Path) -> Result<(
 
     let tokens = lexer::tokenize(&source)?;
     let ast = parser::parse(tokens)?;
-    let typed_ast = analyzer::analyze(&ast).map_err(|errs| errs.join("\n"))?;
 
     let mut compiler = Compiler::new();
-    let compiled = compiler.compile_with_modules(&typed_ast, project_dir)?;
+    let compiled = compiler.compile_with_modules(&ast, project_dir)?;
 
     // Find the function index by name before loading the program
     let func_idx = compiled

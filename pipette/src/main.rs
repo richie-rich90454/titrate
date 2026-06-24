@@ -75,7 +75,17 @@ fn main() {
                     process::exit(1);
                 }
             };
-            if let Err(e) = pipette::test(&project_dir) {
+            let filter = if args.len() > 2 && args[2] == "--filter" {
+                if args.len() > 3 {
+                    Some(args[3].as_str())
+                } else {
+                    eprintln!("Error: --filter requires a value");
+                    process::exit(1);
+                }
+            } else {
+                None
+            };
+            if let Err(e) = pipette::test(&project_dir, filter) {
                 eprintln!("Tests failed: {}", e);
                 process::exit(1);
             }

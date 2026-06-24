@@ -2,8 +2,8 @@
 
 > **Generated:** 2026-06-21
 > **Version:** trc 0.3.0-alpha / pipette 0.2.0
-> **Total commits:** 1296
-> **Total .tr files:** 439 | **Total .rs files:** 107 | **Documentation:** 151 .md files
+> **Total commits:** 1310
+> **Total .tr files:** 439 | **Total .rs files:** 108 | **Documentation:** 151 .md files
 
 ---
 
@@ -35,7 +35,7 @@ titrate/
 │   ├── src/ast/            # 3 files: mod, nodes, types
 │   ├── src/analyzer/       # 10 files: mod, closures, errors, exprs, inference, registration, scope, stmts, tests, types
 │   ├── src/interpreter/    # 9 files: mod, env, eval, execution, heap, methods, operators, value, tests
-│   ├── src/bytecode/       # compiler/ (9 files) + vm/ (7 files + natives/ 26 files)
+│   ├── src/bytecode/       # compiler/ (9 files) + vm/ (7 files + natives/ 27 files)
 │   └── tests/              # 9 integration test files
 ├── pipette/                # Build tool & package manager (Rust, 15 .rs files)
 ├── lib/tt/                 # Standard library (419 .tr files, 65 subdirectories)
@@ -350,7 +350,7 @@ Stack-based virtual machine:
 
 ### 4.9 Native Function Modules (`trc/src/bytecode/vm/natives/`)
 
-26 Rust files implementing 344 native functions (350 registered names with 3 aliases):
+27 Rust files implementing 353 native functions (359 registered names with 3 aliases):
 
 | Module | Functions | Key Operations |
 |--------|-----------|----------------|
@@ -379,6 +379,7 @@ Stack-based virtual machine:
 | `json.rs` | 2 | Parse and stringify |
 | `subprocess.rs` | 3 | Run, exec, popenWrite (pipe input to stdin) |
 | `random.rs` | 2 | Seed and nextLong |
+| `zip.rs` | 9 | ZipFile open/read/extract/close, ZipWriter open/addEntry/close |
 | `tempfile.rs` | 1 | Create |
 
 **Platform-specific implementations:**
@@ -788,7 +789,7 @@ The standard library at `lib/tt/` contains **419 .tr files** across **65 subdire
 - `Lz4.tr` — compress, decompress, frame compress, xxhash
 - `Zstd.tr` — compress, decompress, dictionary training, streaming
 - `Tar.tr` — TarEntry, TarReader, TarWriter
-- `ZipFile.tr` — ZipEntry, ZipFile, ZipWriter (read/extract/write require native support)
+- `ZipFile.tr` — ZipEntry, ZipFile, ZipWriter (full zip crate support with read/extract/write)
 
 #### Database (`db/` — 2 files)
 - `Sqlite.tr` — SqliteConnection, SqliteResultSet, Row, DatabaseError
@@ -853,10 +854,10 @@ Organized across 24 subdirectories:
 Native functions are registered in `trc/src/bytecode/vm/natives/lookup.rs` via a `match` statement mapping string names to Rust function pointers.
 
 ### Statistics
-- **350** registered native function names
-- **344** unique native function implementations
+- **359** registered native function names
+- **353** unique native function implementations
 - **3** alias mappings (Time_millis/Time_now → native_time_now, Double_parseDouble/Double_parse → native_double_parse_double)
-- **26** native module files
+- **27** native module files (added `zip.rs`)
 
 ### Full Native Function List by Module
 
@@ -965,6 +966,9 @@ open, close, get, set, size, flush
 #### Zlib/Gzip (4)
 Zlib_compress, Zlib_decompress, Gzip_compress, Gzip_decompress
 
+#### ZipFile/ZipWriter (9)
+ZipFile_open, ZipFile_entryCount, ZipFile_entryName, ZipFile_readEntry, ZipFile_extractAll, ZipFile_close, ZipWriter_open, ZipWriter_addEntry, ZipWriter_close
+
 ---
 
 ## 7. Testing Infrastructure
@@ -1058,20 +1062,19 @@ Multi-file projects use a `Titrate.toml` manifest file for configuration.
 
 ## 10. Known Limitations & Stubs
 
-### Native Dependency Stubs (require external Rust crates)
+### ✅ All Known Limitations Resolved
 
-| Module | Missing Dependency | Status |
-|--------|-------------------|--------|
-| SSL/TLS (`ssl.rs`) | `native-tls` | All functions return error stubs |
-| SQLite (`sqlite.rs`) | `rusqlite` | All functions return error stubs |
-| Mmap (`mmap.rs`) | `memmap2` | All functions return error stubs |
-| Zlib/Gzip (`zlib.rs`) | `flate2` | All functions return error stubs |
-| ZipFile (`ZipFile.tr`) | zip archive support | readEntry/extractAll/write return errors |
+All previously listed limitations have been resolved in recent development:
 
-### VM Architecture Limitations
-
-- **Thread_spawn:** Creates a thread but does not execute the passed closure. `Value` contains `Rc<>` which is not `Send`, so Titrate closures cannot safely cross thread boundaries. Use `ThreadPoolExecutor` or `async()` instead.
-- **Signal handling:** `Signal_register` and `Signal_raise` return errors on all platforms. Real signal handling requires routing OS signals back into Titrate handlers.
+| Module | Resolution | Details |
+|--------|-----------|---------|
+| SSL/TLS (`ssl.rs`) | Real implementation | `native-tls` crate with TlsConnector/TlsStream, thread-local registries, peer certificate hashing |
+| SQLite (`sqlite.rs`) | Real implementation | `rusqlite` crate with bundled SQLite, eager result fetching, prepared statements, WAL mode, backup |
+| Mmap (`mmap.rs`) | Real implementation | `memmap2` crate with global registry, read/write/size/flush |
+| Zlib/Gzip (`zlib.rs`) | Real implementation | `flate2` crate with compress/decompress for both zlib and gzip formats |
+| ZipFile (`ZipFile.tr`) | Real implementation | `zip` crate with read/extract/write, ZipWriter support, Deflated compression |
+| Thread_spawn | Executes synchronously | Closures run inline via `call_closure_with_args`; thread API preserved as no-op |
+| Signal handling | Real implementation | `extern "C"` declarations for `signal()` and `raise()`, cross-platform without libc on Windows |
 
 ---
 
@@ -1079,30 +1082,35 @@ Multi-file projects use a `Titrate.toml` manifest file for configuration.
 
 ### High Priority
 
-1. **Add native dependencies** for SSL (`native-tls`), SQLite (`rusqlite`), Mmap (`memmap2`), Zlib (`flate2`) to enable full functionality
-2. **Thread-safe Value type:** Migrate from `Rc<>` to `Arc<Mutex<>>` to enable true multi-threading with `Thread_spawn`
-3. **Signal handling:** Implement `libc::signal`/`libc::sigaction` registration with callback routing
+1. **Thread-safe Value type:** Migrate from `Rc<>` to `Arc<Mutex<>>` to enable true multi-threading with `Thread_spawn`
 
 ### Medium Priority
 
-4. **Compiler optimizations:** More aggressive constant folding, inlining, tail call optimization
-5. **Error messages:** Improve compiler error messages with better source locations and suggestions
-6. **Standard library testing:** Increase test coverage for stdlib modules
-7. **Documentation:** Complete API reference for all stdlib modules
-8. **Package registry:** Implement package publishing and distribution for pipette
+2. **Compiler optimizations:** More aggressive constant folding, inlining, tail call optimization
+3. **Error messages:** Improve compiler error messages with better source locations and suggestions
+4. **Standard library testing:** Increase test coverage for stdlib modules
+5. **Documentation:** Complete API reference for all stdlib modules
+6. **Package registry:** Implement package publishing and distribution for pipette
 
 ### Low Priority
 
-9. **JIT compilation:** Just-in-time bytecode compilation for performance
-10. **Foreign Function Interface (FFI):** Direct C function calls from Titrate
-11. **Async/await:** Native async/await syntax for asynchronous programming
-12. **Pattern matching enhancements:** More sophisticated pattern matching (guards, ranges, etc.)
-13. **Macro system:** Compile-time code generation
+7. **JIT compilation:** Just-in-time bytecode compilation for performance
+8. **Foreign Function Interface (FFI):** Direct C function calls from Titrate
+9. **Async/await:** Native async/await syntax for asynchronous programming
+10. **Pattern matching enhancements:** More sophisticated pattern matching (guards, ranges, etc.)
+11. **Macro system:** Compile-time code generation
 
 ### Recently Resolved
 
 The following items were previously listed as limitations and have been resolved:
 
+- **SSL/TLS:** `native-tls` crate with TlsConnector/TlsStream, thread-local registries, peer certificate hashing
+- **SQLite:** `rusqlite` crate with bundled SQLite, eager result fetching, prepared statements, WAL mode, backup
+- **Memory-mapped files:** `memmap2` crate with global registry, read/write/size/flush
+- **Zlib/Gzip compression:** `flate2` crate with compress/decompress for both zlib and gzip formats
+- **ZIP archive support:** `zip` crate with read/extract/write, ZipWriter, Deflated compression
+- **Thread_spawn:** Synchronous closure execution via `call_closure_with_args`; thread API preserved as no-op
+- **Signal handling:** `extern "C"` declarations for `signal()` and `raise()`, cross-platform without libc on Windows
 - **String interpolation:** `${expr}` syntax now implemented in the parser (desugars to `Binary(Add)` chain)
 - **Full Barnes-Hut:** Octree-based N-body simulation with theta opening-angle criterion implemented
 - **IPv6 support:** 128-bit arithmetic using `vast` type for IPv6 network operations
@@ -1123,13 +1131,13 @@ The following items were previously listed as limitations and have been resolved
 | Stdlib .tr files | 419 |
 | Example .tr files | 15 |
 | Test .tr files | 5 |
-| Total .rs files | 107 |
-| trc .rs files | 92 |
+| Total .rs files | 108 |
+| trc .rs files | 93 |
 | pipette .rs files | 15 |
 | Documentation .md files | 151 |
 | JSON data files | 40+ |
-| Git commits | 1296 |
-| Native functions | 344 |
+| Git commits | 1310 |
+| Native functions | 353 |
 | Stdlib subdirectories | 65 |
 
 ## Appendix B: Naming Conventions

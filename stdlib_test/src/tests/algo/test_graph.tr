@@ -7,8 +7,8 @@ import tt::lang::Integer;
 
 public fn test_graph_init(): void {
     let g: Graph = new Graph(5);
-    if (g == null) {
-        io::println("FAIL: Graph.init returned null");
+    if (g.vertexCount() != 5) {
+        io::println("FAIL: Graph.init vertexCount wrong");
     } else {
         io::println("PASS: Graph.init works");
     }
