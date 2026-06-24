@@ -1,0 +1,219 @@
+// Test file for algo/StringAlgo.tr
+// Exercises the public API: kmpSearch, kmp, rabinKarp, boyerMoore, suffixArray, lcpArray, zAlgorithm, ahoCorasick.
+import tt::algo::StringAlgo;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_kmpSearch_match(): void {
+    let result: ArrayList<int> = kmpSearch("hello world", "world");
+    if (result.size() != 1) {
+        io::println("FAIL: kmpSearch match size=" + Integer.toString(result.size()));
+    } else if (result.get(0) != 6) {
+        io::println("FAIL: kmpSearch match index=" + Integer.toString(result.get(0)));
+    } else {
+        io::println("PASS: kmpSearch match works");
+    }
+}
+
+public fn test_kmpSearch_no_match(): void {
+    let result: ArrayList<int> = kmpSearch("hello world", "xyz");
+    if (result.size() != 0) {
+        io::println("FAIL: kmpSearch no match size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: kmpSearch no match works");
+    }
+}
+
+public fn test_kmpSearch_multiple_matches(): void {
+    let result: ArrayList<int> = kmpSearch("ababab", "ab");
+    if (result.size() != 3) {
+        io::println("FAIL: kmpSearch multiple size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: kmpSearch multiple matches works");
+    }
+}
+
+public fn test_kmpSearch_empty_pattern(): void {
+    let result: ArrayList<int> = kmpSearch("hello", "");
+    if (result.size() != 0) {
+        io::println("FAIL: kmpSearch empty pattern should return empty");
+    } else {
+        io::println("PASS: kmpSearch empty pattern works");
+    }
+}
+
+public fn test_kmp_alias(): void {
+    let result: ArrayList<int> = kmp("hello world", "world");
+    if (result.size() != 1) {
+        io::println("FAIL: kmp alias size wrong");
+    } else {
+        io::println("PASS: kmp alias works");
+    }
+}
+
+public fn test_rabinKarp_match(): void {
+    let result: ArrayList<int> = rabinKarp("hello world", "world");
+    if (result.size() != 1) {
+        io::println("FAIL: rabinKarp match size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: rabinKarp match works");
+    }
+}
+
+public fn test_rabinKarp_no_match(): void {
+    let result: ArrayList<int> = rabinKarp("hello world", "xyz");
+    if (result.size() != 0) {
+        io::println("FAIL: rabinKarp no match size wrong");
+    } else {
+        io::println("PASS: rabinKarp no match works");
+    }
+}
+
+public fn test_rabinKarp_multiple(): void {
+    let result: ArrayList<int> = rabinKarp("ababab", "ab");
+    if (result.size() != 3) {
+        io::println("FAIL: rabinKarp multiple size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: rabinKarp multiple works");
+    }
+}
+
+public fn test_boyerMoore_match(): void {
+    let result: ArrayList<int> = boyerMoore("hello world", "world");
+    if (result.size() != 1) {
+        io::println("FAIL: boyerMoore match size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: boyerMoore match works");
+    }
+}
+
+public fn test_boyerMoore_no_match(): void {
+    let result: ArrayList<int> = boyerMoore("hello world", "xyz");
+    if (result.size() != 0) {
+        io::println("FAIL: boyerMoore no match size wrong");
+    } else {
+        io::println("PASS: boyerMoore no match works");
+    }
+}
+
+public fn test_suffixArray(): void {
+    let result: ArrayList<int> = suffixArray("banana");
+    if (result.size() != 6) {
+        io::println("FAIL: suffixArray size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: suffixArray works");
+    }
+}
+
+public fn test_suffixArray_empty(): void {
+    let result: ArrayList<int> = suffixArray("");
+    if (result.size() != 0) {
+        io::println("FAIL: suffixArray empty size wrong");
+    } else {
+        io::println("PASS: suffixArray empty works");
+    }
+}
+
+public fn test_lcpArray(): void {
+    let sa: ArrayList<int> = suffixArray("banana");
+    let lcp: ArrayList<int> = lcpArray("banana", sa);
+    if (lcp.size() != sa.size()) {
+        io::println("FAIL: lcpArray size wrong");
+    } else {
+        io::println("PASS: lcpArray works");
+    }
+}
+
+public fn test_zAlgorithm(): void {
+    let result: ArrayList<int> = zAlgorithm("aabcaab");
+    if (result.size() != 7) {
+        io::println("FAIL: zAlgorithm size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: zAlgorithm works");
+    }
+}
+
+public fn test_zAlgorithm_first(): void {
+    let result: ArrayList<int> = zAlgorithm("abc");
+    if (result.get(0) != 3) {
+        io::println("FAIL: zAlgorithm first should be length");
+    } else {
+        io::println("PASS: zAlgorithm first works");
+    }
+}
+
+public fn test_ahoCorasick(): void {
+    let patterns: ArrayList<string> = new ArrayList<string>();
+    patterns.add("he");
+    patterns.add("she");
+    patterns.add("his");
+    let result: HashMap<string, ArrayList<int>> = ahoCorasick("ushers", patterns);
+    if (result == null) {
+        io::println("FAIL: ahoCorasick returned null");
+    } else {
+        io::println("PASS: ahoCorasick works");
+    }
+}
+
+public fn test_ahoCorasick_no_match(): void {
+    let patterns: ArrayList<string> = new ArrayList<string>();
+    patterns.add("xyz");
+    let result: HashMap<string, ArrayList<int>> = ahoCorasick("hello", patterns);
+    if (result == null) {
+        io::println("FAIL: ahoCorasick no match returned null");
+    } else {
+        io::println("PASS: ahoCorasick no match works");
+    }
+}
+
+public fn test_kmpSearch_at_start(): void {
+    let result: ArrayList<int> = kmpSearch("world hello", "world");
+    if (result.size() != 1 || result.get(0) != 0) {
+        io::println("FAIL: kmpSearch at start wrong");
+    } else {
+        io::println("PASS: kmpSearch at start works");
+    }
+}
+
+public fn test_kmpSearch_at_end(): void {
+    let result: ArrayList<int> = kmpSearch("hello world", "world");
+    if (result.size() != 1 || result.get(0) != 6) {
+        io::println("FAIL: kmpSearch at end wrong");
+    } else {
+        io::println("PASS: kmpSearch at end works");
+    }
+}
+
+public fn test_kmpSearch_overlapping(): void {
+    let result: ArrayList<int> = kmpSearch("aaaa", "aa");
+    if (result.size() < 2) {
+        io::println("FAIL: kmpSearch overlapping size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: kmpSearch overlapping works");
+    }
+}
+
+public fn run_all_stringalgo_tests(): void {
+    io::println("=== StringAlgo.tr Tests ===");
+    test_kmpSearch_match();
+    test_kmpSearch_no_match();
+    test_kmpSearch_multiple_matches();
+    test_kmpSearch_empty_pattern();
+    test_kmp_alias();
+    test_rabinKarp_match();
+    test_rabinKarp_no_match();
+    test_rabinKarp_multiple();
+    test_boyerMoore_match();
+    test_boyerMoore_no_match();
+    test_suffixArray();
+    test_suffixArray_empty();
+    test_lcpArray();
+    test_zAlgorithm();
+    test_zAlgorithm_first();
+    test_ahoCorasick();
+    test_ahoCorasick_no_match();
+    test_kmpSearch_at_start();
+    test_kmpSearch_at_end();
+    test_kmpSearch_overlapping();
+}
