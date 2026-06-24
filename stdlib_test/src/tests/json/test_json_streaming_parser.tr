@@ -1,0 +1,336 @@
+// Test file for json/JsonStreamingParser.tr
+// Exercises the public API: JsonEvent, JsonStreamingParser.
+import tt::json::JsonStreamingParser;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_jsonevent_init(): void {
+    let evt: JsonEvent = new JsonEvent("startObject");
+    if (evt == null) {
+        io::println("FAIL: JsonEvent.init returned null");
+    } else if (evt.eventType != "startObject") {
+        io::println("FAIL: JsonEvent.eventType=" + evt.eventType);
+    } else {
+        io::println("PASS: JsonEvent.init works");
+    }
+}
+
+public fn test_jsonevent_default_fields(): void {
+    let evt: JsonEvent = new JsonEvent("number");
+    if (evt.stringValue != "") {
+        io::println("FAIL: JsonEvent.stringValue default wrong");
+    } else if (evt.numberValue != 0.0) {
+        io::println("FAIL: JsonEvent.numberValue default wrong");
+    } else if (evt.boolValue) {
+        io::println("FAIL: JsonEvent.boolValue default wrong");
+    } else {
+        io::println("PASS: JsonEvent default fields work");
+    }
+}
+
+public fn test_jsonevent_field_assignment(): void {
+    let evt: JsonEvent = new JsonEvent("number");
+    evt.numberValue = 42.0;
+    evt.stringValue = "42";
+    if (evt.numberValue != 42.0) {
+        io::println("FAIL: JsonEvent.numberValue assignment wrong");
+    } else if (evt.stringValue != "42") {
+        io::println("FAIL: JsonEvent.stringValue assignment wrong");
+    } else {
+        io::println("PASS: JsonEvent field assignment works");
+    }
+}
+
+public fn test_streaming_parser_init(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    if (p == null) {
+        io::println("FAIL: JsonStreamingParser.init returned null");
+    } else {
+        io::println("PASS: JsonStreamingParser.init works");
+    }
+}
+
+public fn test_streaming_parser_max_depth(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    if (p.maxDepth != 1000) {
+        io::println("FAIL: JsonStreamingParser.maxDepth=" + Integer.toString(p.maxDepth));
+    } else {
+        io::println("PASS: JsonStreamingParser.maxDepth works");
+    }
+}
+
+public fn test_streaming_parser_parse_null(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("null");
+    if (events.size() != 1) {
+        io::println("FAIL: parse null size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "null") {
+        io::println("FAIL: parse null type=" + events.get(0).eventType);
+    } else {
+        io::println("PASS: parse null works");
+    }
+}
+
+public fn test_streaming_parser_parse_true(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("true");
+    if (events.size() != 1) {
+        io::println("FAIL: parse true size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "bool") {
+        io::println("FAIL: parse true type wrong");
+    } else if (!events.get(0).boolValue) {
+        io::println("FAIL: parse true boolValue wrong");
+    } else {
+        io::println("PASS: parse true works");
+    }
+}
+
+public fn test_streaming_parser_parse_false(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("false");
+    if (events.size() != 1) {
+        io::println("FAIL: parse false size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "bool") {
+        io::println("FAIL: parse false type wrong");
+    } else if (events.get(0).boolValue) {
+        io::println("FAIL: parse false boolValue wrong");
+    } else {
+        io::println("PASS: parse false works");
+    }
+}
+
+public fn test_streaming_parser_parse_number(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("42.5");
+    if (events.size() != 1) {
+        io::println("FAIL: parse number size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "number") {
+        io::println("FAIL: parse number type wrong");
+    } else if (events.get(0).numberValue != 42.5) {
+        io::println("FAIL: parse number value wrong");
+    } else {
+        io::println("PASS: parse number works");
+    }
+}
+
+public fn test_streaming_parser_parse_negative_number(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("-10");
+    if (events.size() != 1) {
+        io::println("FAIL: parse negative number size=" + Integer.toString(events.size()));
+    } else if (events.get(0).numberValue != -10.0) {
+        io::println("FAIL: parse negative number value wrong");
+    } else {
+        io::println("PASS: parse negative number works");
+    }
+}
+
+public fn test_streaming_parser_parse_string(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("\"hello\"");
+    if (events.size() != 1) {
+        io::println("FAIL: parse string size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "string") {
+        io::println("FAIL: parse string type wrong");
+    } else if (events.get(0).stringValue != "hello") {
+        io::println("FAIL: parse string value wrong");
+    } else {
+        io::println("PASS: parse string works");
+    }
+}
+
+public fn test_streaming_parser_parse_empty_array(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("[]");
+    if (events.size() != 2) {
+        io::println("FAIL: parse empty array size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "startArray") {
+        io::println("FAIL: parse empty array start wrong");
+    } else if (events.get(1).eventType != "endArray") {
+        io::println("FAIL: parse empty array end wrong");
+    } else {
+        io::println("PASS: parse empty array works");
+    }
+}
+
+public fn test_streaming_parser_parse_array(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("[1, 2, 3]");
+    if (events.size() != 5) {
+        io::println("FAIL: parse array size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "startArray") {
+        io::println("FAIL: parse array start wrong");
+    } else if (events.get(4).eventType != "endArray") {
+        io::println("FAIL: parse array end wrong");
+    } else {
+        io::println("PASS: parse array works");
+    }
+}
+
+public fn test_streaming_parser_parse_empty_object(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("{}");
+    if (events.size() != 2) {
+        io::println("FAIL: parse empty object size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "startObject") {
+        io::println("FAIL: parse empty object start wrong");
+    } else if (events.get(1).eventType != "endObject") {
+        io::println("FAIL: parse empty object end wrong");
+    } else {
+        io::println("PASS: parse empty object works");
+    }
+}
+
+public fn test_streaming_parser_parse_object(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("{\"a\": 1}");
+    if (events.size() < 4) {
+        io::println("FAIL: parse object size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "startObject") {
+        io::println("FAIL: parse object start wrong");
+    } else {
+        io::println("PASS: parse object works");
+    }
+}
+
+public fn test_streaming_parser_parse_object_key_event(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("{\"name\": \"Alice\"}");
+    let hasKey: bool = false;
+    let i: int = 0;
+    while (i < events.size()) {
+        if (events.get(i).eventType == "key" && events.get(i).stringValue == "name") {
+            hasKey = true;
+        }
+        i = i + 1;
+    }
+    if (!hasKey) {
+        io::println("FAIL: parse object key event not found");
+    } else {
+        io::println("PASS: parse object key event works");
+    }
+}
+
+public fn test_streaming_parser_next(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    p.parse("42");
+    let evt: JsonEvent = p.next();
+    if (evt == null) {
+        io::println("FAIL: next returned null");
+    } else if (evt.eventType != "number") {
+        io::println("FAIL: next type wrong");
+    } else {
+        io::println("PASS: next works");
+    }
+}
+
+public fn test_streaming_parser_next_empty(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let evt: JsonEvent = p.next();
+    if (evt != null) {
+        io::println("FAIL: next empty should return null");
+    } else {
+        io::println("PASS: next empty works");
+    }
+}
+
+public fn test_streaming_parser_next_consumes(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    p.parse("[1, 2]");
+    let first: JsonEvent = p.next();
+    let second: JsonEvent = p.next();
+    if (first == null || second == null) {
+        io::println("FAIL: next consumes returned null");
+    } else if (first.eventType != "startArray") {
+        io::println("FAIL: next consumes first wrong");
+    } else if (second.eventType != "number") {
+        io::println("FAIL: next consumes second wrong");
+    } else {
+        io::println("PASS: next consumes works");
+    }
+}
+
+public fn test_streaming_parser_current_path_empty(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let path: string = p.currentPath();
+    if (path != "") {
+        io::println("FAIL: currentPath empty=" + path);
+    } else {
+        io::println("PASS: currentPath empty works");
+    }
+}
+
+public fn test_streaming_parser_feed(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.feed("42");
+    if (events.size() != 1) {
+        io::println("FAIL: feed size=" + Integer.toString(events.size()));
+    } else if (events.get(0).eventType != "number") {
+        io::println("FAIL: feed type wrong");
+    } else {
+        io::println("PASS: feed works");
+    }
+}
+
+public fn test_streaming_parser_close(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    p.feed("42");
+    let events: ArrayList<JsonEvent> = p.close();
+    if (events == null) {
+        io::println("FAIL: close returned null");
+    } else {
+        io::println("PASS: close works");
+    }
+}
+
+public fn test_streaming_parser_nested(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("{\"a\": [1, 2]}");
+    if (events.size() < 6) {
+        io::println("FAIL: parse nested size=" + Integer.toString(events.size()));
+    } else {
+        io::println("PASS: parse nested works");
+    }
+}
+
+public fn test_streaming_parser_string_escapes(): void {
+    let p: JsonStreamingParser = new JsonStreamingParser();
+    let events: ArrayList<JsonEvent> = p.parse("\"line1\\nline2\"");
+    if (events.size() != 1) {
+        io::println("FAIL: parse string escapes size=" + Integer.toString(events.size()));
+    } else if (events.get(0).stringValue != "line1\nline2") {
+        io::println("FAIL: parse string escapes value wrong");
+    } else {
+        io::println("PASS: parse string escapes works");
+    }
+}
+
+public fn run_all_json_streaming_parser_tests(): void {
+    io::println("=== JsonStreamingParser.tr Tests ===");
+    test_jsonevent_init();
+    test_jsonevent_default_fields();
+    test_jsonevent_field_assignment();
+    test_streaming_parser_init();
+    test_streaming_parser_max_depth();
+    test_streaming_parser_parse_null();
+    test_streaming_parser_parse_true();
+    test_streaming_parser_parse_false();
+    test_streaming_parser_parse_number();
+    test_streaming_parser_parse_negative_number();
+    test_streaming_parser_parse_string();
+    test_streaming_parser_parse_empty_array();
+    test_streaming_parser_parse_array();
+    test_streaming_parser_parse_empty_object();
+    test_streaming_parser_parse_object();
+    test_streaming_parser_parse_object_key_event();
+    test_streaming_parser_next();
+    test_streaming_parser_next_empty();
+    test_streaming_parser_next_consumes();
+    test_streaming_parser_current_path_empty();
+    test_streaming_parser_feed();
+    test_streaming_parser_close();
+    test_streaming_parser_nested();
+    test_streaming_parser_string_escapes();
+}
