@@ -1,0 +1,152 @@
+// Test file for ndarray/NDArraySort.tr
+// Exercises the public API for NDArray sorting and search (sort, argsort, nonzero, unique).
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArraySort;
+import tt::lang::Integer;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn arr1(d: ArrayList<double>): NDArray<double> {
+    return fromData<double>(shape1(d.size()), d);
+}
+
+public fn test_sort(): void {
+    // sort [3,1,2] -> [1,2,3]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(3.0);
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<double> = NDArraySort.sort<double>(a);
+    if (r.data.size() == 3 && approxEq(r.getFlat(0), 1.0, 1e-9) && approxEq(r.getFlat(1), 2.0, 1e-9) && approxEq(r.getFlat(2), 3.0, 1e-9)) {
+        io::println("PASS: sort works");
+    } else {
+        io::println("FAIL: sort");
+    }
+}
+
+public fn test_sort_duplicates(): void {
+    // sort [2,1,2,1] -> [1,1,2,2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(2.0);
+    data.add(1.0);
+    data.add(2.0);
+    data.add(1.0);
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<double> = NDArraySort.sort<double>(a);
+    if (r.data.size() == 4 && approxEq(r.getFlat(0), 1.0, 1e-9) && approxEq(r.getFlat(3), 2.0, 1e-9)) {
+        io::println("PASS: sort duplicates works");
+    } else {
+        io::println("FAIL: sort duplicates");
+    }
+}
+
+public fn test_argsort(): void {
+    // argsort [3,1,2] -> [1,2,0]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(3.0);
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<int> = NDArraySort.argsort<double>(a);
+    if (r.data.size() == 3 && r.getFlat(0) == 1 && r.getFlat(1) == 2 && r.getFlat(2) == 0) {
+        io::println("PASS: argsort works");
+    } else {
+        io::println("FAIL: argsort");
+    }
+}
+
+public fn test_argsort_sorted(): void {
+    // argsort of already sorted [1,2,3] -> [0,1,2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<int> = NDArraySort.argsort<double>(a);
+    if (r.data.size() == 3 && r.getFlat(0) == 0 && r.getFlat(1) == 1 && r.getFlat(2) == 2) {
+        io::println("PASS: argsort sorted works");
+    } else {
+        io::println("FAIL: argsort sorted");
+    }
+}
+
+public fn test_nonzero(): void {
+    // nonzero [0,1,0,2] -> [1,3]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0);
+    data.add(1.0);
+    data.add(0.0);
+    data.add(2.0);
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<int> = NDArraySort.nonzero<double>(a);
+    if (r.data.size() == 2 && r.getFlat(0) == 1 && r.getFlat(1) == 3) {
+        io::println("PASS: nonzero works");
+    } else {
+        io::println("FAIL: nonzero");
+    }
+}
+
+public fn test_nonzero_all_zero(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0);
+    data.add(0.0);
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<int> = NDArraySort.nonzero<double>(a);
+    if (r.data.size() == 0) {
+        io::println("PASS: nonzero all zero works");
+    } else {
+        io::println("FAIL: nonzero all zero");
+    }
+}
+
+public fn test_unique(): void {
+    // unique [1,2,1,3,2] -> [1,2,3]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(1.0);
+    data.add(3.0);
+    data.add(2.0);
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<double> = NDArraySort.unique<double>(a);
+    if (r.data.size() == 3 && approxEq(r.getFlat(0), 1.0, 1e-9) && approxEq(r.getFlat(1), 2.0, 1e-9) && approxEq(r.getFlat(2), 3.0, 1e-9)) {
+        io::println("PASS: unique works");
+    } else {
+        io::println("FAIL: unique");
+    }
+}
+
+public fn test_unique_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<double> = NDArraySort.unique<double>(a);
+    if (r.data.size() == 0) {
+        io::println("PASS: unique empty works");
+    } else {
+        io::println("FAIL: unique empty");
+    }
+}
+
+public fn run_all_ndarray_sort_tests(): void {
+    io::println("=== ndarray/NDArraySort.tr Tests ===");
+    test_sort();
+    test_sort_duplicates();
+    test_argsort();
+    test_argsort_sorted();
+    test_nonzero();
+    test_nonzero_all_zero();
+    test_unique();
+    test_unique_empty();
+}

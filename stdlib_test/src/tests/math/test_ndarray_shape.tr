@@ -1,0 +1,156 @@
+// Test file for ndarray/NDArrayShape.tr
+// Exercises the public API for NDArray shape manipulation (squeeze, expandDims, broadcastTo, repeat, tile).
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArrayShape;
+import tt::lang::Integer;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn shape2(r: int, c: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(r);
+    s.add(c);
+    return s;
+}
+
+public fn test_squeeze(): void {
+    // shape [1, 3] squeezed -> [3]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    let shape: ArrayList<int> = shape2(1, 3);
+    let a: NDArray<double> = fromData<double>(shape, data);
+    let r: NDArray<double> = NDArrayShape.squeeze<double>(a);
+    if (r.shape.size() == 1 && r.shape.get(0) == 3) {
+        io::println("PASS: squeeze works");
+    } else {
+        io::println("FAIL: squeeze shape");
+    }
+}
+
+public fn test_squeeze_no_unit(): void {
+    // shape [2, 3] squeezed -> [2, 3] (no change)
+    let data: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 6) { data.add(i as double); i = i + 1; }
+    let a: NDArray<double> = fromData<double>(shape2(2, 3), data);
+    let r: NDArray<double> = NDArrayShape.squeeze<double>(a);
+    if (r.shape.size() == 2 && r.shape.get(0) == 2 && r.shape.get(1) == 3) {
+        io::println("PASS: squeeze no unit works");
+    } else {
+        io::println("FAIL: squeeze no unit");
+    }
+}
+
+public fn test_expandDims(): void {
+    // shape [2] expanded -> [1, 2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let r: NDArray<double> = NDArrayShape.expandDims<double>(a);
+    if (r.shape.size() == 2 && r.shape.get(0) == 1 && r.shape.get(1) == 2) {
+        io::println("PASS: expandDims works");
+    } else {
+        io::println("FAIL: expandDims shape");
+    }
+}
+
+public fn test_broadcastTo(): void {
+    // broadcast [5] (shape [1]) to [3] -> [5, 5, 5]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(5.0);
+    let a: NDArray<double> = fromData<double>(shape1(1), data);
+    let target: ArrayList<int> = shape1(3);
+    let r: NDArray<double> = NDArrayShape.broadcastTo<double>(a, target);
+    if (r.data.size() == 3 && approxEq(r.getFlat(0), 5.0, 1e-9) && approxEq(r.getFlat(2), 5.0, 1e-9)) {
+        io::println("PASS: broadcastTo works");
+    } else {
+        io::println("FAIL: broadcastTo");
+    }
+}
+
+public fn test_broadcastTo_2d(): void {
+    // broadcast shape [1, 2] to [2, 2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape2(1, 2), data);
+    let target: ArrayList<int> = shape2(2, 2);
+    let r: NDArray<double> = NDArrayShape.broadcastTo<double>(a, target);
+    if (r.data.size() == 4 && approxEq(r.get2D(0, 0), 1.0, 1e-9) && approxEq(r.get2D(1, 1), 2.0, 1e-9)) {
+        io::println("PASS: broadcastTo 2d works");
+    } else {
+        io::println("FAIL: broadcastTo 2d");
+    }
+}
+
+public fn test_repeat(): void {
+    // repeat [1, 2] n=2 -> [1, 1, 2, 2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let r: NDArray<double> = NDArrayShape.repeat<double>(a, 2);
+    if (r.data.size() == 4 && approxEq(r.getFlat(0), 1.0, 1e-9) && approxEq(r.getFlat(1), 1.0, 1e-9) && approxEq(r.getFlat(3), 2.0, 1e-9)) {
+        io::println("PASS: repeat works");
+    } else {
+        io::println("FAIL: repeat");
+    }
+}
+
+public fn test_tile(): void {
+    // tile [1, 2] with reps [2] -> [1, 2, 1, 2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let reps: ArrayList<int> = shape1(2);
+    let r: NDArray<double> = NDArrayShape.tile<double>(a, reps);
+    if (r.data.size() == 4 && approxEq(r.getFlat(0), 1.0, 1e-9) && approxEq(r.getFlat(2), 1.0, 1e-9) && approxEq(r.getFlat(3), 2.0, 1e-9)) {
+        io::println("PASS: tile works");
+    } else {
+        io::println("FAIL: tile");
+    }
+}
+
+public fn test_tile_2d(): void {
+    // tile 2x2 with reps [2, 1] -> 4x2
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    let a: NDArray<double> = fromData<double>(shape2(2, 2), data);
+    let reps: ArrayList<int> = shape2(2, 1);
+    let r: NDArray<double> = NDArrayShape.tile<double>(a, reps);
+    if (r.shape.get(0) == 4 && r.shape.get(1) == 2) {
+        io::println("PASS: tile 2d works");
+    } else {
+        io::println("FAIL: tile 2d shape");
+    }
+}
+
+public fn run_all_ndarray_shape_tests(): void {
+    io::println("=== ndarray/NDArrayShape.tr Tests ===");
+    test_squeeze();
+    test_squeeze_no_unit();
+    test_expandDims();
+    test_broadcastTo();
+    test_broadcastTo_2d();
+    test_repeat();
+    test_tile();
+    test_tile_2d();
+}

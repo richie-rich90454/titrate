@@ -1,0 +1,119 @@
+// Test file for Qr.tr
+// Exercises the public API for QR decomposition variants.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::linalg::Qr;
+import tt::lang::Integer;
+
+public fn test_qr_householder(): void {
+    // 2x2 matrix [[1, 2], [3, 4]]
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(3.0);
+    row1.add(4.0);
+    a.add(row0);
+    a.add(row1);
+    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.qrHouseholder(a, 2, 2);
+    let q: ArrayList<ArrayList<double>> = result.first;
+    let r: ArrayList<ArrayList<double>> = result.second;
+    if (q.size() != 2 || r.size() != 2) {
+        io::println("FAIL: qrHouseholder sizes q=" + Integer.toString(q.size()) + " r=" + Integer.toString(r.size()));
+        return;
+    }
+    // R should be upper triangular: R[1][0] should be ~0
+    if (Math.abs(r.get(1).get(0)) > 1e-9) {
+        io::println("FAIL: qrHouseholder R not upper triangular");
+    } else {
+        io::println("PASS: qrHouseholder produces upper triangular R");
+    }
+}
+
+public fn test_qr_givens(): void {
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(3.0);
+    row1.add(4.0);
+    a.add(row0);
+    a.add(row1);
+    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.qrGivens(a, 2, 2);
+    let q: ArrayList<ArrayList<double>> = result.first;
+    let r: ArrayList<ArrayList<double>> = result.second;
+    if (q.size() != 2 || r.size() != 2) {
+        io::println("FAIL: qrGivens sizes q=" + Integer.toString(q.size()) + " r=" + Integer.toString(r.size()));
+        return;
+    }
+    if (Math.abs(r.get(1).get(0)) > 1e-9) {
+        io::println("FAIL: qrGivens R not upper triangular");
+    } else {
+        io::println("PASS: qrGivens produces upper triangular R");
+    }
+}
+
+public fn test_qr_pivoted(): void {
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(3.0);
+    row1.add(4.0);
+    a.add(row0);
+    a.add(row1);
+    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.qrPivoted(a, 2, 2);
+    if (result.first.size() != 2 || result.second.size() != 2) {
+        io::println("FAIL: qrPivoted result sizes");
+        return;
+    }
+    io::println("PASS: qrPivoted returns proper structure");
+}
+
+public fn test_qr_column_pivoting(): void {
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(3.0);
+    row1.add(4.0);
+    a.add(row0);
+    a.add(row1);
+    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.qrColumnPivoting(a, 2, 2);
+    if (result.first.size() != 2 || result.second.size() != 2) {
+        io::println("FAIL: qrColumnPivoting result sizes");
+        return;
+    }
+    io::println("PASS: qrColumnPivoting returns proper structure");
+}
+
+public fn test_rank_revealing_qr(): void {
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(2.0);
+    row1.add(4.0);
+    a.add(row0);
+    a.add(row1);
+    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Qr.rankRevealingQr(a, 2, 2, 1e-9);
+    if (result.first.size() != 2 || result.second.size() != 2) {
+        io::println("FAIL: rankRevealingQr result sizes");
+        return;
+    }
+    io::println("PASS: rankRevealingQr returns proper structure");
+}
+
+public fn run_all_qr_tests(): void {
+    io::println("=== Qr.tr Tests ===");
+    test_qr_householder();
+    test_qr_givens();
+    test_qr_pivoted();
+    test_qr_column_pivoting();
+    test_rank_revealing_qr();
+}

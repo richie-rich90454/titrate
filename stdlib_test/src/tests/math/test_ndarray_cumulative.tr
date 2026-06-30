@@ -1,0 +1,134 @@
+// Test file for ndarray/Cumulative.tr
+// Exercises the public API for cumulative array operations.
+import tt::util::ArrayList;
+import tt::math::ndarray::Cumulative;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_cumsum(): void {
+    // cumsum([1, 2, 3, 4]) = [1, 3, 6, 10]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    let result: ArrayList<double> = Cumulative.cumsum(data);
+    if (result.size() != 4) {
+        io::println("FAIL: cumsum size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-9 || Math.abs(result.get(3) - 10.0) > 1e-9) {
+        io::println("FAIL: cumsum values");
+    } else {
+        io::println("PASS: cumsum works");
+    }
+}
+
+public fn test_cumprod(): void {
+    // cumprod([1, 2, 3, 4]) = [1, 2, 6, 24]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    let result: ArrayList<double> = Cumulative.cumprod(data);
+    if (result.size() != 4) {
+        io::println("FAIL: cumprod size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-9 || Math.abs(result.get(3) - 24.0) > 1e-9) {
+        io::println("FAIL: cumprod values");
+    } else {
+        io::println("PASS: cumprod works");
+    }
+}
+
+public fn test_diff(): void {
+    // diff([1, 4, 9, 16]) = [3, 5, 7]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(4.0);
+    data.add(9.0);
+    data.add(16.0);
+    let result: ArrayList<double> = Cumulative.diff(data);
+    if (result.size() != 3) {
+        io::println("FAIL: diff size = " + Integer.toString(result.size()));
+        return;
+    }
+    if (Math.abs(result.get(0) - 3.0) > 1e-9 || Math.abs(result.get(2) - 7.0) > 1e-9) {
+        io::println("FAIL: diff values");
+    } else {
+        io::println("PASS: diff works");
+    }
+}
+
+public fn test_gradient1d(): void {
+    // gradient of [0, 1, 4, 9] using central differences
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0);
+    data.add(1.0);
+    data.add(4.0);
+    data.add(9.0);
+    let result: ArrayList<double> = Cumulative.gradient1d(data);
+    if (result.size() != 4) {
+        io::println("FAIL: gradient1d size");
+        return;
+    }
+    io::println("PASS: gradient1d works");
+}
+
+public fn test_ediff1d(): void {
+    // ediff1d([1, 2, 4]) = [1, 2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(4.0);
+    let result: ArrayList<double> = Cumulative.ediff1d(data);
+    if (result.size() != 2) {
+        io::println("FAIL: ediff1d size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-9 || Math.abs(result.get(1) - 2.0) > 1e-9) {
+        io::println("FAIL: ediff1d values");
+    } else {
+        io::println("PASS: ediff1d works");
+    }
+}
+
+public fn test_nancumsum(): void {
+    // nancumsum treats NaN as 0
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    let result: ArrayList<double> = Cumulative.nancumsum(data);
+    if (result.size() != 3) {
+        io::println("FAIL: nancumsum size");
+        return;
+    }
+    io::println("PASS: nancumsum works");
+}
+
+public fn test_nancumprod(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    let result: ArrayList<double> = Cumulative.nancumprod(data);
+    if (result.size() != 3) {
+        io::println("FAIL: nancumprod size");
+        return;
+    }
+    io::println("PASS: nancumprod works");
+}
+
+public fn run_all_ndarray_cumulative_tests(): void {
+    io::println("=== ndarray/Cumulative.tr Tests ===");
+    test_cumsum();
+    test_cumprod();
+    test_diff();
+    test_gradient1d();
+    test_ediff1d();
+    test_nancumsum();
+    test_nancumprod();
+}

@@ -1,0 +1,160 @@
+// Test file for nlp/Classifier.tr
+// Exercises the public API for sentiment analysis and Naive Bayes classification.
+// Note: afinnScore/sentimentLabel depend on a lexicon data file; defensive cases are used.
+import tt::util::ArrayList;
+import tt::nlp::Classifier;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+public fn test_afinnScore_empty(): void {
+    // Empty text yields no matching words -> score 0 (independent of lexicon presence)
+    let score: int = Classifier.afinnScore("");
+    if (score == 0) {
+        io::println("PASS: afinnScore empty works");
+    } else {
+        io::println("FAIL: afinnScore empty = " + Integer.toString(score));
+    }
+}
+
+public fn test_sentimentLabel_neutral(): void {
+    // Empty text -> score 0 -> "neutral"
+    let label: string = Classifier.sentimentLabel("");
+    if (label == "neutral") {
+        io::println("PASS: sentimentLabel neutral works");
+    } else {
+        io::println("FAIL: sentimentLabel neutral = " + label);
+    }
+}
+
+public fn test_sentimentLabel_valid(): void {
+    // Any text must yield one of the three valid labels
+    let label: string = Classifier.sentimentLabel("the quick brown fox");
+    if (label == "positive" || label == "negative" || label == "neutral") {
+        io::println("PASS: sentimentLabel valid works");
+    } else {
+        io::println("FAIL: sentimentLabel valid = " + label);
+    }
+}
+
+public fn test_accuracy_perfect(): void {
+    let predicted: ArrayList<string> = new ArrayList<string>();
+    predicted.add("a");
+    predicted.add("b");
+    predicted.add("c");
+    let actual: ArrayList<string> = new ArrayList<string>();
+    actual.add("a");
+    actual.add("b");
+    actual.add("c");
+    let acc: double = Classifier.accuracy(predicted, actual);
+    if (approxEq(acc, 1.0, 1e-9)) {
+        io::println("PASS: accuracy perfect works");
+    } else {
+        io::println("FAIL: accuracy perfect = " + Double.toString(acc));
+    }
+}
+
+public fn test_accuracy_partial(): void {
+    let predicted: ArrayList<string> = new ArrayList<string>();
+    predicted.add("a");
+    predicted.add("b");
+    predicted.add("c");
+    let actual: ArrayList<string> = new ArrayList<string>();
+    actual.add("a");
+    actual.add("x");
+    actual.add("c");
+    let acc: double = Classifier.accuracy(predicted, actual);
+    if (approxEq(acc, 2.0 / 3.0, 1e-9)) {
+        io::println("PASS: accuracy partial works");
+    } else {
+        io::println("FAIL: accuracy partial = " + Double.toString(acc));
+    }
+}
+
+public fn test_accuracy_empty(): void {
+    let predicted: ArrayList<string> = new ArrayList<string>();
+    let actual: ArrayList<string> = new ArrayList<string>();
+    let acc: double = Classifier.accuracy(predicted, actual);
+    if (approxEq(acc, 0.0, 1e-9)) {
+        io::println("PASS: accuracy empty works");
+    } else {
+        io::println("FAIL: accuracy empty = " + Double.toString(acc));
+    }
+}
+
+public fn test_naive_bayes_init(): void {
+    let clf: NaiveBayesClassifier = new NaiveBayesClassifier();
+    if (clf.totalDocs == 0) {
+        io::println("PASS: NaiveBayesClassifier init works");
+    } else {
+        io::println("FAIL: NaiveBayesClassifier init");
+    }
+}
+
+public fn test_naive_bayes_train(): void {
+    let clf: NaiveBayesClassifier = new NaiveBayesClassifier();
+    clf.train("good great wonderful", "pos");
+    clf.train("bad terrible awful", "neg");
+    if (clf.totalDocs == 2) {
+        io::println("PASS: NaiveBayesClassifier train works");
+    } else {
+        io::println("FAIL: NaiveBayesClassifier train docs = " + Integer.toString(clf.totalDocs));
+    }
+}
+
+public fn test_naive_bayes_predict(): void {
+    let clf: NaiveBayesClassifier = new NaiveBayesClassifier();
+    clf.train("good great wonderful", "pos");
+    clf.train("bad terrible awful", "neg");
+    let label: string = clf.predict("good wonderful");
+    if (label == "pos") {
+        io::println("PASS: NaiveBayesClassifier predict works");
+    } else {
+        io::println("FAIL: NaiveBayesClassifier predict = " + label);
+    }
+}
+
+public fn test_naive_bayes_predict_negative(): void {
+    let clf: NaiveBayesClassifier = new NaiveBayesClassifier();
+    clf.train("good great wonderful", "pos");
+    clf.train("bad terrible awful", "neg");
+    let label: string = clf.predict("bad awful");
+    if (label == "neg") {
+        io::println("PASS: NaiveBayesClassifier predict negative works");
+    } else {
+        io::println("FAIL: NaiveBayesClassifier predict negative = " + label);
+    }
+}
+
+public fn test_naive_bayes_predict_unknown_word(): void {
+    // Unknown word should still classify into one of the trained classes
+    let clf: NaiveBayesClassifier = new NaiveBayesClassifier();
+    clf.train("good great", "pos");
+    clf.train("bad terrible", "neg");
+    let label: string = clf.predict("unknownword");
+    if (label == "pos" || label == "neg") {
+        io::println("PASS: NaiveBayesClassifier predict unknown works");
+    } else {
+        io::println("FAIL: NaiveBayesClassifier predict unknown = " + label);
+    }
+}
+
+public fn run_all_classifier_tests(): void {
+    io::println("=== nlp/Classifier.tr Tests ===");
+    test_afinnScore_empty();
+    test_sentimentLabel_neutral();
+    test_sentimentLabel_valid();
+    test_accuracy_perfect();
+    test_accuracy_partial();
+    test_accuracy_empty();
+    test_naive_bayes_init();
+    test_naive_bayes_train();
+    test_naive_bayes_predict();
+    test_naive_bayes_predict_negative();
+    test_naive_bayes_predict_unknown_word();
+}

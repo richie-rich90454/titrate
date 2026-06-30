@@ -1,0 +1,171 @@
+// Test file for ndarray/Rolling.tr
+// Exercises the public API for rolling and expanding window operations.
+import tt::util::ArrayList;
+import tt::math::ndarray::Rolling;
+import tt::lang::Integer;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn meanFn(window: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < window.size()) {
+        sum = sum + window.get(i);
+        i = i + 1;
+    }
+    if (window.size() == 0) { return 0.0; }
+    return sum / window.size() as double;
+}
+
+fn sumFn(window: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < window.size()) {
+        sum = sum + window.get(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+fn data1234(): ArrayList<double> {
+    let d: ArrayList<double> = new ArrayList<double>();
+    d.add(1.0);
+    d.add(2.0);
+    d.add(3.0);
+    d.add(4.0);
+    return d;
+}
+
+public fn test_rolling(): void {
+    // rolling mean window 2 on [1,2,3,4] -> [1, 1.5, 2.5, 3.5]
+    let data: ArrayList<double> = data1234();
+    let result: ArrayList<double> = Rolling.rolling(data, 2, fn(w: ArrayList<double>): double { return meanFn(w); });
+    if (result.size() != 4) {
+        io::println("FAIL: rolling size = " + Integer.toString(result.size()));
+        return;
+    }
+    if (approxEq(result.get(0), 1.0, 1e-9) && approxEq(result.get(1), 1.5, 1e-9) && approxEq(result.get(3), 3.5, 1e-9)) {
+        io::println("PASS: rolling works");
+    } else {
+        io::println("FAIL: rolling values");
+    }
+}
+
+public fn test_rolling_window1(): void {
+    // rolling with window 1 returns each element
+    let data: ArrayList<double> = data1234();
+    let result: ArrayList<double> = Rolling.rolling(data, 1, fn(w: ArrayList<double>): double { return w.get(0); });
+    if (result.size() == 4 && approxEq(result.get(0), 1.0, 1e-9) && approxEq(result.get(3), 4.0, 1e-9)) {
+        io::println("PASS: rolling window1 works");
+    } else {
+        io::println("FAIL: rolling window1");
+    }
+}
+
+public fn test_rolling_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = Rolling.rolling(data, 2, fn(w: ArrayList<double>): double { return 0.0; });
+    if (result.size() == 0) {
+        io::println("PASS: rolling empty works");
+    } else {
+        io::println("FAIL: rolling empty");
+    }
+}
+
+public fn test_expanding(): void {
+    // expanding sum on [1,2,3] -> [1, 3, 6]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    let result: ArrayList<double> = Rolling.expanding(data, fn(w: ArrayList<double>): double { return sumFn(w); });
+    if (result.size() == 3 && approxEq(result.get(0), 1.0, 1e-9) && approxEq(result.get(1), 3.0, 1e-9) && approxEq(result.get(2), 6.0, 1e-9)) {
+        io::println("PASS: expanding works");
+    } else {
+        io::println("FAIL: expanding");
+    }
+}
+
+public fn test_rollingMax(): void {
+    // rollingMax window 2 on [1,3,2,5] -> [1,3,3,5]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(3.0);
+    data.add(2.0);
+    data.add(5.0);
+    let result: ArrayList<double> = Rolling.rollingMax(data, 2);
+    if (result.size() == 4 && approxEq(result.get(0), 1.0, 1e-9) && approxEq(result.get(1), 3.0, 1e-9) && approxEq(result.get(2), 3.0, 1e-9) && approxEq(result.get(3), 5.0, 1e-9)) {
+        io::println("PASS: rollingMax works");
+    } else {
+        io::println("FAIL: rollingMax");
+    }
+}
+
+public fn test_ewm(): void {
+    // ewm on [10, 20] alpha 0.5 -> [10, 15]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0);
+    data.add(20.0);
+    let result: ArrayList<double> = Rolling.ewm(data, 0.5);
+    if (result.size() == 2 && approxEq(result.get(0), 10.0, 1e-9) && approxEq(result.get(1), 15.0, 1e-9)) {
+        io::println("PASS: ewm works");
+    } else {
+        io::println("FAIL: ewm");
+    }
+}
+
+public fn test_ewm_alpha1(): void {
+    // ewm with alpha 1.0 returns original data
+    let data: ArrayList<double> = data1234();
+    let result: ArrayList<double> = Rolling.ewm(data, 1.0);
+    if (result.size() == 4 && approxEq(result.get(0), 1.0, 1e-9) && approxEq(result.get(3), 4.0, 1e-9)) {
+        io::println("PASS: ewm alpha1 works");
+    } else {
+        io::println("FAIL: ewm alpha1");
+    }
+}
+
+public fn test_slidingWindowView(): void {
+    // slidingWindowView on [1,2,3,4] window 2 -> [[1,2],[2,3],[3,4]]
+    let data: ArrayList<double> = data1234();
+    let result: ArrayList<ArrayList<double>> = Rolling.slidingWindowView(data, 2);
+    if (result.size() != 3) {
+        io::println("FAIL: slidingWindowView size = " + Integer.toString(result.size()));
+        return;
+    }
+    if (result.get(0).size() == 2 && approxEq(result.get(0).get(0), 1.0, 1e-9) && approxEq(result.get(2).get(1), 4.0, 1e-9)) {
+        io::println("PASS: slidingWindowView works");
+    } else {
+        io::println("FAIL: slidingWindowView values");
+    }
+}
+
+public fn test_slidingWindowView_too_large(): void {
+    // window larger than data -> empty
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let result: ArrayList<ArrayList<double>> = Rolling.slidingWindowView(data, 5);
+    if (result.size() == 0) {
+        io::println("PASS: slidingWindowView too large works");
+    } else {
+        io::println("FAIL: slidingWindowView too large");
+    }
+}
+
+public fn run_all_ndarray_rolling_tests(): void {
+    io::println("=== ndarray/Rolling.tr Tests ===");
+    test_rolling();
+    test_rolling_window1();
+    test_rolling_empty();
+    test_expanding();
+    test_rollingMax();
+    test_ewm();
+    test_ewm_alpha1();
+    test_slidingWindowView();
+    test_slidingWindowView_too_large();
+}

@@ -1,0 +1,175 @@
+// Test file for ndarray/NDArraySlice.tr
+// Exercises the public API for NDArray slicing and combination (slice, concat, stack, where, clip).
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArraySlice;
+import tt::lang::Integer;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn shape2(r: int, c: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(r);
+    s.add(c);
+    return s;
+}
+
+fn arr1(d: ArrayList<double>): NDArray<double> {
+    return fromData<double>(shape1(d.size()), d);
+}
+
+public fn test_slice(): void {
+    // slice [1,2,3,4] starts=[1] ends=[3] -> [2,3]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    let a: NDArray<double> = arr1(data);
+    let starts: ArrayList<int> = shape1(1);
+    let ends: ArrayList<int> = shape1(3);
+    let r: NDArray<double> = NDArraySlice.slice<double>(a, starts, ends);
+    if (r.data.size() == 2 && approxEq(r.getFlat(0), 2.0, 1e-9) && approxEq(r.getFlat(1), 3.0, 1e-9)) {
+        io::println("PASS: slice works");
+    } else {
+        io::println("FAIL: slice");
+    }
+}
+
+public fn test_concat(): void {
+    // concat [1,2] and [3,4] axis 0 -> [1,2,3,4]
+    let d1: ArrayList<double> = new ArrayList<double>();
+    d1.add(1.0);
+    d1.add(2.0);
+    let d2: ArrayList<double> = new ArrayList<double>();
+    d2.add(3.0);
+    d2.add(4.0);
+    let a: NDArray<double> = arr1(d1);
+    let b: NDArray<double> = arr1(d2);
+    let r: NDArray<double> = NDArraySlice.concat<double>(a, b, 0);
+    if (r.data.size() == 4 && approxEq(r.getFlat(0), 1.0, 1e-9) && approxEq(r.getFlat(3), 4.0, 1e-9)) {
+        io::println("PASS: concat works");
+    } else {
+        io::println("FAIL: concat");
+    }
+}
+
+public fn test_concat_2d(): void {
+    // concat 2x2 and 2x2 along axis 1 -> 2x4
+    let d1: ArrayList<double> = new ArrayList<double>();
+    d1.add(1.0);
+    d1.add(2.0);
+    d1.add(3.0);
+    d1.add(4.0);
+    let d2: ArrayList<double> = new ArrayList<double>();
+    d2.add(5.0);
+    d2.add(6.0);
+    d2.add(7.0);
+    d2.add(8.0);
+    let a: NDArray<double> = fromData<double>(shape2(2, 2), d1);
+    let b: NDArray<double> = fromData<double>(shape2(2, 2), d2);
+    let r: NDArray<double> = NDArraySlice.concat<double>(a, b, 1);
+    if (r.shape.get(0) == 2 && r.shape.get(1) == 4 && r.data.size() == 8) {
+        io::println("PASS: concat 2d works");
+    } else {
+        io::println("FAIL: concat 2d");
+    }
+}
+
+public fn test_stack(): void {
+    // stack [1,2] and [3,4] axis 0 -> [[1,2],[3,4]] shape [2,2]
+    let d1: ArrayList<double> = new ArrayList<double>();
+    d1.add(1.0);
+    d1.add(2.0);
+    let d2: ArrayList<double> = new ArrayList<double>();
+    d2.add(3.0);
+    d2.add(4.0);
+    let a: NDArray<double> = arr1(d1);
+    let b: NDArray<double> = arr1(d2);
+    let r: NDArray<double> = NDArraySlice.stack<double>(a, b, 0);
+    if (r.shape.size() != 2 || r.shape.get(0) != 2 || r.shape.get(1) != 2) {
+        io::println("FAIL: stack shape");
+        return;
+    }
+    if (approxEq(r.get2D(0, 0), 1.0, 1e-9) && approxEq(r.get2D(0, 1), 2.0, 1e-9) && approxEq(r.get2D(1, 0), 3.0, 1e-9)) {
+        io::println("PASS: stack works");
+    } else {
+        io::println("FAIL: stack values");
+    }
+}
+
+public fn test_where(): void {
+    // a=[10,20,30], condition=[1,0,1] -> [10,0,30]
+    let aData: ArrayList<double> = new ArrayList<double>();
+    aData.add(10.0);
+    aData.add(20.0);
+    aData.add(30.0);
+    let condData: ArrayList<double> = new ArrayList<double>();
+    condData.add(1.0);
+    condData.add(0.0);
+    condData.add(1.0);
+    let a: NDArray<double> = arr1(aData);
+    let cond: NDArray<double> = arr1(condData);
+    let r: NDArray<double> = NDArraySlice.where<double>(a, cond);
+    if (r.data.size() == 3 && approxEq(r.getFlat(0), 10.0, 1e-9) && approxEq(r.getFlat(1), 0.0, 1e-9) && approxEq(r.getFlat(2), 30.0, 1e-9)) {
+        io::println("PASS: where works");
+    } else {
+        io::println("FAIL: where");
+    }
+}
+
+public fn test_clip(): void {
+    // clip [1,5,10] to [2,8] -> [2,5,8]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(5.0);
+    data.add(10.0);
+    let a: NDArray<double> = arr1(data);
+    let r: NDArray<double> = NDArraySlice.clip<double>(a, 2.0, 8.0);
+    if (r.data.size() == 3 && approxEq(r.getFlat(0), 2.0, 1e-9) && approxEq(r.getFlat(1), 5.0, 1e-9) && approxEq(r.getFlat(2), 8.0, 1e-9)) {
+        io::println("PASS: clip works");
+    } else {
+        io::println("FAIL: clip");
+    }
+}
+
+public fn test_slice_2d(): void {
+    // slice 3x3 rows [1,3] cols [0,2] -> 2x2
+    let data: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 9) { data.add(i as double); i = i + 1; }
+    let a: NDArray<double> = fromData<double>(shape2(3, 3), data);
+    let starts: ArrayList<int> = new ArrayList<int>();
+    starts.add(1);
+    starts.add(0);
+    let ends: ArrayList<int> = new ArrayList<int>();
+    ends.add(3);
+    ends.add(2);
+    let r: NDArray<double> = NDArraySlice.slice<double>(a, starts, ends);
+    if (r.shape.get(0) == 2 && r.shape.get(1) == 2 && r.data.size() == 4) {
+        io::println("PASS: slice 2d works");
+    } else {
+        io::println("FAIL: slice 2d");
+    }
+}
+
+public fn run_all_ndarray_slice_tests(): void {
+    io::println("=== ndarray/NDArraySlice.tr Tests ===");
+    test_slice();
+    test_concat();
+    test_concat_2d();
+    test_stack();
+    test_where();
+    test_clip();
+    test_slice_2d();
+}

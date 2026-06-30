@@ -1,0 +1,193 @@
+// Test file for ndarray/Indexing.tr
+// Exercises the public API for advanced indexing operations.
+import tt::util::ArrayList;
+import tt::math::ndarray::Indexing;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_boolean_mask(): void {
+    // Mask out values < 3 from [1, 2, 3, 4, 5]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    data.add(5.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(false);
+    mask.add(false);
+    mask.add(true);
+    mask.add(true);
+    mask.add(true);
+    let result: ArrayList<double> = Indexing.booleanMask(data, mask);
+    if (result.size() != 3) {
+        io::println("FAIL: booleanMask size = " + Integer.toString(result.size()));
+        return;
+    }
+    if (Math.abs(result.get(0) - 3.0) > 1e-9) {
+        io::println("FAIL: booleanMask values");
+    } else {
+        io::println("PASS: booleanMask works");
+    }
+}
+
+public fn test_boolean_index(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0);
+    data.add(20.0);
+    data.add(30.0);
+    let mask: ArrayList<bool> = new ArrayList<bool>();
+    mask.add(true);
+    mask.add(false);
+    mask.add(true);
+    let result: ArrayList<double> = Indexing.booleanIndex(data, mask);
+    if (result.size() != 2 || Math.abs(result.get(0) - 10.0) > 1e-9 || Math.abs(result.get(1) - 30.0) > 1e-9) {
+        io::println("FAIL: booleanIndex");
+    } else {
+        io::println("PASS: booleanIndex works");
+    }
+}
+
+public fn test_where(): void {
+    // where([true, false, true], [1, 2, 3], [10, 20, 30]) = [1, 20, 3]
+    let cond: ArrayList<bool> = new ArrayList<bool>();
+    cond.add(true);
+    cond.add(false);
+    cond.add(true);
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(1.0);
+    x.add(2.0);
+    x.add(3.0);
+    let y: ArrayList<double> = new ArrayList<double>();
+    y.add(10.0);
+    y.add(20.0);
+    y.add(30.0);
+    let result: ArrayList<double> = Indexing.where(cond, x, y);
+    if (result.size() != 3) {
+        io::println("FAIL: where size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-9 || Math.abs(result.get(1) - 20.0) > 1e-9 || Math.abs(result.get(2) - 3.0) > 1e-9) {
+        io::println("FAIL: where values");
+    } else {
+        io::println("PASS: where works");
+    }
+}
+
+public fn test_select(): void {
+    // select from conditions and choices
+    let condlist: ArrayList<ArrayList<bool>> = new ArrayList<ArrayList<bool>>();
+    let c1: ArrayList<bool> = new ArrayList<bool>();
+    c1.add(true);
+    c1.add(false);
+    let c2: ArrayList<bool> = new ArrayList<bool>();
+    c2.add(false);
+    c2.add(true);
+    condlist.add(c1);
+    condlist.add(c2);
+    let choicelist: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let ch1: ArrayList<double> = new ArrayList<double>();
+    ch1.add(100.0);
+    ch1.add(200.0);
+    let ch2: ArrayList<double> = new ArrayList<double>();
+    ch2.add(300.0);
+    ch2.add(400.0);
+    choicelist.add(ch1);
+    choicelist.add(ch2);
+    let result: ArrayList<double> = Indexing.select(condlist, choicelist, 0.0);
+    if (result.size() != 2) {
+        io::println("FAIL: select size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 100.0) > 1e-9 || Math.abs(result.get(1) - 400.0) > 1e-9) {
+        io::println("FAIL: select values");
+    } else {
+        io::println("PASS: select works");
+    }
+}
+
+public fn test_piecewise(): void {
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(-1.0);
+    x.add(0.0);
+    x.add(1.0);
+    let condlist: ArrayList<fn(double): bool> = new ArrayList<fn(double): bool>();
+    condlist.add(fn(v: double): bool { return v < 0.0; });
+    condlist.add(fn(v: double): bool { return v >= 0.0; });
+    let funclist: ArrayList<fn(double): double> = new ArrayList<fn(double): double>();
+    funclist.add(fn(v: double): double { return -1.0; });
+    funclist.add(fn(v: double): double { return 1.0; });
+    let result: ArrayList<double> = Indexing.piecewise(x, condlist, funclist);
+    if (result.size() != 3) {
+        io::println("FAIL: piecewise size");
+        return;
+    }
+    if (Math.abs(result.get(0) - (-1.0)) > 1e-9 || Math.abs(result.get(2) - 1.0) > 1e-9) {
+        io::println("FAIL: piecewise values");
+    } else {
+        io::println("PASS: piecewise works");
+    }
+}
+
+public fn test_choose(): void {
+    // choose([0, 1, 0], [[10, 20, 30], [40, 50, 60]]) = [10, 50, 30]
+    let index: ArrayList<int> = new ArrayList<int>();
+    index.add(0);
+    index.add(1);
+    index.add(0);
+    let choices: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let c0: ArrayList<double> = new ArrayList<double>();
+    c0.add(10.0);
+    c0.add(20.0);
+    c0.add(30.0);
+    let c1: ArrayList<double> = new ArrayList<double>();
+    c1.add(40.0);
+    c1.add(50.0);
+    c1.add(60.0);
+    choices.add(c0);
+    choices.add(c1);
+    let result: ArrayList<double> = Indexing.choose(index, choices);
+    if (result.size() != 3) {
+        io::println("FAIL: choose size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 10.0) > 1e-9 || Math.abs(result.get(1) - 50.0) > 1e-9 || Math.abs(result.get(2) - 30.0) > 1e-9) {
+        io::println("FAIL: choose values");
+    } else {
+        io::println("PASS: choose works");
+    }
+}
+
+public fn test_fancy_index(): void {
+    // Fancy indexing on a 2x3 matrix selecting rows [0, 1]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    data.add(5.0);
+    data.add(6.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(3);
+    let indices: ArrayList<int> = new ArrayList<int>();
+    indices.add(0);
+    indices.add(1);
+    let result: ArrayList<double> = Indexing.fancyIndex(data, shape, indices, 0);
+    if (result.size() == 0) {
+        io::println("FAIL: fancyIndex empty");
+    } else {
+        io::println("PASS: fancyIndex works");
+    }
+}
+
+public fn run_all_ndarray_indexing_tests(): void {
+    io::println("=== ndarray/Indexing.tr Tests ===");
+    test_boolean_mask();
+    test_boolean_index();
+    test_where();
+    test_select();
+    test_piecewise();
+    test_choose();
+    test_fancy_index();
+}

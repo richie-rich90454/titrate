@@ -1,0 +1,187 @@
+// Test file for ml/Model.tr
+// Exercises the public API for SequentialModel (add, addDropout, forward, predict, train, trainAdam).
+import tt::util::ArrayList;
+import tt::ml::Model;
+import tt::ml::Layer;
+import tt::ml::Optimizer;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn input2(a: double, b: double): ArrayList<double> {
+    let v: ArrayList<double> = new ArrayList<double>();
+    v.add(a);
+    v.add(b);
+    return v;
+}
+
+fn target1(v: double): ArrayList<double> {
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(v);
+    return t;
+}
+
+public fn test_model_init(): void {
+    let model: SequentialModel = new SequentialModel();
+    if (model.layers.size() == 0 && model.dropoutLayers.size() == 0) {
+        io::println("PASS: SequentialModel init works");
+    } else {
+        io::println("FAIL: SequentialModel init");
+    }
+}
+
+public fn test_model_add(): void {
+    let model: SequentialModel = new SequentialModel();
+    let layer: DenseLayer = new DenseLayer(2, 3, "linear");
+    model.add(layer);
+    if (model.layers.size() == 1) {
+        io::println("PASS: SequentialModel add works");
+    } else {
+        io::println("FAIL: SequentialModel add");
+    }
+}
+
+public fn test_model_addDropout(): void {
+    let model: SequentialModel = new SequentialModel();
+    model.addDropout(0.5);
+    if (model.dropoutLayers.size() == 1) {
+        io::println("PASS: SequentialModel addDropout works");
+    } else {
+        io::println("FAIL: SequentialModel addDropout");
+    }
+}
+
+public fn test_model_forward(): void {
+    // DenseLayer(2, 1, linear): forward of [0.5, 0.5] -> 1 output
+    let model: SequentialModel = new SequentialModel();
+    let layer: DenseLayer = new DenseLayer(2, 1, "linear");
+    model.add(layer);
+    let output: ArrayList<double> = model.forward(input2(0.5, 0.5));
+    if (output.size() == 1) {
+        io::println("PASS: SequentialModel forward works");
+    } else {
+        io::println("FAIL: SequentialModel forward size = " + Integer.toString(output.size()));
+    }
+}
+
+public fn test_model_forward_multi_layer(): void {
+    // Two layers: 2 -> 3 -> 2
+    let model: SequentialModel = new SequentialModel();
+    model.add(new DenseLayer(2, 3, "linear"));
+    model.add(new DenseLayer(3, 2, "linear"));
+    let output: ArrayList<double> = model.forward(input2(1.0, 1.0));
+    if (output.size() == 2) {
+        io::println("PASS: SequentialModel forward multi-layer works");
+    } else {
+        io::println("FAIL: SequentialModel forward multi-layer size = " + Integer.toString(output.size()));
+    }
+}
+
+public fn test_model_predict(): void {
+    // predict should return same size as output layer, with dropout in eval mode
+    let model: SequentialModel = new SequentialModel();
+    model.add(new DenseLayer(2, 2, "linear"));
+    model.addDropout(0.5);
+    let output: ArrayList<double> = model.predict(input2(0.3, 0.7));
+    if (output.size() == 2) {
+        io::println("PASS: SequentialModel predict works");
+    } else {
+        io::println("FAIL: SequentialModel predict size = " + Integer.toString(output.size()));
+    }
+}
+
+public fn test_model_predict_deterministic(): void {
+    // predict with dropout should be deterministic (eval mode) — two calls equal
+    let model: SequentialModel = new SequentialModel();
+    model.add(new DenseLayer(2, 1, "linear"));
+    model.addDropout(0.5);
+    let out1: ArrayList<double> = model.predict(input2(0.4, 0.6));
+    let out2: ArrayList<double> = model.predict(input2(0.4, 0.6));
+    if (out1.size() == 1 && out2.size() == 1 && absDiff(out1.get(0), out2.get(0)) < 1e-9) {
+        io::println("PASS: SequentialModel predict deterministic works");
+    } else {
+        io::println("FAIL: SequentialModel predict deterministic");
+    }
+}
+
+public fn test_model_train(): void {
+    // train returns a loss value (MSE) — should be a finite non-negative number
+    let model: SequentialModel = new SequentialModel();
+    model.add(new DenseLayer(2, 1, "linear"));
+    let optimizer: SGDOptimizer = new SGDOptimizer(0.01, 0.0, false);
+    let loss: double = model.train(input2(0.5, 0.5), target1(1.0), optimizer);
+    if (loss >= 0.0) {
+        io::println("PASS: SequentialModel train works");
+    } else {
+        io::println("FAIL: SequentialModel train loss = " + Double.toString(loss));
+    }
+}
+
+public fn test_model_train_decreases_loss(): void {
+    // Repeated training should (on average) not increase loss catastrophically
+    let model: SequentialModel = new SequentialModel();
+    model.add(new DenseLayer(2, 1, "linear"));
+    let optimizer: SGDOptimizer = new SGDOptimizer(0.1, 0.0, false);
+    let firstLoss: double = model.train(input2(0.5, 0.5), target1(1.0), optimizer);
+    var i: int = 0;
+    while (i < 20) {
+        model.train(input2(0.5, 0.5), target1(1.0), optimizer);
+        i = i + 1;
+    }
+    let lastLoss: double = model.train(input2(0.5, 0.5), target1(1.0), optimizer);
+    if (lastLoss <= firstLoss + 1e-9) {
+        io::println("PASS: SequentialModel train decreases loss works");
+    } else {
+        io::println("FAIL: SequentialModel train did not decrease loss");
+    }
+}
+
+public fn test_model_trainAdam(): void {
+    let model: SequentialModel = new SequentialModel();
+    model.add(new DenseLayer(2, 1, "linear"));
+    let optimizer: AdamOptimizer = new AdamOptimizer(0.01);
+    let loss: double = model.trainAdam(input2(0.5, 0.5), target1(1.0), optimizer);
+    if (loss >= 0.0) {
+        io::println("PASS: SequentialModel trainAdam works");
+    } else {
+        io::println("FAIL: SequentialModel trainAdam loss = " + Double.toString(loss));
+    }
+}
+
+public fn test_model_trainAdam_multi_step(): void {
+    let model: SequentialModel = new SequentialModel();
+    model.add(new DenseLayer(2, 1, "linear"));
+    let optimizer: AdamOptimizer = new AdamOptimizer(0.05);
+    let firstLoss: double = model.trainAdam(input2(0.3, 0.7), target1(0.5), optimizer);
+    var i: int = 0;
+    while (i < 10) {
+        model.trainAdam(input2(0.3, 0.7), target1(0.5), optimizer);
+        i = i + 1;
+    }
+    let lastLoss: double = model.trainAdam(input2(0.3, 0.7), target1(0.5), optimizer);
+    if (lastLoss <= firstLoss + 1e-9) {
+        io::println("PASS: SequentialModel trainAdam multi-step works");
+    } else {
+        io::println("FAIL: SequentialModel trainAdam did not decrease loss");
+    }
+}
+
+public fn run_all_model_tests(): void {
+    io::println("=== ml/Model.tr Tests ===");
+    test_model_init();
+    test_model_add();
+    test_model_addDropout();
+    test_model_forward();
+    test_model_forward_multi_layer();
+    test_model_predict();
+    test_model_predict_deterministic();
+    test_model_train();
+    test_model_train_decreases_loss();
+    test_model_trainAdam();
+    test_model_trainAdam_multi_step();
+}

@@ -1,0 +1,171 @@
+// Test file for nlp/Stemmer.tr
+// Exercises the public API for Porter, Lancaster, and Snowball stemmers.
+import tt::nlp::Stemmer;
+import tt::lang::String;
+
+public fn test_porterStem_cats(): void {
+    let s: string = Stemmer.porterStem("cats");
+    if (s == "cat") {
+        io::println("PASS: porterStem cats works");
+    } else {
+        io::println("FAIL: porterStem cats = " + s);
+    }
+}
+
+public fn test_porterStem_running(): void {
+    let s: string = Stemmer.porterStem("running");
+    if (s == "run") {
+        io::println("PASS: porterStem running works");
+    } else {
+        io::println("FAIL: porterStem running = " + s);
+    }
+}
+
+public fn test_porterStem_caresses(): void {
+    let s: string = Stemmer.porterStem("caresses");
+    if (s == "caress") {
+        io::println("PASS: porterStem caresses works");
+    } else {
+        io::println("FAIL: porterStem caresses = " + s);
+    }
+}
+
+public fn test_porterStem_agreed(): void {
+    let s: string = Stemmer.porterStem("agreed");
+    if (s == "agree") {
+        io::println("PASS: porterStem agreed works");
+    } else {
+        io::println("FAIL: porterStem agreed = " + s);
+    }
+}
+
+public fn test_porterStem_lowercase(): void {
+    // Stemmer lowercases input
+    let s: string = Stemmer.porterStem("CATS");
+    if (s == "cat") {
+        io::println("PASS: porterStem lowercase works");
+    } else {
+        io::println("FAIL: porterStem lowercase = " + s);
+    }
+}
+
+public fn test_porterStem_short(): void {
+    // Words of length <= 2 are returned as-is
+    let s: string = Stemmer.porterStem("ab");
+    if (s == "ab") {
+        io::println("PASS: porterStem short works");
+    } else {
+        io::println("FAIL: porterStem short = " + s);
+    }
+}
+
+public fn test_porterStem_empty(): void {
+    let s: string = Stemmer.porterStem("");
+    if (s == "") {
+        io::println("PASS: porterStem empty works");
+    } else {
+        io::println("FAIL: porterStem empty = " + s);
+    }
+}
+
+public fn test_lancaster_skipping(): void {
+    let s: string = Stemmer.lancaster("skipping");
+    if (s == "skipp") {
+        io::println("PASS: lancaster skipping works");
+    } else {
+        io::println("FAIL: lancaster skipping = " + s);
+    }
+}
+
+public fn test_lancaster_department(): void {
+    let s: string = Stemmer.lancaster("department");
+    if (s == "depart") {
+        io::println("PASS: lancaster department works");
+    } else {
+        io::println("FAIL: lancaster department = " + s);
+    }
+}
+
+public fn test_lancaster_short(): void {
+    // Words of length <= 2 are returned as-is
+    let s: string = Stemmer.lancaster("ab");
+    if (s == "ab") {
+        io::println("PASS: lancaster short works");
+    } else {
+        io::println("FAIL: lancaster short = " + s);
+    }
+}
+
+public fn test_lancaster_lowercase(): void {
+    let s: string = Stemmer.lancaster("SKIPPING");
+    if (String.length(s) > 0) {
+        io::println("PASS: lancaster lowercase works");
+    } else {
+        io::println("FAIL: lancaster lowercase empty");
+    }
+}
+
+public fn test_snowballStem_cats(): void {
+    let s: string = Stemmer.snowballStem("cats");
+    if (s == "cat") {
+        io::println("PASS: snowballStem cats works");
+    } else {
+        io::println("FAIL: snowballStem cats = " + s);
+    }
+}
+
+public fn test_snowballStem_caresses(): void {
+    let s: string = Stemmer.snowballStem("caresses");
+    if (s == "caress") {
+        io::println("PASS: snowballStem caresses works");
+    } else {
+        io::println("FAIL: snowballStem caresses = " + s);
+    }
+}
+
+public fn test_snowballStem_running(): void {
+    let s: string = Stemmer.snowballStem("running");
+    if (s == "run") {
+        io::println("PASS: snowballStem running works");
+    } else {
+        io::println("FAIL: snowballStem running = " + s);
+    }
+}
+
+public fn test_snowballStem_short(): void {
+    let s: string = Stemmer.snowballStem("ab");
+    if (s == "ab") {
+        io::println("PASS: snowballStem short works");
+    } else {
+        io::println("FAIL: snowballStem short = " + s);
+    }
+}
+
+public fn test_snowballStem_empty(): void {
+    let s: string = Stemmer.snowballStem("");
+    if (s == "") {
+        io::println("PASS: snowballStem empty works");
+    } else {
+        io::println("FAIL: snowballStem empty = " + s);
+    }
+}
+
+public fn run_all_stemmer_tests(): void {
+    io::println("=== nlp/Stemmer.tr Tests ===");
+    test_porterStem_cats();
+    test_porterStem_running();
+    test_porterStem_caresses();
+    test_porterStem_agreed();
+    test_porterStem_lowercase();
+    test_porterStem_short();
+    test_porterStem_empty();
+    test_lancaster_skipping();
+    test_lancaster_department();
+    test_lancaster_short();
+    test_lancaster_lowercase();
+    test_snowballStem_cats();
+    test_snowballStem_caresses();
+    test_snowballStem_running();
+    test_snowballStem_short();
+    test_snowballStem_empty();
+}

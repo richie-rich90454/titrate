@@ -1,0 +1,219 @@
+// Test file for ndarray/NDArrayAnalysis.tr
+// Exercises the public API for NDArray analysis utilities.
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArrayAnalysis;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn shape2(r: int, c: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(r);
+    s.add(c);
+    return s;
+}
+
+fn arr1(d0: double, d1: double, d2: double, d3: double): NDArray<double> {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(d0);
+    data.add(d1);
+    data.add(d2);
+    data.add(d3);
+    return fromData<double>(shape1(4), data);
+}
+
+public fn test_histogram(): void {
+    // histogram([1,2,3,4], bins=2) -> counts=[2,2], edges=[1, 2.5, 4]
+    let a: NDArray<double> = arr1(1.0, 2.0, 3.0, 4.0);
+    let result: ArrayList<ArrayList<double>> = NDArrayAnalysis.histogram(a, 2);
+    let counts: ArrayList<double> = result.get(0);
+    let edges: ArrayList<double> = result.get(1);
+    if (counts.size() != 2) {
+        io::println("FAIL: histogram counts size = " + Integer.toString(counts.size()));
+        return;
+    }
+    let total: double = counts.get(0) + counts.get(1);
+    if (approxEq(total, 4.0, 1e-9) && edges.size() == 3) {
+        io::println("PASS: histogram works");
+    } else {
+        io::println("FAIL: histogram total/edges");
+    }
+}
+
+public fn test_histogram_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let a: NDArray<double> = fromData<double>(shape1(0), data);
+    let result: ArrayList<ArrayList<double>> = NDArrayAnalysis.histogram(a, 3);
+    if (result.get(0).size() == 0 && result.get(1).size() == 0) {
+        io::println("PASS: histogram empty works");
+    } else {
+        io::println("FAIL: histogram empty");
+    }
+}
+
+public fn test_ndInterp(): void {
+    // xp=[0,10], yp=[0,100], x=[5] -> 50
+    let x: NDArray<double> = fromData<double>(shape1(1), _list1(5.0));
+    let xp: NDArray<double> = fromData<double>(shape1(2), _list2(0.0, 10.0));
+    let yp: NDArray<double> = fromData<double>(shape1(2), _list2(0.0, 100.0));
+    let result: NDArray<double> = NDArrayAnalysis.ndInterp(x, xp, yp);
+    if (result.data.size() == 1 && approxEq(result.getFlat(0), 50.0, 1e-9)) {
+        io::println("PASS: ndInterp works");
+    } else {
+        io::println("FAIL: ndInterp value");
+    }
+}
+
+public fn test_ndInterp_below_range(): void {
+    // x below xp[0] -> yp[0]
+    let x: NDArray<double> = fromData<double>(shape1(1), _list1(-5.0));
+    let xp: NDArray<double> = fromData<double>(shape1(2), _list2(0.0, 10.0));
+    let yp: NDArray<double> = fromData<double>(shape1(2), _list2(0.0, 100.0));
+    let result: NDArray<double> = NDArrayAnalysis.ndInterp(x, xp, yp);
+    if (result.data.size() == 1 && approxEq(result.getFlat(0), 0.0, 1e-9)) {
+        io::println("PASS: ndInterp below range works");
+    } else {
+        io::println("FAIL: ndInterp below range");
+    }
+}
+
+public fn test_ndCov(): void {
+    // 3 observations x 2 variables
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(2.0);
+    data.add(4.0);
+    data.add(3.0);
+    data.add(6.0);
+    let a: NDArray<double> = fromData<double>(shape2(3, 2), data);
+    let cov: NDArray<double> = NDArrayAnalysis.ndCov(a);
+    // Covariance matrix is 2x2
+    if (cov.shape.get(0) != 2 || cov.shape.get(1) != 2) {
+        io::println("FAIL: ndCov shape");
+        return;
+    }
+    // Diagonal should be positive (variance of col1 and col2)
+    if (cov.get2D(0, 0) > 0.0 && cov.get2D(1, 1) > 0.0) {
+        io::println("PASS: ndCov works");
+    } else {
+        io::println("FAIL: ndCov diagonal");
+    }
+}
+
+public fn test_ndCorrcoef(): void {
+    // Perfectly correlated columns -> corrcoef diagonal = 1.0
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(2.0);
+    data.add(4.0);
+    data.add(3.0);
+    data.add(6.0);
+    let a: NDArray<double> = fromData<double>(shape2(3, 2), data);
+    let corr: NDArray<double> = NDArrayAnalysis.ndCorrcoef(a);
+    if (corr.shape.get(0) != 2 || corr.shape.get(1) != 2) {
+        io::println("FAIL: ndCorrcoef shape");
+        return;
+    }
+    if (approxEq(corr.get2D(0, 0), 1.0, 1e-9) && approxEq(corr.get2D(1, 1), 1.0, 1e-9)) {
+        io::println("PASS: ndCorrcoef works");
+    } else {
+        io::println("FAIL: ndCorrcoef diagonal");
+    }
+}
+
+public fn test_searchsorted(): void {
+    // sorted [1,2,3,4], value=3 -> index 2
+    let a: NDArray<double> = arr1(1.0, 2.0, 3.0, 4.0);
+    let idx: int = NDArrayAnalysis.searchsorted(a, 3.0);
+    if (idx == 2) {
+        io::println("PASS: searchsorted works");
+    } else {
+        io::println("FAIL: searchsorted = " + Integer.toString(idx));
+    }
+}
+
+public fn test_searchsorted_below(): void {
+    let a: NDArray<double> = arr1(1.0, 2.0, 3.0, 4.0);
+    let idx: int = NDArrayAnalysis.searchsorted(a, 0.0);
+    if (idx == 0) {
+        io::println("PASS: searchsorted below works");
+    } else {
+        io::println("FAIL: searchsorted below = " + Integer.toString(idx));
+    }
+}
+
+public fn test_bincount(): void {
+    // [0,1,1,2] -> [1,2,1]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0);
+    data.add(1.0);
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape1(4), data);
+    let result: ArrayList<int> = NDArrayAnalysis.bincount(a);
+    if (result.size() == 3 && result.get(0) == 1 && result.get(1) == 2 && result.get(2) == 1) {
+        io::println("PASS: bincount works");
+    } else {
+        io::println("FAIL: bincount");
+    }
+}
+
+public fn test_digitize(): void {
+    // a=[0.5, 1.5, 2.5], bins=[1,2] -> [0,1,2]
+    let aData: ArrayList<double> = new ArrayList<double>();
+    aData.add(0.5);
+    aData.add(1.5);
+    aData.add(2.5);
+    let a: NDArray<double> = fromData<double>(shape1(3), aData);
+    let binsData: ArrayList<double> = new ArrayList<double>();
+    binsData.add(1.0);
+    binsData.add(2.0);
+    let bins: NDArray<double> = fromData<double>(shape1(2), binsData);
+    let result: NDArray<int> = NDArrayAnalysis.digitize(a, bins);
+    if (result.data.size() == 3 && result.getFlat(0) == 0 && result.getFlat(1) == 1 && result.getFlat(2) == 2) {
+        io::println("PASS: digitize works");
+    } else {
+        io::println("FAIL: digitize");
+    }
+}
+
+fn _list1(v: double): ArrayList<double> {
+    let l: ArrayList<double> = new ArrayList<double>();
+    l.add(v);
+    return l;
+}
+
+fn _list2(v1: double, v2: double): ArrayList<double> {
+    let l: ArrayList<double> = new ArrayList<double>();
+    l.add(v1);
+    l.add(v2);
+    return l;
+}
+
+public fn run_all_ndarray_analysis_tests(): void {
+    io::println("=== ndarray/NDArrayAnalysis.tr Tests ===");
+    test_histogram();
+    test_histogram_empty();
+    test_ndInterp();
+    test_ndInterp_below_range();
+    test_ndCov();
+    test_ndCorrcoef();
+    test_searchsorted();
+    test_searchsorted_below();
+    test_bincount();
+    test_digitize();
+}

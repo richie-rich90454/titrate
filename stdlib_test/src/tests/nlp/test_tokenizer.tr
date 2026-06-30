@@ -1,0 +1,160 @@
+// Test file for nlp/Tokenizer.tr
+// Exercises the public API for word, sentence, and regex tokenization.
+// Note: isStopWord/removeStopWords depend on a stop-words data file; defensive cases are used.
+import tt::util::ArrayList;
+import tt::nlp::Tokenizer;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_wordTokenize_simple(): void {
+    let tokens: ArrayList<string> = Tokenizer.wordTokenize("hello world");
+    if (tokens.size() == 2 && tokens.get(0) == "hello" && tokens.get(1) == "world") {
+        io::println("PASS: wordTokenize simple works");
+    } else {
+        io::println("FAIL: wordTokenize simple size = " + Integer.toString(tokens.size()));
+    }
+}
+
+public fn test_wordTokenize_single(): void {
+    let tokens: ArrayList<string> = Tokenizer.wordTokenize("hello");
+    if (tokens.size() == 1 && tokens.get(0) == "hello") {
+        io::println("PASS: wordTokenize single works");
+    } else {
+        io::println("FAIL: wordTokenize single");
+    }
+}
+
+public fn test_wordTokenize_punctuation(): void {
+    // Punctuation becomes separate tokens
+    let tokens: ArrayList<string> = Tokenizer.wordTokenize("hi!");
+    if (tokens.size() == 2 && tokens.get(0) == "hi" && tokens.get(1) == "!") {
+        io::println("PASS: wordTokenize punctuation works");
+    } else {
+        io::println("FAIL: wordTokenize punctuation size = " + Integer.toString(tokens.size()));
+    }
+}
+
+public fn test_wordTokenize_whitespace(): void {
+    // Multiple whitespace characters are treated as separators
+    let tokens: ArrayList<string> = Tokenizer.wordTokenize("a  b");
+    if (tokens.size() == 2 && tokens.get(0) == "a" && tokens.get(1) == "b") {
+        io::println("PASS: wordTokenize whitespace works");
+    } else {
+        io::println("FAIL: wordTokenize whitespace");
+    }
+}
+
+public fn test_wordTokenize_empty(): void {
+    let tokens: ArrayList<string> = Tokenizer.wordTokenize("");
+    if (tokens.size() == 0) {
+        io::println("PASS: wordTokenize empty works");
+    } else {
+        io::println("FAIL: wordTokenize empty size = " + Integer.toString(tokens.size()));
+    }
+}
+
+public fn test_sentenceTokenize_two(): void {
+    let sentences: ArrayList<string> = Tokenizer.sentenceTokenize("Hello world. How are you?");
+    if (sentences.size() == 2) {
+        io::println("PASS: sentenceTokenize two works");
+    } else {
+        io::println("FAIL: sentenceTokenize two size = " + Integer.toString(sentences.size()));
+    }
+}
+
+public fn test_sentenceTokenize_single(): void {
+    let sentences: ArrayList<string> = Tokenizer.sentenceTokenize("No terminator here");
+    if (sentences.size() == 1) {
+        io::println("PASS: sentenceTokenize single works");
+    } else {
+        io::println("FAIL: sentenceTokenize single size = " + Integer.toString(sentences.size()));
+    }
+}
+
+public fn test_sentenceTokenize_periods(): void {
+    let sentences: ArrayList<string> = Tokenizer.sentenceTokenize("One. Two.");
+    if (sentences.size() == 2) {
+        io::println("PASS: sentenceTokenize periods works");
+    } else {
+        io::println("FAIL: sentenceTokenize periods size = " + Integer.toString(sentences.size()));
+    }
+}
+
+public fn test_isStopWord_non_english(): void {
+    // Non-english language always returns false (deterministic)
+    let result: bool = Tokenizer.isStopWord("the", "french");
+    if (!result) {
+        io::println("PASS: isStopWord non-english works");
+    } else {
+        io::println("FAIL: isStopWord non-english should be false");
+    }
+}
+
+public fn test_removeStopWords_preserves_content(): void {
+    // "hello" is not a stopword in any standard list, so it is preserved
+    let tokens: ArrayList<string> = new ArrayList<string>();
+    tokens.add("hello");
+    let result: ArrayList<string> = Tokenizer.removeStopWords(tokens);
+    if (result.size() == 1 && result.get(0) == "hello") {
+        io::println("PASS: removeStopWords preserves content works");
+    } else {
+        io::println("FAIL: removeStopWords preserves content size = " + Integer.toString(result.size()));
+    }
+}
+
+public fn test_regexTokenize_split(): void {
+    // Split on comma
+    let tokens: ArrayList<string> = Tokenizer.regexTokenize("a,b,c", ",");
+    if (tokens.size() == 3 && tokens.get(0) == "a" && tokens.get(2) == "c") {
+        io::println("PASS: regexTokenize split works");
+    } else {
+        io::println("FAIL: regexTokenize split size = " + Integer.toString(tokens.size()));
+    }
+}
+
+public fn test_regexTokenize_spaces(): void {
+    // Split on whitespace pattern
+    let tokens: ArrayList<string> = Tokenizer.regexTokenize("a b  c", " ");
+    if (tokens.size() == 3 && tokens.get(0) == "a" && tokens.get(2) == "c") {
+        io::println("PASS: regexTokenize spaces works");
+    } else {
+        io::println("FAIL: regexTokenize spaces size = " + Integer.toString(tokens.size()));
+    }
+}
+
+public fn test_regexFindAll_literal(): void {
+    // Find all occurrences of literal "ab"
+    let matches: ArrayList<string> = Tokenizer.regexFindAll("xab y abz", "ab");
+    if (matches.size() == 2) {
+        io::println("PASS: regexFindAll literal works");
+    } else {
+        io::println("FAIL: regexFindAll literal size = " + Integer.toString(matches.size()));
+    }
+}
+
+public fn test_regexFindAll_none(): void {
+    let matches: ArrayList<string> = Tokenizer.regexFindAll("hello world", "xyz");
+    if (matches.size() == 0) {
+        io::println("PASS: regexFindAll none works");
+    } else {
+        io::println("FAIL: regexFindAll none size = " + Integer.toString(matches.size()));
+    }
+}
+
+public fn run_all_tokenizer_tests(): void {
+    io::println("=== nlp/Tokenizer.tr Tests ===");
+    test_wordTokenize_simple();
+    test_wordTokenize_single();
+    test_wordTokenize_punctuation();
+    test_wordTokenize_whitespace();
+    test_wordTokenize_empty();
+    test_sentenceTokenize_two();
+    test_sentenceTokenize_single();
+    test_sentenceTokenize_periods();
+    test_isStopWord_non_english();
+    test_removeStopWords_preserves_content();
+    test_regexTokenize_split();
+    test_regexTokenize_spaces();
+    test_regexFindAll_literal();
+    test_regexFindAll_none();
+}

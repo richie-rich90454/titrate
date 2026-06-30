@@ -1,0 +1,180 @@
+// Test file for pde/PDE.tr
+// Exercises the public API for partial differential equation solvers.
+import tt::util::ArrayList;
+import tt::math::pde::PDE;
+import tt::math::pde::PDE::DirichletBC;
+import tt::math::pde::PDE::NeumannBC;
+import tt::math::pde::PDE::RobinBC;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_dirichlet_bc(): void {
+    let bc: DirichletBC = new DirichletBC(5.0);
+    io::println("PASS: DirichletBC creation works");
+}
+
+public fn test_neumann_bc(): void {
+    let bc: NeumannBC = new NeumannBC(0.0);
+    io::println("PASS: NeumannBC creation works");
+}
+
+public fn test_robin_bc(): void {
+    let bc: RobinBC = new RobinBC(1.0, 0.0);
+    io::println("PASS: RobinBC creation works");
+}
+
+public fn test_heat_equation_1d(): void {
+    // 1D heat equation: initial condition u(x, 0) = sin(pi*x), boundary u(0,t)=u(1,t)=0
+    let initial: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i <= 10) {
+        let x: double = i as double / 10.0;
+        initial.add(Math.sin(3.14159265358979 * x));
+        i = i + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = PDE.heatEquation1D(initial, 0.01, 0.01, 10);
+    if (result.size() == 0) {
+        io::println("FAIL: heatEquation1D empty result");
+    } else {
+        io::println("PASS: heatEquation1D works");
+    }
+}
+
+public fn test_heat_equation_1d_implicit(): void {
+    let initial: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i <= 10) {
+        let x: double = i as double / 10.0;
+        initial.add(Math.sin(3.14159265358979 * x));
+        i = i + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = PDE.heatEquation1DImplicit(initial, 0.01, 0.01, 10);
+    if (result.size() == 0) {
+        io::println("FAIL: heatEquation1DImplicit empty result");
+    } else {
+        io::println("PASS: heatEquation1DImplicit works");
+    }
+}
+
+public fn test_wave_equation_1d(): void {
+    // 1D wave equation: initial condition u(x, 0) = sin(pi*x), zero initial velocity
+    let initial: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i <= 10) {
+        let x: double = i as double / 10.0;
+        initial.add(Math.sin(3.14159265358979 * x));
+        i = i + 1;
+    }
+    let initialVel: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i <= 10) {
+        initialVel.add(0.0);
+        i = i + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = PDE.waveEquation1D(initial, initialVel, 0.01, 0.01, 10);
+    if (result.size() == 0) {
+        io::println("FAIL: waveEquation1D empty result");
+    } else {
+        io::println("PASS: waveEquation1D works");
+    }
+}
+
+public fn test_poisson_2d(): void {
+    // Poisson equation on unit square with zero boundary
+    let n: int = 5;
+    let f: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            row.add(-1.0);
+            j = j + 1;
+        }
+        f.add(row);
+        i = i + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = PDE.poisson2D(f, 0.25);
+    if (result.size() == 0) {
+        io::println("FAIL: poisson2D empty result");
+    } else {
+        io::println("PASS: poisson2D works");
+    }
+}
+
+public fn test_laplace_2d(): void {
+    // Laplace equation on unit square with boundary condition
+    let n: int = 5;
+    let boundary: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n + 2) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n + 2) {
+            row.add(0.0);
+            j = j + 1;
+        }
+        boundary.add(row);
+        i = i + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = PDE.laplace2D(boundary, 0.25, 100);
+    if (result.size() == 0) {
+        io::println("FAIL: laplace2D empty result");
+    } else {
+        io::println("PASS: laplace2D works");
+    }
+}
+
+public fn test_finite_difference_1d(): void {
+    // 1D finite difference for u'' = f
+    let f: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 5) {
+        f.add(-1.0);
+        i = i + 1;
+    }
+    let bcLeft: double = 0.0;
+    let bcRight: double = 0.0;
+    let result: ArrayList<double> = PDE.finiteDifference1D(f, bcLeft, bcRight, 0.25);
+    if (result.size() == 0) {
+        io::println("FAIL: finiteDifference1D empty result");
+    } else {
+        io::println("PASS: finiteDifference1D works");
+    }
+}
+
+public fn test_finite_difference_2d(): void {
+    let n: int = 4;
+    let f: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            row.add(-1.0);
+            j = j + 1;
+        }
+        f.add(row);
+        i = i + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = PDE.finiteDifference2D(f, 0.25);
+    if (result.size() == 0) {
+        io::println("FAIL: finiteDifference2D empty result");
+    } else {
+        io::println("PASS: finiteDifference2D works");
+    }
+}
+
+public fn run_all_pde_tests(): void {
+    io::println("=== pde/PDE.tr Tests ===");
+    test_dirichlet_bc();
+    test_neumann_bc();
+    test_robin_bc();
+    test_heat_equation_1d();
+    test_heat_equation_1d_implicit();
+    test_wave_equation_1d();
+    test_poisson_2d();
+    test_laplace_2d();
+    test_finite_difference_1d();
+    test_finite_difference_2d();
+}

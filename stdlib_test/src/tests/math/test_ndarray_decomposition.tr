@@ -1,0 +1,78 @@
+// Test file for ndarray/Decomposition.tr
+// Exercises the public API for tensor decompositions.
+import tt::util::ArrayList;
+import tt::math::ndarray::Decomposition;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_cp_decomposition(): void {
+    // CP decomposition of a 2x2x2 tensor
+    let tensor: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 8) {
+        tensor.add(i as double + 1.0);
+        i = i + 1;
+    }
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    shape.add(2);
+    let result: ArrayList<ArrayList<double>> = Decomposition.cpDecomposition(tensor, shape, 2, 50);
+    if (result.size() == 0) {
+        io::println("FAIL: cpDecomposition empty");
+    } else {
+        io::println("PASS: cpDecomposition works");
+    }
+}
+
+public fn test_tucker_decomposition(): void {
+    let tensor: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 8) {
+        tensor.add(i as double + 1.0);
+        i = i + 1;
+    }
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    shape.add(2);
+    let ranks: ArrayList<int> = new ArrayList<int>();
+    ranks.add(2);
+    ranks.add(2);
+    ranks.add(2);
+    let result: ArrayList<ArrayList<double>> = Decomposition.tuckerDecomposition(tensor, shape, ranks, 50);
+    if (result.size() == 0) {
+        io::println("FAIL: tuckerDecomposition empty");
+    } else {
+        io::println("PASS: tuckerDecomposition works");
+    }
+}
+
+public fn test_nmf(): void {
+    // NMF on a 3x2 non-negative matrix
+    let v: ArrayList<double> = new ArrayList<double>();
+    v.add(1.0);
+    v.add(2.0);
+    v.add(3.0);
+    v.add(4.0);
+    v.add(5.0);
+    v.add(6.0);
+    let result: ArrayList<ArrayList<double>> = Decomposition.nmf(v, 3, 2, 2, 50);
+    if (result.size() != 2) {
+        io::println("FAIL: nmf result count = " + Integer.toString(result.size()));
+        return;
+    }
+    // W should be 3x2, H should be 2x2
+    if (result.get(0).size() != 6 || result.get(1).size() != 4) {
+        io::println("FAIL: nmf dimensions");
+    } else {
+        io::println("PASS: nmf works");
+    }
+}
+
+public fn run_all_ndarray_decomposition_tests(): void {
+    io::println("=== ndarray/Decomposition.tr Tests ===");
+    test_cp_decomposition();
+    test_tucker_decomposition();
+    test_nmf();
+}

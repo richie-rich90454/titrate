@@ -1,0 +1,262 @@
+// Test file for TensorOps.tr
+// Exercises the public API for tensor operations.
+import tt::util::ArrayList;
+import tt::math::TensorOps;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_tensor_add(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(4.0);
+    b.add(5.0);
+    b.add(6.0);
+    let c: ArrayList<double> = TensorOps.tensorAdd(a, b);
+    if (c.size() != 3 || Math.abs(c.get(0) - 5.0) > 1e-9 || Math.abs(c.get(2) - 9.0) > 1e-9) {
+        io::println("FAIL: tensorAdd");
+    } else {
+        io::println("PASS: tensorAdd works");
+    }
+}
+
+public fn test_tensor_sub(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(5.0);
+    a.add(7.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(2.0);
+    b.add(3.0);
+    let c: ArrayList<double> = TensorOps.tensorSub(a, b);
+    if (c.size() != 2 || Math.abs(c.get(0) - 3.0) > 1e-9 || Math.abs(c.get(1) - 4.0) > 1e-9) {
+        io::println("FAIL: tensorSub");
+    } else {
+        io::println("PASS: tensorSub works");
+    }
+}
+
+public fn test_tensor_scale(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    let c: ArrayList<double> = TensorOps.tensorScale(a, 3.0);
+    if (c.size() != 2 || Math.abs(c.get(0) - 3.0) > 1e-9 || Math.abs(c.get(1) - 6.0) > 1e-9) {
+        io::println("FAIL: tensorScale");
+    } else {
+        io::println("PASS: tensorScale works");
+    }
+}
+
+public fn test_tensor_norm(): void {
+    // [3, 4] has Frobenius norm 5
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(3.0);
+    a.add(4.0);
+    let n: double = TensorOps.tensorNorm(a);
+    if (Math.abs(n - 5.0) > 1e-9) {
+        io::println("FAIL: tensorNorm = " + Double.toString(n));
+    } else {
+        io::println("PASS: tensorNorm works");
+    }
+}
+
+public fn test_tensor_product(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(3.0);
+    b.add(4.0);
+    let c: ArrayList<double> = TensorOps.tensorProduct(a, new ArrayList<int>(), b, new ArrayList<int>());
+    // Outer product: [3, 4, 6, 8]
+    if (c.size() != 4 || Math.abs(c.get(0) - 3.0) > 1e-9 || Math.abs(c.get(3) - 8.0) > 1e-9) {
+        io::println("FAIL: tensorProduct");
+    } else {
+        io::println("PASS: tensorProduct works");
+    }
+}
+
+public fn test_tensor_trace(): void {
+    // [[1, 2], [3, 4]] -> trace = 1 + 4 = 5
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    t.add(3.0);
+    t.add(4.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    let tr: double = TensorOps.tensorTrace(t, shape);
+    if (Math.abs(tr - 5.0) > 1e-9) {
+        io::println("FAIL: tensorTrace = " + Double.toString(tr));
+    } else {
+        io::println("PASS: tensorTrace works");
+    }
+}
+
+public fn test_tensor_transpose(): void {
+    // [[1, 2], [3, 4]] -> transpose -> [[1, 3], [2, 4]]
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    t.add(3.0);
+    t.add(4.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    let tt: ArrayList<double> = TensorOps.tensorTranspose(t, shape);
+    if (tt.size() != 4) {
+        io::println("FAIL: tensorTranspose size");
+        return;
+    }
+    // Transposed: [1, 3, 2, 4]
+    if (Math.abs(tt.get(1) - 3.0) > 1e-9 || Math.abs(tt.get(2) - 2.0) > 1e-9) {
+        io::println("FAIL: tensorTranspose values");
+    } else {
+        io::println("PASS: tensorTranspose works");
+    }
+}
+
+public fn test_tensor_symmetrize(): void {
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    t.add(3.0);
+    t.add(4.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    let s: ArrayList<double> = TensorOps.tensorSymmetrize(t, shape);
+    if (s.size() != 4) {
+        io::println("FAIL: tensorSymmetrize size");
+        return;
+    }
+    // Symmetric: s[0][1] == s[1][0]
+    // (T + T^T)/2: [1, (2+3)/2, (2+3)/2, 4] = [1, 2.5, 2.5, 4]
+    if (Math.abs(s.get(1) - 2.5) > 1e-9 || Math.abs(s.get(2) - 2.5) > 1e-9) {
+        io::println("FAIL: tensorSymmetrize not symmetric");
+    } else {
+        io::println("PASS: tensorSymmetrize works");
+    }
+}
+
+public fn test_tensor_antisymmetrize(): void {
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    t.add(3.0);
+    t.add(4.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    let a: ArrayList<double> = TensorOps.tensorAntisymmetrize(t, shape);
+    // Diagonal of antisymmetric matrix should be 0
+    if (Math.abs(a.get(0)) > 1e-9 || Math.abs(a.get(3)) > 1e-9) {
+        io::println("FAIL: tensorAntisymmetrize diagonal not zero");
+    } else {
+        io::println("PASS: tensorAntisymmetrize works");
+    }
+}
+
+public fn test_tensor_reshape(): void {
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    t.add(3.0);
+    let newShape: ArrayList<int> = new ArrayList<int>();
+    newShape.add(3);
+    let r: ArrayList<double> = TensorOps.tensorReshape(t, newShape);
+    if (r.size() != 3 || Math.abs(r.get(0) - 1.0) > 1e-9) {
+        io::println("FAIL: tensorReshape");
+    } else {
+        io::println("PASS: tensorReshape works");
+    }
+}
+
+public fn test_tensor_flatten(): void {
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    let f: ArrayList<double> = TensorOps.tensorFlatten(t);
+    if (f.size() != 2) {
+        io::println("FAIL: tensorFlatten size");
+    } else {
+        io::println("PASS: tensorFlatten works");
+    }
+}
+
+public fn test_tensor_contract(): void {
+    // Contract a 2x2 matrix [[1,2],[3,4]] on both axes -> trace = 5
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    t.add(3.0);
+    t.add(4.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    let c: ArrayList<double> = TensorOps.tensorContract(t, shape, 0, 1);
+    if (c.size() != 1 || Math.abs(c.get(0) - 5.0) > 1e-9) {
+        io::println("FAIL: tensorContract");
+    } else {
+        io::println("PASS: tensorContract works");
+    }
+}
+
+public fn test_tensor_slice(): void {
+    // 2x2 matrix, slice axis=0 index=1 -> [3, 4]
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    t.add(3.0);
+    t.add(4.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    let s: ArrayList<double> = TensorOps.tensorSlice(t, shape, 0, 1);
+    if (s.size() != 2 || Math.abs(s.get(0) - 3.0) > 1e-9 || Math.abs(s.get(1) - 4.0) > 1e-9) {
+        io::println("FAIL: tensorSlice");
+    } else {
+        io::println("PASS: tensorSlice works");
+    }
+}
+
+public fn test_tensor_permute(): void {
+    let t: ArrayList<double> = new ArrayList<double>();
+    t.add(1.0);
+    t.add(2.0);
+    t.add(3.0);
+    t.add(4.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    let perm: ArrayList<int> = new ArrayList<int>();
+    perm.add(1);
+    perm.add(0);
+    let p: ArrayList<double> = TensorOps.tensorPermute(t, shape, perm);
+    if (p.size() != 4) {
+        io::println("FAIL: tensorPermute size");
+    } else {
+        io::println("PASS: tensorPermute works");
+    }
+}
+
+public fn run_all_tensor_ops_tests(): void {
+    io::println("=== TensorOps.tr Tests ===");
+    test_tensor_add();
+    test_tensor_sub();
+    test_tensor_scale();
+    test_tensor_norm();
+    test_tensor_product();
+    test_tensor_trace();
+    test_tensor_transpose();
+    test_tensor_symmetrize();
+    test_tensor_antisymmetrize();
+    test_tensor_reshape();
+    test_tensor_flatten();
+    test_tensor_contract();
+    test_tensor_slice();
+    test_tensor_permute();
+}

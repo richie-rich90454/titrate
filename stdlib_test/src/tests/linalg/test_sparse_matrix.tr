@@ -1,0 +1,206 @@
+// Test file for SparseMatrix.tr
+// Exercises CSR/CSC sparse matrices and related operations.
+import tt::util::ArrayList;
+import tt::math::linalg::CSRMatrix;
+import tt::math::linalg::CSCMatrix;
+import tt::math::linalg::SparseLUResult;
+import tt::math::linalg::sparseFromDense;
+import tt::math::linalg::csrToCsc;
+import tt::math::linalg::cscToCsr;
+import tt::math::linalg::sparseConjugateGradient;
+import tt::math::linalg::sparseLU;
+import tt::math::linalg::sparseSolveLU;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_csr_set_get(): void {
+    let m: CSRMatrix = new CSRMatrix(3, 3);
+    m.set(0, 0, 1.0);
+    m.set(1, 1, 2.0);
+    m.set(2, 2, 3.0);
+    if (Math.abs(m.get(0, 0) - 1.0) > 1e-9) {
+        io::println("FAIL: CSRMatrix.get(0,0) = " + Double.toString(m.get(0, 0)));
+    } else if (Math.abs(m.get(1, 1) - 2.0) > 1e-9) {
+        io::println("FAIL: CSRMatrix.get(1,1) = " + Double.toString(m.get(1, 1)));
+    } else if (Math.abs(m.get(2, 2) - 3.0) > 1e-9) {
+        io::println("FAIL: CSRMatrix.get(2,2) = " + Double.toString(m.get(2, 2)));
+    } else {
+        io::println("PASS: CSRMatrix set/get works");
+    }
+}
+
+public fn test_csr_get_zero(): void {
+    let m: CSRMatrix = new CSRMatrix(2, 2);
+    m.set(0, 0, 1.0);
+    if (Math.abs(m.get(0, 1) - 0.0) > 1e-9) {
+        io::println("FAIL: CSRMatrix unstored get not zero");
+    } else {
+        io::println("PASS: CSRMatrix unstored get returns 0.0");
+    }
+}
+
+public fn test_csr_multiply_vec(): void {
+    // [[1,0],[0,2]] * [3, 4] = [3, 8]
+    let m: CSRMatrix = new CSRMatrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(1, 1, 2.0);
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(3.0);
+    x.add(4.0);
+    let y: ArrayList<double> = m.multiplyVec(x);
+    if (y.size() != 2) {
+        io::println("FAIL: multiplyVec result size = " + Integer.toString(y.size()));
+        return;
+    }
+    if (Math.abs(y.get(0) - 3.0) > 1e-9 || Math.abs(y.get(1) - 8.0) > 1e-9) {
+        io::println("FAIL: multiplyVec values");
+    } else {
+        io::println("PASS: CSRMatrix multiplyVec works");
+    }
+}
+
+public fn test_csr_transpose(): void {
+    let m: CSRMatrix = new CSRMatrix(2, 3);
+    m.set(0, 1, 5.0);
+    m.set(1, 2, 7.0);
+    let t: CSRMatrix = m.transpose();
+    // Transposed should be 3x2 with values at (1,0)=5 and (2,1)=7
+    if (t.rows != 3 || t.cols != 2) {
+        io::println("FAIL: CSRMatrix transpose dimensions");
+        return;
+    }
+    if (Math.abs(t.get(1, 0) - 5.0) > 1e-9 || Math.abs(t.get(2, 1) - 7.0) > 1e-9) {
+        io::println("FAIL: CSRMatrix transpose values");
+    } else {
+        io::println("PASS: CSRMatrix transpose works");
+    }
+}
+
+public fn test_csr_to_dense(): void {
+    let m: CSRMatrix = new CSRMatrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(1, 1, 2.0);
+    let dense: ArrayList<ArrayList<double>> = m.toDense();
+    if (dense.size() != 2 || dense.get(0).size() != 2) {
+        io::println("FAIL: toDense dimensions");
+        return;
+    }
+    if (Math.abs(dense.get(0).get(0) - 1.0) > 1e-9 || Math.abs(dense.get(1).get(1) - 2.0) > 1e-9) {
+        io::println("FAIL: toDense values");
+    } else {
+        io::println("PASS: CSRMatrix toDense works");
+    }
+}
+
+public fn test_csr_nonzero_count(): void {
+    let m: CSRMatrix = new CSRMatrix(3, 3);
+    m.set(0, 0, 1.0);
+    m.set(1, 1, 2.0);
+    m.set(2, 2, 3.0);
+    if (m.nonZeroCount() != 3) {
+        io::println("FAIL: nonZeroCount = " + Integer.toString(m.nonZeroCount()));
+    } else {
+        io::println("PASS: CSRMatrix nonZeroCount works");
+    }
+}
+
+public fn test_csc_set_get(): void {
+    let m: CSCMatrix = new CSCMatrix(2, 2);
+    m.set(0, 0, 4.0);
+    m.set(1, 1, 5.0);
+    if (Math.abs(m.get(0, 0) - 4.0) > 1e-9 || Math.abs(m.get(1, 1) - 5.0) > 1e-9) {
+        io::println("FAIL: CSCMatrix get/set");
+    } else {
+        io::println("PASS: CSCMatrix set/get works");
+    }
+}
+
+public fn test_sparse_from_dense(): void {
+    let dense: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(0.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(0.0);
+    row1.add(2.0);
+    dense.add(row0);
+    dense.add(row1);
+    let csr: CSRMatrix = sparseFromDense(dense);
+    if (csr.nonZeroCount() != 2) {
+        io::println("FAIL: sparseFromDense nnz = " + Integer.toString(csr.nonZeroCount()));
+    } else {
+        io::println("PASS: sparseFromDense works");
+    }
+}
+
+public fn test_csr_to_csc_roundtrip(): void {
+    let m: CSRMatrix = new CSRMatrix(2, 2);
+    m.set(0, 0, 1.0);
+    m.set(1, 1, 2.0);
+    let csc: CSCMatrix = csrToCsc(m);
+    let back: CSRMatrix = cscToCsr(csc);
+    if (Math.abs(back.get(0, 0) - 1.0) > 1e-9 || Math.abs(back.get(1, 1) - 2.0) > 1e-9) {
+        io::println("FAIL: csr->csc->csr roundtrip values");
+    } else {
+        io::println("PASS: CSR<->CSC roundtrip works");
+    }
+}
+
+public fn test_sparse_conjugate_gradient(): void {
+    // Solve [[2,0],[0,2]] x = [2,4] -> x = [1,2]
+    let a: CSRMatrix = new CSRMatrix(2, 2);
+    a.set(0, 0, 2.0);
+    a.set(1, 1, 2.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(2.0);
+    b.add(4.0);
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(0.0);
+    x0.add(0.0);
+    let x: ArrayList<double> = sparseConjugateGradient(a, b, x0, 100, 1e-10);
+    if (x.size() != 2) {
+        io::println("FAIL: CG result size = " + Integer.toString(x.size()));
+        return;
+    }
+    if (Math.abs(x.get(0) - 1.0) > 1e-6 || Math.abs(x.get(1) - 2.0) > 1e-6) {
+        io::println("FAIL: CG solution x0=" + Double.toString(x.get(0)) + " x1=" + Double.toString(x.get(1)));
+    } else {
+        io::println("PASS: sparseConjugateGradient works");
+    }
+}
+
+public fn test_sparse_lu_and_solve(): void {
+    // [[4,0],[0,2]] x = [8,6] -> x = [2,3]
+    let a: CSRMatrix = new CSRMatrix(2, 2);
+    a.set(0, 0, 4.0);
+    a.set(1, 1, 2.0);
+    let lu: SparseLUResult = sparseLU(a);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(8.0);
+    b.add(6.0);
+    let x: ArrayList<double> = sparseSolveLU(lu, b);
+    if (x.size() != 2) {
+        io::println("FAIL: sparseSolveLU result size = " + Integer.toString(x.size()));
+        return;
+    }
+    if (Math.abs(x.get(0) - 2.0) > 1e-6 || Math.abs(x.get(1) - 3.0) > 1e-6) {
+        io::println("FAIL: sparseSolveLU x0=" + Double.toString(x.get(0)) + " x1=" + Double.toString(x.get(1)));
+    } else {
+        io::println("PASS: sparseLU + sparseSolveLU works");
+    }
+}
+
+public fn run_all_sparse_matrix_tests(): void {
+    io::println("=== SparseMatrix.tr Tests ===");
+    test_csr_set_get();
+    test_csr_get_zero();
+    test_csr_multiply_vec();
+    test_csr_transpose();
+    test_csr_to_dense();
+    test_csr_nonzero_count();
+    test_csc_set_get();
+    test_sparse_from_dense();
+    test_csr_to_csc_roundtrip();
+    test_sparse_conjugate_gradient();
+    test_sparse_lu_and_solve();
+}

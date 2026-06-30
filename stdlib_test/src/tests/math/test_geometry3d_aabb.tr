@@ -1,0 +1,129 @@
+// Test file for geometry3d/AABB.tr
+// Exercises the public API for 3D axis-aligned bounding boxes.
+import tt::math::geometry3d::AABB;
+import tt::math::geometry3d::AABB as AABBBox;
+import tt::lang::Double;
+
+public fn test_aabb_creation(): void {
+    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    if (Math.abs(box.size.x - 2.0) > 1e-9) {
+        io::println("FAIL: AABB size");
+    } else {
+        io::println("PASS: AABB creation works");
+    }
+}
+
+public fn test_aabb_contains_point(): void {
+    let box: AABB = new AABB(-1.0, -1.0, -1.0, 2.0, 2.0, 2.0);
+    if (!box.contains(0.0, 0.0, 0.0)) {
+        io::println("FAIL: AABB should contain (0,0,0)");
+    } else if (box.contains(5.0, 5.0, 5.0)) {
+        io::println("FAIL: AABB should not contain (5,5,5)");
+    } else {
+        io::println("PASS: AABB contains works");
+    }
+}
+
+public fn test_aabb_volume(): void {
+    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 3.0, 4.0);
+    let v: double = box.volume();
+    if (Math.abs(v - 24.0) > 1e-9) {
+        io::println("FAIL: AABB volume = " + Double.toString(v));
+    } else {
+        io::println("PASS: AABB volume works");
+    }
+}
+
+public fn test_aabb_surface_area(): void {
+    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    let sa: double = box.surfaceArea();
+    // 6 faces of area 4 = 24
+    if (Math.abs(sa - 24.0) > 1e-9) {
+        io::println("FAIL: AABB surfaceArea = " + Double.toString(sa));
+    } else {
+        io::println("PASS: AABB surfaceArea works");
+    }
+}
+
+public fn test_aabb_intersects(): void {
+    let a: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    let b: AABB = new AABB(1.0, 1.0, 1.0, 2.0, 2.0, 2.0);
+    let c: AABB = new AABB(10.0, 10.0, 10.0, 1.0, 1.0, 1.0);
+    if (!a.intersects(b)) {
+        io::println("FAIL: AABB should intersect");
+    } else if (a.intersects(c)) {
+        io::println("FAIL: AABB should not intersect");
+    } else {
+        io::println("PASS: AABB intersects works");
+    }
+}
+
+public fn test_aabb_contains_aabb(): void {
+    let outer: AABB = new AABB(-5.0, -5.0, -5.0, 10.0, 10.0, 10.0);
+    let inner: AABB = new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+    if (!outer.containsAABB(inner)) {
+        io::println("FAIL: outer AABB should contain inner");
+    } else {
+        io::println("PASS: AABB containsAABB works");
+    }
+}
+
+public fn test_aabb_merge(): void {
+    let a: AABB = new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+    let b: AABB = new AABB(5.0, 5.0, 5.0, 1.0, 1.0, 1.0);
+    let merged: AABB = a.merge(b);
+    // Should cover from 0 to 6 in each dimension
+    let v: double = merged.volume();
+    if (Math.abs(v - 216.0) > 1e-6) {
+        io::println("FAIL: AABB merge volume = " + Double.toString(v));
+    } else {
+        io::println("PASS: AABB merge works");
+    }
+}
+
+public fn test_aabb_expand(): void {
+    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    let expanded: AABB = box.expand(1.0);
+    if (Math.abs(expanded.volume() - 64.0) > 1e-9) {
+        io::println("FAIL: AABB expand volume");
+    } else {
+        io::println("PASS: AABB expand works");
+    }
+}
+
+public fn test_aabb_equals(): void {
+    let a: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    let b: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    let c: AABB = new AABB(0.0, 0.0, 0.0, 3.0, 3.0, 3.0);
+    if (!a.equals(b)) {
+        io::println("FAIL: AABB equal boxes not equal");
+    } else if (a.equals(c)) {
+        io::println("FAIL: AABB unequal boxes equal");
+    } else {
+        io::println("PASS: AABB equals works");
+    }
+}
+
+public fn test_aabb_to_string(): void {
+    let box: AABB = new AABB(0.0, 0.0, 0.0, 2.0, 2.0, 2.0);
+    let s: string = box.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: AABB toString empty");
+    } else {
+        io::println("PASS: AABB toString works");
+    }
+}
+
+public fn run_all_geometry3d_aabb_tests(): void {
+    io::println("=== geometry3d/AABB.tr Tests ===");
+    test_aabb_creation();
+    test_aabb_contains_point();
+    test_aabb_volume();
+    test_aabb_surface_area();
+    test_aabb_intersects();
+    test_aabb_contains_aabb();
+    test_aabb_merge();
+    test_aabb_expand();
+    test_aabb_equals();
+    test_aabb_to_string();
+}

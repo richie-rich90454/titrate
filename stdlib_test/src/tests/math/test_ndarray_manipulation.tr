@@ -1,0 +1,227 @@
+// Test file for ndarray/Manipulation.tr
+// Exercises the public API for array manipulation.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::math::ndarray::Manipulation;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_flip(): void {
+    // flip([1, 2, 3]) = [3, 2, 1]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    let result: ArrayList<double> = Manipulation.flip(data);
+    if (result.size() != 3 || Math.abs(result.get(0) - 3.0) > 1e-9 || Math.abs(result.get(2) - 1.0) > 1e-9) {
+        io::println("FAIL: flip");
+    } else {
+        io::println("PASS: flip works");
+    }
+}
+
+public fn test_fliplr(): void {
+    // fliplr of 2x2 matrix [[1,2],[3,4]] (cols=2) = [[2,1],[4,3]]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    let result: ArrayList<double> = Manipulation.fliplr(data, 2);
+    if (result.size() != 4) {
+        io::println("FAIL: fliplr size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 2.0) > 1e-9 || Math.abs(result.get(1) - 1.0) > 1e-9) {
+        io::println("FAIL: fliplr values");
+    } else {
+        io::println("PASS: fliplr works");
+    }
+}
+
+public fn test_flipud(): void {
+    // flipud of 2x2 matrix [[1,2],[3,4]] (cols=2) = [[3,4],[1,2]]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    let result: ArrayList<double> = Manipulation.flipud(data, 2);
+    if (result.size() != 4) {
+        io::println("FAIL: flipud size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 3.0) > 1e-9 || Math.abs(result.get(2) - 1.0) > 1e-9) {
+        io::println("FAIL: flipud values");
+    } else {
+        io::println("PASS: flipud works");
+    }
+}
+
+public fn test_rot90(): void {
+    // rot90 of 2x2 [[1,2],[3,4]] by 1 = [[2,4],[1,3]]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    let result: ArrayList<double> = Manipulation.rot90(data, 2, 2, 1);
+    if (result.size() != 4) {
+        io::println("FAIL: rot90 size");
+        return;
+    }
+    io::println("PASS: rot90 works");
+}
+
+public fn test_repeat(): void {
+    // repeat([1, 2], [2, 3]) = [1, 1, 2, 2, 2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let reps: ArrayList<int> = new ArrayList<int>();
+    reps.add(2);
+    reps.add(3);
+    let result: ArrayList<double> = Manipulation.repeat(data, reps);
+    if (result.size() != 5) {
+        io::println("FAIL: repeat size = " + Integer.toString(result.size()));
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-9 || Math.abs(result.get(4) - 2.0) > 1e-9) {
+        io::println("FAIL: repeat values");
+    } else {
+        io::println("PASS: repeat works");
+    }
+}
+
+public fn test_ravel(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    let result: ArrayList<double> = Manipulation.ravel(data);
+    if (result.size() != 3) {
+        io::println("FAIL: ravel size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-9) {
+        io::println("FAIL: ravel values");
+    } else {
+        io::println("PASS: ravel works");
+    }
+}
+
+public fn test_pad(): void {
+    // pad [1, 2] with width 1 and value 0 -> [0, 1, 2, 0]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let result: ArrayList<double> = Manipulation.pad(data, 1, 0.0);
+    if (result.size() != 4) {
+        io::println("FAIL: pad size = " + Integer.toString(result.size()));
+        return;
+    }
+    if (Math.abs(result.get(0)) > 1e-9 || Math.abs(result.get(1) - 1.0) > 1e-9 || Math.abs(result.get(3)) > 1e-9) {
+        io::println("FAIL: pad values");
+    } else {
+        io::println("PASS: pad works");
+    }
+}
+
+public fn test_clip(): void {
+    // clip [1, 5, 10] to [2, 8] -> [2, 5, 8]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(5.0);
+    data.add(10.0);
+    let result: ArrayList<double> = Manipulation.clip(data, 2.0, 8.0);
+    if (result.size() != 3) {
+        io::println("FAIL: clip size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 2.0) > 1e-9 || Math.abs(result.get(1) - 5.0) > 1e-9 || Math.abs(result.get(2) - 8.0) > 1e-9) {
+        io::println("FAIL: clip values");
+    } else {
+        io::println("PASS: clip works");
+    }
+}
+
+public fn test_tile(): void {
+    // tile [1, 2] with reps [3] -> [1, 2, 1, 2, 1, 2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let reps: ArrayList<int> = new ArrayList<int>();
+    reps.add(3);
+    let result: ArrayList<double> = Manipulation.tile(data, reps);
+    if (result.size() != 6) {
+        io::println("FAIL: tile size = " + Integer.toString(result.size()));
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-9 || Math.abs(result.get(5) - 2.0) > 1e-9) {
+        io::println("FAIL: tile values");
+    } else {
+        io::println("PASS: tile works");
+    }
+}
+
+public fn test_squeeze(): void {
+    // squeeze shape [1, 3] -> [3]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(1);
+    shape.add(3);
+    let result: Pair<ArrayList<double>, ArrayList<int>> = Manipulation.squeeze(data, shape);
+    if (result.second.size() != 1 || result.second.get(0) != 3) {
+        io::println("FAIL: squeeze shape");
+    } else {
+        io::println("PASS: squeeze works");
+    }
+}
+
+public fn test_expand_dims(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    let result: Pair<ArrayList<double>, ArrayList<int>> = Manipulation.expandDims(data, shape, 0);
+    if (result.second.size() != 2 || result.second.get(0) != 1) {
+        io::println("FAIL: expandDims shape");
+    } else {
+        io::println("PASS: expandDims works");
+    }
+}
+
+public fn test_meshgrid(): void {
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(1.0);
+    x.add(2.0);
+    let y: ArrayList<double> = new ArrayList<double>();
+    y.add(10.0);
+    y.add(20.0);
+    let result: Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> = Manipulation.meshgrid(x, y);
+    if (result.first.size() != 2 || result.second.size() != 2) {
+        io::println("FAIL: meshgrid size");
+        return;
+    }
+    io::println("PASS: meshgrid works");
+}
+
+public fn run_all_ndarray_manipulation_tests(): void {
+    io::println("=== ndarray/Manipulation.tr Tests ===");
+    test_flip();
+    test_fliplr();
+    test_flipud();
+    test_rot90();
+    test_repeat();
+    test_ravel();
+    test_pad();
+    test_clip();
+    test_tile();
+    test_squeeze();
+    test_expand_dims();
+    test_meshgrid();
+}

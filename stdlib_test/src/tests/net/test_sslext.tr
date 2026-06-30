@@ -1,0 +1,153 @@
+// Test file for net/SslExt.tr
+// Exercises the public API for extended SSL/TLS utilities (config, pinning, SNI, ALPN, sessions).
+// Note: native-dependent calls (live connect, peer cert retrieval) are tested defensively.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::net::SslExt;
+import tt::lang::Integer;
+
+public fn test_connectTLS1_3(): void {
+    // connectTLS1_3 builds an SslConnection configured for TLS 1.3 (does not perform handshake)
+    let conn: SslConnection = SslExt.connectTLS1_3("example.com", 443);
+    if (conn.host == "example.com" && conn.port == 443 && !conn.connected) {
+        io::println("PASS: connectTLS1_3 works");
+    } else {
+        io::println("FAIL: connectTLS1_3 config");
+    }
+}
+
+public fn test_connectTLS1_3_version(): void {
+    let conn: SslConnection = SslExt.connectTLS1_3("example.com", 443);
+    if (conn.config.minVersion == "TLSv1.3" && conn.config.maxVersion == "TLSv1.3") {
+        io::println("PASS: connectTLS1_3 version works");
+    } else {
+        io::println("FAIL: connectTLS1_3 version = " + conn.config.minVersion);
+    }
+}
+
+public fn test_tlsConfig_defaults(): void {
+    let config: TlsConfig = new TlsConfig();
+    if (config.minVersion == "TLSv1.2" && config.maxVersion == "TLSv1.3" && config.verifyPeer && config.cipherSuites.size() >= 1) {
+        io::println("PASS: TlsConfig defaults works");
+    } else {
+        io::println("FAIL: TlsConfig defaults");
+    }
+}
+
+public fn test_sslConnection_close(): void {
+    let conn: SslConnection = SslExt.connectTLS1_3("example.com", 443);
+    conn.connected = true;
+    conn.close();
+    if (!conn.connected) {
+        io::println("PASS: SslConnection close works");
+    } else {
+        io::println("FAIL: SslConnection close");
+    }
+}
+
+public fn test_certificatePin_empty(): void {
+    // Empty hash list -> false (secure by default, no native call)
+    let hashes: ArrayList<string> = new ArrayList<string>();
+    if (!SslExt.certificatePin(hashes)) {
+        io::println("PASS: certificatePin empty works");
+    } else {
+        io::println("FAIL: certificatePin empty should be false");
+    }
+}
+
+public fn test_sniSetup(): void {
+    let config: HashMap<string, string> = SslExt.sniSetup("www.example.com");
+    if (config.get("sni_hostname") == "www.example.com" && config.get("sni_enabled") == "true") {
+        io::println("PASS: sniSetup works");
+    } else {
+        io::println("FAIL: sniSetup");
+    }
+}
+
+public fn test_alpnNegotiate_match(): void {
+    let supported: ArrayList<string> = new ArrayList<string>();
+    supported.add("h2");
+    supported.add("http/1.1");
+    let serverPreferred: ArrayList<string> = new ArrayList<string>();
+    serverPreferred.add("h2");
+    let proto: string = SslExt.alpnNegotiate(supported, serverPreferred);
+    if (proto == "h2") {
+        io::println("PASS: alpnNegotiate match works");
+    } else {
+        io::println("FAIL: alpnNegotiate match = " + proto);
+    }
+}
+
+public fn test_alpnNegotiate_fallback(): void {
+    let supported: ArrayList<string> = new ArrayList<string>();
+    supported.add("http/1.1");
+    let serverPreferred: ArrayList<string> = new ArrayList<string>();
+    serverPreferred.add("h3");
+    serverPreferred.add("h2");
+    let proto: string = SslExt.alpnNegotiate(supported, serverPreferred);
+    if (proto == "") {
+        io::println("PASS: alpnNegotiate fallback works");
+    } else {
+        io::println("FAIL: alpnNegotiate fallback = " + proto);
+    }
+}
+
+public fn test_alpnNegotiate_second_preferred(): void {
+    // Server prefers h3 (not supported), then http/1.1 (supported) -> http/1.1
+    let supported: ArrayList<string> = new ArrayList<string>();
+    supported.add("h2");
+    supported.add("http/1.1");
+    let serverPreferred: ArrayList<string> = new ArrayList<string>();
+    serverPreferred.add("h3");
+    serverPreferred.add("http/1.1");
+    let proto: string = SslExt.alpnNegotiate(supported, serverPreferred);
+    if (proto == "http/1.1") {
+        io::println("PASS: alpnNegotiate second preferred works");
+    } else {
+        io::println("FAIL: alpnNegotiate second preferred = " + proto);
+    }
+}
+
+public fn test_tlsSession_init(): void {
+    let session: TlsSession = new TlsSession("example.com");
+    if (session.hostname == "example.com" && !session.established && session.sessionId == "") {
+        io::println("PASS: TlsSession init works");
+    } else {
+        io::println("FAIL: TlsSession init");
+    }
+}
+
+public fn test_tlsSession_resume(): void {
+    let session: TlsSession = new TlsSession("example.com");
+    let ok: bool = session.resume("abc123");
+    if (ok && session.established && session.sessionId == "abc123") {
+        io::println("PASS: TlsSession resume works");
+    } else {
+        io::println("FAIL: TlsSession resume");
+    }
+}
+
+public fn test_clientCertAuth(): void {
+    let config: HashMap<string, string> = SslExt.clientCertAuth("/path/cert.pem", "/path/key.pem");
+    if (config.get("cert_path") == "/path/cert.pem" && config.get("key_path") == "/path/key.pem" && config.get("client_auth_enabled") == "true") {
+        io::println("PASS: clientCertAuth works");
+    } else {
+        io::println("FAIL: clientCertAuth");
+    }
+}
+
+public fn run_all_sslext_tests(): void {
+    io::println("=== net/SslExt.tr Tests ===");
+    test_connectTLS1_3();
+    test_connectTLS1_3_version();
+    test_tlsConfig_defaults();
+    test_sslConnection_close();
+    test_certificatePin_empty();
+    test_sniSetup();
+    test_alpnNegotiate_match();
+    test_alpnNegotiate_fallback();
+    test_alpnNegotiate_second_preferred();
+    test_tlsSession_init();
+    test_tlsSession_resume();
+    test_clientCertAuth();
+}

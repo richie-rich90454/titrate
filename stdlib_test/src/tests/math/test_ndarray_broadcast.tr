@@ -1,0 +1,98 @@
+// Test file for ndarray/Broadcast.tr
+// Exercises the public API for array broadcasting.
+import tt::util::ArrayList;
+import tt::math::ndarray::Broadcast;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_broadcast_shapes_compatible(): void {
+    // Broadcasting (3,) and (1,) -> (3,)
+    let s1: ArrayList<int> = new ArrayList<int>();
+    s1.add(3);
+    let s2: ArrayList<int> = new ArrayList<int>();
+    s2.add(1);
+    let result: ArrayList<int> = Broadcast.broadcastShapes(s1, s2);
+    if (result.size() != 1 || result.get(0) != 3) {
+        io::println("FAIL: broadcastShapes (3,) + (1,) != (3,)");
+    } else {
+        io::println("PASS: broadcastShapes compatible works");
+    }
+}
+
+public fn test_broadcast_shapes_2d(): void {
+    // Broadcasting (2, 3) and (3,) -> (2, 3)
+    let s1: ArrayList<int> = new ArrayList<int>();
+    s1.add(2);
+    s1.add(3);
+    let s2: ArrayList<int> = new ArrayList<int>();
+    s2.add(3);
+    let result: ArrayList<int> = Broadcast.broadcastShapes(s1, s2);
+    if (result.size() != 2 || result.get(0) != 2 || result.get(1) != 3) {
+        io::println("FAIL: broadcastShapes 2D");
+    } else {
+        io::println("PASS: broadcastShapes 2D works");
+    }
+}
+
+public fn test_broadcast_to(): void {
+    // Broadcast data of shape (1,) to shape (3,)
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(5.0);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(1);
+    let targetShape: ArrayList<int> = new ArrayList<int>();
+    targetShape.add(3);
+    let result: ArrayList<double> = Broadcast.broadcastTo(data, shape, targetShape);
+    if (result.size() != 3) {
+        io::println("FAIL: broadcastTo size = " + Integer.toString(result.size()));
+        return;
+    }
+    if (Math.abs(result.get(0) - 5.0) > 1e-9 || Math.abs(result.get(2) - 5.0) > 1e-9) {
+        io::println("FAIL: broadcastTo values");
+    } else {
+        io::println("PASS: broadcastTo works");
+    }
+}
+
+public fn test_broadcast_arrays(): void {
+    // Broadcast two arrays
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    let shapeA: ArrayList<int> = new ArrayList<int>();
+    shapeA.add(3);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(10.0);
+    let shapeB: ArrayList<int> = new ArrayList<int>();
+    shapeB.add(1);
+    let result: ArrayList<ArrayList<double>> = Broadcast.broadcastArrays(a, shapeA, b, shapeB);
+    if (result.size() != 2) {
+        io::println("FAIL: broadcastArrays result count = " + Integer.toString(result.size()));
+        return;
+    }
+    io::println("PASS: broadcastArrays works");
+}
+
+public fn test_broadcast_shapes_scalar(): void {
+    // Empty shape (scalar) broadcasts to anything
+    let s1: ArrayList<int> = new ArrayList<int>();
+    let s2: ArrayList<int> = new ArrayList<int>();
+    s2.add(2);
+    s2.add(3);
+    let result: ArrayList<int> = Broadcast.broadcastShapes(s1, s2);
+    if (result.size() != 2 || result.get(0) != 2 || result.get(1) != 3) {
+        io::println("FAIL: broadcastShapes scalar");
+    } else {
+        io::println("PASS: broadcastShapes scalar works");
+    }
+}
+
+public fn run_all_ndarray_broadcast_tests(): void {
+    io::println("=== ndarray/Broadcast.tr Tests ===");
+    test_broadcast_shapes_compatible();
+    test_broadcast_shapes_2d();
+    test_broadcast_to();
+    test_broadcast_arrays();
+    test_broadcast_shapes_scalar();
+}

@@ -1,0 +1,215 @@
+// Test file for ndarray/SearchSort.tr
+// Exercises the public API for search and sort utilities (argmax, argmin, searchSorted, set ops, histogram, bincount).
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::math::ndarray::SearchSort;
+import tt::lang::Integer;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn data153(): ArrayList<double> {
+    let d: ArrayList<double> = new ArrayList<double>();
+    d.add(1.0);
+    d.add(5.0);
+    d.add(3.0);
+    return d;
+}
+
+public fn test_argmax(): void {
+    let data: ArrayList<double> = data153();
+    let idx: int = SearchSort.argmax(data);
+    if (idx == 1) {
+        io::println("PASS: argmax works");
+    } else {
+        io::println("FAIL: argmax = " + Integer.toString(idx));
+    }
+}
+
+public fn test_argmin(): void {
+    let data: ArrayList<double> = data153();
+    let idx: int = SearchSort.argmin(data);
+    if (idx == 0) {
+        io::println("PASS: argmin works");
+    } else {
+        io::println("FAIL: argmin = " + Integer.toString(idx));
+    }
+}
+
+public fn test_argmax_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let idx: int = SearchSort.argmax(data);
+    if (idx == -1) {
+        io::println("PASS: argmax empty works");
+    } else {
+        io::println("FAIL: argmax empty = " + Integer.toString(idx));
+    }
+}
+
+public fn test_searchSorted(): void {
+    // sorted [1,3,5,7], value 4 -> 2
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(3.0);
+    data.add(5.0);
+    data.add(7.0);
+    let idx: int = SearchSort.searchSorted(data, 4.0);
+    if (idx == 2) {
+        io::println("PASS: searchSorted works");
+    } else {
+        io::println("FAIL: searchSorted = " + Integer.toString(idx));
+    }
+}
+
+public fn test_searchSorted_batch(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(3.0);
+    data.add(5.0);
+    data.add(7.0);
+    let values: ArrayList<double> = new ArrayList<double>();
+    values.add(0.0);
+    values.add(4.0);
+    values.add(8.0);
+    let result: ArrayList<int> = SearchSort.searchSortedBatch(data, values);
+    if (result.size() == 3 && result.get(0) == 0 && result.get(1) == 2 && result.get(2) == 4) {
+        io::println("PASS: searchSortedBatch works");
+    } else {
+        io::println("FAIL: searchSortedBatch");
+    }
+}
+
+public fn test_unique(): void {
+    // unique [2,1,2,3,1] -> [1,2,3]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(2.0);
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(1.0);
+    let result: ArrayList<double> = SearchSort.unique(data);
+    if (result.size() == 3 && approxEq(result.get(0), 1.0, 1e-9) && approxEq(result.get(1), 2.0, 1e-9) && approxEq(result.get(2), 3.0, 1e-9)) {
+        io::println("PASS: unique works");
+    } else {
+        io::println("FAIL: unique");
+    }
+}
+
+public fn test_in1d(): void {
+    let ar1: ArrayList<double> = new ArrayList<double>();
+    ar1.add(1.0);
+    ar1.add(2.0);
+    ar1.add(3.0);
+    let ar2: ArrayList<double> = new ArrayList<double>();
+    ar2.add(2.0);
+    ar2.add(4.0);
+    let result: ArrayList<bool> = SearchSort.in1d(ar1, ar2);
+    if (result.size() == 3 && !result.get(0) && result.get(1) && !result.get(2)) {
+        io::println("PASS: in1d works");
+    } else {
+        io::println("FAIL: in1d");
+    }
+}
+
+public fn test_setdiff1d(): void {
+    // setdiff [1,2,3] - [2,4] -> [1,3]
+    let ar1: ArrayList<double> = new ArrayList<double>();
+    ar1.add(1.0);
+    ar1.add(2.0);
+    ar1.add(3.0);
+    let ar2: ArrayList<double> = new ArrayList<double>();
+    ar2.add(2.0);
+    ar2.add(4.0);
+    let result: ArrayList<double> = SearchSort.setdiff1d(ar1, ar2);
+    if (result.size() == 2 && approxEq(result.get(0), 1.0, 1e-9) && approxEq(result.get(1), 3.0, 1e-9)) {
+        io::println("PASS: setdiff1d works");
+    } else {
+        io::println("FAIL: setdiff1d");
+    }
+}
+
+public fn test_intersect1d(): void {
+    // intersect [1,2,3] and [2,3,4] -> [2,3]
+    let ar1: ArrayList<double> = new ArrayList<double>();
+    ar1.add(1.0);
+    ar1.add(2.0);
+    ar1.add(3.0);
+    let ar2: ArrayList<double> = new ArrayList<double>();
+    ar2.add(2.0);
+    ar2.add(3.0);
+    ar2.add(4.0);
+    let result: ArrayList<double> = SearchSort.intersect1d(ar1, ar2);
+    if (result.size() == 2 && approxEq(result.get(0), 2.0, 1e-9) && approxEq(result.get(1), 3.0, 1e-9)) {
+        io::println("PASS: intersect1d works");
+    } else {
+        io::println("FAIL: intersect1d");
+    }
+}
+
+public fn test_union1d(): void {
+    // union [1,2] and [2,3] -> [1,2,3]
+    let ar1: ArrayList<double> = new ArrayList<double>();
+    ar1.add(1.0);
+    ar1.add(2.0);
+    let ar2: ArrayList<double> = new ArrayList<double>();
+    ar2.add(2.0);
+    ar2.add(3.0);
+    let result: ArrayList<double> = SearchSort.union1d(ar1, ar2);
+    if (result.size() == 3 && approxEq(result.get(0), 1.0, 1e-9) && approxEq(result.get(2), 3.0, 1e-9)) {
+        io::println("PASS: union1d works");
+    } else {
+        io::println("FAIL: union1d");
+    }
+}
+
+public fn test_histogram(): void {
+    // histogram [1,2,3,4] bins 2 -> counts=[2,2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    data.add(3.0);
+    data.add(4.0);
+    let result: Pair<ArrayList<double>, ArrayList<double>> = SearchSort.histogram(data, 2);
+    let counts: ArrayList<double> = result.first;
+    let edges: ArrayList<double> = result.second;
+    let total: double = counts.get(0) + counts.get(1);
+    if (approxEq(total, 4.0, 1e-9) && edges.size() == 3) {
+        io::println("PASS: histogram works");
+    } else {
+        io::println("FAIL: histogram");
+    }
+}
+
+public fn test_bincount(): void {
+    // bincount [0,1,1,3] -> [1,2,0,1]
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(0);
+    data.add(1);
+    data.add(1);
+    data.add(3);
+    let result: ArrayList<int> = SearchSort.bincount(data);
+    if (result.size() == 4 && result.get(0) == 1 && result.get(1) == 2 && result.get(2) == 0 && result.get(3) == 1) {
+        io::println("PASS: bincount works");
+    } else {
+        io::println("FAIL: bincount");
+    }
+}
+
+public fn run_all_ndarray_searchsort_tests(): void {
+    io::println("=== ndarray/SearchSort.tr Tests ===");
+    test_argmax();
+    test_argmin();
+    test_argmax_empty();
+    test_searchSorted();
+    test_searchSorted_batch();
+    test_unique();
+    test_in1d();
+    test_setdiff1d();
+    test_intersect1d();
+    test_union1d();
+    test_histogram();
+    test_bincount();
+}

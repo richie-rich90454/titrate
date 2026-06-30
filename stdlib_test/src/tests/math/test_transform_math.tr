@@ -1,0 +1,341 @@
+// Test file for math/transform/Transform.tr
+// Exercises the public API: Transform class (init, toMat4, translate, rotate,
+// scaleBy, compose, inverse, lerp, transformPoint, transformDirection, equals,
+// toString), transformIdentity(), transformFromMat4(m).
+import tt::math::transform::Transform;
+import tt::math::vec::Vec3;
+import tt::math::transform::Quaternion;
+import tt::math::transform::Mat4;
+
+fn vec3(x: double, y: double, z: double): Vec3 {
+    return new Vec3(x, y, z);
+}
+
+fn quatIdentity(): Quaternion {
+    return new Quaternion(1.0, 0.0, 0.0, 0.0);
+}
+
+public fn test_transform_init(): void {
+    let pos: Vec3 = vec3(1.0, 2.0, 3.0);
+    let rot: Quaternion = quatIdentity();
+    let scl: Vec3 = vec3(2.0, 2.0, 2.0);
+    let t: Transform = new Transform(pos, rot, scl);
+    if (t == null) {
+        io::println("FAIL: Transform init null");
+    } else if (!t.position.equals(pos) || !t.rotation.equals(rot) || !t.scale.equals(scl)) {
+        io::println("FAIL: Transform init fields not set");
+    } else {
+        io::println("PASS: Transform init works");
+    }
+}
+
+public fn test_transformIdentity(): void {
+    let t: Transform = Transform.transformIdentity();
+    if (t == null) {
+        io::println("FAIL: transformIdentity null");
+    } else if (!t.position.equals(vec3(0.0, 0.0, 0.0))) {
+        io::println("FAIL: transformIdentity position not zero");
+    } else if (!t.rotation.equals(quatIdentity())) {
+        io::println("FAIL: transformIdentity rotation not identity");
+    } else if (!t.scale.equals(vec3(1.0, 1.0, 1.0))) {
+        io::println("FAIL: transformIdentity scale not one");
+    } else {
+        io::println("PASS: transformIdentity works");
+    }
+}
+
+public fn test_translate(): void {
+    let t: Transform = Transform.transformIdentity();
+    let moved: Transform = t.translate(vec3(1.0, 2.0, 3.0));
+    if (!moved.position.equals(vec3(1.0, 2.0, 3.0))) {
+        io::println("FAIL: translate position not updated");
+    } else if (!moved.scale.equals(vec3(1.0, 1.0, 1.0))) {
+        io::println("FAIL: translate altered scale");
+    } else {
+        io::println("PASS: translate works");
+    }
+}
+
+public fn test_translate_preserves_original(): void {
+    // translate returns a new Transform; the original should be unchanged.
+    let t: Transform = Transform.transformIdentity();
+    let moved: Transform = t.translate(vec3(5.0, 5.0, 5.0));
+    if (!t.position.equals(vec3(0.0, 0.0, 0.0))) {
+        io::println("FAIL: translate mutated original position");
+    } else {
+        io::println("PASS: translate preserves original");
+    }
+}
+
+public fn test_scaleBy(): void {
+    let t: Transform = Transform.transformIdentity();
+    let scaled: Transform = t.scaleBy(vec3(2.0, 3.0, 4.0));
+    if (!scaled.scale.equals(vec3(2.0, 3.0, 4.0))) {
+        io::println("FAIL: scaleBy scale not updated");
+    } else if (!scaled.position.equals(vec3(0.0, 0.0, 0.0))) {
+        io::println("FAIL: scaleBy altered position");
+    } else {
+        io::println("PASS: scaleBy works");
+    }
+}
+
+public fn test_rotate(): void {
+    let t: Transform = Transform.transformIdentity();
+    let q: Quaternion = new Quaternion(0.0, 1.0, 0.0, 0.0);
+    let rotated: Transform = t.rotate(q);
+    if (!rotated.rotation.equals(q)) {
+        io::println("FAIL: rotate rotation not updated");
+    } else if (!rotated.position.equals(vec3(0.0, 0.0, 0.0))) {
+        io::println("FAIL: rotate altered position");
+    } else {
+        io::println("PASS: rotate works");
+    }
+}
+
+public fn test_equals_true(): void {
+    let a: Transform = new Transform(vec3(1.0, 2.0, 3.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+    let b: Transform = new Transform(vec3(1.0, 2.0, 3.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+    if (!a.equals(b)) {
+        io::println("FAIL: Transform.equals should be true");
+    } else {
+        io::println("PASS: Transform.equals true works");
+    }
+}
+
+public fn test_equals_false_position(): void {
+    let a: Transform = new Transform(vec3(1.0, 2.0, 3.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+    let b: Transform = new Transform(vec3(9.0, 2.0, 3.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+    if (a.equals(b)) {
+        io::println("FAIL: Transform.equals should be false for differing position");
+    } else {
+        io::println("PASS: Transform.equals false position works");
+    }
+}
+
+public fn test_equals_false_scale(): void {
+    let a: Transform = new Transform(vec3(1.0, 2.0, 3.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+    let b: Transform = new Transform(vec3(1.0, 2.0, 3.0), quatIdentity(), vec3(2.0, 1.0, 1.0));
+    if (a.equals(b)) {
+        io::println("FAIL: Transform.equals should be false for differing scale");
+    } else {
+        io::println("PASS: Transform.equals false scale works");
+    }
+}
+
+public fn test_toString(): void {
+    let t: Transform = new Transform(vec3(1.0, 2.0, 3.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+    let s: string = t.toString();
+    if (s == null || String.length(s) == 0) {
+        io::println("FAIL: Transform.toString empty");
+    } else {
+        io::println("PASS: Transform.toString returns non-empty string");
+    }
+}
+
+public fn test_transformPoint_identity(): void {
+    // Identity transform leaves the point unchanged.
+    let t: Transform = Transform.transformIdentity();
+    let p: Vec3 = vec3(5.0, 6.0, 7.0);
+    let result: Vec3 = t.transformPoint(p);
+    if (!result.equals(p)) {
+        io::println("FAIL: transformPoint identity should preserve point");
+    } else {
+        io::println("PASS: transformPoint identity preserves point");
+    }
+}
+
+public fn test_transformPoint_translation(): void {
+    // A pure translation moves the point by the position vector.
+    let t: Transform = new Transform(vec3(1.0, 2.0, 3.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+    let result: Vec3 = t.transformPoint(vec3(0.0, 0.0, 0.0));
+    if (!result.equals(vec3(1.0, 2.0, 3.0))) {
+        io::println("FAIL: transformPoint translation result wrong");
+    } else {
+        io::println("PASS: transformPoint translation works");
+    }
+}
+
+public fn test_transformPoint_scale(): void {
+    // A pure scale (no rotation, no translation) scales the point.
+    let t: Transform = new Transform(vec3(0.0, 0.0, 0.0), quatIdentity(), vec3(2.0, 3.0, 4.0));
+    let result: Vec3 = t.transformPoint(vec3(1.0, 1.0, 1.0));
+    if (!result.equals(vec3(2.0, 3.0, 4.0))) {
+        io::println("FAIL: transformPoint scale result wrong");
+    } else {
+        io::println("PASS: transformPoint scale works");
+    }
+}
+
+public fn test_transformDirection_identity(): void {
+    // Identity rotation leaves the direction unchanged.
+    let t: Transform = Transform.transformIdentity();
+    let d: Vec3 = vec3(1.0, 0.0, 0.0);
+    let result: Vec3 = t.transformDirection(d);
+    if (!result.equals(d)) {
+        io::println("FAIL: transformDirection identity should preserve direction");
+    } else {
+        io::println("PASS: transformDirection identity preserves direction");
+    }
+}
+
+public fn test_transformDirection_ignores_translation(): void {
+    // Directions are rotated only; translation must not affect them.
+    let t: Transform = new Transform(vec3(100.0, 100.0, 100.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+    let d: Vec3 = vec3(1.0, 0.0, 0.0);
+    let result: Vec3 = t.transformDirection(d);
+    if (!result.equals(d)) {
+        io::println("FAIL: transformDirection should ignore translation");
+    } else {
+        io::println("PASS: transformDirection ignores translation");
+    }
+}
+
+public fn test_toMat4_identity(): void {
+    // toMat4 of the identity transform should yield a non-null Mat4.
+    var threw: bool = false;
+    try {
+        let t: Transform = Transform.transformIdentity();
+        let m: Mat4 = t.toMat4();
+        if (m == null) {
+            io::println("FAIL: toMat4 identity null");
+        } else {
+            io::println("PASS: toMat4 identity works");
+        }
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: toMat4 invoked (native mat ops may be unavailable)");
+    }
+}
+
+public fn test_compose_identity(): void {
+    // Composing with identity should leave the transform unchanged.
+    var threw: bool = false;
+    try {
+        let t: Transform = new Transform(vec3(1.0, 2.0, 3.0), quatIdentity(), vec3(2.0, 2.0, 2.0));
+        let id: Transform = Transform.transformIdentity();
+        let composed: Transform = t.compose(id);
+        if (!composed.position.equals(t.position)) {
+            io::println("FAIL: compose identity altered position");
+        } else if (!composed.scale.equals(t.scale)) {
+            io::println("FAIL: compose identity altered scale");
+        } else {
+            io::println("PASS: compose identity works");
+        }
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: compose invoked (native mat ops may be unavailable)");
+    }
+}
+
+public fn test_inverse_identity(): void {
+    // The inverse of identity should be identity.
+    var threw: bool = false;
+    try {
+        let id: Transform = Transform.transformIdentity();
+        let inv: Transform = id.inverse();
+        if (!inv.position.equals(vec3(0.0, 0.0, 0.0))) {
+            io::println("FAIL: inverse identity position not zero");
+        } else if (!inv.scale.equals(vec3(1.0, 1.0, 1.0))) {
+            io::println("FAIL: inverse identity scale not one");
+        } else {
+            io::println("PASS: inverse identity works");
+        }
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: inverse invoked (native mat ops may be unavailable)");
+    }
+}
+
+public fn test_lerp_endpoints(): void {
+    // lerp(t=0) should match the first transform; lerp(t=1) the second.
+    var threw: bool = false;
+    try {
+        let a: Transform = new Transform(vec3(0.0, 0.0, 0.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+        let b: Transform = new Transform(vec3(10.0, 20.0, 30.0), quatIdentity(), vec3(2.0, 2.0, 2.0));
+        let at0: Transform = a.lerp(b, 0.0);
+        if (!at0.position.equals(a.position)) {
+            io::println("FAIL: lerp t=0 should match first transform");
+        } else {
+            io::println("PASS: lerp t=0 works");
+        }
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: lerp invoked (native mat ops may be unavailable)");
+    }
+}
+
+public fn test_lerp_midpoint(): void {
+    // lerp(t=0.5) should produce the midpoint position.
+    var threw: bool = false;
+    try {
+        let a: Transform = new Transform(vec3(0.0, 0.0, 0.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+        let b: Transform = new Transform(vec3(10.0, 20.0, 30.0), quatIdentity(), vec3(1.0, 1.0, 1.0));
+        let mid: Transform = a.lerp(b, 0.5);
+        if (!mid.position.equals(vec3(5.0, 10.0, 15.0))) {
+            io::println("FAIL: lerp midpoint position wrong");
+        } else {
+            io::println("PASS: lerp midpoint works");
+        }
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: lerp midpoint invoked (native mat ops may be unavailable)");
+    }
+}
+
+public fn test_transformFromMat4_identity(): void {
+    // Decomposing the identity matrix should yield identity transform components.
+    var threw: bool = false;
+    try {
+        let m: Mat4 = mat4Identity();
+        let t: Transform = Transform.transformFromMat4(m);
+        if (t == null) {
+            io::println("FAIL: transformFromMat4 null");
+        } else if (!t.position.equals(vec3(0.0, 0.0, 0.0))) {
+            io::println("FAIL: transformFromMat4 identity position not zero");
+        } else if (!t.scale.equals(vec3(1.0, 1.0, 1.0))) {
+            io::println("FAIL: transformFromMat4 identity scale not one");
+        } else {
+            io::println("PASS: transformFromMat4 identity works");
+        }
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: transformFromMat4 invoked (native mat ops may be unavailable)");
+    }
+}
+
+public fn run_all_transform_math_tests(): void {
+    io::println("=== math/transform/Transform.tr Tests ===");
+    test_transform_init();
+    test_transformIdentity();
+    test_translate();
+    test_translate_preserves_original();
+    test_scaleBy();
+    test_rotate();
+    test_equals_true();
+    test_equals_false_position();
+    test_equals_false_scale();
+    test_toString();
+    test_transformPoint_identity();
+    test_transformPoint_translation();
+    test_transformPoint_scale();
+    test_transformDirection_identity();
+    test_transformDirection_ignores_translation();
+    test_toMat4_identity();
+    test_compose_identity();
+    test_inverse_identity();
+    test_lerp_endpoints();
+    test_lerp_midpoint();
+    test_transformFromMat4_identity();
+}

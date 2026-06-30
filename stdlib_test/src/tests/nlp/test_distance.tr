@@ -1,0 +1,204 @@
+// Test file for nlp/Distance.tr
+// Exercises the public API for string distance metrics and phonetic encoding.
+import tt::nlp::Distance;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+public fn test_levenshteinDistance_kitten_sitting(): void {
+    // Classic example: "kitten" -> "sitting" = 3
+    let d: int = Distance.levenshteinDistance("kitten", "sitting");
+    if (d == 3) {
+        io::println("PASS: levenshteinDistance kitten/sitting works");
+    } else {
+        io::println("FAIL: levenshteinDistance kitten/sitting = " + Integer.toString(d));
+    }
+}
+
+public fn test_levenshteinDistance_equal(): void {
+    let d: int = Distance.levenshteinDistance("abc", "abc");
+    if (d == 0) {
+        io::println("PASS: levenshteinDistance equal works");
+    } else {
+        io::println("FAIL: levenshteinDistance equal = " + Integer.toString(d));
+    }
+}
+
+public fn test_levenshteinDistance_empty(): void {
+    let d: int = Distance.levenshteinDistance("", "");
+    if (d == 0) {
+        io::println("PASS: levenshteinDistance empty works");
+    } else {
+        io::println("FAIL: levenshteinDistance empty = " + Integer.toString(d));
+    }
+}
+
+public fn test_levenshteinDistance_insert(): void {
+    // "ab" -> "abc" = 1 insertion
+    let d: int = Distance.levenshteinDistance("ab", "abc");
+    if (d == 1) {
+        io::println("PASS: levenshteinDistance insert works");
+    } else {
+        io::println("FAIL: levenshteinDistance insert = " + Integer.toString(d));
+    }
+}
+
+public fn test_levenshteinSimilarity_equal(): void {
+    let s: double = Distance.levenshteinSimilarity("abc", "abc");
+    if (approxEq(s, 1.0, 1e-9)) {
+        io::println("PASS: levenshteinSimilarity equal works");
+    } else {
+        io::println("FAIL: levenshteinSimilarity equal = " + Double.toString(s));
+    }
+}
+
+public fn test_levenshteinSimilarity_empty(): void {
+    let s: double = Distance.levenshteinSimilarity("", "");
+    if (approxEq(s, 1.0, 1e-9)) {
+        io::println("PASS: levenshteinSimilarity empty works");
+    } else {
+        io::println("FAIL: levenshteinSimilarity empty = " + Double.toString(s));
+    }
+}
+
+public fn test_levenshteinSimilarity_partial(): void {
+    // "abc" vs "abd" = distance 1, maxLen 3 -> 1 - 1/3 = 0.6667
+    let s: double = Distance.levenshteinSimilarity("abc", "abd");
+    if (approxEq(s, 2.0 / 3.0, 1e-9)) {
+        io::println("PASS: levenshteinSimilarity partial works");
+    } else {
+        io::println("FAIL: levenshteinSimilarity partial = " + Double.toString(s));
+    }
+}
+
+public fn test_jaroSimilarity_equal(): void {
+    let s: double = Distance.jaroSimilarity("abc", "abc");
+    if (approxEq(s, 1.0, 1e-9)) {
+        io::println("PASS: jaroSimilarity equal works");
+    } else {
+        io::println("FAIL: jaroSimilarity equal = " + Double.toString(s));
+    }
+}
+
+public fn test_jaroSimilarity_empty(): void {
+    let s: double = Distance.jaroSimilarity("", "");
+    if (approxEq(s, 1.0, 1e-9)) {
+        io::println("PASS: jaroSimilarity empty works");
+    } else {
+        io::println("FAIL: jaroSimilarity empty = " + Double.toString(s));
+    }
+}
+
+public fn test_jaroSimilarity_martha(): void {
+    // Classic: jaro("MARTHA","MARHTA") ~ 0.9444
+    let s: double = Distance.jaroSimilarity("MARTHA", "MARHTA");
+    if (approxEq(s, 0.9444, 1e-3)) {
+        io::println("PASS: jaroSimilarity martha works");
+    } else {
+        io::println("FAIL: jaroSimilarity martha = " + Double.toString(s));
+    }
+}
+
+public fn test_jaroWinklerSimilarity_equal(): void {
+    let s: double = Distance.jaroWinklerSimilarity("abc", "abc");
+    if (approxEq(s, 1.0, 1e-9)) {
+        io::println("PASS: jaroWinklerSimilarity equal works");
+    } else {
+        io::println("FAIL: jaroWinklerSimilarity equal = " + Double.toString(s));
+    }
+}
+
+public fn test_jaroWinkler_alias(): void {
+    // jaroWinkler is an alias for jaroWinklerSimilarity
+    let a: double = Distance.jaroWinkler("abc", "abc");
+    let b: double = Distance.jaroWinklerSimilarity("abc", "abc");
+    if (approxEq(a, b, 1e-9)) {
+        io::println("PASS: jaroWinkler alias works");
+    } else {
+        io::println("FAIL: jaroWinkler alias");
+    }
+}
+
+public fn test_soundex_robert(): void {
+    let code: string = Distance.soundex("Robert");
+    if (code == "R163") {
+        io::println("PASS: soundex Robert works");
+    } else {
+        io::println("FAIL: soundex Robert = " + code);
+    }
+}
+
+public fn test_soundex_rupert(): void {
+    // Robert and Rupert share the same soundex code
+    let c1: string = Distance.soundex("Robert");
+    let c2: string = Distance.soundex("Rupert");
+    if (c1 == c2 && c1 == "R163") {
+        io::println("PASS: soundex Rupert works");
+    } else {
+        io::println("FAIL: soundex Rupert = " + c2);
+    }
+}
+
+public fn test_soundex_empty(): void {
+    let code: string = Distance.soundex("");
+    if (code == "") {
+        io::println("PASS: soundex empty works");
+    } else {
+        io::println("FAIL: soundex empty = " + code);
+    }
+}
+
+public fn test_soundex_padded(): void {
+    // Short word "B" -> "B000"
+    let code: string = Distance.soundex("B");
+    if (code == "B000") {
+        io::println("PASS: soundex padded works");
+    } else {
+        io::println("FAIL: soundex padded = " + code);
+    }
+}
+
+public fn test_metaphone_empty(): void {
+    let code: string = Distance.metaphone("");
+    if (code == "") {
+        io::println("PASS: metaphone empty works");
+    } else {
+        io::println("FAIL: metaphone empty = " + code);
+    }
+}
+
+public fn test_metaphone_single(): void {
+    let code: string = Distance.metaphone("B");
+    if (code == "B") {
+        io::println("PASS: metaphone single works");
+    } else {
+        io::println("FAIL: metaphone single = " + code);
+    }
+}
+
+public fn run_all_distance_tests(): void {
+    io::println("=== nlp/Distance.tr Tests ===");
+    test_levenshteinDistance_kitten_sitting();
+    test_levenshteinDistance_equal();
+    test_levenshteinDistance_empty();
+    test_levenshteinDistance_insert();
+    test_levenshteinSimilarity_equal();
+    test_levenshteinSimilarity_empty();
+    test_levenshteinSimilarity_partial();
+    test_jaroSimilarity_equal();
+    test_jaroSimilarity_empty();
+    test_jaroSimilarity_martha();
+    test_jaroWinklerSimilarity_equal();
+    test_jaroWinkler_alias();
+    test_soundex_robert();
+    test_soundex_rupert();
+    test_soundex_empty();
+    test_soundex_padded();
+    test_metaphone_empty();
+    test_metaphone_single();
+}

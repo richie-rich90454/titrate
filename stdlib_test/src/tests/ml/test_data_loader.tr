@@ -1,0 +1,143 @@
+// Test file for ml/DataLoader.tr
+// Exercises the public API for Dataset, DataLoader, and trainValTestSplit.
+import tt::util::ArrayList;
+import tt::ml::DataLoader;
+import tt::lang::Integer;
+
+fn makeFeature(v: double): ArrayList<double> {
+    let f: ArrayList<double> = new ArrayList<double>();
+    f.add(v);
+    return f;
+}
+
+fn makeLabel(v: double): ArrayList<double> {
+    let l: ArrayList<double> = new ArrayList<double>();
+    l.add(v);
+    return l;
+}
+
+fn buildDataset(n: int): Dataset {
+    let ds: Dataset = new Dataset();
+    var i: int = 0;
+    while (i < n) {
+        ds.add(makeFeature(i as double), makeLabel(i as double * 2.0));
+        i = i + 1;
+    }
+    return ds;
+}
+
+public fn test_dataset_add_size(): void {
+    let ds: Dataset = buildDataset(3);
+    if (ds.size() == 3) {
+        io::println("PASS: Dataset add/size works");
+    } else {
+        io::println("FAIL: Dataset size = " + Integer.toString(ds.size()));
+    }
+}
+
+public fn test_dataset_get(): void {
+    let ds: Dataset = buildDataset(3);
+    let sample: ArrayList<ArrayList<double>> = ds.get(1);
+    // sample[0] = features, sample[1] = labels
+    if (sample.size() == 2 && sample.get(0).get(0) == 1.0 && sample.get(1).get(0) == 2.0) {
+        io::println("PASS: Dataset get works");
+    } else {
+        io::println("FAIL: Dataset get");
+    }
+}
+
+public fn test_dataset_empty(): void {
+    let ds: Dataset = new Dataset();
+    if (ds.size() == 0) {
+        io::println("PASS: Dataset empty works");
+    } else {
+        io::println("FAIL: Dataset empty");
+    }
+}
+
+public fn test_dataloader_numBatches(): void {
+    // 4 samples, batch 2 -> 2 batches
+    let ds: Dataset = buildDataset(4);
+    let loader: DataLoader = new DataLoader(ds, 2, false);
+    if (loader.numBatches() == 2) {
+        io::println("PASS: DataLoader numBatches works");
+    } else {
+        io::println("FAIL: DataLoader numBatches = " + Integer.toString(loader.numBatches()));
+    }
+}
+
+public fn test_dataloader_numBatches_uneven(): void {
+    // 5 samples, batch 2 -> 3 batches (ceil)
+    let ds: Dataset = buildDataset(5);
+    let loader: DataLoader = new DataLoader(ds, 2, false);
+    if (loader.numBatches() == 3) {
+        io::println("PASS: DataLoader numBatches uneven works");
+    } else {
+        io::println("FAIL: DataLoader numBatches uneven = " + Integer.toString(loader.numBatches()));
+    }
+}
+
+public fn test_dataloader_getBatch(): void {
+    // 4 samples, batch 2 -> batch 0 has 2 samples
+    let ds: Dataset = buildDataset(4);
+    let loader: DataLoader = new DataLoader(ds, 2, false);
+    let batch: ArrayList<ArrayList<ArrayList<double>>> = loader.getBatch(0);
+    // batch[0] = batchFeatures, batch[1] = batchLabels
+    let features: ArrayList<ArrayList<double>> = batch.get(0);
+    if (features.size() == 2) {
+        io::println("PASS: DataLoader getBatch works");
+    } else {
+        io::println("FAIL: DataLoader getBatch size = " + Integer.toString(features.size()));
+    }
+}
+
+public fn test_dataloader_getBatch_last_partial(): void {
+    // 5 samples, batch 2 -> batch 2 has 1 sample (last partial)
+    let ds: Dataset = buildDataset(5);
+    let loader: DataLoader = new DataLoader(ds, 2, false);
+    let batch: ArrayList<ArrayList<ArrayList<double>>> = loader.getBatch(2);
+    let features: ArrayList<ArrayList<double>> = batch.get(0);
+    if (features.size() == 1) {
+        io::println("PASS: DataLoader getBatch partial works");
+    } else {
+        io::println("FAIL: DataLoader getBatch partial = " + Integer.toString(features.size()));
+    }
+}
+
+public fn test_dataloader_reset(): void {
+    let ds: Dataset = buildDataset(4);
+    let loader: DataLoader = new DataLoader(ds, 2, false);
+    loader.reset();
+    if (loader.numBatches() == 2) {
+        io::println("PASS: DataLoader reset works");
+    } else {
+        io::println("FAIL: DataLoader reset");
+    }
+}
+
+public fn test_trainValTestSplit(): void {
+    // 10 samples, train 0.6, val 0.2 -> train 6, val 2, test 2
+    let ds: Dataset = buildDataset(10);
+    let splits: ArrayList<Dataset> = DataLoader.trainValTestSplit(ds, 0.6, 0.2);
+    let train: Dataset = splits.get(0);
+    let val: Dataset = splits.get(1);
+    let test: Dataset = splits.get(2);
+    if (train.size() == 6 && val.size() == 2 && test.size() == 2) {
+        io::println("PASS: trainValTestSplit works");
+    } else {
+        io::println("FAIL: trainValTestSplit sizes = " + Integer.toString(train.size()) + "/" + Integer.toString(val.size()) + "/" + Integer.toString(test.size()));
+    }
+}
+
+public fn run_all_data_loader_tests(): void {
+    io::println("=== ml/DataLoader.tr Tests ===");
+    test_dataset_add_size();
+    test_dataset_get();
+    test_dataset_empty();
+    test_dataloader_numBatches();
+    test_dataloader_numBatches_uneven();
+    test_dataloader_getBatch();
+    test_dataloader_getBatch_last_partial();
+    test_dataloader_reset();
+    test_trainValTestSplit();
+}

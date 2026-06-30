@@ -1,0 +1,190 @@
+// Test file for ndarray/Einsum.tr
+// Exercises the public API for Einstein summation and tensor operations.
+import tt::util::ArrayList;
+import tt::math::ndarray::Einsum;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_einsum_trace(): void {
+    // "ii->" trace of 2x2 identity = 2
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(0.0);
+    a.add(0.0);
+    a.add(1.0);
+    let arrays: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    arrays.add(a);
+    let shapes: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    shapes.add(shape);
+    let result: ArrayList<double> = Einsum.einsum("ii->", arrays, shapes);
+    if (result.size() != 1 || Math.abs(result.get(0) - 2.0) > 1e-9) {
+        io::println("FAIL: einsum trace");
+    } else {
+        io::println("PASS: einsum trace works");
+    }
+}
+
+public fn test_einsum_transpose(): void {
+    // "ij->ji" transpose
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let arrays: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    arrays.add(a);
+    let shapes: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(2);
+    shape.add(2);
+    shapes.add(shape);
+    let result: ArrayList<double> = Einsum.einsum("ij->ji", arrays, shapes);
+    if (result.size() != 4) {
+        io::println("FAIL: einsum transpose size");
+        return;
+    }
+    // Transpose of [[1,2],[3,4]] = [[1,3],[2,4]] -> [1,3,2,4]
+    if (Math.abs(result.get(1) - 3.0) > 1e-9 || Math.abs(result.get(2) - 2.0) > 1e-9) {
+        io::println("FAIL: einsum transpose values");
+    } else {
+        io::println("PASS: einsum transpose works");
+    }
+}
+
+public fn test_einsum_matrix_mult(): void {
+    // "ij,jk->ik" matrix multiplication
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0);
+    b.add(0.0);
+    b.add(0.0);
+    b.add(1.0);
+    let arrays: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    arrays.add(a);
+    arrays.add(b);
+    let shapes: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let shapeA: ArrayList<int> = new ArrayList<int>();
+    shapeA.add(2);
+    shapeA.add(2);
+    shapes.add(shapeA);
+    let shapeB: ArrayList<int> = new ArrayList<int>();
+    shapeB.add(2);
+    shapeB.add(2);
+    shapes.add(shapeB);
+    let result: ArrayList<double> = Einsum.einsum("ij,jk->ik", arrays, shapes);
+    // A * I = A
+    if (result.size() != 4) {
+        io::println("FAIL: einsum matmul size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-9 || Math.abs(result.get(3) - 4.0) > 1e-9) {
+        io::println("FAIL: einsum matmul values");
+    } else {
+        io::println("PASS: einsum matmul works");
+    }
+}
+
+public fn test_einsum_dot_product(): void {
+    // "i,i->" dot product [1,2,3] . [1,2,3] = 14
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0);
+    b.add(2.0);
+    b.add(3.0);
+    let arrays: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    arrays.add(a);
+    arrays.add(b);
+    let shapes: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let shapeA: ArrayList<int> = new ArrayList<int>();
+    shapeA.add(3);
+    shapes.add(shapeA);
+    let shapeB: ArrayList<int> = new ArrayList<int>();
+    shapeB.add(3);
+    shapes.add(shapeB);
+    let result: ArrayList<double> = Einsum.einsum("i,i->", arrays, shapes);
+    if (result.size() != 1 || Math.abs(result.get(0) - 14.0) > 1e-9) {
+        io::println("FAIL: einsum dot product");
+    } else {
+        io::println("PASS: einsum dot product works");
+    }
+}
+
+public fn test_tensordot(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    a.add(1.0);
+    a.add(2.0);
+    a.add(3.0);
+    a.add(4.0);
+    let shapeA: ArrayList<int> = new ArrayList<int>();
+    shapeA.add(2);
+    shapeA.add(2);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0);
+    b.add(0.0);
+    b.add(0.0);
+    b.add(1.0);
+    let shapeB: ArrayList<int> = new ArrayList<int>();
+    shapeB.add(2);
+    shapeB.add(2);
+    let result: ArrayList<double> = Einsum.tensordot(a, shapeA, b, shapeB, 1);
+    if (result.size() == 0) {
+        io::println("FAIL: tensordot empty");
+    } else {
+        io::println("PASS: tensordot works");
+    }
+}
+
+public fn test_matrix_exponential(): void {
+    // exp([[0,0],[0,0]]) = [[1,0],[0,1]]
+    let m: ArrayList<double> = new ArrayList<double>();
+    m.add(0.0);
+    m.add(0.0);
+    m.add(0.0);
+    m.add(0.0);
+    let result: ArrayList<double> = Einsum.matrixExponential(m, 2);
+    if (result.size() != 4) {
+        io::println("FAIL: matrixExponential size");
+        return;
+    }
+    if (Math.abs(result.get(0) - 1.0) > 1e-6 || Math.abs(result.get(3) - 1.0) > 1e-6) {
+        io::println("FAIL: matrixExponential of zero matrix not identity");
+    } else {
+        io::println("PASS: matrixExponential works");
+    }
+}
+
+public fn test_matrix_logarithm(): void {
+    // log(I) = 0
+    let m: ArrayList<double> = new ArrayList<double>();
+    m.add(1.0);
+    m.add(0.0);
+    m.add(0.0);
+    m.add(1.0);
+    let result: ArrayList<double> = Einsum.matrixLogarithm(m, 2);
+    if (result.size() != 4) {
+        io::println("FAIL: matrixLogarithm size");
+        return;
+    }
+    io::println("PASS: matrixLogarithm works");
+}
+
+public fn run_all_ndarray_einsum_tests(): void {
+    io::println("=== ndarray/Einsum.tr Tests ===");
+    test_einsum_trace();
+    test_einsum_transpose();
+    test_einsum_matrix_mult();
+    test_einsum_dot_product();
+    test_tensordot();
+    test_matrix_exponential();
+    test_matrix_logarithm();
+}

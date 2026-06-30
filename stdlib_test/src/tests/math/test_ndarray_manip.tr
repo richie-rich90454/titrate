@@ -1,0 +1,186 @@
+// Test file for ndarray/NDArrayManip.tr
+// Exercises the public API for NDArray manipulation utilities (pad, flip, roll, rot90).
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::math::ndarray::NDArrayManip;
+import tt::lang::Integer;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn shape2(r: int, c: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(r);
+    s.add(c);
+    return s;
+}
+
+fn arr1x4(d0: double, d1: double, d2: double, d3: double): NDArray<double> {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(d0);
+    data.add(d1);
+    data.add(d2);
+    data.add(d3);
+    return fromData<double>(shape1(4), data);
+}
+
+fn arr2x2(d0: double, d1: double, d2: double, d3: double): NDArray<double> {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(d0);
+    data.add(d1);
+    data.add(d2);
+    data.add(d3);
+    return fromData<double>(shape2(2, 2), data);
+}
+
+public fn test_ndFlip(): void {
+    // flip([1,2,3,4]) = [4,3,2,1]
+    let a: NDArray<double> = arr1x4(1.0, 2.0, 3.0, 4.0);
+    let r: NDArray<double> = NDArrayManip.ndFlip(a);
+    if (r.data.size() == 4 && approxEq(r.getFlat(0), 4.0, 1e-9) && approxEq(r.getFlat(3), 1.0, 1e-9)) {
+        io::println("PASS: ndFlip works");
+    } else {
+        io::println("FAIL: ndFlip");
+    }
+}
+
+public fn test_ndFliplr(): void {
+    // fliplr of [[1,2],[3,4]] = [[2,1],[4,3]]
+    let a: NDArray<double> = arr2x2(1.0, 2.0, 3.0, 4.0);
+    let r: NDArray<double> = NDArrayManip.ndFliplr(a);
+    if (r.data.size() == 4 && approxEq(r.get2D(0, 0), 2.0, 1e-9) && approxEq(r.get2D(0, 1), 1.0, 1e-9) && approxEq(r.get2D(1, 1), 3.0, 1e-9)) {
+        io::println("PASS: ndFliplr works");
+    } else {
+        io::println("FAIL: ndFliplr");
+    }
+}
+
+public fn test_ndFlipud(): void {
+    // flipud of [[1,2],[3,4]] = [[3,4],[1,2]]
+    let a: NDArray<double> = arr2x2(1.0, 2.0, 3.0, 4.0);
+    let r: NDArray<double> = NDArrayManip.ndFlipud(a);
+    if (r.data.size() == 4 && approxEq(r.get2D(0, 0), 3.0, 1e-9) && approxEq(r.get2D(1, 0), 1.0, 1e-9)) {
+        io::println("PASS: ndFlipud works");
+    } else {
+        io::println("FAIL: ndFlipud");
+    }
+}
+
+public fn test_ndRoll(): void {
+    // roll([1,2,3,4], 1) = [4,1,2,3]
+    let a: NDArray<double> = arr1x4(1.0, 2.0, 3.0, 4.0);
+    let r: NDArray<double> = NDArrayManip.ndRoll(a, 1);
+    if (r.data.size() == 4 && approxEq(r.getFlat(0), 4.0, 1e-9) && approxEq(r.getFlat(1), 1.0, 1e-9) && approxEq(r.getFlat(3), 3.0, 1e-9)) {
+        io::println("PASS: ndRoll works");
+    } else {
+        io::println("FAIL: ndRoll");
+    }
+}
+
+public fn test_ndRoll_zero(): void {
+    // roll by 0 is identity
+    let a: NDArray<double> = arr1x4(1.0, 2.0, 3.0, 4.0);
+    let r: NDArray<double> = NDArrayManip.ndRoll(a, 0);
+    if (r.data.size() == 4 && approxEq(r.getFlat(0), 1.0, 1e-9) && approxEq(r.getFlat(3), 4.0, 1e-9)) {
+        io::println("PASS: ndRoll zero works");
+    } else {
+        io::println("FAIL: ndRoll zero");
+    }
+}
+
+public fn test_ndRot90(): void {
+    // rot90 of [[1,2],[3,4]] CCW = [[2,4],[1,3]] (shape [cols,rows]=[2,2])
+    let a: NDArray<double> = arr2x2(1.0, 2.0, 3.0, 4.0);
+    let r: NDArray<double> = NDArrayManip.ndRot90(a);
+    if (r.shape.get(0) != 2 || r.shape.get(1) != 2) {
+        io::println("FAIL: ndRot90 shape");
+        return;
+    }
+    // result[0][0]=a[1][0]=3, result[0][1]=a[0][0]=1
+    if (r.data.size() == 4 && approxEq(r.get2D(0, 0), 3.0, 1e-9) && approxEq(r.get2D(0, 1), 1.0, 1e-9)) {
+        io::println("PASS: ndRot90 works");
+    } else {
+        io::println("FAIL: ndRot90 values");
+    }
+}
+
+public fn test_ndPad_constant(): void {
+    // pad [1,2] with widths [1] constant -> [0,1,2,0]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let widths: ArrayList<int> = new ArrayList<int>();
+    widths.add(1);
+    let r: NDArray<double> = NDArrayManip.ndPad(a, widths, "constant");
+    if (r.data.size() != 4) {
+        io::println("FAIL: ndPad constant size = " + Integer.toString(r.data.size()));
+        return;
+    }
+    if (approxEq(r.getFlat(0), 0.0, 1e-9) && approxEq(r.getFlat(1), 1.0, 1e-9) && approxEq(r.getFlat(2), 2.0, 1e-9) && approxEq(r.getFlat(3), 0.0, 1e-9)) {
+        io::println("PASS: ndPad constant works");
+    } else {
+        io::println("FAIL: ndPad constant values");
+    }
+}
+
+public fn test_ndPad_edge(): void {
+    // pad [1,2] with widths [1] edge -> [1,1,2,2]
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    data.add(2.0);
+    let a: NDArray<double> = fromData<double>(shape1(2), data);
+    let widths: ArrayList<int> = new ArrayList<int>();
+    widths.add(1);
+    let r: NDArray<double> = NDArrayManip.ndPad(a, widths, "edge");
+    if (r.data.size() != 4) {
+        io::println("FAIL: ndPad edge size");
+        return;
+    }
+    if (approxEq(r.getFlat(0), 1.0, 1e-9) && approxEq(r.getFlat(1), 1.0, 1e-9) && approxEq(r.getFlat(2), 2.0, 1e-9) && approxEq(r.getFlat(3), 2.0, 1e-9)) {
+        io::println("PASS: ndPad edge works");
+    } else {
+        io::println("FAIL: ndPad edge values");
+    }
+}
+
+public fn test_ndPad_2d(): void {
+    // pad 2x2 with widths [1,1] constant -> 4x4 with zero border
+    let a: NDArray<double> = arr2x2(1.0, 2.0, 3.0, 4.0);
+    let widths: ArrayList<int> = new ArrayList<int>();
+    widths.add(1);
+    widths.add(1);
+    let r: NDArray<double> = NDArrayManip.ndPad(a, widths, "constant");
+    if (r.shape.get(0) != 4 || r.shape.get(1) != 4) {
+        io::println("FAIL: ndPad 2d shape");
+        return;
+    }
+    // Center should contain original: r[1][1]=1, r[1][2]=2, r[2][1]=3, r[2][2]=4
+    if (approxEq(r.get2D(1, 1), 1.0, 1e-9) && approxEq(r.get2D(2, 2), 4.0, 1e-9) && approxEq(r.get2D(0, 0), 0.0, 1e-9)) {
+        io::println("PASS: ndPad 2d works");
+    } else {
+        io::println("FAIL: ndPad 2d values");
+    }
+}
+
+public fn run_all_ndarray_manip_tests(): void {
+    io::println("=== ndarray/NDArrayManip.tr Tests ===");
+    test_ndFlip();
+    test_ndFliplr();
+    test_ndFlipud();
+    test_ndRoll();
+    test_ndRoll_zero();
+    test_ndRot90();
+    test_ndPad_constant();
+    test_ndPad_edge();
+    test_ndPad_2d();
+}

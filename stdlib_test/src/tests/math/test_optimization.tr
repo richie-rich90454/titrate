@@ -1,0 +1,155 @@
+// Test file for optimization/Optimization.tr
+// Exercises the public API for optimization algorithms.
+import tt::util::ArrayList;
+import tt::math::optimization::Optimization;
+import tt::math::optimization::Optimization::OptResult;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+public fn test_gradient_descent(): void {
+    // Minimize f(x) = (x-3)^2 at x=0, minimum at x=3
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        let dx: double = x.get(0) - 3.0;
+        return dx * dx;
+    };
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(0.0);
+    let result: OptResult = Optimization.gradientDescent(f, x0, 0.1, 100);
+    if (result.x.size() != 1) {
+        io::println("FAIL: gradientDescent x size");
+        return;
+    }
+    if (Math.abs(result.x.get(0) - 3.0) > 0.1) {
+        io::println("FAIL: gradientDescent x = " + Double.toString(result.x.get(0)));
+    } else {
+        io::println("PASS: gradientDescent works");
+    }
+}
+
+public fn test_nelder_mead(): void {
+    // Minimize f(x,y) = x^2 + y^2
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        return x.get(0) * x.get(0) + x.get(1) * x.get(1);
+    };
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(1.0);
+    x0.add(1.0);
+    let result: OptResult = Optimization.nelderMead(f, x0, 200);
+    if (result.x.size() != 2) {
+        io::println("FAIL: nelderMead x size");
+        return;
+    }
+    if (Math.abs(result.x.get(0)) > 0.1 || Math.abs(result.x.get(1)) > 0.1) {
+        io::println("FAIL: nelderMead did not converge to origin");
+    } else {
+        io::println("PASS: nelderMead works");
+    }
+}
+
+public fn test_conjugate_gradient(): void {
+    // Minimize f(x) = (x-2)^2
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        let dx: double = x.get(0) - 2.0;
+        return dx * dx;
+    };
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(0.0);
+    let result: OptResult = Optimization.conjugateGradient(f, x0, 100);
+    if (result.x.size() != 1) {
+        io::println("FAIL: conjugateGradient x size");
+        return;
+    }
+    if (Math.abs(result.x.get(0) - 2.0) > 0.5) {
+        io::println("FAIL: conjugateGradient x = " + Double.toString(result.x.get(0)));
+    } else {
+        io::println("PASS: conjugateGradient works");
+    }
+}
+
+public fn test_lbfgs(): void {
+    // Minimize f(x) = x^2
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        return x.get(0) * x.get(0);
+    };
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(5.0);
+    let result: OptResult = Optimization.lbfgs(f, x0, 100);
+    if (result.x.size() != 1) {
+        io::println("FAIL: lbfgs x size");
+        return;
+    }
+    if (Math.abs(result.x.get(0)) > 0.5) {
+        io::println("FAIL: lbfgs x = " + Double.toString(result.x.get(0)));
+    } else {
+        io::println("PASS: lbfgs works");
+    }
+}
+
+public fn test_stochastic_gradient_descent(): void {
+    // Simple SGD on f(x) = (x-1)^2
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        let dx: double = x.get(0) - 1.0;
+        return dx * dx;
+    };
+    let grad: fn(ArrayList<double>): ArrayList<double> = fn(x: ArrayList<double>): ArrayList<double> {
+        let g: ArrayList<double> = new ArrayList<double>();
+        g.add(2.0 * (x.get(0) - 1.0));
+        return g;
+    };
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(0.0);
+    let result: OptResult = Optimization.stochasticGradientDescent(f, grad, x0, 0.01, 100);
+    if (result.x.size() != 1) {
+        io::println("FAIL: SGD x size");
+        return;
+    }
+    io::println("PASS: stochasticGradientDescent works");
+}
+
+public fn test_linear_programming(): void {
+    // Simple LP: maximize x+y subject to x>=0, y>=0, x+y<=1
+    // Standard form: minimize c = [-1, -1] subject to a*x <= b
+    let c: ArrayList<double> = new ArrayList<double>();
+    c.add(-1.0);
+    c.add(-1.0);
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0);
+    row0.add(1.0);
+    a.add(row0);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0);
+    let result: ArrayList<double> = Optimization.linearProgramming(c, a, b);
+    if (result.size() != 2) {
+        io::println("FAIL: linearProgramming result size");
+        return;
+    }
+    io::println("PASS: linearProgramming works");
+}
+
+public fn test_opt_result_value(): void {
+    // OptResult should have a value field
+    let f: fn(ArrayList<double>): double = fn(x: ArrayList<double>): double {
+        return x.get(0) * x.get(0);
+    };
+    let x0: ArrayList<double> = new ArrayList<double>();
+    x0.add(2.0);
+    let result: OptResult = Optimization.gradientDescent(f, x0, 0.1, 100);
+    // Value at minimum (x=0) should be ~0
+    if (result.value < 0.0) {
+        io::println("FAIL: OptResult.value negative");
+    } else {
+        io::println("PASS: OptResult has value");
+    }
+}
+
+public fn run_all_optimization_tests(): void {
+    io::println("=== optimization/Optimization.tr Tests ===");
+    test_gradient_descent();
+    test_nelder_mead();
+    test_conjugate_gradient();
+    test_lbfgs();
+    test_stochastic_gradient_descent();
+    test_linear_programming();
+    test_opt_result_value();
+}

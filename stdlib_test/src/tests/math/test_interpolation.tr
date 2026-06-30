@@ -1,0 +1,222 @@
+// Test file for interpolation/Interpolation.tr
+// Exercises the public API for interpolation methods.
+import tt::util::ArrayList;
+import tt::math::interpolation::Interpolation;
+import tt::math::interpolation::Interpolation::CubicSpline;
+import tt::lang::Double;
+
+public fn test_linear_interp(): void {
+    // Linear interpolation between (0, 0) and (2, 4) at x=1 -> 2
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(4.0);
+    let result: double = Interpolation.linearInterp(xs, ys, 1.0);
+    if (Math.abs(result - 2.0) > 1e-9) {
+        io::println("FAIL: linearInterp = " + Double.toString(result));
+    } else {
+        io::println("PASS: linearInterp works");
+    }
+}
+
+public fn test_interp_alias(): void {
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(4.0);
+    let result: double = Interpolation.interp(xs, ys, 1.0);
+    if (Math.abs(result - 2.0) > 1e-9) {
+        io::println("FAIL: interp alias");
+    } else {
+        io::println("PASS: interp alias works");
+    }
+}
+
+public fn test_nearest_interp(): void {
+    // Nearest: at x=0.4 nearest is 0 (value 0), at x=0.6 nearest is 1 (value 4)
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(4.0);
+    let r1: double = Interpolation.nearestInterp(xs, ys, 0.4);
+    let r2: double = Interpolation.nearestInterp(xs, ys, 0.6);
+    if (Math.abs(r1 - 0.0) > 1e-9 || Math.abs(r2 - 4.0) > 1e-9) {
+        io::println("FAIL: nearestInterp");
+    } else {
+        io::println("PASS: nearestInterp works");
+    }
+}
+
+public fn test_lagrange_interp(): void {
+    // Lagrange interpolation through (0,1), (1,2), (2,5) (parabola y=x^2+1)
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(1.0);
+    ys.add(2.0);
+    ys.add(5.0);
+    let result: double = Interpolation.lagrangeInterp(xs, ys, 0.5);
+    // y = 0.25 + 1 = 1.25
+    if (Math.abs(result - 1.25) > 1e-6) {
+        io::println("FAIL: lagrangeInterp = " + Double.toString(result));
+    } else {
+        io::println("PASS: lagrangeInterp works");
+    }
+}
+
+public fn test_newton_interp(): void {
+    // Newton interpolation through (0,1), (1,2), (2,5) (parabola y=x^2+1)
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(1.0);
+    ys.add(2.0);
+    ys.add(5.0);
+    let result: double = Interpolation.newtonInterp(xs, ys, 0.5);
+    if (Math.abs(result - 1.25) > 1e-6) {
+        io::println("FAIL: newtonInterp = " + Double.toString(result));
+    } else {
+        io::println("PASS: newtonInterp works");
+    }
+}
+
+public fn test_bilinear_interp(): void {
+    // Bilinear on unit square: f(0,0)=0, f(1,0)=1, f(0,1)=1, f(1,1)=2
+    // At (0.5, 0.5) -> 1.0
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(1.0);
+    let values: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(0.0);
+    row0.add(1.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(1.0);
+    row1.add(2.0);
+    values.add(row0);
+    values.add(row1);
+    let result: double = Interpolation.bilinearInterp(xs, ys, values, 0.5, 0.5);
+    if (Math.abs(result - 1.0) > 1e-6) {
+        io::println("FAIL: bilinearInterp = " + Double.toString(result));
+    } else {
+        io::println("PASS: bilinearInterp works");
+    }
+}
+
+public fn test_cubic_spline_eval(): void {
+    // Cubic spline through (0,0), (1,1), (2,4)
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(1.0);
+    ys.add(4.0);
+    let spline: CubicSpline = new CubicSpline(xs, ys);
+    // At knot points, spline should match data
+    let v0: double = spline.eval(0.0);
+    let v1: double = spline.eval(1.0);
+    let v2: double = spline.eval(2.0);
+    if (Math.abs(v0 - 0.0) > 1e-6 || Math.abs(v1 - 1.0) > 1e-6 || Math.abs(v2 - 4.0) > 1e-6) {
+        io::println("FAIL: CubicSpline.eval at knots");
+    } else {
+        io::println("PASS: CubicSpline.eval at knots works");
+    }
+}
+
+public fn test_cubic_spline_eval_array(): void {
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(1.0);
+    ys.add(4.0);
+    let spline: CubicSpline = new CubicSpline(xs, ys);
+    let query: ArrayList<double> = new ArrayList<double>();
+    query.add(0.0);
+    query.add(1.0);
+    query.add(2.0);
+    let results: ArrayList<double> = spline.evalArray(query);
+    if (results.size() != 3) {
+        io::println("FAIL: evalArray size");
+        return;
+    }
+    io::println("PASS: CubicSpline.evalArray works");
+}
+
+public fn test_cubic_spline_derivative(): void {
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(1.0);
+    ys.add(4.0);
+    let spline: CubicSpline = new CubicSpline(xs, ys);
+    let d: double = spline.derivative(1.0);
+    io::println("PASS: CubicSpline.derivative executes");
+}
+
+public fn test_cubic_spline_integral(): void {
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(1.0);
+    ys.add(4.0);
+    let spline: CubicSpline = new CubicSpline(xs, ys);
+    let i: double = spline.integral(0.0, 2.0);
+    io::println("PASS: CubicSpline.integral executes");
+}
+
+public fn test_cubic_spline_find_interval(): void {
+    let xs: ArrayList<double> = new ArrayList<double>();
+    xs.add(0.0);
+    xs.add(1.0);
+    xs.add(2.0);
+    let ys: ArrayList<double> = new ArrayList<double>();
+    ys.add(0.0);
+    ys.add(1.0);
+    ys.add(4.0);
+    let spline: CubicSpline = new CubicSpline(xs, ys);
+    let idx: int = spline.findInterval(1.5);
+    if (idx != 1) {
+        io::println("FAIL: findInterval(1.5) = " + Integer.toString(idx) + " expected 1");
+    } else {
+        io::println("PASS: CubicSpline.findInterval works");
+    }
+}
+
+public fn run_all_interpolation_tests(): void {
+    io::println("=== interpolation/Interpolation.tr Tests ===");
+    test_linear_interp();
+    test_interp_alias();
+    test_nearest_interp();
+    test_lagrange_interp();
+    test_newton_interp();
+    test_bilinear_interp();
+    test_cubic_spline_eval();
+    test_cubic_spline_eval_array();
+    test_cubic_spline_derivative();
+    test_cubic_spline_integral();
+    test_cubic_spline_find_interval();
+}

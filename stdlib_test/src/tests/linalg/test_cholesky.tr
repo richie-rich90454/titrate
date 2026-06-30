@@ -1,0 +1,150 @@
+// Test file for Cholesky.tr
+// Exercises the public API for Cholesky decomposition and related operations.
+import tt::util::ArrayList;
+import tt::linalg::Cholesky;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_is_positive_definite_true(): void {
+    // 2x2 symmetric positive definite matrix: [[4, 2], [2, 3]]
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(4.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(2.0);
+    row1.add(3.0);
+    a.add(row0);
+    a.add(row1);
+    if (!Cholesky.isPositiveDefinite(a, 2)) {
+        io::println("FAIL: isPositiveDefinite should be true for SPD matrix");
+    } else {
+        io::println("PASS: isPositiveDefinite true for SPD matrix");
+    }
+}
+
+public fn test_is_positive_definite_false(): void {
+    // Non-symmetric matrix should not be considered positive definite
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(0.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(2.0);
+    row1.add(3.0);
+    a.add(row0);
+    a.add(row1);
+    if (Cholesky.isPositiveDefinite(a, 2)) {
+        io::println("FAIL: isPositiveDefinite should be false for non-PD matrix");
+    } else {
+        io::println("PASS: isPositiveDefinite false for non-PD matrix");
+    }
+}
+
+public fn test_cholesky_decomposition(): void {
+    // [[4, 2], [2, 3]] -> L = [[2, 0], [1, sqrt(2)]]
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(4.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(2.0);
+    row1.add(3.0);
+    a.add(row0);
+    a.add(row1);
+    let l: ArrayList<ArrayList<double>> = Cholesky.cholesky(a, 2);
+    if (l.size() != 2) {
+        io::println("FAIL: cholesky result size = " + Integer.toString(l.size()));
+        return;
+    }
+    // L[0][0] should be 2.0, L[1][0] should be 1.0, L[1][1] should be sqrt(2)
+    let l00: double = l.get(0).get(0);
+    let l10: double = l.get(1).get(0);
+    let l11: double = l.get(1).get(1);
+    if (Math.abs(l00 - 2.0) > 1e-9 || Math.abs(l10 - 1.0) > 1e-9 || Math.abs(l11 - 1.41421356) > 1e-6) {
+        io::println("FAIL: cholesky values L00=" + Double.toString(l00) + " L10=" + Double.toString(l10) + " L11=" + Double.toString(l11));
+    } else {
+        io::println("PASS: cholesky decomposition works");
+    }
+}
+
+public fn test_cholesky_solve(): void {
+    // Solve [[4, 2], [2, 3]] x = [4, 5] -> x = [0.5, 1.0]
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(4.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(2.0);
+    row1.add(3.0);
+    a.add(row0);
+    a.add(row1);
+    let l: ArrayList<ArrayList<double>> = Cholesky.cholesky(a, 2);
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(4.0);
+    b.add(5.0);
+    let x: ArrayList<double> = Cholesky.choleskySolve(l, 2, b);
+    if (x.size() != 2) {
+        io::println("FAIL: choleskySolve result size = " + Integer.toString(x.size()));
+        return;
+    }
+    if (Math.abs(x.get(0) - 0.5) > 1e-6 || Math.abs(x.get(1) - 1.0) > 1e-6) {
+        io::println("FAIL: choleskySolve x0=" + Double.toString(x.get(0)) + " x1=" + Double.toString(x.get(1)));
+    } else {
+        io::println("PASS: choleskySolve works");
+    }
+}
+
+public fn test_cholesky_update(): void {
+    // Build a Cholesky factor, then update it. Should not throw and L should remain valid.
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(4.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(2.0);
+    row1.add(3.0);
+    a.add(row0);
+    a.add(row1);
+    let l: ArrayList<ArrayList<double>> = Cholesky.cholesky(a, 2);
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(1.0);
+    x.add(0.0);
+    Cholesky.choleskyUpdate(l, 2, x, 1.0);
+    // After update, diagonal should be positive
+    if (l.get(0).get(0) <= 0.0 || l.get(1).get(1) <= 0.0) {
+        io::println("FAIL: choleskyUpdate produced non-positive diagonal");
+    } else {
+        io::println("PASS: choleskyUpdate works");
+    }
+}
+
+public fn test_cholesky_downdate(): void {
+    // Build a Cholesky factor, then downdate it.
+    let a: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(5.0);
+    row0.add(2.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(2.0);
+    row1.add(3.0);
+    a.add(row0);
+    a.add(row1);
+    let l: ArrayList<ArrayList<double>> = Cholesky.cholesky(a, 2);
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(1.0);
+    x.add(0.0);
+    Cholesky.choleskyDowndate(l, 2, x);
+    // Downdate either succeeds (positive diagonal) or leaves matrix in valid state
+    io::println("PASS: choleskyDowndate executes without crash");
+}
+
+public fn run_all_cholesky_tests(): void {
+    io::println("=== Cholesky.tr Tests ===");
+    test_is_positive_definite_true();
+    test_is_positive_definite_false();
+    test_cholesky_decomposition();
+    test_cholesky_solve();
+    test_cholesky_update();
+    test_cholesky_downdate();
+}

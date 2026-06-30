@@ -1,0 +1,125 @@
+// Test file for geometry3d/Triangle.tr
+// Exercises the public API for 3D triangles.
+import tt::math::geometry3d::Triangle;
+import tt::lang::Double;
+
+public fn test_triangle_creation(): void {
+    let t: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    io::println("PASS: Triangle creation works");
+}
+
+public fn test_triangle_area(): void {
+    // Right triangle with legs 1 and 1 -> area 0.5
+    let t: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    let a: double = t.area();
+    if (Math.abs(a - 0.5) > 1e-9) {
+        io::println("FAIL: Triangle area = " + Double.toString(a));
+    } else {
+        io::println("PASS: Triangle area works");
+    }
+}
+
+public fn test_triangle_normal(): void {
+    // Triangle in xy-plane has normal (0, 0, 1) or (0, 0, -1)
+    let t: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    let n: ArrayList<double> = t.normal();
+    if (n.size() != 3) {
+        io::println("FAIL: normal size");
+        return;
+    }
+    let mag: double = Math.sqrt(n.get(0) * n.get(0) + n.get(1) * n.get(1) + n.get(2) * n.get(2));
+    if (Math.abs(mag - 1.0) > 1e-6) {
+        io::println("FAIL: normal not unit length");
+    } else {
+        io::println("PASS: Triangle normal works");
+    }
+}
+
+public fn test_triangle_centroid(): void {
+    // Centroid of triangle (0,0,0), (3,0,0), (0,3,0) = (1, 1, 0)
+    let t: Triangle = new Triangle(0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 3.0, 0.0);
+    let c: ArrayList<double> = t.centroid();
+    if (c.size() != 3) {
+        io::println("FAIL: centroid size");
+        return;
+    }
+    if (Math.abs(c.get(0) - 1.0) > 1e-9 || Math.abs(c.get(1) - 1.0) > 1e-9) {
+        io::println("FAIL: centroid values");
+    } else {
+        io::println("PASS: Triangle centroid works");
+    }
+}
+
+public fn test_triangle_contains(): void {
+    // Point (0.25, 0.25, 0) is inside triangle (0,0,0), (1,0,0), (0,1,0)
+    let t: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    if (!t.contains(0.25, 0.25, 0.0)) {
+        io::println("FAIL: triangle should contain interior point");
+    } else if (t.contains(2.0, 2.0, 0.0)) {
+        io::println("FAIL: triangle should not contain exterior point");
+    } else {
+        io::println("PASS: Triangle contains works");
+    }
+}
+
+public fn test_triangle_barycentric(): void {
+    // Barycentric of vertex A in triangle ABC is (1, 0, 0)
+    let t: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    let b: ArrayList<double> = t.barycentric(0.0, 0.0, 0.0);
+    if (b.size() != 3) {
+        io::println("FAIL: barycentric size");
+        return;
+    }
+    if (Math.abs(b.get(0) - 1.0) > 1e-6) {
+        io::println("FAIL: barycentric at vertex A should be (1,0,0)");
+    } else {
+        io::println("PASS: Triangle barycentric works");
+    }
+}
+
+public fn test_triangle_intersects_ray(): void {
+    // Triangle in xy-plane, ray from (0.25, 0.25, 1) going -z hits at t=1
+    let t: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    let result: double = t.intersectsRay(0.25, 0.25, 1.0, 0.0, 0.0, -1.0);
+    if (Math.abs(result - 1.0) > 1e-6) {
+        io::println("FAIL: intersectsRay t = " + Double.toString(result));
+    } else {
+        io::println("PASS: Triangle intersectsRay works");
+    }
+}
+
+public fn test_triangle_equals(): void {
+    let a: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    let b: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    let c: Triangle = new Triangle(0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    if (!a.equals(b)) {
+        io::println("FAIL: equal triangles not equal");
+    } else if (a.equals(c)) {
+        io::println("FAIL: unequal triangles equal");
+    } else {
+        io::println("PASS: Triangle equals works");
+    }
+}
+
+public fn test_triangle_to_string(): void {
+    let t: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
+    let s: string = t.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Triangle toString empty");
+    } else {
+        io::println("PASS: Triangle toString works");
+    }
+}
+
+public fn run_all_geometry3d_triangle_tests(): void {
+    io::println("=== geometry3d/Triangle.tr Tests ===");
+    test_triangle_creation();
+    test_triangle_area();
+    test_triangle_normal();
+    test_triangle_centroid();
+    test_triangle_contains();
+    test_triangle_barycentric();
+    test_triangle_intersects_ray();
+    test_triangle_equals();
+    test_triangle_to_string();
+}

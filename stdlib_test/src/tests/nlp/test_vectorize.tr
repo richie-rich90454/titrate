@@ -1,0 +1,209 @@
+// Test file for nlp/Vectorize.tr
+// Exercises the public API for bag-of-words, TF-IDF vectorization, and vocabulary building.
+import tt::util::ArrayList;
+import tt::nlp::Vectorize;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::math::Math;
+
+fn approxEq(a: double, b: double, tol: double): bool {
+    let d: double = a - b;
+    if (d < 0.0) { d = -d; }
+    return d < tol;
+}
+
+fn doc(words: string): ArrayList<string> {
+    // Split a space-separated string into a token list (simple whitespace split)
+    let tokens: ArrayList<string> = new ArrayList<string>();
+    let current: string = "";
+    var i: int = 0;
+    while (i < String.length(words)) {
+        let ch: string = String.charAt(words, i);
+        if (ch == " ") {
+            if (String.length(current) > 0) {
+                tokens.add(current);
+                current = "";
+            }
+        } else {
+            current = current + ch;
+        }
+        i = i + 1;
+    }
+    if (String.length(current) > 0) { tokens.add(current); }
+    return tokens;
+}
+
+public fn test_vocabulary_add(): void {
+    let vocab: Vocabulary = new Vocabulary();
+    vocab.add("hello");
+    if (vocab.size == 1 && vocab.getIndex("hello") == 0) {
+        io::println("PASS: Vocabulary add works");
+    } else {
+        io::println("FAIL: Vocabulary add");
+    }
+}
+
+public fn test_vocabulary_duplicate(): void {
+    // Adding the same word twice does not increase size
+    let vocab: Vocabulary = new Vocabulary();
+    vocab.add("hello");
+    vocab.add("hello");
+    if (vocab.size == 1) {
+        io::println("PASS: Vocabulary duplicate works");
+    } else {
+        io::println("FAIL: Vocabulary duplicate size = " + Integer.toString(vocab.size));
+    }
+}
+
+public fn test_vocabulary_getIndex_missing(): void {
+    let vocab: Vocabulary = new Vocabulary();
+    vocab.add("hello");
+    if (vocab.getIndex("missing") == -1) {
+        io::println("PASS: Vocabulary getIndex missing works");
+    } else {
+        io::println("FAIL: Vocabulary getIndex missing");
+    }
+}
+
+public fn test_buildVocabulary(): void {
+    // "the" appears twice, "cat" and "dog" once; minFreq 2 keeps only "the"
+    let documents: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    documents.add(doc("the cat"));
+    documents.add(doc("the dog"));
+    let vocab: Vocabulary = Vectorize.buildVocabulary(documents, 2);
+    if (vocab.size == 1 && vocab.getIndex("the") >= 0) {
+        io::println("PASS: buildVocabulary works");
+    } else {
+        io::println("FAIL: buildVocabulary size = " + Integer.toString(vocab.size));
+    }
+}
+
+public fn test_buildVocabulary_minFreq1(): void {
+    // minFreq 1 keeps all distinct words
+    let documents: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    documents.add(doc("a b"));
+    documents.add(doc("a c"));
+    let vocab: Vocabulary = Vectorize.buildVocabulary(documents, 1);
+    if (vocab.size == 3) {
+        io::println("PASS: buildVocabulary minFreq1 works");
+    } else {
+        io::println("FAIL: buildVocabulary minFreq1 size = " + Integer.toString(vocab.size));
+    }
+}
+
+public fn test_bagOfWords(): void {
+    // vocab: apple=0, banana=1; document "apple apple banana" -> [2, 1]
+    let vocab: Vocabulary = new Vocabulary();
+    vocab.add("apple");
+    vocab.add("banana");
+    let document: ArrayList<string> = doc("apple apple banana");
+    let bow: ArrayList<double> = Vectorize.bagOfWords(document, vocab);
+    if (bow.size() == 2 && approxEq(bow.get(0), 2.0, 1e-9) && approxEq(bow.get(1), 1.0, 1e-9)) {
+        io::println("PASS: bagOfWords works");
+    } else {
+        io::println("FAIL: bagOfWords");
+    }
+}
+
+public fn test_bagOfWords_unknown(): void {
+    // Unknown words are ignored
+    let vocab: Vocabulary = new Vocabulary();
+    vocab.add("apple");
+    let document: ArrayList<string> = doc("apple unknown");
+    let bow: ArrayList<double> = Vectorize.bagOfWords(document, vocab);
+    if (bow.size() == 1 && approxEq(bow.get(0), 1.0, 1e-9)) {
+        io::println("PASS: bagOfWords unknown works");
+    } else {
+        io::println("FAIL: bagOfWords unknown");
+    }
+}
+
+public fn test_tfidfVectorizer_fit(): void {
+    let vec: TfidfVectorizer = new TfidfVectorizer();
+    let documents: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    documents.add(doc("a b"));
+    documents.add(doc("a c"));
+    vec.fit(documents);
+    if (vec.vocab.size == 3 && vec.idf.size() == 3) {
+        io::println("PASS: TfidfVectorizer fit works");
+    } else {
+        io::println("FAIL: TfidfVectorizer fit vocab = " + Integer.toString(vec.vocab.size));
+    }
+}
+
+public fn test_tfidfVectorizer_transform(): void {
+    let vec: TfidfVectorizer = new TfidfVectorizer();
+    let documents: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    documents.add(doc("a b"));
+    documents.add(doc("a c"));
+    vec.fit(documents);
+    let result: ArrayList<double> = vec.transform(doc("a b"));
+    if (result.size() == 3) {
+        io::println("PASS: TfidfVectorizer transform works");
+    } else {
+        io::println("FAIL: TfidfVectorizer transform size = " + Integer.toString(result.size()));
+    }
+}
+
+public fn test_tfidfVectorizer_transform_normalized(): void {
+    // The transform output is L2-normalized, so its norm should be ~1 (or 0 if all-zero)
+    let vec: TfidfVectorizer = new TfidfVectorizer();
+    let documents: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    documents.add(doc("a b"));
+    documents.add(doc("a c"));
+    vec.fit(documents);
+    let result: ArrayList<double> = vec.transform(doc("a b"));
+    var norm: double = 0.0;
+    var i: int = 0;
+    while (i < result.size()) {
+        norm = norm + result.get(i) * result.get(i);
+        i = i + 1;
+    }
+    norm = Math.sqrt(norm);
+    if (approxEq(norm, 1.0, 1e-6) || approxEq(norm, 0.0, 1e-9)) {
+        io::println("PASS: TfidfVectorizer transform normalized works");
+    } else {
+        io::println("FAIL: TfidfVectorizer transform normalized norm = " + Double.toString(norm));
+    }
+}
+
+public fn test_tfidf(): void {
+    // tfidf on a corpus returns one vector per document
+    let corpus: ArrayList<string> = new ArrayList<string>();
+    corpus.add("hello world");
+    corpus.add("foo bar");
+    let result: ArrayList<ArrayList<double>> = Vectorize.tfidf(corpus);
+    if (result.size() == 2) {
+        io::println("PASS: tfidf works");
+    } else {
+        io::println("FAIL: tfidf size = " + Integer.toString(result.size()));
+    }
+}
+
+public fn test_tfidf_single_doc(): void {
+    let corpus: ArrayList<string> = new ArrayList<string>();
+    corpus.add("one two three");
+    let result: ArrayList<ArrayList<double>> = Vectorize.tfidf(corpus);
+    if (result.size() == 1 && result.get(0).size() == 3) {
+        io::println("PASS: tfidf single doc works");
+    } else {
+        io::println("FAIL: tfidf single doc");
+    }
+}
+
+public fn run_all_vectorize_tests(): void {
+    io::println("=== nlp/Vectorize.tr Tests ===");
+    test_vocabulary_add();
+    test_vocabulary_duplicate();
+    test_vocabulary_getIndex_missing();
+    test_buildVocabulary();
+    test_buildVocabulary_minFreq1();
+    test_bagOfWords();
+    test_bagOfWords_unknown();
+    test_tfidfVectorizer_fit();
+    test_tfidfVectorizer_transform();
+    test_tfidfVectorizer_transform_normalized();
+    test_tfidf();
+    test_tfidf_single_doc();
+}

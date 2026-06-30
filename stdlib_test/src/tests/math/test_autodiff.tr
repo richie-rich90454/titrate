@@ -1,0 +1,183 @@
+// Test file for Autodiff.tr
+// Exercises the public API for dual numbers and automatic differentiation.
+import tt::util::ArrayList;
+import tt::math::Autodiff;
+import tt::math::Autodiff::DualNumber;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_dual_number_add(): void {
+    let a: DualNumber = new DualNumber(3.0, 1.0);
+    let b: DualNumber = new DualNumber(5.0, 0.0);
+    let c: DualNumber = a.add(b);
+    if (Math.abs(c.value - 8.0) > 1e-9 || Math.abs(c.derivative - 1.0) > 1e-9) {
+        io::println("FAIL: DualNumber.add");
+    } else {
+        io::println("PASS: DualNumber.add works");
+    }
+}
+
+public fn test_dual_number_mul(): void {
+    let a: DualNumber = new DualNumber(3.0, 1.0);
+    let b: DualNumber = new DualNumber(5.0, 0.0);
+    let c: DualNumber = a.mul(b);
+    if (Math.abs(c.value - 15.0) > 1e-9 || Math.abs(c.derivative - 5.0) > 1e-9) {
+        io::println("FAIL: DualNumber.mul");
+    } else {
+        io::println("PASS: DualNumber.mul works");
+    }
+}
+
+public fn test_dual_number_sub(): void {
+    let a: DualNumber = new DualNumber(10.0, 1.0);
+    let b: DualNumber = new DualNumber(3.0, 0.0);
+    let c: DualNumber = a.sub(b);
+    if (Math.abs(c.value - 7.0) > 1e-9 || Math.abs(c.derivative - 1.0) > 1e-9) {
+        io::println("FAIL: DualNumber.sub");
+    } else {
+        io::println("PASS: DualNumber.sub works");
+    }
+}
+
+public fn test_dual_number_div(): void {
+    let a: DualNumber = new DualNumber(6.0, 1.0);
+    let b: DualNumber = new DualNumber(2.0, 0.0);
+    let c: DualNumber = a.div(b);
+    if (Math.abs(c.value - 3.0) > 1e-9 || Math.abs(c.derivative - 0.5) > 1e-9) {
+        io::println("FAIL: DualNumber.div");
+    } else {
+        io::println("PASS: DualNumber.div works");
+    }
+}
+
+public fn test_dual_number_neg(): void {
+    let a: DualNumber = new DualNumber(3.0, 1.0);
+    let c: DualNumber = a.neg();
+    if (Math.abs(c.value - (-3.0)) > 1e-9 || Math.abs(c.derivative - (-1.0)) > 1e-9) {
+        io::println("FAIL: DualNumber.neg");
+    } else {
+        io::println("PASS: DualNumber.neg works");
+    }
+}
+
+public fn test_dual_number_pow(): void {
+    let a: DualNumber = new DualNumber(2.0, 1.0);
+    let c: DualNumber = a.pow(3.0);
+    // d/dx x^3 at x=2 is 3*2^2 = 12
+    if (Math.abs(c.value - 8.0) > 1e-9 || Math.abs(c.derivative - 12.0) > 1e-6) {
+        io::println("FAIL: DualNumber.pow value=" + Double.toString(c.value) + " deriv=" + Double.toString(c.derivative));
+    } else {
+        io::println("PASS: DualNumber.pow works");
+    }
+}
+
+public fn test_dual_sin(): void {
+    let a: DualNumber = new DualNumber(0.0, 1.0);
+    let c: DualNumber = Autodiff.dualSin(a);
+    // sin(0)=0, cos(0)=1
+    if (Math.abs(c.value - 0.0) > 1e-9 || Math.abs(c.derivative - 1.0) > 1e-9) {
+        io::println("FAIL: dualSin at 0");
+    } else {
+        io::println("PASS: dualSin works");
+    }
+}
+
+public fn test_dual_exp(): void {
+    let a: DualNumber = new DualNumber(0.0, 1.0);
+    let c: DualNumber = Autodiff.dualExp(a);
+    // exp(0)=1, exp(0)=1
+    if (Math.abs(c.value - 1.0) > 1e-9 || Math.abs(c.derivative - 1.0) > 1e-9) {
+        io::println("FAIL: dualExp at 0");
+    } else {
+        io::println("PASS: dualExp works");
+    }
+}
+
+public fn test_dual_sqrt(): void {
+    let a: DualNumber = new DualNumber(4.0, 1.0);
+    let c: DualNumber = Autodiff.dualSqrt(a);
+    // sqrt(4)=2, 1/(2*sqrt(4))=0.25
+    if (Math.abs(c.value - 2.0) > 1e-9 || Math.abs(c.derivative - 0.25) > 1e-9) {
+        io::println("FAIL: dualSqrt at 4");
+    } else {
+        io::println("PASS: dualSqrt works");
+    }
+}
+
+public fn test_gradient(): void {
+    // f(x) = x^2, gradient at x=3 should be 6
+    let f: fn(ArrayList<double>): double = fn(xs: ArrayList<double>): double { return xs.get(0) * xs.get(0); };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(3.0);
+    let grad: ArrayList<double> = Autodiff.gradient(f, point);
+    if (grad.size() != 1) {
+        io::println("FAIL: gradient size = " + Integer.toString(grad.size()));
+        return;
+    }
+    if (Math.abs(grad.get(0) - 6.0) > 1e-4) {
+        io::println("FAIL: gradient x^2 at 3 = " + Double.toString(grad.get(0)));
+    } else {
+        io::println("PASS: gradient works");
+    }
+}
+
+public fn test_jacobian(): void {
+    // f(x) = [x, x^2] -> jacobian = [[1, 0], [0, 2x]] at x=2 -> [1, 4]
+    let f: fn(ArrayList<double>): ArrayList<double> = fn(xs: ArrayList<double>): ArrayList<double> {
+        let r: ArrayList<double> = new ArrayList<double>();
+        r.add(xs.get(0));
+        r.add(xs.get(0) * xs.get(0));
+        return r;
+    };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(2.0);
+    let jac: ArrayList<ArrayList<double>> = Autodiff.jacobian(f, point);
+    if (jac.size() != 2) {
+        io::println("FAIL: jacobian rows = " + Integer.toString(jac.size()));
+        return;
+    }
+    io::println("PASS: jacobian returns proper structure");
+}
+
+public fn test_hessian(): void {
+    // f(x,y) = x^2 + y^2 -> hessian = [[2,0],[0,2]]
+    let f: fn(ArrayList<double>): double = fn(xs: ArrayList<double>): double { return xs.get(0) * xs.get(0) + xs.get(1) * xs.get(1); };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(1.0);
+    point.add(2.0);
+    let h: ArrayList<ArrayList<double>> = Autodiff.hessian(f, point);
+    if (h.size() != 2) {
+        io::println("FAIL: hessian rows = " + Integer.toString(h.size()));
+        return;
+    }
+    io::println("PASS: hessian returns proper structure");
+}
+
+public fn test_hessian_dual(): void {
+    let f: fn(ArrayList<double>): double = fn(xs: ArrayList<double>): double { return xs.get(0) * xs.get(0); };
+    let x: ArrayList<double> = new ArrayList<double>();
+    x.add(3.0);
+    let h: ArrayList<ArrayList<double>> = Autodiff.hessianDual(f, x);
+    if (h.size() != 1) {
+        io::println("FAIL: hessianDual rows = " + Integer.toString(h.size()));
+        return;
+    }
+    io::println("PASS: hessianDual returns proper structure");
+}
+
+public fn run_all_autodiff_tests(): void {
+    io::println("=== Autodiff.tr Tests ===");
+    test_dual_number_add();
+    test_dual_number_mul();
+    test_dual_number_sub();
+    test_dual_number_div();
+    test_dual_number_neg();
+    test_dual_number_pow();
+    test_dual_sin();
+    test_dual_exp();
+    test_dual_sqrt();
+    test_gradient();
+    test_jacobian();
+    test_hessian();
+    test_hessian_dual();
+}
