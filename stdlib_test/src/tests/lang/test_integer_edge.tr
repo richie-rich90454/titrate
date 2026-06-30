@@ -1,0 +1,124 @@
+// Edge case tests for Integer.tr
+// Tests boundary conditions, parsing edge cases, and overflow.
+import tt::lang::Integer;
+
+public fn test_integer_edge_parse_leading_zeros(): void {
+    let v: int = Integer.parseInt("007");
+    if (v != 7) {
+        io::println("FAIL: Integer.parseInt(\"007\") = " + Integer.toString(v) + ", expected 7");
+    } else {
+        io::println("PASS: Integer.parseInt(\"007\") = 7");
+    }
+}
+
+public fn test_integer_edge_parse_negative(): void {
+    let v: int = Integer.parseInt("-42");
+    if (v != -42) {
+        io::println("FAIL: Integer.parseInt(\"-42\") = " + Integer.toString(v) + ", expected -42");
+    } else {
+        io::println("PASS: Integer.parseInt(\"-42\") = -42");
+    }
+}
+
+public fn test_integer_edge_parse_plus_sign(): void {
+    let v: int = Integer.parseInt("+42");
+    if (v != 42) {
+        io::println("FAIL: Integer.parseInt(\"+42\") = " + Integer.toString(v) + ", expected 42");
+    } else {
+        io::println("PASS: Integer.parseInt(\"+42\") = 42");
+    }
+}
+
+public fn test_integer_edge_toString_zero(): void {
+    let s: string = Integer.toString(0);
+    if (s != "0") {
+        io::println("FAIL: Integer.toString(0) = " + s + ", expected 0");
+    } else {
+        io::println("PASS: Integer.toString(0) = 0");
+    }
+}
+
+public fn test_integer_edge_toString_negative(): void {
+    let s: string = Integer.toString(-99);
+    if (s != "-99") {
+        io::println("FAIL: Integer.toString(-99) = " + s + ", expected -99");
+    } else {
+        io::println("PASS: Integer.toString(-99) = -99");
+    }
+}
+
+public fn test_integer_edge_toString_max(): void {
+    let s: string = Integer.toString(Integer.MAX_VALUE());
+    if (s != "2147483647") {
+        io::println("FAIL: Integer.toString(MAX_VALUE) = " + s);
+    } else {
+        io::println("PASS: Integer.toString(MAX_VALUE) = 2147483647");
+    }
+}
+
+public fn test_integer_edge_toString_min(): void {
+    let s: string = Integer.toString(Integer.MIN_VALUE());
+    if (s != "-2147483648") {
+        io::println("FAIL: Integer.toString(MIN_VALUE) = " + s);
+    } else {
+        io::println("PASS: Integer.toString(MIN_VALUE) = -2147483648");
+    }
+}
+
+public fn test_integer_edge_overflow_boundary(): void {
+    let max: int = Integer.MAX_VALUE();
+    let overflowed: int = max + 1;
+    let min: int = Integer.MIN_VALUE();
+    if (overflowed != min) {
+        io::println("FAIL: MAX_VALUE + 1 = " + Integer.toString(overflowed) + ", expected " + Integer.toString(min));
+    } else {
+        io::println("PASS: MAX_VALUE + 1 wraps to MIN_VALUE");
+    }
+}
+
+public fn test_integer_edge_division_by_zero(): void {
+    var threw: bool = false;
+    var result: int = 0;
+    try {
+        result = 10 / 0;
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: integer division by zero throws");
+    } else {
+        io::println("FAIL: division by zero did not throw, result = " + Integer.toString(result));
+    }
+}
+
+public fn test_integer_edge_compare_equal(): void {
+    if (Integer.compare(5, 5) != 0) {
+        io::println("FAIL: Integer.compare(5,5) != 0");
+    } else {
+        io::println("PASS: Integer.compare(5,5) = 0");
+    }
+}
+
+public fn test_integer_edge_parseOr_invalid(): void {
+    let v: int = Integer.parseOr("abc", -1);
+    if (v != -1) {
+        io::println("FAIL: Integer.parseOr(\"abc\",-1) = " + Integer.toString(v) + ", expected -1");
+    } else {
+        io::println("PASS: Integer.parseOr(\"abc\",-1) = -1");
+    }
+}
+
+public fn run_all_integer_edge_tests(): void {
+    io::println("=== Integer.tr Edge Case Tests ===");
+    test_integer_edge_parse_leading_zeros();
+    test_integer_edge_parse_negative();
+    test_integer_edge_parse_plus_sign();
+    test_integer_edge_toString_zero();
+    test_integer_edge_toString_negative();
+    test_integer_edge_toString_max();
+    test_integer_edge_toString_min();
+    test_integer_edge_overflow_boundary();
+    test_integer_edge_division_by_zero();
+    test_integer_edge_compare_equal();
+    test_integer_edge_parseOr_invalid();
+}
