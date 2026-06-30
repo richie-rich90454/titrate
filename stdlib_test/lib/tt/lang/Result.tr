@@ -1,0 +1,138 @@
+// Result<T, E> utility methods for error handling.
+public class Result<T, E> {
+    private T okValue;
+    private E errValue;
+    private bool isOk;
+
+    private fn init() {}
+
+    public fn isOk(): bool {
+        return this.isOk;
+    }
+
+    public fn isErr(): bool {
+        return !this.isOk;
+    }
+
+    public fn unwrap(): T {
+        if (this.isOk) {
+            return this.okValue;
+        }
+        return null;
+    }
+
+    public fn unwrapOr(defaultValue: T): T {
+        if (this.isOk) {
+            return this.okValue;
+        }
+        return defaultValue;
+    }
+
+    public fn map(mapper: fn(T): T): Result<T, E> {
+        if (this.isOk) {
+            return Result<T, E>::ok(mapper(this.okValue));
+        }
+        return this;
+    }
+
+    public fn mapErr(mapper: fn(E): E): Result<T, E> {
+        if (!this.isOk) {
+            return Result<T, E>::err(mapper(this.errValue));
+        }
+        return this;
+    }
+
+    public fn andThen(mapper: fn(T): Result<T, E>): Result<T, E> {
+        if (this.isOk) {
+            return mapper(this.okValue);
+        }
+        return this;
+    }
+
+    public fn orElse(mapper: fn(E): Result<T, E>): Result<T, E> {
+        if (!this.isOk) {
+            return mapper(this.errValue);
+        }
+        return this;
+    }
+
+    public fn unwrapErr(): E {
+        if (!this.isOk) {
+            return this.errValue;
+        }
+        return null;
+    }
+
+    public fn expect(msg: string): T {
+        if (this.isOk) {
+            return this.okValue;
+        }
+        return null;
+    }
+
+    public fn expectErr(msg: string): E {
+        if (!this.isOk) {
+            return this.errValue;
+        }
+        return null;
+    }
+
+    // Flatten a nested Result<Result<T, E>, E> into Result<T, E>
+    public fn flatten(): Result<T, E> {
+        if (this.isOk) {
+            // If the okValue is itself a Result, unwrap it
+            let val: Variant = this.okValue as Variant;
+            if (val is Result) {
+                let inner: Result<T, E> = val as Result<T, E>;
+                if (inner.isOk) {
+                    return Result<T, E>::ok(inner.okValue);
+                }
+                return Result<T, E>::err(inner.errValue);
+            }
+            return this;
+        }
+        return this;
+    }
+
+    public fn isOkAnd(fn: fn(T): bool): bool {
+        if (this.isOk) {
+            return fn(this.okValue);
+        }
+        return false;
+    }
+
+    public fn isErrAnd(fn: fn(E): bool): bool {
+        if (!this.isOk) {
+            return fn(this.errValue);
+        }
+        return false;
+    }
+
+    public fn inspect(fn: fn(T): void): Result<T, E> {
+        if (this.isOk) {
+            fn(this.okValue);
+        }
+        return this;
+    }
+
+    public fn inspectErr(fn: fn(E): void): Result<T, E> {
+        if (!this.isOk) {
+            fn(this.errValue);
+        }
+        return this;
+    }
+}
+
+public fn ok<T, E>(value: T): Result<T, E> {
+    let r: Result<T, E> = new Result<T, E>();
+    r.okValue = value;
+    r.isOk = true;
+    return r;
+}
+
+public fn err<T, E>(value: E): Result<T, E> {
+    let r: Result<T, E> = new Result<T, E>();
+    r.errValue = value;
+    r.isOk = false;
+    return r;
+}
