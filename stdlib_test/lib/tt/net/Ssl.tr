@@ -1,0 +1,46 @@
+// TLS/SSL wrapper for secure network connections.
+public class SslContext {
+    private int handle;
+
+    public fn init() {
+        this.handle = Ssl_contextNew();
+    }
+
+    public fn connect(host: string, port: int): SslConnection {
+        let connHandle: int = Ssl_connect(this.handle, host, port);
+        return new SslConnection(connHandle);
+    }
+
+    public fn close(): void {
+        Ssl_contextClose(this.handle);
+    }
+}
+
+public class SslConnection {
+    private int handle;
+    private bool closed;
+
+    public fn init(handle: int) {
+        this.handle = handle;
+        this.closed = false;
+    }
+
+    public fn send(data: string): int {
+        return Ssl_send(this.handle, data);
+    }
+
+    public fn recv(bufferSize: int): string {
+        return Ssl_recv(this.handle, bufferSize);
+    }
+
+    public fn close(): void {
+        if (!this.closed) {
+            Ssl_close(this.handle);
+            this.closed = true;
+        }
+    }
+
+    public fn getPeerCertificate(): string {
+        return Ssl_peerCertificate(this.handle);
+    }
+}
