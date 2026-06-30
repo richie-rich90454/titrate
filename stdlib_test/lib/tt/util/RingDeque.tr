@@ -1,0 +1,122 @@
+// True O(1) double-ended queue using a ring buffer.
+import tt::util::ArrayList;
+
+public class RingDeque<E> {
+    private ArrayList<E> buffer;
+    private int head;
+    private int tail;
+    private int count;
+    private int capacity;
+
+    public fn init() {
+        this.capacity = 16;
+        this.buffer = new ArrayList<E>();
+        var i: int = 0;
+        while (i < this.capacity) {
+            this.buffer.add(null); // pre-allocate slot
+            i = i + 1;
+        }
+        this.head = 0;
+        this.tail = 0;
+        this.count = 0;
+    }
+
+    public fn pushFront(item: E): void {
+        if (this.count == this.capacity) {
+            this.grow();
+        }
+        this.head = (this.head - 1 + this.capacity) % this.capacity;
+        this.buffer.set(this.head, item);
+        this.count = this.count + 1;
+    }
+
+    public fn pushBack(item: E): void {
+        if (this.count == this.capacity) {
+            this.grow();
+        }
+        this.buffer.set(this.tail, item);
+        this.tail = (this.tail + 1) % this.capacity;
+        this.count = this.count + 1;
+    }
+
+    public fn popFront(): E {
+        if (this.count == 0) { return null; }
+        let item: E = this.buffer.get(this.head);
+        this.head = (this.head + 1) % this.capacity;
+        this.count = this.count - 1;
+        return item;
+    }
+
+    public fn popBack(): E {
+        if (this.count == 0) { return null; }
+        this.tail = (this.tail - 1 + this.capacity) % this.capacity;
+        let item: E = this.buffer.get(this.tail);
+        this.count = this.count - 1;
+        return item;
+    }
+
+    public fn peekFront(): E {
+        if (this.count == 0) { return null; }
+        return this.buffer.get(this.head);
+    }
+
+    public fn peekBack(): E {
+        if (this.count == 0) { return null; }
+        return this.buffer.get((this.tail - 1 + this.capacity) % this.capacity);
+    }
+
+    public fn size(): int {
+        return this.count;
+    }
+
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    public fn contains(item: E): bool {
+        var i: int = 0;
+        while (i < this.count) {
+            let idx: int = (this.head + i) % this.capacity;
+            if (this.buffer.get(idx) == item) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn toArray(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        var i: int = 0;
+        while (i < this.count) {
+            let idx: int = (this.head + i) % this.capacity;
+            result.add(this.buffer.get(idx));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.head = 0;
+        this.tail = 0;
+        this.count = 0;
+    }
+
+    private fn grow(): void {
+        let newCapacity: int = this.capacity * 2;
+        let newBuffer: ArrayList<E> = new ArrayList<E>();
+        var i: int = 0;
+        while (i < newCapacity) {
+            newBuffer.add(null); // pre-allocate slot
+            i = i + 1;
+        }
+        var j: int = 0;
+        while (j < this.count) {
+            let srcIdx: int = (this.head + j) % this.capacity;
+            newBuffer.set(j, this.buffer.get(srcIdx));
+            j = j + 1;
+        }
+        this.buffer = newBuffer;
+        this.head = 0;
+        this.tail = this.count;
+        this.capacity = newCapacity;
+    }
+}
