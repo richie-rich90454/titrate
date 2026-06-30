@@ -1,0 +1,624 @@
+// JSON5 parser and stringifier.
+// Supports: unquoted keys, trailing commas, single-quoted strings,
+// multiline strings, comments, hex numbers, leading/trailing decimal points,
+// Infinity, NaN, and positive sign.
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+public class Json5 {
+    private string _input;
+    private int _pos;
+
+    public fn init() {
+        this._input = "";
+        this._pos = 0;
+    }
+
+    public fn parse(input: string): JsonValue {
+        this._input = input;
+        this._pos = 0;
+        this._skipWhitespaceAndComments();
+        let result: JsonValue = this._parseValue();
+        this._skipWhitespaceAndComments();
+        return result;
+    }
+
+    public fn stringify(value: JsonValue): string {
+        return this._stringifyInner(value, 0);
+    }
+
+    private fn _stringifyInner(value: JsonValue, level: int): string {
+        if (value.isNull()) {
+            return "null";
+        }
+        if (value.isBool()) {
+            if (value.asBool()) {
+                return "true";
+            } else {
+                return "false";
+            }
+        }
+        if (value.isNumber()) {
+            let n: double = value.asNumber();
+            if (n != n) {
+                return "NaN";
+            }
+            if (n == 1.0 / 0.0) {
+                return "Infinity";
+            }
+            if (n == -1.0 / 0.0) {
+                return "-Infinity";
+            }
+            return n.toString();
+        }
+        if (value.isString()) {
+            return this._stringifyString(value.asString());
+        }
+        if (value.isArray()) {
+            let arr: ArrayList<JsonValue> = value.asArray();
+            if (arr.size() == 0) {
+                return "[]";
+            }
+            let result: string = "[";
+            let i: int = 0;
+            while (i < arr.size()) {
+                if (i > 0) {
+                    result = result + ", ";
+                }
+                result = result + this._stringifyInner(arr.get(i), level + 1);
+                i = i + 1;
+            }
+            result = result + "]";
+            return result;
+        }
+        if (value.isObject()) {
+            let obj: HashMap<string, JsonValue> = value.asObject();
+            let keys: ArrayList<string> = obj.keys();
+            if (keys.size() == 0) {
+                return "{}";
+            }
+            let result: string = "{";
+            let i: int = 0;
+            while (i < keys.size()) {
+                if (i > 0) {
+                    result = result + ", ";
+                }
+                let key: string = keys.get(i);
+                let val: JsonValue = obj.get(key);
+                result = result + this._stringifyKey(key) + ": " + this._stringifyInner(val, level + 1);
+                i = i + 1;
+            }
+            result = result + "}";
+            return result;
+        }
+        return "null";
+    }
+
+    // Stringify a key — use unquoted identifier if it's a valid JSON5 identifier
+    private fn _stringifyKey(key: string): string {
+        if (this._isValidIdentifier(key)) {
+            return key;
+        }
+        return this._stringifyString(key);
+    }
+
+    // Check if a string is a valid JSON5 identifier
+    private fn _isValidIdentifier(s: string): bool {
+        if (String.length(s) == 0) {
+            return false;
+        }
+        let first: string = String.charAt(s, 0);
+        if (!this._isIdStart(first)) {
+            return false;
+        }
+        let i: int = 1;
+        while (i < String.length(s)) {
+            let c: string = String.charAt(s, i);
+            if (!this._isIdContinue(c)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    private fn _isIdStart(c: string): bool {
+        let code: int = String.charAt(c, 0) as int;
+        // a-z, A-Z, _, $
+        if (code >= 97 && code <= 122) { return true; }
+        if (code >= 65 && code <= 90) { return true; }
+        if (c == "_" || c == "$") { return true; }
+        return false;
+    }
+
+    private fn _isIdContinue(c: string): bool {
+        if (this._isIdStart(c)) { return true; }
+        let code: int = String.charAt(c, 0) as int;
+        // 0-9
+        if (code >= 48 && code <= 57) { return true; }
+        return false;
+    }
+
+    // Stringify a string value with double quotes
+    private fn _stringifyString(s: string): string {
+        let result: string = "\"";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            let c: string = String.charAt(s, i);
+            if (c == "\"") {
+                result = result + "\\\"";
+            } else if (c == "\\") {
+                result = result + "\\\\";
+            } else if (c == "\n") {
+                result = result + "\\n";
+            } else if (c == "\r") {
+                result = result + "\\r";
+            } else if (c == "\t") {
+                result = result + "\\t";
+            } else if (c == "\b") {
+                result = result + "\\b";
+            } else if (c == "\f") {
+                result = result + "\\f";
+            } else if (c == "\0") {
+                result = result + "\\0";
+            } else {
+                let code: int = String.charAt(c, 0) as int;
+                if (code < 32) {
+                    result = result + "\\u00" + _hexDigit(code / 16) + _hexDigit(code % 16);
+                } else {
+                    result = result + c;
+                }
+            }
+            i = i + 1;
+        }
+        result = result + "\"";
+        return result;
+    }
+
+    // ---- Parsing methods ----
+
+    private fn _skipWhitespaceAndComments(): void {
+        while (this._pos < String.length(this._input)) {
+            let c: string = String.charAt(this._input, this._pos);
+            // Whitespace
+            if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                this._pos = this._pos + 1;
+            }
+            // Line comment //
+            else if (c == "/" && this._pos + 1 < String.length(this._input) && String.charAt(this._input, this._pos + 1) == "/") {
+                this._pos = this._pos + 2;
+                while (this._pos < String.length(this._input)) {
+                    let ch: string = String.charAt(this._input, this._pos);
+                    if (ch == "\n") {
+                        this._pos = this._pos + 1;
+                        break;
+                    }
+                    this._pos = this._pos + 1;
+                }
+            }
+            // Block comment /* */
+            else if (c == "/" && this._pos + 1 < String.length(this._input) && String.charAt(this._input, this._pos + 1) == "*") {
+                this._pos = this._pos + 2;
+                while (this._pos + 1 < String.length(this._input)) {
+                    let ch: string = String.charAt(this._input, this._pos);
+                    let ch2: string = String.charAt(this._input, this._pos + 1);
+                    if (ch == "*" && ch2 == "/") {
+                        this._pos = this._pos + 2;
+                        break;
+                    }
+                    this._pos = this._pos + 1;
+                }
+            }
+            else {
+                break;
+            }
+        }
+    }
+
+    private fn _peek(): string {
+        if (this._pos < String.length(this._input)) {
+            return String.charAt(this._input, this._pos);
+        }
+        return "";
+    }
+
+    private fn _advance(): string {
+        let c: string = String.charAt(this._input, this._pos);
+        this._pos = this._pos + 1;
+        return c;
+    }
+
+    private fn _parseValue(): JsonValue {
+        this._skipWhitespaceAndComments();
+        if (this._pos >= String.length(this._input)) {
+            return JsonValue.ofNull();
+        }
+        let c: string = this._peek();
+        // null
+        if (c == "n") {
+            return this._parseKeywordNull();
+        }
+        // true / false
+        if (c == "t" || c == "f") {
+            return this._parseBool();
+        }
+        // String (single or double quoted)
+        if (c == "\"" || c == "'") {
+            return this._parseString();
+        }
+        // Array
+        if (c == "[") {
+            return this._parseArray();
+        }
+        // Object
+        if (c == "{") {
+            return this._parseObject();
+        }
+        // Number: -, +, digit, or leading dot
+        if (c == "-" || c == "+" || (c >= "0" && c <= "9") || c == ".") {
+            return this._parseNumber();
+        }
+        // Infinity or NaN
+        if (c == "I") {
+            return this._parseInfinity();
+        }
+        if (c == "N") {
+            return this._parseNaN();
+        }
+        return JsonValue.ofNull();
+    }
+
+    private fn _parseKeywordNull(): JsonValue {
+        this._match("null");
+        return JsonValue.ofNull();
+    }
+
+    private fn _parseBool(): JsonValue {
+        if (this._match("true")) {
+            return JsonValue.ofBool(true);
+        }
+        this._match("false");
+        return JsonValue.ofBool(false);
+    }
+
+    private fn _parseInfinity(): JsonValue {
+        this._match("Infinity");
+        return JsonValue.ofNum(1.0 / 0.0);
+    }
+
+    private fn _parseNaN(): JsonValue {
+        this._match("NaN");
+        return JsonValue.ofNum(0.0 / 0.0);
+    }
+
+    private fn _match(expected: string): bool {
+        if (this._pos + String.length(expected) > String.length(this._input)) {
+            return false;
+        }
+        let sub: string = String.substring(this._input, this._pos, this._pos + String.length(expected));
+        if (sub == expected) {
+            this._pos = this._pos + String.length(expected);
+            return true;
+        }
+        return false;
+    }
+
+    private fn _parseString(): JsonValue {
+        let quote: string = this._advance(); // consume opening quote
+        let result: string = "";
+        while (this._pos < String.length(this._input)) {
+            let c: string = this._advance();
+            if (c == quote) {
+                break;
+            }
+            if (c == "\\") {
+                if (this._pos >= String.length(this._input)) {
+                    break;
+                }
+                let escaped: string = this._advance();
+                if (escaped == "n") {
+                    result = result + "\n";
+                } else if (escaped == "r") {
+                    result = result + "\r";
+                } else if (escaped == "t") {
+                    result = result + "\t";
+                } else if (escaped == "b") {
+                    result = result + "\b";
+                } else if (escaped == "f") {
+                    result = result + "\f";
+                } else if (escaped == "0") {
+                    result = result + "\0";
+                } else if (escaped == "\\") {
+                    result = result + "\\";
+                } else if (escaped == "'") {
+                    result = result + "'";
+                } else if (escaped == "\"") {
+                    result = result + "\"";
+                } else if (escaped == "/") {
+                    result = result + "/";
+                } else if (escaped == "u") {
+                    let hex: string = "";
+                    let h: int = 0;
+                    while (h < 4 && this._pos < String.length(this._input)) {
+                        hex = hex + this._advance();
+                        h = h + 1;
+                    }
+                    result = result + _decodeHex(hex);
+                } else if (escaped == "x") {
+                    let hex: string = "";
+                    let h: int = 0;
+                    while (h < 2 && this._pos < String.length(this._input)) {
+                        hex = hex + this._advance();
+                        h = h + 1;
+                    }
+                    result = result + _decodeHex(hex);
+                } else if (escaped == "\n") {
+                    // Multiline string: backslash at end of line continues to next line
+                    // Skip any leading whitespace on the next line
+                    while (this._pos < String.length(this._input)) {
+                        let next: string = String.charAt(this._input, this._pos);
+                        if (next == " " || next == "\t") {
+                            this._pos = this._pos + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                } else if (escaped == "\r") {
+                    // Handle \r\n line ending
+                    if (this._pos < String.length(this._input) && String.charAt(this._input, this._pos) == "\n") {
+                        this._pos = this._pos + 1;
+                    }
+                    while (this._pos < String.length(this._input)) {
+                        let next: string = String.charAt(this._input, this._pos);
+                        if (next == " " || next == "\t") {
+                            this._pos = this._pos + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                } else {
+                    result = result + escaped;
+                }
+            } else {
+                result = result + c;
+            }
+        }
+        return JsonValue.ofStr(result);
+    }
+
+    private fn _parseNumber(): JsonValue {
+        let numStr: string = "";
+        // Handle sign
+        if (this._peek() == "-" || this._peek() == "+") {
+            numStr = numStr + this._advance();
+        }
+        // Check for hex
+        if (this._peek() == "0" && this._pos + 1 < String.length(this._input)) {
+            let next: string = String.charAt(this._input, this._pos + 1);
+            if (next == "x" || next == "X") {
+                numStr = numStr + this._advance(); // consume '0'
+                numStr = numStr + this._advance(); // consume 'x'/'X'
+                while (this._pos < String.length(this._input)) {
+                    let c: string = this._peek();
+                    if ((c >= "0" && c <= "9") || (c >= "a" && c <= "f") || (c >= "A" && c <= "F")) {
+                        numStr = numStr + this._advance();
+                    } else {
+                        break;
+                    }
+                }
+                return JsonValue.ofNum(_parseHexDouble(numStr));
+            }
+        }
+        // Integer part (may be empty if leading dot)
+        if (this._peek() != ".") {
+            while (this._pos < String.length(this._input)) {
+                let c: string = this._peek();
+                if (c >= "0" && c <= "9") {
+                    numStr = numStr + this._advance();
+                } else {
+                    break;
+                }
+            }
+        }
+        // Decimal part
+        if (this._peek() == ".") {
+            numStr = numStr + this._advance();
+            while (this._pos < String.length(this._input)) {
+                let c: string = this._peek();
+                if (c >= "0" && c <= "9") {
+                    numStr = numStr + this._advance();
+                } else {
+                    break;
+                }
+            }
+        }
+        // Exponent part
+        if (this._peek() == "e" || this._peek() == "E") {
+            numStr = numStr + this._advance();
+            if (this._peek() == "+" || this._peek() == "-") {
+                numStr = numStr + this._advance();
+            }
+            while (this._pos < String.length(this._input)) {
+                let c: string = this._peek();
+                if (c >= "0" && c <= "9") {
+                    numStr = numStr + this._advance();
+                } else {
+                    break;
+                }
+            }
+        }
+        // Handle leading dot: ".5" -> "0.5"
+        if (String.length(numStr) > 0 && String.charAt(numStr, 0) == ".") {
+            numStr = "0" + numStr;
+        }
+        // Handle trailing dot: "5." -> "5.0"
+        if (String.length(numStr) > 0 && String.charAt(numStr, String.length(numStr) - 1) == ".") {
+            numStr = numStr + "0";
+        }
+        // Handle sign + leading dot: "+.5" -> "+0.5"
+        if (String.length(numStr) >= 2) {
+            let first: string = String.charAt(numStr, 0);
+            if ((first == "+" || first == "-") && String.charAt(numStr, 1) == ".") {
+                numStr = first + "0" + String.substring(numStr, 1, String.length(numStr));
+            }
+        }
+        return JsonValue.ofNum(Double.parseDouble(numStr));
+    }
+
+    private fn _parseObject(): JsonValue {
+        this._advance(); // consume '{'
+        this._skipWhitespaceAndComments();
+        let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        if (this._peek() == "}") {
+            this._advance();
+            return JsonValue.ofObject(obj);
+        }
+        while (true) {
+            this._skipWhitespaceAndComments();
+            // Parse key: string, or unquoted identifier
+            let key: string = "";
+            let c: string = this._peek();
+            if (c == "\"" || c == "'") {
+                let keyVal: JsonValue = this._parseString();
+                key = keyVal.asString();
+            } else {
+                key = this._parseIdentifier();
+            }
+            this._skipWhitespaceAndComments();
+            // Skip colon
+            if (this._peek() == ":") {
+                this._advance();
+            }
+            this._skipWhitespaceAndComments();
+            // Parse value
+            let val: JsonValue = this._parseValue();
+            obj.put(key, val);
+            this._skipWhitespaceAndComments();
+            if (this._peek() == ",") {
+                this._advance();
+                this._skipWhitespaceAndComments();
+                // Trailing comma: if next is '}', break
+                if (this._peek() == "}") {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        this._skipWhitespaceAndComments();
+        if (this._peek() == "}") {
+            this._advance();
+        }
+        return JsonValue.ofObject(obj);
+    }
+
+    private fn _parseArray(): JsonValue {
+        this._advance(); // consume '['
+        this._skipWhitespaceAndComments();
+        let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+        if (this._peek() == "]") {
+            this._advance();
+            return JsonValue.ofArray(arr);
+        }
+        while (true) {
+            this._skipWhitespaceAndComments();
+            let elem: JsonValue = this._parseValue();
+            arr.add(elem);
+            this._skipWhitespaceAndComments();
+            if (this._peek() == ",") {
+                this._advance();
+                this._skipWhitespaceAndComments();
+                // Trailing comma: if next is ']', break
+                if (this._peek() == "]") {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        this._skipWhitespaceAndComments();
+        if (this._peek() == "]") {
+            this._advance();
+        }
+        return JsonValue.ofArray(arr);
+    }
+
+    private fn _parseIdentifier(): string {
+        let result: string = "";
+        while (this._pos < String.length(this._input)) {
+            let c: string = this._peek();
+            if (this._isIdStart(c) || (String.length(result) > 0 && this._isIdContinue(c))) {
+                result = result + this._advance();
+            } else {
+                break;
+            }
+        }
+        return result;
+    }
+}
+
+// ---- Module-level helpers ----
+
+fn _decodeHex(hex: string): string {
+    let code: int = 0;
+    let i: int = 0;
+    while (i < String.length(hex)) {
+        let c: string = String.charAt(hex, i);
+        code = code * 16;
+        if (c >= "0" && c <= "9") {
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("0", 0) as int));
+        } else if (c >= "a" && c <= "f") {
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("a", 0) as int)) + 10;
+        } else if (c >= "A" && c <= "F") {
+            code = code + ((String.charAt(c, 0) as int) - (String.charAt("A", 0) as int)) + 10;
+        }
+        i = i + 1;
+    }
+    return String.fromCharCode(code);
+}
+
+fn _hexDigit(v: int): string {
+    if (v < 10) {
+        return String.fromCharCode(48 + v);
+    }
+    return String.fromCharCode(65 + v - 10);
+}
+
+// Parse a hex string (like "0xFF") to double
+fn _parseHexDouble(s: string): double {
+    let result: int = 0;
+    let i: int = 0;
+    // Skip sign
+    let negative: bool = false;
+    if (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "-") {
+            negative = true;
+            i = i + 1;
+        } else if (c == "+") {
+            i = i + 1;
+        }
+    }
+    // Skip 0x or 0X
+    if (i + 1 < String.length(s)) {
+        i = i + 2;
+    }
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        result = result * 16;
+        if (c >= "0" && c <= "9") {
+            result = result + ((String.charAt(c, 0) as int) - (String.charAt("0", 0) as int));
+        } else if (c >= "a" && c <= "f") {
+            result = result + ((String.charAt(c, 0) as int) - (String.charAt("a", 0) as int)) + 10;
+        } else if (c >= "A" && c <= "F") {
+            result = result + ((String.charAt(c, 0) as int) - (String.charAt("A", 0) as int)) + 10;
+        }
+        i = i + 1;
+    }
+    if (negative) {
+        return -(result as double);
+    }
+    return result as double;
+}
