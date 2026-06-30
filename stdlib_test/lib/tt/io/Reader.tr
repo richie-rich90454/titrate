@@ -1,0 +1,7 @@
+// Reader interface for reading text streams.
+interface Reader {
+    fn read(): string;
+    fn readLine(): string;
+    fn readAll(): string;
+    fn close(): void;
+}
