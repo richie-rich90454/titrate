@@ -1,0 +1,384 @@
+// Graph algorithms part 3: Max flow, bipartite matching, Euler tour, Hamiltonian path, graph coloring.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
+import tt::util::Queue;
+import tt::algo::Graph;
+
+public fn maxFlow(g: Graph, source: int, sink: int): double {
+    let n: int = g.vertexCount();
+    // Build capacity and flow matrices
+    let capacity: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let flow: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let capRow: ArrayList<double> = new ArrayList<double>();
+        let flowRow: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            capRow.add(0.0);
+            flowRow.add(0.0);
+            j = j + 1;
+        }
+        capacity.add(capRow);
+        flow.add(flowRow);
+        i = i + 1;
+    }
+    // Initialize capacity from graph edges
+    i = 0;
+    while (i < n) {
+        let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(i);
+        var j: int = 0;
+        while (j < neighbors.size()) {
+            let v: int = neighbors.get(j).first;
+            let w: double = neighbors.get(j).second;
+            capacity.get(i).set(v, capacity.get(i).get(v) + w);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    // Build residual adjacency list
+    let residual: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    i = 0;
+    while (i < n) {
+        residual.add(new ArrayList<int>());
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(i);
+        var j: int = 0;
+        while (j < neighbors.size()) {
+            let v: int = neighbors.get(j).first;
+            _addResidualEdge(residual, i, v);
+            _addResidualEdge(residual, v, i);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    var totalFlow: double = 0.0;
+    // Ford-Fulkerson with BFS (Edmonds-Karp)
+    while (true) {
+        // BFS to find augmenting path
+        let parent: ArrayList<int> = new ArrayList<int>();
+        let visited: ArrayList<bool> = new ArrayList<bool>();
+        i = 0;
+        while (i < n) {
+            parent.add(-1);
+            visited.add(false);
+            i = i + 1;
+        }
+        let queue: Queue<int> = new Queue<int>();
+        queue.enqueue(source);
+        visited.set(source, true);
+        while (!queue.isEmpty()) {
+            let u: int = queue.dequeue();
+            let adj: ArrayList<int> = residual.get(u);
+            var j: int = 0;
+            while (j < adj.size()) {
+                let v: int = adj.get(j);
+                if (!visited.get(v) && (capacity.get(u).get(v) - flow.get(u).get(v)) > 0.0) {
+                    visited.set(v, true);
+                    parent.set(v, u);
+                    if (v == sink) {
+                        break;
+                    }
+                    queue.enqueue(v);
+                }
+                j = j + 1;
+            }
+        }
+        if (!visited.get(sink)) {
+            break;
+        }
+        // Find bottleneck
+        var pathFlow: double = 999999999.0;
+        var v: int = sink;
+        while (v != source) {
+            let u: int = parent.get(v);
+            let residualCap: double = capacity.get(u).get(v) - flow.get(u).get(v);
+            if (residualCap < pathFlow) {
+                pathFlow = residualCap;
+            }
+            v = u;
+        }
+        // Update flow
+        v = sink;
+        while (v != source) {
+            let u: int = parent.get(v);
+            flow.get(u).set(v, flow.get(u).get(v) + pathFlow);
+            flow.get(v).set(u, flow.get(v).get(u) - pathFlow);
+            v = u;
+        }
+        totalFlow = totalFlow + pathFlow;
+    }
+    return totalFlow;
+}
+
+fn _addResidualEdge(residual: ArrayList<ArrayList<int>>, u: int, v: int): void {
+    let adj: ArrayList<int> = residual.get(u);
+    var i: int = 0;
+    while (i < adj.size()) {
+        if (adj.get(i) == v) {
+            return;
+        }
+        i = i + 1;
+    }
+    adj.add(v);
+}
+
+public fn bipartiteMatching(g: Graph): ArrayList<Pair<int, int>> {
+    let n: int = g.vertexCount();
+    let result: ArrayList<Pair<int, int>> = new ArrayList<Pair<int, int>>();
+    // Determine bipartition using BFS coloring
+    let color: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < n) {
+        color.add(-1);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        if (color.get(i) == -1) {
+            color.set(i, 0);
+            let queue: Queue<int> = new Queue<int>();
+            queue.enqueue(i);
+            while (!queue.isEmpty()) {
+                let u: int = queue.dequeue();
+                let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(u);
+                var j: int = 0;
+                while (j < neighbors.size()) {
+                    let v: int = neighbors.get(j).first;
+                    if (color.get(v) == -1) {
+                        color.set(v, 1 - color.get(u));
+                        queue.enqueue(v);
+                    }
+                    j = j + 1;
+                }
+            }
+        }
+        i = i + 1;
+    }
+    // Left set: color 0, Right set: color 1
+    let matchL: ArrayList<int> = new ArrayList<int>();
+    let matchR: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i < n) {
+        matchL.add(-1);
+        matchR.add(-1);
+        i = i + 1;
+    }
+    // Try to match each left vertex
+    i = 0;
+    while (i < n) {
+        if (color.get(i) == 0) {
+            let visited: ArrayList<bool> = new ArrayList<bool>();
+            var j: int = 0;
+            while (j < n) {
+                visited.add(false);
+                j = j + 1;
+            }
+            _bipartiteAugment(g, i, matchL, matchR, visited, color);
+        }
+        i = i + 1;
+    }
+    // Collect matches
+    i = 0;
+    while (i < n) {
+        if (color.get(i) == 0 && matchL.get(i) != -1) {
+            result.add(new Pair<int, int>(i, matchL.get(i)));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _bipartiteAugment(g: Graph, u: int, matchL: ArrayList<int>, matchR: ArrayList<int>, visited: ArrayList<bool>, color: ArrayList<int>): bool {
+    let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(u);
+    var i: int = 0;
+    while (i < neighbors.size()) {
+        let v: int = neighbors.get(i).first;
+        if (color.get(v) != 1) {
+            i = i + 1;
+            continue;
+        }
+        if (!visited.get(v)) {
+            visited.set(v, true);
+            if (matchR.get(v) == -1 || _bipartiteAugment(g, matchR.get(v), matchL, matchR, visited, color)) {
+                matchL.set(u, v);
+                matchR.set(v, u);
+                return true;
+            }
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+public fn eulerTour(g: Graph, start: int): ArrayList<int> {
+    let n: int = g.vertexCount();
+    let result: ArrayList<int> = new ArrayList<int>();
+    // Build adjacency with edge tracking using a copy of neighbor lists
+    let adjCopy: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    var i: int = 0;
+    while (i < n) {
+        let list: ArrayList<int> = new ArrayList<int>();
+        let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(i);
+        var j: int = 0;
+        while (j < neighbors.size()) {
+            list.add(neighbors.get(j).first);
+            j = j + 1;
+        }
+        adjCopy.add(list);
+        i = i + 1;
+    }
+    // Hierholzer's algorithm using explicit stack
+    let stack: ArrayList<int> = new ArrayList<int>();
+    stack.add(start);
+    while (stack.size() > 0) {
+        let v: int = stack.get(stack.size() - 1);
+        if (adjCopy.get(v).size() > 0) {
+            let u: int = adjCopy.get(v).get(adjCopy.get(v).size() - 1);
+            adjCopy.get(v).remove(adjCopy.get(v).size() - 1);
+            stack.add(u);
+        } else {
+            result.add(v);
+            stack.remove(stack.size() - 1);
+        }
+    }
+    // Reverse result
+    let reversed: ArrayList<int> = new ArrayList<int>();
+    i = result.size() - 1;
+    while (i >= 0) {
+        reversed.add(result.get(i));
+        i = i - 1;
+    }
+    return reversed;
+}
+
+public fn hamiltonianPathExists(g: Graph): bool {
+    let n: int = g.vertexCount();
+    if (n == 0) {
+        return true;
+    }
+    let visited: ArrayList<bool> = new ArrayList<bool>();
+    var i: int = 0;
+    while (i < n) {
+        visited.add(false);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        if (_hamiltonianDfs(g, i, 1, n, visited)) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+fn _hamiltonianDfs(g: Graph, v: int, count: int, n: int, visited: ArrayList<bool>): bool {
+    visited.set(v, true);
+    if (count == n) {
+        visited.set(v, false);
+        return true;
+    }
+    let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(v);
+    var i: int = 0;
+    while (i < neighbors.size()) {
+        let u: int = neighbors.get(i).first;
+        if (!visited.get(u)) {
+            if (_hamiltonianDfs(g, u, count + 1, n, visited)) {
+                visited.set(v, false);
+                return true;
+            }
+        }
+        i = i + 1;
+    }
+    visited.set(v, false);
+    return false;
+}
+
+public fn graphColoring(g: Graph, maxColors: int): ArrayList<int> {
+    let n: int = g.vertexCount();
+    let colors: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < n) {
+        colors.add(0);
+        i = i + 1;
+    }
+    // Greedy coloring with backtracking fallback
+    i = 0;
+    while (i < n) {
+        // Find used colors by neighbors
+        let used: ArrayList<bool> = new ArrayList<bool>();
+        var j: int = 0;
+        while (j <= maxColors) {
+            used.add(false);
+            j = j + 1;
+        }
+        let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(i);
+        j = 0;
+        while (j < neighbors.size()) {
+            let v: int = neighbors.get(j).first;
+            if (v < i && colors.get(v) > 0) {
+                used.set(colors.get(v), true);
+            }
+            j = j + 1;
+        }
+        var c: int = 1;
+        while (c <= maxColors) {
+            if (!used.get(c)) {
+                colors.set(i, c);
+                break;
+            }
+            c = c + 1;
+        }
+        // If greedy fails, try backtracking
+        if (colors.get(i) == 0) {
+            if (!_coloringBacktrack(g, 0, n, maxColors, colors)) {
+                // Return all zeros to indicate failure
+                var k: int = 0;
+                while (k < n) {
+                    colors.set(k, 0);
+                    k = k + 1;
+                }
+                return colors;
+            }
+            return colors;
+        }
+        i = i + 1;
+    }
+    return colors;
+}
+
+fn _coloringBacktrack(g: Graph, v: int, n: int, maxColors: int, colors: ArrayList<int>): bool {
+    if (v == n) {
+        return true;
+    }
+    var c: int = 1;
+    while (c <= maxColors) {
+        if (_isSafeColor(g, v, c, colors)) {
+            colors.set(v, c);
+            if (_coloringBacktrack(g, v + 1, n, maxColors, colors)) {
+                return true;
+            }
+            colors.set(v, 0);
+        }
+        c = c + 1;
+    }
+    return false;
+}
+
+fn _isSafeColor(g: Graph, v: int, c: int, colors: ArrayList<int>): bool {
+    let neighbors: ArrayList<Pair<int, double>> = g.getNeighbors(v);
+    var i: int = 0;
+    while (i < neighbors.size()) {
+        let u: int = neighbors.get(i).first;
+        if (colors.get(u) == c) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
