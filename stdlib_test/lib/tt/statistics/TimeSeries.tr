@@ -1,0 +1,708 @@
+// Time Series analysis module providing ACF, PACF, ARIMA, exponential smoothing,
+// seasonal decomposition, and differencing functions.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// ==================== Helper functions ====================
+
+// Compute the mean of a double array.
+fn tsMean(data: ArrayList<double>): double {
+    if (data.size() == 0) { return 0.0; }
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < data.size()) {
+        sum = sum + data.get(i);
+        i = i + 1;
+    }
+    return sum / data.size();
+}
+
+// Compute the variance (population) of a double array.
+fn tsVariance(data: ArrayList<double>): double {
+    if (data.size() == 0) { return 0.0; }
+    let m: double = tsMean(data);
+    var sumSq: double = 0.0;
+    var i: int = 0;
+    while (i < data.size()) {
+        let diff: double = data.get(i) - m;
+        sumSq = sumSq + diff * diff;
+        i = i + 1;
+    }
+    return sumSq / data.size();
+}
+
+// Solve a linear system Ax = b via Gaussian elimination with partial pivoting.
+// A is n x n stored row-major in ArrayList<ArrayList<double>>, b is n-vector.
+// Returns solution x as ArrayList<double>.
+fn solveLinear(A: ArrayList<ArrayList<double>>, b: ArrayList<double>): ArrayList<double> {
+    let n: int = b.size();
+    // Build augmented matrix
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            row.add(A.get(i).get(j));
+            j = j + 1;
+        }
+        row.add(b.get(i));
+        aug.add(row);
+        i = i + 1;
+    }
+    // Forward elimination with partial pivoting
+    var col: int = 0;
+    while (col < n) {
+        // Find pivot
+        var maxRow: int = col;
+        var maxVal: double = Math.abs(aug.get(col).get(col));
+        var r: int = col + 1;
+        while (r < n) {
+            let val: double = Math.abs(aug.get(r).get(col));
+            if (val > maxVal) {
+                maxVal = val;
+                maxRow = r;
+            }
+            r = r + 1;
+        }
+        // Swap rows
+        if (maxRow != col) {
+            let tmp: ArrayList<double> = aug.get(col);
+            aug.set(col, aug.get(maxRow));
+            aug.set(maxRow, tmp);
+        }
+        // Eliminate below
+        let pivot: double = aug.get(col).get(col);
+        if (Math.abs(pivot) < 1e-12) {
+            col = col + 1;
+            continue;
+        }
+        var rr: int = col + 1;
+        while (rr < n) {
+            let factor: double = aug.get(rr).get(col) / pivot;
+            var cc: int = col;
+            while (cc <= n) {
+                aug.get(rr).set(cc, aug.get(rr).get(cc) - factor * aug.get(col).get(cc));
+                cc = cc + 1;
+            }
+            rr = rr + 1;
+        }
+        col = col + 1;
+    }
+    // Back substitution
+    let x: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        x.add(0.0);
+        i = i + 1;
+    }
+    i = n - 1;
+    while (i >= 0) {
+        var sum: double = aug.get(i).get(n);
+        var j: int = i + 1;
+        while (j < n) {
+            sum = sum - aug.get(i).get(j) * x.get(j);
+            j = j + 1;
+        }
+        let diag: double = aug.get(i).get(i);
+        if (Math.abs(diag) < 1e-12) {
+            x.set(i, 0.0);
+        } else {
+            x.set(i, sum / diag);
+        }
+        i = i - 1;
+    }
+    return x;
+}
+
+// ==================== Public API ====================
+
+// Autocorrelation function (ACF).
+// Returns autocorrelation values for lags 0..=maxLag.
+public fn autocorrelationFunction(data: ArrayList<double>, maxLag: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0 || maxLag < 0) { return result; }
+    let m: double = tsMean(data);
+    // Compute variance (lag-0 autocovariance)
+    var gamma0: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let diff: double = data.get(i) - m;
+        gamma0 = gamma0 + diff * diff;
+        i = i + 1;
+    }
+    if (gamma0 == 0.0) {
+        var lag: int = 0;
+        while (lag <= maxLag) {
+            result.add(0.0);
+            lag = lag + 1;
+        }
+        return result;
+    }
+    var lag: int = 0;
+    while (lag <= maxLag) {
+        var gammaK: double = 0.0;
+        var t: int = 0;
+        while (t < n - lag) {
+            gammaK = gammaK + (data.get(t) - m) * (data.get(t + lag) - m);
+            t = t + 1;
+        }
+        result.add(gammaK / gamma0);
+        lag = lag + 1;
+    }
+    return result;
+}
+
+// Autocorrelation function (ACF) — convenience alias for autocorrelationFunction.
+// Returns ACF values for lags 0..=maxLag.
+public fn acf(data: ArrayList<double>, maxLag: int): ArrayList<double> {
+    return autocorrelationFunction(data, maxLag);
+}
+
+// Partial autocorrelation function (PACF) using the Durbin-Levinson algorithm.
+// Returns PACF values for lags 1..=maxLag.
+public fn partialAutocorrelation(data: ArrayList<double>, maxLag: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0 || maxLag < 1) { return result; }
+    // Compute autocovariances
+    let m: double = tsMean(data);
+    let gamma: ArrayList<double> = new ArrayList<double>();
+    var lag: int = 0;
+    while (lag <= maxLag) {
+        var gammaK: double = 0.0;
+        var t: int = 0;
+        while (t < n - lag) {
+            gammaK = gammaK + (data.get(t) - m) * (data.get(t + lag) - m);
+            t = t + 1;
+        }
+        gamma.add(gammaK / n);
+        lag = lag + 1;
+    }
+    if (gamma.get(0) == 0.0) {
+        lag = 1;
+        while (lag <= maxLag) {
+            result.add(0.0);
+            lag = lag + 1;
+        }
+        return result;
+    }
+    // Durbin-Levinson recursion
+    // phi[k][k] is the k-th partial autocorrelation
+    // phi[k][j] are the intermediate AR coefficients
+    let maxOrder: int = maxLag;
+    // phi_prev stores phi[k-1][1..k-1]
+    let phiPrev: ArrayList<double> = new ArrayList<double>();
+    // k = 1
+    let phi11: double = gamma.get(1) / gamma.get(0);
+    phiPrev.add(phi11);
+    result.add(phi11);
+    var k: int = 2;
+    while (k <= maxOrder) {
+        // Compute sum for denominator
+        var sumNum: double = gamma.get(k);
+        var sumDen: double = gamma.get(0);
+        var j: int = 1;
+        while (j < k) {
+            sumNum = sumNum - phiPrev.get(j - 1) * gamma.get(k - j);
+            sumDen = sumDen - phiPrev.get(j - 1) * gamma.get(j);
+            j = j + 1;
+        }
+        let phiKK: double = sumNum / sumDen;
+        result.add(phiKK);
+        // Update phi[k][j] = phi[k-1][j] - phiKK * phi[k-1][k-j]
+        let phiNew: ArrayList<double> = new ArrayList<double>();
+        j = 1;
+        while (j < k) {
+            let val: double = phiPrev.get(j - 1) - phiKK * phiPrev.get(k - 1 - j);
+            phiNew.add(val);
+            j = j + 1;
+        }
+        phiNew.add(phiKK);
+        // Copy phiNew to phiPrev
+        phiPrev.clear();
+        var jj: int = 0;
+        while (jj < phiNew.size()) {
+            phiPrev.add(phiNew.get(jj));
+            jj = jj + 1;
+        }
+        k = k + 1;
+    }
+    return result;
+}
+
+// Simple ARIMA(p,d,q) fit using method of moments / Yule-Walker for AR part
+// and innovation variance estimation for MA part.
+// Returns a HashMap with keys: ar1..arp, ma1..maq, sigma2, logLikelihood.
+public fn arimaFit(data: ArrayList<double>, p: int, d: int, q: int): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+    if (data.size() == 0) {
+        result.put("sigma2", 0.0);
+        result.put("logLikelihood", 0.0);
+        return result;
+    }
+    // Difference the data d times
+    let diffed: ArrayList<double> = difference(data, d);
+    let n: int = diffed.size();
+    if (n == 0) {
+        result.put("sigma2", 0.0);
+        result.put("logLikelihood", 0.0);
+        return result;
+    }
+    // Compute autocovariances up to lag p+q
+    let maxLag: int = p + q;
+    let m: double = tsMean(diffed);
+    let gamma: ArrayList<double> = new ArrayList<double>();
+    var lag: int = 0;
+    while (lag <= maxLag) {
+        var gammaK: double = 0.0;
+        var t: int = 0;
+        while (t < n - lag) {
+            gammaK = gammaK + (diffed.get(t) - m) * (diffed.get(t + lag) - m);
+            t = t + 1;
+        }
+        gamma.add(gammaK / n);
+        lag = lag + 1;
+    }
+    // Fit AR coefficients via Yule-Walker if p > 0
+    let arCoeffs: ArrayList<double> = new ArrayList<double>();
+    if (p > 0 && gamma.get(0) != 0.0) {
+        // Build Yule-Walker matrix: gamma[i-j] for i,j = 1..p
+        let A: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        let b: ArrayList<double> = new ArrayList<double>();
+        var i: int = 1;
+        while (i <= p) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var j: int = 1;
+            while (j <= p) {
+                let idx: int = i - j;
+                if (idx < 0) { idx = -idx; }
+                row.add(gamma.get(idx));
+                j = j + 1;
+            }
+            A.add(row);
+            b.add(gamma.get(i));
+            i = i + 1;
+        }
+        let sol: ArrayList<double> = solveLinear(A, b);
+        var ii: int = 0;
+        while (ii < sol.size()) {
+            arCoeffs.add(sol.get(ii));
+            ii = ii + 1;
+        }
+    }
+    // Compute residuals from AR fit
+    let residuals: ArrayList<double> = new ArrayList<double>();
+    var t: int = p;
+    while (t < n) {
+        var pred: double = m;
+        var j: int = 1;
+        while (j <= p && j <= arCoeffs.size()) {
+            pred = pred + arCoeffs.get(j - 1) * (diffed.get(t - j) - m);
+            j = j + 1;
+        }
+        residuals.add(diffed.get(t) - pred);
+        t = t + 1;
+    }
+    // Estimate MA coefficients from residual autocovariances if q > 0
+    let maCoeffs: ArrayList<double> = new ArrayList<double>();
+    if (q > 0 && residuals.size() > q) {
+        let resMean: double = tsMean(residuals);
+        let resGamma: ArrayList<double> = new ArrayList<double>();
+        var l: int = 0;
+        while (l <= q) {
+            var gk: double = 0.0;
+            var tt: int = 0;
+            while (tt < residuals.size() - l) {
+                gk = gk + (residuals.get(tt) - resMean) * (residuals.get(tt + l) - resMean);
+                tt = tt + 1;
+            }
+            resGamma.add(gk / residuals.size());
+            l = l + 1;
+        }
+        // Innovations algorithm for MA(q) estimation
+        if (resGamma.get(0) != 0.0) {
+            // theta[j] = -resGamma[j+1] / resGamma[0] as simple estimate
+            var j: int = 1;
+            while (j <= q) {
+                let theta: double = -resGamma.get(j) / resGamma.get(0);
+                maCoeffs.add(theta);
+                j = j + 1;
+            }
+        }
+    }
+    // Estimate sigma2 (innovation variance)
+    var sigma2: double = 0.0;
+    if (residuals.size() > 0) {
+        var sumSq: double = 0.0;
+        var i: int = 0;
+        while (i < residuals.size()) {
+            sumSq = sumSq + residuals.get(i) * residuals.get(i);
+            i = i + 1;
+        }
+        sigma2 = sumSq / residuals.size();
+    } else {
+        sigma2 = gamma.get(0);
+    }
+    // Compute log-likelihood (Gaussian)
+    var logLikelihood: double = 0.0;
+    if (sigma2 > 0.0 && n > 0) {
+        logLikelihood = -0.5 * n * MathAdvanced.ln(2.0 * Math.PI() * sigma2) - 0.5 * n;
+    }
+    // Store results
+    var i: int = 0;
+    while (i < arCoeffs.size()) {
+        result.put("ar" + Integer.toString(i + 1), arCoeffs.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < maCoeffs.size()) {
+        result.put("ma" + Integer.toString(i + 1), maCoeffs.get(i));
+        i = i + 1;
+    }
+    result.put("sigma2", sigma2);
+    result.put("logLikelihood", logLikelihood);
+    return result;
+}
+
+// Forecast future values from an ARIMA fit.
+// The fit HashMap should contain ar1..arp, ma1..maq, sigma2 keys.
+// Returns an ArrayList of forecasted values for the given number of steps.
+public fn arimaForecast(fit: HashMap<string, double>, data: ArrayList<double>, steps: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (steps <= 0 || data.size() == 0) { return result; }
+    // Determine AR order
+    var p: int = 0;
+    while (fit.containsKey("ar" + Integer.toString(p + 1))) {
+        p = p + 1;
+    }
+    // Determine MA order
+    var q: int = 0;
+    while (fit.containsKey("ma" + Integer.toString(q + 1))) {
+        q = q + 1;
+    }
+    // Collect AR coefficients
+    let arCoeffs: ArrayList<double> = new ArrayList<double>();
+    var i: int = 1;
+    while (i <= p) {
+        arCoeffs.add(fit.get("ar" + Integer.toString(i)));
+        i = i + 1;
+    }
+    // Collect MA coefficients
+    let maCoeffs: ArrayList<double> = new ArrayList<double>();
+    i = 1;
+    while (i <= q) {
+        maCoeffs.add(fit.get("ma" + Integer.toString(i)));
+        i = i + 1;
+    }
+    // Compute mean of the data
+    let m: double = tsMean(data);
+    // Build extended series: copy data, then forecast
+    let extended: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < data.size()) {
+        extended.add(data.get(i));
+        i = i + 1;
+    }
+    // Assume residuals are zero for forecasting (standard approach)
+    let residuals: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < q) {
+        residuals.add(0.0);
+        i = i + 1;
+    }
+    var step: int = 0;
+    while (step < steps) {
+        var pred: double = m;
+        // AR contribution
+        var j: int = 1;
+        while (j <= p && j <= extended.size()) {
+            pred = pred + arCoeffs.get(j - 1) * (extended.get(extended.size() - j) - m);
+            j = j + 1;
+        }
+        // MA contribution (using past residuals, assumed zero for forecast)
+        j = 1;
+        while (j <= q && j <= residuals.size()) {
+            pred = pred + maCoeffs.get(j - 1) * residuals.get(residuals.size() - j);
+            j = j + 1;
+        }
+        extended.add(pred);
+        residuals.add(0.0);
+        result.add(pred);
+        step = step + 1;
+    }
+    return result;
+}
+
+// Simple exponential smoothing (SES).
+// Returns smoothed series of the same length as input.
+public fn exponentialSmoothing(data: ArrayList<double>, alpha: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) { return result; }
+    // Clamp alpha to [0, 1]
+    var a: double = alpha;
+    if (a < 0.0) { a = 0.0; }
+    if (a > 1.0) { a = 1.0; }
+    // Initialize with first observation
+    var s: double = data.get(0);
+    result.add(s);
+    var i: int = 1;
+    while (i < n) {
+        s = a * data.get(i) + (1.0 - a) * s;
+        result.add(s);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Holt's linear trend method (double exponential smoothing).
+// Returns smoothed series of the same length as input.
+public fn holtSmoothing(data: ArrayList<double>, alpha: double, beta: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) { return result; }
+    // Clamp parameters
+    var a: double = alpha;
+    var b: double = beta;
+    if (a < 0.0) { a = 0.0; }
+    if (a > 1.0) { a = 1.0; }
+    if (b < 0.0) { b = 0.0; }
+    if (b > 1.0) { b = 1.0; }
+    // Initialize level and trend
+    var level: double = data.get(0);
+    var trend: double = 0.0;
+    if (n > 1) {
+        trend = data.get(1) - data.get(0);
+    }
+    result.add(level);
+    var i: int = 1;
+    while (i < n) {
+        let newLevel: double = a * data.get(i) + (1.0 - a) * (level + trend);
+        let newTrend: double = b * (newLevel - level) + (1.0 - b) * trend;
+        level = newLevel;
+        trend = newTrend;
+        result.add(level);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Holt-Winters seasonal method (additive).
+// Returns smoothed series of the same length as input.
+public fn holtWinters(data: ArrayList<double>, alpha: double, beta: double, gamma: double, period: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0 || period <= 0) { return result; }
+    // Clamp parameters
+    var a: double = alpha;
+    var b: double = beta;
+    var g: double = gamma;
+    if (a < 0.0) { a = 0.0; }
+    if (a > 1.0) { a = 1.0; }
+    if (b < 0.0) { b = 0.0; }
+    if (b > 1.0) { b = 1.0; }
+    if (g < 0.0) { g = 0.0; }
+    if (g > 1.0) { g = 1.0; }
+    // Initialize seasonal components using first period averages
+    let seasonal: ArrayList<double> = new ArrayList<double>();
+    // Compute average of first period
+    var periodSum: double = 0.0;
+    var count: int = 0;
+    var i: int = 0;
+    while (i < period && i < n) {
+        periodSum = periodSum + data.get(i);
+        count = count + 1;
+        i = i + 1;
+    }
+    let periodAvg: double = 0.0;
+    if (count > 0) { periodAvg = periodSum / count; }
+    // Initial seasonal factors
+    i = 0;
+    while (i < period) {
+        if (i < n) {
+            seasonal.add(data.get(i) - periodAvg);
+        } else {
+            seasonal.add(0.0);
+        }
+        i = i + 1;
+    }
+    // Initialize level and trend
+    var level: double = periodAvg;
+    var trend: double = 0.0;
+    if (n > period) {
+        // Average trend over first two periods
+        var sum1: double = 0.0;
+        var sum2: double = 0.0;
+        i = 0;
+        while (i < period) {
+            sum1 = sum1 + data.get(i);
+            i = i + 1;
+        }
+        i = period;
+        while (i < 2 * period && i < n) {
+            sum2 = sum2 + data.get(i);
+            i = i + 1;
+        }
+        trend = (sum2 - sum1) / (period * period);
+    }
+    // Holt-Winters recursion
+    i = 0;
+    while (i < n) {
+        let sIdx: int = i % period;
+        let newLevel: double = a * (data.get(i) - seasonal.get(sIdx)) + (1.0 - a) * (level + trend);
+        let newTrend: double = b * (newLevel - level) + (1.0 - b) * trend;
+        let newSeasonal: double = g * (data.get(i) - newLevel - newTrend) + (1.0 - g) * seasonal.get(sIdx);
+        level = newLevel;
+        trend = newTrend;
+        seasonal.set(sIdx, newSeasonal);
+        result.add(level + trend + seasonal.get(sIdx));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Additive seasonal decomposition.
+// Returns a HashMap with keys "trend", "seasonal", "residual",
+// each mapping to an ArrayList<double> of the same length as input.
+public fn seasonalDecompose(data: ArrayList<double>, period: int): HashMap<string, ArrayList<double>> {
+    let result: HashMap<string, ArrayList<double>> = new HashMap<string, ArrayList<double>>();
+    let n: int = data.size();
+    let empty: ArrayList<double> = new ArrayList<double>();
+    if (n == 0 || period <= 0 || period > n) {
+        result.put("trend", empty);
+        result.put("seasonal", empty);
+        result.put("residual", empty);
+        return result;
+    }
+    // Step 1: Compute trend using centered moving average
+    let trend: ArrayList<double> = new ArrayList<double>();
+    let halfPeriod: int = period / 2;
+    var i: int = 0;
+    while (i < n) {
+        if (i < halfPeriod || i >= n - halfPeriod) {
+            trend.add(0.0);
+        } else {
+            var sum: double = 0.0;
+            var count: int = 0;
+            var j: int = i - halfPeriod;
+            while (j <= i + halfPeriod) {
+                if (j >= 0 && j < n) {
+                    sum = sum + data.get(j);
+                    count = count + 1;
+                }
+                j = j + 1;
+            }
+            trend.add(sum / count);
+        }
+        i = i + 1;
+    }
+    // Step 2: Compute seasonal component
+    // Average the detrended values for each season position
+    let seasonal: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        seasonal.add(0.0);
+        i = i + 1;
+    }
+    // Compute seasonal averages
+    let seasonSums: ArrayList<double> = new ArrayList<double>();
+    let seasonCounts: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < period) {
+        seasonSums.add(0.0);
+        seasonCounts.add(0.0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        if (trend.get(i) != 0.0) {
+            let sIdx: int = i % period;
+            seasonSums.set(sIdx, seasonSums.get(sIdx) + data.get(i) - trend.get(i));
+            seasonCounts.set(sIdx, seasonCounts.get(sIdx) + 1.0);
+        }
+        i = i + 1;
+    }
+    // Normalize seasonal components to sum to zero
+    var seasonAvg: double = 0.0;
+    var seasonCount: int = 0;
+    i = 0;
+    while (i < period) {
+        if (seasonCounts.get(i) > 0.0) {
+            seasonSums.set(i, seasonSums.get(i) / seasonCounts.get(i));
+            seasonAvg = seasonAvg + seasonSums.get(i);
+            seasonCount = seasonCount + 1;
+        }
+        i = i + 1;
+    }
+    if (seasonCount > 0) {
+        seasonAvg = seasonAvg / seasonCount;
+    }
+    i = 0;
+    while (i < period) {
+        seasonSums.set(i, seasonSums.get(i) - seasonAvg);
+        i = i + 1;
+    }
+    // Fill seasonal array
+    i = 0;
+    while (i < n) {
+        seasonal.set(i, seasonSums.get(i % period));
+        i = i + 1;
+    }
+    // Step 3: Compute residual
+    let residual: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        residual.add(data.get(i) - trend.get(i) - seasonal.get(i));
+        i = i + 1;
+    }
+    result.put("trend", trend);
+    result.put("seasonal", seasonal);
+    result.put("residual", residual);
+    return result;
+}
+
+// Differencing: apply d-order differencing to the data.
+// Each order reduces the length by 1.
+public fn difference(data: ArrayList<double>, d: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0 || d <= 0) {
+        // Return copy of data
+        var i: int = 0;
+        while (i < n) {
+            result.add(data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+    // First differencing
+    var current: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n - 1) {
+        current.add(data.get(i + 1) - data.get(i));
+        i = i + 1;
+    }
+    // Subsequent differencing
+    var order: int = 1;
+    while (order < d) {
+        let next: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < current.size() - 1) {
+            next.add(current.get(i + 1) - current.get(i));
+            i = i + 1;
+        }
+        current = next;
+        order = order + 1;
+    }
+    // Copy to result
+    i = 0;
+    while (i < current.size()) {
+        result.add(current.get(i));
+        i = i + 1;
+    }
+    return result;
+}
