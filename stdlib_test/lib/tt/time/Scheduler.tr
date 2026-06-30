@@ -1,0 +1,103 @@
+// Event scheduler for delayed and prioritized execution.
+import tt::util::ArrayList;
+import tt::time::Duration;
+import tt::time::Time;
+
+public class ScheduledEvent {
+    public double time;
+    public int priority;
+    public fn(): void action;
+    public bool cancelled;
+
+    public fn init(time: double, priority: int, action: fn(): void) {
+        this.time = time;
+        this.priority = priority;
+        this.action = action;
+        this.cancelled = false;
+    }
+}
+
+public class Scheduler {
+    private ArrayList<ScheduledEvent> _queue;
+
+    public fn init() {
+        this._queue = new ArrayList<ScheduledEvent>();
+    }
+
+    // Schedule an event with a delay (in seconds)
+    public fn enter(delay: double, action: fn(): void): ScheduledEvent {
+        let eventTime: double = Time_now() as double / 1000.0 + delay;
+        let event: ScheduledEvent = new ScheduledEvent(eventTime, 0, action);
+        this._queue.add(event);
+        this._sortQueue();
+        return event;
+    }
+
+    // Schedule an event with a delay and priority
+    public fn enterWithPriority(delay: double, priority: int, action: fn(): void): ScheduledEvent {
+        let eventTime: double = Time_now() as double / 1000.0 + delay;
+        let event: ScheduledEvent = new ScheduledEvent(eventTime, priority, action);
+        this._queue.add(event);
+        this._sortQueue();
+        return event;
+    }
+
+    // Cancel a scheduled event
+    public fn cancel(event: ScheduledEvent): bool {
+        event.cancelled = true;
+        return true;
+    }
+
+    // Check if the scheduler has no pending events
+    public fn empty(): bool {
+        // Check for non-cancelled events
+        var i: int = 0;
+        while (i < this._queue.size()) {
+            if (!this._queue.get(i).cancelled) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Execute all scheduled events in time order
+    public fn run(): void {
+        while (this._queue.size() > 0) {
+            let event: ScheduledEvent = this._queue.get(0);
+            if (event.cancelled) {
+                this._queue.remove(0);
+                continue;
+            }
+            this._queue.remove(0);
+            event.action();
+        }
+    }
+
+    // Get the current queue of events
+    public fn queue(): ArrayList<ScheduledEvent> {
+        return this._queue;
+    }
+
+    // Sort the queue by time, then by priority
+    private fn _sortQueue(): void {
+        // Simple insertion sort for the last added element
+        let n: int = this._queue.size();
+        if (n <= 1) {
+            return;
+        }
+        var i: int = n - 1;
+        while (i > 0) {
+            let a: ScheduledEvent = this._queue.get(i - 1);
+            let b: ScheduledEvent = this._queue.get(i);
+            if (a.time > b.time || (a.time == b.time && a.priority > b.priority)) {
+                // Swap
+                this._queue.set(i - 1, b);
+                this._queue.set(i, a);
+                i = i - 1;
+            } else {
+                break;
+            }
+        }
+    }
+}
