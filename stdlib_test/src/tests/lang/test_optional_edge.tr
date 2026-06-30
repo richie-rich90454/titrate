@@ -1,0 +1,119 @@
+// Edge case tests for Optional.tr
+// Tests empty Optional, null handling, and chaining operations.
+import tt::lang::Optional;
+
+public fn test_optional_edge_empty_isEmpty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    if (!opt.isEmpty() || opt.isPresent()) {
+        io::println("FAIL: Optional.empty isEmpty/isPresent incorrect");
+    } else {
+        io::println("PASS: Optional.empty isEmpty=true, isPresent=false");
+    }
+}
+
+public fn test_optional_edge_of_null(): void {
+    let opt: Optional<string> = Optional<string>::of(null);
+    // Per implementation, of(null) sets present=true with null value
+    if (!opt.isPresent()) {
+        io::println("FAIL: Optional.of(null) isPresent=false (expected true per impl)");
+    } else {
+        io::println("PASS: Optional.of(null) isPresent=true (edge case behavior)");
+    }
+}
+
+public fn test_optional_edge_ofNullable_null(): void {
+    let opt: Optional<string> = Optional<string>::ofNullable(null);
+    if (opt.isPresent()) {
+        io::println("FAIL: Optional.ofNullable(null) isPresent=true");
+    } else {
+        io::println("PASS: Optional.ofNullable(null) isPresent=false");
+    }
+}
+
+public fn test_optional_edge_orElse_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    if (opt.orElse(99) != 99) {
+        io::println("FAIL: Optional.empty.orElse(99) != 99");
+    } else {
+        io::println("PASS: Optional.empty.orElse(99) = 99");
+    }
+}
+
+public fn test_optional_edge_orElse_present(): void {
+    let opt: Optional<int> = Optional<int>::of(10);
+    if (opt.orElse(99) != 10) {
+        io::println("FAIL: Optional.of(10).orElse(99) != 10");
+    } else {
+        io::println("PASS: Optional.of(10).orElse(99) = 10");
+    }
+}
+
+public fn test_optional_edge_map_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    let mapper: fn(int): int = fn(x: int): int { return x * 2; };
+    let mapped: Optional<int> = opt.map(mapper);
+    if (mapped.isPresent()) {
+        io::println("FAIL: Optional.empty.map should return empty");
+    } else {
+        io::println("PASS: Optional.empty.map returns empty");
+    }
+}
+
+public fn test_optional_edge_filter_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    let pred: fn(int): bool = fn(x: int): bool { return x > 5; };
+    let filtered: Optional<int> = opt.filter(pred);
+    if (filtered.isPresent()) {
+        io::println("FAIL: Optional.empty.filter should return empty");
+    } else {
+        io::println("PASS: Optional.empty.filter returns empty");
+    }
+}
+
+public fn test_optional_edge_chaining(): void {
+    let opt: Optional<int> = Optional<int>::of(5);
+    let mapper: fn(int): int = fn(x: int): int { return x * 2; };
+    let pred: fn(int): bool = fn(x: int): bool { return x > 5; };
+    let result: Optional<int> = opt.map(mapper).filter(pred);
+    if (!result.isPresent() || result.get() != 10) {
+        io::println("FAIL: Optional chaining map+filter");
+    } else {
+        io::println("PASS: Optional chaining map+filter = 10");
+    }
+}
+
+public fn test_optional_edge_chaining_to_empty(): void {
+    let opt: Optional<int> = Optional<int>::of(2);
+    let mapper: fn(int): int = fn(x: int): int { return x * 2; };
+    let pred: fn(int): bool = fn(x: int): bool { return x > 5; };
+    let result: Optional<int> = opt.map(mapper).filter(pred);
+    if (result.isPresent()) {
+        io::println("FAIL: Optional chaining to empty should be empty");
+    } else {
+        io::println("PASS: Optional chaining map+filter returns empty when filter fails");
+    }
+}
+
+public fn test_optional_edge_toString_empty(): void {
+    let opt: Optional<int> = Optional<int>::empty();
+    let s: string = opt.toString();
+    if (s != "Optional.empty") {
+        io::println("FAIL: Optional.empty.toString() = " + s);
+    } else {
+        io::println("PASS: Optional.empty.toString() = Optional.empty");
+    }
+}
+
+public fn run_all_optional_edge_tests(): void {
+    io::println("=== Optional.tr Edge Case Tests ===");
+    test_optional_edge_empty_isEmpty();
+    test_optional_edge_of_null();
+    test_optional_edge_ofNullable_null();
+    test_optional_edge_orElse_empty();
+    test_optional_edge_orElse_present();
+    test_optional_edge_map_empty();
+    test_optional_edge_filter_empty();
+    test_optional_edge_chaining();
+    test_optional_edge_chaining_to_empty();
+    test_optional_edge_toString_empty();
+}
