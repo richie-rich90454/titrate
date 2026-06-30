@@ -1,0 +1,133 @@
+// Edge case tests for ArrayList.tr
+// Tests empty list operations, single elements, and not-found conditions.
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_arraylist_edge_empty_size(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    if (list.size() != 0) {
+        io::println("FAIL: empty ArrayList.size() = " + Integer.toString(list.size()));
+    } else {
+        io::println("PASS: empty ArrayList.size() = 0");
+    }
+}
+
+public fn test_arraylist_edge_empty_isEmpty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    if (!list.isEmpty()) {
+        io::println("FAIL: new ArrayList.isEmpty() = false");
+    } else {
+        io::println("PASS: new ArrayList.isEmpty() = true");
+    }
+}
+
+public fn test_arraylist_edge_clear_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.clear();
+    if (list.size() != 0) {
+        io::println("FAIL: clear on empty list size = " + Integer.toString(list.size()));
+    } else {
+        io::println("PASS: clear on empty list size = 0");
+    }
+}
+
+public fn test_arraylist_edge_single_element(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(42);
+    if (list.size() != 1 || list.get(0) != 42) {
+        io::println("FAIL: single element list");
+    } else {
+        io::println("PASS: single element list size=1, get(0)=42");
+    }
+}
+
+public fn test_arraylist_edge_indexOf_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    if (list.indexOf(1) != -1) {
+        io::println("FAIL: empty list indexOf = " + Integer.toString(list.indexOf(1)));
+    } else {
+        io::println("PASS: empty list indexOf = -1");
+    }
+}
+
+public fn test_arraylist_edge_indexOf_notFound(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    if (list.indexOf(99) != -1) {
+        io::println("FAIL: indexOf not found = " + Integer.toString(list.indexOf(99)));
+    } else {
+        io::println("PASS: indexOf not found = -1");
+    }
+}
+
+public fn test_arraylist_edge_contains_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    if (list.contains(1)) {
+        io::println("FAIL: empty list contains = true");
+    } else {
+        io::println("PASS: empty list contains = false");
+    }
+}
+
+public fn test_arraylist_edge_remove_empty_safe(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    var threw: bool = false;
+    try {
+        let removed: int = list.remove(0);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("PASS: remove on empty list throws");
+    } else {
+        io::println("FAIL: remove on empty list did not throw");
+    }
+}
+
+public fn test_arraylist_edge_forEach_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let action: fn(int): void = fn(x: int): void { };
+    list.forEach(action);
+    if (list.size() != 0) {
+        io::println("FAIL: forEach on empty list changed size");
+    } else {
+        io::println("PASS: forEach on empty list executes without error");
+    }
+}
+
+public fn test_arraylist_edge_pop_single(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(7);
+    let popped: int = list.pop();
+    if (popped != 7 || list.size() != 0) {
+        io::println("FAIL: pop single element popped=" + Integer.toString(popped) + " size=" + Integer.toString(list.size()));
+    } else {
+        io::println("PASS: pop single element = 7, list now empty");
+    }
+}
+
+public fn test_arraylist_edge_subList_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let sub: ArrayList<int> = list.subList(0, 0);
+    if (sub.size() != 0) {
+        io::println("FAIL: subList on empty list size = " + Integer.toString(sub.size()));
+    } else {
+        io::println("PASS: subList on empty list size = 0");
+    }
+}
+
+public fn run_all_arraylist_edge_tests(): void {
+    io::println("=== ArrayList.tr Edge Case Tests ===");
+    test_arraylist_edge_empty_size();
+    test_arraylist_edge_empty_isEmpty();
+    test_arraylist_edge_clear_empty();
+    test_arraylist_edge_single_element();
+    test_arraylist_edge_indexOf_empty();
+    test_arraylist_edge_indexOf_notFound();
+    test_arraylist_edge_contains_empty();
+    test_arraylist_edge_remove_empty_safe();
+    test_arraylist_edge_forEach_empty();
+    test_arraylist_edge_pop_single();
+    test_arraylist_edge_subList_empty();
+}
