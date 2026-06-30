@@ -1,0 +1,274 @@
+// ContinuedFraction: continued fraction representation and utilities.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public class ContinuedFraction {
+    public ArrayList<long> terms;
+
+    public fn init(terms: ArrayList<long>) {
+        this.terms = terms;
+    }
+
+    // Evaluate the continued fraction to a double using bottom-up recurrence.
+    public fn toDouble(): double {
+        if (this.terms.size() == 0) { return 0.0; }
+        var result: double = this.terms.get(this.terms.size() - 1) as double;
+        var i: int = this.terms.size() - 2;
+        while (i >= 0) {
+            if (result == 0.0) { result = 0.0; }
+            result = this.terms.get(i) as double + 1.0 / result;
+            i = i - 1;
+        }
+        return result;
+    }
+
+    // Return convergents as (p_n, q_n) pairs using the recurrence:
+    //   p_{-2}=0, p_{-1}=1, p_n = a_n * p_{n-1} + p_{n-2}
+    //   q_{-2}=1, q_{-1}=0, q_n = a_n * q_{n-1} + q_{n-2}
+    public fn convergents(): ArrayList<Pair<long, long>> {
+        let result: ArrayList<Pair<long, long>> = new ArrayList<Pair<long, long>>();
+        if (this.terms.size() == 0) { return result; }
+        var pPrev2: long = 0;
+        var pPrev1: long = 1;
+        var qPrev2: long = 1;
+        var qPrev1: long = 0;
+        var i: int = 0;
+        while (i < this.terms.size()) {
+            let a: long = this.terms.get(i);
+            let p: long = a * pPrev1 + pPrev2;
+            let q: long = a * qPrev1 + qPrev2;
+            result.add(new Pair<long, long>(p, q));
+            pPrev2 = pPrev1;
+            pPrev1 = p;
+            qPrev2 = qPrev1;
+            qPrev1 = q;
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Format as [a0; a1, a2, ...]
+    public fn toString(): string {
+        if (this.terms.size() == 0) { return "[]"; }
+        var s: string = "[" + Long.toString(this.terms.get(0));
+        if (this.terms.size() > 1) {
+            s = s + "; ";
+            var i: int = 1;
+            while (i < this.terms.size()) {
+                if (i > 1) { s = s + ", "; }
+                s = s + Long.toString(this.terms.get(i));
+                i = i + 1;
+            }
+        }
+        s = s + "]";
+        return s;
+    }
+}
+
+// Compute continued fraction from a double value.
+// Uses the standard algorithm: a_n = floor(x), x = 1/(x - a_n), repeat.
+public fn fromDouble(x: double, maxTerms: int): ContinuedFraction {
+    let terms: ArrayList<long> = new ArrayList<long>();
+    var remainder: double = x;
+    var count: int = 0;
+    while (count < maxTerms) {
+        let a: long = Math.floor(remainder) as long;
+        terms.add(a);
+        let frac: double = remainder - (a as double);
+        if (frac < 0.0) { frac = -frac; }
+        if (frac < 1e-15) { break; }
+        remainder = 1.0 / frac;
+        count = count + 1;
+    }
+    return new ContinuedFraction(terms);
+}
+
+// Compute continued fraction from a rational number num/den.
+// Uses the Euclidean algorithm on (num, den).
+public fn fromRational(num: long, den: long): ContinuedFraction {
+    let terms: ArrayList<long> = new ArrayList<long>();
+    var a: long = num;
+    var b: long = den;
+    if (b < 0) {
+        b = -b;
+        a = -a;
+    }
+    while (b != 0) {
+        let q: long = a / b;
+        terms.add(q);
+        let r: long = a - q * b;
+        a = b;
+        b = r;
+    }
+    return new ContinuedFraction(terms);
+}
+
+// Find the best rational approximation p/q to x with q <= maxDenominator.
+// Uses the theory of continued fraction convergents and semi-convergents.
+public fn bestRationalApproximation(x: double, maxDenominator: long): Pair<long, long> {
+    // Initialize convergent recurrence
+    var pPrev2: long = 0;
+    var pPrev1: long = 1;
+    var qPrev2: long = 1;
+    var qPrev1: long = 0;
+    var remainder: double = x;
+    // Track best so far
+    var bestP: long = Math.round(x);
+    var bestQ: long = 1;
+    var bestErr: double = Math.abs(x - (bestP as double) / (bestQ as double));
+    var done: bool = false;
+    while (!done) {
+        let a: long = Math.floor(remainder) as long;
+        let p: long = a * pPrev1 + pPrev2;
+        let q: long = a * qPrev1 + qPrev2;
+        if (q <= maxDenominator) {
+            let err: double = Math.abs(x - (p as double) / (q as double));
+            if (err < bestErr) {
+                bestErr = err;
+                bestP = p;
+                bestQ = q;
+            }
+            // Try semi-convergents: for k from 1 to a-1, check (k*pPrev1+pPrev2)/(k*qPrev1+qPrev2)
+            var k: long = 1;
+            while (k < a) {
+                let sp: long = k * pPrev1 + pPrev2;
+                let sq: long = k * qPrev1 + qPrev2;
+                if (sq > maxDenominator) { break; }
+                let sErr: double = Math.abs(x - (sp as double) / (sq as double));
+                if (sErr < bestErr) {
+                    bestErr = sErr;
+                    bestP = sp;
+                    bestQ = sq;
+                }
+                k = k + 1;
+            }
+        }
+        if (q > maxDenominator) {
+            // Try intermediate convergents with smaller k
+            // The largest k such that k*qPrev1 + qPrev2 <= maxDenominator
+            if (qPrev1 > 0) {
+                let maxK: long = (maxDenominator - qPrev2) / qPrev1;
+                if (maxK >= 1) {
+                    var k: long = 1;
+                    while (k <= maxK) {
+                        let sp: long = k * pPrev1 + pPrev2;
+                        let sq: long = k * qPrev1 + qPrev2;
+                        let sErr: double = Math.abs(x - (sp as double) / (sq as double));
+                        if (sErr < bestErr) {
+                            bestErr = sErr;
+                            bestP = sp;
+                            bestQ = sq;
+                        }
+                        k = k + 1;
+                    }
+                }
+            }
+            done = true;
+        } else {
+            let frac: double = remainder - (a as double);
+            if (frac < 0.0) { frac = -frac; }
+            if (frac < 1e-15) { done = true; }
+            else {
+                remainder = 1.0 / frac;
+                pPrev2 = pPrev1;
+                pPrev1 = p;
+                qPrev2 = qPrev1;
+                qPrev1 = q;
+            }
+        }
+    }
+    return new Pair<long, long>(bestP, bestQ);
+}
+
+// Best rational approximation returning int pair for smaller denominators.
+// Finds p/q closest to x with q <= maxDenom.
+public fn bestRationalApproximationInt(x: double, maxDenom: int): Pair<int, int> {
+    let result: Pair<long, long> = bestRationalApproximation(x, maxDenom as long);
+    return new Pair<int, int>(result.first as int, result.second as int);
+}
+
+// Continued fraction for the golden ratio: [1; 1, 1, 1, ...]
+public fn goldenRatio(): ContinuedFraction {
+    let terms: ArrayList<long> = new ArrayList<long>();
+    var i: int = 0;
+    while (i < 20) {
+        terms.add(1);
+        i = i + 1;
+    }
+    return new ContinuedFraction(terms);
+}
+
+// Continued fraction for sqrt(n), which is periodic for non-square n.
+// For a perfect square, returns [sqrt(n)].
+// Uses the standard algorithm for quadratic irrationals:
+//   a_0 = floor(sqrt(n)), then iterate with (m, d, a):
+//   m_{k+1} = d_k * a_k - m_k
+//   d_{k+1} = (n - m_{k+1}^2) / d_k
+//   a_{k+1} = floor((a_0 + m_{k+1}) / d_{k+1})
+public fn sqrtContinued(n: int, maxTerms: int): ContinuedFraction {
+    let terms: ArrayList<long> = new ArrayList<long>();
+    if (n < 0) { return new ContinuedFraction(terms); }
+    let sqrtN: double = MathAdvanced.sqrt(n as double);
+    let a0: long = Math.floor(sqrtN) as long;
+    terms.add(a0);
+    // If n is a perfect square, the continued fraction is just [a0]
+    if (a0 * a0 == n as long) { return new ContinuedFraction(terms); }
+    var m: long = 0;
+    var d: long = 1;
+    var a: long = a0;
+    var count: int = 1;
+    while (count < maxTerms) {
+        m = d * a - m;
+        d = ((n as long) - m * m) / d;
+        a = (a0 + m) / d;
+        terms.add(a);
+        // Period ends when a == 2*a0
+        if (a == 2 * a0) { break; }
+        count = count + 1;
+    }
+    return new ContinuedFraction(terms);
+}
+
+// Continued fraction for pi: [3; 7, 15, 1, 292, 1, 1, 1, 2, 1, 3, 1, 14, ...]
+// Precomputed terms from the known continued fraction expansion of pi.
+public fn piContinued(): ContinuedFraction {
+    let terms: ArrayList<long> = new ArrayList<long>();
+    terms.add(3);
+    terms.add(7);
+    terms.add(15);
+    terms.add(1);
+    terms.add(292);
+    terms.add(1);
+    terms.add(1);
+    terms.add(1);
+    terms.add(2);
+    terms.add(1);
+    terms.add(3);
+    terms.add(1);
+    terms.add(14);
+    terms.add(2);
+    terms.add(1);
+    terms.add(1);
+    terms.add(2);
+    terms.add(2);
+    terms.add(2);
+    terms.add(2);
+    return new ContinuedFraction(terms);
+}
+
+// Continued fraction for e: [2; 1, 2, 1, 1, 4, 1, 1, 6, 1, 1, 8, ...]
+// The pattern after the initial 2 is: 1, 2k, 1 for k=1,2,3,...
+public fn eContinued(): ContinuedFraction {
+    let terms: ArrayList<long> = new ArrayList<long>();
+    terms.add(2);
+    var k: int = 1;
+    while (terms.size() < 20) {
+        terms.add(1);
+        terms.add(2 * k as long);
+        terms.add(1);
+        k = k + 1;
+    }
+    return new ContinuedFraction(terms);
+}
