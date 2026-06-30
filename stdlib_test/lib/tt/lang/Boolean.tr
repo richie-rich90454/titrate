@@ -1,0 +1,22 @@
+public fn toString(value: bool): string {
+    return value.toString();
+}
+
+public fn parseBoolean(s: string): bool {
+    if (s == "true") {
+        return true;
+    }
+    return false;
+}
+
+public fn logicalAnd(a: bool, b: bool): bool {
+    return a && b;
+}
+
+public fn logicalOr(a: bool, b: bool): bool {
+    return a || b;
+}
+
+public fn logicalNot(a: bool): bool {
+    return !a;
+}
