@@ -1,0 +1,115 @@
+// Selectors module for I/O multiplexing.
+// Uses a polling-based approach since true OS-level select/poll/epoll
+// requires VM-level socket handle integration.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// Event constants
+const EVENT_READ: int = 1;
+const EVENT_WRITE: int = 2;
+
+// Selector class for monitoring I/O handles.
+public class Selector {
+    private HashMap<int, int> _registered;
+    private bool _closed;
+
+    public fn init() {
+        this._registered = new HashMap<int, int>();
+        this._closed = false;
+    }
+
+    // Register a handle for the given events.
+    public fn register(handle: int, events: int): void {
+        if (this._closed) {
+            return;
+        }
+        this._registered.put(handle, events);
+    }
+
+    // Unregister a handle.
+    public fn unregister(handle: int): void {
+        if (this._closed) {
+            return;
+        }
+        this._registered.remove(handle);
+    }
+
+    // Modify the events for a registered handle.
+    public fn modify(handle: int, events: int): void {
+        if (this._closed) {
+            return;
+        }
+        if (this._registered.containsKey(handle)) {
+            this._registered.put(handle, events);
+        }
+    }
+
+    // Check if a handle is registered.
+    public fn isRegistered(handle: int): bool {
+        return this._registered.containsKey(handle);
+    }
+
+    // Select ready handles.
+    // timeout is in milliseconds; 0 means non-blocking, -1 means wait indefinitely.
+    // Returns all registered handles since true I/O readiness checking requires
+    // OS-level select/poll integration. The timeout is respected by sleeping.
+    public fn select(timeout: int): ArrayList<int> {
+        if (this._closed) {
+            return new ArrayList<int>();
+        }
+        if (timeout > 0) {
+            Sys_sleep(timeout);
+        }
+        return this._registered.keys();
+    }
+
+    // Select ready handles and return them with their event mask.
+    // Returns an ArrayList of (handle, events) tuples as Variant values.
+    public fn selectWithEvents(timeout: int): ArrayList<Variant> {
+        if (this._closed) {
+            return new ArrayList<Variant>();
+        }
+        if (timeout > 0) {
+            Sys_sleep(timeout);
+        }
+        let handles: ArrayList<int> = this._registered.keys();
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        var i: int = 0;
+        while (i < handles.size()) {
+            let h: int = handles.get(i);
+            let ev: int = this._registered.get(h);
+            result.add((h, ev));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Close the selector and release resources.
+    public fn close(): void {
+        this._closed = true;
+        this._registered.clear();
+    }
+
+    // Returns true if the selector is closed.
+    public fn isClosed(): bool {
+        return this._closed;
+    }
+
+    // Returns the number of registered handles.
+    public fn size(): int {
+        return this._registered.size();
+    }
+
+    // Get the events for a registered handle.
+    public fn getEvents(handle: int): int {
+        if (this._registered.containsKey(handle)) {
+            return this._registered.get(handle);
+        }
+        return 0;
+    }
+}
+
+// Create a new Selector instance.
+public fn createSelector(): Selector {
+    return new Selector();
+}
