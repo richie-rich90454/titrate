@@ -1,0 +1,98 @@
+// Latency.tr — High-resolution latency measurement and statistics
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public class LatencyTracker {
+    public ArrayList<double> measurements;
+    public string name;
+
+    public fn init(n: string) {
+        this.name = n;
+        this.measurements = new ArrayList<double>();
+    }
+
+    public fn record(latencyNs: double): void {
+        this.measurements.add(latencyNs);
+    }
+
+    public fn count(): int {
+        return this.measurements.size();
+    }
+
+    public fn min(): double {
+        if (this.measurements.size() == 0) { return 0.0; }
+        var result: double = this.measurements.get(0);
+        var i: int = 1;
+        while (i < this.measurements.size()) {
+            if (this.measurements.get(i) < result) { result = this.measurements.get(i); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn max(): double {
+        if (this.measurements.size() == 0) { return 0.0; }
+        var result: double = this.measurements.get(0);
+        var i: int = 1;
+        while (i < this.measurements.size()) {
+            if (this.measurements.get(i) > result) { result = this.measurements.get(i); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn mean(): double {
+        if (this.measurements.size() == 0) { return 0.0; }
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < this.measurements.size()) { sum = sum + this.measurements.get(i); i = i + 1; }
+        return sum / this.measurements.size() as double;
+    }
+
+    public fn stdDev(): double {
+        if (this.measurements.size() < 2) { return 0.0; }
+        let m: double = this.mean();
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < this.measurements.size()) {
+            let d: double = this.measurements.get(i) - m;
+            sum = sum + d * d;
+            i = i + 1;
+        }
+        return MathAdvanced.sqrt(sum / (this.measurements.size() - 1) as double);
+    }
+
+    public fn percentile(p: double): double {
+        if (this.measurements.size() == 0) { return 0.0; }
+        let sorted: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < this.measurements.size()) { sorted.add(this.measurements.get(i)); i = i + 1; }
+        // Simple sort
+        i = 0;
+        while (i < sorted.size() - 1) {
+            var j: int = i + 1;
+            while (j < sorted.size()) {
+                if (sorted.get(j) < sorted.get(i)) {
+                    let tmp: double = sorted.get(i);
+                    sorted.set(i, sorted.get(j));
+                    sorted.set(j, tmp);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        let idx: int = Math.floor(p / 100.0 * (sorted.size() - 1) as double) as int;
+        return sorted.get(idx);
+    }
+
+    public fn p50(): double { return this.percentile(50.0); }
+    public fn p90(): double { return this.percentile(90.0); }
+    public fn p99(): double { return this.percentile(99.0); }
+    public fn p999(): double { return this.percentile(99.9); }
+
+    // Percentile returning long (nanoseconds)
+    public fn percentileLong(p: double): long {
+        return this.percentile(p) as long;
+    }
+}
