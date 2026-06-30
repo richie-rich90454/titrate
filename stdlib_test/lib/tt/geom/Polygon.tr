@@ -1,0 +1,112 @@
+// Polygon.tr — Simple polygon operations: area, centroid, convexity, point-in-polygon
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+public class Point2D {
+    public double x;
+    public double y;
+
+    public fn init(x: double, y: double) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+// Shoelace formula for polygon area
+public fn polygonArea(vertices: ArrayList<Point2D>): double {
+    var area: double = 0.0;
+    let n: int = vertices.size();
+    var i: int = 0;
+    while (i < n) {
+        let j: int = (i + 1) % n;
+        area = area + vertices.get(i).x * vertices.get(j).y;
+        area = area - vertices.get(j).x * vertices.get(i).y;
+        i = i + 1;
+    }
+    return Math.abs(area) / 2.0;
+}
+
+// Polygon centroid
+public fn polygonCentroid(vertices: ArrayList<Point2D>): Point2D {
+    let n: int = vertices.size();
+    var cx: double = 0.0;
+    var cy: double = 0.0;
+    var area: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let j: int = (i + 1) % n;
+        let cross: double = vertices.get(i).x * vertices.get(j).y - vertices.get(j).x * vertices.get(i).y;
+        area = area + cross;
+        cx = cx + (vertices.get(i).x + vertices.get(j).x) * cross;
+        cy = cy + (vertices.get(i).y + vertices.get(j).y) * cross;
+        i = i + 1;
+    }
+    area = area / 2.0;
+    if (Math.abs(area) < 1e-10) { return new Point2D(0.0, 0.0); }
+    return new Point2D(cx / (6.0 * area), cy / (6.0 * area));
+}
+
+// Check if polygon is convex
+public fn isConvex(vertices: ArrayList<Point2D>): bool {
+    let n: int = vertices.size();
+    if (n < 3) { return false; }
+    var sign: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        let j: int = (i + 1) % n;
+        let k: int = (i + 2) % n;
+        let dx1: double = vertices.get(j).x - vertices.get(i).x;
+        let dy1: double = vertices.get(j).y - vertices.get(i).y;
+        let dx2: double = vertices.get(k).x - vertices.get(j).x;
+        let dy2: double = vertices.get(k).y - vertices.get(j).y;
+        let cross: double = dx1 * dy2 - dy1 * dx2;
+        if (cross != 0.0) {
+            let s: int = 1;
+            if (cross < 0.0) { s = -1; }
+            if (sign == 0) { sign = s; }
+            else { if (s != sign) { return false; } }
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Point-in-polygon test (ray casting)
+public fn pointInPolygon(point: Point2D, vertices: ArrayList<Point2D>): bool {
+    let n: int = vertices.size();
+    var inside: bool = false;
+    var j: int = n - 1;
+    var i: int = 0;
+    while (i < n) {
+        let vi: Point2D = vertices.get(i);
+        let vj: Point2D = vertices.get(j);
+        if (((vi.y > point.y) != (vj.y > point.y)) && (point.x < (vj.x - vi.x) * (point.y - vi.y) / (vj.y - vi.y) + vi.x)) {
+            inside = !inside;
+        }
+        j = i;
+        i = i + 1;
+    }
+    return inside;
+}
+
+// Point-in-polygon test using x,y coordinates
+public fn containsPoint(vertices: ArrayList<Point2D>, x: double, y: double): bool {
+    let point: Point2D = new Point2D(x, y);
+    return pointInPolygon(point, vertices);
+}
+
+// Polygon perimeter
+public fn polygonPerimeter(vertices: ArrayList<Point2D>): double {
+    var perimeter: double = 0.0;
+    let n: int = vertices.size();
+    var i: int = 0;
+    while (i < n) {
+        let j: int = (i + 1) % n;
+        let dx: double = vertices.get(j).x - vertices.get(i).x;
+        let dy: double = vertices.get(j).y - vertices.get(i).y;
+        perimeter = perimeter + MathAdvanced.sqrt(dx * dx + dy * dy);
+        i = i + 1;
+    }
+    return perimeter;
+}
