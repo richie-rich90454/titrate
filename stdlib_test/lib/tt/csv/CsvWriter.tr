@@ -1,0 +1,157 @@
+// CSV writer with configurable delimiter, quote, and newline.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class CsvWriter {
+    public string delimiter;
+    public string quote;
+    public string newline;
+
+    public fn init() {
+        this.delimiter = ",";
+        this.quote = "\"";
+        this.newline = "\n";
+    }
+
+    // Write rows to CSV string
+    public fn write(rows: ArrayList<ArrayList<string>>): string {
+        let result: string = "";
+        let r: int = 0;
+        while (r < rows.size()) {
+            if (r > 0) {
+                result = result + this.newline;
+            }
+            result = result + this.formatRow(rows.get(r));
+            r = r + 1;
+        }
+        return result;
+    }
+
+    // Write with headers
+    public fn writeWithHeaders(headers: ArrayList<string>, rows: ArrayList<ArrayList<string>>): string {
+        let result: string = this.formatRow(headers);
+        let r: int = 0;
+        while (r < rows.size()) {
+            result = result + this.newline + this.formatRow(rows.get(r));
+            r = r + 1;
+        }
+        return result;
+    }
+
+    // Format a single row
+    private fn formatRow(row: ArrayList<string>): string {
+        let result: string = "";
+        let c: int = 0;
+        while (c < row.size()) {
+            if (c > 0) {
+                result = result + this.delimiter;
+            }
+            result = result + this.formatField(row.get(c));
+            c = c + 1;
+        }
+        return result;
+    }
+
+    // Format a single field, quoting if necessary
+    private fn formatField(field: string): string {
+        let needsQuote: bool = false;
+        // Check if field contains delimiter, quote, or newline
+        if (field.contains(this.delimiter)) {
+            needsQuote = true;
+        }
+        if (field.contains(this.quote)) {
+            needsQuote = true;
+        }
+        if (field.contains("\n") || field.contains("\r")) {
+            needsQuote = true;
+        }
+        if (!needsQuote) {
+            return field;
+        }
+        // Escape quotes by doubling them
+        let escaped: string = "";
+        let i: int = 0;
+        while (i < String.length(field)) {
+            let c: string = String.charAt(field, i);
+            if (c == this.quote) {
+                escaped = escaped + this.quote + this.quote;
+            } else {
+                escaped = escaped + c;
+            }
+            i = i + 1;
+        }
+        return this.quote + escaped + this.quote;
+    }
+}
+
+// DictWriter writes CSV rows from HashMaps with specified fieldnames.
+public class DictWriter {
+    public ArrayList<string> fieldnames;
+    public string delimiter;
+    public string quote;
+    public string newline;
+    public string extrasaction;
+
+    public fn init(fieldnames: ArrayList<string>, delimiter: string, quote: string, extrasaction: string) {
+        this.fieldnames = fieldnames;
+        this.delimiter = delimiter;
+        this.quote = quote;
+        this.newline = "\n";
+        this.extrasaction = extrasaction;
+    }
+
+    public fn init(fieldnames: ArrayList<string>, delimiter: string, quote: string) {
+        this.init(fieldnames, delimiter, quote, "raise");
+    }
+
+    public fn init(fieldnames: ArrayList<string>) {
+        this.init(fieldnames, ",", "\"", "raise");
+    }
+
+    // Write the header row
+    public fn writeHeader(): string {
+        let writer: CsvWriter = new CsvWriter();
+        writer.delimiter = this.delimiter;
+        writer.quote = this.quote;
+        writer.newline = this.newline;
+        let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+        rows.add(this.fieldnames);
+        return writer.write(rows);
+    }
+
+    // Write a single row from a HashMap
+    public fn writeRow(map: HashMap<string, string>): string {
+        let row: ArrayList<string> = new ArrayList<string>();
+        let i: int = 0;
+        while (i < this.fieldnames.size()) {
+            let key: string = this.fieldnames.get(i);
+            if (map.containsKey(key)) {
+                row.add(map.get(key));
+            } else {
+                row.add("");
+            }
+            i = i + 1;
+        }
+        let writer: CsvWriter = new CsvWriter();
+        writer.delimiter = this.delimiter;
+        writer.quote = this.quote;
+        writer.newline = this.newline;
+        let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+        rows.add(row);
+        return writer.write(rows);
+    }
+
+    // Write multiple rows from a list of HashMaps
+    public fn writeRows(list: ArrayList<HashMap<string, string>>): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < list.size()) {
+            if (i > 0) {
+                result = result + this.newline;
+            }
+            result = result + this.writeRow(list.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
