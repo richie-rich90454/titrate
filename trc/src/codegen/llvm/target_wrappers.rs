@@ -3,8 +3,8 @@
 //! These functions are declared `static inline` in `llvm-c/Target.h`, so they
 //! are not real symbols in `LLVM-C.lib` / `LLVM-C.dll`. The `llvm-sys` crate
 //! normally ships C wrappers that call the inline functions, but when the
-//! `disable-alltargets-init` feature is enabled (which we use to skip
-//! `llvm-config` entirely), those wrappers are not compiled.
+//! `disable-alltargets-init` feature is enabled (which we use to avoid
+//! llvm-config version coupling), those wrappers are not compiled.
 //!
 //! inkwell's `Target::initialize_all` / `Target::initialize_native` methods
 //! still call `LLVM_InitializeAllTargets` etc. via FFI, so we provide the
