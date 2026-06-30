@@ -1,0 +1,255 @@
+// Distance.tr — String distance metrics: Levenshtein, Jaro-Winkler, Soundex
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::math::Math;
+
+// Levenshtein distance
+public fn levenshteinDistance(s1: string, s2: string): int {
+    let m: int = String.length(s1);
+    let n: int = String.length(s2);
+    let dp: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    var i: int = 0;
+    while (i <= m) {
+        let row: ArrayList<int> = new ArrayList<int>();
+        var j: int = 0;
+        while (j <= n) {
+            if (i == 0) { row.add(j); }
+            else { if (j == 0) { row.add(i); } else { row.add(0); } }
+            j = j + 1;
+        }
+        dp.add(row);
+        i = i + 1;
+    }
+    i = 1;
+    while (i <= m) {
+        var j: int = 1;
+        while (j <= n) {
+            let cost: int = 1;
+            if (String.charAt(s1, i - 1) == String.charAt(s2, j - 1)) { cost = 0; }
+            let del: int = dp.get(i - 1).get(j) + 1;
+            let ins: int = dp.get(i).get(j - 1) + 1;
+            let sub: int = dp.get(i - 1).get(j - 1) + cost;
+            var best: int = del;
+            if (ins < best) { best = ins; }
+            if (sub < best) { best = sub; }
+            dp.get(i).set(j, best);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return dp.get(m).get(n);
+}
+
+// Normalized Levenshtein similarity
+public fn levenshteinSimilarity(s1: string, s2: string): double {
+    let dist: int = levenshteinDistance(s1, s2);
+    let maxLen: int = Math.max(String.length(s1), String.length(s2));
+    if (maxLen == 0) { return 1.0; }
+    return 1.0 - dist as double / maxLen as double;
+}
+
+// Jaro similarity
+public fn jaroSimilarity(s1: string, s2: string): double {
+    let m: int = String.length(s1);
+    let n: int = String.length(s2);
+    if (m == 0 && n == 0) { return 1.0; }
+    if (m == 0 || n == 0) { return 0.0; }
+    let matchDist: int = Math.max(m, n) / 2 - 1;
+    if (matchDist < 0) { matchDist = 0; }
+    let s1Matches: ArrayList<bool> = new ArrayList<bool>();
+    let s2Matches: ArrayList<bool> = new ArrayList<bool>();
+    var i: int = 0;
+    while (i < m) { s1Matches.add(false); i = i + 1; }
+    i = 0;
+    while (i < n) { s2Matches.add(false); i = i + 1; }
+    var matches: int = 0;
+    var transpositions: int = 0;
+    i = 0;
+    while (i < m) {
+        let start: int = Math.max(0, i - matchDist);
+        let end: int = Math.min(i + matchDist + 1, n);
+        var j: int = start;
+        while (j < end) {
+            if (!s2Matches.get(j) && String.charAt(s1, i) == String.charAt(s2, j)) {
+                s1Matches.set(i, true);
+                s2Matches.set(j, true);
+                matches = matches + 1;
+                break;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (matches == 0) { return 0.0; }
+    var k: int = 0;
+    i = 0;
+    while (i < m) {
+        if (s1Matches.get(i)) {
+            while (!s2Matches.get(k)) { k = k + 1; }
+            if (String.charAt(s1, i) != String.charAt(s2, k)) { transpositions = transpositions + 1; }
+            k = k + 1;
+        }
+        i = i + 1;
+    }
+    return (matches as double / m as double + matches as double / n as double + (matches - transpositions / 2) as double / matches as double) / 3.0;
+}
+
+// Jaro-Winkler similarity
+public fn jaroWinklerSimilarity(s1: string, s2: string): double {
+    let jaro: double = jaroSimilarity(s1, s2);
+    var prefix: int = 0;
+    let minLen: int = Math.min(String.length(s1), String.length(s2));
+    while (prefix < minLen && prefix < 4 && String.charAt(s1, prefix) == String.charAt(s2, prefix)) {
+        prefix = prefix + 1;
+    }
+    return jaro + prefix as double * 0.1 * (1.0 - jaro);
+}
+
+// Jaro-Winkler similarity (alias)
+public fn jaroWinkler(a: string, b: string): double {
+    return jaroWinklerSimilarity(a, b);
+}
+
+// Soundex code
+public fn soundex(word: string): string {
+    let w: string = String.toUpperCase(word);
+    if (String.length(w) == 0) { return ""; }
+    let result: string = String.charAt(w, 0);
+    var lastCode: string = _soundexCode(String.charAt(w, 0));
+    var i: int = 1;
+    while (i < String.length(w) && String.length(result) < 4) {
+        let code: string = _soundexCode(String.charAt(w, i));
+        if (String.length(code) > 0 && code != lastCode) {
+            result = result + code;
+        }
+        lastCode = code;
+        i = i + 1;
+    }
+    while (String.length(result) < 4) {
+        result = result + "0";
+    }
+    return result;
+}
+
+fn _soundexCode(ch: string): string {
+    if (ch == "B" || ch == "F" || ch == "P" || ch == "V") { return "1"; }
+    if (ch == "C" || ch == "G" || ch == "J" || ch == "K" || ch == "Q" || ch == "S" || ch == "X" || ch == "Z") { return "2"; }
+    if (ch == "D" || ch == "T") { return "3"; }
+    if (ch == "L") { return "4"; }
+    if (ch == "M" || ch == "N") { return "5"; }
+    if (ch == "R") { return "6"; }
+    return "";
+}
+
+// Metaphone phonetic encoding
+public fn metaphone(word: string): string {
+    let upper: string = String.toUpperCase(word);
+    let len: int = String.length(upper);
+    if (len == 0) { return ""; }
+    let chars: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < len) {
+        chars.add(String.charAt(upper, i));
+        i = i + 1;
+    }
+    var result: string = "";
+    i = 0;
+    while (i < chars.size()) {
+        let c: string = chars.get(i);
+        // Skip duplicate consonants (except C)
+        if (i > 0 && c == chars.get(i - 1) && c != "C") {
+            i = i + 1;
+            continue;
+        }
+        if (c == "B") {
+            // B is silent at end of word after M (e.g., dumb, lamb)
+            if (i + 1 < chars.size() || i == 0 || chars.get(i - 1) != "M") {
+                result = result + "B";
+            }
+        } else if (c == "C") {
+            if (i + 1 < chars.size()) {
+                let next: string = chars.get(i + 1);
+                if (next == "I" || next == "E" || next == "Y") {
+                    result = result + "S";
+                } else {
+                    result = result + "K";
+                }
+            } else {
+                result = result + "K";
+            }
+        } else if (c == "D") {
+            if (i + 2 < chars.size() && chars.get(i + 1) == "G" && (chars.get(i + 2) == "I" || chars.get(i + 2) == "E" || chars.get(i + 2) == "Y")) {
+                result = result + "J";
+                i = i + 2;
+            } else {
+                result = result + "T";
+            }
+        } else if (c == "F") {
+            result = result + "F";
+        } else if (c == "G") {
+            if (i + 1 < chars.size()) {
+                let next: string = chars.get(i + 1);
+                if (next == "N") {
+                    // silent GN
+                } else if (i == 0 || (chars.get(i - 1) != "N" && chars.get(i - 1) != "D")) {
+                    result = result + "K";
+                }
+            } else {
+                result = result + "K";
+            }
+        } else if (c == "H") {
+            if (i > 0 && i + 1 < chars.size()) {
+                let prev: string = chars.get(i - 1);
+                let next: string = chars.get(i + 1);
+                if ((prev == "A" || prev == "E" || prev == "I" || prev == "O" || prev == "U") && (next == "A" || next == "E" || next == "I" || next == "O" || next == "U")) {
+                    result = result + "H";
+                }
+            }
+        } else if (c == "J") {
+            result = result + "J";
+        } else if (c == "K") {
+            result = result + "K";
+        } else if (c == "L") {
+            result = result + "L";
+        } else if (c == "M") {
+            result = result + "M";
+        } else if (c == "N") {
+            result = result + "N";
+        } else if (c == "P") {
+            if (i + 1 < chars.size() && chars.get(i + 1) == "H") {
+                result = result + "F";
+                i = i + 1;
+            } else {
+                result = result + "P";
+            }
+        } else if (c == "Q") {
+            result = result + "K";
+        } else if (c == "R") {
+            result = result + "R";
+        } else if (c == "S") {
+            if (i + 2 < chars.size() && chars.get(i + 1) == "I" && (chars.get(i + 2) == "O" || chars.get(i + 2) == "A")) {
+                result = result + "X";
+                i = i + 2;
+            } else {
+                result = result + "S";
+            }
+        } else if (c == "T") {
+            if (i + 2 < chars.size() && chars.get(i + 1) == "I" && (chars.get(i + 2) == "O" || chars.get(i + 2) == "A")) {
+                result = result + "X";
+                i = i + 2;
+            } else {
+                result = result + "T";
+            }
+        } else if (c == "V") {
+            result = result + "F";
+        } else if (c == "W" || c == "Y") {
+            result = result + c;
+        } else if (c == "X") {
+            result = result + "KS";
+        } else if (c == "Z") {
+            result = result + "S";
+        }
+        i = i + 1;
+    }
+    return result;
+}
