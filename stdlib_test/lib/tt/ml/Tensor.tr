@@ -1,0 +1,249 @@
+// Tensor.tr — N-dimensional tensor with autograd support
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+public class Tensor {
+    public ArrayList<double> data;
+    public ArrayList<int> shape;
+    public ArrayList<double> grad;
+    public bool requiresGrad;
+    public string operation;
+    public ArrayList<Tensor> parents;
+
+    public fn init(s: ArrayList<int>) {
+        this.shape = s;
+        this.data = new ArrayList<double>();
+        this.grad = new ArrayList<double>();
+        this.requiresGrad = false;
+        this.operation = "";
+        this.parents = new ArrayList<Tensor>();
+        let total: int = _totalSize(s);
+        var i: int = 0;
+        while (i < total) {
+            this.data.add(0.0);
+            this.grad.add(0.0);
+            i = i + 1;
+        }
+    }
+
+    public fn size(): int {
+        return this.data.size();
+    }
+
+    public fn get(indices: ArrayList<int>): double {
+        let idx: int = _flatIndex(indices, this.shape);
+        if (idx >= 0 && idx < this.data.size()) { return this.data.get(idx); }
+        return 0.0;
+    }
+
+    public fn set(indices: ArrayList<int>, val: double): void {
+        let idx: int = _flatIndex(indices, this.shape);
+        if (idx >= 0 && idx < this.data.size()) { this.data.set(idx, val); }
+    }
+
+    public fn getFlat(idx: int): double {
+        if (idx >= 0 && idx < this.data.size()) { return this.data.get(idx); }
+        return 0.0;
+    }
+
+    public fn setFlat(idx: int, val: double): void {
+        if (idx >= 0 && idx < this.data.size()) { this.data.set(idx, val); }
+    }
+
+    public fn backward(): void {
+        if (!this.requiresGrad) { return; }
+        // Set initial gradient to 1.0 for scalar outputs
+        var i: int = 0;
+        while (i < this.grad.size()) {
+            if (this.grad.get(i) == 0.0) {
+                this.grad.set(i, 1.0);
+            }
+            i = i + 1;
+        }
+        // Propagate gradients through parent tensors
+        var p: int = 0;
+        while (p < this.parents.size()) {
+            let parent: Tensor = this.parents.get(p);
+            if (parent.requiresGrad) {
+                parent.accumulateGrad(this);
+            }
+            p = p + 1;
+        }
+    }
+
+    public fn zeroGrad(): void {
+        var i: int = 0;
+        while (i < this.grad.size()) {
+            this.grad.set(i, 0.0);
+            i = i + 1;
+        }
+    }
+
+    public fn accumulateGrad(gradOutput: Tensor): void {
+        var i: int = 0;
+        while (i < this.grad.size() && i < gradOutput.data.size()) {
+            this.grad.set(i, this.grad.get(i) + gradOutput.data.get(i));
+            i = i + 1;
+        }
+    }
+}
+
+fn _totalSize(shape: ArrayList<int>): int {
+    var total: int = 1;
+    var i: int = 0;
+    while (i < shape.size()) {
+        total = total * shape.get(i);
+        i = i + 1;
+    }
+    return total;
+}
+
+fn _flatIndex(indices: ArrayList<int>, shape: ArrayList<int>): int {
+    var idx: int = 0;
+    var stride: int = 1;
+    var i: int = shape.size() - 1;
+    while (i >= 0) {
+        idx = idx + indices.get(i) * stride;
+        stride = stride * shape.get(i);
+        i = i - 1;
+    }
+    return idx;
+}
+
+public fn tensorFrom1D(data: ArrayList<double>): Tensor {
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(data.size());
+    let t: Tensor = new Tensor(shape);
+    var i: int = 0;
+    while (i < data.size()) {
+        t.data.set(i, data.get(i));
+        i = i + 1;
+    }
+    return t;
+}
+
+public fn tensorFrom2D(data: ArrayList<ArrayList<double>>): Tensor {
+    let rows: int = data.size();
+    let cols: int = data.get(0).size();
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(rows);
+    shape.add(cols);
+    let t: Tensor = new Tensor(shape);
+    var i: int = 0;
+    while (i < rows) {
+        var j: int = 0;
+        while (j < cols) {
+            t.data.set(i * cols + j, data.get(i).get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return t;
+}
+
+public fn tensorAdd(a: Tensor, b: Tensor): Tensor {
+    let result: Tensor = new Tensor(a.shape);
+    var i: int = 0;
+    while (i < a.data.size() && i < b.data.size()) {
+        result.data.set(i, a.data.get(i) + b.data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn tensorSub(a: Tensor, b: Tensor): Tensor {
+    let result: Tensor = new Tensor(a.shape);
+    var i: int = 0;
+    while (i < a.data.size() && i < b.data.size()) {
+        result.data.set(i, a.data.get(i) - b.data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn tensorMulScalar(t: Tensor, s: double): Tensor {
+    let result: Tensor = new Tensor(t.shape);
+    var i: int = 0;
+    while (i < t.data.size()) {
+        result.data.set(i, t.data.get(i) * s);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Matrix multiply (2D tensors)
+public fn tensorMatmul(a: Tensor, b: Tensor): Tensor {
+    let m: int = a.shape.get(0);
+    let k1: int = a.shape.get(1);
+    let k2: int = b.shape.get(0);
+    let n: int = b.shape.get(1);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(m);
+    shape.add(n);
+    let result: Tensor = new Tensor(shape);
+    var i: int = 0;
+    while (i < m) {
+        var j: int = 0;
+        while (j < n) {
+            var sum: double = 0.0;
+            var kk: int = 0;
+            while (kk < k1) {
+                sum = sum + a.data.get(i * k1 + kk) * b.data.get(kk * n + j);
+                kk = kk + 1;
+            }
+            result.data.set(i * n + j, sum);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Element-wise multiply
+public fn tensorElementMul(a: Tensor, b: Tensor): Tensor {
+    let result: Tensor = new Tensor(a.shape);
+    var i: int = 0;
+    while (i < a.data.size() && i < b.data.size()) {
+        result.data.set(i, a.data.get(i) * b.data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Transpose (2D)
+public fn tensorTranspose(t: Tensor): Tensor {
+    let rows: int = t.shape.get(0);
+    let cols: int = t.shape.get(1);
+    let shape: ArrayList<int> = new ArrayList<int>();
+    shape.add(cols);
+    shape.add(rows);
+    let result: Tensor = new Tensor(shape);
+    var i: int = 0;
+    while (i < rows) {
+        var j: int = 0;
+        while (j < cols) {
+            result.data.set(j * rows + i, t.data.get(i * cols + j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Sum all elements
+public fn tensorSum(t: Tensor): double {
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < t.data.size()) {
+        sum = sum + t.data.get(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Mean of all elements
+public fn tensorMean(t: Tensor): double {
+    if (t.data.size() == 0) { return 0.0; }
+    return tensorSum(t) / t.data.size() as double;
+}
