@@ -1,0 +1,174 @@
+// Generic resizable vector.
+
+public class Vec<T> {
+    private ArrayList<T> _items;
+
+    public fn Vec() {
+        this._items = new ArrayList<T>();
+    }
+
+    public fn push(item: T): void {
+        this._items.add(item);
+    }
+
+    public fn get(index: int): T {
+        return this._items.get(index);
+    }
+
+    public fn set(index: int, value: T): void {
+        this._items.set(index, value);
+    }
+
+    public fn size(): int {
+        return this._items.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this._items.size() == 0;
+    }
+
+    public fn pop(): T {
+        let last: int = this._items.size() - 1;
+        let item: T = this._items.get(last);
+        this._items.remove(last);
+        return item;
+    }
+
+    public fn contains(item: T): bool {
+        for (elem in this._items) {
+            if (elem == item) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public fn reverse(): void {
+        let i: int = 0;
+        let j: int = this._items.size() - 1;
+        while (i < j) {
+            let tmp: T = this._items.get(i);
+            this._items.set(i, this._items.get(j));
+            this._items.set(j, tmp);
+            i = i + 1;
+            j = j - 1;
+        }
+    }
+
+    public fn indexOf(item: T): int {
+        let i: int = 0;
+        while (i < this._items.size()) {
+            if (this._items.get(i) == item) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn last(): T {
+        return this._items.get(this._items.size() - 1);
+    }
+
+    public fn first(): T {
+        return this._items.get(0);
+    }
+
+    public fn take(n: int): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
+        let i: int = 0;
+        while (i < n && i < this._items.size()) {
+            result.push(this._items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn drop(n: int): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
+        let i: int = n;
+        while (i < this._items.size()) {
+            result.push(this._items.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn insert(index: int, value: T): void {
+        this._items.add(index, value);
+    }
+
+    public fn removeAt(index: int): T {
+        let item: T = this._items.get(index);
+        this._items.remove(index);
+        return item;
+    }
+
+    public fn sort(): void {
+        this._items.sort();
+    }
+
+    public fn forEach(fn: fn(T): void): void {
+        for (elem in this._items) {
+            fn(elem);
+        }
+    }
+
+    public fn map(fn: fn(T): T): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
+        for (elem in this._items) {
+            result.push(fn(elem));
+        }
+        return result;
+    }
+
+    public fn filter(fn: fn(T): bool): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
+        for (elem in this._items) {
+            if (fn(elem)) {
+                result.push(elem);
+            }
+        }
+        return result;
+    }
+
+    public fn reduce(fn: fn(T, T): T, init: T): T {
+        let acc: T = init;
+        for (elem in this._items) {
+            acc = fn(acc, elem);
+        }
+        return acc;
+    }
+
+    public fn clear(): void {
+        this._items = new ArrayList<T>();
+    }
+
+    public fn reserve(capacity: int): void {
+        this._items.ensureCapacity(capacity);
+    }
+
+    public fn shrinkToFit(): void {
+        this._items.trimToSize();
+    }
+
+    public fn clone(): Vec<T> {
+        let result: Vec<T> = new Vec<T>();
+        for (elem in this._items) {
+            result.push(elem);
+        }
+        return result;
+    }
+
+    public fn toString(): string {
+        let s: string = "[";
+        let i: int = 0;
+        while (i < this._items.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this._items.get(i);
+            i = i + 1;
+        }
+        s = s + "]";
+        return s;
+    }
+}
