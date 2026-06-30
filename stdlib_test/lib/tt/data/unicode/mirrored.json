@@ -1,0 +1,13 @@
+{
+  "_meta": { "source": "Unicode 15.0", "version": "15.0", "description": "Unicode Bidi_Mirrored character data" },
+  "mappings": [
+    {"codepoint": 40, "mirror": 41, "name": "LEFT PARENTHESIS"},
+    {"codepoint": 41, "mirror": 40, "name": "RIGHT PARENTHESIS"},
+    {"codepoint": 91, "mirror": 93, "name": "LEFT SQUARE BRACKET"},
+    {"codepoint": 93, "mirror": 91, "name": "RIGHT SQUARE BRACKET"},
+    {"codepoint": 123, "mirror": 125, "name": "LEFT CURLY BRACKET"},
+    {"codepoint": 125, "mirror": 123, "name": "RIGHT CURLY BRACKET"},
+    {"codepoint": 60, "mirror": 62, "name": "LESS-THAN SIGN"},
+    {"codepoint": 62, "mirror": 60, "name": "GREATER-THAN SIGN"}
+  ]
+}
