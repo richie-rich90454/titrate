@@ -1,0 +1,84 @@
+// Edge case tests for BitSet.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::util::BitSet;
+import tt::lang::Integer;
+
+public fn test_bitset_edge_empty(): void {
+    let bs: BitSet = new BitSet(64);
+    if (bs.isEmpty() && bs.cardinality() == 0 && bs.length() == 0) {
+        io::println("PASS: BitSet empty");
+    } else {
+        io::println("FAIL: BitSet empty");
+    }
+}
+
+public fn test_bitset_edge_boundary_indices(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(0);
+    bs.set(63);
+    if (bs.get(0) && bs.get(63) && bs.cardinality() == 2) {
+        io::println("PASS: BitSet boundary indices 0 and 63");
+    } else {
+        io::println("FAIL: BitSet boundary indices");
+    }
+}
+
+public fn test_bitset_edge_out_of_bounds(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(100);
+    bs.set(-1);
+    if (!bs.get(100) && !bs.get(-1) && bs.cardinality() == 0) {
+        io::println("PASS: BitSet out of bounds ignored");
+    } else {
+        io::println("FAIL: BitSet out of bounds");
+    }
+}
+
+public fn test_bitset_edge_clear_operations(): void {
+    let bs: BitSet = new BitSet(64);
+    bs.set(5);
+    bs.set(10);
+    bs.clear(5);
+    if (!bs.get(5) && bs.get(10) && bs.cardinality() == 1) {
+        io::println("PASS: BitSet clear single bit");
+    } else {
+        io::println("FAIL: BitSet clear single bit");
+    }
+    bs.clearAll();
+    if (bs.cardinality() == 0 && bs.isEmpty()) {
+        io::println("PASS: BitSet clearAll");
+    } else {
+        io::println("FAIL: BitSet clearAll");
+    }
+}
+
+public fn test_bitset_edge_cardinality_empty(): void {
+    let bs: BitSet = new BitSet(128);
+    if (bs.cardinality() == 0) {
+        io::println("PASS: BitSet cardinality on empty");
+    } else {
+        io::println("FAIL: BitSet cardinality on empty = " + Integer.toString(bs.cardinality()));
+    }
+}
+
+public fn test_bitset_edge_cross_word_boundary(): void {
+    let bs: BitSet = new BitSet(200);
+    bs.set(63);
+    bs.set(64);
+    bs.set(65);
+    if (bs.get(63) && bs.get(64) && bs.get(65) && bs.cardinality() == 3) {
+        io::println("PASS: BitSet cross word boundary");
+    } else {
+        io::println("FAIL: BitSet cross word boundary");
+    }
+}
+
+public fn run_all_bitset_edge_tests(): void {
+    io::println("=== BitSet.tr Edge Case Tests ===");
+    test_bitset_edge_empty();
+    test_bitset_edge_boundary_indices();
+    test_bitset_edge_out_of_bounds();
+    test_bitset_edge_clear_operations();
+    test_bitset_edge_cardinality_empty();
+    test_bitset_edge_cross_word_boundary();
+}
