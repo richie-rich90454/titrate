@@ -1,0 +1,73 @@
+import tt::util::ArrayList;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+public class OHLCV {
+    public double open;
+    public double high;
+    public double low;
+    public double close;
+    public double volume;
+    public int timestamp;
+
+    public fn init(open: double, high: double, low: double, close: double, volume: double, timestamp: int) {
+        this.open = open;
+        this.high = high;
+        this.low = low;
+        this.close = close;
+        this.volume = volume;
+        this.timestamp = timestamp;
+    }
+}
+
+public class Tick {
+    public double price;
+    public double size;
+    public string side;
+    public int timestamp;
+
+    public fn init(price: double, size: double, side: string, timestamp: int) {
+        this.price = price;
+        this.size = size;
+        this.side = side;
+        this.timestamp = timestamp;
+    }
+}
+
+public class Trade {
+    public double price;
+    public double size;
+    public string id;
+    public int timestamp;
+
+    public fn init(price: double, size: double, id: string, timestamp: int) {
+        this.price = price;
+        this.size = size;
+        this.id = id;
+        this.timestamp = timestamp;
+    }
+}
+
+public class Quote {
+    public double bidPrice;
+    public double bidSize;
+    public double askPrice;
+    public double askSize;
+    public int timestamp;
+
+    public fn init(bidPrice: double, bidSize: double, askPrice: double, askSize: double, timestamp: int) {
+        this.bidPrice = bidPrice;
+        this.bidSize = bidSize;
+        this.askPrice = askPrice;
+        this.askSize = askSize;
+        this.timestamp = timestamp;
+    }
+
+    public fn spread(): double {
+        return this.askPrice - this.bidPrice;
+    }
+
+    public fn midPrice(): double {
+        return (this.bidPrice + this.askPrice) / 2.0;
+    }
+}
