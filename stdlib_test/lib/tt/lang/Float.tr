@@ -1,0 +1,35 @@
+public fn parse(s: string): float {
+    return Double_parseDouble(s);
+}
+
+public fn toString(value: float): string {
+    return value.toString();
+}
+
+public fn isNaN(value: float): bool {
+    return value != value;
+}
+
+public fn isInfinite(value: float): bool {
+    return value == Float.POSITIVE_INFINITY() || value == Float.NEGATIVE_INFINITY();
+}
+
+public fn parseOr(s: string, defaultValue: float): float {
+    let result: float = Double_parseDouble(s);
+    if (Float.isNaN(result)) {
+        return defaultValue;
+    }
+    return result;
+}
+
+public fn POSITIVE_INFINITY(): float {
+    return Math_inf();
+}
+
+public fn NEGATIVE_INFINITY(): float {
+    return Math_negInf();
+}
+
+public fn NaN(): float {
+    return Math_nan();
+}
