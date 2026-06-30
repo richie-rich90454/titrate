@@ -1,0 +1,593 @@
+// RFC 6902 JSON Patch and RFC 6901 JSON Pointer.
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+// ---- RFC 6901 JSON Pointer ----
+
+// JSON Pointer implementation per RFC 6901.
+public class JsonPointer {
+    private var _pointer: string;
+    private var _tokens: ArrayList<string>;
+
+    public fn init(pointer: string) {
+        this._pointer = pointer;
+        this._tokens = _parsePointer(pointer);
+    }
+
+    // Get the value at this pointer location.
+    public fn get(data: JsonValue): JsonValue {
+        return _getByTokens(data, this._tokens);
+    }
+
+    // Set the value at this pointer location, returning a new JsonValue.
+    public fn set(data: JsonValue, value: JsonValue): JsonValue {
+        return _setByTokens(data, this._tokens, value);
+    }
+
+    // Remove the value at this pointer location, returning a new JsonValue.
+    public fn remove(data: JsonValue): JsonValue {
+        return _removeByTokens(data, this._tokens);
+    }
+
+    // Check if this pointer exists in the data.
+    public fn has(data: JsonValue): bool {
+        let result: JsonValue = _getByTokens(data, this._tokens);
+        return !result.isNull() || _pathExists(data, this._tokens);
+    }
+
+    // Return the pointer string.
+    public fn toString(): string {
+        return this._pointer;
+    }
+}
+
+// Parse a JSON Pointer string into unescaped tokens.
+fn _parsePointer(pointer: string): ArrayList<string> {
+    let tokens: ArrayList<string> = new ArrayList<string>();
+    if (String.length(pointer) == 0) {
+        return tokens;
+    }
+    if (String.charAt(pointer, 0) != "/") {
+        return tokens;
+    }
+    let rest: string = String.substring(pointer, 1, String.length(pointer));
+    let parts: ArrayList<string> = String.split(rest, "/");
+    let i: int = 0;
+    while (i < parts.size()) {
+        tokens.add(_unescapeToken(parts.get(i)));
+        i = i + 1;
+    }
+    return tokens;
+}
+
+// Unescape a JSON Pointer token per RFC 6901: ~1 -> /, ~0 -> ~
+fn _unescapeToken(token: string): string {
+    let result: string = String.replace(token, "~1", "/");
+    result = String.replace(result, "~0", "~");
+    return result;
+}
+
+// Escape a JSON Pointer token per RFC 6901: ~ -> ~0, / -> ~1
+fn _escapeToken(token: string): string {
+    let result: string = String.replace(token, "~", "~0");
+    result = String.replace(result, "/", "~1");
+    return result;
+}
+
+// Get a value by following a list of tokens.
+fn _getByTokens(data: JsonValue, tokens: ArrayList<string>): JsonValue {
+    let current: JsonValue = data;
+    let i: int = 0;
+    while (i < tokens.size()) {
+        let token: string = tokens.get(i);
+        if (current.isArray()) {
+            let idx: int = _parseArrayIndex(token, current.size());
+            if (idx < 0 || idx >= current.size()) {
+                return JsonValue.ofNull();
+            }
+            current = current.getAt(idx);
+        } else if (current.isObject()) {
+            if (!current.hasKey(token)) {
+                return JsonValue.ofNull();
+            }
+            current = current.get(token);
+        } else {
+            return JsonValue.ofNull();
+        }
+        i = i + 1;
+    }
+    return current;
+}
+
+// Check if a path exists (distinguishes between null value and missing path).
+fn _pathExists(data: JsonValue, tokens: ArrayList<string>): bool {
+    let current: JsonValue = data;
+    let i: int = 0;
+    while (i < tokens.size()) {
+        let token: string = tokens.get(i);
+        if (current.isArray()) {
+            let idx: int = _parseArrayIndex(token, current.size());
+            if (idx < 0 || idx >= current.size()) {
+                return false;
+            }
+            current = current.getAt(idx);
+        } else if (current.isObject()) {
+            if (!current.hasKey(token)) {
+                return false;
+            }
+            current = current.get(token);
+        } else {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Set a value by following a list of tokens, returning a new JsonValue.
+fn _setByTokens(data: JsonValue, tokens: ArrayList<string>, value: JsonValue): JsonValue {
+    if (tokens.size() == 0) {
+        return value;
+    }
+    return _setRecursive(data, tokens, 0, value);
+}
+
+fn _setRecursive(current: JsonValue, tokens: ArrayList<string>, depth: int, value: JsonValue): JsonValue {
+    let token: string = tokens.get(depth);
+    let isLast: bool = depth == tokens.size() - 1;
+
+    if (current.isArray()) {
+        let arr: ArrayList<JsonValue> = _copyArray(current);
+        let idx: int = _parseArrayIndex(token, arr.size());
+        if (isLast) {
+            // Special case: "-" means append to array
+            if (token == "-") {
+                arr.add(value);
+            } else if (idx >= 0 && idx < arr.size()) {
+                arr.set(idx, value);
+            } else if (idx == arr.size()) {
+                arr.add(value);
+            }
+        } else {
+            if (idx >= 0 && idx < arr.size()) {
+                let child: JsonValue = arr.get(idx);
+                arr.set(idx, _setRecursive(child, tokens, depth + 1, value));
+            }
+        }
+        return JsonValue.ofArray(arr);
+    }
+
+    if (current.isObject()) {
+        let obj: HashMap<string, JsonValue> = _copyObject(current);
+        if (isLast) {
+            obj.put(token, value);
+        } else {
+            let child: JsonValue = current.get(token);
+            obj.put(token, _setRecursive(child, tokens, depth + 1, value));
+        }
+        return JsonValue.ofObject(obj);
+    }
+
+    // If current is a scalar, we can't descend; create an object
+    if (isLast) {
+        let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        obj.put(token, value);
+        return JsonValue.ofObject(obj);
+    }
+    return current;
+}
+
+// Remove a value by following a list of tokens, returning a new JsonValue.
+fn _removeByTokens(data: JsonValue, tokens: ArrayList<string>): JsonValue {
+    if (tokens.size() == 0) {
+        return data;
+    }
+    return _removeRecursive(data, tokens, 0);
+}
+
+fn _removeRecursive(current: JsonValue, tokens: ArrayList<string>, depth: int): JsonValue {
+    let token: string = tokens.get(depth);
+    let isLast: bool = depth == tokens.size() - 1;
+
+    if (current.isArray()) {
+        let arr: ArrayList<JsonValue> = _copyArray(current);
+        let idx: int = _parseArrayIndex(token, arr.size());
+        if (isLast) {
+            if (idx >= 0 && idx < arr.size()) {
+                arr.remove(idx);
+            }
+        } else {
+            if (idx >= 0 && idx < arr.size()) {
+                let child: JsonValue = arr.get(idx);
+                arr.set(idx, _removeRecursive(child, tokens, depth + 1));
+            }
+        }
+        return JsonValue.ofArray(arr);
+    }
+
+    if (current.isObject()) {
+        let obj: HashMap<string, JsonValue> = _copyObject(current);
+        if (isLast) {
+            if (obj.containsKey(token)) {
+                obj.remove(token);
+            }
+        } else {
+            if (obj.containsKey(token)) {
+                let child: JsonValue = obj.get(token);
+                obj.put(token, _removeRecursive(child, tokens, depth + 1));
+            }
+        }
+        return JsonValue.ofObject(obj);
+    }
+
+    return current;
+}
+
+// Parse an array index token. Returns -1 if invalid.
+fn _parseArrayIndex(token: string, arraySize: int): int {
+    if (token == "-") {
+        return arraySize;
+    }
+    let i: int = 0;
+    let len: int = String.length(token);
+    if (len == 0) {
+        return -1;
+    }
+    // Handle leading minus
+    let start: int = 0;
+    if (String.charAt(token, 0) == "-") {
+        if (len == 1) { return -1; }
+        start = 1;
+    }
+    // Check all digits
+    let j: int = start;
+    while (j < len) {
+        let c: string = String.charAt(token, j);
+        if (c < "0" || c > "9") {
+            return -1;
+        }
+        j = j + 1;
+    }
+    return Integer.parseInt(token);
+}
+
+// Deep copy an array of JsonValues.
+fn _copyArray(val: JsonValue): ArrayList<JsonValue> {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    let i: int = 0;
+    while (i < val.size()) {
+        arr.add(val.getAt(i).deepCopy());
+        i = i + 1;
+    }
+    return arr;
+}
+
+// Deep copy an object of JsonValues.
+fn _copyObject(val: JsonValue): HashMap<string, JsonValue> {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let keys: ArrayList<string> = val.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        obj.put(key, val.get(key).deepCopy());
+        i = i + 1;
+    }
+    return obj;
+}
+
+// ---- RFC 6902 JSON Patch ----
+
+// Internal representation of a patch operation.
+class _PatchOp {
+    public string op;
+    public string path;
+    public string from;
+    public JsonValue value;
+
+    public fn init(o: string) {
+        this.op = o;
+        this.path = "";
+        this.from = "";
+        this.value = JsonValue.ofNull();
+    }
+}
+
+// RFC 6902 JSON Patch implementation.
+public class JsonPatch {
+    private var _ops: ArrayList<_PatchOp>;
+
+    public fn init() {
+        this._ops = new ArrayList<_PatchOp>();
+    }
+
+    // Add an "add" operation.
+    public fn add(path: string, value: JsonValue): JsonPatch {
+        let op: _PatchOp = new _PatchOp("add");
+        op.path = path;
+        op.value = value;
+        this._ops.add(op);
+        return this;
+    }
+
+    // Add a "remove" operation.
+    public fn remove(path: string): JsonPatch {
+        let op: _PatchOp = new _PatchOp("remove");
+        op.path = path;
+        this._ops.add(op);
+        return this;
+    }
+
+    // Add a "replace" operation.
+    public fn replace(path: string, value: JsonValue): JsonPatch {
+        let op: _PatchOp = new _PatchOp("replace");
+        op.path = path;
+        op.value = value;
+        this._ops.add(op);
+        return this;
+    }
+
+    // Add a "move" operation.
+    public fn move(from: string, path: string): JsonPatch {
+        let op: _PatchOp = new _PatchOp("move");
+        op.from = from;
+        op.path = path;
+        this._ops.add(op);
+        return this;
+    }
+
+    // Add a "copy" operation.
+    public fn copy(from: string, path: string): JsonPatch {
+        let op: _PatchOp = new _PatchOp("copy");
+        op.from = from;
+        op.path = path;
+        this._ops.add(op);
+        return this;
+    }
+
+    // Add a "test" operation.
+    public fn test(path: string, value: JsonValue): JsonPatch {
+        let op: _PatchOp = new _PatchOp("test");
+        op.path = path;
+        op.value = value;
+        this._ops.add(op);
+        return this;
+    }
+
+    // Apply the patch to a JsonValue and return the result.
+    public fn apply(data: JsonValue): JsonValue {
+        let current: JsonValue = data.deepCopy();
+        let i: int = 0;
+        while (i < this._ops.size()) {
+            let op: _PatchOp = this._ops.get(i);
+            current = _applyOp(current, op);
+            i = i + 1;
+        }
+        return current;
+    }
+}
+
+// Apply a single patch operation.
+fn _applyOp(data: JsonValue, op: _PatchOp): JsonValue {
+    if (op.op == "add") {
+        let ptr: JsonPointer = new JsonPointer(op.path);
+        return ptr.set(data, op.value);
+    }
+    if (op.op == "remove") {
+        let ptr: JsonPointer = new JsonPointer(op.path);
+        return ptr.remove(data);
+    }
+    if (op.op == "replace") {
+        let ptr: JsonPointer = new JsonPointer(op.path);
+        return ptr.set(data, op.value);
+    }
+    if (op.op == "move") {
+        let fromPtr: JsonPointer = new JsonPointer(op.from);
+        let toPtr: JsonPointer = new JsonPointer(op.path);
+        let val: JsonValue = fromPtr.get(data);
+        let afterRemove: JsonValue = fromPtr.remove(data);
+        return toPtr.set(afterRemove, val);
+    }
+    if (op.op == "copy") {
+        let fromPtr: JsonPointer = new JsonPointer(op.from);
+        let toPtr: JsonPointer = new JsonPointer(op.path);
+        let val: JsonValue = fromPtr.get(data).deepCopy();
+        return toPtr.set(data, val);
+    }
+    if (op.op == "test") {
+        let ptr: JsonPointer = new JsonPointer(op.path);
+        let actual: JsonValue = ptr.get(data);
+        if (!_valuesEqual(actual, op.value)) {
+            throw "JSON Patch test failed at " + op.path;
+        }
+        return data;
+    }
+    return data;
+}
+
+// Deep equality check between two JsonValues.
+fn _valuesEqual(a: JsonValue, b: JsonValue): bool {
+    if (a.isNull() && b.isNull()) { return true; }
+    if (a.isNull() || b.isNull()) { return false; }
+    if (a.isBool() && b.isBool()) { return a.asBool() == b.asBool(); }
+    if (a.isNumber() && b.isNumber()) { return a.asNumber() == b.asNumber(); }
+    if (a.isString() && b.isString()) { return a.asString() == b.asString(); }
+    if (a.isArray() && b.isArray()) {
+        if (a.size() != b.size()) { return false; }
+        let i: int = 0;
+        while (i < a.size()) {
+            if (!_valuesEqual(a.getAt(i), b.getAt(i))) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+    if (a.isObject() && b.isObject()) {
+        let keysA: ArrayList<string> = a.keys();
+        let keysB: ArrayList<string> = b.keys();
+        if (keysA.size() != keysB.size()) { return false; }
+        let i: int = 0;
+        while (i < keysA.size()) {
+            let key: string = keysA.get(i);
+            if (!b.hasKey(key)) { return false; }
+            if (!_valuesEqual(a.get(key), b.get(key))) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+    return false;
+}
+
+// ---- Top-level functions ----
+
+// Compute a JSON Patch that transforms original into modified.
+public fn diff(original: JsonValue, modified: JsonValue): JsonPatch {
+    let patch: JsonPatch = new JsonPatch();
+    _diffRecursive(original, modified, "", patch);
+    return patch;
+}
+
+fn _diffRecursive(original: JsonValue, modified: JsonValue, path: string, patch: JsonPatch): void {
+    // Both null
+    if (original.isNull() && modified.isNull()) { return; }
+    // One is null
+    if (original.isNull()) {
+        patch.add(path, modified);
+        return;
+    }
+    if (modified.isNull()) {
+        patch.remove(path);
+        return;
+    }
+    // Type changed
+    if (original.kind != modified.kind) {
+        patch.replace(path, modified);
+        return;
+    }
+    // Both booleans
+    if (original.isBool() && modified.isBool()) {
+        if (original.asBool() != modified.asBool()) {
+            patch.replace(path, modified);
+        }
+        return;
+    }
+    // Both numbers
+    if (original.isNumber() && modified.isNumber()) {
+        if (original.asNumber() != modified.asNumber()) {
+            patch.replace(path, modified);
+        }
+        return;
+    }
+    // Both strings
+    if (original.isString() && modified.isString()) {
+        if (original.asString() != modified.asString()) {
+            patch.replace(path, modified);
+        }
+        return;
+    }
+    // Both arrays
+    if (original.isArray() && modified.isArray()) {
+        let origArr: ArrayList<JsonValue> = original.asArray();
+        let modArr: ArrayList<JsonValue> = modified.asArray();
+        let minLen: int = origArr.size();
+        if (modArr.size() < minLen) { minLen = modArr.size(); }
+        let i: int = 0;
+        while (i < minLen) {
+            _diffRecursive(origArr.get(i), modArr.get(i), path + "/" + Integer.toString(i), patch);
+            i = i + 1;
+        }
+        // Added elements
+        while (i < modArr.size()) {
+            patch.add(path + "/-", modArr.get(i));
+            i = i + 1;
+        }
+        // Removed elements (from end)
+        let ri: int = origArr.size() - 1;
+        while (ri >= minLen) {
+            patch.remove(path + "/" + Integer.toString(ri));
+            ri = ri - 1;
+        }
+        return;
+    }
+    // Both objects
+    if (original.isObject() && modified.isObject()) {
+        let origKeys: ArrayList<string> = original.keys();
+        let modKeys: ArrayList<string> = modified.keys();
+        // Check for removed and changed keys
+        let i: int = 0;
+        while (i < origKeys.size()) {
+            let key: string = origKeys.get(i);
+            let escaped: string = _escapeToken(key);
+            if (!modified.hasKey(key)) {
+                patch.remove(path + "/" + escaped);
+            } else {
+                _diffRecursive(original.get(key), modified.get(key), path + "/" + escaped, patch);
+            }
+            i = i + 1;
+        }
+        // Check for added keys
+        let j: int = 0;
+        while (j < modKeys.size()) {
+            let key: string = modKeys.get(j);
+            if (!original.hasKey(key)) {
+                let escaped: string = _escapeToken(key);
+                patch.add(path + "/" + escaped, modified.get(key));
+            }
+            j = j + 1;
+        }
+        return;
+    }
+}
+
+// Compile a JSON Patch from a JsonValue (array of operation objects).
+public fn compile(patch: JsonValue): JsonPatch {
+    let result: JsonPatch = new JsonPatch();
+    if (!patch.isArray()) {
+        return result;
+    }
+    let i: int = 0;
+    while (i < patch.size()) {
+        let op: JsonValue = patch.getAt(i);
+        if (!op.isObject()) {
+            i = i + 1;
+            continue;
+        }
+        let opType: string = "";
+        if (op.hasKey("op") && op.get("op").isString()) {
+            opType = op.get("op").asString();
+        }
+        let path: string = "";
+        if (op.hasKey("path") && op.get("path").isString()) {
+            path = op.get("path").asString();
+        }
+        if (opType == "add") {
+            if (op.hasKey("value")) {
+                result.add(path, op.get("value"));
+            }
+        } else if (opType == "remove") {
+            result.remove(path);
+        } else if (opType == "replace") {
+            if (op.hasKey("value")) {
+                result.replace(path, op.get("value"));
+            }
+        } else if (opType == "move") {
+            let from: string = "";
+            if (op.hasKey("from") && op.get("from").isString()) {
+                from = op.get("from").asString();
+            }
+            result.move(from, path);
+        } else if (opType == "copy") {
+            let from: string = "";
+            if (op.hasKey("from") && op.get("from").isString()) {
+                from = op.get("from").asString();
+            }
+            result.copy(from, path);
+        } else if (opType == "test") {
+            if (op.hasKey("value")) {
+                result.test(path, op.get("value"));
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
