@@ -1,0 +1,145 @@
+// Classifier.tr — Naive Bayes text classifier with sentiment analysis
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::math::MathAdvanced;
+
+var _sentimentCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _sentimentLoaded: bool = false;
+var _afinnMap: HashMap<string, int> = new HashMap<string, int>();
+var _afinnBuilt: bool = false;
+
+fn _ensureSentimentLoaded(): void {
+    if (_sentimentLoaded) { return; }
+    let data: JsonValue = DataFile.load("nlp/sentiment_lexicon.json");
+    if (!data.isNull()) { _sentimentCache.put("root", data); }
+    _sentimentLoaded = true;
+}
+
+fn _ensureAfinnBuilt(): void {
+    if (_afinnBuilt) { return; }
+    _ensureSentimentLoaded();
+    let root: JsonValue = _sentimentCache.get("root");
+    if (root.isNull()) { return; }
+    let afinn: JsonValue = root.get("AFINN");
+    if (afinn.isNull()) { return; }
+    let words: ArrayList<string> = afinn.keys();
+    var i: int = 0;
+    while (i < words.size()) {
+        let val: JsonValue = afinn.get(words.get(i));
+        if (val.isNumber()) {
+            _afinnMap.put(words.get(i), val.asNumber() as int);
+        }
+        i = i + 1;
+    }
+    _afinnBuilt = true;
+}
+
+// AFINN sentiment score
+public fn afinnScore(text: string): int {
+    _ensureAfinnBuilt();
+    let tokens: ArrayList<string> = String.split(String.toLowerCase(text), " ");
+    var score: int = 0;
+    var i: int = 0;
+    while (i < tokens.size()) {
+        if (_afinnMap.containsKey(tokens.get(i))) {
+            score = score + _afinnMap.get(tokens.get(i));
+        }
+        i = i + 1;
+    }
+    return score;
+}
+
+public fn sentimentLabel(text: string): string {
+    let score: int = afinnScore(text);
+    if (score > 0) { return "positive"; }
+    if (score < 0) { return "negative"; }
+    return "neutral";
+}
+
+// Classification accuracy metric
+public fn accuracy(predicted: ArrayList<string>, actual: ArrayList<string>): double {
+    if (predicted.size() == 0 || actual.size() == 0) { return 0.0; }
+    var correct: int = 0;
+    let n: int = Math.min(predicted.size(), actual.size());
+    var i: int = 0;
+    while (i < n) {
+        if (predicted.get(i) == actual.get(i)) {
+            correct = correct + 1;
+        }
+        i = i + 1;
+    }
+    return correct as double / n as double;
+}
+
+// Naive Bayes text classifier
+public class NaiveBayesClassifier {
+    public HashMap<string, HashMap<string, int>> wordCounts;
+    public HashMap<string, int> classCounts;
+    public HashMap<string, int> totalWords;
+    public int totalDocs;
+
+    public fn init() {
+        this.wordCounts = new HashMap<string, HashMap<string, int>>();
+        this.classCounts = new HashMap<string, int>();
+        this.totalWords = new HashMap<string, int>();
+        this.totalDocs = 0;
+    }
+
+    public fn train(text: string, label: string): void {
+        this.totalDocs = this.totalDocs + 1;
+        if (this.classCounts.containsKey(label)) {
+            this.classCounts.put(label, this.classCounts.get(label) + 1);
+        } else {
+            this.classCounts.put(label, 1);
+        }
+        if (!this.wordCounts.containsKey(label)) {
+            this.wordCounts.put(label, new HashMap<string, int>());
+            this.totalWords.put(label, 0);
+        }
+        let tokens: ArrayList<string> = String.split(String.toLowerCase(text), " ");
+        var i: int = 0;
+        while (i < tokens.size()) {
+            let word: string = tokens.get(i);
+            let counts: HashMap<string, int> = this.wordCounts.get(label);
+            if (counts.containsKey(word)) {
+                counts.put(word, counts.get(word) + 1);
+            } else {
+                counts.put(word, 1);
+            }
+            this.totalWords.put(label, this.totalWords.get(label) + 1);
+            i = i + 1;
+        }
+    }
+
+    public fn predict(text: string): string {
+        let tokens: ArrayList<string> = String.split(String.toLowerCase(text), " ");
+        let classes: ArrayList<string> = this.classCounts.keys();
+        var bestClass: string = "";
+        var bestScore: double = -1e30;
+        var i: int = 0;
+        while (i < classes.size()) {
+            let cls: string = classes.get(i);
+            var score: double = MathAdvanced.ln(this.classCounts.get(cls) as double / this.totalDocs as double);
+            let counts: HashMap<string, int> = this.wordCounts.get(cls);
+            let vocabSize: int = counts.size();
+            let total: int = this.totalWords.get(cls);
+            var j: int = 0;
+            while (j < tokens.size()) {
+                let word: string = tokens.get(j);
+                let count: int = 0;
+                if (counts.containsKey(word)) { count = counts.get(word); }
+                score = score + MathAdvanced.ln((count + 1) as double / (total + vocabSize) as double);
+                j = j + 1;
+            }
+            if (score > bestScore) {
+                bestScore = score;
+                bestClass = cls;
+            }
+            i = i + 1;
+        }
+        return bestClass;
+    }
+}
