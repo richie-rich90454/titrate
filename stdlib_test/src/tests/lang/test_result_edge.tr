@@ -1,0 +1,127 @@
+// Edge case tests for Result.tr
+// Tests Ok/Err construction, unwrap behavior, and error propagation patterns.
+import tt::lang::Result;
+import tt::lang::Integer;
+
+public fn test_result_edge_ok_construction(): void {
+    let r: Result<int, string> = Result<int, string>::ok(42);
+    if (!r.isOk() || r.isErr()) {
+        io::println("FAIL: Result.ok construction");
+    } else {
+        io::println("PASS: Result.ok construction isOk=true");
+    }
+}
+
+public fn test_result_edge_err_construction(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    if (r.isOk() || !r.isErr()) {
+        io::println("FAIL: Result.err construction");
+    } else {
+        io::println("PASS: Result.err construction isErr=true");
+    }
+}
+
+public fn test_result_edge_unwrap_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(42);
+    if (r.unwrap() != 42) {
+        io::println("FAIL: Result.unwrap on Ok");
+    } else {
+        io::println("PASS: Result.unwrap on Ok = 42");
+    }
+}
+
+public fn test_result_edge_unwrap_err_returns_null(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    let v: int = r.unwrap();
+    if (v != null) {
+        io::println("FAIL: Result.unwrap on Err expected null, got " + Integer.toString(v));
+    } else {
+        io::println("PASS: Result.unwrap on Err returns null");
+    }
+}
+
+public fn test_result_edge_map_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(5);
+    let mapper: fn(int): int = fn(x: int): int { return x * 3; };
+    let mapped: Result<int, string> = r.map(mapper);
+    if (!mapped.isOk() || mapped.unwrap() != 15) {
+        io::println("FAIL: Result.map on Ok");
+    } else {
+        io::println("PASS: Result.map on Ok = 15");
+    }
+}
+
+public fn test_result_edge_map_err(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    let mapper: fn(int): int = fn(x: int): int { return x * 3; };
+    let mapped: Result<int, string> = r.map(mapper);
+    if (mapped.isOk()) {
+        io::println("FAIL: Result.map on Err should stay Err");
+    } else {
+        io::println("PASS: Result.map on Err stays Err");
+    }
+}
+
+public fn test_result_edge_unwrapOr_ok(): void {
+    let r: Result<int, string> = Result<int, string>::ok(42);
+    if (r.unwrapOr(99) != 42) {
+        io::println("FAIL: Result.unwrapOr on Ok should return ok value");
+    } else {
+        io::println("PASS: Result.unwrapOr on Ok = 42");
+    }
+}
+
+public fn test_result_edge_unwrapOr_err(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    if (r.unwrapOr(99) != 99) {
+        io::println("FAIL: Result.unwrapOr on Err should return default");
+    } else {
+        io::println("PASS: Result.unwrapOr on Err = 99");
+    }
+}
+
+public fn test_result_edge_andThen_chain(): void {
+    let r: Result<int, string> = Result<int, string>::ok(5);
+    let mapper: fn(int): Result<int, string> = fn(x: int): Result<int, string> { return Result<int, string>::ok(x + 10); };
+    let mapped: Result<int, string> = r.andThen(mapper);
+    if (!mapped.isOk() || mapped.unwrap() != 15) {
+        io::println("FAIL: Result.andThen chain");
+    } else {
+        io::println("PASS: Result.andThen chain = 15");
+    }
+}
+
+public fn test_result_edge_andThen_err_propagates(): void {
+    let r: Result<int, string> = Result<int, string>::err("bad");
+    let mapper: fn(int): Result<int, string> = fn(x: int): Result<int, string> { return Result<int, string>::ok(x + 10); };
+    let mapped: Result<int, string> = r.andThen(mapper);
+    if (mapped.isOk()) {
+        io::println("FAIL: Result.andThen on Err should propagate Err");
+    } else {
+        io::println("PASS: Result.andThen on Err propagates Err");
+    }
+}
+
+public fn test_result_edge_unwrapErr(): void {
+    let r: Result<int, string> = Result<int, string>::err("something went wrong");
+    if (r.unwrapErr() != "something went wrong") {
+        io::println("FAIL: Result.unwrapErr");
+    } else {
+        io::println("PASS: Result.unwrapErr = something went wrong");
+    }
+}
+
+public fn run_all_result_edge_tests(): void {
+    io::println("=== Result.tr Edge Case Tests ===");
+    test_result_edge_ok_construction();
+    test_result_edge_err_construction();
+    test_result_edge_unwrap_ok();
+    test_result_edge_unwrap_err_returns_null();
+    test_result_edge_map_ok();
+    test_result_edge_map_err();
+    test_result_edge_unwrapOr_ok();
+    test_result_edge_unwrapOr_err();
+    test_result_edge_andThen_chain();
+    test_result_edge_andThen_err_propagates();
+    test_result_edge_unwrapErr();
+}
