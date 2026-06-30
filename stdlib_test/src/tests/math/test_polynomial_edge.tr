@@ -1,0 +1,208 @@
+// Edge case tests for polynomial/Polynomial.tr
+// Exercises boundary conditions: zero, constant, linear polynomials; eval at 0; degree of zero.
+import tt::util::ArrayList;
+import tt::math::polynomial::Polynomial;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn makeZeroCoeffs(): ArrayList<double> {
+    let c: ArrayList<double> = new ArrayList<double>();
+    c.add(0.0);
+    return c;
+}
+
+fn makeConstantCoeffs(): ArrayList<double> {
+    let c: ArrayList<double> = new ArrayList<double>();
+    c.add(7.0);
+    return c;
+}
+
+fn makeLinearCoeffs(): ArrayList<double> {
+    // 2x + 3 (descending order)
+    let c: ArrayList<double> = new ArrayList<double>();
+    c.add(2.0);
+    c.add(3.0);
+    return c;
+}
+
+// Zero polynomial: all coefficients 0. eval is 0 everywhere.
+public fn test_polynomial_edge_zero(): void {
+    let p: Polynomial = new Polynomial(makeZeroCoeffs());
+    if (p.degree() == 0) {
+        io::println("PASS: zero polynomial degree = 0");
+    } else {
+        io::println("FAIL: zero polynomial degree expected 0, got " + Integer.toString(p.degree()));
+    }
+
+    // eval at several points should be 0
+    if (absDiff(p.eval(0.0), 0.0) < 1e-12) {
+        io::println("PASS: zero poly eval(0) = 0.0");
+    } else {
+        io::println("FAIL: zero poly eval(0) expected 0.0, got " + Double.toString(p.eval(0.0)));
+    }
+
+    if (absDiff(p.eval(5.5), 0.0) < 1e-12) {
+        io::println("PASS: zero poly eval(5.5) = 0.0");
+    } else {
+        io::println("FAIL: zero poly eval(5.5) expected 0.0, got " + Double.toString(p.eval(5.5)));
+    }
+
+    // derivative of zero polynomial is zero polynomial of degree 0
+    let d: Polynomial = p.derivative();
+    if (d.degree() == 0 && absDiff(d.eval(0.0), 0.0) < 1e-12) {
+        io::println("PASS: derivative of zero poly is zero");
+    } else {
+        io::println("FAIL: derivative of zero poly expected zero");
+    }
+}
+
+// Constant polynomial: degree 0, eval returns the constant everywhere.
+public fn test_polynomial_edge_constant(): void {
+    let p: Polynomial = new Polynomial(makeConstantCoeffs());
+    if (p.degree() == 0) {
+        io::println("PASS: constant polynomial degree = 0");
+    } else {
+        io::println("FAIL: constant polynomial degree expected 0, got " + Integer.toString(p.degree()));
+    }
+
+    if (absDiff(p.eval(0.0), 7.0) < 1e-12) {
+        io::println("PASS: constant poly eval(0) = 7.0");
+    } else {
+        io::println("FAIL: constant poly eval(0) expected 7.0, got " + Double.toString(p.eval(0.0)));
+    }
+
+    if (absDiff(p.eval(100.0), 7.0) < 1e-12) {
+        io::println("PASS: constant poly eval(100) = 7.0 (independent of x)");
+    } else {
+        io::println("FAIL: constant poly eval(100) expected 7.0, got " + Double.toString(p.eval(100.0)));
+    }
+
+    // derivative of a constant is zero
+    let d: Polynomial = p.derivative();
+    if (absDiff(d.eval(0.0), 0.0) < 1e-12) {
+        io::println("PASS: derivative of constant is zero");
+    } else {
+        io::println("FAIL: derivative of constant expected zero, got " + Double.toString(d.eval(0.0)));
+    }
+}
+
+// Linear polynomial: degree 1, eval matches a*x + b.
+public fn test_polynomial_edge_linear(): void {
+    // p(x) = 2x + 3
+    let p: Polynomial = new Polynomial(makeLinearCoeffs());
+    if (p.degree() == 1) {
+        io::println("PASS: linear polynomial degree = 1");
+    } else {
+        io::println("FAIL: linear polynomial degree expected 1, got " + Integer.toString(p.degree()));
+    }
+
+    // p(0) = 3 (constant term)
+    if (absDiff(p.eval(0.0), 3.0) < 1e-12) {
+        io::println("PASS: linear poly eval(0) = 3.0 (constant term)");
+    } else {
+        io::println("FAIL: linear poly eval(0) expected 3.0, got " + Double.toString(p.eval(0.0)));
+    }
+
+    // p(4) = 2*4 + 3 = 11
+    if (absDiff(p.eval(4.0), 11.0) < 1e-12) {
+        io::println("PASS: linear poly eval(4) = 11.0");
+    } else {
+        io::println("FAIL: linear poly eval(4) expected 11.0, got " + Double.toString(p.eval(4.0)));
+    }
+
+    // p(-1.5) = 2*(-1.5) + 3 = 0
+    if (absDiff(p.eval(-1.5), 0.0) < 1e-12) {
+        io::println("PASS: linear poly eval(-1.5) = 0.0 (root)");
+    } else {
+        io::println("FAIL: linear poly eval(-1.5) expected 0.0, got " + Double.toString(p.eval(-1.5)));
+    }
+
+    // derivative of linear 2x+3 is constant 2
+    let d: Polynomial = p.derivative();
+    if (absDiff(d.eval(123.0), 2.0) < 1e-12) {
+        io::println("PASS: derivative of 2x+3 is constant 2");
+    } else {
+        io::println("FAIL: derivative of 2x+3 expected 2, got " + Double.toString(d.eval(123.0)));
+    }
+}
+
+// Evaluation at 0 returns the constant (trailing) coefficient.
+public fn test_polynomial_edge_eval_at_zero(): void {
+    // p(x) = 3x^2 - 2 (descending: [3, 0, -2]); p(0) = -2
+    let c: ArrayList<double> = new ArrayList<double>();
+    c.add(3.0); c.add(0.0); c.add(-2.0);
+    let p: Polynomial = new Polynomial(c);
+    if (absDiff(p.eval(0.0), -2.0) < 1e-12) {
+        io::println("PASS: eval at 0 returns constant term -2.0");
+    } else {
+        io::println("FAIL: eval at 0 expected -2.0, got " + Double.toString(p.eval(0.0)));
+    }
+
+    // Higher-degree polynomial: x^3 - 6x^2 + 11x - 6 (roots 1,2,3); p(0) = -6
+    let c2: ArrayList<double> = new ArrayList<double>();
+    c2.add(1.0); c2.add(-6.0); c2.add(11.0); c2.add(-6.0);
+    let q: Polynomial = new Polynomial(c2);
+    if (absDiff(q.eval(0.0), -6.0) < 1e-12) {
+        io::println("PASS: cubic eval at 0 returns -6.0 (constant term)");
+    } else {
+        io::println("FAIL: cubic eval at 0 expected -6.0, got " + Double.toString(q.eval(0.0)));
+    }
+
+    // Verify roots 1, 2, 3 satisfy eval = 0
+    if (absDiff(q.eval(1.0), 0.0) < 1e-9 && absDiff(q.eval(2.0), 0.0) < 1e-9 && absDiff(q.eval(3.0), 0.0) < 1e-9) {
+        io::println("PASS: cubic evaluates to 0 at x=1, x=2, x=3 (known roots)");
+    } else {
+        io::println("FAIL: cubic did not evaluate to 0 at expected roots");
+    }
+}
+
+// Degree of zero polynomial: spec returns 0 (no nonzero coefficients found).
+public fn test_polynomial_edge_degree_of_zero(): void {
+    // Single zero coefficient
+    let c1: ArrayList<double> = new ArrayList<double>();
+    c1.add(0.0);
+    let p1: Polynomial = new Polynomial(c1);
+    if (p1.degree() == 0) {
+        io::println("PASS: [0.0] degree = 0");
+    } else {
+        io::println("FAIL: [0.0] degree expected 0, got " + Integer.toString(p1.degree()));
+    }
+
+    // Multiple zero coefficients
+    let c2: ArrayList<double> = new ArrayList<double>();
+    c2.add(0.0); c2.add(0.0); c2.add(0.0);
+    let p2: Polynomial = new Polynomial(c2);
+    if (p2.degree() == 0) {
+        io::println("PASS: [0,0,0] degree = 0 (all-zero returns 0)");
+    } else {
+        io::println("FAIL: [0,0,0] degree expected 0, got " + Integer.toString(p2.degree()));
+    }
+
+    // Leading zeros are skipped: [0, 0, 5] is degree 0 (constant 5)
+    let c3: ArrayList<double> = new ArrayList<double>();
+    c3.add(0.0); c3.add(0.0); c3.add(5.0);
+    let p3: Polynomial = new Polynomial(c3);
+    if (p3.degree() == 0) {
+        io::println("PASS: [0,0,5] degree = 0 (leading zeros skipped, constant)");
+    } else {
+        io::println("FAIL: [0,0,5] degree expected 0, got " + Integer.toString(p3.degree()));
+    }
+
+    // [0, 3, 0] is degree 1 (linear 3x)
+    let c4: ArrayList<double> = new ArrayList<double>();
+    c4.add(0.0); c4.add(3.0); c4.add(0.0);
+    let p4: Polynomial = new Polynomial(c4);
+    if (p4.degree() == 1) {
+        io::println("PASS: [0,3,0] degree = 1 (leading zero skipped, 3x)");
+    } else {
+        io::println("FAIL: [0,3,0] degree expected 1, got " + Integer.toString(p4.degree()));
+    }
+}
