@@ -1,0 +1,124 @@
+import tt::util::ArrayList;
+import tt::math::Math;
+
+// Cumulative operations on array data
+
+// Cumulative sum of the data.
+public fn cumsum(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) { return result; }
+    var running: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        running = running + data.get(i);
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Cumulative product of the data.
+public fn cumprod(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) { return result; }
+    var running: double = 1.0;
+    var i: int = 0;
+    while (i < n) {
+        running = running * data.get(i);
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+// First differences: result[i] = data[i+1] - data[i].
+// Result length is n-1.
+public fn diff(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n < 2) { return result; }
+    var i: int = 0;
+    while (i < n - 1) {
+        result.add(data.get(i + 1) - data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Numerical gradient for 1D data with uniform spacing.
+// Uses central differences for interior points, forward/backward for edges.
+public fn gradient1d(data: ArrayList<double>, spacing: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) { return result; }
+    if (n == 1) {
+        result.add(0.0);
+        return result;
+    }
+    // Forward difference at start
+    result.add((data.get(1) - data.get(0)) / spacing);
+    // Central differences for interior
+    var i: int = 1;
+    while (i < n - 1) {
+        result.add((data.get(i + 1) - data.get(i - 1)) / (2.0 * spacing));
+        i = i + 1;
+    }
+    // Backward difference at end
+    result.add((data.get(n - 1) - data.get(n - 2)) / spacing);
+    return result;
+}
+
+// Differences between consecutive elements (same as diff but returns absolute differences).
+public fn ediff1d(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n < 2) { return result; }
+    var i: int = 0;
+    while (i < n - 1) {
+        result.add(data.get(i + 1) - data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Cumulative sum treating NaN values as 0.
+// NaN is detected by checking if a value does not equal itself.
+public fn nancumsum(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) { return result; }
+    var running: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let v: double = data.get(i);
+        // NaN check: v != v is true only for NaN
+        if (v == v) {
+            running = running + v;
+        }
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Cumulative product treating NaN values as 1.
+// NaN is detected by checking if a value does not equal itself.
+public fn nancumprod(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) { return result; }
+    var running: double = 1.0;
+    var i: int = 0;
+    while (i < n) {
+        let v: double = data.get(i);
+        // NaN check: v != v is true only for NaN
+        if (v == v) {
+            running = running * v;
+        }
+        result.add(running);
+        i = i + 1;
+    }
+    return result;
+}
