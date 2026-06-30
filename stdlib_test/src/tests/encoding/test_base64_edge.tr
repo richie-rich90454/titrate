@@ -1,0 +1,76 @@
+// Edge case tests for Base64.tr
+// Tests boundary conditions: empty input, single byte encoding, padding
+// behavior, roundtrip with special characters, and invalid input handling.
+import tt::encoding::Base64;
+
+public fn test_base64_edge_encode_empty(): void {
+    let b: Base64 = new Base64();
+    let encoded: string = b.encode("");
+    if (encoded == "") {
+        io::println("PASS: Base64.encode of empty string returns empty");
+    } else {
+        io::println("FAIL: Base64.encode empty returned '" + encoded + "'");
+    }
+}
+
+public fn test_base64_edge_decode_empty(): void {
+    let b: Base64 = new Base64();
+    let decoded: string = b.decode("");
+    if (decoded == "") {
+        io::println("PASS: Base64.decode of empty string returns empty");
+    } else {
+        io::println("FAIL: Base64.decode empty returned '" + decoded + "'");
+    }
+}
+
+public fn test_base64_edge_encode_single_byte(): void {
+    let b: Base64 = new Base64();
+    let encoded: string = b.encode("A");
+    // 'A' = 0x41 -> 010000 01 -> QQ==
+    if (encoded == "QQ==") {
+        io::println("PASS: Base64.encode single byte produces QQ== (with padding)");
+    } else {
+        io::println("FAIL: Base64.encode single byte returned '" + encoded + "'");
+    }
+}
+
+public fn test_base64_edge_encode_three_bytes(): void {
+    let b: Base64 = new Base64();
+    let encoded: string = b.encode("ABC");
+    // Three bytes form a complete 24-bit group -> no padding
+    if (encoded == "QUJD") {
+        io::println("PASS: Base64.encode three bytes produces no padding (QUJD)");
+    } else {
+        io::println("FAIL: Base64.encode three bytes returned '" + encoded + "'");
+    }
+}
+
+public fn test_base64_edge_roundtrip_special(): void {
+    let b: Base64 = new Base64();
+    let original: string = "Hello, World! 123 @#$%";
+    let encoded: string = b.encode(original);
+    let decoded: string = b.decode(encoded);
+    if (decoded == original) {
+        io::println("PASS: Base64 roundtrip with special characters works");
+    } else {
+        io::println("FAIL: Base64 roundtrip special chars returned '" + decoded + "'");
+    }
+}
+
+public fn test_base64_edge_decode_invalid(): void {
+    let b: Base64 = new Base64();
+    // Decoding invalid base64 input should not throw or crash.
+    // Reaching the println below means no exception was raised.
+    let decoded: string = b.decode("!!!not-valid-base64!!!");
+    io::println("PASS: Base64.decode invalid input did not crash");
+}
+
+public fn run_all_base64_edge_tests(): void {
+    io::println("=== Base64.tr Edge Case Tests ===");
+    test_base64_edge_encode_empty();
+    test_base64_edge_decode_empty();
+    test_base64_edge_encode_single_byte();
+    test_base64_edge_encode_three_bytes();
+    test_base64_edge_roundtrip_special();
+    test_base64_edge_decode_invalid();
+}
