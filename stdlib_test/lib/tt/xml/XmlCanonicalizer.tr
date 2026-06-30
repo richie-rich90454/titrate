@@ -1,0 +1,498 @@
+// XML Canonicalization — W3C Canonical XML 1.0 and Exclusive XML Canonicalization 1.0.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::xml::XmlNode;
+import tt::lang::String;
+
+public class XmlCanonicalizer {
+    public var inclusiveNsPrefixList: ArrayList<string>;
+
+    public fn init() {
+        this.inclusiveNsPrefixList = new ArrayList<string>();
+    }
+
+    // Canonical XML 1.0 (W3C Recommendation).
+    // Includes all in-scope namespace declarations, sorts attributes,
+    // normalizes whitespace in attribute values, and removes XML declaration/DTD/comments.
+    public fn canonicalize(node: XmlNode): string {
+        return this._canonicalizeNode(node, false);
+    }
+
+    // Exclusive XML Canonicalization 1.0.
+    // Only includes visibly utilized namespace declarations,
+    // plus any prefixes listed in inclusiveNsPrefixList.
+    public fn exclusiveCanonicalize(node: XmlNode): string {
+        return this._canonicalizeNode(node, true);
+    }
+
+    // Canonicalize a subtree (same as canonicalize but explicitly scoped to a subtree).
+    public fn canonicalizeSubtree(node: XmlNode): string {
+        return this._canonicalizeNode(node, false);
+    }
+
+    // ---- Internal canonicalization engine ----
+
+    private fn _canonicalizeNode(node: XmlNode, exclusive: bool): string {
+        let result: string = "";
+        let nsMap: HashMap<string, string> = new HashMap<string, string>();
+        if (!exclusive) {
+            // For inclusive C14N, collect all in-scope namespaces
+            let collected: HashMap<string, string> = this._collectNamespaces(node);
+            let keys: ArrayList<string> = collected.keys();
+            let i: int = 0;
+            while (i < keys.size()) {
+                let prefix: string = keys.get(i);
+                nsMap.put(prefix, collected.get(prefix));
+                i = i + 1;
+            }
+        }
+        result = result + this._renderNode(node, nsMap, exclusive);
+        return result;
+    }
+
+    // Render a node and its descendants in canonical form.
+    private fn _renderNode(node: XmlNode, parentNs: HashMap<string, string>, exclusive: bool): string {
+        let result: string = "";
+
+        // Text-only node (tag is empty)
+        if (String.length(node.tag) == 0) {
+            if (String.length(node.text) > 0) {
+                result = result + this._escapeText(node.text);
+            }
+            return result;
+        }
+
+        // Build namespace map for this element
+        let localNs: HashMap<string, string> = new HashMap<string, string>();
+        // Copy parent namespaces
+        let parentKeys: ArrayList<string> = parentNs.keys();
+        let pi: int = 0;
+        while (pi < parentKeys.size()) {
+            let pk: string = parentKeys.get(pi);
+            localNs.put(pk, parentNs.get(pk));
+            pi = pi + 1;
+        }
+
+        // Collect namespace declarations from this element's attributes
+        let visiblyUsed: HashMap<string, bool> = new HashMap<string, bool>();
+        let nsDecls: HashMap<string, string> = new HashMap<string, string>();
+        let attrKeys: ArrayList<string> = node.attributes.keys();
+        let ai: int = 0;
+        while (ai < attrKeys.size()) {
+            let attrName: string = attrKeys.get(ai);
+            let attrVal: string = node.attributes.get(attrName);
+            if (String.startsWith(attrName, "xmlns")) {
+                let prefix: string = "";
+                if (String.length(attrName) > 5 && String.charAt(attrName, 5) == ":") {
+                    prefix = String.substring(attrName, 6, String.length(attrName));
+                } else if (attrName == "xmlns") {
+                    prefix = "";
+                }
+                nsDecls.put(prefix, attrVal);
+                localNs.put(prefix, attrVal);
+            }
+            ai = ai + 1;
+        }
+
+        // Determine which namespaces to render
+        let nsToRender: HashMap<string, string> = new HashMap<string, string>();
+        let nsDeclKeys: ArrayList<string> = nsDecls.keys();
+        let ni: int = 0;
+        while (ni < nsDeclKeys.size()) {
+            let prefix: string = nsDeclKeys.get(ni);
+            let uri: string = nsDecls.get(prefix);
+            if (exclusive) {
+                // Exclusive: only visibly utilized namespaces + inclusiveNsPrefixList
+                if (this._isVisiblyUtilized(node, prefix) || this._isInInclusiveList(prefix)) {
+                    nsToRender.put(prefix, uri);
+                }
+            } else {
+                // Inclusive: include all namespace declarations
+                nsToRender.put(prefix, uri);
+            }
+            ni = ni + 1;
+        }
+
+        // For inclusive C14N, also include inherited namespaces not re-declared on this element
+        if (!exclusive) {
+            let pKeys: ArrayList<string> = parentNs.keys();
+            let pki: int = 0;
+            while (pki < pKeys.size()) {
+                let prefix: string = pKeys.get(pki);
+                if (!nsToRender.containsKey(prefix)) {
+                    nsToRender.put(prefix, parentNs.get(prefix));
+                }
+                pki = pki + 1;
+            }
+        }
+
+        // Start tag
+        result = result + "<";
+
+        // Handle qualified tag name
+        let colonPos: int = this._indexOfColon(node.tag);
+        if (colonPos >= 0) {
+            result = result + node.tag;
+        } else {
+            result = result + node.tag;
+        }
+
+        // Render namespace declarations — sorted by prefix (empty prefix first)
+        let sortedNs: ArrayList<string> = this._sortNsPrefixes(nsToRender);
+        let si: int = 0;
+        while (si < sortedNs.size()) {
+            let prefix: string = sortedNs.get(si);
+            let uri: string = nsToRender.get(prefix);
+            if (String.length(prefix) == 0) {
+                result = result + " xmlns=\"" + this._escapeAttr(uri) + "\"";
+            } else {
+                result = result + " xmlns:" + prefix + "=\"" + this._escapeAttr(uri) + "\"";
+            }
+            si = si + 1;
+        }
+
+        // Render attributes — sorted by namespace URI then local name
+        let sortedAttrs: ArrayList<string> = this._sortAttrs(node.attributes);
+        let sai: int = 0;
+        while (sai < sortedAttrs.size()) {
+            let attrName: string = sortedAttrs.get(sai);
+            // Skip namespace declarations (already rendered)
+            if (String.startsWith(attrName, "xmlns")) {
+                sai = sai + 1;
+                continue;
+            }
+            let attrVal: string = node.attributes.get(attrName);
+            let normalized: string = this._normalizeWhitespace(attrVal);
+            result = result + " " + attrName + "=\"" + this._escapeAttr(normalized) + "\"";
+            sai = sai + 1;
+        }
+
+        result = result + ">";
+
+        // Render text content
+        if (String.length(node.text) > 0) {
+            result = result + this._escapeText(node.text);
+        }
+
+        // Render children
+        let ci: int = 0;
+        while (ci < node.children.size()) {
+            let child: XmlNode = node.children.get(ci);
+            result = result + this._renderNode(child, localNs, exclusive);
+            ci = ci + 1;
+        }
+
+        // End tag
+        result = result + "</" + node.tag + ">";
+
+        return result;
+    }
+
+    // Sort attributes for canonical output: by namespace URI then local name.
+    // Namespace declarations (xmlns) are excluded — they are handled separately.
+    private fn _sortAttrs(attrs: HashMap<string, string>): ArrayList<string> {
+        let names: ArrayList<string> = new ArrayList<string>();
+        let keys: ArrayList<string> = attrs.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            // Skip xmlns declarations
+            if (String.startsWith(key, "xmlns")) {
+                i = i + 1;
+                continue;
+            }
+            names.add(key);
+            i = i + 1;
+        }
+        // Sort by: namespace URI of the attribute, then local name
+        // For prefixed attributes (e.g. "xml:lang"), extract the URI from the prefix
+        // For unprefixed attributes, the namespace URI is empty
+        let sorted: bool = false;
+        while (!sorted) {
+            sorted = true;
+            let j: int = 0;
+            while (j < names.size() - 1) {
+                let a: string = names.get(j);
+                let b: string = names.get(j + 1);
+                let nsA: string = this._attrNamespaceUri(a);
+                let nsB: string = this._attrNamespaceUri(b);
+                let localA: string = this._attrLocalName(a);
+                let localB: string = this._attrLocalName(b);
+                let swap: bool = false;
+                if (nsA > nsB) {
+                    swap = true;
+                } else if (nsA == nsB && localA > localB) {
+                    swap = true;
+                }
+                if (swap) {
+                    names.set(j, b);
+                    names.set(j + 1, a);
+                    sorted = false;
+                }
+                j = j + 1;
+            }
+        }
+        return names;
+    }
+
+    // Normalize whitespace in attribute values per Canonical XML 1.0:
+    // Replace tabs, newlines, carriage returns with spaces; collapse multiple spaces.
+    private fn _normalizeWhitespace(s: string): string {
+        let result: string = "";
+        let i: int = 0;
+        let len: int = String.length(s);
+        let prevSpace: bool = false;
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            if (c == "\t" || c == "\n" || c == "\r") {
+                c = " ";
+            }
+            if (c == " ") {
+                if (!prevSpace) {
+                    result = result + c;
+                }
+                prevSpace = true;
+            } else {
+                result = result + c;
+                prevSpace = false;
+            }
+            i = i + 1;
+        }
+        // Trim leading and trailing spaces
+        result = String.trim(result);
+        return result;
+    }
+
+    // Escape text for canonical XML content.
+    // Replaces &, <, >, carriage return, line feed, tab with their entity references.
+    private fn _escapeText(s: string): string {
+        let result: string = "";
+        let i: int = 0;
+        let len: int = String.length(s);
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            if (c == "&") {
+                result = result + "&amp;";
+            } else if (c == "<") {
+                result = result + "&lt;";
+            } else if (c == ">") {
+                result = result + "&gt;";
+            } else if (c == "\r") {
+                result = result + "&#xD;";
+            } else if (c == "\n") {
+                result = result + "&#xA;";
+            } else if (c == "\t") {
+                result = result + "&#x9;";
+            } else {
+                result = result + c;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Escape text for canonical XML attribute values.
+    // Same as _escapeText but also escapes quotes.
+    private fn _escapeAttr(s: string): string {
+        let result: string = "";
+        let i: int = 0;
+        let len: int = String.length(s);
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            if (c == "&") {
+                result = result + "&amp;";
+            } else if (c == "<") {
+                result = result + "&lt;";
+            } else if (c == ">") {
+                result = result + "&gt;";
+            } else if (c == "\"") {
+                result = result + "&quot;";
+            } else if (c == "\r") {
+                result = result + "&#xD;";
+            } else if (c == "\n") {
+                result = result + "&#xA;";
+            } else if (c == "\t") {
+                result = result + "&#x9;";
+            } else {
+                result = result + c;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Collect all in-scope namespace declarations from a node and its ancestors.
+    // Since XmlNode does not track parent references, we collect from the
+    // node's own xmlns attributes only. For a full implementation with ancestor
+    // traversal, the XmlNode tree would need parent links.
+    private fn _collectNamespaces(node: XmlNode): HashMap<string, string> {
+        let nsMap: HashMap<string, string> = new HashMap<string, string>();
+        this._collectNamespacesFromNode(node, nsMap);
+        return nsMap;
+    }
+
+    // Recursively collect namespace declarations from a node.
+    private fn _collectNamespacesFromNode(node: XmlNode, nsMap: HashMap<string, string>): void {
+        let keys: ArrayList<string> = node.attributes.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let attrName: string = keys.get(i);
+            let attrVal: string = node.attributes.get(attrName);
+            if (attrName == "xmlns") {
+                if (!nsMap.containsKey("")) {
+                    nsMap.put("", attrVal);
+                }
+            } else if (String.startsWith(attrName, "xmlns:")) {
+                let prefix: string = String.substring(attrName, 6, String.length(attrName));
+                if (!nsMap.containsKey(prefix)) {
+                    nsMap.put(prefix, attrVal);
+                }
+            }
+            i = i + 1;
+        }
+        // Recurse into children to collect their namespace declarations
+        let ci: int = 0;
+        while (ci < node.children.size()) {
+            this._collectNamespacesFromNode(node.children.get(ci), nsMap);
+            ci = ci + 1;
+        }
+    }
+
+    // ---- Helper utilities ----
+
+    // Sort namespace prefixes for canonical output.
+    // Empty prefix (default namespace) comes first, then alphabetical by prefix.
+    private fn _sortNsPrefixes(nsMap: HashMap<string, string>): ArrayList<string> {
+        let prefixes: ArrayList<string> = new ArrayList<string>();
+        let keys: ArrayList<string> = nsMap.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            prefixes.add(keys.get(i));
+            i = i + 1;
+        }
+        // Bubble sort: empty prefix first, then alphabetical
+        let sorted: bool = false;
+        while (!sorted) {
+            sorted = true;
+            let j: int = 0;
+            while (j < prefixes.size() - 1) {
+                let a: string = prefixes.get(j);
+                let b: string = prefixes.get(j + 1);
+                // Empty prefix sorts first
+                let aEmpty: bool = String.length(a) == 0;
+                let bEmpty: bool = String.length(b) == 0;
+                let swap: bool = false;
+                if (bEmpty && !aEmpty) {
+                    swap = true;
+                } else if (!aEmpty && !bEmpty && a > b) {
+                    swap = true;
+                }
+                if (swap) {
+                    prefixes.set(j, b);
+                    prefixes.set(j + 1, a);
+                    sorted = false;
+                }
+                j = j + 1;
+            }
+        }
+        return prefixes;
+    }
+
+    // Check if a namespace prefix is visibly utilized by the node.
+    // A prefix is visibly utilized if it appears in the element's tag name
+    // or in any of its attribute names.
+    private fn _isVisiblyUtilized(node: XmlNode, prefix: string): bool {
+        // Check tag name
+        let colonPos: int = this._indexOfColon(node.tag);
+        if (colonPos >= 0) {
+            let tagPrefix: string = String.substring(node.tag, 0, colonPos);
+            if (tagPrefix == prefix) {
+                return true;
+            }
+        }
+
+        // Check attribute names
+        let keys: ArrayList<string> = node.attributes.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let attrName: string = keys.get(i);
+            // Skip xmlns declarations themselves
+            if (String.startsWith(attrName, "xmlns")) {
+                i = i + 1;
+                continue;
+            }
+            let attrColon: int = this._indexOfColon(attrName);
+            if (attrColon >= 0) {
+                let attrPrefix: string = String.substring(attrName, 0, attrColon);
+                if (attrPrefix == prefix) {
+                    return true;
+                }
+            }
+            i = i + 1;
+        }
+
+        // Check children — a prefix is visibly utilized if any descendant uses it
+        let ci: int = 0;
+        while (ci < node.children.size()) {
+            if (this._isVisiblyUtilized(node.children.get(ci), prefix)) {
+                return true;
+            }
+            ci = ci + 1;
+        }
+
+        return false;
+    }
+
+    // Check if a prefix is in the inclusive namespace prefix list.
+    private fn _isInInclusiveList(prefix: string): bool {
+        let i: int = 0;
+        while (i < this.inclusiveNsPrefixList.size()) {
+            if (this.inclusiveNsPrefixList.get(i) == prefix) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Find the index of ':' in a string, or -1 if not found.
+    private fn _indexOfColon(s: string): int {
+        let i: int = 0;
+        let len: int = String.length(s);
+        while (i < len) {
+            if (String.charAt(s, i) == ":") {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Get the namespace URI for an attribute name.
+    // Prefixed attributes use the prefix to look up the URI;
+    // unprefixed attributes have no namespace URI (empty string),
+    // except for xml: attributes which use the XML namespace.
+    private fn _attrNamespaceUri(attrName: string): string {
+        let colonPos: int = this._indexOfColon(attrName);
+        if (colonPos < 0) {
+            return "";
+        }
+        let prefix: string = String.substring(attrName, 0, colonPos);
+        if (prefix == "xml") {
+            return "http://www.w3.org/XML/1998/namespace";
+        }
+        if (prefix == "xmlns") {
+            return "http://www.w3.org/2000/xmlns/";
+        }
+        return "";
+    }
+
+    // Get the local name part of an attribute name.
+    private fn _attrLocalName(attrName: string): string {
+        let colonPos: int = this._indexOfColon(attrName);
+        if (colonPos < 0) {
+            return attrName;
+        }
+        return String.substring(attrName, colonPos + 1, String.length(attrName));
+    }
+}
