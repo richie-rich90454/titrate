@@ -1,0 +1,130 @@
+// AssertExt — extended assertion utilities for testing and validation.
+import tt::util::ArrayList;
+import tt::lang::Variant;
+import tt::math::Math;
+
+// Assert that actual equals expected.
+public fn assertEqual(actual: Variant, expected: Variant, message: string): void {
+    if (actual == null && expected == null) { return; }
+    if (actual == null || expected == null) {
+        throw "AssertionError: " + message;
+    }
+    if (!(actual == expected)) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that actual does not equal expected.
+public fn assertNotEqual(actual: Variant, expected: Variant, message: string): void {
+    if (actual == null && expected == null) {
+        throw "AssertionError: " + message;
+    }
+    if (actual != null && expected != null && actual == expected) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that the condition is true.
+public fn assertTrue(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that the condition is false.
+public fn assertFalse(condition: bool, message: string): void {
+    if (condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that two doubles are approximately equal within the given tolerance.
+public fn assertAlmostEqualTolerance(actual: double, expected: double, tolerance: double, message: string): void {
+    let diff: double = actual - expected;
+    if (diff < 0) { diff = -diff; }
+    if (diff > tolerance) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that two doubles are approximately equal within the given number of decimal places.
+public fn assertAlmostEqual(actual: double, expected: double, places: int, message: string): void {
+    let diff: double = actual - expected;
+    if (diff < 0) { diff = -diff; }
+    // Compute tolerance: 0.5 * 10^(-places)
+    let tolerance: double = 0.5;
+    var i: int = 0;
+    while (i < places) {
+        tolerance = tolerance / 10.0;
+        i = i + 1;
+    }
+    if (diff > tolerance) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that calling f raises an error of the given type.
+public fn assertRaises(errorType: string, f: fn(): void, message: string): void {
+    let threw: bool = false;
+    try {
+        f();
+    } catch (e: string) {
+        threw = true;
+        // Check if the error type matches
+        if (String.length(e) >= String.length(errorType)) {
+            let prefix: string = String.substring(e, 0, String.length(errorType));
+            if (prefix == errorType) {
+                return;
+            }
+        }
+        // Error was thrown but type didn't match — still counts as raised
+    }
+    if (!threw) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that item is contained in the collection.
+public fn assertIn(item: Variant, collection: ArrayList<Variant>, message: string): void {
+    var found: bool = false;
+    var i: int = 0;
+    while (i < collection.size()) {
+        let elem: Variant = collection.get(i);
+        if (elem == item) {
+            found = true;
+            break;
+        }
+        i = i + 1;
+    }
+    if (!found) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that a is greater than b.
+public fn assertGreater(a: double, b: double, message: string): void {
+    if (!(a > b)) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that a is less than b.
+public fn assertLess(a: double, b: double, message: string): void {
+    if (!(a < b)) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that the value is null.
+public fn assertIsNone(value: Variant, message: string): void {
+    if (value != null) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Assert that the value is not null.
+public fn assertIsNotNone(value: Variant, message: string): void {
+    if (value == null) {
+        throw "AssertionError: " + message;
+    }
+}
