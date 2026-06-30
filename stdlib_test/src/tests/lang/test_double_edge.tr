@@ -1,0 +1,107 @@
+// Edge case tests for Double.tr
+// Tests parsing edge cases, precision, and special values.
+import tt::lang::Double;
+import tt::lang::String;
+
+public fn test_double_edge_parse_scientific(): void {
+    let v: double = Double.parse("1e10");
+    if (v != 10000000000.0) {
+        io::println("FAIL: Double.parse(\"1e10\") = " + Double.toString(v) + ", expected 10000000000.0");
+    } else {
+        io::println("PASS: Double.parse(\"1e10\") = 10000000000.0");
+    }
+}
+
+public fn test_double_edge_parse_negative(): void {
+    let v: double = Double.parse("-3.14");
+    if (v != -3.14) {
+        io::println("FAIL: Double.parse(\"-3.14\") = " + Double.toString(v));
+    } else {
+        io::println("PASS: Double.parse(\"-3.14\") = -3.14");
+    }
+}
+
+public fn test_double_edge_toString_zero(): void {
+    let s: string = Double.toString(0.0);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Double.toString(0.0) is empty");
+    } else {
+        io::println("PASS: Double.toString(0.0) = " + s);
+    }
+}
+
+public fn test_double_edge_toString_negative_zero(): void {
+    let s: string = Double.toString(-0.0);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Double.toString(-0.0) is empty");
+    } else {
+        io::println("PASS: Double.toString(-0.0) = " + s);
+    }
+}
+
+public fn test_double_edge_toString_precision(): void {
+    let v: double = 0.1 + 0.2;
+    let s: string = Double.toString(v);
+    if (String.length(s) == 0) {
+        io::println("FAIL: Double.toString(0.1+0.2) is empty");
+    } else {
+        io::println("PASS: Double.toString(0.1+0.2) = " + s);
+    }
+}
+
+public fn test_double_edge_compare_close_values(): void {
+    let a: double = 1.0000001;
+    let b: double = 1.0;
+    if (Double.compare(a, b) <= 0) {
+        io::println("FAIL: Double.compare(1.0000001, 1.0) <= 0");
+    } else {
+        io::println("PASS: Double.compare(1.0000001, 1.0) > 0");
+    }
+}
+
+public fn test_double_edge_compare_equal(): void {
+    if (Double.compare(2.5, 2.5) != 0) {
+        io::println("FAIL: Double.compare(2.5, 2.5) != 0");
+    } else {
+        io::println("PASS: Double.compare(2.5, 2.5) = 0");
+    }
+}
+
+public fn test_double_edge_arithmetic_zero_add(): void {
+    if ((5.0 + 0.0) != 5.0) {
+        io::println("FAIL: 5.0 + 0.0 != 5.0");
+    } else {
+        io::println("PASS: 5.0 + 0.0 = 5.0");
+    }
+}
+
+public fn test_double_edge_arithmetic_zero_multiply(): void {
+    if ((5.0 * 0.0) != 0.0) {
+        io::println("FAIL: 5.0 * 0.0 != 0.0");
+    } else {
+        io::println("PASS: 5.0 * 0.0 = 0.0");
+    }
+}
+
+public fn test_double_edge_parseOr_invalid(): void {
+    let v: double = Double.parseOr("not_a_number", -1.0);
+    if (v != -1.0) {
+        io::println("FAIL: Double.parseOr(\"not_a_number\",-1.0) = " + Double.toString(v));
+    } else {
+        io::println("PASS: Double.parseOr(\"not_a_number\",-1.0) = -1.0");
+    }
+}
+
+public fn run_all_double_edge_tests(): void {
+    io::println("=== Double.tr Edge Case Tests ===");
+    test_double_edge_parse_scientific();
+    test_double_edge_parse_negative();
+    test_double_edge_toString_zero();
+    test_double_edge_toString_negative_zero();
+    test_double_edge_toString_precision();
+    test_double_edge_compare_close_values();
+    test_double_edge_compare_equal();
+    test_double_edge_arithmetic_zero_add();
+    test_double_edge_arithmetic_zero_multiply();
+    test_double_edge_parseOr_invalid();
+}
