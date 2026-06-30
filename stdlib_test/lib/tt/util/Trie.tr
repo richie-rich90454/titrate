@@ -1,0 +1,218 @@
+import tt::util::ArrayList;
+import tt::util::ArrayListIterator;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+// TrieNode: a node in the trie.
+public class TrieNode {
+    public HashMap<string, TrieNode> children;
+    public bool isEnd;
+    public Variant value;
+
+    public fn init() {
+        this.children = new HashMap<string, TrieNode>();
+        this.isEnd = false;
+        this.value = null;
+    }
+}
+
+// Trie: prefix tree for string keys.
+public class Trie {
+    public TrieNode root;
+    public int count;
+
+    public fn init() {
+        this.root = new TrieNode();
+        this.count = 0;
+    }
+
+    // Insert a word into the trie.
+    public fn insert(word: string): void {
+        var node: TrieNode = this.root;
+        var i: int = 0;
+        while (i < String_length(word)) {
+            let ch: string = String_charAt(word, i);
+            if (!node.children.containsKey(ch)) {
+                node.children.put(ch, new TrieNode());
+            }
+            node = node.children.get(ch);
+            i = i + 1;
+        }
+        if (!node.isEnd) {
+            this.count = this.count + 1;
+        }
+        node.isEnd = true;
+    }
+
+    // Search for an exact word in the trie.
+    public fn search(word: string): bool {
+        var node: TrieNode = this.findNode(word);
+        if (node == null) { return false; }
+        return node.isEnd;
+    }
+
+    // Check if any word in the trie starts with the given prefix.
+    public fn startsWith(prefix: string): bool {
+        var node: TrieNode = this.findNode(prefix);
+        return node != null;
+    }
+
+    // Auto-complete: return all words that start with the given prefix.
+    public fn autoComplete(prefix: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var node: TrieNode = this.findNode(prefix);
+        if (node == null) { return result; }
+        this.collectWords(node, prefix, result);
+        return result;
+    }
+
+    // Static: auto-complete from a given trie with the given prefix.
+    public fn autoComplete(trie: Trie, prefix: string): ArrayList<string> {
+        return trie.autoComplete(prefix);
+    }
+
+    // Delete a word from the trie. Returns true if the word was found and deleted.
+    public fn delete(word: string): bool {
+        if (!this.search(word)) { return false; }
+        this.deleteHelper(this.root, word, 0);
+        this.count = this.count - 1;
+        return true;
+    }
+
+    // Return all keys with the given prefix.
+    public fn keysWithPrefix(prefix: string): ArrayList<string> {
+        return this.autoComplete(prefix);
+    }
+
+    // Return the longest prefix of query that is in the trie.
+    public fn longestPrefixOf(query: string): string {
+        var node: TrieNode = this.root;
+        var lastEnd: int = -1;
+        var i: int = 0;
+        while (i < String_length(query)) {
+            let ch: string = String_charAt(query, i);
+            if (!node.children.containsKey(ch)) { break; }
+            node = node.children.get(ch);
+            if (node.isEnd) {
+                lastEnd = i + 1;
+            }
+            i = i + 1;
+        }
+        if (lastEnd < 0) { return ""; }
+        return String.substring(query, 0, lastEnd);
+    }
+
+    // Number of words in the trie.
+    public fn size(): int {
+        return this.count;
+    }
+
+    // Check if the trie is empty.
+    public fn isEmpty(): bool {
+        return this.count == 0;
+    }
+
+    // Return all keys (words) in the trie.
+    public fn keys(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        this.collectWords(this.root, "", result);
+        return result;
+    }
+
+    // Return all values associated with keys in the trie.
+    public fn values(): ArrayList<Variant> {
+        let result: ArrayList<Variant> = new ArrayList<Variant>();
+        this.collectValues(this.root, result);
+        return result;
+    }
+
+    // Return all key-value pairs in the trie.
+    public fn entries(): ArrayList<(string, Variant)> {
+        let result: ArrayList<(string, Variant)> = new ArrayList<(string, Variant)>();
+        this.collectEntries(this.root, "", result);
+        return result;
+    }
+
+    // Remove all keys from the trie.
+    public fn clear(): void {
+        this.root = new TrieNode();
+        this.count = 0;
+    }
+
+    // Return an iterator over all keys in the trie.
+    public fn iterator(): ArrayListIterator<string> {
+        let allKeys: ArrayList<string> = this.keys();
+        return new ArrayListIterator<string>(allKeys);
+    }
+
+    // Internal: find the node corresponding to a prefix.
+    private fn findNode(prefix: string): TrieNode {
+        var node: TrieNode = this.root;
+        var i: int = 0;
+        while (i < String_length(prefix)) {
+            let ch: string = String_charAt(prefix, i);
+            if (!node.children.containsKey(ch)) { return null; }
+            node = node.children.get(ch);
+            i = i + 1;
+        }
+        return node;
+    }
+
+    // Internal: collect all words from a given node.
+    private fn collectWords(node: TrieNode, prefix: string, result: ArrayList<string>): void {
+        if (node.isEnd) {
+            result.add(prefix);
+        }
+        let keys: ArrayList<string> = node.children.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let ch: string = keys.get(i);
+            this.collectWords(node.children.get(ch), prefix + ch, result);
+            i = i + 1;
+        }
+    }
+
+    // Internal: collect all values from a given node.
+    private fn collectValues(node: TrieNode, result: ArrayList<Variant>): void {
+        if (node.isEnd) {
+            result.add(node.value);
+        }
+        let keys: ArrayList<string> = node.children.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            this.collectValues(node.children.get(keys.get(i)), result);
+            i = i + 1;
+        }
+    }
+
+    // Internal: collect all key-value pairs from a given node.
+    private fn collectEntries(node: TrieNode, prefix: string, result: ArrayList<(string, Variant)>): void {
+        if (node.isEnd) {
+            result.add((prefix, node.value));
+        }
+        let keys: ArrayList<string> = node.children.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let ch: string = keys.get(i);
+            this.collectEntries(node.children.get(ch), prefix + ch, result);
+            i = i + 1;
+        }
+    }
+
+    // Internal: recursive delete helper.
+    private fn deleteHelper(node: TrieNode, word: string, depth: int): bool {
+        if (depth == String_length(word)) {
+            node.isEnd = false;
+            return node.children.size() == 0;
+        }
+        let ch: string = String_charAt(word, depth);
+        if (!node.children.containsKey(ch)) { return false; }
+        let child: TrieNode = node.children.get(ch);
+        let shouldDelete: bool = this.deleteHelper(child, word, depth + 1);
+        if (shouldDelete) {
+            node.children.remove(ch);
+            return !node.isEnd && node.children.size() == 0;
+        }
+        return false;
+    }
+}
