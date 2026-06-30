@@ -1,0 +1,641 @@
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+// Optimization: numerical optimization algorithms
+
+// ---- Result class ----
+
+public class OptResult {
+    public ArrayList<double> x;
+    public double value;
+    public int iterations;
+    public bool converged;
+
+    public fn init(x: ArrayList<double>, value: double, iterations: int, converged: bool) {
+        this.x = x;
+        this.value = value;
+        this.iterations = iterations;
+        this.converged = converged;
+    }
+
+    public fn toString(): string {
+        let status: string = this.converged ? "converged" : "not converged";
+        return "OptResult(value=" + Double.toString(this.value) + ", iterations=" + Integer.toString(this.iterations) + ", " + status + ")";
+    }
+}
+
+// ---- Vector helpers ----
+
+fn vecAdd(a: ArrayList<double>, b: ArrayList<double>): ArrayList<double> {
+    let result = new ArrayList<double>();
+    var i: int = 0;
+    while (i < a.size()) {
+        result.add(a.get(i) + b.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+fn vecSub(a: ArrayList<double>, b: ArrayList<double>): ArrayList<double> {
+    let result = new ArrayList<double>();
+    var i: int = 0;
+    while (i < a.size()) {
+        result.add(a.get(i) - b.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+fn vecScale(a: ArrayList<double>, s: double): ArrayList<double> {
+    let result = new ArrayList<double>();
+    var i: int = 0;
+    while (i < a.size()) {
+        result.add(a.get(i) * s);
+        i = i + 1;
+    }
+    return result;
+}
+
+fn vecDot(a: ArrayList<double>, b: ArrayList<double>): double {
+    let n: int = a.size();
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        sum = sum + a.get(i) * b.get(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+fn vecNorm(a: ArrayList<double>): double {
+    return MathAdvanced.sqrt(vecDot(a, a));
+}
+
+fn vecCopy(a: ArrayList<double>): ArrayList<double> {
+    let result = new ArrayList<double>();
+    var i: int = 0;
+    while (i < a.size()) {
+        result.add(a.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Numerical gradient via central difference for vector-valued functions.
+fn numericalGradient(f: fn(ArrayList<double>): double, x: ArrayList<double>, h: double): ArrayList<double> {
+    let n: int = x.size();
+    let grad = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let xPlus = vecCopy(x);
+        let xMinus = vecCopy(x);
+        xPlus.set(i, x.get(i) + h);
+        xMinus.set(i, x.get(i) - h);
+        grad.add((f(xPlus) - f(xMinus)) / (2.0 * h));
+        i = i + 1;
+    }
+    return grad;
+}
+
+// ---- Optimization algorithms ----
+
+// 1D gradient descent using numerical gradient (central difference).
+public fn gradientDescent(f: fn(double): double, x0: double, lr: double, maxIter: int): double {
+    let h: double = 1e-6;
+    var x: double = x0;
+    var iter: int = 0;
+    while (iter < maxIter) {
+        // Numerical gradient via central difference
+        let fPlus: double = f(x + h);
+        let fMinus: double = f(x - h);
+        let grad: double = (fPlus - fMinus) / (2.0 * h);
+        x = x - lr * grad;
+        iter = iter + 1;
+    }
+    return x;
+}
+
+// Stochastic gradient descent over a dataset.
+// f is the per-sample loss as a function of params; data provides the samples.
+public fn stochasticGradientDescent(f: fn(ArrayList<double>): double, params: ArrayList<double>, data: ArrayList<ArrayList<double>>, lr: double, epochs: int): ArrayList<double> {
+    let x = vecCopy(params);
+    let h: double = 1e-6;
+    var epoch: int = 0;
+    while (epoch < epochs) {
+        var d: int = 0;
+        while (d < data.size()) {
+            // Numerical gradient of f at current params
+            let grad = numericalGradient(f, x, h);
+            // Update params using learning rate
+            var i: int = 0;
+            while (i < x.size()) {
+                x.set(i, x.get(i) - lr * grad.get(i));
+                i = i + 1;
+            }
+            d = d + 1;
+        }
+        epoch = epoch + 1;
+    }
+    return x;
+}
+
+// L-BFGS quasi-Newton method using numerical gradient.
+public fn lbfgs(f: fn(ArrayList<double>): double, x0: ArrayList<double>, maxIter: int): ArrayList<double> {
+    let x = vecCopy(x0);
+    let tol: double = 1e-8;
+    let m: int = 10;
+    let h: double = 1e-6;
+    var iter: int = 0;
+
+    // History lists for s and y vectors
+    let sList = new ArrayList<ArrayList<double>>();
+    let yList = new ArrayList<ArrayList<double>>();
+    let rhoList = new ArrayList<double>();
+
+    while (iter < maxIter) {
+        let g = numericalGradient(f, x, h);
+        let gNorm: double = vecNorm(g);
+        if (gNorm < tol) {
+            break;
+        }
+
+        // Two-loop recursion to compute search direction
+        let n: int = x.size();
+        let q = vecCopy(g);
+        let k: int = sList.size();
+
+        let alphaList = new ArrayList<double>();
+        var j: int = 0;
+        while (j < k) {
+            alphaList.add(0.0);
+            j = j + 1;
+        }
+
+        // First loop (backward)
+        var i: int = k - 1;
+        while (i >= 0) {
+            let si = sList.get(i);
+            let yi = yList.get(i);
+            let rhoI: double = rhoList.get(i);
+            let ai: double = rhoI * vecDot(si, q);
+            alphaList.set(i, ai);
+            let yScaled = vecScale(yi, ai);
+            var jj: int = 0;
+            while (jj < n) {
+                q.set(jj, q.get(jj) - yScaled.get(jj));
+                jj = jj + 1;
+            }
+            i = i - 1;
+        }
+
+        // Initial Hessian approximation: scale factor
+        let dir = vecCopy(q);
+        if (k > 0) {
+            let sk1 = sList.get(k - 1);
+            let yk1 = yList.get(k - 1);
+            let gamma: double = vecDot(sk1, yk1) / (vecDot(yk1, yk1) + 1e-30);
+            var jj: int = 0;
+            while (jj < n) {
+                dir.set(jj, dir.get(jj) * gamma);
+                jj = jj + 1;
+            }
+        }
+
+        // Second loop (forward)
+        i = 0;
+        while (i < k) {
+            let si = sList.get(i);
+            let yi = yList.get(i);
+            let rhoI: double = rhoList.get(i);
+            let beta: double = rhoI * vecDot(yi, dir);
+            let diff: double = alphaList.get(i) - beta;
+            let sScaled = vecScale(si, diff);
+            var jj: int = 0;
+            while (jj < n) {
+                dir.set(jj, dir.get(jj) + sScaled.get(jj));
+                jj = jj + 1;
+            }
+            i = i + 1;
+        }
+
+        // Negate direction for descent
+        var jj: int = 0;
+        while (jj < n) {
+            dir.set(jj, -dir.get(jj));
+            jj = jj + 1;
+        }
+
+        // Backtracking line search
+        let stepSize: double = 1.0;
+        let f0: double = f(x);
+        let dg: double = vecDot(dir, g);
+        var ls: int = 0;
+        while (ls < 20) {
+            let xNew = vecAdd(x, vecScale(dir, stepSize));
+            let fNew: double = f(xNew);
+            if (fNew <= f0 + 1e-4 * stepSize * dg) {
+                break;
+            }
+            stepSize = stepSize * 0.5;
+            ls = ls + 1;
+        }
+
+        let xNew = vecAdd(x, vecScale(dir, stepSize));
+        let gNew = numericalGradient(f, xNew, h);
+
+        // Update history
+        let s = vecSub(xNew, x);
+        let y = vecSub(gNew, g);
+        let sy: double = vecDot(s, y);
+
+        if (sy > 1e-30) {
+            if (sList.size() >= m) {
+                sList.remove(0);
+                yList.remove(0);
+                rhoList.remove(0);
+            }
+            sList.add(s);
+            yList.add(y);
+            rhoList.add(1.0 / sy);
+        }
+
+        // Update x
+        var jj: int = 0;
+        while (jj < n) {
+            x.set(jj, xNew.get(jj));
+            jj = jj + 1;
+        }
+
+        iter = iter + 1;
+    }
+
+    return x;
+}
+
+// Nelder-Mead simplex method (derivative-free).
+public fn nelderMead(f: fn(ArrayList<double>): double, x0: ArrayList<double>, maxIter: int): ArrayList<double> {
+    let n: int = x0.size();
+    let alpha: double = 1.0;
+    let gamma: double = 2.0;
+    let rho: double = 0.5;
+    let sigma: double = 0.5;
+    let tol: double = 1e-10;
+
+    // Initialize simplex: n+1 vertices
+    let simplex = new ArrayList<ArrayList<double>>();
+    simplex.add(vecCopy(x0));
+    var i: int = 0;
+    while (i < n) {
+        let v = vecCopy(x0);
+        let step: double = Math.fabs(v.get(i)) > 1e-8 ? 0.05 * v.get(i) : 0.00025;
+        v.set(i, v.get(i) + step);
+        simplex.add(v);
+        i = i + 1;
+    }
+
+    // Evaluate function at each vertex
+    let fVals = new ArrayList<double>();
+    i = 0;
+    while (i < simplex.size()) {
+        fVals.add(f(simplex.get(i)));
+        i = i + 1;
+    }
+
+    var iter: int = 0;
+
+    while (iter < maxIter) {
+        // Sort vertices by function value
+        var ii: int = 0;
+        while (ii < fVals.size() - 1) {
+            var jj: int = ii + 1;
+            while (jj < fVals.size()) {
+                if (fVals.get(jj) < fVals.get(ii)) {
+                    let tmpF: double = fVals.get(ii);
+                    fVals.set(ii, fVals.get(jj));
+                    fVals.set(jj, tmpF);
+                    let tmpV = simplex.get(ii);
+                    simplex.set(ii, simplex.get(jj));
+                    simplex.set(jj, tmpV);
+                }
+                jj = jj + 1;
+            }
+            ii = ii + 1;
+        }
+
+        // Check convergence: spread of function values
+        let fRange: double = Math.fabs(fVals.get(fVals.size() - 1) - fVals.get(0));
+        if (fRange < tol) {
+            break;
+        }
+
+        // Centroid of all points except worst
+        let centroid = new ArrayList<double>();
+        var jj: int = 0;
+        while (jj < n) {
+            centroid.add(0.0);
+            jj = jj + 1;
+        }
+        jj = 0;
+        while (jj < n) {
+            var kk: int = 0;
+            while (kk < n) {
+                centroid.set(kk, centroid.get(kk) + simplex.get(jj).get(kk));
+                kk = kk + 1;
+            }
+            jj = jj + 1;
+        }
+        jj = 0;
+        while (jj < n) {
+            centroid.set(jj, centroid.get(jj) / (n as double));
+            jj = jj + 1;
+        }
+
+        let worst: int = n;
+        let fWorst: double = fVals.get(worst);
+
+        // Reflection
+        let reflected = vecAdd(centroid, vecScale(vecSub(centroid, simplex.get(worst)), alpha));
+        let fRefl: double = f(reflected);
+
+        if (fRefl < fVals.get(0)) {
+            // Expansion
+            let expanded = vecAdd(centroid, vecScale(vecSub(reflected, centroid), gamma));
+            let fExp: double = f(expanded);
+            if (fExp < fRefl) {
+                simplex.set(worst, expanded);
+                fVals.set(worst, fExp);
+            } else {
+                simplex.set(worst, reflected);
+                fVals.set(worst, fRefl);
+            }
+        } else if (fRefl < fVals.get(n - 1)) {
+            simplex.set(worst, reflected);
+            fVals.set(worst, fRefl);
+        } else {
+            // Contraction
+            let contracted: ArrayList<double>;
+            let fCon: double;
+            if (fRefl < fWorst) {
+                contracted = vecAdd(centroid, vecScale(vecSub(reflected, centroid), rho));
+                fCon = f(contracted);
+                if (fCon <= fRefl) {
+                    simplex.set(worst, contracted);
+                    fVals.set(worst, fCon);
+                } else {
+                    // Shrink
+                    var kk: int = 1;
+                    while (kk <= n) {
+                        let shrunk = vecAdd(simplex.get(0), vecScale(vecSub(simplex.get(kk), simplex.get(0)), sigma));
+                        simplex.set(kk, shrunk);
+                        fVals.set(kk, f(shrunk));
+                        kk = kk + 1;
+                    }
+                }
+            } else {
+                contracted = vecAdd(centroid, vecScale(vecSub(simplex.get(worst), centroid), rho));
+                fCon = f(contracted);
+                if (fCon < fWorst) {
+                    simplex.set(worst, contracted);
+                    fVals.set(worst, fCon);
+                } else {
+                    // Shrink
+                    var kk: int = 1;
+                    while (kk <= n) {
+                        let shrunk = vecAdd(simplex.get(0), vecScale(vecSub(simplex.get(kk), simplex.get(0)), sigma));
+                        simplex.set(kk, shrunk);
+                        fVals.set(kk, f(shrunk));
+                        kk = kk + 1;
+                    }
+                }
+            }
+        }
+
+        iter = iter + 1;
+    }
+
+    // Re-sort to get best
+    var ii: int = 0;
+    while (ii < fVals.size() - 1) {
+        var jj: int = ii + 1;
+        while (jj < fVals.size()) {
+            if (fVals.get(jj) < fVals.get(ii)) {
+                let tmpF: double = fVals.get(ii);
+                fVals.set(ii, fVals.get(jj));
+                fVals.set(jj, tmpF);
+                let tmpV = simplex.get(ii);
+                simplex.set(ii, simplex.get(jj));
+                simplex.set(jj, tmpV);
+            }
+            jj = jj + 1;
+        }
+        ii = ii + 1;
+    }
+
+    return simplex.get(0);
+}
+
+// Nonlinear conjugate gradient with Fletcher-Reeves beta using numerical gradient.
+public fn conjugateGradient(f: fn(ArrayList<double>): double, x0: ArrayList<double>, maxIter: int): ArrayList<double> {
+    let x = vecCopy(x0);
+    let h: double = 1e-6;
+    let tol: double = 1e-8;
+    let g = numericalGradient(f, x, h);
+    let d = vecScale(g, -1.0);
+    var iter: int = 0;
+
+    while (iter < maxIter) {
+        let gNorm: double = vecNorm(g);
+        if (gNorm < tol) {
+            break;
+        }
+
+        // Backtracking line search along d
+        let stepSize: double = 1.0;
+        let f0: double = f(x);
+        let dg: double = vecDot(d, g);
+        var ls: int = 0;
+        while (ls < 40) {
+            let xNew = vecAdd(x, vecScale(d, stepSize));
+            let fNew: double = f(xNew);
+            if (fNew <= f0 + 1e-4 * stepSize * dg) {
+                break;
+            }
+            stepSize = stepSize * 0.5;
+            ls = ls + 1;
+        }
+
+        let xNew = vecAdd(x, vecScale(d, stepSize));
+        let gNew = numericalGradient(f, xNew, h);
+
+        // Fletcher-Reeves beta
+        let beta: double = vecDot(gNew, gNew) / (vecDot(g, g) + 1e-30);
+
+        // Update direction
+        let n: int = x.size();
+        var i: int = 0;
+        while (i < n) {
+            d.set(i, -gNew.get(i) + beta * d.get(i));
+            i = i + 1;
+        }
+
+        // Update x and g
+        i = 0;
+        while (i < n) {
+            x.set(i, xNew.get(i));
+            g.set(i, gNew.get(i));
+            i = i + 1;
+        }
+
+        iter = iter + 1;
+    }
+
+    return x;
+}
+
+// Simplex method for linear programming: minimize c^T x subject to Ax <= b, x >= 0
+public fn linearProgramming(c: ArrayList<double>, a: ArrayList<ArrayList<double>>, b: ArrayList<double>): ArrayList<double> {
+    let maxIter: int = 10000;
+    let m: int = a.size();       // number of constraints
+    let n: int = c.size();       // number of original variables
+
+    // Build simplex tableau: m rows, (n + m + 1) columns
+    // Columns: [x1..xn, s1..sm, RHS]
+    let cols: int = n + m + 1;
+    let tableau = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < m) {
+        let row = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(0.0);
+            j = j + 1;
+        }
+        // Copy A row
+        j = 0;
+        while (j < n) {
+            row.set(j, a.get(i).get(j));
+            j = j + 1;
+        }
+        // Slack variable
+        row.set(n + i, 1.0);
+        // RHS
+        row.set(cols - 1, b.get(i));
+        tableau.add(row);
+        i = i + 1;
+    }
+
+    // Objective row: z - c^T x = 0, stored as [-c1..-cn, 0..0, 0]
+    let objRow = new ArrayList<double>();
+    var j: int = 0;
+    while (j < cols) {
+        objRow.add(0.0);
+        j = j + 1;
+    }
+    j = 0;
+    while (j < n) {
+        objRow.set(j, -c.get(j));
+        j = j + 1;
+    }
+    tableau.add(objRow);
+
+    // Basis: initially the slack variables
+    let basis = new ArrayList<int>();
+    i = 0;
+    while (i < m) {
+        basis.add(n + i);
+        i = i + 1;
+    }
+
+    var iter: int = 0;
+
+    while (iter < maxIter) {
+        // Find entering variable: most negative coefficient in objective row
+        let objRowIndex: int = m;
+        let minCoeff: double = 0.0;
+        var pivotCol: int = -1;
+        j = 0;
+        while (j < n + m) {
+            let coeff: double = tableau.get(objRowIndex).get(j);
+            if (coeff < minCoeff) {
+                minCoeff = coeff;
+                pivotCol = j;
+            }
+            j = j + 1;
+        }
+
+        // Optimal if no negative coefficient
+        if (pivotCol == -1) {
+            break;
+        }
+
+        // Find leaving variable: minimum ratio test
+        var pivotRow: int = -1;
+        let minRatio: double = 1e30;
+        i = 0;
+        while (i < m) {
+            let aij: double = tableau.get(i).get(pivotCol);
+            if (aij > 1e-30) {
+                let ratio: double = tableau.get(i).get(cols - 1) / aij;
+                if (ratio < minRatio) {
+                    minRatio = ratio;
+                    pivotRow = i;
+                }
+            }
+            i = i + 1;
+        }
+
+        // Unbounded
+        if (pivotRow == -1) {
+            break;
+        }
+
+        // Pivot
+        let pivotVal: double = tableau.get(pivotRow).get(pivotCol);
+        // Normalize pivot row
+        j = 0;
+        while (j < cols) {
+            tableau.get(pivotRow).set(j, tableau.get(pivotRow).get(j) / pivotVal);
+            j = j + 1;
+        }
+
+        // Eliminate pivot column in all other rows
+        i = 0;
+        while (i < m + 1) {
+            if (i != pivotRow) {
+                let factor: double = tableau.get(i).get(pivotCol);
+                j = 0;
+                while (j < cols) {
+                    tableau.get(i).set(j, tableau.get(i).get(j) - factor * tableau.get(pivotRow).get(j));
+                    j = j + 1;
+                }
+            }
+            i = i + 1;
+        }
+
+        // Update basis
+        basis.set(pivotRow, pivotCol);
+
+        iter = iter + 1;
+    }
+
+    // Extract solution
+    let x = new ArrayList<double>();
+    j = 0;
+    while (j < n) {
+        x.add(0.0);
+        j = j + 1;
+    }
+    i = 0;
+    while (i < m) {
+        let varIdx: int = basis.get(i);
+        if (varIdx < n) {
+            x.set(varIdx, tableau.get(i).get(cols - 1));
+        }
+        i = i + 1;
+    }
+
+    return x;
+}
