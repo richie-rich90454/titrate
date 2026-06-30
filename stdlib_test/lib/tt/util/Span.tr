@@ -1,0 +1,43 @@
+import tt::util::ArrayList;
+
+public class Span<T> {
+    private ArrayList<T> _source;
+    private int _start;
+    private int _length;
+
+    public fn init(source: ArrayList<T>, start: int, length: int) {
+        this._source = source;
+        this._start = start;
+        this._length = length;
+    }
+
+    public fn source(): ArrayList<T> { return this._source; }
+    public fn start(): int { return this._start; }
+    public fn length(): int { return this._length; }
+
+    public fn get(index: int): T {
+        return this._source.get(this._start + index);
+    }
+
+    public fn set(index: int, value: T): void {
+        this._source.set(this._start + index, value);
+    }
+
+    public fn subSpan(start: int, length: int): Span<T> {
+        return new Span<T>(this._source, this._start + start, length);
+    }
+
+    public fn first(): T { return this._source.get(this._start); }
+    public fn last(): T { return this._source.get(this._start + this._length - 1); }
+    public fn isEmpty(): bool { return this._length == 0; }
+
+    public fn toArray(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < this._length) {
+            result.add(this._source.get(this._start + i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
