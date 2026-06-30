@@ -1,0 +1,142 @@
+// Edge case tests for complex/Complex.tr
+// Exercises boundary conditions: zero complex, pure real/imaginary, and algebraic identities.
+import tt::math::complex::Complex;
+import tt::math::Math;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+// Zero complex (0+0i): abs=0, norm=0, and addition with zero is identity.
+public fn test_complex_edge_zero(): void {
+    let z: Complex = Complex.zero();
+    if (z.real == 0.0 && z.imag == 0.0) {
+        io::println("PASS: Complex.zero() has real=0 imag=0");
+    } else {
+        io::println("FAIL: Complex.zero() real=" + Double.toString(z.real) + " imag=" + Double.toString(z.imag));
+    }
+
+    if (z.abs() == 0.0) {
+        io::println("PASS: |0+0i| = 0.0");
+    } else {
+        io::println("FAIL: |0+0i| expected 0.0, got " + Double.toString(z.abs()));
+    }
+
+    if (z.norm() == 0.0) {
+        io::println("PASS: norm(0+0i) = 0.0");
+    } else {
+        io::println("FAIL: norm(0+0i) expected 0.0, got " + Double.toString(z.norm()));
+    }
+}
+
+// Purely imaginary number: real part is 0.
+public fn test_complex_edge_purely_imaginary(): void {
+    let z: Complex = new Complex(0.0, 3.0);
+    if (z.real == 0.0 && z.imag == 3.0) {
+        io::println("PASS: purely imaginary 0+3i constructed");
+    } else {
+        io::println("FAIL: expected 0+3i");
+    }
+
+    // |0+3i| should equal 3.0
+    if (absDiff(z.abs(), 3.0) < 1e-12) {
+        io::println("PASS: |0+3i| = 3.0");
+    } else {
+        io::println("FAIL: |0+3i| expected 3.0, got " + Double.toString(z.abs()));
+    }
+
+    // i * i should be -1 (real)
+    let i: Complex = Complex.i();
+    let iSquared: Complex = i.mul(i);
+    if (absDiff(iSquared.real, -1.0) < 1e-12 && absDiff(iSquared.imag, 0.0) < 1e-12) {
+        io::println("PASS: i*i = -1+0i");
+    } else {
+        io::println("FAIL: i*i expected -1+0i, got " + iSquared.toString());
+    }
+}
+
+// Purely real number: imaginary part is 0.
+public fn test_complex_edge_purely_real(): void {
+    let z: Complex = new Complex(5.0, 0.0);
+    if (z.real == 5.0 && z.imag == 0.0) {
+        io::println("PASS: purely real 5+0i constructed");
+    } else {
+        io::println("FAIL: expected 5+0i");
+    }
+
+    // |5+0i| should equal 5.0
+    if (absDiff(z.abs(), 5.0) < 1e-12) {
+        io::println("PASS: |5+0i| = 5.0");
+    } else {
+        io::println("FAIL: |5+0i| expected 5.0, got " + Double.toString(z.abs()));
+    }
+
+    // conj(5+0i) = 5+0i (unchanged)
+    let c: Complex = z.conj();
+    if (absDiff(c.real, 5.0) < 1e-12 && absDiff(c.imag, 0.0) < 1e-12) {
+        io::println("PASS: conj(5+0i) = 5+0i");
+    } else {
+        io::println("FAIL: conj(5+0i) expected 5+0i, got " + c.toString());
+    }
+}
+
+// Addition/subtraction identity: z + 0 = z and z - 0 = z.
+public fn test_complex_edge_add_sub_identity(): void {
+    let z: Complex = new Complex(2.5, -1.5);
+    let zero: Complex = Complex.zero();
+
+    let sum: Complex = z.add(zero);
+    if (sum.equals(z)) {
+        io::println("PASS: z + 0 = z (additive identity)");
+    } else {
+        io::println("FAIL: z + 0 expected " + z.toString() + ", got " + sum.toString());
+    }
+
+    let diff: Complex = z.sub(zero);
+    if (diff.equals(z)) {
+        io::println("PASS: z - 0 = z (subtraction identity)");
+    } else {
+        io::println("FAIL: z - 0 expected " + z.toString() + ", got " + diff.toString());
+    }
+
+    // z - z = 0
+    let selfSub: Complex = z.sub(z);
+    if (absDiff(selfSub.real, 0.0) < 1e-12 && absDiff(selfSub.imag, 0.0) < 1e-12) {
+        io::println("PASS: z - z = 0");
+    } else {
+        io::println("FAIL: z - z expected 0, got " + selfSub.toString());
+    }
+}
+
+// Multiplication by 1 (multiplicative identity): z * 1 = z.
+public fn test_complex_edge_mul_by_one(): void {
+    let z: Complex = new Complex(3.0, 4.0);
+    let one: Complex = Complex.one();
+
+    let prod: Complex = z.mul(one);
+    if (prod.equals(z)) {
+        io::println("PASS: z * 1 = z (multiplicative identity)");
+    } else {
+        io::println("FAIL: z * 1 expected " + z.toString() + ", got " + prod.toString());
+    }
+
+    // z * 0 = 0
+    let zero: Complex = Complex.zero();
+    let prodZero: Complex = z.mul(zero);
+    if (absDiff(prodZero.real, 0.0) < 1e-12 && absDiff(prodZero.imag, 0.0) < 1e-12) {
+        io::println("PASS: z * 0 = 0");
+    } else {
+        io::println("FAIL: z * 0 expected 0, got " + prodZero.toString());
+    }
+
+    // (z * 1) * 1 == z (chained identity)
+    let chained: Complex = z.mul(one).mul(one);
+    if (chained.equals(z)) {
+        io::println("PASS: z * 1 * 1 = z (chained identity)");
+    } else {
+        io::println("FAIL: z * 1 * 1 expected " + z.toString() + ", got " + chained.toString());
+    }
+}
