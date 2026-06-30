@@ -1,0 +1,85 @@
+// Edge case tests for JsonValue.tr
+// Tests boundary conditions: null values, boolean handling, nested objects,
+// empty containers, and string escaping.
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_json_edge_null_value(): void {
+    let v: JsonValue = JsonValue.ofNull();
+    if (v.isNull() && v.toString() == "null") {
+        io::println("PASS: null JsonValue isNull and serializes to 'null'");
+    } else {
+        io::println("FAIL: null JsonValue toString='" + v.toString() + "'");
+    }
+}
+
+public fn test_json_edge_boolean_values(): void {
+    let t: JsonValue = JsonValue.ofBool(true);
+    let f: JsonValue = JsonValue.ofBool(false);
+    if (t.isBool() && t.asBool() && t.toString() == "true" &&
+        f.isBool() && !f.asBool() && f.toString() == "false") {
+        io::println("PASS: boolean JsonValue values serialize correctly");
+    } else {
+        io::println("FAIL: boolean JsonValue t='" + t.toString() + "' f='" + f.toString() + "'");
+    }
+}
+
+public fn test_json_edge_nested_objects(): void {
+    let inner: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    inner.put("value", JsonValue.ofNum(42.0));
+    let outer: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    outer.put("nested", JsonValue.ofObject(inner));
+    let v: JsonValue = JsonValue.ofObject(outer);
+    let accessed: JsonValue = v.path("/nested/value");
+    if (accessed.isNumber() && accessed.asNumber() == 42.0) {
+        io::println("PASS: nested object accessed via JSON Pointer");
+    } else {
+        io::println("FAIL: nested object access returned '" + accessed.toString() + "'");
+    }
+}
+
+public fn test_json_edge_empty_array(): void {
+    let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+    let v: JsonValue = JsonValue.ofArray(arr);
+    if (v.isArray() && v.size() == 0 && v.toString() == "[]") {
+        io::println("PASS: empty array serializes to '[]'");
+    } else {
+        io::println("FAIL: empty array toString='" + v.toString() + "' size=" + Integer.toString(v.size()));
+    }
+}
+
+public fn test_json_edge_empty_object(): void {
+    let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+    let v: JsonValue = JsonValue.ofObject(obj);
+    if (v.isObject() && v.size() == 0 && v.toString() == "{}") {
+        io::println("PASS: empty object serializes to '{}'");
+    } else {
+        io::println("FAIL: empty object toString='" + v.toString() + "' size=" + Integer.toString(v.size()));
+    }
+}
+
+public fn test_json_edge_string_escape(): void {
+    // Input contains: newline, tab, quote, and backslash characters
+    let escaped: string = JsonValue.escapeString("line1\nline2\ttab\"quote\\back");
+    let hasNewline: bool = String.indexOf(escaped, "\\n") >= 0;
+    let hasTab: bool = String.indexOf(escaped, "\\t") >= 0;
+    let hasQuote: bool = String.indexOf(escaped, "\\\"") >= 0;
+    let hasBackslash: bool = String.indexOf(escaped, "\\\\") >= 0;
+    if (hasNewline && hasTab && hasQuote && hasBackslash) {
+        io::println("PASS: escapeString handles newline, tab, quote, backslash");
+    } else {
+        io::println("FAIL: escapeString returned '" + escaped + "'");
+    }
+}
+
+public fn run_all_json_value_edge_tests(): void {
+    io::println("=== JsonValue.tr Edge Case Tests ===");
+    test_json_edge_null_value();
+    test_json_edge_boolean_values();
+    test_json_edge_nested_objects();
+    test_json_edge_empty_array();
+    test_json_edge_empty_object();
+    test_json_edge_string_escape();
+}
