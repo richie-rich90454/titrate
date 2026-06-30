@@ -1,0 +1,145 @@
+// Ray provides a 3D ray for intersection testing and ray casting.
+import tt::math::vec::Vec3;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+
+public class Ray {
+    public Vec3 origin;
+    public Vec3 direction;
+
+    public fn init(origin: Vec3, direction: Vec3) {
+        this.origin = origin;
+        this.direction = direction.normalize();
+    }
+
+    public fn pointAt(t: double): Vec3 {
+        return this.origin.add(this.direction.scale(t));
+    }
+
+    public fn intersectsAABB(box: AABB): bool {
+        return this.intersectsAABBRange(box) >= 0.0;
+    }
+
+    public fn intersectsAABBRange(box: AABB): double {
+        var tMin: double = -Math.INF();
+        var tMax: double = Math.INF();
+
+        // X slab
+        if (this.direction.x != 0.0) {
+            let invD: double = 1.0 / this.direction.x;
+            var t1: double = (box.min.x - this.origin.x) * invD;
+            var t2: double = (box.max.x - this.origin.x) * invD;
+            if (t1 > t2) {
+                let tmp: double = t1;
+                t1 = t2;
+                t2 = tmp;
+            }
+            if (t1 > tMin) { tMin = t1; }
+            if (t2 < tMax) { tMax = t2; }
+            if (tMax < tMin) { return -1.0; }
+        } else {
+            if (this.origin.x < box.min.x || this.origin.x > box.max.x) { return -1.0; }
+        }
+
+        // Y slab
+        if (this.direction.y != 0.0) {
+            let invD: double = 1.0 / this.direction.y;
+            var t1: double = (box.min.y - this.origin.y) * invD;
+            var t2: double = (box.max.y - this.origin.y) * invD;
+            if (t1 > t2) {
+                let tmp: double = t1;
+                t1 = t2;
+                t2 = tmp;
+            }
+            if (t1 > tMin) { tMin = t1; }
+            if (t2 < tMax) { tMax = t2; }
+            if (tMax < tMin) { return -1.0; }
+        } else {
+            if (this.origin.y < box.min.y || this.origin.y > box.max.y) { return -1.0; }
+        }
+
+        // Z slab
+        if (this.direction.z != 0.0) {
+            let invD: double = 1.0 / this.direction.z;
+            var t1: double = (box.min.z - this.origin.z) * invD;
+            var t2: double = (box.max.z - this.origin.z) * invD;
+            if (t1 > t2) {
+                let tmp: double = t1;
+                t1 = t2;
+                t2 = tmp;
+            }
+            if (t1 > tMin) { tMin = t1; }
+            if (t2 < tMax) { tMax = t2; }
+            if (tMax < tMin) { return -1.0; }
+        } else {
+            if (this.origin.z < box.min.z || this.origin.z > box.max.z) { return -1.0; }
+        }
+
+        if (tMin < 0.0) { return tMax; }
+        return tMin;
+    }
+
+    public fn intersectsPlane(normal: Vec3, d: double): bool {
+        return this.intersectsPlaneRange(normal, d) >= 0.0;
+    }
+
+    public fn intersectsPlaneRange(normal: Vec3, d: double): double {
+        let denom: double = normal.dot(this.direction);
+        if (Math.fabs(denom) < 1e-12) {
+            return -1.0;
+        }
+        let t: double = (d - normal.dot(this.origin)) / denom;
+        if (t < 0.0) { return -1.0; }
+        return t;
+    }
+
+    public fn intersectsSphere(center: Vec3, radius: double): bool {
+        return this.intersectsSphereRange(center, radius) >= 0.0;
+    }
+
+    public fn intersectsSphereRange(center: Vec3, radius: double): double {
+        let oc: Vec3 = this.origin.sub(center);
+        let a: double = this.direction.dot(this.direction);
+        let b: double = 2.0 * oc.dot(this.direction);
+        let c: double = oc.dot(oc) - radius * radius;
+        let discriminant: double = b * b - 4.0 * a * c;
+        if (discriminant < 0.0) { return -1.0; }
+        let sqrtDisc: double = MathAdvanced.sqrt(discriminant);
+        let t0: double = (-b - sqrtDisc) / (2.0 * a);
+        if (t0 >= 0.0) { return t0; }
+        let t1: double = (-b + sqrtDisc) / (2.0 * a);
+        if (t1 >= 0.0) { return t1; }
+        return -1.0;
+    }
+
+    public fn intersectsTriangle(v0: Vec3, v1: Vec3, v2: Vec3): bool {
+        return this.intersectsTriangleRange(v0, v1, v2) >= 0.0;
+    }
+
+    public fn intersectsTriangleRange(v0: Vec3, v1: Vec3, v2: Vec3): double {
+        let edge1: Vec3 = v1.sub(v0);
+        let edge2: Vec3 = v2.sub(v0);
+        let h: Vec3 = this.direction.cross(edge2);
+        let a: double = edge1.dot(h);
+        if (Math.fabs(a) < 1e-12) { return -1.0; }
+        let f: double = 1.0 / a;
+        let s: Vec3 = this.origin.sub(v0);
+        let u: double = f * s.dot(h);
+        if (u < 0.0 || u > 1.0) { return -1.0; }
+        let q: Vec3 = s.cross(edge1);
+        let v: double = f * this.direction.dot(q);
+        if (v < 0.0 || u + v > 1.0) { return -1.0; }
+        let t: double = f * edge2.dot(q);
+        if (t > 1e-12) { return t; }
+        return -1.0;
+    }
+
+    public fn equals(other: Ray): bool {
+        return this.origin.equals(other.origin) && this.direction.equals(other.direction);
+    }
+
+    public fn toString(): string {
+        return "Ray(origin=" + this.origin.toString() + ", direction=" + this.direction.toString() + ")";
+    }
+}
