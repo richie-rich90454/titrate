@@ -1,0 +1,202 @@
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::chem::Molecule;
+import tt::math::linalg::Matrix;
+import tt::math::Math;
+import tt::lang::Double;
+import tt::lang::Integer;
+import tt::io::IO;
+import tt::chem::RHFMatrix;
+import tt::chem::RHFIntegrals;
+import tt::chem::RHFDiag;
+
+public class RHF {
+    public Molecule molecule;
+    public int basisSize;
+    public int maxIterations;
+    public double convergenceThreshold;
+    public double nuclearRepulsion;
+    public ArrayList<ArrayList<double>> overlapMatrix;
+    public ArrayList<ArrayList<double>> coreHamiltonian;
+    public ArrayList<ArrayList<double>> densityMatrix;
+    public ArrayList<ArrayList<double>> fock;
+    public ArrayList<double> orbitalEnergies;
+    public double totalEnergy;
+    public bool converged;
+    public int iterations;
+
+    fn init(mol: Molecule, basis: int) {
+        this.molecule = mol;
+        this.basisSize = basis;
+        this.maxIterations = 100;
+        this.convergenceThreshold = 1e-6;
+        this.totalEnergy = 0.0;
+        this.converged = false;
+        this.iterations = 0;
+        this.orbitalEnergies = new ArrayList<double>();
+        this.nuclearRepulsion = this.computeNuclearRepulsion();
+        this.overlapMatrix = buildOverlapMatrix(this);
+        this.coreHamiltonian = buildCoreHamiltonian(this);
+        this.densityMatrix = makeZeroMatrix(basis);
+        this.fock = makeZeroMatrix(basis);
+    }
+
+    // Compute nuclear repulsion energy: sum_{i<j} Z_i * Z_j / R_ij
+    public fn computeNuclearRepulsion(): double {
+        var enuc: double = 0.0;
+        let n: int = this.molecule.atomCount();
+        var i: int = 0;
+        while (i < n) {
+            var j: int = i + 1;
+            while (j < n) {
+                let a1: Atom = this.molecule.getAtom(i);
+                let a2: Atom = this.molecule.getAtom(j);
+                var r: double = a1.distanceTo(a2);
+                if (r < 1e-10) { r = 1e-10; }
+                let z1: double = a1.atomicNumber as double;
+                let z2: double = a2.atomicNumber as double;
+                enuc = enuc + z1 * z2 / r;
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return enuc;
+    }
+
+    // Count total number of electrons in the molecule
+    public fn totalElectrons(): int {
+        var nelec: int = 0;
+        var i: int = 0;
+        while (i < this.molecule.atomCount()) {
+            nelec = nelec + this.molecule.getAtom(i).atomicNumber;
+            i = i + 1;
+        }
+        return nelec;
+    }
+
+    // Run the SCF computation
+    public fn compute(): double {
+        let n: int = this.basisSize;
+        let nElectrons: int = this.totalElectrons();
+        var nOcc: int = nElectrons / 2; // Number of occupied orbitals (RHF: 2 electrons per orbital)
+        if (nOcc > n) { nOcc = n; }
+        if (nOcc < 1) { nOcc = 1; }
+
+        // Compute S^{-1/2} for orthogonalization
+        let sinvHalf: Matrix = computeSInverseHalf(this);
+
+        // Initial Fock matrix is just the core Hamiltonian
+        this.fock = copyMatrix(this, this.coreHamiltonian);
+
+        var iter: int = 0;
+        while (iter < this.maxIterations) {
+            // Transform Fock matrix to orthogonal basis: F' = S^{-1/2} * F * S^{-1/2}
+            let F: Matrix = toMatrix(this, this.fock);
+            let Fprime: Matrix = sinvHalf.mul(F).mul(sinvHalf);
+
+            // Diagonalize F' to get orbital energies and coefficients
+            let (Cprime, eigenvals): (Matrix, ArrayList<double>) = jacobiDiagonalize(this, Fprime);
+
+            // Transform coefficients back: C = S^{-1/2} * C'
+            let C: Matrix = sinvHalf.mul(Cprime);
+
+            // Store orbital energies
+            this.orbitalEnergies = eigenvals;
+
+            // Build new density matrix from occupied orbitals
+            let newDensity: ArrayList<ArrayList<double>> = makeZeroMatrix(n);
+            var i: int = 0;
+            while (i < n) {
+                var j: int = 0;
+                while (j <= i) {
+                    var pval: double = 0.0;
+                    var k: int = 0;
+                    while (k < nOcc) {
+                        // P_ij = 2 * sum_{k occ} C_ik * C_jk
+                        pval = pval + 2.0 * C.get(i, k) * C.get(j, k);
+                        k = k + 1;
+                    }
+                    newDensity.get(i).set(j, pval);
+                    newDensity.get(j).set(i, pval);
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+
+            // Check convergence: max change in density matrix
+            var maxDelta: double = 0.0;
+            i = 0;
+            while (i < n) {
+                j = 0;
+                while (j < n) {
+                    let delta: double = Math.abs(newDensity.get(i).get(j) - this.densityMatrix.get(i).get(j));
+                    if (delta > maxDelta) {
+                        maxDelta = delta;
+                    }
+                    j = j + 1;
+                }
+                i = i + 1;
+            }
+
+            // Update density matrix
+            this.densityMatrix = newDensity;
+
+            // Build new Fock matrix
+            this.fock = buildFockMatrix(this);
+
+            this.iterations = iter + 1;
+
+            if (maxDelta < this.convergenceThreshold) {
+                this.converged = true;
+                break;
+            }
+
+            iter = iter + 1;
+        }
+
+        // Compute total energy: E = 0.5 * sum_{ij} P_ij * (H_ij + F_ij) + E_nuc
+        var eElec: double = 0.0;
+        i = 0;
+        while (i < n) {
+            var j: int = 0;
+            while (j < n) {
+                eElec = eElec + this.densityMatrix.get(i).get(j) * (this.coreHamiltonian.get(i).get(j) + this.fock.get(i).get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        eElec = eElec * 0.5;
+        this.totalEnergy = eElec + this.nuclearRepulsion;
+        return this.totalEnergy;
+    }
+
+    // Return the Fock matrix
+    public fn fockMatrix(): ArrayList<ArrayList<double>> {
+        return this.fock;
+    }
+
+    // Return the density matrix
+    public fn getDensityMatrix(): ArrayList<ArrayList<double>> {
+        return this.densityMatrix;
+    }
+
+    // Return the orbital energies
+    public fn getOrbitalEnergies(): ArrayList<double> {
+        return this.orbitalEnergies;
+    }
+
+    // Return the total energy
+    public fn getTotalEnergy(): double {
+        return this.totalEnergy;
+    }
+
+    // Return convergence status
+    public fn isConverged(): bool {
+        return this.converged;
+    }
+
+    // Return number of iterations used
+    public fn getIterations(): int {
+        return this.iterations;
+    }
+}
