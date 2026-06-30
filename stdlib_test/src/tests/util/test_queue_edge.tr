@@ -1,0 +1,106 @@
+// Edge case tests for Queue.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::util::Queue;
+import tt::lang::Integer;
+
+// Test empty queue operations: size, isEmpty, clear.
+public fn test_queue_edge_empty_operations(): void {
+    let q: Queue<int> = new Queue<int>();
+    if (q.size() != 0) {
+        io::println("FAIL: Queue empty size = " + Integer.toString(q.size()));
+    } else if (!q.isEmpty()) {
+        io::println("FAIL: Queue empty not isEmpty");
+    } else {
+        io::println("PASS: Queue empty size/isEmpty");
+    }
+    q.clear();
+    if (q.size() != 0 || !q.isEmpty()) {
+        io::println("FAIL: Queue clear on empty");
+    } else {
+        io::println("PASS: Queue clear on empty");
+    }
+}
+
+// Test single enqueue/dequeue returns same element and empties queue.
+public fn test_queue_edge_single_enq_deq(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(7);
+    if (q.size() != 1 || q.isEmpty()) {
+        io::println("FAIL: Queue single enqueue size");
+    } else {
+        io::println("PASS: Queue single enqueue size");
+    }
+    let v: int = q.dequeue();
+    if (v != 7 || !q.isEmpty()) {
+        io::println("FAIL: Queue single dequeue value/empty");
+    } else {
+        io::println("PASS: Queue single enqueue/dequeue");
+    }
+}
+
+// Test dequeue on empty queue is handled safely (caught, no crash).
+public fn test_queue_edge_dequeue_empty_safe(): void {
+    let q: Queue<int> = new Queue<int>();
+    let caught: bool = false;
+    try {
+        q.dequeue();
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: Queue dequeue on empty throws safely");
+    } else {
+        if (q.size() != 0) {
+            io::println("FAIL: Queue dequeue empty corrupted size");
+        } else {
+            io::println("PASS: Queue dequeue on empty no throw");
+        }
+    }
+}
+
+// Test FIFO order is preserved across multiple enqueue/dequeue.
+public fn test_queue_edge_fifo_order(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(10);
+    q.enqueue(20);
+    q.enqueue(30);
+    let a: int = q.dequeue();
+    let b: int = q.dequeue();
+    let c: int = q.dequeue();
+    if (a != 10 || b != 20 || c != 30) {
+        io::println("FAIL: Queue FIFO order");
+    } else if (!q.isEmpty()) {
+        io::println("FAIL: Queue not empty after dequeues");
+    } else {
+        io::println("PASS: Queue FIFO order");
+    }
+}
+
+// Test size tracking through enqueue, dequeue, and clear cycle.
+public fn test_queue_edge_size_cycle(): void {
+    let q: Queue<int> = new Queue<int>();
+    q.enqueue(1);
+    q.enqueue(2);
+    q.dequeue();
+    q.enqueue(3);
+    if (q.size() != 2) {
+        io::println("FAIL: Queue size cycle = " + Integer.toString(q.size()));
+    } else {
+        io::println("PASS: Queue size tracking through cycle");
+    }
+    q.clear();
+    if (q.size() != 0) {
+        io::println("FAIL: Queue size after clear = " + Integer.toString(q.size()));
+    } else {
+        io::println("PASS: Queue size after clear");
+    }
+}
+
+public fn run_all_queue_edge_tests(): void {
+    io::println("=== Queue.tr Edge Tests ===");
+    test_queue_edge_empty_operations();
+    test_queue_edge_single_enq_deq();
+    test_queue_edge_dequeue_empty_safe();
+    test_queue_edge_fifo_order();
+    test_queue_edge_size_cycle();
+}
