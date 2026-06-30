@@ -1,0 +1,166 @@
+// RestrictionEnzyme.tr — Restriction enzyme database and digest simulation
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+var _enzymeCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _enzymeLoaded: bool = false;
+var _enzymeMap: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _enzymeMapBuilt: bool = false;
+
+fn _ensureEnzymeLoaded(): void {
+    if (_enzymeLoaded) { return; }
+    let data: JsonValue = DataFile.load("bio/restriction_enzymes.json");
+    if (!data.isNull()) {
+        _enzymeCache.put("root", data);
+    }
+    _enzymeLoaded = true;
+}
+
+fn _ensureEnzymeMapBuilt(): void {
+    if (_enzymeMapBuilt) { return; }
+    _ensureEnzymeLoaded();
+    let root: JsonValue = _enzymeCache.get("root");
+    if (root.isNull()) { return; }
+    let enzymes: JsonValue = root.get("enzymes");
+    if (enzymes.isNull()) { return; }
+    let keys: ArrayList<string> = enzymes.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let name: string = keys.get(i);
+        let entry: JsonValue = enzymes.get(name);
+        _enzymeMap.put(name, entry);
+        i = i + 1;
+    }
+    _enzymeMapBuilt = true;
+}
+
+public class RestrictionEnzyme {
+    public string name;
+    public string recognitionSite;
+    public int cutTop;
+    public int cutBottom;
+    public string enzymeType;
+
+    public fn init(n: string, site: string, ct: int, cb: int, t: string) {
+        this.name = n;
+        this.recognitionSite = site;
+        this.cutTop = ct;
+        this.cutBottom = cb;
+        this.enzymeType = t;
+    }
+}
+
+public fn getEnzyme(name: string): RestrictionEnzyme {
+    _ensureEnzymeMapBuilt();
+    if (!_enzymeMap.containsKey(name)) {
+        return new RestrictionEnzyme("", "", 0, 0, "");
+    }
+    let entry: JsonValue = _enzymeMap.get(name);
+    let site: string = entry.get("recognition_sequence").asString();
+    let ct: int = entry.get("cut_top").asNumber() as int;
+    let cb: int = entry.get("cut_bottom").asNumber() as int;
+    let t: string = entry.get("type").asString();
+    return new RestrictionEnzyme(name, site, ct, cb, t);
+}
+
+public fn availableEnzymes(): ArrayList<string> {
+    _ensureEnzymeMapBuilt();
+    return _enzymeMap.keys();
+}
+
+public fn findCutSites(dna: string, enzymeName: string): ArrayList<int> {
+    let enzyme: RestrictionEnzyme = getEnzyme(enzymeName);
+    if (String.length(enzyme.recognitionSite) == 0) {
+        return new ArrayList<int>();
+    }
+    let sites: ArrayList<int> = new ArrayList<int>();
+    let site: string = enzyme.recognitionSite;
+    let siteLen: int = String.length(site);
+    var pos: int = 0;
+    while (pos + siteLen <= String.length(dna)) {
+        let sub: string = String.substring(dna, pos, pos + siteLen);
+        if (_matchesSite(sub, site)) {
+            sites.add(pos);
+        }
+        pos = pos + 1;
+    }
+    return sites;
+}
+
+fn _matchesSite(dna: string, site: string): bool {
+    if (String.length(dna) != String.length(site)) { return false; }
+    var i: int = 0;
+    while (i < String.length(site)) {
+        let d: string = String.charAt(dna, i);
+        let s: string = String.charAt(site, i);
+        if (!_baseMatches(d, s)) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn _baseMatches(dna: string, site: string): bool {
+    if (dna == site) { return true; }
+    if (site == "N") { return true; }
+    if (site == "R" && (dna == "A" || dna == "G")) { return true; }
+    if (site == "Y" && (dna == "C" || dna == "T")) { return true; }
+    if (site == "S" && (dna == "G" || dna == "C")) { return true; }
+    if (site == "W" && (dna == "A" || dna == "T")) { return true; }
+    if (site == "K" && (dna == "G" || dna == "T")) { return true; }
+    if (site == "M" && (dna == "A" || dna == "C")) { return true; }
+    if (site == "B" && dna != "A") { return true; }
+    if (site == "D" && dna != "C") { return true; }
+    if (site == "H" && dna != "G") { return true; }
+    if (site == "V" && dna != "T") { return true; }
+    return false;
+}
+
+public fn digest(dna: string, enzymeName: string): ArrayList<string> {
+    let sites: ArrayList<int> = findCutSites(dna, enzymeName);
+    let enzyme: RestrictionEnzyme = getEnzyme(enzymeName);
+    let fragments: ArrayList<string> = new ArrayList<string>();
+    if (sites.size() == 0) {
+        fragments.add(dna);
+        return fragments;
+    }
+    var prev: int = 0;
+    var i: int = 0;
+    while (i < sites.size()) {
+        let cutPos: int = sites.get(i) + enzyme.cutTop;
+        if (cutPos > prev && cutPos <= String.length(dna)) {
+            fragments.add(String.substring(dna, prev, cutPos));
+            prev = cutPos;
+        }
+        i = i + 1;
+    }
+    if (prev < String.length(dna)) {
+        fragments.add(String.substring(dna, prev, String.length(dna)));
+    }
+    return fragments;
+}
+
+public fn multiDigest(dna: string, enzymeNames: ArrayList<string>): ArrayList<string> {
+    let current: ArrayList<string> = new ArrayList<string>();
+    current.add(dna);
+    var e: int = 0;
+    while (e < enzymeNames.size()) {
+        let nextFragments: ArrayList<string> = new ArrayList<string>();
+        var f: int = 0;
+        while (f < current.size()) {
+            let subFrags: ArrayList<string> = digest(current.get(f), enzymeNames.get(e));
+            var s: int = 0;
+            while (s < subFrags.size()) {
+                nextFragments.add(subFrags.get(s));
+                s = s + 1;
+            }
+            f = f + 1;
+        }
+        current = nextFragments;
+        e = e + 1;
+    }
+    return current;
+}
