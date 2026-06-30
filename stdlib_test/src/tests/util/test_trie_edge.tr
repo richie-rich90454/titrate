@@ -1,0 +1,81 @@
+// Edge case tests for Trie.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::util::Trie;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_trie_edge_empty(): void {
+    let trie: Trie = new Trie();
+    if (trie.isEmpty() && trie.size() == 0 && !trie.search("anything")) {
+        io::println("PASS: Trie empty");
+    } else {
+        io::println("FAIL: Trie empty");
+    }
+}
+
+public fn test_trie_edge_single_word(): void {
+    let trie: Trie = new Trie();
+    trie.insert("hello");
+    if (trie.search("hello") && !trie.search("hell") && !trie.search("helloo") && trie.size() == 1) {
+        io::println("PASS: Trie single word insert/search");
+    } else {
+        io::println("FAIL: Trie single word insert/search");
+    }
+}
+
+public fn test_trie_edge_prefix_search(): void {
+    let trie: Trie = new Trie();
+    trie.insert("car");
+    trie.insert("card");
+    trie.insert("care");
+    let results: ArrayList<string> = trie.autoComplete("car");
+    if (results.size() == 3) {
+        io::println("PASS: Trie prefix search");
+    } else {
+        io::println("FAIL: Trie prefix search size=" + Integer.toString(results.size()));
+    }
+}
+
+public fn test_trie_edge_startsWith_empty_trie(): void {
+    let trie: Trie = new Trie();
+    if (!trie.startsWith("a") && !trie.startsWith("abc")) {
+        io::println("PASS: Trie startsWith on empty trie");
+    } else {
+        io::println("FAIL: Trie startsWith on empty trie");
+    }
+}
+
+public fn test_trie_edge_startsWith_empty_prefix(): void {
+    let trie: Trie = new Trie();
+    trie.insert("word");
+    if (trie.startsWith("")) {
+        io::println("PASS: Trie startsWith empty prefix");
+    } else {
+        io::println("FAIL: Trie startsWith empty prefix");
+    }
+}
+
+public fn test_trie_edge_search_empty_string(): void {
+    let trie: Trie = new Trie();
+    if (!trie.search("")) {
+        io::println("PASS: Trie search empty string returns false");
+    } else {
+        io::println("FAIL: Trie search empty string");
+    }
+    trie.insert("");
+    if (trie.search("")) {
+        io::println("PASS: Trie search empty after insert");
+    } else {
+        io::println("FAIL: Trie search empty after insert");
+    }
+}
+
+public fn run_all_trie_edge_tests(): void {
+    io::println("=== Trie.tr Edge Case Tests ===");
+    test_trie_edge_empty();
+    test_trie_edge_single_word();
+    test_trie_edge_prefix_search();
+    test_trie_edge_startsWith_empty_trie();
+    test_trie_edge_startsWith_empty_prefix();
+    test_trie_edge_search_empty_string();
+}
