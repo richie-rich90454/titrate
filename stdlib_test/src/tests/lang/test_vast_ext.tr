@@ -1,0 +1,278 @@
+// Test file for lang/VastExt.tr
+// Exercises string-based arbitrary-precision integer arithmetic:
+// vastAdd, vastSub, vastMul, vastDiv, vastMod, vastGcd, vastLcm,
+// factorial, vastFactorial, vastIsProbablePrime, vastShiftLeft,
+// vastShiftRight, vastBitLength, vastToByteArray.
+import tt::lang::VastExt;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_vastext_add(): void {
+    let result: string = VastExt.vastAdd("123", "456");
+    if (result != "579") {
+        io::println("FAIL: VastExt.vastAdd = " + result);
+    } else {
+        io::println("PASS: VastExt.vastAdd works");
+    }
+}
+
+public fn test_vastext_add_carry(): void {
+    let result: string = VastExt.vastAdd("999", "1");
+    if (result != "1000") {
+        io::println("FAIL: VastExt.vastAdd carry = " + result);
+    } else {
+        io::println("PASS: VastExt.vastAdd carry works");
+    }
+}
+
+public fn test_vastext_add_large(): void {
+    // Numbers beyond long range
+    let result: string = VastExt.vastAdd("99999999999999999999", "1");
+    if (result != "100000000000000000000") {
+        io::println("FAIL: VastExt.vastAdd large = " + result);
+    } else {
+        io::println("PASS: VastExt.vastAdd large works");
+    }
+}
+
+public fn test_vastext_add_negative(): void {
+    let result: string = VastExt.vastAdd("-10", "20");
+    if (result != "10") {
+        io::println("FAIL: VastExt.vastAdd negative = " + result);
+    } else {
+        io::println("PASS: VastExt.vastAdd negative works");
+    }
+}
+
+public fn test_vastext_sub(): void {
+    let result: string = VastExt.vastSub("579", "456");
+    if (result != "123") {
+        io::println("FAIL: VastExt.vastSub = " + result);
+    } else {
+        io::println("PASS: VastExt.vastSub works");
+    }
+}
+
+public fn test_vastext_sub_negative_result(): void {
+    let result: string = VastExt.vastSub("10", "20");
+    if (result != "-10") {
+        io::println("FAIL: VastExt.vastSub negative = " + result);
+    } else {
+        io::println("PASS: VastExt.vastSub negative works");
+    }
+}
+
+public fn test_vastext_mul(): void {
+    let result: string = VastExt.vastMul("12", "34");
+    if (result != "408") {
+        io::println("FAIL: VastExt.vastMul = " + result);
+    } else {
+        io::println("PASS: VastExt.vastMul works");
+    }
+}
+
+public fn test_vastext_mul_large(): void {
+    let result: string = VastExt.vastMul("9999999999", "9999999999");
+    if (result != "99999999980000000001") {
+        io::println("FAIL: VastExt.vastMul large = " + result);
+    } else {
+        io::println("PASS: VastExt.vastMul large works");
+    }
+}
+
+public fn test_vastext_mul_zero(): void {
+    let result: string = VastExt.vastMul("0", "123");
+    if (result != "0") {
+        io::println("FAIL: VastExt.vastMul zero = " + result);
+    } else {
+        io::println("PASS: VastExt.vastMul zero works");
+    }
+}
+
+public fn test_vastext_div(): void {
+    let result: string = VastExt.vastDiv("408", "12");
+    if (result != "34") {
+        io::println("FAIL: VastExt.vastDiv = " + result);
+    } else {
+        io::println("PASS: VastExt.vastDiv works");
+    }
+}
+
+public fn test_vastext_mod(): void {
+    let result: string = VastExt.vastMod("410", "12");
+    if (result != "2") {
+        io::println("FAIL: VastExt.vastMod = " + result);
+    } else {
+        io::println("PASS: VastExt.vastMod works");
+    }
+}
+
+public fn test_vastext_gcd(): void {
+    let result: string = VastExt.vastGcd("12", "8");
+    if (result != "4") {
+        io::println("FAIL: VastExt.vastGcd = " + result);
+    } else {
+        io::println("PASS: VastExt.vastGcd works");
+    }
+}
+
+public fn test_vastext_lcm(): void {
+    let result: string = VastExt.vastLcm("4", "6");
+    if (result != "12") {
+        io::println("FAIL: VastExt.vastLcm = " + result);
+    } else {
+        io::println("PASS: VastExt.vastLcm works");
+    }
+}
+
+public fn test_vastext_factorial(): void {
+    let result: vast = VastExt.factorial(5);
+    if (result != 120) {
+        io::println("FAIL: VastExt.factorial(5)");
+    } else {
+        io::println("PASS: VastExt.factorial(5) works");
+    }
+}
+
+public fn test_vastext_vastFactorial(): void {
+    let result: string = VastExt.vastFactorial(5);
+    if (result != "120") {
+        io::println("FAIL: VastExt.vastFactorial(5) = " + result);
+    } else {
+        io::println("PASS: VastExt.vastFactorial(5) works");
+    }
+}
+
+public fn test_vastext_vastFactorial_large(): void {
+    // 20! = 2432902008176640000 (within long range)
+    let result: string = VastExt.vastFactorial(20);
+    if (result != "2432902008176640000") {
+        io::println("FAIL: VastExt.vastFactorial(20) = " + result);
+    } else {
+        io::println("PASS: VastExt.vastFactorial(20) works");
+    }
+}
+
+public fn test_vastext_isProbablePrime_true(): void {
+    let result: bool = VastExt.vastIsProbablePrime("7", 5);
+    if (!result) {
+        io::println("FAIL: VastExt.vastIsProbablePrime(7) false");
+    } else {
+        io::println("PASS: VastExt.vastIsProbablePrime(7) works");
+    }
+}
+
+public fn test_vastext_isProbablePrime_false(): void {
+    let result: bool = VastExt.vastIsProbablePrime("4", 5);
+    if (result) {
+        io::println("FAIL: VastExt.vastIsProbablePrime(4) true");
+    } else {
+        io::println("PASS: VastExt.vastIsProbablePrime(4) works");
+    }
+}
+
+public fn test_vastext_isProbablePrime_two(): void {
+    let result: bool = VastExt.vastIsProbablePrime("2", 5);
+    if (!result) {
+        io::println("FAIL: VastExt.vastIsProbablePrime(2) false");
+    } else {
+        io::println("PASS: VastExt.vastIsProbablePrime(2) works");
+    }
+}
+
+public fn test_vastext_shiftLeft(): void {
+    let result: string = VastExt.vastShiftLeft("1", 3);
+    if (result != "8") {
+        io::println("FAIL: VastExt.vastShiftLeft(1,3) = " + result);
+    } else {
+        io::println("PASS: VastExt.vastShiftLeft works");
+    }
+}
+
+public fn test_vastext_shiftRight(): void {
+    let result: string = VastExt.vastShiftRight("8", 3);
+    if (result != "1") {
+        io::println("FAIL: VastExt.vastShiftRight(8,3) = " + result);
+    } else {
+        io::println("PASS: VastExt.vastShiftRight works");
+    }
+}
+
+public fn test_vastext_bitLength(): void {
+    let result: int = VastExt.vastBitLength("7");
+    // 7 = 0b111 -> 3 bits
+    if (result != 3) {
+        io::println("FAIL: VastExt.vastBitLength(7) = " + Integer.toString(result));
+    } else {
+        io::println("PASS: VastExt.vastBitLength works");
+    }
+}
+
+public fn test_vastext_bitLength_zero(): void {
+    let result: int = VastExt.vastBitLength("0");
+    if (result != 0) {
+        io::println("FAIL: VastExt.vastBitLength(0) = " + Integer.toString(result));
+    } else {
+        io::println("PASS: VastExt.vastBitLength(0) works");
+    }
+}
+
+public fn test_vastext_toByteArray(): void {
+    let result: ArrayList<int> = VastExt.vastToByteArray("256");
+    // 256 = 0x0100 -> [1, 0] in big-endian
+    if (result.size() != 2 || result.get(0) != 1 || result.get(1) != 0) {
+        io::println("FAIL: VastExt.vastToByteArray(256)");
+    } else {
+        io::println("PASS: VastExt.vastToByteArray(256) works");
+    }
+}
+
+public fn test_vastext_toByteArray_zero(): void {
+    let result: ArrayList<int> = VastExt.vastToByteArray("0");
+    if (result.size() != 1 || result.get(0) != 0) {
+        io::println("FAIL: VastExt.vastToByteArray(0)");
+    } else {
+        io::println("PASS: VastExt.vastToByteArray(0) works");
+    }
+}
+
+public fn test_vastext_add_sub_inverse(): void {
+    // (a + b) - b == a
+    let sum: string = VastExt.vastAdd("123456789", "987654321");
+    let back: string = VastExt.vastSub(sum, "987654321");
+    if (back != "123456789") {
+        io::println("FAIL: VastExt add/sub inverse = " + back);
+    } else {
+        io::println("PASS: VastExt add/sub inverse works");
+    }
+}
+
+public fn run_all_vast_ext_tests(): void {
+    io::println("=== lang/VastExt.tr Tests ===");
+    test_vastext_add();
+    test_vastext_add_carry();
+    test_vastext_add_large();
+    test_vastext_add_negative();
+    test_vastext_sub();
+    test_vastext_sub_negative_result();
+    test_vastext_mul();
+    test_vastext_mul_large();
+    test_vastext_mul_zero();
+    test_vastext_div();
+    test_vastext_mod();
+    test_vastext_gcd();
+    test_vastext_lcm();
+    test_vastext_factorial();
+    test_vastext_vastFactorial();
+    test_vastext_vastFactorial_large();
+    test_vastext_isProbablePrime_true();
+    test_vastext_isProbablePrime_false();
+    test_vastext_isProbablePrime_two();
+    test_vastext_shiftLeft();
+    test_vastext_shiftRight();
+    test_vastext_bitLength();
+    test_vastext_bitLength_zero();
+    test_vastext_toByteArray();
+    test_vastext_toByteArray_zero();
+    test_vastext_add_sub_inverse();
+}

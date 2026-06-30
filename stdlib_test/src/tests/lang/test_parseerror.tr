@@ -1,0 +1,109 @@
+// Test file for lang/ParseError.tr
+// Exercises the ParseError enum: InvalidFormat(string), Overflow(string), EmptyInput.
+import tt::lang::ParseError;
+
+public fn test_parseerror_invalidFormat(): void {
+    let e: ParseError = ParseError::InvalidFormat("bad number");
+    if (e == null) {
+        io::println("FAIL: ParseError.InvalidFormat null");
+    } else {
+        io::println("PASS: ParseError.InvalidFormat works");
+    }
+}
+
+public fn test_parseerror_overflow(): void {
+    let e: ParseError = ParseError::Overflow("too big");
+    if (e == null) {
+        io::println("FAIL: ParseError.Overflow null");
+    } else {
+        io::println("PASS: ParseError.Overflow works");
+    }
+}
+
+public fn test_parseerror_emptyInput(): void {
+    let e: ParseError = ParseError::EmptyInput;
+    if (e == null) {
+        io::println("FAIL: ParseError.EmptyInput null");
+    } else {
+        io::println("PASS: ParseError.EmptyInput works");
+    }
+}
+
+public fn test_parseerror_match_invalidFormat(): void {
+    let e: ParseError = ParseError::InvalidFormat("bad");
+    let matched: string = "";
+    switch (e) {
+        case InvalidFormat(msg) => matched = "invalid";
+        case Overflow(msg) => matched = "overflow";
+        case EmptyInput => matched = "empty";
+        case _ => matched = "unknown";
+    }
+    if (matched != "invalid") {
+        io::println("FAIL: ParseError match InvalidFormat = " + matched);
+    } else {
+        io::println("PASS: ParseError match InvalidFormat works");
+    }
+}
+
+public fn test_parseerror_match_overflow(): void {
+    let e: ParseError = ParseError::Overflow("big");
+    let matched: string = "";
+    switch (e) {
+        case InvalidFormat(msg) => matched = "invalid";
+        case Overflow(msg) => matched = "overflow";
+        case EmptyInput => matched = "empty";
+        case _ => matched = "unknown";
+    }
+    if (matched != "overflow") {
+        io::println("FAIL: ParseError match Overflow = " + matched);
+    } else {
+        io::println("PASS: ParseError match Overflow works");
+    }
+}
+
+public fn test_parseerror_match_emptyInput(): void {
+    let e: ParseError = ParseError::EmptyInput;
+    let matched: string = "";
+    switch (e) {
+        case InvalidFormat(msg) => matched = "invalid";
+        case Overflow(msg) => matched = "overflow";
+        case EmptyInput => matched = "empty";
+        case _ => matched = "unknown";
+    }
+    if (matched != "empty") {
+        io::println("FAIL: ParseError match EmptyInput = " + matched);
+    } else {
+        io::println("PASS: ParseError match EmptyInput works");
+    }
+}
+
+public fn test_parseerror_equality(): void {
+    let e1: ParseError = ParseError::EmptyInput;
+    let e2: ParseError = ParseError::EmptyInput;
+    if (e1 != e2) {
+        io::println("FAIL: ParseError equality EmptyInput");
+    } else {
+        io::println("PASS: ParseError equality EmptyInput works");
+    }
+}
+
+public fn test_parseerror_is_check(): void {
+    let e: ParseError = ParseError::InvalidFormat("x");
+    if (!(e is ParseError)) {
+        io::println("FAIL: ParseError is check");
+    } else {
+        io::println("PASS: ParseError is check works");
+    }
+}
+
+public fn run_all_parseerror_tests(): void {
+    io::println("=== lang/ParseError.tr Tests ===");
+    test_parseerror_invalidFormat();
+    test_parseerror_overflow();
+    test_parseerror_emptyInput();
+    test_parseerror_match_invalidFormat();
+    test_parseerror_match_overflow();
+    test_parseerror_match_emptyInput();
+    test_parseerror_equality();
+    test_parseerror_is_check();
+}

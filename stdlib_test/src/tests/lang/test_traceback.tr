@@ -1,0 +1,150 @@
+// Test file for lang/Traceback.tr
+// Exercises Frame class, format, formatFrame, extract, and formatException.
+import tt::lang::Traceback;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_traceback_frame_construct(): void {
+    let f: Frame = new Frame("myFunc", "myFile.tr", 42);
+    if (f == null) {
+        io::println("FAIL: Frame null");
+    } else if (f.functionName != "myFunc" || f.fileName != "myFile.tr" || f.lineNumber != 42) {
+        io::println("FAIL: Frame fields wrong");
+    } else {
+        io::println("PASS: Frame construction works");
+    }
+}
+
+public fn test_traceback_frame_toString(): void {
+    let f: Frame = new Frame("doThing", "app.tr", 10);
+    let s: string = f.toString();
+    if (s != "  at doThing (app.tr:10)") {
+        io::println("FAIL: Frame.toString = " + s);
+    } else {
+        io::println("PASS: Frame.toString works");
+    }
+}
+
+public fn test_traceback_formatFrame(): void {
+    let f: Frame = new Frame("helper", "util.tr", 99);
+    let s: string = Traceback.formatFrame(f);
+    if (s != "  at helper (util.tr:99)") {
+        io::println("FAIL: Traceback.formatFrame = " + s);
+    } else {
+        io::println("PASS: Traceback.formatFrame works");
+    }
+}
+
+public fn test_traceback_format_single(): void {
+    let frames: ArrayList<Frame> = new ArrayList<Frame>();
+    frames.add(new Frame("main", "main.tr", 1));
+    let s: string = Traceback.format(frames);
+    if (s != "  at main (main.tr:1)") {
+        io::println("FAIL: Traceback.format single = " + s);
+    } else {
+        io::println("PASS: Traceback.format single works");
+    }
+}
+
+public fn test_traceback_format_multiple(): void {
+    let frames: ArrayList<Frame> = new ArrayList<Frame>();
+    frames.add(new Frame("main", "main.tr", 1));
+    frames.add(new Frame("helper", "util.tr", 5));
+    frames.add(new Frame("deep", "lib.tr", 10));
+    let s: string = Traceback.format(frames);
+    // Should contain all three frames separated by newlines
+    if (String.indexOf(s, "main") < 0 || String.indexOf(s, "helper") < 0 || String.indexOf(s, "deep") < 0) {
+        io::println("FAIL: Traceback.format multiple missing frames");
+    } else {
+        io::println("PASS: Traceback.format multiple works");
+    }
+}
+
+public fn test_traceback_format_empty(): void {
+    let frames: ArrayList<Frame> = new ArrayList<Frame>();
+    let s: string = Traceback.format(frames);
+    if (s != "") {
+        io::println("FAIL: Traceback.format empty = " + s);
+    } else {
+        io::println("PASS: Traceback.format empty works");
+    }
+}
+
+public fn test_traceback_extract(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    names.add("funcA"); names.add("funcB");
+    let files: ArrayList<string> = new ArrayList<string>();
+    files.add("a.tr"); files.add("b.tr");
+    let lines: ArrayList<int> = new ArrayList<int>();
+    lines.add(10); lines.add(20);
+    let frames: ArrayList<Frame> = Traceback.extract(names, files, lines);
+    if (frames.size() != 2) {
+        io::println("FAIL: Traceback.extract size = " + Integer.toString(frames.size()));
+    } else if (frames.get(0).functionName != "funcA" || frames.get(1).functionName != "funcB") {
+        io::println("FAIL: Traceback.extract names wrong");
+    } else {
+        io::println("PASS: Traceback.extract works");
+    }
+}
+
+public fn test_traceback_extract_empty(): void {
+    let names: ArrayList<string> = new ArrayList<string>();
+    let files: ArrayList<string> = new ArrayList<string>();
+    let lines: ArrayList<int> = new ArrayList<int>();
+    let frames: ArrayList<Frame> = Traceback.extract(names, files, lines);
+    if (frames.size() != 0) {
+        io::println("FAIL: Traceback.extract empty size = " + Integer.toString(frames.size()));
+    } else {
+        io::println("PASS: Traceback.extract empty works");
+    }
+}
+
+public fn test_traceback_formatException(): void {
+    let frames: ArrayList<Frame> = new ArrayList<Frame>();
+    frames.add(new Frame("main", "main.tr", 1));
+    let s: string = Traceback.formatException("something broke", frames);
+    if (String.indexOf(s, "Exception: something broke") < 0) {
+        io::println("FAIL: Traceback.formatException missing message");
+    } else if (String.indexOf(s, "main") < 0) {
+        io::println("FAIL: Traceback.formatException missing frame");
+    } else {
+        io::println("PASS: Traceback.formatException works");
+    }
+}
+
+public fn test_traceback_formatException_no_frames(): void {
+    let frames: ArrayList<Frame> = new ArrayList<Frame>();
+    let s: string = Traceback.formatException("oops", frames);
+    if (s != "Exception: oops\n") {
+        io::println("FAIL: Traceback.formatException no frames = " + s);
+    } else {
+        io::println("PASS: Traceback.formatException no frames works");
+    }
+}
+
+public fn test_traceback_frame_fields_mutable(): void {
+    let f: Frame = new Frame("a", "a.tr", 1);
+    f.functionName = "b";
+    f.fileName = "b.tr";
+    f.lineNumber = 2;
+    if (f.functionName != "b" || f.fileName != "b.tr" || f.lineNumber != 2) {
+        io::println("FAIL: Traceback frame fields mutable");
+    } else {
+        io::println("PASS: Traceback frame fields mutable works");
+    }
+}
+
+public fn run_all_traceback_tests(): void {
+    io::println("=== lang/Traceback.tr Tests ===");
+    test_traceback_frame_construct();
+    test_traceback_frame_toString();
+    test_traceback_formatFrame();
+    test_traceback_format_single();
+    test_traceback_format_multiple();
+    test_traceback_format_empty();
+    test_traceback_extract();
+    test_traceback_extract_empty();
+    test_traceback_formatException();
+    test_traceback_formatException_no_frames();
+    test_traceback_frame_fields_mutable();
+}

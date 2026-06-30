@@ -1,0 +1,155 @@
+// Test file for lang/Float.tr
+// Exercises the Float module: parse, toString, isNaN, isInfinite, parseOr,
+// POSITIVE_INFINITY, NEGATIVE_INFINITY, and NaN.
+import tt::lang::Float;
+
+fn absDiff(a: float, b: float): float {
+    let d: float = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_float_parse(): void {
+    let v: float = Float.parse("3.14");
+    if (absDiff(v, 3.14) > 1e-4) {
+        io::println("FAIL: Float.parse 3.14");
+    } else {
+        io::println("PASS: Float.parse works");
+    }
+}
+
+public fn test_float_parse_integer_string(): void {
+    let v: float = Float.parse("42");
+    if (absDiff(v, 42.0) > 1e-4) {
+        io::println("FAIL: Float.parse 42");
+    } else {
+        io::println("PASS: Float.parse integer string works");
+    }
+}
+
+public fn test_float_parse_negative(): void {
+    let v: float = Float.parse("-1.5");
+    if (absDiff(v, -1.5) > 1e-4) {
+        io::println("FAIL: Float.parse -1.5");
+    } else {
+        io::println("PASS: Float.parse negative works");
+    }
+}
+
+public fn test_float_toString(): void {
+    let s: string = Float.toString(2.5);
+    if (s != "2.5") {
+        io::println("FAIL: Float.toString(2.5) = " + s);
+    } else {
+        io::println("PASS: Float.toString works");
+    }
+}
+
+public fn test_float_isNaN_true(): void {
+    let nan: float = Float.NaN();
+    if (!Float.isNaN(nan)) {
+        io::println("FAIL: Float.isNaN(NaN) = false");
+    } else {
+        io::println("PASS: Float.isNaN(NaN) = true");
+    }
+}
+
+public fn test_float_isNaN_false(): void {
+    if (Float.isNaN(3.14)) {
+        io::println("FAIL: Float.isNaN(3.14) = true");
+    } else {
+        io::println("PASS: Float.isNaN(3.14) = false");
+    }
+}
+
+public fn test_float_isInfinite_positive(): void {
+    let inf: float = Float.POSITIVE_INFINITY();
+    if (!Float.isInfinite(inf)) {
+        io::println("FAIL: Float.isInfinite(+Inf) = false");
+    } else {
+        io::println("PASS: Float.isInfinite(+Inf) = true");
+    }
+}
+
+public fn test_float_isInfinite_negative(): void {
+    let ninf: float = Float.NEGATIVE_INFINITY();
+    if (!Float.isInfinite(ninf)) {
+        io::println("FAIL: Float.isInfinite(-Inf) = false");
+    } else {
+        io::println("PASS: Float.isInfinite(-Inf) = true");
+    }
+}
+
+public fn test_float_isInfinite_finite(): void {
+    if (Float.isInfinite(1.0)) {
+        io::println("FAIL: Float.isInfinite(1.0) = true");
+    } else {
+        io::println("PASS: Float.isInfinite(1.0) = false");
+    }
+}
+
+public fn test_float_parseOr_valid(): void {
+    let v: float = Float.parseOr("2.5", 0.0);
+    if (absDiff(v, 2.5) > 1e-4) {
+        io::println("FAIL: Float.parseOr valid");
+    } else {
+        io::println("PASS: Float.parseOr valid works");
+    }
+}
+
+public fn test_float_parseOr_invalid(): void {
+    // For an unparseable string, parseOr returns the default
+    let v: float = Float.parseOr("not_a_number", 99.0);
+    if (absDiff(v, 99.0) > 1e-4) {
+        io::println("FAIL: Float.parseOr invalid");
+    } else {
+        io::println("PASS: Float.parseOr invalid returns default");
+    }
+}
+
+public fn test_float_positive_infinity_value(): void {
+    let inf: float = Float.POSITIVE_INFINITY();
+    // Infinity is greater than any finite number
+    if (!(inf > 1.0e30)) {
+        io::println("FAIL: Float.POSITIVE_INFINITY not greater than finite");
+    } else {
+        io::println("PASS: Float.POSITIVE_INFINITY works");
+    }
+}
+
+public fn test_float_negative_infinity_value(): void {
+    let ninf: float = Float.NEGATIVE_INFINITY();
+    if (!(ninf < -1.0e30)) {
+        io::println("FAIL: Float.NEGATIVE_INFINITY not less than finite");
+    } else {
+        io::println("PASS: Float.NEGATIVE_INFINITY works");
+    }
+}
+
+public fn test_float_nan_not_equal_to_self(): void {
+    let nan: float = Float.NaN();
+    // NaN is not equal to itself
+    if (nan == nan) {
+        io::println("FAIL: Float NaN equals itself");
+    } else {
+        io::println("PASS: Float NaN not equal to itself");
+    }
+}
+
+public fn run_all_float_tests(): void {
+    io::println("=== lang/Float.tr Tests ===");
+    test_float_parse();
+    test_float_parse_integer_string();
+    test_float_parse_negative();
+    test_float_toString();
+    test_float_isNaN_true();
+    test_float_isNaN_false();
+    test_float_isInfinite_positive();
+    test_float_isInfinite_negative();
+    test_float_isInfinite_finite();
+    test_float_parseOr_valid();
+    test_float_parseOr_invalid();
+    test_float_positive_infinity_value();
+    test_float_negative_infinity_value();
+    test_float_nan_not_equal_to_self();
+}

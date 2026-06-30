@@ -1,0 +1,108 @@
+// Test file for lang/Quad.tr
+// Exercises the Quad module: parse and toString for 128-bit floating point.
+import tt::lang::Quad;
+
+fn absDiffQ(a: quad, b: quad): quad {
+    let d: quad = a - b;
+    if (d < 0.0q) { return -d; }
+    return d;
+}
+
+public fn test_quad_parse_integer(): void {
+    let v: quad = Quad.parse("42");
+    if (v != 42.0q) {
+        io::println("FAIL: Quad.parse(\"42\")");
+    } else {
+        io::println("PASS: Quad.parse(\"42\") works");
+    }
+}
+
+public fn test_quad_parse_decimal(): void {
+    let v: quad = Quad.parse("3.14");
+    if (absDiffQ(v, 3.14q) > 0.0001q) {
+        io::println("FAIL: Quad.parse(\"3.14\")");
+    } else {
+        io::println("PASS: Quad.parse(\"3.14\") works");
+    }
+}
+
+public fn test_quad_parse_negative(): void {
+    let v: quad = Quad.parse("-2.5");
+    if (v != -2.5q) {
+        io::println("FAIL: Quad.parse(\"-2.5\")");
+    } else {
+        io::println("PASS: Quad.parse(\"-2.5\") works");
+    }
+}
+
+public fn test_quad_parse_zero(): void {
+    let v: quad = Quad.parse("0");
+    if (v != 0.0q) {
+        io::println("FAIL: Quad.parse(\"0\")");
+    } else {
+        io::println("PASS: Quad.parse(\"0\") works");
+    }
+}
+
+public fn test_quad_toString(): void {
+    let s: string = Quad.toString(2.5q);
+    if (s != "2.5") {
+        io::println("FAIL: Quad.toString(2.5) = " + s);
+    } else {
+        io::println("PASS: Quad.toString(2.5) works");
+    }
+}
+
+public fn test_quad_toString_integer(): void {
+    let s: string = Quad.toString(42.0q);
+    if (s != "42" && s != "42.0") {
+        io::println("FAIL: Quad.toString(42.0) = " + s);
+    } else {
+        io::println("PASS: Quad.toString(42.0) works");
+    }
+}
+
+public fn test_quad_roundtrip(): void {
+    let original: quad = 3.14159q;
+    let s: string = Quad.toString(original);
+    let parsed: quad = Quad.parse(s);
+    if (absDiffQ(original, parsed) > 0.00001q) {
+        io::println("FAIL: Quad roundtrip");
+    } else {
+        io::println("PASS: Quad roundtrip works");
+    }
+}
+
+public fn test_quad_arithmetic(): void {
+    let a: quad = 1.5q;
+    let b: quad = 2.5q;
+    let sum: quad = a + b;
+    if (sum != 4.0q) {
+        io::println("FAIL: Quad arithmetic sum");
+    } else {
+        io::println("PASS: Quad arithmetic works");
+    }
+}
+
+public fn test_quad_precision(): void {
+    // Quad has more precision than double; a small value should parse
+    let v: quad = Quad.parse("0.1");
+    if (v == 0.0q) {
+        io::println("FAIL: Quad precision 0.1 is zero");
+    } else {
+        io::println("PASS: Quad precision works");
+    }
+}
+
+public fn run_all_quad_tests(): void {
+    io::println("=== lang/Quad.tr Tests ===");
+    test_quad_parse_integer();
+    test_quad_parse_decimal();
+    test_quad_parse_negative();
+    test_quad_parse_zero();
+    test_quad_toString();
+    test_quad_toString_integer();
+    test_quad_roundtrip();
+    test_quad_arithmetic();
+    test_quad_precision();
+}

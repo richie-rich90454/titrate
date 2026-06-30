@@ -1,0 +1,264 @@
+// Test file for lang/CopyExt.tr
+// Exercises deepCopy, shallowCopy, replace top-level functions and
+// the CopyDispatcher class.
+import tt::lang::CopyExt;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+public fn test_shallow_copy_null(): void {
+    let result: Variant = shallowCopy(null);
+    if (result != null) {
+        io::println("FAIL: shallowCopy null");
+    } else {
+        io::println("PASS: shallowCopy null returns null");
+    }
+}
+
+public fn test_shallow_copy_arraylist(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    let result: Variant = shallowCopy(list);
+    let copied: ArrayList<Variant> = result as ArrayList<Variant>;
+    if (copied.size() != 3) {
+        io::println("FAIL: shallowCopy arraylist size");
+    } else if (copied.get(0) != 1 || copied.get(2) != 3) {
+        io::println("FAIL: shallowCopy arraylist content");
+    } else {
+        // Verify it's a different container
+        list.add(4);
+        if (copied.size() == 4) {
+            io::println("FAIL: shallowCopy arraylist not a copy");
+        } else {
+            io::println("PASS: shallowCopy arraylist works");
+        }
+    }
+}
+
+public fn test_shallow_copy_hashmap(): void {
+    let map: HashMap<string, Variant> = new HashMap<string, Variant>();
+    map.put("a", 1);
+    map.put("b", 2);
+    let result: Variant = shallowCopy(map);
+    let copied: HashMap<string, Variant> = result as HashMap<string, Variant>;
+    if (copied.size() != 2) {
+        io::println("FAIL: shallowCopy hashmap size");
+    } else if (copied.get("a") != 1) {
+        io::println("FAIL: shallowCopy hashmap content");
+    } else {
+        map.put("c", 3);
+        if (copied.size() == 3) {
+            io::println("FAIL: shallowCopy hashmap not a copy");
+        } else {
+            io::println("PASS: shallowCopy hashmap works");
+        }
+    }
+}
+
+public fn test_shallow_copy_primitive(): void {
+    // Primitives are returned as-is
+    let result: Variant = shallowCopy(42);
+    if (result != 42) {
+        io::println("FAIL: shallowCopy primitive");
+    } else {
+        io::println("PASS: shallowCopy primitive returns as-is");
+    }
+}
+
+public fn test_deep_copy_null(): void {
+    let memo: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let result: Variant = deepCopy(null, memo);
+    if (result != null) {
+        io::println("FAIL: deepCopy null");
+    } else {
+        io::println("PASS: deepCopy null returns null");
+    }
+}
+
+public fn test_deep_copy_arraylist(): void {
+    let memo: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let inner: ArrayList<Variant> = new ArrayList<Variant>();
+    inner.add(1);
+    inner.add(2);
+    let outer: ArrayList<Variant> = new ArrayList<Variant>();
+    outer.add(inner);
+    let result: Variant = deepCopy(outer, memo);
+    let copied: ArrayList<Variant> = result as ArrayList<Variant>;
+    if (copied.size() != 1) {
+        io::println("FAIL: deepCopy arraylist outer size");
+    } else {
+        let copiedInner: ArrayList<Variant> = copied.get(0) as ArrayList<Variant>;
+        if (copiedInner.size() != 2) {
+            io::println("FAIL: deepCopy arraylist inner size");
+        } else if (copiedInner.get(0) != 1) {
+            io::println("FAIL: deepCopy arraylist inner content");
+        } else {
+            // Verify deep copy: modify original inner
+            inner.add(3);
+            if (copiedInner.size() == 3) {
+                io::println("FAIL: deepCopy arraylist not deep");
+            } else {
+                io::println("PASS: deepCopy arraylist works");
+            }
+        }
+    }
+}
+
+public fn test_deep_copy_hashmap(): void {
+    let memo: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let map: HashMap<string, Variant> = new HashMap<string, Variant>();
+    map.put("x", 10);
+    map.put("y", 20);
+    let result: Variant = deepCopy(map, memo);
+    let copied: HashMap<string, Variant> = result as HashMap<string, Variant>;
+    if (copied.size() != 2) {
+        io::println("FAIL: deepCopy hashmap size");
+    } else if (copied.get("x") != 10) {
+        io::println("FAIL: deepCopy hashmap content");
+    } else {
+        map.put("z", 30);
+        if (copied.size() == 3) {
+            io::println("FAIL: deepCopy hashmap not deep");
+        } else {
+            io::println("PASS: deepCopy hashmap works");
+        }
+    }
+}
+
+public fn test_deep_copy_primitive(): void {
+    let memo: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let result: Variant = deepCopy(42, memo);
+    if (result != 42) {
+        io::println("FAIL: deepCopy primitive");
+    } else {
+        io::println("PASS: deepCopy primitive returns as-is");
+    }
+}
+
+public fn test_copy_dispatcher_init(): void {
+    let d: CopyDispatcher = new CopyDispatcher();
+    if (d.dispatchers.size() != 0) {
+        io::println("FAIL: CopyDispatcher init dispatchers size");
+    } else {
+        io::println("PASS: CopyDispatcher init works");
+    }
+}
+
+public fn test_copy_dispatcher_register(): void {
+    let d: CopyDispatcher = new CopyDispatcher();
+    let copier: fn(Variant, HashMap): Variant = fn(v: Variant, m: HashMap): Variant { return v; };
+    d.register("MyType", copier);
+    if (!d.dispatchers.containsKey("MyType")) {
+        io::println("FAIL: CopyDispatcher register");
+    } else {
+        io::println("PASS: CopyDispatcher register works");
+    }
+}
+
+public fn test_copy_dispatcher_copy_null(): void {
+    let d: CopyDispatcher = new CopyDispatcher();
+    let memo: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let result: Variant = d.copy(null, memo);
+    if (result != null) {
+        io::println("FAIL: CopyDispatcher copy null");
+    } else {
+        io::println("PASS: CopyDispatcher copy null returns null");
+    }
+}
+
+public fn test_copy_dispatcher_copy_fallback(): void {
+    // Without registered dispatcher, falls back to deepCopy
+    let d: CopyDispatcher = new CopyDispatcher();
+    let memo: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1); list.add(2);
+    let result: Variant = d.copy(list, memo);
+    let copied: ArrayList<Variant> = result as ArrayList<Variant>;
+    if (copied.size() != 2) {
+        io::println("FAIL: CopyDispatcher copy fallback size");
+    } else {
+        io::println("PASS: CopyDispatcher copy fallback works");
+    }
+}
+
+public fn test_replace_null(): void {
+    let changes: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let result: Variant = replace(null, changes);
+    if (result != null) {
+        io::println("FAIL: replace null");
+    } else {
+        io::println("PASS: replace null returns null");
+    }
+}
+
+public fn test_replace_hashmap(): void {
+    let map: HashMap<string, Variant> = new HashMap<string, Variant>();
+    map.put("a", 1);
+    map.put("b", 2);
+    let changes: HashMap<string, Variant> = new HashMap<string, Variant>();
+    changes.put("b", 20);
+    changes.put("c", 30);
+    let result: Variant = replace(map, changes);
+    let replaced: HashMap<string, Variant> = result as HashMap<string, Variant>;
+    if (replaced.size() != 3) {
+        io::println("FAIL: replace hashmap size");
+    } else if (replaced.get("a") != 1) {
+        io::println("FAIL: replace hashmap original");
+    } else if (replaced.get("b") != 20) {
+        io::println("FAIL: replace hashmap override");
+    } else if (replaced.get("c") != 30) {
+        io::println("FAIL: replace hashmap new");
+    } else {
+        io::println("PASS: replace hashmap works");
+    }
+}
+
+public fn test_replace_arraylist(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1); list.add(2); list.add(3);
+    let changes: HashMap<string, Variant> = new HashMap<string, Variant>();
+    changes.put("1", 20);
+    let result: Variant = replace(list, changes);
+    let replaced: ArrayList<Variant> = result as ArrayList<Variant>;
+    if (replaced.size() != 3) {
+        io::println("FAIL: replace arraylist size");
+    } else if (replaced.get(0) != 1) {
+        io::println("FAIL: replace arraylist index 0");
+    } else if (replaced.get(1) != 20) {
+        io::println("FAIL: replace arraylist index 1");
+    } else {
+        io::println("PASS: replace arraylist works");
+    }
+}
+
+public fn test_replace_primitive(): void {
+    let changes: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let result: Variant = replace(42, changes);
+    if (result != 42) {
+        io::println("FAIL: replace primitive");
+    } else {
+        io::println("PASS: replace primitive returns as-is");
+    }
+}
+
+public fn run_all_copy_ext_tests(): void {
+    io::println("=== lang/CopyExt.tr Tests ===");
+    test_shallow_copy_null();
+    test_shallow_copy_arraylist();
+    test_shallow_copy_hashmap();
+    test_shallow_copy_primitive();
+    test_deep_copy_null();
+    test_deep_copy_arraylist();
+    test_deep_copy_hashmap();
+    test_deep_copy_primitive();
+    test_copy_dispatcher_init();
+    test_copy_dispatcher_register();
+    test_copy_dispatcher_copy_null();
+    test_copy_dispatcher_copy_fallback();
+    test_replace_null();
+    test_replace_hashmap();
+    test_replace_arraylist();
+    test_replace_primitive();
+}

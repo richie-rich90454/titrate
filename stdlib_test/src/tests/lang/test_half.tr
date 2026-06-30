@@ -1,0 +1,69 @@
+// Test file for lang/Half.tr
+// Exercises the Half module: parse and toString for half-precision floats.
+import tt::lang::Half;
+
+public fn test_half_parse(): void {
+    let v: half = Half.parse("1.5");
+    if (v != 1.5h) {
+        io::println("FAIL: Half.parse 1.5");
+    } else {
+        io::println("PASS: Half.parse works");
+    }
+}
+
+public fn test_half_parse_integer(): void {
+    let v: half = Half.parse("42");
+    if (v != 42.0h) {
+        io::println("FAIL: Half.parse 42");
+    } else {
+        io::println("PASS: Half.parse integer works");
+    }
+}
+
+public fn test_half_parse_zero(): void {
+    let v: half = Half.parse("0");
+    if (v != 0.0h) {
+        io::println("FAIL: Half.parse 0");
+    } else {
+        io::println("PASS: Half.parse zero works");
+    }
+}
+
+public fn test_half_toString(): void {
+    let s: string = Half.toString(2.5h);
+    if (s != "2.5") {
+        io::println("FAIL: Half.toString(2.5) = " + s);
+    } else {
+        io::println("PASS: Half.toString works");
+    }
+}
+
+public fn test_half_toString_zero(): void {
+    let s: string = Half.toString(0.0h);
+    if (s != "0") {
+        io::println("FAIL: Half.toString(0) = " + s);
+    } else {
+        io::println("PASS: Half.toString zero works");
+    }
+}
+
+public fn test_half_round_trip(): void {
+    let original: half = 3.25h;
+    let s: string = Half.toString(original);
+    let parsed: half = Half.parse(s);
+    if (parsed != original) {
+        io::println("FAIL: Half round trip");
+    } else {
+        io::println("PASS: Half round trip works");
+    }
+}
+
+public fn run_all_half_tests(): void {
+    io::println("=== lang/Half.tr Tests ===");
+    test_half_parse();
+    test_half_parse_integer();
+    test_half_parse_zero();
+    test_half_toString();
+    test_half_toString_zero();
+    test_half_round_trip();
+}

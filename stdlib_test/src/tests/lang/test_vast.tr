@@ -1,0 +1,121 @@
+// Test file for lang/Vast.tr
+// Exercises the Vast module: parse and toString for arbitrary-precision integers.
+import tt::lang::Vast;
+
+public fn test_vast_parse_basic(): void {
+    let v: vast = Vast.parse("42");
+    if (v != 42) {
+        io::println("FAIL: Vast.parse(\"42\")");
+    } else {
+        io::println("PASS: Vast.parse(\"42\") works");
+    }
+}
+
+public fn test_vast_parse_zero(): void {
+    let v: vast = Vast.parse("0");
+    if (v != 0) {
+        io::println("FAIL: Vast.parse(\"0\")");
+    } else {
+        io::println("PASS: Vast.parse(\"0\") works");
+    }
+}
+
+public fn test_vast_parse_negative(): void {
+    let v: vast = Vast.parse("-42");
+    if (v != -42) {
+        io::println("FAIL: Vast.parse(\"-42\")");
+    } else {
+        io::println("PASS: Vast.parse(\"-42\") works");
+    }
+}
+
+public fn test_vast_parse_large(): void {
+    let v: vast = Vast.parse("1000000");
+    if (v != 1000000) {
+        io::println("FAIL: Vast.parse(\"1000000\")");
+    } else {
+        io::println("PASS: Vast.parse(\"1000000\") works");
+    }
+}
+
+public fn test_vast_parse_max_long(): void {
+    let v: vast = Vast.parse("9223372036854775807");
+    if (v != 9223372036854775807) {
+        io::println("FAIL: Vast.parse max long");
+    } else {
+        io::println("PASS: Vast.parse max long works");
+    }
+}
+
+public fn test_vast_parse_min_long(): void {
+    let v: vast = Vast.parse("-9223372036854775808");
+    if (v != -9223372036854775808) {
+        io::println("FAIL: Vast.parse min long");
+    } else {
+        io::println("PASS: Vast.parse min long works");
+    }
+}
+
+public fn test_vast_toString(): void {
+    let s: string = Vast.toString(42 as vast);
+    if (s != "42") {
+        io::println("FAIL: Vast.toString(42) = " + s);
+    } else {
+        io::println("PASS: Vast.toString(42) works");
+    }
+}
+
+public fn test_vast_toString_negative(): void {
+    let s: string = Vast.toString(-42 as vast);
+    if (s != "-42") {
+        io::println("FAIL: Vast.toString(-42) = " + s);
+    } else {
+        io::println("PASS: Vast.toString(-42) works");
+    }
+}
+
+public fn test_vast_toString_zero(): void {
+    let s: string = Vast.toString(0 as vast);
+    if (s != "0") {
+        io::println("FAIL: Vast.toString(0) = " + s);
+    } else {
+        io::println("PASS: Vast.toString(0) works");
+    }
+}
+
+public fn test_vast_roundtrip(): void {
+    let original: vast = -123456789 as vast;
+    let s: string = Vast.toString(original);
+    let parsed: vast = Vast.parse(s);
+    if (parsed != original) {
+        io::println("FAIL: Vast roundtrip");
+    } else {
+        io::println("PASS: Vast roundtrip works");
+    }
+}
+
+public fn test_vast_arithmetic(): void {
+    let a: vast = 10 as vast;
+    let b: vast = 20 as vast;
+    let sum: vast = a + b;
+    if (sum != 30) {
+        io::println("FAIL: Vast arithmetic sum");
+    } else {
+        io::println("PASS: Vast arithmetic works");
+    }
+}
+
+public fn run_all_vast_tests(): void {
+    io::println("=== lang/Vast.tr Tests ===");
+    test_vast_parse_basic();
+    test_vast_parse_zero();
+    test_vast_parse_negative();
+    test_vast_parse_large();
+    test_vast_parse_max_long();
+    test_vast_parse_min_long();
+    test_vast_toString();
+    test_vast_toString_negative();
+    test_vast_toString_zero();
+    test_vast_roundtrip();
+    test_vast_arithmetic();
+}

@@ -1,0 +1,396 @@
+// Test file for lang/Iterator.tr
+// Exercises the Iterator interface and its default methods through
+// ArrayListIterator (returned by ArrayList.iterator()), plus the
+// C++ STL-style helpers: advance, distance, next, prev, backInserter, frontInserter.
+import tt::lang::Iterator;
+import tt::util::ArrayList;
+import tt::util::ArrayListIterator;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_iterator_hasNext_next(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let it: Iterator<int> = list.iterator();
+    if (!it.hasNext() || it.next() != 1 || it.next() != 2 || it.next() != 3 || it.hasNext()) {
+        io::println("FAIL: Iterator hasNext/next sequence");
+    } else {
+        io::println("PASS: Iterator hasNext/next sequence");
+    }
+}
+
+public fn test_iterator_forEachRemaining(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let it: ArrayListIterator<int> = list.iterator();
+    var sum: int = 0;
+    it.forEachRemaining(fn(x: int): void { sum = sum + x; });
+    if (sum != 6) {
+        io::println("FAIL: Iterator forEachRemaining sum = " + Integer.toString(sum));
+    } else {
+        io::println("PASS: Iterator forEachRemaining works");
+    }
+}
+
+public fn test_iterator_count(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10); list.add(20); list.add(30); list.add(40);
+    let it: Iterator<int> = list.iterator();
+    let c: int = it.count();
+    if (c != 4) {
+        io::println("FAIL: Iterator count = " + Integer.toString(c));
+    } else {
+        io::println("PASS: Iterator count works");
+    }
+}
+
+public fn test_iterator_collect(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(5); list.add(6); list.add(7);
+    let it: Iterator<int> = list.iterator();
+    let collected: ArrayList<int> = it.collect();
+    if (collected.size() != 3 || collected.get(0) != 5 || collected.get(2) != 7) {
+        io::println("FAIL: Iterator collect");
+    } else {
+        io::println("PASS: Iterator collect works");
+    }
+}
+
+public fn test_iterator_reduce(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4);
+    let it: Iterator<int> = list.iterator();
+    let total: int = it.reduce(0, fn(a: int, b: int): int { return a + b; });
+    if (total != 10) {
+        io::println("FAIL: Iterator reduce = " + Integer.toString(total));
+    } else {
+        io::println("PASS: Iterator reduce works");
+    }
+}
+
+public fn test_iterator_map(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let it: Iterator<int> = list.iterator();
+    let mapped: Iterator<int> = it.map(fn(x: int): int { return x * 10; });
+    let collected: ArrayList<int> = mapped.collect();
+    if (collected.size() != 3 || collected.get(0) != 10 || collected.get(1) != 20 || collected.get(2) != 30) {
+        io::println("FAIL: Iterator map");
+    } else {
+        io::println("PASS: Iterator map works");
+    }
+}
+
+public fn test_iterator_filter(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+    let it: Iterator<int> = list.iterator();
+    let filtered: Iterator<int> = it.filter(fn(x: int): bool { return x % 2 == 0; });
+    let collected: ArrayList<int> = filtered.collect();
+    if (collected.size() != 2 || collected.get(0) != 2 || collected.get(1) != 4) {
+        io::println("FAIL: Iterator filter");
+    } else {
+        io::println("PASS: Iterator filter works");
+    }
+}
+
+public fn test_iterator_take(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+    let it: Iterator<int> = list.iterator();
+    let taken: Iterator<int> = it.take(3);
+    let collected: ArrayList<int> = taken.collect();
+    if (collected.size() != 3 || collected.get(2) != 3) {
+        io::println("FAIL: Iterator take");
+    } else {
+        io::println("PASS: Iterator take works");
+    }
+}
+
+public fn test_iterator_skip(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+    let it: Iterator<int> = list.iterator();
+    let skipped: Iterator<int> = it.skip(2);
+    let first: int = skipped.next();
+    if (first != 3) {
+        io::println("FAIL: Iterator skip first = " + Integer.toString(first));
+    } else {
+        io::println("PASS: Iterator skip works");
+    }
+}
+
+public fn test_iterator_chain(): void {
+    let list1: ArrayList<int> = new ArrayList<int>();
+    list1.add(1); list1.add(2);
+    let list2: ArrayList<int> = new ArrayList<int>();
+    list2.add(3); list2.add(4);
+    let it1: Iterator<int> = list1.iterator();
+    let it2: Iterator<int> = list2.iterator();
+    let chained: Iterator<int> = it1.chain(it2);
+    let collected: ArrayList<int> = chained.collect();
+    if (collected.size() != 4 || collected.get(0) != 1 || collected.get(3) != 4) {
+        io::println("FAIL: Iterator chain");
+    } else {
+        io::println("PASS: Iterator chain works");
+    }
+}
+
+public fn test_iterator_any(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(3); list.add(5);
+    let it: Iterator<int> = list.iterator();
+    let found: bool = it.any(fn(x: int): bool { return x > 4; });
+    if (!found) {
+        io::println("FAIL: Iterator any should find");
+    } else {
+        io::println("PASS: Iterator any works");
+    }
+}
+
+public fn test_iterator_all(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(2); list.add(4); list.add(6);
+    let it: Iterator<int> = list.iterator();
+    let ok: bool = it.all(fn(x: int): bool { return x % 2 == 0; });
+    if (!ok) {
+        io::println("FAIL: Iterator all should be true");
+    } else {
+        io::println("PASS: Iterator all works");
+    }
+}
+
+public fn test_iterator_find(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let it: Iterator<int> = list.iterator();
+    let val: int = it.find(fn(x: int): bool { return x == 2; });
+    if (val != 2) {
+        io::println("FAIL: Iterator find = " + Integer.toString(val));
+    } else {
+        io::println("PASS: Iterator find works");
+    }
+}
+
+public fn test_iterator_max(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(3); list.add(7); list.add(1); list.add(9); list.add(2);
+    let it: Iterator<int> = list.iterator();
+    let m: int = it.max();
+    if (m != 9) {
+        io::println("FAIL: Iterator max = " + Integer.toString(m));
+    } else {
+        io::println("PASS: Iterator max works");
+    }
+}
+
+public fn test_iterator_min(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(3); list.add(7); list.add(1); list.add(9); list.add(2);
+    let it: Iterator<int> = list.iterator();
+    let m: int = it.min();
+    if (m != 1) {
+        io::println("FAIL: Iterator min = " + Integer.toString(m));
+    } else {
+        io::println("PASS: Iterator min works");
+    }
+}
+
+public fn test_iterator_nth(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10); list.add(20); list.add(30); list.add(40);
+    let it: Iterator<int> = list.iterator();
+    let val: int = it.nth(2);
+    if (val != 40) {
+        io::println("FAIL: Iterator nth(2) = " + Integer.toString(val));
+    } else {
+        io::println("PASS: Iterator nth works");
+    }
+}
+
+public fn test_iterator_last(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let it: Iterator<int> = list.iterator();
+    let val: int = it.last();
+    if (val != 3) {
+        io::println("FAIL: Iterator last = " + Integer.toString(val));
+    } else {
+        io::println("PASS: Iterator last works");
+    }
+}
+
+public fn test_iterator_forEach(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let it: Iterator<int> = list.iterator();
+    var product: int = 1;
+    it.forEach(fn(x: int): void { product = product * x; });
+    if (product != 6) {
+        io::println("FAIL: Iterator forEach product = " + Integer.toString(product));
+    } else {
+        io::println("PASS: Iterator forEach works");
+    }
+}
+
+public fn test_iterator_sum(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4);
+    let it: Iterator<int> = list.iterator();
+    let total: double = it.sum();
+    if (absDiff(total, 10.0) > 0.0001) {
+        io::println("FAIL: Iterator sum = " + Double.toString(total));
+    } else {
+        io::println("PASS: Iterator sum works");
+    }
+}
+
+public fn test_iterator_product(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4);
+    let it: Iterator<int> = list.iterator();
+    let total: double = it.product();
+    if (absDiff(total, 24.0) > 0.0001) {
+        io::println("FAIL: Iterator product = " + Double.toString(total));
+    } else {
+        io::println("PASS: Iterator product works");
+    }
+}
+
+public fn test_iterator_position(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10); list.add(20); list.add(30);
+    let it: Iterator<int> = list.iterator();
+    let idx: int = it.position(fn(x: int): bool { return x == 20; });
+    if (idx != 1) {
+        io::println("FAIL: Iterator position = " + Integer.toString(idx));
+    } else {
+        io::println("PASS: Iterator position works");
+    }
+}
+
+public fn test_iterator_advance(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4);
+    let it: Iterator<int> = list.iterator();
+    Iterator.advance(it, 2);
+    let val: int = it.next();
+    if (val != 3) {
+        io::println("FAIL: Iterator advance then next = " + Integer.toString(val));
+    } else {
+        io::println("PASS: Iterator advance works");
+    }
+}
+
+public fn test_iterator_distance(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4); list.add(5);
+    let it: Iterator<int> = list.iterator();
+    let d: int = Iterator.distance(it);
+    if (d != 5) {
+        io::println("FAIL: Iterator distance = " + Integer.toString(d));
+    } else {
+        io::println("PASS: Iterator distance works");
+    }
+}
+
+public fn test_iterator_next_helper(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3); list.add(4);
+    let it: Iterator<int> = list.iterator();
+    let val: int = Iterator.next(it, 2);
+    if (val != 4) {
+        io::println("FAIL: Iterator.next(it, 2) = " + Integer.toString(val));
+    } else {
+        io::println("PASS: Iterator.next helper works");
+    }
+}
+
+public fn test_iterator_prev_helper(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10); list.add(20); list.add(30); list.add(40);
+    let val: int = Iterator.prev(list, 3, 1);
+    if (val != 30) {
+        io::println("FAIL: Iterator.prev(list, 3, 1) = " + Integer.toString(val));
+    } else {
+        io::println("PASS: Iterator.prev helper works");
+    }
+}
+
+public fn test_iterator_backInserter(): void {
+    let target: ArrayList<int> = new ArrayList<int>();
+    let bi: Iterator<int> = Iterator.backInserter(target);
+    bi.insert(100);
+    bi.insert(200);
+    if (target.size() != 2 || target.get(0) != 100 || target.get(1) != 200) {
+        io::println("FAIL: Iterator backInserter");
+    } else {
+        io::println("PASS: Iterator backInserter works");
+    }
+}
+
+public fn test_iterator_frontInserter(): void {
+    let target: ArrayList<int> = new ArrayList<int>();
+    let fi: Iterator<int> = Iterator.frontInserter(target);
+    fi.insert(100);
+    fi.insert(200);
+    // Front inserter prepends, so 200 should be first
+    if (target.size() != 2 || target.get(0) != 200 || target.get(1) != 100) {
+        io::println("FAIL: Iterator frontInserter");
+    } else {
+        io::println("PASS: Iterator frontInserter works");
+    }
+}
+
+public fn test_iterator_reset(): void {
+    // ArrayListIterator has a reset method
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let it: ArrayListIterator<int> = list.iterator();
+    it.next();
+    it.next();
+    it.reset();
+    let first: int = it.next();
+    if (first != 1) {
+        io::println("FAIL: Iterator reset first = " + Integer.toString(first));
+    } else {
+        io::println("PASS: Iterator reset works");
+    }
+}
+
+public fn run_all_iterator_tests(): void {
+    io::println("=== lang/Iterator.tr Tests ===");
+    test_iterator_hasNext_next();
+    test_iterator_forEachRemaining();
+    test_iterator_count();
+    test_iterator_collect();
+    test_iterator_reduce();
+    test_iterator_map();
+    test_iterator_filter();
+    test_iterator_take();
+    test_iterator_skip();
+    test_iterator_chain();
+    test_iterator_any();
+    test_iterator_all();
+    test_iterator_find();
+    test_iterator_max();
+    test_iterator_min();
+    test_iterator_nth();
+    test_iterator_last();
+    test_iterator_forEach();
+    test_iterator_sum();
+    test_iterator_product();
+    test_iterator_position();
+    test_iterator_advance();
+    test_iterator_distance();
+    test_iterator_next_helper();
+    test_iterator_prev_helper();
+    test_iterator_backInserter();
+    test_iterator_frontInserter();
+    test_iterator_reset();
+}

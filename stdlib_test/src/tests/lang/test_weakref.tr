@@ -1,0 +1,204 @@
+// Test file for lang/WeakRef.tr
+// Exercises WeakRef class (init, get, clear, isCleared), weakRef factory,
+// collect, liveCount, and clearRegistry.
+//
+// NOTE: WeakRef uses a global registry shared across all instances. Tests that
+// check counts use clearRegistry() to isolate themselves from prior state.
+import tt::lang::WeakRef;
+import tt::lang::Integer;
+
+public fn test_weakref_construct(): void {
+    WeakRef.clearRegistry();
+    let ref: WeakRef<int> = new WeakRef<int>(42);
+    if (ref == null) {
+        io::println("FAIL: WeakRef null");
+    } else {
+        io::println("PASS: WeakRef construction works");
+    }
+}
+
+public fn test_weakref_get(): void {
+    WeakRef.clearRegistry();
+    let ref: WeakRef<int> = new WeakRef<int>(42);
+    let val: int = ref.get();
+    if (val != 42) {
+        io::println("FAIL: WeakRef.get = " + Integer.toString(val));
+    } else {
+        io::println("PASS: WeakRef.get works");
+    }
+}
+
+public fn test_weakref_isCleared_false(): void {
+    WeakRef.clearRegistry();
+    let ref: WeakRef<int> = new WeakRef<int>(42);
+    if (ref.isCleared()) {
+        io::println("FAIL: WeakRef.isCleared true before clear");
+    } else {
+        io::println("PASS: WeakRef.isCleared false works");
+    }
+}
+
+public fn test_weakref_clear(): void {
+    WeakRef.clearRegistry();
+    let ref: WeakRef<int> = new WeakRef<int>(42);
+    ref.clear();
+    if (!ref.isCleared()) {
+        io::println("FAIL: WeakRef.isCleared false after clear");
+    } else {
+        io::println("PASS: WeakRef.clear works");
+    }
+}
+
+public fn test_weakref_get_after_clear(): void {
+    WeakRef.clearRegistry();
+    let ref: WeakRef<int> = new WeakRef<int>(42);
+    ref.clear();
+    let val: int = ref.get();
+    if (val != null) {
+        io::println("FAIL: WeakRef.get after clear not null");
+    } else {
+        io::println("PASS: WeakRef.get after clear works");
+    }
+}
+
+public fn test_weakref_factory(): void {
+    WeakRef.clearRegistry();
+    let ref: WeakRef<int> = WeakRef.weakRef(99);
+    if (ref == null) {
+        io::println("FAIL: WeakRef.weakRef null");
+    } else if (ref.get() != 99) {
+        io::println("FAIL: WeakRef.weakRef get wrong");
+    } else {
+        io::println("PASS: WeakRef.weakRef factory works");
+    }
+}
+
+public fn test_weakref_liveCount(): void {
+    WeakRef.clearRegistry();
+    let r1: WeakRef<int> = new WeakRef<int>(1);
+    let r2: WeakRef<int> = new WeakRef<int>(2);
+    let r3: WeakRef<int> = new WeakRef<int>(3);
+    let count: int = WeakRef.liveCount();
+    if (count != 3) {
+        io::println("FAIL: WeakRef.liveCount = " + Integer.toString(count));
+    } else {
+        io::println("PASS: WeakRef.liveCount works");
+    }
+}
+
+public fn test_weakref_liveCount_after_clear(): void {
+    WeakRef.clearRegistry();
+    let r1: WeakRef<int> = new WeakRef<int>(1);
+    let r2: WeakRef<int> = new WeakRef<int>(2);
+    r1.clear();
+    let count: int = WeakRef.liveCount();
+    if (count != 1) {
+        io::println("FAIL: WeakRef.liveCount after clear = " + Integer.toString(count));
+    } else {
+        io::println("PASS: WeakRef.liveCount after clear works");
+    }
+}
+
+public fn test_weakref_collect(): void {
+    WeakRef.clearRegistry();
+    let r1: WeakRef<int> = new WeakRef<int>(1);
+    let r2: WeakRef<int> = new WeakRef<int>(2);
+    let r3: WeakRef<int> = new WeakRef<int>(3);
+    let collected: int = WeakRef.collect();
+    if (collected != 3) {
+        io::println("FAIL: WeakRef.collect count = " + Integer.toString(collected));
+    } else {
+        io::println("PASS: WeakRef.collect works");
+    }
+}
+
+public fn test_weakref_collect_clears_refs(): void {
+    WeakRef.clearRegistry();
+    let r1: WeakRef<int> = new WeakRef<int>(1);
+    WeakRef.collect();
+    if (!r1.isCleared()) {
+        io::println("FAIL: WeakRef.collect did not clear ref");
+    } else if (r1.get() != null) {
+        io::println("FAIL: WeakRef.collect get not null");
+    } else {
+        io::println("PASS: WeakRef.collect clears refs works");
+    }
+}
+
+public fn test_weakref_collect_already_cleared(): void {
+    WeakRef.clearRegistry();
+    let r1: WeakRef<int> = new WeakRef<int>(1);
+    r1.clear();
+    // collect should not count already-cleared refs
+    let collected: int = WeakRef.collect();
+    if (collected != 0) {
+        io::println("FAIL: WeakRef.collect already cleared = " + Integer.toString(collected));
+    } else {
+        io::println("PASS: WeakRef.collect already cleared works");
+    }
+}
+
+public fn test_weakref_collect_empty(): void {
+    WeakRef.clearRegistry();
+    let collected: int = WeakRef.collect();
+    if (collected != 0) {
+        io::println("FAIL: WeakRef.collect empty = " + Integer.toString(collected));
+    } else {
+        io::println("PASS: WeakRef.collect empty works");
+    }
+}
+
+public fn test_weakref_clearRegistry(): void {
+    let r1: WeakRef<int> = new WeakRef<int>(1);
+    let r2: WeakRef<int> = new WeakRef<int>(2);
+    WeakRef.clearRegistry();
+    let count: int = WeakRef.liveCount();
+    // After clearRegistry, liveCount should be 0 (registry is empty)
+    if (count != 0) {
+        io::println("FAIL: WeakRef.clearRegistry liveCount = " + Integer.toString(count));
+    } else {
+        io::println("PASS: WeakRef.clearRegistry works");
+    }
+}
+
+public fn test_weakref_string_ref(): void {
+    WeakRef.clearRegistry();
+    let ref: WeakRef<string> = new WeakRef<string>("hello");
+    let val: string = ref.get();
+    if (val != "hello") {
+        io::println("FAIL: WeakRef string get = " + val);
+    } else {
+        io::println("PASS: WeakRef string ref works");
+    }
+}
+
+public fn test_weakref_multiple_types(): void {
+    WeakRef.clearRegistry();
+    let r1: WeakRef<int> = new WeakRef<int>(10);
+    let r2: WeakRef<string> = new WeakRef<string>("x");
+    let count: int = WeakRef.liveCount();
+    if (count != 2) {
+        io::println("FAIL: WeakRef multiple types count = " + Integer.toString(count));
+    } else {
+        io::println("PASS: WeakRef multiple types works");
+    }
+}
+
+public fn run_all_weakref_tests(): void {
+    io::println("=== lang/WeakRef.tr Tests ===");
+    test_weakref_construct();
+    test_weakref_get();
+    test_weakref_isCleared_false();
+    test_weakref_clear();
+    test_weakref_get_after_clear();
+    test_weakref_factory();
+    test_weakref_liveCount();
+    test_weakref_liveCount_after_clear();
+    test_weakref_collect();
+    test_weakref_collect_clears_refs();
+    test_weakref_collect_already_cleared();
+    test_weakref_collect_empty();
+    test_weakref_clearRegistry();
+    test_weakref_string_ref();
+    test_weakref_multiple_types();
+}

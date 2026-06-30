@@ -1,0 +1,111 @@
+// Test file for lang/Short.tr
+// Exercises the Short module: parse and toString for 16-bit integers.
+import tt::lang::Short;
+
+public fn test_short_parse_basic(): void {
+    let v: short = Short.parse("42");
+    if (v != 42) {
+        io::println("FAIL: Short.parse(\"42\")");
+    } else {
+        io::println("PASS: Short.parse(\"42\") works");
+    }
+}
+
+public fn test_short_parse_zero(): void {
+    let v: short = Short.parse("0");
+    if (v != 0) {
+        io::println("FAIL: Short.parse(\"0\")");
+    } else {
+        io::println("PASS: Short.parse(\"0\") works");
+    }
+}
+
+public fn test_short_parse_negative(): void {
+    let v: short = Short.parse("-100");
+    if (v != -100) {
+        io::println("FAIL: Short.parse(\"-100\")");
+    } else {
+        io::println("PASS: Short.parse(\"-100\") works");
+    }
+}
+
+public fn test_short_parse_max(): void {
+    let v: short = Short.parse("32767");
+    if (v != 32767) {
+        io::println("FAIL: Short.parse(\"32767\")");
+    } else {
+        io::println("PASS: Short.parse(\"32767\") works");
+    }
+}
+
+public fn test_short_parse_min(): void {
+    let v: short = Short.parse("-32768");
+    if (v != -32768) {
+        io::println("FAIL: Short.parse(\"-32768\")");
+    } else {
+        io::println("PASS: Short.parse(\"-32768\") works");
+    }
+}
+
+public fn test_short_toString(): void {
+    let s: string = Short.toString(42 as short);
+    if (s != "42") {
+        io::println("FAIL: Short.toString(42) = " + s);
+    } else {
+        io::println("PASS: Short.toString(42) works");
+    }
+}
+
+public fn test_short_toString_negative(): void {
+    let s: string = Short.toString(-7 as short);
+    if (s != "-7") {
+        io::println("FAIL: Short.toString(-7) = " + s);
+    } else {
+        io::println("PASS: Short.toString(-7) works");
+    }
+}
+
+public fn test_short_toString_zero(): void {
+    let s: string = Short.toString(0 as short);
+    if (s != "0") {
+        io::println("FAIL: Short.toString(0) = " + s);
+    } else {
+        io::println("PASS: Short.toString(0) works");
+    }
+}
+
+public fn test_short_roundtrip(): void {
+    let original: short = 1234 as short;
+    let s: string = Short.toString(original);
+    let parsed: short = Short.parse(s);
+    if (parsed != original) {
+        io::println("FAIL: Short roundtrip");
+    } else {
+        io::println("PASS: Short roundtrip works");
+    }
+}
+
+public fn test_short_arithmetic(): void {
+    let a: short = 10 as short;
+    let b: short = 20 as short;
+    let sum: int = a + b;
+    if (sum != 30) {
+        io::println("FAIL: Short arithmetic sum");
+    } else {
+        io::println("PASS: Short arithmetic works");
+    }
+}
+
+public fn run_all_short_tests(): void {
+    io::println("=== lang/Short.tr Tests ===");
+    test_short_parse_basic();
+    test_short_parse_zero();
+    test_short_parse_negative();
+    test_short_parse_max();
+    test_short_parse_min();
+    test_short_toString();
+    test_short_toString_negative();
+    test_short_toString_zero();
+    test_short_roundtrip();
+    test_short_arithmetic();
+}

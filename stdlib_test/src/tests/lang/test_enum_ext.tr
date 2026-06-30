@@ -1,0 +1,245 @@
+// Test file for lang/EnumExt.tr
+// Exercises FlagEnum, IntEnum, StrEnum classes and the
+// enumFromValue/enumMembers/auto/autoFrom/autoReset helpers.
+import tt::lang::EnumExt;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+
+public fn test_flag_enum_init(): void {
+    let f: FlagEnum = new FlagEnum(0);
+    if (f.value != 0) {
+        io::println("FAIL: FlagEnum init value");
+    } else if (f.names.size() != 0) {
+        io::println("FAIL: FlagEnum init names size");
+    } else {
+        io::println("PASS: FlagEnum init works");
+    }
+}
+
+public fn test_flag_enum_hasFlag(): void {
+    let f: FlagEnum = new FlagEnum(5);  // 101 in binary
+    if (!f.hasFlag(1)) {
+        io::println("FAIL: FlagEnum hasFlag 1");
+    } else if (f.hasFlag(2)) {
+        io::println("FAIL: FlagEnum hasFlag 2 should be false");
+    } else if (!f.hasFlag(4)) {
+        io::println("FAIL: FlagEnum hasFlag 4");
+    } else {
+        io::println("PASS: FlagEnum hasFlag works");
+    }
+}
+
+public fn test_flag_enum_setFlag(): void {
+    let f: FlagEnum = new FlagEnum(1);
+    let ret: FlagEnum = f.setFlag(2);
+    if (f.value != 3) {
+        io::println("FAIL: FlagEnum setFlag value = " + Integer.toString(f.value));
+    } else if (ret != f) {
+        io::println("FAIL: FlagEnum setFlag return");
+    } else {
+        io::println("PASS: FlagEnum setFlag works");
+    }
+}
+
+public fn test_flag_enum_clearFlag(): void {
+    let f: FlagEnum = new FlagEnum(7);  // 111
+    f.clearFlag(2);
+    if (f.value != 5) {
+        io::println("FAIL: FlagEnum clearFlag value = " + Integer.toString(f.value));
+    } else {
+        io::println("PASS: FlagEnum clearFlag works");
+    }
+}
+
+public fn test_flag_enum_toggleFlag(): void {
+    let f: FlagEnum = new FlagEnum(1);
+    f.toggleFlag(1);
+    if (f.value != 0) {
+        io::println("FAIL: FlagEnum toggleFlag off");
+    } else {
+        f.toggleFlag(1);
+        if (f.value != 1) {
+            io::println("FAIL: FlagEnum toggleFlag on");
+        } else {
+            io::println("PASS: FlagEnum toggleFlag works");
+        }
+    }
+}
+
+public fn test_int_enum_init(): void {
+    let e: IntEnum = new IntEnum("RED", 1);
+    if (e.name != "RED") {
+        io::println("FAIL: IntEnum name");
+    } else if (e.value != 1) {
+        io::println("FAIL: IntEnum value");
+    } else {
+        io::println("PASS: IntEnum init works");
+    }
+}
+
+public fn test_int_enum_toString(): void {
+    let e: IntEnum = new IntEnum("GREEN", 2);
+    if (e.toString() != "GREEN") {
+        io::println("FAIL: IntEnum toString");
+    } else {
+        io::println("PASS: IntEnum toString works");
+    }
+}
+
+public fn test_int_enum_equals_same(): void {
+    let a: IntEnum = new IntEnum("A", 1);
+    let b: IntEnum = new IntEnum("B", 1);
+    if (!a.equals(b)) {
+        io::println("FAIL: IntEnum equals same value");
+    } else {
+        io::println("PASS: IntEnum equals same value works");
+    }
+}
+
+public fn test_int_enum_equals_different(): void {
+    let a: IntEnum = new IntEnum("A", 1);
+    let b: IntEnum = new IntEnum("B", 2);
+    if (a.equals(b)) {
+        io::println("FAIL: IntEnum equals different value");
+    } else {
+        io::println("PASS: IntEnum equals different value works");
+    }
+}
+
+public fn test_str_enum_init(): void {
+    let e: StrEnum = new StrEnum("COLOR", "red");
+    if (e.name != "COLOR") {
+        io::println("FAIL: StrEnum name");
+    } else if (e.value != "red") {
+        io::println("FAIL: StrEnum value");
+    } else {
+        io::println("PASS: StrEnum init works");
+    }
+}
+
+public fn test_str_enum_toString(): void {
+    let e: StrEnum = new StrEnum("MODE", "fast");
+    if (e.toString() != "MODE") {
+        io::println("FAIL: StrEnum toString");
+    } else {
+        io::println("PASS: StrEnum toString works");
+    }
+}
+
+public fn test_str_enum_equals_same(): void {
+    let a: StrEnum = new StrEnum("A", "x");
+    let b: StrEnum = new StrEnum("B", "x");
+    if (!a.equals(b)) {
+        io::println("FAIL: StrEnum equals same value");
+    } else {
+        io::println("PASS: StrEnum equals same value works");
+    }
+}
+
+public fn test_str_enum_equals_different(): void {
+    let a: StrEnum = new StrEnum("A", "x");
+    let b: StrEnum = new StrEnum("B", "y");
+    if (a.equals(b)) {
+        io::println("FAIL: StrEnum equals different value");
+    } else {
+        io::println("PASS: StrEnum equals different value works");
+    }
+}
+
+public fn test_enum_from_value_found(): void {
+    let members: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    members.add(new Pair<string, int>("RED", 1));
+    members.add(new Pair<string, int>("GREEN", 2));
+    members.add(new Pair<string, int>("BLUE", 3));
+    let name: string = enumFromValue(members, 2);
+    if (name != "GREEN") {
+        io::println("FAIL: enumFromValue found = " + name);
+    } else {
+        io::println("PASS: enumFromValue found works");
+    }
+}
+
+public fn test_enum_from_value_not_found(): void {
+    let members: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    members.add(new Pair<string, int>("RED", 1));
+    let name: string = enumFromValue(members, 99);
+    if (name != "UNKNOWN") {
+        io::println("FAIL: enumFromValue not found = " + name);
+    } else {
+        io::println("PASS: enumFromValue not found returns UNKNOWN");
+    }
+}
+
+public fn test_enum_members(): void {
+    let members: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    members.add(new Pair<string, int>("A", 1));
+    members.add(new Pair<string, int>("B", 2));
+    members.add(new Pair<string, int>("C", 3));
+    let names: ArrayList<string> = enumMembers(members);
+    if (names.size() != 3) {
+        io::println("FAIL: enumMembers size");
+    } else if (names.get(0) != "A" || names.get(2) != "C") {
+        io::println("FAIL: enumMembers content");
+    } else {
+        io::println("PASS: enumMembers works");
+    }
+}
+
+public fn test_auto_increments(): void {
+    autoReset();
+    let a: int = auto();
+    let b: int = auto();
+    let c: int = auto();
+    if (a != 0 || b != 1 || c != 2) {
+        io::println("FAIL: auto increments");
+    } else {
+        io::println("PASS: auto increments works");
+    }
+}
+
+public fn test_auto_reset(): void {
+    autoReset();
+    let a: int = auto();
+    autoReset();
+    let b: int = auto();
+    if (a != 0 || b != 0) {
+        io::println("FAIL: autoReset");
+    } else {
+        io::println("PASS: autoReset works");
+    }
+}
+
+public fn test_auto_from(): void {
+    autoReset();
+    let a: int = autoFrom(10);
+    let b: int = auto();
+    if (a != 10 || b != 11) {
+        io::println("FAIL: autoFrom a=" + Integer.toString(a) + " b=" + Integer.toString(b));
+    } else {
+        io::println("PASS: autoFrom works");
+    }
+}
+
+public fn run_all_enum_ext_tests(): void {
+    io::println("=== lang/EnumExt.tr Tests ===");
+    test_flag_enum_init();
+    test_flag_enum_hasFlag();
+    test_flag_enum_setFlag();
+    test_flag_enum_clearFlag();
+    test_flag_enum_toggleFlag();
+    test_int_enum_init();
+    test_int_enum_toString();
+    test_int_enum_equals_same();
+    test_int_enum_equals_different();
+    test_str_enum_init();
+    test_str_enum_toString();
+    test_str_enum_equals_same();
+    test_str_enum_equals_different();
+    test_enum_from_value_found();
+    test_enum_from_value_not_found();
+    test_enum_members();
+    test_auto_increments();
+    test_auto_reset();
+    test_auto_from();
+}

@@ -1,0 +1,117 @@
+// Test file for lang/Abc.tr
+// Exercises the Abc class and the abstractMethod/isAbstract top-level helpers.
+import tt::lang::Abc;
+import tt::lang::String;
+
+public fn test_abc_init(): void {
+    let a: Abc = new Abc("Animal");
+    if (a.className != "Animal") {
+        io::println("FAIL: Abc className");
+    } else if (a.isAbstract()) {
+        io::println("FAIL: Abc isAbstract should be false at init");
+    } else if (a.getAbstractMethods().size() != 0) {
+        io::println("FAIL: Abc getAbstractMethods size");
+    } else {
+        io::println("PASS: Abc init works");
+    }
+}
+
+public fn test_abc_abstractMethod(): void {
+    let a: Abc = new Abc("Shape");
+    a.abstractMethod("area");
+    a.abstractMethod("perimeter");
+    if (!a.isAbstract()) {
+        io::println("FAIL: Abc isAbstract false after adding methods");
+    } else if (a.getAbstractMethods().size() != 2) {
+        io::println("FAIL: Abc abstractMethods size");
+    } else {
+        io::println("PASS: Abc abstractMethod works");
+    }
+}
+
+public fn test_abc_isAbstractMethod(): void {
+    let a: Abc = new Abc("Vehicle");
+    a.abstractMethod("drive");
+    if (!a.isAbstractMethod("drive")) {
+        io::println("FAIL: Abc isAbstractMethod drive false");
+    } else if (a.isAbstractMethod("stop")) {
+        io::println("FAIL: Abc isAbstractMethod stop true");
+    } else {
+        io::println("PASS: Abc isAbstractMethod works");
+    }
+}
+
+public fn test_abc_isAbstractMethod_empty(): void {
+    let a: Abc = new Abc("Empty");
+    if (a.isAbstractMethod("anything")) {
+        io::println("FAIL: Abc isAbstractMethod true on empty");
+    } else {
+        io::println("PASS: Abc isAbstractMethod false on empty");
+    }
+}
+
+public fn test_abc_toString(): void {
+    let a: Abc = new Abc("MyClass");
+    let s: string = a.toString();
+    if (s != "AbstractClass(MyClass)") {
+        io::println("FAIL: Abc toString = '" + s + "'");
+    } else {
+        io::println("PASS: Abc toString works");
+    }
+}
+
+public fn test_abc_abstract_method_helper(): void {
+    let marker: string = abstractMethod("foo");
+    if (marker != "__abstract__foo") {
+        io::println("FAIL: abstractMethod helper = '" + marker + "'");
+    } else {
+        io::println("PASS: abstractMethod helper works");
+    }
+}
+
+public fn test_abc_is_abstract_helper(): void {
+    if (!isAbstract("__abstract__bar")) {
+        io::println("FAIL: isAbstract helper false on __abstract__bar");
+    } else if (isAbstract("bar")) {
+        io::println("FAIL: isAbstract helper true on bar");
+    } else {
+        io::println("PASS: isAbstract helper works");
+    }
+}
+
+public fn test_abc_is_abstract_helper_short(): void {
+    // Strings shorter than __abstract__ prefix should return false
+    if (isAbstract("__abstract")) {
+        io::println("FAIL: isAbstract helper true on short string");
+    } else {
+        io::println("PASS: isAbstract helper false on short string");
+    }
+}
+
+public fn test_abc_getAbstractMethods_returns_list(): void {
+    let a: Abc = new Abc("X");
+    a.abstractMethod("m1");
+    a.abstractMethod("m2");
+    a.abstractMethod("m3");
+    let methods = a.getAbstractMethods();
+    if (methods.size() != 3) {
+        io::println("FAIL: Abc getAbstractMethods size");
+    } else if (methods.get(0) != "m1" || methods.get(2) != "m3") {
+        io::println("FAIL: Abc getAbstractMethods content");
+    } else {
+        io::println("PASS: Abc getAbstractMethods returns ordered list");
+    }
+}
+
+public fn run_all_abc_tests(): void {
+    io::println("=== lang/Abc.tr Tests ===");
+    test_abc_init();
+    test_abc_abstractMethod();
+    test_abc_isAbstractMethod();
+    test_abc_isAbstractMethod_empty();
+    test_abc_toString();
+    test_abc_abstract_method_helper();
+    test_abc_is_abstract_helper();
+    test_abc_is_abstract_helper_short();
+    test_abc_getAbstractMethods_returns_list();
+}

@@ -1,0 +1,175 @@
+// Test file for lang/Contextlib.tr
+// Exercises ContextManager, ExitStack classes and closing/suppress helpers.
+import tt::lang::Contextlib;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+
+public fn test_context_manager_init(): void {
+    let enterFn: fn(): Variant = fn(): Variant { return 42; };
+    let exitFn: fn(): void = fn(): void { };
+    let cm: ContextManager = new ContextManager(enterFn, exitFn);
+    if (cm.enterFn == null) {
+        io::println("FAIL: ContextManager enterFn null");
+    } else if (cm.exitFn == null) {
+        io::println("FAIL: ContextManager exitFn null");
+    } else {
+        io::println("PASS: ContextManager init works");
+    }
+}
+
+public fn test_context_manager_enter(): void {
+    let enterFn: fn(): Variant = fn(): Variant { return "resource"; };
+    let exitFn: fn(): void = fn(): void { };
+    let cm: ContextManager = new ContextManager(enterFn, exitFn);
+    let result: Variant = cm.enter();
+    if (result != "resource") {
+        io::println("FAIL: ContextManager enter result");
+    } else {
+        io::println("PASS: ContextManager enter works");
+    }
+}
+
+public fn test_context_manager_exit(): void {
+    var exited: bool = false;
+    let enterFn: fn(): Variant = fn(): Variant { return null; };
+    let exitFn: fn(): void = fn(): void { exited = true; };
+    let cm: ContextManager = new ContextManager(enterFn, exitFn);
+    cm.exit();
+    if (!exited) {
+        io::println("FAIL: ContextManager exit not invoked");
+    } else {
+        io::println("PASS: ContextManager exit works");
+    }
+}
+
+public fn test_closing_helper(): void {
+    var closed: bool = false;
+    let closeFn: fn(): void = fn(): void { closed = true; };
+    let cm: ContextManager = closing("my_resource", closeFn);
+    let r: Variant = cm.enter();
+    if (r != "my_resource") {
+        io::println("FAIL: closing enter resource");
+    } else {
+        cm.exit();
+        if (!closed) {
+            io::println("FAIL: closing exit did not call closeFn");
+        } else {
+            io::println("PASS: closing helper works");
+        }
+    }
+}
+
+public fn test_suppress_helper(): void {
+    let types: ArrayList<string> = new ArrayList<string>();
+    types.add("ValueError");
+    let cm: ContextManager = suppress(types);
+    // enter returns null, exit is a no-op (suppression handled at call site)
+    let r: Variant = cm.enter();
+    cm.exit();
+    io::println("PASS: suppress helper constructs ContextManager");
+}
+
+public fn test_exit_stack_init(): void {
+    let es: ExitStack = new ExitStack();
+    if (es.callbacks.size() != 0) {
+        io::println("FAIL: ExitStack init callbacks size");
+    } else {
+        io::println("PASS: ExitStack init works");
+    }
+}
+
+public fn test_exit_stack_push(): void {
+    let es: ExitStack = new ExitStack();
+    es.push(fn(): void { });
+    es.push(fn(): void { });
+    if (es.callbacks.size() != 2) {
+        io::println("FAIL: ExitStack push size");
+    } else {
+        io::println("PASS: ExitStack push works");
+    }
+}
+
+public fn test_exit_stack_popAll_lifo(): void {
+    let es: ExitStack = new ExitStack();
+    var order: string = "";
+    es.push(fn(): void { order = order + "a"; });
+    es.push(fn(): void { order = order + "b"; });
+    es.push(fn(): void { order = order + "c"; });
+    es.popAll();
+    if (order != "cba") {
+        io::println("FAIL: ExitStack popAll LIFO order = '" + order + "'");
+    } else if (es.callbacks.size() != 0) {
+        io::println("FAIL: ExitStack popAll did not clear");
+    } else {
+        io::println("PASS: ExitStack popAll LIFO works");
+    }
+}
+
+public fn test_exit_stack_popAll_empty(): void {
+    let es: ExitStack = new ExitStack();
+    es.popAll();
+    if (es.callbacks.size() != 0) {
+        io::println("FAIL: ExitStack popAll empty");
+    } else {
+        io::println("PASS: ExitStack popAll empty no throw");
+    }
+}
+
+public fn test_exit_stack_enterContext(): void {
+    let es: ExitStack = new ExitStack();
+    var exited: bool = false;
+    let cm: ContextManager = new ContextManager(
+        fn(): Variant { return "res"; },
+        fn(): void { exited = true; }
+    );
+    let r: Variant = es.enterContext(cm);
+    if (r != "res") {
+        io::println("FAIL: ExitStack enterContext result");
+    } else if (es.callbacks.size() != 1) {
+        io::println("FAIL: ExitStack enterContext callbacks size");
+    } else {
+        es.popAll();
+        if (!exited) {
+            io::println("FAIL: ExitStack enterContext exit not called");
+        } else {
+            io::println("PASS: ExitStack enterContext works");
+        }
+    }
+}
+
+public fn test_exit_stack_multiple_contexts(): void {
+    let es: ExitStack = new ExitStack();
+    var count: int = 0;
+    let cm1: ContextManager = new ContextManager(
+        fn(): Variant { return 1; },
+        fn(): void { count = count + 1; }
+    );
+    let cm2: ContextManager = new ContextManager(
+        fn(): Variant { return 2; },
+        fn(): void { count = count + 10; }
+    );
+    es.enterContext(cm1);
+    es.enterContext(cm2);
+    es.popAll();
+    // LIFO: cm2 exits first (count += 10), then cm1 (count += 1)
+    if (count != 11) {
+        io::println("FAIL: ExitStack multiple contexts count = " + Integer.toString(count));
+    } else {
+        io::println("PASS: ExitStack multiple contexts works");
+    }
+}
+
+public fn run_all_contextlib_tests(): void {
+    io::println("=== lang/Contextlib.tr Tests ===");
+    test_context_manager_init();
+    test_context_manager_enter();
+    test_context_manager_exit();
+    test_closing_helper();
+    test_suppress_helper();
+    test_exit_stack_init();
+    test_exit_stack_push();
+    test_exit_stack_popAll_lifo();
+    test_exit_stack_popAll_empty();
+    test_exit_stack_enterContext();
+    test_exit_stack_multiple_contexts();
+}

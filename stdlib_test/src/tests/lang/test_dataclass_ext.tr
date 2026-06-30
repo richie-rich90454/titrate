@@ -1,0 +1,281 @@
+// Test file for lang/DataclassExt.tr
+// Exercises DataclassExt class and frozen/kwOnly/defaultFactory helpers.
+import tt::lang::DataclassExt;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_dataclass_ext_init_mutable(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    if (dc.frozen) {
+        io::println("FAIL: DataclassExt init frozen should be false");
+    } else if (dc.fields.size() != 0) {
+        io::println("FAIL: DataclassExt init fields size");
+    } else if (dc.validators.size() != 0) {
+        io::println("FAIL: DataclassExt init validators size");
+    } else {
+        io::println("PASS: DataclassExt init mutable works");
+    }
+}
+
+public fn test_dataclass_ext_init_frozen(): void {
+    let dc: DataclassExt = new DataclassExt(true);
+    if (!dc.frozen) {
+        io::println("FAIL: DataclassExt init frozen should be true");
+    } else {
+        io::println("PASS: DataclassExt init frozen works");
+    }
+}
+
+public fn test_set_field_mutable(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    let ok: bool = dc.setField("name", "Alice");
+    if (!ok) {
+        io::println("FAIL: DataclassExt setField mutable returns false");
+    } else if (!dc.hasField("name")) {
+        io::println("FAIL: DataclassExt setField not stored");
+    } else {
+        io::println("PASS: DataclassExt setField mutable works");
+    }
+}
+
+public fn test_set_field_frozen(): void {
+    let dc: DataclassExt = new DataclassExt(true);
+    let ok: bool = dc.setField("name", "Alice");
+    if (ok) {
+        io::println("FAIL: DataclassExt setField frozen returns true");
+    } else if (dc.hasField("name")) {
+        io::println("FAIL: DataclassExt setField frozen stored");
+    } else {
+        io::println("PASS: DataclassExt setField frozen rejected");
+    }
+}
+
+public fn test_get_field(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    dc.setField("age", 30);
+    let v: Variant = dc.getField("age");
+    if (v != 30) {
+        io::println("FAIL: DataclassExt getField value");
+    } else {
+        io::println("PASS: DataclassExt getField works");
+    }
+}
+
+public fn test_get_field_missing(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    let v: Variant = dc.getField("nonexistent");
+    if (v != null) {
+        io::println("FAIL: DataclassExt getField missing not null");
+    } else {
+        io::println("PASS: DataclassExt getField missing returns null");
+    }
+}
+
+public fn test_has_field(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    dc.setField("x", 1);
+    if (!dc.hasField("x")) {
+        io::println("FAIL: DataclassExt hasField x false");
+    } else if (dc.hasField("y")) {
+        io::println("FAIL: DataclassExt hasField y true");
+    } else {
+        io::println("PASS: DataclassExt hasField works");
+    }
+}
+
+public fn test_field_names(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    dc.setField("a", 1);
+    dc.setField("b", 2);
+    dc.setField("c", 3);
+    let names: ArrayList<string> = dc.fieldNames();
+    if (names.size() != 3) {
+        io::println("FAIL: DataclassExt fieldNames size = " + Integer.toString(names.size()));
+    } else {
+        io::println("PASS: DataclassExt fieldNames works");
+    }
+}
+
+public fn test_add_validator(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    let v: fn(Variant): bool = fn(x: Variant): bool { return (x as int) > 0; };
+    dc.addValidator("age", v);
+    if (dc.validators.size() != 1) {
+        io::println("FAIL: DataclassExt addValidator size");
+    } else {
+        io::println("PASS: DataclassExt addValidator works");
+    }
+}
+
+public fn test_validate_pass(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    dc.setField("age", 30);
+    let v: fn(Variant): bool = fn(x: Variant): bool { return (x as int) > 0; };
+    dc.addValidator("age", v);
+    if (!dc.validate()) {
+        io::println("FAIL: DataclassExt validate pass returned false");
+    } else {
+        io::println("PASS: DataclassExt validate pass works");
+    }
+}
+
+public fn test_validate_fail(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    dc.setField("age", -5);
+    let v: fn(Variant): bool = fn(x: Variant): bool { return (x as int) > 0; };
+    dc.addValidator("age", v);
+    if (dc.validate()) {
+        io::println("FAIL: DataclassExt validate fail returned true");
+    } else {
+        io::println("PASS: DataclassExt validate fail works");
+    }
+}
+
+public fn test_validate_no_validators(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    dc.setField("x", 1);
+    if (!dc.validate()) {
+        io::println("FAIL: DataclassExt validate no validators returned false");
+    } else {
+        io::println("PASS: DataclassExt validate no validators returns true");
+    }
+}
+
+public fn test_freeze(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    dc.setField("x", 1);
+    dc.freeze();
+    if (!dc.isFrozen()) {
+        io::println("FAIL: DataclassExt freeze not frozen");
+    } else {
+        let ok: bool = dc.setField("y", 2);
+        if (ok) {
+            io::println("FAIL: DataclassExt setField after freeze allowed");
+        } else {
+            io::println("PASS: DataclassExt freeze works");
+        }
+    }
+}
+
+public fn test_is_frozen(): void {
+    let dc1: DataclassExt = new DataclassExt(false);
+    let dc2: DataclassExt = new DataclassExt(true);
+    if (dc1.isFrozen()) {
+        io::println("FAIL: DataclassExt isFrozen true for mutable");
+    } else if (!dc2.isFrozen()) {
+        io::println("FAIL: DataclassExt isFrozen false for frozen");
+    } else {
+        io::println("PASS: DataclassExt isFrozen works");
+    }
+}
+
+public fn test_equals_same(): void {
+    let dc1: DataclassExt = new DataclassExt(false);
+    dc1.setField("x", 1);
+    dc1.setField("y", 2);
+    let dc2: DataclassExt = new DataclassExt(false);
+    dc2.setField("x", 1);
+    dc2.setField("y", 2);
+    if (!dc1.equals(dc2)) {
+        io::println("FAIL: DataclassExt equals same content");
+    } else {
+        io::println("PASS: DataclassExt equals same works");
+    }
+}
+
+public fn test_equals_different(): void {
+    let dc1: DataclassExt = new DataclassExt(false);
+    dc1.setField("x", 1);
+    let dc2: DataclassExt = new DataclassExt(false);
+    dc2.setField("x", 2);
+    if (dc1.equals(dc2)) {
+        io::println("FAIL: DataclassExt equals different content");
+    } else {
+        io::println("PASS: DataclassExt equals different works");
+    }
+}
+
+public fn test_equals_different_fields(): void {
+    let dc1: DataclassExt = new DataclassExt(false);
+    dc1.setField("x", 1);
+    let dc2: DataclassExt = new DataclassExt(false);
+    dc2.setField("y", 1);
+    if (dc1.equals(dc2)) {
+        io::println("FAIL: DataclassExt equals different field names");
+    } else {
+        io::println("PASS: DataclassExt equals different fields works");
+    }
+}
+
+public fn test_to_string(): void {
+    let dc: DataclassExt = new DataclassExt(false);
+    dc.setField("name", "Alice");
+    let s: string = dc.toString();
+    if (String.length(s) <= 0) {
+        io::println("FAIL: DataclassExt toString empty");
+    } else if (String.indexOf(s, "DataclassExt") < 0) {
+        io::println("FAIL: DataclassExt toString missing prefix");
+    } else {
+        io::println("PASS: DataclassExt toString works");
+    }
+}
+
+public fn test_frozen_helper(): void {
+    let fields: ArrayList<string> = new ArrayList<string>();
+    fields.add("a");
+    fields.add("b");
+    let dc: DataclassExt = frozen("MyClass", fields);
+    if (!dc.isFrozen()) {
+        io::println("FAIL: frozen helper not frozen");
+    } else if (dc.fields.size() != 2) {
+        io::println("FAIL: frozen helper fields size");
+    } else {
+        io::println("PASS: frozen helper works");
+    }
+}
+
+public fn test_kw_only_helper(): void {
+    let marker: string = kwOnly("field");
+    if (marker != "__kwonly__field") {
+        io::println("FAIL: kwOnly helper = '" + marker + "'");
+    } else {
+        io::println("PASS: kwOnly helper works");
+    }
+}
+
+public fn test_default_factory_helper(): void {
+    let df: DefaultFactory = defaultFactory(null);
+    if (df == null) {
+        io::println("FAIL: defaultFactory helper null");
+    } else if (df.factory != null) {
+        io::println("FAIL: defaultFactory helper factory not null");
+    } else {
+        io::println("PASS: defaultFactory helper works");
+    }
+}
+
+public fn run_all_dataclass_ext_tests(): void {
+    io::println("=== lang/DataclassExt.tr Tests ===");
+    test_dataclass_ext_init_mutable();
+    test_dataclass_ext_init_frozen();
+    test_set_field_mutable();
+    test_set_field_frozen();
+    test_get_field();
+    test_get_field_missing();
+    test_has_field();
+    test_field_names();
+    test_add_validator();
+    test_validate_pass();
+    test_validate_fail();
+    test_validate_no_validators();
+    test_freeze();
+    test_is_frozen();
+    test_equals_same();
+    test_equals_different();
+    test_equals_different_fields();
+    test_to_string();
+    test_frozen_helper();
+    test_kw_only_helper();
+    test_default_factory_helper();
+}

@@ -1,0 +1,114 @@
+// Test file for lang/Uvast.tr
+// Exercises the Uvast module: parse and toString for unsigned arbitrary-precision integers.
+import tt::lang::Uvast;
+
+public fn test_uvast_parse_basic(): void {
+    let v: uvast = Uvast.parse("42");
+    if (v != 42) {
+        io::println("FAIL: Uvast.parse(\"42\")");
+    } else {
+        io::println("PASS: Uvast.parse(\"42\") works");
+    }
+}
+
+public fn test_uvast_parse_zero(): void {
+    let v: uvast = Uvast.parse("0");
+    if (v != 0) {
+        io::println("FAIL: Uvast.parse(\"0\")");
+    } else {
+        io::println("PASS: Uvast.parse(\"0\") works");
+    }
+}
+
+public fn test_uvast_parse_large(): void {
+    let v: uvast = Uvast.parse("1000000");
+    if (v != 1000000) {
+        io::println("FAIL: Uvast.parse(\"1000000\")");
+    } else {
+        io::println("PASS: Uvast.parse(\"1000000\") works");
+    }
+}
+
+public fn test_uvast_parse_very_large(): void {
+    // 9223372036854775807 is Long.MAX_VALUE
+    let v: uvast = Uvast.parse("9223372036854775807");
+    if (v != 9223372036854775807) {
+        io::println("FAIL: Uvast.parse max long");
+    } else {
+        io::println("PASS: Uvast.parse max long works");
+    }
+}
+
+public fn test_uvast_toString(): void {
+    let s: string = Uvast.toString(42 as uvast);
+    if (s != "42") {
+        io::println("FAIL: Uvast.toString(42) = " + s);
+    } else {
+        io::println("PASS: Uvast.toString(42) works");
+    }
+}
+
+public fn test_uvast_toString_zero(): void {
+    let s: string = Uvast.toString(0 as uvast);
+    if (s != "0") {
+        io::println("FAIL: Uvast.toString(0) = " + s);
+    } else {
+        io::println("PASS: Uvast.toString(0) works");
+    }
+}
+
+public fn test_uvast_toString_large(): void {
+    let s: string = Uvast.toString(1000000 as uvast);
+    if (s != "1000000") {
+        io::println("FAIL: Uvast.toString(1000000) = " + s);
+    } else {
+        io::println("PASS: Uvast.toString(1000000) works");
+    }
+}
+
+public fn test_uvast_roundtrip(): void {
+    let original: uvast = 123456789 as uvast;
+    let s: string = Uvast.toString(original);
+    let parsed: uvast = Uvast.parse(s);
+    if (parsed != original) {
+        io::println("FAIL: Uvast roundtrip");
+    } else {
+        io::println("PASS: Uvast roundtrip works");
+    }
+}
+
+public fn test_uvast_arithmetic(): void {
+    let a: uvast = 10 as uvast;
+    let b: uvast = 20 as uvast;
+    let sum: uvast = a + b;
+    if (sum != 30) {
+        io::println("FAIL: Uvast arithmetic sum");
+    } else {
+        io::println("PASS: Uvast arithmetic works");
+    }
+}
+
+public fn test_uvast_multiplication(): void {
+    let a: uvast = 7 as uvast;
+    let b: uvast = 6 as uvast;
+    let product: uvast = a * b;
+    if (product != 42) {
+        io::println("FAIL: Uvast multiplication");
+    } else {
+        io::println("PASS: Uvast multiplication works");
+    }
+}
+
+public fn run_all_uvast_tests(): void {
+    io::println("=== lang/Uvast.tr Tests ===");
+    test_uvast_parse_basic();
+    test_uvast_parse_zero();
+    test_uvast_parse_large();
+    test_uvast_parse_very_large();
+    test_uvast_toString();
+    test_uvast_toString_zero();
+    test_uvast_toString_large();
+    test_uvast_roundtrip();
+    test_uvast_arithmetic();
+    test_uvast_multiplication();
+}

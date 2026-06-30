@@ -1,0 +1,243 @@
+// Test file for lang/ArgparseExt.tr
+// Exercises ArgparseExt, ArgumentGroup, MutuallyExclusiveGroup,
+// SubcommandParser classes, and addSubparser helper.
+import tt::lang::ArgparseExt;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public fn test_argparse_ext_init(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    if (p.arguments.size() != 0) {
+        io::println("FAIL: ArgparseExt init arguments");
+    } else if (p.groups.size() != 0) {
+        io::println("FAIL: ArgparseExt init groups");
+    } else if (p.subcommands.size() != 0) {
+        io::println("FAIL: ArgparseExt init subcommands");
+    } else {
+        io::println("PASS: ArgparseExt init works");
+    }
+}
+
+public fn test_argparse_ext_addArgument(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    let cfg: HashMap<string, Variant> = new HashMap<string, Variant>();
+    cfg.put("type", "string");
+    cfg.put("default", "x");
+    p.addArgument("name", cfg);
+    if (p.arguments.size() != 1) {
+        io::println("FAIL: ArgparseExt addArgument size");
+    } else {
+        let arg: HashMap = p.arguments.get(0);
+        if (arg.get("name") != "name") {
+            io::println("FAIL: ArgparseExt addArgument name");
+        } else {
+            io::println("PASS: ArgparseExt addArgument works");
+        }
+    }
+}
+
+public fn test_argument_group_init(): void {
+    let g: ArgumentGroup = new ArgumentGroup("network");
+    if (g.name != "network") {
+        io::println("FAIL: ArgumentGroup name");
+    } else if (g.arguments.size() != 0) {
+        io::println("FAIL: ArgumentGroup arguments size");
+    } else {
+        io::println("PASS: ArgumentGroup init works");
+    }
+}
+
+public fn test_argument_group_addArgument(): void {
+    let g: ArgumentGroup = new ArgumentGroup("g");
+    let cfg: HashMap<string, Variant> = new HashMap<string, Variant>();
+    cfg.put("type", "int");
+    g.addArgument("port", cfg);
+    if (g.arguments.size() != 1) {
+        io::println("FAIL: ArgumentGroup addArgument size");
+    } else {
+        io::println("PASS: ArgumentGroup addArgument works");
+    }
+}
+
+public fn test_mutually_exclusive_group_init(): void {
+    let g: MutuallyExclusiveGroup = new MutuallyExclusiveGroup(true);
+    if (g.arguments.size() != 0) {
+        io::println("FAIL: MutuallyExclusiveGroup arguments size");
+    } else if (!g.required) {
+        io::println("FAIL: MutuallyExclusiveGroup required");
+    } else {
+        io::println("PASS: MutuallyExclusiveGroup init works");
+    }
+}
+
+public fn test_mutually_exclusive_group_addArgument(): void {
+    let g: MutuallyExclusiveGroup = new MutuallyExclusiveGroup(false);
+    let cfg: HashMap<string, Variant> = new HashMap<string, Variant>();
+    g.addArgument("verbose", cfg);
+    if (g.arguments.size() != 1) {
+        io::println("FAIL: MutuallyExclusiveGroup addArgument size");
+    } else {
+        let arg: HashMap = g.arguments.get(0);
+        if (arg.get("mutually_exclusive") != true) {
+            io::println("FAIL: MutuallyExclusiveGroup addArgument flag");
+        } else {
+            io::println("PASS: MutuallyExclusiveGroup addArgument works");
+        }
+    }
+}
+
+public fn test_subcommand_parser_init(): void {
+    let sp: SubcommandParser = new SubcommandParser("install", "Install a package");
+    if (sp.name != "install") {
+        io::println("FAIL: SubcommandParser name");
+    } else if (sp.description != "Install a package") {
+        io::println("FAIL: SubcommandParser description");
+    } else if (sp.parsers.size() != 0) {
+        io::println("FAIL: SubcommandParser parsers size");
+    } else {
+        io::println("PASS: SubcommandParser init works");
+    }
+}
+
+public fn test_subcommand_parser_addSubcommand(): void {
+    let sp: SubcommandParser = new SubcommandParser("cmd", "desc");
+    let sub: ArgparseExt = new ArgparseExt();
+    sp.addSubcommand("cmd", sub);
+    if (!sp.parsers.containsKey("cmd")) {
+        io::println("FAIL: SubcommandParser addSubcommand");
+    } else {
+        io::println("PASS: SubcommandParser addSubcommand works");
+    }
+}
+
+public fn test_argparse_ext_addGroup(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    let g: ArgumentGroup = p.addGroup("section1");
+    if (p.groups.size() != 1) {
+        io::println("FAIL: ArgparseExt addGroup size");
+    } else if (g.name != "section1") {
+        io::println("FAIL: ArgparseExt addGroup name");
+    } else {
+        io::println("PASS: ArgparseExt addGroup works");
+    }
+}
+
+public fn test_argparse_ext_addMutuallyExclusiveGroup(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    let g: MutuallyExclusiveGroup = p.addMutuallyExclusiveGroup(true);
+    if (!g.required) {
+        io::println("FAIL: ArgparseExt addMutuallyExclusiveGroup required");
+    } else {
+        io::println("PASS: ArgparseExt addMutuallyExclusiveGroup works");
+    }
+}
+
+public fn test_argparse_ext_addSubcommand(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    let sp: SubcommandParser = p.addSubcommand("run", "Run a command");
+    if (!p.subcommands.containsKey("run")) {
+        io::println("FAIL: ArgparseExt addSubcommand not registered");
+    } else if (sp.name != "run") {
+        io::println("FAIL: ArgparseExt addSubcommand name");
+    } else {
+        io::println("PASS: ArgparseExt addSubcommand works");
+    }
+}
+
+public fn test_argparse_ext_parse_key_value(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    let cfg: HashMap<string, Variant> = new HashMap<string, Variant>();
+    cfg.put("type", "string");
+    p.addArgument("input", cfg);
+    let args: ArrayList<string> = new ArrayList<string>();
+    args.add("--input");
+    args.add("myfile.txt");
+    let result: HashMap = p.parse(args);
+    if (!result.containsKey("input")) {
+        io::println("FAIL: ArgparseExt parse key value missing");
+    } else if (result.get("input") != "myfile.txt") {
+        io::println("FAIL: ArgparseExt parse key value content");
+    } else {
+        io::println("PASS: ArgparseExt parse key value works");
+    }
+}
+
+public fn test_argparse_ext_parse_positional(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    let args: ArrayList<string> = new ArrayList<string>();
+    args.add("myfile.txt");
+    let result: HashMap = p.parse(args);
+    // Positional args are stored under "argN" keys
+    if (!result.containsKey("arg0")) {
+        io::println("FAIL: ArgparseExt parse positional missing");
+    } else if (result.get("arg0") != "myfile.txt") {
+        io::println("FAIL: ArgparseExt parse positional content");
+    } else {
+        io::println("PASS: ArgparseExt parse positional works");
+    }
+}
+
+public fn test_argparse_ext_parse_default(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    let cfg: HashMap<string, Variant> = new HashMap<string, Variant>();
+    cfg.put("default", "defaultVal");
+    p.addArgument("mode", cfg);
+    let args: ArrayList<string> = new ArrayList<string>();
+    let result: HashMap = p.parse(args);
+    if (!result.containsKey("mode")) {
+        io::println("FAIL: ArgparseExt parse default missing");
+    } else if (result.get("mode") != "defaultVal") {
+        io::println("FAIL: ArgparseExt parse default content");
+    } else {
+        io::println("PASS: ArgparseExt parse default works");
+    }
+}
+
+public fn test_argparse_ext_parse_flag(): void {
+    let p: ArgparseExt = new ArgparseExt();
+    let cfg: HashMap<string, Variant> = new HashMap<string, Variant>();
+    cfg.put("type", "bool");
+    p.addArgument("verbose", cfg);
+    let args: ArrayList<string> = new ArrayList<string>();
+    args.add("--verbose");
+    let result: HashMap = p.parse(args);
+    if (!result.containsKey("verbose")) {
+        io::println("FAIL: ArgparseExt parse flag missing");
+    } else if (result.get("verbose") != true) {
+        io::println("FAIL: ArgparseExt parse flag content");
+    } else {
+        io::println("PASS: ArgparseExt parse flag works");
+    }
+}
+
+public fn test_addSubparser_helper(): void {
+    let parser: ArgparseExt = new ArgparseExt();
+    let sub: ArgparseExt = addSubparser(parser, "build", "Build the project");
+    if (!parser.subcommands.containsKey("build")) {
+        io::println("FAIL: addSubparser helper not registered");
+    } else if (sub == null) {
+        io::println("FAIL: addSubparser helper returned null");
+    } else {
+        io::println("PASS: addSubparser helper works");
+    }
+}
+
+public fn run_all_argparse_ext_tests(): void {
+    io::println("=== lang/ArgparseExt.tr Tests ===");
+    test_argparse_ext_init();
+    test_argparse_ext_addArgument();
+    test_argument_group_init();
+    test_argument_group_addArgument();
+    test_mutually_exclusive_group_init();
+    test_mutually_exclusive_group_addArgument();
+    test_subcommand_parser_init();
+    test_subcommand_parser_addSubcommand();
+    test_argparse_ext_addGroup();
+    test_argparse_ext_addMutuallyExclusiveGroup();
+    test_argparse_ext_addSubcommand();
+    test_argparse_ext_parse_key_value();
+    test_argparse_ext_parse_positional();
+    test_argparse_ext_parse_default();
+    test_argparse_ext_parse_flag();
+    test_addSubparser_helper();
+}

@@ -1,0 +1,149 @@
+// Test file for lang/TupleExt.tr
+// Exercises Tuple3, Tuple4, and Tuple5 classes.
+import tt::lang::TupleExt;
+import tt::lang::Variant;
+
+public fn test_tuple3_construct(): void {
+    let t: Tuple3 = new Tuple3(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant));
+    if (t == null) {
+        io::println("FAIL: Tuple3 null");
+    } else {
+        io::println("PASS: Tuple3 construction works");
+    }
+}
+
+public fn test_tuple3_getters(): void {
+    let t: Tuple3 = new Tuple3(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant));
+    if (t.getFirst() == null || t.getSecond() == null || t.getThird() == null) {
+        io::println("FAIL: Tuple3 getters null");
+    } else if (!t.getFirst().hasTag("a") || !t.getSecond().hasTag("b") || !t.getThird().hasTag("c")) {
+        io::println("FAIL: Tuple3 getters tags wrong");
+    } else {
+        io::println("PASS: Tuple3 getters works");
+    }
+}
+
+public fn test_tuple3_fields(): void {
+    let t: Tuple3 = new Tuple3(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant));
+    if (t.first == null || t.second == null || t.third == null) {
+        io::println("FAIL: Tuple3 fields null");
+    } else {
+        io::println("PASS: Tuple3 fields works");
+    }
+}
+
+public fn test_tuple3_toString(): void {
+    let t: Tuple3 = new Tuple3(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant));
+    let s: string = t.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Tuple3 toString empty");
+    } else if (String.indexOf(s, "(") < 0 || String.indexOf(s, ")") < 0) {
+        io::println("FAIL: Tuple3 toString missing parens = " + s);
+    } else {
+        io::println("PASS: Tuple3 toString works");
+    }
+}
+
+public fn test_tuple4_construct(): void {
+    let t: Tuple4 = new Tuple4(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant), Variant.of("d", 4 as Variant));
+    if (t == null) {
+        io::println("FAIL: Tuple4 null");
+    } else {
+        io::println("PASS: Tuple4 construction works");
+    }
+}
+
+public fn test_tuple4_getters(): void {
+    let t: Tuple4 = new Tuple4(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant), Variant.of("d", 4 as Variant));
+    if (t.getFirst() == null || t.getSecond() == null || t.getThird() == null || t.getFourth() == null) {
+        io::println("FAIL: Tuple4 getters null");
+    } else if (!t.getFirst().hasTag("a") || !t.getFourth().hasTag("d")) {
+        io::println("FAIL: Tuple4 getters tags wrong");
+    } else {
+        io::println("PASS: Tuple4 getters works");
+    }
+}
+
+public fn test_tuple4_fields(): void {
+    let t: Tuple4 = new Tuple4(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant), Variant.of("d", 4 as Variant));
+    if (t.first == null || t.second == null || t.third == null || t.fourth == null) {
+        io::println("FAIL: Tuple4 fields null");
+    } else {
+        io::println("PASS: Tuple4 fields works");
+    }
+}
+
+public fn test_tuple4_toString(): void {
+    let t: Tuple4 = new Tuple4(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant), Variant.of("d", 4 as Variant));
+    let s: string = t.toString();
+    if (String.length(s) == 0 || String.indexOf(s, "(") < 0) {
+        io::println("FAIL: Tuple4 toString");
+    } else {
+        io::println("PASS: Tuple4 toString works");
+    }
+}
+
+public fn test_tuple5_construct(): void {
+    let t: Tuple5 = new Tuple5(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant), Variant.of("d", 4 as Variant), Variant.of("e", 5 as Variant));
+    if (t == null) {
+        io::println("FAIL: Tuple5 null");
+    } else {
+        io::println("PASS: Tuple5 construction works");
+    }
+}
+
+public fn test_tuple5_getters(): void {
+    let t: Tuple5 = new Tuple5(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant), Variant.of("d", 4 as Variant), Variant.of("e", 5 as Variant));
+    if (t.getFirst() == null || t.getSecond() == null || t.getThird() == null || t.getFourth() == null || t.getFifth() == null) {
+        io::println("FAIL: Tuple5 getters null");
+    } else if (!t.getFirst().hasTag("a") || !t.getFifth().hasTag("e")) {
+        io::println("FAIL: Tuple5 getters tags wrong");
+    } else {
+        io::println("PASS: Tuple5 getters works");
+    }
+}
+
+public fn test_tuple5_fields(): void {
+    let t: Tuple5 = new Tuple5(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant), Variant.of("d", 4 as Variant), Variant.of("e", 5 as Variant));
+    if (t.first == null || t.second == null || t.third == null || t.fourth == null || t.fifth == null) {
+        io::println("FAIL: Tuple5 fields null");
+    } else {
+        io::println("PASS: Tuple5 fields works");
+    }
+}
+
+public fn test_tuple5_toString(): void {
+    let t: Tuple5 = new Tuple5(Variant.of("a", 1 as Variant), Variant.of("b", 2 as Variant), Variant.of("c", 3 as Variant), Variant.of("d", 4 as Variant), Variant.of("e", 5 as Variant));
+    let s: string = t.toString();
+    if (String.length(s) == 0 || String.indexOf(s, "(") < 0) {
+        io::println("FAIL: Tuple5 toString");
+    } else {
+        io::println("PASS: Tuple5 toString works");
+    }
+}
+
+public fn test_tuple3_mixed_types(): void {
+    let t: Tuple3 = new Tuple3(Variant.of("int", 1 as Variant), Variant.of("str", "hi" as Variant), Variant.of("bool", true as Variant));
+    if (!t.getFirst().hasTag("int") || !t.getSecond().hasTag("str") || !t.getThird().hasTag("bool")) {
+        io::println("FAIL: Tuple3 mixed types");
+    } else {
+        io::println("PASS: Tuple3 mixed types works");
+    }
+}
+
+public fn run_all_tuple_ext_tests(): void {
+    io::println("=== lang/TupleExt.tr Tests ===");
+    test_tuple3_construct();
+    test_tuple3_getters();
+    test_tuple3_fields();
+    test_tuple3_toString();
+    test_tuple4_construct();
+    test_tuple4_getters();
+    test_tuple4_fields();
+    test_tuple4_toString();
+    test_tuple5_construct();
+    test_tuple5_getters();
+    test_tuple5_fields();
+    test_tuple5_toString();
+    test_tuple3_mixed_types();
+}

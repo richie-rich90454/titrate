@@ -1,0 +1,117 @@
+// Test file for lang/Iterable.tr
+// Exercises the Iterable interface through ArrayList, which implements
+// Iterable<T>. The Iterable interface defines a single iterator() method.
+import tt::lang::Iterable;
+import tt::util::ArrayList;
+import tt::lang::Iterator;
+import tt::lang::Integer;
+
+public fn test_iterable_arraylist_iterator(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    let it: Iterator<int> = list.iterator();
+    if (it == null) {
+        io::println("FAIL: Iterable.iterator returned null");
+    } else if (!it.hasNext()) {
+        io::println("FAIL: Iterable.iterator hasNext false");
+    } else {
+        io::println("PASS: Iterable.iterator works");
+    }
+}
+
+public fn test_iterable_polymorphism(): void {
+    // Iterable reference holding ArrayList instance
+    let list: Iterable<int> = new ArrayList<int>();
+    if (list == null) {
+        io::println("FAIL: Iterable polymorphism null");
+    } else {
+        let it: Iterator<int> = list.iterator();
+        if (it == null) {
+            io::println("FAIL: Iterable polymorphism iterator null");
+        } else {
+            io::println("PASS: Iterable polymorphism works");
+        }
+    }
+}
+
+public fn test_iterable_empty_collection(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let it: Iterator<int> = list.iterator();
+    if (it.hasNext()) {
+        io::println("FAIL: Iterable empty hasNext true");
+    } else {
+        io::println("PASS: Iterable empty hasNext false");
+    }
+}
+
+public fn test_iterable_iteration(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10); list.add(20); list.add(30);
+    let it: Iterator<int> = list.iterator();
+    var sum: int = 0;
+    while (it.hasNext()) {
+        sum = sum + it.next();
+    }
+    if (sum != 60) {
+        io::println("FAIL: Iterable iteration sum = " + Integer.toString(sum));
+    } else {
+        io::println("PASS: Iterable iteration works");
+    }
+}
+
+public fn test_iterable_multiple_iterators(): void {
+    // Each call to iterator() should produce a fresh iterator
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2);
+    let it1: Iterator<int> = list.iterator();
+    let it2: Iterator<int> = list.iterator();
+    it1.next();
+    // it2 should still be at the start
+    let first: int = it2.next();
+    if (first != 1) {
+        io::println("FAIL: Iterable multiple iterators share state");
+    } else {
+        io::println("PASS: Iterable multiple iterators are independent");
+    }
+}
+
+public fn test_iterable_string_iteration(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("a"); list.add("b"); list.add("c");
+    let it: Iterator<string> = list.iterator();
+    var combined: string = "";
+    while (it.hasNext()) {
+        combined = combined + it.next();
+    }
+    if (combined != "abc") {
+        io::println("FAIL: Iterable string iteration = " + combined);
+    } else {
+        io::println("PASS: Iterable string iteration works");
+    }
+}
+
+public fn test_iterable_for_in(): void {
+    // for-in uses Iterable under the hood
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1); list.add(2); list.add(3);
+    var sum: int = 0;
+    for (x in list) {
+        sum = sum + x;
+    }
+    if (sum != 6) {
+        io::println("FAIL: Iterable for-in sum = " + Integer.toString(sum));
+    } else {
+        io::println("PASS: Iterable for-in works");
+    }
+}
+
+public fn run_all_iterable_tests(): void {
+    io::println("=== lang/Iterable.tr Tests ===");
+    test_iterable_arraylist_iterator();
+    test_iterable_polymorphism();
+    test_iterable_empty_collection();
+    test_iterable_iteration();
+    test_iterable_multiple_iterators();
+    test_iterable_string_iteration();
+    test_iterable_for_in();
+}

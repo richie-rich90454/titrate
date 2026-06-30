@@ -1,0 +1,266 @@
+// Test file for lang/AssayExt.tr
+// Exercises TestFixture, TestSuite, BenchmarkResult classes and
+// parameterizedTest/benchmark helpers.
+import tt::lang::AssayExt;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_test_fixture_init(): void {
+    let f: TestFixture = new TestFixture();
+    if (f.setupFn != null) {
+        io::println("FAIL: TestFixture setupFn not null at init");
+    } else if (f.teardownFn != null) {
+        io::println("FAIL: TestFixture teardownFn not null at init");
+    } else if (f.tests.size() != 0) {
+        io::println("FAIL: TestFixture tests size");
+    } else {
+        io::println("PASS: TestFixture init works");
+    }
+}
+
+public fn test_test_fixture_setup(): void {
+    let f: TestFixture = new TestFixture();
+    var called: bool = false;
+    let s: fn(): void = fn(): void { called = true; };
+    f.setup(s);
+    if (f.setupFn == null) {
+        io::println("FAIL: TestFixture setup not set");
+    } else {
+        f.setupFn();
+        if (!called) {
+            io::println("FAIL: TestFixture setup not invoked");
+        } else {
+            io::println("PASS: TestFixture setup works");
+        }
+    }
+}
+
+public fn test_test_fixture_teardown(): void {
+    let f: TestFixture = new TestFixture();
+    var called: bool = false;
+    let t: fn(): void = fn(): void { called = true; };
+    f.teardown(t);
+    if (f.teardownFn == null) {
+        io::println("FAIL: TestFixture teardown not set");
+    } else {
+        f.teardownFn();
+        if (!called) {
+            io::println("FAIL: TestFixture teardown not invoked");
+        } else {
+            io::println("PASS: TestFixture teardown works");
+        }
+    }
+}
+
+public fn test_test_fixture_test(): void {
+    let f: TestFixture = new TestFixture();
+    f.test("test_one", fn(): void { });
+    f.test("test_two", fn(): void { });
+    if (f.tests.size() != 2) {
+        io::println("FAIL: TestFixture test size");
+    } else if (f.tests.get(0).first != "test_one") {
+        io::println("FAIL: TestFixture test name");
+    } else {
+        io::println("PASS: TestFixture test works");
+    }
+}
+
+public fn test_test_suite_init(): void {
+    let s: TestSuite = new TestSuite();
+    if (s.fixtures.size() != 0) {
+        io::println("FAIL: TestSuite fixtures size");
+    } else if (s.skipList.size() != 0) {
+        io::println("FAIL: TestSuite skipList size");
+    } else if (s.expectedFailures.size() != 0) {
+        io::println("FAIL: TestSuite expectedFailures size");
+    } else {
+        io::println("PASS: TestSuite init works");
+    }
+}
+
+public fn test_test_suite_addFixture(): void {
+    let s: TestSuite = new TestSuite();
+    let f: TestFixture = new TestFixture();
+    s.addFixture(f);
+    if (s.fixtures.size() != 1) {
+        io::println("FAIL: TestSuite addFixture size");
+    } else {
+        io::println("PASS: TestSuite addFixture works");
+    }
+}
+
+public fn test_test_suite_skipTest(): void {
+    let s: TestSuite = new TestSuite();
+    s.skipTest("test_skip");
+    if (s.skipList.size() != 1 || s.skipList.get(0) != "test_skip") {
+        io::println("FAIL: TestSuite skipTest");
+    } else {
+        io::println("PASS: TestSuite skipTest works");
+    }
+}
+
+public fn test_test_suite_expectFailure(): void {
+    let s: TestSuite = new TestSuite();
+    s.expectFailure("test_xfail");
+    if (s.expectedFailures.size() != 1 || s.expectedFailures.get(0) != "test_xfail") {
+        io::println("FAIL: TestSuite expectFailure");
+    } else {
+        io::println("PASS: TestSuite expectFailure works");
+    }
+}
+
+public fn test_test_suite_run_passing(): void {
+    let s: TestSuite = new TestSuite();
+    let f: TestFixture = new TestFixture();
+    f.test("test_pass", fn(): void { });
+    s.addFixture(f);
+    let result: HashMap<string, ArrayList<HashMap>> = s.run();
+    let passed: ArrayList<HashMap> = result.get("passed");
+    if (passed.size() != 1) {
+        io::println("FAIL: TestSuite run passing count = " + Integer.toString(passed.size()));
+    } else {
+        io::println("PASS: TestSuite run passing works");
+    }
+}
+
+public fn test_test_suite_run_skipped(): void {
+    let s: TestSuite = new TestSuite();
+    let f: TestFixture = new TestFixture();
+    f.test("test_skip", fn(): void { });
+    s.addFixture(f);
+    s.skipTest("test_skip");
+    let result: HashMap<string, ArrayList<HashMap>> = s.run();
+    let skipped: ArrayList<HashMap> = result.get("skipped");
+    if (skipped.size() != 1) {
+        io::println("FAIL: TestSuite run skipped count = " + Integer.toString(skipped.size()));
+    } else {
+        io::println("PASS: TestSuite run skipped works");
+    }
+}
+
+public fn test_test_suite_run_failing(): void {
+    let s: TestSuite = new TestSuite();
+    let f: TestFixture = new TestFixture();
+    f.test("test_fail", fn(): void { throw "boom"; });
+    s.addFixture(f);
+    let result: HashMap<string, ArrayList<HashMap>> = s.run();
+    let failed: ArrayList<HashMap> = result.get("failed");
+    if (failed.size() != 1) {
+        io::println("FAIL: TestSuite run failing count = " + Integer.toString(failed.size()));
+    } else {
+        io::println("PASS: TestSuite run failing works");
+    }
+}
+
+public fn test_test_suite_run_expected_failure(): void {
+    let s: TestSuite = new TestSuite();
+    let f: TestFixture = new TestFixture();
+    f.test("test_xfail", fn(): void { throw "expected"; });
+    s.addFixture(f);
+    s.expectFailure("test_xfail");
+    let result: HashMap<string, ArrayList<HashMap>> = s.run();
+    let passed: ArrayList<HashMap> = result.get("passed");
+    if (passed.size() != 1) {
+        io::println("FAIL: TestSuite run expected failure count = " + Integer.toString(passed.size()));
+    } else {
+        io::println("PASS: TestSuite run expected failure works");
+    }
+}
+
+public fn test_test_suite_run_unexpected_pass(): void {
+    let s: TestSuite = new TestSuite();
+    let f: TestFixture = new TestFixture();
+    f.test("test_unexpected_pass", fn(): void { });
+    s.addFixture(f);
+    s.expectFailure("test_unexpected_pass");
+    let result: HashMap<string, ArrayList<HashMap>> = s.run();
+    let unexpectedPass: ArrayList<HashMap> = result.get("unexpected_pass");
+    if (unexpectedPass.size() != 1) {
+        io::println("FAIL: TestSuite run unexpected pass count = " + Integer.toString(unexpectedPass.size()));
+    } else {
+        io::println("PASS: TestSuite run unexpected pass works");
+    }
+}
+
+public fn test_parameterized_test(): void {
+    let params: ArrayList<Variant> = new ArrayList<Variant>();
+    params.add(1);
+    params.add(2);
+    params.add(3);
+    var sum: int = 0;
+    let f: fn(Variant): void = fn(v: Variant): void {
+        sum = sum + (v as int);
+    };
+    let tests: ArrayList<fn(): void> = parameterizedTest(params, f);
+    if (tests.size() != 3) {
+        io::println("FAIL: parameterizedTest size = " + Integer.toString(tests.size()));
+    } else {
+        var i: int = 0;
+        while (i < tests.size()) {
+            tests.get(i)();
+            i = i + 1;
+        }
+        if (sum != 6) {
+            io::println("FAIL: parameterizedTest sum = " + Integer.toString(sum));
+        } else {
+            io::println("PASS: parameterizedTest works");
+        }
+    }
+}
+
+public fn test_benchmark_result_init(): void {
+    let r: BenchmarkResult = new BenchmarkResult(100L, 500L, 250.0, 200.0, 1000L, 4);
+    if (r.minNanos != 100L) {
+        io::println("FAIL: BenchmarkResult minNanos");
+    } else if (r.iterations != 4) {
+        io::println("FAIL: BenchmarkResult iterations");
+    } else {
+        io::println("PASS: BenchmarkResult init works");
+    }
+}
+
+public fn test_benchmark_result_toString(): void {
+    let r: BenchmarkResult = new BenchmarkResult(10L, 20L, 15.0, 15.0, 30L, 2);
+    let s: string = r.toString();
+    if (String.length(s) <= 0) {
+        io::println("FAIL: BenchmarkResult toString empty");
+    } else {
+        io::println("PASS: BenchmarkResult toString works");
+    }
+}
+
+public fn test_benchmark_runs(): void {
+    let f: fn(): void = fn(): void { };
+    let r: BenchmarkResult = benchmark(f, 3);
+    if (r.iterations != 3) {
+        io::println("FAIL: benchmark iterations = " + Integer.toString(r.iterations));
+    } else if (r.minNanos < 0) {
+        io::println("FAIL: benchmark minNanos negative");
+    } else {
+        io::println("PASS: benchmark runs works");
+    }
+}
+
+public fn run_all_assay_ext_tests(): void {
+    io::println("=== lang/AssayExt.tr Tests ===");
+    test_test_fixture_init();
+    test_test_fixture_setup();
+    test_test_fixture_teardown();
+    test_test_fixture_test();
+    test_test_suite_init();
+    test_test_suite_addFixture();
+    test_test_suite_skipTest();
+    test_test_suite_expectFailure();
+    test_test_suite_run_passing();
+    test_test_suite_run_skipped();
+    test_test_suite_run_failing();
+    test_test_suite_run_expected_failure();
+    test_test_suite_run_unexpected_pass();
+    test_parameterized_test();
+    test_benchmark_result_init();
+    test_benchmark_result_toString();
+    test_benchmark_runs();
+}

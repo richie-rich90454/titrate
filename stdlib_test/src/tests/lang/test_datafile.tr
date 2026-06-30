@@ -1,0 +1,146 @@
+// Test file for lang/DataFile.tr
+// Exercises dataDir, load, loadCsv, loadText, unload, reload, reloadCsv,
+// reloadText, exists, list, meta, validate, and clearCache.
+// Limitation: many operations require real data files in lib/tt/data/.
+// Tests here focus on the API surface that does not require specific data
+// files to be present.
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+
+public fn test_data_dir_returns_string(): void {
+    let dir: string = dataDir();
+    if (String.length(dir) <= 0) {
+        io::println("FAIL: dataDir returns empty string");
+    } else {
+        io::println("PASS: dataDir returns non-empty string");
+    }
+}
+
+public fn test_exists_returns_bool(): void {
+    // exists() should return a bool regardless of file presence
+    let result: bool = exists("nonexistent_data_file.json");
+    io::println("PASS: exists returns bool for missing file");
+}
+
+public fn test_load_missing_returns_null(): void {
+    let result: JsonValue = load("nonexistent_data_file.json");
+    if (!result.isNull()) {
+        io::println("FAIL: load missing should return null JsonValue");
+    } else {
+        io::println("PASS: load missing returns null JsonValue");
+    }
+}
+
+public fn test_load_csv_missing_returns_empty(): void {
+    let result: ArrayList<ArrayList<string>> = loadCsv("nonexistent_csv_file.csv");
+    if (result.size() != 0) {
+        io::println("FAIL: loadCsv missing should return empty");
+    } else {
+        io::println("PASS: loadCsv missing returns empty");
+    }
+}
+
+public fn test_load_text_missing_returns_empty(): void {
+    let result: string = loadText("nonexistent_text_file.txt");
+    if (String.length(result) != 0) {
+        io::println("FAIL: loadText missing should return empty");
+    } else {
+        io::println("PASS: loadText missing returns empty");
+    }
+}
+
+public fn test_unload_no_throw(): void {
+    // unload on a non-cached file should be a no-op
+    unload("nonexistent_data_file.json");
+    io::println("PASS: unload no throw on missing");
+}
+
+public fn test_reload_missing_returns_null(): void {
+    let result: JsonValue = reload("nonexistent_data_file.json");
+    if (!result.isNull()) {
+        io::println("FAIL: reload missing should return null");
+    } else {
+        io::println("PASS: reload missing returns null");
+    }
+}
+
+public fn test_reload_csv_missing_returns_empty(): void {
+    let result: ArrayList<ArrayList<string>> = reloadCsv("nonexistent_csv_file.csv");
+    if (result.size() != 0) {
+        io::println("FAIL: reloadCsv missing should return empty");
+    } else {
+        io::println("PASS: reloadCsv missing returns empty");
+    }
+}
+
+public fn test_reload_text_missing_returns_empty(): void {
+    let result: string = reloadText("nonexistent_text_file.txt");
+    if (String.length(result) != 0) {
+        io::println("FAIL: reloadText missing should return empty");
+    } else {
+        io::println("PASS: reloadText missing returns empty");
+    }
+}
+
+public fn test_list_returns_arraylist(): void {
+    // list() returns an ArrayList; for a non-existent module it is empty
+    let result: ArrayList<string> = list("nonexistent_module_dir");
+    if (result == null) {
+        io::println("FAIL: list returned null");
+    } else {
+        io::println("PASS: list returns ArrayList");
+    }
+}
+
+public fn test_meta_missing_returns_null(): void {
+    let result: JsonValue = meta("nonexistent_data_file.json");
+    if (!result.isNull()) {
+        io::println("FAIL: meta missing should return null");
+    } else {
+        io::println("PASS: meta missing returns null");
+    }
+}
+
+public fn test_validate_missing_returns_false(): void {
+    let result: bool = validate("nonexistent_data_file.json", "nonexistent_schema.json");
+    if (result) {
+        io::println("FAIL: validate missing should return false");
+    } else {
+        io::println("PASS: validate missing returns false");
+    }
+}
+
+public fn test_clear_cache_no_throw(): void {
+    clearCache();
+    io::println("PASS: clearCache no throw");
+}
+
+public fn test_load_caches_result(): void {
+    // Calling load twice on a missing file should both return null
+    let r1: JsonValue = load("cached_missing_file.json");
+    let r2: JsonValue = load("cached_missing_file.json");
+    if (!r1.isNull() || !r2.isNull()) {
+        io::println("FAIL: load caches result");
+    } else {
+        io::println("PASS: load returns consistent cached result");
+    }
+}
+
+public fn run_all_datafile_tests(): void {
+    io::println("=== lang/DataFile.tr Tests ===");
+    test_data_dir_returns_string();
+    test_exists_returns_bool();
+    test_load_missing_returns_null();
+    test_load_csv_missing_returns_empty();
+    test_load_text_missing_returns_empty();
+    test_unload_no_throw();
+    test_reload_missing_returns_null();
+    test_reload_csv_missing_returns_empty();
+    test_reload_text_missing_returns_empty();
+    test_list_returns_arraylist();
+    test_meta_missing_returns_null();
+    test_validate_missing_returns_false();
+    test_clear_cache_no_throw();
+    test_load_caches_result();
+}

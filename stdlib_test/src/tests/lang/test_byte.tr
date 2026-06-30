@@ -1,0 +1,160 @@
+// Test file for lang/Byte.tr
+// Exercises the public API: parse(s: string): byte, toString(value: byte): string.
+import tt::lang::Byte;
+import tt::lang::Integer;
+
+public fn test_byte_parse_zero(): void {
+    let v: byte = Byte.parse("0");
+    if (v != 0) {
+        io::println("FAIL: Byte.parse(\"0\") = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: Byte.parse(\"0\") = 0");
+    }
+}
+
+public fn test_byte_parse_one(): void {
+    let v: byte = Byte.parse("1");
+    if (v != 1) {
+        io::println("FAIL: Byte.parse(\"1\") = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: Byte.parse(\"1\") = 1");
+    }
+}
+
+public fn test_byte_parse_max(): void {
+    // byte is an 8-bit signed integer; max value is 127.
+    let v: byte = Byte.parse("127");
+    if (v != 127) {
+        io::println("FAIL: Byte.parse(\"127\") = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: Byte.parse(\"127\") = 127");
+    }
+}
+
+public fn test_byte_parse_negative(): void {
+    let v: byte = Byte.parse("-1");
+    if (v != -1) {
+        io::println("FAIL: Byte.parse(\"-1\") = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: Byte.parse(\"-1\") = -1");
+    }
+}
+
+public fn test_byte_parse_min(): void {
+    // byte is an 8-bit signed integer; min value is -128.
+    let v: byte = Byte.parse("-128");
+    if (v != -128) {
+        io::println("FAIL: Byte.parse(\"-128\") = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: Byte.parse(\"-128\") = -128");
+    }
+}
+
+public fn test_byte_parse_two_digits(): void {
+    let v: byte = Byte.parse("65");
+    if (v != 65) {
+        io::println("FAIL: Byte.parse(\"65\") = " + Integer.toString(v as int));
+    } else {
+        io::println("PASS: Byte.parse(\"65\") = 65");
+    }
+}
+
+public fn test_byte_parse_throws_on_invalid(): void {
+    let threw: bool = false;
+    try {
+        let v: byte = Byte.parse("not a number");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Byte.parse invalid did not throw");
+    } else {
+        io::println("PASS: Byte.parse invalid throws");
+    }
+}
+
+public fn test_byte_toString_zero(): void {
+    let s: string = Byte.toString(0 as byte);
+    if (s != "0") {
+        io::println("FAIL: Byte.toString(0) = " + s);
+    } else {
+        io::println("PASS: Byte.toString(0) = 0");
+    }
+}
+
+public fn test_byte_toString_max(): void {
+    let s: string = Byte.toString(127 as byte);
+    if (s != "127") {
+        io::println("FAIL: Byte.toString(127) = " + s);
+    } else {
+        io::println("PASS: Byte.toString(127) = 127");
+    }
+}
+
+public fn test_byte_toString_negative(): void {
+    let s: string = Byte.toString(-1 as byte);
+    if (s != "-1") {
+        io::println("FAIL: Byte.toString(-1) = " + s);
+    } else {
+        io::println("PASS: Byte.toString(-1) = -1");
+    }
+}
+
+public fn test_byte_toString_min(): void {
+    let s: string = Byte.toString(-128 as byte);
+    if (s != "-128") {
+        io::println("FAIL: Byte.toString(-128) = " + s);
+    } else {
+        io::println("PASS: Byte.toString(-128) = -128");
+    }
+}
+
+public fn test_byte_toString_two_digits(): void {
+    let s: string = Byte.toString(65 as byte);
+    if (s != "65") {
+        io::println("FAIL: Byte.toString(65) = " + s);
+    } else {
+        io::println("PASS: Byte.toString(65) = 65");
+    }
+}
+
+public fn test_byte_roundtrip(): void {
+    // parse then toString should reproduce the original decimal string.
+    let original: string = "100";
+    let v: byte = Byte.parse(original);
+    let s: string = Byte.toString(v);
+    if (s != original) {
+        io::println("FAIL: Byte roundtrip = " + s);
+    } else {
+        io::println("PASS: Byte roundtrip works");
+    }
+}
+
+public fn test_byte_roundtrip_negative(): void {
+    let original: string = "-50";
+    let v: byte = Byte.parse(original);
+    let s: string = Byte.toString(v);
+    if (s != original) {
+        io::println("FAIL: Byte roundtrip negative = " + s);
+    } else {
+        io::println("PASS: Byte roundtrip negative works");
+    }
+}
+
+public fn run_all_byte_tests(): void {
+    io::println("=== lang/Byte.tr Tests ===");
+    test_byte_parse_zero();
+    test_byte_parse_one();
+    test_byte_parse_max();
+    test_byte_parse_negative();
+    test_byte_parse_min();
+    test_byte_parse_two_digits();
+    test_byte_parse_throws_on_invalid();
+    test_byte_toString_zero();
+    test_byte_toString_max();
+    test_byte_toString_negative();
+    test_byte_toString_min();
+    test_byte_toString_two_digits();
+    test_byte_roundtrip();
+    test_byte_roundtrip_negative();
+}

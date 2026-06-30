@@ -1,0 +1,383 @@
+// Test file for lang/Itertools.tr
+// Exercises the Variant-based iterator utilities:
+// accumulate, accumulateVariant, compress, dropwhile, filterfalse,
+// groupby, islice, starmap, takewhile, zipLongest.
+import tt::lang::Itertools;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_itertools_accumulate(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0);
+    let result: ArrayList<double> = Itertools.accumulate(data, fn(a: double, b: double): double { return a + b; });
+    if (result.size() != 4 || result.get(0) != 1.0 || result.get(1) != 3.0 || result.get(2) != 6.0 || result.get(3) != 10.0) {
+        io::println("FAIL: Itertools.accumulate");
+    } else {
+        io::println("PASS: Itertools.accumulate works");
+    }
+}
+
+public fn test_itertools_accumulate_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = Itertools.accumulate(data, fn(a: double, b: double): double { return a + b; });
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.accumulate empty size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.accumulate empty works");
+    }
+}
+
+public fn test_itertools_accumulate_single(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(7.0);
+    let result: ArrayList<double> = Itertools.accumulate(data, fn(a: double, b: double): double { return a * b; });
+    if (result.size() != 1 || result.get(0) != 7.0) {
+        io::println("FAIL: Itertools.accumulate single");
+    } else {
+        io::println("PASS: Itertools.accumulate single works");
+    }
+}
+
+public fn test_itertools_accumulateVariant(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("int", 1 as Variant));
+    data.add(Variant.of("int", 2 as Variant));
+    data.add(Variant.of("int", 3 as Variant));
+    let result: ArrayList<Variant> = Itertools.accumulateVariant(data, fn(a: Variant, b: Variant): Variant { return a; });
+    if (result.size() != 3) {
+        io::println("FAIL: Itertools.accumulateVariant size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.accumulateVariant works");
+    }
+}
+
+public fn test_itertools_accumulateVariant_empty(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    let result: ArrayList<Variant> = Itertools.accumulateVariant(data, fn(a: Variant, b: Variant): Variant { return a; });
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.accumulateVariant empty size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.accumulateVariant empty works");
+    }
+}
+
+public fn test_itertools_compress(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("int", 1 as Variant));
+    data.add(Variant.of("int", 2 as Variant));
+    data.add(Variant.of("int", 3 as Variant));
+    data.add(Variant.of("int", 4 as Variant));
+    let selectors: ArrayList<bool> = new ArrayList<bool>();
+    selectors.add(true); selectors.add(false); selectors.add(true); selectors.add(false);
+    let result: ArrayList<Variant> = Itertools.compress(data, selectors);
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.compress size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.compress works");
+    }
+}
+
+public fn test_itertools_compress_all_true(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("int", 1 as Variant));
+    data.add(Variant.of("int", 2 as Variant));
+    let selectors: ArrayList<bool> = new ArrayList<bool>();
+    selectors.add(true); selectors.add(true);
+    let result: ArrayList<Variant> = Itertools.compress(data, selectors);
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.compress all true size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.compress all true works");
+    }
+}
+
+public fn test_itertools_compress_all_false(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("int", 1 as Variant));
+    data.add(Variant.of("int", 2 as Variant));
+    let selectors: ArrayList<bool> = new ArrayList<bool>();
+    selectors.add(false); selectors.add(false);
+    let result: ArrayList<Variant> = Itertools.compress(data, selectors);
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.compress all false size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.compress all false works");
+    }
+}
+
+public fn test_itertools_dropwhile(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("int", 1 as Variant));
+    data.add(Variant.of("int", 2 as Variant));
+    data.add(Variant.of("int", 3 as Variant));
+    data.add(Variant.of("int", 0 as Variant));
+    data.add(Variant.of("int", 5 as Variant));
+    // Drop while tag is "int" — once predicate false, keep rest
+    let result: ArrayList<Variant> = Itertools.dropwhile(data, fn(v: Variant): bool { return v.hasTag("int"); });
+    // Since all have "int" tag, predicate stays true; result empty
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.dropwhile size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.dropwhile works");
+    }
+}
+
+public fn test_itertools_dropwhile_partial(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("drop", 1 as Variant));
+    data.add(Variant.of("drop", 2 as Variant));
+    data.add(Variant.of("keep", 3 as Variant));
+    data.add(Variant.of("keep", 4 as Variant));
+    // Drop while tag is "drop"; once "keep" found, stop dropping
+    let result: ArrayList<Variant> = Itertools.dropwhile(data, fn(v: Variant): bool { return v.hasTag("drop"); });
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.dropwhile partial size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.dropwhile partial works");
+    }
+}
+
+public fn test_itertools_filterfalse(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("even", 1 as Variant));
+    data.add(Variant.of("odd", 2 as Variant));
+    data.add(Variant.of("even", 3 as Variant));
+    data.add(Variant.of("odd", 4 as Variant));
+    // Keep elements where predicate is FALSE (i.e., not "even")
+    let result: ArrayList<Variant> = Itertools.filterfalse(data, fn(v: Variant): bool { return v.hasTag("even"); });
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.filterfalse size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.filterfalse works");
+    }
+}
+
+public fn test_itertools_filterfalse_all_kept(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("a", 1 as Variant));
+    data.add(Variant.of("b", 2 as Variant));
+    // Predicate always true, so filterfalse keeps nothing
+    let result: ArrayList<Variant> = Itertools.filterfalse(data, fn(v: Variant): bool { return true; });
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.filterfalse all true size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.filterfalse all true works");
+    }
+}
+
+public fn test_itertools_groupby(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("a", 1 as Variant));
+    data.add(Variant.of("a", 2 as Variant));
+    data.add(Variant.of("b", 3 as Variant));
+    data.add(Variant.of("b", 4 as Variant));
+    data.add(Variant.of("a", 5 as Variant));
+    let result: HashMap<string, ArrayList<Variant>> = Itertools.groupby(data, fn(v: Variant): string { return v.typeTag(); });
+    if (!result.containsKey("a") || !result.containsKey("b")) {
+        io::println("FAIL: Itertools.groupby missing keys");
+    } else if (result.get("a").size() != 3 || result.get("b").size() != 2) {
+        io::println("FAIL: Itertools.groupby group sizes");
+    } else {
+        io::println("PASS: Itertools.groupby works");
+    }
+}
+
+public fn test_itertools_groupby_empty(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    let result: HashMap<string, ArrayList<Variant>> = Itertools.groupby(data, fn(v: Variant): string { return v.typeTag(); });
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.groupby empty size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.groupby empty works");
+    }
+}
+
+public fn test_itertools_islice(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("int", 0 as Variant));
+    data.add(Variant.of("int", 1 as Variant));
+    data.add(Variant.of("int", 2 as Variant));
+    data.add(Variant.of("int", 3 as Variant));
+    data.add(Variant.of("int", 4 as Variant));
+    let result: ArrayList<Variant> = Itertools.islice(data, 0, 5, 2);
+    if (result.size() != 3) {
+        io::println("FAIL: Itertools.islice size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.islice works");
+    }
+}
+
+public fn test_itertools_islice_step_zero(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("int", 0 as Variant));
+    let result: ArrayList<Variant> = Itertools.islice(data, 0, 5, 0);
+    // step <= 0 returns empty
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.islice step zero size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.islice step zero works");
+    }
+}
+
+public fn test_itertools_islice_range(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    var i: int = 0;
+    while (i < 10) {
+        data.add(Variant.of("int", i as Variant));
+        i = i + 1;
+    }
+    let result: ArrayList<Variant> = Itertools.islice(data, 2, 8, 3);
+    // indices 2, 5 -> 2 elements
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.islice range size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.islice range works");
+    }
+}
+
+public fn test_itertools_starmap(): void {
+    let args1: ArrayList<Variant> = new ArrayList<Variant>();
+    args1.add(Variant.of("int", 1 as Variant));
+    args1.add(Variant.of("int", 2 as Variant));
+    let args2: ArrayList<Variant> = new ArrayList<Variant>();
+    args2.add(Variant.of("int", 3 as Variant));
+    args2.add(Variant.of("int", 4 as Variant));
+    let data: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    data.add(args1); data.add(args2);
+    let result: ArrayList<Variant> = Itertools.starmap(fn(args: ArrayList<Variant>): Variant { return args.get(0); }, data);
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.starmap size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.starmap works");
+    }
+}
+
+public fn test_itertools_starmap_empty(): void {
+    let data: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let result: ArrayList<Variant> = Itertools.starmap(fn(args: ArrayList<Variant>): Variant { return args.get(0); }, data);
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.starmap empty size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.starmap empty works");
+    }
+}
+
+public fn test_itertools_takewhile(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("take", 1 as Variant));
+    data.add(Variant.of("take", 2 as Variant));
+    data.add(Variant.of("stop", 3 as Variant));
+    data.add(Variant.of("take", 4 as Variant));
+    let result: ArrayList<Variant> = Itertools.takewhile(data, fn(v: Variant): bool { return v.hasTag("take"); });
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.takewhile size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.takewhile works");
+    }
+}
+
+public fn test_itertools_takewhile_all(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("a", 1 as Variant));
+    data.add(Variant.of("a", 2 as Variant));
+    let result: ArrayList<Variant> = Itertools.takewhile(data, fn(v: Variant): bool { return true; });
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.takewhile all size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.takewhile all works");
+    }
+}
+
+public fn test_itertools_takewhile_none(): void {
+    let data: ArrayList<Variant> = new ArrayList<Variant>();
+    data.add(Variant.of("a", 1 as Variant));
+    data.add(Variant.of("a", 2 as Variant));
+    let result: ArrayList<Variant> = Itertools.takewhile(data, fn(v: Variant): bool { return false; });
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.takewhile none size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.takewhile none works");
+    }
+}
+
+public fn test_itertools_zipLongest_equal(): void {
+    let a: ArrayList<Variant> = new ArrayList<Variant>();
+    a.add(Variant.of("int", 1 as Variant));
+    a.add(Variant.of("int", 2 as Variant));
+    let b: ArrayList<Variant> = new ArrayList<Variant>();
+    b.add(Variant.of("str", 10 as Variant));
+    b.add(Variant.of("str", 20 as Variant));
+    let fill: Variant = Variant.of("fill", 0 as Variant);
+    let result: ArrayList<Pair<Variant, Variant>> = Itertools.zipLongest(a, b, fill);
+    if (result.size() != 2) {
+        io::println("FAIL: Itertools.zipLongest equal size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.zipLongest equal works");
+    }
+}
+
+public fn test_itertools_zipLongest_unequal(): void {
+    let a: ArrayList<Variant> = new ArrayList<Variant>();
+    a.add(Variant.of("int", 1 as Variant));
+    a.add(Variant.of("int", 2 as Variant));
+    a.add(Variant.of("int", 3 as Variant));
+    let b: ArrayList<Variant> = new ArrayList<Variant>();
+    b.add(Variant.of("str", 10 as Variant));
+    let fill: Variant = Variant.of("fill", 0 as Variant);
+    let result: ArrayList<Pair<Variant, Variant>> = Itertools.zipLongest(a, b, fill);
+    if (result.size() != 3) {
+        io::println("FAIL: Itertools.zipLongest unequal size = " + Integer.toString(result.size()));
+    } else {
+        // The last pair should use fillValue for b
+        let lastPair: Pair<Variant, Variant> = result.get(2);
+        if (lastPair.getSecond().hasTag("fill")) {
+            io::println("PASS: Itertools.zipLongest unequal fill works");
+        } else {
+            io::println("FAIL: Itertools.zipLongest unequal fill not applied");
+        }
+    }
+}
+
+public fn test_itertools_zipLongest_empty(): void {
+    let a: ArrayList<Variant> = new ArrayList<Variant>();
+    let b: ArrayList<Variant> = new ArrayList<Variant>();
+    let fill: Variant = Variant.of("fill", 0 as Variant);
+    let result: ArrayList<Pair<Variant, Variant>> = Itertools.zipLongest(a, b, fill);
+    if (result.size() != 0) {
+        io::println("FAIL: Itertools.zipLongest empty size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Itertools.zipLongest empty works");
+    }
+}
+
+public fn run_all_itertools_lang_tests(): void {
+    io::println("=== lang/Itertools.tr Tests ===");
+    test_itertools_accumulate();
+    test_itertools_accumulate_empty();
+    test_itertools_accumulate_single();
+    test_itertools_accumulateVariant();
+    test_itertools_accumulateVariant_empty();
+    test_itertools_compress();
+    test_itertools_compress_all_true();
+    test_itertools_compress_all_false();
+    test_itertools_dropwhile();
+    test_itertools_dropwhile_partial();
+    test_itertools_filterfalse();
+    test_itertools_filterfalse_all_kept();
+    test_itertools_groupby();
+    test_itertools_groupby_empty();
+    test_itertools_islice();
+    test_itertools_islice_step_zero();
+    test_itertools_islice_range();
+    test_itertools_starmap();
+    test_itertools_starmap_empty();
+    test_itertools_takewhile();
+    test_itertools_takewhile_all();
+    test_itertools_takewhile_none();
+    test_itertools_zipLongest_equal();
+    test_itertools_zipLongest_unequal();
+    test_itertools_zipLongest_empty();
+}
