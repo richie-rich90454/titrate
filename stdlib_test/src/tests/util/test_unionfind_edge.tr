@@ -1,0 +1,95 @@
+// Edge case tests for UnionFind.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::util::UnionFind;
+import tt::lang::Integer;
+
+public fn test_unionfind_edge_single_element(): void {
+    let uf: UnionFind = new UnionFind(1);
+    if (uf.count == 1 && uf.find(0) == 0 && uf.componentCount() == 1) {
+        io::println("PASS: UnionFind single element");
+    } else {
+        io::println("FAIL: UnionFind single element");
+    }
+}
+
+public fn test_unionfind_edge_union_same(): void {
+    let uf: UnionFind = new UnionFind(5);
+    let before: int = uf.componentCount();
+    uf.union(2, 2);
+    let after: int = uf.componentCount();
+    if (before == after && uf.connected(2, 2)) {
+        io::println("PASS: UnionFind union same element");
+    } else {
+        io::println("FAIL: UnionFind union same element");
+    }
+}
+
+public fn test_unionfind_edge_find_root(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    uf.union(1, 2);
+    let root0: int = uf.find(0);
+    let root1: int = uf.find(1);
+    let root2: int = uf.find(2);
+    if (root0 == root1 && root1 == root2) {
+        io::println("PASS: UnionFind find on root");
+    } else {
+        io::println("FAIL: UnionFind find on root");
+    }
+}
+
+public fn test_unionfind_edge_connected_components(): void {
+    let uf: UnionFind = new UnionFind(6);
+    uf.union(0, 1);
+    uf.union(2, 3);
+    uf.union(4, 5);
+    if (uf.componentCount() == 3 && uf.connected(0, 1) && uf.connected(2, 3) && uf.connected(4, 5)) {
+        io::println("PASS: UnionFind connected components");
+    } else {
+        io::println("FAIL: UnionFind connected components count=" + Integer.toString(uf.componentCount()));
+    }
+}
+
+public fn test_unionfind_edge_singleton_size(): void {
+    let uf: UnionFind = new UnionFind(5);
+    uf.union(0, 1);
+    if (uf.componentSize(0) == 2 && uf.componentSize(4) == 1) {
+        io::println("PASS: UnionFind singleton size");
+    } else {
+        io::println("FAIL: UnionFind singleton size");
+    }
+}
+
+public fn test_unionfind_edge_no_union(): void {
+    let uf: UnionFind = new UnionFind(5);
+    var allSeparate: bool = true;
+    if (uf.componentCount() != 5) {
+        allSeparate = false;
+    }
+    var i: int = 0;
+    while (i < 5) {
+        var j: int = i + 1;
+        while (j < 5) {
+            if (uf.connected(i, j)) {
+                allSeparate = false;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (allSeparate) {
+        io::println("PASS: UnionFind no union all separate");
+    } else {
+        io::println("FAIL: UnionFind no union all separate");
+    }
+}
+
+public fn run_all_unionfind_edge_tests(): void {
+    io::println("=== UnionFind.tr Edge Case Tests ===");
+    test_unionfind_edge_single_element();
+    test_unionfind_edge_union_same();
+    test_unionfind_edge_find_root();
+    test_unionfind_edge_connected_components();
+    test_unionfind_edge_singleton_size();
+    test_unionfind_edge_no_union();
+}
