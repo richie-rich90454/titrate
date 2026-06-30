@@ -1,0 +1,128 @@
+// MmapExt — extended memory-mapped file utilities with read, write, find, and resize.
+import tt::lang::String;
+
+// Create a read-only memory-mapped file.
+public fn mmapReadOnly(path: string): MmapExt {
+    return new MmapExt(path, "read");
+}
+
+// MmapExt provides memory-mapped file access with read, write, find, and resize operations.
+public class MmapExt {
+    public string path;
+    public string mode;
+    public long size;
+    public string data;
+
+    public fn init(path: string, mode: string) {
+        this.path = path;
+        this.mode = mode;
+        if (mode == "read") {
+            this.data = File_readFile(path);
+        } else if (mode == "write" || mode == "copy") {
+            if (Fs_exists(path)) {
+                this.data = File_readFile(path);
+            } else {
+                this.data = "";
+            }
+        } else {
+            this.data = "";
+        }
+        this.size = String.length(this.data);
+    }
+
+    // Read a slice of the mapped data from offset with the given length.
+    public fn read(offset: long, length: int): string {
+        let start: int = offset as int;
+        let end: int = start + length;
+        if (end > String.length(this.data)) {
+            end = String.length(this.data);
+        }
+        if (start < 0 || start >= String.length(this.data)) {
+            return "";
+        }
+        return String.substring(this.data, start, end);
+    }
+
+    // Write data at the given offset in the mapped region.
+    public fn write(offset: long, data: string): void {
+        if (this.mode == "read") {
+            throw "MmapError: cannot write to read-only mapping";
+        }
+        let start: int = offset as int;
+        let end: int = start + String.length(data);
+        // Extend data if necessary
+        if (end > String.length(this.data)) {
+            let padding: int = end - String.length(this.data);
+            var i: int = 0;
+            while (i < padding) {
+                this.data = this.data + "\0";
+                i = i + 1;
+            }
+        }
+        // Replace the region: before + new + after
+        let before: string = "";
+        if (start > 0) {
+            before = String.substring(this.data, 0, start);
+        }
+        let after: string = "";
+        if (end < String.length(this.data)) {
+            after = String.substring(this.data, end, String.length(this.data));
+        }
+        this.data = before + data + after;
+        this.size = String.length(this.data);
+    }
+
+    // Flush changes to disk.
+    public fn flush(): void {
+        if (this.mode != "read") {
+            File_writeFile(this.path, this.data);
+        }
+    }
+
+    // Find the first occurrence of pattern starting from the given offset.
+    // Returns the offset of the match, or -1 if not found.
+    public fn find(pattern: string, start: long): long {
+        let startIdx: int = start as int;
+        if (startIdx < 0) { startIdx = 0; }
+        let patLen: int = String.length(pattern);
+        if (patLen == 0) { return start; }
+        var i: int = startIdx;
+        while (i <= String.length(this.data) - patLen) {
+            let candidate: string = String.substring(this.data, i, i + patLen);
+            if (candidate == pattern) {
+                return i as long;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Resize the mapped region.
+    public fn resize(newSize: long): void {
+        let newLen: int = newSize as int;
+        let curLen: int = String.length(this.data);
+        if (newLen > curLen) {
+            // Extend with null bytes
+            var i: int = curLen;
+            while (i < newLen) {
+                this.data = this.data + "\0";
+                i = i + 1;
+            }
+        } else if (newLen < curLen) {
+            this.data = String.substring(this.data, 0, newLen);
+        }
+        this.size = newLen;
+    }
+
+    // Close the mapping and flush any pending changes.
+    public fn close(): void {
+        this.flush();
+        this.data = "";
+        this.size = 0;
+    }
+
+    // Return the current size of the mapped region.
+    public fn getSize(): long {
+        return this.size;
+    }
+}
