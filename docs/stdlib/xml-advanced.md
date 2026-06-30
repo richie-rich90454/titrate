@@ -1,14 +1,19 @@
+---
+title: xml-advanced
+description: Advanced XML processing in Titrate — namespaces, streaming, XPath, schemas, and canonicalization.
+---
+
 # xml-advanced
 
 The `tt.xml` module provides advanced XML processing capabilities including namespace handling, SAX-style streaming parsing, XPath evaluation, fluent XML building, schema validation, and canonicalization.
 
 ```titrate
-import tt.xml.XmlNamespace;
-import tt.xml.XmlStreamingParser;
-import tt.xml.XPath;
-import tt.xml.XmlBuilder;
-import tt.xml.XmlSchema;
-import tt.xml.XmlCanonicalizer;
+import tt::xml::XmlNamespace;
+import tt::xml::XmlStreamingParser;
+import tt::xml::XPath;
+import tt::xml::XmlBuilder;
+import tt::xml::XmlSchema;
+import tt::xml::XmlCanonicalizer;
 ```
 
 ## XmlNamespace
