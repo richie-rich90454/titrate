@@ -1,0 +1,908 @@
+// Math provides mathematical constants and basic utility functions.
+import tt::math::MathTrig;
+import tt::math::MathAdvanced;
+import tt::util::Pair;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// Constants
+public fn PI(): double {
+    return 3.14159265358979323846;
+}
+
+public fn E(): double {
+    return 2.71828182845904523536;
+}
+
+public fn tau(): double {
+    return 6.283185307179586;
+}
+
+public fn INF(): double {
+    return Math_inf();
+}
+
+public fn NAN(): double {
+    return Math_nan();
+}
+
+public fn MAX_DOUBLE(): double {
+    return Math_maxDouble();
+}
+
+public fn MIN_DOUBLE(): double {
+    return Math_minDouble();
+}
+
+public fn MAX_INT(): long {
+    return Math_maxInt();
+}
+
+public fn MIN_INT(): long {
+    return Math_minInt();
+}
+
+// ==================== DataFile caches for Lanczos and erf coefficients ====================
+
+var _lanczosCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _lanczosLoaded: bool = false;
+var _erfCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _erfLoaded: bool = false;
+
+fn _ensureLanczosLoaded(): void {
+    if (_lanczosLoaded) { return; }
+    let data: JsonValue = DataFile.load("math/lanczos_coefficients.json");
+    if (data.isNull()) { return; }
+    let g: JsonValue = data.get("g");
+    if (!g.isNull()) { _lanczosCache.put("g", g); }
+    let coeffs: JsonValue = data.get("coefficients");
+    if (!coeffs.isNull()) { _lanczosCache.put("coefficients", coeffs); }
+    _lanczosLoaded = true;
+}
+
+fn _ensureErfLoaded(): void {
+    if (_erfLoaded) { return; }
+    let data: JsonValue = DataFile.load("math/erf_coefficients.json");
+    if (data.isNull()) { return; }
+    let a: JsonValue = data.get("a");
+    if (!a.isNull()) { _erfCache.put("a", a); }
+    let p: JsonValue = data.get("p");
+    if (!p.isNull()) { _erfCache.put("p", p); }
+    _erfLoaded = true;
+}
+
+fn _getLanczosG(): double {
+    _ensureLanczosLoaded();
+    let g: JsonValue = _lanczosCache.get("g");
+    if (!g.isNull()) { return g.asNumber(); }
+    return 7.0;
+}
+
+fn _getLanczosCoeff(i: int): double {
+    _ensureLanczosLoaded();
+    let coeffs: JsonValue = _lanczosCache.get("coefficients");
+    if (!coeffs.isNull() && i < coeffs.size()) {
+        return coeffs.getAt(i).asNumber();
+    }
+    return 0.0;
+}
+
+fn _getErfCoeff(i: int): double {
+    _ensureErfLoaded();
+    let a: JsonValue = _erfCache.get("a");
+    if (!a.isNull() && i < a.size()) {
+        return a.getAt(i).asNumber();
+    }
+    return 0.0;
+}
+
+fn _getErfP(): double {
+    _ensureErfLoaded();
+    let p: JsonValue = _erfCache.get("p");
+    if (!p.isNull()) { return p.asNumber(); }
+    return 0.3275911;
+}
+
+// Compute Lanczos sum: c0 + c1/(xx+1) + c2/(xx+2) + ... + c8/(xx+8)
+fn _lanczosSum(xx: double): double {
+    var a: double = _getLanczosCoeff(0);
+    var i: int = 1;
+    while (i < 9) {
+        a = a + _getLanczosCoeff(i) / (xx + (i as double));
+        i = i + 1;
+    }
+    return a;
+}
+
+// Utility
+public fn abs(x: double): double {
+    return Math_abs(x);
+}
+
+// Explicit double-precision absolute value
+public fn fabs(x: double): double {
+    return Math_abs(x);
+}
+
+public fn absInt(x: int): int {
+    return Math_absInt(x);
+}
+
+public fn floor(x: double): double {
+    return Math_floor(x);
+}
+
+public fn ceil(x: double): double {
+    return Math_ceil(x);
+}
+
+public fn round(x: double): long {
+    return Math_round(x);
+}
+
+// Truncate toward zero
+public fn trunc(x: double): double {
+    if (x >= 0.0) { return Math_floor(x); }
+    return Math_ceil(x);
+}
+
+public fn min(a: double, b: double): double {
+    if (a < b) { return a; }
+    return b;
+}
+
+public fn max(a: double, b: double): double {
+    if (a > b) { return a; }
+    return b;
+}
+
+public fn clamp(x: double, lo: double, hi: double): double {
+    if (x < lo) { return lo; }
+    if (x > hi) { return hi; }
+    return x;
+}
+
+public fn sign(x: double): int {
+    if (x < 0.0) { return -1; }
+    if (x > 0.0) { return 1; }
+    return 0;
+}
+
+public fn toRadians(degrees: double): double {
+    return degrees * PI() / 180.0;
+}
+
+public fn toDegrees(radians: double): double {
+    return radians * 180.0 / PI();
+}
+
+// there are only 10 types of people: those who understand binary and those who don't
+public fn random(): double {
+    return Math_random();
+}
+
+// ==================== Number-theoretic functions ====================
+
+// Binomial coefficient C(n, k) using multiplicative formula with long arithmetic
+public fn comb(n: int, k: int): int {
+    if (k < 0 || k > n) { return 0; }
+    if (k == 0 || k == n) { return 1; }
+    var kk: int = k;
+    if (kk > n - kk) { kk = n - kk; }
+    var result: long = 1;
+    var i: int = 0;
+    while (i < kk) {
+        result = result * ((n - i) as long);
+        result = result / ((i + 1) as long);
+        i = i + 1;
+    }
+    return result as int;
+}
+
+// Factorial n! using iterative multiplication
+public fn factorial(n: int): int {
+    if (n < 0) { return 0; }
+    if (n <= 1) { return 1; }
+    var result: int = 1;
+    var i: int = 2;
+    while (i <= n) {
+        result = result * i;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Integer square root using Newton's method
+public fn isqrt(n: int): int {
+    if (n < 0) { return 0; }
+    if (n == 0) { return 0; }
+    var x: int = n;
+    var y: int = (x + 1) / 2;
+    while (y < x) {
+        x = y;
+        y = (x + n / x) / 2;
+    }
+    return x;
+}
+
+// Permutation P(n, k) = n! / (n-k)!
+public fn perm(n: int, k: int): int {
+    if (k < 0 || k > n) { return 0; }
+    var result: int = 1;
+    var i: int = 0;
+    while (i < k) {
+        result = result * (n - i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Floating-point utilities ====================
+
+// Floating-point remainder: x - floor(x/y) * y
+public fn fmod(x: double, y: double): double {
+    if (y == 0.0) { return NAN(); }
+    return x - Math_floor(x / y) * y;
+}
+
+// Decompose x into (fractional, integer) parts
+public fn modf(x: double): Pair<double, double> {
+    let intPart: double = Math_floor(Math_abs(x));
+    var signedInt: double = intPart;
+    if (x < 0.0) { signedInt = -intPart; }
+    let fracPart: double = x - signedInt;
+    return new Pair<double, double>(fracPart, signedInt);
+}
+
+// IEEE 754 remainder: x - n*y where n is the integer nearest to x/y
+public fn remainder(x: double, y: double): double {
+    if (y == 0.0) { return NAN(); }
+    let q: double = x / y;
+    let n: double = Math_round(q);
+    return x - n * y;
+}
+
+// Decompose x into mantissa in [0.5, 1.0) and exponent such that x = mantissa * 2^exp
+public fn frexp(x: double): Pair<double, int> {
+    if (x == 0.0) { return new Pair<double, int>(0.0, 0); }
+    var exp: int = 0;
+    var mantissa: double = Math_abs(x);
+    if (mantissa >= 1.0) {
+        while (mantissa >= 1.0) {
+            mantissa = mantissa / 2.0;
+            exp = exp + 1;
+        }
+    } else {
+        while (mantissa < 0.5 && mantissa > 0.0) {
+            mantissa = mantissa * 2.0;
+            exp = exp - 1;
+        }
+    }
+    if (x < 0.0) { mantissa = -mantissa; }
+    return new Pair<double, int>(mantissa, exp);
+}
+
+// Compute x * 2^exp
+public fn ldexp(x: double, exp: int): double {
+    return x * MathAdvanced.pow(2.0, exp as double);
+}
+
+// Magnitude of x with the sign of y
+public fn copysign(x: double, y: double): double {
+    return MathAdvanced.copySign(x, y);
+}
+
+// Next representable floating-point value from x toward y
+public fn nextafter(x: double, y: double): double {
+    if (x == y) { return x; }
+    if (x < y) { return MathAdvanced.nextUp(x); }
+    return MathAdvanced.nextDown(x);
+}
+
+// Move x toward y by one ULP step (directional nextafter)
+public fn nextafterDir(x: double, y: double): double {
+    return nextafter(x, y);
+}
+
+// Fused multiply-add: a * b + c
+public fn fma(a: double, b: double, c: double): double {
+    return Math_fma(a, b, c);
+}
+
+// ==================== Sum / product ====================
+
+// Accurate sum using Kahan summation algorithm.
+// Accepts any ArrayList<double> (or compatible list of doubles).
+public fn fsum(values: ArrayList<double>): double {
+    var sum: double = 0.0;
+    var c: double = 0.0;
+    var i: int = 0;
+    while (i < values.size()) {
+        let y: double = values.get(i) - c;
+        let t: double = sum + y;
+        c = (t - sum) - y;
+        sum = t;
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Product of all values
+public fn prod(values: ArrayList<double>): double {
+    return prodWithStart(values, 1.0);
+}
+
+// Product of all values with a configurable start value
+public fn prodWithStart(values: ArrayList<double>, start: double): double {
+    var result: double = start;
+    var i: int = 0;
+    while (i < values.size()) {
+        result = result * values.get(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Classification ====================
+
+// Approximate equality with relative tolerance 1e-9
+public fn isclose(a: double, b: double): bool {
+    return isclose(a, b, 1e-9, 0.0);
+}
+
+// Approximate equality with configurable relative and absolute tolerances (Python-compatible)
+public fn isclose(a: double, b: double, relTol: double, absTol: double): bool {
+    let diff: double = Math_abs(a - b);
+    if (diff <= absTol) { return true; }
+    let larger: double = MathAdvanced.max(Math_abs(a), Math_abs(b));
+    return diff <= relTol * larger;
+}
+
+// Check if x is finite (not infinity and not NaN)
+public fn isfinite(x: double): bool {
+    return !isinf(x) && !isnan(x);
+}
+
+// Check if x is infinity (positive or negative)
+public fn isinf(x: double): bool {
+    return Math_abs(x) == INF();
+}
+
+// Check if x is NaN
+public fn isnan(x: double): bool {
+    return x != x;
+}
+
+// ==================== Special functions (approximations) ====================
+
+// Error function approximation (Abramowitz and Stegun)
+public fn erf(x: double): double {
+    let p: double = _getErfP();
+
+    let sign: int = 1;
+    var ax: double = x;
+    if (x < 0.0) {
+        sign = -1;
+        ax = -x;
+    }
+    let t: double = 1.0 / (1.0 + p * ax);
+    let y: double = 1.0 - (((((_getErfCoeff(4) * t + _getErfCoeff(3)) * t) + _getErfCoeff(2)) * t + _getErfCoeff(1)) * t + _getErfCoeff(0)) * t * MathAdvanced.exp(-ax * ax);
+    return sign as double * y;
+}
+
+// Complementary error function: 1 - erf(x)
+public fn erfc(x: double): double {
+    return 1.0 - erf(x);
+}
+
+// Gamma function using Lanczos approximation
+public fn gamma(x: double): double {
+    let g: double = _getLanczosG();
+
+    if (x < 0.5) {
+        // Reflection formula: gamma(x) = PI / (sin(PI*x) * gamma(1-x))
+        return PI() / (MathTrig.sin(PI() * x) * gamma(1.0 - x));
+    }
+    let xx: double = x - 1.0;
+    let a: double = _lanczosSum(xx);
+    let t: double = xx + g + 0.5;
+    return MathAdvanced.sqrt(2.0 * PI()) * MathAdvanced.pow(t, xx + 0.5) * MathAdvanced.exp(-t) * a;
+}
+
+// Log-gamma function: ln(|gamma(x)|)
+public fn lgamma(x: double): double {
+    let g: double = _getLanczosG();
+
+    if (x < 0.5) {
+        // Reflection: lgamma(x) = ln(PI / |sin(PI*x)|) - lgamma(1-x)
+        let sinPiX: double = Math_abs(MathTrig.sin(PI() * x));
+        return MathAdvanced.ln(PI() / sinPiX) - lgamma(1.0 - x);
+    }
+    let xx: double = x - 1.0;
+    let a: double = _lanczosSum(xx);
+    let t: double = xx + g + 0.5;
+    return 0.5 * MathAdvanced.ln(2.0 * PI()) + (xx + 0.5) * MathAdvanced.ln(t) - t + MathAdvanced.ln(a);
+}
+
+// ==================== GCD / LCM / Distance ====================
+
+// Greatest common divisor (Euclidean algorithm).
+public fn gcd(a: int, b: int): int {
+    var x: int = a;
+    if (x < 0) { x = -x; }
+    var y: int = b;
+    if (y < 0) { y = -y; }
+    while (y != 0) {
+        let temp: int = y;
+        y = x % y;
+        x = temp;
+    }
+    return x;
+}
+
+// Least common multiple.
+public fn lcm(a: int, b: int): int {
+    if (a == 0 || b == 0) { return 0; }
+    let result: int = (a / gcd(a, b)) * b;
+    if (result < 0) { return -result; }
+    return result;
+}
+
+// Euclidean distance between two points.
+public fn dist(p1x: double, p1y: double, p2x: double, p2y: double): double {
+    let dx: double = p2x - p1x;
+    let dy: double = p2y - p1y;
+    return MathAdvanced.sqrt(dx * dx + dy * dy);
+}
+
+// N-dimensional Euclidean distance between two coordinate vectors
+public fn distN(p1: ArrayList<double>, p2: ArrayList<double>): double {
+    let n: int = p1.size();
+    if (p2.size() < n) { n = p2.size(); }
+    var sumSq: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        let d: double = p1.get(i) - p2.get(i);
+        sumSq = sumSq + d * d;
+        i = i + 1;
+    }
+    return MathAdvanced.sqrt(sumSq);
+}
+
+// Sum of products of elements.
+public fn sumprod(a: ArrayList<double>, b: ArrayList<double>): double {
+    let n: int = a.size();
+    if (b.size() < n) { n = b.size(); }
+    var result: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        result = result + a.get(i) * b.get(i);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Exponential / Logarithmic helpers ====================
+
+// 2^x.
+public fn exp2(x: double): double {
+    return MathAdvanced.pow(2.0, x);
+}
+
+// exp(x) - 1 (accurate for small x).
+public fn expm1(x: double): double {
+    if (Math.abs(x) < 1e-8) {
+        return x + 0.5 * x * x;
+    }
+    return MathAdvanced.exp(x) - 1.0;
+}
+
+// log(1+x) (accurate for small x).
+public fn log1p(x: double): double {
+    if (Math.abs(x) < 1e-8) {
+        return x - 0.5 * x * x;
+    }
+    return MathAdvanced.ln(1.0 + x);
+}
+
+// Hypotenuse of a right triangle (avoiding overflow).
+public fn hypot(a: double, b: double): double {
+    let absA: double = Math.abs(a);
+    let absB: double = Math.abs(b);
+    if (absA > absB) {
+        let ratio: double = absB / absA;
+        return absA * MathAdvanced.sqrt(1.0 + ratio * ratio);
+    }
+    if (absB == 0.0) { return 0.0; }
+    let ratio: double = absA / absB;
+    return absB * MathAdvanced.sqrt(1.0 + ratio * ratio);
+}
+
+// N-argument hypotenuse for arbitrary number of coordinates
+public fn hypotN(coords: ArrayList<double>): double {
+    var maxVal: double = 0.0;
+    var i: int = 0;
+    while (i < coords.size()) {
+        let v: double = Math.abs(coords.get(i));
+        if (v > maxVal) { maxVal = v; }
+        i = i + 1;
+    }
+    if (maxVal == 0.0) { return 0.0; }
+    var sumSq: double = 0.0;
+    i = 0;
+    while (i < coords.size()) {
+        let ratio: double = Math.abs(coords.get(i)) / maxVal;
+        sumSq = sumSq + ratio * ratio;
+        i = i + 1;
+    }
+    return maxVal * MathAdvanced.sqrt(sumSq);
+}
+
+// Midpoint between a and b without overflow
+public fn midpoint(a: double, b: double): double {
+    return (a + b) / 2.0;
+}
+
+// Linear interpolation: a + t * (b - a), where t in [0, 1]
+public fn lerp(a: double, b: double, t: double): double {
+    return a + t * (b - a);
+}
+
+// ==================== Triangle helpers ====================
+
+// Law of sines: given side a, opposite angle A, and angle B, returns side b
+public fn lawOfSines(a: double, A: double, B: double): double {
+    return a * MathTrig.sin(B) / MathTrig.sin(A);
+}
+
+// Law of sines (angle form): given side a, opposite angle A, and side b, returns angle B
+public fn lawOfSinesAngle(a: double, A: double, b: double): double {
+    return MathTrig.asin(b * MathTrig.sin(A) / a);
+}
+
+// Law of cosines: given sides a, b and included angle C, returns side c
+public fn lawOfCosines(a: double, b: double, C: double): double {
+    return MathAdvanced.sqrt(a * a + b * b - 2.0 * a * b * MathTrig.cos(C));
+}
+
+// Law of cosines (angle form): given sides a, b, c, returns angle C
+public fn lawOfCosinesAngle(a: double, b: double, c: double): double {
+    return MathTrig.acos((a * a + b * b - c * c) / (2.0 * a * b));
+}
+
+// Triangle area from two sides and included angle: 0.5 * a * b * sin(C)
+public fn triangleArea(a: double, b: double, C: double): double {
+    return 0.5 * a * b * MathTrig.sin(C);
+}
+
+// Triangle area using Heron's formula: sqrt(s*(s-a)*(s-b)*(s-c)) where s=(a+b+c)/2
+public fn triangleAreaHeron(a: double, b: double, c: double): double {
+    let s: double = (a + b + c) / 2.0;
+    return MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
+}
+
+// Incircle radius: area / s where s = (a+b+c)/2
+public fn triangleIncircleRadius(a: double, b: double, c: double): double {
+    let s: double = (a + b + c) / 2.0;
+    let area: double = MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
+    return area / s;
+}
+
+// Circumcircle radius: a*b*c / (4*area)
+public fn triangleCircumcircleRadius(a: double, b: double, c: double): double {
+    let s: double = (a + b + c) / 2.0;
+    let area: double = MathAdvanced.sqrt(s * (s - a) * (s - b) * (s - c));
+    return a * b * c / (4.0 * area);
+}
+
+// ==================== Binomial expansion and logarithm helpers ====================
+
+// Binomial coefficient returning long (internal helper)
+public fn combLong(n: int, k: int): long {
+    if (k < 0 || k > n) { return 0; }
+    if (k == 0 || k == n) { return 1; }
+    var kk: int = k;
+    if (kk > n - kk) { kk = n - kk; }
+    var result: long = 1;
+    var i: int = 0;
+    while (i < kk) {
+        result = result * ((n - i) as long);
+        result = result / ((i + 1) as long);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Full row of Pascal's triangle: C(n,0) through C(n,n)
+public fn binomialExpansion(n: int): ArrayList<long> {
+    let row: ArrayList<long> = new ArrayList<long>();
+    var k: int = 0;
+    while (k <= n) {
+        row.add(combLong(n, k));
+        k = k + 1;
+    }
+    return row;
+}
+
+// Single binomial term: C(n,k) * x^k * (1-x)^(n-k)
+public fn binomialTerm(n: int, k: int, x: double): double {
+    let coeff: double = combLong(n, k) as double;
+    return coeff * MathAdvanced.pow(x, k as double) * MathAdvanced.pow(1.0 - x, (n - k) as double);
+}
+
+// Change of base for logarithms: log_toBase(value) using base-2 as intermediate
+public fn changeOfBase(value: double, fromBase: double, toBase: double): double {
+    return MathAdvanced.ln(value) / MathAdvanced.ln(toBase);
+}
+
+// ==================== Additional utility functions (Tasks 113-120) ====================
+
+// Signum function: -1, 0, or 1
+public fn signum(x: double): double {
+    if (x > 0.0) { return 1.0; }
+    if (x < 0.0) { return -1.0; }
+    return 0.0;
+}
+
+// Next representable value greater than x
+public fn nextUp(x: double): double {
+    return MathAdvanced.nextUp(x);
+}
+
+// Next representable value less than x
+public fn nextDown(x: double): double {
+    return MathAdvanced.nextDown(x);
+}
+
+// Convert degrees to radians
+public fn degrees(x: double): double {
+    return x * 180.0 / PI();
+}
+
+// Convert radians to degrees
+public fn radians(x: double): double {
+    return x * PI() / 180.0;
+}
+
+// Cube root
+public fn cbrt(x: double): double {
+    return MathAdvanced.cbrt(x);
+}
+
+// 10^x
+public fn exp10(x: double): double {
+    return MathAdvanced.pow(10.0, x);
+}
+
+// log base 2
+public fn log2(x: double): double {
+    return MathAdvanced.log2(x);
+}
+
+// log base 10
+public fn log10(x: double): double {
+    return MathAdvanced.log10(x);
+}
+
+// Wrap value into [lo, hi) range
+public fn wrap(x: double, lo: double, hi: double): double {
+    let range: double = hi - lo;
+    if (range <= 0.0) { return lo; }
+    let val: double = x - lo;
+    let wrapped: double = val - Math_floor(val / range) * range;
+    if (wrapped < 0.0) { wrapped = wrapped + range; }
+    return wrapped + lo;
+}
+
+// Remap value from [inLo, inHi] to [outLo, outHi]
+public fn remap(x: double, inLo: double, inHi: double, outLo: double, outHi: double): double {
+    let t: double = (x - inLo) / (inHi - inLo);
+    return outLo + t * (outHi - outLo);
+}
+
+// Shortest angular difference from 'from' to 'to' in degrees
+public fn deltaAngle(from: double, to: double): double {
+    let diff: double = wrap(to - from, -180.0, 180.0);
+    return diff;
+}
+
+// Inverse lerp: returns t such that lerp(a, b, t) = value
+public fn inverseLerp(a: double, b: double, value: double): double {
+    if (a == b) { return 0.0; }
+    return (value - a) / (b - a);
+}
+
+// Ping-pong: value bounces back and forth between 0 and length
+public fn pingPong(t: double, length: double): double {
+    t = Math_abs(t);
+    let period: double = t - Math_floor(t / (length * 2.0)) * length * 2.0;
+    if (period > length) { return length * 2.0 - period; }
+    return period;
+}
+
+// Repeat: value repeats in [0, length)
+public fn repeat(t: double, length: double): double {
+    return Math_abs(t - Math_floor(t / length) * length);
+}
+
+// Smooth step interpolation (Hermite)
+public fn smoothStep(edge0: double, edge1: double, x: double): double {
+    let t: double = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * (3.0 - 2.0 * t);
+}
+
+// Smoother step interpolation (Ken Perlin's improved)
+public fn smootherStep(edge0: double, edge1: double, x: double): double {
+    let t: double = clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0);
+    return t * t * t * (t * (t * 6.0 - 15.0) + 10.0);
+}
+
+// Lerp for angles in degrees
+public fn lerpAngle(a: double, b: double, t: double): double {
+    let diff: double = deltaAngle(a, b);
+    return a + diff * t;
+}
+
+// Move current toward target by maxDelta
+public fn moveTowards(current: double, target: double, maxDelta: double): double {
+    if (Math_abs(target - current) <= maxDelta) { return target; }
+    return current + signum(target - current) * maxDelta;
+}
+
+// Exponential damping
+public fn damp(current: double, target: double, lambda: double, dt: double): double {
+    return lerp(current, target, 1.0 - MathAdvanced.exp(-lambda * dt));
+}
+
+// Spring damping
+public fn springDamp(current: double, target: double, velocity: double, stiffness: double, damping: double, dt: double): Pair<double, double> {
+    let force: double = (target - current) * stiffness - velocity * damping;
+    let newVel: double = velocity + force * dt;
+    let newPos: double = current + newVel * dt;
+    return new Pair<double, double>(newPos, newVel);
+}
+
+// Round to nearest multiple
+public fn roundTo(x: double, multiple: double): double {
+    if (multiple == 0.0) { return x; }
+    return Math_round(x / multiple) as double * multiple;
+}
+
+// Floor to nearest multiple
+public fn floorTo(x: double, multiple: double): double {
+    if (multiple == 0.0) { return x; }
+    return Math_floor(x / multiple) * multiple;
+}
+
+// Ceil to nearest multiple
+public fn ceilTo(x: double, multiple: double): double {
+    if (multiple == 0.0) { return x; }
+    return Math_ceil(x / multiple) * multiple;
+}
+
+// Round to N decimal places
+public fn roundToDecimal(x: double, decimals: int): double {
+    let factor: double = MathAdvanced.pow(10.0, decimals as double);
+    return Math_round(x * factor) as double / factor;
+}
+
+// Round to N significant figures
+public fn roundToSignificant(x: double, digits: int): double {
+    if (x == 0.0) { return 0.0; }
+    let magnitude: double = Math_floor(MathAdvanced.ln(Math_abs(x)) / MathAdvanced.ln(10.0));
+    let factor: double = MathAdvanced.pow(10.0, (digits as double) - 1.0 - magnitude);
+    return Math_round(x * factor) as double / factor;
+}
+
+// Logarithm in arbitrary base: ln(value) / ln(base)
+public fn logBase(base: double, value: double): double {
+    return MathAdvanced.ln(value) / MathAdvanced.ln(base);
+}
+
+// Same as binomialExpansion: full row of Pascal's triangle
+public fn pascalsTriangleRow(n: int): ArrayList<long> {
+    return binomialExpansion(n);
+}
+
+// All rows of Pascal's triangle from row 0 through row n
+public fn pascalsTriangle(n: int): ArrayList<ArrayList<long>> {
+    let triangle: ArrayList<ArrayList<long>> = new ArrayList<ArrayList<long>>();
+    var row: int = 0;
+    while (row <= n) {
+        triangle.add(binomialExpansion(row));
+        row = row + 1;
+    }
+    return triangle;
+}
+
+// Check if n is an exact power of base
+public fn isPowerOf(n: double, base: double): bool {
+    if (n <= 0.0 || base <= 0.0 || base == 1.0) { return false; }
+    let logVal: double = MathAdvanced.ln(n) / MathAdvanced.ln(base);
+    let rounded: double = Math.round(logVal) as double;
+    var diff: double = logVal - rounded;
+    if (diff < 0.0) { diff = -diff; }
+    return diff < 1e-10;
+}
+
+// Nearest power of base to n
+public fn nearestPowerOf(n: double, base: double): double {
+    let logVal: double = MathAdvanced.ln(n) / MathAdvanced.ln(base);
+    let rounded: long = Math.round(logVal);
+    return MathAdvanced.pow(base, rounded as double);
+}
+
+// ==================== Python-compatible aliases ====================
+
+// Convert angle x from radians to degrees (alias for toDegrees)
+public fn degrees(x: double): double {
+    return x * 180.0 / PI();
+}
+
+// Convert angle x from degrees to radians (alias for toRadians)
+public fn radians(x: double): double {
+    return x * PI() / 180.0;
+}
+
+// Permutation P(n, k) returning long for larger results
+public fn permLong(n: int, k: int): long {
+    if (k < 0 || k > n) { return 0; }
+    var result: long = 1;
+    var i: int = 0;
+    while (i < k) {
+        result = result * ((n - i) as long);
+        i = i + 1;
+    }
+    return result;
+}
+
+// modf returning ArrayList<double> [fractional, integer] parts
+public fn modfList(x: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let intPart: double = Math_floor(Math_abs(x));
+    var signedInt: double = intPart;
+    if (x < 0.0) { signedInt = -intPart; }
+    let fracPart: double = x - signedInt;
+    result.add(fracPart);
+    result.add(signedInt);
+    return result;
+}
+
+// frexp returning ArrayList<double> [mantissa, exponent-as-double]
+public fn frexpList(x: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (x == 0.0) {
+        result.add(0.0);
+        result.add(0.0);
+        return result;
+    }
+    var exp: int = 0;
+    var mantissa: double = Math_abs(x);
+    if (mantissa >= 1.0) {
+        while (mantissa >= 1.0) {
+            mantissa = mantissa / 2.0;
+            exp = exp + 1;
+        }
+    } else {
+        while (mantissa < 0.5 && mantissa > 0.0) {
+            mantissa = mantissa * 2.0;
+            exp = exp - 1;
+        }
+    }
+    if (x < 0.0) { mantissa = -mantissa; }
+    result.add(mantissa);
+    result.add(exp as double);
+    return result;
+}
+
+// Return the next representable float after x in the direction of y.
+public fn nextAfter(x: double, y: double): double {
+    if (x == y) { return x; }
+    if (y > x) {
+        return Math_nextUp(x);
+    } else {
+        return Math_nextDown(x);
+    }
+}
