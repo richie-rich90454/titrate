@@ -1,0 +1,180 @@
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::chem::Molecule;
+import tt::chem::ForceField;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::lang::Double;
+
+public class VerletIntegrator {
+    public double dt;
+    public string thermostat;
+    public double targetTemp;
+    public int stepCount;
+
+    // Internal velocity and force storage
+    public ArrayList<double> velocities;
+    public ArrayList<double> forces;
+
+    fn init(d: double, therm: string, target: double) {
+        this.dt = d;
+        this.thermostat = therm;
+        this.targetTemp = target;
+        this.stepCount = 0;
+        this.velocities = new ArrayList<double>();
+        this.forces = new ArrayList<double>();
+    }
+
+    public fn setTimeStep(newDt: double): void {
+        this.dt = newDt;
+    }
+
+    public fn getStepCount(): int {
+        return this.stepCount;
+    }
+
+    public fn totalSimulationTime(): double {
+        return this.stepCount as double * this.dt;
+    }
+
+    // Initialize velocities from a simple Maxwell-Boltzmann-like distribution
+    public fn initializeVelocities(mol: Molecule): void {
+        this.velocities = new ArrayList<double>();
+        let nAtoms: int = mol.atomCount();
+        var i: int = 0;
+        while (i < nAtoms) {
+            let a: Atom = mol.getAtom(i);
+            var mass: double = a.mass;
+            if (mass < 1e-15) { mass = 1.0; }
+            let scale: double = MathAdvanced.sqrt(this.targetTemp / mass);
+            // Simple random-like initialization using deterministic values
+            let vx: double = scale * MathTrig.sin((i * 3 + 1) as double);
+            let vy: double = scale * MathTrig.sin((i * 3 + 2) as double);
+            let vz: double = scale * MathTrig.sin((i * 3 + 3) as double);
+            this.velocities.add(vx);
+            this.velocities.add(vy);
+            this.velocities.add(vz);
+            i = i + 1;
+        }
+        // Remove center-of-mass velocity
+        var totalMass: double = 0.0;
+        var vcx: double = 0.0;
+        var vcy: double = 0.0;
+        var vcz: double = 0.0;
+        i = 0;
+        while (i < nAtoms) {
+            let a: Atom = mol.getAtom(i);
+            var m: double = a.mass;
+            if (m < 1e-15) { m = 1.0; }
+            vcx = vcx + m * this.velocities.get(i * 3);
+            vcy = vcy + m * this.velocities.get(i * 3 + 1);
+            vcz = vcz + m * this.velocities.get(i * 3 + 2);
+            totalMass = totalMass + m;
+            i = i + 1;
+        }
+        if (totalMass > 1e-15) {
+            vcx = vcx / totalMass;
+            vcy = vcy / totalMass;
+            vcz = vcz / totalMass;
+            i = 0;
+            while (i < nAtoms) {
+                this.velocities.set(i * 3, this.velocities.get(i * 3) - vcx);
+                this.velocities.set(i * 3 + 1, this.velocities.get(i * 3 + 1) - vcy);
+                this.velocities.set(i * 3 + 2, this.velocities.get(i * 3 + 2) - vcz);
+                i = i + 1;
+            }
+        }
+    }
+
+    // Single Velocity Verlet MD step
+    public fn step(mol: Molecule, ff: ForceField): void {
+        let nAtoms: int = mol.atomCount();
+        // If no forces yet, compute them
+        if (this.forces.size() == 0) {
+            this.forces = computeForces(ff, mol);
+        }
+        // Update positions and half-step velocities
+        var i: int = 0;
+        while (i < nAtoms) {
+            let a: Atom = mol.getAtom(i);
+            var mass: double = a.mass;
+            if (mass < 1e-15) { mass = 1.0; }
+            let invMass: double = 1.0 / mass;
+            let ix: int = i * 3;
+            let iy: int = i * 3 + 1;
+            let iz: int = i * 3 + 2;
+            // Update position: x += v*dt + 0.5*f/m*dt^2
+            a.x = a.x + this.velocities.get(ix) * this.dt + 0.5 * this.forces.get(ix) * invMass * this.dt * this.dt;
+            a.y = a.y + this.velocities.get(iy) * this.dt + 0.5 * this.forces.get(iy) * invMass * this.dt * this.dt;
+            a.z = a.z + this.velocities.get(iz) * this.dt + 0.5 * this.forces.get(iz) * invMass * this.dt * this.dt;
+            // Half-step velocity: v += 0.5*f/m*dt
+            this.velocities.set(ix, this.velocities.get(ix) + 0.5 * this.forces.get(ix) * invMass * this.dt);
+            this.velocities.set(iy, this.velocities.get(iy) + 0.5 * this.forces.get(iy) * invMass * this.dt);
+            this.velocities.set(iz, this.velocities.get(iz) + 0.5 * this.forces.get(iz) * invMass * this.dt);
+            i = i + 1;
+        }
+        // Compute new forces
+        this.forces = computeForces(ff, mol);
+        // Complete velocity update (second half of Verlet)
+        i = 0;
+        while (i < nAtoms) {
+            let a: Atom = mol.getAtom(i);
+            var mass: double = a.mass;
+            if (mass < 1e-15) { mass = 1.0; }
+            let invMass: double = 1.0 / mass;
+            let ix: int = i * 3;
+            let iy: int = i * 3 + 1;
+            let iz: int = i * 3 + 2;
+            this.velocities.set(ix, this.velocities.get(ix) + 0.5 * this.forces.get(ix) * invMass * this.dt);
+            this.velocities.set(iy, this.velocities.get(iy) + 0.5 * this.forces.get(iy) * invMass * this.dt);
+            this.velocities.set(iz, this.velocities.get(iz) + 0.5 * this.forces.get(iz) * invMass * this.dt);
+            i = i + 1;
+        }
+        // Apply thermostat
+        this.applyThermostat(mol);
+        this.stepCount = this.stepCount + 1;
+    }
+
+    // Berendsen thermostat
+    public fn applyThermostat(mol: Molecule): void {
+        if (this.thermostat != "berendsen") { return; }
+        let currentTemp: double = kineticTemperature(mol, this.velocities);
+        if (currentTemp < 1e-15) { return; }
+        let coupling: double = 100.0; // coupling constant
+        let ratio: double = this.targetTemp / currentTemp;
+        let lambda: double = MathAdvanced.sqrt(1.0 + (this.dt / coupling) * (ratio - 1.0));
+        var i: int = 0;
+        while (i < this.velocities.size()) {
+            this.velocities.set(i, this.velocities.get(i) * lambda);
+            i = i + 1;
+        }
+    }
+}
+
+// Compute kinetic energy
+public fn kineticEnergy(mol: Molecule, velocities: ArrayList<double>): double {
+    var ke: double = 0.0;
+    let nAtoms: int = mol.atomCount();
+    var i: int = 0;
+    while (i < nAtoms) {
+        let a: Atom = mol.getAtom(i);
+        let mass: double = a.mass;
+        let ix: int = i * 3;
+        let iy: int = i * 3 + 1;
+        let iz: int = i * 3 + 2;
+        let v2: double = velocities.get(ix) * velocities.get(ix) + velocities.get(iy) * velocities.get(iy) + velocities.get(iz) * velocities.get(iz);
+        ke = ke + 0.5 * mass * v2;
+        i = i + 1;
+    }
+    return ke;
+}
+
+// Compute temperature from kinetic energy: T = 2*KE / (3*N*k_B)
+// Using k_B = 1.0 in reduced units
+public fn kineticTemperature(mol: Molecule, velocities: ArrayList<double>): double {
+    let nAtoms: int = mol.atomCount();
+    if (nAtoms == 0) { return 0.0; }
+    let ke: double = kineticEnergy(mol, velocities);
+    return 2.0 * ke / (3.0 * nAtoms as double);
+}
