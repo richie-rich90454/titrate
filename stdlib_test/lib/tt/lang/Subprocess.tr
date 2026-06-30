@@ -1,0 +1,128 @@
+// Subprocess — extended subprocess control with communicate, signals, and timeout.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::String;
+
+// Popen provides full process control similar to Python's subprocess.Popen.
+public class Popen {
+    public string command;
+    public ArrayList<string> args;
+    public int pid;
+    public string stdout;
+    public string stderr;
+    public int exitCode;
+    public bool running;
+
+    public fn init(command: string, args: ArrayList<string>) {
+        this.command = command;
+        this.args = args;
+        this.pid = 0;
+        this.stdout = "";
+        this.stderr = "";
+        this.exitCode = -1;
+        this.running = true;
+        // Start the process
+        let fullCmd: string = command;
+        var i: int = 0;
+        while (i < args.size()) {
+            fullCmd = fullCmd + " " + args.get(i);
+            i = i + 1;
+        }
+        let result: SubprocessResult = Subprocess_runFull(fullCmd);
+        this.pid = result.pid;
+    }
+
+    // Communicate with the process, optionally sending input and waiting with a timeout.
+    // Returns a Pair of (stdout, stderr).
+    public fn communicate(input: string, timeoutMs: long): Pair<string, string> {
+        if (this.running) {
+            let fullCmd: string = this.command;
+            var i: int = 0;
+            while (i < this.args.size()) {
+                fullCmd = fullCmd + " " + this.args.get(i);
+                i = i + 1;
+            }
+            let result: SubprocessResult = Subprocess_runWithInput(fullCmd, input, timeoutMs);
+            this.stdout = result.stdout;
+            this.stderr = result.stderr;
+            this.exitCode = result.returnCode;
+            this.running = false;
+        }
+        return new Pair<string, string>(this.stdout, this.stderr);
+    }
+
+    // Send a signal to the process.
+    public fn sendSignal(signal: int): void {
+        if (this.running) {
+            Os_killSignal(this.pid, signal);
+        }
+    }
+
+    // Terminate the process gracefully.
+    public fn terminate(): void {
+        if (this.running) {
+            this.sendSignal(15);
+            this.running = false;
+            this.exitCode = -15;
+        }
+    }
+
+    // Kill the process forcefully.
+    public fn kill(): void {
+        if (this.running) {
+            this.sendSignal(9);
+            this.running = false;
+            this.exitCode = -9;
+        }
+    }
+
+    // Wait for the process to finish with an optional timeout.
+    // Returns the exit code.
+    public fn wait(timeoutMs: long): int {
+        if (!this.running) {
+            return this.exitCode;
+        }
+        let fullCmd: string = this.command;
+        var i: int = 0;
+        while (i < this.args.size()) {
+            fullCmd = fullCmd + " " + this.args.get(i);
+            i = i + 1;
+        }
+        let result: SubprocessResult = Subprocess_runWithTimeout(fullCmd, timeoutMs);
+        this.stdout = result.stdout;
+        this.stderr = result.stderr;
+        this.exitCode = result.returnCode;
+        this.running = false;
+        return this.exitCode;
+    }
+
+    // Check whether the process is still running.
+    public fn isRunning(): bool {
+        return this.running;
+    }
+
+    // Get the process ID.
+    public fn getPid(): int {
+        return this.pid;
+    }
+
+    // Get the exit code (returns -1 if still running).
+    public fn getExitCode(): int {
+        return this.exitCode;
+    }
+}
+
+// SubprocessResult holds the output of a subprocess execution.
+public class SubprocessResult {
+    public string stdout;
+    public string stderr;
+    public int returnCode;
+    public int pid;
+
+    public fn init(stdout: string, stderr: string, returnCode: int, pid: int) {
+        this.stdout = stdout;
+        this.stderr = stderr;
+        this.returnCode = returnCode;
+        this.pid = pid;
+    }
+}
