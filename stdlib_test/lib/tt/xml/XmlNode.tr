@@ -1,0 +1,468 @@
+// XmlNode represents an XML element with tag, attributes, children, and text.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+public class XmlNode {
+    public string tag;
+    public HashMap<string, string> attributes;
+    public ArrayList<XmlNode> children;
+    public string text;
+    public string namespaceURI;
+    public string prefix;
+    public string localName;
+    public string nodeType;
+    public string piTarget;
+    public string piData;
+
+    public fn init(t: string) {
+        this.tag = t;
+        this.attributes = new HashMap<string, string>();
+        this.children = new ArrayList<XmlNode>();
+        this.text = "";
+        this.namespaceURI = "";
+        this.prefix = "";
+        this.localName = t;
+        this.nodeType = "element";
+        this.piTarget = "";
+        this.piData = "";
+    }
+
+    public fn getTag(): string {
+        return this.tag;
+    }
+
+    public fn getText(): string {
+        return this.text;
+    }
+
+    public fn getAttr(name: string): string {
+        let val: string = this.attributes.get(name);
+        if (val == null) {
+            return "";
+        }
+        return val;
+    }
+
+    public fn setAttr(name: string, value: string): void {
+        this.attributes.put(name, value);
+    }
+
+    public fn addChild(node: XmlNode): void {
+        this.children.add(node);
+    }
+
+    public fn getChildren(): ArrayList<XmlNode> {
+        return this.children;
+    }
+
+    public fn getChildrenByTag(tag: string): ArrayList<XmlNode> {
+        let result: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+        let i: int = 0;
+        while (i < this.children.size()) {
+            let child: XmlNode = this.children.get(i);
+            if (child.tag == tag) {
+                result.add(child);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn removeChild(node: XmlNode): void {
+        let i: int = 0;
+        while (i < this.children.size()) {
+            if (this.children.get(i) == node) {
+                this.children.remove(i);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn replaceChild(oldNode: XmlNode, newNode: XmlNode): void {
+        let i: int = 0;
+        while (i < this.children.size()) {
+            if (this.children.get(i) == oldNode) {
+                this.children.set(i, newNode);
+                return;
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn getElementsByTagNameNS(nsURI: string, lname: string): ArrayList<XmlNode> {
+        let result: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+        if (this.namespaceURI == nsURI && this.localName == lname) {
+            result.add(this);
+        }
+        let i: int = 0;
+        while (i < this.children.size()) {
+            let childResults: ArrayList<XmlNode> = this.children.get(i).getElementsByTagNameNS(nsURI, lname);
+            let j: int = 0;
+            while (j < childResults.size()) {
+                result.add(childResults.get(j));
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn getChildrenByTagNS(nsURI: string, lname: string): ArrayList<XmlNode> {
+        let result: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+        let i: int = 0;
+        while (i < this.children.size()) {
+            let child: XmlNode = this.children.get(i);
+            if (child.namespaceURI == nsURI && child.localName == lname) {
+                result.add(child);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn textContent(): string {
+        if (this.nodeType == "text" || this.nodeType == "cdata") {
+            return this.text;
+        }
+        let result: string = "";
+        if (this.text != "") {
+            result = result + this.text;
+        }
+        let i: int = 0;
+        while (i < this.children.size()) {
+            result = result + this.children.get(i).textContent();
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn cloneNode(deep: bool): XmlNode {
+        let clone: XmlNode = new XmlNode(this.tag);
+        clone.text = this.text;
+        clone.namespaceURI = this.namespaceURI;
+        clone.prefix = this.prefix;
+        clone.localName = this.localName;
+        clone.nodeType = this.nodeType;
+        clone.piTarget = this.piTarget;
+        clone.piData = this.piData;
+        // Copy attributes
+        let keys: ArrayList<string> = this.attributes.keys();
+        let k: int = 0;
+        while (k < keys.size()) {
+            let key: string = keys.get(k);
+            clone.attributes.put(key, this.attributes.get(key));
+            k = k + 1;
+        }
+        // Deep clone children
+        if (deep) {
+            let i: int = 0;
+            while (i < this.children.size()) {
+                clone.children.add(this.children.get(i).cloneNode(true));
+                i = i + 1;
+            }
+        }
+        return clone;
+    }
+
+    public fn normalize(): void {
+        let merged: ArrayList<XmlNode> = new ArrayList<XmlNode>();
+        let i: int = 0;
+        while (i < this.children.size()) {
+            let child: XmlNode = this.children.get(i);
+            if (child.nodeType == "text") {
+                // Skip empty text nodes
+                if (String.length(child.text) == 0) {
+                    i = i + 1;
+                    continue;
+                }
+                // Merge with subsequent adjacent text nodes
+                let combined: string = child.text;
+                let j: int = i + 1;
+                while (j < this.children.size()) {
+                    let next: XmlNode = this.children.get(j);
+                    if (next.nodeType != "text") {
+                        break;
+                    }
+                    combined = combined + next.text;
+                    j = j + 1;
+                }
+                if (String.length(combined) > 0) {
+                    let mergedNode: XmlNode = newTextNode(combined);
+                    merged.add(mergedNode);
+                }
+                i = j;
+            } else {
+                child.normalize();
+                merged.add(child);
+                i = i + 1;
+            }
+        }
+        // Replace children with merged list
+        this.children = merged;
+    }
+
+    public fn lookupNamespaceURI(prefix: string): string {
+        // Check xmlns attributes on this node
+        let keys: ArrayList<string> = this.attributes.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            if (key == "xmlns" && prefix == "") {
+                return this.attributes.get(key);
+            }
+            if (String.length(key) > 6) {
+                if (String.substring(key, 0, 6) == "xmlns:") {
+                    let attrPrefix: string = String.substring(key, 6, String.length(key));
+                    if (attrPrefix == prefix) {
+                        return this.attributes.get(key);
+                    }
+                }
+            }
+            i = i + 1;
+        }
+        // Check parent by walking up — not directly possible, so check children recursively
+        let j: int = 0;
+        while (j < this.children.size()) {
+            let found: string = this.children.get(j).lookupNamespaceURI(prefix);
+            if (found != "") {
+                return found;
+            }
+            j = j + 1;
+        }
+        return "";
+    }
+
+    public fn lookupPrefix(uri: string): string {
+        // Check xmlns attributes on this node
+        let keys: ArrayList<string> = this.attributes.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            if (key == "xmlns" && this.attributes.get(key) == uri) {
+                return "";
+            }
+            if (String.length(key) > 6) {
+                if (String.substring(key, 0, 6) == "xmlns:") {
+                    if (this.attributes.get(key) == uri) {
+                        return String.substring(key, 6, String.length(key));
+                    }
+                }
+            }
+            i = i + 1;
+        }
+        // Check children recursively
+        let j: int = 0;
+        while (j < this.children.size()) {
+            let found: string = this.children.get(j).lookupPrefix(uri);
+            if (found != "") {
+                return found;
+            }
+            j = j + 1;
+        }
+        return "";
+    }
+
+    public fn getElementByTagName(name: string): XmlNode {
+        // Search this node and all descendants
+        if (this.tag == name) {
+            return this;
+        }
+        let i: int = 0;
+        while (i < this.children.size()) {
+            let found: XmlNode = this.children.get(i).getElementByTagName(name);
+            if (found != null) {
+                return found;
+            }
+            i = i + 1;
+        }
+        return null;
+    }
+
+    public fn hasAttr(key: string): bool {
+        return this.attributes.containsKey(key);
+    }
+
+    public fn removeAttr(key: string): void {
+        this.attributes.remove(key);
+    }
+
+    // XML serialization
+    public fn toString(): string {
+        return this.toStringWithIndent(0);
+    }
+
+    private fn toStringWithIndent(level: int): string {
+        let indent: string = "";
+        let i: int = 0;
+        while (i < level) {
+            indent = indent + "  ";
+            i = i + 1;
+        }
+        // Handle non-element node types
+        if (this.nodeType == "text") {
+            return indent + escapeText(this.text);
+        }
+        if (this.nodeType == "cdata") {
+            return indent + "<![CDATA[" + this.text + "]]>";
+        }
+        if (this.nodeType == "comment") {
+            return indent + "<!--" + this.text + "-->";
+        }
+        if (this.nodeType == "pi") {
+            return indent + "<?" + this.piTarget + " " + this.piData + "?>";
+        }
+        if (this.nodeType == "declaration") {
+            return indent + "<?xml version=\"" + this.piTarget + "\" encoding=\"" + this.piData + "\"?>";
+        }
+        // Element node type
+        let result: string = indent + "<" + this.tag;
+        // Serialize attributes
+        let keys: ArrayList<string> = this.attributes.keys();
+        let k: int = 0;
+        while (k < keys.size()) {
+            let key: string = keys.get(k);
+            let val: string = this.attributes.get(key);
+            result = result + " " + key + "=\"" + escapeAttr(val) + "\"";
+            k = k + 1;
+        }
+        // If no children and no text, self-close
+        if (this.children.size() == 0 && this.text == "") {
+            result = result + " />";
+            return result;
+        }
+        result = result + ">";
+        // If only text content (no children), inline it
+        if (this.children.size() == 0) {
+            result = result + escapeText(this.text) + "</" + this.tag + ">";
+            return result;
+        }
+        // Has children
+        result = result + "\n";
+        // Text content before children
+        if (this.text != "") {
+            result = result + indent + "  " + escapeText(this.text) + "\n";
+        }
+        let c: int = 0;
+        while (c < this.children.size()) {
+            result = result + this.children.get(c).toStringWithIndent(level + 1) + "\n";
+            c = c + 1;
+        }
+        result = result + indent + "</" + this.tag + ">";
+        return result;
+    }
+}
+
+// Factory functions for creating different node types
+
+public fn newTextNode(content: string): XmlNode {
+    let node: XmlNode = new XmlNode("");
+    node.nodeType = "text";
+    node.text = content;
+    node.localName = "";
+    return node;
+}
+
+public fn newCDataNode(content: string): XmlNode {
+    let node: XmlNode = new XmlNode("");
+    node.nodeType = "cdata";
+    node.text = content;
+    node.localName = "";
+    return node;
+}
+
+public fn newCommentNode(content: string): XmlNode {
+    let node: XmlNode = new XmlNode("");
+    node.nodeType = "comment";
+    node.text = content;
+    node.localName = "";
+    return node;
+}
+
+public fn newPINode(target: string, data: string): XmlNode {
+    let node: XmlNode = new XmlNode("");
+    node.nodeType = "pi";
+    node.piTarget = target;
+    node.piData = data;
+    node.localName = target;
+    return node;
+}
+
+public fn newDeclarationNode(version: string, encoding: string): XmlNode {
+    let node: XmlNode = new XmlNode("");
+    node.nodeType = "declaration";
+    node.piTarget = version;
+    node.piData = encoding;
+    node.localName = "";
+    return node;
+}
+
+// Escape text content for XML
+fn escapeText(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        _ensureXmlEscapeLoaded();
+        if (_xmlEscapeCache.containsKey(c)) {
+            result = result + _xmlEscapeCache.get(c);
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Escape attribute value for XML
+fn escapeAttr(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        _ensureXmlEscapeLoaded();
+        if (_xmlEscapeCache.containsKey(c)) {
+            result = result + _xmlEscapeCache.get(c);
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _xmlEscapeCache: HashMap<string, string> = new HashMap<string, string>();
+var _xmlEscapeLoaded: bool = false;
+
+fn _ensureXmlEscapeLoaded(): void {
+    if (_xmlEscapeLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("encoding/escape_maps.json");
+    if (data.isNull() || !data.isObject()) {
+        _xmlEscapeLoaded = true;
+        return;
+    }
+    if (!data.hasKey("xml_escape")) {
+        _xmlEscapeLoaded = true;
+        return;
+    }
+    let escape: JsonValue = data.get("xml_escape");
+    if (!escape.isObject()) {
+        _xmlEscapeLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = escape.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: string = escape.get(key).asString();
+        _xmlEscapeCache.put(key, val);
+        i = i + 1;
+    }
+    _xmlEscapeLoaded = true;
+}
