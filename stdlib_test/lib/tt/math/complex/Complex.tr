@@ -1,0 +1,309 @@
+// Complex provides a complex number type with arithmetic and transcendental functions.
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::lang::Double;
+
+public class Complex {
+    public double real;
+    public double imag;
+
+    public fn init(real: double, imag: double) {
+        this.real = real;
+        this.imag = imag;
+    }
+
+    // ---- Properties ----
+
+    // Absolute value (modulus): |z| = sqrt(real^2 + imag^2)
+    public fn abs(): double {
+        return Math.hypot(this.real, this.imag);
+    }
+
+    // Argument (phase angle) in radians
+    public fn arg(): double {
+        return MathTrig.atan2(this.imag, this.real);
+    }
+
+    // Squared norm: real^2 + imag^2
+    public fn norm(): double {
+        return this.real * this.real + this.imag * this.imag;
+    }
+
+    // Complex conjugate
+    public fn conj(): Complex {
+        return new Complex(this.real, -this.imag);
+    }
+
+    // ---- Arithmetic ----
+
+    public fn add(other: Complex): Complex {
+        return new Complex(this.real + other.real, this.imag + other.imag);
+    }
+
+    public fn sub(other: Complex): Complex {
+        return new Complex(this.real - other.real, this.imag - other.imag);
+    }
+
+    public fn mul(other: Complex): Complex {
+        let r: double = this.real * other.real - this.imag * other.imag;
+        let i: double = this.real * other.imag + this.imag * other.real;
+        return new Complex(r, i);
+    }
+
+    public fn div(other: Complex): Complex {
+        let denom: double = other.real * other.real + other.imag * other.imag;
+        if (denom == 0.0) {
+            return new Complex(Math.INF(), Math.INF());
+        }
+        let r: double = (this.real * other.real + this.imag * other.imag) / denom;
+        let i: double = (this.imag * other.real - this.real * other.imag) / denom;
+        return new Complex(r, i);
+    }
+
+    public fn negate(): Complex {
+        return new Complex(-this.real, -this.imag);
+    }
+
+    // ---- Transcendental functions ----
+
+    // e^z = e^(real) * (cos(imag) + i*sin(imag))
+    public fn exp(): Complex {
+        let expReal: double = MathAdvanced.exp(this.real);
+        return new Complex(expReal * MathTrig.cos(this.imag), expReal * MathTrig.sin(this.imag));
+    }
+
+    // Principal logarithm: ln(|z|) + i*arg(z)
+    public fn log(): Complex {
+        let r: double = MathAdvanced.ln(this.abs());
+        let i: double = this.arg();
+        return new Complex(r, i);
+    }
+
+    // z^n using exponential form: e^(n * log(z))
+    public fn pow(n: double): Complex {
+        if (this.real == 0.0 && this.imag == 0.0) {
+            if (n > 0.0) { return fromPolar(0.0, 0.0); }
+            return new Complex(Math.INF(), 0.0);
+        }
+        let ln: Complex = this.log();
+        let scaled: Complex = new Complex(ln.real * n, ln.imag * n);
+        return scaled.exp();
+    }
+
+    // Principal square root
+    public fn sqrt(): Complex {
+        let r: double = this.abs();
+        let sqrtR: double = MathAdvanced.sqrt(r);
+        let angle: double = this.arg() / 2.0;
+        return new Complex(sqrtR * MathTrig.cos(angle), sqrtR * MathTrig.sin(angle));
+    }
+
+    // ---- Trigonometric functions ----
+
+    // sin(z) = sin(real)*cosh(imag) + i*cos(real)*sinh(imag)
+    public fn sin(): Complex {
+        let r: double = MathTrig.sin(this.real) * MathTrig.cosh(this.imag);
+        let i: double = MathTrig.cos(this.real) * MathTrig.sinh(this.imag);
+        return new Complex(r, i);
+    }
+
+    // cos(z) = cos(real)*cosh(imag) - i*sin(real)*sinh(imag)
+    public fn cos(): Complex {
+        let r: double = MathTrig.cos(this.real) * MathTrig.cosh(this.imag);
+        let i: double = -MathTrig.sin(this.real) * MathTrig.sinh(this.imag);
+        return new Complex(r, i);
+    }
+
+    // tan(z) = sin(z) / cos(z)
+    public fn tan(): Complex {
+        return this.sin().div(this.cos());
+    }
+
+    // ---- Hyperbolic functions ----
+
+    // sinh(z) = sinh(real)*cos(imag) + i*cosh(real)*sin(imag)
+    public fn sinh(): Complex {
+        let r: double = MathTrig.sinh(this.real) * MathTrig.cos(this.imag);
+        let i: double = MathTrig.cosh(this.real) * MathTrig.sin(this.imag);
+        return new Complex(r, i);
+    }
+
+    // cosh(z) = cosh(real)*cos(imag) + i*sinh(real)*sin(imag)
+    public fn cosh(): Complex {
+        let r: double = MathTrig.cosh(this.real) * MathTrig.cos(this.imag);
+        let i: double = MathTrig.sinh(this.real) * MathTrig.sin(this.imag);
+        return new Complex(r, i);
+    }
+
+    // tanh(z) = sinh(z) / cosh(z)
+    public fn tanh(): Complex {
+        return this.sinh().div(this.cosh());
+    }
+
+    // ---- Inverse trigonometric functions ----
+
+    // arccos(z) = -i * log(z + sqrt(z^2 - 1))
+    public fn acos(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let z2minus1: Complex = this.mul(this).sub(one);
+        let inner: Complex = this.add(z2minus1.sqrt());
+        let logVal: Complex = inner.log();
+        return logVal.mul(new Complex(0.0, -1.0));
+    }
+
+    // arcsin(z) = -i * log(iz + sqrt(1 - z^2))
+    public fn asin(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let iz: Complex = new Complex(-this.imag, this.real);
+        let oneMinusZ2: Complex = one.sub(this.mul(this));
+        let inner: Complex = iz.add(oneMinusZ2.sqrt());
+        let logVal: Complex = inner.log();
+        return logVal.mul(new Complex(0.0, -1.0));
+    }
+
+    // arctan(z) = (i/2) * log((1 - iz) / (1 + iz))
+    public fn atan(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let iz: Complex = new Complex(-this.imag, this.real);
+        let numerator: Complex = one.sub(iz);
+        let denominator: Complex = one.add(iz);
+        let ratio: Complex = numerator.div(denominator);
+        let logVal: Complex = ratio.log();
+        return logVal.mul(new Complex(0.0, 0.5));
+    }
+
+    // ---- Inverse hyperbolic functions ----
+
+    // arccosh(z) = log(z + sqrt(z-1) * sqrt(z+1))
+    public fn acosh(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let sqrtZminus1: Complex = this.sub(one).sqrt();
+        let sqrtZplus1: Complex = this.add(one).sqrt();
+        let inner: Complex = this.add(sqrtZminus1.mul(sqrtZplus1));
+        return inner.log();
+    }
+
+    // arcsinh(z) = log(z + sqrt(z^2 + 1))
+    public fn asinh(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let z2plus1: Complex = this.mul(this).add(one);
+        let inner: Complex = this.add(z2plus1.sqrt());
+        return inner.log();
+    }
+
+    // arctanh(z) = 0.5 * (log(1+z) - log(1-z))
+    public fn atanh(): Complex {
+        let one: Complex = new Complex(1.0, 0.0);
+        let logPlus: Complex = one.add(this).log();
+        let logMinus: Complex = one.sub(this).log();
+        let diff: Complex = logPlus.sub(logMinus);
+        return diff.mul(new Complex(0.5, 0.0));
+    }
+
+    // ---- Logarithm variants ----
+
+    // log10(z) = log(z) / ln(10)
+    public fn log10(): Complex {
+        let ln10: double = MathAdvanced.ln(10.0);
+        return this.log().div(new Complex(ln10, 0.0));
+    }
+
+    // log2(z) = log(z) / ln(2)
+    public fn log2(): Complex {
+        let ln2: double = MathAdvanced.ln(2.0);
+        return this.log().div(new Complex(ln2, 0.0));
+    }
+
+    // ---- Classification ----
+
+    // Both real and imag are finite (not NaN or Inf)
+    public fn isFinite(): bool {
+        return Math.isfinite(this.real) && Math.isfinite(this.imag);
+    }
+
+    // Either real or imag is infinite
+    public fn isInf(): bool {
+        return Math.isinf(this.real) || Math.isinf(this.imag);
+    }
+
+    // Either real or imag is NaN
+    public fn isNaN(): bool {
+        return Math.isnan(this.real) || Math.isnan(this.imag);
+    }
+
+    // |a-b| <= max(relTol * max(|a|, |b|), absTol)
+    public fn isClose(other: Complex, relTol: double, absTol: double): bool {
+        let diff: double = this.sub(other).abs();
+        let magA: double = this.abs();
+        let magB: double = other.abs();
+        let larger: double = magA;
+        if (magB > larger) { larger = magB; }
+        let tolerance: double = relTol * larger;
+        if (absTol > tolerance) { tolerance = absTol; }
+        return diff <= tolerance;
+    }
+
+    // ---- Comparison and string ----
+
+    public fn equals(other: Complex): bool {
+        var dr: double = this.real - other.real;
+        var di: double = this.imag - other.imag;
+        if (dr < 0.0) { dr = -dr; }
+        if (di < 0.0) { di = -di; }
+        return dr < 1e-12 && di < 1e-12;
+    }
+
+    public fn toString(): string {
+        let r: string = Double.toString(this.real);
+        if (this.imag >= 0.0) {
+            return r + "+" + Double.toString(this.imag) + "i";
+        }
+        return r + Double.toString(this.imag) + "i";
+    }
+}
+
+// ---- Static factories ----
+
+public fn fromPolar(r: double, theta: double): Complex {
+    return new Complex(r * MathTrig.cos(theta), r * MathTrig.sin(theta));
+}
+
+public fn zero(): Complex {
+    return new Complex(0.0, 0.0);
+}
+
+public fn one(): Complex {
+    return new Complex(1.0, 0.0);
+}
+
+public fn i(): Complex {
+    return new Complex(0.0, 1.0);
+}
+
+// Alias for fromPolar
+public fn polar(r: double, theta: double): Complex {
+    return fromPolar(r, theta);
+}
+
+// ---- Constants ----
+
+public fn complexInf(): Complex {
+    return new Complex(Math.INF(), 0.0);
+}
+
+public fn complexNan(): Complex {
+    return new Complex(Math.NAN(), Math.NAN());
+}
+
+public fn complexZero(): Complex {
+    return new Complex(0.0, 0.0);
+}
+
+public fn complexOne(): Complex {
+    return new Complex(1.0, 0.0);
+}
+
+public fn complexI(): Complex {
+    return new Complex(0.0, 1.0);
+}
