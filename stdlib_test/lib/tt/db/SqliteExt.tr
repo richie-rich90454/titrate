@@ -1,0 +1,168 @@
+// SqliteExt — extended SQLite utilities: prepared statements, transaction control, WAL mode.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::Integer;
+import tt::lang::String;
+
+// Create a prepared statement for the given database and SQL.
+public fn prepare(db: string, sql: string): PreparedStatement {
+    let stmt: PreparedStatement = new PreparedStatement(sql);
+    return stmt;
+}
+
+// PreparedStatement represents a pre-compiled SQL statement with bindable parameters.
+public class PreparedStatement {
+    public string sql;
+    public ArrayList<Variant> params;
+
+    public fn init(sql: string) {
+        this.sql = sql;
+        this.params = new ArrayList<Variant>();
+    }
+
+    // Bind an integer value at the given 1-based parameter index.
+    public fn bindInt(index: int, value: int): void {
+        this._ensureCapacity(index);
+        this.params.set(index - 1, value);
+    }
+
+    // Bind a double value at the given 1-based parameter index.
+    public fn bindDouble(index: int, value: double): void {
+        this._ensureCapacity(index);
+        this.params.set(index - 1, value);
+    }
+
+    // Bind a string value at the given 1-based parameter index.
+    public fn bindString(index: int, value: string): void {
+        this._ensureCapacity(index);
+        this.params.set(index - 1, value);
+    }
+
+    // Bind a null value at the given 1-based parameter index.
+    public fn bindNull(index: int): void {
+        this._ensureCapacity(index);
+        this.params.set(index - 1, null);
+    }
+
+    // Ensure the params list has enough capacity for the given 1-based index.
+    private fn _ensureCapacity(index: int): void {
+        while (this.params.size() < index) {
+            this.params.add(null);
+        }
+    }
+
+    // Execute the statement (for INSERT, UPDATE, DELETE).
+    public fn execute(): void {
+        Sqlite_executePrepared(this.sql, this.params);
+    }
+
+    // Execute the statement and return the result rows (for SELECT).
+    public fn executeQuery(): ArrayList<HashMap> {
+        return Sqlite_queryPrepared(this.sql, this.params);
+    }
+}
+
+// TransactionController manages database transactions.
+public class TransactionController {
+    public string dbPath;
+    public bool inTransaction;
+
+    public fn init(dbPath: string) {
+        this.dbPath = dbPath;
+        this.inTransaction = false;
+    }
+
+    // Begin a transaction.
+    public fn begin(): void {
+        if (this.inTransaction) {
+            throw "TransactionError: already in transaction";
+        }
+        Sqlite_execute(this.dbPath, "BEGIN");
+        this.inTransaction = true;
+    }
+
+    // Commit the current transaction.
+    public fn commit(): void {
+        if (!this.inTransaction) {
+            throw "TransactionError: no active transaction";
+        }
+        Sqlite_execute(this.dbPath, "COMMIT");
+        this.inTransaction = false;
+    }
+
+    // Roll back the current transaction.
+    public fn rollback(): void {
+        if (!this.inTransaction) {
+            throw "TransactionError: no active transaction";
+        }
+        Sqlite_execute(this.dbPath, "ROLLBACK");
+        this.inTransaction = false;
+    }
+
+    // Check whether a transaction is active.
+    public fn isInTransaction(): bool {
+        return this.inTransaction;
+    }
+}
+
+// Enable or disable WAL (Write-Ahead Logging) mode for a SQLite database.
+public fn walMode(dbPath: string, enable: bool): void {
+    if (enable) {
+        Sqlite_execute(dbPath, "PRAGMA journal_mode=WAL");
+    } else {
+        Sqlite_execute(dbPath, "PRAGMA journal_mode=DELETE");
+    }
+}
+
+// BlobReader provides read access to a BLOB column in a SQLite database.
+public class BlobReader {
+    public string dbPath;
+    public string tableName;
+    public string columnName;
+    public int rowId;
+    public string data;
+
+    public fn init(dbPath: string, table: string, column: string, rowId: int) {
+        this.dbPath = dbPath;
+        this.tableName = table;
+        this.columnName = column;
+        this.rowId = rowId;
+        // Read the BLOB data using a SELECT query
+        let sql: string = "SELECT " + column + " FROM " + table + " WHERE rowid = " + Integer.toString(rowId);
+        let rows: ArrayList<HashMap> = Sqlite_query(dbPath, sql);
+        if (rows.size() > 0) {
+            this.data = rows.get(0).get(column);
+        } else {
+            this.data = "";
+        }
+    }
+
+    // Return the BLOB data as a string.
+    public fn readAll(): string {
+        return this.data;
+    }
+
+    // Return the length of the BLOB data in bytes.
+    public fn length(): int {
+        return String.length(this.data);
+    }
+
+    // Return a substring of the BLOB data.
+    public fn read(offset: int, length: int): string {
+        return String.substring(this.data, offset, offset + length);
+    }
+}
+
+// Write BLOB data to a SQLite database row.
+public fn writeBlob(dbPath: string, table: string, column: string, rowId: int, data: string): void {
+    let sql: string = "UPDATE " + table + " SET " + column + " = ? WHERE rowid = " + Integer.toString(rowId);
+    let stmt: PreparedStatement = new PreparedStatement(sql);
+    stmt.bindString(1, data);
+    stmt.execute();
+}
+
+// Backup a SQLite database to a target file path.
+public fn backup(dbPath: string, targetPath: string): void {
+    Sqlite_backup(dbPath, targetPath);
+}
