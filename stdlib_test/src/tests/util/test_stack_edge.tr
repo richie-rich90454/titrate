@@ -1,0 +1,109 @@
+// Edge case tests for Stack.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::util::Stack;
+import tt::lang::Integer;
+
+// Test empty stack operations: size, isEmpty, clear.
+public fn test_stack_edge_empty_operations(): void {
+    let s: Stack<int> = new Stack<int>();
+    if (s.size() != 0) {
+        io::println("FAIL: Stack empty size = " + Integer.toString(s.size()));
+    } else if (!s.isEmpty()) {
+        io::println("FAIL: Stack empty not isEmpty");
+    } else {
+        io::println("PASS: Stack empty size/isEmpty");
+    }
+    s.clear();
+    if (s.size() != 0 || !s.isEmpty()) {
+        io::println("FAIL: Stack clear on empty");
+    } else {
+        io::println("PASS: Stack clear on empty");
+    }
+}
+
+// Test single push/pop returns the same element and empties the stack.
+public fn test_stack_edge_single_push_pop(): void {
+    let s: Stack<int> = new Stack<int>();
+    s.push(42);
+    if (s.size() != 1 || s.isEmpty()) {
+        io::println("FAIL: Stack single push size");
+    } else {
+        io::println("PASS: Stack single push size");
+    }
+    let v: int = s.pop();
+    if (v != 42 || !s.isEmpty()) {
+        io::println("FAIL: Stack single pop value/empty");
+    } else {
+        io::println("PASS: Stack single push/pop");
+    }
+}
+
+// Test peek on empty stack is handled safely (caught, no crash).
+public fn test_stack_edge_peek_empty_safe(): void {
+    let s: Stack<int> = new Stack<int>();
+    let caught: bool = false;
+    try {
+        s.peek();
+    } catch (e: string) {
+        caught = true;
+    }
+    if (caught) {
+        io::println("PASS: Stack peek on empty throws safely");
+    } else {
+        // If no throw, ensure size still 0 (peek must not modify state)
+        if (s.size() != 0) {
+            io::println("FAIL: Stack peek empty corrupted size");
+        } else {
+            io::println("PASS: Stack peek on empty no throw");
+        }
+    }
+}
+
+// Test multiple push/pop preserves LIFO order.
+public fn test_stack_edge_multiple_order(): void {
+    let s: Stack<int> = new Stack<int>();
+    s.push(1);
+    s.push(2);
+    s.push(3);
+    s.push(4);
+    let a: int = s.pop();
+    let b: int = s.pop();
+    let c: int = s.pop();
+    let d: int = s.pop();
+    if (a != 4 || b != 3 || c != 2 || d != 1) {
+        io::println("FAIL: Stack multiple LIFO order");
+    } else if (!s.isEmpty()) {
+        io::println("FAIL: Stack not empty after pops");
+    } else {
+        io::println("PASS: Stack multiple push/pop LIFO");
+    }
+}
+
+// Test size tracking through push, pop, and clear cycle.
+public fn test_stack_edge_size_cycle(): void {
+    let s: Stack<int> = new Stack<int>();
+    s.push(1);
+    s.push(2);
+    s.pop();
+    s.push(3);
+    if (s.size() != 2) {
+        io::println("FAIL: Stack size cycle = " + Integer.toString(s.size()));
+    } else {
+        io::println("PASS: Stack size tracking through cycle");
+    }
+    s.clear();
+    if (s.size() != 0) {
+        io::println("FAIL: Stack size after clear = " + Integer.toString(s.size()));
+    } else {
+        io::println("PASS: Stack size after clear");
+    }
+}
+
+public fn run_all_stack_edge_tests(): void {
+    io::println("=== Stack.tr Edge Tests ===");
+    test_stack_edge_empty_operations();
+    test_stack_edge_single_push_pop();
+    test_stack_edge_peek_empty_safe();
+    test_stack_edge_multiple_order();
+    test_stack_edge_size_cycle();
+}
