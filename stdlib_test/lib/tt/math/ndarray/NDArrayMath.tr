@@ -1,0 +1,115 @@
+import tt::util::ArrayList;
+import tt::math::MathTrig;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+// NDArray math operations: map, zipMap, dot, norm
+
+public fn map<T>(a: NDArray<T>, f: fn(T): T): NDArray<T> {
+    let result: NDArray<T> = new NDArray<T>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    i = 0;
+    while (i < a.data.size()) {
+        result.data.add(f(a.data.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn zipMap<T>(a: NDArray<T>, other: NDArray<T>, f: fn(T, T): T): NDArray<T> {
+    let result: NDArray<T> = new NDArray<T>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    i = 0;
+    while (i < a.data.size()) {
+        result.data.add(f(a.data.get(i), other.data.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn dot<T>(a: NDArray<T>, other: NDArray<T>): double {
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        s = s + a.data.get(i) * other.data.get(i);
+        i = i + 1;
+    }
+    return s;
+}
+
+public fn norm<T>(a: NDArray<T>): double {
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        s = s + v * v;
+        i = i + 1;
+    }
+    return MathAdvanced.sqrt(s);
+}
+
+// ---- Element-wise unary math functions ----
+
+// Trigonometric
+public fn ndSin(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.sin(x); }); }
+public fn ndCos(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.cos(x); }); }
+public fn ndTan(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.tan(x); }); }
+public fn ndAsin(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.asin(x); }); }
+public fn ndAcos(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.acos(x); }); }
+public fn ndAtan(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.atan(x); }); }
+
+// Hyperbolic
+public fn ndSinh(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.sinh(x); }); }
+public fn ndCosh(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.cosh(x); }); }
+public fn ndTanh(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.tanh(x); }); }
+public fn ndAsinh(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.asinh(x); }); }
+public fn ndAcosh(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.acosh(x); }); }
+public fn ndAtanh(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathTrig.atanh(x); }); }
+
+// Exponential / Logarithmic
+public fn ndExp(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.exp(x); }); }
+public fn ndExp2(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.exp2(x); }); }
+public fn ndExpm1(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.expm1(x); }); }
+public fn ndLog(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.ln(x); }); }
+public fn ndLog2(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.log2(x); }); }
+public fn ndLog10(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.log10(x); }); }
+public fn ndLog1p(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.log1p(x); }); }
+
+// Rounding / Misc
+public fn ndSqrt(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.sqrt(x); }); }
+public fn ndCbrt(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return MathAdvanced.cbrt(x); }); }
+public fn ndAbs(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.abs(x); }); }
+public fn ndSign(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.sign(x) as double; }); }
+public fn ndFloor(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.floor(x); }); }
+public fn ndCeil(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.ceil(x); }); }
+public fn ndRound(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return Math.round(x) as double; }); }
+
+// Unary transformations
+public fn ndNegative(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return -x; }); }
+public fn ndReciprocal(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return 1.0 / x; }); }
+public fn ndSquare(a: NDArray<double>): NDArray<double> { return map(a, fn(x: double): double { return x * x; }); }
+
+public fn ndClip(a: NDArray<double>, minVal: double, maxVal: double): NDArray<double> {
+    return map(a, fn(x: double): double { return Math.clamp(x, minVal, maxVal); });
+}
+
+// ---- Element-wise binary math functions ----
+
+public fn ndAdd(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return x + y; }); }
+public fn ndSubtract(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return x - y; }); }
+public fn ndMultiply(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return x * y; }); }
+public fn ndDivide(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return x / y; }); }
+public fn ndPower(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return MathAdvanced.pow(x, y); }); }
+public fn ndMod(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return Math.fmod(x, y); }); }
+public fn ndMaximum(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return Math.max(x, y); }); }
+public fn ndMinimum(a: NDArray<double>, b: NDArray<double>): NDArray<double> { return zipMap(a, b, fn(x: double, y: double): double { return Math.min(x, y); }); }
