@@ -1,0 +1,86 @@
+// AABB provides an axis-aligned bounding box defined by minimum and maximum corners.
+import tt::math::vec::Vec3;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+
+public class AABB {
+    public Vec3 min;
+    public Vec3 max;
+
+    public fn init(min: Vec3, max: Vec3) {
+        this.min = min;
+        this.max = max;
+    }
+
+    public fn center(): Vec3 {
+        return this.min.add(this.max).scale(0.5);
+    }
+
+    public fn size(): Vec3 {
+        return this.max.sub(this.min);
+    }
+
+    public fn contains(point: Vec3): bool {
+        return point.x >= this.min.x && point.x <= this.max.x &&
+               point.y >= this.min.y && point.y <= this.max.y &&
+               point.z >= this.min.z && point.z <= this.max.z;
+    }
+
+    public fn containsAABB(other: AABB): bool {
+        return other.min.x >= this.min.x && other.max.x <= this.max.x &&
+               other.min.y >= this.min.y && other.max.y <= this.max.y &&
+               other.min.z >= this.min.z && other.max.z <= this.max.z;
+    }
+
+    public fn intersects(other: AABB): bool {
+        if (this.max.x < other.min.x || this.min.x > other.max.x) { return false; }
+        if (this.max.y < other.min.y || this.min.y > other.max.y) { return false; }
+        if (this.max.z < other.min.z || this.min.z > other.max.z) { return false; }
+        return true;
+    }
+
+    public fn merge(other: AABB): AABB {
+        return new AABB(
+            new Vec3(Math.min(this.min.x, other.min.x),
+                     Math.min(this.min.y, other.min.y),
+                     Math.min(this.min.z, other.min.z)),
+            new Vec3(Math.max(this.max.x, other.max.x),
+                     Math.max(this.max.y, other.max.y),
+                     Math.max(this.max.z, other.max.z))
+        );
+    }
+
+    public fn expand(point: Vec3): AABB {
+        return new AABB(
+            new Vec3(Math.min(this.min.x, point.x),
+                     Math.min(this.min.y, point.y),
+                     Math.min(this.min.z, point.z)),
+            new Vec3(Math.max(this.max.x, point.x),
+                     Math.max(this.max.y, point.y),
+                     Math.max(this.max.z, point.z))
+        );
+    }
+
+    public fn surfaceArea(): double {
+        let dx: double = this.max.x - this.min.x;
+        let dy: double = this.max.y - this.min.y;
+        let dz: double = this.max.z - this.min.z;
+        return 2.0 * (dx * dy + dy * dz + dz * dx);
+    }
+
+    public fn volume(): double {
+        let dx: double = this.max.x - this.min.x;
+        let dy: double = this.max.y - this.min.y;
+        let dz: double = this.max.z - this.min.z;
+        return dx * dy * dz;
+    }
+
+    public fn equals(other: AABB): bool {
+        return this.min.equals(other.min) && this.max.equals(other.max);
+    }
+
+    public fn toString(): string {
+        return "AABB(" + this.min.toString() + ", " + this.max.toString() + ")";
+    }
+}
