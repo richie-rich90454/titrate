@@ -1,0 +1,281 @@
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+public class Atom {
+    public string symbol;
+    public int atomicNumber;
+    public double mass;
+    public double charge;
+    public double radius;
+    public double electronegativity;
+    public double x;
+    public double y;
+    public double z;
+
+    fn init(sym: string, number: int, m: double) {
+        this.symbol = sym;
+        this.atomicNumber = number;
+        this.mass = m;
+        this.charge = 0.0;
+        this.radius = 0.0;
+        this.electronegativity = 0.0;
+        this.x = 0.0;
+        this.y = 0.0;
+        this.z = 0.0;
+    }
+
+    public fn setPosition(px: double, py: double, pz: double): void {
+        this.x = px;
+        this.y = py;
+        this.z = pz;
+    }
+
+    public fn distanceTo(other: Atom): double {
+        let dx: double = this.x - other.x;
+        let dy: double = this.y - other.y;
+        let dz: double = this.z - other.z;
+        return MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    public fn toString(): string {
+        return this.symbol + "(" + Double.toString(this.x) + ", " + Double.toString(this.y) + ", " + Double.toString(this.z) + ")";
+    }
+
+    // Atomic radius in Angstroms (empirical values, loaded from data file)
+    public fn radius(): double {
+        return _getElementPropertyDouble(this.symbol, "radius", 1.50);
+    }
+
+    // Pauling electronegativity (loaded from data file)
+    public fn electronegativity(): double {
+        return _getElementPropertyDouble(this.symbol, "electronegativity", 0.0);
+    }
+
+    // Electron configuration string (loaded from data file)
+    public fn electronConfiguration(): string {
+        return _getElementPropertyString(this.symbol, "electronConfig", "");
+    }
+
+    // Valence electron count (loaded from data file)
+    public fn valence(): int {
+        return _getElementPropertyInt(this.symbol, "valence", 0);
+    }
+
+    // Van der Waals radius in Angstroms (loaded from data file)
+    public fn vanDerWaalsRadius(): double {
+        return _getElementPropertyDouble(this.symbol, "vdwRadius", 2.0);
+    }
+
+    // Covalent radius in Angstroms (loaded from data file)
+    public fn covalentRadius(): double {
+        return _getElementPropertyDouble(this.symbol, "covalentRadius", 1.5);
+    }
+
+    // First ionization energy in eV (loaded from data file)
+    public fn ionizationEnergy(): double {
+        return _getElementPropertyDouble(this.symbol, "ionizationEnergy", 0.0);
+    }
+}
+
+// ---- Data loaded from external JSON via DataFile ----
+
+// Cache the loaded elements data
+var _elementsCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _dataLoaded: bool = false;
+
+// Load element data from periodic_table.json and build symbol->element map
+fn _ensureDataLoaded(): void {
+    if (_dataLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("chem/periodic_table.json");
+    if (data.isNull() || !data.isObject()) {
+        return;
+    }
+    if (!data.hasKey("elements")) {
+        return;
+    }
+    let elements: JsonValue = data.get("elements");
+    if (!elements.isArray()) {
+        return;
+    }
+    var i: int = 0;
+    while (i < elements.size()) {
+        let elem: JsonValue = elements.getAt(i);
+        if (elem.isObject() && elem.hasKey("symbol")) {
+            let sym: string = elem.get("symbol").asString();
+            _elementsCache.put(sym, elem);
+        }
+        i = i + 1;
+    }
+    _dataLoaded = true;
+}
+
+// Get a double property for an element by symbol
+fn _getElementPropertyDouble(sym: string, prop: string, defaultVal: double): double {
+    _ensureDataLoaded();
+    if (_elementsCache.containsKey(sym)) {
+        let elem: JsonValue = _elementsCache.get(sym);
+        if (elem.hasKey(prop)) {
+            let val: JsonValue = elem.get(prop);
+            if (val.isNumber()) {
+                return val.asNumber();
+            }
+        }
+    }
+    return defaultVal;
+}
+
+// Get a string property for an element by symbol
+fn _getElementPropertyString(sym: string, prop: string, defaultVal: string): string {
+    _ensureDataLoaded();
+    if (_elementsCache.containsKey(sym)) {
+        let elem: JsonValue = _elementsCache.get(sym);
+        if (elem.hasKey(prop)) {
+            let val: JsonValue = elem.get(prop);
+            if (val.isString()) {
+                return val.asString();
+            }
+        }
+    }
+    return defaultVal;
+}
+
+// Get an int property for an element by symbol
+fn _getElementPropertyInt(sym: string, prop: string, defaultVal: int): int {
+    _ensureDataLoaded();
+    if (_elementsCache.containsKey(sym)) {
+        let elem: JsonValue = _elementsCache.get(sym);
+        if (elem.hasKey(prop)) {
+            let val: JsonValue = elem.get(prop);
+            if (val.isNumber()) {
+                return Integer.parseInt(Double.toString(val.asNumber()));
+            }
+        }
+    }
+    return defaultVal;
+}
+
+// Static lookup functions (now delegate to data file)
+
+public fn getRadius(sym: string): double {
+    return _getElementPropertyDouble(sym, "radius", 1.50);
+}
+
+public fn getElectronegativity(sym: string): double {
+    return _getElementPropertyDouble(sym, "electronegativity", 0.0);
+}
+
+public fn getElectronConfiguration(z: int): string {
+    _ensureDataLoaded();
+    // Find element by atomic number
+    let data: JsonValue = DataFile.load("chem/periodic_table.json");
+    if (data.isNull() || !data.hasKey("elements")) {
+        return "";
+    }
+    let elements: JsonValue = data.get("elements");
+    if (!elements.isArray()) {
+        return "";
+    }
+    var i: int = 0;
+    while (i < elements.size()) {
+        let elem: JsonValue = elements.getAt(i);
+        if (elem.isObject() && elem.hasKey("number")) {
+            let numVal: double = elem.get("number").asNumber();
+            if (Integer.parseInt(Double.toString(numVal)) == z) {
+                if (elem.hasKey("electronConfig")) {
+                    return elem.get("electronConfig").asString();
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return "";
+}
+
+public fn getValence(sym: string): int {
+    return _getElementPropertyInt(sym, "valence", 0);
+}
+
+public fn getVanDerWaalsRadius(sym: string): double {
+    return _getElementPropertyDouble(sym, "vdwRadius", 2.0);
+}
+
+public fn getCovalentRadius(sym: string): double {
+    return _getElementPropertyDouble(sym, "covalentRadius", 1.5);
+}
+
+public fn getIonizationEnergy(sym: string): double {
+    return _getElementPropertyDouble(sym, "ionizationEnergy", 0.0);
+}
+
+// Factory methods for common elements with position
+public fn hydrogen(x: double, y: double, z: double): Atom {
+    let a: Atom = new Atom("H", 1, 1.008);
+    a.setPosition(x, y, z);
+    return a;
+}
+
+public fn oxygen(x: double, y: double, z: double): Atom {
+    let a: Atom = new Atom("O", 8, 15.999);
+    a.setPosition(x, y, z);
+    return a;
+}
+
+public fn carbon(x: double, y: double, z: double): Atom {
+    let a: Atom = new Atom("C", 6, 12.011);
+    a.setPosition(x, y, z);
+    return a;
+}
+
+public fn nitrogen(x: double, y: double, z: double): Atom {
+    let a: Atom = new Atom("N", 7, 14.007);
+    a.setPosition(x, y, z);
+    return a;
+}
+
+public fn getElement(sym: string): Atom {
+    let table: HashMap<string, Atom> = periodicTable();
+    if (table.containsKey(sym)) {
+        return table.get(sym);
+    }
+    return new Atom("??", 0, 0.0);
+}
+
+public fn getMass(sym: string): double {
+    return getElement(sym).mass;
+}
+
+// Build the periodic table from data file
+public fn periodicTable(): HashMap<string, Atom> {
+    _ensureDataLoaded();
+    let table: HashMap<string, Atom> = new HashMap<string, Atom>();
+
+    let data: JsonValue = DataFile.load("chem/periodic_table.json");
+    if (data.isNull() || !data.hasKey("elements")) {
+        return table;
+    }
+    let elements: JsonValue = data.get("elements");
+    if (!elements.isArray()) {
+        return table;
+    }
+
+    var i: int = 0;
+    while (i < elements.size()) {
+        let elem: JsonValue = elements.getAt(i);
+        if (elem.isObject() && elem.hasKey("symbol") && elem.hasKey("number") && elem.hasKey("mass")) {
+            let sym: string = elem.get("symbol").asString();
+            let num: int = Integer.parseInt(Double.toString(elem.get("number").asNumber()));
+            let m: double = elem.get("mass").asNumber();
+            table.put(sym, new Atom(sym, num, m));
+        }
+        i = i + 1;
+    }
+    return table;
+}
