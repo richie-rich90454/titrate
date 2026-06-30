@@ -1,0 +1,149 @@
+// Transform.tr — Geometric transforms: affine, rotation, scaling, translation, shear
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+public class Mat3 {
+    public double m00;
+    public double m01;
+    public double m02;
+    public double m10;
+    public double m11;
+    public double m12;
+    public double m20;
+    public double m21;
+    public double m22;
+
+    public fn init() {
+        this.m00 = 1.0; this.m01 = 0.0; this.m02 = 0.0;
+        this.m10 = 0.0; this.m11 = 1.0; this.m12 = 0.0;
+        this.m20 = 0.0; this.m21 = 0.0; this.m22 = 1.0;
+    }
+
+    public fn mul(other: Mat3): Mat3 {
+        let result: Mat3 = new Mat3();
+        result.m00 = this.m00 * other.m00 + this.m01 * other.m10 + this.m02 * other.m20;
+        result.m01 = this.m00 * other.m01 + this.m01 * other.m11 + this.m02 * other.m21;
+        result.m02 = this.m00 * other.m02 + this.m01 * other.m12 + this.m02 * other.m22;
+        result.m10 = this.m10 * other.m00 + this.m11 * other.m10 + this.m12 * other.m20;
+        result.m11 = this.m10 * other.m01 + this.m11 * other.m11 + this.m12 * other.m21;
+        result.m12 = this.m10 * other.m02 + this.m11 * other.m12 + this.m12 * other.m22;
+        result.m20 = this.m20 * other.m00 + this.m21 * other.m10 + this.m22 * other.m20;
+        result.m21 = this.m20 * other.m01 + this.m21 * other.m11 + this.m22 * other.m21;
+        result.m22 = this.m20 * other.m02 + this.m21 * other.m12 + this.m22 * other.m22;
+        return result;
+    }
+
+    public fn transformPoint(x: double, y: double): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let rx: double = this.m00 * x + this.m01 * y + this.m02;
+        let ry: double = this.m10 * x + this.m11 * y + this.m12;
+        let rw: double = this.m20 * x + this.m21 * y + this.m22;
+        if (rw != 0.0) {
+            result.add(rx / rw);
+            result.add(ry / rw);
+        } else {
+            result.add(rx);
+            result.add(ry);
+        }
+        return result;
+    }
+}
+
+public fn identity(): Mat3 { return new Mat3(); }
+
+public fn translation(tx: double, ty: double): Mat3 {
+    let m: Mat3 = new Mat3();
+    m.m02 = tx;
+    m.m12 = ty;
+    return m;
+}
+
+public fn scaling(sx: double, sy: double): Mat3 {
+    let m: Mat3 = new Mat3();
+    m.m00 = sx;
+    m.m11 = sy;
+    return m;
+}
+
+public fn rotation(angle: double): Mat3 {
+    let m: Mat3 = new Mat3();
+    let c: double = MathTrig.cos(angle);
+    let s: double = MathTrig.sin(angle);
+    m.m00 = c; m.m01 = -s;
+    m.m10 = s; m.m11 = c;
+    return m;
+}
+
+public fn shear(kx: double, ky: double): Mat3 {
+    let m: Mat3 = new Mat3();
+    m.m01 = kx;
+    m.m10 = ky;
+    return m;
+}
+
+import tt::image::Image;
+
+// Apply shear transform to an Image
+public fn shearImage(img: Image, shx: double, shy: double): Image {
+    let transform: Mat3 = shear(shx, shy);
+    let result: Image = new Image(img.width, img.height, img.channels);
+    var j: int = 0;
+    while (j < img.height) {
+        var i: int = 0;
+        while (i < img.width) {
+            let src: ArrayList<double> = transform.transformPoint(i as double, j as double);
+            let sx: int = Math.floor(src.get(0)) as int;
+            let sy: int = Math.floor(src.get(1)) as int;
+            var c: int = 0;
+            while (c < img.channels) {
+                if (sx >= 0 && sx < img.width && sy >= 0 && sy < img.height) {
+                    result.setPixel(i, j, c, img.getPixel(sx, sy, c));
+                }
+                c = c + 1;
+            }
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
+// Apply affine transform to image using bilinear interpolation
+public fn warpAffine(image: ArrayList<ArrayList<double>>, transform: Mat3, outWidth: int, outHeight: int): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let rows: int = image.size();
+    let cols: int = image.get(0).size();
+    var i: int = 0;
+    while (i < outHeight) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < outWidth) {
+            // Inverse transform
+            let src: ArrayList<double> = transform.transformPoint(j as double, i as double);
+            let sx: double = src.get(0);
+            let sy: double = src.get(1);
+            // Bilinear interpolation
+            let x0: int = Math.floor(sx) as int;
+            let y0: int = Math.floor(sy) as int;
+            let x1: int = x0 + 1;
+            let y1: int = y0 + 1;
+            let fx: double = sx - x0 as double;
+            let fy: double = sy - y0 as double;
+            var val: double = 0.0;
+            if (x0 >= 0 && x1 < cols && y0 >= 0 && y1 < rows) {
+                let v00: double = image.get(y0).get(x0);
+                let v10: double = image.get(y0).get(x1);
+                let v01: double = image.get(y1).get(x0);
+                let v11: double = image.get(y1).get(x1);
+                val = v00 * (1.0 - fx) * (1.0 - fy) + v10 * fx * (1.0 - fy) + v01 * (1.0 - fx) * fy + v11 * fx * fy;
+            }
+            row.add(val);
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
