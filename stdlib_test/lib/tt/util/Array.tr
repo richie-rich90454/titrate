@@ -1,0 +1,155 @@
+// Array<T> is a fixed-size array backed by ArrayList.
+import tt::util::ArrayList;
+
+public class Array<T> {
+    private ArrayList<T> _data;
+    private int _capacity;
+
+    // Creates a new Array of the given size, filled with null.
+    public fn Array(size: int) {
+        this._capacity = size;
+        this._data = new ArrayList<T>();
+        let i: int = 0;
+        while (i < size) {
+            this._data.add(null);
+            i = i + 1;
+        }
+    }
+
+    // Returns the element at the given index.
+    public fn get(index: int): T {
+        if (index < 0 || index >= this._capacity) {
+            throw "IndexOutOfBounds: " + index;
+        }
+        return this._data.get(index);
+    }
+
+    // Sets the element at the given index to the given value.
+    public fn set(index: int, value: T): void {
+        if (index < 0 || index >= this._capacity) {
+            throw "IndexOutOfBounds: " + index;
+        }
+        this._data.set(index, value);
+    }
+
+    // Returns the fixed size of this Array.
+    public fn size(): int {
+        return this._capacity;
+    }
+
+    // Returns true if this Array has size 0.
+    public fn isEmpty(): bool {
+        return this._capacity == 0;
+    }
+
+    // Fills the entire Array with the given value.
+    public fn fill(value: T): void {
+        let i: int = 0;
+        while (i < this._capacity) {
+            this._data.set(i, value);
+            i = i + 1;
+        }
+    }
+
+    // Returns a new ArrayList containing all elements in this Array.
+    public fn toArrayList(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let i: int = 0;
+        while (i < this._capacity) {
+            result.add(this._data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Compares this Array to another object for equality.
+    public fn equals(other: Variant): bool {
+        if (other == null) { return false; }
+        if (!(other is Array)) { return false; }
+        let o: Array<T> = other as Array<T>;
+        if (this._capacity != o._capacity) { return false; }
+        let i: int = 0;
+        while (i < this._capacity) {
+            if (this._data.get(i) != o._data.get(i)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Returns a string representation of this Array.
+    public fn toString(): string {
+        let s: string = "Array[";
+        let i: int = 0;
+        while (i < this._capacity) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this._data.get(i);
+            i = i + 1;
+        }
+        s = s + "]";
+        return s;
+    }
+
+    // Applies action to each element in this Array.
+    public fn forEach(action: fn(T): void): void {
+        let i: int = 0;
+        while (i < this._capacity) {
+            action(this._data.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Returns a shallow copy of this Array.
+    public fn clone(): Array<T> {
+        let result: Array<T> = new Array<T>(0);
+        result._capacity = this._capacity;
+        result._data = new ArrayList<T>();
+        let i: int = 0;
+        while (i < this._capacity) {
+            result._data.add(this._data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Returns a new Array by applying mapper to each element.
+    public fn map(mapper: fn(T): T): Array<T> {
+        let result: Array<T> = new Array<T>(0);
+        result._capacity = this._capacity;
+        result._data = new ArrayList<T>();
+        let i: int = 0;
+        while (i < this._capacity) {
+            result._data.add(mapper(this._data.get(i)));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// Creates an Array from the given elements.
+public fn of<T>(elements: ArrayList<T>): Array<T> {
+    let arr: Array<T> = new Array<T>(0);
+    arr._capacity = 0;
+    arr._data = new ArrayList<T>();
+    let i: int = 0;
+    while (i < elements.size()) {
+        arr._data.add(elements.get(i));
+        i = i + 1;
+    }
+    arr._capacity = arr._data.size();
+    return arr;
+}
+
+// Creates an Array of the given size filled with the specified value.
+public fn filled<T>(size: int, value: T): Array<T> {
+    let arr: Array<T> = new Array<T>(0);
+    arr._capacity = size;
+    arr._data = new ArrayList<T>();
+    let i: int = 0;
+    while (i < size) {
+        arr._data.add(value);
+        i = i + 1;
+    }
+    return arr;
+}
