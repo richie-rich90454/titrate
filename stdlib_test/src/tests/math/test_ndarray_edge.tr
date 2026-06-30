@@ -1,0 +1,182 @@
+// Edge case tests for ndarray/NDArray.tr
+// Exercises boundary conditions: empty arrays, single-element arrays, 1D indexing, shape ops, zeros.
+import tt::util::ArrayList;
+import tt::math::ndarray::NDArray;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn shape1(n: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(n);
+    return s;
+}
+
+fn shape2(r: int, c: int): ArrayList<int> {
+    let s: ArrayList<int> = new ArrayList<int>();
+    s.add(r); s.add(c);
+    return s;
+}
+
+// Empty array operations: array with zero elements should report size 0 and remain usable.
+public fn test_ndarray_edge_empty(): void {
+    let empty: NDArray<double> = NDArray.zeros(shape1(0));
+    if (empty.size() == 0) {
+        io::println("PASS: empty 1D array has size 0");
+    } else {
+        io::println("FAIL: empty 1D array expected size 0, got " + Integer.toString(empty.size()));
+    }
+
+    if (empty.ndim() == 1) {
+        io::println("PASS: empty 1D array has ndim 1");
+    } else {
+        io::println("FAIL: empty 1D array expected ndim 1, got " + Integer.toString(empty.ndim()));
+    }
+
+    if (empty.totalElements() == 0) {
+        io::println("PASS: empty 1D array totalElements = 0");
+    } else {
+        io::println("FAIL: empty 1D array totalElements expected 0, got " + Integer.toString(empty.totalElements()));
+    }
+
+    // Empty 2D array: 0 rows, 3 cols
+    let empty2d: NDArray<double> = NDArray.zeros(shape2(0, 3));
+    if (empty2d.size() == 0 && empty2d.rows() == 0 && empty2d.cols() == 3) {
+        io::println("PASS: empty 2D array (0x3) has size 0, rows 0, cols 3");
+    } else {
+        io::println("FAIL: empty 2D array (0x3) incorrect");
+    }
+}
+
+// Single element array: indexing and shape behave correctly.
+public fn test_ndarray_edge_single_element(): void {
+    let one: NDArray<double> = NDArray.filled(shape1(1), 9.5);
+    if (one.size() == 1) {
+        io::println("PASS: single-element 1D array has size 1");
+    } else {
+        io::println("FAIL: single-element 1D array expected size 1, got " + Integer.toString(one.size()));
+    }
+
+    if (absDiff(one.getFlat(0), 9.5) < 1e-12) {
+        io::println("PASS: single-element getFlat(0) = 9.5");
+    } else {
+        io::println("FAIL: single-element getFlat(0) expected 9.5, got " + Double.toString(one.getFlat(0)));
+    }
+
+    // Single element 2D array: 1x1
+    let one2d: NDArray<double> = NDArray.filled(shape2(1, 1), 7.0);
+    if (one2d.rows() == 1 && one2d.cols() == 1 && absDiff(one2d.get2D(0, 0), 7.0) < 1e-12) {
+        io::println("PASS: 1x1 array has rows=1, cols=1, get2D(0,0)=7.0");
+    } else {
+        io::println("FAIL: 1x1 array incorrect");
+    }
+
+    // totalElements of single-element array is 1
+    if (one.totalElements() == 1) {
+        io::println("PASS: single-element array totalElements = 1");
+    } else {
+        io::println("FAIL: single-element array totalElements expected 1, got " + Integer.toString(one.totalElements()));
+    }
+}
+
+// 1D array indexing: getFlat/setFlat round-trip and boundary indices.
+public fn test_ndarray_edge_1d_indexing(): void {
+    let a: NDArray<double> = NDArray.zeros(shape1(5));
+    a.setFlat(0, 10.0);
+    a.setFlat(4, 50.0);
+    a.setFlat(2, 30.0);
+
+    if (absDiff(a.getFlat(0), 10.0) < 1e-12) {
+        io::println("PASS: 1D setFlat/getFlat(0) = 10.0");
+    } else {
+        io::println("FAIL: 1D getFlat(0) expected 10.0, got " + Double.toString(a.getFlat(0)));
+    }
+
+    if (absDiff(a.getFlat(4), 50.0) < 1e-12) {
+        io::println("PASS: 1D boundary index getFlat(4) = 50.0");
+    } else {
+        io::println("FAIL: 1D getFlat(4) expected 50.0, got " + Double.toString(a.getFlat(4)));
+    }
+
+    if (absDiff(a.getFlat(2), 30.0) < 1e-12) {
+        io::println("PASS: 1D middle index getFlat(2) = 30.0");
+    } else {
+        io::println("FAIL: 1D getFlat(2) expected 30.0, got " + Double.toString(a.getFlat(2)));
+    }
+
+    // Unset index 1 and 3 should remain 0
+    if (a.getFlat(1) == 0.0 && a.getFlat(3) == 0.0) {
+        io::println("PASS: 1D unset indices remain 0.0");
+    } else {
+        io::println("FAIL: 1D unset indices expected 0.0");
+    }
+}
+
+// Array shape operations: reshape preserves total elements and updates shape.
+public fn test_ndarray_edge_shape_ops(): void {
+    let a: NDArray<double> = NDArray.zeros(shape2(2, 3));
+    // 2x3 = 6 elements; reshape to 6x1 then 3x2
+    let r1: NDArray<double> = a.reshape(shape2(6, 1));
+    if (r1.rows() == 6 && r1.cols() == 1) {
+        io::println("PASS: reshape(2x3 -> 6x1) dims correct");
+    } else {
+        io::println("FAIL: reshape(2x3 -> 6x1) dims incorrect");
+    }
+
+    if (r1.totalElements() == 6) {
+        io::println("PASS: reshape preserves totalElements = 6");
+    } else {
+        io::println("FAIL: reshape totalElements expected 6, got " + Integer.toString(r1.totalElements()));
+    }
+
+    let r2: NDArray<double> = a.reshape(shape1(6));
+    if (r2.ndim() == 1 && r2.size() == 6) {
+        io::println("PASS: reshape(2x3 -> 1D[6]) dims correct");
+    } else {
+        io::println("FAIL: reshape(2x3 -> 1D[6]) dims incorrect");
+    }
+
+    // flatten on 2D collapses to 1D
+    let flat: NDArray<double> = a.flatten();
+    if (flat.ndim() == 1 && flat.size() == 6) {
+        io::println("PASS: flatten(2x3) -> 1D size 6");
+    } else {
+        io::println("FAIL: flatten(2x3) expected 1D size 6, got ndim=" + Integer.toString(flat.ndim()) + " size=" + Integer.toString(flat.size()));
+    }
+}
+
+// Array with zeros: explicitly verify all entries are 0.0 after construction.
+public fn test_ndarray_edge_zeros(): void {
+    let z: NDArray<double> = NDArray.zeros(shape2(3, 4));
+    var allZero: bool = true;
+    var i: int = 0;
+    while (i < 12) {
+        if (z.getFlat(i) != 0.0) { allZero = false; }
+        i = i + 1;
+    }
+    if (allZero && z.size() == 12) {
+        io::println("PASS: zeros(3x4) has 12 elements all equal to 0.0");
+    } else {
+        io::println("FAIL: zeros(3x4) not all zero or wrong size");
+    }
+
+    // Modify one element and verify others remain zero
+    z.set2D(1, 2, 99.0);
+    if (absDiff(z.get2D(1, 2), 99.0) < 1e-12 && z.get2D(0, 0) == 0.0 && z.get2D(2, 3) == 0.0) {
+        io::println("PASS: after set2D(1,2,99.0), other entries remain 0.0");
+    } else {
+        io::println("FAIL: set2D disturbed other zero entries");
+    }
+
+    // zeros preserves shape
+    if (z.rows() == 3 && z.cols() == 4) {
+        io::println("PASS: zeros(3x4) rows=3, cols=4");
+    } else {
+        io::println("FAIL: zeros(3x4) shape incorrect");
+    }
+}
