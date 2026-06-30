@@ -1,0 +1,498 @@
+// Random provides pseudo-random number generation using Xorshift128+.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+public class Random {
+    public long state0;
+    public long state1;
+    // Internal state for Box-Muller Gaussian generation
+    public bool hasSpareGaussian;
+    public double spareGaussian;
+
+    public fn init() {
+        let seed: long = Random_seed();
+        this.state0 = seed;
+        this.state1 = seed ^ 0x9E3779B97F4A7C15L;
+        this.hasSpareGaussian = false;
+        this.spareGaussian = 0.0;
+    }
+
+    public fn initWithSeed(seed: long) {
+        this.state0 = seed;
+        this.state1 = seed ^ 0x9E3779B97F4A7C15L;
+        this.hasSpareGaussian = false;
+        this.spareGaussian = 0.0;
+    }
+
+    public fn nextLongInternal(): long {
+        // Xorshift128+ step via native
+        let result: Variant = Random_nextLong();
+        // result is an array [new_state0, new_state1, output]
+        this.state0 = result[0] as long;
+        this.state1 = result[1] as long;
+        return result[2] as long;
+    }
+
+    public fn nextInt(max: int): int {
+        let val: long = this.nextLongInternal();
+        var result: int = (val & 0x7FFFFFFF) as int % max;
+        if (result < 0) { result = result + max; }
+        return result;
+    }
+
+    public fn nextLong(max: long): long {
+        let val: long = this.nextLongInternal();
+        var result: long = (val & 0x7FFFFFFFFFFFFFFFL) % max;
+        if (result < 0) { result = result + max; }
+        return result;
+    }
+
+    public fn nextFloat(): float {
+        let val: long = this.nextLongInternal();
+        return ((val & 0x7FFFFFFF) / 2147483647.0) as float;
+    }
+
+    public fn nextDouble(): double {
+        let val: long = this.nextLongInternal();
+        return (val & 0x7FFFFFFFFFFFFFFFL) as double / 9223372036854775807.0;
+    }
+
+    public fn nextBool(): bool {
+        return this.nextLongInternal() % 2 == 0;
+    }
+
+    public fn shuffle(arr: ArrayList) {
+        let n: int = arr.size();
+        var i: int = n - 1;
+        while (i > 0) {
+            let j: int = this.nextInt(i + 1);
+            let temp: Variant = arr.get(i) as Variant;
+            arr.set(i, arr.get(j));
+            arr.set(j, temp);
+            i = i - 1;
+        }
+    }
+
+    public fn sample(arr: ArrayList): Variant {
+        let idx: int = this.nextInt(arr.size());
+        return arr.get(idx) as Variant;
+    }
+
+    // Box-Muller transform for Gaussian (normal) distribution with mean 0, stddev 1
+    public fn nextGaussian(): double {
+        if (this.hasSpareGaussian) {
+            this.hasSpareGaussian = false;
+            return this.spareGaussian;
+        }
+        var u1: double = this.nextDouble();
+        while (u1 < 1e-15) {
+            u1 = this.nextDouble();
+        }
+        let u2: double = this.nextDouble();
+        let mag: double = MathAdvanced.sqrt(-2.0 * MathAdvanced.ln(u1));
+        let z0: double = mag * MathTrig.cos(2.0 * Math.PI() * u2);
+        let z1: double = mag * MathTrig.sin(2.0 * Math.PI() * u2);
+        this.spareGaussian = z1;
+        this.hasSpareGaussian = true;
+        return z0;
+    }
+
+    // Exponential distribution with rate lambda (mean = 1/lambda)
+    public fn nextExponential(): double {
+        var u: double = this.nextDouble();
+        while (u < 1e-15) {
+            u = this.nextDouble();
+        }
+        return -MathAdvanced.ln(u);
+    }
+
+    // Poisson distribution with parameter lambda (mean = lambda)
+    public fn nextPoisson(lambda: double): int {
+        // Knuth's algorithm
+        let L: double = MathAdvanced.exp(-lambda);
+        var k: int = 0;
+        var p: double = 1.0;
+        while (true) {
+            k = k + 1;
+            p = p * this.nextDouble();
+            if (p < L) {
+                break;
+            }
+        }
+        return k - 1;
+    }
+
+    // Uniform distribution in [min, max)
+    public fn nextUniform(min: double, max: double): double {
+        return min + this.nextDouble() * (max - min);
+    }
+
+    // Random integer in [min, max]
+    public fn nextInt(min: int, max: int): int {
+        return min + this.nextInt(max - min + 1);
+    }
+
+    // Random integer in [min, max) (exclusive max)
+    public fn nextIntRange(min: int, max: int): int {
+        return min + this.nextInt(max - min);
+    }
+
+    // Binomial distribution: sum of n Bernoulli(p) trials
+    public fn binomial(n: int, p: double): int {
+        var count: int = 0;
+        var i: int = 0;
+        while (i < n) {
+            if (this.nextDouble() < p) {
+                count = count + 1;
+            }
+            i = i + 1;
+        }
+        return count;
+    }
+
+    // Triangular distribution
+    public fn triangular(low: double, high: double, mode: double): double {
+        let u: double = this.nextDouble();
+        let range: double = high - low;
+        let modeFrac: double = (mode - low) / range;
+        if (u < modeFrac) {
+            return low + MathAdvanced.sqrt(u * range * (mode - low));
+        }
+        return high - MathAdvanced.sqrt((1.0 - u) * range * (high - mode));
+    }
+
+    // Lognormal distribution: exp(mu + sigma * Z)
+    public fn lognormal(mu: double, sigma: double): double {
+        return MathAdvanced.exp(mu + sigma * this.nextGaussian());
+    }
+
+    // Weibull distribution: shape * (-ln(U))^(1/shape)
+    public fn weibull(shape: double): double {
+        var u: double = this.nextDouble();
+        while (u < 1e-15) {
+            u = this.nextDouble();
+        }
+        return shape * MathAdvanced.pow(-MathAdvanced.ln(u), 1.0 / shape);
+    }
+
+    // Gamma distribution using Marsaglia and Tsang's method
+    public fn gammaDist(shape: double, scale: double): double {
+        if (shape < 1.0) {
+            // For shape < 1, use the transformation: X = Y^(1/shape) where Y ~ Gamma(shape+1, 1)
+            return this.gammaDist(shape + 1.0, 1.0) * MathAdvanced.pow(this.nextDouble(), 1.0 / shape) * scale;
+        }
+        // Marsaglia and Tsang's method for shape >= 1
+        let d: double = shape - 1.0 / 3.0;
+        let c: double = 1.0 / MathAdvanced.sqrt(9.0 * d);
+        while (true) {
+            var x: double = 0.0;
+            var v: double = 0.0;
+            while (true) {
+                x = this.nextGaussian();
+                v = 1.0 + c * x;
+                if (v > 0.0) { break; }
+            }
+            v = v * v * v;
+            let u: double = this.nextDouble();
+            if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {
+                return d * v * scale;
+            }
+            if (MathAdvanced.ln(u) < 0.5 * x * x + d * (1.0 - v + MathAdvanced.ln(v))) {
+                return d * v * scale;
+            }
+        }
+        return 0.0;
+    }
+
+    // Beta distribution using gamma ratio: X/(X+Y) where X ~ Gamma(a,1), Y ~ Gamma(b,1)
+    public fn beta(a: double, b: double): double {
+        let x: double = this.gammaDist(a, 1.0);
+        let y: double = this.gammaDist(b, 1.0);
+        if (x + y == 0.0) { return 0.0; }
+        return x / (x + y);
+    }
+
+    // Chi-squared distribution: chiSquared(df) = gammaDist(df/2, 2)
+    public fn chiSquared(df: double): double {
+        return this.gammaDist(df / 2.0, 2.0);
+    }
+
+    // Student's t-distribution: normal / sqrt(chiSquared/df)
+    public fn studentT(df: double): double {
+        let z: double = this.nextGaussian();
+        let v: double = this.chiSquared(df);
+        return z / MathAdvanced.sqrt(v / df);
+    }
+
+    // F-distribution: ratio of two chi-squareds divided by their df
+    public fn fisherF(d1: double, d2: double): double {
+        let x1: double = this.chiSquared(d1);
+        let x2: double = this.chiSquared(d2);
+        return (x1 / d1) / (x2 / d2);
+    }
+
+    // Cauchy (Lorentz) distribution: median + scale * tan(pi * (U - 0.5))
+    public fn cauchy(median: double, scale: double): double {
+        let u: double = this.nextDouble();
+        return median + scale * MathTrig.tan(Math.PI() * (u - 0.5));
+    }
+
+    // Geometric distribution: number of trials until first success, using inverse CDF
+    public fn geometric(p: double): int {
+        var u: double = this.nextDouble();
+        while (u < 1e-15) {
+            u = this.nextDouble();
+        }
+        return (Math.ceil(MathAdvanced.ln(1.0 - u) / MathAdvanced.ln(1.0 - p))) as int;
+    }
+
+    // Negative binomial distribution: sum of r geometric trials
+    public fn negativeBinomial(r: int, p: double): int {
+        var total: int = 0;
+        var i: int = 0;
+        while (i < r) {
+            total = total + this.geometric(p);
+            i = i + 1;
+        }
+        return total;
+    }
+
+    // Extreme value (Gumbel) distribution: loc - scale * ln(-ln(U))
+    public fn extremeValue(loc: double, scale: double): double {
+        var u: double = this.nextDouble();
+        while (u < 1e-15) {
+            u = this.nextDouble();
+        }
+        return loc - scale * MathAdvanced.ln(-MathAdvanced.ln(u));
+    }
+
+    // Discrete distribution from weights: returns index chosen by cumulative weights
+    public fn discrete(weights: ArrayList<double>): int {
+        // Build cumulative weights
+        let cumWeights: ArrayList<double> = new ArrayList<double>();
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < weights.size()) {
+            total = total + weights.get(i);
+            cumWeights.add(total);
+            i = i + 1;
+        }
+        let r: double = this.nextDouble() * total;
+        var idx: int = 0;
+        while (idx < cumWeights.size() - 1) {
+            if (r < cumWeights.get(idx)) { break; }
+            idx = idx + 1;
+        }
+        return idx;
+    }
+
+    // Weighted random choice from a list using cumulative weights
+    public fn choices<T>(list: ArrayList<T>, weights: ArrayList<double>): T {
+        // Build cumulative weights
+        let cumWeights: ArrayList<double> = new ArrayList<double>();
+        var total: double = 0.0;
+        var i: int = 0;
+        while (i < weights.size()) {
+            total = total + weights.get(i);
+            cumWeights.add(total);
+            i = i + 1;
+        }
+        let r: double = this.nextDouble() * total;
+        var idx: int = 0;
+        while (idx < cumWeights.size() - 1) {
+            if (r < cumWeights.get(idx)) { break; }
+            idx = idx + 1;
+        }
+        return list.get(idx);
+    }
+
+    // k random items without replacement using Fisher-Yates partial shuffle
+    public fn sample<T>(list: ArrayList<T>, k: int): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let n: int = list.size();
+        var kk: int = k;
+        if (kk > n) { kk = n; }
+        // Copy the list
+        let copy: ArrayList<T> = new ArrayList<T>();
+        var i: int = 0;
+        while (i < n) {
+            copy.add(list.get(i));
+            i = i + 1;
+        }
+        // Fisher-Yates partial shuffle
+        i = 0;
+        while (i < kk) {
+            let j: int = i + this.nextInt(n - i);
+            // Swap copy[i] and copy[j]
+            let temp: T = copy.get(i);
+            copy.set(i, copy.get(j));
+            copy.set(j, temp);
+            result.add(copy.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Module-level default RNG instance and Python-style convenience functions
+// ---------------------------------------------------------------------------
+let _rng: Random = new Random();
+
+// Save RNG state as [state0, state1, hasSpareGaussian, spareGaussian]
+public fn getstate(): ArrayList<double> {
+    let state: ArrayList<double> = new ArrayList<double>();
+    state.add(_rng.state0 as double);
+    state.add(_rng.state1 as double);
+    state.add(_rng.hasSpareGaussian ? 1.0 : 0.0);
+    state.add(_rng.spareGaussian);
+    return state;
+}
+
+// Restore RNG state from [state0, state1, hasSpareGaussian, spareGaussian]
+public fn setstate(state: ArrayList<double>): void {
+    _rng.state0 = state.get(0) as long;
+    _rng.state1 = state.get(1) as long;
+    _rng.hasSpareGaussian = state.get(2) > 0.5;
+    _rng.spareGaussian = state.get(3);
+}
+
+// Weighted random choices with replacement, k times
+public fn choices(data: ArrayList<double>, weights: ArrayList<double>, k: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    // Build cumulative weights
+    let cumWeights: ArrayList<double> = new ArrayList<double>();
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < weights.size()) {
+        total = total + weights.get(i);
+        cumWeights.add(total);
+        i = i + 1;
+    }
+    var kk: int = 0;
+    while (kk < k) {
+        let r: double = _rng.nextDouble() * total;
+        var idx: int = 0;
+        while (idx < cumWeights.size() - 1) {
+            if (r < cumWeights.get(idx)) { break; }
+            idx = idx + 1;
+        }
+        result.add(data.get(idx));
+        kk = kk + 1;
+    }
+    return result;
+}
+
+// Random sample without replacement
+public fn sample(data: ArrayList<double>, k: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    var kk: int = k;
+    if (kk > n) { kk = n; }
+    // Copy the list
+    let copy: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        copy.add(data.get(i));
+        i = i + 1;
+    }
+    // Fisher-Yates partial shuffle
+    i = 0;
+    while (i < kk) {
+        let j: int = i + _rng.nextInt(n - i);
+        let temp: double = copy.get(i);
+        copy.set(i, copy.get(j));
+        copy.set(j, temp);
+        result.add(copy.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Shuffle in place (Fisher-Yates)
+public fn shuffle(data: ArrayList<double>): void {
+    let n: int = data.size();
+    var i: int = n - 1;
+    while (i > 0) {
+        let j: int = _rng.nextInt(i + 1);
+        let temp: double = data.get(i);
+        data.set(i, data.get(j));
+        data.set(j, temp);
+        i = i - 1;
+    }
+}
+
+// Triangular distribution
+public fn triangular(low: double, high: double, mode: double): double {
+    return _rng.triangular(low, high, mode);
+}
+
+// Beta distribution
+public fn betavariate(alpha: double, beta: double): double {
+    return _rng.beta(alpha, beta);
+}
+
+// Exponential distribution with rate lambda (mean = 1/lambda)
+public fn expovariate(lambda: double): double {
+    return _rng.nextExponential() / lambda;
+}
+
+// Gamma distribution with shape alpha and scale beta
+public fn gammavariate(alpha: double, beta: double): double {
+    return _rng.gammaDist(alpha, beta);
+}
+
+// Log-normal distribution
+public fn lognormvariate(mu: double, sigma: double): double {
+    return _rng.lognormal(mu, sigma);
+}
+
+// Normal (Gaussian) distribution (Box-Muller)
+public fn normalvariate(mu: double, sigma: double): double {
+    return mu + sigma * _rng.nextGaussian();
+}
+
+// Von Mises distribution (circular data)
+public fn vonmisesvariate(mu: double, kappa: double): double {
+    if (kappa <= 1e-6) {
+        return Math.PI() * (2.0 * _rng.nextDouble() - 1.0);
+    }
+    let s: double = 0.5 / kappa;
+    let r: double = s + MathAdvanced.sqrt(1.0 + s * s);
+    while (true) {
+        let u1: double = _rng.nextDouble();
+        let z: double = MathTrig.cos(Math.PI() * u1);
+        let d: double = z / (r + z);
+        let u2: double = _rng.nextDouble();
+        if (u2 < 1.0 - d * d || u2 <= (1.0 - d) * MathAdvanced.exp(d)) {
+            let q: double = 1.0 / r;
+            let f: double = (q + z) / (1.0 + q * z);
+            let u3: double = _rng.nextDouble();
+            if (u3 > 0.5) {
+                return (mu + MathTrig.acos(f)) % (2.0 * Math.PI());
+            }
+            return (mu - MathTrig.acos(f)) % (2.0 * Math.PI());
+        }
+    }
+    return mu;
+}
+
+// Pareto distribution with shape parameter alpha
+public fn paretovariate(alpha: double): double {
+    var u: double = _rng.nextDouble();
+    while (u < 1e-15) {
+        u = _rng.nextDouble();
+    }
+    return 1.0 / MathAdvanced.pow(u, 1.0 / alpha);
+}
+
+// Weibull distribution: alpha is scale, beta is shape
+public fn weibullvariate(alpha: double, beta: double): double {
+    var u: double = _rng.nextDouble();
+    while (u < 1e-15) {
+        u = _rng.nextDouble();
+    }
+    return alpha * MathAdvanced.pow(-MathAdvanced.ln(u), 1.0 / beta);
+}
