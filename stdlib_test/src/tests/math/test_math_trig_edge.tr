@@ -1,0 +1,136 @@
+// Edge case tests for MathTrig.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::math::MathTrig;
+import tt::math::Math;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_math_trig_edge_sin_cos_zero(): void {
+    if (absDiff(MathTrig.sin(0.0), 0.0) < 1e-12 && absDiff(MathTrig.cos(0.0), 1.0) < 1e-12) {
+        io::println("PASS: MathTrig sin/cos of 0");
+    } else {
+        io::println("FAIL: MathTrig sin/cos of 0");
+    }
+}
+
+public fn test_math_trig_edge_sin_cos_pi(): void {
+    if (absDiff(MathTrig.sin(Math.PI() / 2.0), 1.0) < 1e-12) {
+        io::println("PASS: MathTrig sin(pi/2) = 1");
+    } else {
+        io::println("FAIL: MathTrig sin(pi/2) = " + Double.toString(MathTrig.sin(Math.PI() / 2.0)));
+    }
+    if (absDiff(MathTrig.sin(Math.PI()), 0.0) < 1e-9) {
+        io::println("PASS: MathTrig sin(pi) ~ 0");
+    } else {
+        io::println("FAIL: MathTrig sin(pi) = " + Double.toString(MathTrig.sin(Math.PI())));
+    }
+    if (absDiff(MathTrig.cos(Math.PI()), -1.0) < 1e-9) {
+        io::println("PASS: MathTrig cos(pi) = -1");
+    } else {
+        io::println("FAIL: MathTrig cos(pi) = " + Double.toString(MathTrig.cos(Math.PI())));
+    }
+}
+
+public fn test_math_trig_edge_tan(): void {
+    if (absDiff(MathTrig.tan(0.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig tan(0) = 0");
+    } else {
+        io::println("FAIL: MathTrig tan(0)");
+    }
+    if (absDiff(MathTrig.tan(Math.PI() / 4.0), 1.0) < 1e-9) {
+        io::println("PASS: MathTrig tan(pi/4) = 1");
+    } else {
+        io::println("FAIL: MathTrig tan(pi/4) = " + Double.toString(MathTrig.tan(Math.PI() / 4.0)));
+    }
+    if (absDiff(MathTrig.tan(Math.PI()), 0.0) < 1e-9) {
+        io::println("PASS: MathTrig tan(pi) ~ 0");
+    } else {
+        io::println("FAIL: MathTrig tan(pi) = " + Double.toString(MathTrig.tan(Math.PI())));
+    }
+}
+
+public fn test_math_trig_edge_inverse(): void {
+    if (absDiff(MathTrig.asin(0.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig asin(0) = 0");
+    } else {
+        io::println("FAIL: MathTrig asin(0)");
+    }
+    if (absDiff(MathTrig.acos(1.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig acos(1) = 0");
+    } else {
+        io::println("FAIL: MathTrig acos(1)");
+    }
+    if (absDiff(MathTrig.atan(0.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig atan(0) = 0");
+    } else {
+        io::println("FAIL: MathTrig atan(0)");
+    }
+    if (absDiff(MathTrig.atan2(0.0, 1.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig atan2(0,1) = 0");
+    } else {
+        io::println("FAIL: MathTrig atan2(0,1)");
+    }
+}
+
+public fn test_math_trig_edge_hyperbolic(): void {
+    if (absDiff(MathTrig.sinh(0.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig sinh(0) = 0");
+    } else {
+        io::println("FAIL: MathTrig sinh(0)");
+    }
+    if (absDiff(MathTrig.cosh(0.0), 1.0) < 1e-12) {
+        io::println("PASS: MathTrig cosh(0) = 1");
+    } else {
+        io::println("FAIL: MathTrig cosh(0)");
+    }
+    if (absDiff(MathTrig.tanh(0.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig tanh(0) = 0");
+    } else {
+        io::println("FAIL: MathTrig tanh(0)");
+    }
+    let x: double = 1.0;
+    let identity: double = MathTrig.cosh(x) * MathTrig.cosh(x) - MathTrig.sinh(x) * MathTrig.sinh(x);
+    if (absDiff(identity, 1.0) < 1e-9) {
+        io::println("PASS: MathTrig cosh^2 - sinh^2 = 1");
+    } else {
+        io::println("FAIL: MathTrig cosh^2 - sinh^2 = 1");
+    }
+}
+
+public fn test_math_trig_edge_inverse_hyperbolic(): void {
+    if (absDiff(MathTrig.asinh(0.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig asinh(0) = 0");
+    } else {
+        io::println("FAIL: MathTrig asinh(0)");
+    }
+    if (absDiff(MathTrig.acosh(1.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig acosh(1) = 0");
+    } else {
+        io::println("FAIL: MathTrig acosh(1)");
+    }
+    if (absDiff(MathTrig.atanh(0.0), 0.0) < 1e-12) {
+        io::println("PASS: MathTrig atanh(0) = 0");
+    } else {
+        io::println("FAIL: MathTrig atanh(0)");
+    }
+    if (Math.isnan(MathTrig.atanh(2.0))) {
+        io::println("PASS: MathTrig atanh(2) = NaN");
+    } else {
+        io::println("FAIL: MathTrig atanh(2) should be NaN");
+    }
+}
+
+public fn run_all_math_trig_edge_tests(): void {
+    io::println("=== MathTrig.tr Edge Case Tests ===");
+    test_math_trig_edge_sin_cos_zero();
+    test_math_trig_edge_sin_cos_pi();
+    test_math_trig_edge_tan();
+    test_math_trig_edge_inverse();
+    test_math_trig_edge_hyperbolic();
+    test_math_trig_edge_inverse_hyperbolic();
+}
