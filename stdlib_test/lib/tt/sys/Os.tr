@@ -1,0 +1,448 @@
+// Full OS interface backed by VM native functions.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Result;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _pathSepCache: HashMap<string, string> = new HashMap<string, string>();
+var _pathSepLoaded: bool = false;
+
+fn _ensurePathSepLoaded(): void {
+    if (_pathSepLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("sys/platform_data.json");
+    if (data.isNull() || !data.isObject()) {
+        _pathSepLoaded = true;
+        return;
+    }
+    if (!data.hasKey("path_separators")) {
+        _pathSepLoaded = true;
+        return;
+    }
+    let pathSeps: JsonValue = data.get("path_separators");
+    if (!pathSeps.isObject()) {
+        _pathSepLoaded = true;
+        return;
+    }
+    // Flatten the nested structure: "windows.path" -> "windows_path", etc.
+    let platforms: ArrayList<string> = pathSeps.keys();
+    var i: int = 0;
+    while (i < platforms.size()) {
+        let platform: string = platforms.get(i);
+        let platData: JsonValue = pathSeps.get(platform);
+        if (platData.isObject()) {
+            let fields: ArrayList<string> = platData.keys();
+            var j: int = 0;
+            while (j < fields.size()) {
+                let field: string = fields.get(j);
+                let cacheKey: string = platform + "_" + field;
+                _pathSepCache.put(cacheKey, platData.get(field).asString());
+                j = j + 1;
+            }
+        }
+        i = i + 1;
+    }
+    _pathSepLoaded = true;
+}
+
+fn _getPathSep(platform: string, field: string, defaultVal: string): string {
+    _ensurePathSepLoaded();
+    let cacheKey: string = platform + "_" + field;
+    if (_pathSepCache.containsKey(cacheKey)) {
+        return _pathSepCache.get(cacheKey);
+    }
+    return defaultVal;
+}
+
+fn _currentPlatform(): string {
+    let os: string = Os_name();
+    if (os == "windows") {
+        return "windows";
+    }
+    return "unix";
+}
+
+// Get an environment variable value
+public fn getEnv(key: string): string {
+    return Env_get(key);
+}
+
+// Set an environment variable
+public fn setEnv(key: string, value: string): void {
+    Env_set(key, value);
+}
+
+// Get the number of CPU cores
+public fn cpuCount(): int {
+    let val: string = Sys_env("NUMBER_OF_PROCESSORS");
+    if (val != null && String.length(val) > 0) {
+        return Integer.parseInt(val);
+    }
+    return 1;
+}
+
+// Get the current process ID
+public fn pid(): int {
+    return Process_id();
+}
+
+// Get the current user name
+public fn userName(): string {
+    var name: string = Sys_env("USER");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("USERNAME");
+    }
+    if (name == null) {
+        return "";
+    }
+    return name;
+}
+
+// Get the hostname
+public fn hostName(): string {
+    var name: string = Sys_env("HOSTNAME");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("COMPUTERNAME");
+    }
+    if (name == null) {
+        return "";
+    }
+    return name;
+}
+
+// Get n random bytes
+public fn urandom(n: int): string {
+    return Os_urandom(n);
+}
+
+// Get the current working directory
+public fn workingDir(): string {
+    return Sys_workingDir();
+}
+
+// Change the current working directory
+public fn changeDir(path: string): void {
+    Os_chdir(path);
+}
+
+// List directory entries
+public fn listDir(path: string): ArrayList<string> {
+    return Dir_list(path);
+}
+
+// Create a directory.
+public fn mkdir(path: string): Result<string, string> {
+    let success: bool = Dir_create(path);
+    if (success) {
+        return ok(path);
+    }
+    return err("failed to create directory: " + path);
+}
+
+// Recursively create directories (like mkdir -p).
+public fn makedirs(path: string): Result<string, string> {
+    return Os_makedirs(path);
+}
+
+// Create a symbolic link.
+public fn symlink(original: string, link: string): Result<string, string> {
+    return Os_symlink(original, link);
+}
+
+// Read the target of a symbolic link.
+public fn readlink(path: string): Result<string, string> {
+    return Os_readlink(path);
+}
+
+// Send a signal to a process.
+public fn kill(pid: int, sig: int): void {
+    Os_kill(pid, sig);
+}
+
+// Get all environment variables as a formatted string (KEY=VALUE per line).
+public fn environ(): string {
+    return Os_environ();
+}
+
+// Get all environment variables as a HashMap.
+public fn environMap(): HashMap<string, string> {
+    let result: HashMap<string, string> = new HashMap<string, string>();
+    let pairs: ArrayList<ArrayList<string>> = Os_environMap();
+    var i: int = 0;
+    while (i < pairs.size()) {
+        let pair: ArrayList<string> = pairs.get(i);
+        result.put(pair.get(0), pair.get(1));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Remove a file or empty directory
+public fn remove(path: string): Result<string, string> {
+    let success: bool = Dir_remove(path);
+    if (success) {
+        return ok(path);
+    }
+    return err("failed to remove: " + path);
+}
+
+// Rename/move a file or directory
+public fn rename(oldPath: string, newPath: string): Result<string, string> {
+    let success: bool = Os_replace(oldPath, newPath);
+    if (success) {
+        return ok(newPath);
+    }
+    return err("failed to rename " + oldPath + " to " + newPath);
+}
+
+// Check file accessibility.
+// mode: 1 = exists, 2 = readable (file), 4 = writable (file), 8 = executable (file or dir)
+public fn access(path: string, mode: int): bool {
+    if (mode == 1) {
+        return Fs_exists(path);
+    }
+    if (mode == 2) {
+        return Fs_isFile(path);
+    }
+    if (mode == 4) {
+        return Fs_isFile(path);
+    }
+    if (mode == 8) {
+        return Fs_isFile(path) || Fs_isDir(path);
+    }
+    return Fs_exists(path);
+}
+
+// Get file/directory status.
+public fn stat(path: string): Result<HashMap<string, int>, string> {
+    let result: HashMap<string, int> = new HashMap<string, int>();
+    result.put("size", Fs_size(path));
+    result.put("isFile", 0);
+    if (Fs_isFile(path)) { result.put("isFile", 1); }
+    result.put("isDir", 0);
+    if (Fs_isDir(path)) { result.put("isDir", 1); }
+    return ok(result);
+}
+
+// Change file permissions.
+public fn chmod(path: string, mode: int): Result<string, string> {
+    return Os_chmod(path, mode);
+}
+
+// Set file creation mask (stub on Windows, returns old mask on Unix).
+public fn umask(mask: int): int {
+    return Os_umask(mask);
+}
+
+// Directory entry returned by scandir.
+public class DirEntry {
+    public string name;
+    public bool isFile;
+    public bool isDir;
+    public bool isSymlink;
+
+    public fn init(name: string, isFile: bool, isDir: bool, isSymlink: bool) {
+        this.name = name;
+        this.isFile = isFile;
+        this.isDir = isDir;
+        this.isSymlink = isSymlink;
+    }
+}
+
+// Scan directory returning DirEntry objects with file metadata.
+public fn scandir(path: string): ArrayList<DirEntry> {
+    let raw: ArrayList<ArrayList<Variant>> = Os_scandir(path);
+    let result: ArrayList<DirEntry> = new ArrayList<DirEntry>();
+    var i: int = 0;
+    while (i < raw.size()) {
+        let entry: ArrayList<Variant> = raw.get(i);
+        let name: string = entry.get(0) as string;
+        let isFile: bool = entry.get(1) as bool;
+        let isDir: bool = entry.get(2) as bool;
+        let isSymlink: bool = entry.get(3) as bool;
+        result.add(new DirEntry(name, isFile, isDir, isSymlink));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Get current working directory (alias for workingDir).
+public fn getcwd(): string {
+    return workingDir();
+}
+
+// Check if path exists.
+public fn exists(path: string): bool {
+    return Fs_exists(path);
+}
+
+// Remove a directory.
+public fn rmdir(path: string): Result<string, string> {
+    return remove(path);
+}
+
+// Walk directory tree yielding (dirpath, subdirs, files) for each directory.
+// Returns a flat ArrayList where every 3 consecutive elements represent
+// one directory: [dirpath, subdirs, files, dirpath2, subdirs2, files2, ...]
+public fn walk(path: string): ArrayList<ArrayList<string>> {
+    let result: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    walkHelper(path, result);
+    return result;
+}
+
+// Internal helper that recursively walks the directory tree.
+fn walkHelper(path: string, result: ArrayList<ArrayList<string>>): void {
+    let dirs: ArrayList<string> = new ArrayList<string>();
+    let files: ArrayList<string> = new ArrayList<string>();
+    let entries: ArrayList<string> = listDir(path);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        let fullPath: string = Path_join(path, entry);
+        if (Fs_isDir(fullPath)) {
+            dirs.add(entry);
+        } else {
+            files.add(entry);
+        }
+        i = i + 1;
+    }
+    let dirpath: ArrayList<string> = new ArrayList<string>();
+    dirpath.add(path);
+    result.add(dirpath);
+    result.add(dirs);
+    result.add(files);
+    // Recurse into subdirectories
+    var j: int = 0;
+    while (j < dirs.size()) {
+        let subPath: string = Path_join(path, dirs.get(j));
+        walkHelper(subPath, result);
+        j = j + 1;
+    }
+}
+
+// Get file size.
+public fn getFileSize(path: string): int {
+    return Fs_size(path);
+}
+
+// Environment variable constants.
+public fn pathSeparator(): string {
+    let platform: string = _currentPlatform();
+    return _getPathSep(platform, "path", platform == "windows" ? ";" : ":");
+}
+
+public fn separator(): string {
+    let platform: string = _currentPlatform();
+    return _getPathSep(platform, "dir", platform == "windows" ? "\\" : "/");
+}
+
+public fn linesep(): string {
+    let platform: string = _currentPlatform();
+    return _getPathSep(platform, "line", platform == "windows" ? "\r\n" : "\n");
+}
+
+public fn devNull(): string {
+    let platform: string = _currentPlatform();
+    return _getPathSep(platform, "null", platform == "windows" ? "NUL" : "/dev/null");
+}
+
+// Recursively remove directories (like rmdir -p).
+public fn removedirs(path: string): void {
+    Os_removedirs(path);
+}
+
+// Rename with intermediate directory creation.
+public fn renames(old: string, newPath: string): void {
+    Os_renames(old, newPath);
+}
+
+// Replace destination file (atomic on same filesystem).
+public fn replace(src: string, dst: string): void {
+    Os_replace(src, dst);
+}
+
+// Create a hard link.
+public fn link(src: string, dst: string): void {
+    Os_link(src, dst);
+}
+
+// Read the target of a symbolic link (alias with PascalCase).
+public fn readLink(path: string): string {
+    let result: Variant = Os_readlink(path);
+    // Native returns a Result; extract the success value
+    if (result != null) {
+        return result.toString();
+    }
+    return "";
+}
+
+// Set file access and modification times.
+public fn utime(path: string, times: double): void {
+    Os_utime(path, times);
+}
+
+// Get file/directory status without following symlinks.
+public fn lstat(path: string): HashMap<string, int> {
+    return Os_lstat(path);
+}
+
+// Return error message for the given error code.
+public fn strerror(code: int): string {
+    return Os_strerror(code);
+}
+
+// Get the current process ID.
+public fn getpid(): int {
+    return Os_getpid();
+}
+
+// Get the parent process ID.
+public fn getppid(): int {
+    return Os_getppid();
+}
+
+// Change the current working directory.
+public fn chdir(path: string): void {
+    Os_chdir(path);
+}
+
+// Unset (delete) an environment variable.
+public fn unsetEnv(key: string): void {
+    Os_unsetenv(key);
+}
+
+// Execute a system command and return its exit code.
+public fn system(command: string): int {
+    return Os_system(command);
+}
+
+// Get system identification information.
+public fn uname(): string {
+    return Os_uname();
+}
+
+// Open a pipe to a command. mode "r" reads the command's stdout,
+// mode "w" writes to the command's stdin.
+// For "r" mode, returns the captured output as a string.
+// For "w" mode, runs the command with empty stdin and returns its stdout.
+// Use popenWrite(command, input) to pipe data to the command's stdin.
+public fn popen(command: string, mode: string): string {
+    if (mode == "r") {
+        return Subprocess_exec(command);
+    }
+    if (mode == "w") {
+        return Subprocess_popenWrite(command, "");
+    }
+    return "";
+}
+
+// Pipe input data to a command's stdin and return captured stdout.
+public fn popenWrite(command: string, input: string): string {
+    return Subprocess_popenWrite(command, input);
+}
