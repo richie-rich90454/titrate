@@ -1,0 +1,133 @@
+// Enumeration support for type-safe constants.
+import tt::util::ArrayList;
+
+// Simple enumeration base class.
+public class EnumValue {
+    public string name;
+    public int ordinal;
+    public int value;
+
+    public fn init(name: string, ordinal: int) {
+        this.name = name;
+        this.ordinal = ordinal;
+        this.value = ordinal;
+    }
+
+    public fn initWithValue(name: string, ordinal: int, val: int) {
+        this.name = name;
+        this.ordinal = ordinal;
+        this.value = val;
+    }
+
+    public fn toString(): string {
+        return this.name;
+    }
+
+    public fn equals(other: EnumValue): bool {
+        return this.ordinal == other.ordinal;
+    }
+
+    public fn getOrdinal(): int {
+        return this.ordinal;
+    }
+
+    public fn getName(): string {
+        return this.name;
+    }
+
+    public fn getValue(): int {
+        return this.value;
+    }
+}
+
+// Integer enumeration class where each member has an explicit integer value.
+public class IntEnum {
+    public string name;
+    public int value;
+
+    public fn init(name: string, val: int) {
+        this.name = name;
+        this.value = val;
+    }
+
+    public fn toString(): string {
+        return this.name;
+    }
+
+    public fn equals(other: IntEnum): bool {
+        return this.value == other.value;
+    }
+
+    public fn getName(): string {
+        return this.name;
+    }
+
+    public fn getValue(): int {
+        return this.value;
+    }
+}
+
+// Module-level counter for auto() incrementing values.
+var _autoCounter: int = 0;
+
+// Returns an automatically incrementing integer value for enum members.
+// Each call returns the next integer starting from 0.
+public fn auto(): int {
+    let val: int = _autoCounter;
+    _autoCounter = _autoCounter + 1;
+    return val;
+}
+
+// Reset the auto() counter (useful when defining a new enum).
+public fn resetAuto(): void {
+    _autoCounter = 0;
+}
+
+// Set the auto() counter to a specific starting value.
+public fn setAutoStart(val: int): void {
+    _autoCounter = val;
+}
+
+// Utility functions for working with enums.
+public fn enumValueOf(values: ArrayList<EnumValue>, name: string): EnumValue {
+    var i: int = 0;
+    while (i < values.size()) {
+        let v: EnumValue = values.get(i);
+        if (String.length(name) == String.length(v.name) && v.name == name) {
+            return v;
+        }
+        i = i + 1;
+    }
+    return new EnumValue("UNKNOWN", -1);
+}
+
+public fn enumFromOrdinal(values: ArrayList<EnumValue>, ordinal: int): EnumValue {
+    if (ordinal >= 0 && ordinal < values.size()) {
+        return values.get(ordinal);
+    }
+    return new EnumValue("UNKNOWN", -1);
+}
+
+public fn intEnumValueOf(values: ArrayList<IntEnum>, name: string): IntEnum {
+    var i: int = 0;
+    while (i < values.size()) {
+        let v: IntEnum = values.get(i);
+        if (String.length(name) == String.length(v.name) && v.name == name) {
+            return v;
+        }
+        i = i + 1;
+    }
+    return new IntEnum("UNKNOWN", -1);
+}
+
+public fn intEnumFromValue(values: ArrayList<IntEnum>, val: int): IntEnum {
+    var i: int = 0;
+    while (i < values.size()) {
+        let v: IntEnum = values.get(i);
+        if (v.value == val) {
+            return v;
+        }
+        i = i + 1;
+    }
+    return new IntEnum("UNKNOWN", -1);
+}
