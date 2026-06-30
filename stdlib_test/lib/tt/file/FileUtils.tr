@@ -1,0 +1,254 @@
+// High-level file operations.
+import tt::io::File;
+import tt::file::Path;
+import tt::file::Directory;
+import tt::lang::String;
+import tt::lang::Result;
+
+// Copy a file from src to dst, preserving metadata (last modified time).
+public fn copy2(src: string, dst: string): Result<string, string> {
+    if (!Fs_exists(src)) {
+        return err("source file not found: " + src);
+    }
+    if (!Fs_isFile(src)) {
+        return err("source is not a file: " + src);
+    }
+    let content: string = File_readFile(src);
+    File_writeFile(dst, content);
+    // Preserve last modified time
+    let mtime: int = File_lastModified(src);
+    if (mtime > 0) {
+        File_setModified(dst, mtime);
+    }
+    return ok(dst);
+}
+
+// Copy data from one file object to another.
+// src and dst are File objects. Returns the number of bytes copied.
+public fn copyfileobj(src: File, dst: File, bufferSize: int): int {
+    var total: int = 0;
+    var data: string = src.readBytes(bufferSize);
+    while (String.length(data) > 0) {
+        dst.writeBytes(data);
+        total = total + String.length(data);
+        data = src.readBytes(bufferSize);
+    }
+    return total;
+}
+
+// Copy file metadata (last modified time) from src to dst.
+public fn copystat(src: string, dst: string): void {
+    let mtime: int = File_lastModified(src);
+    if (mtime > 0) {
+        File_setModified(dst, mtime);
+    }
+}
+
+// Copy a file from src to dst
+public fn copy(src: string, dst: string): Result<string, string> {
+    if (!Fs_exists(src)) {
+        return err("source file not found: " + src);
+    }
+    if (!Fs_isFile(src)) {
+        return err("source is not a file: " + src);
+    }
+    let content: string = File_readFile(src);
+    File_writeFile(dst, content);
+    return ok(dst);
+}
+
+// Copy a directory tree from src to dst
+public fn copyTree(src: string, dst: string): Result<string, string> {
+    if (!Fs_isDir(src)) {
+        return err("source is not a directory: " + src);
+    }
+    // Create destination directory
+    if (!Fs_exists(dst)) {
+        Dir_create(dst);
+    }
+    let entries: ArrayList<string> = Dir_list(src);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        let srcPath: string = Path_join(src, entry);
+        let dstPath: string = Path_join(dst, entry);
+        if (Fs_isDir(srcPath)) {
+            let r: Result<string, string> = copyTree(srcPath, dstPath);
+            if (r.isErr()) {
+                return r;
+            }
+        } else {
+            let content: string = File_readFile(srcPath);
+            File_writeFile(dstPath, content);
+        }
+        i = i + 1;
+    }
+    return ok(dst);
+}
+
+// Move a file or directory from src to dst
+public fn move(src: string, dst: string): Result<string, string> {
+    if (!Fs_exists(src)) {
+        return err("source not found: " + src);
+    }
+    let success: bool = Os_replace(src, dst);
+    if (success) {
+        return ok(dst);
+    }
+    return err("failed to move " + src + " to " + dst);
+}
+
+// Recursively remove a directory tree
+public fn rmtree(path: string): Result<string, string> {
+    if (!Fs_exists(path)) {
+        return err("path not found: " + path);
+    }
+    if (Fs_isFile(path)) {
+        let success: bool = Dir_remove(path);
+        if (success) {
+            return ok(path);
+        }
+        return err("failed to remove file: " + path);
+    }
+    // Remove directory contents first
+    let entries: ArrayList<string> = Dir_list(path);
+    var i: int = 0;
+    while (i < entries.size()) {
+        let entry: string = entries.get(i);
+        let fullPath: string = Path_join(path, entry);
+        if (Fs_isDir(fullPath)) {
+            let r: Result<string, string> = rmtree(fullPath);
+            if (r.isErr()) {
+                return r;
+            }
+        } else {
+            Dir_remove(fullPath);
+        }
+        i = i + 1;
+    }
+    // Remove the now-empty directory
+    let success: bool = Dir_remove(path);
+    if (success) {
+        return ok(path);
+    }
+    return err("failed to remove directory: " + path);
+}
+
+// Find an executable in the PATH environment variable
+public fn which(cmd: string): string {
+    let pathEnv: string = Sys_env("PATH");
+    if (pathEnv == null || String.length(pathEnv) == 0) {
+        return "";
+    }
+    let dirs: ArrayList<string> = String.split(pathEnv, ":");
+    var i: int = 0;
+    while (i < dirs.size()) {
+        let dir: string = dirs.get(i);
+        let fullPath: string = Path_join(dir, cmd);
+        if (Fs_exists(fullPath) && Fs_isFile(fullPath)) {
+            return fullPath;
+        }
+        // On Windows, also check with .exe extension
+        let osName: string = Os_name();
+        if (osName == "Windows") {
+            let exePath: string = fullPath + ".exe";
+            if (Fs_exists(exePath) && Fs_isFile(exePath)) {
+                return exePath;
+            }
+        }
+        i = i + 1;
+    }
+    return "";
+}
+
+// Disk usage information: total, used, and free space.
+public class DiskUsageInfo {
+    public long total;
+    public long used;
+    public long free;
+
+    public fn init(t: long, u: long, f: long) {
+        this.total = t;
+        this.used = u;
+        this.free = f;
+    }
+}
+
+// Get the total disk usage of a path (recursive size in bytes)
+public fn diskUsage(path: string): long {
+    if (!Fs_exists(path)) {
+        return 0;
+    }
+    if (Fs_isFile(path)) {
+        return Fs_size(path) as long;
+    }
+    var total: long = 0;
+    let entries: ArrayList<string> = Dir_walk(path);
+    var i: int = 0;
+    while (i < entries.size()) {
+        if (Fs_isFile(entries.get(i))) {
+            total = total + Fs_size(entries.get(i)) as long;
+        }
+        i = i + 1;
+    }
+    return total;
+}
+
+// Check if two paths refer to the same file
+public fn sameFile(p1: string, p2: string): bool {
+    // Normalize both paths and compare
+    let norm1: string = _normalizePath(p1);
+    let norm2: string = _normalizePath(p2);
+    return norm1 == norm2;
+}
+
+// Get a human-readable file size string
+public fn getSizeMode(path: string): string {
+    let size: long = diskUsage(path);
+    return _humanSize(size);
+}
+
+// Get disk space information for the filesystem containing the given path.
+// Returns a DiskUsageInfo with total, used, and free space in bytes.
+public fn diskUsageInfo(path: string): DiskUsageInfo {
+    // Use native disk space query if available
+    let totalSpace: long = Fs_totalSpace(path);
+    let freeSpace: long = Fs_freeSpace(path);
+    let usedSpace: long = totalSpace - freeSpace;
+    return new DiskUsageInfo(totalSpace, usedSpace, freeSpace);
+}
+
+// Internal: normalize a path for comparison
+fn _normalizePath(p: string): string {
+    if (String.length(p) == 0) {
+        return p;
+    }
+    // Make absolute
+    var abs: string = p;
+    let first: string = String.charAt(p, 0);
+    if (first != "/" && !(String.length(p) > 1 && String.charAt(p, 1) == ":")) {
+        abs = Path_join(Sys_workingDir(), p);
+    }
+    return abs;
+}
+
+// Internal: convert bytes to human-readable size
+fn _humanSize(size: long): string {
+    if (size < 1024) {
+        return size + " B";
+    }
+    let kb: double = size as double / 1024.0;
+    if (kb < 1024.0) {
+        return Double.toString(kb) + " KB";
+    }
+    let mb: double = kb / 1024.0;
+    if (mb < 1024.0) {
+        return Double.toString(mb) + " MB";
+    }
+    let gb: double = mb / 1024.0;
+    if (gb < 1024.0) {
+        return Double.toString(gb) + " GB";
+    }
+    let tb: double = gb / 1024.0;
+    return Double.toString(tb) + " TB";
+}
