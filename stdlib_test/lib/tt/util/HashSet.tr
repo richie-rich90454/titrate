@@ -1,0 +1,193 @@
+// HashSet<E> is a hash-based set collection backed by HashMap.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class HashSet<E> {
+    private HashMap<E, bool> _map;
+
+    public fn HashSet() {
+        this._map = new HashMap<E, bool>();
+    }
+
+    // Adds an element. Returns true if the element was not already present.
+    public fn add(element: E): bool {
+        if (this._map.containsKey(element)) {
+            return false;
+        }
+        this._map.put(element, true);
+        return true;
+    }
+
+    // Removes an element. Returns true if the element was present.
+    public fn remove(element: E): bool {
+        if (this._map.containsKey(element)) {
+            this._map.remove(element);
+            return true;
+        }
+        return false;
+    }
+
+    // Returns true if the element is in the set.
+    public fn contains(element: E): bool {
+        return this._map.containsKey(element);
+    }
+
+    // Returns the number of elements in the set.
+    public fn size(): int {
+        return this._map.size();
+    }
+
+    // Returns true if the set contains no elements.
+    public fn isEmpty(): bool {
+        return this._map.size() == 0;
+    }
+
+    // Removes all elements from the set.
+    public fn clear(): void {
+        this._map.clear();
+    }
+
+    // Returns a new ArrayList containing all elements in the set.
+    public fn toArrayList(): ArrayList<E> {
+        return this._map.keys();
+    }
+
+    // Returns a new HashSet that is the union of this set and other.
+    public fn union(other: HashSet<E>): HashSet<E> {
+        let result: HashSet<E> = new HashSet<E>();
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            result.add(keys.get(i));
+            i = i + 1;
+        }
+        let otherKeys: ArrayList<E> = other._map.keys();
+        let j: int = 0;
+        while (j < otherKeys.size()) {
+            result.add(otherKeys.get(j));
+            j = j + 1;
+        }
+        return result;
+    }
+
+    // Returns a new HashSet that is the intersection of this set and other.
+    public fn intersection(other: HashSet<E>): HashSet<E> {
+        let result: HashSet<E> = new HashSet<E>();
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (other.contains(keys.get(i))) {
+                result.add(keys.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Returns a new HashSet with elements in this set but not in other.
+    public fn difference(other: HashSet<E>): HashSet<E> {
+        let result: HashSet<E> = new HashSet<E>();
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (!other.contains(keys.get(i))) {
+                result.add(keys.get(i));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Returns a new HashSet with elements in either set but not in both.
+    public fn symmetricDifference(other: HashSet<E>): HashSet<E> {
+        let result: HashSet<E> = new HashSet<E>();
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (!other.contains(keys.get(i))) {
+                result.add(keys.get(i));
+            }
+            i = i + 1;
+        }
+        let otherKeys: ArrayList<E> = other._map.keys();
+        let j: int = 0;
+        while (j < otherKeys.size()) {
+            if (!this.contains(otherKeys.get(j))) {
+                result.add(otherKeys.get(j));
+            }
+            j = j + 1;
+        }
+        return result;
+    }
+
+    // Returns true if every element in this set is also in other.
+    public fn isSubsetOf(other: HashSet<E>): bool {
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (!other.contains(keys.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Returns true if every element in other is also in this set.
+    public fn isSupersetOf(other: HashSet<E>): bool {
+        return other.isSubsetOf(this);
+    }
+
+    // Compares this HashSet to another object for equality.
+    public fn equals(other: Variant): bool {
+        if (other == null) { return false; }
+        if (!(other is HashSet)) { return false; }
+        let o: HashSet<E> = other as HashSet<E>;
+        if (this.size() != o.size()) { return false; }
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (!o.contains(keys.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Returns a string representation of this HashSet.
+    public fn toString(): string {
+        let s: string = "HashSet{";
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + keys.get(i);
+            i = i + 1;
+        }
+        s = s + "}";
+        return s;
+    }
+
+    // Applies action to each element in the set.
+    public fn forEach(action: fn(E): void): void {
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            action(keys.get(i));
+            i = i + 1;
+        }
+    }
+
+    // Returns a shallow copy of this HashSet.
+    public fn clone(): HashSet<E> {
+        let result: HashSet<E> = new HashSet<E>();
+        let keys: ArrayList<E> = this._map.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            result.add(keys.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
