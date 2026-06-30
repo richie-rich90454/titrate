@@ -1,0 +1,421 @@
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// Base64 encoding and decoding backed by native implementations.
+import tt::util::ArrayList;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _alphabetCache: HashMap<string, string> = new HashMap<string, string>();
+var _alphabetLoaded: bool = false;
+
+fn _ensureAlphabetLoaded(): void {
+    if (_alphabetLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("encoding/base64_alphabets.json");
+    if (data.isNull() || !data.isObject()) {
+        _alphabetLoaded = true;
+        return;
+    }
+    if (data.hasKey("base64")) {
+        _alphabetCache.put("base64", data.get("base64").asString());
+    }
+    if (data.hasKey("base64url")) {
+        _alphabetCache.put("base64url", data.get("base64url").asString());
+    }
+    if (data.hasKey("base32")) {
+        _alphabetCache.put("base32", data.get("base32").asString());
+    }
+    _alphabetLoaded = true;
+}
+
+fn _getAlphabet(key: string, defaultVal: string): string {
+    _ensureAlphabetLoaded();
+    if (_alphabetCache.containsKey(key)) {
+        return _alphabetCache.get(key);
+    }
+    return defaultVal;
+}
+
+let ALPHABET: string = _getAlphabet("base64", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
+let URL_ALPHABET: string = _getAlphabet("base64url", "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
+let BASE32_ALPHABET: string = _getAlphabet("base32", "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
+
+public class Base64 {
+    public fn encode(input: string): string {
+        return Base64_encode(input);
+    }
+
+    public fn decode(input: string): string {
+        return Base64_decode(input);
+    }
+
+    public fn encodeUrlSafe(data: string): string {
+        // Encode with standard then replace +/ with -_ and strip padding
+        let encoded: string = Base64_encode(data);
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(encoded)) {
+            let c: string = String.charAt(encoded, i);
+            if (c == "+") {
+                result = result + "-";
+            } else if (c == "/") {
+                result = result + "_";
+            } else if (c == "=") {
+                // skip padding for URL-safe
+            } else {
+                result = result + c;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn decodeUrlSafe(data: string): string {
+        // Convert URL-safe back to standard, add padding, then decode
+        let standard: string = "";
+        let i: int = 0;
+        while (i < String.length(data)) {
+            let c: string = String.charAt(data, i);
+            if (c == "-") {
+                standard = standard + "+";
+            } else if (c == "_") {
+                standard = standard + "/";
+            } else {
+                standard = standard + c;
+            }
+            i = i + 1;
+        }
+        // Add padding
+        while (String.length(standard) % 4 != 0) {
+            standard = standard + "=";
+        }
+        return Base64_decode(standard);
+    }
+
+    public fn encodeWithoutPadding(data: string): string {
+        let encoded: string = Base64_encode(data);
+        // Remove trailing '=' padding characters
+        while (String.length(encoded) > 0 && String.charAt(encoded, String.length(encoded) - 1) == "=") {
+            encoded = String.substring(encoded, 0, String.length(encoded) - 1);
+        }
+        return encoded;
+    }
+
+    public fn encodeBytes(bytes: ArrayList<int>): string {
+        // Encode raw bytes using the Base64 alphabet
+        let result: string = "";
+        let i: int = 0;
+        let len: int = bytes.size();
+        while (i < len) {
+            let b0: int = bytes.get(i);
+            let b1: int = (i + 1 < len) ? bytes.get(i + 1) : 0;
+            let b2: int = (i + 2 < len) ? bytes.get(i + 2) : 0;
+            let triple: int = (b0 * 65536) + (b1 * 256) + b2;
+            result = result + Base64._char(ALPHABET, (triple / 262144) % 64);
+            result = result + Base64._char(ALPHABET, (triple / 4096) % 64);
+            if (i + 1 < len) {
+                result = result + Base64._char(ALPHABET, (triple / 64) % 64);
+            } else {
+                result = result + "=";
+            }
+            if (i + 2 < len) {
+                result = result + Base64._char(ALPHABET, triple % 64);
+            } else {
+                result = result + "=";
+            }
+            i = i + 3;
+        }
+        return result;
+    }
+
+    public fn decodeToBytes(data: string): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        // Build lookup from alphabet
+        let i: int = 0;
+        while (i + 3 < String.length(data)) {
+            let c0: int = Base64._val(String.charAt(data, i));
+            let c1: int = Base64._val(String.charAt(data, i + 1));
+            let c2: int = Base64._val(String.charAt(data, i + 2));
+            let c3: int = Base64._val(String.charAt(data, i + 3));
+            let triple: int = (c0 * 262144) + (c1 * 4096) + (c2 * 64) + c3;
+            result.add((triple / 65536) % 256);
+            if (String.charAt(data, i + 2) != "=") {
+                result.add((triple / 256) % 256);
+            }
+            if (String.charAt(data, i + 3) != "=") {
+                result.add(triple % 256);
+            }
+            i = i + 4;
+        }
+        return result;
+    }
+
+    private fn _char(alphabet: string, idx: int): string {
+        return String.charAt(alphabet, idx);
+    }
+
+    private fn _val(c: string): int {
+        if (c == "=") { return 0; }
+        let i: int = 0;
+        while (i < String.length(ALPHABET)) {
+            if (String.charAt(ALPHABET, i) == c) {
+                return i;
+            }
+            i = i + 1;
+        }
+        // Also check URL alphabet
+        i = 0;
+        while (i < String.length(URL_ALPHABET)) {
+            if (String.charAt(URL_ALPHABET, i) == c) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return 0;
+    }
+}
+
+// Encode a string to Base32 (RFC 4648).
+public fn encodeBase32(s: string): string {
+    // Convert string to bytes first
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < String.length(s)) {
+        bytes.add(String.charAt(s, i));
+        i = i + 1;
+    }
+    let len: int = bytes.size();
+    // Process byte-by-byte using bit buffer
+    let buffer: int = 0;
+    let bits: int = 0;
+    let k: int = 0;
+    let result: string = "";
+    while (k < len) {
+        buffer = (buffer * 256) + bytes.get(k);
+        bits = bits + 8;
+        while (bits >= 5) {
+            let shift: int = bits - 5;
+            let idx: int = (buffer / _pow32(shift)) % 32;
+            result = result + String.charAt(BASE32_ALPHABET, idx);
+            bits = bits - 5;
+        }
+        k = k + 1;
+    }
+    // Flush remaining bits
+    if (bits > 0) {
+        let idx: int = (buffer * _pow32(5 - bits)) % 32;
+        result = result + String.charAt(BASE32_ALPHABET, idx);
+    }
+    // Add padding
+    let modLen: int = len % 5;
+    if (modLen == 1) {
+        result = result + "======";
+    } else if (modLen == 2) {
+        result = result + "====";
+    } else if (modLen == 3) {
+        result = result + "===";
+    } else if (modLen == 4) {
+        result = result + "=";
+    }
+    return result;
+}
+
+// Decode a Base32 string back to the original string.
+public fn decodeBase32(s: string): string {
+    let buffer: int = 0;
+    let bits: int = 0;
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "=") {
+            i = i + 1;
+            continue;
+        }
+        let val: int = _base32Val(c);
+        buffer = (buffer * 32) + val;
+        bits = bits + 5;
+        if (bits >= 8) {
+            bits = bits - 8;
+            let byteVal: int = (buffer / _pow32(bits)) % 256;
+            result = result + String.fromCharCode(byteVal);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Helper: power of 32
+fn _pow32(exp: int): int {
+    let result: int = 1;
+    let i: int = 0;
+    while (i < exp) {
+        result = result * 32;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Helper: get Base32 value for a character
+fn _base32Val(c: string): int {
+    let i: int = 0;
+    while (i < String.length(BASE32_ALPHABET)) {
+        if (String.charAt(BASE32_ALPHABET, i) == c) {
+            return i;
+        }
+        i = i + 1;
+    }
+    // Handle lowercase
+    let upper: string = String.toUpperCase(c);
+    i = 0;
+    while (i < String.length(BASE32_ALPHABET)) {
+        if (String.charAt(BASE32_ALPHABET, i) == upper) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+// Encode a string to Base16 (hexadecimal).
+public fn encodeBase16(s: string): string {
+    let HEX_CHARS: string = "0123456789ABCDEF";
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let code: int = String.charAt(s, i) as int;
+        let hi: int = code / 16;
+        let lo: int = code % 16;
+        result = result + String.charAt(HEX_CHARS, hi) + String.charAt(HEX_CHARS, lo);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Decode a Base16 (hexadecimal) string back to the original string.
+public fn decodeBase16(s: string): string {
+    let HEX_CHARS: string = "0123456789ABCDEF";
+    let result: string = "";
+    let i: int = 0;
+    while (i + 1 < String.length(s)) {
+        let hiChar: string = String.charAt(s, i);
+        let loChar: string = String.charAt(s, i + 1);
+        let hi: int = _hexVal(hiChar);
+        let lo: int = _hexVal(loChar);
+        result = result + String.fromCharCode(hi * 16 + lo);
+        i = i + 2;
+    }
+    return result;
+}
+
+// Helper: get hex value for a character
+fn _hexVal(c: string): int {
+    let HEX_CHARS: string = "0123456789ABCDEF";
+    let upper: string = String.toUpperCase(c);
+    let i: int = 0;
+    while (i < String.length(HEX_CHARS)) {
+        if (String.charAt(HEX_CHARS, i) == upper) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return 0;
+}
+
+// Encode a string to Base85 (Ascii85).
+// Ascii85 encodes 4 bytes into 5 characters using characters 33-117 (! through u).
+// Zero-length groups are encoded as 'z'.
+public fn encodeBase85(s: string): string {
+    // Convert string to bytes
+    let bytes: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < String.length(s)) {
+        bytes.add(String.charAt(s, i));
+        i = i + 1;
+    }
+    let len: int = bytes.size();
+    let result: string = "";
+    let j: int = 0;
+    while (j < len) {
+        // Collect up to 4 bytes
+        let b0: int = bytes.get(j);
+        let b1: int = (j + 1 < len) ? bytes.get(j + 1) : 0;
+        let b2: int = (j + 2 < len) ? bytes.get(j + 2) : 0;
+        let b3: int = (j + 3 < len) ? bytes.get(j + 3) : 0;
+        let count: int = len - j;
+        if (count > 4) { count = 4; }
+        // Combine into 32-bit value (big-endian)
+        let val: int = (b0 * 16777216) + (b1 * 65536) + (b2 * 256) + b3;
+        // Special case: all-zero group encodes as 'z'
+        if (count == 4 && val == 0) {
+            result = result + "z";
+        } else {
+            // Encode as up to 5 base-85 digits
+            let chars: int = count + 1;
+            let k: int = 4;
+            while (k >= 0) {
+                let digit: int = val % 85;
+                val = val / 85;
+                // Prepend character 33 + digit
+                result = result + String.fromCharCode(33 + digit);
+                k = k - 1;
+            }
+        }
+        j = j + 4;
+    }
+    return result;
+}
+
+// Decode a Base85 (Ascii85) string back to the original string.
+public fn decodeBase85(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "z") {
+            // Zero group
+            result = result + String.fromCharCode(0) + String.fromCharCode(0) + String.fromCharCode(0) + String.fromCharCode(0);
+            i = i + 1;
+        } else {
+            // Collect up to 5 characters
+            let group: string = "";
+            let k: int = 0;
+            while (k < 5 && i < String.length(s)) {
+                let ch: string = String.charAt(s, i);
+                if (ch == "z") { break; }
+                group = group + ch;
+                k = k + 1;
+                i = i + 1;
+            }
+            // Decode the group
+            let val: int = 0;
+            let g: int = 0;
+            while (g < String.length(group)) {
+                val = val * 85 + ((String.charAt(group, g) as int) - 33);
+                g = g + 1;
+            }
+            // Pad to 5 characters if needed
+            let padNeeded: int = 5 - String.length(group);
+            let p: int = 0;
+            while (p < padNeeded) {
+                val = val * 85 + 84;
+                p = p + 1;
+            }
+            // Extract bytes
+            let byteCount: int = String.length(group) - 1;
+            let b3: int = val % 256;
+            val = val / 256;
+            let b2: int = val % 256;
+            val = val / 256;
+            let b1: int = val % 256;
+            val = val / 256;
+            let b0: int = val % 256;
+            if (byteCount >= 1) { result = result + String.fromCharCode(b0); }
+            if (byteCount >= 2) { result = result + String.fromCharCode(b1); }
+            if (byteCount >= 3) { result = result + String.fromCharCode(b2); }
+            if (byteCount >= 4) { result = result + String.fromCharCode(b3); }
+        }
+    }
+    return result;
+}
