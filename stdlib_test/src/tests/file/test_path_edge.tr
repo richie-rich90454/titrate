@@ -1,0 +1,78 @@
+// Edge case tests for Path.tr
+// Tests boundary conditions: empty paths, root paths, missing extensions,
+// joining with empty strings, and normalization of dot segments.
+import tt::file::Path;
+
+public fn test_path_edge_empty_path(): void {
+    let p: Path = new Path("");
+    let isAbs: bool = p.isAbsolute();
+    let norm: string = p.normalize();
+    if (!isAbs && norm == "") {
+        io::println("PASS: empty path is not absolute and normalizes to empty");
+    } else {
+        io::println("FAIL: empty path isAbs=" + (isAbs ? "true" : "false") + " norm='" + norm + "'");
+    }
+}
+
+public fn test_path_edge_root_path(): void {
+    let p: Path = new Path("/");
+    let isAbs: bool = p.isAbsolute();
+    let norm: string = p.normalize();
+    if (isAbs && norm == "/") {
+        io::println("PASS: root path is absolute and normalizes to '/'");
+    } else {
+        io::println("FAIL: root path normalize returned '" + norm + "'");
+    }
+}
+
+public fn test_path_edge_no_extension(): void {
+    let p: Path = new Path("README");
+    let ext: string = p.extension();
+    let stem: string = p.stem();
+    if (ext == "" && stem == "README") {
+        io::println("PASS: path with no extension returns empty extension");
+    } else {
+        io::println("FAIL: no-extension path ext='" + ext + "' stem='" + stem + "'");
+    }
+}
+
+public fn test_path_edge_join_empty(): void {
+    let p: Path = new Path("base");
+    let joined: string = p.join("");
+    // Native join behavior with empty string may yield "base" or "base/"
+    if (joined == "base" || joined == "base/") {
+        io::println("PASS: path join with empty does not crash (returned '" + joined + "')");
+    } else {
+        io::println("FAIL: path join with empty returned '" + joined + "'");
+    }
+}
+
+public fn test_path_edge_normalize_dotdot(): void {
+    let p: Path = new Path("a/b/../../c");
+    let norm: string = p.normalize();
+    if (norm == "c") {
+        io::println("PASS: normalize resolves a/b/../../c to c");
+    } else {
+        io::println("FAIL: normalize a/b/../../c returned '" + norm + "'");
+    }
+}
+
+public fn test_path_edge_trailing_slash(): void {
+    let p: Path = new Path("a/b/");
+    let norm: string = p.normalize();
+    if (norm == "a/b") {
+        io::println("PASS: normalize strips trailing slash from a/b/");
+    } else {
+        io::println("FAIL: normalize a/b/ returned '" + norm + "'");
+    }
+}
+
+public fn run_all_path_edge_tests(): void {
+    io::println("=== Path.tr Edge Case Tests ===");
+    test_path_edge_empty_path();
+    test_path_edge_root_path();
+    test_path_edge_no_extension();
+    test_path_edge_join_empty();
+    test_path_edge_normalize_dotdot();
+    test_path_edge_trailing_slash();
+}
