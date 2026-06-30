@@ -1,0 +1,686 @@
+// JSON parser and serializer.
+import tt::json::JsonValue;
+import tt::json::JsonParser;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+// Custom serialization hooks
+let _encoders: HashMap<string, fn(JsonValue): JsonValue> = new HashMap<string, fn(JsonValue): JsonValue>();
+let _decoders: HashMap<string, fn(JsonValue): JsonValue> = new HashMap<string, fn(JsonValue): JsonValue>();
+
+public fn registerEncoder(typeName: string, encoder: fn(JsonValue): JsonValue): void {
+    _encoders.put(typeName, encoder);
+}
+
+public fn registerDecoder(typeName: string, decoder: fn(JsonValue): JsonValue): void {
+    _decoders.put(typeName, decoder);
+}
+
+// Parse a JSON string into a JsonValue
+public fn parse(input: string): JsonValue {
+    let parser: JsonParser = new JsonParser(input);
+    parser.skipWhitespace();
+    let result: JsonValue = parser.parseValue();
+    return result;
+}
+
+// Convert a JsonValue to a JSON string
+public fn stringify(value: JsonValue): string {
+    return value.toString();
+}
+
+// Convert a JsonValue to a JSON string with indentation and optional key sorting
+public fn stringify(value: JsonValue, indent: int, sortKeys: bool): string {
+    return dumps(value, sortKeys, indent);
+}
+
+// Convert a JsonValue to a JSON string with indentation, key sorting, and ASCII-only output.
+// ensureAscii: if true, non-ASCII characters are escaped as \uXXXX sequences.
+public fn stringify(value: JsonValue, indent: int, sortKeys: bool, ensureAscii: bool): string {
+    return stringifyPrettyInner(value, indent, 0, sortKeys, ensureAscii);
+}
+
+// Pretty print with indentation
+public fn prettyPrint(value: JsonValue, indent: int): string {
+    return prettyPrintInner(value, indent, 0);
+}
+
+// Write a JsonValue to a file as JSON.
+public fn dump(value: JsonValue, path: string): void {
+    let jsonStr: string = value.toString();
+    File_writeFile(path, jsonStr);
+}
+
+// Write a Variant object to a JSON file with indentation and optional key sorting.
+public fn dump(obj: Variant, filePath: string, indent: int, sortKeys: bool): void {
+    let jsonStr: string = stringify(obj, indent, sortKeys);
+    File_writeFile(filePath, jsonStr);
+}
+
+// Read a JSON file and parse it into a JsonValue.
+public fn load(path: string): JsonValue {
+    let content: string = File_readFile(path);
+    return parse(content);
+}
+
+// Read a JSON file and parse it into a Variant.
+public fn load(filePath: string): Variant {
+    let content: string = File_readFile(filePath);
+    return parse(content);
+}
+
+// Convert a JsonValue to a JSON string with optional sorting and indentation.
+// sortKeys: if true, object keys are sorted alphabetically.
+// indent: number of spaces for indentation; 0 means compact output.
+public fn dumps(value: JsonValue, sortKeys: bool, indent: int): string {
+    if (indent > 0) {
+        return dumpsPrettyInner(value, sortKeys, indent, 0);
+    }
+    if (sortKeys) {
+        return dumpsCompactSorted(value);
+    }
+    return value.toString();
+}
+
+fn dumpsCompactSorted(value: JsonValue): string {
+    if (value.isObject()) {
+        let obj: HashMap<string, JsonValue> = value.asObject();
+        let keys: ArrayList<string> = obj.keys();
+        keys.sort();
+        let result: string = "{";
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) {
+                result = result + ",";
+            }
+            let key: string = keys.get(i);
+            let val: JsonValue = obj.get(key);
+            result = result + JsonValue.escapeString(key) + ":" + dumpsCompactSorted(val);
+            i = i + 1;
+        }
+        result = result + "}";
+        return result;
+    }
+    if (value.isArray()) {
+        let arr: ArrayList<JsonValue> = value.asArray();
+        let result: string = "[";
+        let i: int = 0;
+        while (i < arr.size()) {
+            if (i > 0) {
+                result = result + ",";
+            }
+            result = result + dumpsCompactSorted(arr.get(i));
+            i = i + 1;
+        }
+        result = result + "]";
+        return result;
+    }
+    return value.toString();
+}
+
+fn dumpsPrettyInner(value: JsonValue, sortKeys: bool, indent: int, level: int): string {
+    if (value.isNull()) {
+        return "null";
+    }
+    if (value.isBool()) {
+        if (value.asBool()) {
+            return "true";
+        } else {
+            return "false";
+        }
+    }
+    if (value.isNumber()) {
+        return value.asNumber().toString();
+    }
+    if (value.isString()) {
+        return JsonValue.escapeString(value.asString());
+    }
+    if (value.isArray()) {
+        let arr: ArrayList<JsonValue> = value.asArray();
+        if (arr.size() == 0) {
+            return "[]";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "[\n";
+        let i: int = 0;
+        while (i < arr.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            result = result + pad + dumpsPrettyInner(arr.get(i), sortKeys, indent, level + 1);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "]";
+        return result;
+    }
+    if (value.isObject()) {
+        let obj: HashMap<string, JsonValue> = value.asObject();
+        let keys: ArrayList<string> = obj.keys();
+        if (sortKeys) {
+            keys.sort();
+        }
+        if (keys.size() == 0) {
+            return "{}";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "{\n";
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            let key: string = keys.get(i);
+            let val: JsonValue = obj.get(key);
+            result = result + pad + JsonValue.escapeString(key) + ": " + dumpsPrettyInner(val, sortKeys, indent, level + 1);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "}";
+        return result;
+    }
+    return "null";
+}
+
+fn prettyPrintInner(value: JsonValue, indent: int, level: int): string {
+    if (value.isNull()) {
+        return "null";
+    }
+    if (value.isBool()) {
+        if (value.asBool()) {
+            return "true";
+        } else {
+            return "false";
+        }
+    }
+    if (value.isNumber()) {
+        return value.asNumber().toString();
+    }
+    if (value.isString()) {
+        return JsonValue.escapeString(value.asString());
+    }
+    if (value.isArray()) {
+        let arr: ArrayList<JsonValue> = value.asArray();
+        if (arr.size() == 0) {
+            return "[]";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "[\n";
+        let i: int = 0;
+        while (i < arr.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            result = result + pad + prettyPrintInner(arr.get(i), indent, level + 1);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "]";
+        return result;
+    }
+    if (value.isObject()) {
+        let obj: HashMap<string, JsonValue> = value.asObject();
+        let keys: ArrayList<string> = obj.keys();
+        if (keys.size() == 0) {
+            return "{}";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "{\n";
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            let key: string = keys.get(i);
+            let val: JsonValue = obj.get(key);
+            result = result + pad + JsonValue.escapeString(key) + ": " + prettyPrintInner(val, indent, level + 1);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "}";
+        return result;
+    }
+    return "null";
+}
+
+fn makeIndent(indent: int, level: int): string {
+    let result: string = "";
+    let total: int = indent * level;
+    let i: int = 0;
+    while (i < total) {
+        result = result + " ";
+        i = i + 1;
+    }
+    return result;
+}
+
+// ---- Enhanced pretty printing ----
+
+// Pretty print with configurable indent
+public fn stringifyPretty(value: JsonValue, indent: int): string {
+    return stringifyPrettyInner(value, indent, 0, false, false);
+}
+
+// Pretty print with sorted keys
+public fn stringifySorted(value: JsonValue, indent: int): string {
+    return stringifyPrettyInner(value, indent, 0, true, false);
+}
+
+// Pretty print ensuring ASCII output (escape non-ASCII)
+public fn stringifyAscii(value: JsonValue, indent: int): string {
+    return stringifyPrettyInner(value, indent, 0, false, true);
+}
+
+fn stringifyPrettyInner(value: JsonValue, indent: int, level: int, sortKeys: bool, asciiOnly: bool): string {
+    if (value.isNull()) {
+        return "null";
+    }
+    if (value.isBool()) {
+        if (value.asBool()) {
+            return "true";
+        } else {
+            return "false";
+        }
+    }
+    if (value.isNumber()) {
+        return value.asNumber().toString();
+    }
+    if (value.isString()) {
+        if (asciiOnly) {
+            return escapeStringAscii(value.asString());
+        }
+        return JsonValue.escapeString(value.asString());
+    }
+    if (value.isArray()) {
+        let arr: ArrayList<JsonValue> = value.asArray();
+        if (arr.size() == 0) {
+            return "[]";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "[\n";
+        let i: int = 0;
+        while (i < arr.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            result = result + pad + stringifyPrettyInner(arr.get(i), indent, level + 1, sortKeys, asciiOnly);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "]";
+        return result;
+    }
+    if (value.isObject()) {
+        let obj: HashMap<string, JsonValue> = value.asObject();
+        let keys: ArrayList<string> = obj.keys();
+        if (sortKeys) {
+            keys.sort();
+        }
+        if (keys.size() == 0) {
+            return "{}";
+        }
+        let pad: string = makeIndent(indent, level + 1);
+        let result: string = "{\n";
+        let i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) {
+                result = result + ",\n";
+            }
+            let key: string = keys.get(i);
+            let val: JsonValue = obj.get(key);
+            let escapedKey: string = "";
+            if (asciiOnly) {
+                escapedKey = escapeStringAscii(key);
+            } else {
+                escapedKey = JsonValue.escapeString(key);
+            }
+            result = result + pad + escapedKey + ": " + stringifyPrettyInner(val, indent, level + 1, sortKeys, asciiOnly);
+            i = i + 1;
+        }
+        result = result + "\n" + makeIndent(indent, level) + "}";
+        return result;
+    }
+    return "null";
+}
+
+// Escape a string for JSON output, ensuring all non-ASCII characters are escaped
+fn escapeStringAscii(s: string): string {
+    let result: string = "\"";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0) as int;
+        if (c == "\"") {
+            result = result + "\\\"";
+        } else if (c == "\\") {
+            result = result + "\\\\";
+        } else if (c == "\n") {
+            result = result + "\\n";
+        } else if (c == "\r") {
+            result = result + "\\r";
+        } else if (c == "\t") {
+            result = result + "\\t";
+        } else if (c == "\b") {
+            result = result + "\\b";
+        } else if (c == "\f") {
+            result = result + "\\f";
+        } else if (code >= 0 && code < 32) {
+            result = result + "\\u00" + _hexDigit(code / 16) + _hexDigit(code % 16);
+        } else if (code > 127) {
+            // Escape non-ASCII as \uXXXX
+            if (code < 0x10000) {
+                result = result + "\\u" + _hexDigit((code >> 12) & 0xf) + _hexDigit((code >> 8) & 0xf) + _hexDigit((code >> 4) & 0xf) + _hexDigit(code & 0xf);
+            } else {
+                // Use surrogate pair for code points above U+FFFF
+                let cp: int = code - 0x10000;
+                let high: int = 0xd800 + (cp >> 10);
+                let low: int = 0xdc00 + (cp & 0x3ff);
+                result = result + "\\u" + _hexDigit((high >> 12) & 0xf) + _hexDigit((high >> 8) & 0xf) + _hexDigit((high >> 4) & 0xf) + _hexDigit(high & 0xf);
+                result = result + "\\u" + _hexDigit((low >> 12) & 0xf) + _hexDigit((low >> 8) & 0xf) + _hexDigit((low >> 4) & 0xf) + _hexDigit(low & 0xf);
+            }
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    result = result + "\"";
+    return result;
+}
+
+fn _hexDigit(v: int): string {
+    if (v < 10) {
+        return String.fromCharCode(48 + v);
+    }
+    return String.fromCharCode(65 + v - 10);
+}
+
+// ---- Field naming strategies ----
+
+// Convert snake_case to camelCase
+public fn toCamelCase(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    let nextUpper: bool = false;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "_") {
+            nextUpper = true;
+        } else {
+            if (nextUpper) {
+                result = result + _toUpper(c);
+                nextUpper = false;
+            } else {
+                result = result + c;
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert camelCase to snake_case
+public fn toSnakeCase(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0) as int;
+        if (code >= 65 && code <= 90) {
+            if (String.length(result) > 0) {
+                result = result + "_";
+            }
+            result = result + _toLower(c);
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert to PascalCase
+public fn toPascalCase(s: string): string {
+    let camel: string = toCamelCase(s);
+    if (String.length(camel) == 0) {
+        return camel;
+    }
+    let first: string = String.charAt(camel, 0);
+    return _toUpper(first) + String.substring(camel, 1, String.length(camel));
+}
+
+fn _toUpper(c: string): string {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 97 && code <= 122) {
+        return String.fromCharCode(code - 32);
+    }
+    return c;
+}
+
+fn _toLower(c: string): string {
+    let code: int = String.charAt(c, 0) as int;
+    if (code >= 65 && code <= 90) {
+        return String.fromCharCode(code + 32);
+    }
+    return c;
+}
+
+// ---- Color Terminal Output ----
+
+// ANSI escape codes for terminal colors.
+let _ANSI_RESET: string = String.fromCharCode(27) + "[0m";
+let _ANSI_BOLD: string = String.fromCharCode(27) + "[1m";
+let _ANSI_DIM: string = String.fromCharCode(27) + "[2m";
+let _ANSI_RED: string = String.fromCharCode(27) + "[31m";
+let _ANSI_GREEN: string = String.fromCharCode(27) + "[32m";
+let _ANSI_YELLOW: string = String.fromCharCode(27) + "[33m";
+let _ANSI_BLUE: string = String.fromCharCode(27) + "[34m";
+let _ANSI_MAGENTA: string = String.fromCharCode(27) + "[35m";
+let _ANSI_CYAN: string = String.fromCharCode(27) + "[36m";
+let _ANSI_WHITE: string = String.fromCharCode(27) + "[37m";
+
+// Stringify a JsonValue with ANSI color codes for terminal display.
+// Keys are colored blue, strings green, numbers yellow, booleans magenta, null red.
+public fn stringifyColor(value: JsonValue): string {
+    return _stringifyColorValue(value, 0);
+}
+
+// Stringify a JsonValue with ANSI color codes and indentation.
+public fn stringifyColorPretty(value: JsonValue, indent: int): string {
+    return _stringifyColorValue(value, indent);
+}
+
+// Internal: colorize a JsonValue for terminal output.
+fn _stringifyColorValue(value: JsonValue, indent: int): string {
+    if (value.isNull()) {
+        return _ANSI_RED + "null" + _ANSI_RESET;
+    }
+    if (value.isBool()) {
+        return _ANSI_MAGENTA + value.asString() + _ANSI_RESET;
+    }
+    if (value.isNumber()) {
+        return _ANSI_YELLOW + value.asString() + _ANSI_RESET;
+    }
+    if (value.isString()) {
+        return _ANSI_GREEN + "\"" + value.asString() + "\"" + _ANSI_RESET;
+    }
+    if (value.isArray()) {
+        let sz: int = value.size();
+        if (sz == 0) {
+            return "[]";
+        }
+        let pad: string = _pad(indent + 2);
+        let endPad: string = _pad(indent);
+        var s: string = "[" + "\n";
+        var i: int = 0;
+        while (i < sz) {
+            s = s + pad + _stringifyColorValue(value.getAt(i), indent + 2);
+            if (i < sz - 1) {
+                s = s + ",";
+            }
+            s = s + "\n";
+            i = i + 1;
+        }
+        s = s + endPad + "]";
+        return s;
+    }
+    if (value.isObject()) {
+        let keys: ArrayList<string> = value.keys();
+        if (keys.size() == 0) {
+            return "{}";
+        }
+        let pad: string = _pad(indent + 2);
+        let endPad: string = _pad(indent);
+        var s: string = "{" + "\n";
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            s = s + pad + _ANSI_BLUE + "\"" + k + "\"" + _ANSI_RESET + ": " + _stringifyColorValue(value.get(k), indent + 2);
+            if (i < keys.size() - 1) {
+                s = s + ",";
+            }
+            s = s + "\n";
+            i = i + 1;
+        }
+        s = s + endPad + "}";
+        return s;
+    }
+    return value.asString();
+}
+
+// Generate indentation padding string.
+fn _pad(n: int): string {
+    var s: string = "";
+    var i: int = 0;
+    while (i < n) {
+        s = s + " ";
+        i = i + 1;
+    }
+    return s;
+}
+
+// ---- Smart Line Wrapping ----
+
+// Stringify a JsonValue with smart line wrapping for terminal display.
+// Wraps long string values and object/array lines at the specified column width.
+public fn stringifyWrapped(value: JsonValue, maxWidth: int): string {
+    return _stringifyWrappedValue(value, 0, maxWidth);
+}
+
+// Internal: stringify with smart line wrapping.
+fn _stringifyWrappedValue(value: JsonValue, indent: int, maxWidth: int): string {
+    if (value.isNull() || value.isBool() || value.isNumber()) {
+        return value.asString();
+    }
+    if (value.isString()) {
+        let s: string = value.asString();
+        // Wrap long strings at maxWidth
+        if (String.length(s) > maxWidth - indent) {
+            return _wrapString(s, maxWidth - indent);
+        }
+        return "\"" + s + "\"";
+    }
+    if (value.isArray()) {
+        let sz: int = value.size();
+        if (sz == 0) { return "[]"; }
+        // Try compact form first
+        let compact: string = _compactArray(value);
+        if (String.length(compact) + indent <= maxWidth) {
+            return compact;
+        }
+        // Fall back to multi-line
+        let pad: string = _pad(indent + 2);
+        let endPad: string = _pad(indent);
+        var s: string = "[\n";
+        var i: int = 0;
+        while (i < sz) {
+            s = s + pad + _stringifyWrappedValue(value.getAt(i), indent + 2, maxWidth);
+            if (i < sz - 1) { s = s + ","; }
+            s = s + "\n";
+            i = i + 1;
+        }
+        s = s + endPad + "]";
+        return s;
+    }
+    if (value.isObject()) {
+        let keys: ArrayList<string> = value.keys();
+        if (keys.size() == 0) { return "{}"; }
+        // Try compact form first
+        let compact: string = _compactObject(value);
+        if (String.length(compact) + indent <= maxWidth) {
+            return compact;
+        }
+        // Fall back to multi-line
+        let pad: string = _pad(indent + 2);
+        let endPad: string = _pad(indent);
+        var s: string = "{\n";
+        var i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            s = s + pad + "\"" + k + "\": " + _stringifyWrappedValue(value.get(k), indent + 2, maxWidth);
+            if (i < keys.size() - 1) { s = s + ","; }
+            s = s + "\n";
+            i = i + 1;
+        }
+        s = s + endPad + "}";
+        return s;
+    }
+    return value.asString();
+}
+
+// Wrap a long string at word boundaries.
+fn _wrapString(s: string, width: int): string {
+    if (width < 20) { width = 20; }
+    var result: string = "\"";
+    var lineLen: int = 1;
+    var i: int = 0;
+    let len: int = String.length(s);
+    while (i < len) {
+        let c: string = String.charAt(s, i);
+        if (c == " " && lineLen >= width - 10) {
+            result = result + "\"\n  \"";
+            lineLen = 2;
+        } else {
+            result = result + c;
+            lineLen = lineLen + 1;
+        }
+        i = i + 1;
+    }
+    result = result + "\"";
+    return result;
+}
+
+// Compact array representation for short arrays.
+fn _compactArray(value: JsonValue): string {
+    var s: string = "[";
+    let sz: int = value.size();
+    var i: int = 0;
+    while (i < sz) {
+        let item: JsonValue = value.getAt(i);
+        if (item.isString()) {
+            s = s + "\"" + item.asString() + "\"";
+        } else {
+            s = s + item.asString();
+        }
+        if (i < sz - 1) { s = s + ", "; }
+        i = i + 1;
+    }
+    s = s + "]";
+    return s;
+}
+
+// Compact object representation for short objects.
+fn _compactObject(value: JsonValue): string {
+    var s: string = "{";
+    let keys: ArrayList<string> = value.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let k: string = keys.get(i);
+        let v: JsonValue = value.get(k);
+        s = s + "\"" + k + "\": ";
+        if (v.isString()) {
+            s = s + "\"" + v.asString() + "\"";
+        } else {
+            s = s + v.asString();
+        }
+        if (i < keys.size() - 1) { s = s + ", "; }
+        i = i + 1;
+    }
+    s = s + "}";
+    return s;
+}
