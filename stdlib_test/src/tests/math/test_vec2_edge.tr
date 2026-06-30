@@ -1,0 +1,149 @@
+// Edge case tests for vec/Vec2.tr
+// Exercises boundary conditions: zero vector, unit vectors, identity operations, perpendicularity.
+import tt::math::vec::Vec2;
+import tt::math::Math;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+// Zero vector: magnitude 0, normalize returns zero (no division by zero).
+public fn test_vec2_edge_zero_vector(): void {
+    let z: Vec2 = Vec2.zero();
+    if (z.x == 0.0 && z.y == 0.0) {
+        io::println("PASS: Vec2.zero() = (0,0)");
+    } else {
+        io::println("FAIL: Vec2.zero() expected (0,0)");
+    }
+
+    if (z.magnitude() == 0.0) {
+        io::println("PASS: |(0,0)| = 0.0");
+    } else {
+        io::println("FAIL: |(0,0)| expected 0.0, got " + Double.toString(z.magnitude()));
+    }
+
+    if (z.magnitudeSq() == 0.0) {
+        io::println("PASS: |(0,0)|^2 = 0.0");
+    } else {
+        io::println("FAIL: |(0,0)|^2 expected 0.0, got " + Double.toString(z.magnitudeSq()));
+    }
+
+    // normalize of zero vector must not crash; returns zero vector.
+    let n: Vec2 = z.normalize();
+    if (n.x == 0.0 && n.y == 0.0) {
+        io::println("PASS: normalize((0,0)) = (0,0) (no NaN)");
+    } else {
+        io::println("FAIL: normalize((0,0)) expected (0,0), got (" + Double.toString(n.x) + "," + Double.toString(n.y) + ")");
+    }
+}
+
+// Unit vector operations: unitX/unitY have magnitude 1 and are perpendicular.
+public fn test_vec2_edge_unit_vectors(): void {
+    let ux: Vec2 = Vec2.unitX();
+    let uy: Vec2 = Vec2.unitY();
+
+    if (absDiff(ux.magnitude(), 1.0) < 1e-12) {
+        io::println("PASS: |unitX| = 1.0");
+    } else {
+        io::println("FAIL: |unitX| expected 1.0, got " + Double.toString(ux.magnitude()));
+    }
+
+    if (absDiff(uy.magnitude(), 1.0) < 1e-12) {
+        io::println("PASS: |unitY| = 1.0");
+    } else {
+        io::println("FAIL: |unitY| expected 1.0, got " + Double.toString(uy.magnitude()));
+    }
+
+    // normalize of a unit vector returns itself
+    let nux: Vec2 = ux.normalize();
+    if (absDiff(nux.x, 1.0) < 1e-12 && absDiff(nux.y, 0.0) < 1e-12) {
+        io::println("PASS: normalize(unitX) = unitX");
+    } else {
+        io::println("FAIL: normalize(unitX) expected (1,0), got (" + Double.toString(nux.x) + "," + Double.toString(nux.y) + ")");
+    }
+
+    // dot(unitX, unitY) = 0 (perpendicular)
+    if (ux.dot(uy) == 0.0) {
+        io::println("PASS: dot(unitX, unitY) = 0.0");
+    } else {
+        io::println("FAIL: dot(unitX, unitY) expected 0.0, got " + Double.toString(ux.dot(uy)));
+    }
+}
+
+// Vector addition with zero: v + 0 = v (identity).
+public fn test_vec2_edge_add_zero_identity(): void {
+    let v: Vec2 = new Vec2(2.0, -3.0);
+    let z: Vec2 = Vec2.zero();
+
+    let sum: Vec2 = v.add(z);
+    if (sum.equals(v)) {
+        io::println("PASS: v + 0 = v (additive identity)");
+    } else {
+        io::println("FAIL: v + 0 expected (" + Double.toString(v.x) + "," + Double.toString(v.y) + ")");
+    }
+
+    let diff: Vec2 = v.sub(z);
+    if (diff.equals(v)) {
+        io::println("PASS: v - 0 = v (subtraction identity)");
+    } else {
+        io::println("FAIL: v - 0 expected (" + Double.toString(v.x) + "," + Double.toString(v.y) + ")");
+    }
+
+    // v - v = 0
+    let selfSub: Vec2 = v.sub(v);
+    if (absDiff(selfSub.x, 0.0) < 1e-12 && absDiff(selfSub.y, 0.0) < 1e-12) {
+        io::println("PASS: v - v = 0");
+    } else {
+        io::println("FAIL: v - v expected (0,0), got (" + Double.toString(selfSub.x) + "," + Double.toString(selfSub.y) + ")");
+    }
+}
+
+// Scalar multiplication by 0 and 1: v*0 = 0, v*1 = v.
+public fn test_vec2_edge_scalar_zero_one(): void {
+    let v: Vec2 = new Vec2(4.0, 5.0);
+
+    let byZero: Vec2 = v.scale(0.0);
+    if (absDiff(byZero.x, 0.0) < 1e-12 && absDiff(byZero.y, 0.0) < 1e-12) {
+        io::println("PASS: v * 0 = 0");
+    } else {
+        io::println("FAIL: v * 0 expected (0,0), got (" + Double.toString(byZero.x) + "," + Double.toString(byZero.y) + ")");
+    }
+
+    let byOne: Vec2 = v.scale(1.0);
+    if (byOne.equals(v)) {
+        io::println("PASS: v * 1 = v (scalar identity)");
+    } else {
+        io::println("FAIL: v * 1 expected (" + Double.toString(v.x) + "," + Double.toString(v.y) + ")");
+    }
+}
+
+// Dot product of perpendicular vectors is 0.
+public fn test_vec2_edge_dot_perpendicular(): void {
+    let a: Vec2 = new Vec2(3.0, 0.0);
+    let b: Vec2 = new Vec2(0.0, 7.0);
+    if (a.dot(b) == 0.0) {
+        io::println("PASS: dot((3,0),(0,7)) = 0.0 (perpendicular)");
+    } else {
+        io::println("FAIL: dot((3,0),(0,7)) expected 0.0, got " + Double.toString(a.dot(b)));
+    }
+
+    // Any vector and its perp() are perpendicular
+    let v: Vec2 = new Vec2(2.0, 5.0);
+    let p: Vec2 = v.perp();
+    if (absDiff(v.dot(p), 0.0) < 1e-12) {
+        io::println("PASS: dot(v, v.perp()) = 0.0");
+    } else {
+        io::println("FAIL: dot(v, v.perp()) expected 0.0, got " + Double.toString(v.dot(p)));
+    }
+
+    // Cross of perpendicular vectors is non-zero (|a||b|)
+    let cr: double = a.cross(b);
+    if (absDiff(cr, 21.0) < 1e-12) {
+        io::println("PASS: cross((3,0),(0,7)) = 21.0");
+    } else {
+        io::println("FAIL: cross((3,0),(0,7)) expected 21.0, got " + Double.toString(cr));
+    }
+}
