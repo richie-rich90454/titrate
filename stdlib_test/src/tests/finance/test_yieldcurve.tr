@@ -1,0 +1,222 @@
+// Test file for finance/YieldCurve.tr
+// Exercises the public API: nelsonSiegel, svensson, cubicSplineInterpolate,
+// bootstrapYieldCurve, forwardRate, discountFactor.
+import tt::finance::YieldCurve;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Double;
+
+public fn test_nelsonSiegel_basic(): void {
+    let y: double = nelsonSiegel(1.0, 0.05, -0.02, 0.01);
+    if (y != y) {
+        io::println("FAIL: nelsonSiegel returned NaN");
+    } else {
+        io::println("PASS: nelsonSiegel returns finite value");
+    }
+}
+
+public fn test_nelsonSiegel_zero_tau(): void {
+    // When tau <= 0, returns beta0 + beta1
+    let y: double = nelsonSiegel(0.0, 0.05, -0.02, 0.01);
+    let expected: double = 0.05 + (-0.02);
+    if (y < expected - 1e-9 || y > expected + 1e-9) {
+        io::println("FAIL: nelsonSiegel zero tau should return beta0+beta1");
+    } else {
+        io::println("PASS: nelsonSiegel zero tau handled");
+    }
+}
+
+public fn test_svensson_basic(): void {
+    let y: double = svensson(1.0, 2.0, 0.05, -0.02, 0.01, 0.005);
+    if (y != y) {
+        io::println("FAIL: svensson returned NaN");
+    } else {
+        io::println("PASS: svensson returns finite value");
+    }
+}
+
+public fn test_svensson_zero_tau(): void {
+    let y: double = svensson(0.0, 2.0, 0.05, -0.02, 0.01, 0.005);
+    let expected: double = 0.05 + (-0.02);
+    if (y < expected - 1e-9 || y > expected + 1e-9) {
+        io::println("FAIL: svensson zero tau should return beta0+beta1");
+    } else {
+        io::println("PASS: svensson zero tau handled");
+    }
+}
+
+public fn test_cubicSplineInterpolate_empty(): void {
+    let yields: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    let y: double = cubicSplineInterpolate(yields, 1.0);
+    if (y != 0.0) {
+        io::println("FAIL: cubicSplineInterpolate empty should return 0.0");
+    } else {
+        io::println("PASS: cubicSplineInterpolate empty handled");
+    }
+}
+
+public fn test_cubicSplineInterpolate_single(): void {
+    let yields: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    yields.add(new Pair<double, double>(1.0, 0.05));
+    let y: double = cubicSplineInterpolate(yields, 1.0);
+    if (y != 0.05) {
+        io::println("FAIL: cubicSplineInterpolate single should return that yield");
+    } else {
+        io::println("PASS: cubicSplineInterpolate single point handled");
+    }
+}
+
+public fn test_cubicSplineInterpolate_exact(): void {
+    let yields: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    yields.add(new Pair<double, double>(1.0, 0.05));
+    yields.add(new Pair<double, double>(2.0, 0.06));
+    yields.add(new Pair<double, double>(3.0, 0.07));
+    // At an exact knot point, should return that knot's yield
+    let y: double = cubicSplineInterpolate(yields, 2.0);
+    if (y < 0.059 || y > 0.061) {
+        io::println("FAIL: cubicSplineInterpolate at knot should return knot yield, got " + Double.toString(y));
+    } else {
+        io::println("PASS: cubicSplineInterpolate at knot returns knot yield");
+    }
+}
+
+public fn test_cubicSplineInterpolate_extrapolate_left(): void {
+    let yields: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    yields.add(new Pair<double, double>(2.0, 0.06));
+    yields.add(new Pair<double, double>(3.0, 0.07));
+    // t below range returns first yield
+    let y: double = cubicSplineInterpolate(yields, 1.0);
+    if (y != 0.06) {
+        io::println("FAIL: cubicSplineInterpolate left extrapolation should return first yield");
+    } else {
+        io::println("PASS: cubicSplineInterpolate left extrapolation works");
+    }
+}
+
+public fn test_cubicSplineInterpolate_extrapolate_right(): void {
+    let yields: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    yields.add(new Pair<double, double>(1.0, 0.05));
+    yields.add(new Pair<double, double>(2.0, 0.06));
+    // t above range returns last yield
+    let y: double = cubicSplineInterpolate(yields, 5.0);
+    if (y != 0.06) {
+        io::println("FAIL: cubicSplineInterpolate right extrapolation should return last yield");
+    } else {
+        io::println("PASS: cubicSplineInterpolate right extrapolation works");
+    }
+}
+
+public fn test_bootstrapYieldCurve_empty(): void {
+    let bonds: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    let result: ArrayList<Pair<double, double>> = bootstrapYieldCurve(bonds);
+    if (result.size() != 0) {
+        io::println("FAIL: bootstrapYieldCurve empty should return empty list");
+    } else {
+        io::println("PASS: bootstrapYieldCurve empty handled");
+    }
+}
+
+public fn test_bootstrapYieldCurve_single(): void {
+    let bonds: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    bonds.add(new Pair<double, double>(1.0, 0.05));
+    let result: ArrayList<Pair<double, double>> = bootstrapYieldCurve(bonds);
+    if (result.size() != 1) {
+        io::println("FAIL: bootstrapYieldCurve single should return 1 point");
+    } else {
+        io::println("PASS: bootstrapYieldCurve single works");
+    }
+}
+
+public fn test_bootstrapYieldCurve_multiple(): void {
+    let bonds: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    bonds.add(new Pair<double, double>(1.0, 0.05));
+    bonds.add(new Pair<double, double>(2.0, 0.06));
+    bonds.add(new Pair<double, double>(3.0, 0.07));
+    let result: ArrayList<Pair<double, double>> = bootstrapYieldCurve(bonds);
+    if (result.size() != 3) {
+        io::println("FAIL: bootstrapYieldCurve should return 3 points");
+    } else {
+        io::println("PASS: bootstrapYieldCurve multiple works");
+    }
+}
+
+public fn test_forwardRate_basic(): void {
+    // f = (spot2*t2 - spot1*t1) / (t2 - t1)
+    let f: double = forwardRate(0.05, 0.06, 1.0, 2.0);
+    let expected: double = (0.06 * 2.0 - 0.05 * 1.0) / (2.0 - 1.0);
+    if (f < expected - 1e-9 || f > expected + 1e-9) {
+        io::println("FAIL: forwardRate calculation incorrect");
+    } else {
+        io::println("PASS: forwardRate calculation correct");
+    }
+}
+
+public fn test_forwardRate_invalid(): void {
+    // t2 <= t1 should return 0.0
+    let f: double = forwardRate(0.05, 0.06, 2.0, 1.0);
+    if (f != 0.0) {
+        io::println("FAIL: forwardRate with t2<=t1 should return 0.0");
+    } else {
+        io::println("PASS: forwardRate invalid handled");
+    }
+}
+
+public fn test_forwardRate_zero_t1(): void {
+    let f: double = forwardRate(0.05, 0.06, 0.0, 1.0);
+    if (f != 0.0) {
+        io::println("FAIL: forwardRate with t1<=0 should return 0.0");
+    } else {
+        io::println("PASS: forwardRate zero t1 handled");
+    }
+}
+
+public fn test_discountFactor_basic(): void {
+    // df = exp(-rate * t)
+    let df: double = discountFactor(0.05, 1.0);
+    let expected: double = 0.951229;
+    if (df < expected - 0.001 || df > expected + 0.001) {
+        io::println("FAIL: discountFactor incorrect, got " + Double.toString(df));
+    } else {
+        io::println("PASS: discountFactor calculation correct");
+    }
+}
+
+public fn test_discountFactor_zero_rate(): void {
+    let df: double = discountFactor(0.0, 1.0);
+    if (df != 1.0) {
+        io::println("FAIL: discountFactor with zero rate should be 1.0");
+    } else {
+        io::println("PASS: discountFactor zero rate works");
+    }
+}
+
+public fn test_discountFactor_zero_t(): void {
+    let df: double = discountFactor(0.05, 0.0);
+    if (df != 1.0) {
+        io::println("FAIL: discountFactor with zero t should be 1.0");
+    } else {
+        io::println("PASS: discountFactor zero t works");
+    }
+}
+
+public fn run_all_yieldcurve_tests(): void {
+    io::println("=== YieldCurve.tr Tests ===");
+    test_nelsonSiegel_basic();
+    test_nelsonSiegel_zero_tau();
+    test_svensson_basic();
+    test_svensson_zero_tau();
+    test_cubicSplineInterpolate_empty();
+    test_cubicSplineInterpolate_single();
+    test_cubicSplineInterpolate_exact();
+    test_cubicSplineInterpolate_extrapolate_left();
+    test_cubicSplineInterpolate_extrapolate_right();
+    test_bootstrapYieldCurve_empty();
+    test_bootstrapYieldCurve_single();
+    test_bootstrapYieldCurve_multiple();
+    test_forwardRate_basic();
+    test_forwardRate_invalid();
+    test_forwardRate_zero_t1();
+    test_discountFactor_basic();
+    test_discountFactor_zero_rate();
+    test_discountFactor_zero_t();
+}

@@ -1,0 +1,218 @@
+// Test file for finance/OrderBook.tr
+// Exercises the public API: PriceLevel, Order, OrderBook.
+import tt::finance::OrderBook;
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public fn test_pricelevel_init(): void {
+    let level: PriceLevel = new PriceLevel(100.0);
+    if (level == null) {
+        io::println("FAIL: PriceLevel.init returned null");
+    } else {
+        io::println("PASS: PriceLevel.init works");
+    }
+}
+
+public fn test_pricelevel_price(): void {
+    let level: PriceLevel = new PriceLevel(100.0);
+    if (level.price != 100.0) {
+        io::println("FAIL: PriceLevel.price incorrect");
+    } else {
+        io::println("PASS: PriceLevel.price correct");
+    }
+}
+
+public fn test_pricelevel_default_size(): void {
+    let level: PriceLevel = new PriceLevel(100.0);
+    if (level.size != 0.0) {
+        io::println("FAIL: PriceLevel.size should default to 0.0");
+    } else {
+        io::println("PASS: PriceLevel.size defaults to 0.0");
+    }
+}
+
+public fn test_pricelevel_orders_empty(): void {
+    let level: PriceLevel = new PriceLevel(100.0);
+    if (level.orders.size() != 0) {
+        io::println("FAIL: PriceLevel.orders should be empty");
+    } else {
+        io::println("PASS: PriceLevel.orders empty by default");
+    }
+}
+
+public fn test_order_init(): void {
+    let order: Order = new Order("O001", "BUY", 100.0, 10.0);
+    if (order == null) {
+        io::println("FAIL: Order.init returned null");
+    } else {
+        io::println("PASS: Order.init works");
+    }
+}
+
+public fn test_order_fields(): void {
+    let order: Order = new Order("O001", "BUY", 100.0, 10.0);
+    if (order.id != "O001" || order.side != "BUY" || order.price != 100.0 || order.size != 10.0) {
+        io::println("FAIL: Order fields incorrect");
+    } else {
+        io::println("PASS: Order fields correct");
+    }
+}
+
+public fn test_orderbook_init(): void {
+    let book: OrderBook = new OrderBook();
+    if (book == null) {
+        io::println("FAIL: OrderBook.init returned null");
+    } else {
+        io::println("PASS: OrderBook.init works");
+    }
+}
+
+public fn test_orderbook_addBid(): void {
+    let book: OrderBook = new OrderBook();
+    let order: Order = new Order("O001", "BUY", 100.0, 10.0);
+    book.addBid(order);
+    if (book.bidOrders.size() != 1) {
+        io::println("FAIL: OrderBook.addBid should add to bidOrders");
+    } else {
+        io::println("PASS: OrderBook.addBid works");
+    }
+}
+
+public fn test_orderbook_addAsk(): void {
+    let book: OrderBook = new OrderBook();
+    let order: Order = new Order("O001", "SELL", 101.0, 5.0);
+    book.addAsk(order);
+    if (book.askOrders.size() != 1) {
+        io::println("FAIL: OrderBook.addAsk should add to askOrders");
+    } else {
+        io::println("PASS: OrderBook.addAsk works");
+    }
+}
+
+public fn test_orderbook_bestBid(): void {
+    let book: OrderBook = new OrderBook();
+    book.addBid(new Order("O001", "BUY", 100.0, 10.0));
+    book.addBid(new Order("O002", "BUY", 105.0, 5.0));
+    let best: double = book.bestBid();
+    if (best != 105.0) {
+        io::println("FAIL: OrderBook.bestBid should be 105.0");
+    } else {
+        io::println("PASS: OrderBook.bestBid works");
+    }
+}
+
+public fn test_orderbook_bestAsk(): void {
+    let book: OrderBook = new OrderBook();
+    book.addAsk(new Order("O001", "SELL", 101.0, 10.0));
+    book.addAsk(new Order("O002", "SELL", 99.0, 5.0));
+    let best: double = book.bestAsk();
+    if (best != 99.0) {
+        io::println("FAIL: OrderBook.bestAsk should be 99.0");
+    } else {
+        io::println("PASS: OrderBook.bestAsk works");
+    }
+}
+
+public fn test_orderbook_spread(): void {
+    let book: OrderBook = new OrderBook();
+    book.addBid(new Order("O001", "BUY", 100.0, 10.0));
+    book.addAsk(new Order("O002", "SELL", 102.0, 5.0));
+    let spread: double = book.spread();
+    if (spread != 2.0) {
+        io::println("FAIL: OrderBook.spread should be 2.0");
+    } else {
+        io::println("PASS: OrderBook.spread works");
+    }
+}
+
+public fn test_orderbook_midPrice(): void {
+    let book: OrderBook = new OrderBook();
+    book.addBid(new Order("O001", "BUY", 100.0, 10.0));
+    book.addAsk(new Order("O002", "SELL", 104.0, 5.0));
+    let mid: double = book.midPrice();
+    if (mid != 102.0) {
+        io::println("FAIL: OrderBook.midPrice should be 102.0");
+    } else {
+        io::println("PASS: OrderBook.midPrice works");
+    }
+}
+
+public fn test_orderbook_cancelOrder(): void {
+    let book: OrderBook = new OrderBook();
+    book.addBid(new Order("O001", "BUY", 100.0, 10.0));
+    let result: bool = book.cancelOrder("O001");
+    if (!result || book.bidOrders.size() != 0) {
+        io::println("FAIL: OrderBook.cancelOrder should remove the order");
+    } else {
+        io::println("PASS: OrderBook.cancelOrder works");
+    }
+}
+
+public fn test_orderbook_cancelOrder_notfound(): void {
+    let book: OrderBook = new OrderBook();
+    let result: bool = book.cancelOrder("NONEXISTENT");
+    if (result) {
+        io::println("FAIL: OrderBook.cancelOrder should return false for missing order");
+    } else {
+        io::println("PASS: OrderBook.cancelOrder returns false for missing order");
+    }
+}
+
+public fn test_orderbook_depth(): void {
+    let book: OrderBook = new OrderBook();
+    book.addBid(new Order("O001", "BUY", 100.0, 10.0));
+    book.addBid(new Order("O002", "BUY", 105.0, 5.0));
+    book.addBid(new Order("O003", "BUY", 102.0, 8.0));
+    let depth: ArrayList<PriceLevel> = book.depth(2);
+    if (depth.size() != 2) {
+        io::println("FAIL: OrderBook.depth(2) should return 2 levels");
+    } else {
+        io::println("PASS: OrderBook.depth works");
+    }
+}
+
+public fn test_orderbook_bbo(): void {
+    let book: OrderBook = new OrderBook();
+    book.addBid(new Order("O001", "BUY", 100.0, 10.0));
+    book.addAsk(new Order("O002", "SELL", 102.0, 5.0));
+    let bbo: string = book.bbo();
+    if (String.length(bbo) == 0) {
+        io::println("FAIL: OrderBook.bbo should return non-empty string");
+    } else {
+        io::println("PASS: OrderBook.bbo works");
+    }
+}
+
+public fn test_orderbook_toString(): void {
+    let book: OrderBook = new OrderBook();
+    book.addBid(new Order("O001", "BUY", 100.0, 10.0));
+    book.addAsk(new Order("O002", "SELL", 102.0, 5.0));
+    let s: string = book.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: OrderBook.toString should return non-empty string");
+    } else {
+        io::println("PASS: OrderBook.toString works");
+    }
+}
+
+public fn run_all_orderbook_tests(): void {
+    io::println("=== OrderBook.tr Tests ===");
+    test_pricelevel_init();
+    test_pricelevel_price();
+    test_pricelevel_default_size();
+    test_pricelevel_orders_empty();
+    test_order_init();
+    test_order_fields();
+    test_orderbook_init();
+    test_orderbook_addBid();
+    test_orderbook_addAsk();
+    test_orderbook_bestBid();
+    test_orderbook_bestAsk();
+    test_orderbook_spread();
+    test_orderbook_midPrice();
+    test_orderbook_cancelOrder();
+    test_orderbook_cancelOrder_notfound();
+    test_orderbook_depth();
+    test_orderbook_bbo();
+    test_orderbook_toString();
+}

@@ -1,0 +1,159 @@
+// Test file for finance/BinomialTree.tr
+// Exercises the public API: crrPrice, crrGreeks.
+import tt::finance::BinomialTree;
+import tt::util::HashMap;
+import tt::lang::Double;
+
+public fn test_crrPrice_steps_zero(): void {
+    let price: double = crrPrice(100.0, 100.0, 1.0, 0.05, 0.2, 0, true, false);
+    if (price != 0.0) {
+        io::println("FAIL: crrPrice steps=0 should return 0.0, got " + Double.toString(price));
+    } else {
+        io::println("PASS: crrPrice steps=0 returns 0.0");
+    }
+}
+
+public fn test_crrPrice_call_itm(): void {
+    // Deep in-the-money European call: should approximate S - K*exp(-r*t)
+    let s: double = 100.0;
+    let k: double = 50.0;
+    let t: double = 1.0;
+    let r: double = 0.05;
+    let sigma: double = 0.2;
+    let price: double = crrPrice(s, k, t, r, sigma, 100, true, false);
+    let lower: double = s - k * 0.951229;
+    if (price < lower * 0.95 || price > lower * 1.05) {
+        io::println("FAIL: crrPrice deep ITM call out of range: " + Double.toString(price));
+    } else {
+        io::println("PASS: crrPrice deep ITM call in expected range");
+    }
+}
+
+public fn test_crrPrice_call_otm(): void {
+    // Deep out-of-the-money European call: should be near 0
+    let price: double = crrPrice(50.0, 200.0, 1.0, 0.05, 0.2, 100, true, false);
+    if (price < 0.0 || price > 1.0) {
+        io::println("FAIL: crrPrice deep OTM call should be near 0, got " + Double.toString(price));
+    } else {
+        io::println("PASS: crrPrice deep OTM call near zero");
+    }
+}
+
+public fn test_crrPrice_put_itm(): void {
+    // Deep in-the-money European put: should approximate K*exp(-r*t) - S
+    let s: double = 50.0;
+    let k: double = 100.0;
+    let t: double = 1.0;
+    let r: double = 0.05;
+    let sigma: double = 0.2;
+    let price: double = crrPrice(s, k, t, r, sigma, 100, false, false);
+    let upper: double = k * 0.951229 - s;
+    if (price < upper * 0.95 || price > upper * 1.05) {
+        io::println("FAIL: crrPrice deep ITM put out of range: " + Double.toString(price));
+    } else {
+        io::println("PASS: crrPrice deep ITM put in expected range");
+    }
+}
+
+public fn test_crrPrice_put_otm(): void {
+    // Deep out-of-the-money put: should be near 0
+    let price: double = crrPrice(200.0, 50.0, 1.0, 0.05, 0.2, 100, false, false);
+    if (price < 0.0 || price > 1.0) {
+        io::println("FAIL: crrPrice deep OTM put should be near 0, got " + Double.toString(price));
+    } else {
+        io::println("PASS: crrPrice deep OTM put near zero");
+    }
+}
+
+public fn test_crrPrice_nonnegative(): void {
+    let price: double = crrPrice(100.0, 100.0, 1.0, 0.05, 0.2, 50, true, false);
+    if (price < 0.0) {
+        io::println("FAIL: crrPrice should be non-negative, got " + Double.toString(price));
+    } else {
+        io::println("PASS: crrPrice non-negative");
+    }
+}
+
+public fn test_crrPrice_american_geq_european(): void {
+    // American option value >= European option value
+    let euro: double = crrPrice(100.0, 100.0, 1.0, 0.05, 0.2, 50, true, false);
+    let amer: double = crrPrice(100.0, 100.0, 1.0, 0.05, 0.2, 50, true, true);
+    if (amer < euro - 1e-9) {
+        io::println("FAIL: American call should be >= European call");
+    } else {
+        io::println("PASS: American call >= European call");
+    }
+}
+
+public fn test_crrGreeks_keys(): void {
+    let greeks: HashMap<string, double> = crrGreeks(100.0, 100.0, 1.0, 0.05, 0.2, 50, true);
+    let hasPrice: bool = greeks.containsKey("price");
+    let hasDelta: bool = greeks.containsKey("delta");
+    let hasGamma: bool = greeks.containsKey("gamma");
+    let hasTheta: bool = greeks.containsKey("theta");
+    let hasVega: bool = greeks.containsKey("vega");
+    let hasRho: bool = greeks.containsKey("rho");
+    if (hasPrice && hasDelta && hasGamma && hasTheta && hasVega && hasRho) {
+        io::println("PASS: crrGreeks has all expected keys");
+    } else {
+        io::println("FAIL: crrGreeks missing keys");
+    }
+}
+
+public fn test_crrGreeks_delta_call_itm(): void {
+    // Deep ITM call delta should be close to 1
+    let greeks: HashMap<string, double> = crrGreeks(200.0, 50.0, 1.0, 0.05, 0.2, 50, true);
+    let delta: double = greeks.get("delta");
+    if (delta < 0.9) {
+        io::println("FAIL: crrGreeks deep ITM call delta should be ~1, got " + Double.toString(delta));
+    } else {
+        io::println("PASS: crrGreeks deep ITM call delta close to 1");
+    }
+}
+
+public fn test_crrGreeks_delta_call_otm(): void {
+    // Deep OTM call delta should be close to 0
+    let greeks: HashMap<string, double> = crrGreeks(50.0, 200.0, 1.0, 0.05, 0.2, 50, true);
+    let delta: double = greeks.get("delta");
+    if (delta > 0.1) {
+        io::println("FAIL: crrGreeks deep OTM call delta should be ~0, got " + Double.toString(delta));
+    } else {
+        io::println("PASS: crrGreeks deep OTM call delta close to 0");
+    }
+}
+
+public fn test_crrGreeks_gamma_nonnegative(): void {
+    let greeks: HashMap<string, double> = crrGreeks(100.0, 100.0, 1.0, 0.05, 0.2, 50, true);
+    let gamma: double = greeks.get("gamma");
+    if (gamma < 0.0) {
+        io::println("FAIL: crrGreeks gamma should be non-negative, got " + Double.toString(gamma));
+    } else {
+        io::println("PASS: crrGreeks gamma non-negative");
+    }
+}
+
+public fn test_crrGreeks_vega_nonnegative(): void {
+    let greeks: HashMap<string, double> = crrGreeks(100.0, 100.0, 1.0, 0.05, 0.2, 50, true);
+    let vega: double = greeks.get("vega");
+    if (vega < 0.0) {
+        io::println("FAIL: crrGreeks vega should be non-negative for call, got " + Double.toString(vega));
+    } else {
+        io::println("PASS: crrGreeks vega non-negative");
+    }
+}
+
+public fn run_all_binomialtree_tests(): void {
+    io::println("=== BinomialTree.tr Tests ===");
+    test_crrPrice_steps_zero();
+    test_crrPrice_call_itm();
+    test_crrPrice_call_otm();
+    test_crrPrice_put_itm();
+    test_crrPrice_put_otm();
+    test_crrPrice_nonnegative();
+    test_crrPrice_american_geq_european();
+    test_crrGreeks_keys();
+    test_crrGreeks_delta_call_itm();
+    test_crrGreeks_delta_call_otm();
+    test_crrGreeks_gamma_nonnegative();
+    test_crrGreeks_vega_nonnegative();
+}

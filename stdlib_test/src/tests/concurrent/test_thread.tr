@@ -1,0 +1,180 @@
+// Test file for concurrent/Thread.tr
+// Exercises the public API: Thread.init, start, join, detach, getId, isAlive,
+// and the module-level sleep, yield_, currentId, hardwareConcurrency.
+// NOTE: per Thread.tr, the VM runs Thread tasks synchronously on the calling
+// thread (Rc<> is not Send-safe), so start() completes the task before return.
+import tt::concurrent::Thread;
+import tt::lang::Integer;
+
+public fn test_thread_init(): void {
+    let t: Thread = new Thread(fn() { /* no-op */ });
+    if (t == null) {
+        io::println("FAIL: Thread.init returned null");
+    } else {
+        io::println("PASS: Thread.init works");
+    }
+}
+
+public fn test_thread_not_alive_before_start(): void {
+    let t: Thread = new Thread(fn() { /* no-op */ });
+    if (t.isAlive()) {
+        io::println("FAIL: Thread should not be alive before start");
+    } else {
+        io::println("PASS: Thread not alive before start");
+    }
+}
+
+public fn test_thread_get_id_before_start(): void {
+    let t: Thread = new Thread(fn() { /* no-op */ });
+    let id: int = t.getId();
+    if (id != -1) {
+        io::println("FAIL: Thread.getId before start = " + Integer.toString(id) + ", expected -1");
+    } else {
+        io::println("PASS: Thread.getId before start returns -1");
+    }
+}
+
+public fn test_thread_start_runs_task(): void {
+    var ran: int = 0;
+    let t: Thread = new Thread(fn() { ran = ran + 1; });
+    t.start();
+    if (ran != 1) {
+        io::println("FAIL: Thread.start did not run task");
+    } else {
+        io::println("PASS: Thread.start runs task");
+    }
+    t.join();
+}
+
+public fn test_thread_start_idempotent(): void {
+    // start() should be a no-op if already started.
+    var count: int = 0;
+    let t: Thread = new Thread(fn() { count = count + 1; });
+    t.start();
+    t.start();
+    if (count != 1) {
+        io::println("FAIL: Thread.start ran task " + Integer.toString(count) + " times");
+    } else {
+        io::println("PASS: Thread.start is idempotent");
+    }
+    t.join();
+}
+
+public fn test_thread_get_id_after_start(): void {
+    let t: Thread = new Thread(fn() { /* no-op */ });
+    t.start();
+    let id: int = t.getId();
+    if (id == -1) {
+        io::println("FAIL: Thread.getId after start should not be -1");
+    } else {
+        io::println("PASS: Thread.getId after start works");
+    }
+    t.join();
+}
+
+public fn test_thread_join(): void {
+    var v: int = 0;
+    let t: Thread = new Thread(fn() { v = 42; });
+    t.start();
+    t.join();
+    if (v != 42 || t.isAlive()) {
+        io::println("FAIL: Thread.join v=" + Integer.toString(v));
+    } else {
+        io::println("PASS: Thread.join works");
+    }
+}
+
+public fn test_thread_join_idempotent(): void {
+    // join() a second time should be a no-op.
+    let t: Thread = new Thread(fn() { /* no-op */ });
+    t.start();
+    t.join();
+    t.join();
+    io::println("PASS: Thread.join idempotent works");
+}
+
+public fn test_thread_detach(): void {
+    let t: Thread = new Thread(fn() { /* no-op */ });
+    t.start();
+    t.detach();
+    if (t.isAlive()) {
+        io::println("FAIL: Thread should not be alive after detach");
+    } else {
+        io::println("PASS: Thread.detach works");
+    }
+}
+
+public fn test_thread_is_alive_after_start_before_join(): void {
+    let t: Thread = new Thread(fn() { /* no-op */ });
+    t.start();
+    // The synchronous VM completes the task before start() returns, but
+    // isAlive is true until join/detach is called.
+    let alive: bool = t.isAlive();
+    t.join();
+    if (!alive) {
+        io::println("FAIL: Thread should be alive after start before join");
+    } else {
+        io::println("PASS: Thread isAlive after start works");
+    }
+}
+
+public fn test_thread_sleep_does_not_crash(): void {
+    // sleep(0) should return immediately without crashing.
+    Thread.sleep(0);
+    io::println("PASS: Thread.sleep works");
+}
+
+public fn test_thread_yield_does_not_crash(): void {
+    Thread.yield_();
+    io::println("PASS: Thread.yield_ works");
+}
+
+public fn test_thread_current_id(): void {
+    let id: int = Thread.currentId();
+    // The current thread id should be a valid integer (not -1).
+    if (id == -1) {
+        io::println("FAIL: Thread.currentId returned -1");
+    } else {
+        io::println("PASS: Thread.currentId works");
+    }
+}
+
+public fn test_thread_hardware_concurrency(): void {
+    let n: int = Thread.hardwareConcurrency();
+    if (n <= 0) {
+        io::println("FAIL: Thread.hardwareConcurrency = " + Integer.toString(n));
+    } else {
+        io::println("PASS: Thread.hardwareConcurrency works");
+    }
+}
+
+public fn test_thread_task_with_closure(): void {
+    var captured: int = 10;
+    let t: Thread = new Thread(fn() { captured = captured + 5; });
+    t.start();
+    t.join();
+    if (captured != 15) {
+        io::println("FAIL: Thread closure captured = " + Integer.toString(captured));
+    } else {
+        io::println("PASS: Thread task with closure works");
+    }
+}
+
+public fn run_all_thread_tests(): void {
+    io::println("=== Thread.tr Tests ===");
+    test_thread_init();
+    test_thread_not_alive_before_start();
+    test_thread_get_id_before_start();
+    test_thread_start_runs_task();
+    test_thread_start_idempotent();
+    test_thread_get_id_after_start();
+    test_thread_join();
+    test_thread_join_idempotent();
+    test_thread_detach();
+    test_thread_is_alive_after_start_before_join();
+    test_thread_sleep_does_not_crash();
+    test_thread_yield_does_not_crash();
+    test_thread_current_id();
+    test_thread_hardware_concurrency();
+    test_thread_task_with_closure();
+}

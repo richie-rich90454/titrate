@@ -1,0 +1,167 @@
+// Test file for concurrent/ThreadPoolExecutor.tr
+// Exercises the public API: ThreadPoolExecutor.init, submit, submitCallable,
+// shutdown, isShutdown, getActiveCount, getQueueSize.
+// NOTE: ThreadPoolExecutor spawns worker threads in init(). Per Thread.tr, the
+// VM runs Thread tasks synchronously, so worker loops may block on the queue
+// condition variable. These tests exercise the API as designed; if the VM
+// cannot drive the worker loop concurrently, submit-based tests may need to be
+// revisited. We call shutdown() at the end of each pool-using test.
+import tt::concurrent::ThreadPoolExecutor;
+import tt::concurrent::Future;
+import tt::lang::Integer;
+
+public fn test_pool_init(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    if (pool == null) {
+        io::println("FAIL: ThreadPoolExecutor.init returned null");
+    } else {
+        io::println("PASS: ThreadPoolExecutor.init works");
+    }
+    pool.shutdown();
+}
+
+public fn test_pool_not_shutdown_initially(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    if (pool.isShutdown()) {
+        io::println("FAIL: ThreadPoolExecutor should not be shutdown initially");
+    } else {
+        io::println("PASS: ThreadPoolExecutor not shutdown initially");
+    }
+    pool.shutdown();
+}
+
+public fn test_pool_shutdown(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    pool.shutdown();
+    if (!pool.isShutdown()) {
+        io::println("FAIL: ThreadPoolExecutor should be shutdown after shutdown()");
+    } else {
+        io::println("PASS: ThreadPoolExecutor.shutdown works");
+    }
+}
+
+public fn test_pool_submit_callable(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    let f: Future<int> = pool.submitCallable<int>(fn(): int { return 42; });
+    let v: int = f.get();
+    if (v != 42) {
+        io::println("FAIL: ThreadPoolExecutor.submitCallable = " + Integer.toString(v));
+    } else {
+        io::println("PASS: ThreadPoolExecutor.submitCallable works");
+    }
+    pool.shutdown();
+}
+
+public fn test_pool_submit_callable_string(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    let f: Future<string> = pool.submitCallable<string>(fn(): string { return "ok"; });
+    let v: string = f.get();
+    if (v != "ok") {
+        io::println("FAIL: ThreadPoolExecutor.submitCallable string = " + v);
+    } else {
+        io::println("PASS: ThreadPoolExecutor.submitCallable string works");
+    }
+    pool.shutdown();
+}
+
+public fn test_pool_submit_callable_computation(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    let f: Future<int> = pool.submitCallable<int>(fn(): int {
+        var sum: int = 0;
+        var i: int = 1;
+        while (i <= 5) {
+            sum = sum + i;
+            i = i + 1;
+        }
+        return sum;
+    });
+    let v: int = f.get();
+    if (v != 15) {
+        io::println("FAIL: ThreadPoolExecutor computation = " + Integer.toString(v));
+    } else {
+        io::println("PASS: ThreadPoolExecutor.submitCallable computation works");
+    }
+    pool.shutdown();
+}
+
+public fn test_pool_submit_void(): void {
+    var ran: int = 0;
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    pool.submit(fn() { ran = ran + 1; });
+    // Give the worker a moment to drain the queue.
+    var guard: int = 0;
+    while (ran == 0 && guard < 50) {
+        Thread_sleep(1);
+        guard = guard + 1;
+    }
+    pool.shutdown();
+    if (ran != 1) {
+        io::println("FAIL: ThreadPoolExecutor.submit did not run task");
+    } else {
+        io::println("PASS: ThreadPoolExecutor.submit works");
+    }
+}
+
+public fn test_pool_future_is_done_after_get(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    let f: Future<int> = pool.submitCallable<int>(fn(): int { return 1; });
+    f.get();
+    if (!f.isDone()) {
+        io::println("FAIL: Future not done after get");
+    } else {
+        io::println("PASS: Future isDone after get works");
+    }
+    pool.shutdown();
+}
+
+public fn test_pool_multiple_tasks(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    let f1: Future<int> = pool.submitCallable<int>(fn(): int { return 10; });
+    let f2: Future<int> = pool.submitCallable<int>(fn(): int { return 20; });
+    let f3: Future<int> = pool.submitCallable<int>(fn(): int { return 30; });
+    let total: int = f1.get() + f2.get() + f3.get();
+    if (total != 60) {
+        io::println("FAIL: ThreadPoolExecutor multiple tasks = " + Integer.toString(total));
+    } else {
+        io::println("PASS: ThreadPoolExecutor multiple tasks works");
+    }
+    pool.shutdown();
+}
+
+public fn test_pool_queue_size_initially_zero(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    // Workers may immediately drain, so queue size should be 0 at rest.
+    let qs: int = pool.getQueueSize();
+    if (qs != 0) {
+        io::println("FAIL: ThreadPoolExecutor queue size = " + Integer.toString(qs));
+    } else {
+        io::println("PASS: ThreadPoolExecutor queue size initially zero");
+    }
+    pool.shutdown();
+}
+
+public fn test_pool_active_count_non_negative(): void {
+    let pool: ThreadPoolExecutor = new ThreadPoolExecutor(2);
+    let ac: int = pool.getActiveCount();
+    if (ac < 0) {
+        io::println("FAIL: ThreadPoolExecutor active count negative = " + Integer.toString(ac));
+    } else {
+        io::println("PASS: ThreadPoolExecutor active count non-negative");
+    }
+    pool.shutdown();
+}
+
+public fn run_all_threadpoolexecutor_tests(): void {
+    io::println("=== ThreadPoolExecutor.tr Tests ===");
+    test_pool_init();
+    test_pool_not_shutdown_initially();
+    test_pool_shutdown();
+    test_pool_submit_callable();
+    test_pool_submit_callable_string();
+    test_pool_submit_callable_computation();
+    test_pool_submit_void();
+    test_pool_future_is_done_after_get();
+    test_pool_multiple_tasks();
+    test_pool_queue_size_initially_zero();
+    test_pool_active_count_non_negative();
+}

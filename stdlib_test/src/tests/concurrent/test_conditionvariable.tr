@@ -1,0 +1,76 @@
+// Test file for concurrent/ConditionVariable.tr
+// Exercises the public API: ConditionVariable.init, wait, waitFor, notifyOne,
+// notifyAll.
+// NOTE: wait(mutex) blocks until notified. With the synchronous VM thread
+// model, true wait/notify across threads cannot be exercised safely. We test
+// construction, notifyOne/notifyAll as no-ops on an empty CV, and waitFor
+// with a short timeout (which returns false when not notified).
+import tt::concurrent::ConditionVariable;
+import tt::concurrent::Mutex;
+
+public fn test_cv_init(): void {
+    let cv: ConditionVariable = new ConditionVariable();
+    if (cv == null) {
+        io::println("FAIL: ConditionVariable.init returned null");
+    } else {
+        io::println("PASS: ConditionVariable.init works");
+    }
+}
+
+public fn test_cv_notify_one_no_waiters(): void {
+    let cv: ConditionVariable = new ConditionVariable();
+    // notifyOne on a CV with no waiters should be a safe no-op.
+    cv.notifyOne();
+    io::println("PASS: ConditionVariable.notifyOne no-waiters works");
+}
+
+public fn test_cv_notify_all_no_waiters(): void {
+    let cv: ConditionVariable = new ConditionVariable();
+    // notifyAll on a CV with no waiters should be a safe no-op.
+    cv.notifyAll();
+    io::println("PASS: ConditionVariable.notifyAll no-waiters works");
+}
+
+public fn test_cv_wait_for_timeout(): void {
+    // waitFor should return false when the timeout elapses without a notify.
+    let cv: ConditionVariable = new ConditionVariable();
+    let m: Mutex = new Mutex();
+    let result: bool = cv.waitFor(m, 20);
+    if (result) {
+        io::println("FAIL: ConditionVariable.waitFor should time out (false)");
+    } else {
+        io::println("PASS: ConditionVariable.waitFor timeout returns false");
+    }
+}
+
+public fn test_cv_multiple_instances(): void {
+    let cv1: ConditionVariable = new ConditionVariable();
+    let cv2: ConditionVariable = new ConditionVariable();
+    cv1.notifyAll();
+    cv2.notifyAll();
+    if (cv1 == null || cv2 == null || cv1 == cv2) {
+        io::println("FAIL: ConditionVariable multiple instances");
+    } else {
+        io::println("PASS: ConditionVariable multiple instances works");
+    }
+}
+
+public fn test_cv_notify_after_wait_for(): void {
+    // After a waitFor times out, notify should still be callable.
+    let cv: ConditionVariable = new ConditionVariable();
+    let m: Mutex = new Mutex();
+    cv.waitFor(m, 10);
+    cv.notifyOne();
+    cv.notifyAll();
+    io::println("PASS: ConditionVariable notify after waitFor works");
+}
+
+public fn run_all_conditionvariable_tests(): void {
+    io::println("=== ConditionVariable.tr Tests ===");
+    test_cv_init();
+    test_cv_notify_one_no_waiters();
+    test_cv_notify_all_no_waiters();
+    test_cv_wait_for_timeout();
+    test_cv_multiple_instances();
+    test_cv_notify_after_wait_for();
+}

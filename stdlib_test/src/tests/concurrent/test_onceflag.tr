@@ -1,0 +1,94 @@
+// Test file for concurrent/OnceFlag.tr
+// Exercises the public API: OnceFlag.init, callOnce, isCalled.
+import tt::concurrent::OnceFlag;
+import tt::lang::Integer;
+
+public fn test_once_flag_init(): void {
+    let f: OnceFlag = new OnceFlag();
+    if (f == null) {
+        io::println("FAIL: OnceFlag.init returned null");
+    } else {
+        io::println("PASS: OnceFlag.init works");
+    }
+}
+
+public fn test_once_flag_not_called_initially(): void {
+    let f: OnceFlag = new OnceFlag();
+    if (f.isCalled()) {
+        io::println("FAIL: OnceFlag.isCalled should be false initially");
+    } else {
+        io::println("PASS: OnceFlag not called initially");
+    }
+}
+
+public fn test_once_flag_call_once_invokes(): void {
+    let f: OnceFlag = new OnceFlag();
+    var ran: int = 0;
+    f.callOnce(fn() { ran = ran + 1; });
+    if (ran != 1) {
+        io::println("FAIL: OnceFlag.callOnce did not invoke fn");
+    } else {
+        io::println("PASS: OnceFlag.callOnce invokes fn");
+    }
+}
+
+public fn test_once_flag_is_called_after(): void {
+    let f: OnceFlag = new OnceFlag();
+    f.callOnce(fn() { /* no-op */ });
+    if (!f.isCalled()) {
+        io::println("FAIL: OnceFlag.isCalled should be true after callOnce");
+    } else {
+        io::println("PASS: OnceFlag.isCalled true after callOnce");
+    }
+}
+
+public fn test_once_flag_only_runs_once(): void {
+    // callOnce a second time should be a no-op (fn not invoked again).
+    let f: OnceFlag = new OnceFlag();
+    var count: int = 0;
+    let cb: fn(): void = fn() { count = count + 1; };
+    f.callOnce(cb);
+    f.callOnce(cb);
+    f.callOnce(cb);
+    if (count != 1) {
+        io::println("FAIL: OnceFlag ran " + Integer.toString(count) + " times, expected 1");
+    } else {
+        io::println("PASS: OnceFlag runs fn only once");
+    }
+}
+
+public fn test_once_flag_multiple_instances_independent(): void {
+    let f1: OnceFlag = new OnceFlag();
+    let f2: OnceFlag = new OnceFlag();
+    var total: int = 0;
+    f1.callOnce(fn() { total = total + 10; });
+    f2.callOnce(fn() { total = total + 100; });
+    if (total != 110) {
+        io::println("FAIL: OnceFlag instances not independent, total = " + Integer.toString(total));
+    } else {
+        io::println("PASS: OnceFlag instances independent");
+    }
+}
+
+public fn test_once_flag_call_once_after_already_called(): void {
+    let f: OnceFlag = new OnceFlag();
+    var v: int = 0;
+    f.callOnce(fn() { v = 5; });
+    f.callOnce(fn() { v = 999; });
+    if (v != 5) {
+        io::println("FAIL: OnceFlag second callOnce overwrote, v = " + Integer.toString(v));
+    } else {
+        io::println("PASS: OnceFlag second callOnce is no-op");
+    }
+}
+
+public fn run_all_onceflag_tests(): void {
+    io::println("=== OnceFlag.tr Tests ===");
+    test_once_flag_init();
+    test_once_flag_not_called_initially();
+    test_once_flag_call_once_invokes();
+    test_once_flag_is_called_after();
+    test_once_flag_only_runs_once();
+    test_once_flag_multiple_instances_independent();
+    test_once_flag_call_once_after_already_called();
+}

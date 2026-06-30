@@ -1,0 +1,109 @@
+// Test file for finance/MarketData.tr
+// Exercises the public API: OHLCV, Tick, Trade, Quote.
+import tt::finance::MarketData;
+
+public fn test_ohlcv_init(): void {
+    let bar: OHLCV = new OHLCV(100.0, 105.0, 99.0, 103.0, 1000.0, 100);
+    if (bar == null) {
+        io::println("FAIL: OHLCV.init returned null");
+    } else {
+        io::println("PASS: OHLCV.init works");
+    }
+}
+
+public fn test_ohlcv_fields(): void {
+    let bar: OHLCV = new OHLCV(100.0, 105.0, 99.0, 103.0, 1000.0, 100);
+    if (bar.open != 100.0 || bar.high != 105.0 || bar.low != 99.0 || bar.close != 103.0 || bar.volume != 1000.0 || bar.timestamp != 100) {
+        io::println("FAIL: OHLCV fields incorrect");
+    } else {
+        io::println("PASS: OHLCV fields correct");
+    }
+}
+
+public fn test_tick_init(): void {
+    let tick: Tick = new Tick(100.5, 10.0, "BUY", 200);
+    if (tick == null) {
+        io::println("FAIL: Tick.init returned null");
+    } else {
+        io::println("PASS: Tick.init works");
+    }
+}
+
+public fn test_tick_fields(): void {
+    let tick: Tick = new Tick(100.5, 10.0, "BUY", 200);
+    if (tick.price != 100.5 || tick.size != 10.0 || tick.side != "BUY" || tick.timestamp != 200) {
+        io::println("FAIL: Tick fields incorrect");
+    } else {
+        io::println("PASS: Tick fields correct");
+    }
+}
+
+public fn test_trade_init(): void {
+    let trade: Trade = new Trade(101.0, 5.0, "T001", 300);
+    if (trade == null) {
+        io::println("FAIL: Trade.init returned null");
+    } else {
+        io::println("PASS: Trade.init works");
+    }
+}
+
+public fn test_trade_fields(): void {
+    let trade: Trade = new Trade(101.0, 5.0, "T001", 300);
+    if (trade.price != 101.0 || trade.size != 5.0 || trade.id != "T001" || trade.timestamp != 300) {
+        io::println("FAIL: Trade fields incorrect");
+    } else {
+        io::println("PASS: Trade fields correct");
+    }
+}
+
+public fn test_quote_init(): void {
+    let quote: Quote = new Quote(100.0, 10.0, 101.0, 8.0, 400);
+    if (quote == null) {
+        io::println("FAIL: Quote.init returned null");
+    } else {
+        io::println("PASS: Quote.init works");
+    }
+}
+
+public fn test_quote_fields(): void {
+    let quote: Quote = new Quote(100.0, 10.0, 101.0, 8.0, 400);
+    if (quote.bidPrice != 100.0 || quote.bidSize != 10.0 || quote.askPrice != 101.0 || quote.askSize != 8.0 || quote.timestamp != 400) {
+        io::println("FAIL: Quote fields incorrect");
+    } else {
+        io::println("PASS: Quote fields correct");
+    }
+}
+
+public fn test_quote_spread(): void {
+    let quote: Quote = new Quote(100.0, 10.0, 101.0, 8.0, 400);
+    let spread: double = quote.spread();
+    if (spread != 1.0) {
+        io::println("FAIL: Quote.spread should be 1.0");
+    } else {
+        io::println("PASS: Quote.spread works");
+    }
+}
+
+public fn test_quote_midPrice(): void {
+    let quote: Quote = new Quote(100.0, 10.0, 102.0, 8.0, 400);
+    let mid: double = quote.midPrice();
+    if (mid != 101.0) {
+        io::println("FAIL: Quote.midPrice should be 101.0");
+    } else {
+        io::println("PASS: Quote.midPrice works");
+    }
+}
+
+public fn run_all_marketdata_tests(): void {
+    io::println("=== MarketData.tr Tests ===");
+    test_ohlcv_init();
+    test_ohlcv_fields();
+    test_tick_init();
+    test_tick_fields();
+    test_trade_init();
+    test_trade_fields();
+    test_quote_init();
+    test_quote_fields();
+    test_quote_spread();
+    test_quote_midPrice();
+}

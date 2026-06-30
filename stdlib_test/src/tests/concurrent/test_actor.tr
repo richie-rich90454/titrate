@@ -1,0 +1,248 @@
+// Test file for concurrent/Actor.tr
+// Exercises the public API: ActorMessage, ActorRef, ActorSystem, SupervisorStrategy,
+// Actor, and the supervisedActor factory function.
+// NOTE: start() blocks indefinitely (busy-wait loop), so it is NOT invoked here.
+import tt::concurrent::Actor;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_actor_message_init(): void {
+    let msg: ActorMessage = new ActorMessage("greet", Variant.of(42), "alice");
+    if (msg.messageType != "greet" || msg.sender != "alice") {
+        io::println("FAIL: ActorMessage.init fields");
+    } else {
+        io::println("PASS: ActorMessage.init works");
+    }
+}
+
+public fn test_actor_ref_init(): void {
+    let ref: ActorRef = new ActorRef("bob");
+    if (ref.id != "bob" || !ref.mailbox.isEmpty() || ref.mailboxSize() != 0) {
+        io::println("FAIL: ActorRef.init");
+    } else {
+        io::println("PASS: ActorRef.init works");
+    }
+}
+
+public fn test_actor_ref_send_receive(): void {
+    let ref: ActorRef = new ActorRef("bob");
+    let msg: ActorMessage = new ActorMessage("ping", Variant.of(1), "alice");
+    ref.send(msg);
+    if (ref.mailboxSize() != 1 || !ref.hasMessages()) {
+        io::println("FAIL: ActorRef.send/hasMessages");
+    } else {
+        io::println("PASS: ActorRef.send/hasMessages works");
+    }
+    let received: ActorMessage = ref.receive();
+    if (received == null || received.messageType != "ping") {
+        io::println("FAIL: ActorRef.receive");
+    } else {
+        io::println("PASS: ActorRef.receive works");
+    }
+}
+
+public fn test_actor_ref_receive_empty(): void {
+    let ref: ActorRef = new ActorRef("empty");
+    let received: ActorMessage = ref.receive();
+    if (received != null) {
+        io::println("FAIL: ActorRef.receive empty should be null");
+    } else {
+        io::println("PASS: ActorRef.receive empty returns null");
+    }
+}
+
+public fn test_actor_ref_fifo_order(): void {
+    let ref: ActorRef = new ActorRef("fifo");
+    ref.send(new ActorMessage("a", Variant.of(1), "s"));
+    ref.send(new ActorMessage("b", Variant.of(2), "s"));
+    ref.send(new ActorMessage("c", Variant.of(3), "s"));
+    let m1: ActorMessage = ref.receive();
+    let m2: ActorMessage = ref.receive();
+    let m3: ActorMessage = ref.receive();
+    if (m1.messageType != "a" || m2.messageType != "b" || m3.messageType != "c") {
+        io::println("FAIL: ActorRef FIFO order");
+    } else {
+        io::println("PASS: ActorRef FIFO order works");
+    }
+}
+
+public fn test_actor_system_register_count(): void {
+    let system: ActorSystem = new ActorSystem();
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { /* no-op */ };
+    system.register("a", handler);
+    system.register("b", handler);
+    if (system.actorCount() != 2) {
+        io::println("FAIL: ActorSystem.actorCount = " + Integer.toString(system.actorCount()));
+    } else {
+        io::println("PASS: ActorSystem.register/actorCount works");
+    }
+}
+
+public fn test_actor_system_send(): void {
+    let system: ActorSystem = new ActorSystem();
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { /* no-op */ };
+    let ref: ActorRef = system.register("worker", handler);
+    system.send("worker", new ActorMessage("hi", Variant.of(0), "boss"));
+    if (ref.mailboxSize() != 1) {
+        io::println("FAIL: ActorSystem.send");
+    } else {
+        io::println("PASS: ActorSystem.send works");
+    }
+}
+
+public fn test_actor_system_send_unknown(): void {
+    let system: ActorSystem = new ActorSystem();
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { /* no-op */ };
+    system.register("worker", handler);
+    // Sending to an unknown actor should be a silent no-op.
+    system.send("ghost", new ActorMessage("hi", Variant.of(0), "boss"));
+    io::println("PASS: ActorSystem.send unknown actor is no-op");
+}
+
+public fn test_actor_system_process_one(): void {
+    let system: ActorSystem = new ActorSystem();
+    var captured: string = "";
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { captured = msg.messageType; };
+    system.register("w", handler);
+    system.send("w", new ActorMessage("do-work", Variant.of(0), "s"));
+    let ok: bool = system.processOne("w");
+    if (!ok || captured != "do-work") {
+        io::println("FAIL: ActorSystem.processOne ok=" + (ok ? "true" : "false") + " captured=" + captured);
+    } else {
+        io::println("PASS: ActorSystem.processOne works");
+    }
+}
+
+public fn test_actor_system_process_one_unknown(): void {
+    let system: ActorSystem = new ActorSystem();
+    let ok: bool = system.processOne("missing");
+    if (ok) {
+        io::println("FAIL: ActorSystem.processOne unknown should return false");
+    } else {
+        io::println("PASS: ActorSystem.processOne unknown returns false");
+    }
+}
+
+public fn test_actor_system_process_all(): void {
+    let system: ActorSystem = new ActorSystem();
+    var count: int = 0;
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { count = count + 1; };
+    system.register("a", handler);
+    system.register("b", handler);
+    system.send("a", new ActorMessage("x", Variant.of(0), "s"));
+    system.send("a", new ActorMessage("y", Variant.of(0), "s"));
+    system.send("b", new ActorMessage("z", Variant.of(0), "s"));
+    system.processAll();
+    if (count != 3) {
+        io::println("FAIL: ActorSystem.processAll count = " + Integer.toString(count));
+    } else {
+        io::println("PASS: ActorSystem.processAll works");
+    }
+}
+
+public fn test_actor_system_stop(): void {
+    let system: ActorSystem = new ActorSystem();
+    system.stop();
+    if (system.running) {
+        io::println("FAIL: ActorSystem.stop did not clear running");
+    } else {
+        io::println("PASS: ActorSystem.stop works");
+    }
+}
+
+public fn test_actor_system_get_actor(): void {
+    let system: ActorSystem = new ActorSystem();
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { /* no-op */ };
+    system.register("alpha", handler);
+    let ref: ActorRef = system.getActor("alpha");
+    let missing: ActorRef = system.getActor("nope");
+    if (ref == null || ref.id != "alpha" || missing != null) {
+        io::println("FAIL: ActorSystem.getActor");
+    } else {
+        io::println("PASS: ActorSystem.getActor works");
+    }
+}
+
+public fn test_actor_system_remove_actor(): void {
+    let system: ActorSystem = new ActorSystem();
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { /* no-op */ };
+    system.register("a", handler);
+    let removed: bool = system.removeActor("a");
+    let removedAgain: bool = system.removeActor("a");
+    if (!removed || removedAgain || system.actorCount() != 0) {
+        io::println("FAIL: ActorSystem.removeActor");
+    } else {
+        io::println("PASS: ActorSystem.removeActor works");
+    }
+}
+
+public fn test_supervisor_strategy_init(): void {
+    let s: SupervisorStrategy = new SupervisorStrategy(3, 100L, "restart");
+    if (s.maxRetries != 3 || s.backoffMs != 100L || s.strategy != "restart") {
+        io::println("FAIL: SupervisorStrategy.init");
+    } else {
+        io::println("PASS: SupervisorStrategy.init works");
+    }
+}
+
+public fn test_actor_class_init_receive(): void {
+    var seen: string = "";
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { seen = msg.messageType; };
+    let a: Actor = new Actor("a1", handler);
+    if (a.id != "a1") {
+        io::println("FAIL: Actor.init id");
+    } else {
+        a.receive(new ActorMessage("hello", Variant.of(0), "s"));
+        if (seen != "hello") {
+            io::println("FAIL: Actor.receive did not invoke handler");
+        } else {
+            io::println("PASS: Actor.init/receive works");
+        }
+    }
+}
+
+public fn test_actor_class_set_handler(): void {
+    let a: Actor = new Actor("a2", null);
+    var seen: string = "";
+    a.setHandler(fn(msg: ActorMessage) { seen = msg.sender; });
+    a.receive(new ActorMessage("m", Variant.of(0), "from"));
+    if (seen != "from") {
+        io::println("FAIL: Actor.setHandler");
+    } else {
+        io::println("PASS: Actor.setHandler works");
+    }
+}
+
+public fn test_supervised_actor_registered(): void {
+    let system: ActorSystem = new ActorSystem();
+    let handler: fn(ActorMessage): void = fn(msg: ActorMessage) { /* no-op */ };
+    let strategy: SupervisorStrategy = new SupervisorStrategy(2, 0L, "restart");
+    let ref: ActorRef = supervisedActor(system, "sup", handler, strategy);
+    if (ref == null || system.actorCount() != 1) {
+        io::println("FAIL: supervisedActor registration");
+    } else {
+        io::println("PASS: supervisedActor registration works");
+    }
+}
+
+public fn run_all_actor_tests(): void {
+    io::println("=== Actor.tr Tests ===");
+    test_actor_message_init();
+    test_actor_ref_init();
+    test_actor_ref_send_receive();
+    test_actor_ref_receive_empty();
+    test_actor_ref_fifo_order();
+    test_actor_system_register_count();
+    test_actor_system_send();
+    test_actor_system_send_unknown();
+    test_actor_system_process_one();
+    test_actor_system_process_one_unknown();
+    test_actor_system_process_all();
+    test_actor_system_stop();
+    test_actor_system_get_actor();
+    test_actor_system_remove_actor();
+    test_supervisor_strategy_init();
+    test_actor_class_init_receive();
+    test_actor_class_set_handler();
+    test_supervised_actor_registered();
+}

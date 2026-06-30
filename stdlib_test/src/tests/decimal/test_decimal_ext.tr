@@ -1,0 +1,283 @@
+// Test file for decimal/DecimalExt.tr
+// Exercises the public API: quantizeDouble, quantize, rescale, toEngineeringString,
+// toPlainString, logicalShift, canonical.
+import tt::decimal::DecimalExt;
+import tt::decimal::DecimalContext;
+import tt::lang::Double;
+
+// ==================== quantizeDouble ====================
+
+public fn test_quantize_double_basic(): void {
+    let ctx: DecimalContext = new DecimalContext(2, "half_even");
+    let r: double = quantizeDouble(3.14159, ctx);
+    // Rounds to 2 decimal places.
+    if (r < 3.14 - 0.001 || r > 3.14 + 0.001) {
+        io::println("FAIL: quantizeDouble(3.14159) = " + Double.toString(r));
+    } else {
+        io::println("PASS: quantizeDouble basic works");
+    }
+}
+
+public fn test_quantize_double_zero_places(): void {
+    let ctx: DecimalContext = new DecimalContext(0, "half_up");
+    let r: double = quantizeDouble(2.5, ctx);
+    if (r < 3.0 - 0.001 || r > 3.0 + 0.001) {
+        io::println("FAIL: quantizeDouble(2.5, 0 places) = " + Double.toString(r));
+    } else {
+        io::println("PASS: quantizeDouble zero places works");
+    }
+}
+
+public fn test_quantize_double_integer(): void {
+    let ctx: DecimalContext = new DecimalContext(2, "half_even");
+    let r: double = quantizeDouble(42.0, ctx);
+    if (r < 42.0 - 0.001 || r > 42.0 + 0.001) {
+        io::println("FAIL: quantizeDouble(42.0) = " + Double.toString(r));
+    } else {
+        io::println("PASS: quantizeDouble integer works");
+    }
+}
+
+// ==================== quantize ====================
+
+public fn test_quantize_basic(): void {
+    let ctx: DecimalContext = new DecimalContext(4, "half_even");
+    let r: string = quantize("3.14159", -2, ctx);
+    // exponent=-2 -> 2 decimal places -> "3.14"
+    if (r != "3.14") {
+        io::println("FAIL: quantize(3.14159, -2) = " + r);
+    } else {
+        io::println("PASS: quantize basic works");
+    }
+}
+
+public fn test_quantize_zero_exponent(): void {
+    let ctx: DecimalContext = new DecimalContext(4, "half_up");
+    let r: string = quantize("3.5", 0, ctx);
+    if (r != "4") {
+        io::println("FAIL: quantize(3.5, 0) = " + r);
+    } else {
+        io::println("PASS: quantize zero exponent works");
+    }
+}
+
+public fn test_quantize_integer_value(): void {
+    let ctx: DecimalContext = new DecimalContext(2, "half_even");
+    let r: string = quantize("100", -2, ctx);
+    if (r != "100" && r != "100.00" && r != "100.0") {
+        io::println("FAIL: quantize(100, -2) = " + r);
+    } else {
+        io::println("PASS: quantize integer value works");
+    }
+}
+
+// ==================== rescale ====================
+
+public fn test_rescale_to_two_places(): void {
+    let ctx: DecimalContext = new DecimalContext(4, "half_even");
+    let r: string = rescale("3.14159", 2, ctx);
+    if (r != "3.14") {
+        io::println("FAIL: rescale(3.14159, 2) = " + r);
+    } else {
+        io::println("PASS: rescale to 2 places works");
+    }
+}
+
+public fn test_rescale_zero_places(): void {
+    let ctx: DecimalContext = new DecimalContext(4, "half_up");
+    let r: string = rescale("2.5", 0, ctx);
+    if (r != "3") {
+        io::println("FAIL: rescale(2.5, 0) = " + r);
+    } else {
+        io::println("PASS: rescale zero places works");
+    }
+}
+
+public fn test_rescale_negative_clamped(): void {
+    // newScale < 0 is clamped to 0.
+    let ctx: DecimalContext = new DecimalContext(4, "half_even");
+    let r: string = rescale("3.14", -5, ctx);
+    if (r != "3") {
+        io::println("FAIL: rescale(3.14, -5) = " + r);
+    } else {
+        io::println("PASS: rescale negative clamped works");
+    }
+}
+
+// ==================== toEngineeringString ====================
+
+public fn test_to_engineering_string_no_exponent(): void {
+    // Small number with no need for engineering notation.
+    let r: string = toEngineeringString("12");
+    if (r != "12") {
+        io::println("FAIL: toEngineeringString(12) = " + r);
+    } else {
+        io::println("PASS: toEngineeringString no exponent works");
+    }
+}
+
+public fn test_to_engineering_string_large(): void {
+    // A 4+ digit integer should produce an engineering exponent (multiple of 3).
+    let r: string = toEngineeringString("12345");
+    // exp for 12345 -> intLen=5, exp=4, adjusted to multiple of 3 -> 3 -> "12.345e3"
+    if (String.indexOf(r, "e") < 0) {
+        io::println("FAIL: toEngineeringString(12345) should contain e, got " + r);
+    } else {
+        io::println("PASS: toEngineeringString large works");
+    }
+}
+
+public fn test_to_engineering_string_decimal(): void {
+    let r: string = toEngineeringString("100.0");
+    // Should still be a valid string representation.
+    if (String.length(r) == 0) {
+        io::println("FAIL: toEngineeringString(100.0) empty");
+    } else {
+        io::println("PASS: toEngineeringString decimal works");
+    }
+}
+
+// ==================== toPlainString ====================
+
+public fn test_to_plain_string_no_exponent(): void {
+    let r: string = toPlainString("3.14");
+    if (r != "3.14") {
+        io::println("FAIL: toPlainString(3.14) = " + r);
+    } else {
+        io::println("PASS: toPlainString no exponent works");
+    }
+}
+
+public fn test_to_plain_string_integer(): void {
+    let r: string = toPlainString("42");
+    if (r != "42") {
+        io::println("FAIL: toPlainString(42) = " + r);
+    } else {
+        io::println("PASS: toPlainString integer works");
+    }
+}
+
+public fn test_to_plain_string_negative(): void {
+    let r: string = toPlainString("-5.5");
+    if (r != "-5.5") {
+        io::println("FAIL: toPlainString(-5.5) = " + r);
+    } else {
+        io::println("PASS: toPlainString negative works");
+    }
+}
+
+// ==================== logicalShift ====================
+
+public fn test_logical_shift_right(): void {
+    // Positive shift moves the decimal point right (fewer fractional digits).
+    let r: string = logicalShift("1.2345", 2);
+    if (r != "123.45") {
+        io::println("FAIL: logicalShift(1.2345, 2) = " + r);
+    } else {
+        io::println("PASS: logicalShift right works");
+    }
+}
+
+public fn test_logical_shift_left(): void {
+    // Negative shift moves the decimal point left (more fractional digits).
+    let r: string = logicalShift("123.45", -2);
+    if (r != "1.2345") {
+        io::println("FAIL: logicalShift(123.45, -2) = " + r);
+    } else {
+        io::println("PASS: logicalShift left works");
+    }
+}
+
+public fn test_logical_shift_zero(): void {
+    let r: string = logicalShift("12.34", 0);
+    if (r != "12.34") {
+        io::println("FAIL: logicalShift(12.34, 0) = " + r);
+    } else {
+        io::println("PASS: logicalShift zero works");
+    }
+}
+
+public fn test_logical_shift_integer(): void {
+    // Shifting an integer right by 2 adds ".00" fractional digits.
+    let r: string = logicalShift("42", -2);
+    if (r != "0.42") {
+        io::println("FAIL: logicalShift(42, -2) = " + r);
+    } else {
+        io::println("PASS: logicalShift integer left works");
+    }
+}
+
+// ==================== canonical ====================
+
+public fn test_canonical_removes_trailing_zeros(): void {
+    let r: string = canonical("3.1400");
+    if (r != "3.14") {
+        io::println("FAIL: canonical(3.1400) = " + r);
+    } else {
+        io::println("PASS: canonical removes trailing zeros works");
+    }
+}
+
+public fn test_canonical_integer(): void {
+    let r: string = canonical("42");
+    if (r != "42") {
+        io::println("FAIL: canonical(42) = " + r);
+    } else {
+        io::println("PASS: canonical integer works");
+    }
+}
+
+public fn test_canonical_negative(): void {
+    let r: string = canonical("-5.500");
+    if (r != "-5.5") {
+        io::println("FAIL: canonical(-5.500) = " + r);
+    } else {
+        io::println("PASS: canonical negative works");
+    }
+}
+
+public fn test_canonical_zero(): void {
+    let r: string = canonical("0.000");
+    if (r != "0") {
+        io::println("FAIL: canonical(0.000) = " + r);
+    } else {
+        io::println("PASS: canonical zero works");
+    }
+}
+
+public fn test_canonical_no_fraction(): void {
+    let r: string = canonical("100.0");
+    if (r != "100") {
+        io::println("FAIL: canonical(100.0) = " + r);
+    } else {
+        io::println("PASS: canonical no fraction works");
+    }
+}
+
+public fn run_all_decimal_ext_tests(): void {
+    io::println("=== DecimalExt.tr Tests ===");
+    test_quantize_double_basic();
+    test_quantize_double_zero_places();
+    test_quantize_double_integer();
+    test_quantize_basic();
+    test_quantize_zero_exponent();
+    test_quantize_integer_value();
+    test_rescale_to_two_places();
+    test_rescale_zero_places();
+    test_rescale_negative_clamped();
+    test_to_engineering_string_no_exponent();
+    test_to_engineering_string_large();
+    test_to_engineering_string_decimal();
+    test_to_plain_string_no_exponent();
+    test_to_plain_string_integer();
+    test_to_plain_string_negative();
+    test_logical_shift_right();
+    test_logical_shift_left();
+    test_logical_shift_zero();
+    test_logical_shift_integer();
+    test_canonical_removes_trailing_zeros();
+    test_canonical_integer();
+    test_canonical_negative();
+    test_canonical_zero();
+    test_canonical_no_fraction();
+}

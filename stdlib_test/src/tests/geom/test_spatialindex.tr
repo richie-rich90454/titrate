@@ -1,0 +1,341 @@
+// Test file for geom/SpatialIndex.tr
+// Exercises the public API: PointKD, KDTree, BoundingBox, RTree, BoundingBox3D, BVH.
+import tt::geom::SpatialIndex;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_pointkd_init(): void {
+    let p: PointKD = new PointKD(2);
+    if (p == null) {
+        io::println("FAIL: PointKD.init returned null");
+    } else {
+        io::println("PASS: PointKD.init works");
+    }
+}
+
+public fn test_pointkd_dims(): void {
+    let p: PointKD = new PointKD(3);
+    if (p.coords.size() != 3) {
+        io::println("FAIL: PointKD should have 3 coords, got " + Integer.toString(p.coords.size()));
+    } else {
+        io::println("PASS: PointKD dims correct");
+    }
+}
+
+public fn test_pointkd_default_zero(): void {
+    let p: PointKD = new PointKD(2);
+    if (p.coords.get(0) != 0.0 || p.coords.get(1) != 0.0) {
+        io::println("FAIL: PointKD coords should default to 0.0");
+    } else {
+        io::println("PASS: PointKD coords default zero");
+    }
+}
+
+public fn test_pointkd_distanceTo(): void {
+    let p1: PointKD = new PointKD(2);
+    p1.coords.set(0, 0.0);
+    p1.coords.set(1, 0.0);
+    let p2: PointKD = new PointKD(2);
+    p2.coords.set(0, 3.0);
+    p2.coords.set(1, 4.0);
+    let dist: double = p1.distanceTo(p2);
+    if (dist < 4.99 || dist > 5.01) {
+        io::println("FAIL: PointKD.distanceTo 3-4-5 should be 5.0");
+    } else {
+        io::println("PASS: PointKD.distanceTo correct");
+    }
+}
+
+public fn test_kdtree_init(): void {
+    let tree: KDTree = new KDTree(2);
+    if (tree == null) {
+        io::println("FAIL: KDTree.init returned null");
+    } else {
+        io::println("PASS: KDTree.init works");
+    }
+}
+
+public fn test_kdtree_insert(): void {
+    let tree: KDTree = new KDTree(2);
+    let p: PointKD = new PointKD(2);
+    p.coords.set(0, 1.0);
+    p.coords.set(1, 2.0);
+    tree.insert(p, 0);
+    if (tree.root == null) {
+        io::println("FAIL: KDTree.insert should set root");
+    } else {
+        io::println("PASS: KDTree.insert works");
+    }
+}
+
+public fn test_kdtree_nearestNeighbor(): void {
+    let tree: KDTree = new KDTree(2);
+    let p0: PointKD = new PointKD(2);
+    p0.coords.set(0, 0.0); p0.coords.set(1, 0.0);
+    tree.insert(p0, 0);
+    let p1: PointKD = new PointKD(2);
+    p1.coords.set(0, 10.0); p1.coords.set(1, 10.0);
+    tree.insert(p1, 1);
+    let query: PointKD = new PointKD(2);
+    query.coords.set(0, 0.5); query.coords.set(1, 0.5);
+    let idx: int = tree.nearestNeighbor(query);
+    if (idx != 0) {
+        io::println("FAIL: KDTree.nearestNeighbor should return 0, got " + Integer.toString(idx));
+    } else {
+        io::println("PASS: KDTree.nearestNeighbor correct");
+    }
+}
+
+public fn test_kdtree_nearestNeighbor_empty(): void {
+    let tree: KDTree = new KDTree(2);
+    let query: PointKD = new PointKD(2);
+    let idx: int = tree.nearestNeighbor(query);
+    if (idx != -1) {
+        io::println("FAIL: KDTree.nearestNeighbor empty should return -1");
+    } else {
+        io::println("PASS: KDTree.nearestNeighbor empty returns -1");
+    }
+}
+
+public fn test_kdtree_rangeQuery(): void {
+    let tree: KDTree = new KDTree(2);
+    let p0: PointKD = new PointKD(2);
+    p0.coords.set(0, 1.0); p0.coords.set(1, 1.0);
+    tree.insert(p0, 0);
+    let p1: PointKD = new PointKD(2);
+    p1.coords.set(0, 10.0); p1.coords.set(1, 10.0);
+    tree.insert(p1, 1);
+    let min: ArrayList<double> = new ArrayList<double>();
+    min.add(0.0); min.add(0.0);
+    let max: ArrayList<double> = new ArrayList<double>();
+    max.add(5.0); max.add(5.0);
+    let result: ArrayList<int> = tree.rangeQuery(min, max);
+    if (result.size() != 1 || result.get(0) != 0) {
+        io::println("FAIL: KDTree.rangeQuery should find only index 0");
+    } else {
+        io::println("PASS: KDTree.rangeQuery correct");
+    }
+}
+
+public fn test_kdtree_rangeSearch(): void {
+    let tree: KDTree = new KDTree(2);
+    let p0: PointKD = new PointKD(2);
+    p0.coords.set(0, 0.0); p0.coords.set(1, 0.0);
+    tree.insert(p0, 0);
+    let p1: PointKD = new PointKD(2);
+    p1.coords.set(0, 5.0); p1.coords.set(1, 5.0);
+    tree.insert(p1, 1);
+    let query: PointKD = new PointKD(2);
+    query.coords.set(0, 0.0); query.coords.set(1, 0.0);
+    let result: ArrayList<int> = tree.rangeSearch(query, 1.0);
+    if (result.size() != 1 || result.get(0) != 0) {
+        io::println("FAIL: KDTree.rangeSearch should find only index 0");
+    } else {
+        io::println("PASS: KDTree.rangeSearch correct");
+    }
+}
+
+public fn test_boundingbox_init(): void {
+    let box: BoundingBox = new BoundingBox(0.0, 0.0, 10.0, 10.0);
+    if (box == null) {
+        io::println("FAIL: BoundingBox.init returned null");
+    } else {
+        io::println("PASS: BoundingBox.init works");
+    }
+}
+
+public fn test_boundingbox_contains(): void {
+    let box: BoundingBox = new BoundingBox(0.0, 0.0, 10.0, 10.0);
+    if (!box.contains(5.0, 5.0)) {
+        io::println("FAIL: BoundingBox.contains should be true for interior point");
+    } else {
+        io::println("PASS: BoundingBox.contains true for interior");
+    }
+}
+
+public fn test_boundingbox_contains_false(): void {
+    let box: BoundingBox = new BoundingBox(0.0, 0.0, 10.0, 10.0);
+    if (box.contains(15.0, 15.0)) {
+        io::println("FAIL: BoundingBox.contains should be false for exterior point");
+    } else {
+        io::println("PASS: BoundingBox.contains false for exterior");
+    }
+}
+
+public fn test_boundingbox_intersects(): void {
+    let box1: BoundingBox = new BoundingBox(0.0, 0.0, 5.0, 5.0);
+    let box2: BoundingBox = new BoundingBox(3.0, 3.0, 8.0, 8.0);
+    if (!box1.intersects(box2)) {
+        io::println("FAIL: BoundingBox.intersects should be true for overlapping");
+    } else {
+        io::println("PASS: BoundingBox.intersects true for overlapping");
+    }
+}
+
+public fn test_boundingbox_intersects_false(): void {
+    let box1: BoundingBox = new BoundingBox(0.0, 0.0, 1.0, 1.0);
+    let box2: BoundingBox = new BoundingBox(5.0, 5.0, 6.0, 6.0);
+    if (box1.intersects(box2)) {
+        io::println("FAIL: BoundingBox.intersects should be false for disjoint");
+    } else {
+        io::println("PASS: BoundingBox.intersects false for disjoint");
+    }
+}
+
+public fn test_boundingbox_center(): void {
+    let box: BoundingBox = new BoundingBox(0.0, 0.0, 10.0, 10.0);
+    let c: PointKD = box.center();
+    if (c.coords.get(0) != 5.0 || c.coords.get(1) != 5.0) {
+        io::println("FAIL: BoundingBox.center should be (5,5)");
+    } else {
+        io::println("PASS: BoundingBox.center correct");
+    }
+}
+
+public fn test_rtree_init(): void {
+    let tree: RTree = new RTree(4);
+    if (tree == null) {
+        io::println("FAIL: RTree.init returned null");
+    } else {
+        io::println("PASS: RTree.init works");
+    }
+}
+
+public fn test_rtree_insert(): void {
+    let tree: RTree = new RTree(4);
+    let box: BoundingBox = new BoundingBox(0.0, 0.0, 1.0, 1.0);
+    tree.insert(box, 0);
+    io::println("PASS: RTree.insert works");
+}
+
+public fn test_rtree_search(): void {
+    let tree: RTree = new RTree(4);
+    tree.insert(new BoundingBox(0.0, 0.0, 1.0, 1.0), 0);
+    tree.insert(new BoundingBox(10.0, 10.0, 11.0, 11.0), 1);
+    let query: BoundingBox = new BoundingBox(0.5, 0.5, 0.5, 0.5);
+    let result: ArrayList<int> = tree.search(query);
+    if (result.size() == 0) {
+        io::println("FAIL: RTree.search should find index 0");
+    } else {
+        io::println("PASS: RTree.search works");
+    }
+}
+
+public fn test_rtree_nearest(): void {
+    let tree: RTree = new RTree(4);
+    tree.insert(new BoundingBox(0.0, 0.0, 1.0, 1.0), 0);
+    tree.insert(new BoundingBox(10.0, 10.0, 11.0, 11.0), 1);
+    let query: PointKD = new PointKD(2);
+    query.coords.set(0, 0.5);
+    query.coords.set(1, 0.5);
+    let idx: int = tree.nearest(query);
+    if (idx != 0) {
+        io::println("FAIL: RTree.nearest should return 0, got " + Integer.toString(idx));
+    } else {
+        io::println("PASS: RTree.nearest correct");
+    }
+}
+
+public fn test_boundingbox3d_init(): void {
+    let box: BoundingBox3D = new BoundingBox3D(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+    if (box == null) {
+        io::println("FAIL: BoundingBox3D.init returned null");
+    } else {
+        io::println("PASS: BoundingBox3D.init works");
+    }
+}
+
+public fn test_boundingbox3d_contains(): void {
+    let box: BoundingBox3D = new BoundingBox3D(0.0, 0.0, 0.0, 10.0, 10.0, 10.0);
+    if (!box.contains(5.0, 5.0, 5.0)) {
+        io::println("FAIL: BoundingBox3D.contains should be true for interior");
+    } else {
+        io::println("PASS: BoundingBox3D.contains true for interior");
+    }
+}
+
+public fn test_boundingbox3d_intersects(): void {
+    let box1: BoundingBox3D = new BoundingBox3D(0.0, 0.0, 0.0, 5.0, 5.0, 5.0);
+    let box2: BoundingBox3D = new BoundingBox3D(3.0, 3.0, 3.0, 8.0, 8.0, 8.0);
+    if (!box1.intersects(box2)) {
+        io::println("FAIL: BoundingBox3D.intersects should be true for overlapping");
+    } else {
+        io::println("PASS: BoundingBox3D.intersects true for overlapping");
+    }
+}
+
+public fn test_bvh_init(): void {
+    let bvh: BVH = new BVH();
+    if (bvh == null) {
+        io::println("FAIL: BVH.init returned null");
+    } else {
+        io::println("PASS: BVH.init works");
+    }
+}
+
+public fn test_bvh_insert(): void {
+    let bvh: BVH = new BVH();
+    let box: BoundingBox3D = new BoundingBox3D(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+    bvh.insert(box, 0);
+    io::println("PASS: BVH.insert works");
+}
+
+public fn test_bvh_search(): void {
+    let bvh: BVH = new BVH();
+    bvh.insert(new BoundingBox3D(0.0, 0.0, 0.0, 1.0, 1.0, 1.0), 0);
+    bvh.insert(new BoundingBox3D(10.0, 10.0, 10.0, 11.0, 11.0, 11.0), 1);
+    let query: BoundingBox3D = new BoundingBox3D(0.5, 0.5, 0.5, 0.5, 0.5, 0.5);
+    let result: ArrayList<int> = bvh.search(query);
+    if (result.size() == 0) {
+        io::println("FAIL: BVH.search should find index 0");
+    } else {
+        io::println("PASS: BVH.search works");
+    }
+}
+
+public fn test_bvh_nearest(): void {
+    let bvh: BVH = new BVH();
+    bvh.insert(new BoundingBox3D(0.0, 0.0, 0.0, 1.0, 1.0, 1.0), 0);
+    bvh.insert(new BoundingBox3D(10.0, 10.0, 10.0, 11.0, 11.0, 11.0), 1);
+    let query: PointKD = new PointKD(3);
+    query.coords.set(0, 0.5);
+    query.coords.set(1, 0.5);
+    query.coords.set(2, 0.5);
+    let idx: int = bvh.nearest(query);
+    if (idx != 0) {
+        io::println("FAIL: BVH.nearest should return 0, got " + Integer.toString(idx));
+    } else {
+        io::println("PASS: BVH.nearest correct");
+    }
+}
+
+public fn run_all_spatialindex_tests(): void {
+    io::println("=== SpatialIndex.tr Tests ===");
+    test_pointkd_init();
+    test_pointkd_dims();
+    test_pointkd_default_zero();
+    test_pointkd_distanceTo();
+    test_kdtree_init();
+    test_kdtree_insert();
+    test_kdtree_nearestNeighbor();
+    test_kdtree_nearestNeighbor_empty();
+    test_kdtree_rangeQuery();
+    test_kdtree_rangeSearch();
+    test_boundingbox_init();
+    test_boundingbox_contains();
+    test_boundingbox_contains_false();
+    test_boundingbox_intersects();
+    test_boundingbox_intersects_false();
+    test_boundingbox_center();
+    test_rtree_init();
+    test_rtree_insert();
+    test_rtree_search();
+    test_rtree_nearest();
+    test_boundingbox3d_init();
+    test_boundingbox3d_contains();
+    test_boundingbox3d_intersects();
+    test_bvh_init();
+    test_bvh_insert();
+    test_bvh_search();
+    test_bvh_nearest();
+}

@@ -1,0 +1,136 @@
+// Test file for concurrent/SharedMutex.tr
+// Exercises the public API: SharedMutex.init, sharedLock, sharedUnlock,
+// uniqueLock, uniqueUnlock, trySharedLock, tryUniqueLock.
+import tt::concurrent::SharedMutex;
+
+public fn test_shared_mutex_init(): void {
+    let m: SharedMutex = new SharedMutex();
+    if (m == null) {
+        io::println("FAIL: SharedMutex.init returned null");
+    } else {
+        io::println("PASS: SharedMutex.init works");
+    }
+}
+
+public fn test_shared_lock_unlock(): void {
+    let m: SharedMutex = new SharedMutex();
+    m.sharedLock();
+    m.sharedUnlock();
+    io::println("PASS: SharedMutex.sharedLock/sharedUnlock works");
+}
+
+public fn test_unique_lock_unlock(): void {
+    let m: SharedMutex = new SharedMutex();
+    m.uniqueLock();
+    m.uniqueUnlock();
+    io::println("PASS: SharedMutex.uniqueLock/uniqueUnlock works");
+}
+
+public fn test_try_shared_lock(): void {
+    let m: SharedMutex = new SharedMutex();
+    let ok: bool = m.trySharedLock();
+    if (!ok) {
+        io::println("FAIL: SharedMutex.trySharedLock should succeed on unlocked mutex");
+    } else {
+        m.sharedUnlock();
+        io::println("PASS: SharedMutex.trySharedLock works");
+    }
+}
+
+public fn test_try_unique_lock(): void {
+    let m: SharedMutex = new SharedMutex();
+    let ok: bool = m.tryUniqueLock();
+    if (!ok) {
+        io::println("FAIL: SharedMutex.tryUniqueLock should succeed on unlocked mutex");
+    } else {
+        m.uniqueUnlock();
+        io::println("PASS: SharedMutex.tryUniqueLock works");
+    }
+}
+
+public fn test_multiple_shared_locks(): void {
+    // Multiple shared (read) locks can be held simultaneously.
+    let m: SharedMutex = new SharedMutex();
+    m.sharedLock();
+    m.sharedLock();
+    m.sharedLock();
+    m.sharedUnlock();
+    m.sharedUnlock();
+    m.sharedUnlock();
+    io::println("PASS: SharedMutex multiple shared locks works");
+}
+
+public fn test_shared_then_unique_release(): void {
+    // Acquire a shared lock, release it, then acquire a unique lock.
+    let m: SharedMutex = new SharedMutex();
+    m.sharedLock();
+    m.sharedUnlock();
+    m.uniqueLock();
+    m.uniqueUnlock();
+    io::println("PASS: SharedMutex shared then unique works");
+}
+
+public fn test_try_shared_after_unique(): void {
+    // After a unique (write) lock is held, trySharedLock may or may not succeed
+    // depending on the implementation; we just verify it does not crash.
+    let m: SharedMutex = new SharedMutex();
+    m.uniqueLock();
+    let ok: bool = m.trySharedLock();
+    // Either result is acceptable; just ensure no deadlock/crash.
+    if (ok) {
+        m.sharedUnlock();
+    }
+    m.uniqueUnlock();
+    io::println("PASS: SharedMutex trySharedLock after uniqueLock does not crash");
+}
+
+public fn test_try_unique_after_shared(): void {
+    // After a shared lock is held, tryUniqueLock may or may not succeed;
+    // we just verify it does not crash.
+    let m: SharedMutex = new SharedMutex();
+    m.sharedLock();
+    let ok: bool = m.tryUniqueLock();
+    if (ok) {
+        m.uniqueUnlock();
+    }
+    m.sharedUnlock();
+    io::println("PASS: SharedMutex tryUniqueLock after sharedLock does not crash");
+}
+
+public fn test_shared_mutex_multiple_instances(): void {
+    let m1: SharedMutex = new SharedMutex();
+    let m2: SharedMutex = new SharedMutex();
+    m1.sharedLock();
+    m2.uniqueLock();
+    m1.sharedUnlock();
+    m2.uniqueUnlock();
+    io::println("PASS: SharedMutex multiple instances works");
+}
+
+public fn test_shared_mutex_reusable_after_release(): void {
+    let m: SharedMutex = new SharedMutex();
+    m.uniqueLock();
+    m.uniqueUnlock();
+    let ok: bool = m.tryUniqueLock();
+    if (!ok) {
+        io::println("FAIL: SharedMutex not reusable after release");
+    } else {
+        m.uniqueUnlock();
+        io::println("PASS: SharedMutex reusable after release");
+    }
+}
+
+public fn run_all_sharedmutex_tests(): void {
+    io::println("=== SharedMutex.tr Tests ===");
+    test_shared_mutex_init();
+    test_shared_lock_unlock();
+    test_unique_lock_unlock();
+    test_try_shared_lock();
+    test_try_unique_lock();
+    test_multiple_shared_locks();
+    test_shared_then_unique_release();
+    test_try_shared_after_unique();
+    test_try_unique_after_shared();
+    test_shared_mutex_multiple_instances();
+    test_shared_mutex_reusable_after_release();
+}

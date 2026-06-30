@@ -1,0 +1,112 @@
+// Test file for concurrent/Event.tr
+// Exercises the public API: Event.init, set, clear, wait, waitFor, isSet.
+// wait() blocks until the event is signaled; we test it by set()-ing first so
+// the call returns immediately.
+import tt::concurrent::Event;
+
+public fn test_event_init(): void {
+    let e: Event = new Event();
+    if (e == null) {
+        io::println("FAIL: Event.init returned null");
+    } else {
+        io::println("PASS: Event.init works");
+    }
+}
+
+public fn test_event_initially_not_set(): void {
+    let e: Event = new Event();
+    if (e.isSet()) {
+        io::println("FAIL: Event should be initially not set");
+    } else {
+        io::println("PASS: Event initially not set");
+    }
+}
+
+public fn test_event_set_isSet(): void {
+    let e: Event = new Event();
+    e.set();
+    if (!e.isSet()) {
+        io::println("FAIL: Event.isSet should be true after set");
+    } else {
+        io::println("PASS: Event.set/isSet works");
+    }
+}
+
+public fn test_event_clear(): void {
+    let e: Event = new Event();
+    e.set();
+    e.clear();
+    if (e.isSet()) {
+        io::println("FAIL: Event.isSet should be false after clear");
+    } else {
+        io::println("PASS: Event.clear works");
+    }
+}
+
+public fn test_event_wait_after_set(): void {
+    // After set(), wait() should return immediately (manual-reset event stays signaled).
+    let e: Event = new Event();
+    e.set();
+    e.wait();
+    io::println("PASS: Event.wait after set returns");
+}
+
+public fn test_event_wait_after_clear_times_out(): void {
+    // With the event cleared, waitFor should return false on timeout.
+    let e: Event = new Event();
+    e.clear();
+    let result: bool = e.waitFor(20);
+    if (result) {
+        io::println("FAIL: Event.waitFor should time out (false) when not signaled");
+    } else {
+        io::println("PASS: Event.waitFor timeout returns false");
+    }
+}
+
+public fn test_event_wait_for_after_set(): void {
+    let e: Event = new Event();
+    e.set();
+    let result: bool = e.waitFor(50);
+    if (!result) {
+        io::println("FAIL: Event.waitFor should return true when signaled");
+    } else {
+        io::println("PASS: Event.waitFor after set returns true");
+    }
+}
+
+public fn test_event_manual_reset_stays_signaled(): void {
+    // Manual-reset events stay signaled until clear() is called.
+    let e: Event = new Event();
+    e.set();
+    e.wait();
+    e.wait();
+    if (!e.isSet()) {
+        io::println("FAIL: Event should stay signaled (manual-reset)");
+    } else {
+        io::println("PASS: Event manual-reset stays signaled");
+    }
+}
+
+public fn test_event_set_clear_set_cycle(): void {
+    let e: Event = new Event();
+    e.set();
+    if (!e.isSet()) { io::println("FAIL: Event set cycle (1)"); return; }
+    e.clear();
+    if (e.isSet()) { io::println("FAIL: Event set cycle (2)"); return; }
+    e.set();
+    if (!e.isSet()) { io::println("FAIL: Event set cycle (3)"); return; }
+    io::println("PASS: Event set/clear cycle works");
+}
+
+public fn run_all_event_tests(): void {
+    io::println("=== Event.tr Tests ===");
+    test_event_init();
+    test_event_initially_not_set();
+    test_event_set_isSet();
+    test_event_clear();
+    test_event_wait_after_set();
+    test_event_wait_after_clear_times_out();
+    test_event_wait_for_after_set();
+    test_event_manual_reset_stays_signaled();
+    test_event_set_clear_set_cycle();
+}

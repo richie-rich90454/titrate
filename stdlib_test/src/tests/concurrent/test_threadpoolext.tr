@@ -1,0 +1,388 @@
+// Test file for concurrent/ThreadPoolExt.tr
+// Exercises the public API: workStealingPool, ScheduledTask, ScheduledExecutor,
+// FutureChain, Callable, RejectionPolicy and the policy factories.
+// ScheduledExecutor does not spawn threads; tasks are run via tick().
+import tt::concurrent::ThreadPoolExt;
+import tt::lang::Variant;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+// ==================== ScheduledTask ====================
+
+public fn test_scheduled_task_init(): void {
+    let task: ScheduledTask = new ScheduledTask(fn(): Variant { return Variant.of(1); }, 10L, 0L, 10L);
+    if (task == null || task.delayMs != 10L) {
+        io::println("FAIL: ScheduledTask.init");
+    } else {
+        io::println("PASS: ScheduledTask.init works");
+    }
+}
+
+public fn test_scheduled_task_fields(): void {
+    let task: ScheduledTask = new ScheduledTask(fn(): Variant { return Variant.of(0); }, 5L, 100L, 5L);
+    if (task.delayMs != 5L || task.periodMs != 100L || task.scheduledTime != 5L) {
+        io::println("FAIL: ScheduledTask fields");
+    } else {
+        io::println("PASS: ScheduledTask fields work");
+    }
+}
+
+// ==================== ScheduledExecutor ====================
+
+public fn test_scheduled_executor_init(): void {
+    let ex: ScheduledExecutor = new ScheduledExecutor();
+    if (ex == null || ex.running) {
+        io::println("FAIL: ScheduledExecutor.init");
+    } else {
+        io::println("PASS: ScheduledExecutor.init works");
+    }
+}
+
+public fn test_work_stealing_pool_factory(): void {
+    let ex: ScheduledExecutor = workStealingPool(4);
+    if (ex == null || !ex.running) {
+        io::println("FAIL: workStealingPool factory");
+    } else {
+        io::println("PASS: workStealingPool factory works");
+    }
+}
+
+public fn test_scheduled_executor_schedule(): void {
+    let ex: ScheduledExecutor = new ScheduledExecutor();
+    ex.schedule(fn(): Variant { return Variant.of(42); }, 10L);
+    if (ex.tasks.size() != 1) {
+        io::println("FAIL: ScheduledExecutor.schedule size = " + Integer.toString(ex.tasks.size()));
+    } else {
+        io::println("PASS: ScheduledExecutor.schedule works");
+    }
+}
+
+public fn test_scheduled_executor_schedule_at_fixed_rate(): void {
+    let ex: ScheduledExecutor = new ScheduledExecutor();
+    ex.scheduleAtFixedRate(fn(): Variant { return Variant.of(1); }, 0L, 100L);
+    if (ex.tasks.size() != 1) {
+        io::println("FAIL: ScheduledExecutor.scheduleAtFixedRate size");
+    } else {
+        io::println("PASS: ScheduledExecutor.scheduleAtFixedRate works");
+    }
+}
+
+public fn test_scheduled_executor_tick_runs_due(): void {
+    let ex: ScheduledExecutor = new ScheduledExecutor();
+    var ran: int = 0;
+    ex.schedule(fn(): Variant { ran = ran + 1; return Variant.of(0); }, 10L);
+    let results: ArrayList<Variant> = ex.tick(20L);
+    if (ran != 1 || results.size() != 1) {
+        io::println("FAIL: ScheduledExecutor.tick due ran = " + Integer.toString(ran));
+    } else {
+        io::println("PASS: ScheduledExecutor.tick runs due tasks");
+    }
+}
+
+public fn test_scheduled_executor_tick_skips_not_due(): void {
+    let ex: ScheduledExecutor = new ScheduledExecutor();
+    var ran: int = 0;
+    ex.schedule(fn(): Variant { ran = ran + 1; return Variant.of(0); }, 100L);
+    let results: ArrayList<Variant> = ex.tick(50L);
+    if (ran != 0 || results.size() != 0) {
+        io::println("FAIL: ScheduledExecutor.tick ran not-due task");
+    } else {
+        io::println("PASS: ScheduledExecutor.tick skips not-due tasks");
+    }
+}
+
+public fn test_scheduled_executor_tick_removes_one_shot(): void {
+    let ex: ScheduledExecutor = new ScheduledExecutor();
+    ex.schedule(fn(): Variant { return Variant.of(0); }, 0L);
+    ex.tick(10L);
+    if (ex.tasks.size() != 0) {
+        io::println("FAIL: ScheduledExecutor.tick did not remove one-shot task");
+    } else {
+        io::println("PASS: ScheduledExecutor.tick removes one-shot tasks");
+    }
+}
+
+public fn test_scheduled_executor_tick_reschedules_periodic(): void {
+    let ex: ScheduledExecutor = new ScheduledExecutor();
+    ex.scheduleAtFixedRate(fn(): Variant { return Variant.of(0); }, 0L, 100L);
+    ex.tick(0L);
+    // Periodic task should remain (rescheduled), with updated scheduledTime.
+    if (ex.tasks.size() != 1) {
+        io::println("FAIL: ScheduledExecutor.tick removed periodic task");
+    } else if (ex.tasks.get(0).scheduledTime != 100L) {
+        io::println("FAIL: ScheduledExecutor.tick did not reschedule periodic");
+    } else {
+        io::println("PASS: ScheduledExecutor.tick reschedules periodic tasks");
+    }
+}
+
+public fn test_scheduled_executor_tick_returns_results(): void {
+    let ex: ScheduledExecutor = new ScheduledExecutor();
+    ex.schedule(fn(): Variant { return Variant.of(7); }, 0L);
+    ex.schedule(fn(): Variant { return Variant.of(8); }, 0L);
+    let results: ArrayList<Variant> = ex.tick(0L);
+    if (results.size() != 2) {
+        io::println("FAIL: ScheduledExecutor.tick results size = " + Integer.toString(results.size()));
+    } else {
+        io::println("PASS: ScheduledExecutor.tick returns results");
+    }
+}
+
+// ==================== FutureChain ====================
+
+public fn test_future_chain_init(): void {
+    let fc: FutureChain = new FutureChain();
+    if (fc == null || fc.done) {
+        io::println("FAIL: FutureChain.init");
+    } else {
+        io::println("PASS: FutureChain.init works");
+    }
+}
+
+public fn test_future_chain_complete(): void {
+    let fc: FutureChain = new FutureChain();
+    fc.complete(Variant.of(42));
+    if (!fc.isDone()) {
+        io::println("FAIL: FutureChain.complete not done");
+    } else {
+        io::println("PASS: FutureChain.complete works");
+    }
+}
+
+public fn test_future_chain_then_apply_after_complete(): void {
+    let fc: FutureChain = new FutureChain();
+    fc.complete(Variant.of(10));
+    fc.thenApply(fn(v: Variant): Variant { return Variant.of(v.asInt() + 5); });
+    if (fc.value == null || fc.value.asInt() != 15) {
+        io::println("FAIL: FutureChain.thenApply after complete");
+    } else {
+        io::println("PASS: FutureChain.thenApply after complete works");
+    }
+}
+
+public fn test_future_chain_then_apply_before_complete(): void {
+    let fc: FutureChain = new FutureChain();
+    fc.thenApply(fn(v: Variant): Variant { return Variant.of(v.asInt() * 2); });
+    fc.complete(Variant.of(21));
+    if (fc.value == null || fc.value.asInt() != 42) {
+        io::println("FAIL: FutureChain.thenApply before complete");
+    } else {
+        io::println("PASS: FutureChain.thenApply before complete works");
+    }
+}
+
+public fn test_future_chain_chained_then_apply(): void {
+    let fc: FutureChain = new FutureChain();
+    fc.thenApply(fn(v: Variant): Variant { return Variant.of(v.asInt() + 1); });
+    fc.thenApply(fn(v: Variant): Variant { return Variant.of(v.asInt() * 10); });
+    fc.complete(Variant.of(1));
+    if (fc.value == null || fc.value.asInt() != 20) {
+        io::println("FAIL: FutureChain chained thenApply = " + (fc.value == null ? "null" : Integer.toString(fc.value.asInt())));
+    } else {
+        io::println("PASS: FutureChain chained thenApply works");
+    }
+}
+
+public fn test_future_chain_then_accept(): void {
+    let fc: FutureChain = new FutureChain();
+    var side: int = 0;
+    fc.thenAccept(fn(v: Variant) { side = v.asInt(); });
+    fc.complete(Variant.of(99));
+    if (side != 99) {
+        io::println("FAIL: FutureChain.thenAccept side = " + Integer.toString(side));
+    } else {
+        io::println("PASS: FutureChain.thenAccept works");
+    }
+}
+
+public fn test_future_chain_complete_idempotent(): void {
+    let fc: FutureChain = new FutureChain();
+    fc.complete(Variant.of(1));
+    fc.complete(Variant.of(2));
+    if (fc.value.asInt() != 1) {
+        io::println("FAIL: FutureChain.complete idempotent");
+    } else {
+        io::println("PASS: FutureChain.complete idempotent works");
+    }
+}
+
+// ==================== Callable ====================
+
+public fn test_callable_init(): void {
+    let c: Callable = new Callable(fn(): Variant { return Variant.of(1); });
+    if (c == null || c.isDone()) {
+        io::println("FAIL: Callable.init");
+    } else {
+        io::println("PASS: Callable.init works");
+    }
+}
+
+public fn test_callable_call(): void {
+    let c: Callable = new Callable(fn(): Variant { return Variant.of(42); });
+    let v: Variant = c.call();
+    if (v == null || v.asInt() != 42) {
+        io::println("FAIL: Callable.call value");
+    } else {
+        io::println("PASS: Callable.call works");
+    }
+}
+
+public fn test_callable_is_done_after_call(): void {
+    let c: Callable = new Callable(fn(): Variant { return Variant.of(0); });
+    c.call();
+    if (!c.isDone()) {
+        io::println("FAIL: Callable not done after call");
+    } else {
+        io::println("PASS: Callable.isDone after call works");
+    }
+}
+
+public fn test_callable_call_idempotent(): void {
+    var calls: int = 0;
+    let c: Callable = new Callable(fn(): Variant { calls = calls + 1; return Variant.of(calls); });
+    c.call();
+    c.call();
+    c.call();
+    if (calls != 1) {
+        io::println("FAIL: Callable.call ran " + Integer.toString(calls) + " times");
+    } else {
+        io::println("PASS: Callable.call idempotent works");
+    }
+}
+
+public fn test_callable_get(): void {
+    let c: Callable = new Callable(fn(): Variant { return Variant.of(123); });
+    c.call();
+    let v: Variant = c.get();
+    if (v == null || v.asInt() != 123) {
+        io::println("FAIL: Callable.get");
+    } else {
+        io::println("PASS: Callable.get works");
+    }
+}
+
+public fn test_callable_get_before_call_null(): void {
+    let c: Callable = new Callable(fn(): Variant { return Variant.of(1); });
+    let v: Variant = c.get();
+    if (v != null) {
+        io::println("FAIL: Callable.get before call should be null");
+    } else {
+        io::println("PASS: Callable.get before call returns null");
+    }
+}
+
+public fn test_callable_error(): void {
+    let c: Callable = new Callable(fn(): Variant { throw "boom"; });
+    c.call();
+    let err: Variant = c.getError();
+    if (err == null) {
+        io::println("FAIL: Callable.getError should not be null");
+    } else {
+        io::println("PASS: Callable error captured works");
+    }
+}
+
+// ==================== RejectionPolicy ====================
+
+public fn test_rejection_policy_init(): void {
+    let p: RejectionPolicy = new RejectionPolicy("discard");
+    if (p == null || p.policy != "discard") {
+        io::println("FAIL: RejectionPolicy.init");
+    } else {
+        io::println("PASS: RejectionPolicy.init works");
+    }
+}
+
+public fn test_rejection_policy_discard(): void {
+    let p: RejectionPolicy = discardPolicy();
+    var ran: int = 0;
+    let v: Variant = p.reject(fn(): Variant { ran = ran + 1; return Variant.of(1); });
+    if (v != null || ran != 0) {
+        io::println("FAIL: RejectionPolicy.discard should return null and not run");
+    } else {
+        io::println("PASS: RejectionPolicy.discard works");
+    }
+}
+
+public fn test_rejection_policy_caller_runs(): void {
+    let p: RejectionPolicy = callerRunsPolicy();
+    var ran: int = 0;
+    let v: Variant = p.reject(fn(): Variant { ran = ran + 1; return Variant.of(42); });
+    if (ran != 1 || v == null) {
+        io::println("FAIL: RejectionPolicy.callerRuns");
+    } else {
+        io::println("PASS: RejectionPolicy.callerRuns works");
+    }
+}
+
+public fn test_rejection_policy_discard_oldest(): void {
+    let p: RejectionPolicy = discardOldestPolicy();
+    let v: Variant = p.reject(fn(): Variant { return Variant.of(1); });
+    if (v != null) {
+        io::println("FAIL: RejectionPolicy.discardOldest should return null");
+    } else {
+        io::println("PASS: RejectionPolicy.discardOldest works");
+    }
+}
+
+public fn test_rejection_policy_abort_throws(): void {
+    let p: RejectionPolicy = abortPolicy();
+    var threw: bool = false;
+    try {
+        p.reject(fn(): Variant { return Variant.of(1); });
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: RejectionPolicy.abort should throw");
+    } else {
+        io::println("PASS: RejectionPolicy.abort throws works");
+    }
+}
+
+public fn test_rejection_policy_factories_distinct(): void {
+    let a: RejectionPolicy = abortPolicy();
+    let b: RejectionPolicy = discardPolicy();
+    let c: RejectionPolicy = callerRunsPolicy();
+    let d: RejectionPolicy = discardOldestPolicy();
+    if (a.policy == b.policy || b.policy == c.policy || c.policy == d.policy) {
+        io::println("FAIL: RejectionPolicy factories not distinct");
+    } else {
+        io::println("PASS: RejectionPolicy factories distinct works");
+    }
+}
+
+public fn run_all_threadpoolext_tests(): void {
+    io::println("=== ThreadPoolExt.tr Tests ===");
+    test_scheduled_task_init();
+    test_scheduled_task_fields();
+    test_scheduled_executor_init();
+    test_work_stealing_pool_factory();
+    test_scheduled_executor_schedule();
+    test_scheduled_executor_schedule_at_fixed_rate();
+    test_scheduled_executor_tick_runs_due();
+    test_scheduled_executor_tick_skips_not_due();
+    test_scheduled_executor_tick_removes_one_shot();
+    test_scheduled_executor_tick_reschedules_periodic();
+    test_scheduled_executor_tick_returns_results();
+    test_future_chain_init();
+    test_future_chain_complete();
+    test_future_chain_then_apply_after_complete();
+    test_future_chain_then_apply_before_complete();
+    test_future_chain_chained_then_apply();
+    test_future_chain_then_accept();
+    test_future_chain_complete_idempotent();
+    test_callable_init();
+    test_callable_call();
+    test_callable_is_done_after_call();
+    test_callable_call_idempotent();
+    test_callable_get();
+    test_callable_get_before_call_null();
+    test_callable_error();
+    test_rejection_policy_init();
+    test_rejection_policy_discard();
+    test_rejection_policy_caller_runs();
+    test_rejection_policy_discard_oldest();
+    test_rejection_policy_abort_throws();
+    test_rejection_policy_factories_distinct();
+}

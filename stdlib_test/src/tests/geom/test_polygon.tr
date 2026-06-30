@@ -1,0 +1,219 @@
+// Test file for geom/Polygon.tr
+// Exercises the public API: Point2D, polygonArea, polygonCentroid, isConvex,
+// pointInPolygon, containsPoint, polygonPerimeter.
+import tt::geom::Polygon;
+import tt::util::ArrayList;
+import tt::lang::Double;
+
+public fn test_point2d_init(): void {
+    let p: Point2D = new Point2D(1.0, 2.0);
+    if (p == null) {
+        io::println("FAIL: Point2D.init returned null");
+    } else {
+        io::println("PASS: Point2D.init works");
+    }
+}
+
+public fn test_point2d_fields(): void {
+    let p: Point2D = new Point2D(3.0, 4.0);
+    if (p.x != 3.0 || p.y != 4.0) {
+        io::println("FAIL: Point2D fields incorrect");
+    } else {
+        io::println("PASS: Point2D fields correct");
+    }
+}
+
+public fn test_polygonArea_unit_square(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(1.0, 0.0));
+    verts.add(new Point2D(1.0, 1.0));
+    verts.add(new Point2D(0.0, 1.0));
+    let area: double = polygonArea(verts);
+    if (area < 0.999 || area > 1.001) {
+        io::println("FAIL: polygonArea unit square should be 1.0, got " + Double.toString(area));
+    } else {
+        io::println("PASS: polygonArea unit square correct");
+    }
+}
+
+public fn test_polygonArea_triangle(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(4.0, 0.0));
+    verts.add(new Point2D(0.0, 3.0));
+    let area: double = polygonArea(verts);
+    if (area < 5.99 || area > 6.01) {
+        io::println("FAIL: polygonArea triangle should be 6.0, got " + Double.toString(area));
+    } else {
+        io::println("PASS: polygonArea triangle correct");
+    }
+}
+
+public fn test_polygonArea_nonnegative(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(1.0, 1.0));
+    verts.add(new Point2D(2.0, 0.0));
+    let area: double = polygonArea(verts);
+    if (area < 0.0) {
+        io::println("FAIL: polygonArea should be non-negative");
+    } else {
+        io::println("PASS: polygonArea non-negative");
+    }
+}
+
+public fn test_polygonCentroid_square(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(2.0, 0.0));
+    verts.add(new Point2D(2.0, 2.0));
+    verts.add(new Point2D(0.0, 2.0));
+    let c: Point2D = polygonCentroid(verts);
+    if (c.x < 0.99 || c.x > 1.01 || c.y < 0.99 || c.y > 1.01) {
+        io::println("FAIL: polygonCentroid square should be (1,1)");
+    } else {
+        io::println("PASS: polygonCentroid square correct");
+    }
+}
+
+public fn test_isConvex_square(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(1.0, 0.0));
+    verts.add(new Point2D(1.0, 1.0));
+    verts.add(new Point2D(0.0, 1.0));
+    if (!isConvex(verts)) {
+        io::println("FAIL: isConvex square should be true");
+    } else {
+        io::println("PASS: isConvex square true");
+    }
+}
+
+public fn test_isConvex_concave(): void {
+    // L-shaped (concave) polygon
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(2.0, 0.0));
+    verts.add(new Point2D(2.0, 1.0));
+    verts.add(new Point2D(1.0, 1.0));
+    verts.add(new Point2D(1.0, 2.0));
+    verts.add(new Point2D(0.0, 2.0));
+    if (isConvex(verts)) {
+        io::println("FAIL: isConvex L-shape should be false");
+    } else {
+        io::println("PASS: isConvex concave false");
+    }
+}
+
+public fn test_isConvex_too_few(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(1.0, 0.0));
+    if (isConvex(verts)) {
+        io::println("FAIL: isConvex with <3 vertices should be false");
+    } else {
+        io::println("PASS: isConvex too few vertices false");
+    }
+}
+
+public fn test_pointInPolygon_inside(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(4.0, 0.0));
+    verts.add(new Point2D(4.0, 4.0));
+    verts.add(new Point2D(0.0, 4.0));
+    let p: Point2D = new Point2D(2.0, 2.0);
+    if (!pointInPolygon(p, verts)) {
+        io::println("FAIL: pointInPolygon inside should be true");
+    } else {
+        io::println("PASS: pointInPolygon inside true");
+    }
+}
+
+public fn test_pointInPolygon_outside(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(4.0, 0.0));
+    verts.add(new Point2D(4.0, 4.0));
+    verts.add(new Point2D(0.0, 4.0));
+    let p: Point2D = new Point2D(5.0, 5.0);
+    if (pointInPolygon(p, verts)) {
+        io::println("FAIL: pointInPolygon outside should be false");
+    } else {
+        io::println("PASS: pointInPolygon outside false");
+    }
+}
+
+public fn test_containsPoint_inside(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(4.0, 0.0));
+    verts.add(new Point2D(4.0, 4.0));
+    verts.add(new Point2D(0.0, 4.0));
+    if (!containsPoint(verts, 2.0, 2.0)) {
+        io::println("FAIL: containsPoint inside should be true");
+    } else {
+        io::println("PASS: containsPoint inside true");
+    }
+}
+
+public fn test_containsPoint_outside(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(4.0, 0.0));
+    verts.add(new Point2D(4.0, 4.0));
+    verts.add(new Point2D(0.0, 4.0));
+    if (containsPoint(verts, -1.0, -1.0)) {
+        io::println("FAIL: containsPoint outside should be false");
+    } else {
+        io::println("PASS: containsPoint outside false");
+    }
+}
+
+public fn test_polygonPerimeter_square(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(1.0, 0.0));
+    verts.add(new Point2D(1.0, 1.0));
+    verts.add(new Point2D(0.0, 1.0));
+    let perim: double = polygonPerimeter(verts);
+    if (perim < 3.99 || perim > 4.01) {
+        io::println("FAIL: polygonPerimeter unit square should be 4.0, got " + Double.toString(perim));
+    } else {
+        io::println("PASS: polygonPerimeter square correct");
+    }
+}
+
+public fn test_polygonPerimeter_triangle(): void {
+    let verts: ArrayList<Point2D> = new ArrayList<Point2D>();
+    verts.add(new Point2D(0.0, 0.0));
+    verts.add(new Point2D(3.0, 0.0));
+    verts.add(new Point2D(0.0, 4.0));
+    let perim: double = polygonPerimeter(verts);
+    // 3 + 4 + 5 = 12
+    if (perim < 11.99 || perim > 12.01) {
+        io::println("FAIL: polygonPerimeter 3-4-5 triangle should be 12.0, got " + Double.toString(perim));
+    } else {
+        io::println("PASS: polygonPerimeter triangle correct");
+    }
+}
+
+public fn run_all_polygon_tests(): void {
+    io::println("=== Polygon.tr Tests ===");
+    test_point2d_init();
+    test_point2d_fields();
+    test_polygonArea_unit_square();
+    test_polygonArea_triangle();
+    test_polygonArea_nonnegative();
+    test_polygonCentroid_square();
+    test_isConvex_square();
+    test_isConvex_concave();
+    test_isConvex_too_few();
+    test_pointInPolygon_inside();
+    test_pointInPolygon_outside();
+    test_containsPoint_inside();
+    test_containsPoint_outside();
+    test_polygonPerimeter_square();
+    test_polygonPerimeter_triangle();
+}

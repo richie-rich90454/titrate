@@ -1,0 +1,96 @@
+// Test file for concurrent/Async.tr
+// Exercises the public API: the async<T>() function which submits a task to the
+// global thread pool and returns a Future<T>.
+import tt::concurrent::Async;
+import tt::concurrent::Future;
+import tt::lang::Integer;
+
+public fn test_async_returns_future(): void {
+    let f: Future<int> = async<int>(fn(): int { return 42; });
+    if (f == null) {
+        io::println("FAIL: async returned null Future");
+    } else {
+        io::println("PASS: async returns Future");
+    }
+}
+
+public fn test_async_value_int(): void {
+    let f: Future<int> = async<int>(fn(): int { return 7; });
+    let v: int = f.get();
+    if (v != 7) {
+        io::println("FAIL: async int value = " + Integer.toString(v));
+    } else {
+        io::println("PASS: async int value works");
+    }
+}
+
+public fn test_async_value_string(): void {
+    let f: Future<string> = async<string>(fn(): string { return "hello"; });
+    let v: string = f.get();
+    if (v != "hello") {
+        io::println("FAIL: async string value = " + v);
+    } else {
+        io::println("PASS: async string value works");
+    }
+}
+
+public fn test_async_is_done_after_get(): void {
+    let f: Future<int> = async<int>(fn(): int { return 1; });
+    f.get();
+    if (!f.isDone()) {
+        io::println("FAIL: Future not done after get");
+    } else {
+        io::println("PASS: Future isDone after get works");
+    }
+}
+
+public fn test_async_computation(): void {
+    let f: Future<int> = async<int>(fn(): int {
+        var sum: int = 0;
+        var i: int = 1;
+        while (i <= 10) {
+            sum = sum + i;
+            i = i + 1;
+        }
+        return sum;
+    });
+    let v: int = f.get();
+    if (v != 55) {
+        io::println("FAIL: async computation = " + Integer.toString(v));
+    } else {
+        io::println("PASS: async computation works");
+    }
+}
+
+public fn test_async_multiple_tasks(): void {
+    let f1: Future<int> = async<int>(fn(): int { return 10; });
+    let f2: Future<int> = async<int>(fn(): int { return 20; });
+    let f3: Future<int> = async<int>(fn(): int { return 30; });
+    let total: int = f1.get() + f2.get() + f3.get();
+    if (total != 60) {
+        io::println("FAIL: async multiple tasks total = " + Integer.toString(total));
+    } else {
+        io::println("PASS: async multiple tasks works");
+    }
+}
+
+public fn test_async_no_error(): void {
+    let f: Future<int> = async<int>(fn(): int { return 5; });
+    f.get();
+    if (f.hasError()) {
+        io::println("FAIL: async Future should not have error");
+    } else {
+        io::println("PASS: async Future has no error");
+    }
+}
+
+public fn run_all_async_tests(): void {
+    io::println("=== Async.tr Tests ===");
+    test_async_returns_future();
+    test_async_value_int();
+    test_async_value_string();
+    test_async_is_done_after_get();
+    test_async_computation();
+    test_async_multiple_tasks();
+    test_async_no_error();
+}

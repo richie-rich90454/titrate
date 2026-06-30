@@ -1,0 +1,137 @@
+// Test file for concurrent/ThreadLocal.tr
+// Exercises the public API: ThreadLocal.init, initWithSupplier, get, set, remove.
+// NOTE: with the synchronous VM thread model, all tasks run on the main thread,
+// so thread-local slots effectively share one key (the main thread id).
+import tt::concurrent::ThreadLocal;
+import tt::lang::Integer;
+
+public fn test_thread_local_init(): void {
+    let tl: ThreadLocal<int> = new ThreadLocal<int>();
+    if (tl == null) {
+        io::println("FAIL: ThreadLocal.init returned null");
+    } else {
+        io::println("PASS: ThreadLocal.init works");
+    }
+}
+
+public fn test_thread_local_set_get(): void {
+    let tl: ThreadLocal<int> = new ThreadLocal<int>();
+    tl.set(42);
+    let v: int = tl.get();
+    if (v != 42) {
+        io::println("FAIL: ThreadLocal.set/get = " + Integer.toString(v));
+    } else {
+        io::println("PASS: ThreadLocal.set/get works");
+    }
+}
+
+public fn test_thread_local_set_overwrites(): void {
+    let tl: ThreadLocal<int> = new ThreadLocal<int>();
+    tl.set(1);
+    tl.set(2);
+    tl.set(3);
+    if (tl.get() != 3) {
+        io::println("FAIL: ThreadLocal set overwrites = " + Integer.toString(tl.get()));
+    } else {
+        io::println("PASS: ThreadLocal.set overwrites works");
+    }
+}
+
+public fn test_thread_local_remove(): void {
+    let tl: ThreadLocal<int> = new ThreadLocal<int>();
+    tl.set(99);
+    tl.remove();
+    // After remove, get() will fall back to the initial-value supplier.
+    // The default supplier returns storage.get(0), which will be null/0.
+    let v: int = tl.get();
+    if (v == 99) {
+        io::println("FAIL: ThreadLocal.remove did not clear value");
+    } else {
+        io::println("PASS: ThreadLocal.remove works");
+    }
+}
+
+public fn test_thread_local_init_with_supplier(): void {
+    let tl: ThreadLocal<int> = new ThreadLocal<int>();
+    tl.initWithSupplier(fn(): int { return 7; });
+    let v: int = tl.get();
+    if (v != 7) {
+        io::println("FAIL: ThreadLocal.initWithSupplier get = " + Integer.toString(v));
+    } else {
+        io::println("PASS: ThreadLocal.initWithSupplier works");
+    }
+}
+
+public fn test_thread_local_supplier_only_called_when_unset(): void {
+    // The supplier is invoked when get() is called and no value is set.
+    var calls: int = 0;
+    let tl: ThreadLocal<int> = new ThreadLocal<int>();
+    tl.initWithSupplier(fn(): int { calls = calls + 1; return 100; });
+    tl.get();
+    // After the first get, the value is cached, so a second get should not call.
+    tl.get();
+    if (calls != 1) {
+        io::println("FAIL: ThreadLocal supplier calls = " + Integer.toString(calls));
+    } else {
+        io::println("PASS: ThreadLocal supplier called once works");
+    }
+}
+
+public fn test_thread_local_set_after_supplier(): void {
+    let tl: ThreadLocal<int> = new ThreadLocal<int>();
+    tl.initWithSupplier(fn(): int { return 5; });
+    tl.set(50);
+    if (tl.get() != 50) {
+        io::println("FAIL: ThreadLocal set overrides supplier = " + Integer.toString(tl.get()));
+    } else {
+        io::println("PASS: ThreadLocal.set after supplier works");
+    }
+}
+
+public fn test_thread_local_string(): void {
+    let tl: ThreadLocal<string> = new ThreadLocal<string>();
+    tl.set("hello");
+    if (tl.get() != "hello") {
+        io::println("FAIL: ThreadLocal string = " + tl.get());
+    } else {
+        io::println("PASS: ThreadLocal string works");
+    }
+}
+
+public fn test_thread_local_remove_then_set(): void {
+    let tl: ThreadLocal<int> = new ThreadLocal<int>();
+    tl.set(1);
+    tl.remove();
+    tl.set(2);
+    if (tl.get() != 2) {
+        io::println("FAIL: ThreadLocal remove-then-set = " + Integer.toString(tl.get()));
+    } else {
+        io::println("PASS: ThreadLocal remove-then-set works");
+    }
+}
+
+public fn test_thread_local_multiple_instances_independent(): void {
+    let tl1: ThreadLocal<int> = new ThreadLocal<int>();
+    let tl2: ThreadLocal<int> = new ThreadLocal<int>();
+    tl1.set(10);
+    tl2.set(20);
+    if (tl1.get() != 10 || tl2.get() != 20) {
+        io::println("FAIL: ThreadLocal instances not independent");
+    } else {
+        io::println("PASS: ThreadLocal instances independent");
+    }
+}
+
+public fn run_all_threadlocal_tests(): void {
+    io::println("=== ThreadLocal.tr Tests ===");
+    test_thread_local_init();
+    test_thread_local_set_get();
+    test_thread_local_set_overwrites();
+    test_thread_local_remove();
+    test_thread_local_init_with_supplier();
+    test_thread_local_supplier_only_called_when_unset();
+    test_thread_local_set_after_supplier();
+    test_thread_local_string();
+    test_thread_local_remove_then_set();
+    test_thread_local_multiple_instances_independent();
+}

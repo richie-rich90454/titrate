@@ -1,0 +1,112 @@
+// Test file for concurrent/Latch.tr
+// Exercises the public API: Latch.init, countDown, wait, tryWait, count.
+// A latch is a one-shot countdown. wait() returns once count reaches 0.
+import tt::concurrent::Latch;
+import tt::lang::Integer;
+
+public fn test_latch_init(): void {
+    let l: Latch = new Latch(3);
+    if (l == null) {
+        io::println("FAIL: Latch.init returned null");
+    } else {
+        io::println("PASS: Latch.init works");
+    }
+}
+
+public fn test_latch_initial_count(): void {
+    let l: Latch = new Latch(5);
+    if (l.count() != 5) {
+        io::println("FAIL: Latch.count = " + Integer.toString(l.count()));
+    } else {
+        io::println("PASS: Latch initial count works");
+    }
+}
+
+public fn test_latch_try_wait_false_initially(): void {
+    let l: Latch = new Latch(2);
+    if (l.tryWait()) {
+        io::println("FAIL: Latch.tryWait should be false initially");
+    } else {
+        io::println("PASS: Latch.tryWait false initially works");
+    }
+}
+
+public fn test_latch_count_down_reduces(): void {
+    let l: Latch = new Latch(3);
+    l.countDown();
+    if (l.count() != 2) {
+        io::println("FAIL: Latch.countDown count = " + Integer.toString(l.count()));
+    } else {
+        io::println("PASS: Latch.countDown reduces count");
+    }
+}
+
+public fn test_latch_count_down_to_zero(): void {
+    let l: Latch = new Latch(2);
+    l.countDown();
+    l.countDown();
+    if (l.count() != 0) {
+        io::println("FAIL: Latch count not zero = " + Integer.toString(l.count()));
+    } else if (!l.tryWait()) {
+        io::println("FAIL: Latch.tryWait should be true at zero");
+    } else {
+        io::println("PASS: Latch count down to zero works");
+    }
+}
+
+public fn test_latch_wait_after_zero(): void {
+    // wait() should return immediately once count has reached 0.
+    let l: Latch = new Latch(1);
+    l.countDown();
+    l.wait();
+    io::println("PASS: Latch.wait after zero returns");
+}
+
+public fn test_latch_count_down_below_zero(): void {
+    // countDown past zero should be a no-op (guard in implementation).
+    let l: Latch = new Latch(1);
+    l.countDown();
+    l.countDown();
+    l.countDown();
+    if (l.count() != 0) {
+        io::println("FAIL: Latch count should stay 0 = " + Integer.toString(l.count()));
+    } else {
+        io::println("PASS: Latch countDown below zero is no-op");
+    }
+}
+
+public fn test_latch_zero_initial_count(): void {
+    // A latch created with count=0 is already tripped.
+    let l: Latch = new Latch(0);
+    if (l.count() != 0 || !l.tryWait()) {
+        io::println("FAIL: Latch zero-initial count");
+    } else {
+        io::println("PASS: Latch zero-initial count works");
+    }
+}
+
+public fn test_latch_one_shot(): void {
+    // After tripping, further countDown should not make count negative.
+    let l: Latch = new Latch(1);
+    l.countDown();
+    l.wait();
+    l.countDown();
+    if (l.count() != 0) {
+        io::println("FAIL: Latch one-shot count = " + Integer.toString(l.count()));
+    } else {
+        io::println("PASS: Latch one-shot stays tripped");
+    }
+}
+
+public fn run_all_latch_tests(): void {
+    io::println("=== Latch.tr Tests ===");
+    test_latch_init();
+    test_latch_initial_count();
+    test_latch_try_wait_false_initially();
+    test_latch_count_down_reduces();
+    test_latch_count_down_to_zero();
+    test_latch_wait_after_zero();
+    test_latch_count_down_below_zero();
+    test_latch_zero_initial_count();
+    test_latch_one_shot();
+}

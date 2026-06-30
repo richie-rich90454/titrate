@@ -1,0 +1,252 @@
+// Test file for decimal/DecimalArithmetic.tr
+// Exercises the public API: the DecimalArithmetic class (namespace) and the
+// module-level digit-string helper functions it exposes (stripLeadingZeros,
+// isZeroStr, compareDigitStrings, addDigitStrings, subDigitStrings,
+// mulDigitStrings, divDigitStringByInt, alignScales). These helpers are also
+// consumed by decimal/Decimal.tr.
+import tt::decimal::DecimalArithmetic;
+import tt::lang::Integer;
+
+public fn test_decimal_arithmetic_class_exists(): void {
+    let d: DecimalArithmetic = new DecimalArithmetic();
+    if (d == null) {
+        io::println("FAIL: DecimalArithmetic class instantiation");
+    } else {
+        io::println("PASS: DecimalArithmetic class instantiation works");
+    }
+}
+
+public fn test_strip_leading_zeros_basic(): void {
+    let s: string = DecimalArithmetic.stripLeadingZeros("00123");
+    if (s != "123") {
+        io::println("FAIL: stripLeadingZeros(00123) = " + s);
+    } else {
+        io::println("PASS: stripLeadingZeros basic works");
+    }
+}
+
+public fn test_strip_leading_zeros_all_zeros(): void {
+    // stripLeadingZeros keeps at least one digit.
+    let s: string = DecimalArithmetic.stripLeadingZeros("000");
+    if (s != "0") {
+        io::println("FAIL: stripLeadingZeros(000) = " + s);
+    } else {
+        io::println("PASS: stripLeadingZeros all zeros works");
+    }
+}
+
+public fn test_strip_leading_zeros_no_leading(): void {
+    let s: string = DecimalArithmetic.stripLeadingZeros("42");
+    if (s != "42") {
+        io::println("FAIL: stripLeadingZeros(42) = " + s);
+    } else {
+        io::println("PASS: stripLeadingZeros no leading works");
+    }
+}
+
+public fn test_is_zero_str_true(): void {
+    if (!DecimalArithmetic.isZeroStr("0") || !DecimalArithmetic.isZeroStr("000")) {
+        io::println("FAIL: isZeroStr should be true for zeros");
+    } else {
+        io::println("PASS: isZeroStr true works");
+    }
+}
+
+public fn test_is_zero_str_false(): void {
+    if (DecimalArithmetic.isZeroStr("1") || DecimalArithmetic.isZeroStr("010")) {
+        io::println("FAIL: isZeroStr should be false for non-zero");
+    } else {
+        io::println("PASS: isZeroStr false works");
+    }
+}
+
+public fn test_compare_digit_strings_equal(): void {
+    if (DecimalArithmetic.compareDigitStrings("123", "123") != 0) {
+        io::println("FAIL: compareDigitStrings equal");
+    } else {
+        io::println("PASS: compareDigitStrings equal works");
+    }
+}
+
+public fn test_compare_digit_strings_greater(): void {
+    if (DecimalArithmetic.compareDigitStrings("200", "123") != 1) {
+        io::println("FAIL: compareDigitStrings greater");
+    } else {
+        io::println("PASS: compareDigitStrings greater works");
+    }
+}
+
+public fn test_compare_digit_strings_less(): void {
+    if (DecimalArithmetic.compareDigitStrings("100", "123") != -1) {
+        io::println("FAIL: compareDigitStrings less");
+    } else {
+        io::println("PASS: compareDigitStrings less works");
+    }
+}
+
+public fn test_compare_digit_strings_length(): void {
+    // Longer digit string is greater when comparing unsigned.
+    if (DecimalArithmetic.compareDigitStrings("99", "100") != -1) {
+        io::println("FAIL: compareDigitStrings length");
+    } else {
+        io::println("PASS: compareDigitStrings length works");
+    }
+}
+
+public fn test_add_digit_strings_basic(): void {
+    let r: string = DecimalArithmetic.addDigitStrings("123", "456");
+    if (r != "579") {
+        io::println("FAIL: addDigitStrings(123,456) = " + r);
+    } else {
+        io::println("PASS: addDigitStrings basic works");
+    }
+}
+
+public fn test_add_digit_strings_carry(): void {
+    let r: string = DecimalArithmetic.addDigitStrings("999", "1");
+    if (r != "1000") {
+        io::println("FAIL: addDigitStrings(999,1) = " + r);
+    } else {
+        io::println("PASS: addDigitStrings carry works");
+    }
+}
+
+public fn test_add_digit_strings_zeros(): void {
+    let r: string = DecimalArithmetic.addDigitStrings("0", "0");
+    if (r != "0") {
+        io::println("FAIL: addDigitStrings(0,0) = " + r);
+    } else {
+        io::println("PASS: addDigitStrings zeros works");
+    }
+}
+
+public fn test_sub_digit_strings_basic(): void {
+    let r: string = DecimalArithmetic.subDigitStrings("500", "123");
+    if (r != "377") {
+        io::println("FAIL: subDigitStrings(500,123) = " + r);
+    } else {
+        io::println("PASS: subDigitStrings basic works");
+    }
+}
+
+public fn test_sub_digit_strings_equal(): void {
+    let r: string = DecimalArithmetic.subDigitStrings("123", "123");
+    if (r != "0") {
+        io::println("FAIL: subDigitStrings(123,123) = " + r);
+    } else {
+        io::println("PASS: subDigitStrings equal works");
+    }
+}
+
+public fn test_sub_digit_strings_borrow(): void {
+    let r: string = DecimalArithmetic.subDigitStrings("1000", "1");
+    if (r != "999") {
+        io::println("FAIL: subDigitStrings(1000,1) = " + r);
+    } else {
+        io::println("PASS: subDigitStrings borrow works");
+    }
+}
+
+public fn test_mul_digit_strings_basic(): void {
+    let r: string = DecimalArithmetic.mulDigitStrings("12", "34");
+    if (r != "408") {
+        io::println("FAIL: mulDigitStrings(12,34) = " + r);
+    } else {
+        io::println("PASS: mulDigitStrings basic works");
+    }
+}
+
+public fn test_mul_digit_strings_by_zero(): void {
+    let r: string = DecimalArithmetic.mulDigitStrings("123", "0");
+    if (r != "0") {
+        io::println("FAIL: mulDigitStrings(123,0) = " + r);
+    } else {
+        io::println("PASS: mulDigitStrings by zero works");
+    }
+}
+
+public fn test_mul_digit_strings_large(): void {
+    let r: string = DecimalArithmetic.mulDigitStrings("999", "999");
+    if (r != "998001") {
+        io::println("FAIL: mulDigitStrings(999,999) = " + r);
+    } else {
+        io::println("PASS: mulDigitStrings large works");
+    }
+}
+
+public fn test_div_digit_string_by_int_basic(): void {
+    let result: (string, int) = DecimalArithmetic.divDigitStringByInt("123", 3);
+    let q: string = result.0;
+    let rem: int = result.1;
+    if (q != "41" || rem != 0) {
+        io::println("FAIL: divDigitStringByInt(123,3) q=" + q + " rem=0");
+    } else {
+        io::println("PASS: divDigitStringByInt basic works");
+    }
+}
+
+public fn test_div_digit_string_by_int_remainder(): void {
+    let result: (string, int) = DecimalArithmetic.divDigitStringByInt("100", 7);
+    let q: string = result.0;
+    let rem: int = result.1;
+    if (q != "14" || rem != 2) {
+        io::println("FAIL: divDigitStringByInt(100,7) q=" + q + " rem=" + Integer.toString(rem));
+    } else {
+        io::println("PASS: divDigitStringByInt remainder works");
+    }
+}
+
+public fn test_align_scales_equal(): void {
+    let result: (string, string) = DecimalArithmetic.alignScales("123", 2, "456", 2);
+    if (result.0 != "123" || result.1 != "456") {
+        io::println("FAIL: alignScales equal");
+    } else {
+        io::println("PASS: alignScales equal works");
+    }
+}
+
+public fn test_align_scales_first_smaller(): void {
+    let result: (string, string) = DecimalArithmetic.alignScales("12", 1, "345", 3);
+    if (result.0 != "1200" || result.1 != "345") {
+        io::println("FAIL: alignScales first smaller a=" + result.0 + " b=" + result.1);
+    } else {
+        io::println("PASS: alignScales first smaller works");
+    }
+}
+
+public fn test_align_scales_second_smaller(): void {
+    let result: (string, string) = DecimalArithmetic.alignScales("345", 3, "12", 1);
+    if (result.0 != "345" || result.1 != "1200") {
+        io::println("FAIL: alignScales second smaller a=" + result.0 + " b=" + result.1);
+    } else {
+        io::println("PASS: alignScales second smaller works");
+    }
+}
+
+public fn run_all_decimal_arithmetic_tests(): void {
+    io::println("=== DecimalArithmetic.tr Tests ===");
+    test_decimal_arithmetic_class_exists();
+    test_strip_leading_zeros_basic();
+    test_strip_leading_zeros_all_zeros();
+    test_strip_leading_zeros_no_leading();
+    test_is_zero_str_true();
+    test_is_zero_str_false();
+    test_compare_digit_strings_equal();
+    test_compare_digit_strings_greater();
+    test_compare_digit_strings_less();
+    test_compare_digit_strings_length();
+    test_add_digit_strings_basic();
+    test_add_digit_strings_carry();
+    test_add_digit_strings_zeros();
+    test_sub_digit_strings_basic();
+    test_sub_digit_strings_equal();
+    test_sub_digit_strings_borrow();
+    test_mul_digit_strings_basic();
+    test_mul_digit_strings_by_zero();
+    test_mul_digit_strings_large();
+    test_div_digit_string_by_int_basic();
+    test_div_digit_string_by_int_remainder();
+    test_align_scales_equal();
+    test_align_scales_first_smaller();
+    test_align_scales_second_smaller();
+}

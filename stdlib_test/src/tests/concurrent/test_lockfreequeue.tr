@@ -1,0 +1,332 @@
+// Test file for concurrent/LockFreeQueue.tr
+// Exercises the public API: SPSCRingBuffer, MPSCRingBuffer, LockFreeStack and
+// the spscRingBuffer / mpscRingBuffer / lockFreeStack factory functions.
+// These structures hold Variant values.
+import tt::concurrent::LockFreeQueue;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+// ==================== SPSCRingBuffer ====================
+
+public fn test_spsc_init(): void {
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(8);
+    if (rb == null || rb.capacity < 8) {
+        io::println("FAIL: SPSCRingBuffer.init");
+    } else {
+        io::println("PASS: SPSCRingBuffer.init works");
+    }
+}
+
+public fn test_spsc_empty_initially(): void {
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(8);
+    if (!rb.isEmpty() || rb.size() != 0) {
+        io::println("FAIL: SPSCRingBuffer empty initially");
+    } else {
+        io::println("PASS: SPSCRingBuffer empty initially works");
+    }
+}
+
+public fn test_spsc_push_pop(): void {
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(8);
+    rb.push(Variant.of(42));
+    if (rb.size() != 1) {
+        io::println("FAIL: SPSCRingBuffer.push size = " + Integer.toString(rb.size()));
+        return;
+    }
+    let v: Variant = rb.pop();
+    if (v == null) {
+        io::println("FAIL: SPSCRingBuffer.pop returned null");
+    } else {
+        io::println("PASS: SPSCRingBuffer.push/pop works");
+    }
+}
+
+public fn test_spsc_pop_empty(): void {
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(8);
+    let v: Variant = rb.pop();
+    if (v != null) {
+        io::println("FAIL: SPSCRingBuffer.pop empty should be null");
+    } else {
+        io::println("PASS: SPSCRingBuffer.pop empty returns null");
+    }
+}
+
+public fn test_spsc_fifo_order(): void {
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(16);
+    rb.push(Variant.of(1));
+    rb.push(Variant.of(2));
+    rb.push(Variant.of(3));
+    let v1: Variant = rb.pop();
+    let v2: Variant = rb.pop();
+    let v3: Variant = rb.pop();
+    if (v1 == null || v2 == null || v3 == null) {
+        io::println("FAIL: SPSCRingBuffer FIFO null");
+        return;
+    }
+    let i1: int = v1.asInt();
+    let i2: int = v2.asInt();
+    let i3: int = v3.asInt();
+    if (i1 != 1 || i2 != 2 || i3 != 3) {
+        io::println("FAIL: SPSCRingBuffer FIFO order");
+    } else {
+        io::println("PASS: SPSCRingBuffer FIFO order works");
+    }
+}
+
+public fn test_spsc_is_full(): void {
+    // Capacity rounds up to next power of 2; usable slots = capacity - 1.
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(4);
+    // capacity becomes 4; full after 3 pushes
+    rb.push(Variant.of(1));
+    rb.push(Variant.of(2));
+    rb.push(Variant.of(3));
+    if (!rb.isFull()) {
+        io::println("FAIL: SPSCRingBuffer.isFull should be true");
+    } else {
+        io::println("PASS: SPSCRingBuffer.isFull works");
+    }
+}
+
+public fn test_spsc_push_when_full(): void {
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(4);
+    rb.push(Variant.of(1));
+    rb.push(Variant.of(2));
+    rb.push(Variant.of(3));
+    let ok: bool = rb.push(Variant.of(4));
+    if (ok) {
+        io::println("FAIL: SPSCRingBuffer.push when full should return false");
+    } else {
+        io::println("PASS: SPSCRingBuffer.push when full returns false");
+    }
+}
+
+public fn test_spsc_capacity_rounds_up(): void {
+    // Capacity rounds up to the next power of two.
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(5);
+    if (rb.capacity != 8) {
+        io::println("FAIL: SPSCRingBuffer capacity = " + Integer.toString(rb.capacity));
+    } else {
+        io::println("PASS: SPSCRingBuffer capacity rounds up");
+    }
+}
+
+public fn test_spsc_to_string(): void {
+    let rb: SPSCRingBuffer = new SPSCRingBuffer(8);
+    rb.push(Variant.of(1));
+    let s: string = rb.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: SPSCRingBuffer.toString empty");
+    } else {
+        io::println("PASS: SPSCRingBuffer.toString works");
+    }
+}
+
+public fn test_spsc_factory(): void {
+    let rb: SPSCRingBuffer = spscRingBuffer(8);
+    if (rb == null) {
+        io::println("FAIL: spscRingBuffer factory returned null");
+    } else {
+        io::println("PASS: spscRingBuffer factory works");
+    }
+}
+
+// ==================== MPSCRingBuffer ====================
+
+public fn test_mpsc_init(): void {
+    let rb: MPSCRingBuffer = new MPSCRingBuffer(8);
+    if (rb == null || rb.capacity < 8) {
+        io::println("FAIL: MPSCRingBuffer.init");
+    } else {
+        io::println("PASS: MPSCRingBuffer.init works");
+    }
+}
+
+public fn test_mpsc_push_pop(): void {
+    let rb: MPSCRingBuffer = new MPSCRingBuffer(8);
+    rb.push(Variant.of(10));
+    let v: Variant = rb.pop();
+    if (v == null) {
+        io::println("FAIL: MPSCRingBuffer.pop null");
+    } else {
+        io::println("PASS: MPSCRingBuffer.push/pop works");
+    }
+}
+
+public fn test_mpsc_fifo_order(): void {
+    let rb: MPSCRingBuffer = new MPSCRingBuffer(16);
+    rb.push(Variant.of(1));
+    rb.push(Variant.of(2));
+    rb.push(Variant.of(3));
+    let v1: Variant = rb.pop();
+    let v2: Variant = rb.pop();
+    let v3: Variant = rb.pop();
+    if (v1 == null || v2 == null || v3 == null) {
+        io::println("FAIL: MPSCRingBuffer FIFO null");
+        return;
+    }
+    if (v1.asInt() != 1 || v2.asInt() != 2 || v3.asInt() != 3) {
+        io::println("FAIL: MPSCRingBuffer FIFO order");
+    } else {
+        io::println("PASS: MPSCRingBuffer FIFO order works");
+    }
+}
+
+public fn test_mpsc_is_full_push_returns_false(): void {
+    let rb: MPSCRingBuffer = new MPSCRingBuffer(4);
+    rb.push(Variant.of(1));
+    rb.push(Variant.of(2));
+    rb.push(Variant.of(3));
+    let ok: bool = rb.push(Variant.of(4));
+    if (ok) {
+        io::println("FAIL: MPSCRingBuffer.push when full should return false");
+    } else {
+        io::println("PASS: MPSCRingBuffer.push when full returns false");
+    }
+}
+
+public fn test_mpsc_factory(): void {
+    let rb: MPSCRingBuffer = mpscRingBuffer(8);
+    if (rb == null) {
+        io::println("FAIL: mpscRingBuffer factory returned null");
+    } else {
+        io::println("PASS: mpscRingBuffer factory works");
+    }
+}
+
+// ==================== LockFreeStack ====================
+
+public fn test_stack_init(): void {
+    let s: LockFreeStack = new LockFreeStack();
+    if (s == null) {
+        io::println("FAIL: LockFreeStack.init returned null");
+    } else {
+        io::println("PASS: LockFreeStack.init works");
+    }
+}
+
+public fn test_stack_empty_initially(): void {
+    let s: LockFreeStack = new LockFreeStack();
+    if (!s.isEmpty() || s.size() != 0) {
+        io::println("FAIL: LockFreeStack empty initially");
+    } else {
+        io::println("PASS: LockFreeStack empty initially works");
+    }
+}
+
+public fn test_stack_push_pop(): void {
+    let s: LockFreeStack = new LockFreeStack();
+    s.push(Variant.of(1));
+    s.push(Variant.of(2));
+    if (s.size() != 2) {
+        io::println("FAIL: LockFreeStack.size = " + Integer.toString(s.size()));
+        return;
+    }
+    let v: Variant = s.pop();
+    if (v == null) {
+        io::println("FAIL: LockFreeStack.pop null");
+    } else {
+        io::println("PASS: LockFreeStack.push/pop works");
+    }
+}
+
+public fn test_stack_lifo_order(): void {
+    let s: LockFreeStack = new LockFreeStack();
+    s.push(Variant.of(1));
+    s.push(Variant.of(2));
+    s.push(Variant.of(3));
+    let v1: Variant = s.pop();
+    let v2: Variant = s.pop();
+    let v3: Variant = s.pop();
+    if (v1 == null || v2 == null || v3 == null) {
+        io::println("FAIL: LockFreeStack LIFO null");
+        return;
+    }
+    if (v1.asInt() != 3 || v2.asInt() != 2 || v3.asInt() != 1) {
+        io::println("FAIL: LockFreeStack LIFO order");
+    } else {
+        io::println("PASS: LockFreeStack LIFO order works");
+    }
+}
+
+public fn test_stack_peek(): void {
+    let s: LockFreeStack = new LockFreeStack();
+    s.push(Variant.of(99));
+    let v: Variant = s.peek();
+    if (v == null) {
+        io::println("FAIL: LockFreeStack.peek null");
+        return;
+    }
+    if (s.size() != 1) {
+        io::println("FAIL: LockFreeStack.peek modified size");
+    } else {
+        io::println("PASS: LockFreeStack.peek works");
+    }
+}
+
+public fn test_stack_pop_empty(): void {
+    let s: LockFreeStack = new LockFreeStack();
+    let v: Variant = s.pop();
+    if (v != null) {
+        io::println("FAIL: LockFreeStack.pop empty should be null");
+    } else {
+        io::println("PASS: LockFreeStack.pop empty returns null");
+    }
+}
+
+public fn test_stack_peek_empty(): void {
+    let s: LockFreeStack = new LockFreeStack();
+    let v: Variant = s.peek();
+    if (v != null) {
+        io::println("FAIL: LockFreeStack.peek empty should be null");
+    } else {
+        io::println("PASS: LockFreeStack.peek empty returns null");
+    }
+}
+
+public fn test_stack_factory(): void {
+    let s: LockFreeStack = lockFreeStack();
+    if (s == null) {
+        io::println("FAIL: lockFreeStack factory returned null");
+    } else {
+        io::println("PASS: lockFreeStack factory works");
+    }
+}
+
+public fn test_stack_to_string(): void {
+    let s: LockFreeStack = new LockFreeStack();
+    s.push(Variant.of(1));
+    let str: string = s.toString();
+    if (String.length(str) == 0) {
+        io::println("FAIL: LockFreeStack.toString empty");
+    } else {
+        io::println("PASS: LockFreeStack.toString works");
+    }
+}
+
+public fn run_all_lockfreequeue_tests(): void {
+    io::println("=== LockFreeQueue.tr Tests ===");
+    test_spsc_init();
+    test_spsc_empty_initially();
+    test_spsc_push_pop();
+    test_spsc_pop_empty();
+    test_spsc_fifo_order();
+    test_spsc_is_full();
+    test_spsc_push_when_full();
+    test_spsc_capacity_rounds_up();
+    test_spsc_to_string();
+    test_spsc_factory();
+    test_mpsc_init();
+    test_mpsc_push_pop();
+    test_mpsc_fifo_order();
+    test_mpsc_is_full_push_returns_false();
+    test_mpsc_factory();
+    test_stack_init();
+    test_stack_empty_initially();
+    test_stack_push_pop();
+    test_stack_lifo_order();
+    test_stack_peek();
+    test_stack_pop_empty();
+    test_stack_peek_empty();
+    test_stack_factory();
+    test_stack_to_string();
+}

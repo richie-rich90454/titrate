@@ -1,0 +1,137 @@
+// Test file for concurrent/Promise.tr
+// Exercises the public API: Promise.init, complete, completeExceptionally,
+// future, isDone.
+import tt::concurrent::Promise;
+import tt::concurrent::Future;
+import tt::lang::Integer;
+
+public fn test_promise_init(): void {
+    let p: Promise<int> = new Promise<int>();
+    if (p == null) {
+        io::println("FAIL: Promise.init returned null");
+    } else {
+        io::println("PASS: Promise.init works");
+    }
+}
+
+public fn test_promise_not_done_initially(): void {
+    let p: Promise<int> = new Promise<int>();
+    if (p.isDone()) {
+        io::println("FAIL: Promise should not be done initially");
+    } else {
+        io::println("PASS: Promise not done initially");
+    }
+}
+
+public fn test_promise_future_not_null(): void {
+    let p: Promise<int> = new Promise<int>();
+    let f: Future<int> = p.future();
+    if (f == null) {
+        io::println("FAIL: Promise.future returned null");
+    } else {
+        io::println("PASS: Promise.future works");
+    }
+}
+
+public fn test_promise_complete(): void {
+    let p: Promise<int> = new Promise<int>();
+    p.complete(42);
+    if (!p.isDone()) {
+        io::println("FAIL: Promise not done after complete");
+        return;
+    }
+    let f: Future<int> = p.future();
+    if (f.get() != 42) {
+        io::println("FAIL: Promise.future value = " + Integer.toString(f.get()));
+    } else {
+        io::println("PASS: Promise.complete works");
+    }
+}
+
+public fn test_promise_complete_string(): void {
+    let p: Promise<string> = new Promise<string>();
+    p.complete("hello");
+    let f: Future<string> = p.future();
+    if (f.get() != "hello") {
+        io::println("FAIL: Promise string value = " + f.get());
+    } else {
+        io::println("PASS: Promise.complete string works");
+    }
+}
+
+public fn test_promise_complete_exceptionally(): void {
+    let p: Promise<int> = new Promise<int>();
+    p.completeExceptionally("boom");
+    let f: Future<int> = p.future();
+    if (!p.isDone()) {
+        io::println("FAIL: Promise not done after completeExceptionally");
+    } else if (!f.hasError()) {
+        io::println("FAIL: Future should have error");
+    } else if (f.getError() != "boom") {
+        io::println("FAIL: Future error = " + f.getError());
+    } else {
+        io::println("PASS: Promise.completeExceptionally works");
+    }
+}
+
+public fn test_promise_complete_then_get(): void {
+    let p: Promise<int> = new Promise<int>();
+    let f: Future<int> = p.future();
+    p.complete(7);
+    // Future.get() should return immediately since promise is already complete.
+    if (f.get() != 7) {
+        io::println("FAIL: Promise/Future get after complete");
+    } else {
+        io::println("PASS: Promise.complete then Future.get works");
+    }
+}
+
+public fn test_promise_complete_idempotent(): void {
+    // Completing an already-completed promise should not change the value.
+    let p: Promise<int> = new Promise<int>();
+    p.complete(10);
+    p.complete(20);
+    let f: Future<int> = p.future();
+    if (f.get() != 10) {
+        io::println("FAIL: Promise double-complete overwrote value = " + Integer.toString(f.get()));
+    } else {
+        io::println("PASS: Promise.complete idempotent");
+    }
+}
+
+public fn test_promise_future_is_done_after_complete(): void {
+    let p: Promise<int> = new Promise<int>();
+    let f: Future<int> = p.future();
+    p.complete(1);
+    if (!f.isDone()) {
+        io::println("FAIL: Future not done after Promise.complete");
+    } else {
+        io::println("PASS: Future isDone after Promise.complete");
+    }
+}
+
+public fn test_promise_multiple_promises_independent(): void {
+    let p1: Promise<int> = new Promise<int>();
+    let p2: Promise<int> = new Promise<int>();
+    p1.complete(100);
+    // p2 should still be incomplete.
+    if (p2.isDone()) {
+        io::println("FAIL: Promise p2 should not be done");
+    } else {
+        io::println("PASS: Promises are independent");
+    }
+}
+
+public fn run_all_promise_tests(): void {
+    io::println("=== Promise.tr Tests ===");
+    test_promise_init();
+    test_promise_not_done_initially();
+    test_promise_future_not_null();
+    test_promise_complete();
+    test_promise_complete_string();
+    test_promise_complete_exceptionally();
+    test_promise_complete_then_get();
+    test_promise_complete_idempotent();
+    test_promise_future_is_done_after_complete();
+    test_promise_multiple_promises_independent();
+}

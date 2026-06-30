@@ -1,0 +1,145 @@
+// Test file for finance/MonteCarloPricing.tr
+// Exercises the public API: gbmPath, monteCarloCall, monteCarloPut, monteCarloAsian,
+// antitheticVariateCall, controlVariateCall.
+import tt::finance::MonteCarloPricing;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_gbmPath_length(): void {
+    let path: ArrayList<double> = gbmPath(100.0, 0.05, 0.2, 1.0, 10);
+    // Path should have steps+1 entries (including initial S0)
+    if (path.size() != 11) {
+        io::println("FAIL: gbmPath should have 11 entries, got " + Integer.toString(path.size()));
+    } else {
+        io::println("PASS: gbmPath length correct");
+    }
+}
+
+public fn test_gbmPath_initial(): void {
+    let path: ArrayList<double> = gbmPath(100.0, 0.05, 0.2, 1.0, 10);
+    if (path.get(0) != 100.0) {
+        io::println("FAIL: gbmPath first element should be S0");
+    } else {
+        io::println("PASS: gbmPath initial value correct");
+    }
+}
+
+public fn test_gbmPath_positive(): void {
+    let path: ArrayList<double> = gbmPath(100.0, 0.05, 0.2, 1.0, 10);
+    var allPositive: bool = true;
+    var i: int = 0;
+    while (i < path.size()) {
+        if (path.get(i) <= 0.0) {
+            allPositive = false;
+            break;
+        }
+        i = i + 1;
+    }
+    if (!allPositive) {
+        io::println("FAIL: gbmPath contains non-positive values");
+    } else {
+        io::println("PASS: gbmPath all values positive");
+    }
+}
+
+public fn test_monteCarloCall_nonnegative(): void {
+    let price: double = monteCarloCall(100.0, 100.0, 1.0, 0.05, 0.2, 100, 10);
+    if (price < 0.0) {
+        io::println("FAIL: monteCarloCall should be non-negative");
+    } else {
+        io::println("PASS: monteCarloCall non-negative");
+    }
+}
+
+public fn test_monteCarloCall_itm_gt_otm(): void {
+    // Deep ITM call should be more expensive than deep OTM call
+    let itm: double = monteCarloCall(150.0, 100.0, 1.0, 0.05, 0.2, 100, 10);
+    let otm: double = monteCarloCall(50.0, 100.0, 1.0, 0.05, 0.2, 100, 10);
+    if (itm <= otm) {
+        io::println("FAIL: ITM call should be > OTM call");
+    } else {
+        io::println("PASS: ITM call > OTM call");
+    }
+}
+
+public fn test_monteCarloPut_nonnegative(): void {
+    let price: double = monteCarloPut(100.0, 100.0, 1.0, 0.05, 0.2, 100, 10);
+    if (price < 0.0) {
+        io::println("FAIL: monteCarloPut should be non-negative");
+    } else {
+        io::println("PASS: monteCarloPut non-negative");
+    }
+}
+
+public fn test_monteCarloPut_itm_gt_otm(): void {
+    let itm: double = monteCarloPut(50.0, 100.0, 1.0, 0.05, 0.2, 100, 10);
+    let otm: double = monteCarloPut(150.0, 100.0, 1.0, 0.05, 0.2, 100, 10);
+    if (itm <= otm) {
+        io::println("FAIL: ITM put should be > OTM put");
+    } else {
+        io::println("PASS: ITM put > OTM put");
+    }
+}
+
+public fn test_monteCarloAsian_nonnegative(): void {
+    let price: double = monteCarloAsian(100.0, 100.0, 1.0, 0.05, 0.2, 100, 10);
+    if (price < 0.0) {
+        io::println("FAIL: monteCarloAsian should be non-negative");
+    } else {
+        io::println("PASS: monteCarloAsian non-negative");
+    }
+}
+
+public fn test_antitheticVariateCall_nonnegative(): void {
+    let price: double = antitheticVariateCall(100.0, 100.0, 1.0, 0.05, 0.2, 100);
+    if (price < 0.0) {
+        io::println("FAIL: antitheticVariateCall should be non-negative");
+    } else {
+        io::println("PASS: antitheticVariateCall non-negative");
+    }
+}
+
+public fn test_antitheticVariateCall_itm(): void {
+    let itm: double = antitheticVariateCall(150.0, 100.0, 1.0, 0.05, 0.2, 100);
+    let otm: double = antitheticVariateCall(50.0, 100.0, 1.0, 0.05, 0.2, 100);
+    if (itm <= otm) {
+        io::println("FAIL: antithetic ITM call should be > OTM");
+    } else {
+        io::println("PASS: antithetic ITM call > OTM call");
+    }
+}
+
+public fn test_controlVariateCall_nonnegative(): void {
+    let price: double = controlVariateCall(100.0, 100.0, 1.0, 0.05, 0.2, 100);
+    if (price < 0.0) {
+        io::println("FAIL: controlVariateCall should be non-negative");
+    } else {
+        io::println("PASS: controlVariateCall non-negative");
+    }
+}
+
+public fn test_controlVariateCall_itm(): void {
+    let itm: double = controlVariateCall(150.0, 100.0, 1.0, 0.05, 0.2, 100);
+    let otm: double = controlVariateCall(50.0, 100.0, 1.0, 0.05, 0.2, 100);
+    if (itm <= otm) {
+        io::println("FAIL: control variate ITM call should be > OTM");
+    } else {
+        io::println("PASS: control variate ITM call > OTM call");
+    }
+}
+
+public fn run_all_montecarlopricing_tests(): void {
+    io::println("=== MonteCarloPricing.tr Tests ===");
+    test_gbmPath_length();
+    test_gbmPath_initial();
+    test_gbmPath_positive();
+    test_monteCarloCall_nonnegative();
+    test_monteCarloCall_itm_gt_otm();
+    test_monteCarloPut_nonnegative();
+    test_monteCarloPut_itm_gt_otm();
+    test_monteCarloAsian_nonnegative();
+    test_antitheticVariateCall_nonnegative();
+    test_antitheticVariateCall_itm();
+    test_controlVariateCall_nonnegative();
+    test_controlVariateCall_itm();
+}

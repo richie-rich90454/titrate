@@ -1,0 +1,85 @@
+// Test file for concurrent/Barrier.tr
+// Exercises the public API: Barrier.init, wait, arrive, arriveAndDrop.
+// NOTE: Barrier.wait() blocks until `parties` threads arrive. Because the VM
+// runs Thread tasks synchronously (see Thread.tr), true multi-thread wait()
+// cannot be safely exercised. wait() is only tested with parties=1, which
+// returns immediately.
+import tt::concurrent::Barrier;
+
+public fn test_barrier_init(): void {
+    let b: Barrier = new Barrier(3);
+    if (b == null) {
+        io::println("FAIL: Barrier.init returned null");
+    } else {
+        io::println("PASS: Barrier.init works");
+    }
+}
+
+public fn test_barrier_init_one(): void {
+    let b: Barrier = new Barrier(1);
+    if (b == null) {
+        io::println("FAIL: Barrier.init(1) returned null");
+    } else {
+        io::println("PASS: Barrier.init(1) works");
+    }
+}
+
+public fn test_barrier_wait_single_party(): void {
+    // With parties=1, wait() should trip the barrier and return immediately.
+    let b: Barrier = new Barrier(1);
+    b.wait();
+    io::println("PASS: Barrier.wait parties=1 returns");
+}
+
+public fn test_barrier_arrive_does_not_block(): void {
+    // arrive() never blocks; it just increments the waiting count.
+    let b: Barrier = new Barrier(5);
+    b.arrive();
+    b.arrive();
+    io::println("PASS: Barrier.arrive does not block");
+}
+
+public fn test_barrier_arrive_then_wait_single(): void {
+    // Pre-arrive on a parties=1 barrier, then wait() should still return
+    // (waiting count is reset to 0 by arrive when it hits parties).
+    let b: Barrier = new Barrier(1);
+    b.arrive();
+    b.wait();
+    io::println("PASS: Barrier arrive+wait parties=1 works");
+}
+
+public fn test_barrier_arrive_and_drop(): void {
+    // arriveAndDrop() decrements parties; should not block.
+    let b: Barrier = new Barrier(3);
+    b.arriveAndDrop();
+    io::println("PASS: Barrier.arriveAndDrop works");
+}
+
+public fn test_barrier_arrive_and_drop_to_one_then_wait(): void {
+    // Drop parties from 3 down to 1, then wait() should trip immediately.
+    let b: Barrier = new Barrier(3);
+    b.arriveAndDrop();
+    b.arriveAndDrop();
+    b.wait();
+    io::println("PASS: Barrier arriveAndDrop+wait works");
+}
+
+public fn test_barrier_multiple_single_party_rounds(): void {
+    // Barrier is reusable (cyclic). Two consecutive parties=1 rounds.
+    let b: Barrier = new Barrier(1);
+    b.wait();
+    b.wait();
+    io::println("PASS: Barrier reusable rounds works");
+}
+
+public fn run_all_barrier_tests(): void {
+    io::println("=== Barrier.tr Tests ===");
+    test_barrier_init();
+    test_barrier_init_one();
+    test_barrier_wait_single_party();
+    test_barrier_arrive_does_not_block();
+    test_barrier_arrive_then_wait_single();
+    test_barrier_arrive_and_drop();
+    test_barrier_arrive_and_drop_to_one_then_wait();
+    test_barrier_multiple_single_party_rounds();
+}

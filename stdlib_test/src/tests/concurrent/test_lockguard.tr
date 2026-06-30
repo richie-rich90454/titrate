@@ -1,0 +1,102 @@
+// Test file for concurrent/LockGuard.tr
+// Exercises the public API: LockGuard.init, unlock, isLocked.
+// LockGuard is an RAII wrapper that locks a Mutex on construction.
+import tt::concurrent::LockGuard;
+import tt::concurrent::Mutex;
+
+public fn test_lockguard_init_locks(): void {
+    let m: Mutex = new Mutex();
+    let g: LockGuard = new LockGuard(m);
+    if (!g.isLocked()) {
+        io::println("FAIL: LockGuard should be locked after init");
+    } else {
+        io::println("PASS: LockGuard.init locks mutex");
+    }
+    g.unlock();
+}
+
+public fn test_lockguard_unlock(): void {
+    let m: Mutex = new Mutex();
+    let g: LockGuard = new LockGuard(m);
+    g.unlock();
+    if (g.isLocked()) {
+        io::println("FAIL: LockGuard should be unlocked after unlock");
+    } else {
+        io::println("PASS: LockGuard.unlock works");
+    }
+}
+
+public fn test_lockguard_unlock_idempotent(): void {
+    // Calling unlock() twice should be safe (second call is a no-op).
+    let m: Mutex = new Mutex();
+    let g: LockGuard = new LockGuard(m);
+    g.unlock();
+    g.unlock();
+    if (g.isLocked()) {
+        io::println("FAIL: LockGuard unlock idempotent failed");
+    } else {
+        io::println("PASS: LockGuard.unlock is idempotent");
+    }
+}
+
+public fn test_lockguard_relock_after_unlock(): void {
+    // After the guard unlocks, the underlying mutex should be lockable again.
+    let m: Mutex = new Mutex();
+    let g: LockGuard = new LockGuard(m);
+    g.unlock();
+    let ok: bool = m.tryLock();
+    if (!ok) {
+        io::println("FAIL: Mutex not lockable after LockGuard.unlock");
+    } else {
+        m.unlock();
+        io::println("PASS: LockGuard relock after unlock works");
+    }
+}
+
+public fn test_lockguard_multiple_guards_same_mutex(): void {
+    // Sequential guards on the same mutex (one unlocked before the next).
+    let m: Mutex = new Mutex();
+    let g1: LockGuard = new LockGuard(m);
+    g1.unlock();
+    let g2: LockGuard = new LockGuard(m);
+    if (!g2.isLocked()) {
+        io::println("FAIL: second LockGuard not locked");
+    } else {
+        io::println("PASS: multiple LockGuards on same mutex works");
+    }
+    g2.unlock();
+}
+
+public fn test_lockguard_multiple_guards_different_mutexes(): void {
+    let m1: Mutex = new Mutex();
+    let m2: Mutex = new Mutex();
+    let g1: LockGuard = new LockGuard(m1);
+    let g2: LockGuard = new LockGuard(m2);
+    if (!g1.isLocked() || !g2.isLocked()) {
+        io::println("FAIL: LockGuard multiple mutexes");
+    } else {
+        io::println("PASS: LockGuard multiple mutexes works");
+    }
+    g1.unlock();
+    g2.unlock();
+}
+
+public fn test_lockguard_not_locked_after_construct_then_unlock(): void {
+    let m: Mutex = new Mutex();
+    let g: LockGuard = new LockGuard(m);
+    if (!g.isLocked()) { io::println("FAIL: LockGuard not locked at start"); return; }
+    g.unlock();
+    if (g.isLocked()) { io::println("FAIL: LockGuard still locked after unlock"); return; }
+    io::println("PASS: LockGuard state transition works");
+}
+
+public fn run_all_lockguard_tests(): void {
+    io::println("=== LockGuard.tr Tests ===");
+    test_lockguard_init_locks();
+    test_lockguard_unlock();
+    test_lockguard_unlock_idempotent();
+    test_lockguard_relock_after_unlock();
+    test_lockguard_multiple_guards_same_mutex();
+    test_lockguard_multiple_guards_different_mutexes();
+    test_lockguard_not_locked_after_construct_then_unlock();
+}

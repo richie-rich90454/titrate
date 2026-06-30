@@ -1,0 +1,152 @@
+// Test file for geom/Delaunay.tr
+// Exercises the public API: Point2D, Triangle, Edge, delaunay, voronoi.
+import tt::geom::Delaunay;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_point2d_init(): void {
+    let p: Point2D = new Point2D(1.0, 2.0);
+    if (p == null) {
+        io::println("FAIL: Point2D.init returned null");
+    } else {
+        io::println("PASS: Point2D.init works");
+    }
+}
+
+public fn test_point2d_fields(): void {
+    let p: Point2D = new Point2D(1.5, 2.5);
+    if (p.x != 1.5 || p.y != 2.5) {
+        io::println("FAIL: Point2D fields incorrect");
+    } else {
+        io::println("PASS: Point2D fields correct");
+    }
+}
+
+public fn test_triangle_init(): void {
+    let tri: Triangle = new Triangle(0, 1, 2);
+    if (tri == null) {
+        io::println("FAIL: Triangle.init returned null");
+    } else {
+        io::println("PASS: Triangle.init works");
+    }
+}
+
+public fn test_triangle_fields(): void {
+    let tri: Triangle = new Triangle(0, 1, 2);
+    if (tri.a != 0 || tri.b != 1 || tri.c != 2) {
+        io::println("FAIL: Triangle fields incorrect");
+    } else {
+        io::println("PASS: Triangle fields correct");
+    }
+}
+
+public fn test_edge_init(): void {
+    let e: Edge = new Edge(0, 1);
+    if (e == null) {
+        io::println("FAIL: Edge.init returned null");
+    } else {
+        io::println("PASS: Edge.init works");
+    }
+}
+
+public fn test_edge_fields(): void {
+    let e: Edge = new Edge(0, 1);
+    if (e.a != 0 || e.b != 1) {
+        io::println("FAIL: Edge fields incorrect");
+    } else {
+        io::println("PASS: Edge fields correct");
+    }
+}
+
+public fn test_delaunay_too_few_points(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(1.0, 0.0));
+    let tris: ArrayList<Triangle> = delaunay(points);
+    if (tris.size() != 0) {
+        io::println("FAIL: delaunay with <3 points should return empty");
+    } else {
+        io::println("PASS: delaunay too few points handled");
+    }
+}
+
+public fn test_delaunay_three_points(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(1.0, 0.0));
+    points.add(new Point2D(0.5, 1.0));
+    let tris: ArrayList<Triangle> = delaunay(points);
+    if (tris.size() != 1) {
+        io::println("FAIL: delaunay 3 points should return 1 triangle, got " + Integer.toString(tris.size()));
+    } else {
+        io::println("PASS: delaunay three points returns 1 triangle");
+    }
+}
+
+public fn test_delaunay_four_points(): void {
+    // Four points in a square: should produce 2 triangles
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(1.0, 0.0));
+    points.add(new Point2D(1.0, 1.0));
+    points.add(new Point2D(0.0, 1.0));
+    let tris: ArrayList<Triangle> = delaunay(points);
+    if (tris.size() != 2) {
+        io::println("FAIL: delaunay 4 square points should return 2 triangles, got " + Integer.toString(tris.size()));
+    } else {
+        io::println("PASS: delaunay four points returns 2 triangles");
+    }
+}
+
+public fn test_delaunay_indices_in_range(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(2.0, 0.0));
+    points.add(new Point2D(1.0, 2.0));
+    points.add(new Point2D(3.0, 2.0));
+    let tris: ArrayList<Triangle> = delaunay(points);
+    var allInRange: bool = true;
+    var i: int = 0;
+    while (i < tris.size()) {
+        let tri: Triangle = tris.get(i);
+        if (tri.a < 0 || tri.a >= 4 || tri.b < 0 || tri.b >= 4 || tri.c < 0 || tri.c >= 4) {
+            allInRange = false;
+            break;
+        }
+        i = i + 1;
+    }
+    if (!allInRange) {
+        io::println("FAIL: delaunay triangle indices out of range");
+    } else {
+        io::println("PASS: delaunay indices in range");
+    }
+}
+
+public fn test_voronoi_returns_cells(): void {
+    let points: ArrayList<Point2D> = new ArrayList<Point2D>();
+    points.add(new Point2D(0.0, 0.0));
+    points.add(new Point2D(1.0, 0.0));
+    points.add(new Point2D(0.5, 1.0));
+    let tris: ArrayList<Triangle> = delaunay(points);
+    let cells: ArrayList<ArrayList<double>> = voronoi(points, tris);
+    if (cells.size() != 3) {
+        io::println("FAIL: voronoi should return 3 cells for 3 points");
+    } else {
+        io::println("PASS: voronoi returns cells for each point");
+    }
+}
+
+public fn run_all_delaunay_tests(): void {
+    io::println("=== Delaunay.tr Tests ===");
+    test_point2d_init();
+    test_point2d_fields();
+    test_triangle_init();
+    test_triangle_fields();
+    test_edge_init();
+    test_edge_fields();
+    test_delaunay_too_few_points();
+    test_delaunay_three_points();
+    test_delaunay_four_points();
+    test_delaunay_indices_in_range();
+    test_voronoi_returns_cells();
+}

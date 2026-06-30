@@ -1,0 +1,244 @@
+// Test file for decimal/DecimalContext.tr
+// Exercises the public API: DecimalContext, DecimalContextManager, and the
+// rounding mode constants (string and integer forms).
+import tt::decimal::DecimalContext;
+import tt::lang::Integer;
+
+// ==================== Constants ====================
+
+public fn test_string_rounding_constants(): void {
+    if (CEILING != "ceiling" || FLOOR != "floor" || UP != "up" || DOWN != "down") {
+        io::println("FAIL: string rounding constants (basic)");
+        return;
+    }
+    if (HALF_UP != "half_up" || HALF_DOWN != "half_down" || HALF_EVEN != "half_even") {
+        io::println("FAIL: string rounding constants (half)");
+        return;
+    }
+    io::println("PASS: string rounding constants work");
+}
+
+public fn test_integer_rounding_constants(): void {
+    if (ROUND_CEILING != 0 || ROUND_FLOOR != 1 || ROUND_UP != 2 || ROUND_DOWN != 3) {
+        io::println("FAIL: integer rounding constants (basic)");
+        return;
+    }
+    if (ROUND_HALF_UP != 4 || ROUND_HALF_DOWN != 5 || ROUND_HALF_EVEN != 6) {
+        io::println("FAIL: integer rounding constants (half)");
+        return;
+    }
+    io::println("PASS: integer rounding constants work");
+}
+
+public fn test_rounding_constants_distinct(): void {
+    // All integer constants should be distinct.
+    if (ROUND_CEILING == ROUND_FLOOR || ROUND_FLOOR == ROUND_UP || ROUND_UP == ROUND_DOWN) {
+        io::println("FAIL: integer rounding constants not distinct");
+        return;
+    }
+    if (ROUND_DOWN == ROUND_HALF_UP || ROUND_HALF_UP == ROUND_HALF_DOWN || ROUND_HALF_DOWN == ROUND_HALF_EVEN) {
+        io::println("FAIL: integer rounding constants not distinct (half)");
+        return;
+    }
+    io::println("PASS: rounding constants distinct works");
+}
+
+// ==================== DecimalContext ====================
+
+public fn test_context_init(): void {
+    let ctx: DecimalContext = new DecimalContext(28, HALF_EVEN);
+    if (ctx == null) {
+        io::println("FAIL: DecimalContext.init returned null");
+    } else {
+        io::println("PASS: DecimalContext.init works");
+    }
+}
+
+public fn test_context_precision(): void {
+    let ctx: DecimalContext = new DecimalContext(15, HALF_UP);
+    if (ctx.getPrecision() != 15) {
+        io::println("FAIL: DecimalContext.getPrecision = " + Integer.toString(ctx.getPrecision()));
+    } else {
+        io::println("PASS: DecimalContext.getPrecision works");
+    }
+}
+
+public fn test_context_rounding_mode(): void {
+    let ctx: DecimalContext = new DecimalContext(10, DOWN);
+    if (ctx.getRoundingMode() != "down") {
+        io::println("FAIL: DecimalContext.getRoundingMode = " + ctx.getRoundingMode());
+    } else {
+        io::println("PASS: DecimalContext.getRoundingMode works");
+    }
+}
+
+public fn test_context_enabled_default(): void {
+    let ctx: DecimalContext = new DecimalContext(10, HALF_UP);
+    if (!ctx.enabled) {
+        io::println("FAIL: DecimalContext.enabled should be true by default");
+    } else {
+        io::println("PASS: DecimalContext.enabled default works");
+    }
+}
+
+public fn test_context_with_precision(): void {
+    let ctx: DecimalContext = new DecimalContext(10, HALF_UP);
+    let ctx2: DecimalContext = ctx.withPrecision(20);
+    if (ctx2.getPrecision() != 20 || ctx2.getRoundingMode() != HALF_UP) {
+        io::println("FAIL: DecimalContext.withPrecision");
+    } else {
+        io::println("PASS: DecimalContext.withPrecision works");
+    }
+}
+
+public fn test_context_with_rounding_mode(): void {
+    let ctx: DecimalContext = new DecimalContext(10, HALF_UP);
+    let ctx2: DecimalContext = ctx.withRoundingMode(DOWN);
+    if (ctx2.getRoundingMode() != DOWN || ctx2.getPrecision() != 10) {
+        io::println("FAIL: DecimalContext.withRoundingMode");
+    } else {
+        io::println("PASS: DecimalContext.withRoundingMode works");
+    }
+}
+
+public fn test_context_with_precision_preserves_original(): void {
+    // withPrecision returns a new context; the original should be unchanged.
+    let ctx: DecimalContext = new DecimalContext(10, HALF_UP);
+    let ctx2: DecimalContext = ctx.withPrecision(20);
+    if (ctx.getPrecision() != 10 || ctx2.getPrecision() != 20) {
+        io::println("FAIL: DecimalContext.withPrecision did not preserve original");
+    } else {
+        io::println("PASS: DecimalContext.withPrecision preserves original");
+    }
+}
+
+public fn test_context_with_rounding_mode_preserves_original(): void {
+    let ctx: DecimalContext = new DecimalContext(10, HALF_UP);
+    let ctx2: DecimalContext = ctx.withRoundingMode(DOWN);
+    if (ctx.getRoundingMode() != HALF_UP || ctx2.getRoundingMode() != DOWN) {
+        io::println("FAIL: DecimalContext.withRoundingMode did not preserve original");
+    } else {
+        io::println("PASS: DecimalContext.withRoundingMode preserves original");
+    }
+}
+
+// ==================== DecimalContextManager ====================
+
+public fn test_context_manager_init(): void {
+    let mgr: DecimalContextManager = new DecimalContextManager();
+    if (mgr == null) {
+        io::println("FAIL: DecimalContextManager.init returned null");
+    } else {
+        io::println("PASS: DecimalContextManager.init works");
+    }
+}
+
+public fn test_context_manager_default_context(): void {
+    let mgr: DecimalContextManager = new DecimalContextManager();
+    let cur: DecimalContext = mgr.current();
+    if (cur == null || cur.getPrecision() != 28 || cur.getRoundingMode() != HALF_EVEN) {
+        io::println("FAIL: DecimalContextManager default context");
+    } else {
+        io::println("PASS: DecimalContextManager default context works");
+    }
+}
+
+public fn test_context_manager_push_pop(): void {
+    let mgr: DecimalContextManager = new DecimalContextManager();
+    mgr.push(new DecimalContext(10, DOWN));
+    if (mgr.current().getPrecision() != 10) {
+        io::println("FAIL: DecimalContextManager.push did not update current");
+        return;
+    }
+    let popped: DecimalContext = mgr.pop();
+    if (popped.getPrecision() != 10) {
+        io::println("FAIL: DecimalContextManager.pop returned wrong context");
+        return;
+    }
+    if (mgr.current().getPrecision() != 28) {
+        io::println("FAIL: DecimalContextManager current after pop wrong");
+        return;
+    }
+    io::println("PASS: DecimalContextManager push/pop works");
+}
+
+public fn test_context_manager_current_after_push(): void {
+    let mgr: DecimalContextManager = new DecimalContextManager();
+    mgr.push(new DecimalContext(5, UP));
+    mgr.push(new DecimalContext(8, FLOOR));
+    if (mgr.current().getPrecision() != 8 || mgr.current().getRoundingMode() != FLOOR) {
+        io::println("FAIL: DecimalContextManager current after multiple pushes");
+    } else {
+        io::println("PASS: DecimalContextManager current after push works");
+    }
+}
+
+public fn test_context_manager_pop_when_one_left(): void {
+    // Popping when only the default remains returns the default (no-op).
+    let mgr: DecimalContextManager = new DecimalContextManager();
+    let popped: DecimalContext = mgr.pop();
+    if (popped == null || mgr.current().getPrecision() != 28) {
+        io::println("FAIL: DecimalContextManager pop when one left");
+    } else {
+        io::println("PASS: DecimalContextManager pop when one left works");
+    }
+}
+
+public fn test_context_manager_nested_scopes(): void {
+    let mgr: DecimalContextManager = new DecimalContextManager();
+    let outer: DecimalContext = mgr.current();
+    mgr.push(new DecimalContext(4, DOWN));
+    let inner: DecimalContext = mgr.current();
+    if (outer.getPrecision() == inner.getPrecision()) {
+        io::println("FAIL: DecimalContextManager nested scopes not distinct");
+        return;
+    }
+    mgr.pop();
+    if (mgr.current().getPrecision() != outer.getPrecision()) {
+        io::println("FAIL: DecimalContextManager nested scope restore");
+        return;
+    }
+    io::println("PASS: DecimalContextManager nested scopes works");
+}
+
+public fn test_context_manager_stack_size(): void {
+    let mgr: DecimalContextManager = new DecimalContextManager();
+    if (mgr.stack.size() != 1) {
+        io::println("FAIL: DecimalContextManager stack size initial = " + Integer.toString(mgr.stack.size()));
+        return;
+    }
+    mgr.push(new DecimalContext(10, HALF_UP));
+    mgr.push(new DecimalContext(20, DOWN));
+    if (mgr.stack.size() != 3) {
+        io::println("FAIL: DecimalContextManager stack size after pushes = " + Integer.toString(mgr.stack.size()));
+        return;
+    }
+    mgr.pop();
+    if (mgr.stack.size() != 2) {
+        io::println("FAIL: DecimalContextManager stack size after pop = " + Integer.toString(mgr.stack.size()));
+        return;
+    }
+    io::println("PASS: DecimalContextManager stack size works");
+}
+
+public fn run_all_decimal_context_tests(): void {
+    io::println("=== DecimalContext.tr Tests ===");
+    test_string_rounding_constants();
+    test_integer_rounding_constants();
+    test_rounding_constants_distinct();
+    test_context_init();
+    test_context_precision();
+    test_context_rounding_mode();
+    test_context_enabled_default();
+    test_context_with_precision();
+    test_context_with_rounding_mode();
+    test_context_with_precision_preserves_original();
+    test_context_with_rounding_mode_preserves_original();
+    test_context_manager_init();
+    test_context_manager_default_context();
+    test_context_manager_push_pop();
+    test_context_manager_current_after_push();
+    test_context_manager_pop_when_one_left();
+    test_context_manager_nested_scopes();
+    test_context_manager_stack_size();
+}

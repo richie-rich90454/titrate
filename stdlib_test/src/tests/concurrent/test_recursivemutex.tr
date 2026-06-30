@@ -1,0 +1,94 @@
+// Test file for concurrent/RecursiveMutex.tr
+// Exercises the public API: RecursiveMutex.init, lock, unlock, tryLock.
+// A recursive (reentrant) mutex can be locked multiple times by the same thread.
+import tt::concurrent::RecursiveMutex;
+
+public fn test_recursive_mutex_init(): void {
+    let m: RecursiveMutex = new RecursiveMutex();
+    if (m == null) {
+        io::println("FAIL: RecursiveMutex.init returned null");
+    } else {
+        io::println("PASS: RecursiveMutex.init works");
+    }
+}
+
+public fn test_recursive_mutex_lock_unlock(): void {
+    let m: RecursiveMutex = new RecursiveMutex();
+    m.lock();
+    m.unlock();
+    io::println("PASS: RecursiveMutex.lock/unlock works");
+}
+
+public fn test_recursive_mutex_try_lock(): void {
+    let m: RecursiveMutex = new RecursiveMutex();
+    let ok: bool = m.tryLock();
+    if (!ok) {
+        io::println("FAIL: RecursiveMutex.tryLock should succeed on unlocked mutex");
+    } else {
+        m.unlock();
+        io::println("PASS: RecursiveMutex.tryLock works");
+    }
+}
+
+public fn test_recursive_mutex_reentrant_lock(): void {
+    // The same thread should be able to lock the mutex multiple times.
+    let m: RecursiveMutex = new RecursiveMutex();
+    m.lock();
+    m.lock();
+    m.lock();
+    m.unlock();
+    m.unlock();
+    m.unlock();
+    io::println("PASS: RecursiveMutex reentrant lock works");
+}
+
+public fn test_recursive_mutex_try_lock_after_lock(): void {
+    // Reentrant: tryLock should succeed when the same thread already holds the lock.
+    let m: RecursiveMutex = new RecursiveMutex();
+    m.lock();
+    let ok: bool = m.tryLock();
+    if (!ok) {
+        io::println("FAIL: RecursiveMutex.tryLock should succeed reentrantly");
+    } else {
+        m.unlock();
+        m.unlock();
+        io::println("PASS: RecursiveMutex.tryLock reentrant works");
+    }
+}
+
+public fn test_recursive_mutex_multiple_instances(): void {
+    let m1: RecursiveMutex = new RecursiveMutex();
+    let m2: RecursiveMutex = new RecursiveMutex();
+    m1.lock();
+    m2.lock();
+    m1.unlock();
+    m2.unlock();
+    io::println("PASS: RecursiveMutex multiple instances works");
+}
+
+public fn test_recursive_mutex_lockable_after_full_unlock(): void {
+    // After fully unlocking, the mutex should be lockable again.
+    let m: RecursiveMutex = new RecursiveMutex();
+    m.lock();
+    m.lock();
+    m.unlock();
+    m.unlock();
+    let ok: bool = m.tryLock();
+    if (!ok) {
+        io::println("FAIL: RecursiveMutex not lockable after full unlock");
+    } else {
+        m.unlock();
+        io::println("PASS: RecursiveMutex lockable after full unlock");
+    }
+}
+
+public fn run_all_recursivemutex_tests(): void {
+    io::println("=== RecursiveMutex.tr Tests ===");
+    test_recursive_mutex_init();
+    test_recursive_mutex_lock_unlock();
+    test_recursive_mutex_try_lock();
+    test_recursive_mutex_reentrant_lock();
+    test_recursive_mutex_try_lock_after_lock();
+    test_recursive_mutex_multiple_instances();
+    test_recursive_mutex_lockable_after_full_unlock();
+}

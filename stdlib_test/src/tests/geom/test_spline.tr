@@ -1,0 +1,295 @@
+// Test file for geom/Spline.tr
+// Exercises the public API: Point2D, quadraticBezier, cubicBezier, bezierCurve,
+// sampleBezier, cubicBezierDerivative, derivative, cubicBezierLength, BSpline, NURBS.
+import tt::geom::Spline;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_point2d_init(): void {
+    let p: Point2D = new Point2D(1.0, 2.0);
+    if (p == null) {
+        io::println("FAIL: Point2D.init returned null");
+    } else {
+        io::println("PASS: Point2D.init works");
+    }
+}
+
+public fn test_point2d_fields(): void {
+    let p: Point2D = new Point2D(1.5, 2.5);
+    if (p.x != 1.5 || p.y != 2.5) {
+        io::println("FAIL: Point2D fields incorrect");
+    } else {
+        io::println("PASS: Point2D fields correct");
+    }
+}
+
+public fn test_quadraticBezier_t0(): void {
+    let p0: Point2D = new Point2D(0.0, 0.0);
+    let p1: Point2D = new Point2D(1.0, 1.0);
+    let p2: Point2D = new Point2D(2.0, 0.0);
+    let r: Point2D = quadraticBezier(p0, p1, p2, 0.0);
+    if (r.x != 0.0 || r.y != 0.0) {
+        io::println("FAIL: quadraticBezier at t=0 should be p0");
+    } else {
+        io::println("PASS: quadraticBezier t=0 returns p0");
+    }
+}
+
+public fn test_quadraticBezier_t1(): void {
+    let p0: Point2D = new Point2D(0.0, 0.0);
+    let p1: Point2D = new Point2D(1.0, 1.0);
+    let p2: Point2D = new Point2D(2.0, 0.0);
+    let r: Point2D = quadraticBezier(p0, p1, p2, 1.0);
+    if (r.x != 2.0 || r.y != 0.0) {
+        io::println("FAIL: quadraticBezier at t=1 should be p2");
+    } else {
+        io::println("PASS: quadraticBezier t=1 returns p2");
+    }
+}
+
+public fn test_quadraticBezier_midpoint(): void {
+    let p0: Point2D = new Point2D(0.0, 0.0);
+    let p1: Point2D = new Point2D(1.0, 2.0);
+    let p2: Point2D = new Point2D(2.0, 0.0);
+    let r: Point2D = quadraticBezier(p0, p1, p2, 0.5);
+    // At t=0.5: x = 0.25*0 + 0.5*1 + 0.25*2 = 1.0, y = 0.25*0 + 0.5*2 + 0.25*0 = 1.0
+    if (r.x < 0.99 || r.x > 1.01 || r.y < 0.99 || r.y > 1.01) {
+        io::println("FAIL: quadraticBezier at t=0.5 incorrect");
+    } else {
+        io::println("PASS: quadraticBezier midpoint correct");
+    }
+}
+
+public fn test_cubicBezier_t0(): void {
+    let p0: Point2D = new Point2D(0.0, 0.0);
+    let p1: Point2D = new Point2D(1.0, 2.0);
+    let p2: Point2D = new Point2D(3.0, 2.0);
+    let p3: Point2D = new Point2D(4.0, 0.0);
+    let r: Point2D = cubicBezier(p0, p1, p2, p3, 0.0);
+    if (r.x != 0.0 || r.y != 0.0) {
+        io::println("FAIL: cubicBezier at t=0 should be p0");
+    } else {
+        io::println("PASS: cubicBezier t=0 returns p0");
+    }
+}
+
+public fn test_cubicBezier_t1(): void {
+    let p0: Point2D = new Point2D(0.0, 0.0);
+    let p1: Point2D = new Point2D(1.0, 2.0);
+    let p2: Point2D = new Point2D(3.0, 2.0);
+    let p3: Point2D = new Point2D(4.0, 0.0);
+    let r: Point2D = cubicBezier(p0, p1, p2, p3, 1.0);
+    if (r.x != 4.0 || r.y != 0.0) {
+        io::println("FAIL: cubicBezier at t=1 should be p3");
+    } else {
+        io::println("PASS: cubicBezier t=1 returns p3");
+    }
+}
+
+public fn test_bezierCurve_empty(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    let r: Point2D = bezierCurve(cps, 0.5);
+    if (r.x != 0.0 || r.y != 0.0) {
+        io::println("FAIL: bezierCurve empty should return (0,0)");
+    } else {
+        io::println("PASS: bezierCurve empty handled");
+    }
+}
+
+public fn test_bezierCurve_single(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(5.0, 6.0));
+    let r: Point2D = bezierCurve(cps, 0.5);
+    if (r.x != 5.0 || r.y != 6.0) {
+        io::println("FAIL: bezierCurve single point should return that point");
+    } else {
+        io::println("PASS: bezierCurve single point handled");
+    }
+}
+
+public fn test_bezierCurve_endpoints(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(0.0, 0.0));
+    cps.add(new Point2D(1.0, 1.0));
+    cps.add(new Point2D(2.0, 0.0));
+    let r0: Point2D = bezierCurve(cps, 0.0);
+    let r1: Point2D = bezierCurve(cps, 1.0);
+    if (r0.x != 0.0 || r1.x != 2.0) {
+        io::println("FAIL: bezierCurve endpoints incorrect");
+    } else {
+        io::println("PASS: bezierCurve endpoints correct");
+    }
+}
+
+public fn test_sampleBezier_length(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(0.0, 0.0));
+    cps.add(new Point2D(1.0, 1.0));
+    cps.add(new Point2D(2.0, 0.0));
+    let samples: ArrayList<Point2D> = sampleBezier(cps, 10);
+    // Should have numSamples+1 points
+    if (samples.size() != 11) {
+        io::println("FAIL: sampleBezier should return 11 points, got " + Integer.toString(samples.size()));
+    } else {
+        io::println("PASS: sampleBezier length correct");
+    }
+}
+
+public fn test_cubicBezierDerivative_endpoints(): void {
+    let p0: Point2D = new Point2D(0.0, 0.0);
+    let p1: Point2D = new Point2D(1.0, 1.0);
+    let p2: Point2D = new Point2D(3.0, 1.0);
+    let p3: Point2D = new Point2D(4.0, 0.0);
+    // At t=0, derivative = 3*(p1-p0) = (3,3)
+    let d: Point2D = cubicBezierDerivative(p0, p1, p2, p3, 0.0);
+    if (d.x < 2.99 || d.x > 3.01 || d.y < 2.99 || d.y > 3.01) {
+        io::println("FAIL: cubicBezierDerivative at t=0 should be (3,3)");
+    } else {
+        io::println("PASS: cubicBezierDerivative at t=0 correct");
+    }
+}
+
+public fn test_derivative_too_few(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(1.0, 1.0));
+    let d: ArrayList<double> = derivative(cps, 0.5);
+    if (d.size() != 2 || d.get(0) != 0.0 || d.get(1) != 0.0) {
+        io::println("FAIL: derivative with <2 points should return [0,0]");
+    } else {
+        io::println("PASS: derivative too few points handled");
+    }
+}
+
+public fn test_derivative_two_points(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(0.0, 0.0));
+    cps.add(new Point2D(2.0, 4.0));
+    let d: ArrayList<double> = derivative(cps, 0.5);
+    // Derivative of linear Bezier = (n-1)*(p1-p0) = 1*(2,4) = (2,4), constant
+    if (d.get(0) < 1.99 || d.get(0) > 2.01 || d.get(1) < 3.99 || d.get(1) > 4.01) {
+        io::println("FAIL: derivative of linear bezier incorrect");
+    } else {
+        io::println("PASS: derivative linear bezier correct");
+    }
+}
+
+public fn test_cubicBezierLength_positive(): void {
+    let p0: Point2D = new Point2D(0.0, 0.0);
+    let p1: Point2D = new Point2D(1.0, 1.0);
+    let p2: Point2D = new Point2D(3.0, 1.0);
+    let p3: Point2D = new Point2D(4.0, 0.0);
+    let len: double = cubicBezierLength(p0, p1, p2, p3, 100);
+    if (len <= 0.0) {
+        io::println("FAIL: cubicBezierLength should be positive");
+    } else {
+        io::println("PASS: cubicBezierLength positive");
+    }
+}
+
+public fn test_bspline_init(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(0.0, 0.0));
+    cps.add(new Point2D(1.0, 1.0));
+    cps.add(new Point2D(2.0, 0.0));
+    let knots: ArrayList<double> = new ArrayList<double>();
+    knots.add(0.0); knots.add(0.0); knots.add(0.0); knots.add(1.0); knots.add(1.0); knots.add(1.0);
+    let spline: BSpline = new BSpline(cps, knots, 2);
+    if (spline == null) {
+        io::println("FAIL: BSpline.init returned null");
+    } else {
+        io::println("PASS: BSpline.init works");
+    }
+}
+
+public fn test_bspline_evaluate(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(0.0, 0.0));
+    cps.add(new Point2D(1.0, 1.0));
+    cps.add(new Point2D(2.0, 0.0));
+    let knots: ArrayList<double> = new ArrayList<double>();
+    knots.add(0.0); knots.add(0.0); knots.add(0.0); knots.add(1.0); knots.add(1.0); knots.add(1.0);
+    let spline: BSpline = new BSpline(cps, knots, 2);
+    let p: Point2D = spline.evaluate(0.5);
+    if (p.x != p.x || p.y != p.y) {
+        io::println("FAIL: BSpline.evaluate returned NaN");
+    } else {
+        io::println("PASS: BSpline.evaluate returns finite value");
+    }
+}
+
+public fn test_nurbs_init(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(0.0, 0.0));
+    cps.add(new Point2D(1.0, 1.0));
+    cps.add(new Point2D(2.0, 0.0));
+    let weights: ArrayList<double> = new ArrayList<double>();
+    weights.add(1.0); weights.add(1.0); weights.add(1.0);
+    let knots: ArrayList<double> = new ArrayList<double>();
+    knots.add(0.0); knots.add(0.0); knots.add(0.0); knots.add(1.0); knots.add(1.0); knots.add(1.0);
+    let nurbs: NURBS = new NURBS(cps, weights, knots, 2);
+    if (nurbs == null) {
+        io::println("FAIL: NURBS.init returned null");
+    } else {
+        io::println("PASS: NURBS.init works");
+    }
+}
+
+public fn test_nurbs_evaluatePoint(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(0.0, 0.0));
+    cps.add(new Point2D(1.0, 1.0));
+    cps.add(new Point2D(2.0, 0.0));
+    let weights: ArrayList<double> = new ArrayList<double>();
+    weights.add(1.0); weights.add(1.0); weights.add(1.0);
+    let knots: ArrayList<double> = new ArrayList<double>();
+    knots.add(0.0); knots.add(0.0); knots.add(0.0); knots.add(1.0); knots.add(1.0); knots.add(1.0);
+    let nurbs: NURBS = new NURBS(cps, weights, knots, 2);
+    let p: Point2D = nurbs.evaluatePoint(0.5);
+    if (p.x != p.x || p.y != p.y) {
+        io::println("FAIL: NURBS.evaluatePoint returned NaN");
+    } else {
+        io::println("PASS: NURBS.evaluatePoint returns finite value");
+    }
+}
+
+public fn test_nurbs_evaluate_alias(): void {
+    let cps: ArrayList<Point2D> = new ArrayList<Point2D>();
+    cps.add(new Point2D(0.0, 0.0));
+    cps.add(new Point2D(1.0, 1.0));
+    cps.add(new Point2D(2.0, 0.0));
+    let weights: ArrayList<double> = new ArrayList<double>();
+    weights.add(1.0); weights.add(1.0); weights.add(1.0);
+    let knots: ArrayList<double> = new ArrayList<double>();
+    knots.add(0.0); knots.add(0.0); knots.add(0.0); knots.add(1.0); knots.add(1.0); knots.add(1.0);
+    let nurbs: NURBS = new NURBS(cps, weights, knots, 2);
+    let p: Point2D = nurbs.evaluate(0.5);
+    if (p.x != p.x || p.y != p.y) {
+        io::println("FAIL: NURBS.evaluate returned NaN");
+    } else {
+        io::println("PASS: NURBS.evaluate alias works");
+    }
+}
+
+public fn run_all_spline_tests(): void {
+    io::println("=== Spline.tr Tests ===");
+    test_point2d_init();
+    test_point2d_fields();
+    test_quadraticBezier_t0();
+    test_quadraticBezier_t1();
+    test_quadraticBezier_midpoint();
+    test_cubicBezier_t0();
+    test_cubicBezier_t1();
+    test_bezierCurve_empty();
+    test_bezierCurve_single();
+    test_bezierCurve_endpoints();
+    test_sampleBezier_length();
+    test_cubicBezierDerivative_endpoints();
+    test_derivative_too_few();
+    test_derivative_two_points();
+    test_cubicBezierLength_positive();
+    test_bspline_init();
+    test_bspline_evaluate();
+    test_nurbs_init();
+    test_nurbs_evaluatePoint();
+    test_nurbs_evaluate_alias();
+}
