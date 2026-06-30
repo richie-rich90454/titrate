@@ -1,0 +1,50 @@
+// Memory-mapped file I/O.
+public class Mmap {
+    private int handle;
+    private int mappedSize;
+    private bool closed;
+
+    public fn init(path: string) {
+        this.handle = Mmap_open(path);
+        this.mappedSize = Mmap_size(this.handle);
+        this.closed = false;
+    }
+
+    public fn get(offset: int): int {
+        return Mmap_get(this.handle, offset);
+    }
+
+    public fn set(offset: int, value: int): void {
+        Mmap_set(this.handle, offset, value);
+    }
+
+    public fn size(): int {
+        return this.mappedSize;
+    }
+
+    public fn flush(): void {
+        Mmap_flush(this.handle);
+    }
+
+    public fn close(): void {
+        if (!this.closed) {
+            Mmap_close(this.handle);
+            this.closed = true;
+        }
+    }
+
+    public fn isClosed(): bool {
+        return this.closed;
+    }
+
+    // Read a range of bytes as a string.
+    public fn asString(): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < this.mappedSize) {
+            result = result + String.fromCharCode(this.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+}
