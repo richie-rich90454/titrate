@@ -1,0 +1,151 @@
+// Test file for io/FileWatcher.tr
+// Exercises WatchEvent and FileWatcher classes.
+// Limitation: poll() requires VM native functions; only construction,
+// getters, start/stop, event management, and WatchEvent behavior are
+// tested here.
+import tt::io::FileWatcher;
+import tt::io::File;
+import tt::lang::Long;
+import tt::util::ArrayList;
+
+public fn test_watch_event_init(): void {
+    let evt: WatchEvent = new WatchEvent("create", "/path/file.txt", 12345L);
+    if (evt.kind != "create") {
+        io::println("FAIL: WatchEvent kind");
+    } else if (evt.path != "/path/file.txt") {
+        io::println("FAIL: WatchEvent path");
+    } else if (evt.timestamp != 12345L) {
+        io::println("FAIL: WatchEvent timestamp");
+    } else {
+        io::println("PASS: WatchEvent init works");
+    }
+}
+
+public fn test_watch_event_toString(): void {
+    let evt: WatchEvent = new WatchEvent("modify", "/x/y.txt", 99L);
+    let s: string = evt.toString();
+    if (String.length(s) <= 0) {
+        io::println("FAIL: WatchEvent toString empty");
+    } else if (String.indexOf(s, "modify") < 0) {
+        io::println("FAIL: WatchEvent toString missing kind");
+    } else if (String.indexOf(s, "/x/y.txt") < 0) {
+        io::println("FAIL: WatchEvent toString missing path");
+    } else {
+        io::println("PASS: WatchEvent toString works");
+    }
+}
+
+public fn test_file_watcher_init(): void {
+    let w: FileWatcher = new FileWatcher("some_watch_dir", false);
+    if (w.getPath() != "some_watch_dir") {
+        io::println("FAIL: FileWatcher getPath");
+    } else if (w.isRecursive()) {
+        io::println("FAIL: FileWatcher isRecursive should be false");
+    } else if (w.isRunning()) {
+        io::println("FAIL: FileWatcher isRunning should be false at init");
+    } else {
+        io::println("PASS: FileWatcher init works");
+    }
+}
+
+public fn test_file_watcher_init_recursive(): void {
+    let w: FileWatcher = new FileWatcher("some_watch_dir", true);
+    if (!w.isRecursive()) {
+        io::println("FAIL: FileWatcher isRecursive should be true");
+    } else {
+        io::println("PASS: FileWatcher recursive init works");
+    }
+}
+
+public fn test_watch_recursive_helper(): void {
+    let w: FileWatcher = watchRecursive("some_recursive_dir");
+    if (!w.isRecursive()) {
+        io::println("FAIL: watchRecursive not recursive");
+    } else if (w.getPath() != "some_recursive_dir") {
+        io::println("FAIL: watchRecursive path");
+    } else {
+        io::println("PASS: watchRecursive helper works");
+    }
+}
+
+public fn test_file_watcher_start_stop(): void {
+    let w: FileWatcher = new FileWatcher("some_watch_dir", false);
+    w.start();
+    if (!w.isRunning()) {
+        io::println("FAIL: FileWatcher not running after start");
+    } else {
+        io::println("PASS: FileWatcher start works");
+    }
+    w.stop();
+    if (w.isRunning()) {
+        io::println("FAIL: FileWatcher still running after stop");
+    } else {
+        io::println("PASS: FileWatcher stop works");
+    }
+}
+
+public fn test_file_watcher_events_initial_empty(): void {
+    let w: FileWatcher = new FileWatcher("some_watch_dir", false);
+    let events: ArrayList<WatchEvent> = w.getEvents();
+    if (events.size() != 0) {
+        io::println("FAIL: FileWatcher events not empty at init");
+    } else {
+        io::println("PASS: FileWatcher events empty at init");
+    }
+}
+
+public fn test_file_watcher_clear_events(): void {
+    let w: FileWatcher = new FileWatcher("some_watch_dir", false);
+    w.clearEvents();
+    if (w.getEvents().size() != 0) {
+        io::println("FAIL: FileWatcher clearEvents");
+    } else {
+        io::println("PASS: FileWatcher clearEvents works");
+    }
+}
+
+public fn test_file_watcher_close(): void {
+    let w: FileWatcher = new FileWatcher("some_watch_dir", false);
+    w.start();
+    w.close();
+    if (w.isRunning()) {
+        io::println("FAIL: FileWatcher still running after close");
+    } else {
+        io::println("PASS: FileWatcher close stops watcher");
+    }
+}
+
+public fn test_file_watcher_poll_when_stopped(): void {
+    // When not running, poll should return an empty list
+    let w: FileWatcher = new FileWatcher("some_watch_dir", false);
+    let events: ArrayList<WatchEvent> = w.poll(0);
+    if (events.size() != 0) {
+        io::println("FAIL: FileWatcher poll when stopped returned events");
+    } else {
+        io::println("PASS: FileWatcher poll when stopped returns empty");
+    }
+}
+
+public fn test_file_watcher_on_event_register(): void {
+    // Registering a callback should not throw
+    let w: FileWatcher = new FileWatcher("some_watch_dir", false);
+    let cb: fn(WatchEvent): void = fn(evt: WatchEvent): void { };
+    w.onEvent("create", cb);
+    w.onEvent("modify", cb);
+    io::println("PASS: FileWatcher onEvent registration works");
+}
+
+public fn run_all_filewatcher_tests(): void {
+    io::println("=== io/FileWatcher.tr Tests ===");
+    test_watch_event_init();
+    test_watch_event_toString();
+    test_file_watcher_init();
+    test_file_watcher_init_recursive();
+    test_watch_recursive_helper();
+    test_file_watcher_start_stop();
+    test_file_watcher_events_initial_empty();
+    test_file_watcher_clear_events();
+    test_file_watcher_close();
+    test_file_watcher_poll_when_stopped();
+    test_file_watcher_on_event_register();
+}

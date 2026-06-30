@@ -1,0 +1,113 @@
+// Test file for io/Writer.tr
+// Exercises the Writer interface through its concrete StringWriter
+// implementation. The Writer interface defines write, writeLine, flush,
+// and close.
+import tt::io::Writer;
+import tt::io::StringWriter;
+
+public fn test_writer_string_write(): void {
+    let w: Writer = new StringWriter();
+    w.write("hello");
+    let s: string = w.toString();
+    if (s != "hello") {
+        io::println("FAIL: Writer.write via StringWriter = '" + s + "'");
+    } else {
+        io::println("PASS: Writer.write via StringWriter works");
+    }
+    w.close();
+}
+
+public fn test_writer_string_writeLine(): void {
+    let w: Writer = new StringWriter();
+    w.writeLine("alpha");
+    w.writeLine("beta");
+    let s: string = w.toString();
+    if (s != "alpha\nbeta\n") {
+        io::println("FAIL: Writer.writeLine via StringWriter = '" + s + "'");
+    } else {
+        io::println("PASS: Writer.writeLine via StringWriter works");
+    }
+    w.close();
+}
+
+public fn test_writer_string_flush_no_throw(): void {
+    let w: Writer = new StringWriter();
+    w.write("data");
+    w.flush();
+    io::println("PASS: Writer.flush via StringWriter no throw");
+    w.close();
+}
+
+public fn test_writer_close_no_throw(): void {
+    let w: Writer = new StringWriter();
+    w.write("x");
+    w.close();
+    // Closing twice should not throw
+    w.close();
+    io::println("PASS: Writer.close does not throw");
+}
+
+public fn test_writer_polymorphism(): void {
+    let w: Writer = new StringWriter();
+    w.write("poly");
+    w.writeLine("morph");
+    let s: string = w.toString();
+    if (s != "polymorph\n") {
+        io::println("FAIL: Writer polymorphism = '" + s + "'");
+    } else {
+        io::println("PASS: Writer polymorphism works");
+    }
+    w.close();
+}
+
+public fn test_writer_multiple_writes(): void {
+    let w: Writer = new StringWriter();
+    w.write("a");
+    w.write("b");
+    w.write("c");
+    let s: string = w.toString();
+    if (s != "abc") {
+        io::println("FAIL: Writer multiple writes = '" + s + "'");
+    } else {
+        io::println("PASS: Writer multiple writes concatenate");
+    }
+    w.close();
+}
+
+public fn test_writer_write_empty(): void {
+    let w: Writer = new StringWriter();
+    w.write("");
+    let s: string = w.toString();
+    if (s != "") {
+        io::println("FAIL: Writer write empty");
+    } else {
+        io::println("PASS: Writer write empty works");
+    }
+    w.close();
+}
+
+public fn test_writer_mixed_write_writeline(): void {
+    let w: Writer = new StringWriter();
+    w.write("hello");
+    w.writeLine(" world");
+    w.write("end");
+    let s: string = w.toString();
+    if (s != "hello world\nend") {
+        io::println("FAIL: Writer mixed = '" + s + "'");
+    } else {
+        io::println("PASS: Writer mixed write/writeLine works");
+    }
+    w.close();
+}
+
+public fn run_all_writer_tests(): void {
+    io::println("=== io/Writer.tr Tests ===");
+    test_writer_string_write();
+    test_writer_string_writeLine();
+    test_writer_string_flush_no_throw();
+    test_writer_close_no_throw();
+    test_writer_polymorphism();
+    test_writer_multiple_writes();
+    test_writer_write_empty();
+    test_writer_mixed_write_writeline();
+}

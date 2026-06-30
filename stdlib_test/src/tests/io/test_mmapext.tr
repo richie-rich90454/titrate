@@ -1,0 +1,321 @@
+// Test file for io/MmapExt.tr
+// Exercises the MmapExt class and mmapReadOnly helper: read, write, flush,
+// find, resize, close, and getSize.
+import tt::io::MmapExt;
+import tt::io::File;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_mmap_init_write_mode(): void {
+    let path: string = "test_mmap_init.txt";
+    let f: File = new File(path);
+    f.write("hello");
+    let m: MmapExt = new MmapExt(path, "write");
+    if (m.path != path) {
+        io::println("FAIL: MmapExt path");
+    } else if (m.mode != "write") {
+        io::println("FAIL: MmapExt mode");
+    } else if (m.getSize() != 5) {
+        io::println("FAIL: MmapExt size = " + Integer.toString(m.getSize() as int));
+    } else {
+        io::println("PASS: MmapExt init write mode works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_init_read_mode(): void {
+    let path: string = "test_mmap_read.txt";
+    let f: File = new File(path);
+    f.write("abcdef");
+    let m: MmapExt = new MmapExt(path, "read");
+    if (m.mode != "read") {
+        io::println("FAIL: MmapExt read mode");
+    } else if (m.getSize() != 6) {
+        io::println("FAIL: MmapExt read size");
+    } else {
+        io::println("PASS: MmapExt init read mode works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_read_only_helper(): void {
+    let path: string = "test_mmap_readonly.txt";
+    let f: File = new File(path);
+    f.write("data!");
+    let m: MmapExt = mmapReadOnly(path);
+    if (m.mode != "read") {
+        io::println("FAIL: mmapReadOnly mode not read");
+    } else {
+        io::println("PASS: mmapReadOnly helper works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_read_slice(): void {
+    let path: string = "test_mmap_slice.txt";
+    let f: File = new File(path);
+    f.write("hello world");
+    let m: MmapExt = new MmapExt(path, "read");
+    let slice: string = m.read(0, 5);
+    if (slice != "hello") {
+        io::println("FAIL: MmapExt read slice = '" + slice + "'");
+    } else {
+        io::println("PASS: MmapExt read slice works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_read_offset(): void {
+    let path: string = "test_mmap_offset.txt";
+    let f: File = new File(path);
+    f.write("hello world");
+    let m: MmapExt = new MmapExt(path, "read");
+    let slice: string = m.read(6, 5);
+    if (slice != "world") {
+        io::println("FAIL: MmapExt read offset = '" + slice + "'");
+    } else {
+        io::println("PASS: MmapExt read offset works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_read_beyond_end(): void {
+    let path: string = "test_mmap_beyond.txt";
+    let f: File = new File(path);
+    f.write("hi");
+    let m: MmapExt = new MmapExt(path, "read");
+    let slice: string = m.read(0, 100);
+    if (slice != "hi") {
+        io::println("FAIL: MmapExt read beyond end = '" + slice + "'");
+    } else {
+        io::println("PASS: MmapExt read beyond end clamps to data");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_read_negative_offset(): void {
+    let path: string = "test_mmap_neg.txt";
+    let f: File = new File(path);
+    f.write("hi");
+    let m: MmapExt = new MmapExt(path, "read");
+    let slice: string = m.read(-1, 5);
+    if (slice != "") {
+        io::println("FAIL: MmapExt read negative offset = '" + slice + "'");
+    } else {
+        io::println("PASS: MmapExt read negative offset returns empty");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_write(): void {
+    let path: string = "test_mmap_write.txt";
+    let f: File = new File(path);
+    f.write("hello world");
+    let m: MmapExt = new MmapExt(path, "write");
+    m.write(0, "HELLO");
+    let slice: string = m.read(0, 5);
+    if (slice != "HELLO") {
+        io::println("FAIL: MmapExt write result = '" + slice + "'");
+    } else {
+        io::println("PASS: MmapExt write works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_write_extends(): void {
+    let path: string = "test_mmap_extend.txt";
+    let f: File = new File(path);
+    f.write("abc");
+    let m: MmapExt = new MmapExt(path, "write");
+    m.write(5, "XYZ");
+    if (m.getSize() < 8) {
+        io::println("FAIL: MmapExt write did not extend");
+    } else {
+        let tail: string = m.read(5, 3);
+        if (tail != "XYZ") {
+            io::println("FAIL: MmapExt write extend content = '" + tail + "'");
+        } else {
+            io::println("PASS: MmapExt write extends data");
+        }
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_write_read_only_throws(): void {
+    let path: string = "test_mmap_ro_throw.txt";
+    let f: File = new File(path);
+    f.write("data");
+    let m: MmapExt = new MmapExt(path, "read");
+    var threw: bool = false;
+    try {
+        m.write(0, "X");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: MmapExt write to read-only did not throw");
+    } else {
+        io::println("PASS: MmapExt write to read-only throws");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_find(): void {
+    let path: string = "test_mmap_find.txt";
+    let f: File = new File(path);
+    f.write("hello world hello");
+    let m: MmapExt = new MmapExt(path, "read");
+    let idx: long = m.find("world", 0);
+    if (idx != 6) {
+        io::println("FAIL: MmapExt find idx = " + Integer.toString(idx as int));
+    } else {
+        io::println("PASS: MmapExt find works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_find_not_found(): void {
+    let path: string = "test_mmap_find_notfound.txt";
+    let f: File = new File(path);
+    f.write("hello world");
+    let m: MmapExt = new MmapExt(path, "read");
+    let idx: long = m.find("xyz", 0);
+    if (idx != -1) {
+        io::println("FAIL: MmapExt find not found = " + Integer.toString(idx as int));
+    } else {
+        io::println("PASS: MmapExt find not found returns -1");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_find_from_offset(): void {
+    let path: string = "test_mmap_find_offset.txt";
+    let f: File = new File(path);
+    f.write("abc abc abc");
+    let m: MmapExt = new MmapExt(path, "read");
+    let idx1: long = m.find("abc", 0);
+    let idx2: long = m.find("abc", idx1 + 1);
+    if (idx1 != 0 || idx2 != 4) {
+        io::println("FAIL: MmapExt find from offset idx1=" + Integer.toString(idx1 as int) + " idx2=" + Integer.toString(idx2 as int));
+    } else {
+        io::println("PASS: MmapExt find from offset works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_find_empty_pattern(): void {
+    let path: string = "test_mmap_find_empty.txt";
+    let f: File = new File(path);
+    f.write("hello");
+    let m: MmapExt = new MmapExt(path, "read");
+    let idx: long = m.find("", 0);
+    if (idx != 0) {
+        io::println("FAIL: MmapExt find empty pattern = " + Integer.toString(idx as int));
+    } else {
+        io::println("PASS: MmapExt find empty pattern returns start");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_resize_grow(): void {
+    let path: string = "test_mmap_resize_grow.txt";
+    let f: File = new File(path);
+    f.write("abc");
+    let m: MmapExt = new MmapExt(path, "write");
+    m.resize(10);
+    if (m.getSize() != 10) {
+        io::println("FAIL: MmapExt resize grow size = " + Integer.toString(m.getSize() as int));
+    } else {
+        io::println("PASS: MmapExt resize grow works");
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_resize_shrink(): void {
+    let path: string = "test_mmap_resize_shrink.txt";
+    let f: File = new File(path);
+    f.write("abcdefghij");
+    let m: MmapExt = new MmapExt(path, "write");
+    m.resize(4);
+    if (m.getSize() != 4) {
+        io::println("FAIL: MmapExt resize shrink size = " + Integer.toString(m.getSize() as int));
+    } else {
+        let s: string = m.read(0, 4);
+        if (s != "abcd") {
+            io::println("FAIL: MmapExt resize shrink content");
+        } else {
+            io::println("PASS: MmapExt resize shrink works");
+        }
+    }
+    m.close();
+    f.delete();
+}
+
+public fn test_mmap_flush_persists(): void {
+    let path: string = "test_mmap_flush.txt";
+    let f: File = new File(path);
+    f.write("hello");
+    let m: MmapExt = new MmapExt(path, "write");
+    m.write(0, "HELLO");
+    m.flush();
+    let f2: File = new File(path);
+    let content: string = f2.readAll();
+    if (content != "HELLO") {
+        io::println("FAIL: MmapExt flush content = '" + content + "'");
+    } else {
+        io::println("PASS: MmapExt flush persists changes");
+    }
+    m.close();
+    f2.delete();
+}
+
+public fn test_mmap_close_clears(): void {
+    let path: string = "test_mmap_close.txt";
+    let f: File = new File(path);
+    f.write("data");
+    let m: MmapExt = new MmapExt(path, "write");
+    m.close();
+    if (m.getSize() != 0) {
+        io::println("FAIL: MmapExt close size not 0");
+    } else {
+        io::println("PASS: MmapExt close clears state");
+    }
+    f.delete();
+}
+
+public fn run_all_mmapext_tests(): void {
+    io::println("=== io/MmapExt.tr Tests ===");
+    test_mmap_init_write_mode();
+    test_mmap_init_read_mode();
+    test_mmap_read_only_helper();
+    test_mmap_read_slice();
+    test_mmap_read_offset();
+    test_mmap_read_beyond_end();
+    test_mmap_read_negative_offset();
+    test_mmap_write();
+    test_mmap_write_extends();
+    test_mmap_write_read_only_throws();
+    test_mmap_find();
+    test_mmap_find_not_found();
+    test_mmap_find_from_offset();
+    test_mmap_find_empty_pattern();
+    test_mmap_resize_grow();
+    test_mmap_resize_shrink();
+    test_mmap_flush_persists();
+    test_mmap_close_clears();
+}

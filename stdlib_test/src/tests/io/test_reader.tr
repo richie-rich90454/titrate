@@ -1,0 +1,108 @@
+// Test file for io/Reader.tr
+// Exercises the Reader interface through its concrete implementations
+// (StringReader, FileReader). The Reader interface defines read, readLine,
+// readAll, and close.
+import tt::io::Reader;
+import tt::io::StringReader;
+
+public fn test_reader_string_read(): void {
+    let r: Reader = new StringReader("abc");
+    let c1: string = r.read();
+    let c2: string = r.read();
+    if (c1 != "a" || c2 != "b") {
+        io::println("FAIL: Reader.read via StringReader");
+    } else {
+        io::println("PASS: Reader.read via StringReader works");
+    }
+    r.close();
+}
+
+public fn test_reader_string_readLine(): void {
+    let r: Reader = new StringReader("line1\nline2");
+    let l1: string = r.readLine();
+    let l2: string = r.readLine();
+    if (l1 != "line1" || l2 != "line2") {
+        io::println("FAIL: Reader.readLine via StringReader");
+    } else {
+        io::println("PASS: Reader.readLine via StringReader works");
+    }
+    r.close();
+}
+
+public fn test_reader_string_readAll(): void {
+    let r: Reader = new StringReader("hello world");
+    let all: string = r.readAll();
+    if (all != "hello world") {
+        io::println("FAIL: Reader.readAll via StringReader");
+    } else {
+        io::println("PASS: Reader.readAll via StringReader works");
+    }
+    r.close();
+}
+
+public fn test_reader_close_no_throw(): void {
+    let r: Reader = new StringReader("data");
+    r.close();
+    // Closing twice should not throw
+    r.close();
+    io::println("PASS: Reader.close does not throw");
+}
+
+public fn test_reader_polymorphism(): void {
+    // Reader reference holding StringReader instance
+    let r: Reader = new StringReader("xyz");
+    let s: string = r.readAll();
+    if (s != "xyz") {
+        io::println("FAIL: Reader polymorphism readAll");
+    } else {
+        io::println("PASS: Reader polymorphism works");
+    }
+    r.close();
+}
+
+public fn test_reader_empty_input(): void {
+    let r: Reader = new StringReader("");
+    let all: string = r.readAll();
+    if (all != "") {
+        io::println("FAIL: Reader empty input readAll");
+    } else {
+        io::println("PASS: Reader empty input returns empty");
+    }
+    r.close();
+}
+
+public fn test_reader_read_after_close(): void {
+    // After close, read may return null or empty; the test verifies no throw
+    let r: Reader = new StringReader("a");
+    r.close();
+    let s: string = r.read();
+    io::println("PASS: Reader.read after close no throw");
+}
+
+public fn test_reader_multiple_lines(): void {
+    let r: Reader = new StringReader("a\nb\nc\nd");
+    var count: int = 0;
+    var line: string = r.readLine();
+    while (line != null && String.length(line) > 0) {
+        count = count + 1;
+        line = r.readLine();
+    }
+    if (count != 4) {
+        io::println("FAIL: Reader multiple lines count = " + Integer.toString(count));
+    } else {
+        io::println("PASS: Reader multiple lines works");
+    }
+    r.close();
+}
+
+public fn run_all_reader_tests(): void {
+    io::println("=== io/Reader.tr Tests ===");
+    test_reader_string_read();
+    test_reader_string_readLine();
+    test_reader_string_readAll();
+    test_reader_close_no_throw();
+    test_reader_polymorphism();
+    test_reader_empty_input();
+    test_reader_read_after_close();
+    test_reader_multiple_lines();
+}

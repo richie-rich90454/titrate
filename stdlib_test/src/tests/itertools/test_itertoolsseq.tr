@@ -1,0 +1,360 @@
+// Test file for itertools/ItertoolsSeq.tr
+// Exercises chain, accumulate, cycle, islice, zipLongest, count, repeat,
+// starmap, compress, filterFalse, dropWhile, takeWhile, groupby, pairwise,
+// batched, and tee.
+import tt::itertools::ItertoolsSeq;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_chain(): void {
+    let iterables: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1); a.add(2);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(3); b.add(4); b.add(5);
+    iterables.add(a); iterables.add(b);
+    let out: ArrayList<int> = chain<int>(iterables);
+    if (out.size() != 5) {
+        io::println("FAIL: chain size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 1 || out.get(4) != 5) {
+        io::println("FAIL: chain content");
+    } else {
+        io::println("PASS: chain works");
+    }
+}
+
+public fn test_chain_empty(): void {
+    let iterables: ArrayList<ArrayList<int>> = new ArrayList<ArrayList<int>>();
+    let out: ArrayList<int> = chain<int>(iterables);
+    if (out.size() != 0) {
+        io::println("FAIL: chain empty size");
+    } else {
+        io::println("PASS: chain empty returns empty");
+    }
+}
+
+public fn test_accumulate(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2); arr.add(3); arr.add(4);
+    let addFn: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let out: ArrayList<int> = accumulate<int>(arr, addFn);
+    if (out.size() != 4) {
+        io::println("FAIL: accumulate size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 1 || out.get(1) != 3 || out.get(2) != 6 || out.get(3) != 10) {
+        io::println("FAIL: accumulate content");
+    } else {
+        io::println("PASS: accumulate works");
+    }
+}
+
+public fn test_accumulate_empty(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    let addFn: fn(int, int): int = fn(a: int, b: int): int { return a + b; };
+    let out: ArrayList<int> = accumulate<int>(arr, addFn);
+    if (out.size() != 0) {
+        io::println("FAIL: accumulate empty size");
+    } else {
+        io::println("PASS: accumulate empty returns empty");
+    }
+}
+
+public fn test_cycle(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2);
+    let out: ArrayList<int> = cycle<int>(arr, 3);
+    if (out.size() != 6) {
+        io::println("FAIL: cycle size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 1 || out.get(1) != 2 || out.get(2) != 1) {
+        io::println("FAIL: cycle content");
+    } else {
+        io::println("PASS: cycle works");
+    }
+}
+
+public fn test_cycle_zero(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2);
+    let out: ArrayList<int> = cycle<int>(arr, 0);
+    if (out.size() != 0) {
+        io::println("FAIL: cycle zero size");
+    } else {
+        io::println("PASS: cycle zero returns empty");
+    }
+}
+
+public fn test_islice(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(0); arr.add(1); arr.add(2); arr.add(3); arr.add(4); arr.add(5);
+    let out: ArrayList<int> = islice<int>(arr, 1, 6, 2);
+    if (out.size() != 3) {
+        io::println("FAIL: islice size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 1 || out.get(1) != 3 || out.get(2) != 5) {
+        io::println("FAIL: islice content");
+    } else {
+        io::println("PASS: islice works");
+    }
+}
+
+public fn test_islice_step_zero(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2); arr.add(3);
+    let out: ArrayList<int> = islice<int>(arr, 0, 3, 0);
+    if (out.size() != 0) {
+        io::println("FAIL: islice step zero size");
+    } else {
+        io::println("PASS: islice step zero returns empty");
+    }
+}
+
+public fn test_zip_longest(): void {
+    let a: ArrayList<int> = new ArrayList<int>();
+    a.add(1); a.add(2); a.add(3);
+    let b: ArrayList<int> = new ArrayList<int>();
+    b.add(10); b.add(20);
+    let out: ArrayList<ArrayList<Variant>> = zipLongest<int, int>(a, b, 0);
+    if (out.size() != 3) {
+        io::println("FAIL: zipLongest size = " + Integer.toString(out.size()));
+    } else if (out.get(2).size() != 2) {
+        io::println("FAIL: zipLongest last pair size");
+    } else {
+        io::println("PASS: zipLongest works");
+    }
+}
+
+public fn test_count(): void {
+    let out: ArrayList<int> = count(5, 2, 4);
+    if (out.size() != 4) {
+        io::println("FAIL: count size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 5 || out.get(1) != 7 || out.get(2) != 9 || out.get(3) != 11) {
+        io::println("FAIL: count content");
+    } else {
+        io::println("PASS: count works");
+    }
+}
+
+public fn test_count_zero_n(): void {
+    let out: ArrayList<int> = count(5, 2, 0);
+    if (out.size() != 0) {
+        io::println("FAIL: count zero n size");
+    } else {
+        io::println("PASS: count zero n returns empty");
+    }
+}
+
+public fn test_repeat(): void {
+    let out: ArrayList<int> = repeat<int>(7, 3);
+    if (out.size() != 3) {
+        io::println("FAIL: repeat size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 7 || out.get(1) != 7 || out.get(2) != 7) {
+        io::println("FAIL: repeat content");
+    } else {
+        io::println("PASS: repeat works");
+    }
+}
+
+public fn test_starmap(): void {
+    let argsList: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let args1: ArrayList<Variant> = new ArrayList<Variant>();
+    args1.add(3); args1.add(4);
+    let args2: ArrayList<Variant> = new ArrayList<Variant>();
+    args2.add(10); args2.add(20);
+    argsList.add(args1); argsList.add(args2);
+    let f: fn(ArrayList<Variant>): int = fn(a: ArrayList<Variant>): int {
+        return (a.get(0) as int) + (a.get(1) as int);
+    };
+    let out: ArrayList<int> = starmap<int>(f, argsList);
+    if (out.size() != 2) {
+        io::println("FAIL: starmap size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 7 || out.get(1) != 30) {
+        io::println("FAIL: starmap content");
+    } else {
+        io::println("PASS: starmap works");
+    }
+}
+
+public fn test_compress(): void {
+    let data: ArrayList<int> = new ArrayList<int>();
+    data.add(1); data.add(2); data.add(3); data.add(4);
+    let sel: ArrayList<bool> = new ArrayList<bool>();
+    sel.add(true); sel.add(false); sel.add(true); sel.add(false);
+    let out: ArrayList<int> = compress<int>(data, sel);
+    if (out.size() != 2) {
+        io::println("FAIL: compress size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 1 || out.get(1) != 3) {
+        io::println("FAIL: compress content");
+    } else {
+        io::println("PASS: compress works");
+    }
+}
+
+public fn test_filter_false(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2); arr.add(3); arr.add(4);
+    let f: fn(int): bool = fn(x: int): bool { return x % 2 == 0; };
+    let out: ArrayList<int> = filterFalse<int>(arr, f);
+    if (out.size() != 2) {
+        io::println("FAIL: filterFalse size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 1 || out.get(1) != 3) {
+        io::println("FAIL: filterFalse content");
+    } else {
+        io::println("PASS: filterFalse works");
+    }
+}
+
+public fn test_drop_while(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2); arr.add(3); arr.add(0); arr.add(4);
+    let f: fn(int): bool = fn(x: int): bool { return x < 3; };
+    let out: ArrayList<int> = dropWhile<int>(arr, f);
+    if (out.size() != 2) {
+        io::println("FAIL: dropWhile size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 3 || out.get(1) != 0) {
+        io::println("FAIL: dropWhile content");
+    } else {
+        io::println("PASS: dropWhile works");
+    }
+}
+
+public fn test_take_while(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2); arr.add(3); arr.add(0); arr.add(4);
+    let f: fn(int): bool = fn(x: int): bool { return x < 3; };
+    let out: ArrayList<int> = takeWhile<int>(arr, f);
+    if (out.size() != 2) {
+        io::println("FAIL: takeWhile size = " + Integer.toString(out.size()));
+    } else if (out.get(0) != 1 || out.get(1) != 2) {
+        io::println("FAIL: takeWhile content");
+    } else {
+        io::println("PASS: takeWhile works");
+    }
+}
+
+public fn test_groupby(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(1); arr.add(2); arr.add(2); arr.add(3);
+    let f: fn(int): int = fn(x: int): int { return x; };
+    let out: ArrayList<ArrayList<int>> = groupby<int, int>(arr, f);
+    if (out.size() != 3) {
+        io::println("FAIL: groupby size = " + Integer.toString(out.size()));
+    } else if (out.get(0).size() != 2 || out.get(2).size() != 1) {
+        io::println("FAIL: groupby group sizes");
+    } else {
+        io::println("PASS: groupby works");
+    }
+}
+
+public fn test_groupby_empty(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    let f: fn(int): int = fn(x: int): int { return x; };
+    let out: ArrayList<ArrayList<int>> = groupby<int, int>(arr, f);
+    if (out.size() != 0) {
+        io::println("FAIL: groupby empty size");
+    } else {
+        io::println("PASS: groupby empty returns empty");
+    }
+}
+
+public fn test_pairwise(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2); arr.add(3); arr.add(4);
+    let out: ArrayList<ArrayList<int>> = pairwise<int>(arr);
+    if (out.size() != 3) {
+        io::println("FAIL: pairwise size = " + Integer.toString(out.size()));
+    } else if (out.get(0).get(0) != 1 || out.get(0).get(1) != 2) {
+        io::println("FAIL: pairwise first pair");
+    } else if (out.get(2).get(0) != 3 || out.get(2).get(1) != 4) {
+        io::println("FAIL: pairwise last pair");
+    } else {
+        io::println("PASS: pairwise works");
+    }
+}
+
+public fn test_pairwise_small(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    let out: ArrayList<ArrayList<int>> = pairwise<int>(arr);
+    if (out.size() != 0) {
+        io::println("FAIL: pairwise small size");
+    } else {
+        io::println("PASS: pairwise on single element returns empty");
+    }
+}
+
+public fn test_batched(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2); arr.add(3); arr.add(4); arr.add(5);
+    let out: ArrayList<ArrayList<int>> = batched<int>(arr, 2);
+    if (out.size() != 3) {
+        io::println("FAIL: batched size = " + Integer.toString(out.size()));
+    } else if (out.get(0).size() != 2 || out.get(2).size() != 1) {
+        io::println("FAIL: batched group sizes");
+    } else {
+        io::println("PASS: batched works");
+    }
+}
+
+public fn test_batched_zero(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2);
+    let out: ArrayList<ArrayList<int>> = batched<int>(arr, 0);
+    if (out.size() != 0) {
+        io::println("FAIL: batched zero size");
+    } else {
+        io::println("PASS: batched zero returns empty");
+    }
+}
+
+public fn test_tee(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1); arr.add(2); arr.add(3);
+    let out: ArrayList<ArrayList<int>> = tee<int>(arr, 2);
+    if (out.size() != 2) {
+        io::println("FAIL: tee size = " + Integer.toString(out.size()));
+    } else if (out.get(0).size() != 3 || out.get(1).size() != 3) {
+        io::println("FAIL: tee copy sizes");
+    } else if (out.get(0).get(0) != 1 || out.get(1).get(2) != 3) {
+        io::println("FAIL: tee copy content");
+    } else {
+        io::println("PASS: tee works");
+    }
+}
+
+public fn test_tee_zero(): void {
+    let arr: ArrayList<int> = new ArrayList<int>();
+    arr.add(1);
+    let out: ArrayList<ArrayList<int>> = tee<int>(arr, 0);
+    if (out.size() != 0) {
+        io::println("FAIL: tee zero size");
+    } else {
+        io::println("PASS: tee zero returns empty");
+    }
+}
+
+public fn run_all_itertoolsseq_tests(): void {
+    io::println("=== itertools/ItertoolsSeq.tr Tests ===");
+    test_chain();
+    test_chain_empty();
+    test_accumulate();
+    test_accumulate_empty();
+    test_cycle();
+    test_cycle_zero();
+    test_islice();
+    test_islice_step_zero();
+    test_zip_longest();
+    test_count();
+    test_count_zero_n();
+    test_repeat();
+    test_starmap();
+    test_compress();
+    test_filter_false();
+    test_drop_while();
+    test_take_while();
+    test_groupby();
+    test_groupby_empty();
+    test_pairwise();
+    test_pairwise_small();
+    test_batched();
+    test_batched_zero();
+    test_tee();
+    test_tee_zero();
+}

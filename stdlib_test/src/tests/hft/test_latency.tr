@@ -1,0 +1,187 @@
+// Test file for hft/Latency.tr
+// Exercises the LatencyTracker class: record, count, min/max/mean/stdDev,
+// percentile, p50/p90/p99/p999, and percentileLong.
+import tt::hft::Latency;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_latency_init(): void {
+    let t: LatencyTracker = new LatencyTracker("orders");
+    if (t.name != "orders") {
+        io::println("FAIL: LatencyTracker name");
+    } else if (t.count() != 0) {
+        io::println("FAIL: LatencyTracker initial count");
+    } else {
+        io::println("PASS: LatencyTracker init works");
+    }
+}
+
+public fn test_latency_record_count(): void {
+    let t: LatencyTracker = new LatencyTracker("rtt");
+    t.record(100.0);
+    t.record(200.0);
+    t.record(300.0);
+    if (t.count() != 3) {
+        io::println("FAIL: LatencyTracker count = " + Integer.toString(t.count()));
+    } else {
+        io::println("PASS: LatencyTracker record/count works");
+    }
+}
+
+public fn test_latency_min(): void {
+    let t: LatencyTracker = new LatencyTracker("m");
+    t.record(200.0);
+    t.record(50.0);
+    t.record(150.0);
+    if (absDiff(t.min(), 50.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker min = " + Double.toString(t.min()));
+    } else {
+        io::println("PASS: LatencyTracker min works");
+    }
+}
+
+public fn test_latency_max(): void {
+    let t: LatencyTracker = new LatencyTracker("m");
+    t.record(200.0);
+    t.record(50.0);
+    t.record(150.0);
+    if (absDiff(t.max(), 200.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker max = " + Double.toString(t.max()));
+    } else {
+        io::println("PASS: LatencyTracker max works");
+    }
+}
+
+public fn test_latency_mean(): void {
+    let t: LatencyTracker = new LatencyTracker("m");
+    t.record(100.0);
+    t.record(200.0);
+    t.record(300.0);
+    if (absDiff(t.mean(), 200.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker mean = " + Double.toString(t.mean()));
+    } else {
+        io::println("PASS: LatencyTracker mean works");
+    }
+}
+
+public fn test_latency_min_max_empty(): void {
+    let t: LatencyTracker = new LatencyTracker("empty");
+    if (absDiff(t.min(), 0.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker min empty");
+    } else if (absDiff(t.max(), 0.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker max empty");
+    } else if (absDiff(t.mean(), 0.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker mean empty");
+    } else {
+        io::println("PASS: LatencyTracker empty stats return 0");
+    }
+}
+
+public fn test_latency_stdDev(): void {
+    let t: LatencyTracker = new LatencyTracker("sd");
+    // With a single measurement, stdDev should be 0
+    t.record(100.0);
+    if (absDiff(t.stdDev(), 0.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker stdDev single = " + Double.toString(t.stdDev()));
+    } else {
+        io::println("PASS: LatencyTracker stdDev single = 0");
+    }
+    t.record(100.0);
+    t.record(100.0);
+    if (absDiff(t.stdDev(), 0.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker stdDev identical = " + Double.toString(t.stdDev()));
+    } else {
+        io::println("PASS: LatencyTracker stdDev identical = 0");
+    }
+}
+
+public fn test_latency_percentile(): void {
+    let t: LatencyTracker = new LatencyTracker("p");
+    var i: int = 1;
+    while (i <= 10) {
+        t.record(i as double);
+        i = i + 1;
+    }
+    // p50 should be near the middle of 1..10
+    let p50: double = t.percentile(50.0);
+    if (p50 < 1.0 || p50 > 10.0) {
+        io::println("FAIL: LatencyTracker percentile out of range = " + Double.toString(p50));
+    } else {
+        io::println("PASS: LatencyTracker percentile in range");
+    }
+}
+
+public fn test_latency_p50_p90_p99(): void {
+    let t: LatencyTracker = new LatencyTracker("q");
+    var i: int = 1;
+    while (i <= 100) {
+        t.record(i as double);
+        i = i + 1;
+    }
+    let p50: double = t.p50();
+    let p90: double = t.p90();
+    let p99: double = t.p99();
+    if (p50 > p90 || p90 > p99) {
+        io::println("FAIL: LatencyTracker percentiles not monotonic");
+    } else {
+        io::println("PASS: LatencyTracker p50<=p90<=p99");
+    }
+}
+
+public fn test_latency_p999(): void {
+    let t: LatencyTracker = new LatencyTracker("p999");
+    var i: int = 1;
+    while (i <= 100) {
+        t.record(i as double);
+        i = i + 1;
+    }
+    let p999: double = t.p999();
+    if (p999 < 1.0 || p999 > 100.0) {
+        io::println("FAIL: LatencyTracker p999 out of range = " + Double.toString(p999));
+    } else {
+        io::println("PASS: LatencyTracker p999 in range");
+    }
+}
+
+public fn test_latency_percentileLong(): void {
+    let t: LatencyTracker = new LatencyTracker("pl");
+    t.record(123.7);
+    t.record(456.2);
+    let l: long = t.percentileLong(50.0);
+    if (l < 0) {
+        io::println("FAIL: LatencyTracker percentileLong negative");
+    } else {
+        io::println("PASS: LatencyTracker percentileLong returns non-negative");
+    }
+}
+
+public fn test_latency_percentile_empty(): void {
+    let t: LatencyTracker = new LatencyTracker("pe");
+    if (absDiff(t.percentile(50.0), 0.0) > 1e-9) {
+        io::println("FAIL: LatencyTracker percentile empty");
+    } else {
+        io::println("PASS: LatencyTracker percentile empty = 0");
+    }
+}
+
+public fn run_all_latency_tests(): void {
+    io::println("=== hft/Latency.tr Tests ===");
+    test_latency_init();
+    test_latency_record_count();
+    test_latency_min();
+    test_latency_max();
+    test_latency_mean();
+    test_latency_min_max_empty();
+    test_latency_stdDev();
+    test_latency_percentile();
+    test_latency_p50_p90_p99();
+    test_latency_p999();
+    test_latency_percentileLong();
+    test_latency_percentile_empty();
+}

@@ -1,0 +1,249 @@
+// Test file for hft/OrderRouter.tr
+// Exercises Order, Venue, and OrderRouter classes.
+import tt::hft::OrderRouter;
+import tt::lang::Integer;
+
+public fn test_order_init(): void {
+    let o: Order = new Order("1", "AAPL", "buy", 150.0, 100.0);
+    if (o.id != "1" || o.symbol != "AAPL" || o.side != "buy") {
+        io::println("FAIL: Order basic fields");
+    } else if (absDiff(o.price, 150.0) > 1e-9 || absDiff(o.quantity, 100.0) > 1e-9) {
+        io::println("FAIL: Order price/quantity");
+    } else if (o.filledQty != 0.0 || o.status != "new" || o.venue != "") {
+        io::println("FAIL: Order defaults");
+    } else {
+        io::println("PASS: Order init works");
+    }
+}
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_venue_init(): void {
+    let v: Venue = new Venue("NYSE", 0.001, 0.5);
+    if (v.name != "NYSE" || absDiff(v.fee, 0.001) > 1e-9 || absDiff(v.latency, 0.5) > 1e-9) {
+        io::println("FAIL: Venue fields");
+    } else if (v.bids.size() != 0 || v.asks.size() != 0) {
+        io::println("FAIL: Venue maps not empty");
+    } else {
+        io::println("PASS: Venue init works");
+    }
+}
+
+public fn test_order_router_init(): void {
+    let r: OrderRouter = new OrderRouter();
+    if (r.venues.size() != 0 || r.orders.size() != 0) {
+        io::println("FAIL: OrderRouter init collections");
+    } else if (r.nextOrderId != 1) {
+        io::println("FAIL: OrderRouter nextOrderId = " + Integer.toString(r.nextOrderId));
+    } else {
+        io::println("PASS: OrderRouter init works");
+    }
+}
+
+public fn test_order_router_addVenue(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v: Venue = new Venue("NSDQ", 0.002, 0.3);
+    r.addVenue(v);
+    if (r.venues.size() != 1 || r.venues.get(0).name != "NSDQ") {
+        io::println("FAIL: OrderRouter addVenue");
+    } else {
+        io::println("PASS: OrderRouter addVenue works");
+    }
+}
+
+public fn test_order_router_route_buy(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v1: Venue = new Venue("A", 0.001, 0.5);
+    v1.asks.put("AAPL", 150.0);
+    let v2: Venue = new Venue("B", 0.001, 0.4);
+    v2.asks.put("AAPL", 149.0);
+    r.addVenue(v1);
+    r.addVenue(v2);
+    let o: Order = r.routeOrder("AAPL", "buy", 10.0);
+    if (o.venue != "B") {
+        io::println("FAIL: OrderRouter route buy venue = " + o.venue);
+    } else if (absDiff(o.price, 149.0) > 1e-9) {
+        io::println("FAIL: OrderRouter route buy price");
+    } else if (o.status != "routed") {
+        io::println("FAIL: OrderRouter route status = " + o.status);
+    } else {
+        io::println("PASS: OrderRouter route buy picks lowest ask");
+    }
+}
+
+public fn test_order_router_route_sell(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v1: Venue = new Venue("A", 0.001, 0.5);
+    v1.bids.put("AAPL", 150.0);
+    let v2: Venue = new Venue("B", 0.001, 0.4);
+    v2.bids.put("AAPL", 151.0);
+    r.addVenue(v1);
+    r.addVenue(v2);
+    let o: Order = r.routeOrder("AAPL", "sell", 10.0);
+    if (o.venue != "B") {
+        io::println("FAIL: OrderRouter route sell venue = " + o.venue);
+    } else if (absDiff(o.price, 151.0) > 1e-9) {
+        io::println("FAIL: OrderRouter route sell price");
+    } else {
+        io::println("PASS: OrderRouter route sell picks highest bid");
+    }
+}
+
+public fn test_order_router_route_no_venue(): void {
+    let r: OrderRouter = new OrderRouter();
+    let o: Order = r.routeOrder("AAPL", "buy", 10.0);
+    if (o.venue != "") {
+        io::println("FAIL: OrderRouter route no venue expected empty");
+    } else if (absDiff(o.price, 0.0) > 1e-9) {
+        io::println("FAIL: OrderRouter route no venue price");
+    } else {
+        io::println("PASS: OrderRouter route no venue returns empty venue");
+    }
+}
+
+public fn test_order_router_nextOrderId_increments(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v: Venue = new Venue("A", 0.001, 0.5);
+    v.asks.put("X", 10.0);
+    r.addVenue(v);
+    let o1: Order = r.routeOrder("X", "buy", 1.0);
+    let o2: Order = r.routeOrder("X", "buy", 1.0);
+    if (o1.id == o2.id) {
+        io::println("FAIL: OrderRouter order ids not unique");
+    } else if (r.nextOrderId != 3) {
+        io::println("FAIL: OrderRouter nextOrderId = " + Integer.toString(r.nextOrderId));
+    } else {
+        io::println("PASS: OrderRouter nextOrderId increments");
+    }
+}
+
+public fn test_order_router_fill_full(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v: Venue = new Venue("A", 0.001, 0.5);
+    v.asks.put("X", 10.0);
+    r.addVenue(v);
+    let o: Order = r.routeOrder("X", "buy", 100.0);
+    r.fillOrder(o.id, 100.0, 10.0);
+    let stored: Order = r.orders.get(o.id);
+    if (absDiff(stored.filledQty, 100.0) > 1e-9) {
+        io::println("FAIL: OrderRouter fill qty");
+    } else if (stored.status != "filled") {
+        io::println("FAIL: OrderRouter fill status = " + stored.status);
+    } else {
+        io::println("PASS: OrderRouter fill full works");
+    }
+}
+
+public fn test_order_router_fill_partial(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v: Venue = new Venue("A", 0.001, 0.5);
+    v.asks.put("X", 10.0);
+    r.addVenue(v);
+    let o: Order = r.routeOrder("X", "buy", 100.0);
+    r.fillOrder(o.id, 30.0, 10.0);
+    let stored: Order = r.orders.get(o.id);
+    if (absDiff(stored.filledQty, 30.0) > 1e-9) {
+        io::println("FAIL: OrderRouter partial fill qty");
+    } else if (stored.status != "partially_filled") {
+        io::println("FAIL: OrderRouter partial fill status = " + stored.status);
+    } else {
+        io::println("PASS: OrderRouter fill partial works");
+    }
+}
+
+public fn test_order_router_cancel(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v: Venue = new Venue("A", 0.001, 0.5);
+    v.asks.put("X", 10.0);
+    r.addVenue(v);
+    let o: Order = r.routeOrder("X", "buy", 100.0);
+    r.cancelOrder(o.id);
+    let stored: Order = r.orders.get(o.id);
+    if (stored.status != "cancelled") {
+        io::println("FAIL: OrderRouter cancel status = " + stored.status);
+    } else {
+        io::println("PASS: OrderRouter cancel works");
+    }
+}
+
+public fn test_order_router_cancel_missing(): void {
+    let r: OrderRouter = new OrderRouter();
+    // Should not throw on missing order
+    r.cancelOrder("nonexistent");
+    io::println("PASS: OrderRouter cancel missing order no throw");
+}
+
+public fn test_order_router_fill_missing(): void {
+    let r: OrderRouter = new OrderRouter();
+    r.fillOrder("nonexistent", 1.0, 1.0);
+    io::println("PASS: OrderRouter fill missing order no throw");
+}
+
+public fn test_order_router_tryCancel(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v: Venue = new Venue("A", 0.001, 0.5);
+    v.asks.put("X", 10.0);
+    r.addVenue(v);
+    let o: Order = r.routeOrder("X", "buy", 100.0);
+    let ok: bool = r.tryCancelOrder(o.id);
+    if (!ok) {
+        io::println("FAIL: OrderRouter tryCancel returns false on routable order");
+    } else {
+        io::println("PASS: OrderRouter tryCancel returns true");
+    }
+    let ok2: bool = r.tryCancelOrder(o.id);
+    if (ok2) {
+        io::println("FAIL: OrderRouter tryCancel returns true on already cancelled");
+    } else {
+        io::println("PASS: OrderRouter tryCancel returns false on already cancelled");
+    }
+}
+
+public fn test_order_router_tryCancel_missing(): void {
+    let r: OrderRouter = new OrderRouter();
+    let ok: bool = r.tryCancelOrder("nonexistent");
+    if (ok) {
+        io::println("FAIL: OrderRouter tryCancel returns true on missing");
+    } else {
+        io::println("PASS: OrderRouter tryCancel returns false on missing");
+    }
+}
+
+public fn test_order_router_tryCancel_filled(): void {
+    let r: OrderRouter = new OrderRouter();
+    let v: Venue = new Venue("A", 0.001, 0.5);
+    v.asks.put("X", 10.0);
+    r.addVenue(v);
+    let o: Order = r.routeOrder("X", "buy", 100.0);
+    r.fillOrder(o.id, 100.0, 10.0);
+    let ok: bool = r.tryCancelOrder(o.id);
+    if (ok) {
+        io::println("FAIL: OrderRouter tryCancel returns true on filled");
+    } else {
+        io::println("PASS: OrderRouter tryCancel returns false on filled");
+    }
+}
+
+public fn run_all_orderrouter_tests(): void {
+    io::println("=== hft/OrderRouter.tr Tests ===");
+    test_order_init();
+    test_venue_init();
+    test_order_router_init();
+    test_order_router_addVenue();
+    test_order_router_route_buy();
+    test_order_router_route_sell();
+    test_order_router_route_no_venue();
+    test_order_router_nextOrderId_increments();
+    test_order_router_fill_full();
+    test_order_router_fill_partial();
+    test_order_router_cancel();
+    test_order_router_cancel_missing();
+    test_order_router_fill_missing();
+    test_order_router_tryCancel();
+    test_order_router_tryCancel_missing();
+    test_order_router_tryCancel_filled();
+}

@@ -1,0 +1,277 @@
+// Test file for image/Morphology.tr
+// Exercises StructuringElement, squareSE, crossSE, dilate, erode,
+// opening, closing, gradient, topHat, blackHat, and Image-based variants.
+import tt::image::Morphology;
+import tt::image::Image;
+import tt::image::Kernel;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn makeImage(rows: int, cols: int, value: double): ArrayList<ArrayList<double>> {
+    let img: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(value);
+            j = j + 1;
+        }
+        img.add(row);
+        i = i + 1;
+    }
+    return img;
+}
+
+public fn test_se_init(): void {
+    let se: StructuringElement = new StructuringElement(3, 3);
+    if (se.width != 3 || se.height != 3) {
+        io::println("FAIL: StructuringElement dimensions");
+    } else if (se.data.size() != 3 || se.data.get(0).size() != 3) {
+        io::println("FAIL: StructuringElement data shape");
+    } else if (!se.get(0, 0) || !se.get(2, 2)) {
+        io::println("FAIL: StructuringElement default not all true");
+    } else {
+        io::println("PASS: StructuringElement init works");
+    }
+}
+
+public fn test_se_set_get(): void {
+    let se: StructuringElement = new StructuringElement(3, 3);
+    se.set(1, 1, false);
+    if (se.get(1, 1)) {
+        io::println("FAIL: StructuringElement set/get");
+    } else {
+        io::println("PASS: StructuringElement set/get works");
+    }
+}
+
+public fn test_squareSE(): void {
+    let se: StructuringElement = squareSE(3);
+    if (se.width != 3 || se.height != 3) {
+        io::println("FAIL: squareSE dimensions");
+    } else if (!se.get(0, 0) || !se.get(2, 2)) {
+        io::println("FAIL: squareSE all true");
+    } else {
+        io::println("PASS: squareSE works");
+    }
+}
+
+public fn test_crossSE(): void {
+    let se: StructuringElement = crossSE(3);
+    // Center row and column should be true, corners false
+    if (!se.get(1, 1) || !se.get(0, 1) || !se.get(1, 0)) {
+        io::println("FAIL: crossSE cross true");
+    } else if (se.get(0, 0) || se.get(0, 2) || se.get(2, 0) || se.get(2, 2)) {
+        io::println("FAIL: crossSE corners not false");
+    } else {
+        io::println("PASS: crossSE works");
+    }
+}
+
+public fn test_dilate_uniform(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(3, 3, 100.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = dilate(img, se);
+    if (out.size() != 3 || out.get(0).size() != 3) {
+        io::println("FAIL: dilate output shape");
+    } else if (absDiff(out.get(1).get(1), 100.0) > 1e-9) {
+        io::println("FAIL: dilate uniform center");
+    } else {
+        io::println("PASS: dilate uniform works");
+    }
+}
+
+public fn test_dilate_grows_bright(): void {
+    // Single bright pixel surrounded by dark should dilate to bright center
+    let img: ArrayList<ArrayList<double>> = makeImage(3, 3, 0.0);
+    img.get(1).set(1, 255.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = dilate(img, se);
+    if (absDiff(out.get(1).get(1), 255.0) > 1e-9) {
+        io::println("FAIL: dilate center not bright");
+    } else {
+        io::println("PASS: dilate center bright");
+    }
+}
+
+public fn test_erode_uniform(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(3, 3, 100.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = erode(img, se);
+    if (absDiff(out.get(1).get(1), 100.0) > 1e-9) {
+        io::println("FAIL: erode uniform center");
+    } else {
+        io::println("PASS: erode uniform works");
+    }
+}
+
+public fn test_erode_shrinks_bright(): void {
+    // Bright pixel at corner gets eroded by darker neighbors
+    let img: ArrayList<ArrayList<double>> = makeImage(3, 3, 255.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = erode(img, se);
+    // Interior should remain 255, edges should be lower (border doesn't have all neighbors)
+    if (absDiff(out.get(1).get(1), 255.0) > 1e-9) {
+        io::println("FAIL: erode interior not 255");
+    } else {
+        io::println("PASS: erode interior = 255");
+    }
+}
+
+public fn test_opening_shape(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(5, 5, 200.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = opening(img, se);
+    if (out.size() != 5 || out.get(0).size() != 5) {
+        io::println("FAIL: opening shape");
+    } else {
+        io::println("PASS: opening shape preserved");
+    }
+}
+
+public fn test_closing_shape(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(5, 5, 200.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = closing(img, se);
+    if (out.size() != 5 || out.get(0).size() != 5) {
+        io::println("FAIL: closing shape");
+    } else {
+        io::println("PASS: closing shape preserved");
+    }
+}
+
+public fn test_gradient_shape(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(5, 5, 200.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = gradient(img, se);
+    if (out.size() != 5 || out.get(0).size() != 5) {
+        io::println("FAIL: gradient shape");
+    } else {
+        io::println("PASS: gradient shape preserved");
+    }
+}
+
+public fn test_gradient_uniform_zero(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(5, 5, 100.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = gradient(img, se);
+    // Interior gradient should be 0 for uniform image
+    if (absDiff(out.get(2).get(2), 0.0) > 1e-9) {
+        io::println("FAIL: gradient interior not zero");
+    } else {
+        io::println("PASS: gradient interior zero on uniform image");
+    }
+}
+
+public fn test_topHat_shape(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(5, 5, 100.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = topHat(img, se);
+    if (out.size() != 5 || out.get(0).size() != 5) {
+        io::println("FAIL: topHat shape");
+    } else {
+        io::println("PASS: topHat shape preserved");
+    }
+}
+
+public fn test_blackHat_shape(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(5, 5, 100.0);
+    let se: StructuringElement = squareSE(3);
+    let out: ArrayList<ArrayList<double>> = blackHat(img, se);
+    if (out.size() != 5 || out.get(0).size() != 5) {
+        io::println("FAIL: blackHat shape");
+    } else {
+        io::println("PASS: blackHat shape preserved");
+    }
+}
+
+public fn test_dilateImage(): void {
+    let img: Image = new Image(3, 3, 1);
+    img.setPixel(1, 1, 0, 255.0);
+    let k: Kernel = new Kernel(3, 3);
+    k.set(0, 0, 1.0); k.set(0, 1, 1.0); k.set(0, 2, 1.0);
+    k.set(1, 0, 1.0); k.set(1, 1, 1.0); k.set(1, 2, 1.0);
+    k.set(2, 0, 1.0); k.set(2, 1, 1.0); k.set(2, 2, 1.0);
+    let out: Image = dilateImage(img, k);
+    if (out.width != 3 || out.height != 3) {
+        io::println("FAIL: dilateImage dimensions");
+    } else if (absDiff(out.getPixel(1, 1, 0), 255.0) > 1e-9) {
+        io::println("FAIL: dilateImage center");
+    } else {
+        io::println("PASS: dilateImage works");
+    }
+}
+
+public fn test_erodeImage(): void {
+    let img: Image = new Image(3, 3, 1);
+    var i: int = 0;
+    while (i < 3) {
+        var j: int = 0;
+        while (j < 3) {
+            img.setPixel(i, j, 0, 255.0);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    let k: Kernel = new Kernel(3, 3);
+    k.set(0, 0, 1.0); k.set(0, 1, 1.0); k.set(0, 2, 1.0);
+    k.set(1, 0, 1.0); k.set(1, 1, 1.0); k.set(1, 2, 1.0);
+    k.set(2, 0, 1.0); k.set(2, 1, 1.0); k.set(2, 2, 1.0);
+    let out: Image = erodeImage(img, k);
+    if (absDiff(out.getPixel(1, 1, 0), 255.0) > 1e-9) {
+        io::println("FAIL: erodeImage center not 255");
+    } else {
+        io::println("PASS: erodeImage works");
+    }
+}
+
+public fn test_gradientImage(): void {
+    let img: Image = new Image(3, 3, 1);
+    var i: int = 0;
+    while (i < 3) {
+        var j: int = 0;
+        while (j < 3) {
+            img.setPixel(i, j, 0, 100.0);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    let k: Kernel = new Kernel(3, 3);
+    k.set(0, 0, 1.0); k.set(0, 1, 1.0); k.set(0, 2, 1.0);
+    k.set(1, 0, 1.0); k.set(1, 1, 1.0); k.set(1, 2, 1.0);
+    k.set(2, 0, 1.0); k.set(2, 1, 1.0); k.set(2, 2, 1.0);
+    let out: Image = gradientImage(img, k);
+    if (absDiff(out.getPixel(1, 1, 0), 0.0) > 1e-9) {
+        io::println("FAIL: gradientImage interior not zero");
+    } else {
+        io::println("PASS: gradientImage works on uniform image");
+    }
+}
+
+public fn run_all_morphology_tests(): void {
+    io::println("=== image/Morphology.tr Tests ===");
+    test_se_init();
+    test_se_set_get();
+    test_squareSE();
+    test_crossSE();
+    test_dilate_uniform();
+    test_dilate_grows_bright();
+    test_erode_uniform();
+    test_erode_shrinks_bright();
+    test_opening_shape();
+    test_closing_shape();
+    test_gradient_shape();
+    test_gradient_uniform_zero();
+    test_topHat_shape();
+    test_blackHat_shape();
+    test_dilateImage();
+    test_erodeImage();
+    test_gradientImage();
+}

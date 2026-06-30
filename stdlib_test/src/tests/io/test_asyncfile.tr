@@ -1,0 +1,233 @@
+// Test file for io/AsyncFile.tr
+// Exercises AsyncFileReader and AsyncFileWriter classes.
+// Limitation: readAll/readLines/readChunk/readWithProgress require real
+// filesystem access via VM native functions; only construction and writer
+// buffering are tested in isolation here.
+import tt::io::AsyncFile;
+import tt::io::File;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_async_reader_init(): void {
+    let r: AsyncFileReader = new AsyncFileReader("nonexistent_async_file.txt", 1024);
+    if (r.getPath() != "nonexistent_async_file.txt") {
+        io::println("FAIL: AsyncFileReader getPath");
+    } else if (r.getBufferSize() != 1024) {
+        io::println("FAIL: AsyncFileReader getBufferSize");
+    } else {
+        io::println("PASS: AsyncFileReader init works");
+    }
+}
+
+public fn test_async_reader_position_zero(): void {
+    let r: AsyncFileReader = new AsyncFileReader("nonexistent_async_file.txt", 1024);
+    if (r.getPosition() != 0) {
+        io::println("FAIL: AsyncFileReader initial position");
+    } else {
+        io::println("PASS: AsyncFileReader initial position = 0");
+    }
+}
+
+public fn test_async_reader_eof_initial(): void {
+    // For a nonexistent file, eof may already be set after first read attempt.
+    // Construction itself should not flag eof.
+    let r: AsyncFileReader = new AsyncFileReader("nonexistent_async_file.txt", 1024);
+    if (r.isEof()) {
+        io::println("FAIL: AsyncFileReader eof true at construction");
+    } else {
+        io::println("PASS: AsyncFileReader eof false at construction");
+    }
+}
+
+public fn test_async_reader_progress_empty(): void {
+    let r: AsyncFileReader = new AsyncFileReader("nonexistent_async_file.txt", 1024);
+    // For nonexistent file, fileSize is 0, progress should be 0
+    let p: double = r.getProgress();
+    if (p < -1e-9 || p > 1.0 + 1e-9) {
+        io::println("FAIL: AsyncFileReader progress out of range");
+    } else {
+        io::println("PASS: AsyncFileReader progress in range");
+    }
+}
+
+public fn test_async_reader_reset(): void {
+    let r: AsyncFileReader = new AsyncFileReader("nonexistent_async_file.txt", 1024);
+    r.reset();
+    if (r.getPosition() != 0) {
+        io::println("FAIL: AsyncFileReader reset position");
+    } else if (r.isEof()) {
+        io::println("FAIL: AsyncFileReader reset eof");
+    } else {
+        io::println("PASS: AsyncFileReader reset works");
+    }
+}
+
+public fn test_async_writer_init(): void {
+    let w: AsyncFileWriter = new AsyncFileWriter("async_writer_test.txt");
+    if (w.getPath() != "async_writer_test.txt") {
+        io::println("FAIL: AsyncFileWriter getPath");
+    } else if (w.bufferedChunks() != 0) {
+        io::println("FAIL: AsyncFileWriter initial bufferedChunks");
+    } else if (w.isFlushing()) {
+        io::println("FAIL: AsyncFileWriter initial isFlushing");
+    } else {
+        io::println("PASS: AsyncFileWriter init works");
+    }
+}
+
+public fn test_async_writer_write_buffers(): void {
+    let w: AsyncFileWriter = new AsyncFileWriter("async_writer_test.txt");
+    w.write("hello ");
+    w.write("world");
+    if (w.bufferedChunks() != 2) {
+        io::println("FAIL: AsyncFileWriter bufferedChunks after write = " + Integer.toString(w.bufferedChunks()));
+    } else {
+        io::println("PASS: AsyncFileWriter write buffers chunks");
+    }
+}
+
+public fn test_async_writer_writeLine_buffers(): void {
+    let w: AsyncFileWriter = new AsyncFileWriter("async_writer_test.txt");
+    w.writeLine("alpha");
+    w.writeLine("beta");
+    if (w.bufferedChunks() != 2) {
+        io::println("FAIL: AsyncFileWriter writeLine bufferedChunks");
+    } else {
+        io::println("PASS: AsyncFileWriter writeLine buffers chunks");
+    }
+}
+
+public fn test_async_writer_flush_clears(): void {
+    let path: string = "async_writer_flush_test.txt";
+    let w: AsyncFileWriter = new AsyncFileWriter(path);
+    w.write("data");
+    w.write("more");
+    w.flush(null);
+    if (w.bufferedChunks() != 0) {
+        io::println("FAIL: AsyncFileWriter flush did not clear buffer");
+    } else if (w.isFlushing()) {
+        io::println("FAIL: AsyncFileWriter still flushing after flush");
+    } else {
+        io::println("PASS: AsyncFileWriter flush clears buffer");
+    }
+    let f: File = new File(path);
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_async_writer_flush_callback(): void {
+    let path: string = "async_writer_callback_test.txt";
+    let w: AsyncFileWriter = new AsyncFileWriter(path);
+    w.write("x");
+    var called: bool = false;
+    // Use a closure that sets the flag
+    let cb: fn(): void = fn(): void { called = true; };
+    w.flush(cb);
+    if (!called) {
+        io::println("FAIL: AsyncFileWriter flush callback not invoked");
+    } else {
+        io::println("PASS: AsyncFileWriter flush callback invoked");
+    }
+    let f: File = new File(path);
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_async_writer_close(): void {
+    let path: string = "async_writer_close_test.txt";
+    let w: AsyncFileWriter = new AsyncFileWriter(path);
+    w.write("close me");
+    w.close();
+    if (w.bufferedChunks() != 0) {
+        io::println("FAIL: AsyncFileWriter close did not flush");
+    } else {
+        io::println("PASS: AsyncFileWriter close flushes");
+    }
+    let f: File = new File(path);
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_async_writer_multiple_flushes(): void {
+    let path: string = "async_writer_multi_flush_test.txt";
+    let w: AsyncFileWriter = new AsyncFileWriter(path);
+    w.write("a");
+    w.flush(null);
+    w.write("b");
+    w.flush(null);
+    w.write("c");
+    w.flush(null);
+    if (w.bufferedChunks() != 0) {
+        io::println("FAIL: AsyncFileWriter multiple flushes left buffer");
+    } else {
+        io::println("PASS: AsyncFileWriter multiple flushes work");
+    }
+    let f: File = new File(path);
+    if (f.exists()) { f.delete(); }
+}
+
+public fn test_async_reader_readAll_real_file(): void {
+    let path: string = "async_reader_readall_test.txt";
+    let f: File = new File(path);
+    f.write("hello world");
+    let r: AsyncFileReader = new AsyncFileReader(path, 4);
+    var collected: string = "";
+    let cb: fn(string): void = fn(chunk: string): void { collected = collected + chunk; };
+    r.readAll(cb);
+    if (collected != "hello world") {
+        io::println("FAIL: AsyncFileReader readAll = '" + collected + "'");
+    } else {
+        io::println("PASS: AsyncFileReader readAll collects all chunks");
+    }
+    f.delete();
+}
+
+public fn test_async_reader_readLines_real_file(): void {
+    let path: string = "async_reader_readlines_test.txt";
+    let f: File = new File(path);
+    f.write("line1\nline2\nline3");
+    let r: AsyncFileReader = new AsyncFileReader(path, 4);
+    let lines: ArrayList<string> = new ArrayList<string>();
+    let cb: fn(string): void = fn(line: string): void { lines.add(line); };
+    let done: fn(): void = fn(): void { };
+    r.readLines(cb, done);
+    if (lines.size() != 3) {
+        io::println("FAIL: AsyncFileReader readLines count = " + Integer.toString(lines.size()));
+    } else if (lines.get(0) != "line1" || lines.get(1) != "line2" || lines.get(2) != "line3") {
+        io::println("FAIL: AsyncFileReader readLines content");
+    } else {
+        io::println("PASS: AsyncFileReader readLines works");
+    }
+    f.delete();
+}
+
+public fn test_async_reader_eof_after_readAll(): void {
+    let path: string = "async_reader_eof_test.txt";
+    let f: File = new File(path);
+    f.write("abc");
+    let r: AsyncFileReader = new AsyncFileReader(path, 4);
+    let cb: fn(string): void = fn(chunk: string): void { };
+    r.readAll(cb);
+    if (!r.isEof()) {
+        io::println("FAIL: AsyncFileReader eof not set after readAll");
+    } else {
+        io::println("PASS: AsyncFileReader eof set after readAll");
+    }
+    f.delete();
+}
+
+public fn run_all_asyncfile_tests(): void {
+    io::println("=== io/AsyncFile.tr Tests ===");
+    test_async_reader_init();
+    test_async_reader_position_zero();
+    test_async_reader_eof_initial();
+    test_async_reader_progress_empty();
+    test_async_reader_reset();
+    test_async_writer_init();
+    test_async_writer_write_buffers();
+    test_async_writer_writeLine_buffers();
+    test_async_writer_flush_clears();
+    test_async_writer_flush_callback();
+    test_async_writer_close();
+    test_async_writer_multiple_flushes();
+    test_async_reader_readAll_real_file();
+    test_async_reader_readLines_real_file();
+    test_async_reader_eof_after_readAll();
+}

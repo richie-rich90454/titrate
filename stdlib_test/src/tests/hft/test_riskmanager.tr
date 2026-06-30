@@ -1,0 +1,243 @@
+// Test file for hft/RiskManager.tr
+// Exercises the RiskManager class: position, notional, rate, daily loss,
+// kill switch, and reset operations.
+import tt::hft::RiskManager;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_risk_init_defaults(): void {
+    let rm: RiskManager = new RiskManager();
+    if (absDiff(rm.maxPositionSize, 1000000.0) > 1e-9) {
+        io::println("FAIL: RiskManager default maxPositionSize");
+    } else if (absDiff(rm.maxNotional, 5000000.0) > 1e-9) {
+        io::println("FAIL: RiskManager default maxNotional");
+    } else if (rm.maxOrdersPerSecond != 100) {
+        io::println("FAIL: RiskManager default maxOrdersPerSecond");
+    } else if (absDiff(rm.maxDailyLoss, 100000.0) > 1e-9) {
+        io::println("FAIL: RiskManager default maxDailyLoss");
+    } else if (rm.killSwitch) {
+        io::println("FAIL: RiskManager default killSwitch true");
+    } else {
+        io::println("PASS: RiskManager init defaults correct");
+    }
+}
+
+public fn test_risk_check_position_limit_within(): void {
+    let rm: RiskManager = new RiskManager();
+    if (!rm.checkPositionLimit("AAPL", 100.0)) {
+        io::println("FAIL: RiskManager position limit within");
+    } else {
+        io::println("PASS: RiskManager position limit within");
+    }
+}
+
+public fn test_risk_check_position_limit_exceeds(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.maxPositionSize = 100.0;
+    if (rm.checkPositionLimit("AAPL", 200.0)) {
+        io::println("FAIL: RiskManager position limit exceeds not blocked");
+    } else {
+        io::println("PASS: RiskManager position limit exceeds blocked");
+    }
+}
+
+public fn test_risk_check_position_limit_with_existing(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.maxPositionSize = 100.0;
+    rm.updatePosition("AAPL", 80.0);
+    if (rm.checkPositionLimit("AAPL", 30.0)) {
+        io::println("FAIL: RiskManager position limit with existing not blocked");
+    } else {
+        io::println("PASS: RiskManager position limit with existing blocked");
+    }
+}
+
+public fn test_risk_check_notional_limit_within(): void {
+    let rm: RiskManager = new RiskManager();
+    if (!rm.checkNotionalLimit("AAPL", 100.0, 100.0)) {
+        io::println("FAIL: RiskManager notional within");
+    } else {
+        io::println("PASS: RiskManager notional within");
+    }
+}
+
+public fn test_risk_check_notional_limit_exceeds(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.maxNotional = 1000.0;
+    if (rm.checkNotionalLimit("AAPL", 100.0, 20.0)) {
+        io::println("FAIL: RiskManager notional exceeds not blocked");
+    } else {
+        io::println("PASS: RiskManager notional exceeds blocked");
+    }
+}
+
+public fn test_risk_check_rate_limit_within(): void {
+    let rm: RiskManager = new RiskManager();
+    if (!rm.checkRateLimit(1.0)) {
+        io::println("FAIL: RiskManager rate within");
+    } else {
+        io::println("PASS: RiskManager rate within");
+    }
+}
+
+public fn test_risk_check_rate_limit_exceeds(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.maxOrdersPerSecond = 3;
+    rm.checkRateLimit(1.0);
+    rm.checkRateLimit(1.0);
+    rm.checkRateLimit(1.0);
+    if (rm.checkRateLimit(1.0)) {
+        io::println("FAIL: RiskManager rate exceeds not blocked");
+    } else {
+        io::println("PASS: RiskManager rate exceeds blocked");
+    }
+}
+
+public fn test_risk_check_rate_limit_window(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.maxOrdersPerSecond = 2;
+    rm.checkRateLimit(1.0);
+    rm.checkRateLimit(1.0);
+    // After 2 seconds, the window should clear
+    if (!rm.checkRateLimit(3.0)) {
+        io::println("FAIL: RiskManager rate window not cleared");
+    } else {
+        io::println("PASS: RiskManager rate window cleared");
+    }
+}
+
+public fn test_risk_check_daily_loss_within(): void {
+    let rm: RiskManager = new RiskManager();
+    if (!rm.checkDailyLoss()) {
+        io::println("FAIL: RiskManager daily loss within");
+    } else {
+        io::println("PASS: RiskManager daily loss within");
+    }
+}
+
+public fn test_risk_check_daily_loss_exceeds(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.maxDailyLoss = 100.0;
+    rm.updatePnL("AAPL", -150.0);
+    if (rm.checkDailyLoss()) {
+        io::println("FAIL: RiskManager daily loss exceeds not blocked");
+    } else {
+        io::println("PASS: RiskManager daily loss exceeds blocked");
+    }
+}
+
+public fn test_risk_update_position(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.updatePosition("AAPL", 100.0);
+    rm.updatePosition("AAPL", 50.0);
+    if (!rm.positions.containsKey("AAPL")) {
+        io::println("FAIL: RiskManager updatePosition missing");
+    } else if (absDiff(rm.positions.get("AAPL"), 150.0) > 1e-9) {
+        io::println("FAIL: RiskManager updatePosition value");
+    } else {
+        io::println("PASS: RiskManager updatePosition works");
+    }
+}
+
+public fn test_risk_update_pnl(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.updatePnL("AAPL", 50.0);
+    rm.updatePnL("AAPL", -30.0);
+    if (absDiff(rm.totalDailyLoss, 20.0) > 1e-9) {
+        io::println("FAIL: RiskManager updatePnL totalDailyLoss");
+    } else if (!rm.dailyPnL.containsKey("AAPL")) {
+        io::println("FAIL: RiskManager updatePnL dailyPnL missing");
+    } else if (absDiff(rm.dailyPnL.get("AAPL"), 20.0) > 1e-9) {
+        io::println("FAIL: RiskManager updatePnL dailyPnL value");
+    } else {
+        io::println("PASS: RiskManager updatePnL works");
+    }
+}
+
+public fn test_risk_kill_switch_blocks(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.activateKillSwitch();
+    if (rm.checkPositionLimit("X", 1.0)) {
+        io::println("FAIL: RiskManager kill switch position not blocked");
+    } else if (rm.checkNotionalLimit("X", 1.0, 1.0)) {
+        io::println("FAIL: RiskManager kill switch notional not blocked");
+    } else if (rm.checkRateLimit(1.0)) {
+        io::println("FAIL: RiskManager kill switch rate not blocked");
+    } else if (rm.checkDailyLoss()) {
+        io::println("FAIL: RiskManager kill switch daily loss not blocked");
+    } else {
+        io::println("PASS: RiskManager kill switch blocks all checks");
+    }
+}
+
+public fn test_risk_deactivate_kill_switch(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.activateKillSwitch();
+    rm.deactivateKillSwitch();
+    if (!rm.checkPositionLimit("X", 1.0)) {
+        io::println("FAIL: RiskManager deactivate kill switch still blocked");
+    } else {
+        io::println("PASS: RiskManager deactivate kill switch works");
+    }
+}
+
+public fn test_risk_reset_daily(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.updatePnL("AAPL", -50.0);
+    rm.checkRateLimit(1.0);
+    rm.resetDaily();
+    if (absDiff(rm.totalDailyLoss, 0.0) > 1e-9) {
+        io::println("FAIL: RiskManager resetDaily totalDailyLoss");
+    } else if (rm.dailyPnL.size() != 0) {
+        io::println("FAIL: RiskManager resetDaily dailyPnL");
+    } else if (rm.orderTimestamps.size() != 0) {
+        io::println("FAIL: RiskManager resetDaily orderTimestamps");
+    } else {
+        io::println("PASS: RiskManager resetDaily works");
+    }
+}
+
+public fn test_risk_reset(): void {
+    let rm: RiskManager = new RiskManager();
+    rm.updatePosition("AAPL", 100.0);
+    rm.updatePnL("AAPL", -50.0);
+    rm.activateKillSwitch();
+    rm.reset();
+    if (rm.positions.size() != 0) {
+        io::println("FAIL: RiskManager reset positions");
+    } else if (rm.dailyPnL.size() != 0) {
+        io::println("FAIL: RiskManager reset dailyPnL");
+    } else if (rm.killSwitch) {
+        io::println("FAIL: RiskManager reset killSwitch");
+    } else if (absDiff(rm.totalDailyLoss, 0.0) > 1e-9) {
+        io::println("FAIL: RiskManager reset totalDailyLoss");
+    } else {
+        io::println("PASS: RiskManager reset works");
+    }
+}
+
+public fn run_all_riskmanager_tests(): void {
+    io::println("=== hft/RiskManager.tr Tests ===");
+    test_risk_init_defaults();
+    test_risk_check_position_limit_within();
+    test_risk_check_position_limit_exceeds();
+    test_risk_check_position_limit_with_existing();
+    test_risk_check_notional_limit_within();
+    test_risk_check_notional_limit_exceeds();
+    test_risk_check_rate_limit_within();
+    test_risk_check_rate_limit_exceeds();
+    test_risk_check_rate_limit_window();
+    test_risk_check_daily_loss_within();
+    test_risk_check_daily_loss_exceeds();
+    test_risk_update_position();
+    test_risk_update_pnl();
+    test_risk_kill_switch_blocks();
+    test_risk_deactivate_kill_switch();
+    test_risk_reset_daily();
+    test_risk_reset();
+}

@@ -1,0 +1,211 @@
+// Test file for image/Threshold.tr
+// Exercises binaryThreshold, computeHistogram, otsuThreshold,
+// adaptiveThreshold, adaptiveThresholdImage, and histogramEqualization.
+import tt::image::Threshold;
+import tt::image::Image;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+fn makeImage(rows: int, cols: int, value: double): ArrayList<ArrayList<double>> {
+    let img: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            row.add(value);
+            j = j + 1;
+        }
+        img.add(row);
+        i = i + 1;
+    }
+    return img;
+}
+
+public fn test_binary_threshold_high(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(2, 2, 200.0);
+    let out: ArrayList<ArrayList<double>> = binaryThreshold(img, 128.0);
+    if (absDiff(out.get(0).get(0), 255.0) > 1e-9) {
+        io::println("FAIL: binaryThreshold high not 255");
+    } else {
+        io::println("PASS: binaryThreshold high = 255");
+    }
+}
+
+public fn test_binary_threshold_low(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(2, 2, 50.0);
+    let out: ArrayList<ArrayList<double>> = binaryThreshold(img, 128.0);
+    if (absDiff(out.get(0).get(0), 0.0) > 1e-9) {
+        io::println("FAIL: binaryThreshold low not 0");
+    } else {
+        io::println("PASS: binaryThreshold low = 0");
+    }
+}
+
+public fn test_binary_threshold_equal(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(2, 2, 128.0);
+    let out: ArrayList<ArrayList<double>> = binaryThreshold(img, 128.0);
+    // 128 >= 128 should yield 255
+    if (absDiff(out.get(0).get(0), 255.0) > 1e-9) {
+        io::println("FAIL: binaryThreshold equal not 255");
+    } else {
+        io::println("PASS: binaryThreshold equal = 255");
+    }
+}
+
+public fn test_binary_threshold_shape(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(3, 4, 100.0);
+    let out: ArrayList<ArrayList<double>> = binaryThreshold(img, 50.0);
+    if (out.size() != 3 || out.get(0).size() != 4) {
+        io::println("FAIL: binaryThreshold shape");
+    } else {
+        io::println("PASS: binaryThreshold shape preserved");
+    }
+}
+
+public fn test_compute_histogram_length(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(2, 2, 100.0);
+    let hist: ArrayList<int> = computeHistogram(img, 256);
+    if (hist.size() != 256) {
+        io::println("FAIL: computeHistogram length = " + Integer.toString(hist.size()));
+    } else {
+        io::println("PASS: computeHistogram length = 256");
+    }
+}
+
+public fn test_compute_histogram_count(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(2, 2, 100.0);
+    let hist: ArrayList<int> = computeHistogram(img, 256);
+    let total: int = 0;
+    var i: int = 0;
+    while (i < hist.size()) {
+        total = total + hist.get(i);
+        i = i + 1;
+    }
+    if (total != 4) {
+        io::println("FAIL: computeHistogram total = " + Integer.toString(total));
+    } else {
+        io::println("PASS: computeHistogram total = 4");
+    }
+}
+
+public fn test_compute_histogram_bins(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(1, 1, 100.0);
+    let hist: ArrayList<int> = computeHistogram(img, 4);
+    if (hist.size() != 4) {
+        io::println("FAIL: computeHistogram bins length");
+    } else {
+        io::println("PASS: computeHistogram bins length works");
+    }
+}
+
+public fn test_otsu_threshold_range(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(4, 4, 100.0);
+    let t: double = otsuThreshold(img);
+    if (t < 0.0 || t > 255.0) {
+        io::println("FAIL: otsuThreshold out of range");
+    } else {
+        io::println("PASS: otsuThreshold in range");
+    }
+}
+
+public fn test_otsu_threshold_bimodal(): void {
+    // Image with two distinct regions should yield a threshold between them
+    let img: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(20.0); row1.add(20.0); row1.add(220.0); row1.add(220.0);
+    let row2: ArrayList<double> = new ArrayList<double>();
+    row2.add(20.0); row2.add(20.0); row2.add(220.0); row2.add(220.0);
+    img.add(row1); img.add(row2);
+    let t: double = otsuThreshold(img);
+    if (t <= 20.0 || t >= 220.0) {
+        io::println("FAIL: otsuThreshold not between modes = " + Integer.toString(t as int));
+    } else {
+        io::println("PASS: otsuThreshold between modes");
+    }
+}
+
+public fn test_adaptive_threshold_shape(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(5, 5, 100.0);
+    let out: ArrayList<ArrayList<double>> = adaptiveThreshold(img, 3, 0.0);
+    if (out.size() != 5 || out.get(0).size() != 5) {
+        io::println("FAIL: adaptiveThreshold shape");
+    } else {
+        io::println("PASS: adaptiveThreshold shape preserved");
+    }
+}
+
+public fn test_adaptive_threshold_values(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(5, 5, 200.0);
+    let out: ArrayList<ArrayList<double>> = adaptiveThreshold(img, 3, 0.0);
+    // For uniform image, pixel >= mean - c should yield 255
+    if (absDiff(out.get(2).get(2), 255.0) > 1e-9) {
+        io::println("FAIL: adaptiveThreshold uniform interior not 255");
+    } else {
+        io::println("PASS: adaptiveThreshold uniform interior = 255");
+    }
+}
+
+public fn test_adaptive_threshold_image_shape(): void {
+    let img: Image = new Image(5, 5, 1);
+    var i: int = 0;
+    while (i < 5) {
+        var j: int = 0;
+        while (j < 5) {
+            img.setPixel(i, j, 0, 200.0);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    let out: Image = adaptiveThresholdImage(img, 3, 0.0);
+    if (out.width != 5 || out.height != 5) {
+        io::println("FAIL: adaptiveThresholdImage shape");
+    } else {
+        io::println("PASS: adaptiveThresholdImage shape preserved");
+    }
+}
+
+public fn test_histogram_equalization_shape(): void {
+    let img: ArrayList<ArrayList<double>> = makeImage(4, 4, 100.0);
+    let out: ArrayList<ArrayList<double>> = histogramEqualization(img);
+    if (out.size() != 4 || out.get(0).size() != 4) {
+        io::println("FAIL: histogramEqualization shape");
+    } else {
+        io::println("PASS: histogramEqualization shape preserved");
+    }
+}
+
+public fn test_histogram_equalization_uniform(): void {
+    // For a uniform image, equalization should map all pixels to 255 (max CDF)
+    let img: ArrayList<ArrayList<double>> = makeImage(3, 3, 100.0);
+    let out: ArrayList<ArrayList<double>> = histogramEqualization(img);
+    if (absDiff(out.get(1).get(1), 255.0) > 1e-9) {
+        io::println("FAIL: histogramEqualization uniform not 255");
+    } else {
+        io::println("PASS: histogramEqualization uniform = 255");
+    }
+}
+
+public fn run_all_threshold_tests(): void {
+    io::println("=== image/Threshold.tr Tests ===");
+    test_binary_threshold_high();
+    test_binary_threshold_low();
+    test_binary_threshold_equal();
+    test_binary_threshold_shape();
+    test_compute_histogram_length();
+    test_compute_histogram_count();
+    test_compute_histogram_bins();
+    test_otsu_threshold_range();
+    test_otsu_threshold_bimodal();
+    test_adaptive_threshold_shape();
+    test_adaptive_threshold_values();
+    test_adaptive_threshold_image_shape();
+    test_histogram_equalization_shape();
+    test_histogram_equalization_uniform();
+}
