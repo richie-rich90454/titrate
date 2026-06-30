@@ -1,0 +1,177 @@
+// Dataclass module — Python-style data classes with auto-generated methods.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class DataclassInfo {
+    public string name;
+    public ArrayList<string> fields;
+    public ArrayList<Variant> defaults;
+
+    fn init(name: string, fields: ArrayList<string>, defaults: ArrayList<Variant>) {
+        this.name = name;
+        this.fields = fields;
+        this.defaults = defaults;
+    }
+}
+
+// Create a dataclass-like object with auto-generated methods.
+// Returns a DataclassInfo that describes the dataclass structure.
+public fn create(name: string, fields: ArrayList<string>, defaults: ArrayList<Variant>): Variant {
+    let info: DataclassInfo = new DataclassInfo(name, fields, defaults);
+    return info;
+}
+
+// Helper to create a dataclass instance from a DataclassInfo and values.
+public fn newInstance(dataclass: Variant, values: ArrayList<Variant>): Variant {
+    let info: DataclassInfo = dataclass as DataclassInfo;
+    let instance: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let i: int = 0;
+    while (i < info.fields.size()) {
+        let field: string = info.fields.get(i);
+        if (i < values.size()) {
+            instance.put(field, values.get(i));
+        } else if (i < info.defaults.size()) {
+            instance.put(field, info.defaults.get(i));
+        } else {
+            instance.put(field, null);
+        }
+        i = i + 1;
+    }
+    instance.put("__class__", info.name);
+    return instance;
+}
+
+// Auto-generated toString.
+public fn toString(instance: Variant, className: string, fields: ArrayList<string>): string {
+    let map: HashMap<string, Variant> = instance as HashMap<string, Variant>;
+    let sb: StringBuilder = new StringBuilder();
+    sb.append(className);
+    sb.append("(");
+    let i: int = 0;
+    while (i < fields.size()) {
+        let field: string = fields.get(i);
+        sb.append(field);
+        sb.append("=");
+        let val: Variant = map.get(field);
+        if (val == null) {
+            sb.append("null");
+        } else {
+            sb.append(val.toString());
+        }
+        if (i < fields.size() - 1) {
+            sb.append(", ");
+        }
+        i = i + 1;
+    }
+    sb.append(")");
+    return sb.append("").toString();
+}
+
+// Auto-generated equals.
+public fn equals(a: Variant, b: Variant, fields: ArrayList<string>): bool {
+    if (a == null || b == null) {
+        return a == null && b == null;
+    }
+    let mapA: HashMap<string, Variant> = a as HashMap<string, Variant>;
+    let mapB: HashMap<string, Variant> = b as HashMap<string, Variant>;
+    let i: int = 0;
+    while (i < fields.size()) {
+        let field: string = fields.get(i);
+        let valA: Variant = mapA.get(field);
+        let valB: Variant = mapB.get(field);
+        if (valA == null && valB == null) {
+            i = i + 1;
+            continue;
+        }
+        if (valA == null || valB == null) {
+            return false;
+        }
+        if (valA != valB) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Copy with modifications — returns a new instance with specified fields overridden.
+public fn copyWith(instance: Variant, fields: ArrayList<string>, overrides: HashMap<string, Variant>): Variant {
+    let map: HashMap<string, Variant> = instance as HashMap<string, Variant>;
+    let copy: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let i: int = 0;
+    while (i < fields.size()) {
+        let field: string = fields.get(i);
+        if (overrides.containsKey(field)) {
+            copy.put(field, overrides.get(field));
+        } else {
+            copy.put(field, map.get(field));
+        }
+        i = i + 1;
+    }
+    let className: Variant = map.get("__class__");
+    if (className != null) {
+        copy.put("__class__", className);
+    }
+    return copy;
+}
+
+// Create field metadata for dataclass definitions.
+// Returns a HashMap with field configuration: default, name, repr, compare.
+public fn field(defaultValue: Variant, name: string, repr: bool, compare: bool): HashMap<string, Variant> {
+    let meta: HashMap<string, Variant> = new HashMap<string, Variant>();
+    meta.put("default", defaultValue);
+    meta.put("name", name);
+    meta.put("repr", repr);
+    meta.put("compare", compare);
+    return meta;
+}
+
+// Convert a dataclass instance to a HashMap of field names to values.
+public fn asdict(instance: HashMap<string, Variant>, fields: ArrayList<string>): HashMap<string, Variant> {
+    let result: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let i: int = 0;
+    while (i < fields.size()) {
+        let fieldName: string = fields.get(i);
+        result.put(fieldName, instance.get(fieldName));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert a dataclass instance to an ArrayList of field values in order.
+public fn astuple(instance: HashMap<string, Variant>, fields: ArrayList<string>): ArrayList<Variant> {
+    let result: ArrayList<Variant> = new ArrayList<Variant>();
+    let i: int = 0;
+    while (i < fields.size()) {
+        let fieldName: string = fields.get(i);
+        result.add(instance.get(fieldName));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Create a new instance with specified fields overridden.
+// Improved version of copyWith that works directly with HashMap instances.
+public fn replace(instance: HashMap<string, Variant>, fields: ArrayList<string>, overrides: HashMap<string, Variant>): HashMap<string, Variant> {
+    let copy: HashMap<string, Variant> = new HashMap<string, Variant>();
+    let i: int = 0;
+    while (i < fields.size()) {
+        let fieldName: string = fields.get(i);
+        if (overrides.containsKey(fieldName)) {
+            copy.put(fieldName, overrides.get(fieldName));
+        } else {
+            copy.put(fieldName, instance.get(fieldName));
+        }
+        i = i + 1;
+    }
+    let className: Variant = instance.get("__class__");
+    if (className != null) {
+        copy.put("__class__", className);
+    }
+    return copy;
+}
+
+// Get the field names of a dataclass.
+public fn fields(dataclass: DataclassInfo): ArrayList<string> {
+    return dataclass.fields;
+}
