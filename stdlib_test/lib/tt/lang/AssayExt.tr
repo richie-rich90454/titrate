@@ -1,0 +1,259 @@
+// AssayExt — extended testing framework with fixtures, suites, skip/expected-failure, and parameterized tests.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
+import tt::lang::Variant;
+
+// TestFixture groups setup, teardown, and test functions.
+public class TestFixture {
+    public fn(): void setupFn;
+    public fn(): void teardownFn;
+    public ArrayList<Pair<string, fn(): void>> tests;
+
+    public fn init() {
+        this.setupFn = null;
+        this.teardownFn = null;
+        this.tests = new ArrayList<Pair<string, fn(): void>>();
+    }
+
+    // Register a setup function to run before each test.
+    public fn setup(f: fn(): void): void {
+        this.setupFn = f;
+    }
+
+    // Register a teardown function to run after each test.
+    public fn teardown(f: fn(): void): void {
+        this.teardownFn = f;
+    }
+
+    // Add a named test function to this fixture.
+    public fn test(name: string, f: fn(): void): void {
+        this.tests.add(new Pair<string, fn(): void>(name, f));
+    }
+}
+
+// TestSuite runs multiple fixtures with skip and expected-failure support.
+public class TestSuite {
+    public ArrayList<TestFixture> fixtures;
+    public ArrayList<string> skipList;
+    public ArrayList<string> expectedFailures;
+
+    public fn init() {
+        this.fixtures = new ArrayList<TestFixture>();
+        this.skipList = new ArrayList<string>();
+        this.expectedFailures = new ArrayList<string>();
+    }
+
+    // Add a fixture to the suite.
+    public fn addFixture(fixture: TestFixture): void {
+        this.fixtures.add(fixture);
+    }
+
+    // Mark a test as skipped by name.
+    public fn skipTest(name: string): void {
+        this.skipList.add(name);
+    }
+
+    // Mark a test as an expected failure by name.
+    public fn expectFailure(name: string): void {
+        this.expectedFailures.add(name);
+    }
+
+    // Check if a test name is in the skip list.
+    private fn _isSkipped(name: string): bool {
+        var i: int = 0;
+        while (i < this.skipList.size()) {
+            if (this.skipList.get(i) == name) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Check if a test name is in the expected failures list.
+    private fn _isExpectedFailure(name: string): bool {
+        var i: int = 0;
+        while (i < this.expectedFailures.size()) {
+            if (this.expectedFailures.get(i) == name) { return true; }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Run all tests in all fixtures and return results.
+    // Results are a HashMap with keys "passed", "failed", "skipped", "unexpected_pass"
+    // each mapping to an ArrayList of result HashMaps.
+    public fn run(): HashMap<string, ArrayList<HashMap>> {
+        let passed: ArrayList<HashMap> = new ArrayList<HashMap>();
+        let failed: ArrayList<HashMap> = new ArrayList<HashMap>();
+        let skipped: ArrayList<HashMap> = new ArrayList<HashMap>();
+        let unexpectedPass: ArrayList<HashMap> = new ArrayList<HashMap>();
+
+        var fi: int = 0;
+        while (fi < this.fixtures.size()) {
+            let fixture: TestFixture = this.fixtures.get(fi);
+            var ti: int = 0;
+            while (ti < fixture.tests.size()) {
+                let testName: string = fixture.tests.get(ti).first;
+                let testFn: fn(): void = fixture.tests.get(ti).second;
+                let entry: HashMap<string, string> = new HashMap<string, string>();
+                entry.put("name", testName);
+
+                if (this._isSkipped(testName)) {
+                    entry.put("status", "skipped");
+                    skipped.add(entry);
+                    ti = ti + 1;
+                    continue;
+                }
+
+                let isExpectedFail: bool = this._isExpectedFailure(testName);
+                var testPassed: bool = true;
+                var errorMsg: string = "";
+
+                // Run setup
+                if (fixture.setupFn != null) {
+                    try {
+                        fixture.setupFn();
+                    } catch (e: string) {
+                        testPassed = false;
+                        errorMsg = "setup failed: " + e;
+                    }
+                }
+
+                // Run test
+                if (testPassed) {
+                    try {
+                        testFn();
+                    } catch (e: string) {
+                        testPassed = false;
+                        errorMsg = e;
+                    }
+                }
+
+                // Run teardown
+                if (fixture.teardownFn != null) {
+                    try {
+                        fixture.teardownFn();
+                    } catch (e: string) {
+                        // Teardown errors don't affect test result
+                    }
+                }
+
+                if (testPassed) {
+                    if (isExpectedFail) {
+                        entry.put("status", "unexpected_pass");
+                        unexpectedPass.add(entry);
+                    } else {
+                        entry.put("status", "passed");
+                        passed.add(entry);
+                    }
+                } else {
+                    if (isExpectedFail) {
+                        entry.put("status", "passed");
+                        entry.put("note", "expected_failure");
+                        passed.add(entry);
+                    } else {
+                        entry.put("status", "failed");
+                        entry.put("error", errorMsg);
+                        failed.add(entry);
+                    }
+                }
+                ti = ti + 1;
+            }
+            fi = fi + 1;
+        }
+
+        let result: HashMap<string, ArrayList<HashMap>> = new HashMap<string, ArrayList<HashMap>>();
+        result.put("passed", passed);
+        result.put("failed", failed);
+        result.put("skipped", skipped);
+        result.put("unexpected_pass", unexpectedPass);
+        return result;
+    }
+}
+
+// Generate parameterized test functions from a list of parameters.
+// Returns an ArrayList of zero-argument functions, each capturing one parameter value.
+public fn parameterizedTest(params: ArrayList<Variant>, f: fn(Variant): void): ArrayList<fn(): void> {
+    let result: ArrayList<fn(): void> = new ArrayList<fn(): void>();
+    var i: int = 0;
+    while (i < params.size()) {
+        let param: Variant = params.get(i);
+        let capturedF: fn(Variant): void = f;
+        let capturedParam: Variant = param;
+        let testFn: fn(): void = fn(): void {
+            capturedF(capturedParam);
+        };
+        result.add(testFn);
+        i = i + 1;
+    }
+    return result;
+}
+
+// BenchmarkResult holds timing statistics for a benchmark run.
+// All times are in nanoseconds.
+public class BenchmarkResult {
+    public var minNanos: long;
+    public var maxNanos: long;
+    public var meanNanos: double;
+    public var medianNanos: double;
+    public var totalNanos: long;
+    public var iterations: int;
+
+    public fn init(min: long, max: long, mean: double, median: double, total: long, iters: int) {
+        this.minNanos = min;
+        this.maxNanos = max;
+        this.meanNanos = mean;
+        this.medianNanos = median;
+        this.totalNanos = total;
+        this.iterations = iters;
+    }
+
+    public fn toString(): string {
+        return "BenchmarkResult{iters=" + Integer.toString(this.iterations)
+            + ", min=" + Long.toString(this.minNanos) + "ns"
+            + ", max=" + Long.toString(this.maxNanos) + "ns"
+            + ", mean=" + Double.toString(this.meanNanos) + "ns"
+            + ", median=" + Double.toString(this.medianNanos) + "ns"
+            + ", total=" + Long.toString(this.totalNanos) + "ns}";
+    }
+}
+
+// Run a function n times and return benchmark statistics.
+// Each iteration is timed individually using a monotonic clock.
+public fn benchmark(f: fn(): void, iterations: int): BenchmarkResult {
+    let times: ArrayList<long> = new ArrayList<long>();
+    var i: int = 0;
+    while (i < iterations) {
+        let start: long = Time_monotonic();
+        f();
+        let end: long = Time_monotonic();
+        times.add(end - start);
+        i = i + 1;
+    }
+    // Sort to compute median
+    times.sort();
+    // Compute statistics
+    var minVal: long = times.get(0);
+    var maxVal: long = times.get(0);
+    var total: long = 0;
+    i = 0;
+    while (i < times.size()) {
+        let t: long = times.get(i);
+        if (t < minVal) { minVal = t; }
+        if (t > maxVal) { maxVal = t; }
+        total = total + t;
+        i = i + 1;
+    }
+    let mean: double = total as double / iterations as double;
+    // Median: middle element for odd count, average of two middle for even count
+    var median: double = 0.0;
+    let n: int = times.size();
+    if (n % 2 == 1) {
+        median = times.get(n / 2) as double;
+    } else {
+        let a: double = times.get(n / 2 - 1) as double;
+        let b: double = times.get(n / 2) as double;
+        median = (a + b) / 2.0;
+    }
+    return new BenchmarkResult(minVal, maxVal, mean, median, total, iterations);
+}
