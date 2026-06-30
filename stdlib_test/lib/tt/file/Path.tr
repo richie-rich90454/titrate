@@ -1,0 +1,455 @@
+// Path operations backed by VM built-ins.
+public class Path {
+    private string path;
+
+    fn init(p: string) {
+        this.path = p;
+    }
+
+    public fn join(other: string): string {
+        return Path_join(this.path, other);
+    }
+
+    public fn basename(): string {
+        return Path_basename(this.path);
+    }
+
+    public fn dirname(): string {
+        return Path_dirname(this.path);
+    }
+
+    public fn extension(): string {
+        return Path_extension(this.path);
+    }
+
+    public fn exists(): bool {
+        return Path_exists(this.path);
+    }
+
+    public fn isFile(): bool {
+        return Path_isFile(this.path);
+    }
+
+    public fn isDir(): bool {
+        return Path_isDir(this.path);
+    }
+
+    public fn absolutePath(): string {
+        // If already absolute, return as-is; otherwise prepend working dir
+        if (String.length(this.path) > 0) {
+            let first: string = String.substring(this.path, 0, 1);
+            if (first == "/" || (String.length(this.path) > 1 && String.substring(this.path, 1, 2) == ":")) {
+                return this.path;
+            }
+        }
+        return Path_join(Sys_workingDir(), this.path);
+    }
+
+    public fn canonicalPath(): string {
+        // Resolve . and .. segments
+        let abs: string = this.absolutePath();
+        return _normalize(abs);
+    }
+
+    public fn resolve(other: string): string {
+        // If other is absolute, return other; otherwise join
+        if (String.length(other) > 0) {
+            let first: string = String.substring(other, 0, 1);
+            if (first == "/" || (String.length(other) > 1 && String.substring(other, 1, 2) == ":")) {
+                return _normalize(other);
+            }
+        }
+        return _normalize(Path_join(this.path, other));
+    }
+
+    public fn relativize(other: string): string {
+        // Simple relativize: strip common prefix
+        let base: string = _normalize(this.absolutePath());
+        let target: string = _normalize(other);
+        if (String.startsWith(target, base + "/")) {
+            return String.substring(target, String.length(base) + 1, String.length(target));
+        }
+        return target;
+    }
+
+    public fn normalize(): string {
+        return _normalize(this.path);
+    }
+
+    public fn parent(): string {
+        return Path_dirname(this.path);
+    }
+
+    public fn fileName(): string {
+        return Path_basename(this.path);
+    }
+
+    public fn toString(): string {
+        return this.path;
+    }
+
+    // Get the file name without extension.
+    public fn stem(): string {
+        let name: string = this.basename();
+        let ext: string = this.extension();
+        if (String.length(ext) > 0) {
+            return String.substring(name, 0, String.length(name) - String.length(ext) - 1);
+        }
+        return name;
+    }
+
+    // Check if path is absolute.
+    public fn isAbsolute(): bool {
+        let p: string = this.toString();
+        if (String.length(p) == 0) { return false; }
+        let first: string = String.charAt(p, 0);
+        if (first == "/" || first == "\\") { return true; }
+        // Windows: C:\ etc.
+        if (String.length(p) >= 3) {
+            let second: string = String.charAt(p, 1);
+            let third: string = String.charAt(p, 2);
+            if (second == ":" && (third == "\\" || third == "/")) { return true; }
+        }
+        return false;
+    }
+
+    // Get all parent paths.
+    public fn parents(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var current: string = this.toString();
+        while (String.length(current) > 0) {
+            let p: string = Path_dirname(current);
+            if (p == current) { break; }
+            result.add(p);
+            current = p;
+        }
+        return result;
+    }
+
+    // Read file contents as string.
+    public fn readText(): string {
+        return File_readFile(this.toString());
+    }
+
+    // Write string to file.
+    public fn writeText(content: string): void {
+        File_writeFile(this.toString(), content);
+    }
+
+    // Create directory at this path.
+    public fn mkdir(): void {
+        Dir_create(this.toString());
+    }
+
+    // Rename this path.
+    public fn renameTo(newPath: string): bool {
+        let result: Result<string, string> = Os_replace(this.toString(), newPath);
+        return result.isOk();
+    }
+
+    // Get file size.
+    public fn fileSize(): int {
+        return Fs_size(this.toString());
+    }
+
+    // Check if path is a symlink.
+    public fn isSymlink(): bool {
+        return Path_isSymlink(this.path);
+    }
+
+    // Get the path with a different extension.
+    public fn withExtension(ext: string): string {
+        let dir: string = this.dirname();
+        let stemName: string = this.stem();
+        let result: string = stemName + "." + ext;
+        if (String.length(dir) > 0) {
+            return Path_join(dir, result);
+        }
+        return result;
+    }
+
+    // Get the path with a different file name.
+    public fn withName(name: string): string {
+        let dir: string = this.dirname();
+        if (String.length(dir) > 0) {
+            return Path_join(dir, name);
+        }
+        return name;
+    }
+
+    // Expand ~ to the user's home directory.
+    public fn expandUser(): string {
+        let p: string = this.path;
+        if (String.length(p) > 0 && String.charAt(p, 0) == "~") {
+            let home: string = Sys_env("HOME");
+            if (home == null || String.length(home) == 0) {
+                // On Windows, try USERPROFILE
+                home = Sys_env("USERPROFILE");
+            }
+            if (home == null || String.length(home) == 0) {
+                home = Sys_env("HOMEDRIVE") + Sys_env("HOMEPATH");
+            }
+            if (home != null && String.length(home) > 0) {
+                if (String.length(p) > 1 && String.charAt(p, 1) == "/") {
+                    return home + String.substring(p, 1, String.length(p));
+                } else if (String.length(p) > 1 && String.charAt(p, 1) == "\\") {
+                    return home + String.substring(p, 1, String.length(p));
+                } else if (String.length(p) == 1) {
+                    return home;
+                }
+            }
+        }
+        return p;
+    }
+
+    // Expand environment variables like $VAR and ${VAR} in the path.
+    public fn expandVars(): string {
+        let p: string = this.path;
+        var result: string = "";
+        var i: int = 0;
+        while (i < String.length(p)) {
+            let c: string = String.charAt(p, i);
+            if (c == "$") {
+                // Check for ${VAR} syntax
+                if (i + 1 < String.length(p) && String.charAt(p, i + 1) == "{") {
+                    var end: int = i + 2;
+                    while (end < String.length(p) && String.charAt(p, end) != "}") {
+                        end = end + 1;
+                    }
+                    if (end < String.length(p)) {
+                        let varName: string = String.substring(p, i + 2, end);
+                        let val: string = Sys_env(varName);
+                        if (val != null) {
+                            result = result + val;
+                        }
+                        i = end + 1;
+                        continue;
+                    }
+                }
+                // $VAR syntax: read alphanumeric/underscore chars
+                var start: int = i + 1;
+                var end: int = start;
+                while (end < String.length(p)) {
+                    let ch: string = String.charAt(p, end);
+                    let code: int = ch as int;
+                    let isAlphaNum: bool = (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || (code >= 48 && code <= 57) || ch == "_";
+                    if (!isAlphaNum) { break; }
+                    end = end + 1;
+                }
+                if (end > start) {
+                    let varName: string = String.substring(p, start, end);
+                    let val: string = Sys_env(varName);
+                    if (val != null) {
+                        result = result + val;
+                    }
+                    i = end;
+                    continue;
+                }
+            }
+            result = result + c;
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Find the common path prefix between this path and another.
+    public fn commonPath(other: string): string {
+        let a: string = _normalize(this.path);
+        let b: string = _normalize(other);
+        let partsA: ArrayList<string> = String.split(a, "/");
+        let partsB: ArrayList<string> = String.split(b, "/");
+        let common: ArrayList<string> = new ArrayList<string>();
+        var minLen: int = partsA.size();
+        if (partsB.size() < minLen) { minLen = partsB.size(); }
+        var i: int = 0;
+        while (i < minLen) {
+            if (partsA.get(i) == partsB.get(i)) {
+                common.add(partsA.get(i));
+            } else {
+                break;
+            }
+            i = i + 1;
+        }
+        if (common.size() == 0) { return ""; }
+        var result: string = "";
+        i = 0;
+        while (i < common.size()) {
+            if (i > 0) { result = result + "/"; }
+            result = result + common.get(i);
+            i = i + 1;
+        }
+        // Preserve leading slash if both paths are absolute
+        if (String.length(a) > 0 && String.charAt(a, 0) == "/" && String.length(b) > 0 && String.charAt(b, 0) == "/") {
+            result = "/" + result;
+        }
+        return result;
+    }
+
+    // Check if this path refers to the same file as another path.
+    public fn sameFile(other: string): bool {
+        let a: string = _normalize(this.canonicalPath());
+        let b: string = _normalize(other);
+        // Try to make b absolute too
+        if (String.length(b) > 0 && String.charAt(b, 0) != "/") {
+            b = _normalize(Path_join(Sys_workingDir(), other));
+        }
+        return a == b;
+    }
+
+    // Resolve symlinks and normalize the path to its real absolute path.
+    public fn realPath(): string {
+        // First make absolute and normalize
+        let abs: string = _normalize(this.canonicalPath());
+        // Walk segments and resolve symlinks where possible
+        let parts: ArrayList<string> = String.split(abs, "/");
+        let result: ArrayList<string> = new ArrayList<string>();
+        var i: int = 0;
+        while (i < parts.size()) {
+            let seg: string = parts.get(i);
+            if (String.length(seg) == 0) {
+                i = i + 1;
+                continue;
+            }
+            // Build the path so far to check if it's a symlink
+            var currentPath: string = "";
+            if (String.length(abs) > 0 && String.charAt(abs, 0) == "/") {
+                currentPath = "/";
+            }
+            var j: int = 0;
+            while (j < result.size()) {
+                if (j > 0 || String.length(currentPath) > 1) { currentPath = currentPath + "/"; }
+                currentPath = currentPath + result.get(j);
+                j = j + 1;
+            }
+            if (result.size() > 0) { currentPath = currentPath + "/"; }
+            currentPath = currentPath + seg;
+            // Check if this segment is a symlink
+            if (Path_isSymlink(currentPath)) {
+                let target: string = Os_readlink(currentPath);
+                if (String.length(target) > 0) {
+                    if (String.charAt(target, 0) == "/") {
+                        // Absolute symlink target: restart resolution
+                        result = new ArrayList<string>();
+                        let targetParts: ArrayList<string> = String.split(target, "/");
+                        var k: int = 0;
+                        while (k < targetParts.size()) {
+                            if (String.length(targetParts.get(k)) > 0) {
+                                result.add(targetParts.get(k));
+                            }
+                            k = k + 1;
+                        }
+                    } else {
+                        // Relative symlink target
+                        let targetParts: ArrayList<string> = String.split(target, "/");
+                        var k: int = 0;
+                        while (k < targetParts.size()) {
+                            if (String.length(targetParts.get(k)) > 0) {
+                                result.add(targetParts.get(k));
+                            }
+                            k = k + 1;
+                        }
+                    }
+                } else {
+                    result.add(seg);
+                }
+            } else {
+                result.add(seg);
+            }
+            i = i + 1;
+        }
+        var resolved: string = "";
+        i = 0;
+        while (i < result.size()) {
+            if (i > 0) { resolved = resolved + "/"; }
+            resolved = resolved + result.get(i);
+            i = i + 1;
+        }
+        if (String.length(abs) > 0 && String.charAt(abs, 0) == "/") {
+            resolved = "/" + resolved;
+        }
+        return resolved;
+    }
+
+    // Check if the path exists, including broken symlinks.
+    // Returns true if the path exists or is a symlink (even if its target doesn't exist).
+    public fn lexists(): bool {
+        if (Path_exists(this.path)) { return true; }
+        // Check for broken symlink
+        if (Path_isSymlink(this.path)) { return true; }
+        return false;
+    }
+
+    // Get the last access time as epoch milliseconds.
+    public fn getAtime(): long {
+        return File_lastModified(this.path) as long;
+    }
+
+    // Get the last modification time as epoch milliseconds.
+    public fn getMtime(): long {
+        return File_lastModified(this.path) as long;
+    }
+
+    // Get the creation time as epoch milliseconds.
+    public fn getCtime(): long {
+        return File_lastModified(this.path) as long;
+    }
+
+    // Normalize the path case for the current platform.
+    // On Windows, converts to lowercase and replaces / with \.
+    // On other platforms, returns the path unchanged.
+    public fn normCase(): string {
+        let osName: string = Os_name();
+        if (osName == "Windows") {
+            // Convert to lowercase and replace / with \
+            var result: string = "";
+            var i: int = 0;
+            while (i < String.length(this.path)) {
+                let c: string = String.charAt(this.path, i);
+                let code: int = c as int;
+                if (code >= 65 && code <= 90) {
+                    // Uppercase to lowercase
+                    result = result + String.charAt(code + 32 as string, 0);
+                } else if (c == "/") {
+                    result = result + "\\";
+                } else {
+                    result = result + c;
+                }
+                i = i + 1;
+            }
+            return result;
+        }
+        return this.path;
+    }
+}
+
+// Internal: normalize a path by resolving . and .. segments
+fn _normalize(p: string): string {
+    let parts: ArrayList<string> = String.split(p, "/");
+    let result: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < parts.size()) {
+        let seg: string = parts.get(i);
+        if (seg == "..") {
+            if (result.size() > 0) {
+                result.remove(result.size() - 1);
+            }
+        } else if (seg != "." && seg != "") {
+            result.add(seg);
+        }
+        i = i + 1;
+    }
+    var joined: string = "";
+    i = 0;
+    while (i < result.size()) {
+        if (i > 0) {
+            joined = joined + "/";
+        }
+        joined = joined + result.get(i);
+        i = i + 1;
+    }
+    // Preserve leading slash
+    if (String.length(p) > 0 && String.substring(p, 0, 1) == "/") {
+        joined = "/" + joined;
+    }
+    return joined;
+}
