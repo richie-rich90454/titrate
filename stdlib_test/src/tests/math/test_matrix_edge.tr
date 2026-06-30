@@ -1,0 +1,181 @@
+// Edge case tests for linalg/Matrix.tr
+// Exercises boundary conditions: identity, zero, identity multiplication, 1x1 transpose/determinant.
+import tt::math::linalg::Matrix;
+import tt::math::linalg::MatrixProps;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+// Identity matrix: diagonal 1, off-diagonal 0.
+public fn test_matrix_edge_identity(): void {
+    let I: Matrix = Matrix.identity(3);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 3) {
+        var j: int = 0;
+        while (j < 3) {
+            let expected: double = 0.0;
+            if (i == j) { expected = 1.0; }
+            if (absDiff(I.get(i, j), expected) > 1e-12) { ok = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (ok) {
+        io::println("PASS: Matrix.identity(3) has 1 on diagonal, 0 elsewhere");
+    } else {
+        io::println("FAIL: Matrix.identity(3) incorrect");
+    }
+
+    // Identity of size 1
+    let I1: Matrix = Matrix.identity(1);
+    if (I1.rows() == 1 && I1.cols() == 1 && absDiff(I1.get(0, 0), 1.0) < 1e-12) {
+        io::println("PASS: Matrix.identity(1) = [[1.0]]");
+    } else {
+        io::println("FAIL: Matrix.identity(1) incorrect");
+    }
+
+    // trace(I_n) = n
+    if (absDiff(I.trace(), 3.0) < 1e-12) {
+        io::println("PASS: trace(identity(3)) = 3.0");
+    } else {
+        io::println("FAIL: trace(identity(3)) expected 3.0, got " + Double.toString(I.trace()));
+    }
+}
+
+// Zero matrix: all entries 0.
+public fn test_matrix_edge_zero_matrix(): void {
+    let Z: Matrix = Matrix.zeros(2, 3);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 2) {
+        var j: int = 0;
+        while (j < 3) {
+            if (Z.get(i, j) != 0.0) { ok = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (ok && Z.rows() == 2 && Z.cols() == 3) {
+        io::println("PASS: Matrix.zeros(2,3) all zero with correct dims");
+    } else {
+        io::println("FAIL: Matrix.zeros(2,3) incorrect");
+    }
+
+    // trace of zero matrix is 0
+    let Z2: Matrix = Matrix.zeros(3, 3);
+    if (absDiff(Z2.trace(), 0.0) < 1e-12) {
+        io::println("PASS: trace(zeros(3,3)) = 0.0");
+    } else {
+        io::println("FAIL: trace(zeros(3,3)) expected 0.0, got " + Double.toString(Z2.trace()));
+    }
+}
+
+// Matrix multiplication with identity: A * I = A and I * A = A.
+public fn test_matrix_edge_mul_identity(): void {
+    let A: Matrix = new Matrix(2, 3);
+    A.set(0, 0, 1.0); A.set(0, 1, 2.0); A.set(0, 2, 3.0);
+    A.set(1, 0, 4.0); A.set(1, 1, 5.0); A.set(1, 2, 6.0);
+
+    let I3: Matrix = Matrix.identity(3);
+    let AI: Matrix = A.mul(I3);
+    if (AI.equals(A)) {
+        io::println("PASS: A * I(3) = A (right identity)");
+    } else {
+        io::println("FAIL: A * I(3) expected to equal A");
+    }
+
+    let I2: Matrix = Matrix.identity(2);
+    let IA: Matrix = I2.mul(A);
+    if (IA.equals(A)) {
+        io::println("PASS: I(2) * A = A (left identity)");
+    } else {
+        io::println("FAIL: I(2) * A expected to equal A");
+    }
+
+    // A * Z = Z (zero matrix)
+    let Z: Matrix = Matrix.zeros(3, 2);
+    let AZ: Matrix = A.mul(Z);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 2) {
+        var j: int = 0;
+        while (j < 2) {
+            if (AZ.get(i, j) != 0.0) { ok = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (ok) {
+        io::println("PASS: A * zeros(3,2) = zeros(2,2)");
+    } else {
+        io::println("FAIL: A * zeros(3,2) expected all zeros");
+    }
+}
+
+// Transpose of 1x1 matrix is itself.
+public fn test_matrix_edge_transpose_1x1(): void {
+    let m: Matrix = new Matrix(1, 1);
+    m.set(0, 0, 7.5);
+    let t: Matrix = m.transpose();
+    if (t.rows() == 1 && t.cols() == 1 && absDiff(t.get(0, 0), 7.5) < 1e-12) {
+        io::println("PASS: transpose([[7.5]]) = [[7.5]] (1x1 unchanged)");
+    } else {
+        io::println("FAIL: transpose of 1x1 expected [[7.5]], got rows=" + Integer.toString(t.rows()) + " cols=" + Integer.toString(t.cols()) + " val=" + Double.toString(t.get(0, 0)));
+    }
+
+    // Double transpose returns to original
+    let tt: Matrix = m.transpose().transpose();
+    if (tt.equals(m)) {
+        io::println("PASS: (A^T)^T = A (1x1)");
+    } else {
+        io::println("FAIL: double transpose of 1x1 did not return original");
+    }
+
+    // Transpose swaps dimensions for non-square: 2x3 -> 3x2
+    let A: Matrix = new Matrix(2, 3);
+    A.set(0, 0, 1.0); A.set(0, 1, 2.0); A.set(0, 2, 3.0);
+    A.set(1, 0, 4.0); A.set(1, 1, 5.0); A.set(1, 2, 6.0);
+    let At: Matrix = A.transpose();
+    if (At.rows() == 3 && At.cols() == 2 && absDiff(At.get(2, 1), 6.0) < 1e-12) {
+        io::println("PASS: transpose(2x3) = 3x2 with element (2,1)=6.0");
+    } else {
+        io::println("FAIL: transpose(2x3) incorrect dims or value");
+    }
+}
+
+// Determinant of 1x1 matrix is the single element.
+public fn test_matrix_edge_det_1x1(): void {
+    let m: Matrix = new Matrix(1, 1);
+    m.set(0, 0, 42.0);
+    let d: double = MatrixProps.determinant(m);
+    if (absDiff(d, 42.0) < 1e-9) {
+        io::println("PASS: det([[42]]) = 42.0");
+    } else {
+        io::println("FAIL: det([[42]]) expected 42.0, got " + Double.toString(d));
+    }
+
+    // det of 1x1 zero matrix is 0
+    let z: Matrix = Matrix.zeros(1, 1);
+    let dz: double = MatrixProps.determinant(z);
+    if (absDiff(dz, 0.0) < 1e-9) {
+        io::println("PASS: det([[0]]) = 0.0");
+    } else {
+        io::println("FAIL: det([[0]]) expected 0.0, got " + Double.toString(dz));
+    }
+
+    // det of 1x1 identity is 1
+    let i1: Matrix = Matrix.identity(1);
+    let di: double = MatrixProps.determinant(i1);
+    if (absDiff(di, 1.0) < 1e-9) {
+        io::println("PASS: det(identity(1)) = 1.0");
+    } else {
+        io::println("FAIL: det(identity(1)) expected 1.0, got " + Double.toString(di));
+    }
+}
