@@ -1,0 +1,96 @@
+// Edge case tests for Hex.tr
+// Tests boundary conditions: empty input, single byte encoding, roundtrip
+// with binary data, case sensitivity, and odd-length input handling.
+import tt::encoding::Hex;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_hex_edge_encode_empty(): void {
+    let h: Hex = new Hex();
+    let encoded: string = h.encode("");
+    if (encoded == "") {
+        io::println("PASS: Hex.encode of empty string returns empty");
+    } else {
+        io::println("FAIL: Hex.encode empty returned '" + encoded + "'");
+    }
+}
+
+public fn test_hex_edge_decode_empty(): void {
+    let h: Hex = new Hex();
+    let decoded: string = h.decode("");
+    if (decoded == "") {
+        io::println("PASS: Hex.decode of empty string returns empty");
+    } else {
+        io::println("FAIL: Hex.decode empty returned '" + decoded + "'");
+    }
+}
+
+public fn test_hex_edge_single_byte(): void {
+    let h: Hex = new Hex();
+    let encoded: string = h.encode("A");
+    // 'A' = 0x41
+    if (encoded == "41") {
+        io::println("PASS: Hex.encode single byte 'A' produces 41");
+    } else {
+        io::println("FAIL: Hex.encode single byte returned '" + encoded + "'");
+    }
+}
+
+public fn test_hex_edge_roundtrip(): void {
+    let h: Hex = new Hex();
+    let original: string = "Titrate ~ 2024 \n\t end";
+    let encoded: string = h.encode(original);
+    let decoded: string = h.decode(encoded);
+    if (decoded == original) {
+        io::println("PASS: Hex encode/decode roundtrip works");
+    } else {
+        io::println("FAIL: Hex roundtrip returned '" + decoded + "'");
+    }
+}
+
+public fn test_hex_edge_uppercase_lowercase(): void {
+    let h: Hex = new Hex();
+    let upper: string = h.encodeUpperCase("abc");
+    let lower: string = h.encodeLowerCase("abc");
+    if (String.length(upper) == 0 || String.length(lower) == 0) {
+        io::println("FAIL: Hex case encoding returned empty");
+        return;
+    }
+    // encodeUpperCase must contain no lowercase hex letters
+    let hasLowerInUpper: bool = false;
+    let i: int = 0;
+    while (i < String.length(upper)) {
+        let c: string = String.charAt(upper, i);
+        if (c == "a" || c == "b" || c == "c" || c == "d" || c == "e" || c == "f") {
+            hasLowerInUpper = true;
+        }
+        i = i + 1;
+    }
+    if (hasLowerInUpper) {
+        io::println("FAIL: Hex.encodeUpperCase contains lowercase: " + upper);
+    } else {
+        io::println("PASS: Hex.encodeUpperCase produces uppercase output");
+    }
+}
+
+public fn test_hex_edge_decode_odd_length(): void {
+    let h: Hex = new Hex();
+    // Odd-length hex string: the trailing single character cannot form a byte.
+    // "Ab" decodes to 0xAB (171); the trailing "C" is ignored.
+    let bytes: ArrayList<int> = h.decodeToBytes("AbC");
+    if (bytes.size() == 1 && bytes.get(0) == 171) {
+        io::println("PASS: Hex.decodeToBytes ignores odd trailing character");
+    } else {
+        io::println("FAIL: Hex.decodeToBytes odd length size=" + Integer.toString(bytes.size()));
+    }
+}
+
+public fn run_all_hex_edge_tests(): void {
+    io::println("=== Hex.tr Edge Case Tests ===");
+    test_hex_edge_encode_empty();
+    test_hex_edge_decode_empty();
+    test_hex_edge_single_byte();
+    test_hex_edge_roundtrip();
+    test_hex_edge_uppercase_lowercase();
+    test_hex_edge_decode_odd_length();
+}
