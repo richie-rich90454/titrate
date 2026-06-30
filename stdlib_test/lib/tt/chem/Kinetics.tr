@@ -1,0 +1,110 @@
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// Zero-order rate law: [A] = [A]₀ - kt
+// Returns the concentration of A at time t
+// k: rate constant (mol/(L·s)), t: time (s)
+public fn zeroOrderRate(k: double, t: double): double {
+    return k * t;
+}
+
+// First-order rate law: [A] = [A]₀ * e^(-kt)
+// Returns the fraction of remaining reactant: e^(-kt)
+// k: rate constant (1/s), t: time (s)
+public fn firstOrderRate(k: double, t: double): double {
+    return MathAdvanced.exp(-k * t);
+}
+
+// Second-order rate law: 1/[A] = 1/[A]₀ + kt
+// Returns the concentration of A at time t
+// k: rate constant (L/(mol·s)), t: time (s), a0: initial concentration [A]₀ (mol/L)
+public fn secondOrderRate(k: double, t: double, a0: double): double {
+    if (Math.abs(a0) < 1e-15) {
+        return 0.0;
+    }
+    let invA: double = 1.0 / a0 + k * t;
+    if (Math.abs(invA) < 1e-15) {
+        return 0.0;
+    }
+    return 1.0 / invA;
+}
+
+// Half-life for a given reaction order
+// order: 0, 1, or 2
+// k: rate constant (units depend on order)
+// a0: initial concentration [A]₀ (mol/L) — used for order 0 and 2
+public fn halfLife(order: int, k: double, a0: double): double {
+    if (Math.abs(k) < 1e-15) {
+        return 0.0;
+    }
+    if (order == 0) {
+        // t½ = [A]₀ / (2k)
+        return a0 / (2.0 * k);
+    }
+    if (order == 1) {
+        // t½ = ln(2) / k
+        return MathAdvanced.ln(2.0) / k;
+    }
+    if (order == 2) {
+        // t½ = 1 / (k * [A]₀)
+        if (Math.abs(a0) < 1e-15) {
+            return 0.0;
+        }
+        return 1.0 / (k * a0);
+    }
+    return 0.0;
+}
+
+// Arrhenius equation: k = A * exp(-Ea / (R * T))
+// A: pre-exponential factor (1/s or appropriate units)
+// ea: activation energy (J/mol)
+// temperature: temperature (K)
+// R = 8.314 J/(mol·K)
+public fn arrheniusRate(A: double, ea: double, temperature: double): double {
+    let R: double = 8.314;
+    if (temperature <= 0.0) {
+        return 0.0;
+    }
+    return A * MathAdvanced.exp(-ea / (R * temperature));
+}
+
+// Calculate activation energy from two rate constants at two temperatures
+// Using the Arrhenius equation:
+// ln(k2/k1) = -Ea/R * (1/T2 - 1/T1)
+// Ea = R * ln(k2/k1) / (1/T1 - 1/T2)
+// k1, k2: rate constants at temperatures t1, t2 respectively
+// t1, t2: temperatures in K
+// Returns activation energy in J/mol
+public fn arrheniusEa(k1: double, k2: double, t1: double, t2: double): double {
+    let R: double = 8.314;
+    if (t1 <= 0.0 || t2 <= 0.0) {
+        return 0.0;
+    }
+    if (k1 <= 0.0 || k2 <= 0.0) {
+        return 0.0;
+    }
+    let lnRatio: double = MathAdvanced.ln(k2 / k1);
+    let invDiff: double = 1.0 / t1 - 1.0 / t2;
+    if (Math.abs(invDiff) < 1e-15) {
+        return 0.0;
+    }
+    return R * lnRatio / invDiff;
+}
+
+// Steady-state approximation for a reaction mechanism:
+// A -> B (k1), B -> A (k2), B -> C (k3)
+// At steady state: d[B]/dt = 0
+// k1[A] - k2[B] - k3[B] = 0
+// [B]ss = k1[A] / (k2 + k3)
+// k1: forward rate constant for A->B
+// k2: reverse rate constant for B->A
+// k3: rate constant for B->C
+// reactantConc: concentration of A
+// Returns steady-state concentration of intermediate B
+public fn steadyStateApproximation(k1: double, k2: double, k3: double, reactantConc: double): double {
+    let denom: double = k2 + k3;
+    if (Math.abs(denom) < 1e-15) {
+        return 0.0;
+    }
+    return k1 * reactantConc / denom;
+}
