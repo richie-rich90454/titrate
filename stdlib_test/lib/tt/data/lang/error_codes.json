@@ -1,0 +1,21 @@
+{
+  "_meta": { "source": "Titrate VM", "version": "1.0", "description": "Standard error code definitions and categories" },
+  "codes": [
+    {"name": "NO_ERROR", "value": 0, "category": "generic", "message": "No error"},
+    {"name": "PERMISSION_DENIED", "value": 1, "category": "system", "message": "Permission denied"},
+    {"name": "FILE_NOT_FOUND", "value": 2, "category": "io", "message": "File not found"},
+    {"name": "ALREADY_EXISTS", "value": 3, "category": "io", "message": "Already exists"},
+    {"name": "TIMEOUT", "value": 4, "category": "network", "message": "Operation timed out"},
+    {"name": "CONNECTION_REFUSED", "value": 5, "category": "network", "message": "Connection refused"},
+    {"name": "CONNECTION_RESET", "value": 6, "category": "network", "message": "Connection reset"},
+    {"name": "OUT_OF_MEMORY", "value": 7, "category": "system", "message": "Out of memory"},
+    {"name": "INVALID_ARGUMENT", "value": 8, "category": "generic", "message": "Invalid argument"},
+    {"name": "OUT_OF_RANGE", "value": 9, "category": "generic", "message": "Out of range"},
+    {"name": "OVERFLOW", "value": 10, "category": "generic", "message": "Overflow"},
+    {"name": "UNDERFLOW", "value": 11, "category": "generic", "message": "Underflow"},
+    {"name": "BROKEN_PIPE", "value": 12, "category": "io", "message": "Broken pipe"},
+    {"name": "OPERATION_ABORTED", "value": 13, "category": "system", "message": "Operation aborted"},
+    {"name": "NOT_SUPPORTED", "value": 14, "category": "system", "message": "Not supported"}
+  ],
+  "categories": ["generic", "system", "io", "network", "database"]
+}
