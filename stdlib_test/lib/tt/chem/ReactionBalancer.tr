@@ -1,0 +1,582 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public class Reaction {
+    public ArrayList<Pair<string, int>> reactants;
+    public ArrayList<Pair<string, int>> products;
+    public bool balanced;
+
+    public fn init(r: ArrayList<Pair<string, int>>, p: ArrayList<Pair<string, int>>, b: bool) {
+        this.reactants = r;
+        this.products = p;
+        this.balanced = b;
+    }
+
+    public fn toString(): string {
+        return reactionToString(this);
+    }
+}
+
+// Parse a compound formula like "H2O" into a list of (element, count) pairs
+// e.g. "H2O" -> [("H", 2), ("O", 1)]
+// Handles simple formulas with single-letter or two-letter element symbols
+public fn parseFormula(formula: string): ArrayList<Pair<string, int>> {
+    let result: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    let len: int = String.length(formula);
+    var i: int = 0;
+    while (i < len) {
+        let ch: string = String.charAt(formula, i);
+        // Start of an element symbol: uppercase letter
+        if (_isUpperCase(ch)) {
+            var sym: string = ch;
+            i = i + 1;
+            // Check for lowercase second letter
+            if (i < len && _isLowerCase(String.charAt(formula, i))) {
+                sym = sym + String.charAt(formula, i);
+                i = i + 1;
+            }
+            // Parse count
+            var count: int = 0;
+            var hasDigit: bool = false;
+            while (i < len && _isDigit(String.charAt(formula, i))) {
+                count = count * 10 + (_charToInt(String.charAt(formula, i)));
+                hasDigit = true;
+                i = i + 1;
+            }
+            if (!hasDigit) {
+                count = 1;
+            }
+            result.add(new Pair<string, int>(sym, count));
+        } else if (ch == "(") {
+            // Handle parenthesized groups: (SO4)2
+            i = i + 1;
+            let inner: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+            var depth: int = 1;
+            var innerStr: string = "";
+            while (i < len && depth > 0) {
+                let c: string = String.charAt(formula, i);
+                if (c == "(") {
+                    depth = depth + 1;
+                    innerStr = innerStr + c;
+                } else if (c == ")") {
+                    depth = depth - 1;
+                    if (depth > 0) {
+                        innerStr = innerStr + c;
+                    }
+                } else {
+                    innerStr = innerStr + c;
+                }
+                i = i + 1;
+            }
+            // Parse multiplier after ')'
+            var mult: int = 0;
+            var hasMult: bool = false;
+            while (i < len && _isDigit(String.charAt(formula, i))) {
+                mult = mult * 10 + _charToInt(String.charAt(formula, i));
+                hasMult = true;
+                i = i + 1;
+            }
+            if (!hasMult) {
+                mult = 1;
+            }
+            let innerParsed: ArrayList<Pair<string, int>> = parseFormula(innerStr);
+            var j: int = 0;
+            while (j < innerParsed.size()) {
+                let p: Pair<string, int> = innerParsed.get(j);
+                result.add(new Pair<string, int>(p.first, p.second * mult));
+                j = j + 1;
+            }
+        } else {
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+fn _isUpperCase(ch: string): bool {
+    let code: int = String.charAt(ch, 0) as int;
+    return code >= 65 && code <= 90;
+}
+
+fn _isLowerCase(ch: string): bool {
+    let code: int = String.charAt(ch, 0) as int;
+    return code >= 97 && code <= 122;
+}
+
+fn _isDigit(ch: string): bool {
+    let code: int = String.charAt(ch, 0) as int;
+    return code >= 48 && code <= 57;
+}
+
+fn _charToInt(ch: string): int {
+    let code: int = String.charAt(ch, 0) as int;
+    return code - 48;
+}
+
+// Build element composition map from a list of formulas with coefficients
+fn _buildComposition(formulas: ArrayList<string>, coefficients: ArrayList<double>): HashMap<string, double> {
+    let comp: HashMap<string, double> = new HashMap<string, double>();
+    var i: int = 0;
+    while (i < formulas.size()) {
+        let coeff: double = coefficients.get(i);
+        let atoms: ArrayList<Pair<string, int>> = parseFormula(formulas.get(i));
+        var j: int = 0;
+        while (j < atoms.size()) {
+            let elem: string = atoms.get(j).first;
+            let count: int = atoms.get(j).second;
+            let current: double = 0.0;
+            if (comp.containsKey(elem)) {
+                current = comp.get(elem);
+            }
+            comp.put(elem, current + coeff * count);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return comp;
+}
+
+// Get all unique elements from a list of formulas
+fn _getAllElements(formulas: ArrayList<string>): ArrayList<string> {
+    let elements: ArrayList<string> = new ArrayList<string>();
+    let seen: HashMap<string, bool> = new HashMap<string, bool>();
+    var i: int = 0;
+    while (i < formulas.size()) {
+        let atoms: ArrayList<Pair<string, int>> = parseFormula(formulas.get(i));
+        var j: int = 0;
+        while (j < atoms.size()) {
+            let elem: string = atoms.get(j).first;
+            if (!seen.containsKey(elem)) {
+                seen.put(elem, true);
+                elements.add(elem);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return elements;
+}
+
+// Balance a chemical equation using algebraic method.
+// reactants and products are lists of compound formulas like ["H2", "O2"] and ["H2O"]
+public fn balance(reactants: ArrayList<string>, products: ArrayList<string>): Reaction {
+    let nReactants: int = reactants.size();
+    let nProducts: int = products.size();
+    let nSpecies: int = nReactants + nProducts;
+
+    // Get all elements
+    let allFormulas: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < nReactants) {
+        allFormulas.add(reactants.get(i));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < nProducts) {
+        allFormulas.add(products.get(i));
+        i = i + 1;
+    }
+    let elements: ArrayList<string> = _getAllElements(allFormulas);
+    let nElements: int = elements.size();
+
+    // Build the composition matrix: element x species
+    // For reactants, counts are positive; for products, counts are negative
+    // We solve for coefficients c such that sum(c_i * a_ij) = 0 for each element j
+    let matrix: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var row: int = 0;
+    while (row < nElements) {
+        let matrixRow: ArrayList<double> = new ArrayList<double>();
+        var col: int = 0;
+        while (col < nSpecies) {
+            let formula: string = allFormulas.get(col);
+            let atoms: ArrayList<Pair<string, int>> = parseFormula(formula);
+            var count: int = 0;
+            var j: int = 0;
+            while (j < atoms.size()) {
+                if (atoms.get(j).first == elements.get(row)) {
+                    count = count + atoms.get(j).second;
+                }
+                j = j + 1;
+            }
+            if (col < nReactants) {
+                matrixRow.add(count as double);
+            } else {
+                matrixRow.add(-(count as double));
+            }
+            col = col + 1;
+        }
+        matrix.add(matrixRow);
+        row = row + 1;
+    }
+
+    // Solve using Gaussian elimination with back substitution
+    // Set last coefficient to 1 (free variable) and solve for the rest
+    let nVars: int = nSpecies;
+    let nEq: int = nElements;
+
+    if (nVars <= 1) {
+        let r: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+        let p: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+        i = 0;
+        while (i < nReactants) {
+            r.add(new Pair<string, int>(reactants.get(i), 1));
+            i = i + 1;
+        }
+        i = 0;
+        while (i < nProducts) {
+            p.add(new Pair<string, int>(products.get(i), 1));
+            i = i + 1;
+        }
+        return new Reaction(r, p, false);
+    }
+
+    // Augmented matrix for solving: we fix last var = 1, move to RHS
+    // So we have nVars-1 unknowns and nEq equations
+    let nUnknowns: int = nVars - 1;
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    row = 0;
+    while (row < nEq) {
+        let augRow: ArrayList<double> = new ArrayList<double>();
+        col = 0;
+        while (col < nUnknowns) {
+            augRow.add(matrix.get(row).get(col));
+            col = col + 1;
+        }
+        // RHS: -last column * 1
+        augRow.add(-(matrix.get(row).get(nVars - 1)));
+        aug.add(augRow);
+        row = row + 1;
+    }
+
+    // Gaussian elimination with partial pivoting
+    let nAugCols: int = nUnknowns + 1;
+    var pivotRow: int = 0;
+    col = 0;
+    while (col < nUnknowns && pivotRow < nEq) {
+        // Find pivot
+        var maxVal: double = Math.abs(aug.get(pivotRow).get(col));
+        var maxRow: int = pivotRow;
+        var k: int = pivotRow + 1;
+        while (k < nEq) {
+            let val: double = Math.abs(aug.get(k).get(col));
+            if (val > maxVal) {
+                maxVal = val;
+                maxRow = k;
+            }
+            k = k + 1;
+        }
+        if (maxVal < 1e-12) {
+            col = col + 1;
+            continue;
+        }
+        // Swap rows
+        if (maxRow != pivotRow) {
+            let tmp: ArrayList<double> = aug.get(pivotRow);
+            aug.set(pivotRow, aug.get(maxRow));
+            aug.set(maxRow, tmp);
+        }
+        // Eliminate below
+        k = pivotRow + 1;
+        while (k < nEq) {
+            let factor: double = aug.get(k).get(col) / aug.get(pivotRow).get(col);
+            var j: int = col;
+            while (j < nAugCols) {
+                aug.get(k).set(j, aug.get(k).get(j) - factor * aug.get(pivotRow).get(j));
+                j = j + 1;
+            }
+            k = k + 1;
+        }
+        pivotRow = pivotRow + 1;
+        col = col + 1;
+    }
+
+    // Back substitution
+    let solution: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < nUnknowns) {
+        solution.add(0.0);
+        i = i + 1;
+    }
+
+    // Solve from bottom
+    var r: int = nUnknowns - 1;
+    while (r >= 0) {
+        // Find the row with a pivot in column r
+        var foundRow: int = -1;
+        i = 0;
+        while (i < nEq) {
+            if (Math.abs(aug.get(i).get(r)) > 1e-12) {
+                // Check if all columns before r are ~0
+                var allZero: bool = true;
+                var j: int = 0;
+                while (j < r) {
+                    if (Math.abs(aug.get(i).get(j)) > 1e-12) {
+                        allZero = false;
+                    }
+                    j = j + 1;
+                }
+                if (allZero) {
+                    foundRow = i;
+                }
+            }
+            i = i + 1;
+        }
+        if (foundRow >= 0) {
+            var sum: double = aug.get(foundRow).get(nAugCols - 1);
+            var j: int = r + 1;
+            while (j < nUnknowns) {
+                sum = sum - aug.get(foundRow).get(j) * solution.get(j);
+                j = j + 1;
+            }
+            solution.set(r, sum / aug.get(foundRow).get(r));
+        }
+        r = r - 1;
+    }
+
+    // Last coefficient is 1
+    solution.add(1.0);
+
+    // Convert to integers by finding LCM of denominators
+    let intCoeffs: ArrayList<int> = _toIntegerCoefficients(solution);
+
+    // Build result
+    let reactantPairs: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    let productPairs: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+    i = 0;
+    while (i < nReactants) {
+        reactantPairs.add(new Pair<string, int>(reactants.get(i), intCoeffs.get(i)));
+        i = i + 1;
+    }
+    i = 0;
+    while (i < nProducts) {
+        productPairs.add(new Pair<string, int>(products.get(i), intCoeffs.get(nReactants + i)));
+        i = i + 1;
+    }
+
+    return new Reaction(reactantPairs, productPairs, true);
+}
+
+// Convert fractional coefficients to smallest integers
+fn _toIntegerCoefficients(coeffs: ArrayList<double>): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    // Find the least common multiple of denominators
+    var denomLcm: int = 1;
+    var i: int = 0;
+    while (i < coeffs.size()) {
+        let c: double = coeffs.get(i);
+        let denom: int = _denominator(c);
+        denomLcm = Math.lcm(denomLcm, denom);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < coeffs.size()) {
+        let val: double = coeffs.get(i) * denomLcm;
+        let rounded: int = Integer.parseInt(Double.toString(Math.round(val)));
+        result.add(rounded);
+        i = i + 1;
+    }
+    // Simplify by GCD
+    var gcdVal: int = result.get(0);
+    if (gcdVal < 0) { gcdVal = -gcdVal; }
+    i = 1;
+    while (i < result.size()) {
+        let v: int = result.get(i);
+        if (v < 0) {
+            gcdVal = Math.gcd(gcdVal, -v);
+        } else {
+            gcdVal = Math.gcd(gcdVal, v);
+        }
+        i = i + 1;
+    }
+    if (gcdVal > 1) {
+        i = 0;
+        while (i < result.size()) {
+            result.set(i, result.get(i) / gcdVal);
+            i = i + 1;
+        }
+    }
+    // Ensure all coefficients are positive
+    var hasNegative: bool = false;
+    i = 0;
+    while (i < result.size()) {
+        if (result.get(i) < 0) {
+            hasNegative = true;
+        }
+        i = i + 1;
+    }
+    if (hasNegative) {
+        i = 0;
+        while (i < result.size()) {
+            result.set(i, -result.get(i));
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+// Approximate the denominator of a floating point number
+fn _denominator(x: double): int {
+    if (x == 0.0) { return 1; }
+    let tol: double = 1e-9;
+    var bestDenom: int = 1;
+    var bestErr: double = Math.abs(x - Math.round(x));
+    var d: int = 1;
+    while (d <= 1000) {
+        let numer: double = x * d;
+        let err: double = Math.abs(numer - Math.round(numer));
+        if (err < tol) {
+            return d;
+        }
+        if (err < bestErr) {
+            bestErr = err;
+            bestDenom = d;
+        }
+        d = d + 1;
+    }
+    return bestDenom;
+}
+
+// Calculate the oxidation state of an element in a compound
+// compound is a list of (element, count) pairs, total charge assumed 0
+public fn oxidationState(element: string, compound: ArrayList<Pair<string, int>>): int {
+    // Load common oxidation states from external data file
+    let known: HashMap<string, int> = _ensureOxidationStatesLoaded();
+
+    // Calculate total oxidation from known elements
+    var knownSum: int = 0;
+    var targetCount: int = 0;
+    var unknownCount: int = 0;
+    var i: int = 0;
+    while (i < compound.size()) {
+        let elem: string = compound.get(i).first;
+        let count: int = compound.get(i).second;
+        if (elem == element) {
+            targetCount = targetCount + count;
+        } else if (known.containsKey(elem)) {
+            knownSum = knownSum + known.get(elem) * count;
+        } else {
+            unknownCount = unknownCount + 1;
+        }
+        i = i + 1;
+    }
+
+    if (targetCount == 0) {
+        return 0;
+    }
+    // Assume total charge = 0, so sum of oxidation states = 0
+    // targetCount * ox + knownSum = 0
+    let ox: int = -knownSum / targetCount;
+    return ox;
+}
+
+// Check if a reaction is a redox reaction by comparing oxidation states
+public fn isRedox(reactants: ArrayList<string>, products: ArrayList<string>): bool {
+    // Collect all elements and their oxidation states on both sides
+    let reactComp: HashMap<string, int> = new HashMap<string, int>();
+    let prodComp: HashMap<string, int> = new HashMap<string, int>();
+
+    // For each reactant, compute oxidation states
+    var i: int = 0;
+    while (i < reactants.size()) {
+        let atoms: ArrayList<Pair<string, int>> = parseFormula(reactants.get(i));
+        var j: int = 0;
+        while (j < atoms.size()) {
+            let elem: string = atoms.get(j).first;
+            if (!reactComp.containsKey(elem)) {
+                let ox: int = oxidationState(elem, atoms);
+                reactComp.put(elem, ox);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    i = 0;
+    while (i < products.size()) {
+        let atoms: ArrayList<Pair<string, int>> = parseFormula(products.get(i));
+        var j: int = 0;
+        while (j < atoms.size()) {
+            let elem: string = atoms.get(j).first;
+            if (!prodComp.containsKey(elem)) {
+                let ox: int = oxidationState(elem, atoms);
+                prodComp.put(elem, ox);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    // Check if any element changed oxidation state
+    let keys: ArrayList<string> = reactComp.keys();
+    i = 0;
+    while (i < keys.size()) {
+        let elem: string = keys.get(i);
+        let rOx: int = reactComp.get(elem);
+        if (prodComp.containsKey(elem)) {
+            let pOx: int = prodComp.get(elem);
+            if (rOx != pOx) {
+                return true;
+            }
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Format a balanced reaction as a string
+public fn reactionToString(reaction: Reaction): string {
+    var s: string = "";
+    var i: int = 0;
+    while (i < reaction.reactants.size()) {
+        let pair: Pair<string, int> = reaction.reactants.get(i);
+        if (pair.second != 1) {
+            s = s + Integer.toString(pair.second);
+        }
+        s = s + pair.first;
+        if (i < reaction.reactants.size() - 1) {
+            s = s + " + ";
+        }
+        i = i + 1;
+    }
+    s = s + " -> ";
+    i = 0;
+    while (i < reaction.products.size()) {
+        let pair: Pair<string, int> = reaction.products.get(i);
+        if (pair.second != 1) {
+            s = s + Integer.toString(pair.second);
+        }
+        s = s + pair.first;
+        if (i < reaction.products.size() - 1) {
+            s = s + " + ";
+        }
+        i = i + 1;
+    }
+    return s;
+}
+
+// --- Oxidation states data loaded from external JSON ---
+var _oxidationStatesCache: HashMap<string, int> = new HashMap<string, int>();
+var _oxidationStatesLoaded: bool = false;
+
+public fn _ensureOxidationStatesLoaded(): HashMap<string, int> {
+    if (!_oxidationStatesLoaded) {
+        let data: JsonValue = DataFile.load("chem/oxidation_states.json");
+        let states: JsonValue = data.get("oxidation_states");
+        let keys: ArrayList<string> = states.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            _oxidationStatesCache.put(key, Integer.parseInt(states.get(key).asString()));
+            i = i + 1;
+        }
+        _oxidationStatesLoaded = true;
+    }
+    return _oxidationStatesCache;
+}
