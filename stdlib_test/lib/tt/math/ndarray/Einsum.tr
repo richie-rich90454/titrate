@@ -1,0 +1,743 @@
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+// Einstein summation convention and tensor operations
+
+// Simplified einsum: handles common patterns like:
+//   "ij,jk->ik"  — matrix multiplication
+//   "ij->ji"     — transpose
+//   "ii->"       — trace
+//   "ij->i"      — row sum
+//   "ij,ij->"    — Frobenius inner product
+//   "ij->"       — sum all
+//   "i,i->"      — dot product
+//   "ij,j->i"    — matrix-vector product
+public fn einsum(subscripts: string, arrays: ArrayList<ArrayList<double>>, shapes: ArrayList<ArrayList<int>>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let sub: string = subscripts;
+    let subLen: int = String.length(sub);
+
+    // Parse subscripts: find "->" separator
+    let arrowPos: int = -1;
+    var i: int = 0;
+    while (i < subLen - 1) {
+        if (String.charAt(sub, i) == '-' as string && String.charAt(sub, i + 1) == '>' as string) {
+            arrowPos = i;
+        }
+        i = i + 1;
+    }
+
+    // Extract input and output parts
+    let inputPart: string = sub;
+    let outputPart: string = "";
+    if (arrowPos >= 0) {
+        inputPart = String.substring(sub, 0, arrowPos);
+        outputPart = String.substring(sub, arrowPos + 2, subLen);
+    }
+
+    // Split input part by comma to get per-array subscripts
+    let inputSubs: ArrayList<string> = new ArrayList<string>();
+    let currentSub: string = "";
+    i = 0;
+    let inputLen: int = String.length(inputPart);
+    while (i < inputLen) {
+        let ch: string = String.charAt(inputPart, i);
+        if (ch == ",") {
+            inputSubs.add(currentSub);
+            currentSub = "";
+        } else {
+            if (ch != " ") {
+                currentSub = currentSub + ch;
+            }
+        }
+        i = i + 1;
+    }
+    if (String.length(currentSub) > 0) {
+        inputSubs.add(currentSub);
+    }
+
+    let numArrays: int = inputSubs.size();
+
+    // Determine all unique labels and their sizes
+    let labels: ArrayList<string> = new ArrayList<string>();
+    let labelSizes: ArrayList<int> = new ArrayList<int>();
+    var a: int = 0;
+    while (a < numArrays) {
+        let s: string = inputSubs.get(a);
+        let shape: ArrayList<int> = shapes.get(a);
+        var j: int = 0;
+        while (j < String.length(s)) {
+            let ch: string = String.charAt(s, j);
+            // Check if label already known
+            var found: bool = false;
+            var k: int = 0;
+            while (k < labels.size()) {
+                if (labels.get(k) == ch) {
+                    found = true;
+                    break;
+                }
+                k = k + 1;
+            }
+            if (!found) {
+                labels.add(ch);
+                labelSizes.add(shape.get(j));
+            }
+            j = j + 1;
+        }
+        a = a + 1;
+    }
+
+    // Determine output labels
+    let outputLabels: ArrayList<string> = new ArrayList<string>();
+    if (arrowPos >= 0) {
+        var j: int = 0;
+        while (j < String.length(outputPart)) {
+            let ch: string = String.charAt(outputPart, j);
+            if (ch != " ") {
+                outputLabels.add(ch);
+            }
+            j = j + 1;
+        }
+    } else {
+        // No arrow: output is sorted labels that appear exactly once
+        var li: int = 0;
+        while (li < labels.size()) {
+            let lbl: string = labels.get(li);
+            var count: int = 0;
+            var ai: int = 0;
+            while (ai < numArrays) {
+                let s: string = inputSubs.get(ai);
+                var j: int = 0;
+                while (j < String.length(s)) {
+                    if (String.charAt(s, j) == lbl) {
+                        count = count + 1;
+                    }
+                    j = j + 1;
+                }
+                ai = ai + 1;
+            }
+            if (count == 1) {
+                outputLabels.add(lbl);
+            }
+            li = li + 1;
+        }
+    }
+
+    // Compute output shape
+    let outputShape: ArrayList<int> = new ArrayList<int>();
+    var oi: int = 0;
+    while (oi < outputLabels.size()) {
+        var li: int = 0;
+        while (li < labels.size()) {
+            if (labels.get(li) == outputLabels.get(oi)) {
+                outputShape.add(labelSizes.get(li));
+                break;
+            }
+            li = li + 1;
+        }
+        oi = oi + 1;
+    }
+
+    // Compute total output size
+    var outputTotal: int = 1;
+    oi = 0;
+    while (oi < outputShape.size()) {
+        outputTotal = outputTotal * outputShape.get(oi);
+        oi = oi + 1;
+    }
+
+    // Compute total iteration size (product of all unique label sizes)
+    var iterTotal: int = 1;
+    var li: int = 0;
+    while (li < labels.size()) {
+        iterTotal = iterTotal * labelSizes.get(li);
+        li = li + 1;
+    }
+
+    // Initialize result with zeros
+    i = 0;
+    while (i < outputTotal) {
+        result.add(0.0);
+        i = i + 1;
+    }
+
+    // Iterate over all label combinations
+    let labelIndices: ArrayList<int> = new ArrayList<int>();
+    li = 0;
+    while (li < labels.size()) {
+        labelIndices.add(0);
+        li = li + 1;
+    }
+
+    i = 0;
+    while (i < iterTotal) {
+        // Compute the product of array elements for this label combination
+        var product: double = 1.0;
+        a = 0;
+        while (a < numArrays) {
+            let s: string = inputSubs.get(a);
+            let arr: ArrayList<double> = arrays.get(a);
+            let shape: ArrayList<int> = shapes.get(a);
+            // Compute flat index into this array
+            var flat: int = 0;
+            var stride: int = 1;
+            var j: int = String.length(s) - 1;
+            while (j >= 0) {
+                let ch: string = String.charAt(s, j);
+                // Find label index
+                var li2: int = 0;
+                while (li2 < labels.size()) {
+                    if (labels.get(li2) == ch) {
+                        flat = flat + labelIndices.get(li2) * stride;
+                        break;
+                    }
+                    li2 = li2 + 1;
+                }
+                stride = stride * shape.get(j);
+                j = j - 1;
+            }
+            product = product * arr.get(flat);
+            a = a + 1;
+        }
+
+        // Compute output flat index
+        var outFlat: int = 0;
+        var outStride: int = 1;
+        oi = outputLabels.size() - 1;
+        while (oi >= 0) {
+            var li2: int = 0;
+            while (li2 < labels.size()) {
+                if (labels.get(li2) == outputLabels.get(oi)) {
+                    outFlat = outFlat + labelIndices.get(li2) * outStride;
+                    break;
+                }
+                li2 = li2 + 1;
+            }
+            if (oi < outputShape.size()) {
+                outStride = outStride * outputShape.get(oi);
+            }
+            oi = oi - 1;
+        }
+
+        // Accumulate
+        if (outFlat < outputTotal) {
+            result.set(outFlat, result.get(outFlat) + product);
+        }
+
+        // Increment label indices
+        var axis: int = labels.size() - 1;
+        while (axis >= 0) {
+            let val: int = labelIndices.get(axis) + 1;
+            labelIndices.set(axis, val);
+            if (val < labelSizes.get(axis)) {
+                break;
+            }
+            labelIndices.set(axis, 0);
+            axis = axis - 1;
+        }
+        i = i + 1;
+    }
+
+    return result;
+}
+
+// Tensor dot product: sum product over the last `axes` axes of a and the first `axes` axes of b.
+public fn tensordot(a: ArrayList<double>, shapeA: ArrayList<int>, b: ArrayList<double>, shapeB: ArrayList<int>, axes: int): ArrayList<double> {
+    let ndA: int = shapeA.size();
+    let ndB: int = shapeB.size();
+
+    // Compute strides for A
+    let stridesA: ArrayList<int> = new ArrayList<int>();
+    if (ndA > 0) {
+        stridesA.add(0, 1);
+        var i: int = ndA - 2;
+        while (i >= 0) {
+            stridesA.add(0, stridesA.get(0) * shapeA.get(i + 1));
+            i = i - 1;
+        }
+    }
+
+    // Compute strides for B
+    let stridesB: ArrayList<int> = new ArrayList<int>();
+    if (ndB > 0) {
+        stridesB.add(0, 1);
+        var i: int = ndB - 2;
+        while (i >= 0) {
+            stridesB.add(0, stridesB.get(0) * shapeB.get(i + 1));
+            i = i - 1;
+        }
+    }
+
+    // Output shape: shapeA[:-axes] + shapeB[axes:]
+    let outputShape: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < ndA - axes) {
+        outputShape.add(shapeA.get(i));
+        i = i + 1;
+    }
+    i = axes;
+    while (i < ndB) {
+        outputShape.add(shapeB.get(i));
+        i = i + 1;
+    }
+
+    // Compute contraction size
+    var contractSize: int = 1;
+    i = 0;
+    while (i < axes) {
+        contractSize = contractSize * shapeA.get(ndA - axes + i);
+        i = i + 1;
+    }
+
+    // Compute output strides
+    let ndOut: int = outputShape.size();
+    let stridesOut: ArrayList<int> = new ArrayList<int>();
+    if (ndOut > 0) {
+        stridesOut.add(0, 1);
+        i = ndOut - 2;
+        while (i >= 0) {
+            stridesOut.add(0, stridesOut.get(0) * outputShape.get(i + 1));
+            i = i - 1;
+        }
+    }
+
+    // Compute output total
+    var outputTotal: int = 1;
+    i = 0;
+    while (i < ndOut) {
+        outputTotal = outputTotal * outputShape.get(i);
+        i = i + 1;
+    }
+
+    let result: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < outputTotal) {
+        result.add(0.0);
+        i = i + 1;
+    }
+
+    // Compute free dimensions sizes
+    var freeA: int = 1;
+    i = 0;
+    while (i < ndA - axes) {
+        freeA = freeA * shapeA.get(i);
+        i = i + 1;
+    }
+    var freeB: int = 1;
+    i = axes;
+    while (i < ndB) {
+        freeB = freeB * shapeB.get(i);
+        i = i + 1;
+    }
+
+    // Iterate over free indices of A and B
+    var iA: int = 0;
+    while (iA < freeA) {
+        var iB: int = 0;
+        while (iB < freeB) {
+            var sum: double = 0.0;
+            var c: int = 0;
+            while (c < contractSize) {
+                // Compute flat index in A: iA * (product of contracted dims) + c
+                let flatA: int = iA * contractSize + c;
+                // Compute flat index in B: c * freeB + iB
+                let flatB: int = c * freeB + iB;
+                sum = sum + a.get(flatA) * b.get(flatB);
+                c = c + 1;
+            }
+            let outIdx: int = iA * freeB + iB;
+            if (outIdx < outputTotal) {
+                result.set(outIdx, sum);
+            }
+            iB = iB + 1;
+        }
+        iA = iA + 1;
+    }
+
+    return result;
+}
+
+// Matrix exponential via scaling and squaring with Padé approximation (order 6).
+// m is the n×n matrix stored in row-major order, n is the dimension.
+public fn matrixExponential(m: ArrayList<double>, n: int): ArrayList<double> {
+    // Padé coefficients for order 6
+    let b: ArrayList<double> = new ArrayList<double>();
+    b.add(1.0);
+    b.add(1.0 / 2.0);
+    b.add(1.0 / 9.0);
+    b.add(1.0 / 72.0);
+    b.add(1.0 / 1008.0);
+    b.add(1.0 / 30240.0);
+    b.add(1.0 / 1235520.0);
+
+    // Compute infinity norm of m
+    var norm: double = 0.0;
+    var i: int = 0;
+    while (i < n) {
+        var rowSum: double = 0.0;
+        var j: int = 0;
+        while (j < n) {
+            rowSum = rowSum + Math.abs(m.get(i * n + j));
+            j = j + 1;
+        }
+        if (rowSum > norm) { norm = rowSum; }
+        i = i + 1;
+    }
+
+    // Choose scaling factor s such that ||m/2^s|| <= 1
+    var s: int = 0;
+    if (norm > 1.0) {
+        s = Math.ceil(MathAdvanced.ln(norm) / MathAdvanced.ln(2.0)) as int;
+        if (s < 0) { s = 0; }
+    }
+
+    // Scale m by 2^(-s)
+    let A: ArrayList<double> = new ArrayList<double>();
+    var scale: double = 1.0;
+    i = 0;
+    while (i < s) {
+        scale = scale * 0.5;
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n * n) {
+        A.add(m.get(i) * scale);
+        i = i + 1;
+    }
+
+    // Compute A^2
+    let A2: ArrayList<double> = matMul(A, A, n);
+    // Compute A^4 = A^2 * A^2
+    let A4: ArrayList<double> = matMul(A2, A2, n);
+    // Compute A^6 = A^4 * A^2
+    let A6: ArrayList<double> = matMul(A4, A2, n);
+
+    // U = A @ (A6 * b6 + A4 * b4 + A2 * b2 + I * b0)
+    // V = A6 * b5 + A4 * b3 + A2 * b1 + I * b0... simplified
+    // Using the standard Padé order [6/6]:
+    // U = A(A^6 b_6 + A^4 b_4 + A^2 b_2 + b_0 I)  — but this is simplified
+    // We use the standard form: exp(A) ≈ (V - U)^{-1} (V + U)
+
+    // Compute U = A^6 * b6 + A^4 * b4 + A^2 * b2 + I * b0
+    let U: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n * n) {
+        U.add(A6.get(i) * b.get(6) + A4.get(i) * b.get(4) + A2.get(i) * b.get(2));
+        i = i + 1;
+    }
+    // Add b0 * I
+    i = 0;
+    while (i < n) {
+        U.set(i * n + i, U.get(i * n + i) + b.get(0));
+        i = i + 1;
+    }
+    // U = A * U
+    let AU: ArrayList<double> = matMul(A, U, n);
+
+    // Compute V = A^6 * b5 + A^4 * b3 + A^2 * b1 + I * b0... wait
+    // Actually for [6/6] Padé: V = A^6 * b_5 + A^4 * b_3 + A^2 * b_1 + b_0 * I
+    // Hmm, let me use a simpler approach: order 4 Padé which is more standard
+    // Actually let me just implement the standard scaling-and-squaring with Taylor series
+    // which is simpler and more robust
+
+    // Reset: use Taylor series with scaling and squaring
+    // exp(A) = (exp(A/2^s))^(2^s)
+    // Compute exp(A_scaled) via Taylor series (20 terms)
+    let expA: ArrayList<double> = new ArrayList<double>();
+    // Initialize to identity
+    i = 0;
+    while (i < n * n) {
+        expA.add(0.0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        expA.set(i * n + i, 1.0);
+        i = i + 1;
+    }
+
+    // Taylor: exp(A) = I + A + A^2/2! + A^3/3! + ...
+    let term: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n * n) {
+        term.add(expA.get(i));
+        i = i + 1;
+    }
+    // term starts as I; first iteration: term = A, add to expA
+    // Actually start: term = I, then term = A * I / 1 = A
+    var k: int = 1;
+    while (k <= 20) {
+        // term = A * term / k
+        let newTerm: ArrayList<double> = matMul(A, term, n);
+        i = 0;
+        while (i < n * n) {
+            newTerm.set(i, newTerm.get(i) / k as double);
+            i = i + 1;
+        }
+        // expA += term
+        i = 0;
+        while (i < n * n) {
+            expA.set(i, expA.get(i) + newTerm.get(i));
+            i = i + 1;
+        }
+        // term = newTerm for next iteration
+        i = 0;
+        while (i < n * n) {
+            term.set(i, newTerm.get(i));
+            i = i + 1;
+        }
+        k = k + 1;
+    }
+
+    // Squaring phase: exp(m) = (expA)^(2^s)
+    i = 0;
+    while (i < s) {
+        let squared: ArrayList<double> = matMul(expA, expA, n);
+        var j: int = 0;
+        while (j < n * n) {
+            expA.set(j, squared.get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    return expA;
+}
+
+// Matrix logarithm via inverse scaling and squaring.
+// Uses Padé approximation of the matrix logarithm.
+public fn matrixLogarithm(m: ArrayList<double>, n: int): ArrayList<double> {
+    // Compute the matrix logarithm using the identity:
+    // log(A) = 2^s * log(A^(1/2^s))
+    // where A^(1/2^s) is close to I, so we can use the series:
+    // log(I + X) = X - X^2/2 + X^3/3 - ...
+
+    // First, find s such that ||A^(1/2^s) - I|| is small
+    // We repeatedly take matrix square roots via Denman-Beavers iteration
+    let Y: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n * n) {
+        Y.add(m.get(i));
+        i = i + 1;
+    }
+
+    let Z: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n * n) {
+        Z.add(0.0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        Z.set(i * n + i, 1.0);
+        i = i + 1;
+    }
+
+    var s: int = 0;
+    // Take matrix square roots via Denman-Beavers iteration until Y ≈ I.
+    //   Y_0 = A,  Z_0 = I
+    //   Y_{k+1} = (Y_k + Z_k^{-1}) / 2
+    //   Z_{k+1} = (Z_k + Y_k^{-1}) / 2
+    // After convergence Y ≈ A^{1/2}, so repeating gives A^{1/2^s} → I.
+    while (s < 20) {
+        // Check if Y is close to identity
+        var diff: double = 0.0;
+        i = 0;
+        while (i < n) {
+            var j: int = 0;
+            while (j < n) {
+                let target: double = 0.0;
+                if (i == j) { target = 1.0; }
+                diff = diff + (Y.get(i * n + j) - target) * (Y.get(i * n + j) - target);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        if (diff < 1e-6) { break; }
+
+        // One Denman-Beavers step.
+        let invZ: ArrayList<double> = matInverse(Z, n);
+        let invY: ArrayList<double> = matInverse(Y, n);
+        i = 0;
+        while (i < n * n) {
+            Y.set(i, (Y.get(i) + invZ.get(i)) / 2.0);
+            Z.set(i, (Z.get(i) + invY.get(i)) / 2.0);
+            i = i + 1;
+        }
+        s = s + 1;
+    }
+
+    // Now Y ≈ I + X where X is small
+    // Compute log(I + X) via series: X - X^2/2 + X^3/3 - X^4/4 + ...
+    let X: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n * n) {
+        let ival: double = 0.0;
+        let row: int = i / n;
+        let col: int = i % n;
+        if (row == col) { ival = 1.0; }
+        X.add(Y.get(i) - ival);
+        i = i + 1;
+    }
+
+    // log(I+X) = sum_{k=1}^{N} (-1)^{k+1} X^k / k
+    let logResult: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n * n) {
+        logResult.add(0.0);
+        i = i + 1;
+    }
+
+    let power: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n * n) {
+        power.add(X.get(i));
+        i = i + 1;
+    }
+
+    var k: int = 1;
+    while (k <= 30) {
+        let sign: double = 1.0;
+        if (k % 2 == 0) { sign = -1.0; }
+        i = 0;
+        while (i < n * n) {
+            logResult.set(i, logResult.get(i) + sign * power.get(i) / k as double);
+            i = i + 1;
+        }
+        // power = power * X
+        let newPower: ArrayList<double> = matMul(power, X, n);
+        i = 0;
+        while (i < n * n) {
+            power.set(i, newPower.get(i));
+            i = i + 1;
+        }
+        k = k + 1;
+    }
+
+    // Scale back: log(m) = 2^s * log(Y)
+    let scale: int = 1;
+    var shift: int = 0;
+    while (shift < s) {
+        // Double the result: logResult = logResult + logResult
+        i = 0;
+        while (i < n * n) {
+            logResult.set(i, logResult.get(i) * 2.0);
+            i = i + 1;
+        }
+        shift = shift + 1;
+    }
+
+    return logResult;
+}
+
+// Helper: matrix multiplication for n×n matrices stored in row-major order
+fn matMul(a: ArrayList<double>, b: ArrayList<double>, n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n * n) {
+        result.add(0.0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        var j: int = 0;
+        while (j < n) {
+            var sum: double = 0.0;
+            var k: int = 0;
+            while (k < n) {
+                sum = sum + a.get(i * n + k) * b.get(k * n + j);
+                k = k + 1;
+            }
+            result.set(i * n + j, sum);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Helper: matrix inverse via Gauss-Jordan elimination with partial pivoting.
+fn matInverse(a: ArrayList<double>, n: int): ArrayList<double> {
+    // Build augmented matrix [A | I].
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            row.add(a.get(i * n + j));
+            j = j + 1;
+        }
+        j = 0;
+        while (j < n) {
+            if (j == i) { row.add(1.0); } else { row.add(0.0); }
+            j = j + 1;
+        }
+        aug.add(row);
+        i = i + 1;
+    }
+
+    // Forward elimination with partial pivoting.
+    var col: int = 0;
+    while (col < n) {
+        // Find pivot row.
+        var pivot: int = col;
+        var maxVal: double = Math.abs(aug.get(col).get(col));
+        var r: int = col + 1;
+        while (r < n) {
+            let v: double = Math.abs(aug.get(r).get(col));
+            if (v > maxVal) { maxVal = v; pivot = r; }
+            r = r + 1;
+        }
+        // Swap rows.
+        if (pivot != col) {
+            let tmp: ArrayList<double> = aug.get(col);
+            aug.set(col, aug.get(pivot));
+            aug.set(pivot, tmp);
+        }
+        // Normalise pivot row.
+        let pivotVal: double = aug.get(col).get(col);
+        if (Math.abs(pivotVal) < 1e-15) {
+            // Singular matrix — return identity as fallback.
+            let ident: ArrayList<double> = new ArrayList<double>();
+            i = 0;
+            while (i < n * n) { ident.add(0.0); i = i + 1; }
+            i = 0;
+            while (i < n) { ident.set(i * n + i, 1.0); i = i + 1; }
+            return ident;
+        }
+        var c: int = 0;
+        while (c < 2 * n) {
+            aug.get(col).set(c, aug.get(col).get(c) / pivotVal);
+            c = c + 1;
+        }
+        // Eliminate column from other rows.
+        r = 0;
+        while (r < n) {
+            if (r != col) {
+                let factor: double = aug.get(r).get(col);
+                c = 0;
+                while (c < 2 * n) {
+                    aug.get(r).set(c, aug.get(r).get(c) - factor * aug.get(col).get(c));
+                    c = c + 1;
+                }
+            }
+            r = r + 1;
+        }
+        col = col + 1;
+    }
+
+    // Extract inverse from augmented matrix.
+    let result: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        var j: int = 0;
+        while (j < n) {
+            result.add(aug.get(i).get(n + j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
