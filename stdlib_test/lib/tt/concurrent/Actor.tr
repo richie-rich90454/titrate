@@ -1,0 +1,209 @@
+// Actor model for message-passing concurrency.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+public class ActorMessage {
+    public string messageType;
+    public Variant payload;
+    public string sender;
+
+    public fn init(messageType: string, payload: Variant, sender: string) {
+        this.messageType = messageType;
+        this.payload = payload;
+        this.sender = sender;
+    }
+}
+
+public class ActorRef {
+    public string id;
+    public ArrayList<ActorMessage> mailbox;
+
+    public fn init(id: string) {
+        this.id = id;
+        this.mailbox = new ArrayList<ActorMessage>();
+    }
+
+    public fn send(message: ActorMessage): void {
+        this.mailbox.add(message);
+    }
+
+    public fn hasMessages(): bool {
+        return this.mailbox.size() > 0;
+    }
+
+    public fn receive(): ActorMessage {
+        if (this.mailbox.size() == 0) {
+            return null;
+        }
+        let msg: ActorMessage = this.mailbox.get(0);
+        this.mailbox.remove(0);
+        return msg;
+    }
+
+    public fn ask(system: ActorSystem, msg: ActorMessage, timeoutMs: long): ActorMessage {
+        let replyId: string = this.id + "_reply_" + Integer.toString(Time_millis());
+        msg.sender = replyId;
+        system.send(this.id, msg);
+        let deadline: long = Time_millis() + timeoutMs;
+        while (Time_millis() < deadline) {
+            let replyRef: ActorRef = system.getActor(replyId);
+            if (replyRef != null && replyRef.hasMessages()) {
+                return replyRef.receive();
+            }
+            Thread_sleep(1);
+        }
+        return null;
+    }
+
+    public fn mailboxSize(): int {
+        return this.mailbox.size();
+    }
+}
+
+public class ActorSystem {
+    private HashMap<string, ActorRef> actors;
+    private HashMap<string, fn(ActorMessage): void> handlers;
+    public bool running;
+
+    public fn init() {
+        this.actors = new HashMap<string, ActorRef>();
+        this.handlers = new HashMap<string, fn(ActorMessage): void>();
+        this.running = false;
+    }
+
+    public fn register(id: string, handler: fn(ActorMessage): void): ActorRef {
+        let ref: ActorRef = new ActorRef(id);
+        this.actors.put(id, ref);
+        this.handlers.put(id, handler);
+        return ref;
+    }
+
+    public fn send(targetId: string, msg: ActorMessage): void {
+        let ref: ActorRef = this.actors.get(targetId);
+        if (ref != null) {
+            ref.send(msg);
+        }
+    }
+
+    public fn start(): void {
+        this.running = true;
+        while (this.running) {
+            this.processAll();
+        }
+    }
+
+    public fn stop(): void {
+        this.running = false;
+    }
+
+    public fn processAll(): void {
+        let ids: ArrayList<string> = this.actors.keys();
+        var i: int = 0;
+        while (i < ids.size()) {
+            let id: string = ids.get(i);
+            let ref: ActorRef = this.actors.get(id);
+            let handler: fn(ActorMessage): void = this.handlers.get(id);
+            while (ref.hasMessages()) {
+                let msg: ActorMessage = ref.receive();
+                if (handler != null) {
+                    handler(msg);
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn processOne(id: string): bool {
+        let ref: ActorRef = this.actors.get(id);
+        if (ref == null) {
+            return false;
+        }
+        let handler: fn(ActorMessage): void = this.handlers.get(id);
+        if (!ref.hasMessages() || handler == null) {
+            return false;
+        }
+        let msg: ActorMessage = ref.receive();
+        handler(msg);
+        return true;
+    }
+
+    public fn getActor(id: string): ActorRef {
+        return this.actors.get(id);
+    }
+
+    public fn actorCount(): int {
+        return this.actors.size();
+    }
+
+    public fn removeActor(id: string): bool {
+        if (this.actors.get(id) == null) {
+            return false;
+        }
+        this.actors.remove(id);
+        this.handlers.remove(id);
+        return true;
+    }
+}
+
+public class SupervisorStrategy {
+    public int maxRetries;
+    public long backoffMs;
+    public string strategy;
+
+    public fn init(maxRetries: int, backoffMs: long, strategy: string) {
+        this.maxRetries = maxRetries;
+        this.backoffMs = backoffMs;
+        this.strategy = strategy;
+    }
+}
+
+public class Actor {
+    public string id;
+    private fn(ActorMessage): void handler;
+
+    public fn init(id: string, handler: fn(ActorMessage): void) {
+        this.id = id;
+        this.handler = handler;
+    }
+
+    public fn receive(message: ActorMessage): void {
+        if (this.handler != null) {
+            this.handler(message);
+        }
+    }
+
+    public fn setHandler(handler: fn(ActorMessage): void): void {
+        this.handler = handler;
+    }
+}
+
+// Create a supervised actor that restarts on failure according to the given strategy.
+public fn supervisedActor(system: ActorSystem, id: string, handler: fn(ActorMessage): void, strategy: SupervisorStrategy): ActorRef {
+    var retries: int = 0;
+    let supervisedHandler: fn(ActorMessage): void = fn(msg) {
+        var attempt: int = 0;
+        var success: bool = false;
+        while (attempt <= strategy.maxRetries && !success) {
+            try {
+                handler(msg);
+                success = true;
+            } catch (e: string) {
+                attempt = attempt + 1;
+                if (attempt > strategy.maxRetries) {
+                    if (strategy.strategy == "escalate") {
+                        throw e;
+                    } else if (strategy.strategy == "stop") {
+                        return;
+                    }
+                    // "restart" — reset and retry
+                    attempt = 0;
+                    Thread_sleep(strategy.backoffMs as int);
+                } else {
+                    Thread_sleep(strategy.backoffMs as int);
+                }
+            }
+        }
+    };
+    return system.register(id, supervisedHandler);
+}
