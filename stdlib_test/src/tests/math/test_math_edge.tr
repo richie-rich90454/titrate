@@ -1,0 +1,103 @@
+// Edge case tests for Math.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::math::Math;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_math_edge_abs(): void {
+    if (Math.abs(0.0) == 0.0 && Math.abs(-5.0) == 5.0 && Math.abs(5.0) == 5.0) {
+        io::println("PASS: Math.abs zero/negative/positive");
+    } else {
+        io::println("FAIL: Math.abs zero/negative/positive");
+    }
+    if (Math.absInt(0) == 0 && Math.absInt(-7) == 7 && Math.absInt(7) == 7) {
+        io::println("PASS: Math.absInt zero/negative/positive");
+    } else {
+        io::println("FAIL: Math.absInt zero/negative/positive");
+    }
+}
+
+public fn test_math_edge_min_max_equal(): void {
+    if (Math.min(5.0, 5.0) == 5.0 && Math.max(5.0, 5.0) == 5.0) {
+        io::println("PASS: Math.min/max equal values");
+    } else {
+        io::println("FAIL: Math.min/max equal values");
+    }
+    if (Math.min(0.0, 0.0) == 0.0 && Math.max(0.0, 0.0) == 0.0) {
+        io::println("PASS: Math.min/max zero equal");
+    } else {
+        io::println("FAIL: Math.min/max zero equal");
+    }
+}
+
+public fn test_math_edge_floor_ceil_round_integers(): void {
+    if (Math.floor(5.0) == 5.0 && Math.ceil(5.0) == 5.0 && Math.round(5.0) == 5L) {
+        io::println("PASS: Math.floor/ceil/round integer 5");
+    } else {
+        io::println("FAIL: Math.floor/ceil/round integer 5");
+    }
+    if (Math.floor(0.0) == 0.0 && Math.ceil(0.0) == 0.0 && Math.round(0.0) == 0L) {
+        io::println("PASS: Math.floor/ceil/round zero");
+    } else {
+        io::println("FAIL: Math.floor/ceil/round zero");
+    }
+    if (Math.floor(-3.0) == -3.0 && Math.ceil(-3.0) == -3.0 && Math.round(-3.0) == -3L) {
+        io::println("PASS: Math.floor/ceil/round negative integer");
+    } else {
+        io::println("FAIL: Math.floor/ceil/round negative integer");
+    }
+}
+
+public fn test_math_edge_gcd_lcm_zero(): void {
+    if (Math.gcd(0, 0) == 0 && Math.gcd(0, 5) == 5 && Math.gcd(5, 0) == 5) {
+        io::println("PASS: Math.gcd with zero");
+    } else {
+        io::println("FAIL: Math.gcd with zero");
+    }
+    if (Math.lcm(0, 0) == 0 && Math.lcm(0, 5) == 0 && Math.lcm(5, 0) == 0) {
+        io::println("PASS: Math.lcm with zero");
+    } else {
+        io::println("FAIL: Math.lcm with zero");
+    }
+    if (Math.gcd(7, 7) == 7 && Math.lcm(7, 7) == 7) {
+        io::println("PASS: Math.gcd/lcm equal values");
+    } else {
+        io::println("FAIL: Math.gcd/lcm equal values");
+    }
+}
+
+public fn test_math_edge_factorial_small(): void {
+    if (Math.factorial(0) == 1 && Math.factorial(1) == 1) {
+        io::println("PASS: Math.factorial 0 and 1");
+    } else {
+        io::println("FAIL: Math.factorial 0 and 1");
+    }
+    if (Math.factorial(-1) == 0 && Math.factorial(-5) == 0) {
+        io::println("PASS: Math.factorial negative returns 0");
+    } else {
+        io::println("FAIL: Math.factorial negative");
+    }
+}
+
+public fn test_math_edge_sign_zero(): void {
+    if (Math.sign(0.0) == 0) {
+        io::println("PASS: Math.sign of zero");
+    } else {
+        io::println("FAIL: Math.sign of zero");
+    }
+    if (Math.signum(0.0) == 0.0) {
+        io::println("PASS: Math.signum of zero");
+    } else {
+        io::println("FAIL: Math.signum of zero");
+    }
+}
+
+public fn run_all_math_edge_tests(): void {
+    io::println("=== Math.tr Edge Case Tests ===");
+    test_math_edge_abs();
+    test_math_edge_min_max_equal();
+    test_math_edge_floor_ceil_round_integers();
+    test_math_edge_gcd_lcm_zero();
+    test_math_edge_factorial_small();
+    test_math_edge_sign_zero();
+}
