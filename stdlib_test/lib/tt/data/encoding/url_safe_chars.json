@@ -1,0 +1,6 @@
+{
+  "_meta": {"source": "RFC 3986", "version": "1.0", "description": "URL-safe character sets for percent-encoding"},
+  "unreserved": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.~",
+  "reserved": ":/?#[]@!$&'()*+,;=",
+  "sub_delims": "!$&'()*+,;="
+}
