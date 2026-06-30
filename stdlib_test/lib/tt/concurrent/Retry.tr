@@ -1,0 +1,92 @@
+// Retry with exponential backoff strategies.
+import tt::util::ArrayList;
+import tt::lang::Variant;
+
+public class RetryPolicy {
+    public int maxAttempts;
+    public long baseDelayMs;
+    public long maxDelayMs;
+    public double backoffMultiplier;
+    public bool jitter;
+    public ArrayList<string> retryableErrors;
+
+    public fn init(maxAttempts: int, baseDelayMs: long) {
+        this.maxAttempts = maxAttempts;
+        this.baseDelayMs = baseDelayMs;
+        this.maxDelayMs = 30000;
+        this.backoffMultiplier = 2.0;
+        this.jitter = false;
+        this.retryableErrors = new ArrayList<string>();
+    }
+}
+
+// Calculate exponential backoff delay for a given attempt.
+public fn exponentialBackoff(attempt: int, baseDelayMs: long, multiplier: double, maxDelayMs: long): long {
+    var delay: long = baseDelayMs;
+    var i: int = 0;
+    while (i < attempt) {
+        delay = (delay as double * multiplier) as long;
+        if (delay > maxDelayMs) {
+            delay = maxDelayMs;
+            return delay;
+        }
+        i = i + 1;
+    }
+    if (delay > maxDelayMs) {
+        delay = maxDelayMs;
+    }
+    return delay;
+}
+
+// Execute a function with retry and exponential backoff.
+public fn retryWithBackoff(f: fn(): Variant, policy: RetryPolicy): Variant {
+    var attempt: int = 0;
+    var lastError: string = "";
+    while (attempt < policy.maxAttempts) {
+        try {
+            let result: Variant = f();
+            return result;
+        } catch (e: string) {
+            lastError = e;
+            // Check if error is retryable
+            if (policy.retryableErrors.size() > 0) {
+                let isRetryable: bool = false;
+                var j: int = 0;
+                while (j < policy.retryableErrors.size()) {
+                    if (String.indexOf(lastError, policy.retryableErrors.get(j)) >= 0) {
+                        isRetryable = true;
+                    }
+                    j = j + 1;
+                }
+                if (!isRetryable) {
+                    throw lastError;
+                }
+            }
+            attempt = attempt + 1;
+            if (attempt < policy.maxAttempts) {
+                let delay: long = exponentialBackoff(attempt, policy.baseDelayMs, policy.backoffMultiplier, policy.maxDelayMs);
+                if (policy.jitter) {
+                    let jitterAmount: long = (delay as double * 0.1) as long;
+                    delay = delay + (Math.abs(Math.random() as long) % (jitterAmount + 1));
+                }
+                Thread_sleep(delay as int);
+            }
+        }
+    }
+    throw "Max retries (" + Integer.toString(policy.maxAttempts) + ") exceeded: " + lastError;
+}
+
+// Execute a function with exponential backoff, retrying on failure.
+public fn exponentialBackoff(f: fn(): Variant, maxAttempts: int, baseDelayMs: long): Variant {
+    let policy: RetryPolicy = new RetryPolicy(maxAttempts, baseDelayMs);
+    return retryWithBackoff(f, policy);
+}
+
+// Create a budget-limited retry policy that allows maxRetries within a time period.
+public fn retryBudget(maxRetries: int, periodMs: long): RetryPolicy {
+    let policy: RetryPolicy = new RetryPolicy(maxRetries, periodMs / maxRetries as long);
+    policy.maxDelayMs = periodMs;
+    policy.backoffMultiplier = 1.5;
+    policy.jitter = true;
+    return policy;
+}
