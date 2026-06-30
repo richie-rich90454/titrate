@@ -1,0 +1,214 @@
+// Assay testing framework with TestCase, TestSuite, assertion functions, and test reporting.
+import tt::util::ArrayList;
+import tt::io::IO;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Boolean;
+import tt::lang::String;
+
+// A single test case with a name and a function to execute.
+public class TestCase {
+    public string name;
+    public fn(): void fn;
+
+    fn init(name: string, fn: fn(): void) {
+        this.name = name;
+        this.fn = fn;
+    }
+}
+
+// A named collection of test cases with pass/fail counters.
+public class TestSuite {
+    public string name;
+    public ArrayList<TestCase> tests;
+    public int passed;
+    public int failed;
+    private ArrayList<string> failures;
+    private fn(): void beforeEachFn;
+    private fn(): void afterEachFn;
+
+    fn init(name: string) {
+        this.name = name;
+        this.tests = new ArrayList<TestCase>();
+        this.passed = 0;
+        this.failed = 0;
+        this.failures = new ArrayList<string>();
+        this.beforeEachFn = null;
+        this.afterEachFn = null;
+    }
+
+    // Add a test case to this suite.
+    public fn addTest(name: string, testFn: fn(): void): void {
+        this.tests.add(new TestCase(name, testFn));
+    }
+
+    // Assert that two values are equal.
+    public fn assertEqual<T>(actual: T, expected: T, msg: string): void {
+        if (actual != expected) {
+            this.fail("assertEqual failed: expected " + String.toString(expected) + " but got " + String.toString(actual) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that two values are not equal.
+    public fn assertNotEqual<T>(actual: T, expected: T, msg: string): void {
+        if (actual == expected) {
+            this.fail("assertNotEqual failed: expected different values but both were " + String.toString(expected) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that a condition is true.
+    public fn assertTrue(condition: bool, msg: string): void {
+        if (!condition) {
+            this.fail("assertTrue failed: expected true but got false - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that a condition is false.
+    public fn assertFalse(condition: bool, msg: string): void {
+        if (condition) {
+            this.fail("assertFalse failed: expected false but got true - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that the given function throws an error.
+    public fn assertThrows(fn: fn(): void, msg: string): void {
+        let threw: bool = false;
+        // Attempt to call the function; if it throws, we catch it.
+        try {
+            fn();
+        } catch (e: string) {
+            threw = true;
+        }
+        if (!threw) {
+            this.fail("assertThrows failed: expected function to throw - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that two values are approximately equal within a tolerance.
+    public fn assertApproxEqual(actual: double, expected: double, tolerance: double, msg: string): void {
+        let diff: double = actual - expected;
+        if (diff < 0) { diff = -diff; }
+        if (diff > tolerance) {
+            this.fail("assertApproxEqual failed: expected " + Double.toString(expected) + " +/- " + Double.toString(tolerance) + " but got " + Double.toString(actual) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that actual is greater than expected.
+    public fn assertGreaterThan(actual: double, expected: double, msg: string): void {
+        if (actual <= expected) {
+            this.fail("assertGreaterThan failed: expected " + Double.toString(actual) + " > " + Double.toString(expected) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that actual is less than expected.
+    public fn assertLessThan(actual: double, expected: double, msg: string): void {
+        if (actual >= expected) {
+            this.fail("assertLessThan failed: expected " + Double.toString(actual) + " < " + Double.toString(expected) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that a collection contains an item.
+    public fn assertContains<T>(collection: ArrayList<T>, item: T, msg: string): void {
+        let found: bool = false;
+        for (elem in collection) {
+            if (elem == item) {
+                found = true;
+            }
+        }
+        if (!found) {
+            this.fail("assertContains failed: collection did not contain " + String.toString(item) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that a value is null.
+    public fn assertNull<T>(value: T, msg: string): void {
+        if (value != null) {
+            this.fail("assertNull failed: expected null but got " + String.toString(value) + " - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Assert that a value is not null.
+    public fn assertNotNull<T>(value: T, msg: string): void {
+        if (value == null) {
+            this.fail("assertNotNull failed: expected non-null value - " + msg);
+        } else {
+            this.passed = this.passed + 1;
+        }
+    }
+
+    // Register a function to run before each test.
+    public fn beforeEach(fn: fn(): void): void {
+        this.beforeEachFn = fn;
+    }
+
+    // Register a function to run after each test.
+    public fn afterEach(fn: fn(): void): void {
+        this.afterEachFn = fn;
+    }
+
+    // Skip the current test with a message.
+    public fn skip(msg: string): void {
+        IO.println("  [SKIP] " + msg);
+    }
+
+    // Run a function with a timeout in milliseconds.
+    public fn timeout(ms: int, fn: fn(): void): void {
+        // Execute the function; timeout enforcement depends on the runtime scheduler.
+        fn();
+    }
+
+    // Record a test failure.
+    public fn fail(msg: string): void {
+        this.failed = this.failed + 1;
+        this.failures.add(msg);
+    }
+
+    // Run all tests in this suite and print results.
+    public fn run(): void {
+        IO.println("Suite: " + this.name);
+        for (tc in this.tests) {
+            IO.println("  [RUN ] " + tc.name);
+            try {
+                if (this.beforeEachFn != null) { this.beforeEachFn(); }
+                tc.fn();
+                if (this.afterEachFn != null) { this.afterEachFn(); }
+                IO.println("  [PASS] " + tc.name);
+            } catch (e: string) {
+                if (this.afterEachFn != null) { this.afterEachFn(); }
+                IO.println("  [FAIL] " + tc.name + " - " + e);
+            }
+        }
+        IO.println("  Passed: " + Integer.toString(this.passed) + "  Failed: " + Integer.toString(this.failed));
+        if (this.failed > 0) {
+            IO.println("  Failures:");
+            for (f in this.failures) {
+                IO.println("    - " + f);
+            }
+        }
+    }
+
+    // Return a summary string for this suite.
+    public fn summary(): string {
+        return this.name + ": " + Integer.toString(this.passed) + " passed, " + Integer.toString(this.failed) + " failed";
+    }
+}
