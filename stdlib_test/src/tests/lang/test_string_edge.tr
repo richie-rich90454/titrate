@@ -1,0 +1,144 @@
+// Edge case tests for String.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn test_string_edge_empty_length(): void {
+    let len: int = String.length("");
+    if (len != 0) {
+        io::println("FAIL: String.length(\"\") = " + Integer.toString(len) + ", expected 0");
+    } else {
+        io::println("PASS: String.length(\"\") = 0");
+    }
+}
+
+public fn test_string_edge_empty_concat(): void {
+    let result: string = String.concat("", "");
+    if (String.length(result) != 0) {
+        io::println("FAIL: String.concat(\"\",\"\") length = " + Integer.toString(String.length(result)));
+    } else {
+        io::println("PASS: String.concat(\"\",\"\") = empty");
+    }
+}
+
+public fn test_string_edge_empty_reverse(): void {
+    let result: string = String.reverse("");
+    if (String.length(result) != 0) {
+        io::println("FAIL: String.reverse(\"\") length = " + Integer.toString(String.length(result)));
+    } else {
+        io::println("PASS: String.reverse(\"\") = empty");
+    }
+}
+
+public fn test_string_edge_single_char_length(): void {
+    let len: int = String.length("a");
+    if (len != 1) {
+        io::println("FAIL: String.length(\"a\") = " + Integer.toString(len) + ", expected 1");
+    } else {
+        io::println("PASS: String.length(\"a\") = 1");
+    }
+}
+
+public fn test_string_edge_single_char_reverse(): void {
+    let result: string = String.reverse("a");
+    if (result != "a") {
+        io::println("FAIL: String.reverse(\"a\") = " + result);
+    } else {
+        io::println("PASS: String.reverse(\"a\") = a");
+    }
+}
+
+public fn test_string_edge_whitespace_isBlank(): void {
+    if (!String.isBlank("   \t\n\r")) {
+        io::println("FAIL: String.isBlank(whitespace) = false");
+    } else {
+        io::println("PASS: String.isBlank(whitespace) = true");
+    }
+}
+
+public fn test_string_edge_empty_isBlank(): void {
+    if (!String.isBlank("")) {
+        io::println("FAIL: String.isBlank(\"\") = false");
+    } else {
+        io::println("PASS: String.isBlank(\"\") = true");
+    }
+}
+
+public fn test_string_edge_repeat_zero(): void {
+    let result: string = String.repeat("ab", 0);
+    if (String.length(result) != 0) {
+        io::println("FAIL: String.repeat(\"ab\",0) length = " + Integer.toString(String.length(result)));
+    } else {
+        io::println("PASS: String.repeat(\"ab\",0) = empty");
+    }
+}
+
+public fn test_string_edge_repeat_negative(): void {
+    let result: string = String.repeat("ab", -3);
+    if (String.length(result) != 0) {
+        io::println("FAIL: String.repeat(\"ab\",-3) length = " + Integer.toString(String.length(result)));
+    } else {
+        io::println("PASS: String.repeat(\"ab\",-3) = empty");
+    }
+}
+
+public fn test_string_edge_special_chars_length(): void {
+    let s: string = "\n\t\r";
+    let len: int = String.length(s);
+    if (len != 3) {
+        io::println("FAIL: String.length(\"\\n\\t\\r\") = " + Integer.toString(len) + ", expected 3");
+    } else {
+        io::println("PASS: String.length(\"\\n\\t\\r\") = 3");
+    }
+}
+
+public fn test_string_edge_compareto_equal_empty(): void {
+    if (String.compareTo("", "") != 0) {
+        io::println("FAIL: String.compareTo(\"\",\"\") != 0");
+    } else {
+        io::println("PASS: String.compareTo(\"\",\"\") = 0");
+    }
+}
+
+public fn test_string_edge_compareto_empty_vs_nonempty(): void {
+    if (String.compareTo("", "a") >= 0) {
+        io::println("FAIL: String.compareTo(\"\",\"a\") >= 0");
+    } else {
+        io::println("PASS: String.compareTo(\"\",\"a\") < 0");
+    }
+}
+
+public fn test_string_edge_compareto_nonempty_vs_empty(): void {
+    if (String.compareTo("a", "") <= 0) {
+        io::println("FAIL: String.compareTo(\"a\",\"\") <= 0");
+    } else {
+        io::println("PASS: String.compareTo(\"a\",\"\") > 0");
+    }
+}
+
+public fn test_string_edge_indexOf_notFound(): void {
+    let idx: int = String.indexOf("hello", "xyz");
+    if (idx != -1) {
+        io::println("FAIL: String.indexOf(\"hello\",\"xyz\") = " + Integer.toString(idx) + ", expected -1");
+    } else {
+        io::println("PASS: String.indexOf(\"hello\",\"xyz\") = -1");
+    }
+}
+
+public fn run_all_string_edge_tests(): void {
+    io::println("=== String.tr Edge Case Tests ===");
+    test_string_edge_empty_length();
+    test_string_edge_empty_concat();
+    test_string_edge_empty_reverse();
+    test_string_edge_single_char_length();
+    test_string_edge_single_char_reverse();
+    test_string_edge_whitespace_isBlank();
+    test_string_edge_empty_isBlank();
+    test_string_edge_repeat_zero();
+    test_string_edge_repeat_negative();
+    test_string_edge_special_chars_length();
+    test_string_edge_compareto_equal_empty();
+    test_string_edge_compareto_empty_vs_nonempty();
+    test_string_edge_compareto_nonempty_vs_empty();
+    test_string_edge_indexOf_notFound();
+}
