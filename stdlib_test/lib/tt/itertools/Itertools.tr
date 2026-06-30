@@ -1,0 +1,190 @@
+// Itertools module providing Python itertools-style combinatoric functions.
+import tt::util::ArrayList;
+import tt::itertools::ItertoolsSeq;
+
+// Generate all r-length combinations of elements from arr.
+public fn combinations<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    let n: int = arr.size();
+    if (r > n || r <= 0) {
+        return result;
+    }
+    let indices: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < r) {
+        indices.add(i);
+        i = i + 1;
+    }
+    // Add first combination
+    let first: ArrayList<T> = new ArrayList<T>();
+    let k: int = 0;
+    while (k < r) {
+        first.add(arr.get(indices.get(k)));
+        k = k + 1;
+    }
+    result.add(first);
+    // Generate remaining combinations
+    while (true) {
+        let idx: int = r - 1;
+        while (idx >= 0 && indices.get(idx) == n - r + idx) {
+            idx = idx - 1;
+        }
+        if (idx < 0) {
+            break;
+        }
+        indices.set(idx, indices.get(idx) + 1);
+        let j: int = idx + 1;
+        while (j < r) {
+            indices.set(j, indices.get(j - 1) + 1);
+            j = j + 1;
+        }
+        let combo: ArrayList<T> = new ArrayList<T>();
+        let m: int = 0;
+        while (m < r) {
+            combo.add(arr.get(indices.get(m)));
+            m = m + 1;
+        }
+        result.add(combo);
+    }
+    return result;
+}
+
+// Generate r-length combinations with replacement.
+public fn combinationsWithReplacement<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    let n: int = arr.size();
+    if (r <= 0) {
+        let empty: ArrayList<T> = new ArrayList<T>();
+        result.add(empty);
+        return result;
+    }
+    if (n == 0) {
+        return result;
+    }
+    let indices: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < r) {
+        indices.add(0);
+        i = i + 1;
+    }
+    // Add first combination
+    let first: ArrayList<T> = new ArrayList<T>();
+    let k: int = 0;
+    while (k < r) {
+        first.add(arr.get(indices.get(k)));
+        k = k + 1;
+    }
+    result.add(first);
+    // Generate remaining combinations
+    while (true) {
+        let idx: int = r - 1;
+        while (idx >= 0 && indices.get(idx) == n - 1) {
+            idx = idx - 1;
+        }
+        if (idx < 0) {
+            break;
+        }
+        indices.set(idx, indices.get(idx) + 1);
+        let j: int = idx + 1;
+        while (j < r) {
+            indices.set(j, indices.get(idx));
+            j = j + 1;
+        }
+        let combo: ArrayList<T> = new ArrayList<T>();
+        let m: int = 0;
+        while (m < r) {
+            combo.add(arr.get(indices.get(m)));
+            m = m + 1;
+        }
+        result.add(combo);
+    }
+    return result;
+}
+
+// Generate r-length permutations of elements from arr.
+public fn permutations<T>(arr: ArrayList<T>, r: int): ArrayList<ArrayList<T>> {
+    let result: ArrayList<ArrayList<T>> = new ArrayList<ArrayList<T>>();
+    let n: int = arr.size();
+    if (r > n) {
+        return result;
+    }
+    // Use index-based approach
+    let indices: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < n) {
+        indices.add(i);
+        i = i + 1;
+    }
+    // Generate cycles
+    let cycles: ArrayList<int> = new ArrayList<int>();
+    i = n;
+    while (i > n - r) {
+        cycles.add(i);
+        i = i - 1;
+    }
+    // Add first permutation
+    let first: ArrayList<T> = new ArrayList<T>();
+    let k: int = 0;
+    while (k < r) {
+        first.add(arr.get(indices.get(k)));
+        k = k + 1;
+    }
+    result.add(first);
+    // Generate remaining permutations
+    while (true) {
+        let done: bool = false;
+        let idx: int = r - 1;
+        while (idx >= 0) {
+            cycles.set(idx, cycles.get(idx) - 1);
+            if (cycles.get(idx) == 0) {
+                // Rotate: move element at idx to end
+                let val: int = indices.get(idx);
+                let j: int = idx;
+                while (j < indices.size() - 1) {
+                    indices.set(j, indices.get(j + 1));
+                    j = j + 1;
+                }
+                indices.set(indices.size() - 1, val);
+                cycles.set(idx, n - idx);
+            } else {
+                // Swap
+                let swapIdx: int = indices.size() - cycles.get(idx);
+                let temp: int = indices.get(idx);
+                indices.set(idx, indices.get(swapIdx));
+                indices.set(swapIdx, temp);
+                let perm: ArrayList<T> = new ArrayList<T>();
+                let m: int = 0;
+                while (m < r) {
+                    perm.add(arr.get(indices.get(m)));
+                    m = m + 1;
+                }
+                result.add(perm);
+                done = true;
+                break;
+            }
+            idx = idx - 1;
+        }
+        if (!done) {
+            break;
+        }
+    }
+    return result;
+}
+
+// Cartesian product of two arrays.
+public fn product<T, U>(arr1: ArrayList<T>, arr2: ArrayList<U>): ArrayList<ArrayList<Variant>> {
+    let result: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let i: int = 0;
+    while (i < arr1.size()) {
+        let j: int = 0;
+        while (j < arr2.size()) {
+            let pair: ArrayList<Variant> = new ArrayList<Variant>();
+            pair.add(arr1.get(i));
+            pair.add(arr2.get(j));
+            result.add(pair);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
