@@ -1,0 +1,97 @@
+// SpecialUnits provides currency, astronomical, and Planck unit conversions.
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// CurrencyUnit represents a monetary value with a currency code.
+public class CurrencyUnit {
+    public double amount;
+    public string currency;
+
+    public fn init(amount: double, currency: string) {
+        this.amount = amount;
+        this.currency = currency;
+    }
+
+    // Convert to a target currency at the given exchange rate.
+    public fn convertTo(targetCurrency: string, rate: double): CurrencyUnit {
+        return new CurrencyUnit(this.amount * rate, targetCurrency);
+    }
+
+    // Add another CurrencyUnit using the given exchange rate to convert other.
+    public fn add(other: CurrencyUnit, rate: double): CurrencyUnit {
+        let convertedAmount: double = other.amount * rate;
+        return new CurrencyUnit(this.amount + convertedAmount, this.currency);
+    }
+
+    // Subtract another CurrencyUnit using the given exchange rate to convert other.
+    public fn subtract(other: CurrencyUnit, rate: double): CurrencyUnit {
+        let convertedAmount: double = other.amount * rate;
+        return new CurrencyUnit(this.amount - convertedAmount, this.currency);
+    }
+}
+
+// Return the astronomical unit constant in kilometers.
+// 1 AU = 149,597,870.7 km
+public fn astronomicalUnit(): double {
+    return 149597870.7;
+}
+
+// Astronomical unit to kilometers.
+// 1 AU = 149,597,870.7 km
+public fn auToKm(au: double): double {
+    return au * 149597870.7;
+}
+
+// Kilometers to astronomical units.
+public fn kmToAu(km: double): double {
+    return km / 149597870.7;
+}
+
+// Light years to kilometers.
+// 1 ly = 9,460,730,472,580.8 km
+public fn lightYearToKm(ly: double): double {
+    return ly * 9460730472580.8;
+}
+
+// Kilometers to light years.
+public fn kmToLightYear(km: double): double {
+    return km / 9460730472580.8;
+}
+
+// Parsecs to kilometers.
+// 1 pc = 30,856,775,814,913.673 km
+public fn parsecToKm(pc: double): double {
+    return pc * 30856775814913.673;
+}
+
+// Kilometers to parsecs.
+public fn kmToParsec(km: double): double {
+    return km / 30856775814913.673;
+}
+
+// Convert a value to Planck units.
+// Supported units: "length" (m), "mass" (kg), "time" (s), "temperature" (K),
+// "charge" (C), "energy" (J).
+public fn toPlanckUnits(value: double, unit: string): double {
+    // Planck unit values in SI
+    if (unit == "length") {
+        // Planck length = 1.616255e-35 m
+        return value / 1.616255e-35;
+    } else if (unit == "mass") {
+        // Planck mass = 2.176434e-8 kg
+        return value / 2.176434e-8;
+    } else if (unit == "time") {
+        // Planck time = 5.391247e-44 s
+        return value / 5.391247e-44;
+    } else if (unit == "temperature") {
+        // Planck temperature = 1.416784e32 K
+        return value / 1.416784e32;
+    } else if (unit == "charge") {
+        // Planck charge = 1.875546e-18 C
+        return value / 1.875546e-18;
+    } else if (unit == "energy") {
+        // Planck energy = 1.956082e9 J
+        return value / 1.956082e9;
+    }
+    return 0.0;
+}
