@@ -1,0 +1,122 @@
+import tt::util::ArrayList;
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::chem::ForceField;
+import tt::chem::VerletIntegrator;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::io::IO;
+import tt::lang::Double;
+import tt::lang::Integer;
+
+public class MDSimulation {
+    public Molecule molecule;
+    public ForceField forceField;
+    public VerletIntegrator integrator;
+    public int outputFrequency;
+    public ArrayList<string> trajectory;
+    public bool usePBC;
+    public double boxX;
+    public double boxY;
+    public double boxZ;
+
+    fn init(mol: Molecule, ff: ForceField, integ: VerletIntegrator) {
+        this.molecule = mol;
+        this.forceField = ff;
+        this.integrator = integ;
+        this.outputFrequency = 50;
+        this.trajectory = new ArrayList<string>();
+        this.usePBC = false;
+        this.boxX = 0.0;
+        this.boxY = 0.0;
+        this.boxZ = 0.0;
+    }
+
+    public fn setOutputFrequency(n: int): void {
+        this.outputFrequency = n;
+    }
+
+    // Enable periodic boundary conditions with box dimensions
+    public fn setPBC(bx: double, by: double, bz: double): void {
+        this.usePBC = true;
+        this.boxX = bx;
+        this.boxY = by;
+        this.boxZ = bz;
+    }
+
+    // Apply minimum image convention to all atom positions
+    public fn applyPBC(): void {
+        if (!this.usePBC) { return; }
+        var i: int = 0;
+        while (i < this.molecule.atoms.size()) {
+            let a: Atom = this.molecule.atoms.get(i);
+            // Wrap positions into [0, box)
+            a.x = a.x - Math.floor(a.x / this.boxX) * this.boxX;
+            a.y = a.y - Math.floor(a.y / this.boxY) * this.boxY;
+            a.z = a.z - Math.floor(a.z / this.boxZ) * this.boxZ;
+            i = i + 1;
+        }
+    }
+
+    // Apply minimum image convention for distance calculations
+    public fn minimumImageDistance(a1: Atom, a2: Atom): double {
+        var dx: double = a2.x - a1.x;
+        var dy: double = a2.y - a1.y;
+        var dz: double = a2.z - a1.z;
+        if (this.usePBC) {
+            if (dx > this.boxX / 2.0) { dx = dx - this.boxX; }
+            if (dx < -this.boxX / 2.0) { dx = dx + this.boxX; }
+            if (dy > this.boxY / 2.0) { dy = dy - this.boxY; }
+            if (dy < -this.boxY / 2.0) { dy = dy + this.boxY; }
+            if (dz > this.boxZ / 2.0) { dz = dz - this.boxZ; }
+            if (dz < -this.boxZ / 2.0) { dz = dz + this.boxZ; }
+        }
+        return MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    // Write current frame as XYZ string
+    public fn writeXYZFrame(): string {
+        return this.molecule.toXYZ();
+    }
+
+    // Run N steps of MD, print energy and write trajectory at outputFrequency
+    public fn run(steps: int): void {
+        IO.println("Starting MD simulation: " + Integer.toString(steps) + " steps");
+        IO.println("Step | Potential | Kinetic | Total | Temperature");
+        // Initialize velocities if not already done
+        if (this.integrator.velocities.size() == 0) {
+            this.integrator.initializeVelocities(this.molecule);
+        }
+        // Write initial frame
+        this.trajectory.add(this.writeXYZFrame());
+        var step: int = 0;
+        while (step < steps) {
+            this.integrator.step(this.molecule, this.forceField);
+            // Apply PBC after each step
+            this.applyPBC();
+            if ((step + 1) % this.outputFrequency == 0) {
+                let pe: double = this.forceField.totalEnergy(this.molecule);
+                let ke: double = kineticEnergy(this.molecule, this.integrator.velocities);
+                let total: double = pe + ke;
+                let temp: double = kineticTemperature(this.molecule, this.integrator.velocities);
+                let line: string = Integer.toString(step + 1) + " | " +
+                    Double.toString(pe) + " | " +
+                    Double.toString(ke) + " | " +
+                    Double.toString(total) + " | " +
+                    Double.toString(temp);
+                IO.println(line);
+                // Write trajectory frame
+                this.trajectory.add(this.writeXYZFrame());
+            }
+            step = step + 1;
+        }
+        IO.println("MD simulation complete.");
+    }
+
+    // Get current total energy
+    public fn currentEnergy(): double {
+        let pe: double = this.forceField.totalEnergy(this.molecule);
+        let ke: double = kineticEnergy(this.molecule, this.integrator.velocities);
+        return pe + ke;
+    }
+}
