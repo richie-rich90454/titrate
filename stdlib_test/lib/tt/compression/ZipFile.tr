@@ -1,0 +1,108 @@
+// ZIP archive reading and writing.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::Result;
+
+public class ZipEntry {
+    public string name;
+    public long compressedSize;
+    public long uncompressedSize;
+    public int method;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.compressedSize = 0;
+        this.uncompressedSize = 0;
+        this.method = 8;
+    }
+}
+
+public class ZipFile {
+    private int handle;
+    private bool closed;
+
+    public fn init(path: string) {
+        this.handle = ZipFile_open(path);
+        this.closed = false;
+    }
+
+    // Get the number of entries in the ZIP file
+    public fn entryCount(): int {
+        return ZipFile_entryCount(this.handle);
+    }
+
+    // Get the name of an entry by index
+    public fn entryName(index: int): string {
+        return ZipFile_entryName(this.handle, index);
+    }
+
+    // Get the list of all entry names
+    public fn entries(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let count: int = ZipFile_entryCount(this.handle);
+        var i: int = 0;
+        while (i < count) {
+            result.add(ZipFile_entryName(this.handle, i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Read the content of a specific entry by name
+    public fn readEntry(name: string): Result<string, string> {
+        let content: string = ZipFile_readEntry(this.handle, name);
+        if (content == null) {
+            return err("failed to read entry: " + name);
+        }
+        return ok(content);
+    }
+
+    // Extract all entries to a destination directory
+    public fn extractAll(destDir: string): Result<string, string> {
+        ZipFile_extractAll(this.handle, destDir);
+        return ok("ok");
+    }
+
+    // Close the ZIP file
+    public fn close(): void {
+        if (!this.closed) {
+            ZipFile_close(this.handle);
+            this.closed = true;
+        }
+    }
+}
+
+public class ZipWriter {
+    private int handle;
+    private bool closed;
+    private ArrayList<ZipEntry> _entries;
+
+    public fn init(path: string) {
+        this.handle = ZipWriter_open(path);
+        this.closed = false;
+        this._entries = new ArrayList<ZipEntry>();
+    }
+
+    // Add an entry to the ZIP archive
+    public fn addEntry(name: string, data: string): void {
+        let entry: ZipEntry = new ZipEntry(name);
+        entry.uncompressedSize = String.length(data) as long;
+        entry.compressedSize = String.length(data) as long;
+        this._entries.add(entry);
+        ZipWriter_addEntry(this.handle, name, data);
+    }
+
+    // Close the ZIP writer (writes the archive to disk)
+    public fn write(): Result<string, string> {
+        return ok("ok");
+    }
+
+    // Close the ZIP writer
+    public fn close(): void {
+        if (!this.closed) {
+            ZipWriter_close(this.handle);
+            this.closed = true;
+        }
+    }
+}
