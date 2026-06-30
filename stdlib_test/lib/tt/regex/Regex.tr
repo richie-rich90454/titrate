@@ -1,0 +1,445 @@
+// Regex provides regular expression operations.
+import tt::regex::Match;
+import tt::regex::RegexIterator;
+import tt::util::ArrayList;
+import tt::util::Pair;
+
+public class Regex {
+    public string pattern;
+    public string flags;
+
+    public const IGNORECASE: string = "i";
+    public const MULTILINE: string = "m";
+    public const DOTALL: string = "s";
+    public const VERBOSE: string = "x";
+
+    // Integer flag constants for bitwise flag composition
+    public const FLAG_IGNORECASE: int = 1;
+    public const FLAG_MULTILINE: int = 2;
+    public const FLAG_DOTALL: int = 4;
+    public const FLAG_VERBOSE: int = 8;
+
+    public fn init(p: string) {
+        this.pattern = p;
+        this.flags = "";
+    }
+
+    public fn initWithFlags(p: string, f: string) {
+        this.pattern = p;
+        this.flags = f;
+    }
+
+    public fn match(input: string): bool {
+        let effectivePattern: string = this._effectivePattern();
+        return Regex_match(effectivePattern, input);
+    }
+
+    public fn find(input: string): Match {
+        let effectivePattern: string = this._effectivePattern();
+        let raw: string = Regex_findGroups(effectivePattern, input);
+        if (String.length(raw) == 0) {
+            return null;
+        }
+        // Parse "group0_start,group0_end,group0_text;group1_start,group1_end,group1_text;..."
+        let segments: ArrayList<string> = String.split(raw, ";");
+        // First segment is the full match (group 0)
+        let first: string = segments.get(0);
+        let c1: int = String.indexOf(first, ",");
+        let _tail: string = String.substring(first, c1 + 1, String.length(first));
+        let c2: int = String.indexOf(_tail, ",");
+        if (c2 >= 0) { c2 = c2 + c1 + 1; }
+        let start: int = Integer.parseInt(String.substring(first, 0, c1));
+        let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
+        let matched: string = String.substring(first, c2 + 1, String.length(first));
+        let m: Match = new Match(matched, start, end);
+        // Populate capture groups (skip group 0 which is the full match)
+        var i: int = 1;
+        while (i < segments.size()) {
+            let seg: string = segments.get(i);
+            let s1: int = String.indexOf(seg, ",");
+            let _segTail: string = String.substring(seg, s1 + 1, String.length(seg));
+            let s2: int = String.indexOf(_segTail, ",");
+            if (s2 >= 0) { s2 = s2 + s1 + 1; }
+            let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
+            let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
+            let gText: string = String.substring(seg, s2 + 1, String.length(seg));
+            m.groups.add(gText);
+            m.groupStarts.add(gStart);
+            m.groupEnds.add(gEnd);
+            i = i + 1;
+        }
+        return m;
+    }
+
+    public fn findAll(input: string): ArrayList<Match> {
+        let results: ArrayList<Match> = new ArrayList<Match>();
+        let remaining: string = input;
+        let offset: int = 0;
+        while (true) {
+            let raw: string = Regex_findGroups(this.pattern, remaining);
+            if (String.length(raw) == 0) {
+                break;
+            }
+            let segments: ArrayList<string> = String.split(raw, ";");
+            let first: string = segments.get(0);
+            let c1: int = String.indexOf(first, ",");
+            let _tail: string = String.substring(first, c1 + 1, String.length(first));
+            let c2: int = String.indexOf(_tail, ",");
+            if (c2 >= 0) { c2 = c2 + c1 + 1; }
+            let start: int = Integer.parseInt(String.substring(first, 0, c1));
+            let end: int = Integer.parseInt(String.substring(first, c1 + 1, c2));
+            let matched: string = String.substring(first, c2 + 1, String.length(first));
+            let m: Match = new Match(matched, start + offset, end + offset);
+            var i: int = 1;
+            while (i < segments.size()) {
+                let seg: string = segments.get(i);
+                let s1: int = String.indexOf(seg, ",");
+                let _segTail: string = String.substring(seg, s1 + 1, String.length(seg));
+                let s2: int = String.indexOf(_segTail, ",");
+                if (s2 >= 0) { s2 = s2 + s1 + 1; }
+                let gStart: int = Integer.parseInt(String.substring(seg, 0, s1));
+                let gEnd: int = Integer.parseInt(String.substring(seg, s1 + 1, s2));
+                let gText: string = String.substring(seg, s2 + 1, String.length(seg));
+                m.groups.add(gText);
+                m.groupStarts.add(gStart + offset);
+                m.groupEnds.add(gEnd + offset);
+                i = i + 1;
+            }
+            results.add(m);
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = String.substring(remaining, end, String.length(remaining));
+        }
+        return results;
+    }
+
+    public fn matchAll(input: string): ArrayList<Match> {
+        return this.findAll(input);
+    }
+
+    public fn replaceAll(input: string, replacement: string): string {
+        return Regex_replace(this.pattern, input, replacement);
+    }
+
+    public fn replaceAll(input: string, replacement: string, count: int): string {
+        var result: string = "";
+        var lastEnd: int = 0;
+        var remaining: string = input;
+        var offset: int = 0;
+        var done: int = 0;
+        while (done < count) {
+            let raw: string = Regex_find(this.pattern, remaining);
+            if (String.length(raw) == 0) {
+                break;
+            }
+            let firstComma: int = String.indexOf(raw, ",");
+            let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+            let secondComma: int = String.indexOf(_tail, ",");
+            if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
+            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+            result = result + String.substring(input, lastEnd, offset + start) + replacement;
+            lastEnd = offset + end;
+            done = done + 1;
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = String.substring(remaining, end, String.length(remaining));
+        }
+        result = result + String.substring(input, lastEnd, String.length(input));
+        return result;
+    }
+
+    public fn subn(input: string, replacement: string): Pair<string, int> {
+        var count: int = 0;
+        var result: string = "";
+        var lastEnd: int = 0;
+        var remaining: string = input;
+        var offset: int = 0;
+        while (true) {
+            let raw: string = Regex_find(this.pattern, remaining);
+            if (String.length(raw) == 0) {
+                break;
+            }
+            let firstComma: int = String.indexOf(raw, ",");
+            let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+            let secondComma: int = String.indexOf(_tail, ",");
+            if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
+            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+            result = result + String.substring(input, lastEnd, offset + start) + replacement;
+            lastEnd = offset + end;
+            count = count + 1;
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = String.substring(remaining, end, String.length(remaining));
+        }
+        result = result + String.substring(input, lastEnd, String.length(input));
+        return new Pair<string, int>(result, count);
+    }
+
+    public fn split(input: string): ArrayList<string> {
+        let parts: ArrayList<string> = new ArrayList<string>();
+        let lastEnd: int = 0;
+        let remaining: string = input;
+        let offset: int = 0;
+        while (true) {
+            let raw: string = Regex_find(this.pattern, remaining);
+            if (String.length(raw) == 0) {
+                break;
+            }
+            let firstComma: int = String.indexOf(raw, ",");
+            let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+            let secondComma: int = String.indexOf(_tail, ",");
+            if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
+            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+            parts.add(String.substring(input, lastEnd, offset + start));
+            lastEnd = offset + end;
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = String.substring(remaining, end, String.length(remaining));
+        }
+        parts.add(String.substring(input, lastEnd, String.length(input)));
+        return parts;
+    }
+
+    public fn splitWithLimit(input: string, maxsplit: int): ArrayList<string> {
+        let parts: ArrayList<string> = new ArrayList<string>();
+        let lastEnd: int = 0;
+        let remaining: string = input;
+        let offset: int = 0;
+        var done: int = 0;
+        while (done < maxsplit) {
+            let raw: string = Regex_find(this.pattern, remaining);
+            if (String.length(raw) == 0) {
+                break;
+            }
+            let firstComma: int = String.indexOf(raw, ",");
+            let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+            let secondComma: int = String.indexOf(_tail, ",");
+            if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
+            let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+            let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+            parts.add(String.substring(input, lastEnd, offset + start));
+            lastEnd = offset + end;
+            done = done + 1;
+            if (end == 0) {
+                break;
+            }
+            offset = offset + end;
+            remaining = String.substring(remaining, end, String.length(remaining));
+        }
+        parts.add(String.substring(input, lastEnd, String.length(input)));
+        return parts;
+    }
+
+    public fn groupCount(): int {
+        return Regex_groupCount(this.pattern);
+    }
+
+    public fn getPattern(): string {
+        return this.pattern;
+    }
+
+    public fn replaceFirst(input: string, replacement: string): string {
+        // No native Regex_replaceFirst; find first match and replace manually
+        let raw: string = Regex_find(this.pattern, input);
+        if (String.length(raw) == 0) {
+            return input;
+        }
+        let firstComma: int = String.indexOf(raw, ",");
+        let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+        let secondComma: int = String.indexOf(_tail, ",");
+        if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
+        let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+        let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+        return String.substring(input, 0, start) + replacement + String.substring(input, end, String.length(input));
+    }
+
+    public fn fullmatch(input: string): bool {
+        let m: Match = this.find(input);
+        if (m == null) {
+            return false;
+        }
+        return m.start == 0 && m.end == String.length(input);
+    }
+
+    public fn finditer(input: string): RegexIterator {
+        return new RegexIterator(this.pattern, input);
+    }
+
+    public fn matches(input: string): bool {
+        let m: Match = this.find(input);
+        if (m == null) {
+            return false;
+        }
+        return m.start == 0 && m.end == String.length(input);
+    }
+
+    public fn quote(s: string): string {
+        // Escape ALL regex metacharacters: . ^ $ * + ? { } [ ] \ | ( )
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            let c: string = String.charAt(s, i);
+            if (c == "\\" || c == "." || c == "^" || c == "$" || c == "*" ||
+                c == "+" || c == "?" || c == "{" || c == "}" || c == "[" ||
+                c == "]" || c == "|" || c == "(" || c == ")") {
+                result = result + "\\";
+            }
+            result = result + c;
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return the flags string of this regex.
+    public fn flags(): string {
+        return this.flags;
+    }
+
+    // Extract named group names from the pattern.
+    // Looks for (?P<name>...) or (?<name>...) syntax.
+    public fn namedGroups(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let p: string = this.pattern;
+        let n: int = String.length(p);
+        var i: int = 0;
+        while (i < n) {
+            // Check for (?P<name> or (?<name>
+            if (i + 2 < n && String.charAt(p, i) == "(" && String.charAt(p, i + 1) == "?") {
+                var idx: int = i + 2;
+                if (idx < n && String.charAt(p, idx) == "P") {
+                    idx = idx + 1;
+                }
+                if (idx < n && String.charAt(p, idx) == "<") {
+                    idx = idx + 1;
+                    let nameStart: int = idx;
+                    while (idx < n && String.charAt(p, idx) != ">") {
+                        idx = idx + 1;
+                    }
+                    if (idx < n) {
+                        let name: string = String.substring(p, nameStart, idx);
+                        result.add(name);
+                    }
+                }
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn _effectivePattern(): string {
+        if (String.length(this.flags) > 0) {
+            return "(?" + this.flags + ")" + this.pattern;
+        }
+        return this.pattern;
+    }
+}
+
+// --- Top-level regex functions ---
+
+// Replace the first match of pattern in s with replacement.
+public fn replaceFirst(s: string, pattern: string, replacement: string): string {
+    let raw: string = Regex_find(pattern, s);
+    if (String.length(raw) == 0) {
+        return s;
+    }
+    let firstComma: int = String.indexOf(raw, ",");
+    let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+    let secondComma: int = String.indexOf(_tail, ",");
+    if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
+    let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+    let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+    return String.substring(s, 0, start) + replacement + String.substring(s, end, String.length(s));
+}
+
+// Check if the entire string matches the pattern.
+public fn matches(s: string, pattern: string): bool {
+    let anchored: string = "^" + pattern + "$";
+    let raw: string = Regex_find(anchored, s);
+    if (String.length(raw) == 0) {
+        return false;
+    }
+    let firstComma: int = String.indexOf(raw, ",");
+    let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+    let secondComma: int = String.indexOf(_tail, ",");
+    if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
+    let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+    let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+    return start == 0 && end == String.length(s);
+}
+
+// Find all matches of pattern in s, returning an ArrayList of Match objects.
+public fn findAll(s: string, pattern: string): ArrayList<Match> {
+    let results: ArrayList<Match> = new ArrayList<Match>();
+    let remaining: string = s;
+    let offset: int = 0;
+    while (true) {
+        let raw: string = Regex_find(pattern, remaining);
+        if (String.length(raw) == 0) {
+            break;
+        }
+        let firstComma: int = String.indexOf(raw, ",");
+        let _tail: string = String.substring(raw, firstComma + 1, String.length(raw));
+        let secondComma: int = String.indexOf(_tail, ",");
+        if (secondComma >= 0) { secondComma = secondComma + firstComma + 1; }
+        let start: int = Integer.parseInt(String.substring(raw, 0, firstComma));
+        let end: int = Integer.parseInt(String.substring(raw, firstComma + 1, secondComma));
+        let matched: string = String.substring(raw, secondComma + 1, String.length(raw));
+        let m: Match = new Match(matched, start + offset, end + offset);
+        results.add(m);
+        if (end == 0) {
+            break;
+        }
+        offset = offset + end;
+        remaining = String.substring(remaining, end, String.length(remaining));
+    }
+    return results;
+}
+
+// Escape all regex metacharacters in s, returning a literal pattern string.
+// Escapes: . ^ $ * + ? { } [ ] \ | ( )
+public fn quote(s: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == "\\" || c == "." || c == "^" || c == "$" || c == "*" ||
+            c == "+" || c == "?" || c == "{" || c == "}" || c == "[" ||
+            c == "]" || c == "|" || c == "(" || c == ")") {
+            result = result + "\\";
+        }
+        result = result + c;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Full string match: returns a Match if the entire text matches the pattern, null otherwise.
+public fn fullMatch(pattern: string, text: string): Match {
+    let isMatch: bool = Regex_fullMatch(pattern, text);
+    if (!isMatch) {
+        return null;
+    }
+    // If matched, find the full match to construct a Match object
+    return Regex_find(pattern, text);
+}
+
+// Limited substitution: replace at most n occurrences of pattern in text with replacement.
+public fn subN(pattern: string, replacement: string, text: string, n: int): string {
+    return Regex_subN(pattern, replacement, text, n);
+}
+
+// Escape regex metacharacters in text, returning a safe literal pattern string.
+public fn escape(text: string): string {
+    return quote(text);
+}
