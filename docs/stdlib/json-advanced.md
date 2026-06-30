@@ -1,14 +1,19 @@
+---
+title: json-advanced
+description: Advanced JSON processing in Titrate — streaming, JSONPath, Patch, Schema, JSON5, and MessagePack.
+---
+
 # json-advanced
 
 The `tt.json` module provides advanced JSON processing capabilities including SAX-style streaming parsing, JSONPath queries, JSON Patch, JSON Schema validation, JSON5 support, and binary JSON encoding.
 
 ```titrate
-import tt.json.JsonStreamingParser;
-import tt.json.JsonPath;
-import tt.json.JsonPatch;
-import tt.json.JsonSchema;
-import tt.json.Json5;
-import tt.json.JsonBinary;
+import tt::json::JsonStreamingParser;
+import tt::json::JsonPath;
+import tt::json::JsonPatch;
+import tt::json::JsonSchema;
+import tt::json::Json5;
+import tt::json::JsonBinary;
 ```
 
 ## JsonStreamingParser
