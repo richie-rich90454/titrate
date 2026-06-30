@@ -40,10 +40,6 @@ Make sure `LLVM-C.lib` and the `llvm-c/` headers are on your `LIB` and
 `INCLUDE` paths. The MSVC build tools (`link.exe`) come with Visual
 Studio Build Tools or the full Visual Studio installation.
 
-The repository ships a bundled `llvm-dev/` directory containing
-`LLVM-C.lib`, `llvm-config.exe`, and the `llvm-c/` headers as a
-fallback if you don't want a system-wide install.
-
 #### Linux (apt / Debian / Ubuntu)
 
 ```bash
@@ -189,8 +185,7 @@ about whether an optimization fired, read the IR.
 The `inkwell` crate can't find the LLVM development files. Fix:
 
 - **Windows**: install LLVM via Chocolatey or the official installer,
-  and make sure `LLVM-C.lib` is on your `LIB` path. The bundled
-  `llvm-dev/` directory in the repo is a fallback.
+  and make sure `LLVM-C.lib` is on your `LIB` path.
 - **Linux**: install the `llvm-15-dev` (or equivalent) package.
 - **macOS**: `brew install llvm@15` and set
   `LLVM_SYS_150_PREFIX=/opt/homebrew/opt/llvm@15`.
