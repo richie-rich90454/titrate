@@ -1,0 +1,299 @@
+// Conic Sections: Parabola, Ellipse, Hyperbola, Circle
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::math::vec::Vec2;
+
+// ---- Parabola: y = ax^2 + bx + c ----
+
+public class Parabola {
+    public double a;
+    public double b;
+    public double c;
+
+    public fn init(a: double, b: double, c: double) {
+        this.a = a;
+        this.b = b;
+        this.c = c;
+    }
+
+    public fn eval(x: double): double {
+        return this.a * x * x + this.b * x + this.c;
+    }
+
+    public fn vertex(): Vec2 {
+        let h: double = -this.b / (2.0 * this.a);
+        let k: double = this.c - (this.b * this.b) / (4.0 * this.a);
+        return new Vec2(h, k);
+    }
+
+    public fn focus(): Vec2 {
+        let h: double = -this.b / (2.0 * this.a);
+        let k: double = this.c - (this.b * this.b) / (4.0 * this.a);
+        let f: double = 1.0 / (4.0 * this.a);
+        return new Vec2(h, k + f);
+    }
+
+    public fn directrix(): double {
+        let k: double = this.c - (this.b * this.b) / (4.0 * this.a);
+        let f: double = 1.0 / (4.0 * this.a);
+        return k - f;
+    }
+
+    public fn eccentricity(): double {
+        return 1.0;
+    }
+
+    public fn axisOfSymmetry(): double {
+        return -this.b / (2.0 * this.a);
+    }
+
+    public fn focalLength(): double {
+        return 1.0 / (4.0 * this.a);
+    }
+}
+
+// ---- Parabola factory functions ----
+
+public fn parabolaFromVertexAndFocus(vertex: Vec2, focus: Vec2): Parabola {
+    let a: double = 1.0 / (4.0 * (focus.y - vertex.y));
+    let b: double = -2.0 * a * vertex.x;
+    let c: double = vertex.y + a * vertex.x * vertex.x;
+    return new Parabola(a, b, c);
+}
+
+public fn parabolaFromFocusAndDirectrix(focus: Vec2, directrix: double): Parabola {
+    let a: double = 1.0 / (2.0 * (focus.y - directrix));
+    let b: double = -2.0 * a * focus.x;
+    let c: double = a * focus.x * focus.x + (focus.y + directrix) / 2.0;
+    return new Parabola(a, b, c);
+}
+
+// ---- Ellipse: ((x-cx)/a)^2 + ((y-cy)/b)^2 = 1 ----
+
+public class Ellipse {
+    public double a;
+    public double b;
+    public double cx;
+    public double cy;
+
+    public fn init(a: double, b: double, cx: double, cy: double) {
+        this.a = a;
+        this.b = b;
+        this.cx = cx;
+        this.cy = cy;
+    }
+
+    public fn eval(x: double): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let dx: double = (x - this.cx) / this.a;
+        let val: double = 1.0 - dx * dx;
+        if (val < 0.0) {
+            return result;
+        }
+        let dy: double = MathAdvanced.sqrt(val);
+        result.add(this.cy + this.b * dy);
+        if (dy > 0.0) {
+            result.add(this.cy - this.b * dy);
+        }
+        return result;
+    }
+
+    public fn area(): double {
+        return Math.PI() * this.a * this.b;
+    }
+
+    public fn eccentricity(): double {
+        let major: double = Math.max(this.a, this.b);
+        let minor: double = Math.min(this.a, this.b);
+        return MathAdvanced.sqrt(1.0 - (minor * minor) / (major * major));
+    }
+
+    public fn foci(): ArrayList<Vec2> {
+        let result: ArrayList<Vec2> = new ArrayList<Vec2>();
+        let major: double = Math.max(this.a, this.b);
+        let minor: double = Math.min(this.a, this.b);
+        let c: double = MathAdvanced.sqrt(major * major - minor * minor);
+        if (this.a >= this.b) {
+            result.add(new Vec2(this.cx + c, this.cy));
+            result.add(new Vec2(this.cx - c, this.cy));
+        } else {
+            result.add(new Vec2(this.cx, this.cy + c));
+            result.add(new Vec2(this.cx, this.cy - c));
+        }
+        return result;
+    }
+
+    public fn focalDistance(): double {
+        let major: double = Math.max(this.a, this.b);
+        let minor: double = Math.min(this.a, this.b);
+        let c: double = MathAdvanced.sqrt(major * major - minor * minor);
+        return 2.0 * c;
+    }
+
+    public fn perimeter(): double {
+        let sa: double = 3.0 * this.a + this.b;
+        let sb: double = this.a + 3.0 * this.b;
+        return Math.PI() * (3.0 * (this.a + this.b) - MathAdvanced.sqrt(sa * sb));
+    }
+
+    public fn contains(x: double, y: double): bool {
+        let dx: double = (x - this.cx) / this.a;
+        let dy: double = (y - this.cy) / this.b;
+        return dx * dx + dy * dy <= 1.0;
+    }
+}
+
+// ---- Hyperbola: ((x-cx)/a)^2 - ((y-cy)/b)^2 = 1 ----
+
+public class Hyperbola {
+    public double a;
+    public double b;
+    public double cx;
+    public double cy;
+
+    public fn init(a: double, b: double, cx: double, cy: double) {
+        this.a = a;
+        this.b = b;
+        this.cx = cx;
+        this.cy = cy;
+    }
+
+    public fn eval(x: double): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let dx: double = (x - this.cx) / this.a;
+        let val: double = dx * dx - 1.0;
+        if (val < 0.0) {
+            return result;
+        }
+        let dy: double = MathAdvanced.sqrt(val);
+        result.add(this.cy + this.b * dy);
+        if (dy > 0.0) {
+            result.add(this.cy - this.b * dy);
+        }
+        return result;
+    }
+
+    public fn eccentricity(): double {
+        return MathAdvanced.sqrt(1.0 + (this.b * this.b) / (this.a * this.a));
+    }
+
+    public fn foci(): ArrayList<Vec2> {
+        let result: ArrayList<Vec2> = new ArrayList<Vec2>();
+        let c: double = MathAdvanced.sqrt(this.a * this.a + this.b * this.b);
+        result.add(new Vec2(this.cx + c, this.cy));
+        result.add(new Vec2(this.cx - c, this.cy));
+        return result;
+    }
+
+    public fn asymptotes(): ArrayList<ArrayList<double>> {
+        let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        let slope: double = this.b / this.a;
+
+        let line1: ArrayList<double> = new ArrayList<double>();
+        line1.add(slope);
+        line1.add(this.cy - slope * this.cx);
+        result.add(line1);
+
+        let line2: ArrayList<double> = new ArrayList<double>();
+        line2.add(-slope);
+        line2.add(this.cy + slope * this.cx);
+        result.add(line2);
+
+        return result;
+    }
+
+    public fn vertices(): ArrayList<Vec2> {
+        let result: ArrayList<Vec2> = new ArrayList<Vec2>();
+        result.add(new Vec2(this.cx + this.a, this.cy));
+        result.add(new Vec2(this.cx - this.a, this.cy));
+        return result;
+    }
+}
+
+// ---- Circle: (x-cx)^2 + (y-cy)^2 = r^2 ----
+
+public class Circle {
+    public double cx;
+    public double cy;
+    public double r;
+
+    public fn init(cx: double, cy: double, r: double) {
+        this.cx = cx;
+        this.cy = cy;
+        this.r = r;
+    }
+
+    public fn area(): double {
+        return Math.PI() * this.r * this.r;
+    }
+
+    public fn circumference(): double {
+        return 2.0 * Math.PI() * this.r;
+    }
+
+    public fn contains(x: double, y: double): bool {
+        let dx: double = x - this.cx;
+        let dy: double = y - this.cy;
+        return dx * dx + dy * dy <= this.r * this.r;
+    }
+
+    public fn distanceToEdge(x: double, y: double): double {
+        let dx: double = x - this.cx;
+        let dy: double = y - this.cy;
+        let dist: double = MathAdvanced.sqrt(dx * dx + dy * dy);
+        let diff: double = dist - this.r;
+        if (diff < 0.0) {
+            return -diff;
+        }
+        return diff;
+    }
+}
+
+// ---- Circle factory functions ----
+
+public fn circleFromThreePoints(p1: Vec2, p2: Vec2, p3: Vec2): Circle {
+    let ax: double = p1.x;
+    let ay: double = p1.y;
+    let bx: double = p2.x;
+    let by: double = p2.y;
+    let cxv: double = p3.x;
+    let cyv: double = p3.y;
+
+    let d: double = 2.0 * (ax * (by - cyv) + bx * (cyv - ay) + cxv * (ay - by));
+    let ux: double = ((ax * ax + ay * ay) * (by - cyv) + (bx * bx + by * by) * (cyv - ay) + (cxv * cxv + cyv * cyv) * (ay - by)) / d;
+    let uy: double = ((ax * ax + ay * ay) * (cxv - bx) + (bx * bx + by * by) * (ax - cxv) + (cxv * cxv + cyv * cyv) * (bx - ax)) / d;
+    let dx2: double = ax - ux;
+    let dy2: double = ay - uy;
+    let r: double = MathAdvanced.sqrt(dx2 * dx2 + dy2 * dy2);
+    return new Circle(ux, uy, r);
+}
+
+public fn circleFromDiameter(p1: Vec2, p2: Vec2): Circle {
+    let mx: double = (p1.x + p2.x) / 2.0;
+    let my: double = (p1.y + p2.y) / 2.0;
+    let dx: double = p2.x - p1.x;
+    let dy: double = p2.y - p1.y;
+    let r: double = MathAdvanced.sqrt(dx * dx + dy * dy) / 2.0;
+    return new Circle(mx, my, r);
+}
+
+public fn circleTangentLines(point: Vec2, circle: Circle): ArrayList<Vec2> {
+    let result: ArrayList<Vec2> = new ArrayList<Vec2>();
+    let dx: double = point.x - circle.cx;
+    let dy: double = point.y - circle.cy;
+    let distSq: double = dx * dx + dy * dy;
+    let rSq: double = circle.r * circle.r;
+    if (distSq <= rSq) {
+        return result;
+    }
+    let dist: double = MathAdvanced.sqrt(distSq);
+    let a: double = MathTrig.acos(circle.r / dist);
+    let baseAngle: double = MathTrig.atan2(dy, dx);
+    let angle1: double = baseAngle + a;
+    let angle2: double = baseAngle - a;
+    result.add(new Vec2(MathTrig.cos(angle1), MathTrig.sin(angle1)));
+    result.add(new Vec2(MathTrig.cos(angle2), MathTrig.sin(angle2)));
+    return result;
+}
