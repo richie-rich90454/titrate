@@ -1,0 +1,218 @@
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::ndarray::NDArraySort;
+import tt::math::ndarray::NDArrayReduce;
+import tt::math::ndarray::NDArrayMath;
+
+// NDArray analysis utilities: histogram, interpolation, covariance, correlation, searchsorted, bincount
+
+public fn histogram(a: NDArray<double>, bins: int): ArrayList<ArrayList<double>> {
+    if (a.data.size() == 0) {
+        let emptyCounts: ArrayList<double> = new ArrayList<double>();
+        let emptyEdges: ArrayList<double> = new ArrayList<double>();
+        let emptyResult: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        emptyResult.add(emptyCounts);
+        emptyResult.add(emptyEdges);
+        return emptyResult;
+    }
+    let sorted: NDArray<double> = NDArraySort.sort(a);
+    let n: int = sorted.data.size();
+    let lo: double = sorted.data.get(0);
+    let hi: double = sorted.data.get(n - 1);
+    let binWidth: double = (hi - lo) / bins as double;
+
+    // Build edges
+    let edges: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i <= bins) {
+        edges.add(lo + i as double * binWidth);
+        i = i + 1;
+    }
+
+    // Count
+    let counts: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < bins) {
+        counts.add(0.0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        var idx: int = ((sorted.data.get(i) - lo) / binWidth) as int;
+        if (idx >= bins) { idx = bins - 1; }
+        if (idx < 0) { idx = 0; }
+        counts.set(idx, counts.get(idx) + 1.0);
+        i = i + 1;
+    }
+
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    result.add(counts);
+    result.add(edges);
+    return result;
+}
+
+public fn ndInterp(x: NDArray<double>, xp: NDArray<double>, yp: NDArray<double>): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(x.data.size());
+    result.computeStrides();
+    let np: int = xp.data.size();
+    var i: int = 0;
+    while (i < x.data.size()) {
+        let xv: double = x.data.get(i);
+        if (xv <= xp.data.get(0)) {
+            result.data.add(yp.data.get(0));
+        } else {
+            if (xv >= xp.data.get(np - 1)) {
+                result.data.add(yp.data.get(np - 1));
+            } else {
+                var j: int = 0;
+                while (j < np - 1) {
+                    if (xv >= xp.data.get(j) && xv <= xp.data.get(j + 1)) {
+                        let t: double = (xv - xp.data.get(j)) / (xp.data.get(j + 1) - xp.data.get(j));
+                        result.data.add(yp.data.get(j) + t * (yp.data.get(j + 1) - yp.data.get(j)));
+                        break;
+                    }
+                    j = j + 1;
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn ndCov(a: NDArray<double>): NDArray<double> {
+    // a is 2D: rows=observations, cols=variables
+    let rows: int = a.shape.get(0);
+    let cols: int = a.shape.get(1);
+
+    // Compute means for each column
+    let means: ArrayList<double> = new ArrayList<double>();
+    var j: int = 0;
+    while (j < cols) {
+        var s: double = 0.0;
+        var i: int = 0;
+        while (i < rows) {
+            s = s + a.get2D(i, j);
+            i = i + 1;
+        }
+        means.add(s / rows as double);
+        j = j + 1;
+    }
+
+    // Compute covariance matrix (cols x cols)
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(cols);
+    result.shape.add(cols);
+    result.computeStrides();
+    j = 0;
+    while (j < cols) {
+        var k: int = 0;
+        while (k < cols) {
+            var s: double = 0.0;
+            var i: int = 0;
+            while (i < rows) {
+                s = s + (a.get2D(i, j) - means.get(j)) * (a.get2D(i, k) - means.get(k));
+                i = i + 1;
+            }
+            result.data.add(s / (rows - 1) as double);
+            k = k + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
+public fn ndCorrcoef(a: NDArray<double>): NDArray<double> {
+    let cov: NDArray<double> = ndCov(a);
+    let cols: int = a.shape.get(1);
+    let result: NDArray<double> = new NDArray<double>();
+    result.shape.add(cols);
+    result.shape.add(cols);
+    result.computeStrides();
+    var j: int = 0;
+    while (j < cols) {
+        var k: int = 0;
+        while (k < cols) {
+            let cjj: double = cov.get2D(j, j);
+            let ckk: double = cov.get2D(k, k);
+            let denom: double = MathAdvanced.sqrt(cjj * ckk);
+            if (denom == 0.0) {
+                result.data.add(0.0);
+            } else {
+                result.data.add(cov.get2D(j, k) / denom);
+            }
+            k = k + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
+public fn searchsorted(a: NDArray<double>, v: double): int {
+    let n: int = a.data.size();
+    var lo: int = 0;
+    var hi: int = n;
+    while (lo < hi) {
+        let mid: int = (lo + hi) / 2;
+        if (a.data.get(mid) < v) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    return lo;
+}
+
+public fn bincount(a: NDArray<double>): ArrayList<int> {
+    let n: int = a.data.size();
+    var maxVal: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        let v: int = a.data.get(i) as int;
+        if (v > maxVal) { maxVal = v; }
+        i = i + 1;
+    }
+    let result: ArrayList<int> = new ArrayList<int>();
+    i = 0;
+    while (i <= maxVal) {
+        result.add(0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < n) {
+        let v: int = a.data.get(i) as int;
+        if (v >= 0) {
+            result.set(v, result.get(v) + 1);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Digitize: return the indices of the bins to which each value in `a` belongs.
+// Bins must be monotonically increasing. For each element x in `a`, the result is
+// the index i such that bins[i-1] <= x < bins[i] (right=False semantics).
+public fn digitize(a: NDArray<double>, bins: NDArray<double>): NDArray<int> {
+    let result: NDArray<int> = new NDArray<int>();
+    result.shape.add(a.data.size());
+    result.computeStrides();
+    let nBins: int = bins.data.size();
+    let n: int = a.data.size();
+    var i: int = 0;
+    while (i < n) {
+        let x: double = a.data.get(i);
+        var idx: int = 0;
+        var j: int = 0;
+        while (j < nBins) {
+            if (x >= bins.data.get(j)) {
+                idx = j + 1;
+            }
+            j = j + 1;
+        }
+        result.data.add(idx);
+        i = i + 1;
+    }
+    return result;
+}
