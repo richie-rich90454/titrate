@@ -1,0 +1,130 @@
+// Pitch.tr — Pitch detection: autocorrelation, YIN algorithm
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+import tt::audio::AudioBuffer;
+
+// Autocorrelation pitch detection from AudioBuffer
+public fn detectAutocorrelation(buffer: AudioBuffer): double {
+    let signal: ArrayList<double> = buffer.samples.get(0);
+    let sampleRate: int = buffer.sampleRate;
+    return detectPitchAutocorrelation(signal, sampleRate, 50.0, 2000.0);
+}
+
+// Autocorrelation-based pitch detection
+public fn detectPitchAutocorrelation(signal: ArrayList<double>, sampleRate: int, minFreq: double, maxFreq: double): double {
+    let n: int = signal.size();
+    let minLag: int = Math.floor(sampleRate as double / maxFreq) as int;
+    let maxLag: int = Math.floor(sampleRate as double / minFreq) as int;
+    if (maxLag >= n) { maxLag = n - 1; }
+    var bestLag: int = minLag;
+    var bestCorr: double = -1e30;
+    var lag: int = minLag;
+    while (lag <= maxLag) {
+        var corr: double = 0.0;
+        var i: int = 0;
+        while (i < n - lag) {
+            corr = corr + signal.get(i) * signal.get(i + lag);
+            i = i + 1;
+        }
+        if (corr > bestCorr) {
+            bestCorr = corr;
+            bestLag = lag;
+        }
+        lag = lag + 1;
+    }
+    if (bestLag == 0) { return 0.0; }
+    return sampleRate as double / bestLag as double;
+}
+
+// YIN pitch detection algorithm
+public fn detectPitchYIN(signal: ArrayList<double>, sampleRate: int, minFreq: double, maxFreq: double): double {
+    let n: int = signal.size();
+    let minLag: int = Math.floor(sampleRate as double / maxFreq) as int;
+    let maxLag: int = Math.floor(sampleRate as double / minFreq) as int;
+    if (maxLag >= n) { maxLag = n - 1; }
+    // Step 1: Difference function
+    let diff: ArrayList<double> = new ArrayList<double>();
+    var lag: int = 0;
+    while (lag <= maxLag) {
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < n - lag) {
+            let d: double = signal.get(i) - signal.get(i + lag);
+            sum = sum + d * d;
+            i = i + 1;
+        }
+        diff.add(sum);
+        lag = lag + 1;
+    }
+    // Step 2: Cumulative mean normalized difference
+    let cmndf: ArrayList<double> = new ArrayList<double>();
+    cmndf.add(1.0);
+    var cumSum: double = 0.0;
+    lag = 1;
+    while (lag <= maxLag) {
+        cumSum = cumSum + diff.get(lag);
+        if (cumSum == 0.0) {
+            cmndf.add(1.0);
+        } else {
+            cmndf.add(diff.get(lag) * lag as double / cumSum);
+        }
+        lag = lag + 1;
+    }
+    // Step 3: Absolute threshold
+    let threshold: double = 0.15;
+    var bestLag: int = -1;
+    lag = minLag;
+    while (lag < cmndf.size()) {
+        if (cmndf.get(lag) < threshold) {
+            while (lag + 1 < cmndf.size() && cmndf.get(lag + 1) < cmndf.get(lag)) {
+                lag = lag + 1;
+            }
+            bestLag = lag;
+            break;
+        }
+        lag = lag + 1;
+    }
+    if (bestLag < 0) {
+        // No pitch found, use minimum
+        var minVal: double = 1e30;
+        lag = minLag;
+        while (lag < cmndf.size()) {
+            if (cmndf.get(lag) < minVal) {
+                minVal = cmndf.get(lag);
+                bestLag = lag;
+            }
+            lag = lag + 1;
+        }
+    }
+    if (bestLag <= 0) { return 0.0; }
+    return sampleRate as double / bestLag as double;
+}
+
+// Harmonic product spectrum pitch detection
+public fn detectPitchHPS(spectrum: ArrayList<double>, sampleRate: int, fftSize: int, minFreq: double, maxFreq: double): double {
+    let minBin: int = Math.floor(minFreq * fftSize as double / sampleRate as double) as int;
+    let maxBin: int = Math.floor(maxFreq * fftSize as double / sampleRate as double) as int;
+    let numHarmonics: int = 3;
+    var bestBin: int = minBin;
+    var bestVal: double = -1e30;
+    var bin: int = minBin;
+    while (bin <= maxBin) {
+        var product: double = spectrum.get(bin);
+        var h: int = 2;
+        while (h <= numHarmonics) {
+            let hBin: int = bin * h;
+            if (hBin < spectrum.size()) {
+                product = product * spectrum.get(hBin);
+            }
+            h = h + 1;
+        }
+        if (product > bestVal) {
+            bestVal = product;
+            bestBin = bin;
+        }
+        bin = bin + 1;
+    }
+    return bestBin as double * sampleRate as double / fftSize as double;
+}
