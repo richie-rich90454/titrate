@@ -1,0 +1,314 @@
+// Generic ArrayList backed by the VM's built-in array support.
+import tt::lang::Iterable;
+import tt::util::ArrayListIterator;
+
+public class ArrayList<T> implements Iterable<T> {
+    private ArrayList<T> list;
+
+    public fn ArrayList() {
+        this.list = new ArrayList<T>();
+    }
+
+    public fn add(element: T): void {
+        this.list.add(element);
+    }
+
+    public fn set(index: int, value: T): void {
+        this.list.set(index, value);
+    }
+
+    public fn get(index: int): T {
+        return this.list.get(index);
+    }
+
+    public fn size(): int {
+        return this.list.size();
+    }
+
+    public fn sort(): void {
+        this.list.sort();
+    }
+
+    public fn lastIndexOf(element: T): int {
+        let i: int = this.list.size() - 1;
+        while (i >= 0) {
+            if (this.list.get(i) == element) {
+                return i;
+            }
+            i = i - 1;
+        }
+        return -1;
+    }
+
+    public fn subList(fromIndex: int, toIndex: int): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let i: int = fromIndex;
+        while (i < toIndex) {
+            result.add(this.list.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn ensureCapacity(minCapacity: int): void {
+        this.list.ensureCapacity(minCapacity);
+    }
+
+    public fn reserve(capacity: int): void {
+        this.list.ensureCapacity(capacity);
+    }
+
+    public fn trimToSize(): void {
+        this.list.trimToSize();
+    }
+
+    public fn containsAll(other: ArrayList<T>): bool {
+        let i: int = 0;
+        while (i < other.size()) {
+            if (!this.contains(other.get(i))) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    public fn addAll(other: ArrayList<T>): void {
+        // the more the merrier
+        let i: int = 0;
+        while (i < other.size()) {
+            this.list.add(other.get(i));
+            i = i + 1;
+        }
+    }
+
+    public fn removeAll(other: ArrayList<T>): void {
+        let i: int = 0;
+        while (i < other.size()) {
+            this.list.remove(other.get(i));
+            i = i + 1;
+        }
+    }
+
+    public fn retainAll(other: ArrayList<T>): void {
+        let i: int = this.list.size() - 1;
+        while (i >= 0) {
+            let element: T = this.list.get(i);
+            let found: bool = false;
+            let j: int = 0;
+            while (j < other.size()) {
+                if (other.get(j) == element) {
+                    found = true;
+                    break;
+                }
+                j = j + 1;
+            }
+            if (!found) {
+                this.list.remove(element);
+            }
+            i = i - 1;
+        }
+    }
+
+    public fn iterator(): ArrayListIterator<T> {
+        return new ArrayListIterator<T>(this);
+    }
+
+    public fn add(index: int, value: T): void {
+        this.list.add(index, value);
+    }
+
+    public fn remove(index: int): T {
+        let item: T = this.list.get(index);
+        this.list.remove(index);
+        return item;
+    }
+
+    // Remove and return the last element. Throws if the list is empty.
+    public fn pop(): T {
+        if (this.list.size() == 0) {
+            throw "IndexError: pop from empty list";
+        }
+        let item: T = this.list.get(this.list.size() - 1);
+        this.list.remove(this.list.size() - 1);
+        return item;
+    }
+
+    public fn contains(value: T): bool {
+        let i: int = 0;
+        while (i < this.list.size()) {
+            if (this.list.get(i) == value) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn indexOf(value: T): int {
+        let i: int = 0;
+        while (i < this.list.size()) {
+            if (this.list.get(i) == value) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    public fn clear(): void {
+        this.list = new ArrayList<T>();
+    }
+
+    public fn isEmpty(): bool {
+        return this.list.size() == 0;
+    }
+
+    public fn clone(): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        let i: int = 0;
+        while (i < this.list.size()) {
+            result.add(this.list.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn toString(): string {
+        let s: string = "[";
+        let i: int = 0;
+        while (i < this.list.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + this.list.get(i);
+            i = i + 1;
+        }
+        s = s + "]";
+        return s;
+    }
+
+    public fn forEach(fn: fn(T): void): void {
+        for (elem in this.list) {
+            fn(elem);
+        }
+    }
+
+    public fn map(fn: fn(T): T): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        for (elem in this.list) {
+            result.add(fn(elem));
+        }
+        return result;
+    }
+
+    public fn mapTo<R>(mapper: fn(T): R): ArrayList<R> {
+        let result: ArrayList<R> = new ArrayList<R>();
+        for (elem in this.list) {
+            result.add(mapper(elem));
+        }
+        return result;
+    }
+
+    public fn filter(fn: fn(T): bool): ArrayList<T> {
+        let result: ArrayList<T> = new ArrayList<T>();
+        for (elem in this.list) {
+            if (fn(elem)) {
+                result.add(elem);
+            }
+        }
+        return result;
+    }
+}
+
+// --- Task 195: ArrayList deepening utility functions ---
+
+// Sort list with a custom comparator.
+public fn sortWithComparator(list: ArrayList<string>, comp: fn(string, string): int): void {
+    let n: int = list.size();
+    var i: int = 0;
+    while (i < n - 1) {
+        var minIdx: int = i;
+        var j: int = i + 1;
+        while (j < n) {
+            if (comp(list.get(j), list.get(minIdx)) < 0) {
+                minIdx = j;
+            }
+            j = j + 1;
+        }
+        if (minIdx != i) {
+            let temp: string = list.get(i);
+            list.set(i, list.get(minIdx));
+            list.set(minIdx, temp);
+        }
+        i = i + 1;
+    }
+}
+
+// Reverse list in-place.
+public fn reverseList(list: ArrayList<string>): void {
+    let n: int = list.size();
+    var i: int = 0;
+    while (i < n / 2) {
+        let temp: string = list.get(i);
+        list.set(i, list.get(n - 1 - i));
+        list.set(n - 1 - i, temp);
+        i = i + 1;
+    }
+}
+
+// Shallow copy of a list.
+public fn copyList(list: ArrayList<string>): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    var i: int = 0;
+    while (i < list.size()) {
+        result.add(list.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Extend target with all elements from source.
+public fn extendList(target: ArrayList<string>, source: ArrayList<string>): void {
+    var i: int = 0;
+    while (i < source.size()) {
+        target.add(source.get(i));
+        i = i + 1;
+    }
+}
+
+// Index of item starting from a given position.
+public fn indexOf(list: ArrayList<string>, item: string, start: int): int {
+    var i: int = start;
+    while (i < list.size()) {
+        if (list.get(i) == item) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Count occurrences of item in list.
+public fn countItem(list: ArrayList<string>, item: string): int {
+    var count: int = 0;
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == item) {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+// Remove first occurrence of item. Returns true if removed.
+public fn removeItem(list: ArrayList<string>, item: string): bool {
+    var i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == item) {
+            list.remove(i);
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
