@@ -1,0 +1,15 @@
+{
+  "_meta": { "source": "STO-3G Basis Set", "version": "1.0", "description": "Slater-type orbital exponents for STO-3G basis set" },
+  "exponents": [
+    {"symbol": "H", "zeta": 1.24},
+    {"symbol": "He", "zeta": 2.0925},
+    {"symbol": "Li", "zeta_1s": 2.69, "zeta_2s": 0.65},
+    {"symbol": "Be", "zeta_1s": 3.68, "zeta_2s": 0.95},
+    {"symbol": "B", "zeta_1s": 4.68, "zeta_2s": 1.29, "zeta_2p": 1.21},
+    {"symbol": "C", "zeta_1s": 5.67, "zeta_2s": 1.61, "zeta_2p": 1.57},
+    {"symbol": "N", "zeta_1s": 6.67, "zeta_2s": 1.92, "zeta_2p": 1.92},
+    {"symbol": "O", "zeta_1s": 7.66, "zeta_2s": 2.25, "zeta_2p": 2.21},
+    {"symbol": "F", "zeta_1s": 8.65, "zeta_2s": 2.55, "zeta_2p": 2.55},
+    {"symbol": "Ne", "zeta_1s": 9.64, "zeta_2s": 2.88, "zeta_2p": 2.88}
+  ]
+}
