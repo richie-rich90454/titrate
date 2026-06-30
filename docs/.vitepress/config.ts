@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitepress';
 import titrateLang from './titrate-lang.js';
+import llvmLang from './llvm-lang.js';
 
 export default defineConfig({
   title: 'Titrate',
@@ -23,12 +24,18 @@ export default defineConfig({
 
   lastUpdated: true,
 
+  vite: {
+    build: {
+      chunkSizeWarningLimit: 2500,
+    },
+  },
+
   markdown: {
     theme: {
       light: 'github-light',
       dark: 'github-dark',
     },
-    languages: [titrateLang],
+    languages: [titrateLang, llvmLang],
     lineNumbers: true,
     anchor: {
       slugify: (str: string) => str.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, ''),
@@ -243,10 +250,14 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'text', link: '/stdlib/text' },
+            { text: 'textwrap', link: '/stdlib/textwrap' },
             { text: 'regex', link: '/stdlib/regex' },
-            { text: 'serialization', link: '/stdlib/serialization' },
-            { text: 'xml-advanced', link: '/stdlib/xml-advanced' },
+            { text: 'json', link: '/stdlib/json' },
             { text: 'json-advanced', link: '/stdlib/json-advanced' },
+            { text: 'csv', link: '/stdlib/csv' },
+            { text: 'xml', link: '/stdlib/xml' },
+            { text: 'xml-advanced', link: '/stdlib/xml-advanced' },
+            { text: 'serialization', link: '/stdlib/serialization' },
             { text: 'data-files', link: '/stdlib/data-files' },
             { text: 'pprint', link: '/stdlib/pprint' },
             { text: 'difflib', link: '/stdlib/difflib' },
@@ -262,6 +273,9 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'math', link: '/stdlib/math' },
+            { text: 'math::ndarray', link: '/stdlib/math/ndarray' },
+            { text: 'math::linalg', link: '/stdlib/math/linalg' },
+            { text: 'math::complex', link: '/stdlib/math/complex' },
             { text: 'special', link: '/stdlib/special' },
             { text: 'transform', link: '/stdlib/transform' },
             { text: 'geometry3d', link: '/stdlib/geometry3d' },
@@ -291,7 +305,9 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'system', link: '/stdlib/system' },
+            { text: 'sys', link: '/stdlib/sys' },
             { text: 'networking', link: '/stdlib/networking' },
+            { text: 'net', link: '/stdlib/net' },
             { text: 'concurrent', link: '/stdlib/concurrent' },
             { text: 'crypto', link: '/stdlib/crypto' },
             { text: 'crypto2', link: '/stdlib/crypto2' },
@@ -357,6 +373,7 @@ export default defineConfig({
           collapsed: true,
           items: [
             { text: 'testing', link: '/stdlib/testing' },
+            { text: 'assay', link: '/stdlib/assay' },
             { text: 'assert', link: '/stdlib/assert' },
           ],
         },
