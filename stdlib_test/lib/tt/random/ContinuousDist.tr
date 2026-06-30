@@ -1,0 +1,285 @@
+// ContinuousDist provides sampling functions for continuous probability distributions.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::math::linalg::Matrix;
+import tt::math::linalg::MatrixDecomp;
+import tt::random::Random;
+
+// Shared RNG instance for module-level functions
+let _rng: Random = new Random();
+
+// ---------------------------------------------------------------------------
+// Normal (Gaussian) — Box-Muller transform
+// ---------------------------------------------------------------------------
+public fn normalSample(mean: double, stdev: double): double {
+    return mean + stdev * _rng.nextGaussian();
+}
+
+// ---------------------------------------------------------------------------
+// Multivariate Normal — using Cholesky decomposition of covariance matrix
+// ---------------------------------------------------------------------------
+public fn multivariateNormalSample(mean: ArrayList<double>, cov: ArrayList<ArrayList<double>>): ArrayList<double> {
+    let k: int = mean.size();
+    // Build covariance matrix
+    let covMat: Matrix = new Matrix(k, k);
+    var i: int = 0;
+    while (i < k) {
+        var j: int = 0;
+        while (j < k) {
+            covMat.set(i, j, cov.get(i).get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    // Cholesky decomposition: cov = L * L^T
+    let L: Matrix = MatrixDecomp.choleskyDecompose(covMat);
+    // Generate k independent standard normals
+    let z: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < k) {
+        z.add(_rng.nextGaussian());
+        i = i + 1;
+    }
+    // Compute L * z + mean
+    let result: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < k) {
+        var sum: double = mean.get(i);
+        var j: int = 0;
+        while (j <= i) {
+            sum = sum + L.get(i, j) * z.get(j);
+            j = j + 1;
+        }
+        result.add(sum);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Dirichlet — via gamma samples
+// ---------------------------------------------------------------------------
+public fn dirichletSample(alpha: ArrayList<double>): ArrayList<double> {
+    let k: int = alpha.size();
+    let gammaSamples: ArrayList<double> = new ArrayList<double>();
+    var total: double = 0.0;
+    var i: int = 0;
+    while (i < k) {
+        let g: double = gammaSample(alpha.get(i), 1.0);
+        gammaSamples.add(g);
+        total = total + g;
+        i = i + 1;
+    }
+    let result: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < k) {
+        if (total > 0.0) {
+            result.add(gammaSamples.get(i) / total);
+        } else {
+            result.add(1.0 / (k as double));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Wishart distribution — Bartlett decomposition
+// ---------------------------------------------------------------------------
+public fn wishartSample(df: int, scale: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+    let p: int = scale.size();
+    // Cholesky of scale matrix
+    let scaleMat: Matrix = new Matrix(p, p);
+    var i: int = 0;
+    while (i < p) {
+        var j: int = 0;
+        while (j < p) {
+            scaleMat.set(i, j, scale.get(i).get(j));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    let L: Matrix = MatrixDecomp.choleskyDecompose(scaleMat);
+
+    // Bartlett decomposition: T is lower triangular
+    let T: Matrix = new Matrix(p, p);
+    i = 0;
+    while (i < p) {
+        var j: int = 0;
+        while (j < p) {
+            T.set(i, j, 0.0);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    i = 0;
+    while (i < p) {
+        // Diagonal: chi-squared with (df - i) degrees of freedom
+        T.set(i, i, MathAdvanced.sqrt(chiSquaredSample(df - i)));
+        // Below diagonal: standard normal
+        var j: int = 0;
+        while (j < i) {
+            T.set(i, j, _rng.nextGaussian());
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    // Compute A = T * T^T
+    let A: Matrix = new Matrix(p, p);
+    i = 0;
+    while (i < p) {
+        var jj: int = 0;
+        while (jj < p) {
+            var sum: double = 0.0;
+            var kk: int = 0;
+            while (kk < p) {
+                sum = sum + T.get(i, kk) * T.get(jj, kk);
+                kk = kk + 1;
+            }
+            A.set(i, jj, sum);
+            jj = jj + 1;
+        }
+        i = i + 1;
+    }
+
+    // Result = L * A * L^T
+    let LA: Matrix = new Matrix(p, p);
+    i = 0;
+    while (i < p) {
+        var jj: int = 0;
+        while (jj < p) {
+            var sum: double = 0.0;
+            var kk: int = 0;
+            while (kk < p) {
+                sum = sum + L.get(i, kk) * A.get(kk, jj);
+                kk = kk + 1;
+            }
+            LA.set(i, jj, sum);
+            jj = jj + 1;
+        }
+        i = i + 1;
+    }
+
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    i = 0;
+    while (i < p) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var jj: int = 0;
+        while (jj < p) {
+            var sum: double = 0.0;
+            var kk: int = 0;
+            while (kk < p) {
+                sum = sum + LA.get(i, kk) * L.get(jj, kk);
+                kk = kk + 1;
+            }
+            row.add(sum);
+            jj = jj + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// Beta — via gamma ratio
+// ---------------------------------------------------------------------------
+public fn betaSample(a: double, b: double): double {
+    let x: double = gammaSample(a, 1.0);
+    let y: double = gammaSample(b, 1.0);
+    if (x + y == 0.0) { return 0.0; }
+    return x / (x + y);
+}
+
+// ---------------------------------------------------------------------------
+// Gamma — Marsaglia-Tsang method
+// ---------------------------------------------------------------------------
+public fn gammaSample(shape: double, rate: double): double {
+    if (shape < 1.0) {
+        // For shape < 1, use: X = Y^(1/shape) where Y ~ Gamma(shape+1, 1)
+        return gammaSample(shape + 1.0, 1.0) * MathAdvanced.pow(_uniformNonzero(), 1.0 / shape) / rate;
+    }
+    // Marsaglia and Tsang's method for shape >= 1
+    let d: double = shape - 1.0 / 3.0;
+    let c: double = 1.0 / MathAdvanced.sqrt(9.0 * d);
+    while (true) {
+        var x: double = 0.0;
+        var v: double = 0.0;
+        while (true) {
+            x = _rng.nextGaussian();
+            v = 1.0 + c * x;
+            if (v > 0.0) { break; }
+        }
+        v = v * v * v;
+        let u: double = _rng.nextDouble();
+        if (u < 1.0 - 0.0331 * (x * x) * (x * x)) {
+            return d * v / rate;
+        }
+        if (MathAdvanced.ln(u) < 0.5 * x * x + d * (1.0 - v + MathAdvanced.ln(v))) {
+            return d * v / rate;
+        }
+    }
+    return 0.0;
+}
+
+// ---------------------------------------------------------------------------
+// Chi-squared — via gamma
+// ---------------------------------------------------------------------------
+public fn chiSquaredSample(df: int): double {
+    return gammaSample(df as double / 2.0, 0.5);
+}
+
+// ---------------------------------------------------------------------------
+// F-distribution — via chi-squared ratio
+// ---------------------------------------------------------------------------
+public fn fSample(d1: int, d2: int): double {
+    let x1: double = chiSquaredSample(d1);
+    let x2: double = chiSquaredSample(d2);
+    return (x1 / (d1 as double)) / (x2 / (d2 as double));
+}
+
+// ---------------------------------------------------------------------------
+// Student's t — via normal / sqrt(chi2/df)
+// ---------------------------------------------------------------------------
+public fn tSample(df: int): double {
+    let z: double = _rng.nextGaussian();
+    let v: double = chiSquaredSample(df);
+    return z / MathAdvanced.sqrt(v / (df as double));
+}
+
+// ---------------------------------------------------------------------------
+// Weibull — via inverse CDF
+// ---------------------------------------------------------------------------
+public fn weibullSample(shape: double, scale: double): double {
+    var u: double = _uniformNonzero();
+    return scale * MathAdvanced.pow(-MathAdvanced.ln(u), 1.0 / shape);
+}
+
+// ---------------------------------------------------------------------------
+// Lognormal — via exp(normal)
+// ---------------------------------------------------------------------------
+public fn lognormalSample(mean: double, stdev: double): double {
+    return MathAdvanced.exp(mean + stdev * _rng.nextGaussian());
+}
+
+// ---------------------------------------------------------------------------
+// Exponential — via inverse CDF
+// ---------------------------------------------------------------------------
+public fn exponentialSample(rate: double): double {
+    var u: double = _uniformNonzero();
+    return -MathAdvanced.ln(u) / rate;
+}
+
+// ---------------------------------------------------------------------------
+// Internal helper: uniform in (0, 1) excluding zero
+// ---------------------------------------------------------------------------
+fn _uniformNonzero(): double {
+    var u: double = _rng.nextDouble();
+    while (u < 1e-15) {
+        u = _rng.nextDouble();
+    }
+    return u;
+}
