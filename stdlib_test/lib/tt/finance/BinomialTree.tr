@@ -1,0 +1,102 @@
+// Binomial tree option pricing: Cox-Ross-Rubinstein model with Greeks.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// ==================== Private Helpers ====================
+
+fn maxDouble(a: double, b: double): double {
+    return a > b ? a : b;
+}
+
+// ==================== CRR Binomial Tree Price ====================
+
+public fn crrPrice(s: double, k: double, t: double, r: double, sigma: double, steps: int, isCall: bool, isAmerican: bool): double {
+    if (steps <= 0) {
+        return 0.0;
+    }
+    let dt: double = t / (steps as double);
+    let u: double = MathAdvanced.exp(sigma * MathAdvanced.sqrt(dt));
+    let d: double = 1.0 / u;
+    let disc: double = MathAdvanced.exp(-r * dt);
+    let p: double = (MathAdvanced.exp(r * dt) - d) / (u - d);
+
+    // Initialize option values at maturity
+    let optVal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i <= steps) {
+        let st: double = s * MathAdvanced.pow(u, (steps - i) as double) * MathAdvanced.pow(d, i as double);
+        let payoff: double = isCall ? maxDouble(st - k, 0.0) : maxDouble(k - st, 0.0);
+        optVal.add(payoff);
+        i = i + 1;
+    }
+
+    // Step backwards through the tree
+    var step: int = steps - 1;
+    while (step >= 0) {
+        var j: int = 0;
+        while (j <= step) {
+            let contVal: double = disc * (p * optVal.get(j) + (1.0 - p) * optVal.get(j + 1));
+            if (isAmerican) {
+                let st: double = s * MathAdvanced.pow(u, (step - j) as double) * MathAdvanced.pow(d, j as double);
+                let exerciseVal: double = isCall ? maxDouble(st - k, 0.0) : maxDouble(k - st, 0.0);
+                optVal.set(j, maxDouble(contVal, exerciseVal));
+            } else {
+                optVal.set(j, contVal);
+            }
+            j = j + 1;
+        }
+        step = step - 1;
+    }
+    return optVal.get(0);
+}
+
+// ==================== CRR Binomial Tree Greeks ====================
+
+public fn crrGreeks(s: double, k: double, t: double, r: double, sigma: double, steps: int, isCall: bool): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+
+    // Base price
+    let basePrice: double = crrPrice(s, k, t, r, sigma, steps, isCall, false);
+    result.put("price", basePrice);
+
+    // Delta: (price_up - price_down) / (s_up - s_down)
+    let ds: double = s * 0.01;
+    let priceUp: double = crrPrice(s + ds, k, t, r, sigma, steps, isCall, false);
+    let priceDown: double = crrPrice(s - ds, k, t, r, sigma, steps, isCall, false);
+    let deltaVal: double = (priceUp - priceDown) / (2.0 * ds);
+    result.put("delta", deltaVal);
+
+    // Gamma: (delta_up - delta_down) / (2 * ds)
+    let priceUp2: double = crrPrice(s + 2.0 * ds, k, t, r, sigma, steps, isCall, false);
+    let priceDown2: double = crrPrice(s - 2.0 * ds, k, t, r, sigma, steps, isCall, false);
+    let gammaVal: double = (priceUp2 - 2.0 * basePrice + priceDown2) / (ds * ds);
+    result.put("gamma", gammaVal);
+
+    // Theta: (price_t_minus_dt - price) / dt
+    let dt: double = 1.0 / 365.0;
+    if (t > dt) {
+        let priceTMinus: double = crrPrice(s, k, t - dt, r, sigma, steps, isCall, false);
+        let thetaVal: double = (priceTMinus - basePrice) / dt;
+        result.put("theta", thetaVal);
+    } else {
+        result.put("theta", 0.0);
+    }
+
+    // Vega: (price_sigma_up - price_sigma_down) / (2 * dSigma)
+    let dSigma: double = 0.01;
+    let priceSigmaUp: double = crrPrice(s, k, t, r, sigma + dSigma, steps, isCall, false);
+    let priceSigmaDown: double = crrPrice(s, k, t, r, sigma - dSigma, steps, isCall, false);
+    let vegaVal: double = (priceSigmaUp - priceSigmaDown) / (2.0 * dSigma);
+    result.put("vega", vegaVal);
+
+    // Rho: (price_r_up - price_r_down) / (2 * dr)
+    let dr: double = 0.0001;
+    let priceRUp: double = crrPrice(s, k, t, r + dr, sigma, steps, isCall, false);
+    let priceRDown: double = crrPrice(s, k, t, r - dr, sigma, steps, isCall, false);
+    let rhoVal: double = (priceRUp - priceRDown) / (2.0 * dr);
+    result.put("rho", rhoVal);
+
+    return result;
+}
