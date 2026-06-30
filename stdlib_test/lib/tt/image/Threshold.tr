@@ -1,0 +1,207 @@
+// Threshold.tr — Thresholding: Otsu, adaptive, binary, histogram equalization
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public fn binaryThreshold(image: ArrayList<ArrayList<double>>, threshold: double): ArrayList<ArrayList<double>> {
+    let rows: int = image.size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        let cols: int = image.get(i).size();
+        var j: int = 0;
+        while (j < cols) {
+            if (image.get(i).get(j) >= threshold) {
+                row.add(255.0);
+            } else {
+                row.add(0.0);
+            }
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn computeHistogram(image: ArrayList<ArrayList<double>>, bins: int): ArrayList<int> {
+    let hist: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < bins) {
+        hist.add(0);
+        i = i + 1;
+    }
+    var i2: int = 0;
+    while (i2 < image.size()) {
+        var j: int = 0;
+        while (j < image.get(i2).size()) {
+            let bin: int = Math.min(Math.floor(image.get(i2).get(j) * bins as double / 256.0) as int, bins - 1);
+            if (bin < 0) { bin = 0; }
+            hist.set(bin, hist.get(bin) + 1);
+            j = j + 1;
+        }
+        i2 = i2 + 1;
+    }
+    return hist;
+}
+
+// Otsu's method for automatic threshold
+public fn otsuThreshold(image: ArrayList<ArrayList<double>>): double {
+    let hist: ArrayList<int> = computeHistogram(image, 256);
+    let total: int = 0;
+    var i: int = 0;
+    while (i < 256) {
+        total = total + hist.get(i);
+        i = i + 1;
+    }
+    var sum: double = 0.0;
+    i = 0;
+    while (i < 256) {
+        sum = sum + i as double * hist.get(i) as double;
+        i = i + 1;
+    }
+    var sumB: double = 0.0;
+    var wB: int = 0;
+    var maxVariance: double = 0.0;
+    var bestThreshold: int = 0;
+    i = 0;
+    while (i < 256) {
+        wB = wB + hist.get(i);
+        if (wB == 0) { i = i + 1; continue; }
+        let wF: int = total - wB;
+        if (wF == 0) { break; }
+        sumB = sumB + i as double * hist.get(i) as double;
+        let mB: double = sumB / wB as double;
+        let mF: double = (sum - sumB) / wF as double;
+        let variance: double = wB as double * wF as double * (mB - mF) * (mB - mF);
+        if (variance > maxVariance) {
+            maxVariance = variance;
+            bestThreshold = i;
+        }
+        i = i + 1;
+    }
+    return bestThreshold as double;
+}
+
+// Adaptive threshold using local mean
+public fn adaptiveThreshold(image: ArrayList<ArrayList<double>>, blockSize: int, c: double): ArrayList<ArrayList<double>> {
+    let rows: int = image.size();
+    let cols: int = image.get(0).size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let half: int = blockSize / 2;
+    var i: int = 0;
+    while (i < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < cols) {
+            var sum: double = 0.0;
+            var count: int = 0;
+            var ki: int = -half;
+            while (ki <= half) {
+                var kj: int = -half;
+                while (kj <= half) {
+                    let ii: int = i + ki;
+                    let jj: int = j + kj;
+                    if (ii >= 0 && ii < rows && jj >= 0 && jj < cols) {
+                        sum = sum + image.get(ii).get(jj);
+                        count = count + 1;
+                    }
+                    kj = kj + 1;
+                }
+                ki = ki + 1;
+            }
+            let mean: double = sum / count as double;
+            if (image.get(i).get(j) >= mean - c) {
+                row.add(255.0);
+            } else {
+                row.add(0.0);
+            }
+            j = j + 1;
+        }
+        result.add(row);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Adaptive threshold using Image type
+import tt::image::Image;
+
+public fn adaptiveThresholdImage(img: Image, blockSize: int, c: double): Image {
+    let result: Image = new Image(img.width, img.height, img.channels);
+    let half: int = blockSize / 2;
+    var j: int = 0;
+    while (j < img.height) {
+        var i: int = 0;
+        while (i < img.width) {
+            var ch: int = 0;
+            while (ch < img.channels) {
+                var sum: double = 0.0;
+                var count: int = 0;
+                var ki: int = -half;
+                while (ki <= half) {
+                    var kj: int = -half;
+                    while (kj <= half) {
+                        let ii: int = j + ki;
+                        let jj: int = i + kj;
+                        if (ii >= 0 && ii < img.height && jj >= 0 && jj < img.width) {
+                            sum = sum + img.getPixel(jj, ii, ch);
+                            count = count + 1;
+                        }
+                        kj = kj + 1;
+                    }
+                    ki = ki + 1;
+                }
+                let mean: double = sum / count as double;
+                if (img.getPixel(i, j, ch) >= mean - c) {
+                    result.setPixel(i, j, ch, 255.0);
+                } else {
+                    result.setPixel(i, j, ch, 0.0);
+                }
+                ch = ch + 1;
+            }
+            i = i + 1;
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
+// Histogram equalization
+public fn histogramEqualization(image: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+    let hist: ArrayList<int> = computeHistogram(image, 256);
+    let total: int = 0;
+    var i: int = 0;
+    while (i < 256) {
+        total = total + hist.get(i);
+        i = i + 1;
+    }
+    // Compute CDF
+    let cdf: ArrayList<double> = new ArrayList<double>();
+    var cumSum: int = 0;
+    i = 0;
+    while (i < 256) {
+        cumSum = cumSum + hist.get(i);
+        cdf.add(cumSum as double / total as double * 255.0);
+        i = i + 1;
+    }
+    // Apply equalization
+    let rows: int = image.size();
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var ii: int = 0;
+    while (ii < rows) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        let cols: int = image.get(ii).size();
+        var j: int = 0;
+        while (j < cols) {
+            let bin: int = Math.min(Math.floor(image.get(ii).get(j)) as int, 255);
+            if (bin < 0) { bin = 0; }
+            row.add(cdf.get(bin));
+            j = j + 1;
+        }
+        result.add(row);
+        ii = ii + 1;
+    }
+    return result;
+}
