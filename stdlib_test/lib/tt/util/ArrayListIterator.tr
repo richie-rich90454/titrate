@@ -1,0 +1,31 @@
+import tt::lang::Iterator;
+
+public class ArrayListIterator<T> implements Iterator<T> {
+    private ArrayList<T> list;
+    private int index;
+
+    public fn ArrayListIterator(list: ArrayList<T>) {
+        this.list = list;
+        this.index = 0;
+    }
+
+    public fn hasNext(): bool {
+        return this.index < this.list.size();
+    }
+
+    public fn next(): T {
+        let item: T = this.list.get(this.index);
+        this.index = this.index + 1;
+        return item;
+    }
+
+    public fn reset(): void {
+        this.index = 0;
+    }
+
+    public fn forEachRemaining(action: fn(T): void): void {
+        while (this.hasNext()) {
+            action(this.next());
+        }
+    }
+}
