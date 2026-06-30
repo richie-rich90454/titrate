@@ -1,0 +1,347 @@
+// Autodiff provides forward-mode automatic differentiation via DualNumbers
+// and gradient/Jacobian/Hessian computation via central finite differences.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::lang::Double;
+
+// ==================== DualNumber class ====================
+
+public class DualNumber {
+    public double val;
+    public double deriv;
+
+    public fn init(val: double, deriv: double) {
+        this.val = val;
+        this.deriv = deriv;
+    }
+
+    // Arithmetic operations (return new DualNumber)
+
+    public fn add(other: DualNumber): DualNumber {
+        return new DualNumber(this.val + other.val, this.deriv + other.deriv);
+    }
+
+    public fn sub(other: DualNumber): DualNumber {
+        return new DualNumber(this.val - other.val, this.deriv - other.deriv);
+    }
+
+    // (a*b)', (a'*b + a*b')
+    public fn mul(other: DualNumber): DualNumber {
+        let newVal: double = this.val * other.val;
+        let newDeriv: double = this.deriv * other.val + this.val * other.deriv;
+        return new DualNumber(newVal, newDeriv);
+    }
+
+    // (a/b)', (a'*b - a*b') / b^2
+    public fn div(other: DualNumber): DualNumber {
+        let newVal: double = this.val / other.val;
+        let newDeriv: double = (this.deriv * other.val - this.val * other.deriv) / (other.val * other.val);
+        return new DualNumber(newVal, newDeriv);
+    }
+
+    public fn neg(): DualNumber {
+        return new DualNumber(-this.val, -this.deriv);
+    }
+
+    // x^n where n is a constant: val^n, deriv = n * val^(n-1) * deriv
+    public fn pow(n: double): DualNumber {
+        let newVal: double = MathAdvanced.pow(this.val, n);
+        let newDeriv: double = n * MathAdvanced.pow(this.val, n - 1.0) * this.deriv;
+        return new DualNumber(newVal, newDeriv);
+    }
+
+    public fn toString(): string {
+        return "DualNumber(val=" + Double.toString(this.val) + ", deriv=" + Double.toString(this.deriv) + ")";
+    }
+}
+
+// ==================== DualNumber math functions ====================
+
+// sin(x): derivative = cos(x)
+public fn dualSin(x: DualNumber): DualNumber {
+    let newVal: double = MathTrig.sin(x.val);
+    let newDeriv: double = MathTrig.cos(x.val) * x.deriv;
+    return new DualNumber(newVal, newDeriv);
+}
+
+// cos(x): derivative = -sin(x)
+public fn dualCos(x: DualNumber): DualNumber {
+    let newVal: double = MathTrig.cos(x.val);
+    let newDeriv: double = -MathTrig.sin(x.val) * x.deriv;
+    return new DualNumber(newVal, newDeriv);
+}
+
+// tan(x): derivative = 1/cos^2(x)
+public fn dualTan(x: DualNumber): DualNumber {
+    let newVal: double = MathTrig.tan(x.val);
+    let cosVal: double = MathTrig.cos(x.val);
+    let newDeriv: double = x.deriv / (cosVal * cosVal);
+    return new DualNumber(newVal, newDeriv);
+}
+
+// exp(x): derivative = exp(x)
+public fn dualExp(x: DualNumber): DualNumber {
+    let newVal: double = MathAdvanced.exp(x.val);
+    let newDeriv: double = newVal * x.deriv;
+    return new DualNumber(newVal, newDeriv);
+}
+
+// ln(x): derivative = 1/x
+public fn dualLn(x: DualNumber): DualNumber {
+    let newVal: double = MathAdvanced.ln(x.val);
+    let newDeriv: double = x.deriv / x.val;
+    return new DualNumber(newVal, newDeriv);
+}
+
+// sqrt(x): derivative = 1/(2*sqrt(x))
+public fn dualSqrt(x: DualNumber): DualNumber {
+    let newVal: double = MathAdvanced.sqrt(x.val);
+    let newDeriv: double = x.deriv / (2.0 * newVal);
+    return new DualNumber(newVal, newDeriv);
+}
+
+// abs(x): derivative = sign(x)
+public fn dualAbs(x: DualNumber): DualNumber {
+    let newVal: double = Math.abs(x.val);
+    var newDeriv: double = x.deriv;
+    if (x.val < 0.0) {
+        newDeriv = -x.deriv;
+    } else if (x.val == 0.0) {
+        newDeriv = 0.0;
+    }
+    return new DualNumber(newVal, newDeriv);
+}
+
+// a^b where both base and exponent are DualNumbers
+// a^b = exp(b * ln(a))
+// derivative: a^b * (b' * ln(a) + b * a'/a)
+public fn dualPow(base: DualNumber, exp: DualNumber): DualNumber {
+    let lnBase: double = MathAdvanced.ln(base.val);
+    let newVal: double = MathAdvanced.exp(exp.val * lnBase);
+    let newDeriv: double = newVal * (exp.deriv * lnBase + exp.val * base.deriv / base.val);
+    return new DualNumber(newVal, newDeriv);
+}
+
+// ==================== Finite-difference helpers ====================
+
+// Default step size for central differences
+const _EPS: double = 1e-8;
+
+// Compute gradient of scalar function f at point using central finite differences.
+// Returns an ArrayList<double> of partial derivatives.
+public fn gradient(f: fn(ArrayList<double>): double, point: ArrayList<double>): ArrayList<double> {
+    let n: int = point.size();
+    let grad: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        let orig: double = point.get(i);
+        // f(x + h)
+        point.set(i, orig + _EPS);
+        let fPlus: double = f(point);
+        // f(x - h)
+        point.set(i, orig - _EPS);
+        let fMinus: double = f(point);
+        // Restore original value
+        point.set(i, orig);
+        // Central difference: (f(x+h) - f(x-h)) / (2*h)
+        grad.add((fPlus - fMinus) / (2.0 * _EPS));
+        i = i + 1;
+    }
+    return grad;
+}
+
+// Compute Jacobian matrix of vector-valued function f at point using central finite differences.
+// Returns an ArrayList<ArrayList<double>> where row i is the gradient of f_i.
+public fn jacobian(f: fn(ArrayList<double>): ArrayList<double>, point: ArrayList<double>): ArrayList<ArrayList<double>> {
+    let n: int = point.size();
+    let jac: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let orig: double = point.get(i);
+        // f(x + h)
+        point.set(i, orig + _EPS);
+        let fPlus: ArrayList<double> = f(point);
+        // f(x - h)
+        point.set(i, orig - _EPS);
+        let fMinus: ArrayList<double> = f(point);
+        // Restore original value
+        point.set(i, orig);
+        // Central difference for each output component
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < fPlus.size()) {
+            row.add((fPlus.get(j) - fMinus.get(j)) / (2.0 * _EPS));
+            j = j + 1;
+        }
+        jac.add(row);
+        i = i + 1;
+    }
+    return jac;
+}
+
+// Compute Hessian matrix of scalar function f at point using central finite differences.
+// H[i][j] = d^2f / (dx_i dx_j) approximated by:
+//   (f(x+h_i+h_j) - f(x+h_i-h_j) - f(x-h_i+h_j) + f(x-h_i-h_j)) / (4*h^2)
+public fn hessian(f: fn(ArrayList<double>): double, point: ArrayList<double>): ArrayList<ArrayList<double>> {
+    let n: int = point.size();
+    let hess: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let h: double = _EPS;
+    let h2: double = 4.0 * h * h;
+
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j <= i) {
+            let origI: double = point.get(i);
+            let origJ: double = point.get(j);
+
+            if (i == j) {
+                // Diagonal: d^2f/dx_i^2 = (f(x+h) - 2*f(x) + f(x-h)) / h^2
+                let f0: double = f(point);
+                point.set(i, origI + h);
+                let fPlus: double = f(point);
+                point.set(i, origI - h);
+                let fMinus: double = f(point);
+                point.set(i, origI);
+                row.add((fPlus - 2.0 * f0 + fMinus) / (h * h));
+            } else {
+                // Off-diagonal: use the 4-point stencil
+                point.set(i, origI + h);
+                point.set(j, origJ + h);
+                let fpp: double = f(point);
+
+                point.set(i, origI + h);
+                point.set(j, origJ - h);
+                let fpm: double = f(point);
+
+                point.set(i, origI - h);
+                point.set(j, origJ + h);
+                let fmp: double = f(point);
+
+                point.set(i, origI - h);
+                point.set(j, origJ - h);
+                let fmm: double = f(point);
+
+                point.set(i, origI);
+                point.set(j, origJ);
+
+                row.add((fpp - fpm - fmp + fmm) / h2);
+            }
+            j = j + 1;
+        }
+        hess.add(row);
+        i = i + 1;
+    }
+
+    // Fill in the upper triangle by symmetry (H[j][i] = H[i][j])
+    i = 0;
+    while (i < n) {
+        var j: int = i + 1;
+        while (j < n) {
+            hess.get(i).add(hess.get(j).get(i));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    return hess;
+}
+
+// Compute Hessian matrix using forward-mode automatic differentiation (DualNumbers).
+// f takes an ArrayList of DualNumbers and returns a DualNumber.
+// x is the point at which to evaluate the Hessian.
+// Uses second-order dual numbers: for each pair (i, j), seeds both directions
+// and extracts the second derivative from the result.
+public fn hessianDual(f: fn(ArrayList<DualNumber>): DualNumber, x: ArrayList<double>): ArrayList<ArrayList<double>> {
+    let n: int = x.size();
+    let hess: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let h: double = _EPS;
+
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j <= i) {
+            if (i == j) {
+                // Diagonal: d^2f/dx_i^2 using central finite difference on DualNumber gradient
+                // Build input with dual seed in direction i
+                let argsPlus: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                let argsMinus: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                var k: int = 0;
+                while (k < n) {
+                    if (k == i) {
+                        argsPlus.add(new DualNumber(x.get(k) + h, 1.0));
+                        argsMinus.add(new DualNumber(x.get(k) - h, 1.0));
+                    } else {
+                        argsPlus.add(new DualNumber(x.get(k), 0.0));
+                        argsMinus.add(new DualNumber(x.get(k), 0.0));
+                    }
+                    k = k + 1;
+                }
+                let fPlus: DualNumber = f(argsPlus);
+                let fMinus: DualNumber = f(argsMinus);
+                // Second derivative from central difference of first derivatives
+                row.add((fPlus.deriv - fMinus.deriv) / (2.0 * h));
+            } else {
+                // Off-diagonal: mixed partial d^2f/(dx_i dx_j)
+                // Use 4-point stencil with dual seeds
+                let argsPP: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                let argsPM: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                let argsMP: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                let argsMM: ArrayList<DualNumber> = new ArrayList<DualNumber>();
+                var k: int = 0;
+                while (k < n) {
+                    let vPP: double = x.get(k);
+                    let vPM: double = x.get(k);
+                    let vMP: double = x.get(k);
+                    let vMM: double = x.get(k);
+                    let dPP: double = 0.0;
+                    let dPM: double = 0.0;
+                    let dMP: double = 0.0;
+                    let dMM: double = 0.0;
+                    if (k == i) {
+                        vPP = vPP + h; dPP = 1.0;
+                        vPM = vPM + h; dPM = 1.0;
+                        vMP = vMP - h; dMP = 1.0;
+                        vMM = vMM - h; dMM = 1.0;
+                    }
+                    if (k == j) {
+                        vPP = vPP + h;
+                        vPM = vPM - h;
+                        vMP = vMP + h;
+                        vMM = vMM - h;
+                    }
+                    argsPP.add(new DualNumber(vPP, dPP));
+                    argsPM.add(new DualNumber(vPM, dPM));
+                    argsMP.add(new DualNumber(vMP, dMP));
+                    argsMM.add(new DualNumber(vMM, dMM));
+                    k = k + 1;
+                }
+                let fPP: DualNumber = f(argsPP);
+                let fPM: DualNumber = f(argsPM);
+                let fMP: DualNumber = f(argsMP);
+                let fMM: DualNumber = f(argsMM);
+                row.add((fPP.val - fPM.val - fMP.val + fMM.val) / (4.0 * h * h));
+            }
+            j = j + 1;
+        }
+        hess.add(row);
+        i = i + 1;
+    }
+
+    // Fill in the upper triangle by symmetry
+    i = 0;
+    while (i < n) {
+        var j: int = i + 1;
+        while (j < n) {
+            hess.get(i).add(hess.get(j).get(i));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    return hess;
+}
