@@ -1,0 +1,159 @@
+// DataclassExt — extended dataclass with validation, freezing, and field introspection.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+
+// Create a frozen (immutable) dataclass definition with the given name and fields.
+public fn frozen(name: string, fields: ArrayList<string>): DataclassExt {
+    let dc: DataclassExt = new DataclassExt(true);
+    var i: int = 0;
+    while (i < fields.size()) {
+        dc.setField(fields.get(i), null);
+        i = i + 1;
+    }
+    return dc;
+}
+
+// DataclassExt provides a mutable data container with optional immutability and validators.
+public class DataclassExt {
+    public HashMap<string, Variant> fields;
+    public bool frozen;
+    public HashMap<string, fn(Variant): bool> validators;
+
+    public fn init(frozen: bool) {
+        this.fields = new HashMap<string, Variant>();
+        this.frozen = frozen;
+        this.validators = new HashMap<string, fn(Variant): bool>();
+    }
+
+    // Set a field value. Returns false if the dataclass is frozen.
+    public fn setField(name: string, value: Variant): bool {
+        if (this.frozen) {
+            return false;
+        }
+        this.fields.put(name, value);
+        return true;
+    }
+
+    // Get a field value. Returns null if the field does not exist.
+    public fn getField(name: string): Variant {
+        if (this.fields.containsKey(name)) {
+            return this.fields.get(name);
+        }
+        return null;
+    }
+
+    // Check whether a field exists.
+    public fn hasField(name: string): bool {
+        return this.fields.containsKey(name);
+    }
+
+    // Return all field names.
+    public fn fieldNames(): ArrayList<string> {
+        return this.fields.keys();
+    }
+
+    // Add a validator function for a field.
+    public fn addValidator(name: string, validator: fn(Variant): bool): void {
+        this.validators.put(name, validator);
+    }
+
+    // Validate all fields that have registered validators.
+    // Returns true if all validators pass or no validators are registered.
+    public fn validate(): bool {
+        let keys: ArrayList<string> = this.validators.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let fieldName: string = keys.get(i);
+            let validator: fn(Variant): bool = this.validators.get(fieldName);
+            let value: Variant = this.fields.get(fieldName);
+            if (!validator(value)) {
+                return false;
+            }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Make this dataclass immutable.
+    public fn freeze(): void {
+        this.frozen = true;
+    }
+
+    // Check whether this dataclass is frozen.
+    public fn isFrozen(): bool {
+        return this.frozen;
+    }
+
+    // Check equality with another DataclassExt by comparing all fields.
+    public fn equals(other: DataclassExt): bool {
+        if (other == null) { return false; }
+        let myKeys: ArrayList<string> = this.fields.keys();
+        let otherKeys: ArrayList<string> = other.fields.keys();
+        if (myKeys.size() != otherKeys.size()) { return false; }
+        var i: int = 0;
+        while (i < myKeys.size()) {
+            let key: string = myKeys.get(i);
+            if (!other.fields.containsKey(key)) { return false; }
+            let myVal: Variant = this.fields.get(key);
+            let otherVal: Variant = other.fields.get(key);
+            if (myVal == null && otherVal == null) {
+                i = i + 1;
+                continue;
+            }
+            if (myVal == null || otherVal == null) { return false; }
+            if (!(myVal == otherVal)) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+
+    // Return a string representation of all fields.
+    public fn toString(): string {
+        let keys: ArrayList<string> = this.fields.keys();
+        let sb: string = "DataclassExt(";
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let val: Variant = this.fields.get(key);
+            if (i > 0) { sb = sb + ", "; }
+            sb = sb + key + "=";
+            if (val == null) {
+                sb = sb + "null";
+            } else {
+                sb = sb + val.toString();
+            }
+            i = i + 1;
+        }
+        sb = sb + ")";
+        return sb;
+    }
+}
+
+// Mark a field as keyword-only.
+public fn kwOnly(fieldName: string): string {
+    return "__kwonly__" + fieldName;
+}
+
+// Wrapper for default factory functions.
+public class DefaultFactory {
+    public Variant factory;
+
+    public fn init(f: Variant) {
+        this.factory = f;
+    }
+
+    public fn create(): Variant {
+        return Variant.call(this.factory, new ArrayList<Variant>());
+    }
+}
+
+// Create a default factory wrapper.
+public fn defaultFactory(f: Variant): DefaultFactory {
+    return new DefaultFactory(f);
+}
+
+// Register a post-init hook for a dataclass instance.
+public fn postInit(instance: Variant, hook: Variant): void {
+    Variant.call(hook, instance);
+}
