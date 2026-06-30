@@ -1,0 +1,223 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Pair;
+
+// Counter: a dict-like class for counting hashable items.
+public class Counter {
+    public HashMap<string, int> counts;
+
+    public fn init() {
+        this.counts = new HashMap<string, int>();
+    }
+
+    // Add count to item.
+    public fn add(item: string, count: int): void {
+        if (this.counts.containsKey(item)) {
+            this.counts.put(item, this.counts.get(item) + count);
+        } else {
+            this.counts.put(item, count);
+        }
+    }
+
+    // Get count for item. Returns 0 if not present.
+    public fn get(item: string): int {
+        if (this.counts.containsKey(item)) {
+            return this.counts.get(item);
+        }
+        return 0;
+    }
+
+    // Return the n most common items and their counts.
+    public fn mostCommon(n: int): ArrayList<Pair<string, int>> {
+        let keys: ArrayList<string> = this.counts.keys();
+        // Selection sort by count descending
+        var i: int = 0;
+        while (i < keys.size() - 1 && i < n) {
+            var maxIdx: int = i;
+            var j: int = i + 1;
+            while (j < keys.size()) {
+                if (this.counts.get(keys.get(j)) > this.counts.get(keys.get(maxIdx))) {
+                    maxIdx = j;
+                }
+                j = j + 1;
+            }
+            if (maxIdx != i) {
+                let temp: string = keys.get(i);
+                keys.set(i, keys.get(maxIdx));
+                keys.set(maxIdx, temp);
+            }
+            i = i + 1;
+        }
+        let result: ArrayList<Pair<string, int>> = new ArrayList<Pair<string, int>>();
+        i = 0;
+        while (i < n && i < keys.size()) {
+            result.add(new Pair<string, int>(keys.get(i), this.counts.get(keys.get(i))));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Return all elements with repetition (each item repeated by its count).
+    public fn elements(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let count: int = this.counts.get(key);
+            var j: int = 0;
+            while (j < count) {
+                result.add(key);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Subtract another counter from this one.
+    public fn subtract(other: Counter): void {
+        let keys: ArrayList<string> = other.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let otherCount: int = other.counts.get(key);
+            if (this.counts.containsKey(key)) {
+                this.counts.put(key, this.counts.get(key) - otherCount);
+            } else {
+                this.counts.put(key, -otherCount);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Update this counter from another counter.
+    public fn update(other: Counter): void {
+        let keys: ArrayList<string> = other.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let otherCount: int = other.counts.get(key);
+            if (this.counts.containsKey(key)) {
+                this.counts.put(key, this.counts.get(key) + otherCount);
+            } else {
+                this.counts.put(key, otherCount);
+            }
+            i = i + 1;
+        }
+    }
+
+    // Total of all counts.
+    public fn total(): int {
+        var sum: int = 0;
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            sum = sum + this.counts.get(keys.get(i));
+            i = i + 1;
+        }
+        return sum;
+    }
+
+    // Union: return a new Counter with the maximum of each key's count.
+    public fn union(other: Counter): Counter {
+        let result: Counter = new Counter();
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let otherCount: int = other.get(key);
+            let maxCount: int = this.counts.get(key);
+            if (otherCount > maxCount) {
+                maxCount = otherCount;
+            }
+            if (maxCount > 0) {
+                result.counts.put(key, maxCount);
+            }
+            i = i + 1;
+        }
+        let otherKeys: ArrayList<string> = other.counts.keys();
+        i = 0;
+        while (i < otherKeys.size()) {
+            let key: string = otherKeys.get(i);
+            if (!result.counts.containsKey(key)) {
+                let cnt: int = other.counts.get(key);
+                if (cnt > 0) {
+                    result.counts.put(key, cnt);
+                }
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Intersection: return a new Counter with the minimum of each key's count.
+    // Keys with non-positive counts are omitted.
+    public fn intersection(other: Counter): Counter {
+        let result: Counter = new Counter();
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            let otherCount: int = other.get(key);
+            let minCount: int = this.counts.get(key);
+            if (otherCount < minCount) {
+                minCount = otherCount;
+            }
+            if (minCount > 0) {
+                result.counts.put(key, minCount);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Static: return the n most common items from a count map.
+    public fn mostCommon(c: HashMap<string, int>, n: int): ArrayList<(string, int)> {
+        let keys: ArrayList<string> = c.keys();
+        // Selection sort by count descending
+        var i: int = 0;
+        while (i < keys.size() - 1 && i < n) {
+            var maxIdx: int = i;
+            var j: int = i + 1;
+            while (j < keys.size()) {
+                if (c.get(keys.get(j)) > c.get(keys.get(maxIdx))) {
+                    maxIdx = j;
+                }
+                j = j + 1;
+            }
+            if (maxIdx != i) {
+                let temp: string = keys.get(i);
+                keys.set(i, keys.get(maxIdx));
+                keys.set(maxIdx, temp);
+            }
+            i = i + 1;
+        }
+        let result: ArrayList<(string, int)> = new ArrayList<(string, int)>();
+        i = 0;
+        while (i < n && i < keys.size()) {
+            result.add((keys.get(i), c.get(keys.get(i))));
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Clear all counts.
+    public fn clear(): void {
+        this.counts = new HashMap<string, int>();
+    }
+
+    // Return a string representation of the counter.
+    public fn toString(): string {
+        let s: string = "Counter({";
+        let keys: ArrayList<string> = this.counts.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            if (i > 0) { s = s + ", "; }
+            s = s + "'" + keys.get(i) + "': " + this.counts.get(keys.get(i));
+            i = i + 1;
+        }
+        s = s + "})";
+        return s;
+    }
+}
