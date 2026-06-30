@@ -1,0 +1,406 @@
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿// URL encoding and decoding backed by native implementations.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _urlCharsCache: HashMap<string, string> = new HashMap<string, string>();
+var _urlCharsLoaded: bool = false;
+
+fn _ensureUrlCharsLoaded(): void {
+    if (_urlCharsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("encoding/url_safe_chars.json");
+    if (data.isNull() || !data.isObject()) {
+        _urlCharsLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("unreserved");
+    keys.add("reserved");
+    keys.add("sub_delims");
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (data.hasKey(key)) {
+            _urlCharsCache.put(key, data.get(key).asString());
+        }
+        i = i + 1;
+    }
+    _urlCharsLoaded = true;
+}
+
+public class Url {
+    public fn encode(input: string): string {
+        return Url_encode(input);
+    }
+
+    public fn decode(input: string): string {
+        return Url_decode(input);
+    }
+
+    // Encode a string for use in URL query components.
+    // Encodes all characters except A-Z a-z 0-9 - _ . ~
+    public fn encodeComponent(s: string): string {
+        _ensureUrlCharsLoaded();
+        let safe: string = _urlCharsCache.get("unreserved");
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            let c: string = String.charAt(s, i);
+            if (Url._isSafe(c, safe)) {
+                result = result + c;
+            } else {
+                // Encode each byte of the character as %XX
+                let code: int = String.charAt(c, 0) as int;
+                if (code < 128) {
+                    result = result + "%" + Url._hexDigit(code / 16) + Url._hexDigit(code % 16);
+                } else if (code < 2048) {
+                    let b1: int = 192 + (code / 64);
+                    let b2: int = 128 + (code % 64);
+                    result = result + "%" + Url._hexDigit(b1 / 16) + Url._hexDigit(b1 % 16);
+                    result = result + "%" + Url._hexDigit(b2 / 16) + Url._hexDigit(b2 % 16);
+                } else {
+                    let b1: int = 224 + (code / 4096);
+                    let b2: int = 128 + ((code / 64) % 64);
+                    let b3: int = 128 + (code % 64);
+                    result = result + "%" + Url._hexDigit(b1 / 16) + Url._hexDigit(b1 % 16);
+                    result = result + "%" + Url._hexDigit(b2 / 16) + Url._hexDigit(b2 % 16);
+                    result = result + "%" + Url._hexDigit(b3 / 16) + Url._hexDigit(b3 % 16);
+                }
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Decode a percent-encoded URL component string.
+    public fn decodeComponent(s: string): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(s)) {
+            if (String.charAt(s, i) == "%" && i + 2 < String.length(s)) {
+                let hi: int = Url._hexVal(String.charAt(s, i + 1));
+                let lo: int = Url._hexVal(String.charAt(s, i + 2));
+                if (hi >= 0 && lo >= 0) {
+                    let byte1: int = hi * 16 + lo;
+                    if (byte1 < 128) {
+                        // Single byte character
+                        result = result + String.fromCharCode(byte1);
+                        i = i + 3;
+                    } else if (byte1 >= 192 && byte1 < 224 && i + 5 < String.length(s) && String.charAt(s, i + 3) == "%") {
+                        // Two-byte UTF-8
+                        let hi2: int = Url._hexVal(String.charAt(s, i + 4));
+                        let lo2: int = Url._hexVal(String.charAt(s, i + 5));
+                        if (hi2 >= 0 && lo2 >= 0) {
+                            let byte2: int = hi2 * 16 + lo2;
+                            let code: int = ((byte1 - 192) * 64) + (byte2 - 128);
+                            result = result + String.fromCharCode(code);
+                            i = i + 6;
+                        } else {
+                            result = result + String.charAt(s, i);
+                            i = i + 1;
+                        }
+                    } else if (byte1 >= 224 && i + 8 < String.length(s) && String.charAt(s, i + 3) == "%" && String.charAt(s, i + 6) == "%") {
+                        // Three-byte UTF-8
+                        let hi2: int = Url._hexVal(String.charAt(s, i + 4));
+                        let lo2: int = Url._hexVal(String.charAt(s, i + 5));
+                        let hi3: int = Url._hexVal(String.charAt(s, i + 7));
+                        let lo3: int = Url._hexVal(String.charAt(s, i + 8));
+                        if (hi2 >= 0 && lo2 >= 0 && hi3 >= 0 && lo3 >= 0) {
+                            let byte2: int = hi2 * 16 + lo2;
+                            let byte3: int = hi3 * 16 + lo3;
+                            let code: int = ((byte1 - 224) * 4096) + ((byte2 - 128) * 64) + (byte3 - 128);
+                            result = result + String.fromCharCode(code);
+                            i = i + 9;
+                        } else {
+                            result = result + String.charAt(s, i);
+                            i = i + 1;
+                        }
+                    } else {
+                        result = result + String.charAt(s, i);
+                        i = i + 1;
+                    }
+                } else {
+                    result = result + String.charAt(s, i);
+                    i = i + 1;
+                }
+            } else if (String.charAt(s, i) == "+") {
+                result = result + " ";
+                i = i + 1;
+            } else {
+                result = result + String.charAt(s, i);
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    public fn parseQueryString(qs: string): HashMap<string, string> {
+        let result: HashMap<string, string> = new HashMap<string, string>();
+        if (qs == null || String.length(qs) == 0) {
+            return result;
+        }
+        // Remove leading '?' if present
+        if (String.charAt(qs, 0) == '?') {
+            qs = String.substring(qs, 1, String.length(qs));
+        }
+        let pairs: ArrayList<string> = String::split(qs, "&");
+        for (pair in pairs) {
+            let kv: ArrayList<string> = String::split(pair, "=");
+            if (kv.size() >= 2) {
+                let key: string = Url.decodeComponent(kv.get(0));
+                let value: string = Url.decodeComponent(kv.get(1));
+                result.put(key, value);
+            } else if (kv.size() == 1 && String.length(kv.get(0)) > 0) {
+                let key: string = Url.decodeComponent(kv.get(0));
+                result.put(key, "");
+            }
+        }
+        return result;
+    }
+
+    public fn buildQueryString(map: HashMap<string, string>): string {
+        let result: string = "";
+        let keys: ArrayList<string> = map.keys();
+        let first: bool = true;
+        for (key in keys) {
+            if (!first) {
+                result = result + "&";
+            }
+            result = result + Url.encodeComponent(key) + "=" + Url.encodeComponent(map.get(key));
+            first = false;
+        }
+        return result;
+    }
+
+    // Helper: check if a character is in the safe set
+    private fn _isSafe(c: string, safe: string): bool {
+        let i: int = 0;
+        while (i < String.length(safe)) {
+            if (String.charAt(safe, i) == c) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    // Helper: convert a value 0-15 to a hex digit
+    private fn _hexDigit(v: int): string {
+        if (v < 10) {
+            return String.fromCharCode(48 + v);
+        }
+        return String.fromCharCode(65 + v - 10);
+    }
+
+    // Helper: convert a hex character to its value 0-15, or -1
+    private fn _hexVal(c: string): int {
+        if (c >= "0" && c <= "9") {
+            return (String.charAt(c, 0) as int) - (String.charAt("0", 0) as int);
+        }
+        if (c >= "A" && c <= "F") {
+            return (String.charAt(c, 0) as int) - (String.charAt("A", 0) as int) + 10;
+        }
+        if (c >= "a" && c <= "f") {
+            return (String.charAt(c, 0) as int) - (String.charAt("a", 0) as int) + 10;
+        }
+        return -1;
+    }
+}
+
+// ParseResult holds the components of a parsed URL.
+public class ParseResult {
+    public string scheme;
+    public string netloc;
+    public string path;
+    public string params;
+    public string query;
+    public string fragment;
+
+    public fn init(scheme: string, netloc: string, path: string, params: string, query: string, fragment: string) {
+        this.scheme = scheme;
+        this.netloc = netloc;
+        this.path = path;
+        this.params = params;
+        this.query = query;
+        this.fragment = fragment;
+    }
+
+    public fn toString(): string {
+        return unparse(this);
+    }
+}
+
+// Parse a URL string into its components.
+public fn parse(url: string): ParseResult {
+    let scheme: string = "";
+    let netloc: string = "";
+    let path: string = "";
+    let params: string = "";
+    let query: string = "";
+    let fragment: string = "";
+
+    // Extract fragment
+    let fragIdx: int = _findChar(url, "#");
+    if (fragIdx >= 0) {
+        fragment = String.substring(url, fragIdx + 1, String.length(url));
+        url = String.substring(url, 0, fragIdx);
+    }
+
+    // Extract query
+    let queryIdx: int = _findChar(url, "?");
+    if (queryIdx >= 0) {
+        query = String.substring(url, queryIdx + 1, String.length(url));
+        url = String.substring(url, 0, queryIdx);
+    }
+
+    // Extract params
+    let paramIdx: int = _findChar(url, ";");
+    if (paramIdx >= 0) {
+        params = String.substring(url, paramIdx + 1, String.length(url));
+        url = String.substring(url, 0, paramIdx);
+    }
+
+    // Extract scheme
+    let schemeIdx: int = _findChar(url, ":");
+    if (schemeIdx >= 0) {
+        let potential: string = String.substring(url, 0, schemeIdx);
+        if (_isScheme(potential)) {
+            scheme = String.toLowerCase(potential);
+            url = String.substring(url, schemeIdx + 1, String.length(url));
+            // Remove leading //
+            if (String.length(url) >= 2 && String.charAt(url, 0) == "/" && String.charAt(url, 1) == "/") {
+                url = String.substring(url, 2, String.length(url));
+            }
+            // Extract netloc (everything up to the first /)
+            let slashIdx: int = _findChar(url, "/");
+            if (slashIdx >= 0) {
+                netloc = String.substring(url, 0, slashIdx);
+                path = String.substring(url, slashIdx, String.length(url));
+            } else {
+                netloc = url;
+                path = "";
+            }
+            return new ParseResult(scheme, netloc, path, params, query, fragment);
+        }
+    }
+
+    // No scheme — the rest is the path
+    path = url;
+    return new ParseResult(scheme, netloc, path, params, query, fragment);
+}
+
+// Reconstruct a URL string from a ParseResult.
+public fn unparse(components: ParseResult): string {
+    let result: string = "";
+    if (String.length(components.scheme) > 0) {
+        result = components.scheme + ":";
+    }
+    if (String.length(components.netloc) > 0) {
+        result = result + "//" + components.netloc;
+    }
+    result = result + components.path;
+    if (String.length(components.params) > 0) {
+        result = result + ";" + components.params;
+    }
+    if (String.length(components.query) > 0) {
+        result = result + "?" + components.query;
+    }
+    if (String.length(components.fragment) > 0) {
+        result = result + "#" + components.fragment;
+    }
+    return result;
+}
+
+// Join a base URL with a relative URL.
+public fn join(base: string, url: string): string {
+    // If url has a scheme, it is absolute
+    let urlParsed: ParseResult = parse(url);
+    if (String.length(urlParsed.scheme) > 0) {
+        return url;
+    }
+    let baseParsed: ParseResult = parse(base);
+    // If url starts with //, use the base scheme
+    if (String.length(url) >= 2 && String.charAt(url, 0) == "/" && String.charAt(url, 1) == "/") {
+        return baseParsed.scheme + ":" + url;
+    }
+    // If url starts with /, it's an absolute path on the same netloc
+    if (String.length(url) > 0 && String.charAt(url, 0) == "/") {
+        let result: string = "";
+        if (String.length(baseParsed.scheme) > 0) {
+            result = baseParsed.scheme + ":";
+        }
+        if (String.length(baseParsed.netloc) > 0) {
+            result = result + "//" + baseParsed.netloc;
+        }
+        result = result + url;
+        return result;
+    }
+    // Relative path: combine with base path
+    let basePath: string = baseParsed.path;
+    let lastSlash: int = _findLastChar(basePath, "/");
+    let dir: string = "";
+    if (lastSlash >= 0) {
+        dir = String.substring(basePath, 0, lastSlash + 1);
+    }
+    let result: string = "";
+    if (String.length(baseParsed.scheme) > 0) {
+        result = baseParsed.scheme + ":";
+    }
+    if (String.length(baseParsed.netloc) > 0) {
+        result = result + "//" + baseParsed.netloc;
+    }
+    result = result + dir + url;
+    return result;
+}
+
+// Helper: find the first occurrence of a character in a string
+fn _findChar(s: string, c: string): int {
+    let i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == c) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+// Helper: find the last occurrence of a character in a string
+fn _findLastChar(s: string, c: string): int {
+    let i: int = String.length(s) - 1;
+    while (i >= 0) {
+        if (String.charAt(s, i) == c) {
+            return i;
+        }
+        i = i - 1;
+    }
+    return -1;
+}
+
+// Helper: check if a string is a valid URL scheme
+fn _isScheme(s: string): bool {
+    if (String.length(s) == 0) {
+        return false;
+    }
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (i == 0) {
+            // Scheme must start with a letter
+            if (!((c >= "a" && c <= "z") || (c >= "A" && c <= "Z"))) {
+                return false;
+            }
+        } else {
+            if (!((c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9") || c == "+" || c == "-" || c == ".")) {
+                return false;
+            }
+        }
+        i = i + 1;
+    }
+    return true;
+}
