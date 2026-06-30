@@ -1,0 +1,190 @@
+// Insertion-ordered HashMap that maintains key insertion order.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::ArrayListIterator;
+
+public class OrderedDict<K, V> {
+    private HashMap<K, V> map;
+    private ArrayList<K> order;
+
+    public fn OrderedDict() {
+        this.map = new HashMap<K, V>();
+        this.order = new ArrayList<K>();
+    }
+
+    public fn put(key: K, value: V): void {
+        if (!this.map.containsKey(key)) {
+            this.order.add(key);
+        }
+        this.map.put(key, value);
+    }
+
+    public fn get(key: K): V {
+        return this.map.get(key);
+    }
+
+    public fn getOrDefault(key: K, defaultValue: V): V {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        return defaultValue;
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    public fn remove(key: K): void {
+        if (this.map.containsKey(key)) {
+            this.map.remove(key);
+            let i: int = 0;
+            while (i < this.order.size()) {
+                if (this.order.get(i) == key) {
+                    this.order.remove(i);
+                    break;
+                }
+                i = i + 1;
+            }
+        }
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.map.size() == 0;
+    }
+
+    public fn keys(): ArrayList<K> {
+        let result: ArrayList<K> = new ArrayList<K>();
+        let i: int = 0;
+        while (i < this.order.size()) {
+            let key: K = this.order.get(i);
+            if (this.map.containsKey(key)) {
+                result.add(key);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn values(): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        let i: int = 0;
+        while (i < this.order.size()) {
+            let key: K = this.order.get(i);
+            if (this.map.containsKey(key)) {
+                result.add(this.map.get(key));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn entries(): ArrayList<(K, V)> {
+        let result: ArrayList<(K, V)> = new ArrayList<(K, V)>();
+        let i: int = 0;
+        while (i < this.order.size()) {
+            let key: K = this.order.get(i);
+            if (this.map.containsKey(key)) {
+                result.add((key, this.map.get(key)));
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn clear(): void {
+        this.map = new HashMap<K, V>();
+        this.order = new ArrayList<K>();
+    }
+
+    public fn putIfAbsent(key: K, value: V): V {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        this.put(key, value);
+        return value;
+    }
+
+    public fn forEach(fn: fn(K, V): void): void {
+        let entries: ArrayList<(K, V)> = this.entries();
+        let i: int = 0;
+        while (i < entries.size()) {
+            let (key: K, val: V) = entries.get(i);
+            fn(key, val);
+            i = i + 1;
+        }
+    }
+
+    public fn clone(): OrderedDict<K, V> {
+        let result: OrderedDict<K, V> = new OrderedDict<K, V>();
+        let entries: ArrayList<(K, V)> = this.entries();
+        let i: int = 0;
+        while (i < entries.size()) {
+            let (key: K, val: V) = entries.get(i);
+            result.put(key, val);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn toString(): string {
+        let s: string = "OrderedDict({";
+        let entries: ArrayList<(K, V)> = this.entries();
+        let i: int = 0;
+        while (i < entries.size()) {
+            if (i > 0) { s = s + ", "; }
+            let (key: K, val: V) = entries.get(i);
+            s = s + key + ": " + val;
+            i = i + 1;
+        }
+        s = s + "})";
+        return s;
+    }
+
+    public fn iterator(): ArrayListIterator<K> {
+        return new ArrayListIterator<K>(this.keys());
+    }
+
+    public fn moveToEnd(key: K): void {
+        if (!this.map.containsKey(key)) { return; }
+        let i: int = 0;
+        while (i < this.order.size()) {
+            if (this.order.get(i) == key) {
+                this.order.remove(i);
+                break;
+            }
+            i = i + 1;
+        }
+        this.order.add(key);
+    }
+
+    public fn popItem(last: bool): (K, V) {
+        if (this.map.size() == 0) { return null; }
+        let key: K;
+        if (last) {
+            let i: int = this.order.size() - 1;
+            while (i >= 0) {
+                if (this.map.containsKey(this.order.get(i))) {
+                    key = this.order.get(i);
+                    break;
+                }
+                i = i - 1;
+            }
+        } else {
+            let i: int = 0;
+            while (i < this.order.size()) {
+                if (this.map.containsKey(this.order.get(i))) {
+                    key = this.order.get(i);
+                    break;
+                }
+                i = i + 1;
+            }
+        }
+        let value: V = this.map.get(key);
+        this.remove(key);
+        return (key, value);
+    }
+}
