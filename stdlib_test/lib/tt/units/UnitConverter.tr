@@ -1,0 +1,158 @@
+// UnitConverter provides unit conversion using data from conversions.json.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// Cache for conversion data loaded from DataFile
+let _conversionsCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _conversionsLoaded: bool = false;
+
+fn _ensureConversionsLoaded(): void {
+    if (_conversionsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("units/conversions.json");
+    if (!data.isNull() && data.isObject()) {
+        let keys: ArrayList<string> = data.keys();
+        var i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            _conversionsCache.put(key, data.get(key));
+            i = i + 1;
+        }
+    }
+    _conversionsLoaded = true;
+}
+
+// Convert a value between two units.
+public fn convert(value: double, fromUnit: string, toUnit: string): double {
+    _ensureConversionsLoaded();
+    // Same unit: no conversion needed
+    if (fromUnit == toUnit) {
+        return value;
+    }
+    // Look up conversion factor
+    let fromFactor: double = _getUnitFactor(fromUnit);
+    let toFactor: double = _getUnitFactor(toUnit);
+    if (fromFactor == 0.0 || toFactor == 0.0) {
+        return 0.0;
+    }
+    // Convert: value in base = value * fromFactor; result = value_in_base / toFactor
+    let baseValue: double = value * fromFactor;
+    return baseValue / toFactor;
+}
+
+// Convert a value between compound units (e.g., m/s to km/h).
+public fn convertCompound(value: double, fromUnits: ArrayList<string>, toUnits: ArrayList<string>): double {
+    var result: double = value;
+    // Convert numerator units
+    var i: int = 0;
+    while (i < fromUnits.size() && i < toUnits.size()) {
+        let from: string = fromUnits.get(i);
+        let to: string = toUnits.get(i);
+        result = convert(result, from, to);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Get the base dimensions for a unit (e.g., "N" -> {"length": 1, "mass": 1, "time": -2}).
+public fn dimensionalAnalysis(unit: string): HashMap<string, int> {
+    let result: HashMap<string, int> = new HashMap<string, int>();
+    _ensureConversionsLoaded();
+    if (_conversionsCache.containsKey(unit)) {
+        let unitData: JsonValue = _conversionsCache.get(unit);
+        if (!unitData.isNull() && unitData.isObject() && unitData.hasKey("dimensions")) {
+            let dims: JsonValue = unitData.get("dimensions");
+            if (dims.isObject()) {
+                let keys: ArrayList<string> = dims.keys();
+                var i: int = 0;
+                while (i < keys.size()) {
+                    let key: string = keys.get(i);
+                    result.put(key, dims.get(key).asInt());
+                    i = i + 1;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+// Find all units compatible with the given unit (same base dimensions).
+public fn compatibleUnits(unit: string): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    _ensureConversionsLoaded();
+    let targetDims: HashMap<string, int> = dimensionalAnalysis(unit);
+    if (targetDims.size() == 0) {
+        return result;
+    }
+    let allKeys: ArrayList<string> = _conversionsCache.keys();
+    var i: int = 0;
+    while (i < allKeys.size()) {
+        let key: string = allKeys.get(i);
+        let otherDims: HashMap<string, int> = dimensionalAnalysis(key);
+        if (_dimensionsEqual(targetDims, otherDims)) {
+            result.add(key);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// UnitTracker tracks a value with its unit for chained conversions.
+public class UnitTracker {
+    public double value;
+    public string unit;
+
+    public fn init(value: double, unit: string) {
+        this.value = value;
+        this.unit = unit;
+    }
+
+    // Convert to a target unit and return a new UnitTracker.
+    public fn to(targetUnit: string): UnitTracker {
+        let converted: double = convert(this.value, this.unit, targetUnit);
+        return new UnitTracker(converted, targetUnit);
+    }
+
+    public fn getValue(): double {
+        return this.value;
+    }
+
+    public fn getUnit(): string {
+        return this.unit;
+    }
+}
+
+// Get the conversion factor for a unit (relative to its base unit).
+fn _getUnitFactor(unit: string): double {
+    if (_conversionsCache.containsKey(unit)) {
+        let unitData: JsonValue = _conversionsCache.get(unit);
+        if (!unitData.isNull() && unitData.isObject() && unitData.hasKey("factor")) {
+            return unitData.get("factor").asDouble();
+        }
+    }
+    // Default: assume unit is a base unit with factor 1.0
+    return 1.0;
+}
+
+// Check if two dimension maps are equal.
+fn _dimensionsEqual(a: HashMap<string, int>, b: HashMap<string, int>): bool {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    let keys: ArrayList<string> = a.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (!b.containsKey(key)) {
+            return false;
+        }
+        if (a.get(key) != b.get(key)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
