@@ -1,0 +1,393 @@
+// Stemmer.tr — Porter stemmer and Snowball stemmer
+import tt::util::ArrayList;
+import tt::lang::String;
+
+// Porter stemmer implementation
+public fn porterStem(word: string): string {
+    let w: string = String.toLowerCase(word);
+    let len: int = String.length(w);
+    if (len <= 2) { return w; }
+    // Step 1a
+    var result: string = w;
+    if (_endsWith(result, "sses")) {
+        result = _replaceSuffix(result, "sses", "ss");
+    } else {
+        if (_endsWith(result, "ies")) {
+            result = _replaceSuffix(result, "ies", "i");
+        } else {
+            if (_endsWith(result, "ss")) {
+                result = result;
+            } else {
+                if (_endsWith(result, "s") && !_endsWith(result, "ss")) {
+                    result = _replaceSuffix(result, "s", "");
+                }
+            }
+        }
+    }
+    // Step 1b
+    var step1bFlag: bool = false;
+    if (_endsWith(result, "eed")) {
+        if (_measure(_replaceSuffix(result, "eed", "")) > 0) {
+            result = _replaceSuffix(result, "eed", "ee");
+        }
+    } else {
+        if (_endsWith(result, "ed")) {
+            if (_containsVowel(_replaceSuffix(result, "ed", ""))) {
+                result = _replaceSuffix(result, "ed", "");
+                step1bFlag = true;
+            }
+        } else {
+            if (_endsWith(result, "ing")) {
+                if (_containsVowel(_replaceSuffix(result, "ing", ""))) {
+                    result = _replaceSuffix(result, "ing", "");
+                    step1bFlag = true;
+                }
+            }
+        }
+    }
+    if (step1bFlag) {
+        if (_endsWith(result, "at") || _endsWith(result, "bl") || _endsWith(result, "iz")) {
+            result = result + "e";
+        } else {
+            if (_endsWithDoubleConsonant(result) && !_endsWith(result, "l") && !_endsWith(result, "s") && !_endsWith(result, "z")) {
+                result = String.substring(result, 0, String.length(result) - 1);
+            } else {
+                if (_measure(result) == 1 && _endsWithCVC(result)) {
+                    result = result + "e";
+                }
+            }
+        }
+    }
+    // Step 1c
+    if (_endsWith(result, "y") && _containsVowel(_replaceSuffix(result, "y", ""))) {
+        result = _replaceSuffix(result, "y", "i");
+    }
+    return result;
+}
+
+fn _endsWith(word: string, suffix: string): bool {
+    let sLen: int = String.length(suffix);
+    let wLen: int = String.length(word);
+    if (sLen > wLen) { return false; }
+    return String.substring(word, wLen - sLen, wLen) == suffix;
+}
+
+fn _replaceSuffix(word: string, suffix: string, replacement: string): string {
+    let wLen: int = String.length(word);
+    let sLen: int = String.length(suffix);
+    return String.substring(word, 0, wLen - sLen) + replacement;
+}
+
+fn _isVowel(ch: string): bool {
+    return ch == "a" || ch == "e" || ch == "i" || ch == "o" || ch == "u";
+}
+
+fn _containsVowel(word: string): bool {
+    var i: int = 0;
+    while (i < String.length(word)) {
+        if (_isVowel(String.charAt(word, i))) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+fn _measure(word: string): int {
+    let n: int = String.length(word);
+    if (n == 0) { return 0; }
+    var m: int = 0;
+    var i: int = 0;
+    // Skip initial consonants
+    while (i < n && !_isVowel(String.charAt(word, i))) { i = i + 1; }
+    while (i < n) {
+        while (i < n && _isVowel(String.charAt(word, i))) { i = i + 1; }
+        if (i >= n) { break; }
+        while (i < n && !_isVowel(String.charAt(word, i))) { i = i + 1; }
+        m = m + 1;
+    }
+    return m;
+}
+
+fn _endsWithDoubleConsonant(word: string): bool {
+    let n: int = String.length(word);
+    if (n < 2) { return false; }
+    let c1: string = String.charAt(word, n - 2);
+    let c2: string = String.charAt(word, n - 1);
+    return c1 == c2 && !_isVowel(c1);
+}
+
+fn _endsWithCVC(word: string): bool {
+    let n: int = String.length(word);
+    if (n < 3) { return false; }
+    return !_isVowel(String.charAt(word, n - 3)) && _isVowel(String.charAt(word, n - 2)) && !_isVowel(String.charAt(word, n - 1)) && String.charAt(word, n - 1) != "w" && String.charAt(word, n - 1) != "x" && String.charAt(word, n - 1) != "y";
+}
+
+// Lancaster stemmer implementation
+public fn lancaster(word: string): string {
+    let w: string = String.toLowerCase(word);
+    let len: int = String.length(w);
+    if (len <= 2) { return w; }
+    var result: string = w;
+    var changed: bool = true;
+    var ruleIndex: int = 0;
+    while (changed && ruleIndex < 5) {
+        changed = false;
+        // Rule 1: Remove trailing 'e'
+        if (String.length(result) > 3 && _endsWith(result, "e")) {
+            result = _replaceSuffix(result, "e", "");
+            changed = true;
+        }
+        // Rule 2: Remove trailing 'y' and replace with 'i'
+        if (String.length(result) > 3 && _endsWith(result, "y")) {
+            result = _replaceSuffix(result, "y", "i");
+            changed = true;
+        }
+        // Rule 3: Remove common suffixes
+        if (String.length(result) > 4 && _endsWith(result, "tion")) {
+            result = _replaceSuffix(result, "tion", "t");
+            changed = true;
+        } else {
+            if (String.length(result) > 4 && _endsWith(result, "sion")) {
+                result = _replaceSuffix(result, "sion", "s");
+                changed = true;
+            } else {
+                if (String.length(result) > 3 && _endsWith(result, "ing")) {
+                    result = _replaceSuffix(result, "ing", "");
+                    changed = true;
+                } else {
+                    if (String.length(result) > 3 && _endsWith(result, "ity")) {
+                        result = _replaceSuffix(result, "ity", "");
+                        changed = true;
+                    } else {
+                        if (String.length(result) > 4 && _endsWith(result, "ment")) {
+                            result = _replaceSuffix(result, "ment", "");
+                            changed = true;
+                        } else {
+                            if (String.length(result) > 3 && _endsWith(result, "ness")) {
+                                result = _replaceSuffix(result, "ness", "");
+                                changed = true;
+                            } else {
+                                if (String.length(result) > 3 && _endsWith(result, "ful")) {
+                                    result = _replaceSuffix(result, "ful", "");
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ruleIndex = ruleIndex + 1;
+    }
+    // Ensure result has at least 2 characters
+    if (String.length(result) < 2) { return w; }
+    return result;
+}
+
+// Snowball (Porter2) stemmer - improved version of Porter stemmer.
+// Treats 'y' as a vowel and applies additional suffix transformation rules.
+public fn snowballStem(word: string): string {
+    let lower: string = String.toLowerCase(word);
+    let len: int = String.length(lower);
+    if (len <= 2) { return lower; }
+
+    // Step 0: Remove possessive endings
+    var result: string = lower;
+    if (_endsWith(result, "'s'")) {
+        result = _replaceSuffix(result, "'s'", "");
+    } else if (_endsWith(result, "'s")) {
+        result = _replaceSuffix(result, "'s", "");
+    } else if (_endsWith(result, "'")) {
+        result = _replaceSuffix(result, "'", "");
+    }
+
+    // Step 1a: Plural endings
+    if (_endsWith(result, "sses")) {
+        result = _replaceSuffix(result, "sses", "ss");
+    } else if (_endsWith(result, "ies")) {
+        result = _replaceSuffix(result, "ies", "i");
+    } else if (_endsWith(result, "s") && !_endsWith(result, "ss")) {
+        result = _replaceSuffix(result, "s", "");
+    }
+
+    // Step 1b: Past tense and gerund
+    if (_endsWith(result, "eed")) {
+        if (_snowballMeasure(_replaceSuffix(result, "eed", "")) > 0) {
+            result = _replaceSuffix(result, "eed", "ee");
+        }
+    } else if (_endsWith(result, "ed")) {
+        if (_snowballContainsVowel(_replaceSuffix(result, "ed", ""))) {
+            result = _replaceSuffix(result, "ed", "");
+            result = _snowballCleanup(result);
+        }
+    } else if (_endsWith(result, "ing")) {
+        if (_snowballContainsVowel(_replaceSuffix(result, "ing", ""))) {
+            result = _replaceSuffix(result, "ing", "");
+            result = _snowballCleanup(result);
+        }
+    }
+
+    // Step 1c: Y -> I
+    if (_endsWith(result, "y") && _snowballContainsVowel(_replaceSuffix(result, "y", ""))) {
+        result = _replaceSuffix(result, "y", "i");
+    }
+
+    // Step 2: Suffix transformations
+    result = _snowballStep2(result);
+
+    // Step 3: More suffix transformations
+    result = _snowballStep3(result);
+
+    // Step 4: Remove suffixes
+    result = _snowballStep4(result);
+
+    // Step 5: Final cleanup
+    if (_endsWith(result, "e") && _snowballMeasure(result) > 1) {
+        result = _replaceSuffix(result, "e", "");
+    } else if (_endsWith(result, "e") && _snowballMeasure(result) == 1 && !_snowballIsCVC(result, String.length(result) - 2)) {
+        result = _replaceSuffix(result, "e", "");
+    }
+
+    // Remove trailing L if measure > 1
+    if (_endsWith(result, "ll") && _snowballMeasure(result) > 1) {
+        result = _replaceSuffix(result, "l", "");
+    }
+
+    return result;
+}
+
+// Snowball-specific vowel check (includes 'y').
+fn _snowballIsVowel(ch: string): bool {
+    return ch == "a" || ch == "e" || ch == "i" || ch == "o" || ch == "u" || ch == "y";
+}
+
+// Snowball-specific contains vowel check.
+fn _snowballContainsVowel(word: string): bool {
+    var i: int = 0;
+    while (i < String.length(word)) {
+        if (_snowballIsVowel(String.charAt(word, i))) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Snowball-specific measure (VC sequence count, treating 'y' as vowel).
+fn _snowballMeasure(word: string): int {
+    let n: int = String.length(word);
+    if (n == 0) { return 0; }
+    var m: int = 0;
+    var i: int = 0;
+    // Skip initial consonants
+    while (i < n && !_snowballIsVowel(String.charAt(word, i))) { i = i + 1; }
+    while (i < n) {
+        while (i < n && _snowballIsVowel(String.charAt(word, i))) { i = i + 1; }
+        if (i >= n) { break; }
+        while (i < n && !_snowballIsVowel(String.charAt(word, i))) { i = i + 1; }
+        m = m + 1;
+    }
+    return m;
+}
+
+// Snowball-specific CVC check at position n (consonant-vowel-consonant).
+fn _snowballIsCVC(word: string, n: int): bool {
+    if (n < 2) { return false; }
+    let c0: string = String.charAt(word, n - 2);
+    let c1: string = String.charAt(word, n - 1);
+    let c2: string = String.charAt(word, n);
+    let isC0: bool = c0 != "a" && c0 != "e" && c0 != "i" && c0 != "o" && c0 != "u" && c0 != "y";
+    let isV1: bool = c1 == "a" || c1 == "e" || c1 == "i" || c1 == "o" || c1 == "u";
+    let isC2: bool = c2 != "a" && c2 != "e" && c2 != "i" && c2 != "o" && c2 != "u";
+    return isC0 && isV1 && isC2 && c2 != "w" && c2 != "x" && c2 != "y";
+}
+
+// Cleanup after removing ED/ING suffixes.
+fn _snowballCleanup(stem: string): string {
+    let len: int = String.length(stem);
+    if (_endsWith(stem, "at") || _endsWith(stem, "bl") || _endsWith(stem, "iz")) {
+        return stem + "e";
+    }
+    if (len >= 2 && String.charAt(stem, len - 1) == String.charAt(stem, len - 2)) {
+        let c: string = String.charAt(stem, len - 1);
+        if (c != "l" && c != "s" && c != "z") {
+            return String.substring(stem, 0, len - 1);
+        }
+    }
+    if (_snowballMeasure(stem) == 1 && _snowballIsCVC(stem, len - 1)) {
+        return stem + "e";
+    }
+    return stem;
+}
+
+// Step 2: Suffix transformations.
+fn _snowballStep2(stem: string): string {
+    if (_endsWith(stem, "ational")) { return _replaceSuffix(stem, "ational", "ate"); }
+    if (_endsWith(stem, "tional")) { return _replaceSuffix(stem, "tional", "tion"); }
+    if (_endsWith(stem, "enci")) { return _replaceSuffix(stem, "enci", "ence"); }
+    if (_endsWith(stem, "anci")) { return _replaceSuffix(stem, "anci", "ance"); }
+    if (_endsWith(stem, "izer")) { return _replaceSuffix(stem, "izer", "ize"); }
+    if (_endsWith(stem, "abli")) { return _replaceSuffix(stem, "abli", "able"); }
+    if (_endsWith(stem, "alli")) { return _replaceSuffix(stem, "alli", "al"); }
+    if (_endsWith(stem, "entli")) { return _replaceSuffix(stem, "entli", "ent"); }
+    if (_endsWith(stem, "ousli")) { return _replaceSuffix(stem, "ousli", "ous"); }
+    if (_endsWith(stem, "ization")) { return _replaceSuffix(stem, "ization", "ize"); }
+    if (_endsWith(stem, "ation")) { return _replaceSuffix(stem, "ation", "ate"); }
+    if (_endsWith(stem, "ator")) { return _replaceSuffix(stem, "ator", "ate"); }
+    if (_endsWith(stem, "iveness")) { return _replaceSuffix(stem, "iveness", "ive"); }
+    if (_endsWith(stem, "fulness")) { return _replaceSuffix(stem, "fulness", "ful"); }
+    if (_endsWith(stem, "ousness")) { return _replaceSuffix(stem, "ousness", "ous"); }
+    return stem;
+}
+
+// Step 3: More suffix transformations.
+fn _snowballStep3(stem: string): string {
+    if (_endsWith(stem, "icate")) { return _replaceSuffix(stem, "icate", "ic"); }
+    if (_endsWith(stem, "ative")) { return _replaceSuffix(stem, "ative", ""); }
+    if (_endsWith(stem, "alize")) { return _replaceSuffix(stem, "alize", "al"); }
+    if (_endsWith(stem, "iciti")) { return _replaceSuffix(stem, "iciti", "ic"); }
+    if (_endsWith(stem, "ical")) { return _replaceSuffix(stem, "ical", "ic"); }
+    if (_endsWith(stem, "ful")) { return stem; }
+    if (_endsWith(stem, "ness")) { return _replaceSuffix(stem, "ness", ""); }
+    return stem;
+}
+
+// Step 4: Remove suffixes when measure > 1.
+fn _snowballStep4(stem: string): string {
+    let suffixes: ArrayList<string> = new ArrayList<string>();
+    suffixes.add("al");
+    suffixes.add("ance");
+    suffixes.add("ence");
+    suffixes.add("er");
+    suffixes.add("ic");
+    suffixes.add("able");
+    suffixes.add("ible");
+    suffixes.add("ant");
+    suffixes.add("ement");
+    suffixes.add("ment");
+    suffixes.add("ent");
+    suffixes.add("ou");
+    suffixes.add("ism");
+    suffixes.add("ate");
+    suffixes.add("iti");
+    suffixes.add("ous");
+    suffixes.add("ive");
+    suffixes.add("ize");
+    var i: int = 0;
+    while (i < suffixes.size()) {
+        let suffix: string = suffixes.get(i);
+        if (_endsWith(stem, suffix)) {
+            let stemBase: string = _replaceSuffix(stem, suffix, "");
+            if (_snowballMeasure(stemBase) > 1) {
+                return stemBase;
+            }
+            return stem;
+        }
+        i = i + 1;
+    }
+    // Handle -ion specially (only after s or t)
+    if (_endsWith(stem, "ion") && String.length(stem) > 3) {
+        let c: string = String.charAt(stem, String.length(stem) - 4);
+        if ((c == "s" || c == "t") && _snowballMeasure(_replaceSuffix(stem, "ion", "")) > 1) {
+            return _replaceSuffix(stem, "ion", "");
+        }
+    }
+    return stem;
+}
