@@ -1,0 +1,507 @@
+// CSV reader with configurable delimiter and quote character.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+
+// CSV quoting constants
+public const QUOTE_MINIMAL: int = 0;
+public const QUOTE_ALL: int = 1;
+public const QUOTE_NONNUMERIC: int = 2;
+public const QUOTE_NONE: int = 3;
+
+public class CsvReader {
+    public string delimiter;
+    public string quote;
+    public bool hasHeader;
+
+    public fn init() {
+        this.delimiter = ",";
+        this.quote = "\"";
+        this.hasHeader = true;
+    }
+
+    public fn setDelimiter(d: string): void {
+        this.delimiter = d;
+    }
+
+    public fn setQuote(q: string): void {
+        this.quote = q;
+    }
+
+    public fn setHasHeader(h: bool): void {
+        this.hasHeader = h;
+    }
+
+    // Parse CSV text into rows (each row is an ArrayList<string>)
+    public fn parse(input: string): ArrayList<ArrayList<string>> {
+        let rows: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+        let pos: int = 0;
+        let len: int = String.length(input);
+
+        while (pos < len) {
+            let row: ArrayList<string> = new ArrayList<string>();
+            let rowDone: bool = false;
+            while (!rowDone && pos < len) {
+                let field: string = "";
+                // Skip leading whitespace (not newlines)
+                while (pos < len) {
+                    let c: string = String.charAt(input, pos);
+                    if (c == " " || c == "\t") {
+                        pos = pos + 1;
+                    } else {
+                        break;
+                    }
+                }
+                if (pos < len && String.charAt(input, pos) == this.quote) {
+                    // Quoted field
+                    pos = pos + 1; // skip opening quote
+                    while (pos < len) {
+                        let c: string = String.charAt(input, pos);
+                        if (c == this.quote) {
+                            // Check for escaped quote (double quote)
+                            if (pos + 1 < len && String.charAt(input, pos + 1) == this.quote) {
+                                field = field + this.quote;
+                                pos = pos + 2;
+                            } else {
+                                pos = pos + 1; // skip closing quote
+                                break;
+                            }
+                        } else {
+                            field = field + c;
+                            pos = pos + 1;
+                        }
+                    }
+                    // Skip trailing whitespace after closing quote
+                    while (pos < len) {
+                        let c: string = String.charAt(input, pos);
+                        if (c == " " || c == "\t") {
+                            pos = pos + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                } else {
+                    // Unquoted field
+                    while (pos < len) {
+                        let c: string = String.charAt(input, pos);
+                        if (c == this.delimiter || c == "\n" || c == "\r") {
+                            break;
+                        }
+                        field = field + c;
+                        pos = pos + 1;
+                    }
+                }
+                row.add(field);
+                // Check what comes after the field
+                if (pos < len) {
+                    let c: string = String.charAt(input, pos);
+                    if (c == this.delimiter) {
+                        pos = pos + 1; // skip delimiter, continue to next field
+                    } else if (c == "\r") {
+                        pos = pos + 1;
+                        if (pos < len && String.charAt(input, pos) == "\n") {
+                            pos = pos + 1;
+                        }
+                        rowDone = true;
+                    } else if (c == "\n") {
+                        pos = pos + 1;
+                        rowDone = true;
+                    } else {
+                        // Unexpected character, skip
+                        pos = pos + 1;
+                    }
+                } else {
+                    rowDone = true;
+                }
+            }
+            // Only add non-empty rows
+            if (row.size() > 0) {
+                rows.add(row);
+            }
+        }
+        return rows;
+    }
+
+    // Skip the first N lines of the input
+    public fn skipLines(input: string, lines: int): string {
+        let pos: int = 0;
+        let skipped: int = 0;
+        let len: int = String.length(input);
+        while (skipped < lines && pos < len) {
+            let c: string = String.charAt(input, pos);
+            if (c == "\n") {
+                skipped = skipped + 1;
+                pos = pos + 1;
+            } else if (c == "\r") {
+                skipped = skipped + 1;
+                pos = pos + 1;
+                if (pos < len && String.charAt(input, pos) == "\n") {
+                    pos = pos + 1;
+                }
+            } else {
+                pos = pos + 1;
+            }
+        }
+        return String.substring(input, pos, String.length(input));
+    }
+
+    // Get a column by index from parsed rows
+    public fn getColumn(rows: ArrayList<ArrayList<string>>, colIndex: int): ArrayList<string> {
+        let column: ArrayList<string> = new ArrayList<string>();
+        let i: int = 0;
+        while (i < rows.size()) {
+            let row: ArrayList<string> = rows.get(i);
+            if (colIndex < row.size()) {
+                column.add(row.get(colIndex));
+            } else {
+                column.add("");
+            }
+            i = i + 1;
+        }
+        return column;
+    }
+
+    // Get a column by header name from parsed rows
+    public fn getColumnByName(rows: ArrayList<ArrayList<string>>, colName: string): ArrayList<string> {
+        if (rows.size() == 0) {
+            return new ArrayList<string>();
+        }
+        // Find column index from header row
+        let headers: ArrayList<string> = rows.get(0);
+        let colIndex: int = -1;
+        let i: int = 0;
+        while (i < headers.size()) {
+            if (headers.get(i) == colName) {
+                colIndex = i;
+                break;
+            }
+            i = i + 1;
+        }
+        if (colIndex == -1) {
+            return new ArrayList<string>();
+        }
+        // Skip header row, collect values
+        let column: ArrayList<string> = new ArrayList<string>();
+        let r: int = 1;
+        while (r < rows.size()) {
+            let row: ArrayList<string> = rows.get(r);
+            if (colIndex < row.size()) {
+                column.add(row.get(colIndex));
+            } else {
+                column.add("");
+            }
+            r = r + 1;
+        }
+        return column;
+    }
+
+    // Get headers (first row if hasHeader is true)
+    public fn getHeaders(input: string): ArrayList<string> {
+        if (!this.hasHeader) {
+            return new ArrayList<string>();
+        }
+        let rows: ArrayList<ArrayList<string>> = this.parse(input);
+        if (rows.size() == 0) {
+            return new ArrayList<string>();
+        }
+        return rows.get(0);
+    }
+
+    // Parse into list of maps (header -> value)
+    public fn parseToMaps(input: string): ArrayList<HashMap<string, string>> {
+        let result: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
+        let rows: ArrayList<ArrayList<string>> = this.parse(input);
+        if (rows.size() == 0) {
+            return result;
+        }
+        let headers: ArrayList<string>;
+        let startRow: int;
+        if (this.hasHeader) {
+            headers = rows.get(0);
+            startRow = 1;
+        } else {
+            // Generate numeric headers
+            headers = new ArrayList<string>();
+            let colCount: int = rows.get(0).size();
+            let c: int = 0;
+            while (c < colCount) {
+                headers.add(c.toString());
+                c = c + 1;
+            }
+            startRow = 0;
+        }
+        let r: int = startRow;
+        while (r < rows.size()) {
+            let row: ArrayList<string> = rows.get(r);
+            let map: HashMap<string, string> = new HashMap<string, string>();
+            let col: int = 0;
+            while (col < headers.size()) {
+                let val: string = "";
+                if (col < row.size()) {
+                    val = row.get(col);
+                }
+                map.put(headers.get(col), val);
+                col = col + 1;
+            }
+            result.add(map);
+            r = r + 1;
+        }
+        return result;
+    }
+}
+
+// DictReader reads CSV rows as HashMaps (header -> value).
+public class DictReader {
+    public ArrayList<string> fieldnames;
+    public string delimiter;
+    public string quote;
+    private ArrayList<ArrayList<string>> _rows;
+    private int _pos;
+
+    public fn init(input: string, fieldnames: ArrayList<string>, delimiter: string, quote: string) {
+        this.delimiter = delimiter;
+        this.quote = quote;
+        this._pos = 0;
+        let reader: CsvReader = new CsvReader();
+        reader.setDelimiter(delimiter);
+        reader.setQuote(quote);
+        reader.setHasHeader(fieldnames == null);
+        if (fieldnames != null) {
+            this.fieldnames = fieldnames;
+            this._rows = reader.parse(input);
+        } else {
+            let allRows: ArrayList<ArrayList<string>> = reader.parse(input);
+            if (allRows.size() > 0) {
+                this.fieldnames = allRows.get(0);
+            } else {
+                this.fieldnames = new ArrayList<string>();
+            }
+            this._rows = new ArrayList<ArrayList<string>>();
+            let i: int = 1;
+            while (i < allRows.size()) {
+                this._rows.add(allRows.get(i));
+                i = i + 1;
+            }
+        }
+    }
+
+    public fn init(input: string, fieldnames: ArrayList<string>) {
+        this.init(input, fieldnames, ",", "\"");
+    }
+
+    public fn init(input: string) {
+        this.init(input, null, ",", "\"");
+    }
+
+    // Read next row as HashMap, returns null when exhausted
+    public fn readRow(): HashMap<string, string> {
+        if (this._pos >= this._rows.size()) {
+            return null;
+        }
+        let row: ArrayList<string> = this._rows.get(this._pos);
+        this._pos = this._pos + 1;
+        let map: HashMap<string, string> = new HashMap<string, string>();
+        let col: int = 0;
+        while (col < this.fieldnames.size()) {
+            let val: string = "";
+            if (col < row.size()) {
+                val = row.get(col);
+            }
+            map.put(this.fieldnames.get(col), val);
+            col = col + 1;
+        }
+        return map;
+    }
+
+    // Read all remaining rows as ArrayList of HashMaps
+    public fn readAll(): ArrayList<HashMap<string, string>> {
+        let result: ArrayList<HashMap<string, string>> = new ArrayList<HashMap<string, string>>();
+        var row: HashMap<string, string> = this.readRow();
+        while (row != null) {
+            result.add(row);
+            row = this.readRow();
+        }
+        return result;
+    }
+
+    // Reset reader to beginning of data
+    public fn reset(): void {
+        this._pos = 0;
+    }
+}
+
+// Dialect describes CSV formatting parameters.
+public class Dialect {
+    public string delimiter;
+    public string quoteChar;
+    public bool hasHeader;
+
+    public fn init(delimiter: string, quoteChar: string, hasHeader: bool) {
+        this.delimiter = delimiter;
+        this.quoteChar = quoteChar;
+        this.hasHeader = hasHeader;
+    }
+
+    public fn init() {
+        this.init(",", "\"", true);
+    }
+}
+
+// Sniffer auto-detects CSV dialect from a sample.
+public class Sniffer {
+
+    public fn init() {}
+
+    // Analyze a sample of CSV data to detect delimiter, quote char, and header presence
+    public fn sniff(sample: string): Dialect {
+        let delimiters: string = ",\t;|";
+        let bestDelimiter: string = ",";
+        let bestScore: int = -1;
+        let d: int = 0;
+        while (d < String.length(delimiters)) {
+            let delim: string = String.charAt(delimiters, d);
+            let score: int = this._countConsistent(sample, delim);
+            if (score > bestScore) {
+                bestScore = score;
+                bestDelimiter = delim;
+            }
+            d = d + 1;
+        }
+        // Detect quote character
+        let quoteChar: string = this._detectQuoteChar(sample);
+        // Detect header: if first row has no numeric values, assume header
+        let hasHeader: bool = this._detectHeader(sample, bestDelimiter);
+        return new Dialect(bestDelimiter, quoteChar, hasHeader);
+    }
+
+    // Count how consistently a delimiter appears per line
+    private fn _countConsistent(sample: string, delim: string): int {
+        let lines: int = 0;
+        let counts: ArrayList<int> = new ArrayList<int>();
+        let pos: int = 0;
+        let len: int = String.length(sample);
+        let inQuote: bool = false;
+        let count: int = 0;
+        while (pos < len) {
+            let c: string = String.charAt(sample, pos);
+            if (c == "\"") {
+                inQuote = !inQuote;
+            } else if (!inQuote && c == "\n") {
+                counts.add(count);
+                lines = lines + 1;
+                count = 0;
+            } else if (!inQuote && c == delim) {
+                count = count + 1;
+            } else if (!inQuote && c == "\r") {
+                // skip
+            }
+            pos = pos + 1;
+        }
+        if (count > 0 || lines == 0) {
+            counts.add(count);
+            lines = lines + 1;
+        }
+        if (lines <= 1) {
+            return counts.size() > 0 ? counts.get(0) : 0;
+        }
+        // Score: consistency = how many lines have the same count
+        let firstCount: int = counts.get(0);
+        let consistent: int = 0;
+        let i: int = 0;
+        while (i < counts.size()) {
+            if (counts.get(i) == firstCount && firstCount > 0) {
+                consistent = consistent + 1;
+            }
+            i = i + 1;
+        }
+        return consistent * (firstCount + 1);
+    }
+
+    // Detect the most common quote character
+    private fn _detectQuoteChar(sample: string): string {
+        let doubleQuotes: int = 0;
+        let singleQuotes: int = 0;
+        let pos: int = 0;
+        let len: int = String.length(sample);
+        while (pos < len) {
+            let c: string = String.charAt(sample, pos);
+            if (c == "\"") {
+                doubleQuotes = doubleQuotes + 1;
+            } else if (c == "'") {
+                singleQuotes = singleQuotes + 1;
+            }
+            pos = pos + 1;
+        }
+        if (doubleQuotes >= singleQuotes) {
+            return "\"";
+        }
+        return "'";
+    }
+
+    // Detect if first row looks like a header (non-numeric values)
+    private fn _detectHeader(sample: string, delim: string): bool {
+        let firstLine: string = "";
+        let pos: int = 0;
+        let len: int = String.length(sample);
+        while (pos < len) {
+            let c: string = String.charAt(sample, pos);
+            if (c == "\n" || c == "\r") {
+                break;
+            }
+            firstLine = firstLine + c;
+            pos = pos + 1;
+        }
+        if (String.length(firstLine) == 0) {
+            return true;
+        }
+        // Check if all fields in first line are non-numeric
+        let fields: ArrayList<string> = this._splitLine(firstLine, delim);
+        let nonNumeric: int = 0;
+        let i: int = 0;
+        while (i < fields.size()) {
+            let f: string = fields.get(i);
+            if (String.length(f) > 0 && !this._isNumeric(f)) {
+                nonNumeric = nonNumeric + 1;
+            }
+            i = i + 1;
+        }
+        return nonNumeric > 0;
+    }
+
+    private fn _splitLine(line: string, delim: string): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let current: string = "";
+        let pos: int = 0;
+        let len: int = String.length(line);
+        while (pos < len) {
+            let c: string = String.charAt(line, pos);
+            if (c == delim) {
+                result.add(current);
+                current = "";
+            } else {
+                current = current + c;
+            }
+            pos = pos + 1;
+        }
+        result.add(current);
+        return result;
+    }
+
+    private fn _isNumeric(s: string): bool {
+        if (String.length(s) == 0) {
+            return false;
+        }
+        let pos: int = 0;
+        let len: int = String.length(s);
+        let hasDigit: bool = false;
+        while (pos < len) {
+            let c: string = String.charAt(s, pos);
+            if (c >= "0" && c <= "9") {
+                hasDigit = true;
+            } else if (c != "." && c != "-" && c != "+" && c != "e" && c != "E") {
+                return false;
+            }
+            pos = pos + 1;
+        }
+        return hasDigit;
+    }
+}
