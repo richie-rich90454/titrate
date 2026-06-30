@@ -1,0 +1,149 @@
+// Test file for SetAlgo.tr
+import tt::algo::SetAlgo;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::String;
+
+fn makeList(s: string): ArrayList<double> {
+    let list: ArrayList<double> = new ArrayList<double>();
+    let parts: ArrayList<string> = String.split(s, ",");
+    var i: int = 0;
+    while (i < parts.size()) {
+        list.add(Double.parseDouble(parts.get(i)));
+        i = i + 1;
+    }
+    return list;
+}
+
+public fn test_set_union(): void {
+    let a: ArrayList<double> = makeList("1,2,3");
+    let b: ArrayList<double> = makeList("3,4,5");
+    let result: ArrayList<double> = setUnion(a, b);
+    if (result.size() == 5) {
+        io::println("PASS: setUnion works");
+    } else {
+        io::println("FAIL: setUnion size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_set_union_disjoint(): void {
+    let a: ArrayList<double> = makeList("1,2");
+    let b: ArrayList<double> = makeList("3,4");
+    let result: ArrayList<double> = setUnion(a, b);
+    if (result.size() == 4) {
+        io::println("PASS: setUnion disjoint works");
+    } else {
+        io::println("FAIL: setUnion disjoint size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_set_union_empty(): void {
+    let a: ArrayList<double> = new ArrayList<double>();
+    let b: ArrayList<double> = makeList("1,2");
+    let result: ArrayList<double> = setUnion(a, b);
+    if (result.size() == 2) {
+        io::println("PASS: setUnion empty works");
+    } else {
+        io::println("FAIL: setUnion empty size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_set_intersection(): void {
+    let a: ArrayList<double> = makeList("1,2,3,4");
+    let b: ArrayList<double> = makeList("3,4,5,6");
+    let result: ArrayList<double> = setIntersection(a, b);
+    if (result.size() == 2) {
+        io::println("PASS: setIntersection works");
+    } else {
+        io::println("FAIL: setIntersection size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_set_intersection_disjoint(): void {
+    let a: ArrayList<double> = makeList("1,2");
+    let b: ArrayList<double> = makeList("3,4");
+    let result: ArrayList<double> = setIntersection(a, b);
+    if (result.size() == 0) {
+        io::println("PASS: setIntersection disjoint works");
+    } else {
+        io::println("FAIL: setIntersection disjoint size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_set_difference(): void {
+    let a: ArrayList<double> = makeList("1,2,3,4");
+    let b: ArrayList<double> = makeList("3,4,5");
+    let result: ArrayList<double> = setDifference(a, b);
+    if (result.size() == 2) {
+        io::println("PASS: setDifference works");
+    } else {
+        io::println("FAIL: setDifference size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_set_symmetric_difference(): void {
+    let a: ArrayList<double> = makeList("1,2,3");
+    let b: ArrayList<double> = makeList("3,4,5");
+    let result: ArrayList<double> = setSymmetricDifference(a, b);
+    if (result.size() == 4) {
+        io::println("PASS: setSymmetricDifference works");
+    } else {
+        io::println("FAIL: setSymmetricDifference size=" + Integer.toString(result.size()));
+    }
+}
+
+public fn test_includes(): void {
+    let a: ArrayList<double> = makeList("1,2,3,4,5");
+    let b: ArrayList<double> = makeList("2,4");
+    if (includes(a, b)) {
+        io::println("PASS: includes works");
+    } else {
+        io::println("FAIL: includes should be true");
+    }
+}
+
+public fn test_includes_false(): void {
+    let a: ArrayList<double> = makeList("1,2,3");
+    let b: ArrayList<double> = makeList("4,5");
+    if (!includes(a, b)) {
+        io::println("PASS: includes false works");
+    } else {
+        io::println("FAIL: includes should be false");
+    }
+}
+
+public fn test_nth_element(): void {
+    let data: ArrayList<double> = makeList("3,1,4,1,5,9,2,6");
+    let result: double = nthElement(data, 0);
+    if (result == 1.0) {
+        io::println("PASS: nthElement works");
+    } else {
+        io::println("FAIL: nthElement(0)=" + Double.toString(result));
+    }
+}
+
+public fn test_nth_element_median(): void {
+    let data: ArrayList<double> = makeList("5,3,1,4,2");
+    let result: double = nthElement(data, 2);
+    if (result == 3.0) {
+        io::println("PASS: nthElement median works");
+    } else {
+        io::println("FAIL: nthElement(2)=" + Double.toString(result));
+    }
+}
+
+public fn run_all_setalgo_tests(): void {
+    io::println("=== SetAlgo.tr Tests ===");
+    test_set_union();
+    test_set_union_disjoint();
+    test_set_union_empty();
+    test_set_intersection();
+    test_set_intersection_disjoint();
+    test_set_difference();
+    test_set_symmetric_difference();
+    test_includes();
+    test_includes_false();
+    test_nth_element();
+    test_nth_element_median();
+}

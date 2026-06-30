@@ -1,0 +1,171 @@
+// Test file for assay/TestRunner.tr
+// Exercises the public API: TestRunner class with addSuite, runAll,
+// filterByName, exitCode, listTests, runSingle, discoverAndRun.
+import tt::assay::Assay;
+import tt::assay::TestRunner;
+import tt::lang::Integer;
+
+public fn test_testrunner_init(): void {
+    let runner: TestRunner = new TestRunner();
+    if (runner.suites.size() != 0) {
+        io::println("FAIL: TestRunner.init suites not empty");
+    } else {
+        io::println("PASS: TestRunner.init works");
+    }
+}
+
+public fn test_testrunner_addSuite(): void {
+    let runner: TestRunner = new TestRunner();
+    let suite: TestSuite = new TestSuite("S1");
+    runner.addSuite(suite);
+    if (runner.suites.size() != 1) {
+        io::println("FAIL: TestRunner.addSuite size=" + Integer.toString(runner.suites.size()));
+    } else {
+        io::println("PASS: TestRunner.addSuite works");
+    }
+}
+
+public fn test_testrunner_addSuite_multiple(): void {
+    let runner: TestRunner = new TestRunner();
+    runner.addSuite(new TestSuite("S1"));
+    runner.addSuite(new TestSuite("S2"));
+    runner.addSuite(new TestSuite("S3"));
+    if (runner.suites.size() != 3) {
+        io::println("FAIL: TestRunner.addSuite multiple size=" + Integer.toString(runner.suites.size()));
+    } else {
+        io::println("PASS: TestRunner.addSuite multiple works");
+    }
+}
+
+public fn test_testrunner_exitCode_initial(): void {
+    let runner: TestRunner = new TestRunner();
+    // Before runAll, totalFailed is 0, so exitCode should be 0
+    if (runner.exitCode() != 0) {
+        io::println("FAIL: TestRunner.exitCode initial not 0");
+    } else {
+        io::println("PASS: TestRunner.exitCode initial works");
+    }
+}
+
+public fn test_testrunner_runAll_no_crash(): void {
+    let runner: TestRunner = new TestRunner();
+    let suite: TestSuite = new TestSuite("S1");
+    suite.addTest("passing", fn(): void { });
+    runner.addSuite(suite);
+    runner.runAll();
+    // If we get here without throwing, the test passes
+    io::println("PASS: TestRunner.runAll does not crash");
+}
+
+public fn test_testrunner_runAll_exitCode_zero(): void {
+    let runner: TestRunner = new TestRunner();
+    let suite: TestSuite = new TestSuite("S1");
+    suite.addTest("passing", fn(): void { });
+    runner.addSuite(suite);
+    runner.runAll();
+    if (runner.exitCode() != 0) {
+        io::println("FAIL: TestRunner.runAll exitCode should be 0 when all pass");
+    } else {
+        io::println("PASS: TestRunner.runAll exitCode 0 when all pass");
+    }
+}
+
+public fn test_testrunner_listTests_no_crash(): void {
+    let runner: TestRunner = new TestRunner();
+    let suite: TestSuite = new TestSuite("S1");
+    suite.addTest("testA", fn(): void { });
+    suite.addTest("testB", fn(): void { });
+    runner.addSuite(suite);
+    runner.listTests();
+    io::println("PASS: TestRunner.listTests does not crash");
+}
+
+public fn test_testrunner_runSingle_found(): void {
+    let runner: TestRunner = new TestRunner();
+    let suite: TestSuite = new TestSuite("S1");
+    var counter: int = 0;
+    suite.addTest("myTest", fn(): void { counter = 7; });
+    runner.addSuite(suite);
+    runner.runSingle("myTest");
+    if (counter != 7) {
+        io::println("FAIL: TestRunner.runSingle did not execute the test");
+    } else {
+        io::println("PASS: TestRunner.runSingle executes the test");
+    }
+}
+
+public fn test_testrunner_runSingle_not_found(): void {
+    let runner: TestRunner = new TestRunner();
+    let suite: TestSuite = new TestSuite("S1");
+    suite.addTest("realTest", fn(): void { });
+    runner.addSuite(suite);
+    // Running a non-existent test should not crash
+    runner.runSingle("nonexistent");
+    io::println("PASS: TestRunner.runSingle handles missing test");
+}
+
+public fn test_testrunner_filterByName(): void {
+    let runner: TestRunner = new TestRunner();
+    runner.addSuite(new TestSuite("AlphaSuite"));
+    runner.addSuite(new TestSuite("BetaSuite"));
+    runner.addSuite(new TestSuite("AlphaOther"));
+    runner.filterByName("Alpha");
+    if (runner.suites.size() != 2) {
+        io::println("FAIL: TestRunner.filterByName size=" + Integer.toString(runner.suites.size()) + " expected 2");
+    } else {
+        io::println("PASS: TestRunner.filterByName works");
+    }
+}
+
+public fn test_testrunner_filterByName_no_match(): void {
+    let runner: TestRunner = new TestRunner();
+    runner.addSuite(new TestSuite("AlphaSuite"));
+    runner.filterByName("Zeta");
+    if (runner.suites.size() != 0) {
+        io::println("FAIL: TestRunner.filterByName no match size=" + Integer.toString(runner.suites.size()));
+    } else {
+        io::println("PASS: TestRunner.filterByName no match works");
+    }
+}
+
+public fn test_testrunner_discoverAndRun_no_crash(): void {
+    // discoverAndRun scans the filesystem; using a non-existent pattern should
+    // not crash and should still run registered suites.
+    let runner: TestRunner = new TestRunner();
+    let suite: TestSuite = new TestSuite("S1");
+    suite.addTest("passing", fn(): void { });
+    runner.addSuite(suite);
+    runner.discoverAndRun("nonexistent_dir/**/*.tr");
+    io::println("PASS: TestRunner.discoverAndRun does not crash");
+}
+
+public fn test_testrunner_runAll_with_failure_exitCode(): void {
+    // After runAll with a failing assertion, exitCode should be non-zero.
+    let runner: TestRunner = new TestRunner();
+    let suite: TestSuite = new TestSuite("S1");
+    suite.addTest("failing", fn(): void { suite.fail("forced"); });
+    runner.addSuite(suite);
+    runner.runAll();
+    if (runner.exitCode() != 1) {
+        io::println("FAIL: TestRunner.runAll exitCode should be 1 on failure");
+    } else {
+        io::println("PASS: TestRunner.runAll exitCode 1 on failure");
+    }
+}
+
+public fn run_all_testrunner_tests(): void {
+    io::println("=== TestRunner.tr Tests ===");
+    test_testrunner_init();
+    test_testrunner_addSuite();
+    test_testrunner_addSuite_multiple();
+    test_testrunner_exitCode_initial();
+    test_testrunner_runAll_no_crash();
+    test_testrunner_runAll_exitCode_zero();
+    test_testrunner_listTests_no_crash();
+    test_testrunner_runSingle_found();
+    test_testrunner_runSingle_not_found();
+    test_testrunner_filterByName();
+    test_testrunner_filterByName_no_match();
+    test_testrunner_discoverAndRun_no_crash();
+    test_testrunner_runAll_with_failure_exitCode();
+}

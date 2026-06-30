@@ -1,0 +1,290 @@
+// Test file for audio/AudioBuffer.tr
+// Exercises the public API: AudioBuffer class with sample operations.
+import tt::audio::AudioBuffer;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_audiobuffer_init(): void {
+    let buf: AudioBuffer = new AudioBuffer(44100, 2);
+    if (buf.sampleRate != 44100 || buf.channels != 2) {
+        io::println("FAIL: AudioBuffer.init fields wrong");
+    } else {
+        io::println("PASS: AudioBuffer.init works");
+    }
+}
+
+public fn test_audiobuffer_init_mono(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    if (buf.sampleRate != 8000 || buf.channels != 1) {
+        io::println("FAIL: AudioBuffer.init mono wrong");
+    } else {
+        io::println("PASS: AudioBuffer.init mono works");
+    }
+}
+
+public fn test_audiobuffer_numFrames_empty(): void {
+    let buf: AudioBuffer = new AudioBuffer(44100, 2);
+    if (buf.numFrames() != 0) {
+        io::println("FAIL: AudioBuffer.numFrames empty=" + Integer.toString(buf.numFrames()));
+    } else {
+        io::println("PASS: AudioBuffer.numFrames empty works");
+    }
+}
+
+public fn test_audiobuffer_addFrame(): void {
+    let buf: AudioBuffer = new AudioBuffer(44100, 2);
+    let frame: ArrayList<double> = new ArrayList<double>();
+    frame.add(0.5);
+    frame.add(-0.5);
+    buf.addFrame(frame);
+    if (buf.numFrames() != 1) {
+        io::println("FAIL: AudioBuffer.addFrame numFrames=" + Integer.toString(buf.numFrames()));
+    } else {
+        io::println("PASS: AudioBuffer.addFrame works");
+    }
+}
+
+public fn test_audiobuffer_addFrame_multiple(): void {
+    let buf: AudioBuffer = new AudioBuffer(44100, 1);
+    var i: int = 0;
+    while (i < 5) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(i as double);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    if (buf.numFrames() != 5) {
+        io::println("FAIL: AudioBuffer.addFrame multiple numFrames=" + Integer.toString(buf.numFrames()));
+    } else {
+        io::println("PASS: AudioBuffer.addFrame multiple works");
+    }
+}
+
+public fn test_audiobuffer_getSample(): void {
+    let buf: AudioBuffer = new AudioBuffer(44100, 1);
+    let frame: ArrayList<double> = new ArrayList<double>();
+    frame.add(0.25);
+    buf.addFrame(frame);
+    let s: double = buf.getSample(0, 0);
+    if (s != 0.25) {
+        io::println("FAIL: AudioBuffer.getSample=" + Double.toString(s));
+    } else {
+        io::println("PASS: AudioBuffer.getSample works");
+    }
+}
+
+public fn test_audiobuffer_getSample_out_of_bounds(): void {
+    let buf: AudioBuffer = new AudioBuffer(44100, 1);
+    // Out-of-bounds access should return 0.0 (graceful handling)
+    let s: double = buf.getSample(0, 0);
+    let s2: double = buf.getSample(5, 5);
+    if (s != 0.0 || s2 != 0.0) {
+        io::println("FAIL: AudioBuffer.getSample out of bounds should be 0");
+    } else {
+        io::println("PASS: AudioBuffer.getSample out of bounds works");
+    }
+}
+
+public fn test_audiobuffer_setSample(): void {
+    let buf: AudioBuffer = new AudioBuffer(44100, 1);
+    let frame: ArrayList<double> = new ArrayList<double>();
+    frame.add(0.0);
+    buf.addFrame(frame);
+    buf.setSample(0, 0, 0.75);
+    if (buf.getSample(0, 0) != 0.75) {
+        io::println("FAIL: AudioBuffer.setSample not applied");
+    } else {
+        io::println("PASS: AudioBuffer.setSample works");
+    }
+}
+
+public fn test_audiobuffer_duration(): void {
+    // 44100 Hz sample rate, 44100 frames => 1.0 second
+    let buf: AudioBuffer = new AudioBuffer(44100, 1);
+    var i: int = 0;
+    while (i < 44100) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let d: double = buf.duration();
+    if (d != 1.0) {
+        io::println("FAIL: AudioBuffer.duration=" + Double.toString(d) + " expected 1.0");
+    } else {
+        io::println("PASS: AudioBuffer.duration works");
+    }
+}
+
+public fn test_audiobuffer_duration_empty(): void {
+    let buf: AudioBuffer = new AudioBuffer(44100, 1);
+    if (buf.duration() != 0.0) {
+        io::println("FAIL: AudioBuffer.duration empty should be 0");
+    } else {
+        io::println("PASS: AudioBuffer.duration empty works");
+    }
+}
+
+public fn test_audiobuffer_normalize(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    let frame: ArrayList<double> = new ArrayList<double>();
+    frame.add(2.0);
+    buf.addFrame(frame);
+    buf.normalize();
+    // After normalize, max abs sample should be 1.0
+    let s: double = buf.getSample(0, 0);
+    if (s != 1.0) {
+        io::println("FAIL: AudioBuffer.normalize sample=" + Double.toString(s) + " expected 1.0");
+    } else {
+        io::println("PASS: AudioBuffer.normalize works");
+    }
+}
+
+public fn test_audiobuffer_normalize_negative(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    let frame: ArrayList<double> = new ArrayList<double>();
+    frame.add(-4.0);
+    buf.addFrame(frame);
+    buf.normalize();
+    let s: double = buf.getSample(0, 0);
+    if (s != -1.0) {
+        io::println("FAIL: AudioBuffer.normalize negative sample=" + Double.toString(s));
+    } else {
+        io::println("PASS: AudioBuffer.normalize negative works");
+    }
+}
+
+public fn test_audiobuffer_normalize_zero(): void {
+    // Normalizing a buffer of zeros should not crash and remain zero
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    let frame: ArrayList<double> = new ArrayList<double>();
+    frame.add(0.0);
+    buf.addFrame(frame);
+    buf.normalize();
+    if (buf.getSample(0, 0) != 0.0) {
+        io::println("FAIL: AudioBuffer.normalize zero changed sample");
+    } else {
+        io::println("PASS: AudioBuffer.normalize zero works");
+    }
+}
+
+public fn test_audiobuffer_splice(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 5) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(i as double);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    // Splice frames [1, 3)
+    let sub: AudioBuffer = buf.splice(1, 3);
+    if (sub.numFrames() != 2) {
+        io::println("FAIL: AudioBuffer.splice numFrames=" + Integer.toString(sub.numFrames()));
+    } else if (sub.getSample(0, 0) != 1.0 || sub.getSample(0, 1) != 2.0) {
+        io::println("FAIL: AudioBuffer.splice values wrong");
+    } else {
+        io::println("PASS: AudioBuffer.splice works");
+    }
+}
+
+public fn test_audiobuffer_reversed(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 3) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(i as double);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let rev: AudioBuffer = buf.reversed();
+    // Original was [0, 1, 2]; reversed should be [2, 1, 0]
+    if (rev.numFrames() != 3) {
+        io::println("FAIL: AudioBuffer.reversed numFrames=" + Integer.toString(rev.numFrames()));
+    } else if (rev.getSample(0, 0) != 2.0 || rev.getSample(0, 2) != 0.0) {
+        io::println("FAIL: AudioBuffer.reversed values wrong");
+    } else {
+        io::println("PASS: AudioBuffer.reversed works");
+    }
+}
+
+public fn test_audiobuffer_mix(): void {
+    let a: AudioBuffer = new AudioBuffer(8000, 1);
+    let fa: ArrayList<double> = new ArrayList<double>();
+    fa.add(1.0);
+    a.addFrame(fa);
+    let b: AudioBuffer = new AudioBuffer(8000, 1);
+    let fb: ArrayList<double> = new ArrayList<double>();
+    fb.add(0.5);
+    b.addFrame(fb);
+    let mixed: AudioBuffer = a.mix(b);
+    // mix averages: (1.0 + 0.5) / 2 = 0.75
+    let s: double = mixed.getSample(0, 0);
+    if (s != 0.75) {
+        io::println("FAIL: AudioBuffer.mix sample=" + Double.toString(s) + " expected 0.75");
+    } else {
+        io::println("PASS: AudioBuffer.mix works");
+    }
+}
+
+public fn test_audiobuffer_fadeIn(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 10) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(1.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    // Fade in over a short duration; should not crash and should reduce first sample
+    buf.fadeIn(0.0001);
+    // After fade-in, first sample should be near zero
+    let s: double = buf.getSample(0, 0);
+    if (s > 0.5) {
+        io::println("FAIL: AudioBuffer.fadeIn did not reduce first sample s=" + Double.toString(s));
+    } else {
+        io::println("PASS: AudioBuffer.fadeIn works");
+    }
+}
+
+public fn test_audiobuffer_fadeOut(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 10) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(1.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    buf.fadeOut(0.0001);
+    // After fade-out, last sample should be near zero
+    let s: double = buf.getSample(0, 9);
+    if (s > 0.5) {
+        io::println("FAIL: AudioBuffer.fadeOut did not reduce last sample s=" + Double.toString(s));
+    } else {
+        io::println("PASS: AudioBuffer.fadeOut works");
+    }
+}
+
+public fn run_all_audiobuffer_tests(): void {
+    io::println("=== AudioBuffer.tr Tests ===");
+    test_audiobuffer_init();
+    test_audiobuffer_init_mono();
+    test_audiobuffer_numFrames_empty();
+    test_audiobuffer_addFrame();
+    test_audiobuffer_addFrame_multiple();
+    test_audiobuffer_getSample();
+    test_audiobuffer_getSample_out_of_bounds();
+    test_audiobuffer_setSample();
+    test_audiobuffer_duration();
+    test_audiobuffer_duration_empty();
+    test_audiobuffer_normalize();
+    test_audiobuffer_normalize_negative();
+    test_audiobuffer_normalize_zero();
+    test_audiobuffer_splice();
+    test_audiobuffer_reversed();
+    test_audiobuffer_mix();
+    test_audiobuffer_fadeIn();
+    test_audiobuffer_fadeOut();
+}

@@ -1,0 +1,83 @@
+// Test file for audio/WavReader.tr
+// Exercises the public API: WavInfo class, readHeader, readWav.
+//
+// NOTE: readHeader and readWav require an existing WAV file on disk. We test
+// the WavInfo class and the graceful handling of missing/invalid files here.
+// End-to-end read tests are covered by test_wavwriter.tr which writes a file
+// then reads it back.
+import tt::audio::WavReader;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Variant;
+
+public fn test_wavinfo_init(): void {
+    let info: WavInfo = new WavInfo(44100, 2, 16, 1000);
+    if (info.sampleRate != 44100) {
+        io::println("FAIL: WavInfo.sampleRate wrong");
+    } else if (info.channels != 2) {
+        io::println("FAIL: WavInfo.channels wrong");
+    } else if (info.bitsPerSample != 16) {
+        io::println("FAIL: WavInfo.bitsPerSample wrong");
+    } else if (info.numFrames != 1000) {
+        io::println("FAIL: WavInfo.numFrames wrong");
+    } else {
+        io::println("PASS: WavInfo.init works");
+    }
+}
+
+public fn test_wavinfo_mono(): void {
+    let info: WavInfo = new WavInfo(8000, 1, 8, 100);
+    if (info.channels != 1 || info.bitsPerSample != 8) {
+        io::println("FAIL: WavInfo mono wrong");
+    } else {
+        io::println("PASS: WavInfo mono works");
+    }
+}
+
+public fn test_wavinfo_default_fields(): void {
+    let info: WavInfo = new WavInfo(22050, 1, 16, 0);
+    if (info.numFrames != 0) {
+        io::println("FAIL: WavInfo numFrames should be 0");
+    } else {
+        io::println("PASS: WavInfo default numFrames works");
+    }
+}
+
+public fn test_readHeader_missing_file(): void {
+    // Reading a non-existent file should not crash; returns empty map.
+    let result: HashMap<string, Variant> = readHeader("nonexistent_wav_file_for_test.wav");
+    if (result.size() != 0) {
+        io::println("FAIL: readHeader missing file size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: readHeader missing file works");
+    }
+}
+
+public fn test_readWav_missing_file(): void {
+    // Reading a non-existent file returns an empty default AudioBuffer (44100 Hz, 1 ch).
+    let buf: AudioBuffer = readWav("nonexistent_wav_file_for_test.wav");
+    if (buf.sampleRate != 44100 || buf.channels != 1) {
+        io::println("FAIL: readWav missing file default wrong");
+    } else {
+        io::println("PASS: readWav missing file works");
+    }
+}
+
+public fn test_readWav_missing_file_empty(): void {
+    let buf: AudioBuffer = readWav("nonexistent_wav_file_for_test.wav");
+    if (buf.numFrames() != 0) {
+        io::println("FAIL: readWav missing file should have 0 frames");
+    } else {
+        io::println("PASS: readWav missing file empty works");
+    }
+}
+
+public fn run_all_wavreader_tests(): void {
+    io::println("=== WavReader.tr Tests ===");
+    test_wavinfo_init();
+    test_wavinfo_mono();
+    test_wavinfo_default_fields();
+    test_readHeader_missing_file();
+    test_readWav_missing_file();
+    test_readWav_missing_file_empty();
+}

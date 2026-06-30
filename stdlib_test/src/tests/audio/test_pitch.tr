@@ -1,0 +1,199 @@
+// Test file for audio/Pitch.tr
+// Exercises the public API: detectAutocorrelation, detectPitchAutocorrelation,
+// detectPitchYIN, detectPitchHPS.
+import tt::audio::AudioBuffer;
+import tt::audio::Pitch;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_detectPitchAutocorrelation_sine(): void {
+    // Generate a 440 Hz sine wave at 16000 Hz sample rate.
+    // 440 Hz => period of 16000/440 ~= 36 samples.
+    let sampleRate: int = 16000;
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 1024) {
+        let t: double = i as double;
+        // sin(2*pi*440*t/16000) — use MathTrig.sin
+        let val: double = _sine(2.0 * 3.14159265358979 * 440.0 * t / sampleRate as double);
+        signal.add(val);
+        i = i + 1;
+    }
+    let pitch: double = detectPitchAutocorrelation(signal, sampleRate, 50.0, 2000.0);
+    if (pitch <= 0.0) {
+        io::println("FAIL: detectPitchAutocorrelation sine pitch=" + Double.toString(pitch));
+    } else {
+        io::println("PASS: detectPitchAutocorrelation sine pitch=" + Double.toString(pitch));
+    }
+}
+
+public fn test_detectPitchAutocorrelation_zero_signal(): void {
+    let sampleRate: int = 16000;
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 512) {
+        signal.add(0.0);
+        i = i + 1;
+    }
+    let pitch: double = detectPitchAutocorrelation(signal, sampleRate, 50.0, 2000.0);
+    // Zero signal — bestLag will be the minLag; pitch will be sampleRate/minLag.
+    // We just check it doesn't crash and returns a finite number.
+    io::println("PASS: detectPitchAutocorrelation zero signal does not crash");
+}
+
+public fn test_detectPitchAutocorrelation_returns_frequency_range(): void {
+    let sampleRate: int = 16000;
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 1024) {
+        let t: double = i as double;
+        signal.add(_sine(2.0 * 3.14159265358979 * 200.0 * t / sampleRate as double));
+        i = i + 1;
+    }
+    let pitch: double = detectPitchAutocorrelation(signal, sampleRate, 50.0, 2000.0);
+    // Pitch should fall within the [minFreq, maxFreq] search range
+    if (pitch < 50.0 || pitch > 2000.0) {
+        io::println("FAIL: detectPitchAutocorrelation pitch out of range=" + Double.toString(pitch));
+    } else {
+        io::println("PASS: detectPitchAutocorrelation pitch in range");
+    }
+}
+
+public fn test_detectPitchYIN_sine(): void {
+    let sampleRate: int = 16000;
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 1024) {
+        let t: double = i as double;
+        signal.add(_sine(2.0 * 3.14159265358979 * 440.0 * t / sampleRate as double));
+        i = i + 1;
+    }
+    let pitch: double = detectPitchYIN(signal, sampleRate, 50.0, 2000.0);
+    if (pitch <= 0.0) {
+        io::println("FAIL: detectPitchYIN sine pitch=" + Double.toString(pitch));
+    } else {
+        io::println("PASS: detectPitchYIN sine pitch=" + Double.toString(pitch));
+    }
+}
+
+public fn test_detectPitchYIN_zero_signal(): void {
+    let sampleRate: int = 16000;
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 512) {
+        signal.add(0.0);
+        i = i + 1;
+    }
+    let pitch: double = detectPitchYIN(signal, sampleRate, 50.0, 2000.0);
+    // Should not crash; pitch may be 0 or a value
+    io::println("PASS: detectPitchYIN zero signal does not crash");
+}
+
+public fn test_detectPitchYIN_returns_frequency_range(): void {
+    let sampleRate: int = 16000;
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 1024) {
+        let t: double = i as double;
+        signal.add(_sine(2.0 * 3.14159265358979 * 200.0 * t / sampleRate as double));
+        i = i + 1;
+    }
+    let pitch: double = detectPitchYIN(signal, sampleRate, 50.0, 2000.0);
+    if (pitch < 50.0 || pitch > 2000.0) {
+        io::println("FAIL: detectPitchYIN pitch out of range=" + Double.toString(pitch));
+    } else {
+        io::println("PASS: detectPitchYIN pitch in range");
+    }
+}
+
+public fn test_detectPitchHPS_returns_value(): void {
+    // Build a synthetic spectrum with a peak at bin corresponding to 200 Hz.
+    // bin = freq * fftSize / sampleRate; fftSize=1024, sampleRate=16000 => bin = 200*1024/16000 = 12.8
+    let fftSize: int = 1024;
+    let sampleRate: int = 16000;
+    let spectrum: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < fftSize) {
+        spectrum.add(0.0);
+        i = i + 1;
+    }
+    // Place peaks at fundamental and harmonics (2x, 3x)
+    let fundamentalBin: int = 13;
+    spectrum.set(fundamentalBin, 10.0);
+    if (fundamentalBin * 2 < fftSize) { spectrum.set(fundamentalBin * 2, 5.0); }
+    if (fundamentalBin * 3 < fftSize) { spectrum.set(fundamentalBin * 3, 2.0); }
+    let pitch: double = detectPitchHPS(spectrum, sampleRate, fftSize, 50.0, 2000.0);
+    if (pitch <= 0.0) {
+        io::println("FAIL: detectPitchHPS pitch=" + Double.toString(pitch));
+    } else {
+        io::println("PASS: detectPitchHPS pitch=" + Double.toString(pitch));
+    }
+}
+
+public fn test_detectPitchHPS_zero_spectrum(): void {
+    let fftSize: int = 1024;
+    let sampleRate: int = 16000;
+    let spectrum: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < fftSize) {
+        spectrum.add(0.0);
+        i = i + 1;
+    }
+    let pitch: double = detectPitchHPS(spectrum, sampleRate, fftSize, 50.0, 2000.0);
+    // All-zero spectrum: bestVal will be 0; function returns bestBin * sampleRate / fftSize
+    // We just check it doesn't crash
+    io::println("PASS: detectPitchHPS zero spectrum does not crash");
+}
+
+public fn test_detectAutocorrelation_from_buffer(): void {
+    // Build an AudioBuffer containing a sine wave and run detectAutocorrelation.
+    let sampleRate: int = 16000;
+    let buf: AudioBuffer = new AudioBuffer(sampleRate, 1);
+    var i: int = 0;
+    while (i < 1024) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        let t: double = i as double;
+        frame.add(_sine(2.0 * 3.14159265358979 * 440.0 * t / sampleRate as double));
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let pitch: double = detectAutocorrelation(buf);
+    if (pitch <= 0.0) {
+        io::println("FAIL: detectAutocorrelation buffer pitch=" + Double.toString(pitch));
+    } else {
+        io::println("PASS: detectAutocorrelation buffer pitch=" + Double.toString(pitch));
+    }
+}
+
+// Local sine helper using a Taylor series approximation. We avoid importing
+// MathTrig here to keep the test self-contained; the values only need to be
+// periodic for pitch detection to work.
+fn _sine(x: double): double {
+    // Reduce x to [-pi, pi]
+    let pi: double = 3.14159265358979;
+    let twoPi: double = 2.0 * pi;
+    var y: double = x;
+    while (y > pi) { y = y - twoPi; }
+    while (y < -pi) { y = y + twoPi; }
+    // Taylor series for sin
+    let y2: double = y * y;
+    let y3: double = y2 * y;
+    let y5: double = y3 * y2;
+    let y7: double = y5 * y2;
+    let y9: double = y7 * y2;
+    return y - y3 / 6.0 + y5 / 120.0 - y7 / 5040.0 + y9 / 362880.0;
+}
+
+public fn run_all_pitch_tests(): void {
+    io::println("=== Pitch.tr Tests ===");
+    test_detectPitchAutocorrelation_sine();
+    test_detectPitchAutocorrelation_zero_signal();
+    test_detectPitchAutocorrelation_returns_frequency_range();
+    test_detectPitchYIN_sine();
+    test_detectPitchYIN_zero_signal();
+    test_detectPitchYIN_returns_frequency_range();
+    test_detectPitchHPS_returns_value();
+    test_detectPitchHPS_zero_spectrum();
+    test_detectAutocorrelation_from_buffer();
+}

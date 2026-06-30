@@ -1,0 +1,402 @@
+// Test file for assert/Assert.tr
+// Exercises the public API: assertTrue, assertFalse, assertEqual, assertNotEqual,
+// assertNull, assertNotNull, fail, assertInRange (int and double overloads).
+// All assertion functions throw on failure, so tests use try/catch to verify behavior.
+import tt::assert::Assert;
+import tt::lang::Integer;
+
+public fn test_assertTrue_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertTrue(true);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertTrue(true) threw");
+    } else {
+        io::println("PASS: Assert.assertTrue(true) passes");
+    }
+}
+
+public fn test_assertTrue_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertTrue(false);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertTrue(false) did not throw");
+    } else {
+        io::println("PASS: Assert.assertTrue(false) throws");
+    }
+}
+
+public fn test_assertTrue_message_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertTrue(true, "should be true");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertTrue(true, msg) threw");
+    } else {
+        io::println("PASS: Assert.assertTrue(true, msg) passes");
+    }
+}
+
+public fn test_assertTrue_message_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertTrue(false, "should be true");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertTrue(false, msg) did not throw");
+    } else {
+        io::println("PASS: Assert.assertTrue(false, msg) throws");
+    }
+}
+
+public fn test_assertFalse_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertFalse(false);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertFalse(false) threw");
+    } else {
+        io::println("PASS: Assert.assertFalse(false) passes");
+    }
+}
+
+public fn test_assertFalse_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertFalse(true);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertFalse(true) did not throw");
+    } else {
+        io::println("PASS: Assert.assertFalse(true) throws");
+    }
+}
+
+public fn test_assertFalse_message_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertFalse(false, "should be false");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertFalse(false, msg) threw");
+    } else {
+        io::println("PASS: Assert.assertFalse(false, msg) passes");
+    }
+}
+
+public fn test_assertFalse_message_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertFalse(true, "should be false");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertFalse(true, msg) did not throw");
+    } else {
+        io::println("PASS: Assert.assertFalse(true, msg) throws");
+    }
+}
+
+public fn test_assertEqual_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertEqual<int>(5, 5);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertEqual(5, 5) threw");
+    } else {
+        io::println("PASS: Assert.assertEqual(5, 5) passes");
+    }
+}
+
+public fn test_assertEqual_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertEqual<int>(5, 6);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertEqual(5, 6) did not throw");
+    } else {
+        io::println("PASS: Assert.assertEqual(5, 6) throws");
+    }
+}
+
+public fn test_assertEqual_message_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertEqual<int>(7, 7, "should be equal");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertEqual(7, 7, msg) threw");
+    } else {
+        io::println("PASS: Assert.assertEqual(7, 7, msg) passes");
+    }
+}
+
+public fn test_assertEqual_message_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertEqual<int>(7, 8, "should be equal");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertEqual(7, 8, msg) did not throw");
+    } else {
+        io::println("PASS: Assert.assertEqual(7, 8, msg) throws");
+    }
+}
+
+public fn test_assertNotEqual_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertNotEqual<int>(5, 6);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertNotEqual(5, 6) threw");
+    } else {
+        io::println("PASS: Assert.assertNotEqual(5, 6) passes");
+    }
+}
+
+public fn test_assertNotEqual_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertNotEqual<int>(5, 5);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertNotEqual(5, 5) did not throw");
+    } else {
+        io::println("PASS: Assert.assertNotEqual(5, 5) throws");
+    }
+}
+
+public fn test_assertNull_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertNull<string>(null);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertNull(null) threw");
+    } else {
+        io::println("PASS: Assert.assertNull(null) passes");
+    }
+}
+
+public fn test_assertNull_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertNull<string>("not null");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertNull(non-null) did not throw");
+    } else {
+        io::println("PASS: Assert.assertNull(non-null) throws");
+    }
+}
+
+public fn test_assertNotNull_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertNotNull<string>("value");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertNotNull(non-null) threw");
+    } else {
+        io::println("PASS: Assert.assertNotNull(non-null) passes");
+    }
+}
+
+public fn test_assertNotNull_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertNotNull<string>(null);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertNotNull(null) did not throw");
+    } else {
+        io::println("PASS: Assert.assertNotNull(null) throws");
+    }
+}
+
+public fn test_fail_throws(): void {
+    let threw: bool = false;
+    try {
+        Assert.fail("explicit failure");
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.fail did not throw");
+    } else {
+        io::println("PASS: Assert.fail throws");
+    }
+}
+
+public fn test_assertInRange_int_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertInRange(5, 1, 10);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertInRange int pass threw");
+    } else {
+        io::println("PASS: Assert.assertInRange int pass");
+    }
+}
+
+public fn test_assertInRange_int_fail_low(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertInRange(0, 1, 10);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertInRange int low did not throw");
+    } else {
+        io::println("PASS: Assert.assertInRange int low throws");
+    }
+}
+
+public fn test_assertInRange_int_fail_high(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertInRange(11, 1, 10);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertInRange int high did not throw");
+    } else {
+        io::println("PASS: Assert.assertInRange int high throws");
+    }
+}
+
+public fn test_assertInRange_int_boundaries(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertInRange(1, 1, 10);
+        Assert.assertInRange(10, 1, 10);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertInRange int boundaries threw");
+    } else {
+        io::println("PASS: Assert.assertInRange int boundaries pass");
+    }
+}
+
+public fn test_assertInRange_double_pass(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertInRange(3.14, 0.0, 5.0);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertInRange double pass threw");
+    } else {
+        io::println("PASS: Assert.assertInRange double pass");
+    }
+}
+
+public fn test_assertInRange_double_fail(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertInRange(7.5, 0.0, 5.0);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (!threw) {
+        io::println("FAIL: Assert.assertInRange double did not throw");
+    } else {
+        io::println("PASS: Assert.assertInRange double throws");
+    }
+}
+
+public fn test_assertInRange_double_boundaries(): void {
+    let threw: bool = false;
+    try {
+        Assert.assertInRange(0.0, 0.0, 5.0);
+        Assert.assertInRange(5.0, 0.0, 5.0);
+    } catch (e: string) {
+        threw = true;
+    }
+    if (threw) {
+        io::println("FAIL: Assert.assertInRange double boundaries threw");
+    } else {
+        io::println("PASS: Assert.assertInRange double boundaries pass");
+    }
+}
+
+public fn run_all_assert_tests(): void {
+    io::println("=== assert/Assert.tr Tests ===");
+    test_assertTrue_pass();
+    test_assertTrue_fail();
+    test_assertTrue_message_pass();
+    test_assertTrue_message_fail();
+    test_assertFalse_pass();
+    test_assertFalse_fail();
+    test_assertFalse_message_pass();
+    test_assertFalse_message_fail();
+    test_assertEqual_pass();
+    test_assertEqual_fail();
+    test_assertEqual_message_pass();
+    test_assertEqual_message_fail();
+    test_assertNotEqual_pass();
+    test_assertNotEqual_fail();
+    test_assertNull_pass();
+    test_assertNull_fail();
+    test_assertNotNull_pass();
+    test_assertNotNull_fail();
+    test_fail_throws();
+    test_assertInRange_int_pass();
+    test_assertInRange_int_fail_low();
+    test_assertInRange_int_fail_high();
+    test_assertInRange_int_boundaries();
+    test_assertInRange_double_pass();
+    test_assertInRange_double_fail();
+    test_assertInRange_double_boundaries();
+}

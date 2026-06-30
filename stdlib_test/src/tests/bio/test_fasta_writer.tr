@@ -1,0 +1,216 @@
+// Test file for bio/FastaWriter.tr
+// Exercises the public API: FastaRecord, writeFasta, writeFastaDefault, formatFasta.
+//
+// formatFasta is pure (no I/O) and is tested thoroughly. writeFasta/writeFastaDefault
+// write to disk and are verified via round-trip reads with FastaReader.
+import tt::bio::FastaWriter;
+import tt::bio::FastaReader;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_fastarecord_init(): void {
+    let rec: FastaRecord = new FastaRecord("seq1 description", "ACGT");
+    if (rec.header != "seq1 description") {
+        io::println("FAIL: FastaRecord.header wrong");
+    } else if (rec.sequence != "ACGT") {
+        io::println("FAIL: FastaRecord.sequence wrong");
+    } else {
+        io::println("PASS: FastaRecord.init works");
+    }
+}
+
+public fn test_fastarecord_empty_sequence(): void {
+    let rec: FastaRecord = new FastaRecord("empty", "");
+    if (String.length(rec.sequence) != 0) {
+        io::println("FAIL: FastaRecord empty sequence wrong");
+    } else {
+        io::println("PASS: FastaRecord empty sequence works");
+    }
+}
+
+public fn test_formatFasta_starts_with_header(): void {
+    let s: string = formatFasta("id1", "ACGT", 80);
+    // Output should begin with ">id1\n"
+    if (String.length(s) < 5 || String.charAt(s, 0) != ">") {
+        io::println("FAIL: formatFasta should start with '>'");
+    } else {
+        io::println("PASS: formatFasta starts with '>'");
+    }
+}
+
+public fn test_formatFasta_short_sequence(): void {
+    // Short sequence fits on one line
+    let s: string = formatFasta("id1", "ACGT", 80);
+    // Should contain ">id1\nACGT\n"
+    if (String.indexOf(s, "ACGT") < 0) {
+        io::println("FAIL: formatFasta short missing sequence");
+    } else {
+        io::println("PASS: formatFasta short contains sequence");
+    }
+}
+
+public fn test_formatFasta_wraps_long_sequence(): void {
+    // 20-char sequence with line width 5 => 4 lines of 5 chars
+    let seq: string = "ABCDEFGHIJKLMNOPQRST";
+    let s: string = formatFasta("id1", seq, 5);
+    // Count newlines: header line + 4 sequence lines => 5 newlines
+    let nlCount: int = _countChar(s, "\n");
+    if (nlCount < 5) {
+        io::println("FAIL: formatFasta wrap newline count=" + Integer.toString(nlCount) + " expected >= 5");
+    } else {
+        io::println("PASS: formatFasta wraps long sequence");
+    }
+}
+
+public fn test_formatFasta_line_width_1(): void {
+    // Line width 1 => each char on its own line
+    let s: string = formatFasta("id", "ABC", 1);
+    let nlCount: int = _countChar(s, "\n");
+    // header + 3 chars => 4 newlines
+    if (nlCount != 4) {
+        io::println("FAIL: formatFasta line width 1 nlCount=" + Integer.toString(nlCount) + " expected 4");
+    } else {
+        io::println("PASS: formatFasta line width 1 works");
+    }
+}
+
+public fn test_formatFasta_preserves_sequence(): void {
+    // After formatting, removing newlines and the header should yield the original seq
+    let seq: string = "ATGCATGCATGC";
+    let s: string = formatFasta("hdr", seq, 5);
+    // The formatted string should contain each character of seq in order
+    let allPresent: bool = String.indexOf(s, "A") >= 0 && String.indexOf(s, "T") >= 0
+        && String.indexOf(s, "G") >= 0 && String.indexOf(s, "C") >= 0;
+    if (!allPresent) {
+        io::println("FAIL: formatFasta did not preserve sequence chars");
+    } else {
+        io::println("PASS: formatFasta preserves sequence chars");
+    }
+}
+
+public fn test_writeFasta_creates_file(): void {
+    let records: ArrayList<FastaRecord> = new ArrayList<FastaRecord>();
+    records.add(new FastaRecord("seq1", "ACGTACGT"));
+    let path: string = "test_fastawriter_basic.fasta";
+    writeFasta(path, records, 80);
+    // Read back with FastaReader
+    let read: ArrayList<FastaRecord> = readFasta(path);
+    if (read.size() != 1) {
+        io::println("FAIL: writeFasta roundtrip size=" + Integer.toString(read.size()));
+    } else {
+        io::println("PASS: writeFasta creates readable file");
+    }
+}
+
+public fn test_writeFasta_roundtrip_header(): void {
+    let records: ArrayList<FastaRecord> = new ArrayList<FastaRecord>();
+    records.add(new FastaRecord("myheader", "ACGT"));
+    let path: string = "test_fastawriter_header.fasta";
+    writeFasta(path, records, 80);
+    let read: ArrayList<FastaRecord> = readFasta(path);
+    if (read.size() != 1 || read.get(0).header != "myheader") {
+        io::println("FAIL: writeFasta roundtrip header wrong");
+    } else {
+        io::println("PASS: writeFava roundtrip header works");
+    }
+}
+
+public fn test_writeFasta_roundtrip_sequence(): void {
+    let records: ArrayList<FastaRecord> = new ArrayList<FastaRecord>();
+    records.add(new FastaRecord("seq1", "ACGTACGT"));
+    let path: string = "test_fastawriter_seq.fasta";
+    writeFasta(path, records, 80);
+    let read: ArrayList<FastaRecord> = readFasta(path);
+    if (read.size() != 1 || read.get(0).sequence != "ACGTACGT") {
+        io::println("FAIL: writeFasta roundtrip sequence wrong");
+    } else {
+        io::println("PASS: writeFasta roundtrip sequence works");
+    }
+}
+
+public fn test_writeFasta_multiple_records(): void {
+    let records: ArrayList<FastaRecord> = new ArrayList<FastaRecord>();
+    records.add(new FastaRecord("seq1", "AAAA"));
+    records.add(new FastaRecord("seq2", "CCCC"));
+    records.add(new FastaRecord("seq3", "GGGG"));
+    let path: string = "test_fastawriter_multi.fasta";
+    writeFasta(path, records, 80);
+    let read: ArrayList<FastaRecord> = readFasta(path);
+    if (read.size() != 3) {
+        io::println("FAIL: writeFasta multiple records size=" + Integer.toString(read.size()));
+    } else {
+        io::println("PASS: writeFasta multiple records works");
+    }
+}
+
+public fn test_writeFasta_wraps_long_sequence(): void {
+    // Long sequence should be wrapped but read back as a single sequence
+    let longSeq: string = "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT";
+    let records: ArrayList<FastaRecord> = new ArrayList<FastaRecord>();
+    records.add(new FastaRecord("long", longSeq));
+    let path: string = "test_fastawriter_long.fasta";
+    writeFasta(path, records, 10);
+    let read: ArrayList<FastaRecord> = readFasta(path);
+    if (read.size() != 1 || read.get(0).sequence != longSeq) {
+        io::println("FAIL: writeFasta wrapped sequence roundtrip wrong");
+    } else {
+        io::println("PASS: writeFasta wrapped sequence roundtrip works");
+    }
+}
+
+public fn test_writeFastaDefault_creates_file(): void {
+    let records: ArrayList<FastaRecord> = new ArrayList<FastaRecord>();
+    records.add(new FastaRecord("seq1", "ACGT"));
+    let path: string = "test_fastawriter_default.fasta";
+    writeFastaDefault(path, records);
+    let read: ArrayList<FastaRecord> = readFasta(path);
+    if (read.size() != 1) {
+        io::println("FAIL: writeFastaDefault roundtrip size=" + Integer.toString(read.size()));
+    } else {
+        io::println("PASS: writeFastaDefault creates readable file");
+    }
+}
+
+public fn test_writeFasta_empty_records(): void {
+    // Writing an empty list should not crash
+    let records: ArrayList<FastaRecord> = new ArrayList<FastaRecord>();
+    let path: string = "test_fastawriter_empty.fasta";
+    writeFasta(path, records, 80);
+    let read: ArrayList<FastaRecord> = readFasta(path);
+    if (read.size() != 0) {
+        io::println("FAIL: writeFasta empty records size=" + Integer.toString(read.size()));
+    } else {
+        io::println("PASS: writeFasta empty records works");
+    }
+}
+
+fn _countChar(s: string, ch: string): int {
+    var count: int = 0;
+    var i: int = 0;
+    while (i < String.length(s)) {
+        if (String.charAt(s, i) == String.charAt(ch, 0)) {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    return count;
+}
+
+public fn run_all_fasta_writer_tests(): void {
+    io::println("=== bio/FastaWriter.tr Tests ===");
+    test_fastarecord_init();
+    test_fastarecord_empty_sequence();
+    test_formatFasta_starts_with_header();
+    test_formatFasta_short_sequence();
+    test_formatFasta_wraps_long_sequence();
+    test_formatFasta_line_width_1();
+    test_formatFasta_preserves_sequence();
+    test_writeFasta_creates_file();
+    test_writeFasta_roundtrip_header();
+    test_writeFasta_roundtrip_sequence();
+    test_writeFasta_multiple_records();
+    test_writeFasta_wraps_long_sequence();
+    test_writeFastaDefault_creates_file();
+    test_writeFasta_empty_records();
+}

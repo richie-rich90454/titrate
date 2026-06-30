@@ -1,0 +1,249 @@
+// Test file for chem/ForceFieldNonbonded.tr
+// Exercises the public API: lennardJonesEnergy, coulombEnergy, partialCharge,
+// gradient, computeForces.
+import tt::chem::ForceField;
+import tt::chem::ForceFieldNonbonded;
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::chem::Bond;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+public fn test_partialCharge_known(): void {
+    // partialCharge returns a value (may be 0.0 if data file is not loaded).
+    // We just verify it returns a finite number for a known element.
+    let q: double = partialCharge("H");
+    if (q != q) {
+        io::println("FAIL: partialCharge('H') NaN");
+    } else {
+        io::println("PASS: partialCharge('H') = " + Double.toString(q));
+    }
+}
+
+public fn test_partialCharge_unknown(): void {
+    // Unknown symbol should return 0.0
+    let q: double = partialCharge("Zz");
+    if (q != 0.0) {
+        io::println("FAIL: partialCharge unknown should be 0 got " + Double.toString(q));
+    } else {
+        io::println("PASS: partialCharge unknown returns 0");
+    }
+}
+
+public fn test_lennardJonesEnergy_two_atoms(): void {
+    // Two atoms at a finite distance => finite LJ energy
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(3.0, 0.0, 0.0);  // near LJ sigma
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    let ff: ForceField = new ForceField();
+    let e: double = lennardJonesEnergy(ff, mol);
+    if (e != e) {
+        io::println("FAIL: lennardJonesEnergy NaN");
+    } else {
+        io::println("PASS: lennardJonesEnergy finite = " + Double.toString(e));
+    }
+}
+
+public fn test_lennardJonesEnergy_single_atom(): void {
+    // Single atom => no pairs => zero energy
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    let ff: ForceField = new ForceField();
+    let e: double = lennardJonesEnergy(ff, mol);
+    if (e != 0.0) {
+        io::println("FAIL: lennardJonesEnergy single atom should be 0 got " + Double.toString(e));
+    } else {
+        io::println("PASS: lennardJonesEnergy single atom = 0");
+    }
+}
+
+public fn test_lennardJonesEnergy_at_sigma(): void {
+    // At r = sigma, LJ energy = 4*epsilon*(1 - 1) = 0... actually (sigma/r)^12 - (sigma/r)^6 = 1 - 1 = 0
+    // Wait: at r=sigma, sr=1, sr6=1, sr12=1, so 4*eps*(1-1) = 0
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(3.0, 0.0, 0.0);  // ff.ljSigma = 3.0 by default
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    let ff: ForceField = new ForceField();
+    let e: double = lennardJonesEnergy(ff, mol);
+    if (absDiff(e, 0.0) > 1e-9) {
+        io::println("FAIL: lennardJonesEnergy at sigma expected 0 got " + Double.toString(e));
+    } else {
+        io::println("PASS: lennardJonesEnergy at sigma = 0");
+    }
+}
+
+public fn test_coulombEnergy_two_atoms(): void {
+    // Two atoms at distance r => finite Coulomb energy
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(1.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    let ff: ForceField = new ForceField();
+    let e: double = coulombEnergy(ff, mol);
+    if (e != e) {
+        io::println("FAIL: coulombEnergy NaN");
+    } else {
+        io::println("PASS: coulombEnergy finite = " + Double.toString(e));
+    }
+}
+
+public fn test_coulombEnergy_single_atom(): void {
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    let ff: ForceField = new ForceField();
+    let e: double = coulombEnergy(ff, mol);
+    if (e != 0.0) {
+        io::println("FAIL: coulombEnergy single atom should be 0");
+    } else {
+        io::println("PASS: coulombEnergy single atom = 0");
+    }
+}
+
+public fn test_gradient_size(): void {
+    // gradient returns flat ArrayList of size 3*nAtoms
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(2.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let grad: ArrayList<double> = gradient(ff, mol);
+    if (grad.size() != 6) {
+        io::println("FAIL: gradient size=" + Integer.toString(grad.size()) + " expected 6");
+    } else {
+        io::println("PASS: gradient size = 6 for 2 atoms");
+    }
+}
+
+public fn test_gradient_single_atom(): void {
+    // Single atom => gradient of size 3, all zeros (no bonds, no pairs)
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    let ff: ForceField = new ForceField();
+    let grad: ArrayList<double> = gradient(ff, mol);
+    if (grad.size() != 3) {
+        io::println("FAIL: gradient single atom size=" + Integer.toString(grad.size()));
+    } else {
+        io::println("PASS: gradient single atom size = 3");
+    }
+}
+
+public fn test_gradient_finite(): void {
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(2.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let grad: ArrayList<double> = gradient(ff, mol);
+    // All gradient entries should be finite
+    var allFinite: bool = true;
+    var i: int = 0;
+    while (i < grad.size()) {
+        let g: double = grad.get(i);
+        if (g != g) { allFinite = false; }
+        i = i + 1;
+    }
+    if (!allFinite) {
+        io::println("FAIL: gradient contains NaN");
+    } else {
+        io::println("PASS: gradient all finite");
+    }
+}
+
+public fn test_computeForces_size(): void {
+    // computeForces returns flat ArrayList of size 3*nAtoms
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(2.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let forces: ArrayList<double> = computeForces(ff, mol);
+    if (forces.size() != 6) {
+        io::println("FAIL: computeForces size=" + Integer.toString(forces.size()) + " expected 6");
+    } else {
+        io::println("PASS: computeForces size = 6 for 2 atoms");
+    }
+}
+
+public fn test_computeForces_finite(): void {
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(2.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let forces: ArrayList<double> = computeForces(ff, mol);
+    var allFinite: bool = true;
+    var i: int = 0;
+    while (i < forces.size()) {
+        let f: double = forces.get(i);
+        if (f != f) { allFinite = false; }
+        i = i + 1;
+    }
+    if (!allFinite) {
+        io::println("FAIL: computeForces contains NaN");
+    } else {
+        io::println("PASS: computeForces all finite");
+    }
+}
+
+public fn test_computeForces_single_atom(): void {
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    let ff: ForceField = new ForceField();
+    let forces: ArrayList<double> = computeForces(ff, mol);
+    if (forces.size() != 3) {
+        io::println("FAIL: computeForces single atom size=" + Integer.toString(forces.size()));
+    } else {
+        io::println("PASS: computeForces single atom size = 3");
+    }
+}
+
+public fn run_all_forcefield_nonbonded_tests(): void {
+    io::println("=== chem/ForceFieldNonbonded.tr Tests ===");
+    test_partialCharge_known();
+    test_partialCharge_unknown();
+    test_lennardJonesEnergy_two_atoms();
+    test_lennardJonesEnergy_single_atom();
+    test_lennardJonesEnergy_at_sigma();
+    test_coulombEnergy_two_atoms();
+    test_coulombEnergy_single_atom();
+    test_gradient_size();
+    test_gradient_single_atom();
+    test_gradient_finite();
+    test_computeForces_size();
+    test_computeForces_finite();
+    test_computeForces_single_atom();
+}

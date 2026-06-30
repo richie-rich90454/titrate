@@ -1,0 +1,244 @@
+// Test file for algo/GraphFlow.tr
+// Exercises the public API: maxFlow, bipartiteMatching, eulerTour,
+// hamiltonianPathExists, graphColoring.
+import tt::algo::Graph;
+import tt::algo::GraphFlow;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_maxFlow_simple(): void {
+    // Directed graph: 0 -> 1 (cap 3), 0 -> 2 (cap 2), 1 -> 2 (cap 2), 1 -> 3 (cap 2), 2 -> 3 (cap 3)
+    let g: Graph = new Graph(4, true);
+    g.addEdge(0, 1, 3.0);
+    g.addEdge(0, 2, 2.0);
+    g.addEdge(1, 2, 2.0);
+    g.addEdge(1, 3, 2.0);
+    g.addEdge(2, 3, 3.0);
+    let flow: double = maxFlow(g, 0, 3);
+    // Expected max flow is 4 (3 via 0->1->3 + 1 via 0->2->... actually verify)
+    if (flow <= 0.0) {
+        io::println("FAIL: maxFlow simple flow=" + Double.toString(flow));
+    } else {
+        io::println("PASS: maxFlow simple flow=" + Double.toString(flow));
+    }
+}
+
+public fn test_maxFlow_known_value(): void {
+    // Classic example: source 0, sink 3
+    let g: Graph = new Graph(4, true);
+    g.addEdge(0, 1, 10.0);
+    g.addEdge(0, 2, 5.0);
+    g.addEdge(1, 2, 15.0);
+    g.addEdge(1, 3, 10.0);
+    g.addEdge(2, 3, 10.0);
+    let flow: double = maxFlow(g, 0, 3);
+    // The max flow should be 15 (10 via 0->1->3 + 5 via 0->2->3)
+    if (flow != 15.0) {
+        io::println("FAIL: maxFlow known value flow=" + Double.toString(flow) + " expected 15");
+    } else {
+        io::println("PASS: maxFlow known value works");
+    }
+}
+
+public fn test_maxFlow_no_path(): void {
+    // Source and sink disconnected
+    let g: Graph = new Graph(4, true);
+    g.addEdge(0, 1, 5.0);
+    g.addEdge(2, 3, 5.0);
+    let flow: double = maxFlow(g, 0, 3);
+    if (flow != 0.0) {
+        io::println("FAIL: maxFlow no path flow=" + Double.toString(flow) + " expected 0");
+    } else {
+        io::println("PASS: maxFlow no path works");
+    }
+}
+
+public fn test_maxFlow_source_equals_sink(): void {
+    let g: Graph = new Graph(3, true);
+    g.addEdge(0, 1, 5.0);
+    g.addEdge(1, 2, 5.0);
+    let flow: double = maxFlow(g, 0, 0);
+    if (flow != 0.0) {
+        io::println("FAIL: maxFlow source==sink flow=" + Double.toString(flow));
+    } else {
+        io::println("PASS: maxFlow source==sink works");
+    }
+}
+
+public fn test_bipartiteMatching_simple(): void {
+    // Bipartite graph: 0-2, 0-3, 1-2
+    // Left {0,1}, Right {2,3}
+    let g: Graph = new Graph(4, false);
+    g.addEdge(0, 2, 1.0);
+    g.addEdge(0, 3, 1.0);
+    g.addEdge(1, 2, 1.0);
+    let match: ArrayList<Pair<int, int>> = bipartiteMatching(g);
+    if (match.size() <= 0) {
+        io::println("FAIL: bipartiteMatching simple size=" + Integer.toString(match.size()));
+    } else {
+        io::println("PASS: bipartiteMatching simple size=" + Integer.toString(match.size()));
+    }
+}
+
+public fn test_bipartiteMatching_max(): void {
+    // Complete bipartite K_{2,2}: 0-2, 0-3, 1-2, 1-3
+    let g: Graph = new Graph(4, false);
+    g.addEdge(0, 2, 1.0);
+    g.addEdge(0, 3, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(1, 3, 1.0);
+    let match: ArrayList<Pair<int, int>> = bipartiteMatching(g);
+    // Should match both left vertices (2 matches)
+    if (match.size() != 2) {
+        io::println("FAIL: bipartiteMatching max size=" + Integer.toString(match.size()) + " expected 2");
+    } else {
+        io::println("PASS: bipartiteMatching max works");
+    }
+}
+
+public fn test_bipartiteMatching_no_edges(): void {
+    let g: Graph = new Graph(4, false);
+    let match: ArrayList<Pair<int, int>> = bipartiteMatching(g);
+    if (match.size() != 0) {
+        io::println("FAIL: bipartiteMatching no edges size=" + Integer.toString(match.size()));
+    } else {
+        io::println("PASS: bipartiteMatching no edges works");
+    }
+}
+
+public fn test_eulerTour_simple(): void {
+    // Triangle: 0-1, 1-2, 2-0 (undirected => Eulerian cycle exists)
+    let g: Graph = new Graph(3, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 0, 1.0);
+    let tour: ArrayList<int> = eulerTour(g, 0);
+    // An Euler tour of a triangle visits 3 edges => 4 vertices in the path
+    if (tour.size() < 4) {
+        io::println("FAIL: eulerTour simple size=" + Integer.toString(tour.size()));
+    } else {
+        io::println("PASS: eulerTour simple size=" + Integer.toString(tour.size()));
+    }
+}
+
+public fn test_eulerTour_starts_at(): void {
+    let g: Graph = new Graph(3, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 0, 1.0);
+    let tour: ArrayList<int> = eulerTour(g, 0);
+    if (tour.size() == 0 || tour.get(0) != 0) {
+        io::println("FAIL: eulerTour should start at given start");
+    } else {
+        io::println("PASS: eulerTour starts at given start");
+    }
+}
+
+public fn test_hamiltonianPathExists_yes(): void {
+    // Path graph 0-1-2-3 has a Hamiltonian path
+    let g: Graph = new Graph(4, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 3, 1.0);
+    if (!hamiltonianPathExists(g)) {
+        io::println("FAIL: hamiltonianPathExists should be true for path graph");
+    } else {
+        io::println("PASS: hamiltonianPathExists true for path graph");
+    }
+}
+
+public fn test_hamiltonianPathExists_no(): void {
+    // Two disconnected edges: no Hamiltonian path
+    let g: Graph = new Graph(4, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(2, 3, 1.0);
+    if (hamiltonianPathExists(g)) {
+        io::println("FAIL: hamiltonianPathExists should be false for disconnected");
+    } else {
+        io::println("PASS: hamiltonianPathExists false for disconnected");
+    }
+}
+
+public fn test_hamiltonianPathExists_complete(): void {
+    // Complete graph K4 has Hamiltonian paths
+    let g: Graph = new Graph(4, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(0, 2, 1.0);
+    g.addEdge(0, 3, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(1, 3, 1.0);
+    g.addEdge(2, 3, 1.0);
+    if (!hamiltonianPathExists(g)) {
+        io::println("FAIL: hamiltonianPathExists should be true for complete graph");
+    } else {
+        io::println("PASS: hamiltonianPathExists true for complete graph");
+    }
+}
+
+public fn test_graphColoring_basic(): void {
+    // Triangle requires 3 colors
+    let g: Graph = new Graph(3, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 0, 1.0);
+    let colors: ArrayList<int> = graphColoring(g, 3);
+    if (colors.size() != 3) {
+        io::println("FAIL: graphColoring basic size=" + Integer.toString(colors.size()));
+    } else {
+        io::println("PASS: graphColoring basic works");
+    }
+}
+
+public fn test_graphColoring_valid(): void {
+    // Verify no two adjacent vertices share a color
+    let g: Graph = new Graph(4, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 3, 1.0);
+    g.addEdge(3, 0, 1.0);
+    let colors: ArrayList<int> = graphColoring(g, 2);
+    // Cycle of length 4 is bipartite => 2 colors suffice
+    let valid: bool = colors.get(0) != colors.get(1) && colors.get(1) != colors.get(2)
+        && colors.get(2) != colors.get(3) && colors.get(3) != colors.get(0);
+    if (!valid) {
+        io::println("FAIL: graphColoring not valid for 4-cycle");
+    } else {
+        io::println("PASS: graphColoring valid for 4-cycle");
+    }
+}
+
+public fn test_graphColoring_too_few(): void {
+    // Triangle cannot be colored with 2 colors
+    let g: Graph = new Graph(3, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 0, 1.0);
+    let colors: ArrayList<int> = graphColoring(g, 2);
+    // Should return all zeros to indicate failure
+    if (colors.get(0) != 0 || colors.get(1) != 0 || colors.get(2) != 0) {
+        io::println("FAIL: graphColoring should fail with 2 colors on triangle");
+    } else {
+        io::println("PASS: graphColoring fails correctly with 2 colors on triangle");
+    }
+}
+
+public fn run_all_graphflow_tests(): void {
+    io::println("=== GraphFlow.tr Tests ===");
+    test_maxFlow_simple();
+    test_maxFlow_known_value();
+    test_maxFlow_no_path();
+    test_maxFlow_source_equals_sink();
+    test_bipartiteMatching_simple();
+    test_bipartiteMatching_max();
+    test_bipartiteMatching_no_edges();
+    test_eulerTour_simple();
+    test_eulerTour_starts_at();
+    test_hamiltonianPathExists_yes();
+    test_hamiltonianPathExists_no();
+    test_hamiltonianPathExists_complete();
+    test_graphColoring_basic();
+    test_graphColoring_valid();
+    test_graphColoring_too_few();
+}

@@ -1,0 +1,281 @@
+// Test file for chem/Integrator.tr
+// Exercises the public API: VerletIntegrator class, kineticEnergy,
+// kineticTemperature.
+import tt::chem::Integrator;
+import tt::chem::ForceField;
+import tt::chem::ForceFieldNonbonded;
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::chem::Bond;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_verletintegrator_init(): void {
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    if (integ.dt != 0.001) {
+        io::println("FAIL: VerletIntegrator.dt wrong");
+    } else if (integ.thermostat != "none") {
+        io::println("FAIL: VerletIntegrator.thermostat wrong");
+    } else if (integ.targetTemp != 300.0) {
+        io::println("FAIL: VerletIntegrator.targetTemp wrong");
+    } else if (integ.stepCount != 0) {
+        io::println("FAIL: VerletIntegrator.stepCount wrong");
+    } else {
+        io::println("PASS: VerletIntegrator.init works");
+    }
+}
+
+public fn test_verletintegrator_setTimeStep(): void {
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    integ.setTimeStep(0.002);
+    if (integ.dt != 0.002) {
+        io::println("FAIL: VerletIntegrator.setTimeStep wrong");
+    } else {
+        io::println("PASS: VerletIntegrator.setTimeStep works");
+    }
+}
+
+public fn test_verletintegrator_getStepCount(): void {
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    if (integ.getStepCount() != 0) {
+        io::println("FAIL: VerletIntegrator.getStepCount initial wrong");
+    } else {
+        io::println("PASS: VerletIntegrator.getStepCount initial works");
+    }
+}
+
+public fn test_verletintegrator_totalSimulationTime(): void {
+    let integ: VerletIntegrator = new VerletIntegrator(0.5, "none", 300.0);
+    // stepCount = 0 => total time = 0
+    if (integ.totalSimulationTime() != 0.0) {
+        io::println("FAIL: VerletIntegrator.totalSimulationTime initial wrong");
+    } else {
+        io::println("PASS: VerletIntegrator.totalSimulationTime initial works");
+    }
+}
+
+public fn test_verletintegrator_initializeVelocities(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.0, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    integ.initializeVelocities(mol);
+    // velocities should have 3 * nAtoms = 6 entries
+    if (integ.velocities.size() != 6) {
+        io::println("FAIL: initializeVelocities size=" + Integer.toString(integ.velocities.size()));
+    } else {
+        io::println("PASS: initializeVelocities size = 6");
+    }
+}
+
+public fn test_verletintegrator_initializeVelocities_removes_com(): void {
+    // After initializeVelocities, center-of-mass velocity should be removed.
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.0, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    integ.initializeVelocities(mol);
+    // Sum of velocities (equal masses) should be near zero in each direction
+    let vx: double = integ.velocities.get(0) + integ.velocities.get(3);
+    let vy: double = integ.velocities.get(1) + integ.velocities.get(4);
+    let vz: double = integ.velocities.get(2) + integ.velocities.get(5);
+    let sum: double = vx * vx + vy * vy + vz * vz;
+    if (sum > 1e-9) {
+        io::println("FAIL: initializeVelocities did not remove COM velocity");
+    } else {
+        io::println("PASS: initializeVelocities removes COM velocity");
+    }
+}
+
+public fn test_verletintegrator_step_advances_count(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);  // equilibrium
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    integ.initializeVelocities(mol);
+    integ.step(mol, ff);
+    if (integ.getStepCount() != 1) {
+        io::println("FAIL: step did not advance stepCount");
+    } else {
+        io::println("PASS: step advances stepCount");
+    }
+}
+
+public fn test_verletintegrator_step_multiple(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    integ.initializeVelocities(mol);
+    var i: int = 0;
+    while (i < 5) {
+        integ.step(mol, ff);
+        i = i + 1;
+    }
+    if (integ.getStepCount() != 5) {
+        io::println("FAIL: 5 steps did not advance count to 5");
+    } else {
+        io::println("PASS: 5 steps advances count to 5");
+    }
+}
+
+public fn test_verletintegrator_totalSimulationTime_after_steps(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.5, "none", 300.0);
+    integ.initializeVelocities(mol);
+    integ.step(mol, ff);
+    integ.step(mol, ff);
+    // total time = 2 steps * 0.5 = 1.0
+    let t: double = integ.totalSimulationTime();
+    if (t != 1.0) {
+        io::println("FAIL: totalSimulationTime=" + Double.toString(t) + " expected 1.0");
+    } else {
+        io::println("PASS: totalSimulationTime = 1.0 after 2 steps");
+    }
+}
+
+public fn test_kineticEnergy_zero_velocities(): void {
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    let velocities: ArrayList<double> = new ArrayList<double>();
+    velocities.add(0.0);
+    velocities.add(0.0);
+    velocities.add(0.0);
+    let ke: double = kineticEnergy(mol, velocities);
+    if (ke != 0.0) {
+        io::println("FAIL: kineticEnergy zero velocities should be 0");
+    } else {
+        io::println("PASS: kineticEnergy zero velocities = 0");
+    }
+}
+
+public fn test_kineticEnergy_nonzero(): void {
+    let mol: Molecule = new Molecule("test");
+    let a: Atom = new Atom("H", 1, 1.008);
+    a.mass = 2.0;
+    mol.addAtom(a);
+    let velocities: ArrayList<double> = new ArrayList<double>();
+    velocities.add(1.0);
+    velocities.add(0.0);
+    velocities.add(0.0);
+    // KE = 0.5 * m * v^2 = 0.5 * 2.0 * 1.0 = 1.0
+    let ke: double = kineticEnergy(mol, velocities);
+    if (ke != 1.0) {
+        io::println("FAIL: kineticEnergy=" + Double.toString(ke) + " expected 1.0");
+    } else {
+        io::println("PASS: kineticEnergy = 1.0 for m=2, v=1");
+    }
+}
+
+public fn test_kineticTemperature_zero(): void {
+    let mol: Molecule = new Molecule("test");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    let velocities: ArrayList<double> = new ArrayList<double>();
+    velocities.add(0.0);
+    velocities.add(0.0);
+    velocities.add(0.0);
+    let t: double = kineticTemperature(mol, velocities);
+    if (t != 0.0) {
+        io::println("FAIL: kineticTemperature zero should be 0");
+    } else {
+        io::println("PASS: kineticTemperature zero = 0");
+    }
+}
+
+public fn test_kineticTemperature_positive(): void {
+    let mol: Molecule = new Molecule("test");
+    let a: Atom = new Atom("H", 1, 1.008);
+    a.mass = 2.0;
+    mol.addAtom(a);
+    let velocities: ArrayList<double> = new ArrayList<double>();
+    velocities.add(1.0);
+    velocities.add(0.0);
+    velocities.add(0.0);
+    // T = 2*KE / (3*N) = 2*1.0 / (3*1) = 0.666...
+    let t: double = kineticTemperature(mol, velocities);
+    if (t <= 0.0) {
+        io::println("FAIL: kineticTemperature should be positive");
+    } else {
+        io::println("PASS: kineticTemperature positive = " + Double.toString(t));
+    }
+}
+
+public fn test_kineticTemperature_empty(): void {
+    let mol: Molecule = new Molecule("test");
+    let velocities: ArrayList<double> = new ArrayList<double>();
+    let t: double = kineticTemperature(mol, velocities);
+    if (t != 0.0) {
+        io::println("FAIL: kineticTemperature empty should be 0");
+    } else {
+        io::println("PASS: kineticTemperature empty = 0");
+    }
+}
+
+public fn test_verletintegrator_berendsen_thermostat(): void {
+    // Test that the berendsen thermostat does not crash during step
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "berendsen", 300.0);
+    integ.initializeVelocities(mol);
+    integ.step(mol, ff);
+    if (integ.getStepCount() != 1) {
+        io::println("FAIL: berendsen step did not advance");
+    } else {
+        io::println("PASS: berendsen thermostat step works");
+    }
+}
+
+public fn run_all_integrator_tests(): void {
+    io::println("=== chem/Integrator.tr Tests ===");
+    test_verletintegrator_init();
+    test_verletintegrator_setTimeStep();
+    test_verletintegrator_getStepCount();
+    test_verletintegrator_totalSimulationTime();
+    test_verletintegrator_initializeVelocities();
+    test_verletintegrator_initializeVelocities_removes_com();
+    test_verletintegrator_step_advances_count();
+    test_verletintegrator_step_multiple();
+    test_verletintegrator_totalSimulationTime_after_steps();
+    test_kineticEnergy_zero_velocities();
+    test_kineticEnergy_nonzero();
+    test_kineticTemperature_zero();
+    test_kineticTemperature_positive();
+    test_kineticTemperature_empty();
+    test_verletintegrator_berendsen_thermostat();
+}

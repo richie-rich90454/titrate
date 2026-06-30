@@ -1,0 +1,229 @@
+// Test file for algo/GraphMst.tr
+// Exercises the public API: kruskalMst, primMst, topologicalSort,
+// stronglyConnectedComponents, cycleDetection, isDag.
+import tt::algo::Graph;
+import tt::algo::GraphMst;
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::lang::Integer;
+
+public fn test_kruskalMst_simple(): void {
+    // Triangle with weights: 0-1 (1), 1-2 (2), 0-2 (3)
+    // MST should pick edges 0-1 and 1-2 => 2 edges
+    let g: Graph = new Graph(3, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 2.0);
+    g.addEdge(0, 2, 3.0);
+    let mst: ArrayList<Pair<int, int>> = kruskalMst(g);
+    if (mst.size() != 2) {
+        io::println("FAIL: kruskalMst simple size=" + Integer.toString(mst.size()));
+    } else {
+        io::println("PASS: kruskalMst simple size=" + Integer.toString(mst.size()));
+    }
+}
+
+public fn test_kruskalMst_empty(): void {
+    let g: Graph = new Graph(4, false);
+    let mst: ArrayList<Pair<int, int>> = kruskalMst(g);
+    if (mst.size() != 0) {
+        io::println("FAIL: kruskalMst empty size=" + Integer.toString(mst.size()));
+    } else {
+        io::println("PASS: kruskalMst empty works");
+    }
+}
+
+public fn test_kruskalMst_tree(): void {
+    // A tree with 4 vertices and 3 edges: MST should contain all 3 edges
+    let g: Graph = new Graph(4, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 3, 1.0);
+    let mst: ArrayList<Pair<int, int>> = kruskalMst(g);
+    if (mst.size() != 3) {
+        io::println("FAIL: kruskalMst tree size=" + Integer.toString(mst.size()) + " expected 3");
+    } else {
+        io::println("PASS: kruskalMst tree works");
+    }
+}
+
+public fn test_primMst_simple(): void {
+    let g: Graph = new Graph(3, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 2.0);
+    g.addEdge(0, 2, 3.0);
+    let mst: ArrayList<Pair<int, int>> = primMst(g, 0);
+    if (mst.size() != 2) {
+        io::println("FAIL: primMst simple size=" + Integer.toString(mst.size()));
+    } else {
+        io::println("PASS: primMst simple size=" + Integer.toString(mst.size()));
+    }
+}
+
+public fn test_primMst_starts_at(): void {
+    let g: Graph = new Graph(3, false);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 2.0);
+    let mst: ArrayList<Pair<int, int>> = primMst(g, 0);
+    // First edge should connect vertex 0 to something
+    if (mst.size() == 0) {
+        io::println("FAIL: primMst no edges");
+    } else {
+        let first: Pair<int, int> = mst.get(0);
+        if (first.first != 0 && first.second != 0) {
+            io::println("FAIL: primMst should connect to start vertex");
+        } else {
+            io::println("PASS: primMst connects to start vertex");
+        }
+    }
+}
+
+public fn test_primMst_empty(): void {
+    let g: Graph = new Graph(4, false);
+    let mst: ArrayList<Pair<int, int>> = primMst(g, 0);
+    if (mst.size() != 0) {
+        io::println("FAIL: primMst empty size=" + Integer.toString(mst.size()));
+    } else {
+        io::println("PASS: primMst empty works");
+    }
+}
+
+public fn test_topologicalSort_simple(): void {
+    // DAG: 0 -> 1 -> 2, 0 -> 2
+    let g: Graph = new Graph(3, true);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(0, 2, 1.0);
+    let order: ArrayList<int> = topologicalSort(g);
+    if (order.size() != 3) {
+        io::println("FAIL: topologicalSort size=" + Integer.toString(order.size()));
+    } else {
+        io::println("PASS: topologicalSort size works");
+    }
+}
+
+public fn test_topologicalSort_order(): void {
+    // DAG: 0 -> 1 -> 2
+    let g: Graph = new Graph(3, true);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    let order: ArrayList<int> = topologicalSort(g);
+    // 0 must come before 1, 1 before 2
+    let pos0: int = -1;
+    let pos1: int = -1;
+    let pos2: int = -1;
+    var i: int = 0;
+    while (i < order.size()) {
+        if (order.get(i) == 0) { pos0 = i; }
+        if (order.get(i) == 1) { pos1 = i; }
+        if (order.get(i) == 2) { pos2 = i; }
+        i = i + 1;
+    }
+    if (pos0 < pos1 && pos1 < pos2) {
+        io::println("PASS: topologicalSort order valid");
+    } else {
+        io::println("FAIL: topologicalSort order invalid");
+    }
+}
+
+public fn test_topologicalSort_empty(): void {
+    let g: Graph = new Graph(3, true);
+    let order: ArrayList<int> = topologicalSort(g);
+    if (order.size() != 3) {
+        io::println("FAIL: topologicalSort empty size=" + Integer.toString(order.size()));
+    } else {
+        io::println("PASS: topologicalSort empty works");
+    }
+}
+
+public fn test_stronglyConnectedComponents_simple(): void {
+    // Two SCCs: {0,1,2} cycle and {3}
+    let g: Graph = new Graph(4, true);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 0, 1.0);
+    g.addEdge(2, 3, 1.0);
+    let sccs: ArrayList<ArrayList<int>> = stronglyConnectedComponents(g);
+    if (sccs.size() != 2) {
+        io::println("FAIL: stronglyConnectedComponents size=" + Integer.toString(sccs.size()) + " expected 2");
+    } else {
+        io::println("PASS: stronglyConnectedComponents size works");
+    }
+}
+
+public fn test_stronglyConnectedComponents_single(): void {
+    // Single vertex
+    let g: Graph = new Graph(1, true);
+    let sccs: ArrayList<ArrayList<int>> = stronglyConnectedComponents(g);
+    if (sccs.size() != 1) {
+        io::println("FAIL: stronglyConnectedComponents single size=" + Integer.toString(sccs.size()));
+    } else {
+        io::println("PASS: stronglyConnectedComponents single works");
+    }
+}
+
+public fn test_cycleDetection_yes(): void {
+    // Directed cycle: 0 -> 1 -> 2 -> 0
+    let g: Graph = new Graph(3, true);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 0, 1.0);
+    if (!cycleDetection(g)) {
+        io::println("FAIL: cycleDetection should be true for cycle");
+    } else {
+        io::println("PASS: cycleDetection true for cycle");
+    }
+}
+
+public fn test_cycleDetection_no(): void {
+    // DAG: 0 -> 1 -> 2
+    let g: Graph = new Graph(3, true);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    if (cycleDetection(g)) {
+        io::println("FAIL: cycleDetection should be false for DAG");
+    } else {
+        io::println("PASS: cycleDetection false for DAG");
+    }
+}
+
+public fn test_isDag_yes(): void {
+    let g: Graph = new Graph(3, true);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    if (!isDag(g)) {
+        io::println("FAIL: isDag should be true for DAG");
+    } else {
+        io::println("PASS: isDag true for DAG");
+    }
+}
+
+public fn test_isDag_no(): void {
+    let g: Graph = new Graph(3, true);
+    g.addEdge(0, 1, 1.0);
+    g.addEdge(1, 2, 1.0);
+    g.addEdge(2, 0, 1.0);
+    if (isDag(g)) {
+        io::println("FAIL: isDag should be false for cyclic graph");
+    } else {
+        io::println("PASS: isDag false for cyclic graph");
+    }
+}
+
+public fn run_all_graphmst_tests(): void {
+    io::println("=== GraphMst.tr Tests ===");
+    test_kruskalMst_simple();
+    test_kruskalMst_empty();
+    test_kruskalMst_tree();
+    test_primMst_simple();
+    test_primMst_starts_at();
+    test_primMst_empty();
+    test_topologicalSort_simple();
+    test_topologicalSort_order();
+    test_topologicalSort_empty();
+    test_stronglyConnectedComponents_simple();
+    test_stronglyConnectedComponents_single();
+    test_cycleDetection_yes();
+    test_cycleDetection_no();
+    test_isDag_yes();
+    test_isDag_no();
+}

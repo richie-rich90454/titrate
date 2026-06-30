@@ -1,0 +1,436 @@
+// Test file for chem/RHFMatrix.tr
+// Exercises matrix construction (overlap, core Hamiltonian, Fock) and matrix conversions.
+import tt::chem::RHF;
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::chem::RHFMatrix;
+import tt::math::linalg::Matrix;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+// Helper: build an H2 RHF object (basis=2, two H atoms at 1.4 A)
+fn _makeH2Rhf(): RHF {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    return rhf;
+}
+
+// ---- makeZeroMatrix tests ----
+
+public fn test_make_zero_matrix_size(): void {
+    let m: ArrayList<ArrayList<double>> = makeZeroMatrix(3);
+    if (m.size() == 3) {
+        io::println("PASS: makeZeroMatrix(3) row count = 3");
+    } else {
+        io::println("FAIL: makeZeroMatrix(3) row count = " + Integer.toString(m.size()));
+    }
+    var colsOk: bool = true;
+    var i: int = 0;
+    while (i < 3) {
+        if (m.get(i).size() != 3) { colsOk = false; }
+        i = i + 1;
+    }
+    if (colsOk) {
+        io::println("PASS: makeZeroMatrix(3) column count = 3");
+    } else {
+        io::println("FAIL: makeZeroMatrix(3) column count wrong");
+    }
+}
+
+public fn test_make_zero_matrix_all_zeros(): void {
+    let m: ArrayList<ArrayList<double>> = makeZeroMatrix(4);
+    var allZero: bool = true;
+    var i: int = 0;
+    while (i < 4) {
+        var j: int = 0;
+        while (j < 4) {
+            if (m.get(i).get(j) != 0.0) { allZero = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (allZero) {
+        io::println("PASS: makeZeroMatrix(4) all zeros");
+    } else {
+        io::println("FAIL: makeZeroMatrix(4) not all zeros");
+    }
+}
+
+public fn test_make_zero_matrix_zero_size(): void {
+    let m: ArrayList<ArrayList<double>> = makeZeroMatrix(0);
+    if (m.size() == 0) {
+        io::println("PASS: makeZeroMatrix(0) empty");
+    } else {
+        io::println("FAIL: makeZeroMatrix(0) not empty");
+    }
+}
+
+public fn test_make_zero_matrix_one_by_one(): void {
+    let m: ArrayList<ArrayList<double>> = makeZeroMatrix(1);
+    if (m.size() == 1 && m.get(0).size() == 1 && m.get(0).get(0) == 0.0) {
+        io::println("PASS: makeZeroMatrix(1) 1x1 zero");
+    } else {
+        io::println("FAIL: makeZeroMatrix(1) wrong");
+    }
+}
+
+// ---- buildOverlapMatrix tests ----
+
+public fn test_build_overlap_matrix_size(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let S: ArrayList<ArrayList<double>> = buildOverlapMatrix(rhf);
+    if (S.size() == 2 && S.get(0).size() == 2) {
+        io::println("PASS: buildOverlapMatrix 2x2 for H2");
+    } else {
+        io::println("FAIL: buildOverlapMatrix size wrong");
+    }
+}
+
+public fn test_build_overlap_matrix_diagonal_one(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let S: ArrayList<ArrayList<double>> = buildOverlapMatrix(rhf);
+    // Diagonal of overlap matrix should be 1.0 (self-overlap)
+    if (absDiff(S.get(0).get(0), 1.0) < 1e-9 && absDiff(S.get(1).get(1), 1.0) < 1e-9) {
+        io::println("PASS: buildOverlapMatrix diagonal = 1.0");
+    } else {
+        io::println("FAIL: buildOverlapMatrix diagonal not 1.0");
+    }
+}
+
+public fn test_build_overlap_matrix_symmetric(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let S: ArrayList<ArrayList<double>> = buildOverlapMatrix(rhf);
+    if (absDiff(S.get(0).get(1), S.get(1).get(0)) < 1e-12) {
+        io::println("PASS: buildOverlapMatrix symmetric");
+    } else {
+        io::println("FAIL: buildOverlapMatrix not symmetric");
+    }
+}
+
+public fn test_build_overlap_matrix_off_diagonal_in_range(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let S: ArrayList<ArrayList<double>> = buildOverlapMatrix(rhf);
+    // Off-diagonal overlap should be in [0, 1) for distinct atoms
+    let off: double = S.get(0).get(1);
+    if (off >= 0.0 && off < 1.0) {
+        io::println("PASS: buildOverlapMatrix off-diagonal in [0,1) = " + Double.toString(off));
+    } else {
+        io::println("FAIL: buildOverlapMatrix off-diagonal out of range = " + Double.toString(off));
+    }
+}
+
+public fn test_build_overlap_matrix_finite(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let S: ArrayList<ArrayList<double>> = buildOverlapMatrix(rhf);
+    var allFinite: bool = true;
+    var i: int = 0;
+    while (i < 2) {
+        var j: int = 0;
+        while (j < 2) {
+            let v: double = S.get(i).get(j);
+            if (v != v) { allFinite = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (allFinite) {
+        io::println("PASS: buildOverlapMatrix all finite");
+    } else {
+        io::println("FAIL: buildOverlapMatrix has NaN");
+    }
+}
+
+// ---- buildCoreHamiltonian tests ----
+
+public fn test_build_core_hamiltonian_size(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let H: ArrayList<ArrayList<double>> = buildCoreHamiltonian(rhf);
+    if (H.size() == 2 && H.get(0).size() == 2) {
+        io::println("PASS: buildCoreHamiltonian 2x2 for H2");
+    } else {
+        io::println("FAIL: buildCoreHamiltonian size wrong");
+    }
+}
+
+public fn test_build_core_hamiltonian_symmetric(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let H: ArrayList<ArrayList<double>> = buildCoreHamiltonian(rhf);
+    if (absDiff(H.get(0).get(1), H.get(1).get(0)) < 1e-12) {
+        io::println("PASS: buildCoreHamiltonian symmetric");
+    } else {
+        io::println("FAIL: buildCoreHamiltonian not symmetric");
+    }
+}
+
+public fn test_build_core_hamiltonian_finite(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let H: ArrayList<ArrayList<double>> = buildCoreHamiltonian(rhf);
+    var allFinite: bool = true;
+    var i: int = 0;
+    while (i < 2) {
+        var j: int = 0;
+        while (j < 2) {
+            let v: double = H.get(i).get(j);
+            if (v != v) { allFinite = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (allFinite) {
+        io::println("PASS: buildCoreHamiltonian all finite");
+    } else {
+        io::println("FAIL: buildCoreHamiltonian has NaN");
+    }
+}
+
+public fn test_build_core_hamiltonian_diagonal_negative(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let H: ArrayList<ArrayList<double>> = buildCoreHamiltonian(rhf);
+    // Diagonal: kinetic + nuclear attraction. For H (Z=1, zeta~1):
+    // kinetic = 0.5 * zeta^2, nucAttr = -Z * zeta = -zeta. So ~0.5 - 1 = -0.5 (negative)
+    if (H.get(0).get(0) < 0.0 && H.get(1).get(1) < 0.0) {
+        io::println("PASS: buildCoreHamiltonian diagonal negative");
+    } else {
+        io::println("FAIL: buildCoreHamiltonian diagonal not negative");
+    }
+}
+
+// ---- buildFockMatrix tests ----
+
+public fn test_build_fock_matrix_size(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let F: ArrayList<ArrayList<double>> = buildFockMatrix(rhf);
+    if (F.size() == 2 && F.get(0).size() == 2) {
+        io::println("PASS: buildFockMatrix 2x2 for H2");
+    } else {
+        io::println("FAIL: buildFockMatrix size wrong");
+    }
+}
+
+public fn test_build_fock_matrix_zero_density_equals_core(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // With zero density matrix (default after init), Fock = core Hamiltonian
+    let F: ArrayList<ArrayList<double>> = buildFockMatrix(rhf);
+    let H: ArrayList<ArrayList<double>> = rhf.coreHamiltonian;
+    var equal: bool = true;
+    var i: int = 0;
+    while (i < 2) {
+        var j: int = 0;
+        while (j < 2) {
+            if (absDiff(F.get(i).get(j), H.get(i).get(j)) > 1e-12) { equal = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (equal) {
+        io::println("PASS: buildFockMatrix with zero density = core Hamiltonian");
+    } else {
+        io::println("FAIL: buildFockMatrix with zero density != core Hamiltonian");
+    }
+}
+
+public fn test_build_fock_matrix_symmetric(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let F: ArrayList<ArrayList<double>> = buildFockMatrix(rhf);
+    if (absDiff(F.get(0).get(1), F.get(1).get(0)) < 1e-12) {
+        io::println("PASS: buildFockMatrix symmetric");
+    } else {
+        io::println("FAIL: buildFockMatrix not symmetric");
+    }
+}
+
+public fn test_build_fock_matrix_finite(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let F: ArrayList<ArrayList<double>> = buildFockMatrix(rhf);
+    var allFinite: bool = true;
+    var i: int = 0;
+    while (i < 2) {
+        var j: int = 0;
+        while (j < 2) {
+            let v: double = F.get(i).get(j);
+            if (v != v) { allFinite = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (allFinite) {
+        io::println("PASS: buildFockMatrix all finite");
+    } else {
+        io::println("FAIL: buildFockMatrix has NaN");
+    }
+}
+
+// ---- toMatrix tests ----
+
+public fn test_to_matrix_dimensions(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let arr: ArrayList<ArrayList<double>> = makeZeroMatrix(3);
+    let m: Matrix = toMatrix(rhf, arr);
+    if (m.rows() == 3 && m.cols() == 3) {
+        io::println("PASS: toMatrix 3x3 dimensions");
+    } else {
+        io::println("FAIL: toMatrix dimensions wrong");
+    }
+}
+
+public fn test_to_matrix_preserves_values(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let arr: ArrayList<ArrayList<double>> = makeZeroMatrix(2);
+    arr.get(0).set(0, 1.5);
+    arr.get(0).set(1, 2.5);
+    arr.get(1).set(0, 3.5);
+    arr.get(1).set(1, 4.5);
+    let m: Matrix = toMatrix(rhf, arr);
+    if (absDiff(m.get(0, 0), 1.5) < 1e-12 &&
+        absDiff(m.get(0, 1), 2.5) < 1e-12 &&
+        absDiff(m.get(1, 0), 3.5) < 1e-12 &&
+        absDiff(m.get(1, 1), 4.5) < 1e-12) {
+        io::println("PASS: toMatrix preserves values");
+    } else {
+        io::println("FAIL: toMatrix does not preserve values");
+    }
+}
+
+// ---- fromMatrix tests ----
+
+public fn test_from_matrix_dimensions(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let m: Matrix = new Matrix(3, 3);
+    let arr: ArrayList<ArrayList<double>> = fromMatrix(rhf, m);
+    if (arr.size() == 3 && arr.get(0).size() == 3) {
+        io::println("PASS: fromMatrix 3x3 dimensions");
+    } else {
+        io::println("FAIL: fromMatrix dimensions wrong");
+    }
+}
+
+public fn test_from_matrix_preserves_values(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let m: Matrix = new Matrix(2, 2);
+    m.set(0, 0, 10.0);
+    m.set(0, 1, 20.0);
+    m.set(1, 0, 30.0);
+    m.set(1, 1, 40.0);
+    let arr: ArrayList<ArrayList<double>> = fromMatrix(rhf, m);
+    if (absDiff(arr.get(0).get(0), 10.0) < 1e-12 &&
+        absDiff(arr.get(0).get(1), 20.0) < 1e-12 &&
+        absDiff(arr.get(1).get(0), 30.0) < 1e-12 &&
+        absDiff(arr.get(1).get(1), 40.0) < 1e-12) {
+        io::println("PASS: fromMatrix preserves values");
+    } else {
+        io::println("FAIL: fromMatrix does not preserve values");
+    }
+}
+
+public fn test_to_from_matrix_roundtrip(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let original: ArrayList<ArrayList<double>> = makeZeroMatrix(2);
+    original.get(0).set(0, 1.1);
+    original.get(0).set(1, 2.2);
+    original.get(1).set(0, 3.3);
+    original.get(1).set(1, 4.4);
+    let m: Matrix = toMatrix(rhf, original);
+    let roundtrip: ArrayList<ArrayList<double>> = fromMatrix(rhf, m);
+    var equal: bool = true;
+    var i: int = 0;
+    while (i < 2) {
+        var j: int = 0;
+        while (j < 2) {
+            if (absDiff(original.get(i).get(j), roundtrip.get(i).get(j)) > 1e-12) { equal = false; }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    if (equal) {
+        io::println("PASS: toMatrix/fromMatrix roundtrip preserves values");
+    } else {
+        io::println("FAIL: toMatrix/fromMatrix roundtrip mismatch");
+    }
+}
+
+// ---- copyMatrix tests ----
+
+public fn test_copy_matrix_dimensions(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let original: ArrayList<ArrayList<double>> = makeZeroMatrix(3);
+    let copy: ArrayList<ArrayList<double>> = copyMatrix(rhf, original);
+    if (copy.size() == 3 && copy.get(0).size() == 3) {
+        io::println("PASS: copyMatrix 3x3 dimensions");
+    } else {
+        io::println("FAIL: copyMatrix dimensions wrong");
+    }
+}
+
+public fn test_copy_matrix_preserves_values(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let original: ArrayList<ArrayList<double>> = makeZeroMatrix(2);
+    original.get(0).set(0, 5.5);
+    original.get(0).set(1, 6.6);
+    original.get(1).set(0, 7.7);
+    original.get(1).set(1, 8.8);
+    let copy: ArrayList<ArrayList<double>> = copyMatrix(rhf, original);
+    if (absDiff(copy.get(0).get(0), 5.5) < 1e-12 &&
+        absDiff(copy.get(0).get(1), 6.6) < 1e-12 &&
+        absDiff(copy.get(1).get(0), 7.7) < 1e-12 &&
+        absDiff(copy.get(1).get(1), 8.8) < 1e-12) {
+        io::println("PASS: copyMatrix preserves values");
+    } else {
+        io::println("FAIL: copyMatrix does not preserve values");
+    }
+}
+
+public fn test_copy_matrix_independent(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let original: ArrayList<ArrayList<double>> = makeZeroMatrix(2);
+    original.get(0).set(0, 1.0);
+    let copy: ArrayList<ArrayList<double>> = copyMatrix(rhf, original);
+    // Modify original; copy should be unchanged
+    original.get(0).set(0, 999.0);
+    if (absDiff(copy.get(0).get(0), 1.0) < 1e-12) {
+        io::println("PASS: copyMatrix is independent of original");
+    } else {
+        io::println("FAIL: copyMatrix not independent (aliasing detected)");
+    }
+}
+
+public fn run_all_rhf_matrix_tests(): void {
+    io::println("=== RHFMatrix.tr Tests ===");
+    test_make_zero_matrix_size();
+    test_make_zero_matrix_all_zeros();
+    test_make_zero_matrix_zero_size();
+    test_make_zero_matrix_one_by_one();
+    test_build_overlap_matrix_size();
+    test_build_overlap_matrix_diagonal_one();
+    test_build_overlap_matrix_symmetric();
+    test_build_overlap_matrix_off_diagonal_in_range();
+    test_build_overlap_matrix_finite();
+    test_build_core_hamiltonian_size();
+    test_build_core_hamiltonian_symmetric();
+    test_build_core_hamiltonian_finite();
+    test_build_core_hamiltonian_diagonal_negative();
+    test_build_fock_matrix_size();
+    test_build_fock_matrix_zero_density_equals_core();
+    test_build_fock_matrix_symmetric();
+    test_build_fock_matrix_finite();
+    test_to_matrix_dimensions();
+    test_to_matrix_preserves_values();
+    test_from_matrix_dimensions();
+    test_from_matrix_preserves_values();
+    test_to_from_matrix_roundtrip();
+    test_copy_matrix_dimensions();
+    test_copy_matrix_preserves_values();
+    test_copy_matrix_independent();
+}

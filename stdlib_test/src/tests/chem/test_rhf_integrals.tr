@@ -1,0 +1,282 @@
+// Test file for chem/RHFIntegrals.tr
+// Exercises orbital exponent lookup, basis-to-atom mapping, and two-electron integrals.
+import tt::chem::RHF;
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::chem::RHFIntegrals;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+// Helper: build an H2 RHF object (basis=2, two H atoms)
+fn _makeH2Rhf(): RHF {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 2);
+    return rhf;
+}
+
+// Helper: build an H2 RHF object with basis=4 (2 basis per atom)
+fn _makeH2RhfBasis4(): RHF {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.4, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let rhf: RHF = new RHF(mol, 4);
+    return rhf;
+}
+
+// ---- orbitalExponent tests ----
+
+public fn test_orbital_exponent_hydrogen(): void {
+    let zeta: double = orbitalExponent(1);
+    // Should return value from data file if available, otherwise fallback 1*0.95 = 0.95
+    // Either way it should be positive
+    if (zeta > 0.0) {
+        io::println("PASS: orbitalExponent(1) positive = " + Double.toString(zeta));
+    } else {
+        io::println("FAIL: orbitalExponent(1) not positive");
+    }
+}
+
+public fn test_orbital_exponent_helium(): void {
+    let zeta: double = orbitalExponent(2);
+    if (zeta > 0.0) {
+        io::println("PASS: orbitalExponent(2) positive = " + Double.toString(zeta));
+    } else {
+        io::println("FAIL: orbitalExponent(2) not positive");
+    }
+}
+
+public fn test_orbital_exponent_carbon(): void {
+    let zeta: double = orbitalExponent(6);
+    if (zeta > 0.0) {
+        io::println("PASS: orbitalExponent(6) positive = " + Double.toString(zeta));
+    } else {
+        io::println("FAIL: orbitalExponent(6) not positive");
+    }
+}
+
+public fn test_orbital_exponent_fallback_unknown(): void {
+    // For atomic numbers not in the table (e.g., 99), fallback = 99 * 0.95 = 94.05
+    let zeta: double = orbitalExponent(99);
+    let expected: double = 99.0 * 0.95;
+    if (absDiff(zeta, expected) < 1e-6) {
+        io::println("PASS: orbitalExponent(99) fallback = " + Double.toString(zeta));
+    } else {
+        io::println("FAIL: orbitalExponent(99) expected " + Double.toString(expected) + " got " + Double.toString(zeta));
+    }
+}
+
+public fn test_orbital_exponent_increases_with_z(): void {
+    // Larger atomic number should generally give larger exponent (for fallback)
+    // For known elements, this may not strictly hold, so test the fallback path
+    let z50: double = orbitalExponent(50);
+    let z60: double = orbitalExponent(60);
+    if (z60 >= z50) {
+        io::println("PASS: orbitalExponent monotonic for high Z fallback");
+    } else {
+        io::println("FAIL: orbitalExponent not monotonic");
+    }
+}
+
+// ---- basisToAtom tests ----
+
+public fn test_basis_to_atom_h2_basis2(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // basis=2, nAtoms=2 → perAtom=1 → mu=0 → atom 0, mu=1 → atom 1
+    let a0: int = basisToAtom(rhf, 0);
+    let a1: int = basisToAtom(rhf, 1);
+    if (a0 == 0 && a1 == 1) {
+        io::println("PASS: basisToAtom H2 basis=2 mapping");
+    } else {
+        io::println("FAIL: basisToAtom H2 basis=2 got " + Integer.toString(a0) + "," + Integer.toString(a1));
+    }
+}
+
+public fn test_basis_to_atom_h2_basis4(): void {
+    let rhf: RHF = _makeH2RhfBasis4();
+    // basis=4, nAtoms=2 → perAtom=2 → mu=0,1 → atom 0; mu=2,3 → atom 1
+    let a0: int = basisToAtom(rhf, 0);
+    let a1: int = basisToAtom(rhf, 1);
+    let a2: int = basisToAtom(rhf, 2);
+    let a3: int = basisToAtom(rhf, 3);
+    if (a0 == 0 && a1 == 0 && a2 == 1 && a3 == 1) {
+        io::println("PASS: basisToAtom H2 basis=4 mapping");
+    } else {
+        io::println("FAIL: basisToAtom H2 basis=4 got " + Integer.toString(a0) + "," + Integer.toString(a1) + "," + Integer.toString(a2) + "," + Integer.toString(a3));
+    }
+}
+
+public fn test_basis_to_atom_in_range(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // All basis indices should map to valid atom indices [0, nAtoms)
+    let nAtoms: int = rhf.molecule.atomCount();
+    var allValid: bool = true;
+    var mu: int = 0;
+    while (mu < rhf.basisSize) {
+        let a: int = basisToAtom(rhf, mu);
+        if (a < 0 || a >= nAtoms) { allValid = false; }
+        mu = mu + 1;
+    }
+    if (allValid) {
+        io::println("PASS: basisToAtom all indices in valid range");
+    } else {
+        io::println("FAIL: basisToAtom out-of-range mapping");
+    }
+}
+
+public fn test_basis_to_atom_single_atom(): void {
+    // Single atom, basis=3 → all map to atom 0
+    let mol: Molecule = new Molecule("H");
+    let h: Atom = new Atom("H", 1, 1.008);
+    h.setPosition(0.0, 0.0, 0.0);
+    mol.addAtom(h);
+    let rhf: RHF = new RHF(mol, 3);
+    let a0: int = basisToAtom(rhf, 0);
+    let a1: int = basisToAtom(rhf, 1);
+    let a2: int = basisToAtom(rhf, 2);
+    if (a0 == 0 && a1 == 0 && a2 == 0) {
+        io::println("PASS: basisToAtom single atom all map to 0");
+    } else {
+        io::println("FAIL: basisToAtom single atom mapping");
+    }
+}
+
+// ---- twoElectronIntegral tests ----
+
+public fn test_two_electron_integral_on_center(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // For (0,0,0,0): all on atom 0, on-center → result = 0.625 * zeta_H
+    let zeta: double = orbitalExponent(1);
+    let expected: double = 0.625 * zeta;
+    let val: double = twoElectronIntegral(rhf, 0, 0, 0, 0);
+    if (absDiff(val, expected) < 1e-9) {
+        io::println("PASS: twoElectronIntegral on-center = " + Double.toString(val));
+    } else {
+        io::println("FAIL: twoElectronIntegral on-center expected " + Double.toString(expected) + " got " + Double.toString(val));
+    }
+}
+
+public fn test_two_electron_integral_finite(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // All integrals should be finite
+    var allFinite: bool = true;
+    var mu: int = 0;
+    while (mu < 2) {
+        var nu: int = 0;
+        while (nu < 2) {
+            var lam: int = 0;
+            while (lam < 2) {
+                var sig: int = 0;
+                while (sig < 2) {
+                    let v: double = twoElectronIntegral(rhf, mu, nu, lam, sig);
+                    if (v != v) { allFinite = false; }  // NaN
+                    sig = sig + 1;
+                }
+                lam = lam + 1;
+            }
+            nu = nu + 1;
+        }
+        mu = mu + 1;
+    }
+    if (allFinite) {
+        io::println("PASS: twoElectronIntegral all finite for H2");
+    } else {
+        io::println("FAIL: twoElectronIntegral has NaN");
+    }
+}
+
+public fn test_two_electron_integral_symmetry_mu_nu(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // Symmetry: (mu nu | lam sig) = (nu mu | lam sig)
+    let v01_00: double = twoElectronIntegral(rhf, 0, 1, 0, 0);
+    let v10_00: double = twoElectronIntegral(rhf, 1, 0, 0, 0);
+    if (absDiff(v01_00, v10_00) < 1e-12) {
+        io::println("PASS: twoElectronIntegral mu-nu symmetry");
+    } else {
+        io::println("FAIL: twoElectronIntegral mu-nu symmetry");
+    }
+}
+
+public fn test_two_electron_integral_symmetry_lam_sig(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // Symmetry: (mu nu | lam sig) = (mu nu | sig lam)
+    let v00_01: double = twoElectronIntegral(rhf, 0, 0, 0, 1);
+    let v00_10: double = twoElectronIntegral(rhf, 0, 0, 1, 0);
+    if (absDiff(v00_01, v00_10) < 1e-12) {
+        io::println("PASS: twoElectronIntegral lam-sig symmetry");
+    } else {
+        io::println("FAIL: twoElectronIntegral lam-sig symmetry");
+    }
+}
+
+public fn test_two_electron_integral_symmetry_pair_swap(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // Symmetry: (mu nu | lam sig) = (lam sig | mu nu)
+    // Use distinct pairs so the swap is meaningful: (0,0 | 0,1) vs (0,1 | 0,0)
+    let v00_01: double = twoElectronIntegral(rhf, 0, 0, 0, 1);
+    let v01_00: double = twoElectronIntegral(rhf, 0, 1, 0, 0);
+    if (absDiff(v00_01, v01_00) < 1e-12) {
+        io::println("PASS: twoElectronIntegral pair-swap symmetry");
+    } else {
+        io::println("FAIL: twoElectronIntegral pair-swap symmetry");
+    }
+}
+
+public fn test_two_electron_integral_positive(): void {
+    let rhf: RHF = _makeH2Rhf();
+    // Coulomb integrals should be non-negative
+    let v0000: double = twoElectronIntegral(rhf, 0, 0, 0, 0);
+    let v1111: double = twoElectronIntegral(rhf, 1, 1, 1, 1);
+    if (v0000 >= 0.0 && v1111 >= 0.0) {
+        io::println("PASS: twoElectronIntegral on-center values non-negative");
+    } else {
+        io::println("FAIL: twoElectronIntegral negative");
+    }
+}
+
+public fn test_two_electron_integral_returns_double(): void {
+    let rhf: RHF = _makeH2Rhf();
+    let v: double = twoElectronIntegral(rhf, 0, 1, 0, 1);
+    // Just verify we got a value (not NaN) for an off-center integral
+    if (v == v) {
+        io::println("PASS: twoElectronIntegral off-center returns finite value");
+    } else {
+        io::println("FAIL: twoElectronIntegral off-center NaN");
+    }
+}
+
+public fn run_all_rhf_integrals_tests(): void {
+    io::println("=== RHFIntegrals.tr Tests ===");
+    test_orbital_exponent_hydrogen();
+    test_orbital_exponent_helium();
+    test_orbital_exponent_carbon();
+    test_orbital_exponent_fallback_unknown();
+    test_orbital_exponent_increases_with_z();
+    test_basis_to_atom_h2_basis2();
+    test_basis_to_atom_h2_basis4();
+    test_basis_to_atom_in_range();
+    test_basis_to_atom_single_atom();
+    test_two_electron_integral_on_center();
+    test_two_electron_integral_finite();
+    test_two_electron_integral_symmetry_mu_nu();
+    test_two_electron_integral_symmetry_lam_sig();
+    test_two_electron_integral_symmetry_pair_swap();
+    test_two_electron_integral_positive();
+    test_two_electron_integral_returns_double();
+}

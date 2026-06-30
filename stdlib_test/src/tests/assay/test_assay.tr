@@ -1,0 +1,350 @@
+// Test file for assay/Assay.tr
+// Exercises the public API: TestCase, TestSuite, and assertion functions.
+import tt::assay::Assay;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_testsuite_init(): void {
+    let suite: TestSuite = new TestSuite("MySuite");
+    if (suite.name != "MySuite") {
+        io::println("FAIL: TestSuite.name wrong");
+    } else if (suite.passed != 0 || suite.failed != 0) {
+        io::println("FAIL: TestSuite initial counters wrong");
+    } else {
+        io::println("PASS: TestSuite.init works");
+    }
+}
+
+public fn test_testsuite_addTest(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.addTest("dummy", fn(): void { });
+    if (suite.tests.size() != 1) {
+        io::println("FAIL: TestSuite.addTest size=" + Integer.toString(suite.tests.size()));
+    } else {
+        io::println("PASS: TestSuite.addTest works");
+    }
+}
+
+public fn test_testsuite_addTest_name(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.addTest("myTestName", fn(): void { });
+    if (suite.tests.size() != 1 || suite.tests.get(0).name != "myTestName") {
+        io::println("FAIL: TestSuite.addTest name not stored");
+    } else {
+        io::println("PASS: TestSuite.addTest stores name");
+    }
+}
+
+public fn test_assertEqual_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertEqual(5, 5, "ints equal");
+    if (suite.passed != 1 || suite.failed != 0) {
+        io::println("FAIL: assertEqual pass counters wrong passed=" + Integer.toString(suite.passed));
+    } else {
+        io::println("PASS: assertEqual pass works");
+    }
+}
+
+public fn test_assertEqual_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertEqual(5, 6, "ints not equal");
+    if (suite.failed != 1 || suite.passed != 0) {
+        io::println("FAIL: assertEqual fail counters wrong failed=" + Integer.toString(suite.failed));
+    } else {
+        io::println("PASS: assertEqual fail works");
+    }
+}
+
+public fn test_assertNotEqual_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertNotEqual(5, 6, "different");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertNotEqual pass wrong");
+    } else {
+        io::println("PASS: assertNotEqual pass works");
+    }
+}
+
+public fn test_assertNotEqual_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertNotEqual(5, 5, "same");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertNotEqual fail wrong");
+    } else {
+        io::println("PASS: assertNotEqual fail works");
+    }
+}
+
+public fn test_assertTrue_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertTrue(true, "true");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertTrue pass wrong");
+    } else {
+        io::println("PASS: assertTrue pass works");
+    }
+}
+
+public fn test_assertTrue_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertTrue(false, "false");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertTrue fail wrong");
+    } else {
+        io::println("PASS: assertTrue fail works");
+    }
+}
+
+public fn test_assertFalse_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertFalse(false, "false");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertFalse pass wrong");
+    } else {
+        io::println("PASS: assertFalse pass works");
+    }
+}
+
+public fn test_assertFalse_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertFalse(true, "true");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertFalse fail wrong");
+    } else {
+        io::println("PASS: assertFalse fail works");
+    }
+}
+
+public fn test_assertApproxEqual_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertApproxEqual(1.0, 1.0001, 0.001, "approx");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertApproxEqual pass wrong");
+    } else {
+        io::println("PASS: assertApproxEqual pass works");
+    }
+}
+
+public fn test_assertApproxEqual_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertApproxEqual(1.0, 2.0, 0.001, "not approx");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertApproxEqual fail wrong");
+    } else {
+        io::println("PASS: assertApproxEqual fail works");
+    }
+}
+
+public fn test_assertGreaterThan_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertGreaterThan(5.0, 3.0, "5 > 3");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertGreaterThan pass wrong");
+    } else {
+        io::println("PASS: assertGreaterThan pass works");
+    }
+}
+
+public fn test_assertGreaterThan_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertGreaterThan(3.0, 5.0, "3 > 5");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertGreaterThan fail wrong");
+    } else {
+        io::println("PASS: assertGreaterThan fail works");
+    }
+}
+
+public fn test_assertLessThan_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertLessThan(3.0, 5.0, "3 < 5");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertLessThan pass wrong");
+    } else {
+        io::println("PASS: assertLessThan pass works");
+    }
+}
+
+public fn test_assertLessThan_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertLessThan(5.0, 3.0, "5 < 3");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertLessThan fail wrong");
+    } else {
+        io::println("PASS: assertLessThan fail works");
+    }
+}
+
+public fn test_assertContains_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    suite.assertContains(list, 2, "contains 2");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertContains pass wrong");
+    } else {
+        io::println("PASS: assertContains pass works");
+    }
+}
+
+public fn test_assertContains_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    suite.assertContains(list, 99, "missing 99");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertContains fail wrong");
+    } else {
+        io::println("PASS: assertContains fail works");
+    }
+}
+
+public fn test_assertNull_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertNull<string>(null, "null string");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertNull pass wrong");
+    } else {
+        io::println("PASS: assertNull pass works");
+    }
+}
+
+public fn test_assertNull_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertNull<string>("not null", "non-null");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertNull fail wrong");
+    } else {
+        io::println("PASS: assertNull fail works");
+    }
+}
+
+public fn test_assertNotNull_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertNotNull<string>("value", "non-null");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertNotNull pass wrong");
+    } else {
+        io::println("PASS: assertNotNull pass works");
+    }
+}
+
+public fn test_assertNotNull_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertNotNull<string>(null, "null");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertNotNull fail wrong");
+    } else {
+        io::println("PASS: assertNotNull fail works");
+    }
+}
+
+public fn test_assertThrows_pass(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertThrows(fn(): void { throw "boom"; }, "should throw");
+    if (suite.passed != 1) {
+        io::println("FAIL: assertThrows pass wrong");
+    } else {
+        io::println("PASS: assertThrows pass works");
+    }
+}
+
+public fn test_assertThrows_fail(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.assertThrows(fn(): void { }, "does not throw");
+    if (suite.failed != 1) {
+        io::println("FAIL: assertThrows fail wrong");
+    } else {
+        io::println("PASS: assertThrows fail works");
+    }
+}
+
+public fn test_testsuite_fail_directly(): void {
+    let suite: TestSuite = new TestSuite("S");
+    suite.fail("manual failure");
+    if (suite.failed != 1) {
+        io::println("FAIL: TestSuite.fail wrong");
+    } else {
+        io::println("PASS: TestSuite.fail works");
+    }
+}
+
+public fn test_testsuite_summary(): void {
+    let suite: TestSuite = new TestSuite("Sum");
+    suite.passed = 3;
+    suite.failed = 1;
+    let s: string = suite.summary();
+    // Summary should mention "Sum", "3 passed", "1 failed"
+    if (String.length(s) == 0) {
+        io::println("FAIL: TestSuite.summary empty");
+    } else {
+        io::println("PASS: TestSuite.summary returns string");
+    }
+}
+
+public fn test_testsuite_timeout_executes(): void {
+    let suite: TestSuite = new TestSuite("S");
+    var counter: int = 0;
+    suite.timeout(100, fn(): void { counter = 42; });
+    if (counter != 42) {
+        io::println("FAIL: TestSuite.timeout did not execute fn");
+    } else {
+        io::println("PASS: TestSuite.timeout executes fn");
+    }
+}
+
+public fn test_testsuite_run_no_crash(): void {
+    // Run a suite with a passing test; ensure no crash
+    let suite: TestSuite = new TestSuite("RunSuite");
+    suite.addTest("passing", fn(): void { });
+    suite.run();
+    // If we get here without throwing, the test passes
+    io::println("PASS: TestSuite.run does not crash");
+}
+
+public fn test_testcase_init(): void {
+    let tc: TestCase = new TestCase("case1", fn(): void { });
+    if (tc.name != "case1") {
+        io::println("FAIL: TestCase.name wrong");
+    } else {
+        io::println("PASS: TestCase.init works");
+    }
+}
+
+public fn run_all_assay_tests(): void {
+    io::println("=== Assay.tr Tests ===");
+    test_testsuite_init();
+    test_testsuite_addTest();
+    test_testsuite_addTest_name();
+    test_assertEqual_pass();
+    test_assertEqual_fail();
+    test_assertNotEqual_pass();
+    test_assertNotEqual_fail();
+    test_assertTrue_pass();
+    test_assertTrue_fail();
+    test_assertFalse_pass();
+    test_assertFalse_fail();
+    test_assertApproxEqual_pass();
+    test_assertApproxEqual_fail();
+    test_assertGreaterThan_pass();
+    test_assertGreaterThan_fail();
+    test_assertLessThan_pass();
+    test_assertLessThan_fail();
+    test_assertContains_pass();
+    test_assertContains_fail();
+    test_assertNull_pass();
+    test_assertNull_fail();
+    test_assertNotNull_pass();
+    test_assertNotNull_fail();
+    test_assertThrows_pass();
+    test_assertThrows_fail();
+    test_testsuite_fail_directly();
+    test_testsuite_summary();
+    test_testsuite_timeout_executes();
+    test_testsuite_run_no_crash();
+    test_testcase_init();
+}

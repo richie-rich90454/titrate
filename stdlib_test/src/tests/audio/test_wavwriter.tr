@@ -1,0 +1,185 @@
+// Test file for audio/WavWriter.tr
+// Exercises the public API: writeWav, writeF32.
+//
+// These tests write WAV files to a temp path and read them back via WavReader
+// to verify round-trip behaviour. The files are written to the current working
+// directory and removed after the test where possible.
+import tt::audio::AudioBuffer;
+import tt::audio::WavWriter;
+import tt::audio::WavReader;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::lang::Variant;
+
+public fn test_writeWav_creates_file(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 100) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wavwriter_output_16bit.wav";
+    writeWav(path, buf, 16);
+    // Verify by reading the header back
+    let info: HashMap<string, Variant> = readHeader(path);
+    if (info.size() == 0) {
+        io::println("FAIL: writeWav did not produce a readable file");
+    } else {
+        io::println("PASS: writeWav creates readable file");
+    }
+}
+
+public fn test_writeWav_16bit_header(): void {
+    let buf: AudioBuffer = new AudioBuffer(16000, 2);
+    var i: int = 0;
+    while (i < 50) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.1);
+        frame.add(-0.1);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wavwriter_stereo_16bit.wav";
+    writeWav(path, buf, 16);
+    let info: HashMap<string, Variant> = readHeader(path);
+    if (info.size() == 0) {
+        io::println("FAIL: writeWav 16bit header unreadable");
+    } else {
+        let sr: Variant = info.get("sampleRate");
+        let ch: Variant = info.get("channels");
+        let bps: Variant = info.get("bitsPerSample");
+        if (sr == null || ch == null || bps == null) {
+            io::println("FAIL: writeWav 16bit header missing keys");
+        } else {
+            io::println("PASS: writeWav 16bit header readable");
+        }
+    }
+}
+
+public fn test_writeWav_8bit_creates_file(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 100) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wavwriter_output_8bit.wav";
+    writeWav(path, buf, 8);
+    let info: HashMap<string, Variant> = readHeader(path);
+    if (info.size() == 0) {
+        io::println("FAIL: writeWav 8bit did not produce a readable file");
+    } else {
+        io::println("PASS: writeWav 8bit creates readable file");
+    }
+}
+
+public fn test_writeWav_roundtrip_frames(): void {
+    // Write a small buffer and read it back; numFrames should match.
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 200) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.5);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wavwriter_roundtrip.wav";
+    writeWav(path, buf, 16);
+    let read: AudioBuffer = readWav(path);
+    if (read.numFrames() != 200) {
+        io::println("FAIL: writeWav roundtrip numFrames=" + Integer.toString(read.numFrames()) + " expected 200");
+    } else {
+        io::println("PASS: writeWav roundtrip frames works");
+    }
+}
+
+public fn test_writeWav_roundtrip_sample_rate(): void {
+    let buf: AudioBuffer = new AudioBuffer(22050, 1);
+    var i: int = 0;
+    while (i < 50) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wavwriter_sr.wav";
+    writeWav(path, buf, 16);
+    let read: AudioBuffer = readWav(path);
+    if (read.sampleRate != 22050) {
+        io::println("FAIL: writeWav roundtrip sampleRate=" + Integer.toString(read.sampleRate));
+    } else {
+        io::println("PASS: writeWav roundtrip sampleRate works");
+    }
+}
+
+public fn test_writeWav_roundtrip_channels(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 2);
+    var i: int = 0;
+    while (i < 50) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wavwriter_stereo.wav";
+    writeWav(path, buf, 16);
+    let read: AudioBuffer = readWav(path);
+    if (read.channels != 2) {
+        io::println("FAIL: writeWav roundtrip channels=" + Integer.toString(read.channels));
+    } else {
+        io::println("PASS: writeWav roundtrip channels works");
+    }
+}
+
+public fn test_writeF32_creates_file(): void {
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    var i: int = 0;
+    while (i < 100) {
+        let frame: ArrayList<double> = new ArrayList<double>();
+        frame.add(0.0);
+        buf.addFrame(frame);
+        i = i + 1;
+    }
+    let path: string = "test_wavwriter_f32.wav";
+    writeF32(path, buf);
+    // We can only verify the file is produced; readWav expects PCM and may not
+    // parse float format correctly, but file creation should succeed.
+    let info: HashMap<string, Variant> = readHeader(path);
+    if (info.size() == 0) {
+        io::println("FAIL: writeF32 did not produce a readable header");
+    } else {
+        io::println("PASS: writeF32 creates readable header");
+    }
+}
+
+public fn test_writeWav_empty_buffer(): void {
+    // Writing an empty buffer should still produce a valid WAV header.
+    let buf: AudioBuffer = new AudioBuffer(8000, 1);
+    let path: string = "test_wavwriter_empty.wav";
+    writeWav(path, buf, 16);
+    let info: HashMap<string, Variant> = readHeader(path);
+    if (info.size() == 0) {
+        io::println("FAIL: writeWav empty did not produce a readable file");
+    } else {
+        io::println("PASS: writeWav empty works");
+    }
+}
+
+public fn run_all_wavwriter_tests(): void {
+    io::println("=== WavWriter.tr Tests ===");
+    test_writeWav_creates_file();
+    test_writeWav_16bit_header();
+    test_writeWav_8bit_creates_file();
+    test_writeWav_roundtrip_frames();
+    test_writeWav_roundtrip_sample_rate();
+    test_writeWav_roundtrip_channels();
+    test_writeF32_creates_file();
+    test_writeWav_empty_buffer();
+}

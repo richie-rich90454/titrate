@@ -1,0 +1,245 @@
+// Test file for chem/MD.tr
+// Exercises the public API: MDSimulation class.
+import tt::chem::MD;
+import tt::chem::Integrator;
+import tt::chem::ForceField;
+import tt::chem::ForceFieldNonbonded;
+import tt::chem::Molecule;
+import tt::chem::Atom;
+import tt::chem::Bond;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_mdsimulation_init(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    if (sim.molecule != mol) {
+        io::println("FAIL: MDSimulation.molecule wrong");
+    } else if (sim.forceField != ff) {
+        io::println("FAIL: MDSimulation.forceField wrong");
+    } else if (sim.integrator != integ) {
+        io::println("FAIL: MDSimulation.integrator wrong");
+    } else if (sim.outputFrequency != 50) {
+        io::println("FAIL: MDSimulation.outputFrequency default wrong");
+    } else if (sim.usePBC) {
+        io::println("FAIL: MDSimulation.usePBC should be false by default");
+    } else {
+        io::println("PASS: MDSimulation.init works");
+    }
+}
+
+public fn test_mdsimulation_setOutputFrequency(): void {
+    let mol: Molecule = new Molecule("H2");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    sim.setOutputFrequency(10);
+    if (sim.outputFrequency != 10) {
+        io::println("FAIL: setOutputFrequency wrong");
+    } else {
+        io::println("PASS: setOutputFrequency works");
+    }
+}
+
+public fn test_mdsimulation_setPBC(): void {
+    let mol: Molecule = new Molecule("H2");
+    mol.addAtom(new Atom("H", 1, 1.008));
+    mol.addAtom(new Atom("H", 1, 1.008));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    sim.setPBC(10.0, 10.0, 10.0);
+    if (!sim.usePBC) {
+        io::println("FAIL: setPBC usePBC should be true");
+    } else if (sim.boxX != 10.0 || sim.boxY != 10.0 || sim.boxZ != 10.0) {
+        io::println("FAIL: setPBC box dimensions wrong");
+    } else {
+        io::println("PASS: setPBC works");
+    }
+}
+
+public fn test_mdsimulation_writeXYZFrame(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.0, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    let frame: string = sim.writeXYZFrame();
+    if (frame == "") {
+        io::println("FAIL: writeXYZFrame empty");
+    } else {
+        io::println("PASS: writeXYZFrame non-empty");
+    }
+}
+
+public fn test_mdsimulation_minimumImageDistance_no_pbc(): void {
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(3.0, 4.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    let d: double = sim.minimumImageDistance(a1, a2);
+    // Without PBC, this is just the Euclidean distance = 5.0
+    if (d != 5.0) {
+        io::println("FAIL: minimumImageDistance no pbc=" + Double.toString(d) + " expected 5.0");
+    } else {
+        io::println("PASS: minimumImageDistance no pbc = 5.0");
+    }
+}
+
+public fn test_mdsimulation_minimumImageDistance_with_pbc(): void {
+    let mol: Molecule = new Molecule("test");
+    let a1: Atom = new Atom("H", 1, 1.008);
+    let a2: Atom = new Atom("H", 1, 1.008);
+    a1.setPosition(0.0, 0.0, 0.0);
+    a2.setPosition(9.0, 0.0, 0.0);
+    mol.addAtom(a1);
+    mol.addAtom(a2);
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    sim.setPBC(10.0, 10.0, 10.0);
+    let d: double = sim.minimumImageDistance(a1, a2);
+    // With PBC box=10, dx=9 > 5 => dx = 9 - 10 = -1 => distance = 1.0
+    if (d != 1.0) {
+        io::println("FAIL: minimumImageDistance pbc=" + Double.toString(d) + " expected 1.0");
+    } else {
+        io::println("PASS: minimumImageDistance pbc = 1.0");
+    }
+}
+
+public fn test_mdsimulation_applyPBC_no_crash(): void {
+    let mol: Molecule = new Molecule("test");
+    let a: Atom = new Atom("H", 1, 1.008);
+    a.setPosition(11.0, 12.0, 13.0);
+    mol.addAtom(a);
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    sim.setPBC(10.0, 10.0, 10.0);
+    sim.applyPBC();
+    // After PBC, positions should be wrapped into [0, box)
+    if (a.x < 0.0 || a.x >= 10.0 || a.y < 0.0 || a.y >= 10.0 || a.z < 0.0 || a.z >= 10.0) {
+        io::println("FAIL: applyPBC did not wrap positions");
+    } else {
+        io::println("PASS: applyPBC wraps positions");
+    }
+}
+
+public fn test_mdsimulation_applyPBC_disabled(): void {
+    let mol: Molecule = new Molecule("test");
+    let a: Atom = new Atom("H", 1, 1.008);
+    a.setPosition(11.0, 0.0, 0.0);
+    mol.addAtom(a);
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    // PBC not enabled; applyPBC should be a no-op
+    sim.applyPBC();
+    if (a.x != 11.0) {
+        io::println("FAIL: applyPBC disabled changed position");
+    } else {
+        io::println("PASS: applyPBC disabled is no-op");
+    }
+}
+
+public fn test_mdsimulation_run_few_steps(): void {
+    // Run a small MD simulation; verify it does not crash and increments step count
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);  // equilibrium
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    sim.setOutputFrequency(2);
+    sim.run(5);
+    if (integ.getStepCount() != 5) {
+        io::println("FAIL: run did not advance step count to 5");
+    } else {
+        io::println("PASS: run advances step count to 5");
+    }
+}
+
+public fn test_mdsimulation_run_writes_trajectory(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    sim.setOutputFrequency(2);
+    sim.run(5);
+    // trajectory should have at least the initial frame
+    if (sim.trajectory.size() < 1) {
+        io::println("FAIL: run did not write trajectory");
+    } else {
+        io::println("PASS: run writes trajectory frames=" + Integer.toString(sim.trajectory.size()));
+    }
+}
+
+public fn test_mdsimulation_currentEnergy(): void {
+    let mol: Molecule = new Molecule("H2");
+    let h1: Atom = new Atom("H", 1, 1.008);
+    let h2: Atom = new Atom("H", 1, 1.008);
+    h1.setPosition(0.0, 0.0, 0.0);
+    h2.setPosition(1.5, 0.0, 0.0);
+    mol.addAtom(h1);
+    mol.addAtom(h2);
+    mol.addBond(new Bond(0, 1, "single", 1));
+    let ff: ForceField = new ForceField();
+    let integ: VerletIntegrator = new VerletIntegrator(0.001, "none", 300.0);
+    let sim: MDSimulation = new MDSimulation(mol, ff, integ);
+    integ.initializeVelocities(mol);
+    let e: double = sim.currentEnergy();
+    if (e != e) {
+        io::println("FAIL: currentEnergy NaN");
+    } else {
+        io::println("PASS: currentEnergy finite = " + Double.toString(e));
+    }
+}
+
+public fn run_all_md_tests(): void {
+    io::println("=== chem/MD.tr Tests ===");
+    test_mdsimulation_init();
+    test_mdsimulation_setOutputFrequency();
+    test_mdsimulation_setPBC();
+    test_mdsimulation_writeXYZFrame();
+    test_mdsimulation_minimumImageDistance_no_pbc();
+    test_mdsimulation_minimumImageDistance_with_pbc();
+    test_mdsimulation_applyPBC_no_crash();
+    test_mdsimulation_applyPBC_disabled();
+    test_mdsimulation_run_few_steps();
+    test_mdsimulation_run_writes_trajectory();
+    test_mdsimulation_currentEnergy();
+}

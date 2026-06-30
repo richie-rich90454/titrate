@@ -1,0 +1,318 @@
+// Test file for audio/Mfcc.tr
+// Exercises the public API: preEmphasis, frameSignal, applyWindow, powerSpectrum,
+// hzToMel, melToHz, melFilterbank, applyFilterbank, dctII, delta, computeMFCC.
+import tt::audio::Mfcc;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_preEmphasis_length(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0);
+    signal.add(2.0);
+    signal.add(3.0);
+    let out: ArrayList<double> = preEmphasis(signal, 0.97);
+    if (out.size() != 3) {
+        io::println("FAIL: preEmphasis length=" + Integer.toString(out.size()));
+    } else {
+        io::println("PASS: preEmphasis length works");
+    }
+}
+
+public fn test_preEmphasis_first_unchanged(): void {
+    // First sample is passed through unchanged
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(5.0);
+    signal.add(0.0);
+    let out: ArrayList<double> = preEmphasis(signal, 0.97);
+    if (out.get(0) != 5.0) {
+        io::println("FAIL: preEmphasis first sample changed");
+    } else {
+        io::println("PASS: preEmphasis first sample unchanged");
+    }
+}
+
+public fn test_preEmphasis_value(): void {
+    // y[i] = x[i] - alpha * x[i-1]; for x=[1,2], alpha=0.5 => y[1] = 2 - 0.5*1 = 1.5
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0);
+    signal.add(2.0);
+    let out: ArrayList<double> = preEmphasis(signal, 0.5);
+    if (out.get(1) != 1.5) {
+        io::println("FAIL: preEmphasis value=" + Double.toString(out.get(1)) + " expected 1.5");
+    } else {
+        io::println("PASS: preEmphasis value works");
+    }
+}
+
+public fn test_frameSignal_basic(): void {
+    // Signal of length 8, frame 4, hop 2 => frames at 0,2,4 => 3 frames
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 8) {
+        signal.add(i as double);
+        i = i + 1;
+    }
+    let frames: ArrayList<ArrayList<double>> = frameSignal(signal, 4, 2);
+    if (frames.size() != 3) {
+        io::println("FAIL: frameSignal size=" + Integer.toString(frames.size()) + " expected 3");
+    } else {
+        io::println("PASS: frameSignal basic works");
+    }
+}
+
+public fn test_frameSignal_frame_length(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 8) {
+        signal.add(i as double);
+        i = i + 1;
+    }
+    let frames: ArrayList<ArrayList<double>> = frameSignal(signal, 4, 2);
+    if (frames.size() == 0 || frames.get(0).size() != 4) {
+        io::println("FAIL: frameSignal frame length wrong");
+    } else {
+        io::println("PASS: frameSignal frame length works");
+    }
+}
+
+public fn test_frameSignal_too_short(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0);
+    signal.add(2.0);
+    // Frame length 4 > signal length 2 => no frames
+    let frames: ArrayList<ArrayList<double>> = frameSignal(signal, 4, 2);
+    if (frames.size() != 0) {
+        io::println("FAIL: frameSignal too short size=" + Integer.toString(frames.size()));
+    } else {
+        io::println("PASS: frameSignal too short works");
+    }
+}
+
+public fn test_applyWindow_length(): void {
+    let frame: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 8) {
+        frame.add(1.0);
+        i = i + 1;
+    }
+    let windowed: ArrayList<double> = applyWindow(frame);
+    if (windowed.size() != 8) {
+        io::println("FAIL: applyWindow length=" + Integer.toString(windowed.size()));
+    } else {
+        io::println("PASS: applyWindow length works");
+    }
+}
+
+public fn test_applyWindow_reduces_amplitude(): void {
+    // Hanning window reduces amplitude at edges
+    let frame: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 8) {
+        frame.add(1.0);
+        i = i + 1;
+    }
+    let windowed: ArrayList<double> = applyWindow(frame);
+    // First sample should be near zero (Hanning edge)
+    if (windowed.get(0) > 0.5) {
+        io::println("FAIL: applyWindow did not reduce edge");
+    } else {
+        io::println("PASS: applyWindow reduces edge amplitude");
+    }
+}
+
+public fn test_powerSpectrum_length(): void {
+    // For frame size n, power spectrum length is n/2 + 1
+    let frame: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 8) {
+        frame.add(0.0);
+        i = i + 1;
+    }
+    let spec: ArrayList<double> = powerSpectrum(frame);
+    if (spec.size() != 5) {
+        io::println("FAIL: powerSpectrum length=" + Integer.toString(spec.size()) + " expected 5");
+    } else {
+        io::println("PASS: powerSpectrum length works");
+    }
+}
+
+public fn test_powerSpectrum_zero_signal(): void {
+    let frame: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 8) {
+        frame.add(0.0);
+        i = i + 1;
+    }
+    let spec: ArrayList<double> = powerSpectrum(frame);
+    // All-zero signal => all-zero power spectrum
+    if (spec.get(0) != 0.0) {
+        io::println("FAIL: powerSpectrum zero signal nonzero");
+    } else {
+        io::println("PASS: powerSpectrum zero signal works");
+    }
+}
+
+public fn test_hzToMel_positive(): void {
+    // 700 Hz -> 2595 * ln(1 + 1) = 2595 * ln(2) ~= 1797
+    let mel: double = hzToMel(700.0);
+    if (mel <= 0.0) {
+        io::println("FAIL: hzToMel(700) non-positive mel=" + Double.toString(mel));
+    } else {
+        io::println("PASS: hzToMel positive works");
+    }
+}
+
+public fn test_hzToMel_zero(): void {
+    let mel: double = hzToMel(0.0);
+    if (mel != 0.0) {
+        io::println("FAIL: hzToMel(0) mel=" + Double.toString(mel) + " expected 0");
+    } else {
+        io::println("PASS: hzToMel zero works");
+    }
+}
+
+public fn test_melToHz_roundtrip(): void {
+    // melToHz(hzToMel(x)) ~= x
+    let hz: double = 1000.0;
+    let mel: double = hzToMel(hz);
+    let back: double = melToHz(mel);
+    let diff: double = back - hz;
+    if (diff < 0) { diff = -diff; }
+    if (diff > 1e-6) {
+        io::println("FAIL: mel roundtrip diff=" + Double.toString(diff));
+    } else {
+        io::println("PASS: mel roundtrip works");
+    }
+}
+
+public fn test_melFilterbank_shape(): void {
+    // 13 filters, fft size 512, sample rate 16000
+    let fb: ArrayList<ArrayList<double>> = melFilterbank(13, 512, 16000);
+    if (fb.size() != 13) {
+        io::println("FAIL: melFilterbank numFilters=" + Integer.toString(fb.size()));
+    } else {
+        io::println("PASS: melFilterbank shape works");
+    }
+}
+
+public fn test_melFilterbank_filter_length(): void {
+    let fb: ArrayList<ArrayList<double>> = melFilterbank(13, 512, 16000);
+    // Each filter should have length fftSize/2 + 1 = 257
+    if (fb.size() == 0 || fb.get(0).size() != 257) {
+        io::println("FAIL: melFilterbank filter length=" + Integer.toString(fb.get(0).size()));
+    } else {
+        io::println("PASS: melFilterbank filter length works");
+    }
+}
+
+public fn test_applyFilterbank_length(): void {
+    let spec: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 257) {
+        spec.add(0.001);
+        i = i + 1;
+    }
+    let fb: ArrayList<ArrayList<double>> = melFilterbank(13, 512, 16000);
+    let energies: ArrayList<double> = applyFilterbank(spec, fb);
+    if (energies.size() != 13) {
+        io::println("FAIL: applyFilterbank length=" + Integer.toString(energies.size()));
+    } else {
+        io::println("PASS: applyFilterbank length works");
+    }
+}
+
+public fn test_dctII_length(): void {
+    let input: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 13) {
+        input.add(i as double);
+        i = i + 1;
+    }
+    let out: ArrayList<double> = dctII(input, 13);
+    if (out.size() != 13) {
+        io::println("FAIL: dctII length=" + Integer.toString(out.size()));
+    } else {
+        io::println("PASS: dctII length works");
+    }
+}
+
+public fn test_dctII_fewer_coeffs(): void {
+    let input: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 13) {
+        input.add(i as double);
+        i = i + 1;
+    }
+    let out: ArrayList<double> = dctII(input, 5);
+    if (out.size() != 5) {
+        io::println("FAIL: dctII fewer coeffs length=" + Integer.toString(out.size()));
+    } else {
+        io::println("PASS: dctII fewer coeffs works");
+    }
+}
+
+public fn test_delta_shape(): void {
+    // 3 frames of 4 coefficients each
+    let mfcc: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var f: int = 0;
+    while (f < 3) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var k: int = 0;
+        while (k < 4) {
+            row.add(k as double);
+            k = k + 1;
+        }
+        mfcc.add(row);
+        f = f + 1;
+    }
+    let deltas: ArrayList<ArrayList<double>> = delta(mfcc, 1);
+    if (deltas.size() != 3) {
+        io::println("FAIL: delta numFrames=" + Integer.toString(deltas.size()));
+    } else if (deltas.get(0).size() != 4) {
+        io::println("FAIL: delta numCoeffs=" + Integer.toString(deltas.get(0).size()));
+    } else {
+        io::println("PASS: delta shape works");
+    }
+}
+
+public fn test_computeMFCC_runs(): void {
+    // Synthesize a short signal to feed into computeMFCC.
+    // frameLength must equal fftSize for the filterbank construction.
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 256) {
+        signal.add(0.1);
+        i = i + 1;
+    }
+    let mfcc: ArrayList<ArrayList<double>> = computeMFCC(signal, 16000, 13, 13, 256, 128);
+    if (mfcc.size() == 0) {
+        io::println("FAIL: computeMFCC produced no frames");
+    } else {
+        io::println("PASS: computeMFCC runs frames=" + Integer.toString(mfcc.size()));
+    }
+}
+
+public fn run_all_mfcc_tests(): void {
+    io::println("=== Mfcc.tr Tests ===");
+    test_preEmphasis_length();
+    test_preEmphasis_first_unchanged();
+    test_preEmphasis_value();
+    test_frameSignal_basic();
+    test_frameSignal_frame_length();
+    test_frameSignal_too_short();
+    test_applyWindow_length();
+    test_applyWindow_reduces_amplitude();
+    test_powerSpectrum_length();
+    test_powerSpectrum_zero_signal();
+    test_hzToMel_positive();
+    test_hzToMel_zero();
+    test_melToHz_roundtrip();
+    test_melFilterbank_shape();
+    test_melFilterbank_filter_length();
+    test_applyFilterbank_length();
+    test_dctII_length();
+    test_dctII_fewer_coeffs();
+    test_delta_shape();
+    test_computeMFCC_runs();
+}
