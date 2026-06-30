@@ -1,0 +1,846 @@
+// SAX-style streaming XML parser — event-based parsing with handler registration.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// Parser states
+const _STATE_INITIAL: int = 0;
+const _STATE_IN_TAG: int = 1;
+const _STATE_IN_CONTENT: int = 2;
+const _STATE_IN_COMMENT: int = 3;
+const _STATE_IN_PI: int = 4;
+const _STATE_IN_CDATA: int = 5;
+
+// Event type constants for handler map
+const _EVENT_START_ELEMENT: string = "startElement";
+const _EVENT_END_ELEMENT: string = "endElement";
+const _EVENT_CHARACTERS: string = "characters";
+const _EVENT_COMMENT: string = "comment";
+const _EVENT_PI: string = "processingInstruction";
+const _EVENT_START_DOCUMENT: string = "startDocument";
+const _EVENT_END_DOCUMENT: string = "endDocument";
+
+public class XmlStreamingParser {
+    // Event handlers: event type -> list of handlers
+    private HashMap<string, ArrayList<fn(string): void>> _handlers;
+
+    // Parser state
+    private int _state;
+    private string _buffer;
+    private int _pos;
+    private bool _documentStarted;
+    private bool _documentEnded;
+
+    // Namespace tracking: stack of namespace prefix->uri maps
+    private ArrayList<HashMap<string, string>> _nsStack;
+    // Current namespace map (top of stack)
+    private HashMap<string, string> _currentNs;
+
+    // Configuration
+    public var strict: bool;
+    public var encoding: string;
+
+    public fn init() {
+        this._handlers = new HashMap<string, ArrayList<fn(string): void>>();
+        this._state = _STATE_INITIAL;
+        this._buffer = "";
+        this._pos = 0;
+        this._documentStarted = false;
+        this._documentEnded = false;
+        this._nsStack = new ArrayList<HashMap<string, string>>();
+        this._currentNs = new HashMap<string, string>();
+        this.strict = true;
+        this.encoding = "UTF-8";
+    }
+
+    // ---- Handler registration ----
+
+    public fn onStartElement(handler: fn(string): void): void {
+        this._addHandler(_EVENT_START_ELEMENT, handler);
+    }
+
+    public fn onEndElement(handler: fn(string): void): void {
+        this._addHandler(_EVENT_END_ELEMENT, handler);
+    }
+
+    public fn onCharacters(handler: fn(string): void): void {
+        this._addHandler(_EVENT_CHARACTERS, handler);
+    }
+
+    public fn onComment(handler: fn(string): void): void {
+        this._addHandler(_EVENT_COMMENT, handler);
+    }
+
+    // PI handler receives combined "target\ndata" string
+    public fn onProcessingInstruction(handler: fn(string): void): void {
+        this._addHandler(_EVENT_PI, handler);
+    }
+
+    public fn onStartDocument(handler: fn(string): void): void {
+        this._addHandler(_EVENT_START_DOCUMENT, handler);
+    }
+
+    public fn onEndDocument(handler: fn(string): void): void {
+        this._addHandler(_EVENT_END_DOCUMENT, handler);
+    }
+
+    private fn _addHandler(event: string, handler: fn(string): void): void {
+        let list: ArrayList<fn(string): void> = this._handlers.get(event);
+        if (list == null) {
+            let newList: ArrayList<fn(string): void> = new ArrayList<fn(string): void>();
+            newList.add(handler);
+            this._handlers.put(event, newList);
+        } else {
+            list.add(handler);
+        }
+    }
+
+    private fn _emit(event: string, data: string): void {
+        let list: ArrayList<fn(string): void> = this._handlers.get(event);
+        if (list == null) {
+            return;
+        }
+        let i: int = 0;
+        while (i < list.size()) {
+            let handler: fn(string): void = list.get(i);
+            handler(data);
+            i = i + 1;
+        }
+    }
+
+    // ---- Public API ----
+
+    // Parse a complete XML string, emitting events.
+    public fn parse(data: string): void {
+        this.feed(data);
+        this.close();
+    }
+
+    // Feed a chunk of data for streaming parsing.
+    public fn feed(chunk: string): void {
+        this._buffer = this._buffer + chunk;
+        this._processBuffer();
+    }
+
+    // Signal end of input; emit endDocument.
+    public fn close(): void {
+        // Process any remaining buffer content
+        this._processBuffer();
+
+        if (!this._documentEnded) {
+            this._emit(_EVENT_END_DOCUMENT, "");
+            this._documentEnded = true;
+        }
+    }
+
+    // ---- Buffer processing ----
+
+    private fn _processBuffer(): void {
+        while (this._pos < String.length(this._buffer)) {
+            let c: string = String.charAt(this._buffer, this._pos);
+
+            if (c == "<") {
+                // Flush any accumulated character data before the '<'
+                this._flushText();
+
+                // Determine what follows '<'
+                if (this._pos + 1 >= String.length(this._buffer)) {
+                    // Incomplete — need more data
+                    break;
+                }
+
+                let next: string = String.charAt(this._buffer, this._pos + 1);
+
+                if (next == "/") {
+                    // End tag </...>
+                    if (!this._parseEndTag()) {
+                        break;
+                    }
+                } else if (next == "?") {
+                    // Processing instruction <?...?> or XML declaration <?xml ...?>
+                    if (!this._parsePI()) {
+                        break;
+                    }
+                } else if (next == "!") {
+                    // Could be comment <!--, CDATA <![CDATA[, or DOCTYPE <!DOCTYPE
+                    if (!this._parseBangConstruct()) {
+                        break;
+                    }
+                } else if (this._isNameStartChar(next)) {
+                    // Start tag <name ...>
+                    if (!this._parseStartTag()) {
+                        break;
+                    }
+                } else {
+                    // Malformed '<'
+                    if (this.strict) {
+                        throw "XmlStreamingParser: unexpected character after '<': " + next;
+                    }
+                    this._pos = this._pos + 1;
+                }
+            } else {
+                // Character data — advance to collect text
+                this._pos = this._pos + 1;
+            }
+        }
+
+        // Compact buffer: keep unprocessed text
+        if (this._pos > 0) {
+            this._buffer = String.substring(this._buffer, this._pos, String.length(this._buffer));
+            this._pos = 0;
+        }
+    }
+
+    // Flush accumulated character data between tags.
+    private fn _flushText(): void {
+        if (this._pos == 0) {
+            return;
+        }
+        let text: string = String.substring(this._buffer, 0, this._pos);
+        let trimmed: string = String.trim(text);
+        if (String.length(trimmed) > 0) {
+            this._ensureDocumentStarted();
+            this._emit(_EVENT_CHARACTERS, this._unescapeText(trimmed));
+        }
+    }
+
+    // ---- Parsing constructs ----
+
+    // Parse a start tag: <name attr="val" ...> or <name attr="val" ... />
+    // Returns true if fully parsed, false if need more data.
+    private fn _parseStartTag(): bool {
+        let start: int = this._pos;
+        // Find the closing '>'
+        let closePos: int = this._findClosingBracket(start + 1);
+        if (closePos < 0) {
+            return false;
+        }
+
+        this._ensureDocumentStarted();
+
+        // Extract tag content between '<' and '>'
+        let tagContent: string = String.substring(this._buffer, start + 1, closePos);
+
+        // Check for self-closing
+        let selfClosing: bool = false;
+        let tagLen: int = String.length(tagContent);
+        if (tagLen > 0 && String.charAt(tagContent, tagLen - 1) == "/") {
+            selfClosing = true;
+            tagContent = String.substring(tagContent, 0, tagLen - 1);
+        }
+
+        // Parse tag name
+        let nameEnd: int = this._findNameEnd(tagContent, 0);
+        let tagName: string = String.substring(tagContent, 0, nameEnd);
+
+        // Parse attributes
+        let attrs: HashMap<string, string> = new HashMap<string, string>();
+        let nsAttrs: HashMap<string, string> = new HashMap<string, string>();
+        this._parseAttributes(tagContent, nameEnd, attrs, nsAttrs);
+
+        // Push namespace scope
+        this._pushNamespaceScope(nsAttrs);
+
+        // Resolve namespace for tag name
+        let resolvedName: string = this._resolveElementName(tagName);
+
+        // Emit start element with resolved name + attributes serialized
+        let eventData: string = this._buildStartElementData(resolvedName, attrs);
+        this._emit(_EVENT_START_ELEMENT, eventData);
+
+        if (selfClosing) {
+            // Emit end element immediately for self-closing tags
+            this._emit(_EVENT_END_ELEMENT, resolvedName);
+            this._popNamespaceScope();
+        }
+
+        this._pos = closePos + 1;
+        return true;
+    }
+
+    // Parse an end tag: </name>
+    private fn _parseEndTag(): bool {
+        let start: int = this._pos;
+        let closePos: int = this._findClosingBracket(start + 1);
+        if (closePos < 0) {
+            return false;
+        }
+
+        // Extract tag name between '</' and '>'
+        let tagContent: string = String.substring(this._buffer, start + 2, closePos);
+        let tagName: string = String.trim(tagContent);
+
+        let resolvedName: string = this._resolveElementName(tagName);
+        this._emit(_EVENT_END_ELEMENT, resolvedName);
+        this._popNamespaceScope();
+
+        this._pos = closePos + 1;
+        return true;
+    }
+
+    // Parse processing instruction: <?target data?> or XML declaration <?xml ...?>
+    private fn _parsePI(): bool {
+        let start: int = this._pos;
+        let endPos: int = this._findPIEnd(start + 2);
+        if (endPos < 0) {
+            return false;
+        }
+
+        // Content between '<?' and '?>'
+        let piContent: string = String.substring(this._buffer, start + 2, endPos);
+        let trimmed: string = String.trim(piContent);
+
+        // Check if this is an XML declaration
+        if (String.length(trimmed) >= 3 &&
+            String.charAt(trimmed, 0) == "x" &&
+            String.charAt(trimmed, 1) == "m" &&
+            String.charAt(trimmed, 2) == "l") {
+            // XML declaration — extract encoding
+            this._parseXmlDeclaration(trimmed);
+            this._ensureDocumentStarted();
+        } else {
+            // Regular PI — parse target and data
+            this._ensureDocumentStarted();
+            let spaceIdx: int = this._findSpace(trimmed, 0);
+            let target: string;
+            let data: string;
+            if (spaceIdx < 0) {
+                target = trimmed;
+                data = "";
+            } else {
+                target = String.substring(trimmed, 0, spaceIdx);
+                data = String.trim(String.substring(trimmed, spaceIdx, String.length(trimmed)));
+            }
+            // Emit PI as "target\ndata"
+            this._emit(_EVENT_PI, target + "\n" + data);
+        }
+
+        this._pos = endPos + 2; // skip '?>'
+        return true;
+    }
+
+    // Parse constructs starting with '<!': comments, CDATA, DOCTYPE
+    private fn _parseBangConstruct(): bool {
+        let start: int = this._pos;
+
+        // Need at least 4 chars to determine type
+        if (start + 3 >= String.length(this._buffer)) {
+            return false;
+        }
+
+        // Check for CDATA <![CDATA[...]]>
+        if (String.charAt(this._buffer, start + 2) == "[" &&
+            start + 8 < String.length(this._buffer)) {
+            let cdataMarker: string = "[CDATA[";
+            let match: bool = true;
+            let ci: int = 0;
+            while (ci < String.length(cdataMarker)) {
+                if (start + 2 + ci >= String.length(this._buffer) ||
+                    String.charAt(this._buffer, start + 2 + ci) != String.charAt(cdataMarker, ci)) {
+                    match = false;
+                    break;
+                }
+                ci = ci + 1;
+            }
+            if (match) {
+                return this._parseCData(start);
+            }
+        }
+
+        // Check for comment <!-- ... -->
+        if (String.charAt(this._buffer, start + 2) == "-" &&
+            start + 3 < String.length(this._buffer) &&
+            String.charAt(this._buffer, start + 3) == "-") {
+            return this._parseComment(start);
+        }
+
+        // DOCTYPE or other <! construct — skip to closing '>'
+        let closePos: int = this._findClosingBracket(start + 1);
+        if (closePos < 0) {
+            return false;
+        }
+        this._pos = closePos + 1;
+        return true;
+    }
+
+    // Parse CDATA section <![CDATA[...]]>
+    private fn _parseCData(start: int): bool {
+        let cdataStart: int = start + 9; // past '<![CDATA['
+        let endMarker: string = "]]>";
+        let endPos: int = this._findString(cdataStart, endMarker);
+        if (endPos < 0) {
+            return false;
+        }
+
+        this._ensureDocumentStarted();
+        let cdataText: string = String.substring(this._buffer, cdataStart, endPos);
+        this._emit(_EVENT_CHARACTERS, cdataText);
+
+        this._pos = endPos + 3; // skip ']]>'
+        return true;
+    }
+
+    // Parse comment <!-- ... -->
+    private fn _parseComment(start: int): bool {
+        let commentStart: int = start + 4; // past '<!--'
+        let endPos: int = this._findString(commentStart, "-->");
+        if (endPos < 0) {
+            return false;
+        }
+
+        this._ensureDocumentStarted();
+        let commentText: string = String.substring(this._buffer, commentStart, endPos);
+        this._emit(_EVENT_COMMENT, commentText);
+
+        this._pos = endPos + 3; // skip '-->'
+        return true;
+    }
+
+    // ---- Attribute parsing ----
+
+    private fn _parseAttributes(tagContent: string, offset: int,
+                                attrs: HashMap<string, string>,
+                                nsAttrs: HashMap<string, string>): void {
+        let i: int = offset;
+        let len: int = String.length(tagContent);
+
+        while (i < len) {
+            // Skip whitespace
+            i = this._skipWsIn(tagContent, i);
+            if (i >= len) {
+                break;
+            }
+
+            // Parse attribute name
+            let nameStart: int = i;
+            while (i < len) {
+                let c: string = String.charAt(tagContent, i);
+                if (c == "=" || c == " " || c == "\t" || c == "\n" || c == "\r" || c == "/" || c == ">") {
+                    break;
+                }
+                i = i + 1;
+            }
+            let attrName: string = String.substring(tagContent, nameStart, i);
+            if (String.length(attrName) == 0) {
+                break;
+            }
+
+            // Skip whitespace before '='
+            i = this._skipWsIn(tagContent, i);
+            // Expect '='
+            if (i < len && String.charAt(tagContent, i) == "=") {
+                i = i + 1;
+            }
+            // Skip whitespace after '='
+            i = this._skipWsIn(tagContent, i);
+
+            // Parse attribute value
+            let attrVal: string;
+            if (i < len && (String.charAt(tagContent, i) == "\"" || String.charAt(tagContent, i) == "'")) {
+                let quote: string = String.charAt(tagContent, i);
+                i = i + 1;
+                let valStart: int = i;
+                while (i < len && String.charAt(tagContent, i) != quote) {
+                    i = i + 1;
+                }
+                attrVal = String.substring(tagContent, valStart, i);
+                if (i < len) {
+                    i = i + 1; // skip closing quote
+                }
+            } else {
+                // Unquoted value
+                let valStart: int = i;
+                while (i < len) {
+                    let c: string = String.charAt(tagContent, i);
+                    if (c == " " || c == "\t" || c == "\n" || c == "\r" || c == "/" || c == ">") {
+                        break;
+                    }
+                    i = i + 1;
+                }
+                attrVal = String.substring(tagContent, valStart, i);
+            }
+
+            // Unescape the attribute value
+            attrVal = this._unescapeText(attrVal);
+
+            // Check if this is a namespace declaration
+            if (String.length(attrName) >= 5 &&
+                String.charAt(attrName, 0) == "x" &&
+                String.charAt(attrName, 1) == "m" &&
+                String.charAt(attrName, 2) == "l" &&
+                String.charAt(attrName, 3) == "n" &&
+                String.charAt(attrName, 4) == "s") {
+                if (String.length(attrName) == 5) {
+                    // xmlns="..." — default namespace
+                    nsAttrs.put("", attrVal);
+                } else if (String.length(attrName) > 6 && String.charAt(attrName, 5) == ":") {
+                    // xmlns:prefix="..."
+                    let prefix: string = String.substring(attrName, 6, String.length(attrName));
+                    nsAttrs.put(prefix, attrVal);
+                }
+            }
+
+            attrs.put(attrName, attrVal);
+        }
+    }
+
+    // ---- Namespace handling ----
+
+    private fn _pushNamespaceScope(nsAttrs: HashMap<string, string>): void {
+        // Clone current namespace map
+        let newNs: HashMap<string, string> = new HashMap<string, string>();
+        // Copy existing
+        let existingKeys: ArrayList<string> = this._currentNs.keys();
+        let ei: int = 0;
+        while (ei < existingKeys.size()) {
+            let k: string = existingKeys.get(ei);
+            newNs.put(k, this._currentNs.get(k));
+            ei = ei + 1;
+        }
+        // Overlay new declarations
+        let nsKeys: ArrayList<string> = nsAttrs.keys();
+        let ni: int = 0;
+        while (ni < nsKeys.size()) {
+            let k: string = nsKeys.get(ni);
+            newNs.put(k, nsAttrs.get(k));
+            ni = ni + 1;
+        }
+
+        this._nsStack.add(this._currentNs);
+        this._currentNs = newNs;
+    }
+
+    private fn _popNamespaceScope(): void {
+        if (this._nsStack.size() > 0) {
+            this._currentNs = this._nsStack.get(this._nsStack.size() - 1);
+            this._nsStack.remove(this._nsStack.size() - 1);
+        }
+    }
+
+    // Resolve an element name using current namespace context.
+    // If name has prefix "prefix:local", resolve prefix to URI → "{URI}local"
+    // If no prefix, use default namespace → "{defaultURI}local"
+    // If no namespace, return name as-is.
+    private fn _resolveElementName(name: string): string {
+        let colonIdx: int = this._findColon(name);
+        if (colonIdx >= 0) {
+            let prefix: string = String.substring(name, 0, colonIdx);
+            let local: string = String.substring(name, colonIdx + 1, String.length(name));
+            let uri: string = this._currentNs.get(prefix);
+            if (uri != null && String.length(uri) > 0) {
+                return "{" + uri + "}" + local;
+            }
+            return name;
+        }
+        // No prefix — check default namespace
+        let defaultUri: string = this._currentNs.get("");
+        if (defaultUri != null && String.length(defaultUri) > 0) {
+            return "{" + defaultUri + "}" + name;
+        }
+        return name;
+    }
+
+    // ---- XML declaration parsing ----
+
+    private fn _parseXmlDeclaration(content: string): void {
+        // Extract encoding attribute from declaration content
+        let encIdx: int = String.indexOf(content, "encoding");
+        if (encIdx >= 0) {
+            let i: int = encIdx + 8;
+            let len: int = String.length(content);
+            // Skip to '='
+            while (i < len && String.charAt(content, i) != "=") {
+                i = i + 1;
+            }
+            if (i < len) {
+                i = i + 1;
+            }
+            // Skip whitespace
+            while (i < len && (String.charAt(content, i) == " " || String.charAt(content, i) == "\t")) {
+                i = i + 1;
+            }
+            // Skip quote
+            if (i < len && (String.charAt(content, i) == "\"" || String.charAt(content, i) == "'")) {
+                i = i + 1;
+            }
+            let encStart: int = i;
+            while (i < len && String.charAt(content, i) != "\"" && String.charAt(content, i) != "'" &&
+                   String.charAt(content, i) != "?" && String.charAt(content, i) != " ") {
+                i = i + 1;
+            }
+            this.encoding = String.substring(content, encStart, i);
+        }
+    }
+
+    // ---- Build event data ----
+
+    // Build start element event data: "tagName|attr1=val1|attr2=val2"
+    private fn _buildStartElementData(name: string, attrs: HashMap<string, string>): string {
+        let result: string = name;
+        let keys: ArrayList<string> = attrs.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let k: string = keys.get(i);
+            let v: string = attrs.get(k);
+            result = result + "|" + k + "=" + v;
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // ---- Entity unescaping ----
+
+    private fn _unescapeText(s: string): string {
+        _ensureXmlUnescapeLoaded();
+        let result: string = "";
+        let i: int = 0;
+        let len: int = String.length(s);
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            if (c == "&") {
+                let entity: string = this._parseEntity(s, i);
+                if (String.length(entity) > 0) {
+                    result = result + entity;
+                    // Skip past the entity reference
+                    let semi: int = String.indexOf(s, ";", i);
+                    if (semi >= 0) {
+                        i = semi + 1;
+                    } else {
+                        i = i + 1;
+                    }
+                } else {
+                    result = result + c;
+                    i = i + 1;
+                }
+            } else {
+                result = result + c;
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    // Parse an entity reference starting at position i in string s.
+    // Returns the unescaped character(s), or "" if not a valid entity.
+    private fn _parseEntity(s: string, start: int): string {
+        let semi: int = String.indexOf(s, ";", start);
+        if (semi < 0) {
+            return "";
+        }
+        let ref: string = String.substring(s, start + 1, semi); // skip '&'
+        if (_xmlUnescapeCache.containsKey(ref)) {
+            return _xmlUnescapeCache.get(ref);
+        }
+        // Numeric references
+        if (String.length(ref) > 2 && String.charAt(ref, 0) == "#" && String.charAt(ref, 1) == "x") {
+            return _hexToChar(String.substring(ref, 2, String.length(ref)));
+        }
+        if (String.length(ref) > 1 && String.charAt(ref, 0) == "#") {
+            return _decToChar(String.substring(ref, 1, String.length(ref)));
+        }
+        return "";
+    }
+
+    // ---- Helper: document start ----
+
+    private fn _ensureDocumentStarted(): void {
+        if (!this._documentStarted) {
+            this._emit(_EVENT_START_DOCUMENT, "");
+            this._documentStarted = true;
+        }
+    }
+
+    // ---- String search helpers ----
+
+    // Find closing '>' starting from offset, returns position or -1
+    private fn _findClosingBracket(from: int): int {
+        let i: int = from;
+        let len: int = String.length(this._buffer);
+        while (i < len) {
+            let c: string = String.charAt(this._buffer, i);
+            if (c == ">") {
+                return i;
+            }
+            // Skip quoted strings inside tags
+            if (c == "\"" || c == "'") {
+                let quote: string = c;
+                i = i + 1;
+                while (i < len && String.charAt(this._buffer, i) != quote) {
+                    i = i + 1;
+                }
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Find '?>' starting from offset, returns position of '?' or -1
+    private fn _findPIEnd(from: int): int {
+        let i: int = from;
+        let len: int = String.length(this._buffer);
+        while (i + 1 < len) {
+            if (String.charAt(this._buffer, i) == "?" && String.charAt(this._buffer, i + 1) == ">") {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Find a substring in buffer starting from offset, returns start position or -1
+    private fn _findString(from: int, target: string): int {
+        let i: int = from;
+        let bufLen: int = String.length(this._buffer);
+        let targetLen: int = String.length(target);
+        while (i + targetLen <= bufLen) {
+            let match: bool = true;
+            let j: int = 0;
+            while (j < targetLen) {
+                if (String.charAt(this._buffer, i + j) != String.charAt(target, j)) {
+                    match = false;
+                    break;
+                }
+                j = j + 1;
+            }
+            if (match) {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Find end of a name token in a string starting at offset
+    private fn _findNameEnd(s: string, offset: int): int {
+        let i: int = offset;
+        let len: int = String.length(s);
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            if (c == " " || c == "\t" || c == "\n" || c == "\r" ||
+                c == "=" || c == ">" || c == "/" || c == "<") {
+                break;
+            }
+            i = i + 1;
+        }
+        return i;
+    }
+
+    // Find first whitespace in string starting at offset
+    private fn _findSpace(s: string, offset: int): int {
+        let i: int = offset;
+        let len: int = String.length(s);
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            if (c == " " || c == "\t" || c == "\n" || c == "\r") {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Find colon in string starting at offset
+    private fn _findColon(s: string): int {
+        let i: int = 0;
+        let len: int = String.length(s);
+        while (i < len) {
+            if (String.charAt(s, i) == ":") {
+                return i;
+            }
+            i = i + 1;
+        }
+        return -1;
+    }
+
+    // Skip whitespace in string starting at offset, returns new offset
+    private fn _skipWsIn(s: string, offset: int): int {
+        let i: int = offset;
+        let len: int = String.length(s);
+        while (i < len) {
+            let c: string = String.charAt(s, i);
+            if (c != " " && c != "\t" && c != "\n" && c != "\r") {
+                break;
+            }
+            i = i + 1;
+        }
+        return i;
+    }
+
+    // Check if character is a valid XML name start character
+    private fn _isNameStartChar(c: string): bool {
+        let code: int = String.charAt(c, 0) as int;
+        // Letters, underscore, colon
+        if (code == 95) { return true; }  // '_'
+        if (code == 58) { return true; }  // ':'
+        if (code >= 65 && code <= 90) { return true; }  // A-Z
+        if (code >= 97 && code <= 122) { return true; } // a-z
+        return false;
+    }
+}
+
+// ---- Module-level helpers for entity unescaping ----
+
+let _xmlUnescapeCache: HashMap<string, string> = new HashMap<string, string>();
+var _xmlUnescapeLoaded: bool = false;
+
+fn _ensureXmlUnescapeLoaded(): void {
+    if (_xmlUnescapeLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("encoding/escape_maps.json");
+    if (data.isNull() || !data.isObject()) {
+        _xmlUnescapeLoaded = true;
+        return;
+    }
+    if (!data.hasKey("xml_unescape")) {
+        _xmlUnescapeLoaded = true;
+        return;
+    }
+    let unescape: JsonValue = data.get("xml_unescape");
+    if (!unescape.isObject()) {
+        _xmlUnescapeLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = unescape.keys();
+    let i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: string = unescape.get(key).asString();
+        _xmlUnescapeCache.put(key, val);
+        i = i + 1;
+    }
+    _xmlUnescapeLoaded = true;
+}
+
+// Convert hex string to character
+fn _hexToChar(hex: string): string {
+    let val: int = 0;
+    let i: int = 0;
+    while (i < String.length(hex)) {
+        let c: string = String.charAt(hex, i);
+        val = val * 16;
+        if (c >= "0" && c <= "9") {
+            val = val + (String.charAt(c, 0) as int) - 48;
+        } else if (c >= "a" && c <= "f") {
+            val = val + (String.charAt(c, 0) as int) - 87;
+        } else if (c >= "A" && c <= "F") {
+            val = val + (String.charAt(c, 0) as int) - 55;
+        }
+        i = i + 1;
+    }
+    return String.fromCharCode(val);
+}
+
+// Convert decimal string to character
+fn _decToChar(dec: string): string {
+    let val: int = 0;
+    let i: int = 0;
+    while (i < String.length(dec)) {
+        let c: string = String.charAt(dec, i);
+        val = val * 10 + ((String.charAt(c, 0) as int) - 48);
+        i = i + 1;
+    }
+    return String.fromCharCode(val);
+}
