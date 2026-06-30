@@ -1,0 +1,190 @@
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::ndarray::NDArraySort;
+import tt::math::ndarray::NDArrayMath;
+
+// NDArray reduction methods: sum, mean, min, max, variance, stddev, any, all, argMax, argMin
+
+public fn sum<T>(a: NDArray<T>): double {
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        s = s + a.data.get(i);
+        i = i + 1;
+    }
+    return s;
+}
+
+public fn mean<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    return sum(a) / a.data.size();
+}
+
+public fn min<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v < m) { m = v; }
+        i = i + 1;
+    }
+    return m;
+}
+
+public fn max<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v > m) { m = v; }
+        i = i + 1;
+    }
+    return m;
+}
+
+public fn variance<T>(a: NDArray<T>): double {
+    if (a.data.size() == 0) { return 0.0; }
+    let m: double = mean(a);
+    var s: double = 0.0;
+    var i: int = 0;
+    while (i < a.data.size()) {
+        let d: double = a.data.get(i) - m;
+        s = s + d * d;
+        i = i + 1;
+    }
+    return s / a.data.size();
+}
+
+public fn stddev<T>(a: NDArray<T>): double {
+    return MathAdvanced.sqrt(variance(a));
+}
+
+public fn any<T>(a: NDArray<T>): bool {
+    var i: int = 0;
+    while (i < a.data.size()) {
+        if (a.data.get(i) != 0) { return true; }
+        i = i + 1;
+    }
+    return false;
+}
+
+public fn all<T>(a: NDArray<T>): bool {
+    var i: int = 0;
+    while (i < a.data.size()) {
+        if (a.data.get(i) == 0) { return false; }
+        i = i + 1;
+    }
+    return true;
+}
+
+public fn argMax<T>(a: NDArray<T>): int {
+    if (a.data.size() == 0) { return -1; }
+    var idx: int = 0;
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v > m) {
+            m = v;
+            idx = i;
+        }
+        i = i + 1;
+    }
+    return idx;
+}
+
+public fn argMin<T>(a: NDArray<T>): int {
+    if (a.data.size() == 0) { return -1; }
+    var idx: int = 0;
+    var m: double = a.data.get(0);
+    var i: int = 1;
+    while (i < a.data.size()) {
+        let v: double = a.data.get(i);
+        if (v < m) {
+            m = v;
+            idx = i;
+        }
+        i = i + 1;
+    }
+    return idx;
+}
+
+// ---- Cumulative operations ----
+
+public fn cumsum(a: NDArray<double>): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    var running: double = 0.0;
+    i = 0;
+    while (i < a.data.size()) {
+        running = running + a.data.get(i);
+        result.data.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn cumprod(a: NDArray<double>): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    var i: int = 0;
+    while (i < a.shape.size()) {
+        result.shape.add(a.shape.get(i));
+        i = i + 1;
+    }
+    result.computeStrides();
+    var running: double = 1.0;
+    i = 0;
+    while (i < a.data.size()) {
+        running = running * a.data.get(i);
+        result.data.add(running);
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn diff(a: NDArray<double>): NDArray<double> {
+    let result: NDArray<double> = new NDArray<double>();
+    if (a.data.size() < 2) {
+        result.shape.add(0);
+        result.computeStrides();
+        return result;
+    }
+    let n: int = a.data.size() - 1;
+    result.shape.add(n);
+    result.computeStrides();
+    var i: int = 0;
+    while (i < n) {
+        result.data.add(a.data.get(i + 1) - a.data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+public fn percentile(a: NDArray<double>, q: double): double {
+    let sorted: NDArray<double> = NDArraySort.sort(a);
+    let n: int = sorted.data.size();
+    if (n == 0) { return 0.0; }
+    if (n == 1) { return sorted.data.get(0); }
+    let idx: double = q / 100.0 * (n - 1);
+    let lo: int = Math.floor(idx) as int;
+    let hi: int = Math.ceil(idx) as int;
+    if (lo == hi) { return sorted.data.get(lo); }
+    let frac: double = idx - lo as double;
+    return sorted.data.get(lo) * (1.0 - frac) + sorted.data.get(hi) * frac;
+}
+
+public fn ndMedian(a: NDArray<double>): double {
+    let sorted: NDArray<double> = NDArraySort.sort(a);
+    let n: int = sorted.data.size();
+    if (n == 0) { return 0.0; }
+    if (n % 2 == 1) { return sorted.data.get(n / 2); }
+    return (sorted.data.get(n / 2 - 1) + sorted.data.get(n / 2)) / 2.0;
+}
