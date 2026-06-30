@@ -1,0 +1,85 @@
+// Assert provides static assertion methods for validating conditions.
+import tt::io::IO;
+
+// Asserts that the condition is true.
+public fn assertTrue(condition: bool): void {
+    assertTrue(condition, "Expected true but got false");
+}
+
+// Asserts that the condition is true with a custom message.
+public fn assertTrue(condition: bool, message: string): void {
+    if (!condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Asserts that the condition is false.
+public fn assertFalse(condition: bool): void {
+    assertFalse(condition, "Expected false but got true");
+}
+
+// Asserts that the condition is false with a custom message.
+public fn assertFalse(condition: bool, message: string): void {
+    if (condition) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Asserts that expected and actual are equal.
+public fn assertEqual<T>(expected: T, actual: T): void {
+    assertEqual(expected, actual, "Expected " + expected + " but got " + actual);
+}
+
+// Asserts that expected and actual are equal with a custom message.
+public fn assertEqual<T>(expected: T, actual: T, message: string): void {
+    if (expected == null && actual == null) { return; }
+    if (expected == null || actual == null) {
+        throw "AssertionError: " + message;
+    }
+    if (!(expected == actual)) {
+        throw "AssertionError: " + message;
+    }
+}
+
+// Asserts that expected and actual are not equal.
+public fn assertNotEqual<T>(expected: T, actual: T): void {
+    if (expected == null && actual == null) {
+        throw "AssertionError: Expected different values but both were null";
+    }
+    if (expected != null && actual != null && expected == actual) {
+        throw "AssertionError: Expected different values but both were " + expected;
+    }
+}
+
+// Asserts that the value is null.
+public fn assertNull<T>(value: T): void {
+    if (value != null) {
+        throw "AssertionError: Expected null but got " + value;
+    }
+}
+
+// Asserts that the value is not null.
+public fn assertNotNull<T>(value: T): void {
+    if (value == null) {
+        throw "AssertionError: Expected non-null value";
+    }
+}
+
+// Always fails with the given message.
+public fn fail(message: string): void {
+    throw "AssertionError: " + message;
+}
+
+// Asserts that an int value is within the inclusive range [low, high].
+public fn assertInRange(value: int, low: int, high: int): void {
+    if (value < low || value > high) {
+        throw "AssertionError: " + value + " is not in range [" + low + ", " + high + "]";
+    }
+}
+
+// Asserts that a double value is within the inclusive range [low, high].
+public fn assertInRange(value: double, low: double, high: double): void {
+    if (value < low || value > high) {
+        throw "AssertionError: " + value + " is not in range [" + low + ", " + high + "]";
+    }
+}
