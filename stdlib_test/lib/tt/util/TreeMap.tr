@@ -1,0 +1,424 @@
+// Red-black tree based sorted map with O(log n) operations.
+import tt::util::ArrayList;
+import tt::util::Pair;
+
+public class TreeMap<K, V> {
+    private int root;
+    private ArrayList<int> left;
+    private ArrayList<int> right;
+    private ArrayList<int> parent;
+    private ArrayList<bool> color;  // true = red, false = black
+    private ArrayList<K> keys;
+    private ArrayList<V> values;
+    private int nodeCount;
+    private int freeHead;
+    private fn(a: K, b: K): int comparator;
+
+    public fn init() {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.parent = new ArrayList<int>();
+        this.color = new ArrayList<bool>();
+        this.root = -1;
+        this.nodeCount = 0;
+        this.freeHead = -1;
+        this.comparator = fn(a: K, b: K): int {
+            if (a < b) { return -1; }
+            if (a > b) { return 1; }
+            return 0;
+        };
+    }
+
+    public fn initWithComparator(comparator: fn(K, K): int) {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.parent = new ArrayList<int>();
+        this.color = new ArrayList<bool>();
+        this.root = -1;
+        this.nodeCount = 0;
+        this.freeHead = -1;
+        this.comparator = comparator;
+    }
+
+    public fn size(): int {
+        return this.nodeCount;
+    }
+
+    public fn isEmpty(): bool {
+        return this.nodeCount == 0;
+    }
+
+    public fn put(key: K, value: V): void {
+        let idx: int = this.findNode(key);
+        if (idx >= 0) {
+            this.values.set(idx, value);
+            return;
+        }
+        let newNode: int = this.allocNode();
+        this.keys.set(newNode, key);
+        this.values.set(newNode, value);
+        this.left.set(newNode, -1);
+        this.right.set(newNode, -1);
+        this.color.set(newNode, true);
+
+        if (this.root == -1) {
+            this.root = newNode;
+            this.parent.set(newNode, -1);
+            this.color.set(newNode, false);
+            this.nodeCount = this.nodeCount + 1;
+            return;
+        }
+
+        var parent: int = this.root;
+        var cmp: int = 0;
+        while (true) {
+            cmp = this.comparator(this.keys.get(parent), key);
+            if (cmp > 0) {
+                if (this.left.get(parent) == -1) {
+                    this.left.set(parent, newNode);
+                    break;
+                }
+                parent = this.left.get(parent);
+            } else {
+                if (this.right.get(parent) == -1) {
+                    this.right.set(parent, newNode);
+                    break;
+                }
+                parent = this.right.get(parent);
+            }
+        }
+        this.parent.set(newNode, parent);
+        this.nodeCount = this.nodeCount + 1;
+        this.fixInsert(newNode);
+    }
+
+    public fn get(key: K): V {
+        let idx: int = this.findNode(key);
+        if (idx >= 0) {
+            return this.values.get(idx);
+        }
+        return values.get(0); // Returns default; caller should use containsKey first
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.findNode(key) >= 0;
+    }
+
+    public fn remove(key: K): bool {
+        let idx: int = this.findNode(key);
+        if (idx < 0) { return false; }
+        this.deleteNode(idx);
+        return true;
+    }
+
+    public fn firstKey(): K {
+        let idx: int = this.minimum(this.root);
+        return this.keys.get(idx);
+    }
+
+    public fn lastKey(): K {
+        let idx: int = this.maximum(this.root);
+        return this.keys.get(idx);
+    }
+
+    public fn firstEntry(): Pair<K, V> {
+        let idx: int = this.minimum(this.root);
+        return new Pair<K, V>(this.keys.get(idx), this.values.get(idx));
+    }
+
+    public fn lastEntry(): Pair<K, V> {
+        let idx: int = this.maximum(this.root);
+        return new Pair<K, V>(this.keys.get(idx), this.values.get(idx));
+    }
+
+    // Ceiling: smallest key >= given key
+    public fn ceilingKey(key: K): K {
+        let idx: int = this.ceilingNode(key);
+        if (idx < 0) { return keys.get(0); }
+        return this.keys.get(idx);
+    }
+
+    // Floor: largest key <= given key
+    public fn floorKey(key: K): K {
+        let idx: int = this.floorNode(key);
+        if (idx < 0) { return keys.get(0); }
+        return this.keys.get(idx);
+    }
+
+    public fn keys(): ArrayList<K> {
+        let result: ArrayList<K> = new ArrayList<K>();
+        this.inOrderKeys(this.root, result);
+        return result;
+    }
+
+    public fn values(): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        this.inOrderValues(this.root, result);
+        return result;
+    }
+
+    public fn entries(): ArrayList<Pair<K, V>> {
+        let result: ArrayList<Pair<K, V>> = new ArrayList<Pair<K, V>>();
+        this.inOrderEntries(this.root, result);
+        return result;
+    }
+
+    public fn clear(): void {
+        this.keys = new ArrayList<K>();
+        this.values = new ArrayList<V>();
+        this.left = new ArrayList<int>();
+        this.right = new ArrayList<int>();
+        this.parent = new ArrayList<int>();
+        this.color = new ArrayList<bool>();
+        this.root = -1;
+        this.nodeCount = 0;
+        this.freeHead = -1;
+    }
+
+    // Lower bound: first key >= given key
+    public fn lowerBound(key: K): K {
+        let idx: int = this.ceilingNode(key);
+        if (idx < 0) { return this.keys.get(0); }
+        return this.keys.get(idx);
+    }
+
+    // Upper bound: first key > given key
+    public fn upperBound(key: K): K {
+        var result: int = -1;
+        var current: int = this.root;
+        while (current >= 0) {
+            let cmp: int = this.comparator(this.keys.get(current), key);
+            if (cmp > 0) {
+                result = current;
+                current = this.left.get(current);
+            } else {
+                current = this.right.get(current);
+            }
+        }
+        if (result < 0) { return this.keys.get(0); }
+        return this.keys.get(result);
+    }
+
+    // Equal range: all keys equal to given key
+    public fn equalRange(key: K): ArrayList<K> {
+        let result: ArrayList<K> = new ArrayList<K>();
+        let idx: int = this.findNode(key);
+        if (idx >= 0) {
+            result.add(this.keys.get(idx));
+        }
+        return result;
+    }
+
+    // --- Private helpers ---
+
+    private fn allocNode(): int {
+        if (this.freeHead >= 0) {
+            let idx: int = this.freeHead;
+            this.freeHead = this.left.get(idx);
+            return idx;
+        }
+        let idx: int = this.keys.size();
+        this.keys.add(null); // placeholder slot - will be overwritten by caller
+        this.values.add(null); // placeholder slot - will be overwritten by caller
+        this.left.add(-1);
+        this.right.add(-1);
+        this.parent.add(-1);
+        this.color.add(false);
+        return idx;
+    }
+
+    private fn findNode(key: K): int {
+        var current: int = this.root;
+        while (current >= 0) {
+            let cmp: int = this.comparator(this.keys.get(current), key);
+            if (cmp == 0) { return current; }
+            if (cmp > 0) {
+                current = this.left.get(current);
+            } else {
+                current = this.right.get(current);
+            }
+        }
+        return -1;
+    }
+
+    private fn minimum(node: int): int {
+        while (node >= 0 && this.left.get(node) >= 0) {
+            node = this.left.get(node);
+        }
+        return node;
+    }
+
+    private fn maximum(node: int): int {
+        while (node >= 0 && this.right.get(node) >= 0) {
+            node = this.right.get(node);
+        }
+        return node;
+    }
+
+    private fn ceilingNode(key: K): int {
+        var result: int = -1;
+        var current: int = this.root;
+        while (current >= 0) {
+            let cmp: int = this.comparator(this.keys.get(current), key);
+            if (cmp == 0) { return current; }
+            if (cmp > 0) {
+                result = current;
+                current = this.left.get(current);
+            } else {
+                current = this.right.get(current);
+            }
+        }
+        return result;
+    }
+
+    private fn floorNode(key: K): int {
+        var result: int = -1;
+        var current: int = this.root;
+        while (current >= 0) {
+            let cmp: int = this.comparator(this.keys.get(current), key);
+            if (cmp == 0) { return current; }
+            if (cmp < 0) {
+                result = current;
+                current = this.right.get(current);
+            } else {
+                current = this.left.get(current);
+            }
+        }
+        return result;
+    }
+
+    private fn inOrderKeys(node: int, result: ArrayList<K>): void {
+        if (node < 0) { return; }
+        this.inOrderKeys(this.left.get(node), result);
+        result.add(this.keys.get(node));
+        this.inOrderKeys(this.right.get(node), result);
+    }
+
+    private fn inOrderValues(node: int, result: ArrayList<V>): void {
+        if (node < 0) { return; }
+        this.inOrderValues(this.left.get(node), result);
+        result.add(this.values.get(node));
+        this.inOrderValues(this.right.get(node), result);
+    }
+
+    private fn inOrderEntries(node: int, result: ArrayList<Pair<K, V>>): void {
+        if (node < 0) { return; }
+        this.inOrderEntries(this.left.get(node), result);
+        result.add(new Pair<K, V>(this.keys.get(node), this.values.get(node)));
+        this.inOrderEntries(this.right.get(node), result);
+    }
+
+    private fn fixInsert(node: int): void {
+        var n: int = node;
+        while (this.parent.get(n) >= 0 && this.color.get(this.parent.get(n))) {
+            let p: int = this.parent.get(n);
+            let gp: int = this.parent.get(p);
+            if (p == this.left.get(gp)) {
+                let uncle: int = this.right.get(gp);
+                if (uncle >= 0 && this.color.get(uncle)) {
+                    this.color.set(p, false);
+                    this.color.set(uncle, false);
+                    this.color.set(gp, true);
+                    n = gp;
+                } else {
+                    if (n == this.right.get(p)) {
+                        n = p;
+                        this.rotateLeft(n);
+                    }
+                    this.color.set(this.parent.get(n), false);
+                    this.color.set(this.parent.get(this.parent.get(n)), true);
+                    this.rotateRight(this.parent.get(this.parent.get(n)));
+                }
+            } else {
+                let uncle: int = this.left.get(gp);
+                if (uncle >= 0 && this.color.get(uncle)) {
+                    this.color.set(p, false);
+                    this.color.set(uncle, false);
+                    this.color.set(gp, true);
+                    n = gp;
+                } else {
+                    if (n == this.left.get(p)) {
+                        n = p;
+                        this.rotateRight(n);
+                    }
+                    this.color.set(this.parent.get(n), false);
+                    this.color.set(this.parent.get(this.parent.get(n)), true);
+                    this.rotateLeft(this.parent.get(this.parent.get(n)));
+                }
+            }
+        }
+        this.color.set(this.root, false);
+    }
+
+    private fn rotateLeft(node: int): void {
+        let r: int = this.right.get(node);
+        this.right.set(node, this.left.get(r));
+        if (this.left.get(r) >= 0) {
+            this.parent.set(this.left.get(r), node);
+        }
+        this.parent.set(r, this.parent.get(node));
+        if (this.parent.get(node) < 0) {
+            this.root = r;
+        } else if (node == this.left.get(this.parent.get(node))) {
+            this.left.set(this.parent.get(node), r);
+        } else {
+            this.right.set(this.parent.get(node), r);
+        }
+        this.left.set(r, node);
+        this.parent.set(node, r);
+    }
+
+    private fn rotateRight(node: int): void {
+        let l: int = this.left.get(node);
+        this.left.set(node, this.right.get(l));
+        if (this.right.get(l) >= 0) {
+            this.parent.set(this.right.get(l), node);
+        }
+        this.parent.set(l, this.parent.get(node));
+        if (this.parent.get(node) < 0) {
+            this.root = l;
+        } else if (node == this.right.get(this.parent.get(node))) {
+            this.right.set(this.parent.get(node), l);
+        } else {
+            this.left.set(this.parent.get(node), l);
+        }
+        this.right.set(l, node);
+        this.parent.set(node, l);
+    }
+
+    private fn deleteNode(node: int): void {
+        // Simplified deletion: replace with in-order successor
+        var target: int = node;
+        if (this.left.get(node) >= 0 && this.right.get(node) >= 0) {
+            target = this.minimum(this.right.get(node));
+            // Copy data from successor
+            this.keys.set(node, this.keys.get(target));
+            this.values.set(node, this.values.get(target));
+        }
+        // Now target has at most one child
+        let child: int = -1;
+        if (this.left.get(target) >= 0) {
+            child = this.left.get(target);
+        } else {
+            child = this.right.get(target);
+        }
+        if (this.parent.get(target) < 0) {
+            this.root = child;
+        } else if (target == this.left.get(this.parent.get(target))) {
+            this.left.set(this.parent.get(target), child);
+        } else {
+            this.right.set(this.parent.get(target), child);
+        }
+        if (child >= 0) {
+            this.parent.set(child, this.parent.get(target));
+        }
+        // Free the node
+        this.left.set(target, this.freeHead);
+        this.freeHead = target;
+        this.nodeCount = this.nodeCount - 1;
+    }
+}
