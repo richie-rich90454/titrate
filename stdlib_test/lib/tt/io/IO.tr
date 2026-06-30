@@ -1,0 +1,68 @@
+// Standard I/O operations.
+import tt::io::File;
+import tt::io::BufferedReader;
+import tt::io::StringWriter;
+
+public fn println(message: string) {
+    io::println(message);
+}
+
+public fn print(message: string) {
+    io::print(message);
+}
+
+public fn readLine(): string {
+    return io::readLine();
+}
+
+public fn readAll(): string {
+    return io::readAll();
+}
+
+public fn stderr() {
+    io::stderr();
+}
+
+public fn eprintln(msg: string) {
+    io::eprintln(msg);
+}
+
+public fn eprint(msg: string) {
+    io::eprint(msg);
+}
+
+// Write a string to stderr with a newline.
+public fn writeStderr(msg: string): void {
+    io::eprintln(msg);
+}
+
+// Flush stderr output.
+public fn flushStderr(): void {
+    // No-op: stderr is typically unbuffered
+}
+
+// Read from stdin with a prompt.
+public fn input(prompt: string): string {
+    io::print(prompt);
+    return io::readLine();
+}
+
+// Read a line from stdin without a prompt.
+public fn readInput(): string {
+    return io::readLine();
+}
+
+// Unified file opener. Returns a BufferedReader for reading modes, or a File for writing modes.
+// Mode strings: "r" (read), "w" (write), "a" (append), "rb" (read binary), "wb" (write binary).
+public fn open(path: string, mode: string): BufferedReader {
+    if (mode == "r" || mode == "rb") {
+        return new BufferedReader(path);
+    }
+    // For write/append modes, open the file and return a BufferedReader
+    // that can also write (the underlying File supports both)
+    let f: File = new File(path);
+    if (mode == "w" || mode == "wb") {
+        File_writeFile(path, "");
+    }
+    return new BufferedReader(path);
+}
