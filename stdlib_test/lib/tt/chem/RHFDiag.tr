@@ -1,0 +1,163 @@
+import tt::util::ArrayList;
+import tt::math::linalg::Matrix;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// RHF Jacobi diagonalization, S^-1/2 computation
+
+// Compute S^{-1/2} via symmetric orthogonalization (canonical)
+// S^{-1/2} = U * s^{-1/2} * U^T where S = U * s * U^T
+public fn computeSInverseHalf(rhf: RHF): Matrix {
+    let n: int = rhf.basisSize;
+    let S: Matrix = toMatrix(rhf, rhf.overlapMatrix);
+
+    // Diagonalize S using Jacobi method
+    let (eigenvecs, eigenvals): (Matrix, ArrayList<double>) = jacobiDiagonalize(rhf, S);
+
+    // Build s^{-1/2} diagonal matrix
+    let sinvHalf: Matrix = new Matrix(n, n);
+    var i: int = 0;
+    while (i < n) {
+        let ev: double = eigenvals.get(i);
+        if (ev > 1e-14) {
+            sinvHalf.set(i, i, 1.0 / MathAdvanced.sqrt(ev));
+        } else {
+            sinvHalf.set(i, i, 0.0);
+        }
+        i = i + 1;
+    }
+
+    // S^{-1/2} = U * s^{-1/2} * U^T
+    let result: Matrix = eigenvecs.mul(sinvHalf).mul(eigenvecs.transpose());
+    return result;
+}
+
+// Jacobi eigenvalue algorithm for symmetric matrices
+// Returns (eigenvectors as columns, eigenvalues as ArrayList)
+public fn jacobiDiagonalize(rhf: RHF, A: Matrix): (Matrix, ArrayList<double>) {
+    let n: int = A.rows();
+    let V: Matrix = Matrix.identity(n);
+    let D: Matrix = A.clone();
+    let maxSweeps: int = 50;
+    let tol: double = 1e-12;
+    var sweep: int = 0;
+
+    while (sweep < maxSweeps) {
+        // Check convergence: sum of off-diagonal elements squared
+        var offDiag: double = 0.0;
+        var i: int = 1;
+        while (i < n) {
+            var j: int = 0;
+            while (j < i) {
+                let v: double = D.get(i, j);
+                offDiag = offDiag + v * v;
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        if (offDiag < tol) { break; }
+
+        // Sweep through all off-diagonal elements
+        var p: int = 0;
+        while (p < n - 1) {
+            var q: int = p + 1;
+            while (q < n) {
+                let apq: double = D.get(p, q);
+                if (Math.abs(apq) < 1e-15) {
+                    q = q + 1;
+                    continue;
+                }
+
+                let app: double = D.get(p, p);
+                let aqq: double = D.get(q, q);
+
+                // Compute rotation angle
+                var tau: double = 0.0;
+                if (Math.abs(aqq - app) > 1e-15) {
+                    tau = (aqq - app) / (2.0 * apq);
+                } else {
+                    tau = 1e10;
+                }
+                var t: double = 0.0;
+                if (tau >= 0.0) {
+                    t = 1.0 / (tau + MathAdvanced.sqrt(1.0 + tau * tau));
+                } else {
+                    t = -1.0 / (-tau + MathAdvanced.sqrt(1.0 + tau * tau));
+                }
+                let c: double = 1.0 / MathAdvanced.sqrt(1.0 + t * t);
+                let s: double = t * c;
+
+                // Update D matrix
+                D.set(p, p, app - t * apq);
+                D.set(q, q, aqq + t * apq);
+                D.set(p, q, 0.0);
+                D.set(q, p, 0.0);
+
+                var r: int = 0;
+                while (r < n) {
+                    if (r != p && r != q) {
+                        let drp: double = D.get(r, p);
+                        let drq: double = D.get(r, q);
+                        D.set(r, p, c * drp - s * drq);
+                        D.set(p, r, c * drp - s * drq);
+                        D.set(r, q, s * drp + c * drq);
+                        D.set(q, r, s * drp + c * drq);
+                    }
+                    r = r + 1;
+                }
+
+                // Update eigenvector matrix
+                r = 0;
+                while (r < n) {
+                    let vrp: double = V.get(r, p);
+                    let vrq: double = V.get(r, q);
+                    V.set(r, p, c * vrp - s * vrq);
+                    V.set(r, q, s * vrp + c * vrq);
+                    r = r + 1;
+                }
+
+                q = q + 1;
+            }
+            p = p + 1;
+        }
+        sweep = sweep + 1;
+    }
+
+    // Extract eigenvalues from diagonal
+    let eigenvals: ArrayList<double> = new ArrayList<double>();
+    var idx: int = 0;
+    while (idx < n) {
+        eigenvals.add(D.get(idx, idx));
+        idx = idx + 1;
+    }
+
+    // Sort eigenvalues and eigenvectors (ascending)
+    var ii: int = 0;
+    while (ii < n - 1) {
+        var minIdx: int = ii;
+        var jj: int = ii + 1;
+        while (jj < n) {
+            if (eigenvals.get(jj) < eigenvals.get(minIdx)) {
+                minIdx = jj;
+            }
+            jj = jj + 1;
+        }
+        if (minIdx != ii) {
+            // Swap eigenvalues
+            let tmp: double = eigenvals.get(ii);
+            eigenvals.set(ii, eigenvals.get(minIdx));
+            eigenvals.set(minIdx, tmp);
+            // Swap eigenvector columns
+            var row: int = 0;
+            while (row < n) {
+                let tmpV: double = V.get(row, ii);
+                V.set(row, ii, V.get(row, minIdx));
+                V.set(row, minIdx, tmpV);
+                row = row + 1;
+            }
+        }
+        ii = ii + 1;
+    }
+
+    return (V, eigenvals);
+}
