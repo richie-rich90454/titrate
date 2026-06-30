@@ -1,0 +1,74 @@
+// System operations backed by VM built-ins.
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public fn args(): ArrayList<string> {
+    return Sys_args();
+}
+
+public fn env(key: string): string {
+    return Sys_env(key);
+}
+
+public fn setEnv(key: string, val: string): void {
+    Sys_setEnv(key, val);
+}
+
+public fn exit(code: int): void {
+    Sys_exit(code);
+}
+
+public fn workingDir(): string {
+    return Sys_workingDir();
+}
+
+public fn sleep(ms: int): void {
+    Sys_sleep(ms);
+}
+
+public fn platform(): string {
+    return Os_name();
+}
+
+public fn cpuCount(): int {
+    let val: string = Sys_env("NUMBER_OF_PROCESSORS");
+    if (val != null && String.length(val) > 0) {
+        return Integer.parseInt(val);
+    }
+    return 1;
+}
+
+public fn exec(command: string): string {
+    return Subprocess_exec(command);
+}
+
+public fn pid(): int {
+    return Process_id();
+}
+
+public fn nanoTime(): long {
+    return Time_now() * 1000000;
+}
+
+public fn userName(): string {
+    var name: string = Sys_env("USER");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("USERNAME");
+    }
+    if (name == null) {
+        return "";
+    }
+    return name;
+}
+
+public fn hostName(): string {
+    var name: string = Sys_env("HOSTNAME");
+    if (name == null || String.length(name) == 0) {
+        name = Sys_env("COMPUTERNAME");
+    }
+    if (name == null) {
+        return "";
+    }
+    return name;
+}
