@@ -1,0 +1,293 @@
+import tt::util::ArrayList;
+import tt::util::Pair;
+
+// Array manipulation utilities
+
+// Reverse the data array.
+public fn flip(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    var i: int = n - 1;
+    while (i >= 0) {
+        result.add(data.get(i));
+        i = i - 1;
+    }
+    return result;
+}
+
+// Flip left-right for a 2D array stored in row-major order.
+// cols is the number of columns.
+public fn fliplr(data: ArrayList<double>, cols: int): ArrayList<double> {
+    let n: int = data.size();
+    let rows: int = n / cols;
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < rows) {
+        var j: int = cols - 1;
+        while (j >= 0) {
+            result.add(data.get(i * cols + j));
+            j = j - 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Flip up-down for a 2D array stored in row-major order.
+// cols is the number of columns.
+public fn flipud(data: ArrayList<double>, cols: int): ArrayList<double> {
+    let n: int = data.size();
+    let rows: int = n / cols;
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = rows - 1;
+    while (i >= 0) {
+        var j: int = 0;
+        while (j < cols) {
+            result.add(data.get(i * cols + j));
+            j = j + 1;
+        }
+        i = i - 1;
+    }
+    return result;
+}
+
+// Rotate a 2D array 90 degrees counter-clockwise, k times.
+// rows and cols are the dimensions, k is the number of 90° rotations.
+public fn rot90(data: ArrayList<double>, rows: int, cols: int, k: int): ArrayList<double> {
+    // Normalize k to 0-3
+    var rotations: int = k % 4;
+    if (rotations < 0) { rotations = rotations + 4; }
+    if (rotations == 0) {
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < data.size()) {
+            result.add(data.get(i));
+            i = i + 1;
+        }
+        return result;
+    }
+    if (rotations == 1) {
+        // 90° CCW: new[r][c] = old[c][rows-1-r]
+        let result: ArrayList<double> = new ArrayList<double>();
+        var c: int = 0;
+        while (c < cols) {
+            var r: int = 0;
+            while (r < rows) {
+                result.add(data.get((rows - 1 - r) * cols + c));
+                r = r + 1;
+            }
+            c = c + 1;
+        }
+        return result;
+    }
+    if (rotations == 2) {
+        // 180°: new[r][c] = old[rows-1-r][cols-1-c]
+        let result: ArrayList<double> = new ArrayList<double>();
+        var r: int = rows - 1;
+        while (r >= 0) {
+            var c: int = cols - 1;
+            while (c >= 0) {
+                result.add(data.get(r * cols + c));
+                c = c - 1;
+            }
+            r = r - 1;
+        }
+        return result;
+    }
+    // rotations == 3: 270° CCW = 90° CW
+    // new[r][c] = old[cols-1-c][r]
+    let result: ArrayList<double> = new ArrayList<double>();
+    var c: int = cols - 1;
+    while (c >= 0) {
+        var r: int = 0;
+        while (r < rows) {
+            result.add(data.get(r * cols + c));
+            r = r + 1;
+        }
+        c = c - 1;
+    }
+    return result;
+}
+
+// Tile the data array according to repetition counts along each dimension.
+// reps specifies how many times to repeat along each axis.
+// The data is treated as having shape matching the length of reps.
+public fn tile(data: ArrayList<double>, reps: ArrayList<int>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let nd: int = reps.size();
+    let n: int = data.size();
+    if (nd == 0 || n == 0) { return result; }
+    // Compute the shape of one "tile" (data reshaped to nd dimensions)
+    // For simplicity, treat data as 1D and tile it
+    if (nd == 1) {
+        var r: int = 0;
+        while (r < reps.get(0)) {
+            var i: int = 0;
+            while (i < n) {
+                result.add(data.get(i));
+                i = i + 1;
+            }
+            r = r + 1;
+        }
+    } else {
+        // For multi-dimensional tiling, treat data as having shape
+        // that matches reps dimensions
+        // Compute total repetitions
+        var totalReps: int = 1;
+        var d: int = 0;
+        while (d < nd) {
+            totalReps = totalReps * reps.get(d);
+            d = d + 1;
+        }
+        var r: int = 0;
+        while (r < totalReps) {
+            var i: int = 0;
+            while (i < n) {
+                result.add(data.get(i));
+                i = i + 1;
+            }
+            r = r + 1;
+        }
+    }
+    return result;
+}
+
+// Repeat each element of data by the corresponding count in repeats.
+public fn repeat(data: ArrayList<double>, repeats: ArrayList<int>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    var i: int = 0;
+    while (i < n) {
+        let count: int = 1;
+        if (i < repeats.size()) {
+            count = repeats.get(i);
+        }
+        var j: int = 0;
+        while (j < count) {
+            result.add(data.get(i));
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Remove length-1 dimensions from shape.
+// Returns a Pair of (data unchanged, new shape).
+public fn squeeze(data: ArrayList<double>, shape: ArrayList<int>): Pair<ArrayList<double>, ArrayList<int>> {
+    let newShape: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < shape.size()) {
+        if (shape.get(i) != 1) {
+            newShape.add(shape.get(i));
+        }
+        i = i + 1;
+    }
+    if (newShape.size() == 0) { newShape.add(1); }
+    return new Pair<ArrayList<double>, ArrayList<int>>(data, newShape);
+}
+
+// Add a length-1 dimension at the specified axis.
+// Returns a Pair of (data unchanged, new shape).
+public fn expandDims(data: ArrayList<double>, shape: ArrayList<int>, axis: int): Pair<ArrayList<double>, ArrayList<int>> {
+    let newShape: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < shape.size()) {
+        if (i == axis) {
+            newShape.add(1);
+        }
+        newShape.add(shape.get(i));
+        i = i + 1;
+    }
+    if (axis >= shape.size()) {
+        newShape.add(1);
+    }
+    return new Pair<ArrayList<double>, ArrayList<int>>(data, newShape);
+}
+
+// Flatten the data (alias — returns a copy).
+public fn ravel(data: ArrayList<double>): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < data.size()) {
+        result.add(data.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Pad the data array symmetrically with a constant value.
+// padWidth is the number of elements to add on each side.
+public fn pad(data: ArrayList<double>, padWidth: int, value: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    // Pre-padding
+    var i: int = 0;
+    while (i < padWidth) {
+        result.add(value);
+        i = i + 1;
+    }
+    // Original data
+    i = 0;
+    while (i < data.size()) {
+        result.add(data.get(i));
+        i = i + 1;
+    }
+    // Post-padding
+    i = 0;
+    while (i < padWidth) {
+        result.add(value);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Clip values to the range [lo, hi].
+public fn clip(data: ArrayList<double>, lo: double, hi: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < data.size()) {
+        var v: double = data.get(i);
+        if (v < lo) { v = lo; }
+        if (v > hi) { v = hi; }
+        result.add(v);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Create a meshgrid from two 1D arrays.
+// Returns a Pair of (X grid, Y grid) where each is a 2D ArrayList.
+public fn meshgrid(x: ArrayList<double>, y: ArrayList<double>): Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>> {
+    let nx: int = x.size();
+    let ny: int = y.size();
+
+    // X grid: each row is a copy of x
+    let X: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var j: int = 0;
+    while (j < ny) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < nx) {
+            row.add(x.get(i));
+            i = i + 1;
+        }
+        X.add(row);
+        j = j + 1;
+    }
+
+    // Y grid: each column is a copy of y
+    let Y: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    j = 0;
+    while (j < ny) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < nx) {
+            row.add(y.get(j));
+            i = i + 1;
+        }
+        Y.add(row);
+        j = j + 1;
+    }
+
+    return new Pair<ArrayList<ArrayList<double>>, ArrayList<ArrayList<double>>>(X, Y);
+}
