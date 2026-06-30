@@ -1,0 +1,80 @@
+// Native OS thread wrapper.
+// NOTE: Due to VM limitations (Value contains Rc<> which is not Send-safe),
+// Thread_spawn executes the closure synchronously on the calling thread and
+// spawns a no-op OS thread to preserve the handle-based join/detach API.
+// The task runs to completion before Thread_spawn returns. For true concurrent
+// execution, use ThreadPoolExecutor or the async() function from Async.tr.
+import tt::concurrent::Mutex;
+import tt::concurrent::LockGuard;
+
+public class Thread {
+    private int handle;
+    private fn(): void task;
+    private bool started;
+    private bool joined;
+
+    public fn init(task: fn(): void) {
+        this.task = task;
+        this.handle = -1;
+        this.started = false;
+        this.joined = false;
+    }
+
+    public fn start(): void {
+        if (!this.started) {
+            // Thread_spawn executes the task synchronously (VM limitation:
+            // Rc<> is not Send-safe) and returns a handle to a no-op thread.
+            this.handle = Thread_spawn(this.task);
+            this.started = true;
+        }
+    }
+
+    // Start with a runnable handle for future VM support.
+    public fn startWithRunnable(runnableHandle: int): void {
+        if (!this.started) {
+            this.handle = Thread_spawnRunnable(runnableHandle);
+            this.started = true;
+        }
+    }
+
+    public fn join(): void {
+        if (this.started && !this.joined) {
+            Thread_join(this.handle);
+            this.joined = true;
+        }
+    }
+
+    public fn detach(): void {
+        if (this.started && !this.joined) {
+            Thread_detach(this.handle);
+            this.joined = true;
+        }
+    }
+
+    public fn getId(): int {
+        if (this.started) {
+            return Thread_getId(this.handle);
+        }
+        return -1;
+    }
+
+    public fn isAlive(): bool {
+        return this.started && !this.joined;
+    }
+}
+
+public fn sleep(ms: int): void {
+    Thread_sleep(ms);
+}
+
+public fn yield_(): void {
+    Thread_yield();
+}
+
+public fn currentId(): int {
+    return Thread_currentId();
+}
+
+public fn hardwareConcurrency(): int {
+    return Os_cpuCount();
+}
