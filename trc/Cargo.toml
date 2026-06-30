@@ -31,8 +31,8 @@ rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 native-tls = "0.2"
 inkwell = { version = "0.9", default-features = false, features = ["llvm22-1-no-llvm-linking", "target-x86"] }
 # Direct llvm-sys dep so we can enable `disable-alltargets-init`, which together
-# with inkwell's `no-llvm-linking` makes the build script skip llvm-config
-# entirely. We link LLVM-C.lib manually in build.rs.
+# with inkwell's `no-llvm-linking` makes the build script link LLVM-C.lib
+# directly via build.rs instead of going through llvm-config.
 llvm-sys = { version = "221", features = ["disable-alltargets-init"] }
 
 [target.'cfg(unix)'.dependencies]
