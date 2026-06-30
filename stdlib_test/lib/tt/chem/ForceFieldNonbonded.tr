@@ -1,0 +1,241 @@
+import tt::util::ArrayList;
+import tt::chem::Atom;
+import tt::chem::Molecule;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+// ForceField nonbonded: lennardJonesEnergy, coulombEnergy, gradient, computeForces, partialCharge
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _ffCache: JsonValue = JsonValue.ofNull();
+var _ffLoaded: bool = false;
+var _chargeCache: HashMap<string, double> = new HashMap<string, double>();
+
+fn _ensureFFLoaded(): void {
+    if (_ffLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("chem/forcefield_params.json");
+    if (data.isNull() || !data.isObject()) {
+        _ffLoaded = true;
+        return;
+    }
+    _ffCache = data;
+    // Pre-load partial charges
+    if (data.hasKey("partialCharges")) {
+        let charges: JsonValue = data.get("partialCharges");
+        if (charges.isArray()) {
+            var i: int = 0;
+            while (i < charges.size()) {
+                let entry: JsonValue = charges.getAt(i);
+                if (entry.isObject() && entry.hasKey("symbol") && entry.hasKey("charge")) {
+                    let sym: string = entry.get("symbol").asString();
+                    let ch: double = entry.get("charge").asNumber();
+                    _chargeCache.put(sym, ch);
+                }
+                i = i + 1;
+            }
+        }
+    }
+    _ffLoaded = true;
+}
+
+// Lennard-Jones 6-12 potential: E = 4*epsilon * ((sigma/r)^12 - (sigma/r)^6)
+public fn lennardJonesEnergy(ff: ForceField, mol: Molecule): double {
+    var e: double = 0.0;
+    let n: int = mol.atoms.size();
+    var i: int = 0;
+    while (i < n) {
+        var j: int = i + 1;
+        while (j < n) {
+            let a1: Atom = mol.atoms.get(i);
+            let a2: Atom = mol.atoms.get(j);
+            let r: double = a1.distanceTo(a2);
+            if (r < 1e-10) {
+                j = j + 1;
+                continue;
+            }
+            let sr: double = ff.ljSigma / r;
+            let sr6: double = sr * sr * sr * sr * sr * sr;
+            let sr12: double = sr6 * sr6;
+            e = e + 4.0 * ff.ljEpsilon * (sr12 - sr6);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return e;
+}
+
+// Coulomb electrostatic energy: E = k_e * q1 * q2 / r
+public fn coulombEnergy(ff: ForceField, mol: Molecule): double {
+    var e: double = 0.0;
+    let n: int = mol.atoms.size();
+    var i: int = 0;
+    while (i < n) {
+        var j: int = i + 1;
+        while (j < n) {
+            let a1: Atom = mol.atoms.get(i);
+            let a2: Atom = mol.atoms.get(j);
+            let r: double = a1.distanceTo(a2);
+            if (r < 1e-10) {
+                j = j + 1;
+                continue;
+            }
+            let q1: double = partialCharge(a1.symbol);
+            let q2: double = partialCharge(a2.symbol);
+            e = e + ff.coulombK * q1 * q2 / r;
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return e;
+}
+
+// Simplified partial charges for common elements (loaded from data file)
+public fn partialCharge(symbol: string): double {
+    _ensureFFLoaded();
+    if (_chargeCache.containsKey(symbol)) {
+        return _chargeCache.get(symbol);
+    }
+    return 0.0;
+}
+
+// Analytical gradient (negative of forces) for each atom coordinate.
+// Returns flat ArrayList<double> of size 3*nAtoms: [gx0, gy0, gz0, gx1, ...]
+public fn gradient(ff: ForceField, mol: Molecule): ArrayList<double> {
+    let nAtoms: int = mol.atoms.size();
+    let grad: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < nAtoms * 3) {
+        grad.add(0.0);
+        i = i + 1;
+    }
+    // Bond gradient: dE/dr = k*(r - r0) * (dr/dx)
+    i = 0;
+    while (i < mol.bonds.size()) {
+        let b: Bond = mol.bonds.get(i);
+        let a1: Atom = mol.atoms.get(b.atom1);
+        let a2: Atom = mol.atoms.get(b.atom2);
+        let dx: double = a2.x - a1.x;
+        let dy: double = a2.y - a1.y;
+        let dz: double = a2.z - a1.z;
+        let r: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
+        if (r < 1e-15) { i = i + 1; continue; }
+        let dr: double = r - ff.bondR0;
+        let dEdr: double = ff.bondK * dr;
+        let dEdx: double = dEdr * dx / r;
+        let dEdy: double = dEdr * dy / r;
+        let dEdz: double = dEdr * dz / r;
+        grad.set(b.atom1 * 3, grad.get(b.atom1 * 3) + dEdx);
+        grad.set(b.atom1 * 3 + 1, grad.get(b.atom1 * 3 + 1) + dEdy);
+        grad.set(b.atom1 * 3 + 2, grad.get(b.atom1 * 3 + 2) + dEdz);
+        grad.set(b.atom2 * 3, grad.get(b.atom2 * 3) - dEdx);
+        grad.set(b.atom2 * 3 + 1, grad.get(b.atom2 * 3 + 1) - dEdy);
+        grad.set(b.atom2 * 3 + 2, grad.get(b.atom2 * 3 + 2) - dEdz);
+        i = i + 1;
+    }
+    // LJ gradient
+    i = 0;
+    while (i < nAtoms) {
+        var j: int = i + 1;
+        while (j < nAtoms) {
+            let a1: Atom = mol.atoms.get(i);
+            let a2: Atom = mol.atoms.get(j);
+            let dx: double = a2.x - a1.x;
+            let dy: double = a2.y - a1.y;
+            let dz: double = a2.z - a1.z;
+            let r: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
+            if (r < 1e-10) { j = j + 1; continue; }
+            let sr: double = ff.ljSigma / r;
+            let sr6: double = sr * sr * sr * sr * sr * sr;
+            let sr12: double = sr6 * sr6;
+            let dEdr: double = 4.0 * ff.ljEpsilon * (-12.0 * sr12 + 6.0 * sr6) / r;
+            let dEdx: double = dEdr * dx / r;
+            let dEdy: double = dEdr * dy / r;
+            let dEdz: double = dEdr * dz / r;
+            grad.set(i * 3, grad.get(i * 3) + dEdx);
+            grad.set(i * 3 + 1, grad.get(i * 3 + 1) + dEdy);
+            grad.set(i * 3 + 2, grad.get(i * 3 + 2) + dEdz);
+            grad.set(j * 3, grad.get(j * 3) - dEdx);
+            grad.set(j * 3 + 1, grad.get(j * 3 + 1) - dEdy);
+            grad.set(j * 3 + 2, grad.get(j * 3 + 2) - dEdz);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    // Coulomb gradient
+    i = 0;
+    while (i < nAtoms) {
+        var j: int = i + 1;
+        while (j < nAtoms) {
+            let a1: Atom = mol.atoms.get(i);
+            let a2: Atom = mol.atoms.get(j);
+            let dx: double = a2.x - a1.x;
+            let dy: double = a2.y - a1.y;
+            let dz: double = a2.z - a1.z;
+            let r: double = MathAdvanced.sqrt(dx * dx + dy * dy + dz * dz);
+            if (r < 1e-10) { j = j + 1; continue; }
+            let q1: double = partialCharge(a1.symbol);
+            let q2: double = partialCharge(a2.symbol);
+            let dEdr: double = -ff.coulombK * q1 * q2 / (r * r);
+            let dEdx: double = dEdr * dx / r;
+            let dEdy: double = dEdr * dy / r;
+            let dEdz: double = dEdr * dz / r;
+            grad.set(i * 3, grad.get(i * 3) + dEdx);
+            grad.set(i * 3 + 1, grad.get(i * 3 + 1) + dEdy);
+            grad.set(i * 3 + 2, grad.get(i * 3 + 2) + dEdz);
+            grad.set(j * 3, grad.get(j * 3) - dEdx);
+            grad.set(j * 3 + 1, grad.get(j * 3 + 1) - dEdy);
+            grad.set(j * 3 + 2, grad.get(j * 3 + 2) - dEdz);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return grad;
+}
+
+// Compute forces via finite differences
+public fn computeForces(ff: ForceField, mol: Molecule): ArrayList<double> {
+    let forces: ArrayList<double> = new ArrayList<double>();
+    let delta: double = 1e-5;
+    let n: int = mol.atoms.size();
+    var i: int = 0;
+    while (i < n) {
+        let a: Atom = mol.atoms.get(i);
+        // fx
+        let origX: double = a.x;
+        a.x = origX + delta;
+        let ePlus: double = ff.totalEnergy(mol);
+        a.x = origX - delta;
+        let eMinus: double = ff.totalEnergy(mol);
+        a.x = origX;
+        let fx: double = -(ePlus - eMinus) / (2.0 * delta);
+        // fy
+        let origY: double = a.y;
+        a.y = origY + delta;
+        var ePlusY: double = ff.totalEnergy(mol);
+        a.y = origY - delta;
+        var eMinusY: double = ff.totalEnergy(mol);
+        a.y = origY;
+        let fy: double = -(ePlusY - eMinusY) / (2.0 * delta);
+        // fz
+        let origZ: double = a.z;
+        a.z = origZ + delta;
+        var ePlusZ: double = ff.totalEnergy(mol);
+        a.z = origZ - delta;
+        var eMinusZ: double = ff.totalEnergy(mol);
+        a.z = origZ;
+        let fz: double = -(ePlusZ - eMinusZ) / (2.0 * delta);
+        forces.add(fx);
+        forces.add(fy);
+        forces.add(fz);
+        i = i + 1;
+    }
+    return forces;
+}
