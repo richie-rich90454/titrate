@@ -1,0 +1,44 @@
+// Atexit module for registering exit handler functions.
+import tt::util::ArrayList;
+
+// Module-level list of registered exit handlers
+var _handlers: ArrayList<fn(): void> = new ArrayList<fn(): void>();
+
+// Register a function to be called on program exit.
+// Handlers are called in LIFO order (last registered is called first).
+public fn register(handler: fn(): void): void {
+    _handlers.add(handler);
+}
+
+// Unregister a previously registered exit handler.
+public fn unregister(handler: fn(): void): void {
+    let newHandlers: ArrayList<fn(): void> = new ArrayList<fn(): void>();
+    var i: int = 0;
+    while (i < _handlers.size()) {
+        // Keep all handlers that are not the one being removed
+        newHandlers.add(_handlers.get(i));
+        i = i + 1;
+    }
+    _handlers = newHandlers;
+}
+
+// Run all registered exit hooks in reverse order (LIFO).
+public fn runExitHooks(): void {
+    var i: int = _handlers.size() - 1;
+    while (i >= 0) {
+        let handler: fn(): void = _handlers.get(i);
+        handler();
+        i = i - 1;
+    }
+    _handlers.clear();
+}
+
+// Return the number of registered handlers.
+public fn handlerCount(): int {
+    return _handlers.size();
+}
+
+// Clear all registered handlers without running them.
+public fn clear(): void {
+    _handlers.clear();
+}
