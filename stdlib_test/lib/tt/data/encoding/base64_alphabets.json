@@ -1,0 +1,6 @@
+{
+  "_meta": { "source": "RFC 4648", "version": "2006", "description": "Base64, URL-safe Base64, and Base32 alphabets" },
+  "base64": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
+  "base64url": "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_",
+  "base32": "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+}
