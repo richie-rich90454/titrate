@@ -1,0 +1,299 @@
+// Generic HashMap backed by the VM's built-in hash map support.
+import tt::lang::Iterable;
+import tt::util::ArrayList;
+
+public class HashMap<K, V> implements Iterable<K> {
+    private HashMap<K, V> map;
+
+    public fn HashMap() {
+        this.map = new HashMap<K, V>();
+    }
+
+    public fn put(key: K, value: V): void {
+        this.map.put(key, value);
+    }
+
+    public fn get(key: K): V {
+        return this.map.get(key);
+    }
+
+    public fn containsKey(key: K): bool {
+        return this.map.containsKey(key);
+    }
+
+    public fn keys(): ArrayList<K> {
+        return this.map.keys();
+    }
+
+    public fn values(): ArrayList<V> {
+        return this.map.values();
+    }
+
+    public fn entries(): ArrayList<(K, V)> {
+        return this.map.entries();
+    }
+
+    public fn size(): int {
+        return this.map.size();
+    }
+
+    public fn isEmpty(): bool {
+        return this.map.size() == 0;
+    }
+
+    public fn putIfAbsent(key: K, value: V): V {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        this.map.put(key, value);
+        return value;
+    }
+
+    public fn computeIfAbsent(key: K, mapper: fn(K): V): V {
+        // why compute when you can cache
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        let value: V = mapper(key);
+        this.map.put(key, value);
+        return value;
+    }
+
+    public fn merge(key: K, value: V, remapper: fn(V, V): V): V {
+        if (this.map.containsKey(key)) {
+            let oldVal: V = this.map.get(key);
+            let newVal: V = remapper(oldVal, value);
+            this.map.put(key, newVal);
+            return newVal;
+        }
+        this.map.put(key, value);
+        return value;
+    }
+
+    public fn getOrDefault(key: K, defaultValue: V): V {
+        if (this.map.containsKey(key)) {
+            return this.map.get(key);
+        }
+        return defaultValue;
+    }
+
+    public fn replace(key: K, value: V): V {
+        if (this.map.containsKey(key)) {
+            let oldVal: V = this.map.get(key);
+            this.map.put(key, value);
+            return oldVal;
+        }
+        return null;
+    }
+
+    // Merge another HashMap into this one, overwriting existing keys.
+    public fn update(other: HashMap<K, V>): void {
+        let keys: ArrayList<K> = other.keys();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let key: K = keys.get(i);
+            let val: V = other.get(key);
+            this.put(key, val);
+            i = i + 1;
+        }
+    }
+
+    public fn iterator(): ArrayListIterator<K> {
+        return this.map.keys().iterator();
+    }
+
+    public fn remove(key: K): void {
+        this.map.remove(key);
+    }
+
+    // Remove a key and return its associated value, or null if the key is absent.
+    public fn pop(key: K): V {
+        if (this.map.containsKey(key)) {
+            let val: V = this.map.get(key);
+            this.map.remove(key);
+            return val;
+        }
+        return null;
+    }
+
+    // Remove a key and return its associated value, or defaultValue if the key is absent.
+    public fn pop(key: K, defaultValue: V): V {
+        if (this.map.containsKey(key)) {
+            let val: V = this.map.get(key);
+            this.map.remove(key);
+            return val;
+        }
+        return defaultValue;
+    }
+
+    // Remove and return an arbitrary (key, value) pair from the map.
+    // Returns null if the map is empty.
+    public fn popItem(): (K, V) {
+        if (this.map.size() == 0) {
+            return null;
+        }
+        let keys: ArrayList<K> = this.map.keys();
+        let key: K = keys.get(0);
+        let val: V = this.map.get(key);
+        this.map.remove(key);
+        return (key, val);
+    }
+
+    public fn clear(): void {
+        this.map = new HashMap<K, V>();
+    }
+
+    public fn containsValue(value: V): bool {
+        let vals: ArrayList<V> = this.map.values();
+        let i: int = 0;
+        while (i < vals.size()) {
+            if (vals.get(i) == value) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    public fn clone(): HashMap<K, V> {
+        let result: HashMap<K, V> = new HashMap<K, V>();
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
+        while (i < entries.size()) {
+            let (key, val) = entries.get(i);
+            result.put(key, val);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn toString(): string {
+        let s: string = "{";
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
+        while (i < entries.size()) {
+            if (i > 0) { s = s + ", "; }
+            let (key, val) = entries.get(i);
+            s = s + key + ": " + val;
+            i = i + 1;
+        }
+        s = s + "}";
+        return s;
+    }
+
+    public fn forEach(func: fn(K, V): void): void {
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
+        while (i < entries.size()) {
+            let (key, val) = entries.get(i);
+            func(key, val);
+            i = i + 1;
+        }
+    }
+
+    public fn map(func: fn(K, V): (K, V)): HashMap<K, V> {
+        let result: HashMap<K, V> = new HashMap<K, V>();
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
+        while (i < entries.size()) {
+            let (key, val) = entries.get(i);
+            let (newKey, newVal) = func(key, val);
+            result.put(newKey, newVal);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn filter(func: fn(K, V): bool): HashMap<K, V> {
+        let result: HashMap<K, V> = new HashMap<K, V>();
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        let i: int = 0;
+        while (i < entries.size()) {
+            let (key, val) = entries.get(i);
+            if (func(key, val)) {
+                result.put(key, val);
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn loadFactor(): double {
+        let s: int = this.map.size();
+        if (s == 0) { return 0.0; }
+        return s as double / (s * 2 + 1) as double;
+    }
+
+    public fn rehash(): void {
+        let entries: ArrayList<(K, V)> = this.map.entries();
+        this.map = new HashMap<K, V>();
+        let i: int = 0;
+        while (i < entries.size()) {
+            let (key, val) = entries.get(i);
+            this.map.put(key, val);
+            i = i + 1;
+        }
+    }
+
+    public fn reserve(capacity: int): void {
+        // No-op: VM HashMap manages its own capacity
+    }
+
+    public fn equalRange(key: K): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        if (this.map.containsKey(key)) {
+            result.add(this.map.get(key));
+        }
+        return result;
+    }
+}
+
+// --- Task 194: HashMap deepening utility functions ---
+
+// Create a HashMap from a list of keys with a default value.
+public fn fromKeys(keys: ArrayList<string>, defaultValue: string): HashMap<string, string> {
+    let result: HashMap<string, string> = new HashMap<string, string>();
+    var i: int = 0;
+    while (i < keys.size()) {
+        result.put(keys.get(i), defaultValue);
+        i = i + 1;
+    }
+    return result;
+}
+
+// Get the value for key, or set and return defaultValue if absent.
+public fn setDefault(map: HashMap<string, string>, key: string, defaultValue: string): string {
+    if (map.containsKey(key)) {
+        return map.get(key);
+    }
+    map.put(key, defaultValue);
+    return defaultValue;
+}
+
+// Pop and return the value for key.
+public fn mapPop(map: HashMap<string, string>, key: string): string {
+    let val: string = map.get(key);
+    map.remove(key);
+    return val;
+}
+
+// Pop and return the value for key, or return defaultValue if absent.
+public fn mapPopDefault(map: HashMap<string, string>, key: string, defaultValue: string): string {
+    if (map.containsKey(key)) {
+        let val: string = map.get(key);
+        map.remove(key);
+        return val;
+    }
+    return defaultValue;
+}
+
+// Merge all entries from source into target.
+public fn mapMerge(target: HashMap<string, string>, source: HashMap<string, string>): void {
+    let entries: ArrayList<(string, string)> = source.entries();
+    var i: int = 0;
+    while (i < entries.size()) {
+        let (key, val) = entries.get(i);
+        target.put(key, val);
+        i = i + 1;
+    }
+}
