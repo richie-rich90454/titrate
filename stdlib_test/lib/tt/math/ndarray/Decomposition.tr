@@ -1,0 +1,736 @@
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// Tensor decomposition methods: CP, Tucker, NMF
+
+// Solve A*x = b for a small dense system via Gauss-Jordan elimination.
+// A is rank×rank (row-major ArrayList of ArrayLists), b is length rank.
+fn solveLinearSystem(a: ArrayList<ArrayList<double>>, b: ArrayList<double>, rank: int): ArrayList<double> {
+    // Build augmented matrix [A | b].
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < rank) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < rank) {
+            row.add(a.get(i).get(j));
+            j = j + 1;
+        }
+        row.add(b.get(i));
+        aug.add(row);
+        i = i + 1;
+    }
+    // Gauss-Jordan with partial pivoting.
+    var col: int = 0;
+    while (col < rank) {
+        var pivot: int = col;
+        var maxVal: double = Math.abs(aug.get(col).get(col));
+        var r: int = col + 1;
+        while (r < rank) {
+            let v: double = Math.abs(aug.get(r).get(col));
+            if (v > maxVal) { maxVal = v; pivot = r; }
+            r = r + 1;
+        }
+        if (pivot != col) {
+            let tmp: ArrayList<double> = aug.get(col);
+            aug.set(col, aug.get(pivot));
+            aug.set(pivot, tmp);
+        }
+        let pv: double = aug.get(col).get(col);
+        if (Math.abs(pv) < 1e-15) {
+            // Singular — return zeros.
+            let zeros: ArrayList<double> = new ArrayList<double>();
+            i = 0;
+            while (i < rank) { zeros.add(0.0); i = i + 1; }
+            return zeros;
+        }
+        var c: int = 0;
+        while (c <= rank) {
+            aug.get(col).set(c, aug.get(col).get(c) / pv);
+            c = c + 1;
+        }
+        r = 0;
+        while (r < rank) {
+            if (r != col) {
+                let factor: double = aug.get(r).get(col);
+                c = 0;
+                while (c <= rank) {
+                    aug.get(r).set(c, aug.get(r).get(c) - factor * aug.get(col).get(c));
+                    c = c + 1;
+                }
+            }
+            r = r + 1;
+        }
+        col = col + 1;
+    }
+    let result: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < rank) {
+        result.add(aug.get(i).get(rank));
+        i = i + 1;
+    }
+    return result;
+}
+
+// CP decomposition via alternating least squares.
+// Returns a list of factor matrices: result[f] is an ArrayList<ArrayList<double>>
+// where result[f][i] is the i-th row of factor f.
+// tensor: flat data in row-major order, shape: dimensions, rank: number of components
+public fn cpDecomposition(tensor: ArrayList<double>, shape: ArrayList<int>, rank: int, maxIter: int): ArrayList<ArrayList<ArrayList<double>>> {
+    let ndim: int = shape.size();
+    let result: ArrayList<ArrayList<ArrayList<double>>> = new ArrayList<ArrayList<ArrayList<double>>>();
+
+    // Compute total tensor elements
+    var totalElements: int = 1;
+    var d: int = 0;
+    while (d < ndim) {
+        totalElements = totalElements * shape.get(d);
+        d = d + 1;
+    }
+
+    // Compute strides for the tensor
+    let strides: ArrayList<int> = new ArrayList<int>();
+    if (ndim > 0) {
+        strides.add(0, 1);
+        d = ndim - 2;
+        while (d >= 0) {
+            strides.add(0, strides.get(0) * shape.get(d + 1));
+            d = d - 1;
+        }
+    }
+
+    // Initialize factor matrices with deterministic pseudo-random values.
+    // (SVD-based init would require a full eigendecomposition; this pattern
+    // provides sufficient diversity for ALS convergence.)
+    var f: int = 0;
+    while (f < ndim) {
+        let factor: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        let dimSize: int = shape.get(f);
+        var i: int = 0;
+        while (i < dimSize) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < rank) {
+                // Simple deterministic initialization using a pattern
+                row.add(MathAdvanced.sqrt(1.0 / rank as double) * (1.0 + (i as double * 0.01 + j as double * 0.01) % 0.1));
+                j = j + 1;
+            }
+            factor.add(row);
+            i = i + 1;
+        }
+        result.add(factor);
+        f = f + 1;
+    }
+
+    // Alternating least squares iterations
+    var iter: int = 0;
+    while (iter < maxIter) {
+        f = 0;
+        while (f < ndim) {
+            // For each factor matrix, solve the least squares problem
+            // Compute the Khatri-Rao product of all other factor matrices
+            let krCols: int = rank;
+            var krRows: int = 1;
+            var dd: int = 0;
+            while (dd < ndim) {
+                if (dd != f) {
+                    krRows = krRows * shape.get(dd);
+                }
+                dd = dd + 1;
+            }
+
+            // Khatri-Rao product of all factors except f
+            let kr: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+            var r: int = 0;
+            while (r < krRows) {
+                let row: ArrayList<double> = new ArrayList<double>();
+                var c: int = 0;
+                while (c < rank) {
+                    row.add(1.0);
+                    c = c + 1;
+                }
+                kr.add(row);
+                r = r + 1;
+            }
+
+            // Build Khatri-Rao product iteratively
+            var krCurrentRows: int = 1;
+            dd = 0;
+            while (dd < ndim) {
+                if (dd != f) {
+                    let dimSize: int = shape.get(dd);
+                    let factor: ArrayList<ArrayList<double>> = result.get(dd);
+                    let newRows: int = krCurrentRows * dimSize;
+                    // Update kr in-place
+                    var rr: int = 0;
+                    while (rr < krRows) {
+                        var cc: int = 0;
+                        while (cc < rank) {
+                            // Map rr to (oldRow, dimIdx)
+                            let oldRow: int = rr / dimSize;
+                            let dimIdx: int = rr % dimSize;
+                            if (oldRow < krCurrentRows && dimIdx < dimSize) {
+                                kr.get(rr).set(cc, kr.get(rr).get(cc) * factor.get(dimIdx).get(cc));
+                            }
+                            cc = cc + 1;
+                        }
+                        rr = rr + 1;
+                    }
+                    krCurrentRows = newRows;
+                }
+                dd = dd + 1;
+            }
+
+            // Compute Gram matrix: G = KR^T * KR (rank x rank)
+            let gram: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+            var ri: int = 0;
+            while (ri < rank) {
+                let row: ArrayList<double> = new ArrayList<double>();
+                var ci: int = 0;
+                while (ci < rank) {
+                    var s: double = 0.0;
+                    var rr: int = 0;
+                    while (rr < krRows) {
+                        s = s + kr.get(rr).get(ri) * kr.get(rr).get(ci);
+                        rr = rr + 1;
+                    }
+                    row.add(s);
+                    ci = ci + 1;
+                }
+                gram.add(row);
+                ri = ri + 1;
+            }
+
+            // Regularize Gram matrix (add small diagonal for stability)
+            ri = 0;
+            while (ri < rank) {
+                gram.get(ri).set(ri, gram.get(ri).get(ri) + 1e-8);
+                ri = ri + 1;
+            }
+
+            // Compute MTTKRP: unfold tensor along mode f and multiply with KR
+            let dimF: int = shape.get(f);
+            let factor: ArrayList<ArrayList<double>> = result.get(f);
+            var i: int = 0;
+            while (i < dimF) {
+                // Compute the full MTTKRP vector for row i.
+                let mttkrpVec: ArrayList<double> = new ArrayList<double>();
+                var c: int = 0;
+                while (c < rank) {
+                    var mttkrpVal: double = 0.0;
+                    var rr: int = 0;
+                    while (rr < krRows) {
+                        var tensorFlat: int = i * strides.get(f);
+                        var rem: int = rr;
+                        dd = ndim - 1;
+                        while (dd >= 0) {
+                            if (dd != f) {
+                                let idx: int = rem % shape.get(dd);
+                                tensorFlat = tensorFlat + idx * strides.get(dd);
+                                rem = rem / shape.get(dd);
+                            }
+                            dd = dd - 1;
+                        }
+                        if (tensorFlat >= 0 && tensorFlat < totalElements) {
+                            mttkrpVal = mttkrpVal + tensor.get(tensorFlat) * kr.get(rr).get(c);
+                        }
+                        rr = rr + 1;
+                    }
+                    mttkrpVec.add(mttkrpVal);
+                    c = c + 1;
+                }
+                // Solve gram * x = mttkrrpVec via Gauss-Jordan elimination.
+                let sol: ArrayList<double> = solveLinearSystem(gram, mttkrpVec, rank);
+                c = 0;
+                while (c < rank) {
+                    factor.get(i).set(c, sol.get(c));
+                    c = c + 1;
+                }
+                i = i + 1;
+            }
+            f = f + 1;
+        }
+        iter = iter + 1;
+    }
+
+    return result;
+}
+
+// Tucker decomposition via higher-order SVD (simplified).
+// Returns a Pair of (core tensor, factor matrices).
+// core tensor is flat data, factor matrices are in the same format as CP.
+public fn tuckerDecomposition(tensor: ArrayList<double>, shape: ArrayList<int>, ranks: ArrayList<int>, maxIter: int): Pair<ArrayList<double>, ArrayList<ArrayList<ArrayList<double>>>> {
+    let ndim: int = shape.size();
+
+    // Compute total tensor elements
+    var totalElements: int = 1;
+    var d: int = 0;
+    while (d < ndim) {
+        totalElements = totalElements * shape.get(d);
+        d = d + 1;
+    }
+
+    // Compute strides
+    let strides: ArrayList<int> = new ArrayList<int>();
+    if (ndim > 0) {
+        strides.add(0, 1);
+        d = ndim - 2;
+        while (d >= 0) {
+            strides.add(0, strides.get(0) * shape.get(d + 1));
+            d = d - 1;
+        }
+    }
+
+    // Initialize factor matrices with uniform values.
+    // (Truncated SVD init would require eigendecomposition of the mode-n
+    // unfolding Gram matrix; uniform init is sufficient for ALS convergence.)
+    let factors: ArrayList<ArrayList<ArrayList<double>>> = new ArrayList<ArrayList<ArrayList<double>>>>();
+    d = 0;
+    while (d < ndim) {
+        let dimSize: int = shape.get(d);
+        let rankD: int = ranks.get(d);
+        let factor: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+        var i: int = 0;
+        while (i < dimSize) {
+            let row: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < rankD) {
+                row.add(1.0 / MathAdvanced.sqrt(rankD as double));
+                j = j + 1;
+            }
+            factor.add(row);
+            i = i + 1;
+        }
+        factors.add(factor);
+        d = d + 1;
+    }
+
+    // Compute core tensor size
+    var coreTotal: int = 1;
+    d = 0;
+    while (d < ndim) {
+        coreTotal = coreTotal * ranks.get(d);
+        d = d + 1;
+    }
+
+    // Compute core strides
+    let coreStrides: ArrayList<int> = new ArrayList<int>();
+    if (ndim > 0) {
+        coreStrides.add(0, 1);
+        d = ndim - 2;
+        while (d >= 0) {
+            coreStrides.add(0, coreStrides.get(0) * ranks.get(d + 1));
+            d = d - 1;
+        }
+    }
+
+    // Iterative HOSVD: alternate between computing core and updating factors
+    var iter: int = 0;
+    while (iter < maxIter) {
+        // Compute core tensor: G = tensor x_1 U1^T x_2 U2^T ... x_n Un^T
+        let core: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < coreTotal) {
+            core.add(0.0);
+            i = i + 1;
+        }
+
+        // For each element of the core tensor
+        let coreIndices: ArrayList<int> = new ArrayList<int>();
+        d = 0;
+        while (d < ndim) {
+            coreIndices.add(0);
+            d = d + 1;
+        }
+
+        i = 0;
+        while (i < coreTotal) {
+            // Compute core element by contracting tensor with factor matrices
+            var val: double = 0.0;
+            // Iterate over all tensor indices
+            let tensorIndices: ArrayList<int> = new ArrayList<int>();
+            d = 0;
+            while (d < ndim) {
+                tensorIndices.add(0);
+                d = d + 1;
+            }
+
+            var ti: int = 0;
+            while (ti < totalElements) {
+                // Compute the product of factor matrix entries
+                var factorProduct: double = 1.0;
+                d = 0;
+                while (d < ndim) {
+                    factorProduct = factorProduct * factors.get(d).get(tensorIndices.get(d)).get(coreIndices.get(d));
+                    d = d + 1;
+                }
+                val = val + tensor.get(ti) * factorProduct;
+
+                // Increment tensor indices
+                var axis: int = ndim - 1;
+                while (axis >= 0) {
+                    let v: int = tensorIndices.get(axis) + 1;
+                    tensorIndices.set(axis, v);
+                    if (v < shape.get(axis)) {
+                        break;
+                    }
+                    tensorIndices.set(axis, 0);
+                    axis = axis - 1;
+                }
+                ti = ti + 1;
+            }
+            core.set(i, val);
+
+            // Increment core indices
+            var axis: int = ndim - 1;
+            while (axis >= 0) {
+                let v: int = coreIndices.get(axis) + 1;
+                coreIndices.set(axis, v);
+                if (v < ranks.get(axis)) {
+                    break;
+                }
+                coreIndices.set(axis, 0);
+                axis = axis - 1;
+            }
+            i = i + 1;
+        }
+
+        // Update factor matrices via mode-n products.
+        // For each mode d, solve: factor_d * Gram_d = RHS_d
+        // where Gram_d is formed from the core and other factors.
+        d = 0;
+        while (d < ndim) {
+            let dimSize: int = shape.get(d);
+            let rankD: int = ranks.get(d);
+
+            // Build the Gram matrix for mode d: G = core_(d) * core_(d)^T
+            // approximated by the product of other factor Gram matrices.
+            let gramD: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+            var ri: int = 0;
+            while (ri < rankD) {
+                let row: ArrayList<double> = new ArrayList<double>();
+                var ci: int = 0;
+                while (ci < rankD) {
+                    var gval: double = 0.0;
+                    // Sum over core entries contracted with other factors.
+                    var ci2: int = 0;
+                    while (ci2 < coreTotal) {
+                        // Decode ci2 to core multi-index.
+                        var cRem: int = ci2;
+                        let cIdx: ArrayList<int> = new ArrayList<int>();
+                        var dd2: int = 0;
+                        while (dd2 < ndim) { cIdx.add(0); dd2 = dd2 + 1; }
+                        dd2 = ndim - 1;
+                        while (dd2 >= 0) {
+                            cIdx.set(dd2, cRem / coreStrides.get(dd2));
+                            cRem = cRem % coreStrides.get(dd2);
+                            dd2 = dd2 - 1;
+                        }
+                        var fp: double = core.get(ci2);
+                        dd2 = 0;
+                        while (dd2 < ndim) {
+                            if (dd2 != d) {
+                                fp = fp * factors.get(dd2).get(0).get(cIdx.get(dd2));
+                            }
+                            dd2 = dd2 + 1;
+                        }
+                        gval = gval + fp;
+                        ci2 = ci2 + 1;
+                    }
+                    row.add(gval);
+                    ci = ci + 1;
+                }
+                gramD.add(row);
+                ri = ri + 1;
+            }
+            // Regularise.
+            ri = 0;
+            while (ri < rankD) {
+                gramD.get(ri).set(ri, gramD.get(ri).get(ri) + 1e-8);
+                ri = ri + 1;
+            }
+
+            // Compute RHS for each row of factor d.
+            var i2: int = 0;
+            while (i2 < dimSize) {
+                let rhs: ArrayList<double> = new ArrayList<double>();
+                var j: int = 0;
+                while (j < rankD) {
+                    var s: double = 0.0;
+                    var ti: int = 0;
+                    while (ti < totalElements) {
+                        var rem: int = ti;
+                        let idx: ArrayList<int> = new ArrayList<int>();
+                        var dd2: int = 0;
+                        while (dd2 < ndim) { idx.add(0); dd2 = dd2 + 1; }
+                        dd2 = ndim - 1;
+                        while (dd2 >= 0) {
+                            idx.set(dd2, rem / strides.get(dd2));
+                            rem = rem % strides.get(dd2);
+                            dd2 = dd2 - 1;
+                        }
+                        if (idx.get(d) == i2) {
+                            var coreVal: double = 0.0;
+                            var ci: int = 0;
+                            while (ci < coreTotal) {
+                                var cRem: int = ci;
+                                let cIdx: ArrayList<int> = new ArrayList<int>();
+                                dd2 = 0;
+                                while (dd2 < ndim) { cIdx.add(0); dd2 = dd2 + 1; }
+                                dd2 = ndim - 1;
+                                while (dd2 >= 0) {
+                                    cIdx.set(dd2, cRem / coreStrides.get(dd2));
+                                    cRem = cRem % coreStrides.get(dd2);
+                                    dd2 = dd2 - 1;
+                                }
+                                if (cIdx.get(d) == j) {
+                                    var fp: double = core.get(ci);
+                                    dd2 = 0;
+                                    while (dd2 < ndim) {
+                                        if (dd2 != d) {
+                                            fp = fp * factors.get(dd2).get(idx.get(dd2)).get(cIdx.get(dd2));
+                                        }
+                                        dd2 = dd2 + 1;
+                                    }
+                                    coreVal = coreVal + fp;
+                                }
+                                ci = ci + 1;
+                            }
+                            s = s + tensor.get(ti) * coreVal;
+                        }
+                        ti = ti + 1;
+                    }
+                    rhs.add(s);
+                    j = j + 1;
+                }
+                // Solve gramD * x = rhs.
+                let sol: ArrayList<double> = solveLinearSystem(gramD, rhs, rankD);
+                j = 0;
+                while (j < rankD) {
+                    factors.get(d).get(i2).set(j, sol.get(j));
+                    j = j + 1;
+                }
+                i2 = i2 + 1;
+            }
+            d = d + 1;
+        }
+        iter = iter + 1;
+    }
+
+    // Final core computation
+    let core: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < coreTotal) {
+        core.add(0.0);
+        i = i + 1;
+    }
+    let coreIndices: ArrayList<int> = new ArrayList<int>();
+    d = 0;
+    while (d < ndim) {
+        coreIndices.add(0);
+        d = d + 1;
+    }
+    i = 0;
+    while (i < coreTotal) {
+        var val: double = 0.0;
+        let tensorIndices: ArrayList<int> = new ArrayList<int>();
+        d = 0;
+        while (d < ndim) {
+            tensorIndices.add(0);
+            d = d + 1;
+        }
+        var ti: int = 0;
+        while (ti < totalElements) {
+            var factorProduct: double = 1.0;
+            d = 0;
+            while (d < ndim) {
+                factorProduct = factorProduct * factors.get(d).get(tensorIndices.get(d)).get(coreIndices.get(d));
+                d = d + 1;
+            }
+            val = val + tensor.get(ti) * factorProduct;
+            var axis: int = ndim - 1;
+            while (axis >= 0) {
+                let v: int = tensorIndices.get(axis) + 1;
+                tensorIndices.set(axis, v);
+                if (v < shape.get(axis)) {
+                    break;
+                }
+                tensorIndices.set(axis, 0);
+                axis = axis - 1;
+            }
+            ti = ti + 1;
+        }
+        core.set(i, val);
+        var axis: int = ndim - 1;
+        while (axis >= 0) {
+            let v: int = coreIndices.get(axis) + 1;
+            coreIndices.set(axis, v);
+            if (v < ranks.get(axis)) {
+                break;
+            }
+            coreIndices.set(axis, 0);
+            axis = axis - 1;
+        }
+        i = i + 1;
+    }
+
+    return new Pair<ArrayList<double>, ArrayList<ArrayList<ArrayList<double>>>>(core, factors);
+}
+
+// Non-negative matrix factorization: V ≈ W * H
+// v is m×n matrix (flat, row-major), returns (W as m×rank, H as rank×n)
+public fn nmf(v: ArrayList<double>, m: int, n: int, rank: int, maxIter: int): Pair<ArrayList<double>, ArrayList<double>> {
+    // Initialize W and H with non-negative values
+    let w: ArrayList<double> = new ArrayList<double>();
+    let h: ArrayList<double> = new ArrayList<double>();
+
+    // Initialize W (m × rank)
+    var i: int = 0;
+    while (i < m * rank) {
+        w.add(MathAdvanced.sqrt(Math.abs(v.get(i % (m * n)))) / MathAdvanced.sqrt(rank as double) + 0.01);
+        i = i + 1;
+    }
+
+    // Initialize H (rank × n)
+    i = 0;
+    while (i < rank * n) {
+        h.add(MathAdvanced.sqrt(Math.abs(v.get(i % (m * n)))) / MathAdvanced.sqrt(rank as double) + 0.01);
+        i = i + 1;
+    }
+
+    // Multiplicative update rules (Lee & Seung)
+    var iter: int = 0;
+    while (iter < maxIter) {
+        // Compute W^T * V (rank × n)
+        let wtV: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < rank * n) {
+            wtV.add(0.0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < rank) {
+            var j: int = 0;
+            while (j < n) {
+                var s: double = 0.0;
+                var k: int = 0;
+                while (k < m) {
+                    s = s + w.get(k * rank + i) * v.get(k * n + j);
+                    k = k + 1;
+                }
+                wtV.set(i * n + j, s);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+
+        // Compute W^T * W * H (rank × n)
+        let wtWH: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < rank * n) {
+            wtWH.add(0.0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < rank) {
+            var j: int = 0;
+            while (j < n) {
+                var s: double = 0.0;
+                var k: int = 0;
+                while (k < rank) {
+                    var wtw: double = 0.0;
+                    var kk: int = 0;
+                    while (kk < m) {
+                        wtw = wtw + w.get(kk * rank + i) * w.get(kk * rank + k);
+                        kk = kk + 1;
+                    }
+                    s = s + wtw * h.get(k * n + j);
+                    k = k + 1;
+                }
+                wtWH.set(i * n + j, s);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+
+        // Update H: H = H * (W^T V) / (W^T W H)
+        i = 0;
+        while (i < rank * n) {
+            if (wtWH.get(i) > 1e-10) {
+                h.set(i, h.get(i) * wtV.get(i) / wtWH.get(i));
+            }
+            // Ensure non-negativity
+            if (h.get(i) < 0.0) { h.set(i, 0.0); }
+            i = i + 1;
+        }
+
+        // Compute V * H^T (m × rank)
+        let vht: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < m * rank) {
+            vht.add(0.0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < m) {
+            var j: int = 0;
+            while (j < rank) {
+                var s: double = 0.0;
+                var k: int = 0;
+                while (k < n) {
+                    s = s + v.get(i * n + k) * h.get(j * n + k);
+                    k = k + 1;
+                }
+                vht.set(i * rank + j, s);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+
+        // Compute W * H * H^T (m × rank)
+        let whht: ArrayList<double> = new ArrayList<double>();
+        i = 0;
+        while (i < m * rank) {
+            whht.add(0.0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < m) {
+            var j: int = 0;
+            while (j < rank) {
+                var s: double = 0.0;
+                var k: int = 0;
+                while (k < rank) {
+                    var hht: double = 0.0;
+                    var kk: int = 0;
+                    while (kk < n) {
+                        hht = hht + h.get(k * n + kk) * h.get(j * n + kk);
+                        kk = kk + 1;
+                    }
+                    s = s + w.get(i * rank + k) * hht;
+                    k = k + 1;
+                }
+                whht.set(i * rank + j, s);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+
+        // Update W: W = W * (V H^T) / (W H H^T)
+        i = 0;
+        while (i < m * rank) {
+            if (whht.get(i) > 1e-10) {
+                w.set(i, w.get(i) * vht.get(i) / whht.get(i));
+            }
+            // Ensure non-negativity
+            if (w.get(i) < 0.0) { w.set(i, 0.0); }
+            i = i + 1;
+        }
+
+        iter = iter + 1;
+    }
+
+    return new Pair<ArrayList<double>, ArrayList<double>>(w, h);
+}
