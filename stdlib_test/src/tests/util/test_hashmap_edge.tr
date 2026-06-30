@@ -1,0 +1,96 @@
+// Edge case tests for HashMap.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+// Test empty map operations: size, isEmpty, clear on a fresh map.
+public fn test_hashmap_edge_empty_operations(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    if (map.size() != 0) {
+        io::println("FAIL: HashMap empty size = " + Integer.toString(map.size()));
+    } else if (!map.isEmpty()) {
+        io::println("FAIL: HashMap empty not isEmpty");
+    } else {
+        io::println("PASS: HashMap empty size/isEmpty");
+    }
+    map.clear();
+    if (map.size() != 0 || !map.isEmpty()) {
+        io::println("FAIL: HashMap clear on empty");
+    } else {
+        io::println("PASS: HashMap clear on empty map");
+    }
+}
+
+// Test get on a missing key does not crash; containsKey returns false.
+public fn test_hashmap_edge_get_missing_key(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    if (map.containsKey("missing")) {
+        io::println("FAIL: HashMap containsKey missing returned true");
+    } else if (map.getOrDefault("missing", -1) != -1) {
+        io::println("FAIL: HashMap getOrDefault missing");
+    } else {
+        io::println("PASS: HashMap get on missing key safe");
+    }
+}
+
+// Test put overwriting an existing key updates value and keeps size stable.
+public fn test_hashmap_edge_put_overwrite(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("k", 1);
+    map.put("k", 2);
+    map.put("k", 3);
+    if (map.size() != 1) {
+        io::println("FAIL: HashMap overwrite size = " + Integer.toString(map.size()));
+    } else if (map.get("k") != 3) {
+        io::println("FAIL: HashMap overwrite value");
+    } else {
+        io::println("PASS: HashMap put overwrites existing key");
+    }
+}
+
+// Test remove on a missing key does not crash or change size.
+public fn test_hashmap_edge_remove_missing(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    map.put("a", 1);
+    map.remove("missing");
+    if (map.size() != 1 || !map.containsKey("a")) {
+        io::println("FAIL: HashMap remove missing changed state");
+    } else {
+        io::println("PASS: HashMap remove missing key safe");
+    }
+}
+
+// Test containsKey on an empty map returns false.
+public fn test_hashmap_edge_containskey_empty(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    if (map.containsKey("anything")) {
+        io::println("FAIL: HashMap containsKey empty returned true");
+    } else {
+        io::println("PASS: HashMap containsKey on empty map false");
+    }
+}
+
+// Test iteration (keys/values/entries) over an empty map yields empty lists.
+public fn test_hashmap_edge_iterate_empty(): void {
+    let map: HashMap<string, int> = new HashMap<string, int>();
+    let keys: ArrayList<string> = map.keys();
+    let vals: ArrayList<int> = map.values();
+    let entries: ArrayList<(string, int)> = map.entries();
+    if (keys.size() != 0 || vals.size() != 0 || entries.size() != 0) {
+        io::println("FAIL: HashMap empty iteration not empty");
+    } else {
+        io::println("PASS: HashMap iteration over empty map");
+    }
+}
+
+public fn run_all_hashmap_edge_tests(): void {
+    io::println("=== HashMap.tr Edge Tests ===");
+    test_hashmap_edge_empty_operations();
+    test_hashmap_edge_get_missing_key();
+    test_hashmap_edge_put_overwrite();
+    test_hashmap_edge_remove_missing();
+    test_hashmap_edge_containskey_empty();
+    test_hashmap_edge_iterate_empty();
+}
