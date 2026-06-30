@@ -1,0 +1,55 @@
+// Stack trace formatting utilities.
+import tt::util::ArrayList;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public class Frame {
+    public string functionName;
+    public string fileName;
+    public int lineNumber;
+
+    public fn init(functionName: string, fileName: string, lineNumber: int) {
+        this.functionName = functionName;
+        this.fileName = fileName;
+        this.lineNumber = lineNumber;
+    }
+
+    public fn toString(): string {
+        return "  at " + this.functionName + " (" + this.fileName + ":" + Integer.toString(this.lineNumber) + ")";
+    }
+}
+
+// Format a list of frames into a human-readable stack trace
+public fn format(frames: ArrayList<Frame>): string {
+    var result: string = "";
+    var i: int = 0;
+    while (i < frames.size()) {
+        if (i > 0) { result = result + "\n"; }
+        result = result + formatFrame(frames.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Format a single frame
+public fn formatFrame(frame: Frame): string {
+    return "  at " + frame.functionName + " (" + frame.fileName + ":" + Integer.toString(frame.lineNumber) + ")";
+}
+
+// Create a traceback from a list of function names and file info
+public fn extract(functionNames: ArrayList<string>, fileNames: ArrayList<string>, lineNumbers: ArrayList<int>): ArrayList<Frame> {
+    let frames: ArrayList<Frame> = new ArrayList<Frame>();
+    let count: int = functionNames.size();
+    var i: int = 0;
+    while (i < count) {
+        let frame: Frame = new Frame(functionNames.get(i), fileNames.get(i), lineNumbers.get(i));
+        frames.add(frame);
+        i = i + 1;
+    }
+    return frames;
+}
+
+// Format an exception with traceback
+public fn formatException(message: string, frames: ArrayList<Frame>): string {
+    return "Exception: " + message + "\n" + format(frames);
+}
