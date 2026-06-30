@@ -1,0 +1,406 @@
+import tt::util::ArrayList;
+
+interface Iterator<E> {
+    fn next(): E;
+    fn hasNext(): bool;
+
+    fn forEachRemaining(func: fn(E): void) {
+        while (this.hasNext()) {
+            func(this.next());
+        }
+    }
+
+    fn map<R>(func: fn(E): R): Iterator<R> {
+        return new MappedIterator<E, R>(this, func);
+    }
+
+    fn filter(predicate: fn(E): bool): Iterator<E> {
+        return new FilteredIterator<E>(this, predicate);
+    }
+
+    fn reduce(init: E, func: fn(E, E): E): E {
+        var acc: E = init;
+        while (this.hasNext()) {
+            acc = func(acc, this.next());
+        }
+        return acc;
+    }
+
+    fn count(): int {
+        var c: int = 0;
+        while (this.hasNext()) {
+            this.next();
+            c = c + 1;
+        }
+        return c;
+    }
+
+    fn take(n: int): Iterator<E> {
+        return new TakeIterator<E>(this, n);
+    }
+
+    fn skip(n: int): Iterator<E> {
+        var i: int = 0;
+        while (i < n && this.hasNext()) {
+            this.next();
+            i = i + 1;
+        }
+        return this;
+    }
+
+    fn zip(other: Iterator<E>): Iterator<E> {
+        return new ZipIterator<E>(this, other);
+    }
+
+    fn chain(other: Iterator<E>): Iterator<E> {
+        return new ChainIterator<E>(this, other);
+    }
+
+    fn enumerate(): Iterator<(int, E)> {
+        return new EnumeratedIterator<E>(this);
+    }
+
+    fn any(predicate: fn(E): bool): bool {
+        while (this.hasNext()) {
+            if (predicate(this.next())) { return true; }
+        }
+        return false;
+    }
+
+    fn all(predicate: fn(E): bool): bool {
+        while (this.hasNext()) {
+            if (!predicate(this.next())) { return false; }
+        }
+        return true;
+    }
+
+    fn find(predicate: fn(E): bool): E {
+        while (this.hasNext()) {
+            let val: E = this.next();
+            if (predicate(val)) { return val; }
+        }
+        return null;
+    }
+
+    fn max(): E {
+        if (!this.hasNext()) { return null; }
+        var m: E = this.next();
+        while (this.hasNext()) {
+            let val: E = this.next();
+            if (val > m) { m = val; }
+        }
+        return m;
+    }
+
+    fn min(): E {
+        if (!this.hasNext()) { return null; }
+        var m: E = this.next();
+        while (this.hasNext()) {
+            let val: E = this.next();
+            if (val < m) { m = val; }
+        }
+        return m;
+    }
+
+    fn nth(n: int): E {
+        var i: int = 0;
+        while (i < n && this.hasNext()) {
+            this.next();
+            i = i + 1;
+        }
+        if (this.hasNext()) { return this.next(); }
+        return null;
+    }
+
+    fn last(): E {
+        var val: E = null;
+        while (this.hasNext()) {
+            val = this.next();
+        }
+        return val;
+    }
+
+    fn forEach(action: fn(E): void): void {
+        while (this.hasNext()) {
+            action(this.next());
+        }
+    }
+
+    fn collect(): ArrayList<E> {
+        let result: ArrayList<E> = new ArrayList<E>();
+        while (this.hasNext()) {
+            result.add(this.next());
+        }
+        return result;
+    }
+
+    fn sum(): double {
+        var total: double = 0.0;
+        while (this.hasNext()) {
+            let item: E = this.next();
+            total = total + (item as double);
+        }
+        return total;
+    }
+
+    fn product(): double {
+        var result: double = 1.0;
+        while (this.hasNext()) {
+            let item: E = this.next();
+            result = result * (item as double);
+        }
+        return result;
+    }
+
+    fn position(predicate: fn(E): bool): int {
+        var idx: int = 0;
+        while (this.hasNext()) {
+            let item: E = this.next();
+            if (predicate(item)) {
+                return idx;
+            }
+            idx = idx + 1;
+        }
+        return -1;
+    }
+}
+
+// Helper iterator that applies a mapping function
+class MappedIterator<E, R> implements Iterator<R> {
+    public Iterator<E> source;
+    public fn(E): R mapper;
+
+    public fn init(src: Iterator<E>, func: fn(E): R) {
+        this.source = src;
+        this.mapper = func;
+    }
+
+    fn next(): R {
+        return this.mapper(this.source.next());
+    }
+
+    fn hasNext(): bool {
+        return this.source.hasNext();
+    }
+}
+
+// Helper iterator that filters elements
+class FilteredIterator<E> implements Iterator<E> {
+    public Iterator<E> source;
+    public fn(E): bool predicate;
+    public E nextVal;
+    public bool hasVal;
+
+    public fn init(src: Iterator<E>, pred: fn(E): bool) {
+        this.source = src;
+        this.predicate = pred;
+        this.hasVal = false;
+        this.advance();
+    }
+
+    fn advance() {
+        this.hasVal = false;
+        while (this.source.hasNext()) {
+            let val: E = this.source.next();
+            if (this.predicate(val)) {
+                this.nextVal = val;
+                this.hasVal = true;
+                break;
+            }
+        }
+    }
+
+    fn next(): E {
+        let val: E = this.nextVal;
+        this.advance();
+        return val;
+    }
+
+    fn hasNext(): bool {
+        return this.hasVal;
+    }
+}
+
+// Helper iterator that takes at most n elements
+class TakeIterator<E> implements Iterator<E> {
+    public Iterator<E> source;
+    public int remaining;
+
+    public fn init(src: Iterator<E>, n: int) {
+        this.source = src;
+        this.remaining = n;
+    }
+
+    fn next(): E {
+        this.remaining = this.remaining - 1;
+        return this.source.next();
+    }
+
+    fn hasNext(): bool {
+        return this.remaining > 0 && this.source.hasNext();
+    }
+}
+
+// Helper iterator that chains two iterators
+class ChainIterator<E> implements Iterator<E> {
+    public Iterator<E> first;
+    public Iterator<E> second;
+
+    public fn init(a: Iterator<E>, b: Iterator<E>) {
+        this.first = a;
+        this.second = b;
+    }
+
+    fn next(): E {
+        if (this.first.hasNext()) { return this.first.next(); }
+        return this.second.next();
+    }
+
+    fn hasNext(): bool {
+        return this.first.hasNext() || this.second.hasNext();
+    }
+}
+
+// Helper iterator that zips two iterators
+class ZipIterator<E> implements Iterator<E> {
+    public Iterator<E> a;
+    public Iterator<E> b;
+
+    public fn init(a: Iterator<E>, b: Iterator<E>) {
+        this.a = a;
+        this.b = b;
+    }
+
+    fn next(): E {
+        // Return from first iterator (simplified zip)
+        let val: E = this.a.next();
+        this.b.next();
+        return val;
+    }
+
+    fn hasNext(): bool {
+        return this.a.hasNext() && this.b.hasNext();
+    }
+}
+
+// Helper iterator that yields (index, value) pairs
+class EnumeratedIterator<E> implements Iterator<(int, E)> {
+    public int index;
+    public Iterator<E> source;
+
+    public fn init(src: Iterator<E>) {
+        this.index = 0;
+        this.source = src;
+    }
+
+    fn next(): (int, E) {
+        let result: (int, E) = (this.index, this.source.next());
+        this.index = this.index + 1;
+        return result;
+    }
+
+    fn hasNext(): bool {
+        return this.source.hasNext();
+    }
+}
+
+// --- C++ STL-style iterator utilities ---
+
+// Advance an iterator by n positions (in-place). Negative n is ignored
+// for forward-only iterators.
+public fn advance<E>(it: Iterator<E>, n: int): void {
+    var i: int = 0;
+    while (i < n && it.hasNext()) {
+        it.next();
+        i = i + 1;
+    }
+}
+
+// Return the number of elements remaining in the iterator.
+// This consumes the iterator.
+public fn distance<E>(it: Iterator<E>): int {
+    var count: int = 0;
+    while (it.hasNext()) {
+        it.next();
+        count = count + 1;
+    }
+    return count;
+}
+
+// Return the element n positions ahead, advancing the iterator.
+// Returns null if the iterator is exhausted before n steps.
+public fn next<E>(it: Iterator<E>, n: int): E {
+    var i: int = 0;
+    while (i < n && it.hasNext()) {
+        it.next();
+        i = i + 1;
+    }
+    if (it.hasNext()) {
+        return it.next();
+    }
+    return null;
+}
+
+// Return the element n positions before the given index in a random-access list.
+// This does not modify any iterator; it indexes into the backing list.
+public fn prev<E>(list: ArrayList<E>, index: int, n: int): E {
+    let target: int = index - n;
+    if (target < 0 || target >= list.size()) {
+        return null;
+    }
+    return list.get(target);
+}
+
+// BackInsertIterator: an output iterator that appends elements to a list.
+class BackInsertIterator<E> implements Iterator<E> {
+    public ArrayList<E> target;
+
+    public fn init(list: ArrayList<E>) {
+        this.target = list;
+    }
+
+    fn next(): E {
+        return null;
+    }
+
+    fn hasNext(): bool {
+        return false;
+    }
+
+    // Insert value at the back of the target list.
+    public fn insert(value: E): void {
+        this.target.add(value);
+    }
+}
+
+// FrontInsertIterator: an output iterator that prepends elements to a list.
+class FrontInsertIterator<E> implements Iterator<E> {
+    public ArrayList<E> target;
+
+    public fn init(list: ArrayList<E>) {
+        this.target = list;
+    }
+
+    fn next(): E {
+        return null;
+    }
+
+    fn hasNext(): bool {
+        return false;
+    }
+
+    // Insert value at the front of the target list.
+    public fn insert(value: E): void {
+        this.target.add(0, value);
+    }
+}
+
+// Create a back insert iterator for the given list.
+public fn backInserter<E>(list: ArrayList<E>): BackInsertIterator<E> {
+    return new BackInsertIterator<E>(list);
+}
+
+// Create a front insert iterator for the given list.
+public fn frontInserter<E>(list: ArrayList<E>): FrontInsertIterator<E> {
+    return new FrontInsertIterator<E>(list);
+}
