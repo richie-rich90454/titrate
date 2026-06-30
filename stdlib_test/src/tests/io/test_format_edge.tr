@@ -1,0 +1,85 @@
+// Edge case tests for Format.tr
+// Tests boundary conditions: empty templates, missing/extra arguments,
+// trailing percent signs, and combinations of specifiers.
+import tt::io::Format;
+import tt::util::ArrayList;
+
+public fn test_format_edge_empty_string(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    let result: string = Format.format("", args);
+    if (result == "") {
+        io::println("PASS: format with empty template returns empty string");
+    } else {
+        io::println("FAIL: format with empty template returned '" + result + "'");
+    }
+}
+
+public fn test_format_edge_no_specifiers(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    let result: string = Format.format("hello world", args);
+    if (result == "hello world") {
+        io::println("PASS: format with no specifiers returns template unchanged");
+    } else {
+        io::println("FAIL: format with no specifiers returned '" + result + "'");
+    }
+}
+
+public fn test_format_edge_multiple_specifiers(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(1);
+    args.add("two");
+    args.add(3);
+    let result: string = Format.format("%d %s %d", args);
+    if (result == "1 two 3") {
+        io::println("PASS: format with multiple specifiers works");
+    } else {
+        io::println("FAIL: format multiple specifiers returned '" + result + "'");
+    }
+}
+
+public fn test_format_edge_d_and_s(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(42);
+    args.add("test");
+    let result: string = Format.format("%d-%s", args);
+    if (result == "42-test") {
+        io::println("PASS: format with %d and %s works");
+    } else {
+        io::println("FAIL: format %d-%s returned '" + result + "'");
+    }
+}
+
+public fn test_format_edge_trailing_percent(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    // A lone % at the end with no following specifier is passed through literally
+    let result: string = Format.format("100%", args);
+    if (result == "100%") {
+        io::println("PASS: format with trailing percent returns literal percent");
+    } else {
+        io::println("FAIL: format trailing percent returned '" + result + "'");
+    }
+}
+
+public fn test_format_edge_extra_args(): void {
+    let args: ArrayList<Variant> = new ArrayList<Variant>();
+    args.add(1);
+    args.add(2);
+    args.add(3);
+    // Only one specifier; extra arguments should be ignored
+    let result: string = Format.format("%d", args);
+    if (result == "1") {
+        io::println("PASS: format ignores extra arguments");
+    } else {
+        io::println("FAIL: format extra args returned '" + result + "'");
+    }
+}
+
+public fn run_all_format_edge_tests(): void {
+    io::println("=== Format.tr Edge Case Tests ===");
+    test_format_edge_empty_string();
+    test_format_edge_no_specifiers();
+    test_format_edge_multiple_specifiers();
+    test_format_edge_d_and_s();
+    test_format_edge_trailing_percent();
+    test_format_edge_extra_args();
+}
