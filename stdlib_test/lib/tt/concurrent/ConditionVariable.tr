@@ -1,0 +1,26 @@
+// Wait/notify synchronization primitive.
+import tt::concurrent::Mutex;
+
+public class ConditionVariable {
+    private int handle;
+
+    public fn init() {
+        this.handle = CondVar_new();
+    }
+
+    public fn wait(mutex: Mutex): void {
+        CondVar_wait(this.handle, mutex.getHandle());
+    }
+
+    public fn waitFor(mutex: Mutex, ms: int): bool {
+        return CondVar_waitFor(this.handle, mutex.getHandle(), ms);
+    }
+
+    public fn notifyOne(): void {
+        CondVar_notifyOne(this.handle);
+    }
+
+    public fn notifyAll(): void {
+        CondVar_notifyAll(this.handle);
+    }
+}
