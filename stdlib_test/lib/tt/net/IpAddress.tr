@@ -1,0 +1,667 @@
+// IP address manipulation and validation.
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+import tt::util::HashMap;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+let _ipRangesCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+var _ipRangesLoaded: bool = false;
+
+fn _ensureIpRangesLoaded(): void {
+    if (_ipRangesLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("net/ip_ranges.json");
+    if (data.isNull() || !data.isObject()) {
+        _ipRangesLoaded = true;
+        return;
+    }
+    // Cache top-level keys (ipv4, ipv6)
+    let keys: ArrayList<string> = data.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (key != "_meta") {
+            let val: JsonValue = data.get(key);
+            _ipRangesCache.put(key, val);
+        }
+        i = i + 1;
+    }
+    _ipRangesLoaded = true;
+}
+
+// Extract the address prefix from a CIDR string like "10.0.0.0/8" -> "10."
+fn _cidrToPrefix(cidr: string): string {
+    let slashIdx: int = String.indexOf(cidr, "/");
+    if (slashIdx < 0) {
+        return cidr;
+    }
+    let addr: string = String.substring(cidr, 0, slashIdx);
+    return addr;
+}
+
+// Get a string field from the ip ranges data for a given IP version and category.
+fn _getIpRangeField(version: string, category: string): JsonValue {
+    _ensureIpRangesLoaded();
+    if (_ipRangesCache.containsKey(version)) {
+        let verData: JsonValue = _ipRangesCache.get(version);
+        if (verData.isObject() && verData.hasKey(category)) {
+            return verData.get(category);
+        }
+    }
+    return JsonValue.ofNull();
+}
+
+// Check if an IPv4 address starts with any of the prefixes derived from a CIDR array
+fn _matchesAnyCidrPrefix(address: string, cidrs: JsonValue): bool {
+    if (!cidrs.isArray()) {
+        return false;
+    }
+    var i: int = 0;
+    while (i < cidrs.size()) {
+        let cidr: string = cidrs.getAt(i).asString();
+        let prefix: string = _cidrToPrefix(cidr);
+        // Extract the prefix portion that corresponds to the network part
+        let slashIdx: int = String.indexOf(cidr, "/");
+        let maskBits: int = 32;
+        if (slashIdx >= 0) {
+            maskBits = Integer.parseInt(String.substring(cidr, slashIdx + 1, String.length(cidr)));
+        }
+        // Use IPv4Network for precise matching
+        let net: IPv4Network = new IPv4Network(prefix, maskBits);
+        if (net.contains(address)) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+// Check if an IPv4 address falls within a single CIDR range
+fn _matchesCidr(address: string, cidr: string): bool {
+    let slashIdx: int = String.indexOf(cidr, "/");
+    let prefix: string = _cidrToPrefix(cidr);
+    let maskBits: int = 32;
+    if (slashIdx >= 0) {
+        maskBits = Integer.parseInt(String.substring(cidr, slashIdx + 1, String.length(cidr)));
+    }
+    let net: IPv4Network = new IPv4Network(prefix, maskBits);
+    return net.contains(address);
+}
+
+// Check if an IPv6 address starts with a given prefix derived from CIDR
+fn _matchesIpv6Prefix(address: string, cidr: string): bool {
+    let prefix: string = _cidrToPrefix(cidr);
+    // Simple prefix match for IPv6
+    return String.indexOf(address, prefix) == 0;
+}
+
+// Check if an IPv6 address matches any CIDR in the array
+fn _matchesAnyIpv6Cidr(address: string, cidrs: JsonValue): bool {
+    if (!cidrs.isArray()) {
+        return false;
+    }
+    var i: int = 0;
+    while (i < cidrs.size()) {
+        let cidr: string = cidrs.getAt(i).asString();
+        if (_matchesIpv6Prefix(address, cidr)) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
+
+public class IpAddress {
+    public string address;
+    public bool isV6;
+
+    public fn init(address: string) {
+        this.address = address;
+        this.isV6 = String.indexOf(address, ":") >= 0;
+    }
+
+    public fn isLoopback(): bool {
+        if (this.isV6) {
+            let loopback: JsonValue = _getIpRangeField("ipv6", "loopback");
+            if (!loopback.isNull()) {
+                return _matchesIpv6Prefix(this.address, loopback.asString());
+            }
+            return this.address == "::1";
+        }
+        let loopback: JsonValue = _getIpRangeField("ipv4", "loopback");
+        if (!loopback.isNull()) {
+            return _matchesCidr(this.address, loopback.asString());
+        }
+        return this.address == "127.0.0.1";
+    }
+
+    public fn isPrivate(): bool {
+        if (this.isV6) {
+            let privRanges: JsonValue = _getIpRangeField("ipv6", "private");
+            if (!privRanges.isNull()) {
+                return _matchesAnyIpv6Cidr(this.address, privRanges);
+            }
+            return String.indexOf(this.address, "fc") == 0 || String.indexOf(this.address, "fd") == 0 || String.indexOf(this.address, "fe80") == 0;
+        }
+        let privRanges: JsonValue = _getIpRangeField("ipv4", "private");
+        if (!privRanges.isNull()) {
+            return _matchesAnyCidrPrefix(this.address, privRanges);
+        }
+        // Fallback
+        if (String.indexOf(this.address, "10.") == 0) { return true; }
+        if (String.indexOf(this.address, "192.168.") == 0) { return true; }
+        if (String.indexOf(this.address, "172.") == 0) {
+            let parts: ArrayList<string> = String.split(this.address, ".");
+            if (parts.size() >= 2) {
+                let second: int = Integer.parseInt(parts.get(1));
+                if (second >= 16 && second <= 31) { return true; }
+            }
+        }
+        return false;
+    }
+
+    public fn isMulticast(): bool {
+        if (this.isV6) {
+            let mcast: JsonValue = _getIpRangeField("ipv6", "multicast");
+            if (!mcast.isNull()) {
+                return _matchesIpv6Prefix(this.address, mcast.asString());
+            }
+            return String.indexOf(this.address, "ff") == 0;
+        }
+        let mcast: JsonValue = _getIpRangeField("ipv4", "multicast");
+        if (!mcast.isNull()) {
+            return _matchesCidr(this.address, mcast.asString());
+        }
+        let parts: ArrayList<string> = String.split(this.address, ".");
+        if (parts.size() >= 1) {
+            let first: int = Integer.parseInt(parts.get(0));
+            if (first >= 224 && first <= 239) { return true; }
+        }
+        return false;
+    }
+
+    public fn isReserved(): bool {
+        if (this.isV6) { return false; }
+        let reserved: JsonValue = _getIpRangeField("ipv4", "reserved");
+        if (!reserved.isNull()) {
+            return _matchesAnyCidrPrefix(this.address, reserved);
+        }
+        if (this.address == "0.0.0.0") { return true; }
+        if (String.indexOf(this.address, "169.254.") == 0) { return true; }
+        return false;
+    }
+
+    public fn isLinkLocal(): bool {
+        if (this.isV6) {
+            let linkLocal: JsonValue = _getIpRangeField("ipv6", "link_local");
+            if (!linkLocal.isNull()) {
+                return _matchesIpv6Prefix(this.address, linkLocal.asString());
+            }
+            return String.indexOf(this.address, "fe80") == 0;
+        }
+        let linkLocal: JsonValue = _getIpRangeField("ipv4", "link_local");
+        if (!linkLocal.isNull()) {
+            return _matchesCidr(this.address, linkLocal.asString());
+        }
+        return String.indexOf(this.address, "169.254.") == 0;
+    }
+
+    public fn isGlobal(): bool {
+        return !this.isPrivate() && !this.isLoopback() && !this.isReserved() && !this.isLinkLocal();
+    }
+
+    public fn isV4(): bool {
+        return !this.isV6;
+    }
+
+    public fn isV6(): bool {
+        return this.isV6;
+    }
+
+    public fn toString(): string {
+        return this.address;
+    }
+
+    public fn equals(other: IpAddress): bool {
+        return this.address == other.address;
+    }
+}
+
+// Factory functions.
+public fn ipv4(address: string): IpAddress {
+    let ip: IpAddress = new IpAddress(address);
+    if (ip.isV6) {
+        return new IpAddress("0.0.0.0");
+    }
+    return ip;
+}
+
+public fn ipv6(address: string): IpAddress {
+    let ip: IpAddress = new IpAddress(address);
+    if (!ip.isV6) {
+        return new IpAddress("::");
+    }
+    return ip;
+}
+
+public fn isV4(address: string): bool {
+    return String.indexOf(address, ":") < 0;
+}
+
+public fn isV6(address: string): bool {
+    return String.indexOf(address, ":") >= 0;
+}
+
+public fn validate(address: string): bool {
+    if (isV4(address)) {
+        let parts: ArrayList<string> = String.split(address, ".");
+        if (parts.size() != 4) { return false; }
+        var i: int = 0;
+        while (i < 4) {
+            let part: string = parts.get(i);
+            if (String.length(part) == 0) { return false; }
+            let val: int = Integer.parseInt(part);
+            if (val < 0 || val > 255) { return false; }
+            i = i + 1;
+        }
+        return true;
+    }
+    // Basic IPv6 validation: contains colons and hex chars
+    if (String.indexOf(address, ":") < 0) { return false; }
+    return String.length(address) > 0;
+}
+
+// IPv4 network/subnet representation with calculation methods.
+public class IPv4Network {
+    public string address;
+    public int prefixLen;
+
+    public fn init(address: string, prefixLen: int) {
+        this.address = address;
+        this.prefixLen = prefixLen;
+    }
+
+    public fn networkAddress(): string {
+        let ipInt: int = _ipToInt(this.address);
+        let mask: int = _prefixToMask(this.prefixLen);
+        return _intToIp(ipInt & mask);
+    }
+
+    public fn broadcastAddress(): string {
+        let ipInt: int = _ipToInt(this.address);
+        let mask: int = _prefixToMask(this.prefixLen);
+        let hostMask: int = _hostMask(this.prefixLen);
+        return _intToIp((ipInt & mask) | hostMask);
+    }
+
+    public fn netmask(): string {
+        return _intToIp(_prefixToMask(this.prefixLen));
+    }
+
+    public fn hostmask(): string {
+        return _intToIp(_hostMask(this.prefixLen));
+    }
+
+    public fn numAddresses(): int {
+        return 1 << (32 - this.prefixLen);
+    }
+
+    public fn contains(ip: string): bool {
+        let netInt: int = _ipToInt(this.networkAddress());
+        let bcastInt: int = _ipToInt(this.broadcastAddress());
+        let ipInt: int = _ipToInt(ip);
+        return ipInt >= netInt && ipInt <= bcastInt;
+    }
+
+    public fn subnets(): ArrayList<IPv4Network> {
+        let result: ArrayList<IPv4Network> = new ArrayList<IPv4Network>();
+        let newPrefix: int = this.prefixLen + 1;
+        let netInt: int = _ipToInt(this.networkAddress());
+        let halfSize: int = 1 << (32 - newPrefix);
+        result.add(new IPv4Network(_intToIp(netInt), newPrefix));
+        result.add(new IPv4Network(_intToIp(netInt + halfSize), newPrefix));
+        return result;
+    }
+
+    public fn hosts(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        let netInt: int = _ipToInt(this.networkAddress());
+        let bcastInt: int = _ipToInt(this.broadcastAddress());
+        var current: int = netInt + 1;
+        while (current < bcastInt) {
+            result.add(_intToIp(current));
+            current = current + 1;
+        }
+        return result;
+    }
+
+    public fn toString(): string {
+        return this.networkAddress() + "/" + Integer.toString(this.prefixLen);
+    }
+}
+
+// Convert an IPv4 address string to a 32-bit integer.
+fn _ipToInt(ip: string): int {
+    let parts: ArrayList<string> = String.split(ip, ".");
+    let a: int = Integer.parseInt(parts.get(0));
+    let b: int = Integer.parseInt(parts.get(1));
+    let c: int = Integer.parseInt(parts.get(2));
+    let d: int = Integer.parseInt(parts.get(3));
+    return (a << 24) | (b << 16) | (c << 8) | d;
+}
+
+// Convert a 32-bit integer to an IPv4 address string.
+fn _intToIp(val: int): string {
+    let a: int = (val >> 24) & 0xFF;
+    let b: int = (val >> 16) & 0xFF;
+    let c: int = (val >> 8) & 0xFF;
+    let d: int = val & 0xFF;
+    return Integer.toString(a) + "." + Integer.toString(b) + "." + Integer.toString(c) + "." + Integer.toString(d);
+}
+
+// Convert a prefix length to a 32-bit netmask integer.
+fn _prefixToMask(prefixLen: int): int {
+    if (prefixLen == 0) { return 0; }
+    return 0xFFFFFFFF << (32 - prefixLen);
+}
+
+// Compute the host mask (inverse of netmask) for a prefix length.
+fn _hostMask(prefixLen: int): int {
+    return 0xFFFFFFFF >> prefixLen;
+}
+
+// IPv6 network/subnet representation using vast (arbitrary-precision) 128-bit
+// arithmetic for accurate network address, broadcast, and subnet computation.
+public class IPv6Network {
+    public string address;
+    public int prefixLen;
+
+    public fn init(address: string, prefixLen: int) {
+        this.address = address;
+        this.prefixLen = prefixLen;
+    }
+
+    // Returns the network address (host bits zeroed).
+    public fn networkAddress(): string {
+        let addr: vast = _ipv6ToVast(this.address);
+        let mask: vast = _ipv6PrefixMask(this.prefixLen);
+        return _vastToIpv6(addr & mask);
+    }
+
+    // IPv6 has no broadcast, but the all-ones host address is the equivalent.
+    public fn broadcastAddress(): string {
+        let addr: vast = _ipv6ToVast(this.address);
+        let mask: vast = _ipv6PrefixMask(this.prefixLen);
+        let hostmask: vast = ~mask;
+        return _vastToIpv6(addr | hostmask);
+    }
+
+    // Build a netmask string from the prefix length.
+    public fn netmask(): string {
+        return _vastToIpv6(_ipv6PrefixMask(this.prefixLen));
+    }
+
+    // Build a hostmask string (inverse of netmask).
+    public fn hostmask(): string {
+        return _vastToIpv6(~_ipv6PrefixMask(this.prefixLen));
+    }
+
+    // Number of addresses in the subnet (2^(128-prefixLen)).
+    public fn numAddresses(): vast {
+        let hostBits: int = 128 - this.prefixLen;
+        if (hostBits >= 64) {
+            // For very large subnets, return a symbolic large value.
+            let result: vast = 1;
+            var i: int = 0;
+            while (i < hostBits) {
+                result = result * 2;
+                i = i + 1;
+            }
+            return result;
+        }
+        let result: vast = 1;
+        var i: int = 0;
+        while (i < hostBits) {
+            result = result * 2;
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Containment check: is *ip* within this subnet?
+    public fn contains(ip: string): bool {
+        let netAddr: vast = _ipv6ToVast(this.networkAddress());
+        let ipAddr: vast = _ipv6ToVast(ip);
+        let mask: vast = _ipv6PrefixMask(this.prefixLen);
+        return (netAddr & mask) == (ipAddr & mask);
+    }
+
+    // Split the network into two equal subnets with prefixLen + 1.
+    public fn subnets(): ArrayList<IPv6Network> {
+        let result: ArrayList<IPv6Network> = new ArrayList<IPv6Network>();
+        let newPrefix: int = this.prefixLen + 1;
+        let netAddr: vast = _ipv6ToVast(this.networkAddress());
+        let halfSize: vast = 1;
+        var i: int = 0;
+        while (i < 127 - this.prefixLen) {
+            halfSize = halfSize * 2;
+            i = i + 1;
+        }
+        result.add(new IPv6Network(_vastToIpv6(netAddr), newPrefix));
+        result.add(new IPv6Network(_vastToIpv6(netAddr + halfSize), newPrefix));
+        return result;
+    }
+
+    // IPv6 subnets are too large to enumerate; return an empty list.
+    public fn hosts(): ArrayList<string> {
+        return new ArrayList<string>();
+    }
+
+    public fn toString(): string {
+        return this.networkAddress() + "/" + Integer.toString(this.prefixLen);
+    }
+}
+
+// Convert an IPv6 address string to a vast (128-bit) integer.
+fn _ipv6ToVast(address: string): vast {
+    let expanded: string = _expandIpv6(address);
+    let parts: ArrayList<string> = String.split(expanded, ":");
+    var result: vast = 0;
+    var i: int = 0;
+    while (i < 8) {
+        var group: vast = 0;
+        if (i < parts.size()) {
+            group = Integer.parseInt(parts.get(i), 16);
+        }
+        result = (result << 16) | group;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Convert a vast integer to an IPv6 address string (compressed form).
+fn _vastToIpv6(val: vast): string {
+    let groups: ArrayList<int> = new ArrayList<int>();
+    var i: int = 7;
+    while (i >= 0) {
+        let g: int = (val >> (i * 16)) & 0xFFFF as int;
+        groups.add(g);
+        i = i - 1;
+    }
+    // Find the longest run of zero groups for "::" compression.
+    var bestStart: int = -1;
+    var bestLen: int = 0;
+    var curStart: int = -1;
+    var curLen: int = 0;
+    i = 0;
+    while (i < 8) {
+        if (groups.get(i) == 0) {
+            if (curStart < 0) { curStart = i; curLen = 0; }
+            curLen = curLen + 1;
+            if (curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
+        } else {
+            curStart = -1;
+            curLen = 0;
+        }
+        i = i + 1;
+    }
+    var result: string = "";
+    i = 0;
+    while (i < 8) {
+        if (bestLen >= 2 && i == bestStart) {
+            if (String.length(result) > 0) { result = result + ":"; }
+            result = result + ":";
+            i = i + bestLen;
+        } else {
+            if (String.length(result) > 0 && result != ":") { result = result + ":"; }
+            result = result + Integer.toHexString(groups.get(i));
+            i = i + 1;
+        }
+    }
+    if (result == ":") { result = "::"; }
+    return result;
+}
+
+// Build a 128-bit prefix mask as a vast integer.
+fn _ipv6PrefixMask(prefixLen: int): vast {
+    if (prefixLen <= 0) { return 0; }
+    if (prefixLen >= 128) {
+        // All ones: 2^128 - 1
+        let result: vast = 1;
+        var i: int = 0;
+        while (i < 128) {
+            result = result * 2;
+            i = i + 1;
+        }
+        return result - 1;
+    }
+    // Create mask with prefixLen leading 1-bits.
+    let result: vast = 0;
+    var i: int = 0;
+    while (i < prefixLen) {
+        result = (result << 1) | 1;
+        i = i + 1;
+    }
+    // Shift left to fill the remaining bits.
+    var shift: int = 128 - prefixLen;
+    while (shift > 0) {
+        if (shift >= 16) {
+            result = result << 16;
+            shift = shift - 16;
+        } else {
+            result = result << shift;
+            shift = 0;
+        }
+    }
+    return result;
+}
+
+// Expand an IPv6 address to its full 8-group form for prefix comparison.
+fn _expandIpv6(address: string): string {
+    // Handle "::" shorthand by expanding to the full number of groups.
+    let doubleColonIdx: int = String.indexOf(address, "::");
+    if (doubleColonIdx < 0) {
+        return address;
+    }
+    let before: string = String.substring(address, 0, doubleColonIdx);
+    let after: string = String.substring(address, doubleColonIdx + 2, String.length(address));
+    let beforeParts: ArrayList<string> = new ArrayList<string>();
+    let afterParts: ArrayList<string> = new ArrayList<string>();
+    if (String.length(before) > 0) {
+        beforeParts = String.split(before, ":");
+    }
+    if (String.length(after) > 0) {
+        afterParts = String.split(after, ":");
+    }
+    let missing: int = 8 - beforeParts.size() - afterParts.size();
+    var expanded: string = "";
+    var i: int = 0;
+    while (i < beforeParts.size()) {
+        if (String.length(expanded) > 0) { expanded = expanded + ":"; }
+        expanded = expanded + beforeParts.get(i);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < missing) {
+        if (String.length(expanded) > 0) { expanded = expanded + ":"; }
+        expanded = expanded + "0";
+        i = i + 1;
+    }
+    i = 0;
+    while (i < afterParts.size()) {
+        if (String.length(expanded) > 0) { expanded = expanded + ":"; }
+        expanded = expanded + afterParts.get(i);
+        i = i + 1;
+    }
+    return expanded;
+}
+
+// Compare two IPv6 addresses by prefix of the given bit length (in 16-bit groups).
+fn _ipv6PrefixMatch(network: string, ip: string, prefixBits: int): bool {
+    let netExpanded: string = _expandIpv6(network);
+    let ipExpanded: string = _expandIpv6(ip);
+    let netParts: ArrayList<string> = String.split(netExpanded, ":");
+    let ipParts: ArrayList<string> = String.split(ipExpanded, ":");
+    if (netParts.size() != 8 || ipParts.size() != 8) {
+        return network == ip;
+    }
+    let groupsToCompare: int = prefixBits / 16;
+    var i: int = 0;
+    while (i < groupsToCompare && i < 8) {
+        if (netParts.get(i) != ipParts.get(i)) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Build a simplified IPv6 netmask string from a prefix length.
+fn _ipv6PrefixToNetmask(prefixLen: int): string {
+    if (prefixLen == 0) { return "::"; }
+    if (prefixLen >= 128) { return "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"; }
+    let fullGroups: int = prefixLen / 16;
+    let partialBits: int = prefixLen % 16;
+    var result: string = "";
+    var i: int = 0;
+    while (i < 8) {
+        if (String.length(result) > 0) { result = result + ":"; }
+        if (i < fullGroups) {
+            result = result + "ffff";
+        } else if (i == fullGroups && partialBits > 0) {
+            let mask: int = 0xFFFF << (16 - partialBits);
+            result = result + Integer.toHexString(mask);
+        } else {
+            result = result + "0";
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Build a simplified IPv6 hostmask string (inverse of netmask) from a prefix length.
+fn _ipv6PrefixToHostmask(prefixLen: int): string {
+    if (prefixLen == 0) { return "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"; }
+    if (prefixLen >= 128) { return "::"; }
+    let fullGroups: int = prefixLen / 16;
+    let partialBits: int = prefixLen % 16;
+    var result: string = "";
+    var i: int = 0;
+    while (i < 8) {
+        if (String.length(result) > 0) { result = result + ":"; }
+        if (i < fullGroups) {
+            result = result + "0";
+        } else if (i == fullGroups && partialBits > 0) {
+            let mask: int = 0xFFFF >> partialBits;
+            result = result + Integer.toHexString(mask);
+        } else {
+            result = result + "ffff";
+        }
+        i = i + 1;
+    }
+    return result;
+}
