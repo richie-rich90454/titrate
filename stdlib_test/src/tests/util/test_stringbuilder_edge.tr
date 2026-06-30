@@ -1,0 +1,85 @@
+// Edge case tests for StringBuilder.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::util::StringBuilder;
+import tt::lang::Integer;
+
+public fn test_stringbuilder_edge_empty(): void {
+    let sb: StringBuilder = new StringBuilder();
+    let built: string = sb.build();
+    let len: int = sb.length();
+    if (built == "" && len == 0) {
+        io::println("PASS: StringBuilder empty build/length");
+    } else {
+        io::println("FAIL: StringBuilder empty build/length");
+    }
+}
+
+public fn test_stringbuilder_edge_append_empty(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("");
+    let built: string = sb.build();
+    let len: int = sb.length();
+    if (built == "" && len == 0) {
+        io::println("PASS: StringBuilder append empty string");
+    } else {
+        io::println("FAIL: StringBuilder append empty string");
+    }
+}
+
+public fn test_stringbuilder_edge_single_append(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("hello");
+    if (sb.build() == "hello" && sb.length() == 5) {
+        io::println("PASS: StringBuilder single append");
+    } else {
+        io::println("FAIL: StringBuilder single append");
+    }
+}
+
+public fn test_stringbuilder_edge_clear_after_build(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("data");
+    let first: string = sb.build();
+    sb.clear();
+    let after: string = sb.build();
+    if (first == "data" && after == "" && sb.length() == 0) {
+        io::println("PASS: StringBuilder clear after build");
+    } else {
+        io::println("FAIL: StringBuilder clear after build");
+    }
+}
+
+public fn test_stringbuilder_edge_chained_appends(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("a");
+    sb.append("b");
+    sb.append("c");
+    sb.append("d");
+    if (sb.build() == "abcd" && sb.length() == 4) {
+        io::println("PASS: StringBuilder chained appends");
+    } else {
+        io::println("FAIL: StringBuilder chained appends");
+    }
+}
+
+public fn test_stringbuilder_edge_reuse_after_clear(): void {
+    let sb: StringBuilder = new StringBuilder();
+    sb.append("first");
+    sb.clear();
+    sb.append("second");
+    if (sb.build() == "second" && sb.length() == 6) {
+        io::println("PASS: StringBuilder reuse after clear");
+    } else {
+        io::println("FAIL: StringBuilder reuse after clear");
+    }
+}
+
+public fn run_all_stringbuilder_edge_tests(): void {
+    io::println("=== StringBuilder.tr Edge Case Tests ===");
+    test_stringbuilder_edge_empty();
+    test_stringbuilder_edge_append_empty();
+    test_stringbuilder_edge_single_append();
+    test_stringbuilder_edge_clear_after_build();
+    test_stringbuilder_edge_chained_appends();
+    test_stringbuilder_edge_reuse_after_clear();
+}
