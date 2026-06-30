@@ -1,0 +1,258 @@
+// Heapq provides min-heap operations on ArrayList, mirroring Python's heapq module.
+import tt::util::ArrayList;
+
+// Transforms an ArrayList into a min-heap in-place.
+public fn heapify<T>(arr: ArrayList<T>): void {
+    let n: int = arr.size();
+    var i: int = n / 2 - 1;
+    while (i >= 0) {
+        _siftDown<T>(arr, i, n);
+        i = i - 1;
+    }
+}
+
+// Pushes an item onto the heap, maintaining the heap invariant.
+public fn heappush<T>(arr: ArrayList<T>, item: T): void {
+    arr.add(item);
+    _siftUp<T>(arr, arr.size() - 1);
+}
+
+// Pops and returns the smallest item from the heap.
+public fn heappop<T>(arr: ArrayList<T>): T {
+    if (arr.size() == 0) {
+        throw "IndexError: heap is empty";
+    }
+    let last: int = arr.size() - 1;
+    let result: T = arr.get(0);
+    arr.set(0, arr.get(last));
+    arr.remove(last);
+    if (arr.size() > 0) {
+        _siftDown<T>(arr, 0, arr.size());
+    }
+    return result;
+}
+
+// Pushes an item then pops and returns the smallest item. More efficient than heappush + heappop.
+public fn heappushpop<T>(arr: ArrayList<T>, item: T): T {
+    if (arr.size() > 0 && arr.get(0) < item) {
+        let result: T = arr.get(0);
+        arr.set(0, item);
+        _siftDown<T>(arr, 0, arr.size());
+        return result;
+    }
+    return item;
+}
+
+// Pops and returns the smallest item, then pushes the new item. More efficient than heappop + heappush.
+public fn heapreplace<T>(arr: ArrayList<T>, item: T): T {
+    if (arr.size() == 0) {
+        throw "IndexError: heap is empty";
+    }
+    let result: T = arr.get(0);
+    arr.set(0, item);
+    _siftDown<T>(arr, 0, arr.size());
+    return result;
+}
+
+// Returns the n largest elements from the iterable, sorted from largest to smallest.
+public fn nlargest<T>(arr: ArrayList<T>, n: int): ArrayList<T> {
+    if (n <= 0) {
+        return new ArrayList<T>();
+    }
+    // Copy remaining elements and select top n by direct comparison
+    let copy: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < arr.size()) {
+        copy.add(arr.get(i));
+        i = i + 1;
+    }
+    let result: ArrayList<T> = new ArrayList<T>();
+    var count: int = 0;
+    while (count < n && copy.size() > 0) {
+        var bestIdx: int = 0;
+        let j: int = 1;
+        while (j < copy.size()) {
+            if (copy.get(j) > copy.get(bestIdx)) {
+                bestIdx = j;
+            }
+            j = j + 1;
+        }
+        result.add(copy.get(bestIdx));
+        copy.remove(bestIdx);
+        count = count + 1;
+    }
+    return result;
+}
+
+// Returns the n smallest elements from the iterable, sorted from smallest to largest.
+public fn nsmallest<T>(arr: ArrayList<T>, n: int): ArrayList<T> {
+    if (n <= 0) {
+        return new ArrayList<T>();
+    }
+    let copy: ArrayList<T> = new ArrayList<T>();
+    let i: int = 0;
+    while (i < arr.size()) {
+        copy.add(arr.get(i));
+        i = i + 1;
+    }
+    let result: ArrayList<T> = new ArrayList<T>();
+    var count: int = 0;
+    while (count < n && copy.size() > 0) {
+        var bestIdx: int = 0;
+        let j: int = 1;
+        while (j < copy.size()) {
+            if (copy.get(j) < copy.get(bestIdx)) {
+                bestIdx = j;
+            }
+            j = j + 1;
+        }
+        result.add(copy.get(bestIdx));
+        copy.remove(bestIdx);
+        count = count + 1;
+    }
+    return result;
+}
+
+// Sift up from index i to restore heap property.
+fn _siftUp<T>(arr: ArrayList<T>, i: int): void {
+    var idx: int = i;
+    while (idx > 0) {
+        let parent: int = (idx - 1) / 2;
+        if (arr.get(idx) < arr.get(parent)) {
+            let temp: T = arr.get(idx);
+            arr.set(idx, arr.get(parent));
+            arr.set(parent, temp);
+            idx = parent;
+        } else {
+            return;
+        }
+    }
+}
+
+// Sift down from index i within bounds n to restore heap property.
+fn _siftDown<T>(arr: ArrayList<T>, i: int, n: int): void {
+    var idx: int = i;
+    while (true) {
+        let left: int = 2 * idx + 1;
+        let right: int = 2 * idx + 2;
+        var smallest: int = idx;
+        if (left < n && arr.get(left) < arr.get(smallest)) {
+            smallest = left;
+        }
+        if (right < n && arr.get(right) < arr.get(smallest)) {
+            smallest = right;
+        }
+        if (smallest != idx) {
+            let temp: T = arr.get(idx);
+            arr.set(idx, arr.get(smallest));
+            arr.set(smallest, temp);
+            idx = smallest;
+        } else {
+            return;
+        }
+    }
+}
+
+// --- Generic heap operations with key function ---
+
+// Merge multiple sorted lists into one sorted list.
+public fn merge<T>(lists: ArrayList<ArrayList<T>>): ArrayList<T> {
+    let result: ArrayList<T> = new ArrayList<T>();
+    // Simple k-way merge using indices
+    let indices: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < lists.size()) {
+        indices.add(0);
+        i = i + 1;
+    }
+    while (true) {
+        var bestList: int = -1;
+        var i2: int = 0;
+        while (i2 < lists.size()) {
+            if (indices.get(i2) < lists.get(i2).size()) {
+                if (bestList == -1 || lists.get(i2).get(indices.get(i2)) < lists.get(bestList).get(indices.get(bestList))) {
+                    bestList = i2;
+                }
+            }
+            i2 = i2 + 1;
+        }
+        if (bestList == -1) {
+            break;
+        }
+        result.add(lists.get(bestList).get(indices.get(bestList)));
+        indices.set(bestList, indices.get(bestList) + 1);
+    }
+    return result;
+}
+
+// Returns the n largest elements using a key function, sorted from largest to smallest.
+public fn nlargestWith<T>(n: int, arr: ArrayList<T>, key: fn(T): double): ArrayList<T> {
+    if (n <= 0) {
+        return new ArrayList<T>();
+    }
+    // Build a list of (key, value) pairs, sort by key descending
+    let pairs: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let i: int = 0;
+    while (i < arr.size()) {
+        let pair: ArrayList<Variant> = new ArrayList<Variant>();
+        pair.add(key(arr.get(i)));
+        pair.add(arr.get(i));
+        pairs.add(pair);
+        i = i + 1;
+    }
+    // Sort by key (first element) descending using simple selection
+    let result: ArrayList<T> = new ArrayList<T>();
+    var count: int = 0;
+    while (count < n && pairs.size() > 0) {
+        var bestIdx: int = 0;
+        var bestKey: double = pairs.get(0).get(0) as double;
+        let j: int = 1;
+        while (j < pairs.size()) {
+            let k: double = pairs.get(j).get(0) as double;
+            if (k > bestKey) {
+                bestKey = k;
+                bestIdx = j;
+            }
+            j = j + 1;
+        }
+        result.add(pairs.get(bestIdx).get(1));
+        pairs.remove(bestIdx);
+        count = count + 1;
+    }
+    return result;
+}
+
+// Returns the n smallest elements using a key function, sorted from smallest to largest.
+public fn nsmallestWith<T>(n: int, arr: ArrayList<T>, key: fn(T): double): ArrayList<T> {
+    if (n <= 0) {
+        return new ArrayList<T>();
+    }
+    let pairs: ArrayList<ArrayList<Variant>> = new ArrayList<ArrayList<Variant>>();
+    let i: int = 0;
+    while (i < arr.size()) {
+        let pair: ArrayList<Variant> = new ArrayList<Variant>();
+        pair.add(key(arr.get(i)));
+        pair.add(arr.get(i));
+        pairs.add(pair);
+        i = i + 1;
+    }
+    let result: ArrayList<T> = new ArrayList<T>();
+    var count: int = 0;
+    while (count < n && pairs.size() > 0) {
+        var bestIdx: int = 0;
+        var bestKey: double = pairs.get(0).get(0) as double;
+        let j: int = 1;
+        while (j < pairs.size()) {
+            let k: double = pairs.get(j).get(0) as double;
+            if (k < bestKey) {
+                bestKey = k;
+                bestIdx = j;
+            }
+            j = j + 1;
+        }
+        result.add(pairs.get(bestIdx).get(1));
+        pairs.remove(bestIdx);
+        count = count + 1;
+    }
+    return result;
+}
