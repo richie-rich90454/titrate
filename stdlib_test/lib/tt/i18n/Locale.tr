@@ -1,0 +1,136 @@
+// Locale-aware formatting and internationalization support.
+import tt::util::HashMap;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// Module-level cache: locale name -> JsonValue
+let _localeCache: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+
+// Load locale data from DataFile into the cache (once).
+fn _ensureLocaleDataLoaded(): void {
+    if (_localeCache.size() > 0) {
+        return;
+    }
+    let root: JsonValue = DataFile.load("locale/cldr.json");
+    if (root.isNull() || !root.isObject()) {
+        return;
+    }
+    if (!root.hasKey("locales")) {
+        return;
+    }
+    let locales: JsonValue = root.get("locales");
+    if (!locales.isObject()) {
+        return;
+    }
+    let keys: ArrayList<string> = locales.keys();
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        let val: JsonValue = locales.get(key);
+        _localeCache.put(key, val);
+        i = i + 1;
+    }
+}
+
+public class Locale {
+    public string name;
+    public string decimalPoint;
+    public string thousandsSep;
+    public string currencySymbol;
+    public string dateFormat;
+    public string timeFormat;
+
+    public fn init(name: string) {
+        this.name = name;
+        this.decimalPoint = ".";
+        this.thousandsSep = ",";
+        this.currencySymbol = "$";
+        this.dateFormat = "%Y-%m-%d";
+        this.timeFormat = "%H:%M:%S";
+        this.applyDefaults(name);
+    }
+
+    private fn applyDefaults(name: string): void {
+        _ensureLocaleDataLoaded();
+        if (!_localeCache.containsKey(name)) {
+            return;
+        }
+        let data: JsonValue = _localeCache.get(name);
+        if (data.isNull() || !data.isObject()) {
+            return;
+        }
+        if (data.hasKey("decimalPoint")) {
+            this.decimalPoint = data.get("decimalPoint").asString();
+        }
+        if (data.hasKey("thousandsSep")) {
+            this.thousandsSep = data.get("thousandsSep").asString();
+        }
+        if (data.hasKey("currencySymbol")) {
+            this.currencySymbol = data.get("currencySymbol").asString();
+        }
+        if (data.hasKey("dateFormat")) {
+            this.dateFormat = data.get("dateFormat").asString();
+        }
+        if (data.hasKey("timeFormat")) {
+            this.timeFormat = data.get("timeFormat").asString();
+        }
+    }
+
+    public fn formatNumber(value: double, decimals: int): string {
+        let intPart: int = value as int;
+        let fracPart: double = value - (intPart as double);
+        if (fracPart < 0) { fracPart = -fracPart; }
+
+        var result: string = Integer.toString(intPart);
+        // Add thousands separator
+        var formatted: string = "";
+        var i: int = 0;
+        while (i < String.length(result)) {
+            if (i > 0 && (String.length(result) - i) % 3 == 0) {
+                formatted = formatted + this.thousandsSep;
+            }
+            formatted = formatted + String.charAt(result, i);
+            i = i + 1;
+        }
+
+        if (decimals > 0) {
+            formatted = formatted + this.decimalPoint;
+            var d: int = 0;
+            while (d < decimals) {
+                fracPart = fracPart * 10.0;
+                let digit: int = fracPart as int;
+                formatted = formatted + Integer.toString(digit);
+                fracPart = fracPart - (digit as double);
+                d = d + 1;
+            }
+        }
+        return formatted;
+    }
+
+    public fn formatCurrency(value: double): string {
+        return this.currencySymbol + this.formatNumber(value, 2);
+    }
+
+    public fn toString(): string {
+        return this.name;
+    }
+}
+
+// Get the default locale.
+public fn defaultLocale(): Locale {
+    let lang: string = Os_getenv("LANG");
+    let lcAll: string = Os_getenv("LC_ALL");
+    let localeStr: string = lcAll;
+    if (String.length(localeStr) == 0) {
+        localeStr = lang;
+    }
+    if (String.length(localeStr) == 0) {
+        localeStr = "en_US";
+    }
+    // Strip encoding suffix (e.g., "en_US.UTF-8" -> "en_US")
+    let dotIdx: int = String.indexOf(localeStr, ".");
+    if (dotIdx > 0) {
+        localeStr = String.substring(localeStr, 0, dotIdx);
+    }
+    return new Locale(localeStr);
+}
