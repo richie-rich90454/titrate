@@ -1,0 +1,473 @@
+// Extended utility methods for Vast/Uvast arbitrary-precision integers (Task 211).
+// All vast numbers are represented as decimal strings to avoid overflow.
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+// Compare two non-negative decimal string numbers.
+// Returns -1 if a < b, 0 if a == b, 1 if a > b.
+fn compareAbs(a: string, b: string): int {
+    let aLen: int = String_length(a);
+    let bLen: int = String_length(b);
+    if (aLen != bLen) {
+        if (aLen > bLen) { return 1; }
+        return -1;
+    }
+    var i: int = 0;
+    while (i < aLen) {
+        let ca: string = String_charAt(a, i);
+        let cb: string = String_charAt(b, i);
+        if (ca > cb) { return 1; }
+        if (ca < cb) { return -1; }
+        i = i + 1;
+    }
+    return 0;
+}
+
+// Add two non-negative decimal string numbers.
+fn addAbs(a: string, b: string): string {
+    var i: int = String_length(a) - 1;
+    var j: int = String_length(b) - 1;
+    var carry: int = 0;
+    var result: string = "";
+    while (i >= 0 || j >= 0 || carry > 0) {
+        let da: int = i >= 0 ? (String_charAt(a, i) as int - "0" as int) : 0;
+        let db: int = j >= 0 ? (String_charAt(b, j) as int - "0" as int) : 0;
+        let sum: int = da + db + carry;
+        carry = sum / 10;
+        result = Integer.toString(sum % 10) + result;
+        i = i - 1;
+        j = j - 1;
+    }
+    return result;
+}
+
+// Subtract b from a where a >= b (both non-negative).
+fn subAbs(a: string, b: string): string {
+    var i: int = String_length(a) - 1;
+    var j: int = String_length(b) - 1;
+    var borrow: int = 0;
+    var result: string = "";
+    while (i >= 0) {
+        let da: int = String_charAt(a, i) as int - "0" as int;
+        let db: int = j >= 0 ? (String_charAt(b, j) as int - "0" as int) : 0;
+        var diff: int = da - db - borrow;
+        if (diff < 0) {
+            diff = diff + 10;
+            borrow = 1;
+        } else {
+            borrow = 0;
+        }
+        result = Integer.toString(diff) + result;
+        i = i - 1;
+        j = j - 1;
+    }
+    // Trim leading zeros
+    var start: int = 0;
+    while (start < String_length(result) - 1 && String_charAt(result, start) == "0") {
+        start = start + 1;
+    }
+    return String.substring(result, start, String_length(result));
+}
+
+// Multiply a non-negative decimal string by a single digit.
+fn mulDigit(a: string, d: int): string {
+    if (d == 0) { return "0"; }
+    var carry: int = 0;
+    var result: string = "";
+    var i: int = String_length(a) - 1;
+    while (i >= 0 || carry > 0) {
+        let da: int = i >= 0 ? (String_charAt(a, i) as int - "0" as int) : 0;
+        let prod: int = da * d + carry;
+        carry = prod / 10;
+        result = Integer.toString(prod % 10) + result;
+        i = i - 1;
+    }
+    return result;
+}
+
+// Divide a non-negative decimal string by a single digit, returns [quotient, remainder].
+fn divDigit(a: string, d: int): ArrayList<string> {
+    let result: ArrayList<string> = new ArrayList<string>();
+    var quotient: string = "";
+    var remainder: int = 0;
+    var i: int = 0;
+    while (i < String_length(a)) {
+        let digit: int = String_charAt(a, i) as int - "0" as int;
+        remainder = remainder * 10 + digit;
+        quotient = quotient + Integer.toString(remainder / d);
+        remainder = remainder % d;
+        i = i + 1;
+    }
+    // Trim leading zeros
+    var start: int = 0;
+    while (start < String_length(quotient) - 1 && String_charAt(quotient, start) == "0") {
+        start = start + 1;
+    }
+    result.add(String.substring(quotient, start, String_length(quotient)));
+    result.add(Integer.toString(remainder));
+    return result;
+}
+
+// Add two vast numbers (as decimal strings).
+public fn vastAdd(a: string, b: string): string {
+    var negA: bool = false;
+    var negB: bool = false;
+    var absA: string = a;
+    var absB: string = b;
+    if (String_length(a) > 0 && String_charAt(a, 0) == "-") {
+        negA = true;
+        absA = String.substring(a, 1, String_length(a));
+    }
+    if (String_length(b) > 0 && String_charAt(b, 0) == "-") {
+        negB = true;
+        absB = String.substring(b, 1, String_length(b));
+    }
+    if (!negA && !negB) {
+        return addAbs(absA, absB);
+    }
+    if (negA && negB) {
+        return "-" + addAbs(absA, absB);
+    }
+    // One positive, one negative
+    let cmp: int = compareAbs(absA, absB);
+    if (cmp == 0) { return "0"; }
+    if (cmp > 0) {
+        let diff: string = subAbs(absA, absB);
+        if (negA) { return "-" + diff; }
+        return diff;
+    }
+    let diff: string = subAbs(absB, absA);
+    if (negB) { return "-" + diff; }
+    return diff;
+}
+
+// Subtract two vast numbers (as decimal strings).
+public fn vastSub(a: string, b: string): string {
+    var negB: bool = false;
+    var absB: string = b;
+    if (String_length(b) > 0 && String_charAt(b, 0) == "-") {
+        negB = true;
+        absB = String.substring(b, 1, String_length(b));
+    }
+    if (negB) {
+        return vastAdd(a, absB);
+    }
+    return vastAdd(a, "-" + absB);
+}
+
+// Multiply two vast numbers (as decimal strings).
+public fn vastMul(a: string, b: string): string {
+    var negA: bool = false;
+    var negB: bool = false;
+    var absA: string = a;
+    var absB: string = b;
+    if (String_length(a) > 0 && String_charAt(a, 0) == "-") {
+        negA = true;
+        absA = String.substring(a, 1, String_length(a));
+    }
+    if (String_length(b) > 0 && String_charAt(b, 0) == "-") {
+        negB = true;
+        absB = String.substring(b, 1, String_length(b));
+    }
+    if (absA == "0" || absB == "0") { return "0"; }
+    // Long multiplication
+    var result: string = "0";
+    var j: int = String_length(absB) - 1;
+    var shift: int = 0;
+    while (j >= 0) {
+        let db: int = String_charAt(absB, j) as int - "0" as int;
+        let partial: string = mulDigit(absA, db);
+        // Shift by adding zeros
+        var k: int = 0;
+        while (k < shift) {
+            partial = partial + "0";
+            k = k + 1;
+        }
+        result = addAbs(result, partial);
+        j = j - 1;
+        shift = shift + 1;
+    }
+    if (negA != negB) {
+        return "-" + result;
+    }
+    return result;
+}
+
+// Divide two vast numbers (as decimal strings), returns quotient.
+public fn vastDiv(a: string, b: string): string {
+    if (b == "0") {
+        throw "ArithmeticException: division by zero";
+    }
+    var negA: bool = false;
+    var negB: bool = false;
+    var absA: string = a;
+    var absB: string = b;
+    if (String_length(a) > 0 && String_charAt(a, 0) == "-") {
+        negA = true;
+        absA = String.substring(a, 1, String_length(a));
+    }
+    if (String_length(b) > 0 && String_charAt(b, 0) == "-") {
+        negB = true;
+        absB = String.substring(b, 1, String_length(b));
+    }
+    // Long division
+    var quotient: string = "";
+    var remainder: string = "0";
+    var i: int = 0;
+    while (i < String_length(absA)) {
+        remainder = remainder + String_charAt(absA, i);
+        // Trim leading zeros from remainder
+        var start: int = 0;
+        while (start < String_length(remainder) - 1 && String_charAt(remainder, start) == "0") {
+            start = start + 1;
+        }
+        remainder = String.substring(remainder, start, String_length(remainder));
+        // Find the largest digit q such that absB * q <= remainder
+        var q: int = 0;
+        while (q < 9) {
+            let next: string = addAbs(mulDigit(absB, q + 1), "0");
+            if (compareAbs(next, remainder) > 0) {
+                break;
+            }
+            q = q + 1;
+        }
+        quotient = quotient + Integer.toString(q);
+        if (q > 0) {
+            remainder = subAbs(remainder, mulDigit(absB, q));
+        } else {
+            remainder = remainder;
+        }
+        i = i + 1;
+    }
+    // Trim leading zeros
+    var start: int = 0;
+    while (start < String_length(quotient) - 1 && String_charAt(quotient, start) == "0") {
+        start = start + 1;
+    }
+    quotient = String.substring(quotient, start, String_length(quotient));
+    if (quotient == "0") { return "0"; }
+    if (negA != negB) {
+        return "-" + quotient;
+    }
+    return quotient;
+}
+
+// Compute the modulo of two vast numbers (as decimal strings).
+public fn vastMod(a: string, b: string): string {
+    if (b == "0") {
+        throw "ArithmeticException: division by zero";
+    }
+    let q: string = vastDiv(a, b);
+    let product: string = vastMul(q, b);
+    return vastSub(a, product);
+}
+
+// Compute GCD of two vast numbers (as decimal strings) using Euclidean algorithm.
+public fn vastGcd(a: string, b: string): string {
+    var absA: string = a;
+    var absB: string = b;
+    if (String_length(a) > 0 && String_charAt(a, 0) == "-") {
+        absA = String.substring(a, 1, String_length(a));
+    }
+    if (String_length(b) > 0 && String_charAt(b, 0) == "-") {
+        absB = String.substring(b, 1, String_length(b));
+    }
+    while (absB != "0") {
+        let temp: string = vastMod(absA, absB);
+        absA = absB;
+        absB = temp;
+    }
+    return absA;
+}
+
+// Compute LCM of two vast numbers (as decimal strings).
+public fn vastLcm(a: string, b: string): string {
+    if (a == "0" || b == "0") { return "0"; }
+    let gcd: string = vastGcd(a, b);
+    let product: string = vastMul(a, b);
+    return vastDiv(product, gcd);
+}
+
+// Compute factorial of n, returning a vast integer.
+public fn factorial(n: int): vast {
+    if (n < 0) {
+        throw "ArithmeticException: factorial of negative number";
+    }
+    if (n <= 1) { return 1 as vast; }
+    var result: vast = 1;
+    var i: int = 2;
+    while (i <= n) {
+        result = result * i;
+        i = i + 1;
+    }
+    return result;
+}
+
+// Compute factorial of n, returning a string.
+public fn vastFactorial(n: int): string {
+    if (n < 0) {
+        throw "ArithmeticException: factorial of negative number";
+    }
+    if (n <= 1) { return "1"; }
+    var result: string = "1";
+    var i: int = 2;
+    while (i <= n) {
+        result = vastMul(result, Integer.toString(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// Miller-Rabin probabilistic primality test.
+public fn vastIsProbablePrime(n: string, k: int): bool {
+    // Handle small cases
+    if (n == "0" || n == "1") { return false; }
+    if (n == "2" || n == "3") { return true; }
+    // Check if even
+    let lastDigit: string = String_charAt(n, String_length(n) - 1);
+    if (lastDigit == "0" || lastDigit == "2" || lastDigit == "4" || lastDigit == "6" || lastDigit == "8") {
+        return false;
+    }
+    // Check small primes
+    let smallPrimes: ArrayList<string> = new ArrayList<string>();
+    smallPrimes.add("3");
+    smallPrimes.add("5");
+    smallPrimes.add("7");
+    smallPrimes.add("11");
+    smallPrimes.add("13");
+    smallPrimes.add("17");
+    smallPrimes.add("19");
+    smallPrimes.add("23");
+    smallPrimes.add("29");
+    smallPrimes.add("31");
+    smallPrimes.add("37");
+    var sp: int = 0;
+    while (sp < smallPrimes.size()) {
+        let mod: string = vastMod(n, smallPrimes.get(sp));
+        if (mod == "0" && n != smallPrimes.get(sp)) { return false; }
+        sp = sp + 1;
+    }
+    // Write n-1 as 2^r * d
+    let nMinus1: string = vastSub(n, "1");
+    var d: string = nMinus1;
+    var r: int = 0;
+    while (vastMod(d, "2") == "0") {
+        d = vastDiv(d, "2");
+        r = r + 1;
+    }
+    // Witness loop
+    var witness: int = 0;
+    while (witness < k) {
+        // Use small primes as witnesses (simplified)
+        let a: string = smallPrimes.get(witness % smallPrimes.size());
+        if (compareAbs(a, n) >= 0) {
+            witness = witness + 1;
+            continue;
+        }
+        var x: string = "1";
+        // Compute a^d mod n using modular exponentiation
+        var exp: string = d;
+        var base: string = a;
+        while (exp != "0") {
+            if (vastMod(exp, "2") == "1") {
+                x = vastMod(vastMul(x, base), n);
+            }
+            base = vastMod(vastMul(base, base), n);
+            exp = vastDiv(exp, "2");
+        }
+        if (x == "1" || x == nMinus1) {
+            witness = witness + 1;
+            continue;
+        }
+        var found: bool = false;
+        var j: int = 0;
+        while (j < r - 1) {
+            x = vastMod(vastMul(x, x), n);
+            if (x == nMinus1) {
+                found = true;
+                break;
+            }
+            j = j + 1;
+        }
+        if (!found) { return false; }
+        witness = witness + 1;
+    }
+    return true;
+}
+
+// Shift a vast number left by bits (multiply by 2^bits).
+public fn vastShiftLeft(n: string, bits: int): string {
+    if (bits < 0) { return vastShiftRight(n, -bits); }
+    if (n == "0") { return "0"; }
+    var result: string = n;
+    var i: int = 0;
+    while (i < bits) {
+        result = vastMul(result, "2");
+        i = i + 1;
+    }
+    return result;
+}
+
+// Shift a vast number right by bits (divide by 2^bits, floor).
+public fn vastShiftRight(n: string, bits: int): string {
+    if (bits < 0) { return vastShiftLeft(n, -bits); }
+    if (n == "0") { return "0"; }
+    var neg: bool = false;
+    var absN: string = n;
+    if (String_length(n) > 0 && String_charAt(n, 0) == "-") {
+        neg = true;
+        absN = String.substring(n, 1, String_length(n));
+    }
+    var result: string = absN;
+    var i: int = 0;
+    while (i < bits) {
+        result = vastDiv(result, "2");
+        i = i + 1;
+    }
+    if (result == "0") { return "0"; }
+    if (neg) { return "-" + result; }
+    return result;
+}
+
+// Compute the bit length of a vast number.
+public fn vastBitLength(n: string): int {
+    if (n == "0") { return 0; }
+    var absN: string = n;
+    if (String_length(n) > 0 && String_charAt(n, 0) == "-") {
+        absN = String.substring(n, 1, String_length(n));
+    }
+    var bits: int = 0;
+    while (absN != "0") {
+        absN = vastDiv(absN, "2");
+        bits = bits + 1;
+    }
+    return bits;
+}
+
+// Convert a vast number to a byte array (list of ints, each 0-255).
+public fn vastToByteArray(n: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var absN: string = n;
+    if (String_length(n) > 0 && String_charAt(n, 0) == "-") {
+        absN = String.substring(n, 1, String_length(n));
+    }
+    if (absN == "0") {
+        result.add(0);
+        return result;
+    }
+    // Repeatedly divide by 256 to extract bytes
+    while (absN != "0") {
+        let remainder: string = vastMod(absN, "256");
+        let quotient: string = vastDiv(absN, "256");
+        result.add(Integer.parseInt(remainder));
+        absN = quotient;
+    }
+    // Bytes are in little-endian order; reverse to big-endian
+    let reversed: ArrayList<int> = new ArrayList<int>();
+    var i: int = result.size() - 1;
+    while (i >= 0) {
+        reversed.add(result.get(i));
+        i = i - 1;
+    }
+    return reversed;
+}
