@@ -1,0 +1,364 @@
+// Mat4 provides a 4x4 transformation matrix for real-time 3D rendering.
+// Storage is column-major (OpenGL convention):
+//   m00 m10 m20 m30  = column 0
+//   m01 m11 m21 m31  = column 1
+//   m02 m12 m22 m32  = column 2
+//   m03 m13 m23 m33  = column 3
+import tt::math::vec::Vec3;
+import tt::math::vec::Vec4;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::lang::Double;
+
+public class Mat4 {
+    public double m00;
+    public double m01;
+    public double m02;
+    public double m03;
+    public double m10;
+    public double m11;
+    public double m12;
+    public double m13;
+    public double m20;
+    public double m21;
+    public double m22;
+    public double m23;
+    public double m30;
+    public double m31;
+    public double m32;
+    public double m33;
+
+    public fn init(m00: double, m01: double, m02: double, m03: double,
+                   m10: double, m11: double, m12: double, m13: double,
+                   m20: double, m21: double, m22: double, m23: double,
+                   m30: double, m31: double, m32: double, m33: double) {
+        this.m00 = m00; this.m01 = m01; this.m02 = m02; this.m03 = m03;
+        this.m10 = m10; this.m11 = m11; this.m12 = m12; this.m13 = m13;
+        this.m20 = m20; this.m21 = m21; this.m22 = m22; this.m23 = m23;
+        this.m30 = m30; this.m31 = m31; this.m32 = m32; this.m33 = m33;
+    }
+
+    // ---- Element access (row-major access to column-major storage) ----
+
+    public fn get(row: int, col: int): double {
+        // Column-major: element at (row, col) is stored at m{row}{col}
+        if (col == 0) {
+            if (row == 0) { return this.m00; }
+            if (row == 1) { return this.m10; }
+            if (row == 2) { return this.m20; }
+            return this.m30;
+        }
+        if (col == 1) {
+            if (row == 0) { return this.m01; }
+            if (row == 1) { return this.m11; }
+            if (row == 2) { return this.m21; }
+            return this.m31;
+        }
+        if (col == 2) {
+            if (row == 0) { return this.m02; }
+            if (row == 1) { return this.m12; }
+            if (row == 2) { return this.m22; }
+            return this.m32;
+        }
+        // col == 3
+        if (row == 0) { return this.m03; }
+        if (row == 1) { return this.m13; }
+        if (row == 2) { return this.m23; }
+        return this.m33;
+    }
+
+    public fn set(row: int, col: int, val: double): void {
+        if (col == 0) {
+            if (row == 0) { this.m00 = val; return; }
+            if (row == 1) { this.m10 = val; return; }
+            if (row == 2) { this.m20 = val; return; }
+            this.m30 = val; return;
+        }
+        if (col == 1) {
+            if (row == 0) { this.m01 = val; return; }
+            if (row == 1) { this.m11 = val; return; }
+            if (row == 2) { this.m21 = val; return; }
+            this.m31 = val; return;
+        }
+        if (col == 2) {
+            if (row == 0) { this.m02 = val; return; }
+            if (row == 1) { this.m12 = val; return; }
+            if (row == 2) { this.m22 = val; return; }
+            this.m32 = val; return;
+        }
+        // col == 3
+        if (row == 0) { this.m03 = val; return; }
+        if (row == 1) { this.m13 = val; return; }
+        if (row == 2) { this.m23 = val; return; }
+        this.m33 = val;
+    }
+
+    // ---- Matrix multiplication ----
+
+    public fn multiply(other: Mat4): Mat4 {
+        return new Mat4(
+            this.m00 * other.m00 + this.m01 * other.m10 + this.m02 * other.m20 + this.m03 * other.m30,
+            this.m00 * other.m01 + this.m01 * other.m11 + this.m02 * other.m21 + this.m03 * other.m31,
+            this.m00 * other.m02 + this.m01 * other.m12 + this.m02 * other.m22 + this.m03 * other.m32,
+            this.m00 * other.m03 + this.m01 * other.m13 + this.m02 * other.m23 + this.m03 * other.m33,
+
+            this.m10 * other.m00 + this.m11 * other.m10 + this.m12 * other.m20 + this.m13 * other.m30,
+            this.m10 * other.m01 + this.m11 * other.m11 + this.m12 * other.m21 + this.m13 * other.m31,
+            this.m10 * other.m02 + this.m11 * other.m12 + this.m12 * other.m22 + this.m13 * other.m32,
+            this.m10 * other.m03 + this.m11 * other.m13 + this.m12 * other.m23 + this.m13 * other.m33,
+
+            this.m20 * other.m00 + this.m21 * other.m10 + this.m22 * other.m20 + this.m23 * other.m30,
+            this.m20 * other.m01 + this.m21 * other.m11 + this.m22 * other.m21 + this.m23 * other.m31,
+            this.m20 * other.m02 + this.m21 * other.m12 + this.m22 * other.m22 + this.m23 * other.m32,
+            this.m20 * other.m03 + this.m21 * other.m13 + this.m22 * other.m23 + this.m23 * other.m33,
+
+            this.m30 * other.m00 + this.m31 * other.m10 + this.m32 * other.m20 + this.m33 * other.m30,
+            this.m30 * other.m01 + this.m31 * other.m11 + this.m32 * other.m21 + this.m33 * other.m31,
+            this.m30 * other.m02 + this.m31 * other.m12 + this.m32 * other.m22 + this.m33 * other.m32,
+            this.m30 * other.m03 + this.m31 * other.m13 + this.m32 * other.m23 + this.m33 * other.m33
+        );
+    }
+
+    public fn multiplyVec4(v: Vec4): Vec4 {
+        return new Vec4(
+            this.m00 * v.x + this.m01 * v.y + this.m02 * v.z + this.m03 * v.w,
+            this.m10 * v.x + this.m11 * v.y + this.m12 * v.z + this.m13 * v.w,
+            this.m20 * v.x + this.m21 * v.y + this.m22 * v.z + this.m23 * v.w,
+            this.m30 * v.x + this.m31 * v.y + this.m32 * v.z + this.m33 * v.w
+        );
+    }
+
+    // ---- Transpose ----
+
+    public fn transpose(): Mat4 {
+        return new Mat4(
+            this.m00, this.m10, this.m20, this.m30,
+            this.m01, this.m11, this.m21, this.m31,
+            this.m02, this.m12, this.m22, this.m32,
+            this.m03, this.m13, this.m23, this.m33
+        );
+    }
+
+    // ---- Determinant ----
+
+    public fn determinant(): double {
+        let a00: double = this.m00; let a01: double = this.m01; let a02: double = this.m02; let a03: double = this.m03;
+        let a10: double = this.m10; let a11: double = this.m11; let a12: double = this.m12; let a13: double = this.m13;
+        let a20: double = this.m20; let a21: double = this.m21; let a22: double = this.m22; let a23: double = this.m23;
+        let a30: double = this.m30; let a31: double = this.m31; let a32: double = this.m32; let a33: double = this.m33;
+
+        let det01: double = a11 * (a22 * a33 - a23 * a32) - a12 * (a21 * a33 - a23 * a31) + a13 * (a21 * a32 - a22 * a31);
+        let det02: double = a10 * (a22 * a33 - a23 * a32) - a12 * (a20 * a33 - a23 * a30) + a13 * (a20 * a32 - a22 * a30);
+        let det03: double = a10 * (a21 * a33 - a23 * a31) - a11 * (a20 * a33 - a23 * a30) + a13 * (a20 * a31 - a21 * a30);
+        let det04: double = a10 * (a21 * a32 - a22 * a31) - a11 * (a20 * a32 - a22 * a30) + a12 * (a20 * a31 - a21 * a30);
+
+        return a00 * det01 - a01 * det02 + a02 * det03 - a03 * det04;
+    }
+
+    // ---- Inverse (cofactor method) ----
+
+    public fn inverse(): Mat4 {
+        let a00: double = this.m00; let a01: double = this.m01; let a02: double = this.m02; let a03: double = this.m03;
+        let a10: double = this.m10; let a11: double = this.m11; let a12: double = this.m12; let a13: double = this.m13;
+        let a20: double = this.m20; let a21: double = this.m21; let a22: double = this.m22; let a23: double = this.m23;
+        let a30: double = this.m30; let a31: double = this.m31; let a32: double = this.m32; let a33: double = this.m33;
+
+        // Cofactors
+        let c00: double = a11 * (a22 * a33 - a23 * a32) - a12 * (a21 * a33 - a23 * a31) + a13 * (a21 * a32 - a22 * a31);
+        let c01: double = a10 * (a22 * a33 - a23 * a32) - a12 * (a20 * a33 - a23 * a30) + a13 * (a20 * a32 - a22 * a30);
+        let c02: double = a10 * (a21 * a33 - a23 * a31) - a11 * (a20 * a33 - a23 * a30) + a13 * (a20 * a31 - a21 * a30);
+        let c03: double = a10 * (a21 * a32 - a22 * a31) - a11 * (a20 * a32 - a22 * a30) + a12 * (a20 * a31 - a21 * a30);
+
+        let det: double = a00 * c00 - a01 * c01 + a02 * c02 - a03 * c03;
+        let invDet: double = 1.0 / det;
+
+        let c10: double = a01 * (a22 * a33 - a23 * a32) - a02 * (a21 * a33 - a23 * a31) + a03 * (a21 * a32 - a22 * a31);
+        let c11: double = a00 * (a22 * a33 - a23 * a32) - a02 * (a20 * a33 - a23 * a30) + a03 * (a20 * a32 - a22 * a30);
+        let c12: double = a00 * (a21 * a33 - a23 * a31) - a01 * (a20 * a33 - a23 * a30) + a03 * (a20 * a31 - a21 * a30);
+        let c13: double = a00 * (a21 * a32 - a22 * a31) - a01 * (a20 * a32 - a22 * a30) + a02 * (a20 * a31 - a21 * a30);
+
+        let c20: double = a01 * (a12 * a33 - a13 * a32) - a02 * (a11 * a33 - a13 * a31) + a03 * (a11 * a32 - a12 * a31);
+        let c21: double = a00 * (a12 * a33 - a13 * a32) - a02 * (a10 * a33 - a13 * a30) + a03 * (a10 * a32 - a12 * a30);
+        let c22: double = a00 * (a11 * a33 - a13 * a31) - a01 * (a10 * a33 - a13 * a30) + a03 * (a10 * a31 - a11 * a30);
+        let c23: double = a00 * (a11 * a32 - a12 * a31) - a01 * (a10 * a32 - a12 * a30) + a02 * (a10 * a31 - a11 * a30);
+
+        let c30: double = a01 * (a12 * a23 - a13 * a22) - a02 * (a11 * a23 - a13 * a21) + a03 * (a11 * a22 - a12 * a21);
+        let c31: double = a00 * (a12 * a23 - a13 * a22) - a02 * (a10 * a23 - a13 * a20) + a03 * (a10 * a22 - a12 * a20);
+        let c32: double = a00 * (a11 * a23 - a13 * a21) - a01 * (a10 * a23 - a13 * a20) + a03 * (a10 * a21 - a11 * a20);
+        let c33: double = a00 * (a11 * a22 - a12 * a21) - a01 * (a10 * a22 - a12 * a20) + a02 * (a10 * a21 - a11 * a20);
+
+        // Adjugate (transpose of cofactor matrix) multiplied by 1/det
+        return new Mat4(
+             c00 * invDet, -c10 * invDet,  c20 * invDet, -c30 * invDet,
+            -c01 * invDet,  c11 * invDet, -c21 * invDet,  c31 * invDet,
+             c02 * invDet, -c12 * invDet,  c22 * invDet, -c32 * invDet,
+            -c03 * invDet,  c13 * invDet, -c23 * invDet,  c33 * invDet
+        );
+    }
+
+    // ---- Vec3 transforms ----
+
+    public fn transformPoint(v: Vec3): Vec3 {
+        let x: double = this.m00 * v.x + this.m01 * v.y + this.m02 * v.z + this.m03;
+        let y: double = this.m10 * v.x + this.m11 * v.y + this.m12 * v.z + this.m13;
+        let z: double = this.m20 * v.x + this.m21 * v.y + this.m22 * v.z + this.m23;
+        let w: double = this.m30 * v.x + this.m31 * v.y + this.m32 * v.z + this.m33;
+        if (w != 0.0 && w != 1.0) {
+            return new Vec3(x / w, y / w, z / w);
+        }
+        return new Vec3(x, y, z);
+    }
+
+    public fn transformVector(v: Vec3): Vec3 {
+        return new Vec3(
+            this.m00 * v.x + this.m01 * v.y + this.m02 * v.z,
+            this.m10 * v.x + this.m11 * v.y + this.m12 * v.z,
+            this.m20 * v.x + this.m21 * v.y + this.m22 * v.z
+        );
+    }
+
+    public fn transformDirection(v: Vec3): Vec3 {
+        let rx: double = this.m00 * v.x + this.m01 * v.y + this.m02 * v.z;
+        let ry: double = this.m10 * v.x + this.m11 * v.y + this.m12 * v.z;
+        let rz: double = this.m20 * v.x + this.m21 * v.y + this.m22 * v.z;
+        let len: double = MathAdvanced.sqrt(rx * rx + ry * ry + rz * rz);
+        if (len == 0.0) {
+            return new Vec3(0.0, 0.0, 0.0);
+        }
+        let inv: double = 1.0 / len;
+        return new Vec3(rx * inv, ry * inv, rz * inv);
+    }
+
+    // ---- String ----
+
+    public fn toString(): string {
+        return "Mat4(\n" +
+            "  " + Double.toString(this.m00) + ", " + Double.toString(this.m01) + ", " + Double.toString(this.m02) + ", " + Double.toString(this.m03) + ",\n" +
+            "  " + Double.toString(this.m10) + ", " + Double.toString(this.m11) + ", " + Double.toString(this.m12) + ", " + Double.toString(this.m13) + ",\n" +
+            "  " + Double.toString(this.m20) + ", " + Double.toString(this.m21) + ", " + Double.toString(this.m22) + ", " + Double.toString(this.m23) + ",\n" +
+            "  " + Double.toString(this.m30) + ", " + Double.toString(this.m31) + ", " + Double.toString(this.m32) + ", " + Double.toString(this.m33) + "\n" +
+            ")";
+    }
+}
+
+// ---- Factory functions ----
+
+public fn mat4Identity(): Mat4 {
+    return new Mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+public fn mat4Zero(): Mat4 {
+    return new Mat4(
+        0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0,
+        0.0, 0.0, 0.0, 0.0
+    );
+}
+
+public fn mat4Translation(x: double, y: double, z: double): Mat4 {
+    return new Mat4(
+        1.0, 0.0, 0.0, x,
+        0.0, 1.0, 0.0, y,
+        0.0, 0.0, 1.0, z,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+public fn mat4Scaling(x: double, y: double, z: double): Mat4 {
+    return new Mat4(
+        x,   0.0, 0.0, 0.0,
+        0.0, y,   0.0, 0.0,
+        0.0, 0.0, z,   0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+public fn mat4RotationX(angle: double): Mat4 {
+    let c: double = MathTrig.cos(angle);
+    let s: double = MathTrig.sin(angle);
+    return new Mat4(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, c,    -s,   0.0,
+        0.0, s,     c,   0.0,
+        0.0, 0.0,  0.0, 1.0
+    );
+}
+
+public fn mat4RotationY(angle: double): Mat4 {
+    let c: double = MathTrig.cos(angle);
+    let s: double = MathTrig.sin(angle);
+    return new Mat4(
+         c,   0.0, s,   0.0,
+         0.0, 1.0, 0.0, 0.0,
+        -s,   0.0, c,   0.0,
+         0.0, 0.0, 0.0, 1.0
+    );
+}
+
+public fn mat4RotationZ(angle: double): Mat4 {
+    let c: double = MathTrig.cos(angle);
+    let s: double = MathTrig.sin(angle);
+    return new Mat4(
+        c,   -s,   0.0, 0.0,
+        s,    c,   0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
+}
+
+public fn mat4RotationAxis(axis: Vec3, angle: double): Mat4 {
+    let n: Vec3 = axis.normalize();
+    let x: double = n.x;
+    let y: double = n.y;
+    let z: double = n.z;
+    let c: double = MathTrig.cos(angle);
+    let s: double = MathTrig.sin(angle);
+    let t: double = 1.0 - c;
+    return new Mat4(
+        t * x * x + c,     t * x * y - s * z,  t * x * z + s * y,  0.0,
+        t * x * y + s * z, t * y * y + c,       t * y * z - s * x,  0.0,
+        t * x * z - s * y, t * y * z + s * x,   t * z * z + c,      0.0,
+        0.0,                0.0,                 0.0,                1.0
+    );
+}
+
+public fn mat4Perspective(fovY: double, aspect: double, near: double, far: double): Mat4 {
+    let f: double = 1.0 / MathTrig.tan(fovY / 2.0);
+    let rangeInv: double = 1.0 / (near - far);
+    return new Mat4(
+        f / aspect, 0.0, 0.0,                        0.0,
+        0.0,        f,   0.0,                        0.0,
+        0.0,        0.0, (near + far) * rangeInv,     2.0 * near * far * rangeInv,
+        0.0,        0.0, -1.0,                       0.0
+    );
+}
+
+public fn mat4Orthographic(left: double, right: double, bottom: double, top: double, near: double, far: double): Mat4 {
+    let rl: double = 1.0 / (right - left);
+    let tb: double = 1.0 / (top - bottom);
+    let fn: double = 1.0 / (far - near);
+    return new Mat4(
+        2.0 * rl,       0.0,             0.0,            -(right + left) * rl,
+        0.0,             2.0 * tb,       0.0,            -(top + bottom) * tb,
+        0.0,             0.0,            -2.0 * fn,      -(far + near) * fn,
+        0.0,             0.0,             0.0,             1.0
+    );
+}
+
+public fn mat4LookAt(eye: Vec3, center: Vec3, up: Vec3): Mat4 {
+    let f: Vec3 = center.sub(eye).normalize();
+    let s: Vec3 = f.cross(up).normalize();
+    let u: Vec3 = s.cross(f);
+    return new Mat4(
+         s.x,  s.y,  s.z, -s.dot(eye),
+         u.x,  u.y,  u.z, -u.dot(eye),
+        -f.x, -f.y, -f.z,  f.dot(eye),
+         0.0,  0.0,  0.0,  1.0
+    );
+}
