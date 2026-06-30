@@ -1,0 +1,166 @@
+// File I/O operations. These are backed by VM built-ins.
+public class File {
+    private string path;
+
+    public fn init(path: string) {
+        this.path = path;
+    }
+
+    public fn getPath(): string {
+        return this.path;
+    }
+
+    public fn readLine(): string {
+        return File_readLine(this.path);
+    }
+
+    public fn write(content: string) {
+        File_write(this.path, content);
+    }
+
+    public fn exists(): bool {
+        return Fs_exists(this.path);
+    }
+
+    public fn length(): int {
+        return Fs_size(this.path);
+    }
+
+    public fn delete(): bool {
+        // No File_delete native; use Dir_remove which works for files too
+        return Dir_remove(this.path);
+    }
+
+    public fn renameTo(newPath: string): bool {
+        return Dir_move(this.path, newPath);
+    }
+
+    public fn copyTo(dest: string): Result<string, string> {
+        return File_copy(this.path, dest);
+    }
+
+    public fn moveTo(dest: string): bool {
+        return Os_replace(this.path, dest);
+    }
+
+    public fn readAll(): string {
+        // the whole thing in one gulp
+        return File_readFile(this.path);
+    }
+
+    public fn append(content: string) {
+        // File_writeFile overwrites; read existing then write combined
+        var existing: string = "";
+        if (Fs_exists(this.path)) {
+            existing = File_readFile(this.path);
+        }
+        File_writeFile(this.path, existing + content);
+    }
+
+    public fn isFile(): bool {
+        return Fs_isFile(this.path);
+    }
+
+    public fn isDirectory(): bool {
+        return Fs_isDir(this.path);
+    }
+
+    public fn close() {
+        File_close(this.path);
+    }
+
+    // Seek to position in file. Whence: 0=SET (from start), 1=CURRENT (from current), 2=END (from end).
+    // Returns the new position.
+    public fn seek(position: int, whence: int): int {
+        var newPos: int = position;
+        if (whence == 0) {
+            // SEEK_SET: absolute position from start
+            newPos = position;
+        } else if (whence == 1) {
+            // SEEK_CUR: relative to current position
+            newPos = File_tell(this.getPath()) + position;
+        } else if (whence == 2) {
+            // SEEK_END: relative to end of file
+            let fileSize: int = Fs_size(this.getPath());
+            newPos = fileSize + position;
+        }
+        if (newPos < 0) { newPos = 0; }
+        return File_seek(this.getPath(), newPos);
+    }
+
+    // Seek to position in file (from start). Returns the new position.
+    public fn seek(position: int): int {
+        return File_seek(this.getPath(), position);
+    }
+
+    // Get current position in file.
+    public fn tell(): int {
+        return File_tell(this.getPath());
+    }
+
+    // Read binary data from file.
+    public fn readBytes(count: int): string {
+        return File_readBytes(this.getPath(), count);
+    }
+
+    // Write binary data to file.
+    public fn writeBytes(data: string): void {
+        File_writeBytes(this.getPath(), data);
+    }
+
+    // Read entire file as bytes.
+    public fn readAllBytes(): string {
+        return File_readFile(this.getPath());
+    }
+
+    // Get last modification time as epoch milliseconds.
+    public fn lastModified(): int {
+        return File_lastModified(this.getPath());
+    }
+
+    // Flush file buffers to disk.
+    public fn flush(): void {
+        File_flush(this.getPath());
+    }
+
+    // Get file size in bytes.
+    public fn size(): long {
+        return File_size(this.getPath());
+    }
+
+    // Truncate file to the specified length.
+    public fn truncate(len: int): void {
+        File_truncate(this.getPath(), len);
+    }
+
+    // Open a file with the given mode and return a File instance.
+    // Mode strings: "r" (read), "w" (write), "a" (append), "rb" (read binary), "wb" (write binary).
+    public fn open(path: string, mode: string): File {
+        let f: File = new File(path);
+        if (mode == "w" || mode == "wb") {
+            // Truncate or create the file
+            File_writeFile(path, "");
+        }
+        return f;
+    }
+
+    // Read all lines from the file into an ArrayList.
+    public fn readlines(): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        var line: string = File_readLine(this.path);
+        while (line != null) {
+            result.add(line);
+            line = File_readLine(this.path);
+        }
+        return result;
+    }
+
+    // Write all lines from an ArrayList to the file, adding newlines.
+    public fn writelines(lines: ArrayList<string>): void {
+        var i: int = 0;
+        while (i < lines.size()) {
+            File_write(this.path, lines.get(i) + "\n");
+            i = i + 1;
+        }
+    }
+}
