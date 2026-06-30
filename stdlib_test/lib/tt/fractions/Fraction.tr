@@ -1,0 +1,385 @@
+// Fraction provides exact rational arithmetic with automatic GCD reduction.
+import tt::lang::Long;
+import tt::lang::Double;
+import tt::lang::String;
+import tt::lang::Integer;
+import tt::util::ArrayList;
+
+public class Fraction {
+    public long numerator;
+    public long denominator;
+
+    public fn init(num: long, den: long) {
+        if (den == 0L) {
+            this.numerator = 0L;
+            this.denominator = 1L;
+        } else if (den < 0L) {
+            let g: long = gcd(absLong(num), absLong(den));
+            this.numerator = -num / g;
+            this.denominator = -den / g;
+        } else {
+            let g: long = gcd(absLong(num), absLong(den));
+            this.numerator = num / g;
+            this.denominator = den / g;
+        }
+    }
+
+    // ---- Static helpers ----
+
+    // Greatest common divisor using Euclidean algorithm.
+    public fn absLong(x: long): long {
+        if (x < 0L) { return -x; }
+        return x;
+    }
+
+    // ---- Arithmetic ----
+
+    public fn add(other: Fraction): Fraction {
+        let commonDen: long = lcm(this.denominator, other.denominator);
+        let a: long = this.numerator * (commonDen / this.denominator);
+        let b: long = other.numerator * (commonDen / other.denominator);
+        return new Fraction(a + b, commonDen);
+    }
+
+    public fn sub(other: Fraction): Fraction {
+        let commonDen: long = lcm(this.denominator, other.denominator);
+        let a: long = this.numerator * (commonDen / this.denominator);
+        let b: long = other.numerator * (commonDen / other.denominator);
+        return new Fraction(a - b, commonDen);
+    }
+
+    public fn mul(other: Fraction): Fraction {
+        return new Fraction(this.numerator * other.numerator, this.denominator * other.denominator);
+    }
+
+    public fn div(other: Fraction): Fraction {
+        if (other.numerator == 0L) {
+            return new Fraction(0L, 1L);
+        }
+        return new Fraction(this.numerator * other.denominator, this.denominator * other.numerator);
+    }
+
+    public fn negate(): Fraction {
+        return new Fraction(-this.numerator, this.denominator);
+    }
+
+    public fn reciprocal(): Fraction {
+        if (this.numerator == 0L) {
+            return new Fraction(0L, 1L);
+        }
+        return new Fraction(this.denominator, this.numerator);
+    }
+
+    // ---- Conversion ----
+
+    public fn toDouble(): double {
+        return this.numerator as double / this.denominator as double;
+    }
+
+    public fn toFloat(): double {
+        return this.toDouble();
+    }
+
+    public fn toInt(): int {
+        return (this.numerator / this.denominator) as int;
+    }
+
+    // Return a reduced copy (already reduced by constructor, but re-reduces).
+    public fn reduce(): Fraction {
+        let g: long = gcd(absLong(this.numerator), absLong(this.denominator));
+        if (this.denominator < 0L) {
+            return new Fraction(-this.numerator / g, -this.denominator / g);
+        }
+        return new Fraction(this.numerator / g, this.denominator / g);
+    }
+
+    // Absolute value of the fraction.
+    public fn abs(): Fraction {
+        if (this.numerator < 0L) {
+            return new Fraction(-this.numerator, this.denominator);
+        }
+        return new Fraction(this.numerator, this.denominator);
+    }
+
+    // ---- Limit denominator (Stern-Brocot / Farey sequence algorithm) ----
+
+    // Find the best Fraction approximation with denominator <= maxDenominator.
+    // Uses the same algorithm as Python's fractions.Fraction.limit_denominator.
+    public fn limitDenominator(maxDenominator: int): Fraction {
+        if (maxDenominator <= 0) { return new Fraction(this.numerator, this.denominator); }
+        if (this.denominator <= maxDenominator as long) {
+            return new Fraction(this.numerator, this.denominator);
+        }
+        // Stern-Brocot binary search between a/b=0/1 and c/d=1/0
+        var a: long = 0L;
+        var b: long = 1L;
+        var c: long = 1L;
+        var d: long = 0L;
+        let num: long = absLong(this.numerator);
+        let den: long = this.denominator;
+        while (true) {
+            // Compute the mediant (a+c)/(b+d)
+            let mediantNum: long = a + c;
+            let mediantDen: long = b + d;
+            if (mediantDen > maxDenominator as long) { break; }
+            // Compare mediant with self: num/den vs mediantNum/mediantDen
+            // i.e. num * mediantDen vs mediantNum * den
+            if (num * mediantDen > mediantNum * den) {
+                // self > mediant, move lower bound up
+                a = mediantNum;
+                b = mediantDen;
+            } else if (num * mediantDen < mediantNum * den) {
+                // self < mediant, move upper bound down
+                c = mediantNum;
+                d = mediantDen;
+            } else {
+                // Exact match
+                if (this.numerator < 0L) {
+                    return new Fraction(-mediantNum, mediantDen);
+                }
+                return new Fraction(mediantNum, mediantDen);
+            }
+        }
+        // Choose the closer of a/b and c/d
+        // Compare |self - a/b| vs |self - c/d|
+        // self - a/b = (num*b - den*a) / (den*b)
+        // self - c/d = (num*d - den*c) / (den*d)
+        // |num*b - den*a| * d  vs  |num*d - den*c| * b
+        let diffA: long = absLong(num * b - den * a);
+        let diffC: long = absLong(num * d - den * c);
+        if (diffA * d <= diffC * b) {
+            if (this.numerator < 0L) {
+                return new Fraction(-a, b);
+            }
+            return new Fraction(a, b);
+        }
+        if (this.numerator < 0L) {
+            return new Fraction(-c, d);
+        }
+        return new Fraction(c, d);
+    }
+
+    // Return numerator and denominator as an ArrayList [numerator, denominator].
+    public fn asIntegerRatio(): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        result.add(this.numerator as int);
+        result.add(this.denominator as int);
+        return result;
+    }
+
+    // Raise this fraction to an integer power.
+    public fn pow(n: int): Fraction {
+        if (n == 0) { return new Fraction(1L, 1L); }
+        if (n < 0) {
+            let base: Fraction = this.reciprocal();
+            var result: Fraction = new Fraction(1L, 1L);
+            var exp: int = -n;
+            while (exp > 0) {
+                result = result.mul(base);
+                exp = exp - 1;
+            }
+            return result;
+        }
+        var result: Fraction = new Fraction(1L, 1L);
+        var exp: int = n;
+        var base: Fraction = new Fraction(this.numerator, this.denominator);
+        while (exp > 0) {
+            result = result.mul(base);
+            exp = exp - 1;
+        }
+        return result;
+    }
+
+    // Floor of the fraction (largest integer <= self).
+    public fn floor(): int {
+        let q: long = this.numerator / this.denominator;
+        // If negative and there's a remainder, floor goes one lower
+        if (this.numerator < 0L && this.numerator % this.denominator != 0L) {
+            return (q - 1L) as int;
+        }
+        return q as int;
+    }
+
+    // Ceiling of the fraction (smallest integer >= self).
+    public fn ceil(): int {
+        let q: long = this.numerator / this.denominator;
+        // If positive and there's a remainder, ceil goes one higher
+        if (this.numerator > 0L && this.numerator % this.denominator != 0L) {
+            return (q + 1L) as int;
+        }
+        if (this.numerator < 0L && this.numerator % this.denominator == 0L) {
+            return q as int;
+        }
+        if (this.numerator < 0L) {
+            return q as int;
+        }
+        return q as int;
+    }
+
+    // Round to the nearest integer (half away from zero).
+    public fn round(): int {
+        let f: int = this.floor();
+        let c: int = this.ceil();
+        let mid: Fraction = new Fraction((f as long + c as long) * this.denominator, this.denominator * 2L);
+        if (this.compareTo(mid) >= 0) {
+            return c;
+        }
+        return f;
+    }
+
+    // ---- Comparison ----
+
+    public fn equals(other: Fraction): bool {
+        return this.numerator == other.numerator && this.denominator == other.denominator;
+    }
+
+    public fn compareTo(other: Fraction): int {
+        // Compare a/b vs c/d using a*d vs c*b
+        let left: long = this.numerator * other.denominator;
+        let right: long = other.numerator * this.denominator;
+        if (left < right) { return -1; }
+        if (left > right) { return 1; }
+        return 0;
+    }
+
+    public fn toString(): string {
+        if (this.denominator == 1L) {
+            return Long.toString(this.numerator);
+        }
+        return Long.toString(this.numerator) + "/" + Long.toString(this.denominator);
+    }
+}
+
+// Greatest common divisor using Euclidean algorithm.
+public fn gcd(a: long, b: long): long {
+    let x: long = a;
+    let y: long = b;
+    if (x < 0L) { x = -x; }
+    if (y < 0L) { y = -y; }
+    while (y != 0L) {
+        let t: long = y;
+        y = x % y;
+        x = t;
+    }
+    return x;
+}
+
+// Least common multiple.
+public fn lcm(a: long, b: long): long {
+    if (a == 0L || b == 0L) { return 0L; }
+    let g: long = gcd(a, b);
+    return absLong(a) / g * absLong(b);
+}
+
+public fn absLong(x: long): long {
+    if (x < 0L) { return -x; }
+    return x;
+}
+
+// Create a Fraction from a double using continued fraction expansion.
+public fn fromDouble(d: double): Fraction {
+    if (d == 0.0) { return new Fraction(0L, 1L); }
+    let negative: bool = false;
+    if (d < 0.0) {
+        negative = true;
+        d = -d;
+    }
+    let maxDen: long = 1000000000L;
+    // Continued fraction expansion
+    let h1: long = 1L;
+    let k1: long = 0L;
+    let h2: long = 0L;
+    let k2: long = 1L;
+    let x: double = d;
+    let iter: int = 0;
+    while (iter < 50) {
+        let a: long = x as long;
+        let remainder: double = x - a as double;
+        if (remainder < 1e-15) { break; }
+        let h: long = a * h1 + h2;
+        let k: long = a * k1 + k2;
+        if (k > maxDen) { break; }
+        h2 = h1;
+        k2 = k1;
+        h1 = h;
+        k1 = k;
+        if (remainder < 1e-15) { break; }
+        x = 1.0 / remainder;
+        iter = iter + 1;
+    }
+    let num: long = h1;
+    let den: long = k1;
+    if (den == 0L) { den = 1L; }
+    if (negative) { num = -num; }
+    return new Fraction(num, den);
+}
+
+// Create a Fraction from a string like "3/4" or "5".
+public fn fromString(s: string): Fraction {
+    let parts: ArrayList<string> = String::split(s, "/");
+    if (parts.size() == 1) {
+        let num: long = Long.parseLong(parts.get(0));
+        return new Fraction(num, 1L);
+    }
+    if (parts.size() >= 2) {
+        let num: long = Long.parseLong(parts.get(0));
+        let den: long = Long.parseLong(parts.get(1));
+        return new Fraction(num, den);
+    }
+    return new Fraction(0L, 1L);
+}
+
+// Create a Fraction from a decimal string like "3.14" or "-0.5".
+// The decimal string is parsed exactly into a numerator and denominator
+// (e.g. "3.14" becomes 314/100 which reduces to 157/50).
+public fn fromDecimal(s: string): Fraction {
+    let str: string = s;
+    let negative: bool = false;
+    if (String.length(str) > 0 && String.charAt(str, 0) == "-") {
+        negative = true;
+        str = String.substring(str, 1, String.length(str));
+    } else if (String.length(str) > 0 && String.charAt(str, 0) == "+") {
+        str = String.substring(str, 1, String.length(str));
+    }
+    // Find decimal point
+    let dotPos: int = -1;
+    let i: int = 0;
+    while (i < String.length(str)) {
+        if (String.charAt(str, i) == ".") {
+            dotPos = i;
+            break;
+        }
+        i = i + 1;
+    }
+    if (dotPos == -1) {
+        // No decimal point, treat as integer
+        if (String.length(str) == 0) {
+            return new Fraction(0L, 1L);
+        }
+        let num: long = Long.parseLong(str);
+        if (negative) {
+            num = -num;
+        }
+        return new Fraction(num, 1L);
+    }
+    let intPart: string = String.substring(str, 0, dotPos);
+    let fracPart: string = String.substring(str, dotPos + 1, String.length(str));
+    if (String.length(intPart) == 0) {
+        intPart = "0";
+    }
+    let numStr: string = intPart + fracPart;
+    if (String.length(numStr) == 0 || numStr == "0") {
+        return new Fraction(0L, 1L);
+    }
+    let num: long = Long.parseLong(numStr);
+    let den: long = 1L;
+    let j: int = 0;
+    while (j < String.length(fracPart)) {
+        den = den * 10L;
+        j = j + 1;
+    }
+    if (negative) {
+        num = -num;
+    }
+    return new Fraction(num, den);
+}
