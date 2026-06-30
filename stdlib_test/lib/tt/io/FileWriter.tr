@@ -1,0 +1,36 @@
+// File writer implementation backed by VM built-in File operations.
+import tt::io::Writer;
+import tt::io::File;
+
+public class FileWriter implements Writer {
+    private File file;
+    private bool closed;
+
+    public fn init(path: string) {
+        this.file = new File(path);
+        this.closed = false;
+    }
+
+    public fn write(text: string) {
+        this.file.write(text);
+    }
+
+    public fn writeLine(text: string) {
+        this.file.write(text + "\n");
+    }
+
+    public fn flush() {
+        this.file.flush();
+    }
+
+    public fn close() {
+        if (!this.closed) {
+            this.file.close();
+            this.closed = true;
+        }
+    }
+}
+
+public fn open(path: string): FileWriter {
+    return new FileWriter(path);
+}
