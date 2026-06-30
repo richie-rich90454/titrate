@@ -1,0 +1,129 @@
+// Monitor.tr — Statistical collection, time-weighted statistics, histograms
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+public class Monitor {
+    public string name;
+    public ArrayList<double> values;
+    public ArrayList<double> timestamps;
+    public double sum;
+    public double sumSq;
+
+    public fn init(n: string) {
+        this.name = n;
+        this.values = new ArrayList<double>();
+        this.timestamps = new ArrayList<double>();
+        this.sum = 0.0;
+        this.sumSq = 0.0;
+    }
+
+    public fn observe(value: double, time: double): void {
+        this.values.add(value);
+        this.timestamps.add(time);
+        this.sum = this.sum + value;
+        this.sumSq = this.sumSq + value * value;
+    }
+
+    public fn count(): int {
+        return this.values.size();
+    }
+
+    public fn mean(): double {
+        if (this.values.size() == 0) { return 0.0; }
+        return this.sum / this.values.size() as double;
+    }
+
+    public fn variance(): double {
+        if (this.values.size() < 2) { return 0.0; }
+        let m: double = this.mean();
+        return (this.sumSq - this.values.size() as double * m * m) / (this.values.size() - 1) as double;
+    }
+
+    public fn stdDev(): double {
+        return MathAdvanced.sqrt(this.variance());
+    }
+
+    public fn min(): double {
+        if (this.values.size() == 0) { return 0.0; }
+        var result: double = this.values.get(0);
+        var i: int = 1;
+        while (i < this.values.size()) {
+            if (this.values.get(i) < result) { result = this.values.get(i); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn max(): double {
+        if (this.values.size() == 0) { return 0.0; }
+        var result: double = this.values.get(0);
+        var i: int = 1;
+        while (i < this.values.size()) {
+            if (this.values.get(i) > result) { result = this.values.get(i); }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Time-weighted average
+    public fn timeWeightedMean(): double {
+        if (this.values.size() < 2) { return this.mean(); }
+        var weightedSum: double = 0.0;
+        var totalTime: double = 0.0;
+        var i: int = 1;
+        while (i < this.values.size()) {
+            let dt: double = this.timestamps.get(i) - this.timestamps.get(i - 1);
+            weightedSum = weightedSum + this.values.get(i - 1) * dt;
+            totalTime = totalTime + dt;
+            i = i + 1;
+        }
+        if (totalTime == 0.0) { return this.mean(); }
+        return weightedSum / totalTime;
+    }
+
+    // Histogram
+    public fn histogram(numBins: int): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < numBins) { result.add(0); i = i + 1; }
+        if (this.values.size() == 0) { return result; }
+        let minVal: double = this.min();
+        let maxVal: double = this.max();
+        let range: double = maxVal - minVal;
+        if (range == 0.0) {
+            result.set(0, this.values.size());
+            return result;
+        }
+        i = 0;
+        while (i < this.values.size()) {
+            let bin: int = Math.floor((this.values.get(i) - minVal) / range * numBins as double) as int;
+            if (bin >= numBins) { bin = numBins - 1; }
+            if (bin < 0) { bin = 0; }
+            result.set(bin, result.get(bin) + 1);
+            i = i + 1;
+        }
+        return result;
+    }
+
+    // Confidence interval (95%)
+    public fn confidenceInterval95(): ArrayList<double> {
+        let result: ArrayList<double> = new ArrayList<double>();
+        let m: double = this.mean();
+        let se: double = this.stdDev() / MathAdvanced.sqrt(this.values.size() as double);
+        result.add(m - 1.96 * se);
+        result.add(m + 1.96 * se);
+        return result;
+    }
+
+    // Generate a summary report string
+    public fn report(): string {
+        let r: string = "Monitor: " + this.name;
+        r = r + " | count: " + Integer.toString(this.count());
+        r = r + " | mean: " + Double.toString(this.mean());
+        r = r + " | stdDev: " + Double.toString(this.stdDev());
+        r = r + " | min: " + Double.toString(this.min());
+        r = r + " | max: " + Double.toString(this.max());
+        return r;
+    }
+}
