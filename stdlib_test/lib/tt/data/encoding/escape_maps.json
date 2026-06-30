@@ -1,0 +1,36 @@
+{
+  "_meta": {"source": "JSON RFC 8259 / XML W3C", "version": "1.0", "description": "Escape character mappings for JSON and XML serialization"},
+  "json_escape": {
+    "\"": "\\\"",
+    "\\": "\\\\",
+    "\n": "\\n",
+    "\r": "\\r",
+    "\t": "\\t",
+    "\b": "\\b",
+    "\f": "\\f"
+  },
+  "json_unescape": {
+    "\"": "\"",
+    "\\": "\\",
+    "/": "/",
+    "b": "\b",
+    "f": "\f",
+    "n": "\n",
+    "r": "\r",
+    "t": "\t"
+  },
+  "xml_escape": {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&apos;"
+  },
+  "xml_unescape": {
+    "amp": "&",
+    "lt": "<",
+    "gt": ">",
+    "quot": "\"",
+    "apos": "'"
+  }
+}
