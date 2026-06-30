@@ -4,9 +4,9 @@
 // Unix) so that the inkwell-based codegen module can call into LLVM at runtime.
 //
 // We rely on inkwell's `no-llvm-linking` + llvm-sys's `disable-alltargets-init`
-// features to skip llvm-config entirely (the official LLVM Windows installer
-// does not ship llvm-config.exe or the individual static libraries). Instead we
-// link the single combined C API library directly.
+// features to skip llvm-config entirely and link the single combined C API
+// library directly. This avoids version-mismatch issues between the llvm-sys
+// crate's expected LLVM version and the system-installed LLVM.
 //
 // The `LLVMInitializeAll*` / `LLVMInitializeNative*` functions are `static
 // inline` in `llvm-c/Target.h`, so they are not real symbols in LLVM-C.lib.
