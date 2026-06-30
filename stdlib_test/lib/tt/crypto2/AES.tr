@@ -1,0 +1,231 @@
+// AES.tr — AES encryption: ECB/CBC/CTR modes with PKCS7 padding
+import tt::util::ArrayList;
+import tt::lang::String;
+
+public class AESKey {
+    public ArrayList<int> key;
+    public int keySize;
+
+    public fn init(k: ArrayList<int>, size: int) {
+        this.key = k;
+        this.keySize = size;
+    }
+}
+
+public fn aesKeyFromBytes(keyBytes: ArrayList<int>): AESKey {
+    return new AESKey(keyBytes, keyBytes.size() * 8);
+}
+
+// PKCS7 padding
+public fn pkcs7Pad(data: ArrayList<int>, blockSize: int): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < data.size()) { result.add(data.get(i)); i = i + 1; }
+    let padLen: int = blockSize - (data.size() % blockSize);
+    i = 0;
+    while (i < padLen) { result.add(padLen); i = i + 1; }
+    return result;
+}
+
+public fn pkcs7Unpad(data: ArrayList<int>): ArrayList<int> {
+    if (data.size() == 0) { return data; }
+    let padLen: int = data.get(data.size() - 1);
+    if (padLen <= 0 || padLen > 16) { return data; }
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < data.size() - padLen) { result.add(data.get(i)); i = i + 1; }
+    return result;
+}
+
+// AES block encryption (uses native AES_encrypt if available, otherwise throws)
+public fn aesEncryptBlock(block: ArrayList<int>, key: AESKey): ArrayList<int> {
+    // Use native AES if available
+    let result: ArrayList<int> = AES_encrypt(block, key.key);
+    if (result.size() > 0) { return result; }
+    // Native AES not available - fail closed for security
+    throw "AES encryption requires native AES support (AES_encrypt returned empty result)";
+}
+
+public fn aesDecryptBlock(block: ArrayList<int>, key: AESKey): ArrayList<int> {
+    let result: ArrayList<int> = AES_decrypt(block, key.key);
+    if (result.size() > 0) { return result; }
+    // Native AES not available - fail closed for security
+    throw "AES decryption requires native AES support (AES_decrypt returned empty result)";
+}
+
+// ECB mode encryption
+public fn aesEcbEncrypt(plaintext: ArrayList<int>, key: AESKey): ArrayList<int> {
+    let padded: ArrayList<int> = pkcs7Pad(plaintext, 16);
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < padded.size()) {
+        let block: ArrayList<int> = new ArrayList<int>();
+        var j: int = 0;
+        while (j < 16) { block.add(padded.get(i + j)); j = j + 1; }
+        let encrypted: ArrayList<int> = aesEncryptBlock(block, key);
+        j = 0;
+        while (j < encrypted.size()) { result.add(encrypted.get(j)); j = j + 1; }
+        i = i + 16;
+    }
+    return result;
+}
+
+public fn aesEcbDecrypt(ciphertext: ArrayList<int>, key: AESKey): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < ciphertext.size()) {
+        let block: ArrayList<int> = new ArrayList<int>();
+        var j: int = 0;
+        while (j < 16) { block.add(ciphertext.get(i + j)); j = j + 1; }
+        let decrypted: ArrayList<int> = aesDecryptBlock(block, key);
+        j = 0;
+        while (j < decrypted.size()) { result.add(decrypted.get(j)); j = j + 1; }
+        i = i + 16;
+    }
+    return pkcs7Unpad(result);
+}
+
+// CBC mode encryption
+public fn aesCbcEncrypt(plaintext: ArrayList<int>, key: AESKey, iv: ArrayList<int>): ArrayList<int> {
+    let padded: ArrayList<int> = pkcs7Pad(plaintext, 16);
+    let result: ArrayList<int> = new ArrayList<int>();
+    let prevBlock: ArrayList<int> = iv;
+    var i: int = 0;
+    while (i < padded.size()) {
+        let block: ArrayList<int> = new ArrayList<int>();
+        var j: int = 0;
+        while (j < 16) {
+            block.add(padded.get(i + j) ^ prevBlock.get(j));
+            j = j + 1;
+        }
+        let encrypted: ArrayList<int> = aesEncryptBlock(block, key);
+        var k: int = 0;
+        while (k < encrypted.size()) { result.add(encrypted.get(k)); k = k + 1; }
+        prevBlock = encrypted;
+        i = i + 16;
+    }
+    return result;
+}
+
+public fn aesCbcDecrypt(ciphertext: ArrayList<int>, key: AESKey, iv: ArrayList<int>): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let prevBlock: ArrayList<int> = iv;
+    var i: int = 0;
+    while (i < ciphertext.size()) {
+        let block: ArrayList<int> = new ArrayList<int>();
+        var j: int = 0;
+        while (j < 16) { block.add(ciphertext.get(i + j)); j = j + 1; }
+        let decrypted: ArrayList<int> = aesDecryptBlock(block, key);
+        j = 0;
+        while (j < decrypted.size()) {
+            result.add(decrypted.get(j) ^ prevBlock.get(j));
+            j = j + 1;
+        }
+        prevBlock = block;
+        i = i + 16;
+    }
+    return pkcs7Unpad(result);
+}
+
+// Generate random IV
+public fn generateIV(): ArrayList<int> {
+    let iv: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < 16) {
+        iv.add(Random_nextInt() & 0xFF);
+        i = i + 1;
+    }
+    return iv;
+}
+
+// AES-GCM decryption
+public fn decryptGCM(ciphertext: string, key: string, iv: string, tag: string): string {
+    // Decode hex strings to byte arrays
+    let ctBytes: ArrayList<int> = _hexToBytes(ciphertext);
+    let keyBytes: ArrayList<int> = _hexToBytes(key);
+    let ivBytes: ArrayList<int> = _hexToBytes(iv);
+    let tagBytes: ArrayList<int> = _hexToBytes(tag);
+    // Use native AES-GCM decrypt if available
+    let result: ArrayList<int> = AES_gcm_decrypt(ctBytes, keyBytes, ivBytes, tagBytes);
+    if (result.size() > 0) {
+        return _bytesToHex(result);
+    }
+    // Native AES-GCM not available - fail closed for security
+    throw "AES-GCM decryption requires native AES support (AES_gcm_decrypt returned empty result)";
+}
+
+fn _hexToBytes(hex: string): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i + 1 < String.length(hex)) {
+        let high: int = _hexDigit(String.charAt(hex, i));
+        let low: int = _hexDigit(String.charAt(hex, i + 1));
+        result.add(high * 16 + low);
+        i = i + 2;
+    }
+    return result;
+}
+
+fn _hexDigit(ch: string): int {
+    if (ch >= "0" && ch <= "9") { return String.charAt(ch, 0) as int - 48; }
+    if (ch >= "a" && ch <= "f") { return String.charAt(ch, 0) as int - 87; }
+    if (ch >= "A" && ch <= "F") { return String.charAt(ch, 0) as int - 55; }
+    return 0;
+}
+
+fn _bytesToHex(bytes: ArrayList<int>): string {
+    let hex: string = "0123456789abcdef";
+    let result: string = "";
+    var i: int = 0;
+    while (i < bytes.size()) {
+        let b: int = bytes.get(i) & 0xFF;
+        let high: int = (b >> 4) & 0xF;
+        let low: int = b & 0xF;
+        result = result + String.charAt(hex, high) + String.charAt(hex, low);
+        i = i + 1;
+    }
+    return result;
+}
+
+// CTR mode encryption.
+// Generates a keystream by encrypting successive counter blocks (starting
+// from the IV) and XORs it with the plaintext. No padding is required since
+// the final block may be partial.
+public fn encryptCTR(plaintext: ArrayList<int>, key: AESKey, iv: ArrayList<int>): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    let counter: ArrayList<int> = new ArrayList<int>();
+    var c: int = 0;
+    while (c < iv.size()) { counter.add(iv.get(c)); c = c + 1; }
+    var i: int = 0;
+    while (i < plaintext.size()) {
+        let keystream: ArrayList<int> = aesEncryptBlock(counter, key);
+        var j: int = 0;
+        while (j < 16 && i + j < plaintext.size()) {
+            result.add(plaintext.get(i + j) ^ keystream.get(j));
+            j = j + 1;
+        }
+        counter = _incrementCounter(counter);
+        i = i + 16;
+    }
+    return result;
+}
+
+// CTR mode decryption (identical to encryption in CTR mode).
+public fn decryptCTR(ciphertext: ArrayList<int>, key: AESKey, iv: ArrayList<int>): ArrayList<int> {
+    return encryptCTR(ciphertext, key, iv);
+}
+
+// Increment the CTR counter as a big-endian 128-bit integer.
+fn _incrementCounter(counter: ArrayList<int>): ArrayList<int> {
+    let result: ArrayList<int> = new ArrayList<int>();
+    var i: int = 0;
+    while (i < counter.size()) { result.add(counter.get(i)); i = i + 1; }
+    var idx: int = result.size() - 1;
+    while (idx >= 0) {
+        let v: int = result.get(idx) + 1;
+        result.set(idx, v & 0xFF);
+        if (v <= 0xFF) { return result; }
+        idx = idx - 1;
+    }
+    return result;
+}
