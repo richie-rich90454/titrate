@@ -1,0 +1,76 @@
+// Edge case tests for DateTime.tr
+// Tests boundary conditions: epoch zero, current time, date components,
+// formatting codes, temporal comparison, and pre-epoch dates.
+import tt::time::DateTime;
+import tt::lang::Integer;
+
+public fn test_datetime_edge_epoch(): void {
+    let dt: DateTime = new DateTime(0L);
+    if (dt.getYear() == 1970 && dt.getMonth() == 1 && dt.getDay() == 1) {
+        io::println("PASS: epoch (0) corresponds to 1970-01-01");
+    } else {
+        io::println("FAIL: epoch date=" + Integer.toString(dt.getYear()) + "-" + Integer.toString(dt.getMonth()) + "-" + Integer.toString(dt.getDay()));
+    }
+}
+
+public fn test_datetime_edge_current_time(): void {
+    let now: DateTime = DateTime.now();
+    if (now != null && now.epochMillis > 0L) {
+        io::println("PASS: DateTime.now returns a positive non-null value");
+    } else {
+        io::println("FAIL: DateTime.now returned null or non-positive epoch");
+    }
+}
+
+public fn test_datetime_edge_date_components(): void {
+    let dt: DateTime = DateTime.fromISO("2024-07-15T13:45:30");
+    if (dt.getYear() == 2024 && dt.getMonth() == 7 && dt.getDay() == 15 &&
+        dt.getHour() == 13 && dt.getMinute() == 45 && dt.getSecond() == 30) {
+        io::println("PASS: fromISO extracts all date/time components correctly");
+    } else {
+        io::println("FAIL: fromISO components y=" + Integer.toString(dt.getYear()) + " m=" + Integer.toString(dt.getMonth()) + " d=" + Integer.toString(dt.getDay()));
+    }
+}
+
+public fn test_datetime_edge_formatting(): void {
+    let dt: DateTime = DateTime.fromISO("2024-07-15T13:45:30");
+    let formatted: string = dt.strftime("%Y-%m-%d %H:%M:%S");
+    let ampm: string = dt.strftime("%p");
+    if (formatted == "2024-07-15 13:45:30" && ampm == "PM") {
+        io::println("PASS: strftime formats date and AM/PM correctly");
+    } else {
+        io::println("FAIL: strftime formatted='" + formatted + "' ampm='" + ampm + "'");
+    }
+}
+
+public fn test_datetime_edge_comparison(): void {
+    let earlier: DateTime = new DateTime(1000L);
+    let later: DateTime = new DateTime(2000L);
+    let same: DateTime = new DateTime(1000L);
+    if (earlier.isBefore(later) && later.isAfter(earlier) &&
+        earlier.equals(same) && !earlier.equals(later)) {
+        io::println("PASS: DateTime comparison operations work correctly");
+    } else {
+        io::println("FAIL: DateTime comparison failed");
+    }
+}
+
+public fn test_datetime_edge_pre_epoch(): void {
+    // 86400000 ms = 1 day before epoch (1969-12-31)
+    let dt: DateTime = new DateTime(-86400000L);
+    if (dt.getYear() == 1969 && dt.getMonth() == 12 && dt.getDay() == 31) {
+        io::println("PASS: pre-epoch date (-1 day) corresponds to 1969-12-31");
+    } else {
+        io::println("FAIL: pre-epoch date y=" + Integer.toString(dt.getYear()) + " m=" + Integer.toString(dt.getMonth()) + " d=" + Integer.toString(dt.getDay()));
+    }
+}
+
+public fn run_all_datetime_edge_tests(): void {
+    io::println("=== DateTime.tr Edge Case Tests ===");
+    test_datetime_edge_epoch();
+    test_datetime_edge_current_time();
+    test_datetime_edge_date_components();
+    test_datetime_edge_formatting();
+    test_datetime_edge_comparison();
+    test_datetime_edge_pre_epoch();
+}
