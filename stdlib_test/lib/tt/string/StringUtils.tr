@@ -1,0 +1,266 @@
+// StringUtils provides string constants and template substitution, mirroring Python's string module.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::lang::DataFile;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _charsetsCache: HashMap<string, string> = new HashMap<string, string>();
+var _charsetsLoaded: bool = false;
+
+fn _ensureCharsetsLoaded(): void {
+    if (_charsetsLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("string/charsets.json");
+    if (data.isNull() || !data.isObject()) {
+        _charsetsLoaded = true;
+        return;
+    }
+    if (!data.hasKey("charsets")) {
+        _charsetsLoaded = true;
+        return;
+    }
+    let charsets: JsonValue = data.get("charsets");
+    if (!charsets.isObject()) {
+        _charsetsLoaded = true;
+        return;
+    }
+    let keys: ArrayList<string> = new ArrayList<string>();
+    keys.add("ascii_lowercase");
+    keys.add("ascii_uppercase");
+    keys.add("digits");
+    keys.add("hexdigits");
+    keys.add("octdigits");
+    keys.add("punctuation");
+    keys.add("whitespace");
+    keys.add("printable");
+    keys.add("ascii_letters");
+    keys.add("alnum");
+    var i: int = 0;
+    while (i < keys.size()) {
+        let key: string = keys.get(i);
+        if (charsets.hasKey(key)) {
+            _charsetsCache.put(key, charsets.get(key).asString());
+        }
+        i = i + 1;
+    }
+    _charsetsLoaded = true;
+}
+
+public class StringUtils {
+    // String constants
+    public fn asciiLetters(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("ascii_letters");
+    }
+
+    public fn asciiLowercase(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("ascii_lowercase");
+    }
+
+    public fn asciiUppercase(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("ascii_uppercase");
+    }
+
+    public fn digits(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("digits");
+    }
+
+    public fn hexdigits(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("hexdigits");
+    }
+
+    public fn octdigits(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("octdigits");
+    }
+
+    public fn punctuation(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("punctuation");
+    }
+
+    public fn whitespace(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("whitespace");
+    }
+
+    public fn printable(): string {
+        _ensureCharsetsLoaded();
+        return _charsetsCache.get("printable");
+    }
+
+    // Capitalize each word in the string.
+    public fn capwords(s: string): string {
+        if (String.length(s) == 0) { return s; }
+        let words: ArrayList<string> = String::split(s, " ");
+        let result: string = "";
+        let i: int = 0;
+        while (i < words.size()) {
+            if (i > 0) { result = result + " "; }
+            let word: string = words.get(i);
+            if (String.length(word) > 0) {
+                let first: string = String::toUpperCase(String.charAt(word, 0));
+                let rest: string = "";
+                if (String.length(word) > 1) {
+                    rest = String::toLowerCase(String.substring(word, 1, String.length(word)));
+                }
+                result = result + first + rest;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+}
+
+// Template provides string substitution using $variable placeholders.
+public class Template {
+    private string _template;
+    private string _delimiter;
+
+    public fn init(template: string) {
+        this._template = template;
+        this._delimiter = "$";
+    }
+
+    // Perform substitution using the map. Throws on missing keys.
+    public fn substitute(mapping: HashMap<string, string>): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(this._template)) {
+            let c: string = String.charAt(this._template, i);
+            if (c == this._delimiter && i + 1 < String.length(this._template)) {
+                let next: string = String.charAt(this._template, i + 1);
+                if (next == "{") {
+                    // Find closing brace
+                    let end: int = i + 2;
+                    while (end < String.length(this._template) && String.charAt(this._template, end) != "}") {
+                        end = end + 1;
+                    }
+                    if (end < String.length(this._template)) {
+                        let key: string = String.substring(this._template, i + 2, end);
+                        if (mapping.containsKey(key)) {
+                            result = result + mapping.get(key);
+                        } else {
+                            result = result + "[ERROR: missing key '" + key + "']";
+                        }
+                        i = end + 1;
+                    } else {
+                        result = result + c;
+                        i = i + 1;
+                    }
+                } else if (next == this._delimiter) {
+                    result = result + this._delimiter;
+                    i = i + 2;
+                } else {
+                    // Identifier: collect alphanumeric and underscore characters
+                    let start: int = i + 1;
+                    let end: int = start;
+                    while (end < String.length(this._template)) {
+                        let ch: string = String.charAt(this._template, end);
+                        if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "_") {
+                            end = end + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    let key: string = String.substring(this._template, start, end);
+                    if (mapping.containsKey(key)) {
+                        result = result + mapping.get(key);
+                    } else {
+                        result = result + "[ERROR: missing key '" + key + "']";
+                    }
+                    i = end;
+                }
+            } else {
+                result = result + c;
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    // Perform safe substitution: missing keys are left as-is.
+    public fn safeSubstitute(mapping: HashMap<string, string>): string {
+        let result: string = "";
+        let i: int = 0;
+        while (i < String.length(this._template)) {
+            let c: string = String.charAt(this._template, i);
+            if (c == this._delimiter && i + 1 < String.length(this._template)) {
+                let next: string = String.charAt(this._template, i + 1);
+                if (next == "{") {
+                    let end: int = i + 2;
+                    while (end < String.length(this._template) && String.charAt(this._template, end) != "}") {
+                        end = end + 1;
+                    }
+                    if (end < String.length(this._template)) {
+                        let key: string = String.substring(this._template, i + 2, end);
+                        if (mapping.containsKey(key)) {
+                            result = result + mapping.get(key);
+                        } else {
+                            result = result + this._delimiter + "{" + key + "}";
+                        }
+                        i = end + 1;
+                    } else {
+                        result = result + c;
+                        i = i + 1;
+                    }
+                } else if (next == this._delimiter) {
+                    result = result + this._delimiter;
+                    i = i + 2;
+                } else {
+                    let start: int = i + 1;
+                    let end: int = start;
+                    while (end < String.length(this._template)) {
+                        let ch: string = String.charAt(this._template, end);
+                        if ((ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || (ch >= "0" && ch <= "9") || ch == "_") {
+                            end = end + 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    let key: string = String.substring(this._template, start, end);
+                    if (mapping.containsKey(key)) {
+                        result = result + mapping.get(key);
+                    } else {
+                        result = result + this._delimiter + key;
+                    }
+                    i = end;
+                }
+            } else {
+                result = result + c;
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+}
+
+// Capitalize words in a string: split by whitespace, capitalize each word, rejoin.
+public fn capwords(s: string): string {
+    if (String.length(s) == 0) { return s; }
+    let words: ArrayList<string> = String.split(s, " ");
+    let result: string = "";
+    let i: int = 0;
+    while (i < words.size()) {
+        if (i > 0) { result = result + " "; }
+        let word: string = words.get(i);
+        if (String.length(word) > 0) {
+            let first: string = String.toUpperCase(String.charAt(word, 0));
+            let rest: string = "";
+            if (String.length(word) > 1) {
+                rest = String.toLowerCase(String.substring(word, 1, String.length(word)));
+            }
+            result = result + first + rest;
+        }
+        i = i + 1;
+    }
+    return result;
+}
