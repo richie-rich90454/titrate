@@ -1,0 +1,588 @@
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// QR decomposition module
+// Matrices are stored as flat ArrayList<double> in row-major order.
+// Element (i, j) of an m x n matrix is at index i * n + j.
+
+// Householder QR decomposition: A = Q * R
+// Returns HashMap with keys "Q" (m x m) and "R" (m x n)
+public fn qrHouseholder(a: ArrayList<double>, m: int, n: int): HashMap<string, ArrayList<double>> {
+    let result: HashMap<string, ArrayList<double>> = new HashMap<string, ArrayList<double>>();
+    let k: int = Math.min(m, n);
+
+    // Copy A into R
+    let r: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < m * n) {
+        r.add(a.get(i));
+        i = i + 1;
+    }
+
+    // Build Q as identity (m x m)
+    let q: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < m * m) {
+        if (i % (m + 1) == 0) {
+            q.add(1.0);
+        } else {
+            q.add(0.0);
+        }
+        i = i + 1;
+    }
+
+    // Householder reflections
+    var col: int = 0;
+    while (col < k) {
+        // Extract column below diagonal
+        let v: ArrayList<double> = new ArrayList<double>();
+        var row: int = col;
+        while (row < m) {
+            v.add(r.get(row * n + col));
+            row = row + 1;
+        }
+        let vLen: int = v.size();
+
+        // Compute norm of v
+        var norm: double = 0.0;
+        i = 0;
+        while (i < vLen) {
+            norm = norm + v.get(i) * v.get(i);
+            i = i + 1;
+        }
+        norm = MathAdvanced.sqrt(norm);
+
+        if (norm > 1e-15) {
+            // Choose sign to avoid cancellation
+            let sign: double = v.get(0) >= 0.0 ? 1.0 : -1.0;
+            v.set(0, v.get(0) + sign * norm);
+
+            // Normalize v
+            var vNorm: double = 0.0;
+            i = 0;
+            while (i < vLen) {
+                vNorm = vNorm + v.get(i) * v.get(i);
+                i = i + 1;
+            }
+            vNorm = MathAdvanced.sqrt(vNorm);
+            if (vNorm > 1e-15) {
+                i = 0;
+                while (i < vLen) {
+                    v.set(i, v.get(i) / vNorm);
+                    i = i + 1;
+                }
+            }
+
+            // Apply Householder to R: R = (I - 2*v*v^T) * R
+            // For each column j of R from col to n-1
+            var j: int = col;
+            while (j < n) {
+                // Compute dot product of v with column j of R (rows col..m-1)
+                var dot: double = 0.0;
+                i = 0;
+                while (i < vLen) {
+                    dot = dot + v.get(i) * r.get((col + i) * n + j);
+                    i = i + 1;
+                }
+                // R[col+i][j] -= 2 * v[i] * dot
+                i = 0;
+                while (i < vLen) {
+                    r.set((col + i) * n + j, r.get((col + i) * n + j) - 2.0 * v.get(i) * dot);
+                    i = i + 1;
+                }
+                j = j + 1;
+            }
+
+            // Apply Householder to Q: Q = Q * (I - 2*v*v^T)
+            // For each row i of Q
+            i = 0;
+            while (i < m) {
+                // Compute dot product of row i of Q with v (columns col..m-1)
+                var dot: double = 0.0;
+                var vi: int = 0;
+                while (vi < vLen) {
+                    dot = dot + q.get(i * m + (col + vi)) * v.get(vi);
+                    vi = vi + 1;
+                }
+                // Q[i][col+vi] -= 2 * dot * v[vi]
+                vi = 0;
+                while (vi < vLen) {
+                    q.set(i * m + (col + vi), q.get(i * m + (col + vi)) - 2.0 * dot * v.get(vi));
+                    vi = vi + 1;
+                }
+                i = i + 1;
+            }
+        }
+        col = col + 1;
+    }
+
+    result.put("Q", q);
+    result.put("R", r);
+    return result;
+}
+
+// Givens rotation QR decomposition: A = Q * R
+// Returns HashMap with keys "Q" (m x m) and "R" (m x n)
+public fn qrGivens(a: ArrayList<double>, m: int, n: int): HashMap<string, ArrayList<double>> {
+    let result: HashMap<string, ArrayList<double>> = new HashMap<string, ArrayList<double>>();
+    let k: int = Math.min(m, n);
+
+    // Copy A into R
+    let r: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < m * n) {
+        r.add(a.get(i));
+        i = i + 1;
+    }
+
+    // Build Q as identity (m x m)
+    let q: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < m * m) {
+        if (i % (m + 1) == 0) {
+            q.add(1.0);
+        } else {
+            q.add(0.0);
+        }
+        i = i + 1;
+    }
+
+    // Apply Givens rotations to zero out sub-diagonal elements
+    var col: int = 0;
+    while (col < k) {
+        var row: int = col + 1;
+        while (row < m) {
+            let aii: double = r.get(col * n + col);
+            let aji: double = r.get(row * n + col);
+
+            if (Math.abs(aji) > 1e-15) {
+                let rVal: double = MathAdvanced.sqrt(aii * aii + aji * aji);
+                let c: double = aii / rVal;
+                let s: double = -aji / rVal;
+
+                // Apply rotation to R: rows col and row
+                var j: int = col;
+                while (j < n) {
+                    let rCol: double = r.get(col * n + j);
+                    let rRow: double = r.get(row * n + j);
+                    r.set(col * n + j, c * rCol - s * rRow);
+                    r.set(row * n + j, s * rCol + c * rRow);
+                    j = j + 1;
+                }
+
+                // Apply rotation to Q: columns col and row
+                i = 0;
+                while (i < m) {
+                    let qIc: double = q.get(i * m + col);
+                    let qIr: double = q.get(i * m + row);
+                    q.set(i * m + col, c * qIc - s * qIr);
+                    q.set(i * m + row, s * qIc + c * qIr);
+                    i = i + 1;
+                }
+            }
+            row = row + 1;
+        }
+        col = col + 1;
+    }
+
+    result.put("Q", q);
+    result.put("R", r);
+    return result;
+}
+
+// QR with column pivoting: A * P = Q * R
+// Returns HashMap with keys "Q" (m x m), "R" (m x n), "P" (n x n permutation matrix)
+public fn qrPivoted(a: ArrayList<double>, m: int, n: int): HashMap<string, ArrayList<double>> {
+    let result: HashMap<string, ArrayList<double>> = new HashMap<string, ArrayList<double>>();
+    let k: int = Math.min(m, n);
+
+    // Copy A into work array
+    let r: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < m * n) {
+        r.add(a.get(i));
+        i = i + 1;
+    }
+
+    // Build Q as identity (m x m)
+    let q: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < m * m) {
+        if (i % (m + 1) == 0) {
+            q.add(1.0);
+        } else {
+            q.add(0.0);
+        }
+        i = i + 1;
+    }
+
+    // Build P as identity (n x n)
+    let p: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n * n) {
+        if (i % (n + 1) == 0) {
+            p.add(1.0);
+        } else {
+            p.add(0.0);
+        }
+        i = i + 1;
+    }
+
+    // Track column norms
+    let colNorms: ArrayList<double> = new ArrayList<double>();
+    var j: int = 0;
+    while (j < n) {
+        var norm: double = 0.0;
+        i = 0;
+        while (i < m) {
+            norm = norm + r.get(i * n + j) * r.get(i * n + j);
+            i = i + 1;
+        }
+        colNorms.add(norm);
+        j = j + 1;
+    }
+
+    // Column pivoting with Householder
+    var col: int = 0;
+    while (col < k) {
+        // Find column with largest remaining norm
+        var maxNorm: double = colNorms.get(col);
+        var maxCol: int = col;
+        j = col + 1;
+        while (j < n) {
+            if (colNorms.get(j) > maxNorm) {
+                maxNorm = colNorms.get(j);
+                maxCol = j;
+            }
+            j = j + 1;
+        }
+
+        // Swap columns col and maxCol in R and P
+        if (maxCol != col) {
+            i = 0;
+            while (i < m) {
+                let tmp: double = r.get(i * n + col);
+                r.set(i * n + col, r.get(i * n + maxCol));
+                r.set(i * n + maxCol, tmp);
+                i = i + 1;
+            }
+            // Swap columns in P
+            i = 0;
+            while (i < n) {
+                let tmp: double = p.get(i * n + col);
+                p.set(i * n + col, p.get(i * n + maxCol));
+                p.set(i * n + maxCol, tmp);
+                i = i + 1;
+            }
+            // Swap norms
+            let tmpNorm: double = colNorms.get(col);
+            colNorms.set(col, colNorms.get(maxCol));
+            colNorms.set(maxCol, tmpNorm);
+        }
+
+        // Householder reflection for this column
+        let v: ArrayList<double> = new ArrayList<double>();
+        var row: int = col;
+        while (row < m) {
+            v.add(r.get(row * n + col));
+            row = row + 1;
+        }
+        let vLen: int = v.size();
+
+        var norm: double = 0.0;
+        i = 0;
+        while (i < vLen) {
+            norm = norm + v.get(i) * v.get(i);
+            i = i + 1;
+        }
+        norm = MathAdvanced.sqrt(norm);
+
+        if (norm > 1e-15) {
+            let sign: double = v.get(0) >= 0.0 ? 1.0 : -1.0;
+            v.set(0, v.get(0) + sign * norm);
+
+            var vNorm: double = 0.0;
+            i = 0;
+            while (i < vLen) {
+                vNorm = vNorm + v.get(i) * v.get(i);
+                i = i + 1;
+            }
+            vNorm = MathAdvanced.sqrt(vNorm);
+            if (vNorm > 1e-15) {
+                i = 0;
+                while (i < vLen) {
+                    v.set(i, v.get(i) / vNorm);
+                    i = i + 1;
+                }
+            }
+
+            // Apply to R
+            j = col;
+            while (j < n) {
+                var dot: double = 0.0;
+                i = 0;
+                while (i < vLen) {
+                    dot = dot + v.get(i) * r.get((col + i) * n + j);
+                    i = i + 1;
+                }
+                i = 0;
+                while (i < vLen) {
+                    r.set((col + i) * n + j, r.get((col + i) * n + j) - 2.0 * v.get(i) * dot);
+                    i = i + 1;
+                }
+                j = j + 1;
+            }
+
+            // Apply to Q
+            i = 0;
+            while (i < m) {
+                var dot: double = 0.0;
+                var vi: int = 0;
+                while (vi < vLen) {
+                    dot = dot + q.get(i * m + (col + vi)) * v.get(vi);
+                    vi = vi + 1;
+                }
+                vi = 0;
+                while (vi < vLen) {
+                    q.set(i * m + (col + vi), q.get(i * m + (col + vi)) - 2.0 * dot * v.get(vi));
+                    vi = vi + 1;
+                }
+                i = i + 1;
+            }
+        }
+
+        // Update column norms (subtract contribution of processed row)
+        j = col + 1;
+        while (j < n) {
+            let newVal: double = colNorms.get(j) - r.get(col * n + j) * r.get(col * n + j);
+            if (newVal > 0.0) {
+                colNorms.set(j, newVal);
+            } else {
+                colNorms.set(j, 0.0);
+            }
+            j = j + 1;
+        }
+
+        col = col + 1;
+    }
+
+    result.put("Q", q);
+    result.put("R", r);
+    result.put("P", p);
+    return result;
+}
+
+// QR with column pivoting returning permutation vector instead of matrix.
+// Returns HashMap with keys "Q" (m x m), "R" (m x n), "pivot" (ArrayList<int> of length n)
+public fn qrColumnPivoting(a: ArrayList<double>, m: int, n: int): HashMap<string, ArrayList<double>> {
+    let result: HashMap<string, ArrayList<double>> = new HashMap<string, ArrayList<double>>();
+    let k: int = Math.min(m, n);
+
+    // Copy A into work array
+    let r: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < m * n) {
+        r.add(a.get(i));
+        i = i + 1;
+    }
+
+    // Build Q as identity (m x m)
+    let q: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < m * m) {
+        if (i % (m + 1) == 0) {
+            q.add(1.0);
+        } else {
+            q.add(0.0);
+        }
+        i = i + 1;
+    }
+
+    // Pivot vector: initially identity permutation
+    let pivot: ArrayList<double> = new ArrayList<double>();
+    i = 0;
+    while (i < n) {
+        pivot.add(i as double);
+        i = i + 1;
+    }
+
+    // Track column norms
+    let colNorms: ArrayList<double> = new ArrayList<double>();
+    var j: int = 0;
+    while (j < n) {
+        var norm: double = 0.0;
+        i = 0;
+        while (i < m) {
+            norm = norm + r.get(i * n + j) * r.get(i * n + j);
+            i = i + 1;
+        }
+        colNorms.add(norm);
+        j = j + 1;
+    }
+
+    // Column pivoting with Householder
+    var col: int = 0;
+    while (col < k) {
+        // Find column with largest remaining norm
+        var maxNorm: double = colNorms.get(col);
+        var maxCol: int = col;
+        j = col + 1;
+        while (j < n) {
+            if (colNorms.get(j) > maxNorm) {
+                maxNorm = colNorms.get(j);
+                maxCol = j;
+            }
+            j = j + 1;
+        }
+
+        // Swap columns col and maxCol in R and pivot
+        if (maxCol != col) {
+            i = 0;
+            while (i < m) {
+                let tmp: double = r.get(i * n + col);
+                r.set(i * n + col, r.get(i * n + maxCol));
+                r.set(i * n + maxCol, tmp);
+                i = i + 1;
+            }
+            // Swap pivot entries
+            let tmpP: double = pivot.get(col);
+            pivot.set(col, pivot.get(maxCol));
+            pivot.set(maxCol, tmpP);
+            // Swap norms
+            let tmpNorm: double = colNorms.get(col);
+            colNorms.set(col, colNorms.get(maxCol));
+            colNorms.set(maxCol, tmpNorm);
+        }
+
+        // Householder reflection for this column
+        let v: ArrayList<double> = new ArrayList<double>();
+        var row: int = col;
+        while (row < m) {
+            v.add(r.get(row * n + col));
+            row = row + 1;
+        }
+        let vLen: int = v.size();
+
+        var norm: double = 0.0;
+        i = 0;
+        while (i < vLen) {
+            norm = norm + v.get(i) * v.get(i);
+            i = i + 1;
+        }
+        norm = MathAdvanced.sqrt(norm);
+
+        if (norm > 1e-15) {
+            let sign: double = v.get(0) >= 0.0 ? 1.0 : -1.0;
+            v.set(0, v.get(0) + sign * norm);
+
+            var vNorm: double = 0.0;
+            i = 0;
+            while (i < vLen) {
+                vNorm = vNorm + v.get(i) * v.get(i);
+                i = i + 1;
+            }
+            vNorm = MathAdvanced.sqrt(vNorm);
+            if (vNorm > 1e-15) {
+                i = 0;
+                while (i < vLen) {
+                    v.set(i, v.get(i) / vNorm);
+                    i = i + 1;
+                }
+            }
+
+            // Apply to R
+            j = col;
+            while (j < n) {
+                var dot: double = 0.0;
+                i = 0;
+                while (i < vLen) {
+                    dot = dot + v.get(i) * r.get((col + i) * n + j);
+                    i = i + 1;
+                }
+                i = 0;
+                while (i < vLen) {
+                    r.set((col + i) * n + j, r.get((col + i) * n + j) - 2.0 * v.get(i) * dot);
+                    i = i + 1;
+                }
+                j = j + 1;
+            }
+
+            // Apply to Q
+            i = 0;
+            while (i < m) {
+                var dot: double = 0.0;
+                var vi: int = 0;
+                while (vi < vLen) {
+                    dot = dot + q.get(i * m + (col + vi)) * v.get(vi);
+                    vi = vi + 1;
+                }
+                vi = 0;
+                while (vi < vLen) {
+                    q.set(i * m + (col + vi), q.get(i * m + (col + vi)) - 2.0 * dot * v.get(vi));
+                    vi = vi + 1;
+                }
+                i = i + 1;
+            }
+        }
+
+        // Update column norms
+        j = col + 1;
+        while (j < n) {
+            let newVal: double = colNorms.get(j) - r.get(col * n + j) * r.get(col * n + j);
+            if (newVal > 0.0) {
+                colNorms.set(j, newVal);
+            } else {
+                colNorms.set(j, 0.0);
+            }
+            j = j + 1;
+        }
+
+        col = col + 1;
+    }
+
+    result.put("Q", q);
+    result.put("R", r);
+    result.put("pivot", pivot);
+    return result;
+}
+
+// Rank-revealing QR: determines rank and residual norm
+// Returns HashMap with keys "rank" (double, cast from int) and "rNorm" (double)
+public fn rankRevealingQr(a: ArrayList<double>, m: int, n: int, tol: double): HashMap<string, double> {
+    let result: HashMap<string, double> = new HashMap<string, double>();
+
+    let qrResult: HashMap<string, ArrayList<double>> = qrPivoted(a, m, n);
+    let r: ArrayList<double> = qrResult.get("R");
+
+    let k: int = Math.min(m, n);
+
+    // Determine rank: number of diagonal elements of R above tolerance
+    var rank: int = 0;
+    var i: int = 0;
+    while (i < k) {
+        if (Math.abs(r.get(i * n + i)) > tol) {
+            rank = rank + 1;
+        }
+        i = i + 1;
+    }
+
+    // Compute residual norm: Frobenius norm of the bottom (m-rank) rows of R
+    var rNorm: double = 0.0;
+    i = rank;
+    while (i < m) {
+        var j: int = 0;
+        while (j < n) {
+            let v: double = r.get(i * n + j);
+            rNorm = rNorm + v * v;
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    rNorm = MathAdvanced.sqrt(rNorm);
+
+    result.put("rank", rank as double);
+    result.put("rNorm", rNorm);
+    return result;
+}
