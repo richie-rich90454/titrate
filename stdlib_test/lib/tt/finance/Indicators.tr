@@ -1,0 +1,196 @@
+// Technical indicators for HFT: SMA, EMA, EWMA, RSI, MACD, Bollinger Bands, VWAP.
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::lang::Double;
+
+// ==================== Simple Moving Average ====================
+
+public fn sma(data: ArrayList<double>, period: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n < period) {
+        return result;
+    }
+    // Compute initial window sum
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < period) {
+        sum = sum + data.get(i);
+        i = i + 1;
+    }
+    result.add(sum / (period as double));
+    // Slide the window
+    while (i < n) {
+        sum = sum + data.get(i) - data.get(i - period);
+        result.add(sum / (period as double));
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Exponential Moving Average ====================
+
+public fn ema(data: ArrayList<double>, period: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) {
+        return result;
+    }
+    let multiplier: double = 2.0 / ((period as double) + 1.0);
+    // Seed EMA with the first value
+    var prev: double = data.get(0);
+    result.add(prev);
+    var i: int = 1;
+    while (i < n) {
+        let curr: double = (data.get(i) - prev) * multiplier + prev;
+        result.add(curr);
+        prev = curr;
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Exponentially Weighted Moving Average ====================
+
+public fn ewma(data: ArrayList<double>, alpha: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n == 0) {
+        return result;
+    }
+    var prev: double = data.get(0);
+    result.add(prev);
+    var i: int = 1;
+    while (i < n) {
+        let curr: double = alpha * data.get(i) + (1.0 - alpha) * prev;
+        result.add(curr);
+        prev = curr;
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Relative Strength Index ====================
+
+public fn rsi(data: ArrayList<double>, period: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n < period + 1) {
+        return result;
+    }
+    // Compute initial average gains and losses
+    var avgGain: double = 0.0;
+    var avgLoss: double = 0.0;
+    var i: int = 1;
+    while (i <= period) {
+        let change: double = data.get(i) - data.get(i - 1);
+        if (change > 0.0) {
+            avgGain = avgGain + change;
+        } else {
+            avgLoss = avgLoss + (change < 0.0 ? -change : change);
+        }
+        i = i + 1;
+    }
+    avgGain = avgGain / (period as double);
+    avgLoss = avgLoss / (period as double);
+    // First RSI value
+    if (avgLoss == 0.0) {
+        result.add(100.0);
+    } else {
+        let rs: double = avgGain / avgLoss;
+        result.add(100.0 - 100.0 / (1.0 + rs));
+    }
+    // Subsequent values use smoothed averages
+    while (i < n) {
+        let change: double = data.get(i) - data.get(i - 1);
+        var gain: double = 0.0;
+        var loss: double = 0.0;
+        if (change > 0.0) {
+            gain = change;
+        } else {
+            loss = (change < 0.0 ? -change : change);
+        }
+        avgGain = (avgGain * ((period as double) - 1.0) + gain) / (period as double);
+        avgLoss = (avgLoss * ((period as double) - 1.0) + loss) / (period as double);
+        if (avgLoss == 0.0) {
+            result.add(100.0);
+        } else {
+            let rs: double = avgGain / avgLoss;
+            result.add(100.0 - 100.0 / (1.0 + rs));
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== MACD ====================
+
+public fn macd(data: ArrayList<double>, fast: int, slow: int, signal: int): ArrayList<double> {
+    let fastEma: ArrayList<double> = ema(data, fast);
+    let slowEma: ArrayList<double> = ema(data, slow);
+    // MACD line = fast EMA - slow EMA
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    var i: int = 0;
+    while (i < n) {
+        result.add(fastEma.get(i) - slowEma.get(i));
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Bollinger Bands ====================
+
+public fn bollingerBands(data: ArrayList<double>, period: int, stdDev: double): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    let n: int = data.size();
+    if (n < period) {
+        return result;
+    }
+    var i: int = period - 1;
+    while (i < n) {
+        // Compute SMA for the window
+        var sum: double = 0.0;
+        var j: int = i - period + 1;
+        while (j <= i) {
+            sum = sum + data.get(j);
+            j = j + 1;
+        }
+        let mean: double = sum / (period as double);
+        // Compute variance for the window
+        var varSum: double = 0.0;
+        j = i - period + 1;
+        while (j <= i) {
+            let diff: double = data.get(j) - mean;
+            varSum = varSum + diff * diff;
+            j = j + 1;
+        }
+        let std: double = MathAdvanced.sqrt(varSum / (period as double));
+        // Upper band = mean + stdDev * standard deviation
+        result.add(mean + stdDev * std);
+        i = i + 1;
+    }
+    return result;
+}
+
+// ==================== Volume Weighted Average Price ====================
+
+public fn vwap(prices: ArrayList<double>, volumes: ArrayList<double>): double {
+    let n: int = prices.size();
+    if (n == 0 || volumes.size() == 0) {
+        return 0.0;
+    }
+    let len: int = (n < volumes.size() ? n : volumes.size());
+    var cumPV: double = 0.0;
+    var cumVol: double = 0.0;
+    var i: int = 0;
+    while (i < len) {
+        cumPV = cumPV + prices.get(i) * volumes.get(i);
+        cumVol = cumVol + volumes.get(i);
+        i = i + 1;
+    }
+    if (cumVol == 0.0) {
+        return 0.0;
+    }
+    return cumPV / cumVol;
+}
