@@ -1,0 +1,832 @@
+// JsonValue represents any JSON value.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+
+public class JsonValue {
+    public string kind;
+    public bool boolVal;
+    public double numVal;
+    public string strVal;
+    public ArrayList<JsonValue> arrayVal;
+    public HashMap<string, JsonValue> objVal;
+
+    public fn init(k: string) {
+        this.kind = k;
+        this.boolVal = false;
+        this.numVal = 0.0;
+        this.strVal = "";
+        this.arrayVal = new ArrayList<JsonValue>();
+        this.objVal = new HashMap<string, JsonValue>();
+    }
+
+    // Type checks
+    public fn isNull(): bool {
+        return this.kind == "null";
+    }
+
+    public fn isBool(): bool {
+        return this.kind == "bool";
+    }
+
+    public fn isNumber(): bool {
+        return this.kind == "number";
+    }
+
+    public fn isString(): bool {
+        return this.kind == "string";
+    }
+
+    public fn isArray(): bool {
+        return this.kind == "array";
+    }
+
+    public fn isObject(): bool {
+        return this.kind == "object";
+    }
+
+    // Value accessors
+    public fn asBool(): bool {
+        return this.boolVal;
+    }
+
+    public fn asNumber(): double {
+        return this.numVal;
+    }
+
+    public fn asString(): string {
+        return this.strVal;
+    }
+
+    public fn asArray(): ArrayList<JsonValue> {
+        return this.arrayVal;
+    }
+
+    public fn asObject(): HashMap<string, JsonValue> {
+        return this.objVal;
+    }
+
+    // Object key access
+    public fn get(key: string): JsonValue {
+        if (this.kind != "object") {
+            return JsonValue.ofNull();
+        }
+        let val: JsonValue = this.objVal.get(key);
+        if (val == null) {
+            return JsonValue.ofNull();
+        }
+        return val;
+    }
+
+    // Array index access
+    public fn getAt(index: int): JsonValue {
+        if (this.kind != "array") {
+            return JsonValue.ofNull();
+        }
+        if (index < 0 || index >= this.arrayVal.size()) {
+            return JsonValue.ofNull();
+        }
+        return this.arrayVal.get(index);
+    }
+
+    // Check if object has a key
+    public fn hasKey(key: string): bool {
+        if (this.kind != "object") {
+            return false;
+        }
+        return this.objVal.containsKey(key);
+    }
+
+    // Get all keys of an object
+    public fn keys(): ArrayList<string> {
+        if (this.kind != "object") {
+            return new ArrayList<string>();
+        }
+        return this.objVal.keys();
+    }
+
+    // Get the size of an array or object
+    public fn size(): int {
+        if (this.kind == "array") {
+            return this.arrayVal.size();
+        }
+        if (this.kind == "object") {
+            return this.objVal.size();
+        }
+        return 0;
+    }
+
+    // Create a deep copy of this value
+    public fn deepCopy(): JsonValue {
+        if (this.kind == "null") {
+            return JsonValue.ofNull();
+        }
+        if (this.kind == "bool") {
+            return JsonValue.ofBool(this.boolVal);
+        }
+        if (this.kind == "number") {
+            return JsonValue.ofNum(this.numVal);
+        }
+        if (this.kind == "string") {
+            return JsonValue.ofStr(this.strVal);
+        }
+        if (this.kind == "array") {
+            let arr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            let i: int = 0;
+            while (i < this.arrayVal.size()) {
+                arr.add(this.arrayVal.get(i).deepCopy());
+                i = i + 1;
+            }
+            return JsonValue.ofArray(arr);
+        }
+        if (this.kind == "object") {
+            let obj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < ks.size()) {
+                let key: string = ks.get(i);
+                let val: JsonValue = this.objVal.get(key);
+                obj.put(key, val.deepCopy());
+                i = i + 1;
+            }
+            return JsonValue.ofObject(obj);
+        }
+        return JsonValue.ofNull();
+    }
+
+    // Merge another JsonValue (object) into this one (mutating)
+    public fn merge(other: JsonValue): void {
+        if (this.kind != "object" || other.kind != "object") {
+            return;
+        }
+        let ks: ArrayList<string> = other.keys();
+        let i: int = 0;
+        while (i < ks.size()) {
+            let key: string = ks.get(i);
+            this.objVal.put(key, other.get(key));
+            i = i + 1;
+        }
+    }
+
+    // Get value at JSON Pointer (RFC 6901)
+    public fn path(pointer: string): JsonValue {
+        if (String.length(pointer) == 0) {
+            return this;
+        }
+        if (String.charAt(pointer, 0) != "/") {
+            return JsonValue.ofNull();
+        }
+        let tokens: ArrayList<string> = _splitPointer(pointer);
+        let current: JsonValue = this;
+        let i: int = 0;
+        while (i < tokens.size()) {
+            let token: string = tokens.get(i);
+            if (current.isObject()) {
+                current = current.get(token);
+            } else if (current.isArray()) {
+                let idx: int = Integer.parseInt(token);
+                current = current.getAt(idx);
+            } else {
+                return JsonValue.ofNull();
+            }
+            i = i + 1;
+        }
+        return current;
+    }
+
+    // Set value at JSON Pointer, return new JsonValue (non-mutating)
+    public fn set(pointer: string, value: JsonValue): JsonValue {
+        if (String.length(pointer) == 0) {
+            return value;
+        }
+        if (String.charAt(pointer, 0) != "/") {
+            return this.deepCopy();
+        }
+        let tokens: ArrayList<string> = _splitPointer(pointer);
+        return this._setAtPath(tokens, 0, value);
+    }
+
+    private fn _setAtPath(tokens: ArrayList<string>, index: int, value: JsonValue): JsonValue {
+        if (index >= tokens.size()) {
+            return value;
+        }
+        let token: string = tokens.get(index);
+        if (this.isObject()) {
+            let newObj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < ks.size()) {
+                let key: string = ks.get(i);
+                let val: JsonValue = this.objVal.get(key);
+                if (key == token) {
+                    newObj.put(key, val._setAtPath(tokens, index + 1, value));
+                } else {
+                    newObj.put(key, val.deepCopy());
+                }
+                i = i + 1;
+            }
+            if (!this.objVal.containsKey(token)) {
+                let child: JsonValue = JsonValue.ofObject(new HashMap<string, JsonValue>());
+                newObj.put(token, child._setAtPath(tokens, index + 1, value));
+            }
+            return JsonValue.ofObject(newObj);
+        }
+        if (this.isArray()) {
+            let newArr: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            let idx: int = Integer.parseInt(token);
+            let i: int = 0;
+            while (i < this.arrayVal.size()) {
+                if (i == idx) {
+                    newArr.add(this.arrayVal.get(i)._setAtPath(tokens, index + 1, value));
+                } else {
+                    newArr.add(this.arrayVal.get(i).deepCopy());
+                }
+                i = i + 1;
+            }
+            return JsonValue.ofArray(newArr);
+        }
+        return this.deepCopy();
+    }
+
+    // Deep merge with another JsonValue (arrays concatenated, objects merged recursively)
+    // Returns a new JsonValue (non-mutating)
+    public fn deepMerge(other: JsonValue): JsonValue {
+        if (this.isObject() && other.isObject()) {
+            let result: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < ks.size()) {
+                let key: string = ks.get(i);
+                result.put(key, this.objVal.get(key).deepCopy());
+                i = i + 1;
+            }
+            let otherKeys: ArrayList<string> = other.asObject().keys();
+            let j: int = 0;
+            while (j < otherKeys.size()) {
+                let key: string = otherKeys.get(j);
+                let otherVal: JsonValue = other.get(key);
+                if (result.containsKey(key)) {
+                    let existing: JsonValue = result.get(key);
+                    if (existing.isObject() && otherVal.isObject()) {
+                        result.put(key, existing.deepMerge(otherVal));
+                    } else if (existing.isArray() && otherVal.isArray()) {
+                        let merged: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+                        let k: int = 0;
+                        while (k < existing.asArray().size()) {
+                            merged.add(existing.asArray().get(k).deepCopy());
+                            k = k + 1;
+                        }
+                        let m: int = 0;
+                        while (m < otherVal.asArray().size()) {
+                            merged.add(otherVal.asArray().get(m).deepCopy());
+                            m = m + 1;
+                        }
+                        result.put(key, JsonValue.ofArray(merged));
+                    } else {
+                        result.put(key, otherVal.deepCopy());
+                    }
+                } else {
+                    result.put(key, otherVal.deepCopy());
+                }
+                j = j + 1;
+            }
+            return JsonValue.ofObject(result);
+        }
+        if (this.isArray() && other.isArray()) {
+            let result: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            let i: int = 0;
+            while (i < this.arrayVal.size()) {
+                result.add(this.arrayVal.get(i).deepCopy());
+                i = i + 1;
+            }
+            let j: int = 0;
+            while (j < other.asArray().size()) {
+                result.add(other.asArray().get(j).deepCopy());
+                j = j + 1;
+            }
+            return JsonValue.ofArray(result);
+        }
+        return other.deepCopy();
+    }
+
+    // Compute diff as list of JSON Pointer paths that differ
+    public fn diff(other: JsonValue): ArrayList<string> {
+        let result: ArrayList<string> = new ArrayList<string>();
+        this._diffInner(other, "", result);
+        return result;
+    }
+
+    private fn _diffInner(other: JsonValue, basePath: string, result: ArrayList<string>): void {
+        if (this.kind != other.kind) {
+            result.add(basePath);
+            return;
+        }
+        if (this.kind == "null") { return; }
+        if (this.kind == "bool") {
+            if (this.boolVal != other.boolVal) {
+                result.add(basePath);
+            }
+            return;
+        }
+        if (this.kind == "number") {
+            if (this.numVal != other.numVal) {
+                result.add(basePath);
+            }
+            return;
+        }
+        if (this.kind == "string") {
+            if (this.strVal != other.strVal) {
+                result.add(basePath);
+            }
+            return;
+        }
+        if (this.kind == "array") {
+            let len: int = this.arrayVal.size();
+            let otherLen: int = other.asArray().size();
+            let maxLen: int = len;
+            if (otherLen > maxLen) { maxLen = otherLen; }
+            let i: int = 0;
+            while (i < maxLen) {
+                let path: string = basePath + "/" + Integer.toString(i);
+                if (i >= len || i >= otherLen) {
+                    result.add(path);
+                } else {
+                    this.arrayVal.get(i)._diffInner(other.asArray().get(i), path, result);
+                }
+                i = i + 1;
+            }
+            return;
+        }
+        if (this.kind == "object") {
+            let allKeys: HashMap<string, bool> = new HashMap<string, bool>();
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < ks.size()) {
+                allKeys.put(ks.get(i), true);
+                i = i + 1;
+            }
+            let otherKeys: ArrayList<string> = other.asObject().keys();
+            let j: int = 0;
+            while (j < otherKeys.size()) {
+                allKeys.put(otherKeys.get(j), true);
+                j = j + 1;
+            }
+            let allKeyList: ArrayList<string> = allKeys.keys();
+            let k: int = 0;
+            while (k < allKeyList.size()) {
+                let key: string = allKeyList.get(k);
+                let path: string = basePath + "/" + _escapePointerToken(key);
+                if (!this.objVal.containsKey(key) || !other.asObject().containsKey(key)) {
+                    result.add(path);
+                } else {
+                    this.objVal.get(key)._diffInner(other.get(key), path, result);
+                }
+                k = k + 1;
+            }
+            return;
+        }
+    }
+
+    // Flatten nested objects using dot-notation keys
+    public fn flatten(): JsonValue {
+        if (!this.isObject()) {
+            return this.deepCopy();
+        }
+        let result: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        this._flattenInner("", result);
+        return JsonValue.ofObject(result);
+    }
+
+    private fn _flattenInner(prefix: string, result: HashMap<string, JsonValue>): void {
+        let ks: ArrayList<string> = this.objVal.keys();
+        let i: int = 0;
+        while (i < ks.size()) {
+            let key: string = ks.get(i);
+            let val: JsonValue = this.objVal.get(key);
+            let newKey: string = "";
+            if (String.length(prefix) == 0) {
+                newKey = key;
+            } else {
+                newKey = prefix + "." + key;
+            }
+            if (val.isObject()) {
+                val._flattenInner(newKey, result);
+            } else {
+                result.put(newKey, val.deepCopy());
+            }
+            i = i + 1;
+        }
+    }
+
+    // Unflatten dot-notation keys back to nested objects
+    public fn unflatten(): JsonValue {
+        if (!this.isObject()) {
+            return this.deepCopy();
+        }
+        let result: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        let ks: ArrayList<string> = this.objVal.keys();
+        let i: int = 0;
+        while (i < ks.size()) {
+            let key: string = ks.get(i);
+            let val: JsonValue = this.objVal.get(key);
+            let parts: ArrayList<string> = _splitDot(key);
+            let current: HashMap<string, JsonValue> = result;
+            let j: int = 0;
+            while (j < parts.size() - 1) {
+                let part: string = parts.get(j);
+                if (!current.containsKey(part)) {
+                    current.put(part, JsonValue.ofObject(new HashMap<string, JsonValue>()));
+                }
+                let child: JsonValue = current.get(part);
+                if (!child.isObject()) {
+                    let newObj: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+                    current.put(part, JsonValue.ofObject(newObj));
+                    child = current.get(part);
+                }
+                current = child.asObject();
+                j = j + 1;
+            }
+            current.put(parts.get(parts.size() - 1), val.deepCopy());
+            i = i + 1;
+        }
+        return JsonValue.ofObject(result);
+    }
+
+    // Return new object with only specified keys
+    public fn pick(keys: ArrayList<string>): JsonValue {
+        if (!this.isObject()) {
+            return this.deepCopy();
+        }
+        let result: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        let i: int = 0;
+        while (i < keys.size()) {
+            let key: string = keys.get(i);
+            if (this.objVal.containsKey(key)) {
+                result.put(key, this.objVal.get(key).deepCopy());
+            }
+            i = i + 1;
+        }
+        return JsonValue.ofObject(result);
+    }
+
+    // Return new object without specified keys
+    public fn omit(keys: ArrayList<string>): JsonValue {
+        if (!this.isObject()) {
+            return this.deepCopy();
+        }
+        let result: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        let ks: ArrayList<string> = this.objVal.keys();
+        let i: int = 0;
+        while (i < ks.size()) {
+            let key: string = ks.get(i);
+            if (!_listContains(keys, key)) {
+                result.put(key, this.objVal.get(key).deepCopy());
+            }
+            i = i + 1;
+        }
+        return JsonValue.ofObject(result);
+    }
+
+    // Deep equality comparison
+    public fn equals(other: JsonValue): bool {
+        if (this.kind != other.kind) {
+            return false;
+        }
+        if (this.kind == "null") { return true; }
+        if (this.kind == "bool") { return this.boolVal == other.boolVal; }
+        if (this.kind == "number") { return this.numVal == other.numVal; }
+        if (this.kind == "string") { return this.strVal == other.strVal; }
+        if (this.kind == "array") {
+            if (this.arrayVal.size() != other.asArray().size()) {
+                return false;
+            }
+            let i: int = 0;
+            while (i < this.arrayVal.size()) {
+                if (!this.arrayVal.get(i).equals(other.asArray().get(i))) {
+                    return false;
+                }
+                i = i + 1;
+            }
+            return true;
+        }
+        if (this.kind == "object") {
+            if (this.objVal.size() != other.asObject().size()) {
+                return false;
+            }
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < ks.size()) {
+                let key: string = ks.get(i);
+                if (!other.asObject().containsKey(key)) {
+                    return false;
+                }
+                if (!this.objVal.get(key).equals(other.get(key))) {
+                    return false;
+                }
+                i = i + 1;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    // Recursively transform all values
+    public fn transform(f: fn(JsonValue): JsonValue): JsonValue {
+        if (this.isObject()) {
+            let result: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < ks.size()) {
+                let key: string = ks.get(i);
+                let val: JsonValue = this.objVal.get(key).transform(f);
+                result.put(key, val);
+                i = i + 1;
+            }
+            return f(JsonValue.ofObject(result));
+        }
+        if (this.isArray()) {
+            let result: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            let i: int = 0;
+            while (i < this.arrayVal.size()) {
+                result.add(this.arrayVal.get(i).transform(f));
+                i = i + 1;
+            }
+            return f(JsonValue.ofArray(result));
+        }
+        return f(this);
+    }
+
+    // Infer a JSON Schema from this value.
+    // Returns a JsonValue representing a Draft 7 JSON Schema that would validate this structure.
+    public fn schema(): JsonValue {
+        if (this.isNull()) {
+            return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("null")));
+        }
+        if (this.isBool()) {
+            return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("boolean")));
+        }
+        if (this.isNumber()) {
+            return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("number")));
+        }
+        if (this.isString()) {
+            return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("string")));
+        }
+        if (this.isArray()) {
+            let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            schema.put("type", JsonValue.ofStr("array"));
+            if (this.arrayVal.size() > 0) {
+                schema.put("items", this.arrayVal.get(0).schema());
+            }
+            return JsonValue.ofObject(schema);
+        }
+        if (this.isObject()) {
+            let schema: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            schema.put("type", JsonValue.ofStr("object"));
+            let props: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+            let required: ArrayList<JsonValue> = new ArrayList<JsonValue>();
+            let ks: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < ks.size()) {
+                let key: string = ks.get(i);
+                props.put(key, this.objVal.get(key).schema());
+                required.add(JsonValue.ofStr(key));
+                i = i + 1;
+            }
+            schema.put("properties", JsonValue.ofObject(props));
+            schema.put("required", JsonValue.ofArray(required));
+            return JsonValue.ofObject(schema);
+        }
+        return JsonValue.ofObject(_singletonMap("type", JsonValue.ofStr("string")));
+    }
+
+    // Helper: create a HashMap with a single key-value pair.
+    fn _singletonMap(key: string, value: JsonValue): HashMap<string, JsonValue> {
+        let m: HashMap<string, JsonValue> = new HashMap<string, JsonValue>();
+        m.put(key, value);
+        return m;
+    }
+
+    // JSON serialization
+    public fn toString(): string {
+        if (this.kind == "null") {
+            return "null";
+        }
+        if (this.kind == "bool") {
+            if (this.boolVal) {
+                return "true";
+            } else {
+                return "false";
+            }
+        }
+        if (this.kind == "number") {
+            return this.numVal.toString();
+        }
+        if (this.kind == "string") {
+            return JsonValue.escapeString(this.strVal);
+        }
+        if (this.kind == "array") {
+            let result: string = "[";
+            let i: int = 0;
+            while (i < this.arrayVal.size()) {
+                if (i > 0) {
+                    result = result + ",";
+                }
+                result = result + this.arrayVal.get(i).toString();
+                i = i + 1;
+            }
+            result = result + "]";
+            return result;
+        }
+        if (this.kind == "object") {
+            let result: string = "{";
+            let keys: ArrayList<string> = this.objVal.keys();
+            let i: int = 0;
+            while (i < keys.size()) {
+                if (i > 0) {
+                    result = result + ",";
+                }
+                let key: string = keys.get(i);
+                let val: JsonValue = this.objVal.get(key);
+                result = result + JsonValue.escapeString(key) + ":" + val.toString();
+                i = i + 1;
+            }
+            result = result + "}";
+            return result;
+        }
+        return "null";
+    }
+}
+
+// Factory methods
+public fn ofNull(): JsonValue {
+    let v: JsonValue = new JsonValue("null");
+    return v;
+}
+
+public fn ofBool(b: bool): JsonValue {
+    let v: JsonValue = new JsonValue("bool");
+    v.boolVal = b;
+    return v;
+}
+
+public fn ofNum(n: double): JsonValue {
+    let v: JsonValue = new JsonValue("number");
+    v.numVal = n;
+    return v;
+}
+
+public fn ofStr(s: string): JsonValue {
+    let v: JsonValue = new JsonValue("string");
+    v.strVal = s;
+    return v;
+}
+
+public fn ofArray(arr: ArrayList<JsonValue>): JsonValue {
+    let v: JsonValue = new JsonValue("array");
+    v.arrayVal = arr;
+    return v;
+}
+
+public fn ofObject(obj: HashMap<string, JsonValue>): JsonValue {
+    let v: JsonValue = new JsonValue("object");
+    v.objVal = obj;
+    return v;
+}
+
+// Escape a string for JSON output
+// Common control characters use short escapes; others use \uXXXX
+public fn escapeString(s: string): string {
+    let result: string = "\"";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        let code: int = String.charAt(c, 0) as int;
+        if (c == "\"") {
+            result = result + "\\\"";
+        } else if (c == "\\") {
+            result = result + "\\\\";
+        } else if (code == 8) {
+            result = result + "\\b";
+        } else if (code == 9) {
+            result = result + "\\t";
+        } else if (code == 10) {
+            result = result + "\\n";
+        } else if (code == 12) {
+            result = result + "\\f";
+        } else if (code == 13) {
+            result = result + "\\r";
+        } else if (code >= 0 && code < 32) {
+            // Escape all other control characters U+0000-U+001F as \uXXXX
+            result = result + "\\u00" + _hexDigit(code / 16) + _hexDigit(code % 16);
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    result = result + "\"";
+    return result;
+}
+
+// Helper: convert a value 0-15 to a hex digit
+fn _hexDigit(v: int): string {
+    if (v < 10) {
+        return String.fromCharCode(48 + v);
+    }
+    return String.fromCharCode(65 + v - 10);
+}
+
+// ---- JSON Pointer helpers ----
+
+// Split a JSON Pointer string into unescaped tokens
+fn _splitPointer(pointer: string): ArrayList<string> {
+    let tokens: ArrayList<string> = new ArrayList<string>();
+    let i: int = 1; // skip leading '/'
+    let current: string = "";
+    while (i < String.length(pointer)) {
+        let c: string = String.charAt(pointer, i);
+        if (c == "/") {
+            tokens.add(_unescapePointerToken(current));
+            current = "";
+        } else {
+            current = current + c;
+        }
+        i = i + 1;
+    }
+    tokens.add(_unescapePointerToken(current));
+    return tokens;
+}
+
+// Unescape JSON Pointer token: ~1 -> /, ~0 -> ~
+fn _unescapePointerToken(token: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(token)) {
+        let c: string = String.charAt(token, i);
+        if (c == "~" && i + 1 < String.length(token)) {
+            let next: string = String.charAt(token, i + 1);
+            if (next == "1") {
+                result = result + "/";
+                i = i + 2;
+            } else if (next == "0") {
+                result = result + "~";
+                i = i + 2;
+            } else {
+                result = result + c;
+                i = i + 1;
+            }
+        } else {
+            result = result + c;
+            i = i + 1;
+        }
+    }
+    return result;
+}
+
+// Escape JSON Pointer token: ~ -> ~0, / -> ~1
+fn _escapePointerToken(token: string): string {
+    let result: string = "";
+    let i: int = 0;
+    while (i < String.length(token)) {
+        let c: string = String.charAt(token, i);
+        if (c == "~") {
+            result = result + "~0";
+        } else if (c == "/") {
+            result = result + "~1";
+        } else {
+            result = result + c;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// Split a string by dot separator
+fn _splitDot(s: string): ArrayList<string> {
+    let parts: ArrayList<string> = new ArrayList<string>();
+    let current: string = "";
+    let i: int = 0;
+    while (i < String.length(s)) {
+        let c: string = String.charAt(s, i);
+        if (c == ".") {
+            parts.add(current);
+            current = "";
+        } else {
+            current = current + c;
+        }
+        i = i + 1;
+    }
+    parts.add(current);
+    return parts;
+}
+
+// Check if a list contains a string value
+fn _listContains(list: ArrayList<string>, val: string): bool {
+    let i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == val) {
+            return true;
+        }
+        i = i + 1;
+    }
+    return false;
+}
