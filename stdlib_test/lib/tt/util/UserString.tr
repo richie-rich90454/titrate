@@ -1,0 +1,97 @@
+import tt::util::ArrayList;
+import tt::lang::String;
+
+// UserString: a wrapper around a string that is easier to subclass.
+// Users can override methods to customize string-like behavior.
+public class UserString {
+    public string data;
+
+    public fn init() {
+        this.data = "";
+    }
+
+    // Construct from an existing string.
+    public fn initFromString(s: string) {
+        this.data = s;
+    }
+
+    // Return the length of the string.
+    public fn length(): int {
+        return String.length(this.data);
+    }
+
+    // Return the character at the given index as a string.
+    public fn charAt(index: int): string {
+        return String.substring(this.data, index, index + 1);
+    }
+
+    // Return a substring [start, end).
+    public fn substring(start: int, end: int): string {
+        return String.substring(this.data, start, end);
+    }
+
+    // Return the index of the first occurrence of sub, or -1.
+    public fn indexOf(sub: string): int {
+        return String.indexOf(this.data, sub);
+    }
+
+    // Return the index of the last occurrence of sub, or -1.
+    public fn lastIndexOf(sub: string): int {
+        return String.lastIndexOf(this.data, sub);
+    }
+
+    // Check if the string contains sub.
+    public fn contains(sub: string): bool {
+        return String.contains(this.data, sub);
+    }
+
+    // Check if the string starts with prefix.
+    public fn startsWith(prefix: string): bool {
+        return String.startsWith(this.data, prefix);
+    }
+
+    // Check if the string ends with suffix.
+    public fn endsWith(suffix: string): bool {
+        return String.endsWith(this.data, suffix);
+    }
+
+    // Return an uppercase copy.
+    public fn toUpperCase(): string {
+        return String.toUpperCase(this.data);
+    }
+
+    // Return a lowercase copy.
+    public fn toLowerCase(): string {
+        return String.toLowerCase(this.data);
+    }
+
+    // Return a copy with leading/trailing whitespace removed.
+    public fn trim(): string {
+        return String.trim(this.data);
+    }
+
+    // Replace all occurrences of target with replacement.
+    public fn replace(target: string, replacement: string): string {
+        return String.replace(this.data, target, replacement);
+    }
+
+    // Split the string by delimiter into an ArrayList.
+    public fn split(delim: string): ArrayList<string> {
+        return String.split(this.data, delim);
+    }
+
+    // Count occurrences of substr.
+    public fn count(sub: string): int {
+        return String.count(this.data, sub);
+    }
+
+    // Check if the string is empty.
+    public fn isEmpty(): bool {
+        return String.isEmpty(this.data);
+    }
+
+    // Return the underlying string.
+    public fn toString(): string {
+        return this.data;
+    }
+}
