@@ -1,0 +1,399 @@
+// Quadrature module: advanced numerical integration methods.
+// Gauss-Legendre, Gauss-Kronrod, adaptive Simpson, trapezoidal, Romberg,
+// and multi-dimensional integration.
+import tt::util::ArrayList;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::lang::DataFile;
+import tt::lang::Integer;
+import tt::json::JsonValue;
+
+// ---- Data loaded from external JSON via DataFile ----
+
+var _quadData: JsonValue = JsonValue.ofNull();
+var _quadLoaded: bool = false;
+
+fn _ensureQuadLoaded(): void {
+    if (_quadLoaded) {
+        return;
+    }
+    let data: JsonValue = DataFile.load("math/quadrature_nodes.json");
+    if (!data.isNull() && data.isObject()) {
+        _quadData = data;
+    }
+    _quadLoaded = true;
+}
+
+// ==================== Gauss-Legendre Quadrature ====================
+
+// Internal: Gauss-Legendre nodes and weights for n points on [-1, 1]
+// Returns ArrayList of (node, weight) pairs stored as flat [node0, weight0, node1, weight1, ...]
+fn gaussLegendreData(n: int): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    _ensureQuadLoaded();
+    if (_quadData.isNull() || !_quadData.hasKey("gauss_legendre")) {
+        return result;
+    }
+    let gl: JsonValue = _quadData.get("gauss_legendre");
+    var key: string = Integer.toString(n);
+    if (!gl.hasKey(key)) {
+        // Default to n=8 if the requested order is unavailable
+        key = "8";
+    }
+    if (!gl.hasKey(key)) {
+        return result;
+    }
+    let entry: JsonValue = gl.get(key);
+    if (!entry.isObject() || !entry.hasKey("nodes") || !entry.hasKey("weights")) {
+        return result;
+    }
+    let nodes: JsonValue = entry.get("nodes");
+    let weights: JsonValue = entry.get("weights");
+    if (!nodes.isArray() || !weights.isArray()) {
+        return result;
+    }
+    var i: int = 0;
+    while (i < nodes.size()) {
+        result.add(nodes.getAt(i).asNumber());
+        result.add(weights.getAt(i).asNumber());
+        i = i + 1;
+    }
+    return result;
+}
+
+// Gauss-Legendre quadrature with n points on [a, b]
+// Uses the transformation x = (b-a)/2 * t + (a+b)/2 to map [-1,1] to [a,b]
+public fn gaussLegendre(f: fn(double): double, a: double, b: double, n: int): double {
+    let data: ArrayList<double> = gaussLegendreData(n);
+    let halfLen: double = (b - a) / 2.0;
+    let mid: double = (a + b) / 2.0;
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < data.size()) {
+        let node: double = data.get(i);
+        let weight: double = data.get(i + 1);
+        let x: double = mid + halfLen * node;
+        sum = sum + weight * f(x);
+        i = i + 2;
+    }
+    return sum * halfLen;
+}
+
+// ==================== Gauss-Kronrod (G7-K15) ====================
+
+// Internal: G7-K15 nodes and weights
+// Kronrod 15-point rule with embedded Gauss 7-point rule
+fn gaussKronrodData(): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    _ensureQuadLoaded();
+    if (_quadData.isNull() || !_quadData.hasKey("gauss_kronrod_g7k15")) {
+        return result;
+    }
+    let gk: JsonValue = _quadData.get("gauss_kronrod_g7k15");
+    if (!gk.isObject() || !gk.hasKey("nodes") || !gk.hasKey("kronrod_weights") || !gk.hasKey("gauss_weights")) {
+        return result;
+    }
+    let nodes: JsonValue = gk.get("nodes");
+    let kronrodWeights: JsonValue = gk.get("kronrod_weights");
+    let gaussWeights: JsonValue = gk.get("gauss_weights");
+    if (!nodes.isArray() || !kronrodWeights.isArray() || !gaussWeights.isArray()) {
+        return result;
+    }
+    // Format: node, kronrodWeight, gaussWeight (0 if not a Gauss node)
+    var i: int = 0;
+    while (i < nodes.size()) {
+        result.add(nodes.getAt(i).asNumber());
+        result.add(kronrodWeights.getAt(i).asNumber());
+        result.add(gaussWeights.getAt(i).asNumber());
+        i = i + 1;
+    }
+    return result;
+}
+
+// Internal: compute G7-K15 integral estimates on [a, b]
+fn gaussKronrodStep(f: fn(double): double, a: double, b: double): ArrayList<double> {
+    let data: ArrayList<double> = gaussKronrodData();
+    let halfLen: double = (b - a) / 2.0;
+    let mid: double = (a + b) / 2.0;
+    var kronrodSum: double = 0.0;
+    var gaussSum: double = 0.0;
+
+    var i: int = 0;
+    while (i < data.size()) {
+        let node: double = data.get(i);
+        let kronrodWeight: double = data.get(i + 1);
+        let gaussWeight: double = data.get(i + 2);
+
+        // Positive node
+        let x1: double = mid + halfLen * node;
+        let fx1: double = f(x1);
+        kronrodSum = kronrodSum + kronrodWeight * fx1;
+        gaussSum = gaussSum + gaussWeight * fx1;
+
+        // Negative node (skip node=0 to avoid double counting)
+        if (Math.abs(node) > 1e-15) {
+            let x2: double = mid - halfLen * node;
+            let fx2: double = f(x2);
+            kronrodSum = kronrodSum + kronrodWeight * fx2;
+            gaussSum = gaussSum + gaussWeight * fx2;
+        }
+
+        i = i + 3;
+    }
+
+    let result: ArrayList<double> = new ArrayList<double>();
+    result.add(kronrodSum * halfLen);
+    result.add(gaussSum * halfLen);
+    return result;
+}
+
+// Internal: adaptive Gauss-Kronrod recursion
+fn adaptiveGaussKronrod(f: fn(double): double, a: double, b: double, tol: double, wholeK: double, wholeG: double, depth: int): double {
+    let mid: double = (a + b) / 2.0;
+    let leftResult: ArrayList<double> = gaussKronrodStep(f, a, mid);
+    let rightResult: ArrayList<double> = gaussKronrodStep(f, mid, b);
+
+    let leftK: double = leftResult.get(0);
+    let leftG: double = leftResult.get(1);
+    let rightK: double = rightResult.get(0);
+    let rightG: double = rightResult.get(1);
+
+    let combinedK: double = leftK + rightK;
+    let error: double = Math.abs(combinedK - wholeK);
+
+    if (depth <= 0 || error <= tol) {
+        return combinedK;
+    }
+
+    let leftTol: double = tol / 2.0 * Math.abs(leftK) / (Math.abs(leftK) + Math.abs(rightK) + 1e-300);
+    let rightTol: double = tol / 2.0 * Math.abs(rightK) / (Math.abs(leftK) + Math.abs(rightK) + 1e-300);
+
+    if (leftTol < 1e-15) {
+        leftTol = 1e-15;
+    }
+    if (rightTol < 1e-15) {
+        rightTol = 1e-15;
+    }
+
+    return adaptiveGaussKronrod(f, a, mid, leftTol, leftK, leftG, depth - 1)
+         + adaptiveGaussKronrod(f, mid, b, rightTol, rightK, rightG, depth - 1);
+}
+
+// Adaptive Gauss-Kronrod (G7-K15) quadrature with given tolerance
+public fn gaussKronrod(f: fn(double): double, a: double, b: double, tol: double): double {
+    let initial: ArrayList<double> = gaussKronrodStep(f, a, b);
+    let wholeK: double = initial.get(0);
+    let wholeG: double = initial.get(1);
+    let error: double = Math.abs(wholeK - wholeG);
+    if (error <= tol) {
+        return wholeK;
+    }
+    return adaptiveGaussKronrod(f, a, b, tol, wholeK, wholeG, 50);
+}
+
+// ==================== Adaptive Simpson's Rule ====================
+
+// Internal: recursive adaptive Simpson's helper
+fn simpsonAdaptiveHelper(f: fn(double): double, a: double, b: double, tol: double, whole: double, fa: double, fb: double, fm: double, depth: int): double {
+    let m: double = (a + b) / 2.0;
+    let m1: double = (a + m) / 2.0;
+    let m2: double = (m + b) / 2.0;
+    let fm1: double = f(m1);
+    let fm2: double = f(m2);
+    let h: double = b - a;
+    let left: double = (h / 12.0) * (fa + 4.0 * fm1 + fm);
+    let right: double = (h / 12.0) * (fm + 4.0 * fm2 + fb);
+    let combined: double = left + right;
+    if (depth <= 0 || Math.abs(combined - whole) <= 15.0 * tol) {
+        return combined + (combined - whole) / 15.0;
+    }
+    return simpsonAdaptiveHelper(f, a, m, tol / 2.0, left, fa, fm, fm1, depth - 1)
+         + simpsonAdaptiveHelper(f, m, b, tol / 2.0, right, fm, fb, fm2, depth - 1);
+}
+
+// Adaptive Simpson's rule with specified tolerance
+public fn simpsonAdaptive(f: fn(double): double, a: double, b: double, tol: double): double {
+    let fa: double = f(a);
+    let fb: double = f(b);
+    let m: double = (a + b) / 2.0;
+    let fm: double = f(m);
+    let h: double = b - a;
+    let whole: double = (h / 6.0) * (fa + 4.0 * fm + fb);
+    return simpsonAdaptiveHelper(f, a, b, tol, whole, fa, fb, fm, 50);
+}
+
+// ==================== Trapezoidal Rule ====================
+
+// Trapezoidal rule with n intervals
+public fn trapezoidal(f: fn(double): double, a: double, b: double, n: int): double {
+    let h: double = (b - a) / (n as double);
+    var sum: double = f(a) + f(b);
+    var i: int = 1;
+    while (i < n) {
+        sum = sum + 2.0 * f(a + (i as double) * h);
+        i = i + 1;
+    }
+    return sum * h / 2.0;
+}
+
+// ==================== Romberg Integration ====================
+
+// Internal: compute single trapezoidal approximation with 2^k intervals
+fn trapezoidalLevel(f: fn(double): double, a: double, b: double, k: int): double {
+    let n: int = 1;
+    var intervals: int = 1;
+    var j: int = 0;
+    while (j < k) {
+        intervals = intervals * 2;
+        j = j + 1;
+    }
+    let h: double = (b - a) / (intervals as double);
+    var sum: double = f(a) + f(b);
+    var i: int = 1;
+    while (i < intervals) {
+        sum = sum + 2.0 * f(a + (i as double) * h);
+        i = i + 1;
+    }
+    return sum * h / 2.0;
+}
+
+// Romberg integration with maxIter levels of Richardson extrapolation
+public fn romberg(f: fn(double): double, a: double, b: double, maxIter: int): double {
+    // R[i][j] stored as flat array: index = i * maxIter + j
+    // We only need the previous row, so use two arrays
+    let prev: ArrayList<double> = new ArrayList<double>();
+    let curr: ArrayList<double> = new ArrayList<double>();
+
+    // R[0][0] = trapezoidal with 1 interval
+    prev.add(trapezoidalLevel(f, a, b, 0));
+
+    var i: int = 1;
+    while (i < maxIter) {
+        curr = new ArrayList<double>();
+        // R[i][0] = trapezoidal with 2^i intervals
+        curr.add(trapezoidalLevel(f, a, b, i));
+
+        var j: int = 1;
+        while (j <= i) {
+            // Richardson extrapolation
+            let factor: double = MathAdvanced.pow(4.0, j as double);
+            let val: double = (factor * curr.get(j - 1) - prev.get(j - 1)) / (factor - 1.0);
+            curr.add(val);
+            j = j + 1;
+        }
+
+        // Check convergence
+        if (i > 1) {
+            let diff: double = Math.abs(curr.get(i) - prev.get(i - 1));
+            if (diff < 1e-12) {
+                return curr.get(i);
+            }
+        }
+
+        prev = curr;
+        i = i + 1;
+    }
+
+    return prev.get(prev.size() - 1);
+}
+
+// ==================== Double Integral ====================
+
+// Double integral using iterated Gauss-Legendre quadrature
+// Integrates f(x, y) over x in [ax, bx], y in [ay(x), by(x)]
+// n is the number of Gauss-Legendre points per dimension
+public fn doubleIntegral(f: fn(double, double): double, ax: double, bx: double, ay: fn(double): double, by: fn(double): double, n: int): double {
+    let xData: ArrayList<double> = gaussLegendreData(n);
+    let yData: ArrayList<double> = gaussLegendreData(n);
+    let halfXLen: double = (bx - ax) / 2.0;
+    let midX: double = (ax + bx) / 2.0;
+
+    var totalSum: double = 0.0;
+    var xi: int = 0;
+    while (xi < xData.size()) {
+        let xNode: double = xData.get(xi);
+        let xWeight: double = xData.get(xi + 1);
+        let x: double = midX + halfXLen * xNode;
+
+        let ayVal: double = ay(x);
+        let byVal: double = by(x);
+        let halfYLen: double = (byVal - ayVal) / 2.0;
+        let midY: double = (ayVal + byVal) / 2.0;
+
+        var ySum: double = 0.0;
+        var yi: int = 0;
+        while (yi < yData.size()) {
+            let yNode: double = yData.get(yi);
+            let yWeight: double = yData.get(yi + 1);
+            let y: double = midY + halfYLen * yNode;
+            ySum = ySum + yWeight * f(x, y);
+            yi = yi + 2;
+        }
+
+        totalSum = totalSum + xWeight * ySum * halfYLen;
+        xi = xi + 2;
+    }
+
+    return totalSum * halfXLen;
+}
+
+// ==================== Triple Integral ====================
+
+// Triple integral using iterated Gauss-Legendre quadrature
+// Integrates f(x, y, z) over:
+//   x in [ax, bx]
+//   y in [ay(x), by(x)]
+//   z in [az(x, y), bz(x, y)]
+// n is the number of Gauss-Legendre points per dimension
+public fn tripleIntegral(f: fn(double, double, double): double, ax: double, bx: double, ay: fn(double): double, by: fn(double): double, az: fn(double, double): double, bz: fn(double, double): double, n: int): double {
+    let xData: ArrayList<double> = gaussLegendreData(n);
+    let yData: ArrayList<double> = gaussLegendreData(n);
+    let zData: ArrayList<double> = gaussLegendreData(n);
+    let halfXLen: double = (bx - ax) / 2.0;
+    let midX: double = (ax + bx) / 2.0;
+
+    var totalSum: double = 0.0;
+    var xi: int = 0;
+    while (xi < xData.size()) {
+        let xNode: double = xData.get(xi);
+        let xWeight: double = xData.get(xi + 1);
+        let x: double = midX + halfXLen * xNode;
+
+        let ayVal: double = ay(x);
+        let byVal: double = by(x);
+        let halfYLen: double = (byVal - ayVal) / 2.0;
+        let midY: double = (ayVal + byVal) / 2.0;
+
+        var ySum: double = 0.0;
+        var yi: int = 0;
+        while (yi < yData.size()) {
+            let yNode: double = yData.get(yi);
+            let yWeight: double = yData.get(yi + 1);
+            let y: double = midY + halfYLen * yNode;
+
+            let azVal: double = az(x, y);
+            let bzVal: double = bz(x, y);
+            let halfZLen: double = (bzVal - azVal) / 2.0;
+            let midZ: double = (azVal + bzVal) / 2.0;
+
+            var zSum: double = 0.0;
+            var zi: int = 0;
+            while (zi < zData.size()) {
+                let zNode: double = zData.get(zi);
+                let zWeight: double = zData.get(zi + 1);
+                let z: double = midZ + halfZLen * zNode;
+                zSum = zSum + zWeight * f(x, y, z);
+                zi = zi + 2;
+            }
+
+            ySum = ySum + yWeight * zSum * halfZLen;
+            yi = yi + 2;
+        }
+
+        totalSum = totalSum + xWeight * ySum * halfYLen;
+        xi = xi + 2;
+    }
+
+    return totalSum * halfXLen;
+}
