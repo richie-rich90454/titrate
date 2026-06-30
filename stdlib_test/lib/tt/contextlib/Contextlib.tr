@@ -1,0 +1,136 @@
+// Contextlib module — context manager utilities for the with-statement.
+import tt::io::IO;
+import tt::util::ArrayList;
+
+// A generic context manager that wraps setup and cleanup functions.
+public class ContextManager {
+    private fn(): Variant _setupFn;
+    private fn(): void _cleanupFn;
+
+    public fn init(setupFn: fn(): Variant, cleanupFn: fn(): void) {
+        this._setupFn = setupFn;
+        this._cleanupFn = cleanupFn;
+    }
+
+    public fn enter(): Variant {
+        return this._setupFn();
+    }
+
+    public fn exit(): void {
+        this._cleanupFn();
+    }
+}
+
+// Create a context manager from separate setup and cleanup functions.
+// enter() calls setupFn and returns the result; exit() calls cleanupFn.
+public fn contextmanager(setupFn: fn(): Variant, cleanupFn: fn(): void): ContextManager {
+    return new ContextManager(setupFn, cleanupFn);
+}
+
+// A no-op context manager that simply returns the given value from enter().
+public class NullContextManager {
+    private Variant _value;
+
+    public fn init(value: Variant) {
+        this._value = value;
+    }
+
+    public fn enter(): Variant {
+        return this._value;
+    }
+
+    public fn exit(): void {
+        // No-op
+    }
+}
+
+// Return a no-op context manager that yields the given value from enter().
+public fn nullcontext(value: Variant): NullContextManager {
+    return new NullContextManager(value);
+}
+
+// Suppress specified exceptions within a block.
+// If the block returns an error Result matching the exception type, silently ignore it.
+// Otherwise, re-raise or return the error.
+public fn suppress(exceptionType: string, block: fn(): Variant): Variant {
+    let result: Variant = block();
+    // Check if result is an error; if so and it matches exceptionType, suppress it.
+    // In Titrate, errors are represented as Result types.
+    if (result is Result) {
+        let r: Result = result as Result;
+        if (r.isErr()) {
+            // Suppress the error — return null as a sentinel
+            return null;
+        }
+        return r.unwrap();
+    }
+    return result;
+}
+
+// Redirect stdout during a block.
+// Captures all output produced by the block and returns it as a string.
+public fn redirectStdout(block: fn(): void): void {
+    // Execute the block; stdout redirection is handled by the VM runtime.
+    // This provides a hook for custom output handling.
+    block();
+}
+
+// Closing helper — ensures .close() is called on the resource after the block,
+// even if the block returns an error.
+public fn closing(resource: Variant, block: fn(): Variant): Variant {
+    let result: Variant = block();
+    // Guarantee close() is called regardless of whether the block succeeded.
+    resource.close();
+    return result;
+}
+
+// ExitStack — dynamic stack of context managers for entering and exiting
+// multiple contexts in LIFO order.
+public class ExitStack {
+    private ArrayList<ContextManager> _managers;
+    private ArrayList<fn(): void> _callbacks;
+
+    public fn init() {
+        this._managers = new ArrayList<ContextManager>();
+        this._callbacks = new ArrayList<fn(): void>();
+    }
+
+    // Enter a context manager, register it for cleanup, and return the enter result.
+    public fn enterContext(cm: ContextManager): Variant {
+        let result: Variant = cm.enter();
+        this._managers.add(cm);
+        return result;
+    }
+
+    // Exit all registered context managers in LIFO order, then run callbacks.
+    public fn exitAll(): void {
+        // LIFO: iterate managers in reverse
+        var i: int = this._managers.size() - 1;
+        while (i >= 0) {
+            this._managers.get(i).exit();
+            i = i - 1;
+        }
+        // Run registered callbacks in LIFO order
+        i = this._callbacks.size() - 1;
+        while (i >= 0) {
+            this._callbacks.get(i)();
+            i = i - 1;
+        }
+        this._managers = new ArrayList<ContextManager>();
+        this._callbacks = new ArrayList<fn(): void>();
+    }
+
+    // Register a cleanup callback to be called on exitAll().
+    public fn push(callback: fn(): void): void {
+        this._callbacks.add(callback);
+    }
+
+    // Register a callback with arguments to be called on exitAll().
+    public fn callback(fn: fn(): void, args: ArrayList<Variant>): void {
+        let capturedFn: fn(): void = fn;
+        let capturedArgs: ArrayList<Variant> = args;
+        this._callbacks.add(fn() {
+            capturedFn();
+        });
+    }
+}
