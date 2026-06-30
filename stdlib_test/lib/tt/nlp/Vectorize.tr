@@ -1,0 +1,175 @@
+// Vectorize.tr — Bag-of-words, TF-IDF, hashing vectorizer
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::String;
+import tt::math::MathAdvanced;
+
+public class Vocabulary {
+    public HashMap<string, int> wordToIdx;
+    public ArrayList<string> idxToWord;
+    public int size;
+
+    public fn init() {
+        this.wordToIdx = new HashMap<string, int>();
+        this.idxToWord = new ArrayList<string>();
+        this.size = 0;
+    }
+
+    public fn add(word: string): void {
+        if (!this.wordToIdx.containsKey(word)) {
+            this.wordToIdx.put(word, this.size);
+            this.idxToWord.add(word);
+            this.size = this.size + 1;
+        }
+    }
+
+    public fn getIndex(word: string): int {
+        if (this.wordToIdx.containsKey(word)) {
+            return this.wordToIdx.get(word);
+        }
+        return -1;
+    }
+}
+
+// Build vocabulary from documents
+public fn buildVocabulary(documents: ArrayList<ArrayList<string>>, minFreq: int): Vocabulary {
+    let vocab: Vocabulary = new Vocabulary();
+    let freq: HashMap<string, int> = new HashMap<string, int>();
+    var d: int = 0;
+    while (d < documents.size()) {
+        var i: int = 0;
+        while (i < documents.get(d).size()) {
+            let word: string = documents.get(d).get(i);
+            if (freq.containsKey(word)) {
+                freq.put(word, freq.get(word) + 1);
+            } else {
+                freq.put(word, 1);
+            }
+            i = i + 1;
+        }
+        d = d + 1;
+    }
+    let words: ArrayList<string> = freq.keys();
+    var i: int = 0;
+    while (i < words.size()) {
+        if (freq.get(words.get(i)) >= minFreq) {
+            vocab.add(words.get(i));
+        }
+        i = i + 1;
+    }
+    return vocab;
+}
+
+// Bag-of-words vector
+public fn bagOfWords(document: ArrayList<string>, vocab: Vocabulary): ArrayList<double> {
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < vocab.size) {
+        result.add(0.0);
+        i = i + 1;
+    }
+    i = 0;
+    while (i < document.size()) {
+        let idx: int = vocab.getIndex(document.get(i));
+        if (idx >= 0) {
+            result.set(idx, result.get(idx) + 1.0);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+// TF-IDF vectorizer
+public class TfidfVectorizer {
+    public Vocabulary vocab;
+    public ArrayList<double> idf;
+
+    public fn init() {
+        this.vocab = new Vocabulary();
+        this.idf = new ArrayList<double>();
+    }
+
+    public fn fit(documents: ArrayList<ArrayList<string>>): void {
+        this.vocab = buildVocabulary(documents, 1);
+        let n: int = documents.size();
+        // Compute document frequency
+        let df: ArrayList<int> = new ArrayList<int>();
+        var i: int = 0;
+        while (i < this.vocab.size) {
+            df.add(0);
+            i = i + 1;
+        }
+        var d: int = 0;
+        while (d < n) {
+            let seen: HashMap<string, bool> = new HashMap<string, bool>();
+            var j: int = 0;
+            while (j < documents.get(d).size()) {
+                let word: string = documents.get(d).get(j);
+                let idx: int = this.vocab.getIndex(word);
+                if (idx >= 0 && !seen.containsKey(word)) {
+                    df.set(idx, df.get(idx) + 1);
+                    seen.put(word, true);
+                }
+                j = j + 1;
+            }
+            d = d + 1;
+        }
+        // Compute IDF
+        this.idf = new ArrayList<double>();
+        i = 0;
+        while (i < this.vocab.size) {
+            if (df.get(i) > 0) {
+                this.idf.add(MathAdvanced.ln(n as double / df.get(i) as double) + 1.0);
+            } else {
+                this.idf.add(0.0);
+            }
+            i = i + 1;
+        }
+    }
+
+    public fn transform(document: ArrayList<string>): ArrayList<double> {
+        let bow: ArrayList<double> = bagOfWords(document, this.vocab);
+        let result: ArrayList<double> = new ArrayList<double>();
+        var i: int = 0;
+        while (i < bow.size()) {
+            let tf: double = bow.get(i) / document.size() as double;
+            result.add(tf * this.idf.get(i));
+            i = i + 1;
+        }
+        // L2 normalize
+        var norm: double = 0.0;
+        i = 0;
+        while (i < result.size()) {
+            norm = norm + result.get(i) * result.get(i);
+            i = i + 1;
+        }
+        norm = MathAdvanced.sqrt(norm);
+        if (norm > 0.0) {
+            i = 0;
+            while (i < result.size()) {
+                result.set(i, result.get(i) / norm);
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+}
+
+// TF-IDF computation from raw text corpus
+public fn tfidf(corpus: ArrayList<string>): ArrayList<ArrayList<double>> {
+    let tokenized: ArrayList<ArrayList<string>> = new ArrayList<ArrayList<string>>();
+    var i: int = 0;
+    while (i < corpus.size()) {
+        tokenized.add(String.split(String.toLowerCase(corpus.get(i)), " "));
+        i = i + 1;
+    }
+    let vectorizer: TfidfVectorizer = new TfidfVectorizer();
+    vectorizer.fit(tokenized);
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    i = 0;
+    while (i < tokenized.size()) {
+        result.add(vectorizer.transform(tokenized.get(i)));
+        i = i + 1;
+    }
+    return result;
+}
