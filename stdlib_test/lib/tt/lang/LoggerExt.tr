@@ -1,0 +1,288 @@
+// LoggerExt — extended logging utilities: JSON formatter, syslog handler, email handler, rotating handler, per-level logger.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Variant;
+import tt::lang::Integer;
+import tt::lang::Double;
+import tt::net::SmtpClient;
+
+// Create a JSON formatter instance with pretty-printing disabled by default.
+public fn jsonFormatter(): JsonFormatter {
+    return new JsonFormatter(false);
+}
+
+// JsonFormatter formats log records as JSON strings.
+public class JsonFormatter {
+    public bool pretty;
+
+    public fn init(pretty: bool) {
+        this.pretty = pretty;
+    }
+
+    // Format a log record as a JSON string.
+    public fn format(level: string, message: string, context: HashMap): string {
+        let sb: string = "{";
+        if (this.pretty) { sb = sb + "\n"; }
+        sb = sb + _jsonKey("level") + _jsonVal(level);
+        sb = sb + "," + (this.pretty ? "\n  " : " ");
+        sb = sb + _jsonKey("message") + _jsonVal(message);
+        if (context != null) {
+            let keys: ArrayList<string> = context.keys();
+            var i: int = 0;
+            while (i < keys.size()) {
+                let key: string = keys.get(i);
+                let val: Variant = context.get(key);
+                sb = sb + "," + (this.pretty ? "\n  " : " ");
+                sb = sb + _jsonKey(key) + _jsonVal(val.toString());
+                i = i + 1;
+            }
+        }
+        if (this.pretty) { sb = sb + "\n"; }
+        sb = sb + "}";
+        return sb;
+    }
+}
+
+// Helper to produce a JSON key.
+fn _jsonKey(key: string): string {
+    return "\"" + key + "\": ";
+}
+
+// Helper to produce a JSON string value.
+fn _jsonVal(val: string): string {
+    return "\"" + val + "\"";
+}
+
+// SyslogHandler sends log messages to a syslog server over UDP.
+public class SyslogHandler {
+    public string host;
+    public int port;
+    public string facility;
+
+    public fn init(host: string, port: int) {
+        this.host = host;
+        this.port = port;
+        this.facility = "user";
+    }
+
+    // Send a log message to the syslog server.
+    public fn send(level: string, message: string): void {
+        let priority: int = _facilityCode(this.facility) * 8 + _levelCode(level);
+        let packet: string = "<" + Integer.toString(priority) + ">" + message;
+        Udp_send(this.host, this.port, packet);
+    }
+}
+
+// Map facility name to syslog facility code.
+fn _facilityCode(facility: string): int {
+    if (facility == "kern") { return 0; }
+    if (facility == "user") { return 1; }
+    if (facility == "mail") { return 2; }
+    if (facility == "daemon") { return 3; }
+    if (facility == "auth") { return 4; }
+    if (facility == "syslog") { return 5; }
+    if (facility == "lpr") { return 6; }
+    if (facility == "news") { return 7; }
+    return 1;
+}
+
+// Map level name to syslog severity code.
+fn _levelCode(level: string): int {
+    if (level == "DEBUG") { return 7; }
+    if (level == "INFO") { return 6; }
+    if (level == "WARNING") { return 4; }
+    if (level == "ERROR") { return 3; }
+    if (level == "CRITICAL") { return 2; }
+    return 6;
+}
+
+// RotatingHandler writes log messages to a file, rotating when the file exceeds a size limit.
+public class RotatingHandler {
+    public string filePath;
+    public long maxSize;
+    public int backupCount;
+    public long currentSize;
+
+    public fn init(filePath: string, maxSize: long, backupCount: int) {
+        this.filePath = filePath;
+        this.maxSize = maxSize;
+        this.backupCount = backupCount;
+        this.currentSize = 0;
+    }
+
+    // Write a message to the log file, rotating if necessary.
+    public fn write(message: string): void {
+        if (this.shouldRotate()) {
+            this._doRotate();
+        }
+        File_append(this.filePath, message + "\n");
+        this.currentSize = this.currentSize + String.length(message) + 1;
+    }
+
+    // Check whether the log file should be rotated.
+    public fn shouldRotate(): bool {
+        return this.currentSize >= this.maxSize;
+    }
+
+    // Perform log file rotation.
+    private fn _doRotate(): void {
+        // Delete the oldest backup if it exists
+        let oldest: string = this.filePath + "." + Integer.toString(this.backupCount);
+        if (Fs_exists(oldest)) {
+            File_delete(oldest);
+        }
+        // Shift existing backups
+        var i: int = this.backupCount - 1;
+        while (i >= 1) {
+            let src: string = this.filePath + "." + Integer.toString(i);
+            let dst: string = this.filePath + "." + Integer.toString(i + 1);
+            if (Fs_exists(src)) {
+                Os_replace(src, dst);
+            }
+            i = i - 1;
+        }
+        // Rename current file to .1
+        if (Fs_exists(this.filePath)) {
+            Os_replace(this.filePath, this.filePath + ".1");
+        }
+        this.currentSize = 0;
+    }
+}
+
+// EmailHandler sends log messages via email using an SMTP client.
+public class EmailHandler {
+    public string smtpHost;
+    public int smtpPort;
+    public string from;
+    public ArrayList<string> to;
+    public string subjectPrefix;
+    public string username;
+    public string password;
+    public SmtpClient client;
+
+    public fn init(host: string, port: int, from: string, to: ArrayList<string>) {
+        this.smtpHost = host;
+        this.smtpPort = port;
+        this.from = from;
+        this.to = to;
+        this.subjectPrefix = "[Log]";
+        this.username = "";
+        this.password = "";
+        this.client = new SmtpClient(host, port);
+    }
+
+    // Set credentials for SMTP authentication.
+    public fn setCredentials(username: string, password: string): void {
+        this.username = username;
+        this.password = password;
+    }
+
+    // Set the subject prefix for outgoing log emails.
+    public fn setSubjectPrefix(prefix: string): void {
+        this.subjectPrefix = prefix;
+    }
+
+    // Send a log message via email.
+    public fn send(level: string, message: string): void {
+        if (!this.client.connected) {
+            this.client.connect();
+            if (this.username != "") {
+                this.client.authenticate(this.username, this.password);
+            }
+        }
+        let subject: string = this.subjectPrefix + " " + level;
+        this.client.send(this.from, this.to, subject, "[" + level + "] " + message);
+    }
+}
+
+// PerLevelLogger dispatches log messages to different handlers based on log level.
+public class PerLevelLogger {
+    public HashMap<string, ArrayList<Variant>> handlers;
+    public HashMap<string, int> levels;
+
+    public fn init() {
+        this.handlers = new HashMap<string, ArrayList<Variant>>();
+        this.levels = new HashMap<string, int>();
+        this.levels.put("DEBUG", 10);
+        this.levels.put("INFO", 20);
+        this.levels.put("WARNING", 30);
+        this.levels.put("ERROR", 40);
+        this.levels.put("CRITICAL", 50);
+    }
+
+    // Add a handler for a specific log level.
+    public fn addHandler(level: string, handler: Variant): void {
+        if (this.handlers.containsKey(level)) {
+            this.handlers.get(level).add(handler);
+        } else {
+            let list: ArrayList<Variant> = new ArrayList<Variant>();
+            list.add(handler);
+            this.handlers.put(level, list);
+        }
+    }
+
+    // Log a message at the specified level by dispatching to all handlers for that level.
+    public fn log(level: string, message: string): void {
+        if (this.handlers.containsKey(level)) {
+            let levelHandlers: ArrayList<Variant> = this.handlers.get(level);
+            var i: int = 0;
+            while (i < levelHandlers.size()) {
+                let handler: Variant = levelHandlers.get(i);
+                if (handler is SyslogHandler) {
+                    let sh: SyslogHandler = handler as SyslogHandler;
+                    sh.send(level, message);
+                } else if (handler is RotatingHandler) {
+                    let rh: RotatingHandler = handler as RotatingHandler;
+                    rh.write("[" + level + "] " + message);
+                } else if (handler is EmailHandler) {
+                    let eh: EmailHandler = handler as EmailHandler;
+                    eh.send(level, message);
+                }
+                i = i + 1;
+            }
+        }
+    }
+}
+
+// AsyncHandler buffers log messages and writes them in batches to a wrapped handler.
+public class AsyncHandler {
+    public ArrayList<string> buffer;
+    public Variant wrappedHandler;
+    public int bufferSize;
+
+    public fn init(handler: Variant, size: int) {
+        this.buffer = new ArrayList<string>();
+        this.wrappedHandler = handler;
+        this.bufferSize = size;
+    }
+
+    // Add a message to the buffer. Flushes automatically when the buffer is full.
+    public fn log(level: string, message: string): void {
+        this.buffer.add("[" + level + "] " + message);
+        if (this.buffer.size() >= this.bufferSize) {
+            this.flush();
+        }
+    }
+
+    // Flush all buffered messages to the wrapped handler.
+    public fn flush(): void {
+        var i: int = 0;
+        while (i < this.buffer.size()) {
+            let entry: string = this.buffer.get(i);
+            if (this.wrappedHandler is SyslogHandler) {
+                let sh: SyslogHandler = this.wrappedHandler as SyslogHandler;
+                sh.send("INFO", entry);
+            } else if (this.wrappedHandler is RotatingHandler) {
+                let rh: RotatingHandler = this.wrappedHandler as RotatingHandler;
+                rh.write(entry);
+            } else if (this.wrappedHandler is EmailHandler) {
+                let eh: EmailHandler = this.wrappedHandler as EmailHandler;
+                eh.send("INFO", entry);
+            } else {
+                io::println(entry);
+            }
+            i = i + 1;
+        }
+        this.buffer.clear();
+    }
+}
