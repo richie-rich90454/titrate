@@ -1,0 +1,176 @@
+// Test file for statistics/Kde.tr
+// Exercises the public API of the Kde module: kdeGaussian, silvermanBandwidth,
+// scottBandwidth, kdeEvaluate, and kdeGrid.
+import tt::statistics::Kde;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_kdeEvaluate_basic(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(0.0); data.add(0.0); data.add(0.0);
+    let v: double = kdeEvaluate(data, 1.0, 0.0);
+    // Peak at the data point; should be positive
+    if (v <= 0.0) {
+        io::println("FAIL: kdeEvaluate at data point should be positive");
+    } else {
+        io::println("PASS: kdeEvaluate returns positive at data point");
+    }
+}
+
+public fn test_kdeEvaluate_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let v: double = kdeEvaluate(data, 1.0, 0.0);
+    if (v != 0.0) {
+        io::println("FAIL: kdeEvaluate on empty should return 0");
+    } else {
+        io::println("PASS: kdeEvaluate on empty returns 0");
+    }
+}
+
+public fn test_kdeEvaluate_zero_bandwidth(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0);
+    let v: double = kdeEvaluate(data, 0.0, 1.5);
+    if (v != 0.0) {
+        io::println("FAIL: kdeEvaluate with bandwidth=0 should return 0");
+    } else {
+        io::println("PASS: kdeEvaluate with bandwidth=0 returns 0");
+    }
+}
+
+public fn test_kdeEvaluate_symmetric(): void {
+    // Symmetric data around 0: [-1, 1]. Density at -x should equal density at x.
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(-1.0); data.add(1.0);
+    let vPos: double = kdeEvaluate(data, 1.0, 0.5);
+    let vNeg: double = kdeEvaluate(data, 1.0, -0.5);
+    if (Math.abs(vPos - vNeg) > 1e-9) {
+        io::println("FAIL: kdeEvaluate should be symmetric for symmetric data");
+    } else {
+        io::println("PASS: kdeEvaluate symmetric for symmetric data");
+    }
+}
+
+public fn test_kdeGaussian_returns_points(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = kdeGaussian(data, 1.0, 20);
+    if (result.size() != 20) {
+        io::println("FAIL: kdeGaussian size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: kdeGaussian returns requested number of points");
+    }
+}
+
+public fn test_kdeGaussian_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = kdeGaussian(data, 1.0, 20);
+    if (result.size() != 0) {
+        io::println("FAIL: kdeGaussian on empty should return empty");
+    } else {
+        io::println("PASS: kdeGaussian on empty returns empty");
+    }
+}
+
+public fn test_kdeGaussian_nonneg(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let result: ArrayList<double> = kdeGaussian(data, 0.5, 15);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < result.size()) {
+        if (result.get(i) < 0.0) { ok = false; break; }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: kdeGaussian has negative density value");
+    } else {
+        io::println("PASS: kdeGaussian values non-negative");
+    }
+}
+
+public fn test_silvermanBandwidth_positive(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let bw: double = silvermanBandwidth(data);
+    if (bw <= 0.0) {
+        io::println("FAIL: silvermanBandwidth should be positive");
+    } else {
+        io::println("PASS: silvermanBandwidth returns positive");
+    }
+}
+
+public fn test_silvermanBandwidth_single(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    let bw: double = silvermanBandwidth(data);
+    if (bw != 1.0) {
+        io::println("FAIL: silvermanBandwidth on single observation should be 1.0");
+    } else {
+        io::println("PASS: silvermanBandwidth on single returns 1.0");
+    }
+}
+
+public fn test_scottBandwidth_positive(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let bw: double = scottBandwidth(data);
+    if (bw <= 0.0) {
+        io::println("FAIL: scottBandwidth should be positive");
+    } else {
+        io::println("PASS: scottBandwidth returns positive");
+    }
+}
+
+public fn test_scottBandwidth_single(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0);
+    let bw: double = scottBandwidth(data);
+    if (bw != 1.0) {
+        io::println("FAIL: scottBandwidth on single observation should be 1.0");
+    } else {
+        io::println("PASS: scottBandwidth on single returns 1.0");
+    }
+}
+
+public fn test_kdeGrid_returns_two_arrays(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let result: ArrayList<ArrayList<double>> = kdeGrid(data, 0.5, 0.0, 4.0, 10);
+    if (result.size() != 2) {
+        io::println("FAIL: kdeGrid should return [xs, ys]");
+    } else if (result.get(0).size() != 10 || result.get(1).size() != 10) {
+        io::println("FAIL: kdeGrid arrays should have n entries");
+    } else {
+        io::println("PASS: kdeGrid returns [xs, ys] of length n");
+    }
+}
+
+public fn test_kdeGrid_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<ArrayList<double>> = kdeGrid(data, 0.5, 0.0, 4.0, 10);
+    if (result.size() != 2) {
+        io::println("FAIL: kdeGrid on empty should still return 2 arrays");
+    } else if (result.get(0).size() != 0 || result.get(1).size() != 0) {
+        io::println("FAIL: kdeGrid on empty should return empty arrays");
+    } else {
+        io::println("PASS: kdeGrid on empty returns [empty, empty]");
+    }
+}
+
+public fn run_all_kde_tests(): void {
+    io::println("=== Kde.tr Tests ===");
+    test_kdeEvaluate_basic();
+    test_kdeEvaluate_empty();
+    test_kdeEvaluate_zero_bandwidth();
+    test_kdeEvaluate_symmetric();
+    test_kdeGaussian_returns_points();
+    test_kdeGaussian_empty();
+    test_kdeGaussian_nonneg();
+    test_silvermanBandwidth_positive();
+    test_silvermanBandwidth_single();
+    test_scottBandwidth_positive();
+    test_scottBandwidth_single();
+    test_kdeGrid_returns_two_arrays();
+    test_kdeGrid_empty();
+}

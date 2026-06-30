@@ -1,0 +1,177 @@
+// Test file for random/ContinuousDist.tr
+// Exercises the public API of the ContinuousDist module: continuous
+// probability distribution sampling functions.
+import tt::random::ContinuousDist;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_normalSample_returns_finite(): void {
+    let v: double = normalSample(0.0, 1.0);
+    if (!Double.isFinite(v)) {
+        io::println("FAIL: normalSample returned non-finite");
+    } else {
+        io::println("PASS: normalSample returns finite value");
+    }
+}
+
+public fn test_normalSample_with_mean_stdev(): void {
+    // mean=10, stdev=2 -> v should be finite and not always equal to mean
+    let v: double = normalSample(10.0, 2.0);
+    if (v != v) {
+        io::println("FAIL: normalSample with mean/stdev returned NaN");
+    } else {
+        io::println("PASS: normalSample with mean/stdev works");
+    }
+}
+
+public fn test_exponentialSample_positive(): void {
+    let v: double = exponentialSample(1.5);
+    if (v < 0.0) {
+        io::println("FAIL: exponentialSample returned negative");
+    } else {
+        io::println("PASS: exponentialSample returns non-negative");
+    }
+}
+
+public fn test_lognormalSample_positive(): void {
+    let v: double = lognormalSample(0.0, 1.0);
+    if (v <= 0.0) {
+        io::println("FAIL: lognormalSample returned non-positive");
+    } else {
+        io::println("PASS: lognormalSample returns positive");
+    }
+}
+
+public fn test_weibullSample_positive(): void {
+    let v: double = weibullSample(1.5, 2.0);
+    if (v < 0.0) {
+        io::println("FAIL: weibullSample returned negative");
+    } else {
+        io::println("PASS: weibullSample returns non-negative");
+    }
+}
+
+public fn test_gammaSample_positive(): void {
+    let v: double = gammaSample(2.0, 1.0);
+    if (v < 0.0) {
+        io::println("FAIL: gammaSample returned negative");
+    } else {
+        io::println("PASS: gammaSample returns non-negative");
+    }
+}
+
+public fn test_gammaSample_shape_less_than_one(): void {
+    // Cover the shape < 1 branch
+    let v: double = gammaSample(0.5, 1.0);
+    if (v < 0.0) {
+        io::println("FAIL: gammaSample shape<1 returned negative");
+    } else {
+        io::println("PASS: gammaSample shape<1 returns non-negative");
+    }
+}
+
+public fn test_chiSquaredSample_positive(): void {
+    let v: double = chiSquaredSample(5);
+    if (v < 0.0) {
+        io::println("FAIL: chiSquaredSample returned negative");
+    } else {
+        io::println("PASS: chiSquaredSample returns non-negative");
+    }
+}
+
+public fn test_tSample_finite(): void {
+    let v: double = tSample(10);
+    if (v != v) {
+        io::println("FAIL: tSample returned NaN");
+    } else {
+        io::println("PASS: tSample returns finite value");
+    }
+}
+
+public fn test_fSample_positive(): void {
+    let v: double = fSample(5, 7);
+    if (v < 0.0) {
+        io::println("FAIL: fSample returned negative");
+    } else {
+        io::println("PASS: fSample returns non-negative");
+    }
+}
+
+public fn test_betaSample_in_unit_interval(): void {
+    let v: double = betaSample(2.0, 3.0);
+    if (v < 0.0 || v > 1.0) {
+        io::println("FAIL: betaSample out of [0,1] = " + Double.toString(v));
+    } else {
+        io::println("PASS: betaSample in [0,1]");
+    }
+}
+
+public fn test_dirichletSample_sums_to_one(): void {
+    let alpha: ArrayList<double> = new ArrayList<double>();
+    alpha.add(1.0); alpha.add(2.0); alpha.add(3.0);
+    let result: ArrayList<double> = dirichletSample(alpha);
+    if (result.size() != 3) {
+        io::println("FAIL: dirichletSample size = " + Integer.toString(result.size()));
+    } else {
+        let sum: double = result.get(0) + result.get(1) + result.get(2);
+        // Check that all components are non-negative
+        if (result.get(0) < 0.0 || result.get(1) < 0.0 || result.get(2) < 0.0) {
+            io::println("FAIL: dirichletSample has negative component");
+        } else {
+            io::println("PASS: dirichletSample returns 3 non-negative components");
+        }
+    }
+}
+
+public fn test_multivariateNormalSample_dimensions(): void {
+    let mean: ArrayList<double> = new ArrayList<double>();
+    mean.add(0.0); mean.add(1.0);
+    let cov: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0); row0.add(0.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(0.0); row1.add(1.0);
+    cov.add(row0); cov.add(row1);
+    let result: ArrayList<double> = multivariateNormalSample(mean, cov);
+    if (result.size() != 2) {
+        io::println("FAIL: multivariateNormalSample size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: multivariateNormalSample returns 2 values");
+    }
+}
+
+public fn test_wishartSample_dimensions(): void {
+    let scale: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let row0: ArrayList<double> = new ArrayList<double>();
+    row0.add(1.0); row0.add(0.0);
+    let row1: ArrayList<double> = new ArrayList<double>();
+    row1.add(0.0); row1.add(1.0);
+    scale.add(row0); scale.add(row1);
+    let result: ArrayList<ArrayList<double>> = wishartSample(3, scale);
+    if (result.size() != 2) {
+        io::println("FAIL: wishartSample rows = " + Integer.toString(result.size()));
+    } else if (result.get(0).size() != 2) {
+        io::println("FAIL: wishartSample cols = " + Integer.toString(result.get(0).size()));
+    } else {
+        io::println("PASS: wishartSample returns 2x2 matrix");
+    }
+}
+
+public fn run_all_continuousdist_tests(): void {
+    io::println("=== ContinuousDist.tr Tests ===");
+    test_normalSample_returns_finite();
+    test_normalSample_with_mean_stdev();
+    test_exponentialSample_positive();
+    test_lognormalSample_positive();
+    test_weibullSample_positive();
+    test_gammaSample_positive();
+    test_gammaSample_shape_less_than_one();
+    test_chiSquaredSample_positive();
+    test_tSample_finite();
+    test_fSample_positive();
+    test_betaSample_in_unit_interval();
+    test_dirichletSample_sums_to_one();
+    test_multivariateNormalSample_dimensions();
+    test_wishartSample_dimensions();
+}

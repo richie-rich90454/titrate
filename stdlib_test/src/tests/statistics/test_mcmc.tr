@@ -1,0 +1,203 @@
+// Test file for statistics/Mcmc.tr
+// Exercises the public API of the Mcmc module: metropolisHastings, gibbsSampler,
+// rhat, effectiveSampleSize, and autocorrelation.
+import tt::statistics::Mcmc;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+// Target: standard normal log-density (up to a constant).
+fn normalLogDensity(x: double): double {
+    return -0.5 * x * x;
+}
+
+// Proposal: random walk with step 0.5 around current state.
+// Deterministic-shift proposal for reproducibility: nudge by 0.1.
+fn fixedProposal(x: double): double {
+    return x + 0.1;
+}
+
+// Conditional sampler for Gibbs: returns first coordinate's value.
+fn returnFirst(state: ArrayList<double>): double {
+    if (state.size() == 0) { return 0.0; }
+    return state.get(0);
+}
+
+public fn test_metropolisHastings_returns_samples(): void {
+    let samples: ArrayList<double> = metropolisHastings(normalLogDensity, fixedProposal, 0.0, 100, 10);
+    // 100 iterations - 10 burn-in = 90 samples
+    if (samples.size() != 90) {
+        io::println("FAIL: metropolisHastings size = " + Integer.toString(samples.size()));
+    } else {
+        io::println("PASS: metropolisHastings returns iterations - burnIn samples");
+    }
+}
+
+public fn test_metropolisHastings_zero_burnin(): void {
+    let samples: ArrayList<double> = metropolisHastings(normalLogDensity, fixedProposal, 0.0, 50, 0);
+    if (samples.size() != 50) {
+        io::println("FAIL: metropolisHastings with 0 burnIn should return all iterations");
+    } else {
+        io::println("PASS: metropolisHastings with 0 burnIn returns all");
+    }
+}
+
+public fn test_metropolisHastings_zero_iterations(): void {
+    let samples: ArrayList<double> = metropolisHastings(normalLogDensity, fixedProposal, 0.0, 0, 0);
+    if (samples.size() != 0) {
+        io::println("FAIL: metropolisHastings with 0 iterations should be empty");
+    } else {
+        io::println("PASS: metropolisHastings with 0 iterations returns empty");
+    }
+}
+
+public fn test_metropolisHastings_full_burnin(): void {
+    let samples: ArrayList<double> = metropolisHastings(normalLogDensity, fixedProposal, 0.0, 50, 50);
+    if (samples.size() != 0) {
+        io::println("FAIL: metropolisHastings with burnIn=iterations should be empty");
+    } else {
+        io::println("PASS: metropolisHastings with burnIn=iterations returns empty");
+    }
+}
+
+public fn test_gibbsSampler_returns_chains(): void {
+    let samplers: ArrayList<fn(ArrayList<double>): double> = new ArrayList<fn(ArrayList<double>): double>();
+    samplers.add(fn(state: ArrayList<double>): double { return 1.0; });
+    samplers.add(fn(state: ArrayList<double>): double { return 2.0; });
+    let initial: ArrayList<double> = new ArrayList<double>();
+    initial.add(0.0); initial.add(0.0);
+    let chains: ArrayList<ArrayList<double>> = gibbsSampler(samplers, initial, 100, 10);
+    if (chains.size() != 90) {
+        io::println("FAIL: gibbsSampler size = " + Integer.toString(chains.size()));
+    } else if (chains.get(0).size() != 2) {
+        io::println("FAIL: gibbsSampler dimension = " + Integer.toString(chains.get(0).size()));
+    } else {
+        io::println("PASS: gibbsSampler returns iterations - burnIn chains");
+    }
+}
+
+public fn test_rhat_single_chain(): void {
+    let chains: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let chain: ArrayList<double> = new ArrayList<double>();
+    chain.add(1.0); chain.add(2.0); chain.add(3.0);
+    chains.add(chain);
+    let r: double = rhat(chains);
+    if (r != 1.0) {
+        io::println("FAIL: rhat with <2 chains should return 1.0");
+    } else {
+        io::println("PASS: rhat with single chain returns 1.0");
+    }
+}
+
+public fn test_rhat_two_chains(): void {
+    let chains: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let chain1: ArrayList<double> = new ArrayList<double>();
+    chain1.add(1.0); chain1.add(2.0); chain1.add(3.0); chain1.add(4.0);
+    let chain2: ArrayList<double> = new ArrayList<double>();
+    chain2.add(1.5); chain2.add(2.5); chain2.add(3.5); chain2.add(4.5);
+    chains.add(chain1); chains.add(chain2);
+    let r: double = rhat(chains);
+    // For similar chains rhat should be close to 1
+    if (r < 0.5 || r > 2.0) {
+        io::println("FAIL: rhat for similar chains out of expected range = " + Double.toString(r));
+    } else {
+        io::println("PASS: rhat for similar chains in reasonable range");
+    }
+}
+
+public fn test_rhat_identical_chains(): void {
+    let chains: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let chain1: ArrayList<double> = new ArrayList<double>();
+    chain1.add(1.0); chain1.add(2.0); chain1.add(3.0); chain1.add(4.0);
+    let chain2: ArrayList<double> = new ArrayList<double>();
+    chain2.add(1.0); chain2.add(2.0); chain2.add(3.0); chain2.add(4.0);
+    chains.add(chain1); chains.add(chain2);
+    let r: double = rhat(chains);
+    // Identical chains -> W=0 -> returns 1.0 by the special case in source
+    if (r != 1.0) {
+        io::println("FAIL: rhat for identical chains should be 1.0");
+    } else {
+        io::println("PASS: rhat for identical chains returns 1.0");
+    }
+}
+
+public fn test_autocorrelation_basic(): void {
+    let samples: ArrayList<double> = new ArrayList<double>();
+    samples.add(1.0); samples.add(2.0); samples.add(3.0); samples.add(4.0); samples.add(5.0);
+    let acf: ArrayList<double> = autocorrelation(samples, 3);
+    if (acf.size() != 4) {
+        io::println("FAIL: autocorrelation size = " + Integer.toString(acf.size()));
+    } else if (Math.abs(acf.get(0) - 1.0) > 1e-9) {
+        io::println("FAIL: autocorrelation at lag 0 should be 1.0");
+    } else {
+        io::println("PASS: autocorrelation returns maxLag+1 entries, lag0=1.0");
+    }
+}
+
+public fn test_autocorrelation_empty(): void {
+    let samples: ArrayList<double> = new ArrayList<double>();
+    let acf: ArrayList<double> = autocorrelation(samples, 3);
+    if (acf.size() != 0) {
+        io::println("FAIL: autocorrelation on empty should return empty");
+    } else {
+        io::println("PASS: autocorrelation on empty returns empty");
+    }
+}
+
+public fn test_autocorrelation_constant(): void {
+    let samples: ArrayList<double> = new ArrayList<double>();
+    samples.add(5.0); samples.add(5.0); samples.add(5.0); samples.add(5.0);
+    let acf: ArrayList<double> = autocorrelation(samples, 2);
+    if (acf.size() != 3) {
+        io::println("FAIL: autocorrelation constant size = " + Integer.toString(acf.size()));
+    } else if (acf.get(0) != 1.0) {
+        io::println("FAIL: autocorrelation constant lag0 should be 1.0");
+    } else if (acf.get(1) != 0.0 || acf.get(2) != 0.0) {
+        io::println("FAIL: autocorrelation constant higher lags should be 0");
+    } else {
+        io::println("PASS: autocorrelation constant series has lag0=1, others=0");
+    }
+}
+
+public fn test_effectiveSampleSize_basic(): void {
+    let samples: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 50) {
+        samples.add(i as double);
+        i = i + 1;
+    }
+    let ess: int = effectiveSampleSize(samples);
+    if (ess < 1 || ess > 50) {
+        io::println("FAIL: effectiveSampleSize out of range = " + Integer.toString(ess));
+    } else {
+        io::println("PASS: effectiveSampleSize in [1, n]");
+    }
+}
+
+public fn test_effectiveSampleSize_single(): void {
+    let samples: ArrayList<double> = new ArrayList<double>();
+    samples.add(1.0);
+    let ess: int = effectiveSampleSize(samples);
+    if (ess != 1) {
+        io::println("FAIL: effectiveSampleSize on single sample should be 1");
+    } else {
+        io::println("PASS: effectiveSampleSize on single returns 1");
+    }
+}
+
+public fn run_all_mcmc_tests(): void {
+    io::println("=== Mcmc.tr Tests ===");
+    test_metropolisHastings_returns_samples();
+    test_metropolisHastings_zero_burnin();
+    test_metropolisHastings_zero_iterations();
+    test_metropolisHastings_full_burnin();
+    test_gibbsSampler_returns_chains();
+    test_rhat_single_chain();
+    test_rhat_two_chains();
+    test_rhat_identical_chains();
+    test_autocorrelation_basic();
+    test_autocorrelation_empty();
+    test_autocorrelation_constant();
+    test_effectiveSampleSize_basic();
+    test_effectiveSampleSize_single();
+}

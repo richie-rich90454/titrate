@@ -1,0 +1,128 @@
+// Test file for sigproc/Wavelet.tr
+// Exercises the public API of the Wavelet module: Haar transform, inverse
+// Haar, CWT Morlet, IDWT, and multi-level DWT.
+import tt::sigproc::Wavelet;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_haarTransform_basic(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0); signal.add(2.0); signal.add(3.0); signal.add(4.0);
+    let result: ArrayList<double> = haarTransform(signal);
+    if (result.size() != 4) {
+        io::println("FAIL: haarTransform size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: haarTransform returns same size as input");
+    }
+}
+
+public fn test_haarTransform_constant_signal(): void {
+    // A constant signal should have all energy in the approximation coefficient
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(2.0); signal.add(2.0); signal.add(2.0); signal.add(2.0);
+    let result: ArrayList<double> = haarTransform(signal);
+    // For length=4 constant signal, all detail coefficients should be 0
+    if (Math.abs(result.get(1)) > 1e-9 || Math.abs(result.get(2)) > 1e-9 || Math.abs(result.get(3)) > 1e-9) {
+        io::println("FAIL: haarTransform constant signal has non-zero detail");
+    } else {
+        io::println("PASS: haarTransform constant signal zero detail coefficients");
+    }
+}
+
+public fn test_inverseHaar_basic(): void {
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+    coeffs.add(5.0); coeffs.add(0.0); coeffs.add(0.0); coeffs.add(0.0);
+    let result: ArrayList<double> = inverseHaar(coeffs);
+    if (result.size() != 4) {
+        io::println("FAIL: inverseHaar size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: inverseHaar returns same size as input");
+    }
+}
+
+public fn test_inverseHaar_reconstructs_haar(): void {
+    // haar -> inverseHaar should reconstruct (approximately) the original
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0); signal.add(2.0); signal.add(3.0); signal.add(4.0);
+    let coeffs: ArrayList<double> = haarTransform(signal);
+    let reconstructed: ArrayList<double> = inverseHaar(coeffs);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < signal.size()) {
+        if (Math.abs(signal.get(i) - reconstructed.get(i)) > 1e-9) { ok = false; break; }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: inverseHaar does not reconstruct haarTransform");
+    } else {
+        io::println("PASS: inverseHaar reconstructs haarTransform");
+    }
+}
+
+public fn test_cwtMorlet_basic(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 32) {
+        signal.add(1.0);
+        i = i + 1;
+    }
+    let scales: ArrayList<double> = new ArrayList<double>();
+    scales.add(1.0); scales.add(2.0);
+    let result: ArrayList<ArrayList<double>> = cwtMorlet(signal, scales, 100.0);
+    if (result.size() != 2) {
+        io::println("FAIL: cwtMorlet rows = " + Integer.toString(result.size()));
+    } else if (result.get(0).size() != 32) {
+        io::println("FAIL: cwtMorlet cols = " + Integer.toString(result.get(0).size()));
+    } else {
+        io::println("PASS: cwtMorlet returns scales x signal matrix");
+    }
+}
+
+public fn test_idwt_basic(): void {
+    let approx: ArrayList<double> = new ArrayList<double>();
+    approx.add(3.0); approx.add(7.0);
+    let detail: ArrayList<double> = new ArrayList<double>();
+    detail.add(-1.0); detail.add(1.0);
+    let result: ArrayList<double> = idwt(approx, detail);
+    // n=2 -> result has 2*n = 4 entries
+    if (result.size() != 4) {
+        io::println("FAIL: idwt size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: idwt returns 2*n entries");
+    }
+}
+
+public fn test_dwtMultiLevel_basic(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0); signal.add(2.0); signal.add(3.0); signal.add(4.0);
+    let result: ArrayList<ArrayList<double>> = dwtMultiLevel(signal, 2);
+    // For 2 levels on length-4 signal: 2 detail arrays + 1 final approx = 3
+    if (result.size() != 3) {
+        io::println("FAIL: dwtMultiLevel size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: dwtMultiLevel returns levels+1 arrays");
+    }
+}
+
+public fn test_dwtMultiLevel_one_level(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    signal.add(1.0); signal.add(2.0); signal.add(3.0); signal.add(4.0);
+    let result: ArrayList<ArrayList<double>> = dwtMultiLevel(signal, 1);
+    if (result.size() != 2) {
+        io::println("FAIL: dwtMultiLevel 1 level size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: dwtMultiLevel 1 level returns 2 arrays");
+    }
+}
+
+public fn run_all_wavelet_tests(): void {
+    io::println("=== Wavelet.tr Tests ===");
+    test_haarTransform_basic();
+    test_haarTransform_constant_signal();
+    test_inverseHaar_basic();
+    test_inverseHaar_reconstructs_haar();
+    test_cwtMorlet_basic();
+    test_idwt_basic();
+    test_dwtMultiLevel_basic();
+    test_dwtMultiLevel_one_level();
+}

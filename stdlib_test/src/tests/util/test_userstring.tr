@@ -1,0 +1,227 @@
+// Test file for UserString.tr
+// Exercises the public API of the UserString class (string wrapper for subclassing).
+import tt::util::UserString;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_userstring_init(): void {
+    let us: UserString = new UserString();
+    if (!us.isEmpty() || us.length() != 0) {
+        io::println("FAIL: UserString init");
+    } else {
+        io::println("PASS: UserString init empty");
+    }
+}
+
+public fn test_userstring_initFromString(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello");
+    if (us.length() != 5) {
+        io::println("FAIL: UserString initFromString length = " + Integer.toString(us.length()));
+    } else {
+        io::println("PASS: UserString initFromString works");
+    }
+}
+
+public fn test_userstring_length(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world");
+    if (us.length() != 11) {
+        io::println("FAIL: UserString length = " + Integer.toString(us.length()));
+    } else {
+        io::println("PASS: UserString length works");
+    }
+}
+
+public fn test_userstring_charAt(): void {
+    let us: UserString = new UserString();
+    us.initFromString("abc");
+    if (us.charAt(0) != "a" || us.charAt(1) != "b" || us.charAt(2) != "c") {
+        io::println("FAIL: UserString charAt");
+    } else {
+        io::println("PASS: UserString charAt works");
+    }
+}
+
+public fn test_userstring_substring(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world");
+    let sub: string = us.substring(0, 5);
+    if (sub != "hello") {
+        io::println("FAIL: UserString substring = '" + sub + "'");
+    } else {
+        io::println("PASS: UserString substring works");
+    }
+}
+
+public fn test_userstring_indexOf(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world");
+    if (us.indexOf("world") != 6) {
+        io::println("FAIL: UserString indexOf = " + Integer.toString(us.indexOf("world")));
+    } else {
+        io::println("PASS: UserString indexOf works");
+    }
+}
+
+public fn test_userstring_indexOf_notFound(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello");
+    if (us.indexOf("xyz") != -1) {
+        io::println("FAIL: UserString indexOf not found = " + Integer.toString(us.indexOf("xyz")));
+    } else {
+        io::println("PASS: UserString indexOf not found works");
+    }
+}
+
+public fn test_userstring_contains(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world");
+    if (!us.contains("world") || us.contains("xyz")) {
+        io::println("FAIL: UserString contains");
+    } else {
+        io::println("PASS: UserString contains works");
+    }
+}
+
+public fn test_userstring_startsWith(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world");
+    if (!us.startsWith("hello") || us.startsWith("world")) {
+        io::println("FAIL: UserString startsWith");
+    } else {
+        io::println("PASS: UserString startsWith works");
+    }
+}
+
+public fn test_userstring_endsWith(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world");
+    if (!us.endsWith("world") || us.endsWith("hello")) {
+        io::println("FAIL: UserString endsWith");
+    } else {
+        io::println("PASS: UserString endsWith works");
+    }
+}
+
+public fn test_userstring_toUpperCase(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello");
+    if (us.toUpperCase() != "HELLO") {
+        io::println("FAIL: UserString toUpperCase = '" + us.toUpperCase() + "'");
+    } else {
+        io::println("PASS: UserString toUpperCase works");
+    }
+}
+
+public fn test_userstring_toLowerCase(): void {
+    let us: UserString = new UserString();
+    us.initFromString("HELLO");
+    if (us.toLowerCase() != "hello") {
+        io::println("FAIL: UserString toLowerCase = '" + us.toLowerCase() + "'");
+    } else {
+        io::println("PASS: UserString toLowerCase works");
+    }
+}
+
+public fn test_userstring_trim(): void {
+    let us: UserString = new UserString();
+    us.initFromString("  hello  ");
+    if (us.trim() != "hello") {
+        io::println("FAIL: UserString trim = '" + us.trim() + "'");
+    } else {
+        io::println("PASS: UserString trim works");
+    }
+}
+
+public fn test_userstring_replace(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world");
+    let result: string = us.replace("world", "there");
+    if (result != "hello there") {
+        io::println("FAIL: UserString replace = '" + result + "'");
+    } else {
+        io::println("PASS: UserString replace works");
+    }
+}
+
+public fn test_userstring_split(): void {
+    let us: UserString = new UserString();
+    us.initFromString("a,b,c");
+    let parts: ArrayList<string> = us.split(",");
+    if (parts.size() != 3) {
+        io::println("FAIL: UserString split size = " + Integer.toString(parts.size()));
+    } else {
+        io::println("PASS: UserString split works");
+    }
+}
+
+public fn test_userstring_count(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world hello");
+    let c: int = us.count("hello");
+    if (c != 2) {
+        io::println("FAIL: UserString count = " + Integer.toString(c));
+    } else {
+        io::println("PASS: UserString count works");
+    }
+}
+
+public fn test_userstring_isEmpty(): void {
+    let us: UserString = new UserString();
+    if (!us.isEmpty()) {
+        io::println("FAIL: UserString isEmpty new");
+    } else {
+        us.initFromString("x");
+        if (us.isEmpty()) {
+            io::println("FAIL: UserString isEmpty after initFromString");
+        } else {
+            io::println("PASS: UserString isEmpty works");
+        }
+    }
+}
+
+public fn test_userstring_toString(): void {
+    let us: UserString = new UserString();
+    us.initFromString("test123");
+    if (us.toString() != "test123") {
+        io::println("FAIL: UserString toString");
+    } else {
+        io::println("PASS: UserString toString works");
+    }
+}
+
+public fn test_userstring_lastIndexOf(): void {
+    let us: UserString = new UserString();
+    us.initFromString("hello world hello");
+    let idx: int = us.lastIndexOf("hello");
+    if (idx != 12) {
+        io::println("FAIL: UserString lastIndexOf = " + Integer.toString(idx));
+    } else {
+        io::println("PASS: UserString lastIndexOf works");
+    }
+}
+
+public fn run_all_userstring_tests(): void {
+    io::println("=== UserString.tr Tests ===");
+    test_userstring_init();
+    test_userstring_initFromString();
+    test_userstring_length();
+    test_userstring_charAt();
+    test_userstring_substring();
+    test_userstring_indexOf();
+    test_userstring_indexOf_notFound();
+    test_userstring_contains();
+    test_userstring_startsWith();
+    test_userstring_endsWith();
+    test_userstring_toUpperCase();
+    test_userstring_toLowerCase();
+    test_userstring_trim();
+    test_userstring_replace();
+    test_userstring_split();
+    test_userstring_count();
+    test_userstring_isEmpty();
+    test_userstring_toString();
+    test_userstring_lastIndexOf();
+}

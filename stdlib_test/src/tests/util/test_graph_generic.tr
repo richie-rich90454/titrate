@@ -1,0 +1,438 @@
+// Test file for util/Graph.tr (generic adjacency-list graph, NOT algo/Graph.tr)
+// Exercises the public API of Graph<V>: construction (directed/undirected),
+// addVertex, addEdge, removeVertex, removeEdge, neighbors, degree, hasVertex,
+// hasEdge, vertices, edges, bfs, dfs, isConnected, isCyclic, toString.
+import tt::util::Graph;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_graph_init_undirected(): void {
+    let g: Graph<int> = new Graph<int>();
+    if (g == null) {
+        io::println("FAIL: Graph() init null");
+    } else if (g.vertices().size() != 0) {
+        io::println("FAIL: Graph() not empty");
+    } else {
+        io::println("PASS: Graph() init works");
+    }
+}
+
+public fn test_graph_init_directed(): void {
+    let g: Graph<int> = new Graph<int>(true);
+    if (g == null) {
+        io::println("FAIL: Graph(true) init null");
+    } else {
+        io::println("PASS: Graph(true) init works");
+    }
+}
+
+public fn test_addVertex(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addVertex(1);
+    g.addVertex(2);
+    if (!g.hasVertex(1) || !g.hasVertex(2)) {
+        io::println("FAIL: Graph.addVertex missing vertex");
+    } else if (g.vertices().size() != 2) {
+        io::println("FAIL: Graph.addVertex count=" + Integer.toString(g.vertices().size()));
+    } else {
+        io::println("PASS: Graph.addVertex works");
+    }
+}
+
+public fn test_addVertex_duplicate(): void {
+    // Adding the same vertex twice should not duplicate it.
+    let g: Graph<int> = new Graph<int>();
+    g.addVertex(1);
+    g.addVertex(1);
+    if (g.vertices().size() != 1) {
+        io::println("FAIL: Graph.addVertex duplicate count=" + Integer.toString(g.vertices().size()));
+    } else {
+        io::println("PASS: Graph.addVertex duplicate ignored");
+    }
+}
+
+public fn test_hasVertex_missing(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addVertex(1);
+    if (g.hasVertex(99)) {
+        io::println("FAIL: Graph.hasVertex should be false for missing");
+    } else {
+        io::println("PASS: Graph.hasVertex missing returns false");
+    }
+}
+
+public fn test_addEdge_undirected(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    if (!g.hasEdge(0, 1) || !g.hasEdge(1, 0)) {
+        io::println("FAIL: Graph.addEdge undirected not bidirectional");
+    } else {
+        io::println("PASS: Graph.addEdge undirected works");
+    }
+}
+
+public fn test_addEdge_directed(): void {
+    let g: Graph<int> = new Graph<int>(true);
+    g.addEdge(0, 1);
+    if (!g.hasEdge(0, 1)) {
+        io::println("FAIL: Graph.addEdge directed missing forward edge");
+    } else if (g.hasEdge(1, 0)) {
+        io::println("FAIL: Graph.addEdge directed should not have reverse edge");
+    } else {
+        io::println("PASS: Graph.addEdge directed works");
+    }
+}
+
+public fn test_addEdge_creates_vertices(): void {
+    // addEdge should auto-create vertices that do not yet exist.
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    if (!g.hasVertex(0) || !g.hasVertex(1)) {
+        io::println("FAIL: Graph.addEdge did not create vertices");
+    } else {
+        io::println("PASS: Graph.addEdge creates vertices");
+    }
+}
+
+public fn test_hasEdge_missing(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    if (g.hasEdge(0, 99)) {
+        io::println("FAIL: Graph.hasEdge should be false for missing endpoint");
+    } else {
+        io::println("PASS: Graph.hasEdge missing returns false");
+    }
+}
+
+public fn test_neighbors_undirected(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    let nbrs: ArrayList<int> = g.neighbors(0);
+    if (nbrs.size() != 2) {
+        io::println("FAIL: Graph.neighbors size=" + Integer.toString(nbrs.size()));
+    } else if (!nbrs.contains(1) || !nbrs.contains(2)) {
+        io::println("FAIL: Graph.neighbors missing expected neighbors");
+    } else {
+        io::println("PASS: Graph.neighbors undirected works");
+    }
+}
+
+public fn test_neighbors_missing_vertex(): void {
+    let g: Graph<int> = new Graph<int>();
+    let nbrs: ArrayList<int> = g.neighbors(99);
+    if (nbrs.size() != 0) {
+        io::println("FAIL: Graph.neighbors missing vertex should be empty");
+    } else {
+        io::println("PASS: Graph.neighbors missing vertex returns empty");
+    }
+}
+
+public fn test_degree_undirected(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    g.addEdge(0, 3);
+    if (g.degree(0) != 3) {
+        io::println("FAIL: Graph.degree=" + Integer.toString(g.degree(0)));
+    } else {
+        io::println("PASS: Graph.degree undirected works");
+    }
+}
+
+public fn test_degree_missing_vertex(): void {
+    let g: Graph<int> = new Graph<int>();
+    if (g.degree(99) != 0) {
+        io::println("FAIL: Graph.degree missing vertex should be 0");
+    } else {
+        io::println("PASS: Graph.degree missing vertex returns 0");
+    }
+}
+
+public fn test_vertices(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addVertex(10);
+    g.addVertex(20);
+    g.addVertex(30);
+    let vs: ArrayList<int> = g.vertices();
+    if (vs.size() != 3) {
+        io::println("FAIL: Graph.vertices size=" + Integer.toString(vs.size()));
+    } else {
+        io::println("PASS: Graph.vertices works");
+    }
+}
+
+public fn test_edges_undirected(): void {
+    // Undirected graph: edges() dedupes the reverse direction.
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    let es: ArrayList<(int, int)> = g.edges();
+    if (es.size() != 2) {
+        io::println("FAIL: Graph.edges undirected size=" + Integer.toString(es.size()));
+    } else {
+        io::println("PASS: Graph.edges undirected works");
+    }
+}
+
+public fn test_edges_directed(): void {
+    // Directed graph: each directed edge counts once.
+    let g: Graph<int> = new Graph<int>(true);
+    g.addEdge(0, 1);
+    g.addEdge(1, 0);
+    let es: ArrayList<(int, int)> = g.edges();
+    if (es.size() != 2) {
+        io::println("FAIL: Graph.edges directed size=" + Integer.toString(es.size()));
+    } else {
+        io::println("PASS: Graph.edges directed works");
+    }
+}
+
+public fn test_bfs_visits_all(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    g.addEdge(1, 3);
+    let result: ArrayList<int> = g.bfs(0);
+    if (result.size() != 4) {
+        io::println("FAIL: Graph.bfs size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Graph.bfs visits all");
+    }
+}
+
+public fn test_bfs_start_first(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    let result: ArrayList<int> = g.bfs(0);
+    if (result.size() == 0 || result.get(0) != 0) {
+        io::println("FAIL: Graph.bfs first should be start");
+    } else {
+        io::println("PASS: Graph.bfs start first works");
+    }
+}
+
+public fn test_bfs_missing_start(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    let result: ArrayList<int> = g.bfs(99);
+    if (result.size() != 0) {
+        io::println("FAIL: Graph.bfs missing start should be empty");
+    } else {
+        io::println("PASS: Graph.bfs missing start returns empty");
+    }
+}
+
+public fn test_dfs_visits_all(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    g.addEdge(1, 3);
+    let result: ArrayList<int> = g.dfs(0);
+    if (result.size() != 4) {
+        io::println("FAIL: Graph.dfs size=" + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: Graph.dfs visits all");
+    }
+}
+
+public fn test_dfs_start_first(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(1, 2);
+    let result: ArrayList<int> = g.dfs(0);
+    if (result.size() == 0 || result.get(0) != 0) {
+        io::println("FAIL: Graph.dfs first should be start");
+    } else {
+        io::println("PASS: Graph.dfs start first works");
+    }
+}
+
+public fn test_isConnected_empty(): void {
+    // An empty graph is trivially connected.
+    let g: Graph<int> = new Graph<int>();
+    if (!g.isConnected()) {
+        io::println("FAIL: Graph.isConnected empty should be true");
+    } else {
+        io::println("PASS: Graph.isConnected empty true");
+    }
+}
+
+public fn test_isConnected_connected(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(1, 2);
+    g.addEdge(2, 3);
+    if (!g.isConnected()) {
+        io::println("FAIL: Graph.isConnected connected should be true");
+    } else {
+        io::println("PASS: Graph.isConnected connected works");
+    }
+}
+
+public fn test_isConnected_disconnected(): void {
+    // Two separate components: {0,1} and {2,3}.
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(2, 3);
+    if (g.isConnected()) {
+        io::println("FAIL: Graph.isConnected disconnected should be false");
+    } else {
+        io::println("PASS: Graph.isConnected disconnected works");
+    }
+}
+
+public fn test_isCyclic_directed_cycle(): void {
+    // Directed cycle 0 -> 1 -> 2 -> 0.
+    let g: Graph<int> = new Graph<int>(true);
+    g.addEdge(0, 1);
+    g.addEdge(1, 2);
+    g.addEdge(2, 0);
+    if (!g.isCyclic()) {
+        io::println("FAIL: Graph.isCyclic directed cycle should be true");
+    } else {
+        io::println("PASS: Graph.isCyclic directed cycle works");
+    }
+}
+
+public fn test_isCyclic_directed_acyclic(): void {
+    // Directed acyclic graph: 0 -> 1 -> 2.
+    let g: Graph<int> = new Graph<int>(true);
+    g.addEdge(0, 1);
+    g.addEdge(1, 2);
+    if (g.isCyclic()) {
+        io::println("FAIL: Graph.isCyclic DAG should be false");
+    } else {
+        io::println("PASS: Graph.isCyclic directed acyclic works");
+    }
+}
+
+public fn test_isCyclic_no_edges(): void {
+    // Vertices without edges cannot contain a cycle.
+    let g: Graph<int> = new Graph<int>();
+    g.addVertex(0);
+    g.addVertex(1);
+    if (g.isCyclic()) {
+        io::println("FAIL: Graph.isCyclic no edges should be false");
+    } else {
+        io::println("PASS: Graph.isCyclic no edges works");
+    }
+}
+
+public fn test_removeEdge_undirected(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(0, 2);
+    g.removeEdge(0, 1);
+    if (g.hasEdge(0, 1) || g.hasEdge(1, 0)) {
+        io::println("FAIL: Graph.removeEdge undirected still present");
+    } else if (!g.hasEdge(0, 2)) {
+        io::println("FAIL: Graph.removeEdge removed unrelated edge");
+    } else {
+        io::println("PASS: Graph.removeEdge undirected works");
+    }
+}
+
+public fn test_removeEdge_directed(): void {
+    let g: Graph<int> = new Graph<int>(true);
+    g.addEdge(0, 1);
+    g.addEdge(1, 0);
+    g.removeEdge(0, 1);
+    if (g.hasEdge(0, 1)) {
+        io::println("FAIL: Graph.removeEdge directed forward still present");
+    } else if (!g.hasEdge(1, 0)) {
+        io::println("FAIL: Graph.removeEdge directed removed reverse too");
+    } else {
+        io::println("PASS: Graph.removeEdge directed works");
+    }
+}
+
+public fn test_removeVertex(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.addEdge(1, 2);
+    g.addEdge(2, 3);
+    g.removeVertex(1);
+    if (g.hasVertex(1)) {
+        io::println("FAIL: Graph.removeVertex vertex still present");
+    } else if (g.hasEdge(0, 1) || g.hasEdge(1, 2)) {
+        io::println("FAIL: Graph.removeVertex edges to vertex still present");
+    } else if (!g.hasVertex(0) || !g.hasVertex(2) || !g.hasVertex(3)) {
+        io::println("FAIL: Graph.removeVertex removed unrelated vertices");
+    } else {
+        io::println("PASS: Graph.removeVertex works");
+    }
+}
+
+public fn test_removeVertex_missing(): void {
+    // Removing a vertex that does not exist should be a no-op.
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    g.removeVertex(99);
+    if (!g.hasVertex(0) || !g.hasVertex(1) || !g.hasEdge(0, 1)) {
+        io::println("FAIL: Graph.removeVertex missing altered graph");
+    } else {
+        io::println("PASS: Graph.removeVertex missing is no-op");
+    }
+}
+
+public fn test_toString(): void {
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1);
+    let s: string = g.toString();
+    if (s == null || String.length(s) == 0) {
+        io::println("FAIL: Graph.toString empty");
+    } else {
+        io::println("PASS: Graph.toString returns non-empty string");
+    }
+}
+
+public fn test_addEdge_with_weight(): void {
+    // The three-argument addEdge(from, to, weight) should behave like addEdge for
+    // connectivity purposes.
+    let g: Graph<int> = new Graph<int>();
+    g.addEdge(0, 1, 5.0);
+    if (!g.hasEdge(0, 1) || g.degree(0) != 1) {
+        io::println("FAIL: Graph.addEdge weighted not connected");
+    } else {
+        io::println("PASS: Graph.addEdge weighted works");
+    }
+}
+
+public fn run_all_graph_generic_tests(): void {
+    io::println("=== util/Graph.tr Tests ===");
+    test_graph_init_undirected();
+    test_graph_init_directed();
+    test_addVertex();
+    test_addVertex_duplicate();
+    test_hasVertex_missing();
+    test_addEdge_undirected();
+    test_addEdge_directed();
+    test_addEdge_creates_vertices();
+    test_hasEdge_missing();
+    test_neighbors_undirected();
+    test_neighbors_missing_vertex();
+    test_degree_undirected();
+    test_degree_missing_vertex();
+    test_vertices();
+    test_edges_undirected();
+    test_edges_directed();
+    test_bfs_visits_all();
+    test_bfs_start_first();
+    test_bfs_missing_start();
+    test_dfs_visits_all();
+    test_dfs_start_first();
+    test_isConnected_empty();
+    test_isConnected_connected();
+    test_isConnected_disconnected();
+    test_isCyclic_directed_cycle();
+    test_isCyclic_directed_acyclic();
+    test_isCyclic_no_edges();
+    test_removeEdge_undirected();
+    test_removeEdge_directed();
+    test_removeVertex();
+    test_removeVertex_missing();
+    test_toString();
+    test_addEdge_with_weight();
+}

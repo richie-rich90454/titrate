@@ -1,0 +1,258 @@
+// Test file for UserList.tr
+// Exercises the public API of the UserList class (ArrayList wrapper for subclassing).
+import tt::util::UserList;
+import tt::util::ArrayList;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+public fn test_userlist_init(): void {
+    let ul: UserList = new UserList();
+    if (!ul.isEmpty() || ul.size() != 0) {
+        io::println("FAIL: UserList init");
+    } else {
+        io::println("PASS: UserList init empty");
+    }
+}
+
+public fn test_userlist_append(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    ul.append(3 as Variant);
+    if (ul.size() != 3) {
+        io::println("FAIL: UserList append size = " + Integer.toString(ul.size()));
+    } else {
+        io::println("PASS: UserList append works");
+    }
+}
+
+public fn test_userlist_get(): void {
+    let ul: UserList = new UserList();
+    ul.append(10 as Variant);
+    ul.append(20 as Variant);
+    let v: Variant = ul.get(0);
+    if (v == null) {
+        io::println("FAIL: UserList get null");
+    } else {
+        io::println("PASS: UserList get works");
+    }
+}
+
+public fn test_userlist_set(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.set(0, 99 as Variant);
+    let v: Variant = ul.get(0);
+    if (v == null) {
+        io::println("FAIL: UserList set null");
+    } else {
+        io::println("PASS: UserList set works");
+    }
+}
+
+public fn test_userlist_insert(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(3 as Variant);
+    ul.insert(1, 2 as Variant);
+    if (ul.size() != 3) {
+        io::println("FAIL: UserList insert size = " + Integer.toString(ul.size()));
+    } else {
+        io::println("PASS: UserList insert works");
+    }
+}
+
+public fn test_userlist_pop(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    ul.append(3 as Variant);
+    let v: Variant = ul.pop(1);
+    if (v == null || ul.size() != 2) {
+        io::println("FAIL: UserList pop");
+    } else {
+        io::println("PASS: UserList pop works");
+    }
+}
+
+public fn test_userlist_remove(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    ul.append(3 as Variant);
+    let removed: bool = ul.remove(2 as Variant);
+    if (!removed || ul.size() != 2) {
+        io::println("FAIL: UserList remove");
+    } else {
+        io::println("PASS: UserList remove works");
+    }
+}
+
+public fn test_userlist_indexOf(): void {
+    let ul: UserList = new UserList();
+    ul.append(10 as Variant);
+    ul.append(20 as Variant);
+    ul.append(30 as Variant);
+    let idx: int = ul.indexOf(20 as Variant);
+    if (idx != 1) {
+        io::println("FAIL: UserList indexOf = " + Integer.toString(idx));
+    } else {
+        io::println("PASS: UserList indexOf works");
+    }
+}
+
+public fn test_userlist_count(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    ul.append(1 as Variant);
+    ul.append(1 as Variant);
+    let c: int = ul.count(1 as Variant);
+    if (c != 3) {
+        io::println("FAIL: UserList count = " + Integer.toString(c));
+    } else {
+        io::println("PASS: UserList count works");
+    }
+}
+
+public fn test_userlist_contains(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    if (!ul.contains(1 as Variant) || ul.contains(99 as Variant)) {
+        io::println("FAIL: UserList contains");
+    } else {
+        io::println("PASS: UserList contains works");
+    }
+}
+
+public fn test_userlist_reverse(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    ul.append(3 as Variant);
+    ul.reverse();
+    let first: Variant = ul.get(0);
+    let last: Variant = ul.get(2);
+    if (first == null || last == null) {
+        io::println("FAIL: UserList reverse null");
+    } else {
+        io::println("PASS: UserList reverse works");
+    }
+}
+
+public fn test_userlist_extend(): void {
+    let ul1: UserList = new UserList();
+    ul1.append(1 as Variant);
+    let ul2: UserList = new UserList();
+    ul2.append(2 as Variant);
+    ul2.append(3 as Variant);
+    ul1.extend(ul2);
+    if (ul1.size() != 3) {
+        io::println("FAIL: UserList extend size = " + Integer.toString(ul1.size()));
+    } else {
+        io::println("PASS: UserList extend works");
+    }
+}
+
+public fn test_userlist_size(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    if (ul.size() != 2) {
+        io::println("FAIL: UserList size = " + Integer.toString(ul.size()));
+    } else {
+        io::println("PASS: UserList size works");
+    }
+}
+
+public fn test_userlist_isEmpty(): void {
+    let ul: UserList = new UserList();
+    if (!ul.isEmpty()) {
+        io::println("FAIL: UserList isEmpty new");
+    } else {
+        ul.append(1 as Variant);
+        if (ul.isEmpty()) {
+            io::println("FAIL: UserList isEmpty after append");
+        } else {
+            io::println("PASS: UserList isEmpty works");
+        }
+    }
+}
+
+public fn test_userlist_clear(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    ul.clear();
+    if (!ul.isEmpty() || ul.size() != 0) {
+        io::println("FAIL: UserList clear");
+    } else {
+        io::println("PASS: UserList clear works");
+    }
+}
+
+public fn test_userlist_copy(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    let copy: UserList = ul.copy();
+    if (copy.size() != 2) {
+        io::println("FAIL: UserList copy");
+    } else {
+        // Verify independence
+        copy.append(3 as Variant);
+        if (ul.size() != 2) {
+            io::println("FAIL: UserList copy not independent");
+        } else {
+            io::println("PASS: UserList copy works");
+        }
+    }
+}
+
+public fn test_userlist_pop_last(): void {
+    let ul: UserList = new UserList();
+    ul.append(1 as Variant);
+    ul.append(2 as Variant);
+    let v: Variant = ul.pop(1); // pop last element
+    if (v == null || ul.size() != 1) {
+        io::println("FAIL: UserList pop last");
+    } else {
+        io::println("PASS: UserList pop last works");
+    }
+}
+
+public fn test_userlist_initFromList(): void {
+    let list: ArrayList<Variant> = new ArrayList<Variant>();
+    list.add(1 as Variant);
+    list.add(2 as Variant);
+    let ul: UserList = new UserList();
+    ul.initFromList(list);
+    if (ul.size() != 2) {
+        io::println("FAIL: UserList initFromList");
+    } else {
+        io::println("PASS: UserList initFromList works");
+    }
+}
+
+public fn run_all_userlist_tests(): void {
+    io::println("=== UserList.tr Tests ===");
+    test_userlist_init();
+    test_userlist_append();
+    test_userlist_get();
+    test_userlist_set();
+    test_userlist_insert();
+    test_userlist_pop();
+    test_userlist_remove();
+    test_userlist_indexOf();
+    test_userlist_count();
+    test_userlist_contains();
+    test_userlist_reverse();
+    test_userlist_extend();
+    test_userlist_size();
+    test_userlist_isEmpty();
+    test_userlist_clear();
+    test_userlist_copy();
+    test_userlist_pop_last();
+    test_userlist_initFromList();
+}

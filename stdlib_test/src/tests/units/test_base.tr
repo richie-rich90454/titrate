@@ -1,0 +1,229 @@
+// Test file for units/Base.tr
+// Exercises the public API of the units/Base module: SI base unit classes
+// (Meter, MeterSquared, Second, Kilogram, Kelvin, Mole, Ampere, Candela).
+import tt::units::Base;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_meter_init_and_value(): void {
+    let m: Meter = new Meter(5.0);
+    if (m.getValue() != 5.0) {
+        io::println("FAIL: Meter.getValue = " + Double.toString(m.getValue()));
+    } else {
+        io::println("PASS: Meter init/getValue works");
+    }
+}
+
+public fn test_meter_plus_minus(): void {
+    let a: Meter = new Meter(3.0);
+    let b: Meter = new Meter(2.0);
+    let sum: Meter = a.plus(b);
+    let diff: Meter = a.minus(b);
+    if (sum.getValue() != 5.0) {
+        io::println("FAIL: Meter.plus = " + Double.toString(sum.getValue()));
+    } else if (diff.getValue() != 1.0) {
+        io::println("FAIL: Meter.minus = " + Double.toString(diff.getValue()));
+    } else {
+        io::println("PASS: Meter plus/minus work");
+    }
+}
+
+public fn test_meter_times_scalar(): void {
+    let m: Meter = new Meter(2.0);
+    let result: Meter = m.times(3.0);
+    if (result.getValue() != 6.0) {
+        io::println("FAIL: Meter.times scalar = " + Double.toString(result.getValue()));
+    } else {
+        io::println("PASS: Meter.times scalar works");
+    }
+}
+
+public fn test_meter_div_scalar(): void {
+    let m: Meter = new Meter(6.0);
+    let result: Meter = m.div(3.0);
+    if (result.getValue() != 2.0) {
+        io::println("FAIL: Meter.div scalar = " + Double.toString(result.getValue()));
+    } else {
+        io::println("PASS: Meter.div scalar works");
+    }
+}
+
+public fn test_meter_times_meter_yields_meterSquared(): void {
+    let a: Meter = new Meter(3.0);
+    let b: Meter = new Meter(4.0);
+    let area: MeterSquared = a.times(b);
+    if (area.getValue() != 12.0) {
+        io::println("FAIL: Meter.times(Meter) = " + Double.toString(area.getValue()));
+    } else {
+        io::println("PASS: Meter.times(Meter) yields MeterSquared");
+    }
+}
+
+public fn test_meter_equals(): void {
+    let a: Meter = new Meter(5.0);
+    let b: Meter = new Meter(5.0);
+    let c: Meter = new Meter(6.0);
+    if (!a.equals(b)) {
+        io::println("FAIL: Meter.equals should be true for equal values");
+    } else if (a.equals(c)) {
+        io::println("FAIL: Meter.equals should be false for different values");
+    } else {
+        io::println("PASS: Meter.equals works");
+    }
+}
+
+public fn test_meter_compareTo(): void {
+    let a: Meter = new Meter(1.0);
+    let b: Meter = new Meter(2.0);
+    let c: Meter = new Meter(2.0);
+    if (a.compareTo(b) >= 0) {
+        io::println("FAIL: Meter.compareTo less-than case");
+    } else if (b.compareTo(a) <= 0) {
+        io::println("FAIL: Meter.compareTo greater-than case");
+    } else if (b.compareTo(c) != 0) {
+        io::println("FAIL: Meter.compareTo equal case");
+    } else {
+        io::println("PASS: Meter.compareTo works");
+    }
+}
+
+public fn test_meter_toDouble(): void {
+    let m: Meter = new Meter(7.5);
+    if (m.toDouble() != 7.5) {
+        io::println("FAIL: Meter.toDouble = " + Double.toString(m.toDouble()));
+    } else {
+        io::println("PASS: Meter.toDouble works");
+    }
+}
+
+public fn test_meter_toString(): void {
+    let m: Meter = new Meter(7.5);
+    let s: string = m.toString();
+    if (s == null || String.length(s) == 0) {
+        io::println("FAIL: Meter.toString empty");
+    } else {
+        io::println("PASS: Meter.toString returns non-empty string");
+    }
+}
+
+public fn test_second_arithmetic(): void {
+    let a: Second = new Second(10.0);
+    let b: Second = new Second(4.0);
+    if (a.plus(b).getValue() != 14.0) {
+        io::println("FAIL: Second.plus");
+    } else if (a.minus(b).getValue() != 6.0) {
+        io::println("FAIL: Second.minus");
+    } else if (a.times(2.0).getValue() != 20.0) {
+        io::println("FAIL: Second.times");
+    } else if (a.div(2.0).getValue() != 5.0) {
+        io::println("FAIL: Second.div");
+    } else {
+        io::println("PASS: Second arithmetic works");
+    }
+}
+
+public fn test_kilogram_arithmetic(): void {
+    let a: Kilogram = new Kilogram(10.0);
+    let b: Kilogram = new Kilogram(3.0);
+    if (a.plus(b).getValue() != 13.0) {
+        io::println("FAIL: Kilogram.plus");
+    } else if (a.minus(b).getValue() != 7.0) {
+        io::println("FAIL: Kilogram.minus");
+    } else {
+        io::println("PASS: Kilogram arithmetic works");
+    }
+}
+
+public fn test_kelvin_arithmetic(): void {
+    let a: Kelvin = new Kelvin(300.0);
+    let b: Kelvin = new Kelvin(50.0);
+    if (a.plus(b).getValue() != 350.0) {
+        io::println("FAIL: Kelvin.plus");
+    } else if (a.minus(b).getValue() != 250.0) {
+        io::println("FAIL: Kelvin.minus");
+    } else {
+        io::println("PASS: Kelvin arithmetic works");
+    }
+}
+
+public fn test_mole_arithmetic(): void {
+    let a: Mole = new Mole(2.0);
+    let b: Mole = new Mole(1.5);
+    if (a.plus(b).getValue() != 3.5) {
+        io::println("FAIL: Mole.plus");
+    } else if (a.minus(b).getValue() != 0.5) {
+        io::println("FAIL: Mole.minus");
+    } else {
+        io::println("PASS: Mole arithmetic works");
+    }
+}
+
+public fn test_ampere_arithmetic(): void {
+    let a: Ampere = new Ampere(5.0);
+    let b: Ampere = new Ampere(2.0);
+    if (a.plus(b).getValue() != 7.0) {
+        io::println("FAIL: Ampere.plus");
+    } else if (a.minus(b).getValue() != 3.0) {
+        io::println("FAIL: Ampere.minus");
+    } else {
+        io::println("PASS: Ampere arithmetic works");
+    }
+}
+
+public fn test_candela_arithmetic(): void {
+    let a: Candela = new Candela(8.0);
+    let b: Candela = new Candela(3.0);
+    if (a.plus(b).getValue() != 11.0) {
+        io::println("FAIL: Candela.plus");
+    } else if (a.minus(b).getValue() != 5.0) {
+        io::println("FAIL: Candela.minus");
+    } else if (a.times(2.0).getValue() != 16.0) {
+        io::println("FAIL: Candela.times");
+    } else if (a.div(2.0).getValue() != 4.0) {
+        io::println("FAIL: Candela.div");
+    } else {
+        io::println("PASS: Candela arithmetic works");
+    }
+}
+
+public fn test_meterSquared_basic(): void {
+    let a: MeterSquared = new MeterSquared(10.0);
+    if (a.getValue() != 10.0) {
+        io::println("FAIL: MeterSquared.getValue");
+    } else if (a.toDouble() != 10.0) {
+        io::println("FAIL: MeterSquared.toDouble");
+    } else {
+        io::println("PASS: MeterSquared basic works");
+    }
+}
+
+public fn test_meterSquared_equals(): void {
+    let a: MeterSquared = new MeterSquared(5.0);
+    let b: MeterSquared = new MeterSquared(5.0);
+    if (!a.equals(b)) {
+        io::println("FAIL: MeterSquared.equals");
+    } else {
+        io::println("PASS: MeterSquared.equals works");
+    }
+}
+
+public fn run_all_base_tests(): void {
+    io::println("=== units/Base.tr Tests ===");
+    test_meter_init_and_value();
+    test_meter_plus_minus();
+    test_meter_times_scalar();
+    test_meter_div_scalar();
+    test_meter_times_meter_yields_meterSquared();
+    test_meter_equals();
+    test_meter_compareTo();
+    test_meter_toDouble();
+    test_meter_toString();
+    test_second_arithmetic();
+    test_kilogram_arithmetic();
+    test_kelvin_arithmetic();
+    test_mole_arithmetic();
+    test_ampere_arithmetic();
+    test_candela_arithmetic();
+    test_meterSquared_basic();
+    test_meterSquared_equals();
+}

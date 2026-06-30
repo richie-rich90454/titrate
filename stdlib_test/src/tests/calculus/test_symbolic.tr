@@ -1,0 +1,181 @@
+// Test file for Symbolic.tr
+// Exercises the public API for symbolic differentiation and simplification.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::calculus::Symbolic;
+import tt::calculus::Symbolic::Expr;
+import tt::lang::Double;
+
+public fn test_const_expr(): void {
+    let e: Expr = Symbolic.constExpr(5.0);
+    let result: double = Symbolic.evaluate(e, new HashMap<string, double>());
+    if (Math.abs(result - 5.0) > 1e-9) {
+        io::println("FAIL: constExpr evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: constExpr works");
+    }
+}
+
+public fn test_var_expr(): void {
+    let e: Expr = Symbolic.varExpr("x");
+    let vars: HashMap<string, double> = new HashMap<string, double>();
+    vars.put("x", 7.0);
+    let result: double = Symbolic.evaluate(e, vars);
+    if (Math.abs(result - 7.0) > 1e-9) {
+        io::println("FAIL: varExpr evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: varExpr works");
+    }
+}
+
+public fn test_add_expr(): void {
+    // x + 5 with x=3 -> 8
+    let e: Expr = Symbolic.addExpr(Symbolic.varExpr("x"), Symbolic.constExpr(5.0));
+    let vars: HashMap<string, double> = new HashMap<string, double>();
+    vars.put("x", 3.0);
+    let result: double = Symbolic.evaluate(e, vars);
+    if (Math.abs(result - 8.0) > 1e-9) {
+        io::println("FAIL: addExpr evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: addExpr works");
+    }
+}
+
+public fn test_mul_expr(): void {
+    // x * 4 with x=3 -> 12
+    let e: Expr = Symbolic.mulExpr(Symbolic.varExpr("x"), Symbolic.constExpr(4.0));
+    let vars: HashMap<string, double> = new HashMap<string, double>();
+    vars.put("x", 3.0);
+    let result: double = Symbolic.evaluate(e, vars);
+    if (Math.abs(result - 12.0) > 1e-9) {
+        io::println("FAIL: mulExpr evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: mulExpr works");
+    }
+}
+
+public fn test_pow_expr(): void {
+    // x^2 with x=3 -> 9
+    let e: Expr = Symbolic.powExpr(Symbolic.varExpr("x"), Symbolic.constExpr(2.0));
+    let vars: HashMap<string, double> = new HashMap<string, double>();
+    vars.put("x", 3.0);
+    let result: double = Symbolic.evaluate(e, vars);
+    if (Math.abs(result - 9.0) > 1e-9) {
+        io::println("FAIL: powExpr evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: powExpr works");
+    }
+}
+
+public fn test_differentiate_constant(): void {
+    // d/dx (5) = 0
+    let e: Expr = Symbolic.constExpr(5.0);
+    let d: Expr = Symbolic.differentiate(e, "x");
+    let result: double = Symbolic.evaluate(d, new HashMap<string, double>());
+    if (Math.abs(result - 0.0) > 1e-9) {
+        io::println("FAIL: differentiate constant = " + Double.toString(result));
+    } else {
+        io::println("PASS: differentiate constant works");
+    }
+}
+
+public fn test_differentiate_x(): void {
+    // d/dx (x) = 1
+    let e: Expr = Symbolic.varExpr("x");
+    let d: Expr = Symbolic.differentiate(e, "x");
+    let result: double = Symbolic.evaluate(d, new HashMap<string, double>());
+    if (Math.abs(result - 1.0) > 1e-9) {
+        io::println("FAIL: differentiate x = " + Double.toString(result));
+    } else {
+        io::println("PASS: differentiate x works");
+    }
+}
+
+public fn test_differentiate_x_squared(): void {
+    // d/dx (x^2) at x=3 = 6
+    let e: Expr = Symbolic.powExpr(Symbolic.varExpr("x"), Symbolic.constExpr(2.0));
+    let d: Expr = Symbolic.differentiate(e, "x");
+    let vars: HashMap<string, double> = new HashMap<string, double>();
+    vars.put("x", 3.0);
+    let result: double = Symbolic.evaluate(d, vars);
+    if (Math.abs(result - 6.0) > 1e-6) {
+        io::println("FAIL: differentiate x^2 at 3 = " + Double.toString(result));
+    } else {
+        io::println("PASS: differentiate x^2 works");
+    }
+}
+
+public fn test_substitute(): void {
+    // Substitute x -> 5 in (x + 1)
+    let e: Expr = Symbolic.addExpr(Symbolic.varExpr("x"), Symbolic.constExpr(1.0));
+    let substituted: Expr = Symbolic.substitute(e, "x", 5.0);
+    let result: double = Symbolic.evaluate(substituted, new HashMap<string, double>());
+    if (Math.abs(result - 6.0) > 1e-9) {
+        io::println("FAIL: substitute evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: substitute works");
+    }
+}
+
+public fn test_expr_to_string(): void {
+    let e: Expr = Symbolic.addExpr(Symbolic.varExpr("x"), Symbolic.constExpr(1.0));
+    let s: string = Symbolic.exprToString(e);
+    if (String.length(s) == 0) {
+        io::println("FAIL: exprToString empty");
+    } else {
+        io::println("PASS: exprToString works");
+    }
+}
+
+public fn test_simplify(): void {
+    let e: Expr = Symbolic.addExpr(Symbolic.constExpr(2.0), Symbolic.constExpr(3.0));
+    let s: Expr = Symbolic.simplify(e);
+    let result: double = Symbolic.evaluate(s, new HashMap<string, double>());
+    if (Math.abs(result - 5.0) > 1e-9) {
+        io::println("FAIL: simplify evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: simplify works");
+    }
+}
+
+public fn test_sin_expr(): void {
+    // sin(0) = 0
+    let e: Expr = Symbolic.sinExpr(Symbolic.constExpr(0.0));
+    let result: double = Symbolic.evaluate(e, new HashMap<string, double>());
+    if (Math.abs(result - 0.0) > 1e-9) {
+        io::println("FAIL: sinExpr evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: sinExpr works");
+    }
+}
+
+public fn test_expand(): void {
+    let e: Expr = Symbolic.mulExpr(Symbolic.addExpr(Symbolic.varExpr("x"), Symbolic.constExpr(1.0)), Symbolic.varExpr("x"));
+    let expanded: Expr = Symbolic.expand(e);
+    let vars: HashMap<string, double> = new HashMap<string, double>();
+    vars.put("x", 3.0);
+    let result: double = Symbolic.evaluate(expanded, vars);
+    // (x+1)*x at x=3 = 12
+    if (Math.abs(result - 12.0) > 1e-9) {
+        io::println("FAIL: expand evaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: expand works");
+    }
+}
+
+public fn run_all_symbolic_tests(): void {
+    io::println("=== Symbolic.tr Tests ===");
+    test_const_expr();
+    test_var_expr();
+    test_add_expr();
+    test_mul_expr();
+    test_pow_expr();
+    test_differentiate_constant();
+    test_differentiate_x();
+    test_differentiate_x_squared();
+    test_substitute();
+    test_expr_to_string();
+    test_simplify();
+    test_sin_expr();
+    test_expand();
+}

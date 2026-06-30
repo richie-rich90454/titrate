@@ -1,0 +1,169 @@
+// Test file for random/Prng.tr
+// Exercises the public API of the Prng module: deterministic pseudo-random
+// number generator algorithms (MT19937, PCG32, Xoshiro256).
+import tt::random::Prng;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Long;
+
+public fn test_mt19937_init(): void {
+    let mt: MT19937 = new MT19937();
+    mt.init(5489);
+    if (mt.index != 624) {
+        io::println("FAIL: MT19937 init index = " + Integer.toString(mt.index));
+    } else if (mt.mt.size() != 624) {
+        io::println("FAIL: MT19937 mt size = " + Integer.toString(mt.mt.size()));
+    } else {
+        io::println("PASS: MT19937 init sets state correctly");
+    }
+}
+
+public fn test_mt19937_nextInt(): void {
+    let mt: MT19937 = new MT19937();
+    mt.init(5489);
+    let v: int = mt.nextInt();
+    // Just check it runs and produces some integer (no easy way to verify value)
+    io::println("PASS: MT19937 nextInt returns " + Integer.toString(v));
+}
+
+public fn test_mt19937_nextDouble_in_range(): void {
+    let mt: MT19937 = new MT19937();
+    mt.init(5489);
+    let v: double = mt.nextDouble();
+    if (v < 0.0 || v >= 1.0) {
+        io::println("FAIL: MT19937 nextDouble out of [0,1)");
+    } else {
+        io::println("PASS: MT19937 nextDouble in [0,1)");
+    }
+}
+
+public fn test_mt19937_nextLong(): void {
+    let mt: MT19937 = new MT19937();
+    mt.init(5489);
+    let v: long = mt.nextLong();
+    io::println("PASS: MT19937 nextLong returns " + Long.toString(v));
+}
+
+public fn test_mt19937_save_load_state(): void {
+    let mt: MT19937 = new MT19937();
+    mt.init(5489);
+    mt.nextInt();
+    mt.nextInt();
+    let state: ArrayList<int> = mt.saveState();
+    if (state.size() != 625) {
+        io::println("FAIL: MT19937 saveState size = " + Integer.toString(state.size()));
+    } else {
+        let v1: int = mt.nextInt();
+        // Reset state to before v1 was drawn and verify
+        mt.loadState(state);
+        let v2: int = mt.nextInt();
+        if (v1 != v2) {
+            io::println("FAIL: MT19937 loadState did not restore state");
+        } else {
+            io::println("PASS: MT19937 save/loadState restores state");
+        }
+    }
+}
+
+public fn test_pcg32_init(): void {
+    let pcg: PCG32 = new PCG32();
+    pcg.init(42L);
+    io::println("PASS: PCG32 init");
+}
+
+public fn test_pcg32_nextInt(): void {
+    let pcg: PCG32 = new PCG32();
+    pcg.init(42L);
+    let v: int = pcg.nextInt();
+    io::println("PASS: PCG32 nextInt returns " + Integer.toString(v));
+}
+
+public fn test_pcg32_nextDouble_in_range(): void {
+    let pcg: PCG32 = new PCG32();
+    pcg.init(42L);
+    let v: double = pcg.nextDouble();
+    if (v < 0.0 || v >= 1.0) {
+        io::println("FAIL: PCG32 nextDouble out of [0,1)");
+    } else {
+        io::println("PASS: PCG32 nextDouble in [0,1)");
+    }
+}
+
+public fn test_xoshiro256_init(): void {
+    let x: Xoshiro256 = new Xoshiro256();
+    x.init(12345L);
+    io::println("PASS: Xoshiro256 init");
+}
+
+public fn test_xoshiro256_nextInt(): void {
+    let x: Xoshiro256 = new Xoshiro256();
+    x.init(12345L);
+    let v: long = x.nextInt();
+    io::println("PASS: Xoshiro256 nextInt returns " + Long.toString(v));
+}
+
+public fn test_xoshiro256_nextDouble_in_range(): void {
+    let x: Xoshiro256 = new Xoshiro256();
+    x.init(12345L);
+    let v: double = x.nextDouble();
+    if (v < 0.0 || v >= 1.0) {
+        io::println("FAIL: Xoshiro256 nextDouble out of [0,1)");
+    } else {
+        io::println("PASS: Xoshiro256 nextDouble in [0,1)");
+    }
+}
+
+public fn test_xoshiro256_jump(): void {
+    let x: Xoshiro256 = new Xoshiro256();
+    x.init(12345L);
+    x.jump();
+    let v: long = x.nextInt();
+    io::println("PASS: Xoshiro256 jump then nextInt = " + Long.toString(v));
+}
+
+public fn test_xoshiro256_longJump(): void {
+    let x: Xoshiro256 = new Xoshiro256();
+    x.init(12345L);
+    x.longJump();
+    let v: long = x.nextInt();
+    io::println("PASS: Xoshiro256 longJump then nextInt = " + Long.toString(v));
+}
+
+public fn test_mt19937_deterministic(): void {
+    let a: MT19937 = new MT19937();
+    a.init(99);
+    let b: MT19937 = new MT19937();
+    b.init(99);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < 10) {
+        if (a.nextInt() != b.nextInt()) {
+            ok = false;
+            break;
+        }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: MT19937 with same seed produced different sequence");
+    } else {
+        io::println("PASS: MT19937 is deterministic for same seed");
+    }
+}
+
+public fn run_all_prng_tests(): void {
+    io::println("=== Prng.tr Tests ===");
+    test_mt19937_init();
+    test_mt19937_nextInt();
+    test_mt19937_nextDouble_in_range();
+    test_mt19937_nextLong();
+    test_mt19937_save_load_state();
+    test_pcg32_init();
+    test_pcg32_nextInt();
+    test_pcg32_nextDouble_in_range();
+    test_xoshiro256_init();
+    test_xoshiro256_nextInt();
+    test_xoshiro256_nextDouble_in_range();
+    test_xoshiro256_jump();
+    test_xoshiro256_longJump();
+    test_mt19937_deterministic();
+}

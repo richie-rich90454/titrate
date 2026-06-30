@@ -1,0 +1,496 @@
+// Test file for units/Derived.tr
+// Exercises the public API of the units/Derived module: SI derived unit classes
+// (Joule, Newton, Pascal, Watt, Coulomb, Volt, Ohm, Farad, Henry, Tesla, Weber,
+// Hertz, Becquerel, Gray, Sievert, Lux, Lumen, Katal) and the *FromBase factory
+// functions.
+import tt::units::Derived;
+import tt::units::Base;
+import tt::lang::Double;
+
+public fn test_joule_init_and_value(): void {
+    let j: Joule = new Joule(100.0);
+    if (j.getValue() != 100.0) {
+        io::println("FAIL: Joule.getValue");
+    } else {
+        io::println("PASS: Joule init/getValue works");
+    }
+}
+
+public fn test_joule_plus_minus(): void {
+    let a: Joule = new Joule(50.0);
+    let b: Joule = new Joule(30.0);
+    if (a.plus(b).getValue() != 80.0) {
+        io::println("FAIL: Joule.plus");
+    } else if (a.minus(b).getValue() != 20.0) {
+        io::println("FAIL: Joule.minus");
+    } else {
+        io::println("PASS: Joule plus/minus work");
+    }
+}
+
+public fn test_joule_times_div_scalar(): void {
+    let j: Joule = new Joule(10.0);
+    if (j.times(3.0).getValue() != 30.0) {
+        io::println("FAIL: Joule.times scalar");
+    } else if (j.div(2.0).getValue() != 5.0) {
+        io::println("FAIL: Joule.div scalar");
+    } else {
+        io::println("PASS: Joule times/div scalar work");
+    }
+}
+
+public fn test_joule_div_second_yields_watt(): void {
+    let j: Joule = new Joule(100.0);
+    let s: Second = new Second(10.0);
+    let w: Watt = j.div(s);
+    if (w.getValue() != 10.0) {
+        io::println("FAIL: Joule.div(Second) = " + Double.toString(w.getValue()));
+    } else {
+        io::println("PASS: Joule.div(Second) yields Watt");
+    }
+}
+
+public fn test_jouleFromBase(): void {
+    let m: Meter = new Meter(2.0);
+    let kg: Kilogram = new Kilogram(3.0);
+    let s: Second = new Second(1.0);
+    let j: Joule = jouleFromBase(m, kg, s);
+    // J = kg * m^2 / s^2 = 3 * 4 / 1 = 12
+    if (j.getValue() != 12.0) {
+        io::println("FAIL: jouleFromBase = " + Double.toString(j.getValue()));
+    } else {
+        io::println("PASS: jouleFromBase works");
+    }
+}
+
+public fn test_newton_arithmetic(): void {
+    let a: Newton = new Newton(10.0);
+    let b: Newton = new Newton(4.0);
+    if (a.plus(b).getValue() != 14.0) {
+        io::println("FAIL: Newton.plus");
+    } else if (a.minus(b).getValue() != 6.0) {
+        io::println("FAIL: Newton.minus");
+    } else if (a.times(2.0).getValue() != 20.0) {
+        io::println("FAIL: Newton.times scalar");
+    } else if (a.div(2.0).getValue() != 5.0) {
+        io::println("FAIL: Newton.div scalar");
+    } else {
+        io::println("PASS: Newton arithmetic works");
+    }
+}
+
+public fn test_newton_times_meter_yields_joule(): void {
+    let n: Newton = new Newton(5.0);
+    let m: Meter = new Meter(4.0);
+    let j: Joule = n.times(m);
+    if (j.getValue() != 20.0) {
+        io::println("FAIL: Newton.times(Meter) = " + Double.toString(j.getValue()));
+    } else {
+        io::println("PASS: Newton.times(Meter) yields Joule");
+    }
+}
+
+public fn test_newtonFromBase(): void {
+    let m: Meter = new Meter(2.0);
+    let kg: Kilogram = new Kilogram(3.0);
+    let s: Second = new Second(1.0);
+    let n: Newton = newtonFromBase(m, kg, s);
+    // N = kg * m / s^2 = 3 * 2 / 1 = 6
+    if (n.getValue() != 6.0) {
+        io::println("FAIL: newtonFromBase = " + Double.toString(n.getValue()));
+    } else {
+        io::println("PASS: newtonFromBase works");
+    }
+}
+
+public fn test_pascal_arithmetic(): void {
+    let a: Pascal = new Pascal(100.0);
+    let b: Pascal = new Pascal(40.0);
+    if (a.plus(b).getValue() != 140.0) {
+        io::println("FAIL: Pascal.plus");
+    } else if (a.minus(b).getValue() != 60.0) {
+        io::println("FAIL: Pascal.minus");
+    } else {
+        io::println("PASS: Pascal arithmetic works");
+    }
+}
+
+public fn test_pascalFromBase(): void {
+    let n: Newton = new Newton(20.0);
+    let m: Meter = new Meter(2.0);
+    let p: Pascal = pascalFromBase(n, m);
+    // P = N / m^2 = 20 / 4 = 5
+    if (p.getValue() != 5.0) {
+        io::println("FAIL: pascalFromBase = " + Double.toString(p.getValue()));
+    } else {
+        io::println("PASS: pascalFromBase works");
+    }
+}
+
+public fn test_watt_arithmetic(): void {
+    let a: Watt = new Watt(100.0);
+    let b: Watt = new Watt(30.0);
+    if (a.plus(b).getValue() != 130.0) {
+        io::println("FAIL: Watt.plus");
+    } else if (a.minus(b).getValue() != 70.0) {
+        io::println("FAIL: Watt.minus");
+    } else {
+        io::println("PASS: Watt arithmetic works");
+    }
+}
+
+public fn test_watt_times_second_yields_joule(): void {
+    let w: Watt = new Watt(10.0);
+    let s: Second = new Second(5.0);
+    let j: Joule = w.times(s);
+    if (j.getValue() != 50.0) {
+        io::println("FAIL: Watt.times(Second) = " + Double.toString(j.getValue()));
+    } else {
+        io::println("PASS: Watt.times(Second) yields Joule");
+    }
+}
+
+public fn test_wattFromBase(): void {
+    let j: Joule = new Joule(100.0);
+    let s: Second = new Second(10.0);
+    let w: Watt = wattFromBase(j, s);
+    if (w.getValue() != 10.0) {
+        io::println("FAIL: wattFromBase = " + Double.toString(w.getValue()));
+    } else {
+        io::println("PASS: wattFromBase works");
+    }
+}
+
+public fn test_coulomb_arithmetic(): void {
+    let a: Coulomb = new Coulomb(10.0);
+    let b: Coulomb = new Coulomb(4.0);
+    if (a.plus(b).getValue() != 14.0) {
+        io::println("FAIL: Coulomb.plus");
+    } else if (a.minus(b).getValue() != 6.0) {
+        io::println("FAIL: Coulomb.minus");
+    } else {
+        io::println("PASS: Coulomb arithmetic works");
+    }
+}
+
+public fn test_coulombFromBase(): void {
+    let a: Ampere = new Ampere(2.0);
+    let s: Second = new Second(5.0);
+    let c: Coulomb = coulombFromBase(a, s);
+    if (c.getValue() != 10.0) {
+        io::println("FAIL: coulombFromBase = " + Double.toString(c.getValue()));
+    } else {
+        io::println("PASS: coulombFromBase works");
+    }
+}
+
+public fn test_volt_arithmetic(): void {
+    let a: Volt = new Volt(10.0);
+    let b: Volt = new Volt(3.0);
+    if (a.plus(b).getValue() != 13.0) {
+        io::println("FAIL: Volt.plus");
+    } else if (a.minus(b).getValue() != 7.0) {
+        io::println("FAIL: Volt.minus");
+    } else if (a.times(2.0).getValue() != 20.0) {
+        io::println("FAIL: Volt.times scalar");
+    } else if (a.div(2.0).getValue() != 5.0) {
+        io::println("FAIL: Volt.div scalar");
+    } else {
+        io::println("PASS: Volt arithmetic works");
+    }
+}
+
+public fn test_volt_times_coulomb_yields_joule(): void {
+    let v: Volt = new Volt(10.0);
+    let c: Coulomb = new Coulomb(2.0);
+    let j: Joule = v.times(c);
+    if (j.getValue() != 20.0) {
+        io::println("FAIL: Volt.times(Coulomb) = " + Double.toString(j.getValue()));
+    } else {
+        io::println("PASS: Volt.times(Coulomb) yields Joule");
+    }
+}
+
+public fn test_volt_div_ampere_yields_ohm(): void {
+    let v: Volt = new Volt(10.0);
+    let a: Ampere = new Ampere(2.0);
+    let o: Ohm = v.div(a);
+    if (o.getValue() != 5.0) {
+        io::println("FAIL: Volt.div(Ampere) = " + Double.toString(o.getValue()));
+    } else {
+        io::println("PASS: Volt.div(Ampere) yields Ohm");
+    }
+}
+
+public fn test_voltFromBase(): void {
+    let j: Joule = new Joule(20.0);
+    let c: Coulomb = new Coulomb(4.0);
+    let v: Volt = voltFromBase(j, c);
+    if (v.getValue() != 5.0) {
+        io::println("FAIL: voltFromBase = " + Double.toString(v.getValue()));
+    } else {
+        io::println("PASS: voltFromBase works");
+    }
+}
+
+public fn test_ohm_arithmetic(): void {
+    let a: Ohm = new Ohm(10.0);
+    let b: Ohm = new Ohm(3.0);
+    if (a.plus(b).getValue() != 13.0) {
+        io::println("FAIL: Ohm.plus");
+    } else if (a.minus(b).getValue() != 7.0) {
+        io::println("FAIL: Ohm.minus");
+    } else {
+        io::println("PASS: Ohm arithmetic works");
+    }
+}
+
+public fn test_ohmFromBase(): void {
+    let v: Volt = new Volt(10.0);
+    let a: Ampere = new Ampere(2.0);
+    let o: Ohm = ohmFromBase(v, a);
+    if (o.getValue() != 5.0) {
+        io::println("FAIL: ohmFromBase = " + Double.toString(o.getValue()));
+    } else {
+        io::println("PASS: ohmFromBase works");
+    }
+}
+
+public fn test_farad_arithmetic(): void {
+    let a: Farad = new Farad(10.0);
+    let b: Farad = new Farad(3.0);
+    if (a.plus(b).getValue() != 13.0) {
+        io::println("FAIL: Farad.plus");
+    } else if (a.minus(b).getValue() != 7.0) {
+        io::println("FAIL: Farad.minus");
+    } else {
+        io::println("PASS: Farad arithmetic works");
+    }
+}
+
+public fn test_faradFromBase(): void {
+    let c: Coulomb = new Coulomb(10.0);
+    let v: Volt = new Volt(2.0);
+    let f: Farad = faradFromBase(c, v);
+    if (f.getValue() != 5.0) {
+        io::println("FAIL: faradFromBase = " + Double.toString(f.getValue()));
+    } else {
+        io::println("PASS: faradFromBase works");
+    }
+}
+
+public fn test_henry_arithmetic(): void {
+    let a: Henry = new Henry(10.0);
+    let b: Henry = new Henry(4.0);
+    if (a.plus(b).getValue() != 14.0) {
+        io::println("FAIL: Henry.plus");
+    } else if (a.minus(b).getValue() != 6.0) {
+        io::println("FAIL: Henry.minus");
+    } else {
+        io::println("PASS: Henry arithmetic works");
+    }
+}
+
+public fn test_henryFromBase(): void {
+    let v: Volt = new Volt(10.0);
+    let s: Second = new Second(2.0);
+    let a: Ampere = new Ampere(4.0);
+    let h: Henry = henryFromBase(v, s, a);
+    if (h.getValue() != 5.0) {
+        io::println("FAIL: henryFromBase = " + Double.toString(h.getValue()));
+    } else {
+        io::println("PASS: henryFromBase works");
+    }
+}
+
+public fn test_tesla_arithmetic(): void {
+    let t: Tesla = new Tesla(5.0);
+    let t2: Tesla = new Tesla(3.0);
+    if (t.plus(t2).getValue() != 8.0) {
+        io::println("FAIL: Tesla.plus");
+    } else if (t.minus(t2).getValue() != 2.0) {
+        io::println("FAIL: Tesla.minus");
+    } else {
+        io::println("PASS: Tesla arithmetic works");
+    }
+}
+
+public fn test_weber_arithmetic(): void {
+    let a: Weber = new Weber(10.0);
+    let b: Weber = new Weber(3.0);
+    if (a.plus(b).getValue() != 13.0) {
+        io::println("FAIL: Weber.plus");
+    } else if (a.minus(b).getValue() != 7.0) {
+        io::println("FAIL: Weber.minus");
+    } else {
+        io::println("PASS: Weber arithmetic works");
+    }
+}
+
+public fn test_hertz_arithmetic(): void {
+    let a: Hertz = new Hertz(60.0);
+    let b: Hertz = new Hertz(50.0);
+    if (a.plus(b).getValue() != 110.0) {
+        io::println("FAIL: Hertz.plus");
+    } else if (a.minus(b).getValue() != 10.0) {
+        io::println("FAIL: Hertz.minus");
+    } else {
+        io::println("PASS: Hertz arithmetic works");
+    }
+}
+
+public fn test_hertzFromBase(): void {
+    let s: Second = new Second(2.0);
+    let h: Hertz = hertzFromBase(s);
+    if (h.getValue() != 0.5) {
+        io::println("FAIL: hertzFromBase = " + Double.toString(h.getValue()));
+    } else {
+        io::println("PASS: hertzFromBase works");
+    }
+}
+
+public fn test_becquerel_arithmetic(): void {
+    let a: Becquerel = new Becquerel(100.0);
+    let b: Becquerel = new Becquerel(30.0);
+    if (a.plus(b).getValue() != 130.0) {
+        io::println("FAIL: Becquerel.plus");
+    } else if (a.minus(b).getValue() != 70.0) {
+        io::println("FAIL: Becquerel.minus");
+    } else {
+        io::println("PASS: Becquerel arithmetic works");
+    }
+}
+
+public fn test_gray_arithmetic(): void {
+    let a: Gray = new Gray(10.0);
+    let b: Gray = new Gray(2.0);
+    if (a.plus(b).getValue() != 12.0) {
+        io::println("FAIL: Gray.plus");
+    } else if (a.minus(b).getValue() != 8.0) {
+        io::println("FAIL: Gray.minus");
+    } else {
+        io::println("PASS: Gray arithmetic works");
+    }
+}
+
+public fn test_grayFromBase(): void {
+    let j: Joule = new Joule(20.0);
+    let kg: Kilogram = new Kilogram(4.0);
+    let g: Gray = grayFromBase(j, kg);
+    if (g.getValue() != 5.0) {
+        io::println("FAIL: grayFromBase = " + Double.toString(g.getValue()));
+    } else {
+        io::println("PASS: grayFromBase works");
+    }
+}
+
+public fn test_sievert_arithmetic(): void {
+    let a: Sievert = new Sievert(10.0);
+    let b: Sievert = new Sievert(3.0);
+    if (a.plus(b).getValue() != 13.0) {
+        io::println("FAIL: Sievert.plus");
+    } else if (a.minus(b).getValue() != 7.0) {
+        io::println("FAIL: Sievert.minus");
+    } else {
+        io::println("PASS: Sievert arithmetic works");
+    }
+}
+
+public fn test_lux_arithmetic(): void {
+    let a: Lux = new Lux(100.0);
+    let b: Lux = new Lux(40.0);
+    if (a.plus(b).getValue() != 140.0) {
+        io::println("FAIL: Lux.plus");
+    } else if (a.minus(b).getValue() != 60.0) {
+        io::println("FAIL: Lux.minus");
+    } else {
+        io::println("PASS: Lux arithmetic works");
+    }
+}
+
+public fn test_lumen_arithmetic(): void {
+    let a: Lumen = new Lumen(100.0);
+    let b: Lumen = new Lumen(30.0);
+    if (a.plus(b).getValue() != 130.0) {
+        io::println("FAIL: Lumen.plus");
+    } else if (a.minus(b).getValue() != 70.0) {
+        io::println("FAIL: Lumen.minus");
+    } else {
+        io::println("PASS: Lumen arithmetic works");
+    }
+}
+
+public fn test_lumenFromBase(): void {
+    let cd: Candela = new Candela(50.0);
+    let l: Lumen = lumenFromBase(cd);
+    if (l.getValue() != 50.0) {
+        io::println("FAIL: lumenFromBase = " + Double.toString(l.getValue()));
+    } else {
+        io::println("PASS: lumenFromBase works");
+    }
+}
+
+public fn test_katal_arithmetic(): void {
+    let a: Katal = new Katal(10.0);
+    let b: Katal = new Katal(3.0);
+    if (a.plus(b).getValue() != 13.0) {
+        io::println("FAIL: Katal.plus");
+    } else if (a.minus(b).getValue() != 7.0) {
+        io::println("FAIL: Katal.minus");
+    } else {
+        io::println("PASS: Katal arithmetic works");
+    }
+}
+
+public fn test_katalFromBase(): void {
+    let mol: Mole = new Mole(10.0);
+    let s: Second = new Second(2.0);
+    let k: Katal = katalFromBase(mol, s);
+    if (k.getValue() != 5.0) {
+        io::println("FAIL: katalFromBase = " + Double.toString(k.getValue()));
+    } else {
+        io::println("PASS: katalFromBase works");
+    }
+}
+
+public fn run_all_derived_tests(): void {
+    io::println("=== units/Derived.tr Tests ===");
+    test_joule_init_and_value();
+    test_joule_plus_minus();
+    test_joule_times_div_scalar();
+    test_joule_div_second_yields_watt();
+    test_jouleFromBase();
+    test_newton_arithmetic();
+    test_newton_times_meter_yields_joule();
+    test_newtonFromBase();
+    test_pascal_arithmetic();
+    test_pascalFromBase();
+    test_watt_arithmetic();
+    test_watt_times_second_yields_joule();
+    test_wattFromBase();
+    test_coulomb_arithmetic();
+    test_coulombFromBase();
+    test_volt_arithmetic();
+    test_volt_times_coulomb_yields_joule();
+    test_volt_div_ampere_yields_ohm();
+    test_voltFromBase();
+    test_ohm_arithmetic();
+    test_ohmFromBase();
+    test_farad_arithmetic();
+    test_faradFromBase();
+    test_henry_arithmetic();
+    test_henryFromBase();
+    test_tesla_arithmetic();
+    test_weber_arithmetic();
+    test_hertz_arithmetic();
+    test_hertzFromBase();
+    test_becquerel_arithmetic();
+    test_gray_arithmetic();
+    test_grayFromBase();
+    test_sievert_arithmetic();
+    test_lux_arithmetic();
+    test_lumen_arithmetic();
+    test_lumenFromBase();
+    test_katal_arithmetic();
+    test_katalFromBase();
+}

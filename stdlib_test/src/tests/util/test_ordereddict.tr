@@ -1,0 +1,252 @@
+// Test file for OrderedDict.tr
+// Exercises the public API of the OrderedDict class (insertion-ordered HashMap).
+import tt::util::OrderedDict;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_ordereddict_init(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    if (!od.isEmpty() || od.size() != 0) {
+        io::println("FAIL: OrderedDict init");
+    } else {
+        io::println("PASS: OrderedDict init empty");
+    }
+}
+
+public fn test_ordereddict_put_get(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    if (od.get("a") != 1 || od.get("b") != 2) {
+        io::println("FAIL: OrderedDict put/get");
+    } else {
+        io::println("PASS: OrderedDict put/get works");
+    }
+}
+
+public fn test_ordereddict_containsKey(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("x", 10);
+    if (!od.containsKey("x") || od.containsKey("y")) {
+        io::println("FAIL: OrderedDict containsKey");
+    } else {
+        io::println("PASS: OrderedDict containsKey works");
+    }
+}
+
+public fn test_ordereddict_getOrDefault(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    if (od.getOrDefault("a", 99) != 1 || od.getOrDefault("z", 99) != 99) {
+        io::println("FAIL: OrderedDict getOrDefault");
+    } else {
+        io::println("PASS: OrderedDict getOrDefault works");
+    }
+}
+
+public fn test_ordereddict_insertion_order_keys(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("c", 3);
+    od.put("a", 1);
+    od.put("b", 2);
+    let keys: ArrayList<string> = od.keys();
+    // Keys should be in insertion order: c, a, b
+    if (keys.size() != 3 || keys.get(0) != "c" || keys.get(1) != "a" || keys.get(2) != "b") {
+        io::println("FAIL: OrderedDict insertion order");
+    } else {
+        io::println("PASS: OrderedDict preserves insertion order");
+    }
+}
+
+public fn test_ordereddict_values(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    let vals: ArrayList<int> = od.values();
+    if (vals.size() != 2 || vals.get(0) != 1 || vals.get(1) != 2) {
+        io::println("FAIL: OrderedDict values");
+    } else {
+        io::println("PASS: OrderedDict values works");
+    }
+}
+
+public fn test_ordereddict_remove(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    od.remove("a");
+    if (od.containsKey("a") || od.size() != 1) {
+        io::println("FAIL: OrderedDict remove");
+    } else {
+        io::println("PASS: OrderedDict remove works");
+    }
+}
+
+public fn test_ordereddict_size(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    od.put("c", 3);
+    if (od.size() != 3) {
+        io::println("FAIL: OrderedDict size = " + Integer.toString(od.size()));
+    } else {
+        io::println("PASS: OrderedDict size works");
+    }
+}
+
+public fn test_ordereddict_clear(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    od.clear();
+    if (!od.isEmpty() || od.size() != 0) {
+        io::println("FAIL: OrderedDict clear");
+    } else {
+        io::println("PASS: OrderedDict clear works");
+    }
+}
+
+public fn test_ordereddict_putIfAbsent(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    let existing: int = od.putIfAbsent("a", 99);
+    let absent: int = od.putIfAbsent("b", 2);
+    if (existing != 1 || od.get("a") != 1) {
+        io::println("FAIL: OrderedDict putIfAbsent existing");
+    } else {
+        if (absent != 2 || od.get("b") != 2) {
+            io::println("FAIL: OrderedDict putIfAbsent absent");
+        } else {
+            io::println("PASS: OrderedDict putIfAbsent works");
+        }
+    }
+}
+
+public fn test_ordereddict_put_overwrite(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("a", 99);
+    if (od.get("a") != 99 || od.size() != 1) {
+        io::println("FAIL: OrderedDict put overwrite");
+    } else {
+        io::println("PASS: OrderedDict put overwrite works");
+    }
+}
+
+public fn test_ordereddict_entries(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("x", 10);
+    od.put("y", 20);
+    let es: ArrayList<(string, int)> = od.entries();
+    if (es.size() != 2) {
+        io::println("FAIL: OrderedDict entries size = " + Integer.toString(es.size()));
+    } else {
+        let (k: string, v: int) = es.get(0);
+        if (k != "x" || v != 10) {
+            io::println("FAIL: OrderedDict entries content");
+        } else {
+            io::println("PASS: OrderedDict entries works");
+        }
+    }
+}
+
+public fn test_ordereddict_moveToEnd(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    od.put("c", 3);
+    od.moveToEnd("a");
+    let keys: ArrayList<string> = od.keys();
+    // After moveToEnd, order should be b, c, a
+    if (keys.get(0) != "b" || keys.get(1) != "c" || keys.get(2) != "a") {
+        io::println("FAIL: OrderedDict moveToEnd");
+    } else {
+        io::println("PASS: OrderedDict moveToEnd works");
+    }
+}
+
+public fn test_ordereddict_popItem_last(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    let item: (string, int) = od.popItem(true);
+    let (k: string, v: int) = item;
+    if (k != "b" || v != 2 || od.size() != 1) {
+        io::println("FAIL: OrderedDict popItem last");
+    } else {
+        io::println("PASS: OrderedDict popItem last works");
+    }
+}
+
+public fn test_ordereddict_popItem_first(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    let item: (string, int) = od.popItem(false);
+    let (k: string, v: int) = item;
+    if (k != "a" || v != 1 || od.size() != 1) {
+        io::println("FAIL: OrderedDict popItem first");
+    } else {
+        io::println("PASS: OrderedDict popItem first works");
+    }
+}
+
+public fn test_ordereddict_clone(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    let copy: OrderedDict<string, int> = od.clone();
+    if (copy.size() != 2 || copy.get("a") != 1 || copy.get("b") != 2) {
+        io::println("FAIL: OrderedDict clone");
+    } else {
+        io::println("PASS: OrderedDict clone works");
+    }
+}
+
+public fn test_ordereddict_forEach(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    od.put("b", 2);
+    od.put("c", 3);
+    let collected: ArrayList<string> = new ArrayList<string>();
+    od.forEach(fn(k: string, v: int): void { collected.add(k); });
+    if (collected.size() != 3 || collected.get(0) != "a" || collected.get(1) != "b" || collected.get(2) != "c") {
+        io::println("FAIL: OrderedDict forEach");
+    } else {
+        io::println("PASS: OrderedDict forEach works");
+    }
+}
+
+public fn test_ordereddict_toString(): void {
+    let od: OrderedDict<string, int> = new OrderedDict<string, int>();
+    od.put("a", 1);
+    let s: string = od.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: OrderedDict toString empty");
+    } else {
+        io::println("PASS: OrderedDict toString works");
+    }
+}
+
+public fn run_all_ordereddict_tests(): void {
+    io::println("=== OrderedDict.tr Tests ===");
+    test_ordereddict_init();
+    test_ordereddict_put_get();
+    test_ordereddict_containsKey();
+    test_ordereddict_getOrDefault();
+    test_ordereddict_insertion_order_keys();
+    test_ordereddict_values();
+    test_ordereddict_remove();
+    test_ordereddict_size();
+    test_ordereddict_clear();
+    test_ordereddict_putIfAbsent();
+    test_ordereddict_put_overwrite();
+    test_ordereddict_entries();
+    test_ordereddict_moveToEnd();
+    test_ordereddict_popItem_last();
+    test_ordereddict_popItem_first();
+    test_ordereddict_clone();
+    test_ordereddict_forEach();
+    test_ordereddict_toString();
+}

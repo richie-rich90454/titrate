@@ -1,0 +1,202 @@
+// Test file for ChainMap.tr
+// Exercises the public API of the ChainMap class (layered dict lookups).
+import tt::util::ChainMap;
+import tt::util::HashMap;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_chainmap_init(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    if (cm.size() != 0) {
+        io::println("FAIL: ChainMap init size = " + Integer.toString(cm.size()));
+    } else {
+        io::println("PASS: ChainMap init empty");
+    }
+}
+
+public fn test_chainmap_put_get(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("a", 1);
+    cm.put("b", 2);
+    if (cm.get("a") != 1 || cm.get("b") != 2) {
+        io::println("FAIL: ChainMap put/get");
+    } else {
+        io::println("PASS: ChainMap put/get works");
+    }
+}
+
+public fn test_chainmap_containsKey(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("x", 10);
+    if (!cm.containsKey("x") || cm.containsKey("y")) {
+        io::println("FAIL: ChainMap containsKey");
+    } else {
+        io::println("PASS: ChainMap containsKey works");
+    }
+}
+
+public fn test_chainmap_getOrDefault(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("a", 1);
+    let found: int = cm.getOrDefault("a", 99);
+    let missing: int = cm.getOrDefault("z", 99);
+    if (found != 1 || missing != 99) {
+        io::println("FAIL: ChainMap getOrDefault");
+    } else {
+        io::println("PASS: ChainMap getOrDefault works");
+    }
+}
+
+public fn test_chainmap_layered_lookup(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("a", 1);
+    let second: HashMap<string, int> = new HashMap<string, int>();
+    second.put("b", 2);
+    second.put("a", 99);
+    cm.pushBack(second);
+    // "a" should be found in first map (priority)
+    if (cm.get("a") != 1) {
+        io::println("FAIL: ChainMap layered lookup priority");
+    } else {
+        // "b" should be found in second map
+        if (cm.get("b") != 2) {
+            io::println("FAIL: ChainMap layered lookup fallback");
+        } else {
+            io::println("PASS: ChainMap layered lookup works");
+        }
+    }
+}
+
+public fn test_chainmap_push_priority(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("k", 1);
+    let overlay: HashMap<string, int> = new HashMap<string, int>();
+    overlay.put("k", 99);
+    cm.push(overlay);
+    // push adds to front (highest priority), so 99 should be returned
+    if (cm.get("k") != 99) {
+        io::println("FAIL: ChainMap push priority");
+    } else {
+        io::println("PASS: ChainMap push priority works");
+    }
+}
+
+public fn test_chainmap_pop(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("a", 1);
+    let overlay: HashMap<string, int> = new HashMap<string, int>();
+    overlay.put("b", 2);
+    cm.push(overlay);
+    let popped: HashMap<string, int> = cm.pop();
+    // After pop, "b" should no longer be in the chain
+    if (cm.containsKey("b")) {
+        io::println("FAIL: ChainMap pop did not remove front map");
+    } else {
+        io::println("PASS: ChainMap pop works");
+    }
+}
+
+public fn test_chainmap_remove(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("a", 1);
+    cm.put("b", 2);
+    let removed: bool = cm.remove("a");
+    if (!removed || cm.containsKey("a")) {
+        io::println("FAIL: ChainMap remove");
+    } else {
+        io::println("PASS: ChainMap remove works");
+    }
+}
+
+public fn test_chainmap_keys(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("a", 1);
+    cm.put("b", 2);
+    cm.put("c", 3);
+    let keys: ArrayList<string> = cm.keys();
+    if (keys.size() != 3) {
+        io::println("FAIL: ChainMap keys size = " + Integer.toString(keys.size()));
+    } else {
+        io::println("PASS: ChainMap keys works");
+    }
+}
+
+public fn test_chainmap_size(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("a", 1);
+    cm.put("b", 2);
+    let second: HashMap<string, int> = new HashMap<string, int>();
+    second.put("c", 3);
+    cm.pushBack(second);
+    if (cm.size() != 3) {
+        io::println("FAIL: ChainMap size = " + Integer.toString(cm.size()));
+    } else {
+        io::println("PASS: ChainMap size works");
+    }
+}
+
+public fn test_chainmap_newChild(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("parent", 1);
+    let child: ChainMap<string, int> = cm.newChild();
+    child.put("child", 2);
+    // Child should see both its own and parent's keys
+    if (child.get("parent") != 1 || child.get("child") != 2) {
+        io::println("FAIL: ChainMap newChild lookup");
+    } else {
+        // Parent should not see child's keys
+        if (cm.containsKey("child")) {
+            io::println("FAIL: ChainMap parent sees child key");
+        } else {
+            io::println("PASS: ChainMap newChild works");
+        }
+    }
+}
+
+public fn test_chainmap_parents(): void {
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.put("a", 1);
+    let second: HashMap<string, int> = new HashMap<string, int>();
+    second.put("b", 2);
+    cm.pushBack(second);
+    let p: ChainMap<string, int> = cm.parents();
+    // parents() should exclude the first map
+    if (p.containsKey("a")) {
+        io::println("FAIL: ChainMap parents contains first map key");
+    } else {
+        if (!p.containsKey("b")) {
+            io::println("FAIL: ChainMap parents missing second map key");
+        } else {
+            io::println("PASS: ChainMap parents works");
+        }
+    }
+}
+
+public fn test_chainmap_initWithMap(): void {
+    let base: HashMap<string, int> = new HashMap<string, int>();
+    base.put("x", 42);
+    let cm: ChainMap<string, int> = new ChainMap<string, int>();
+    cm.initWithMap(base);
+    if (cm.get("x") != 42) {
+        io::println("FAIL: ChainMap initWithMap");
+    } else {
+        io::println("PASS: ChainMap initWithMap works");
+    }
+}
+
+public fn run_all_chainmap_tests(): void {
+    io::println("=== ChainMap.tr Tests ===");
+    test_chainmap_init();
+    test_chainmap_put_get();
+    test_chainmap_containsKey();
+    test_chainmap_getOrDefault();
+    test_chainmap_layered_lookup();
+    test_chainmap_push_priority();
+    test_chainmap_pop();
+    test_chainmap_remove();
+    test_chainmap_keys();
+    test_chainmap_size();
+    test_chainmap_newChild();
+    test_chainmap_parents();
+    test_chainmap_initWithMap();
+}

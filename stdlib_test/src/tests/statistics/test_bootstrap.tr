@@ -1,0 +1,153 @@
+// Test file for statistics/Bootstrap.tr
+// Exercises the public API of the Bootstrap module: bootstrapSample,
+// bootstrapCI, bootstrapBCa, and bootstrapTest.
+import tt::statistics::Bootstrap;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+// Helper to compute mean of a double ArrayList (used as the statistic).
+fn meanStat(data: ArrayList<double>): double {
+    if (data.size() == 0) { return 0.0; }
+    var sum: double = 0.0;
+    var i: int = 0;
+    while (i < data.size()) {
+        sum = sum + data.get(i);
+        i = i + 1;
+    }
+    return sum / data.size() as double;
+}
+
+public fn test_bootstrapSample_size(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = bootstrapSample(data);
+    if (result.size() != 5) {
+        io::println("FAIL: bootstrapSample size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: bootstrapSample returns n samples");
+    }
+}
+
+public fn test_bootstrapSample_values_from_data(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0); data.add(20.0); data.add(30.0);
+    let result: ArrayList<double> = bootstrapSample(data);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < result.size()) {
+        let v: double = result.get(i);
+        if (v != 10.0 && v != 20.0 && v != 30.0) { ok = false; break; }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: bootstrapSample returned value not in data");
+    } else {
+        io::println("PASS: bootstrapSample returns values from data");
+    }
+}
+
+public fn test_bootstrapSample_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = bootstrapSample(data);
+    if (result.size() != 0) {
+        io::println("FAIL: bootstrapSample on empty should return empty");
+    } else {
+        io::println("PASS: bootstrapSample on empty returns empty");
+    }
+}
+
+public fn test_bootstrapCI_returns_two_values(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    data.add(6.0); data.add(7.0); data.add(8.0); data.add(9.0); data.add(10.0);
+    let ci: ArrayList<double> = bootstrapCI(meanStat, data, 100, 0.05);
+    if (ci.size() != 2) {
+        io::println("FAIL: bootstrapCI size = " + Integer.toString(ci.size()));
+    } else {
+        io::println("PASS: bootstrapCI returns [lower, upper]");
+    }
+}
+
+public fn test_bootstrapCI_lower_le_upper(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let ci: ArrayList<double> = bootstrapCI(meanStat, data, 50, 0.05);
+    if (ci.size() == 2 && ci.get(0) > ci.get(1)) {
+        io::println("FAIL: bootstrapCI lower > upper");
+    } else {
+        io::println("PASS: bootstrapCI lower <= upper");
+    }
+}
+
+public fn test_bootstrapCI_empty_data(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let ci: ArrayList<double> = bootstrapCI(meanStat, data, 50, 0.05);
+    if (ci.size() != 2) {
+        io::println("FAIL: bootstrapCI on empty should still return 2 values");
+    } else if (ci.get(0) != 0.0 || ci.get(1) != 0.0) {
+        io::println("FAIL: bootstrapCI on empty should return [0, 0]");
+    } else {
+        io::println("PASS: bootstrapCI on empty returns [0, 0]");
+    }
+}
+
+public fn test_bootstrapBCa_returns_two_values(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    data.add(6.0); data.add(7.0); data.add(8.0); data.add(9.0); data.add(10.0);
+    let ci: ArrayList<double> = bootstrapBCa(meanStat, data, 100, 0.05);
+    if (ci.size() != 2) {
+        io::println("FAIL: bootstrapBCa size = " + Integer.toString(ci.size()));
+    } else {
+        io::println("PASS: bootstrapBCa returns [lower, upper]");
+    }
+}
+
+public fn test_bootstrapBCa_empty_data(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let ci: ArrayList<double> = bootstrapBCa(meanStat, data, 50, 0.05);
+    if (ci.size() != 2 || ci.get(0) != 0.0 || ci.get(1) != 0.0) {
+        io::println("FAIL: bootstrapBCa on empty should return [0, 0]");
+    } else {
+        io::println("PASS: bootstrapBCa on empty returns [0, 0]");
+    }
+}
+
+public fn test_bootstrapTest_returns_pvalue(): void {
+    let data1: ArrayList<double> = new ArrayList<double>();
+    data1.add(1.0); data1.add(2.0); data1.add(3.0); data1.add(4.0); data1.add(5.0);
+    let data2: ArrayList<double> = new ArrayList<double>();
+    data2.add(6.0); data2.add(7.0); data2.add(8.0); data2.add(9.0); data2.add(10.0);
+    let p: double = bootstrapTest(meanStat, data1, data2, 50);
+    if (p < 0.0 || p > 1.0) {
+        io::println("FAIL: bootstrapTest p-value out of [0,1]");
+    } else {
+        io::println("PASS: bootstrapTest returns p-value in [0,1]");
+    }
+}
+
+public fn test_bootstrapTest_empty_returns_one(): void {
+    let data1: ArrayList<double> = new ArrayList<double>();
+    let data2: ArrayList<double> = new ArrayList<double>();
+    data2.add(1.0);
+    let p: double = bootstrapTest(meanStat, data1, data2, 50);
+    if (p != 1.0) {
+        io::println("FAIL: bootstrapTest on empty should return 1.0");
+    } else {
+        io::println("PASS: bootstrapTest on empty returns 1.0");
+    }
+}
+
+public fn run_all_bootstrap_tests(): void {
+    io::println("=== Bootstrap.tr Tests ===");
+    test_bootstrapSample_size();
+    test_bootstrapSample_values_from_data();
+    test_bootstrapSample_empty();
+    test_bootstrapCI_returns_two_values();
+    test_bootstrapCI_lower_le_upper();
+    test_bootstrapCI_empty_data();
+    test_bootstrapBCa_returns_two_values();
+    test_bootstrapBCa_empty_data();
+    test_bootstrapTest_returns_pvalue();
+    test_bootstrapTest_empty_returns_one();
+}

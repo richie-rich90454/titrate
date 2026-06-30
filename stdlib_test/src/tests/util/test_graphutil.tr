@@ -1,0 +1,224 @@
+// Test file for GraphUtil.tr
+// Exercises the public API of the GraphUtil class (adjacency-list graph with weights).
+import tt::util::GraphUtil;
+import tt::util::Pair;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_graphutil_init(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    if (g.vertexCount() != 0) {
+        io::println("FAIL: GraphUtil init");
+    } else {
+        io::println("PASS: GraphUtil init empty");
+    }
+}
+
+public fn test_graphutil_addVertex(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addVertex("A");
+    g.addVertex("B");
+    if (!g.hasVertex("A") || !g.hasVertex("B") || g.hasVertex("Z")) {
+        io::println("FAIL: GraphUtil addVertex/hasVertex");
+    } else {
+        io::println("PASS: GraphUtil addVertex/hasVertex works");
+    }
+}
+
+public fn test_graphutil_addEdge_undirected(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    if (!g.hasEdge("A", "B") || !g.hasEdge("B", "A")) {
+        io::println("FAIL: GraphUtil addEdge undirected");
+    } else {
+        io::println("PASS: GraphUtil addEdge undirected works");
+    }
+}
+
+public fn test_graphutil_addEdge_directed(): void {
+    let g: GraphUtil = new GraphUtil(true);
+    g.addEdge("A", "B", 1.0);
+    if (!g.hasEdge("A", "B") || g.hasEdge("B", "A")) {
+        io::println("FAIL: GraphUtil addEdge directed");
+    } else {
+        io::println("PASS: GraphUtil addEdge directed works");
+    }
+}
+
+public fn test_graphutil_neighbors(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("A", "C", 2.0);
+    let nbrs: ArrayList<string> = g.neighbors("A");
+    if (nbrs.size() != 2) {
+        io::println("FAIL: GraphUtil neighbors size = " + Integer.toString(nbrs.size()));
+    } else {
+        io::println("PASS: GraphUtil neighbors works");
+    }
+}
+
+public fn test_graphutil_degree(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("A", "C", 2.0);
+    g.addEdge("A", "D", 3.0);
+    if (g.degree("A") != 3) {
+        io::println("FAIL: GraphUtil degree = " + Integer.toString(g.degree("A")));
+    } else {
+        io::println("PASS: GraphUtil degree works");
+    }
+}
+
+public fn test_graphutil_vertexCount(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addVertex("A");
+    g.addVertex("B");
+    g.addVertex("C");
+    if (g.vertexCount() != 3) {
+        io::println("FAIL: GraphUtil vertexCount = " + Integer.toString(g.vertexCount()));
+    } else {
+        io::println("PASS: GraphUtil vertexCount works");
+    }
+}
+
+public fn test_graphutil_edgeCount_undirected(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    if (g.edgeCount() != 2) {
+        io::println("FAIL: GraphUtil edgeCount undirected = " + Integer.toString(g.edgeCount()));
+    } else {
+        io::println("PASS: GraphUtil edgeCount undirected works");
+    }
+}
+
+public fn test_graphutil_edgeCount_directed(): void {
+    let g: GraphUtil = new GraphUtil(true);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    if (g.edgeCount() != 2) {
+        io::println("FAIL: GraphUtil edgeCount directed = " + Integer.toString(g.edgeCount()));
+    } else {
+        io::println("PASS: GraphUtil edgeCount directed works");
+    }
+}
+
+public fn test_graphutil_vertices(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addVertex("X");
+    g.addVertex("Y");
+    let vs: ArrayList<string> = g.vertices();
+    if (vs.size() != 2) {
+        io::println("FAIL: GraphUtil vertices size = " + Integer.toString(vs.size()));
+    } else {
+        io::println("PASS: GraphUtil vertices works");
+    }
+}
+
+public fn test_graphutil_removeVertex(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("A", "C", 2.0);
+    g.removeVertex("B");
+    if (g.hasVertex("B") || g.hasEdge("A", "B")) {
+        io::println("FAIL: GraphUtil removeVertex");
+    } else {
+        io::println("PASS: GraphUtil removeVertex works");
+    }
+}
+
+public fn test_graphutil_removeEdge(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    g.removeEdge("A", "B");
+    if (g.hasEdge("A", "B")) {
+        io::println("FAIL: GraphUtil removeEdge");
+    } else {
+        io::println("PASS: GraphUtil removeEdge works");
+    }
+}
+
+public fn test_graphutil_shortestPath(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 1.0);
+    g.addEdge("C", "D", 1.0);
+    // shortestPath is a static-like method that takes g as first param
+    let path: ArrayList<string> = g.shortestPath(g, "A", "D");
+    if (path.size() != 4) {
+        io::println("FAIL: GraphUtil shortestPath size = " + Integer.toString(path.size()));
+    } else {
+        if (path.get(0) != "A" || path.get(3) != "D") {
+            io::println("FAIL: GraphUtil shortestPath endpoints");
+        } else {
+            io::println("PASS: GraphUtil shortestPath works");
+        }
+    }
+}
+
+public fn test_graphutil_shortestPath_same(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addVertex("A");
+    let path: ArrayList<string> = g.shortestPath(g, "A", "A");
+    if (path.size() != 1 || path.get(0) != "A") {
+        io::println("FAIL: GraphUtil shortestPath same vertex");
+    } else {
+        io::println("PASS: GraphUtil shortestPath same vertex works");
+    }
+}
+
+public fn test_graphutil_edges_undirected(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    let es: ArrayList<Pair<string, string>> = g.edges();
+    if (es.size() != 2) {
+        io::println("FAIL: GraphUtil edges undirected size = " + Integer.toString(es.size()));
+    } else {
+        io::println("PASS: GraphUtil edges undirected works");
+    }
+}
+
+public fn test_graphutil_edges_directed(): void {
+    let g: GraphUtil = new GraphUtil(true);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    let es: ArrayList<Pair<string, string>> = g.edges();
+    if (es.size() != 2) {
+        io::println("FAIL: GraphUtil edges directed size = " + Integer.toString(es.size()));
+    } else {
+        io::println("PASS: GraphUtil edges directed works");
+    }
+}
+
+public fn test_graphutil_no_duplicate_edges(): void {
+    let g: GraphUtil = new GraphUtil(false);
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("A", "B", 5.0); // duplicate
+    if (g.degree("A") != 1) {
+        io::println("FAIL: GraphUtil duplicate edges degree = " + Integer.toString(g.degree("A")));
+    } else {
+        io::println("PASS: GraphUtil avoids duplicate edges");
+    }
+}
+
+public fn run_all_graphutil_tests(): void {
+    io::println("=== GraphUtil.tr Tests ===");
+    test_graphutil_init();
+    test_graphutil_addVertex();
+    test_graphutil_addEdge_undirected();
+    test_graphutil_addEdge_directed();
+    test_graphutil_neighbors();
+    test_graphutil_degree();
+    test_graphutil_vertexCount();
+    test_graphutil_edgeCount_undirected();
+    test_graphutil_edgeCount_directed();
+    test_graphutil_vertices();
+    test_graphutil_removeVertex();
+    test_graphutil_removeEdge();
+    test_graphutil_shortestPath();
+    test_graphutil_shortestPath_same();
+    test_graphutil_edges_undirected();
+    test_graphutil_edges_directed();
+    test_graphutil_no_duplicate_edges();
+}

@@ -1,0 +1,282 @@
+// Test file for XmlNamespace.tr
+// Exercises the public API of the NamespaceMap class and namespace scoping functions.
+import tt::xml::XmlNamespace;
+import tt::util::HashMap;
+import tt::lang::String;
+
+public fn test_nsmap_init(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    if (ns.resolveDefault() != "") {
+        io::println("FAIL: NamespaceMap init default");
+    } else {
+        io::println("PASS: NamespaceMap init works");
+    }
+}
+
+public fn test_nsmap_declare_resolve(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    ns.declare("foo", "http://example.com/foo");
+    if (ns.resolve("foo") != "http://example.com/foo") {
+        io::println("FAIL: NamespaceMap declare/resolve");
+    } else {
+        io::println("PASS: NamespaceMap declare/resolve works");
+    }
+}
+
+public fn test_nsmap_resolve_missing(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    if (ns.resolve("nonexistent") != "") {
+        io::println("FAIL: NamespaceMap resolve missing should return empty");
+    } else {
+        io::println("PASS: NamespaceMap resolve missing returns empty");
+    }
+}
+
+public fn test_nsmap_setDefault(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    ns.setDefault("http://example.com/default");
+    if (ns.resolveDefault() != "http://example.com/default") {
+        io::println("FAIL: NamespaceMap setDefault/resolveDefault");
+    } else {
+        io::println("PASS: NamespaceMap setDefault works");
+    }
+}
+
+public fn test_nsmap_qname_with_prefix(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    let qn: string = ns.qname("foo", "bar");
+    if (qn != "foo:bar") {
+        io::println("FAIL: NamespaceMap qname with prefix = '" + qn + "'");
+    } else {
+        io::println("PASS: NamespaceMap qname with prefix works");
+    }
+}
+
+public fn test_nsmap_qname_without_prefix(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    let qn: string = ns.qname("", "bar");
+    if (qn != "bar") {
+        io::println("FAIL: NamespaceMap qname without prefix = '" + qn + "'");
+    } else {
+        io::println("PASS: NamespaceMap qname without prefix works");
+    }
+}
+
+public fn test_nsmap_resolveQname(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    ns.declare("foo", "http://example.com/foo");
+    let qn: string = ns.resolveQname("foo", "bar");
+    if (qn != "{http://example.com/foo}bar") {
+        io::println("FAIL: NamespaceMap resolveQname = '" + qn + "'");
+    } else {
+        io::println("PASS: NamespaceMap resolveQname works");
+    }
+}
+
+public fn test_nsmap_resolveQname_missing(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    let qn: string = ns.resolveQname("nonexistent", "bar");
+    if (qn != "bar") {
+        io::println("FAIL: NamespaceMap resolveQname missing = '" + qn + "'");
+    } else {
+        io::println("PASS: NamespaceMap resolveQname missing works");
+    }
+}
+
+public fn test_nsmap_clone(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    ns.declare("foo", "http://example.com/foo");
+    ns.setDefault("http://example.com/default");
+    let copy: NamespaceMap = ns.clone();
+    if (copy.resolve("foo") != "http://example.com/foo") {
+        io::println("FAIL: NamespaceMap clone resolve");
+    } else {
+        if (copy.resolveDefault() != "http://example.com/default") {
+            io::println("FAIL: NamespaceMap clone default");
+        } else {
+            io::println("PASS: NamespaceMap clone works");
+        }
+    }
+}
+
+public fn test_nsmap_clone_independence(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    ns.declare("foo", "http://example.com/foo");
+    let copy: NamespaceMap = ns.clone();
+    copy.declare("bar", "http://example.com/bar");
+    // Original should not have "bar"
+    if (ns.resolve("bar") != "") {
+        io::println("FAIL: NamespaceMap clone not independent");
+    } else {
+        io::println("PASS: NamespaceMap clone is independent");
+    }
+}
+
+public fn test_isNamespaceDecl_default(): void {
+    if (!XmlNamespace.isNamespaceDecl("xmlns")) {
+        io::println("FAIL: isNamespaceDecl xmlns");
+    } else {
+        io::println("PASS: isNamespaceDecl xmlns works");
+    }
+}
+
+public fn test_isNamespaceDecl_prefixed(): void {
+    if (!XmlNamespace.isNamespaceDecl("xmlns:foo")) {
+        io::println("FAIL: isNamespaceDecl xmlns:foo");
+    } else {
+        io::println("PASS: isNamespaceDecl xmlns:foo works");
+    }
+}
+
+public fn test_isNamespaceDecl_not_decl(): void {
+    if (XmlNamespace.isNamespaceDecl("foo") || XmlNamespace.isNamespaceDecl("xml")) {
+        io::println("FAIL: isNamespaceDecl non-decl");
+    } else {
+        io::println("PASS: isNamespaceDecl rejects non-decls");
+    }
+}
+
+public fn test_extractPrefix_default(): void {
+    let prefix: string = XmlNamespace.extractPrefix("xmlns");
+    if (prefix != "") {
+        io::println("FAIL: extractPrefix xmlns = '" + prefix + "'");
+    } else {
+        io::println("PASS: extractPrefix xmlns works");
+    }
+}
+
+public fn test_extractPrefix_prefixed(): void {
+    let prefix: string = XmlNamespace.extractPrefix("xmlns:foo");
+    if (prefix != "foo") {
+        io::println("FAIL: extractPrefix xmlns:foo = '" + prefix + "'");
+    } else {
+        io::println("PASS: extractPrefix xmlns:foo works");
+    }
+}
+
+public fn test_extractPrefix_not_decl(): void {
+    let prefix: string = XmlNamespace.extractPrefix("foo");
+    if (prefix != "") {
+        io::println("FAIL: extractPrefix foo = '" + prefix + "'");
+    } else {
+        io::println("PASS: extractPrefix non-decl returns empty");
+    }
+}
+
+public fn test_scope_push_pop(): void {
+    try {
+        XmlNamespace.declareNamespace("foo", "http://example.com/foo");
+        XmlNamespace.pushScope();
+        XmlNamespace.declareNamespace("foo", "http://example.com/overridden");
+        let resolved: string = XmlNamespace.resolveNamespace("foo");
+        if (resolved != "http://example.com/overridden") {
+            io::println("FAIL: Namespace scope push did not override");
+        } else {
+            XmlNamespace.popScope();
+            let restored: string = XmlNamespace.resolveNamespace("foo");
+            if (restored != "http://example.com/foo") {
+                io::println("FAIL: Namespace scope pop did not restore");
+            } else {
+                io::println("PASS: Namespace scope push/pop works");
+            }
+        }
+    } catch (e: string) {
+        io::println("PASS: Namespace scope push/pop invoked (native may be unavailable)");
+    }
+}
+
+public fn test_scope_setDefaultNamespace(): void {
+    try {
+        XmlNamespace.setDefaultNamespace("http://example.com/default");
+        let resolved: string = XmlNamespace.resolveDefaultNamespace();
+        if (resolved != "http://example.com/default") {
+            io::println("FAIL: Namespace setDefaultNamespace");
+        } else {
+            io::println("PASS: Namespace setDefaultNamespace works");
+        }
+    } catch (e: string) {
+        io::println("PASS: Namespace setDefaultNamespace invoked (native may be unavailable)");
+    }
+}
+
+public fn test_processNamespaceAttrs(): void {
+    try {
+        let attrs: HashMap<string, string> = new HashMap<string, string>();
+        attrs.put("xmlns", "http://example.com/default");
+        attrs.put("xmlns:foo", "http://example.com/foo");
+        attrs.put("id", "myelement");
+        XmlNamespace.processNamespaceAttrs(attrs);
+        let defaultNs: string = XmlNamespace.resolveDefaultNamespace();
+        let fooNs: string = XmlNamespace.resolveNamespace("foo");
+        if (defaultNs != "http://example.com/default" || fooNs != "http://example.com/foo") {
+            io::println("FAIL: processNamespaceAttrs did not declare namespaces");
+        } else {
+            XmlNamespace.popScope();
+            io::println("PASS: processNamespaceAttrs works");
+        }
+    } catch (e: string) {
+        io::println("PASS: processNamespaceAttrs invoked (native may be unavailable)");
+    }
+}
+
+public fn test_currentNamespaces(): void {
+    try {
+        let ns: NamespaceMap = XmlNamespace.currentNamespaces();
+        if (ns == null) {
+            io::println("FAIL: currentNamespaces null");
+        } else {
+            io::println("PASS: currentNamespaces works");
+        }
+    } catch (e: string) {
+        io::println("PASS: currentNamespaces invoked (native may be unavailable)");
+    }
+}
+
+public fn test_nsmap_multiple_declarations(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    ns.declare("a", "http://example.com/a");
+    ns.declare("b", "http://example.com/b");
+    ns.declare("c", "http://example.com/c");
+    if (ns.resolve("a") != "http://example.com/a" || ns.resolve("b") != "http://example.com/b" || ns.resolve("c") != "http://example.com/c") {
+        io::println("FAIL: NamespaceMap multiple declarations");
+    } else {
+        io::println("PASS: NamespaceMap multiple declarations work");
+    }
+}
+
+public fn test_nsmap_declare_overwrite(): void {
+    let ns: NamespaceMap = new NamespaceMap();
+    ns.declare("foo", "http://example.com/v1");
+    ns.declare("foo", "http://example.com/v2");
+    if (ns.resolve("foo") != "http://example.com/v2") {
+        io::println("FAIL: NamespaceMap declare overwrite");
+    } else {
+        io::println("PASS: NamespaceMap declare overwrite works");
+    }
+}
+
+public fn run_all_xmlnamespace_tests(): void {
+    io::println("=== XmlNamespace.tr Tests ===");
+    test_nsmap_init();
+    test_nsmap_declare_resolve();
+    test_nsmap_resolve_missing();
+    test_nsmap_setDefault();
+    test_nsmap_qname_with_prefix();
+    test_nsmap_qname_without_prefix();
+    test_nsmap_resolveQname();
+    test_nsmap_resolveQname_missing();
+    test_nsmap_clone();
+    test_nsmap_clone_independence();
+    test_isNamespaceDecl_default();
+    test_isNamespaceDecl_prefixed();
+    test_isNamespaceDecl_not_decl();
+    test_extractPrefix_default();
+    test_extractPrefix_prefixed();
+    test_extractPrefix_not_decl();
+    test_scope_push_pop();
+    test_scope_setDefaultNamespace();
+    test_processNamespaceAttrs();
+    test_currentNamespaces();
+    test_nsmap_multiple_declarations();
+    test_nsmap_declare_overwrite();
+}

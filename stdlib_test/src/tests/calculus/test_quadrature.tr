@@ -1,0 +1,104 @@
+// Test file for Quadrature.tr
+// Exercises the public API for numerical integration.
+import tt::util::ArrayList;
+import tt::calculus::Quadrature;
+import tt::lang::Double;
+
+public fn test_trapezoidal_constant(): void {
+    // Integral of 1 from 0 to 1 = 1
+    let f: fn(double): double = fn(x: double): double { return 1.0; };
+    let result: double = Quadrature.trapezoidal(f, 0.0, 1.0, 100);
+    if (Math.abs(result - 1.0) > 1e-6) {
+        io::println("FAIL: trapezoidal of 1 = " + Double.toString(result));
+    } else {
+        io::println("PASS: trapezoidal of constant works");
+    }
+}
+
+public fn test_trapezoidal_x(): void {
+    // Integral of x from 0 to 1 = 0.5
+    let f: fn(double): double = fn(x: double): double { return x; };
+    let result: double = Quadrature.trapezoidal(f, 0.0, 1.0, 100);
+    if (Math.abs(result - 0.5) > 1e-6) {
+        io::println("FAIL: trapezoidal of x = " + Double.toString(result));
+    } else {
+        io::println("PASS: trapezoidal of x works");
+    }
+}
+
+public fn test_gauss_legendre(): void {
+    // Integral of x^2 from 0 to 1 = 1/3
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let result: double = Quadrature.gaussLegendre(f, 0.0, 1.0, 5);
+    if (Math.abs(result - 1.0 / 3.0) > 1e-6) {
+        io::println("FAIL: gaussLegendre of x^2 = " + Double.toString(result));
+    } else {
+        io::println("PASS: gaussLegendre works");
+    }
+}
+
+public fn test_simpson_adaptive(): void {
+    // Integral of sin(x) from 0 to pi = 2
+    let f: fn(double): double = fn(x: double): double { return Math.sin(x); };
+    let result: double = Quadrature.simpsonAdaptive(f, 0.0, 3.14159265358979, 1e-8);
+    if (Math.abs(result - 2.0) > 1e-4) {
+        io::println("FAIL: simpsonAdaptive of sin = " + Double.toString(result));
+    } else {
+        io::println("PASS: simpsonAdaptive works");
+    }
+}
+
+public fn test_romberg(): void {
+    // Integral of x^2 from 0 to 1 = 1/3
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let result: double = Quadrature.romberg(f, 0.0, 1.0, 10);
+    if (Math.abs(result - 1.0 / 3.0) > 1e-6) {
+        io::println("FAIL: romberg of x^2 = " + Double.toString(result));
+    } else {
+        io::println("PASS: romberg works");
+    }
+}
+
+public fn test_gauss_kronrod(): void {
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let result: double = Quadrature.gaussKronrod(f, 0.0, 1.0, 1e-8);
+    if (Math.abs(result - 1.0 / 3.0) > 1e-4) {
+        io::println("FAIL: gaussKronrod of x^2 = " + Double.toString(result));
+    } else {
+        io::println("PASS: gaussKronrod works");
+    }
+}
+
+public fn test_double_integral(): void {
+    // Integral over unit square of 1 = 1
+    let f: fn(double, double): double = fn(x: double, y: double): double { return 1.0; };
+    let result: double = Quadrature.doubleIntegral(f, 0.0, 1.0, 0.0, 1.0, 20);
+    if (Math.abs(result - 1.0) > 1e-4) {
+        io::println("FAIL: doubleIntegral of 1 = " + Double.toString(result));
+    } else {
+        io::println("PASS: doubleIntegral works");
+    }
+}
+
+public fn test_triple_integral(): void {
+    // Integral over unit cube of 1 = 1
+    let f: fn(double, double, double): double = fn(x: double, y: double, z: double): double { return 1.0; };
+    let result: double = Quadrature.tripleIntegral(f, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 10);
+    if (Math.abs(result - 1.0) > 1e-3) {
+        io::println("FAIL: tripleIntegral of 1 = " + Double.toString(result));
+    } else {
+        io::println("PASS: tripleIntegral works");
+    }
+}
+
+public fn run_all_quadrature_tests(): void {
+    io::println("=== Quadrature.tr Tests ===");
+    test_trapezoidal_constant();
+    test_trapezoidal_x();
+    test_gauss_legendre();
+    test_simpson_adaptive();
+    test_romberg();
+    test_gauss_kronrod();
+    test_double_integral();
+    test_triple_integral();
+}

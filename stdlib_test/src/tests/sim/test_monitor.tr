@@ -1,0 +1,231 @@
+// Test file for sim/Monitor.tr
+// Exercises the public API of the Monitor class: observation, statistics,
+// histogram, and confidence interval methods.
+import tt::sim::Monitor;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_monitor_init(): void {
+    let m: Monitor = new Monitor("test");
+    if (m.count() != 0) {
+        io::println("FAIL: Monitor count != 0 at init");
+    } else if (m.name != "test") {
+        io::println("FAIL: Monitor name not set");
+    } else {
+        io::println("PASS: Monitor init works");
+    }
+}
+
+public fn test_monitor_observe_count(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(1.0, 0.0);
+    m.observe(2.0, 1.0);
+    m.observe(3.0, 2.0);
+    if (m.count() != 3) {
+        io::println("FAIL: Monitor count = " + Integer.toString(m.count()));
+    } else {
+        io::println("PASS: Monitor observe/count works");
+    }
+}
+
+public fn test_monitor_mean(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(1.0, 0.0);
+    m.observe(2.0, 1.0);
+    m.observe(3.0, 2.0);
+    let mu: double = m.mean();
+    if (Math.abs(mu - 2.0) > 1e-9) {
+        io::println("FAIL: Monitor mean = " + Double.toString(mu));
+    } else {
+        io::println("PASS: Monitor mean works");
+    }
+}
+
+public fn test_monitor_mean_empty(): void {
+    let m: Monitor = new Monitor("test");
+    let mu: double = m.mean();
+    if (mu != 0.0) {
+        io::println("FAIL: Monitor mean on empty should be 0");
+    } else {
+        io::println("PASS: Monitor mean on empty returns 0");
+    }
+}
+
+public fn test_monitor_variance_single_observation(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(5.0, 0.0);
+    if (m.variance() != 0.0) {
+        io::println("FAIL: Monitor variance on single observation should be 0");
+    } else {
+        io::println("PASS: Monitor variance on single observation returns 0");
+    }
+}
+
+public fn test_monitor_variance_positive(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(1.0, 0.0);
+    m.observe(2.0, 1.0);
+    m.observe(3.0, 2.0);
+    if (m.variance() < 0.0) {
+        io::println("FAIL: Monitor variance negative");
+    } else {
+        io::println("PASS: Monitor variance non-negative");
+    }
+}
+
+public fn test_monitor_stdDev(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(1.0, 0.0);
+    m.observe(2.0, 1.0);
+    m.observe(3.0, 2.0);
+    if (m.stdDev() < 0.0) {
+        io::println("FAIL: Monitor stdDev negative");
+    } else {
+        io::println("PASS: Monitor stdDev non-negative");
+    }
+}
+
+public fn test_monitor_min_max(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(3.0, 0.0);
+    m.observe(1.0, 1.0);
+    m.observe(2.0, 2.0);
+    if (m.min() != 1.0) {
+        io::println("FAIL: Monitor min = " + Double.toString(m.min()));
+    } else if (m.max() != 3.0) {
+        io::println("FAIL: Monitor max = " + Double.toString(m.max()));
+    } else {
+        io::println("PASS: Monitor min/max work");
+    }
+}
+
+public fn test_monitor_min_max_empty(): void {
+    let m: Monitor = new Monitor("test");
+    if (m.min() != 0.0 || m.max() != 0.0) {
+        io::println("FAIL: Monitor min/max on empty should be 0");
+    } else {
+        io::println("PASS: Monitor min/max on empty return 0");
+    }
+}
+
+public fn test_monitor_timeWeightedMean(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(2.0, 0.0);
+    m.observe(4.0, 1.0);
+    m.observe(6.0, 2.0);
+    let tw: double = m.timeWeightedMean();
+    // Just check that it runs and produces a finite value
+    if (tw != tw) {
+        io::println("FAIL: Monitor timeWeightedMean returned NaN");
+    } else {
+        io::println("PASS: Monitor timeWeightedMean returns finite value");
+    }
+}
+
+public fn test_monitor_timeWeightedMean_single(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(5.0, 0.0);
+    let tw: double = m.timeWeightedMean();
+    if (tw != 5.0) {
+        io::println("FAIL: Monitor timeWeightedMean single should be 5.0");
+    } else {
+        io::println("PASS: Monitor timeWeightedMean single returns mean");
+    }
+}
+
+public fn test_monitor_histogram_size(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(1.0, 0.0);
+    m.observe(2.0, 1.0);
+    m.observe(3.0, 2.0);
+    let hist: ArrayList<int> = m.histogram(5);
+    if (hist.size() != 5) {
+        io::println("FAIL: Monitor histogram size = " + Integer.toString(hist.size()));
+    } else {
+        io::println("PASS: Monitor histogram returns numBins entries");
+    }
+}
+
+public fn test_monitor_histogram_sums_to_count(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(1.0, 0.0);
+    m.observe(2.0, 1.0);
+    m.observe(3.0, 2.0);
+    m.observe(4.0, 3.0);
+    let hist: ArrayList<int> = m.histogram(4);
+    let total: int = hist.get(0) + hist.get(1) + hist.get(2) + hist.get(3);
+    if (total != 4) {
+        io::println("FAIL: Monitor histogram total = " + Integer.toString(total));
+    } else {
+        io::println("PASS: Monitor histogram sums to count");
+    }
+}
+
+public fn test_monitor_histogram_empty(): void {
+    let m: Monitor = new Monitor("test");
+    let hist: ArrayList<int> = m.histogram(3);
+    if (hist.size() != 3) {
+        io::println("FAIL: Monitor histogram empty size wrong");
+    } else {
+        var ok: bool = true;
+        var i: int = 0;
+        while (i < hist.size()) {
+            if (hist.get(i) != 0) { ok = false; break; }
+            i = i + 1;
+        }
+        if (!ok) {
+            io::println("FAIL: Monitor histogram empty has non-zero bin");
+        } else {
+            io::println("PASS: Monitor histogram empty returns zero bins");
+        }
+    }
+}
+
+public fn test_monitor_confidenceInterval95(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(1.0, 0.0);
+    m.observe(2.0, 1.0);
+    m.observe(3.0, 2.0);
+    m.observe(4.0, 3.0);
+    let ci: ArrayList<double> = m.confidenceInterval95();
+    if (ci.size() != 2) {
+        io::println("FAIL: Monitor CI size = " + Integer.toString(ci.size()));
+    } else if (ci.get(0) > ci.get(1)) {
+        io::println("FAIL: Monitor CI lower > upper");
+    } else {
+        io::println("PASS: Monitor confidenceInterval95 returns [lower, upper]");
+    }
+}
+
+public fn test_monitor_report_returns_string(): void {
+    let m: Monitor = new Monitor("test");
+    m.observe(1.0, 0.0);
+    m.observe(2.0, 1.0);
+    let r: string = m.report();
+    if (r == null || String.length(r) == 0) {
+        io::println("FAIL: Monitor report empty");
+    } else {
+        io::println("PASS: Monitor report returns non-empty string");
+    }
+}
+
+public fn run_all_monitor_tests(): void {
+    io::println("=== Monitor.tr Tests ===");
+    test_monitor_init();
+    test_monitor_observe_count();
+    test_monitor_mean();
+    test_monitor_mean_empty();
+    test_monitor_variance_single_observation();
+    test_monitor_variance_positive();
+    test_monitor_stdDev();
+    test_monitor_min_max();
+    test_monitor_min_max_empty();
+    test_monitor_timeWeightedMean();
+    test_monitor_timeWeightedMean_single();
+    test_monitor_histogram_size();
+    test_monitor_histogram_sums_to_count();
+    test_monitor_histogram_empty();
+    test_monitor_confidenceInterval95();
+    test_monitor_report_returns_string();
+}

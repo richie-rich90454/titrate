@@ -1,0 +1,221 @@
+// Test file for FrozenSet.tr
+// Exercises the public API of the FrozenSet class (immutable hash-based set).
+import tt::util::FrozenSet;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_frozenset_init(): void {
+    let items: ArrayList<string> = new ArrayList<string>();
+    items.add("a");
+    items.add("b");
+    items.add("c");
+    let fs: FrozenSet<string> = new FrozenSet<string>(items);
+    if (fs.size() != 3) {
+        io::println("FAIL: FrozenSet init size = " + Integer.toString(fs.size()));
+    } else {
+        io::println("PASS: FrozenSet init works");
+    }
+}
+
+public fn test_frozenset_init_dedup(): void {
+    let items: ArrayList<string> = new ArrayList<string>();
+    items.add("a");
+    items.add("b");
+    items.add("a");
+    items.add("b");
+    let fs: FrozenSet<string> = new FrozenSet<string>(items);
+    if (fs.size() != 2) {
+        io::println("FAIL: FrozenSet dedup size = " + Integer.toString(fs.size()));
+    } else {
+        io::println("PASS: FrozenSet deduplicates on init");
+    }
+}
+
+public fn test_frozenset_contains(): void {
+    let items: ArrayList<string> = new ArrayList<string>();
+    items.add("a");
+    items.add("b");
+    let fs: FrozenSet<string> = new FrozenSet<string>(items);
+    if (!fs.contains("a") || !fs.contains("b") || fs.contains("z")) {
+        io::println("FAIL: FrozenSet contains");
+    } else {
+        io::println("PASS: FrozenSet contains works");
+    }
+}
+
+public fn test_frozenset_isEmpty(): void {
+    let items: ArrayList<string> = new ArrayList<string>();
+    let fs: FrozenSet<string> = new FrozenSet<string>(items);
+    if (!fs.isEmpty()) {
+        io::println("FAIL: FrozenSet isEmpty");
+    } else {
+        io::println("PASS: FrozenSet isEmpty works");
+    }
+}
+
+public fn test_frozenset_isSubset(): void {
+    let items1: ArrayList<string> = new ArrayList<string>();
+    items1.add("a");
+    items1.add("b");
+    let items2: ArrayList<string> = new ArrayList<string>();
+    items2.add("a");
+    items2.add("b");
+    items2.add("c");
+    let small: FrozenSet<string> = new FrozenSet<string>(items1);
+    let large: FrozenSet<string> = new FrozenSet<string>(items2);
+    if (!small.isSubset(large)) {
+        io::println("FAIL: FrozenSet isSubset true case");
+    } else {
+        if (large.isSubset(small)) {
+            io::println("FAIL: FrozenSet isSubset false case");
+        } else {
+            io::println("PASS: FrozenSet isSubset works");
+        }
+    }
+}
+
+public fn test_frozenset_isSuperset(): void {
+    let items1: ArrayList<string> = new ArrayList<string>();
+    items1.add("a");
+    items1.add("b");
+    let items2: ArrayList<string> = new ArrayList<string>();
+    items2.add("a");
+    items2.add("b");
+    items2.add("c");
+    let small: FrozenSet<string> = new FrozenSet<string>(items1);
+    let large: FrozenSet<string> = new FrozenSet<string>(items2);
+    if (!large.isSuperset(small)) {
+        io::println("FAIL: FrozenSet isSuperset");
+    } else {
+        io::println("PASS: FrozenSet isSuperset works");
+    }
+}
+
+public fn test_frozenset_union(): void {
+    let items1: ArrayList<string> = new ArrayList<string>();
+    items1.add("a");
+    items1.add("b");
+    let items2: ArrayList<string> = new ArrayList<string>();
+    items2.add("b");
+    items2.add("c");
+    let fs1: FrozenSet<string> = new FrozenSet<string>(items1);
+    let fs2: FrozenSet<string> = new FrozenSet<string>(items2);
+    let result: FrozenSet<string> = fs1.union(fs2);
+    if (result.size() != 3) {
+        io::println("FAIL: FrozenSet union size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: FrozenSet union works");
+    }
+}
+
+public fn test_frozenset_intersection(): void {
+    let items1: ArrayList<string> = new ArrayList<string>();
+    items1.add("a");
+    items1.add("b");
+    items1.add("c");
+    let items2: ArrayList<string> = new ArrayList<string>();
+    items2.add("b");
+    items2.add("c");
+    items2.add("d");
+    let fs1: FrozenSet<string> = new FrozenSet<string>(items1);
+    let fs2: FrozenSet<string> = new FrozenSet<string>(items2);
+    let result: FrozenSet<string> = fs1.intersection(fs2);
+    if (result.size() != 2 || !result.contains("b") || !result.contains("c")) {
+        io::println("FAIL: FrozenSet intersection");
+    } else {
+        io::println("PASS: FrozenSet intersection works");
+    }
+}
+
+public fn test_frozenset_difference(): void {
+    let items1: ArrayList<string> = new ArrayList<string>();
+    items1.add("a");
+    items1.add("b");
+    items1.add("c");
+    let items2: ArrayList<string> = new ArrayList<string>();
+    items2.add("b");
+    let fs1: FrozenSet<string> = new FrozenSet<string>(items1);
+    let fs2: FrozenSet<string> = new FrozenSet<string>(items2);
+    let result: FrozenSet<string> = fs1.difference(fs2);
+    if (result.size() != 2 || !result.contains("a") || !result.contains("c") || result.contains("b")) {
+        io::println("FAIL: FrozenSet difference");
+    } else {
+        io::println("PASS: FrozenSet difference works");
+    }
+}
+
+public fn test_frozenset_symmetricDifference(): void {
+    let items1: ArrayList<string> = new ArrayList<string>();
+    items1.add("a");
+    items1.add("b");
+    let items2: ArrayList<string> = new ArrayList<string>();
+    items2.add("b");
+    items2.add("c");
+    let fs1: FrozenSet<string> = new FrozenSet<string>(items1);
+    let fs2: FrozenSet<string> = new FrozenSet<string>(items2);
+    let result: FrozenSet<string> = fs1.symmetricDifference(fs2);
+    if (result.size() != 2 || !result.contains("a") || !result.contains("c")) {
+        io::println("FAIL: FrozenSet symmetricDifference");
+    } else {
+        io::println("PASS: FrozenSet symmetricDifference works");
+    }
+}
+
+public fn test_frozenset_toArrayList(): void {
+    let items: ArrayList<string> = new ArrayList<string>();
+    items.add("x");
+    items.add("y");
+    let fs: FrozenSet<string> = new FrozenSet<string>(items);
+    let arr: ArrayList<string> = fs.toArrayList();
+    if (arr.size() != 2) {
+        io::println("FAIL: FrozenSet toArrayList");
+    } else {
+        io::println("PASS: FrozenSet toArrayList works");
+    }
+}
+
+public fn test_frozenset_equals(): void {
+    let items1: ArrayList<string> = new ArrayList<string>();
+    items1.add("a");
+    items1.add("b");
+    let items2: ArrayList<string> = new ArrayList<string>();
+    items2.add("b");
+    items2.add("a");
+    let fs1: FrozenSet<string> = new FrozenSet<string>(items1);
+    let fs2: FrozenSet<string> = new FrozenSet<string>(items2);
+    if (!fs1.equals(fs2)) {
+        io::println("FAIL: FrozenSet equals same elements");
+    } else {
+        io::println("PASS: FrozenSet equals works");
+    }
+}
+
+public fn test_frozenset_toString(): void {
+    let items: ArrayList<string> = new ArrayList<string>();
+    items.add("a");
+    let fs: FrozenSet<string> = new FrozenSet<string>(items);
+    let s: string = fs.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: FrozenSet toString empty");
+    } else {
+        io::println("PASS: FrozenSet toString works");
+    }
+}
+
+public fn run_all_frozenset_tests(): void {
+    io::println("=== FrozenSet.tr Tests ===");
+    test_frozenset_init();
+    test_frozenset_init_dedup();
+    test_frozenset_contains();
+    test_frozenset_isEmpty();
+    test_frozenset_isSubset();
+    test_frozenset_isSuperset();
+    test_frozenset_union();
+    test_frozenset_intersection();
+    test_frozenset_difference();
+    test_frozenset_symmetricDifference();
+    test_frozenset_toArrayList();
+    test_frozenset_equals();
+    test_frozenset_toString();
+}

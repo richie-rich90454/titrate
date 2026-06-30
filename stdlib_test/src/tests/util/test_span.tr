@@ -1,0 +1,202 @@
+// Test file for Span.tr
+// Exercises the public API of the Span class (view over a slice of an ArrayList).
+import tt::util::Span;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_span_init(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    source.add(30);
+    let span: Span<int> = new Span<int>(source, 0, 3);
+    if (span.length() != 3) {
+        io::println("FAIL: Span init length = " + Integer.toString(span.length()));
+    } else {
+        io::println("PASS: Span init works");
+    }
+}
+
+public fn test_span_get(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    source.add(30);
+    let span: Span<int> = new Span<int>(source, 0, 3);
+    if (span.get(0) != 10 || span.get(1) != 20 || span.get(2) != 30) {
+        io::println("FAIL: Span get");
+    } else {
+        io::println("PASS: Span get works");
+    }
+}
+
+public fn test_span_offset_get(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    source.add(30);
+    source.add(40);
+    source.add(50);
+    let span: Span<int> = new Span<int>(source, 1, 3);
+    // Span starts at index 1, so get(0) = source[1] = 20
+    if (span.get(0) != 20 || span.get(1) != 30 || span.get(2) != 40) {
+        io::println("FAIL: Span offset get");
+    } else {
+        io::println("PASS: Span offset get works");
+    }
+}
+
+public fn test_span_set(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    source.add(30);
+    let span: Span<int> = new Span<int>(source, 0, 3);
+    span.set(1, 99);
+    if (span.get(1) != 99 || source.get(1) != 99) {
+        io::println("FAIL: Span set");
+    } else {
+        io::println("PASS: Span set works (modifies source)");
+    }
+}
+
+public fn test_span_first(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    source.add(30);
+    let span: Span<int> = new Span<int>(source, 1, 2);
+    if (span.first() != 20) {
+        io::println("FAIL: Span first = " + Integer.toString(span.first()));
+    } else {
+        io::println("PASS: Span first works");
+    }
+}
+
+public fn test_span_last(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    source.add(30);
+    source.add(40);
+    let span: Span<int> = new Span<int>(source, 1, 2);
+    if (span.last() != 30) {
+        io::println("FAIL: Span last = " + Integer.toString(span.last()));
+    } else {
+        io::println("PASS: Span last works");
+    }
+}
+
+public fn test_span_isEmpty(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    let emptySpan: Span<int> = new Span<int>(source, 0, 0);
+    let nonEmptySpan: Span<int> = new Span<int>(source, 0, 1);
+    if (!emptySpan.isEmpty() || nonEmptySpan.isEmpty()) {
+        io::println("FAIL: Span isEmpty");
+    } else {
+        io::println("PASS: Span isEmpty works");
+    }
+}
+
+public fn test_span_start(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    let span: Span<int> = new Span<int>(source, 1, 1);
+    if (span.start() != 1) {
+        io::println("FAIL: Span start = " + Integer.toString(span.start()));
+    } else {
+        io::println("PASS: Span start works");
+    }
+}
+
+public fn test_span_source(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    let span: Span<int> = new Span<int>(source, 0, 2);
+    let src: ArrayList<int> = span.source();
+    if (src.size() != 2 || src.get(0) != 10) {
+        io::println("FAIL: Span source");
+    } else {
+        io::println("PASS: Span source works");
+    }
+}
+
+public fn test_span_subSpan(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    source.add(30);
+    source.add(40);
+    source.add(50);
+    let span: Span<int> = new Span<int>(source, 0, 5);
+    let sub: Span<int> = span.subSpan(1, 3);
+    // subSpan starts at offset 1 from parent span, length 3
+    if (sub.length() != 3 || sub.get(0) != 20 || sub.get(1) != 30 || sub.get(2) != 40) {
+        io::println("FAIL: Span subSpan");
+    } else {
+        io::println("PASS: Span subSpan works");
+    }
+}
+
+public fn test_span_toArray(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(10);
+    source.add(20);
+    source.add(30);
+    source.add(40);
+    let span: Span<int> = new Span<int>(source, 1, 2);
+    let arr: ArrayList<int> = span.toArray();
+    if (arr.size() != 2 || arr.get(0) != 20 || arr.get(1) != 30) {
+        io::println("FAIL: Span toArray");
+    } else {
+        io::println("PASS: Span toArray works");
+    }
+}
+
+public fn test_span_set_propagates(): void {
+    let source: ArrayList<int> = new ArrayList<int>();
+    source.add(1);
+    source.add(2);
+    source.add(3);
+    let span: Span<int> = new Span<int>(source, 0, 3);
+    span.set(0, 100);
+    // Verify the source array was modified
+    if (source.get(0) != 100) {
+        io::println("FAIL: Span set does not propagate to source");
+    } else {
+        io::println("PASS: Span set propagates to source");
+    }
+}
+
+public fn test_span_with_strings(): void {
+    let source: ArrayList<string> = new ArrayList<string>();
+    source.add("a");
+    source.add("b");
+    source.add("c");
+    let span: Span<string> = new Span<string>(source, 1, 2);
+    if (span.get(0) != "b" || span.get(1) != "c" || span.length() != 2) {
+        io::println("FAIL: Span with strings");
+    } else {
+        io::println("PASS: Span works with strings");
+    }
+}
+
+public fn run_all_span_tests(): void {
+    io::println("=== Span.tr Tests ===");
+    test_span_init();
+    test_span_get();
+    test_span_offset_get();
+    test_span_set();
+    test_span_first();
+    test_span_last();
+    test_span_isEmpty();
+    test_span_start();
+    test_span_source();
+    test_span_subSpan();
+    test_span_toArray();
+    test_span_set_propagates();
+    test_span_with_strings();
+}

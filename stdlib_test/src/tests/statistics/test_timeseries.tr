@@ -1,0 +1,304 @@
+// Test file for statistics/TimeSeries.tr
+// Exercises the public API of the TimeSeries module: ACF, PACF, ARIMA fit/
+// forecast, exponential smoothing, Holt smoothing, Holt-Winters, seasonal
+// decomposition, and differencing.
+import tt::statistics::TimeSeries;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+
+public fn test_difference_first_order(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(3.0); data.add(6.0); data.add(10.0);
+    let result: ArrayList<double> = difference(data, 1);
+    if (result.size() != 3) {
+        io::println("FAIL: difference d=1 size = " + Integer.toString(result.size()));
+    } else if (result.get(0) != 2.0 || result.get(1) != 3.0 || result.get(2) != 4.0) {
+        io::println("FAIL: difference d=1 values wrong");
+    } else {
+        io::println("PASS: difference d=1 works");
+    }
+}
+
+public fn test_difference_zero_order(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let result: ArrayList<double> = difference(data, 0);
+    if (result.size() != 3) {
+        io::println("FAIL: difference d=0 should return copy");
+    } else if (result.get(0) != 1.0 || result.get(1) != 2.0 || result.get(2) != 3.0) {
+        io::println("FAIL: difference d=0 should return same values");
+    } else {
+        io::println("PASS: difference d=0 returns copy");
+    }
+}
+
+public fn test_difference_second_order(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(4.0); data.add(9.0); data.add(16.0); data.add(25.0);
+    let result: ArrayList<double> = difference(data, 2);
+    if (result.size() != 3) {
+        io::println("FAIL: difference d=2 size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: difference d=2 reduces size correctly");
+    }
+}
+
+public fn test_difference_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = difference(data, 1);
+    if (result.size() != 0) {
+        io::println("FAIL: difference on empty should return empty");
+    } else {
+        io::println("PASS: difference on empty returns empty");
+    }
+}
+
+public fn test_acf_basic(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = acf(data, 3);
+    if (result.size() != 4) {
+        io::println("FAIL: acf size = " + Integer.toString(result.size()));
+    } else if (Math.abs(result.get(0) - 1.0) > 1e-9) {
+        io::println("FAIL: acf at lag 0 should be 1.0");
+    } else {
+        io::println("PASS: acf returns maxLag+1 entries with lag0=1.0");
+    }
+}
+
+public fn test_autocorrelationFunction_alias(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0);
+    let result: ArrayList<double> = autocorrelationFunction(data, 2);
+    if (result.size() != 3) {
+        io::println("FAIL: autocorrelationFunction size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: autocorrelationFunction works");
+    }
+}
+
+public fn test_acf_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = acf(data, 3);
+    if (result.size() != 0) {
+        io::println("FAIL: acf on empty should return empty");
+    } else {
+        io::println("PASS: acf on empty returns empty");
+    }
+}
+
+public fn test_partialAutocorrelation_basic(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = partialAutocorrelation(data, 3);
+    // PACF returns values for lags 1..maxLag
+    if (result.size() != 3) {
+        io::println("FAIL: partialAutocorrelation size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: partialAutocorrelation returns maxLag entries");
+    }
+}
+
+public fn test_partialAutocorrelation_zero_lag(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let result: ArrayList<double> = partialAutocorrelation(data, 0);
+    if (result.size() != 0) {
+        io::println("FAIL: partialAutocorrelation with maxLag=0 should be empty");
+    } else {
+        io::println("PASS: partialAutocorrelation with maxLag=0 returns empty");
+    }
+}
+
+public fn test_exponentialSmoothing_basic(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = exponentialSmoothing(data, 0.5);
+    if (result.size() != 5) {
+        io::println("FAIL: exponentialSmoothing size = " + Integer.toString(result.size()));
+    } else if (result.get(0) != 1.0) {
+        io::println("FAIL: exponentialSmoothing first value should equal data[0]");
+    } else {
+        io::println("PASS: exponentialSmoothing returns same-size series");
+    }
+}
+
+public fn test_exponentialSmoothing_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = exponentialSmoothing(data, 0.5);
+    if (result.size() != 0) {
+        io::println("FAIL: exponentialSmoothing on empty should return empty");
+    } else {
+        io::println("PASS: exponentialSmoothing on empty returns empty");
+    }
+}
+
+public fn test_exponentialSmoothing_alpha_clamped(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    // alpha < 0 should be clamped to 0, so smoothed series stays at data[0]
+    let result: ArrayList<double> = exponentialSmoothing(data, -1.0);
+    if (result.size() != 3 || result.get(0) != 1.0 || result.get(1) != 1.0 || result.get(2) != 1.0) {
+        io::println("FAIL: exponentialSmoothing with alpha<0 should clamp to 0");
+    } else {
+        io::println("PASS: exponentialSmoothing clamps alpha<0 to 0");
+    }
+}
+
+public fn test_holtSmoothing_basic(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = holtSmoothing(data, 0.5, 0.5);
+    if (result.size() != 5) {
+        io::println("FAIL: holtSmoothing size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: holtSmoothing returns same-size series");
+    }
+}
+
+public fn test_holtSmoothing_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = holtSmoothing(data, 0.5, 0.5);
+    if (result.size() != 0) {
+        io::println("FAIL: holtSmoothing on empty should return empty");
+    } else {
+        io::println("PASS: holtSmoothing on empty returns empty");
+    }
+}
+
+public fn test_holtWinters_basic(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    // 12 observations with period 4
+    data.add(10.0); data.add(20.0); data.add(30.0); data.add(40.0);
+    data.add(11.0); data.add(21.0); data.add(31.0); data.add(41.0);
+    data.add(12.0); data.add(22.0); data.add(32.0); data.add(42.0);
+    let result: ArrayList<double> = holtWinters(data, 0.5, 0.5, 0.5, 4);
+    if (result.size() != 12) {
+        io::println("FAIL: holtWinters size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: holtWinters returns same-size series");
+    }
+}
+
+public fn test_holtWinters_zero_period(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0);
+    let result: ArrayList<double> = holtWinters(data, 0.5, 0.5, 0.5, 0);
+    if (result.size() != 0) {
+        io::println("FAIL: holtWinters with period=0 should return empty");
+    } else {
+        io::println("PASS: holtWinters with period=0 returns empty");
+    }
+}
+
+public fn test_seasonalDecompose_returns_map(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0); data.add(20.0); data.add(30.0); data.add(40.0);
+    data.add(11.0); data.add(21.0); data.add(31.0); data.add(41.0);
+    let result: HashMap<string, ArrayList<double>> = seasonalDecompose(data, 4);
+    if (result == null) {
+        io::println("FAIL: seasonalDecompose returned null");
+    } else if (!result.containsKey("trend") || !result.containsKey("seasonal") || !result.containsKey("residual")) {
+        io::println("FAIL: seasonalDecompose missing one of trend/seasonal/residual");
+    } else {
+        io::println("PASS: seasonalDecompose returns map with trend/seasonal/residual");
+    }
+}
+
+public fn test_seasonalDecompose_arrays_size(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0); data.add(20.0); data.add(30.0); data.add(40.0);
+    data.add(11.0); data.add(21.0); data.add(31.0); data.add(41.0);
+    let result: HashMap<string, ArrayList<double>> = seasonalDecompose(data, 4);
+    let trend: ArrayList<double> = result.get("trend");
+    let seasonal: ArrayList<double> = result.get("seasonal");
+    let residual: ArrayList<double> = result.get("residual");
+    if (trend.size() != 8 || seasonal.size() != 8 || residual.size() != 8) {
+        io::println("FAIL: seasonalDecompose arrays should each have n entries");
+    } else {
+        io::println("PASS: seasonalDecompose arrays have n entries");
+    }
+}
+
+public fn test_arimaFit_returns_map(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 20) {
+        data.add(i as double);
+        i = i + 1;
+    }
+    let fit: HashMap<string, double> = arimaFit(data, 1, 0, 0);
+    if (fit == null) {
+        io::println("FAIL: arimaFit returned null");
+    } else if (!fit.containsKey("sigma2") || !fit.containsKey("logLikelihood")) {
+        io::println("FAIL: arimaFit missing sigma2 or logLikelihood");
+    } else {
+        io::println("PASS: arimaFit returns map with sigma2 and logLikelihood");
+    }
+}
+
+public fn test_arimaFit_empty(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let fit: HashMap<string, double> = arimaFit(data, 1, 0, 0);
+    if (fit.get("sigma2") != 0.0) {
+        io::println("FAIL: arimaFit on empty should return sigma2=0");
+    } else {
+        io::println("PASS: arimaFit on empty returns sigma2=0");
+    }
+}
+
+public fn test_arimaForecast_returns_steps(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 20) {
+        data.add(i as double);
+        i = i + 1;
+    }
+    let fit: HashMap<string, double> = arimaFit(data, 1, 0, 0);
+    let forecast: ArrayList<double> = arimaForecast(fit, data, 5);
+    if (forecast.size() != 5) {
+        io::println("FAIL: arimaForecast size = " + Integer.toString(forecast.size()));
+    } else {
+        io::println("PASS: arimaForecast returns requested number of steps");
+    }
+}
+
+public fn test_arimaForecast_zero_steps(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let fit: HashMap<string, double> = new HashMap<string, double>();
+    fit.put("sigma2", 1.0);
+    let forecast: ArrayList<double> = arimaForecast(fit, data, 0);
+    if (forecast.size() != 0) {
+        io::println("FAIL: arimaForecast with steps=0 should be empty");
+    } else {
+        io::println("PASS: arimaForecast with steps=0 returns empty");
+    }
+}
+
+public fn run_all_timeseries_tests(): void {
+    io::println("=== TimeSeries.tr Tests ===");
+    test_difference_first_order();
+    test_difference_zero_order();
+    test_difference_second_order();
+    test_difference_empty();
+    test_acf_basic();
+    test_autocorrelationFunction_alias();
+    test_acf_empty();
+    test_partialAutocorrelation_basic();
+    test_partialAutocorrelation_zero_lag();
+    test_exponentialSmoothing_basic();
+    test_exponentialSmoothing_empty();
+    test_exponentialSmoothing_alpha_clamped();
+    test_holtSmoothing_basic();
+    test_holtSmoothing_empty();
+    test_holtWinters_basic();
+    test_holtWinters_zero_period();
+    test_seasonalDecompose_returns_map();
+    test_seasonalDecompose_arrays_size();
+    test_arimaFit_returns_map();
+    test_arimaFit_empty();
+    test_arimaForecast_returns_steps();
+    test_arimaForecast_zero_steps();
+}

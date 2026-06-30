@@ -1,0 +1,226 @@
+// Test file for defaultdict.tr
+// Exercises the public API of the defaultdict class (HashMap with default factory).
+import tt::util::defaultdict;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_defaultdict_init(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    if (!dd.isEmpty() || dd.size() != 0) {
+        io::println("FAIL: defaultdict init");
+    } else {
+        io::println("PASS: defaultdict init empty");
+    }
+}
+
+public fn test_defaultdict_put_get(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    if (dd.get("a") != 1 || dd.get("b") != 2) {
+        io::println("FAIL: defaultdict put/get");
+    } else {
+        io::println("PASS: defaultdict put/get works");
+    }
+}
+
+public fn test_defaultdict_get_missing_creates_default(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    let v: int = dd.get("missing");
+    if (v != 0) {
+        io::println("FAIL: defaultdict get missing = " + Integer.toString(v));
+    } else {
+        // The missing key should now exist with the default value
+        if (!dd.containsKey("missing")) {
+            io::println("FAIL: defaultdict did not create key on get");
+        } else {
+            io::println("PASS: defaultdict get missing creates default");
+        }
+    }
+}
+
+public fn test_defaultdict_containsKey(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("x", 10);
+    if (!dd.containsKey("x") || dd.containsKey("y")) {
+        io::println("FAIL: defaultdict containsKey");
+    } else {
+        io::println("PASS: defaultdict containsKey works");
+    }
+}
+
+public fn test_defaultdict_remove(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    dd.remove("a");
+    if (dd.containsKey("a") || dd.size() != 1) {
+        io::println("FAIL: defaultdict remove");
+    } else {
+        io::println("PASS: defaultdict remove works");
+    }
+}
+
+public fn test_defaultdict_size(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    dd.put("c", 3);
+    if (dd.size() != 3) {
+        io::println("FAIL: defaultdict size = " + Integer.toString(dd.size()));
+    } else {
+        io::println("PASS: defaultdict size works");
+    }
+}
+
+public fn test_defaultdict_isEmpty(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    if (!dd.isEmpty()) {
+        io::println("FAIL: defaultdict isEmpty new");
+    } else {
+        dd.put("a", 1);
+        if (dd.isEmpty()) {
+            io::println("FAIL: defaultdict isEmpty after put");
+        } else {
+            io::println("PASS: defaultdict isEmpty works");
+        }
+    }
+}
+
+public fn test_defaultdict_keys(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    let keys: ArrayList<string> = dd.keys();
+    if (keys.size() != 2) {
+        io::println("FAIL: defaultdict keys size = " + Integer.toString(keys.size()));
+    } else {
+        io::println("PASS: defaultdict keys works");
+    }
+}
+
+public fn test_defaultdict_values(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    let vals: ArrayList<int> = dd.values();
+    if (vals.size() != 2) {
+        io::println("FAIL: defaultdict values size = " + Integer.toString(vals.size()));
+    } else {
+        io::println("PASS: defaultdict values works");
+    }
+}
+
+public fn test_defaultdict_entries(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    let es: ArrayList<(string, int)> = dd.entries();
+    if (es.size() != 2) {
+        io::println("FAIL: defaultdict entries size = " + Integer.toString(es.size()));
+    } else {
+        io::println("PASS: defaultdict entries works");
+    }
+}
+
+public fn test_defaultdict_clear(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    dd.clear();
+    if (!dd.isEmpty() || dd.size() != 0) {
+        io::println("FAIL: defaultdict clear");
+    } else {
+        io::println("PASS: defaultdict clear works");
+    }
+}
+
+public fn test_defaultdict_getOrDefault(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    if (dd.getOrDefault("a", 99) != 1 || dd.getOrDefault("z", 99) != 99) {
+        io::println("FAIL: defaultdict getOrDefault");
+    } else {
+        io::println("PASS: defaultdict getOrDefault works");
+    }
+}
+
+public fn test_defaultdict_forEach(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    dd.put("c", 3);
+    let collected: ArrayList<string> = new ArrayList<string>();
+    dd.forEach(fn(k: string, v: int): void { collected.add(k); });
+    if (collected.size() != 3) {
+        io::println("FAIL: defaultdict forEach size = " + Integer.toString(collected.size()));
+    } else {
+        io::println("PASS: defaultdict forEach works");
+    }
+}
+
+public fn test_defaultdict_clone(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    dd.put("b", 2);
+    let copy: defaultdict<string, int> = dd.clone();
+    if (copy.size() != 2 || copy.get("a") != 1 || copy.get("b") != 2) {
+        io::println("FAIL: defaultdict clone");
+    } else {
+        io::println("PASS: defaultdict clone works");
+    }
+}
+
+public fn test_defaultdict_toString(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 1);
+    let s: string = dd.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: defaultdict toString empty");
+    } else {
+        io::println("PASS: defaultdict toString works");
+    }
+}
+
+public fn test_defaultdict_default_factory_string(): void {
+    let dd: defaultdict<string, string> = new defaultdict<string, string>(fn(): string => "N/A");
+    let v: string = dd.get("missing");
+    if (v != "N/A") {
+        io::println("FAIL: defaultdict string factory = '" + v + "'");
+    } else {
+        io::println("PASS: defaultdict string factory works");
+    }
+}
+
+public fn test_defaultdict_get_does_not_overwrite(): void {
+    let dd: defaultdict<string, int> = new defaultdict<string, int>(fn(): int => 0);
+    dd.put("a", 42);
+    // get should return existing value, not default
+    if (dd.get("a") != 42) {
+        io::println("FAIL: defaultdict get overwrites existing");
+    } else {
+        io::println("PASS: defaultdict get does not overwrite existing");
+    }
+}
+
+public fn run_all_defaultdict_tests(): void {
+    io::println("=== defaultdict.tr Tests ===");
+    test_defaultdict_init();
+    test_defaultdict_put_get();
+    test_defaultdict_get_missing_creates_default();
+    test_defaultdict_containsKey();
+    test_defaultdict_remove();
+    test_defaultdict_size();
+    test_defaultdict_isEmpty();
+    test_defaultdict_keys();
+    test_defaultdict_values();
+    test_defaultdict_entries();
+    test_defaultdict_clear();
+    test_defaultdict_getOrDefault();
+    test_defaultdict_forEach();
+    test_defaultdict_clone();
+    test_defaultdict_toString();
+    test_defaultdict_default_factory_string();
+    test_defaultdict_get_does_not_overwrite();
+}

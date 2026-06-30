@@ -1,0 +1,168 @@
+// Test file for sigproc/Spectrogram.tr
+// Exercises the public API of the Spectrogram module: STFT, PSD, mel
+// spectrogram, and Hz/Mel conversion functions.
+import tt::sigproc::Spectrogram;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_hzToMel_zero(): void {
+    let m: double = hzToMel(0.0);
+    if (m != 0.0) {
+        io::println("FAIL: hzToMel(0) = " + Double.toString(m));
+    } else {
+        io::println("PASS: hzToMel(0) returns 0");
+    }
+}
+
+public fn test_hzToMel_positive(): void {
+    let m: double = hzToMel(1000.0);
+    if (m <= 0.0) {
+        io::println("FAIL: hzToMel(1000) should be positive");
+    } else {
+        io::println("PASS: hzToMel(1000) returns positive value");
+    }
+}
+
+public fn test_melToHz_zero(): void {
+    let h: double = melToHz(0.0);
+    if (h != 0.0) {
+        io::println("FAIL: melToHz(0) = " + Double.toString(h));
+    } else {
+        io::println("PASS: melToHz(0) returns 0");
+    }
+}
+
+public fn test_melToHz_positive(): void {
+    let h: double = melToHz(1000.0);
+    if (h <= 0.0) {
+        io::println("FAIL: melToHz(1000) should be positive");
+    } else {
+        io::println("PASS: melToHz(1000) returns positive value");
+    }
+}
+
+public fn test_stftSpectrogram_basic(): void {
+    // Build a simple 64-sample signal
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 64) {
+        signal.add(1.0);
+        i = i + 1;
+    }
+    let window: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<ArrayList<double>> = stftSpectrogram(signal, 8, 4, window);
+    if (result.size() == 0) {
+        io::println("FAIL: stftSpectrogram returned no frames");
+    } else if (result.get(0).size() != 5) {
+        // windowSize=8 -> halfN = 8/2 + 1 = 5
+        io::println("FAIL: stftSpectrogram freq bins = " + Integer.toString(result.get(0).size()));
+    } else {
+        io::println("PASS: stftSpectrogram returns frames with correct freq bins");
+    }
+}
+
+public fn test_stftSpectrogram_with_window(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 32) {
+        signal.add(1.0);
+        i = i + 1;
+    }
+    let window: ArrayList<double> = new ArrayList<double>();
+    var j: int = 0;
+    while (j < 8) {
+        window.add(1.0);
+        j = j + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = stftSpectrogram(signal, 8, 8, window);
+    if (result.size() == 0) {
+        io::println("FAIL: stftSpectrogram with window returned no frames");
+    } else {
+        io::println("PASS: stftSpectrogram with window works");
+    }
+}
+
+public fn test_powerSpectralDensity_basic(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 64) {
+        signal.add(1.0);
+        i = i + 1;
+    }
+    let psd: ArrayList<double> = powerSpectralDensity(signal, 16, 8000.0);
+    let halfN: int = 16 / 2 + 1;
+    if (psd.size() != halfN) {
+        io::println("FAIL: powerSpectralDensity size = " + Integer.toString(psd.size()));
+    } else {
+        io::println("PASS: powerSpectralDensity returns correct size");
+    }
+}
+
+public fn test_powerSpectralDensity_nonneg(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 32) {
+        signal.add(1.0);
+        i = i + 1;
+    }
+    let psd: ArrayList<double> = powerSpectralDensity(signal, 8, 1000.0);
+    var ok: bool = true;
+    var idx: int = 0;
+    while (idx < psd.size()) {
+        if (psd.get(idx) < 0.0) { ok = false; break; }
+        idx = idx + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: powerSpectralDensity has negative value");
+    } else {
+        io::println("PASS: powerSpectralDensity values non-negative");
+    }
+}
+
+public fn test_melSpectrogram_basic(): void {
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 2048) {
+        signal.add(0.0);
+        i = i + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = melSpectrogram(signal, 256, 64, 8000.0, 8);
+    if (result.size() == 0) {
+        io::println("FAIL: melSpectrogram returned no frames");
+    } else if (result.get(0).size() != 8) {
+        io::println("FAIL: melSpectrogram mel bins = " + Integer.toString(result.get(0).size()));
+    } else {
+        io::println("PASS: melSpectrogram returns correct mel bins");
+    }
+}
+
+public fn test_melSpectrogramSimple_basic(): void {
+    // melSpectrogramSimple uses windowSize=2048 internally, so signal needs >= 2048 samples
+    let signal: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 2048) {
+        signal.add(0.0);
+        i = i + 1;
+    }
+    let result: ArrayList<ArrayList<double>> = melSpectrogramSimple(signal, 8000.0, 8);
+    if (result.size() == 0) {
+        io::println("FAIL: melSpectrogramSimple returned no frames");
+    } else {
+        io::println("PASS: melSpectrogramSimple returns frames");
+    }
+}
+
+public fn run_all_spectrogram_tests(): void {
+    io::println("=== Spectrogram.tr Tests ===");
+    test_hzToMel_zero();
+    test_hzToMel_positive();
+    test_melToHz_zero();
+    test_melToHz_positive();
+    test_stftSpectrogram_basic();
+    test_stftSpectrogram_with_window();
+    test_powerSpectralDensity_basic();
+    test_powerSpectralDensity_nonneg();
+    test_melSpectrogram_basic();
+    test_melSpectrogramSimple_basic();
+}

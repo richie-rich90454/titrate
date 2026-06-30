@@ -1,0 +1,189 @@
+// Test file for ForwardList.tr
+// Exercises the public API of the ForwardList class (singly-linked list).
+import tt::util::ForwardList;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::String;
+
+public fn test_forwardlist_init(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    if (!fl.isEmpty() || fl.size() != 0) {
+        io::println("FAIL: ForwardList init");
+    } else {
+        io::println("PASS: ForwardList init empty");
+    }
+}
+
+public fn test_forwardlist_pushFront_size(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(1);
+    fl.pushFront(2);
+    fl.pushFront(3);
+    if (fl.size() != 3) {
+        io::println("FAIL: ForwardList pushFront size = " + Integer.toString(fl.size()));
+    } else {
+        io::println("PASS: ForwardList pushFront/size works");
+    }
+}
+
+public fn test_forwardlist_popFront(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(1);
+    fl.pushFront(2);
+    fl.pushFront(3);
+    // List is now 3 -> 2 -> 1
+    let v: int = fl.popFront();
+    if (v != 3 || fl.size() != 2) {
+        io::println("FAIL: ForwardList popFront = " + Integer.toString(v));
+    } else {
+        io::println("PASS: ForwardList popFront works");
+    }
+}
+
+public fn test_forwardlist_front(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(10);
+    fl.pushFront(20);
+    // Front should be 20 (last pushed)
+    if (fl.front() != 20) {
+        io::println("FAIL: ForwardList front = " + Integer.toString(fl.front()));
+    } else {
+        io::println("PASS: ForwardList front works");
+    }
+}
+
+public fn test_forwardlist_isEmpty(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    if (!fl.isEmpty()) {
+        io::println("FAIL: ForwardList isEmpty new");
+    } else {
+        fl.pushFront(1);
+        if (fl.isEmpty()) {
+            io::println("FAIL: ForwardList isEmpty after push");
+        } else {
+            io::println("PASS: ForwardList isEmpty works");
+        }
+    }
+}
+
+public fn test_forwardlist_contains(): void {
+    let fl: ForwardList<string> = new ForwardList<string>();
+    fl.pushFront("a");
+    fl.pushFront("b");
+    fl.pushFront("c");
+    if (!fl.contains("b") || fl.contains("z")) {
+        io::println("FAIL: ForwardList contains");
+    } else {
+        io::println("PASS: ForwardList contains works");
+    }
+}
+
+public fn test_forwardlist_insertAfter(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(1);  // list: 1
+    fl.pushFront(2);  // list: 2 -> 1
+    fl.insertAfter(0, 99); // list: 2 -> 99 -> 1
+    let arr: ArrayList<int> = fl.toArray();
+    if (arr.size() != 3 || arr.get(0) != 2 || arr.get(1) != 99 || arr.get(2) != 1) {
+        io::println("FAIL: ForwardList insertAfter");
+    } else {
+        io::println("PASS: ForwardList insertAfter works");
+    }
+}
+
+public fn test_forwardlist_removeAfter(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(1);  // list: 1
+    fl.pushFront(2);  // list: 2 -> 1
+    fl.pushFront(3);  // list: 3 -> 2 -> 1
+    let removed: int = fl.removeAfter(0); // removes 2, list: 3 -> 1
+    if (removed != 2 || fl.size() != 2) {
+        io::println("FAIL: ForwardList removeAfter");
+    } else {
+        io::println("PASS: ForwardList removeAfter works");
+    }
+}
+
+public fn test_forwardlist_reverse(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(1);  // list: 1
+    fl.pushFront(2);  // list: 2 -> 1
+    fl.pushFront(3);  // list: 3 -> 2 -> 1
+    fl.reverse();     // list: 1 -> 2 -> 3
+    let arr: ArrayList<int> = fl.toArray();
+    if (arr.size() != 3 || arr.get(0) != 1 || arr.get(1) != 2 || arr.get(2) != 3) {
+        io::println("FAIL: ForwardList reverse");
+    } else {
+        io::println("PASS: ForwardList reverse works");
+    }
+}
+
+public fn test_forwardlist_toArray(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(10);
+    fl.pushFront(20);
+    fl.pushFront(30);
+    let arr: ArrayList<int> = fl.toArray();
+    if (arr.size() != 3 || arr.get(0) != 30 || arr.get(1) != 20 || arr.get(2) != 10) {
+        io::println("FAIL: ForwardList toArray");
+    } else {
+        io::println("PASS: ForwardList toArray works");
+    }
+}
+
+public fn test_forwardlist_clear(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(1);
+    fl.pushFront(2);
+    fl.clear();
+    if (!fl.isEmpty() || fl.size() != 0) {
+        io::println("FAIL: ForwardList clear");
+    } else {
+        io::println("PASS: ForwardList clear works");
+    }
+}
+
+public fn test_forwardlist_fifo_order(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    // Push 1, 2, 3 then pop all - should get 3, 2, 1 (LIFO due to pushFront)
+    fl.pushFront(1);
+    fl.pushFront(2);
+    fl.pushFront(3);
+    let a: int = fl.popFront();
+    let b: int = fl.popFront();
+    let c: int = fl.popFront();
+    if (a != 3 || b != 2 || c != 1) {
+        io::println("FAIL: ForwardList LIFO order");
+    } else {
+        io::println("PASS: ForwardList LIFO order works");
+    }
+}
+
+public fn test_forwardlist_toString(): void {
+    let fl: ForwardList<int> = new ForwardList<int>();
+    fl.pushFront(1);
+    fl.pushFront(2);
+    let s: string = fl.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: ForwardList toString empty");
+    } else {
+        io::println("PASS: ForwardList toString works");
+    }
+}
+
+public fn run_all_forwardlist_tests(): void {
+    io::println("=== ForwardList.tr Tests ===");
+    test_forwardlist_init();
+    test_forwardlist_pushFront_size();
+    test_forwardlist_popFront();
+    test_forwardlist_front();
+    test_forwardlist_isEmpty();
+    test_forwardlist_contains();
+    test_forwardlist_insertAfter();
+    test_forwardlist_removeAfter();
+    test_forwardlist_reverse();
+    test_forwardlist_toArray();
+    test_forwardlist_clear();
+    test_forwardlist_fifo_order();
+    test_forwardlist_toString();
+}

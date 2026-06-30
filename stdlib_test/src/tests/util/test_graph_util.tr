@@ -1,0 +1,312 @@
+// Test file for Graph.tr (the one in util/, not algo/)
+// Exercises the public API of the Graph class (adjacency list graph).
+import tt::util::Graph;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_graph_addVertex(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addVertex("A");
+    g.addVertex("B");
+    if (!g.hasVertex("A") || !g.hasVertex("B") || g.hasVertex("Z")) {
+        io::println("FAIL: Graph addVertex/hasVertex");
+    } else {
+        io::println("PASS: Graph addVertex/hasVertex works");
+    }
+}
+
+public fn test_graph_addEdge_undirected(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    if (!g.hasEdge("A", "B") || !g.hasEdge("B", "A")) {
+        io::println("FAIL: Graph addEdge undirected");
+    } else {
+        io::println("PASS: Graph addEdge undirected works");
+    }
+}
+
+public fn test_graph_addEdge_directed(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    if (!g.hasEdge("A", "B") || g.hasEdge("B", "A")) {
+        io::println("FAIL: Graph addEdge directed");
+    } else {
+        io::println("PASS: Graph addEdge directed works");
+    }
+}
+
+public fn test_graph_neighbors(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    let nbrs: ArrayList<string> = g.neighbors("A");
+    if (nbrs.size() != 2) {
+        io::println("FAIL: Graph neighbors size = " + Integer.toString(nbrs.size()));
+    } else {
+        io::println("PASS: Graph neighbors works");
+    }
+}
+
+public fn test_graph_degree(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    g.addEdge("A", "D");
+    if (g.degree("A") != 3) {
+        io::println("FAIL: Graph degree = " + Integer.toString(g.degree("A")));
+    } else {
+        io::println("PASS: Graph degree works");
+    }
+}
+
+public fn test_graph_vertices(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addVertex("A");
+    g.addVertex("B");
+    g.addVertex("C");
+    let vs: ArrayList<string> = g.vertices();
+    if (vs.size() != 3) {
+        io::println("FAIL: Graph vertices size = " + Integer.toString(vs.size()));
+    } else {
+        io::println("PASS: Graph vertices works");
+    }
+}
+
+public fn test_graph_bfs(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    g.addEdge("B", "D");
+    let result: ArrayList<string> = g.bfs("A");
+    if (result.size() != 4) {
+        io::println("FAIL: Graph bfs size = " + Integer.toString(result.size()));
+    } else {
+        if (result.get(0) != "A") {
+            io::println("FAIL: Graph bfs starts at A");
+        } else {
+            io::println("PASS: Graph bfs works");
+        }
+    }
+}
+
+public fn test_graph_dfs(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    g.addEdge("B", "D");
+    let result: ArrayList<string> = g.dfs("A");
+    if (result.size() != 4) {
+        io::println("FAIL: Graph dfs size = " + Integer.toString(result.size()));
+    } else {
+        if (result.get(0) != "A") {
+            io::println("FAIL: Graph dfs starts at A");
+        } else {
+            io::println("PASS: Graph dfs works");
+        }
+    }
+}
+
+public fn test_graph_shortestPath(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("C", "D");
+    let path: ArrayList<string> = g.shortestPath("A", "D");
+    if (path.size() != 4) {
+        io::println("FAIL: Graph shortestPath size = " + Integer.toString(path.size()));
+    } else {
+        if (path.get(0) != "A" || path.get(3) != "D") {
+            io::println("FAIL: Graph shortestPath endpoints");
+        } else {
+            io::println("PASS: Graph shortestPath works");
+        }
+    }
+}
+
+public fn test_graph_topologicalSort(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("A", "C");
+    let result: ArrayList<string> = g.topologicalSort();
+    if (result.size() != 3) {
+        io::println("FAIL: Graph topologicalSort size = " + Integer.toString(result.size()));
+    } else {
+        // A should come before B, B before C
+        let aIdx: int = _indexOf(result, "A");
+        let bIdx: int = _indexOf(result, "B");
+        let cIdx: int = _indexOf(result, "C");
+        if (aIdx < bIdx && bIdx < cIdx) {
+            io::println("PASS: Graph topologicalSort works");
+        } else {
+            io::println("FAIL: Graph topologicalSort order");
+        }
+    }
+}
+
+fn _indexOf(list: ArrayList<string>, target: string): int {
+    let i: int = 0;
+    while (i < list.size()) {
+        if (list.get(i) == target) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+public fn test_graph_isConnected(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    if (!g.isConnected()) {
+        io::println("FAIL: Graph isConnected true case");
+    } else {
+        g.addVertex("Z");
+        if (g.isConnected()) {
+            io::println("FAIL: Graph isConnected false case");
+        } else {
+            io::println("PASS: Graph isConnected works");
+        }
+    }
+}
+
+public fn test_graph_isCyclic_directed(): void {
+    let g: Graph<string> = new Graph<string>(true);
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    g.addEdge("C", "A");
+    if (!g.isCyclic()) {
+        io::println("FAIL: Graph isCyclic true case");
+    } else {
+        let g2: Graph<string> = new Graph<string>(true);
+        g2.addEdge("A", "B");
+        g2.addEdge("B", "C");
+        if (g2.isCyclic()) {
+            io::println("FAIL: Graph isCyclic false case");
+        } else {
+            io::println("PASS: Graph isCyclic works");
+        }
+    }
+}
+
+public fn test_graph_dijkstra(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    g.addEdge("A", "C", 10.0);
+    let dist = g.dijkstra("A");
+    // A=0, B=1, C=3 (via B, not direct)
+    let distC: double = dist.get("C");
+    if (distC != 3.0) {
+        io::println("FAIL: Graph dijkstra C dist = " + Double.toString(distC));
+    } else {
+        io::println("PASS: Graph dijkstra works");
+    }
+}
+
+public fn test_graph_removeVertex(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("A", "C");
+    g.removeVertex("B");
+    if (g.hasVertex("B") || g.hasEdge("A", "B")) {
+        io::println("FAIL: Graph removeVertex");
+    } else {
+        io::println("PASS: Graph removeVertex works");
+    }
+}
+
+public fn test_graph_removeEdge(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.removeEdge("A", "B");
+    if (g.hasEdge("A", "B")) {
+        io::println("FAIL: Graph removeEdge");
+    } else {
+        io::println("PASS: Graph removeEdge works");
+    }
+}
+
+public fn test_graph_kruskalMST(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    g.addEdge("A", "C", 10.0);
+    let (weight: double, mstEdges: ArrayList<(string, string)>) = g.kruskalMST();
+    // MST should have 2 edges with total weight 3.0
+    if (mstEdges.size() != 2) {
+        io::println("FAIL: Graph kruskalMST edge count = " + Integer.toString(mstEdges.size()));
+    } else {
+        if (weight != 3.0) {
+            io::println("FAIL: Graph kruskalMST weight = " + Double.toString(weight));
+        } else {
+            io::println("PASS: Graph kruskalMST works");
+        }
+    }
+}
+
+public fn test_graph_primMST(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B", 1.0);
+    g.addEdge("B", "C", 2.0);
+    g.addEdge("A", "C", 10.0);
+    let (weight: double, mstEdges: ArrayList<(string, string)>) = g.primMST("A");
+    if (mstEdges.size() != 2) {
+        io::println("FAIL: Graph primMST edge count = " + Integer.toString(mstEdges.size()));
+    } else {
+        if (weight != 3.0) {
+            io::println("FAIL: Graph primMST weight = " + Double.toString(weight));
+        } else {
+            io::println("PASS: Graph primMST works");
+        }
+    }
+}
+
+public fn test_graph_edges(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    g.addEdge("B", "C");
+    let es: ArrayList<(string, string)> = g.edges();
+    // Undirected: 2 unique edges
+    if (es.size() != 2) {
+        io::println("FAIL: Graph edges size = " + Integer.toString(es.size()));
+    } else {
+        io::println("PASS: Graph edges works");
+    }
+}
+
+public fn test_graph_toString(): void {
+    let g: Graph<string> = new Graph<string>();
+    g.addEdge("A", "B");
+    let s: string = g.toString();
+    if (String.length(s) == 0) {
+        io::println("FAIL: Graph toString empty");
+    } else {
+        io::println("PASS: Graph toString works");
+    }
+}
+
+public fn run_all_graph_util_tests(): void {
+    io::println("=== Graph.tr (util) Tests ===");
+    test_graph_addVertex();
+    test_graph_addEdge_undirected();
+    test_graph_addEdge_directed();
+    test_graph_neighbors();
+    test_graph_degree();
+    test_graph_vertices();
+    test_graph_bfs();
+    test_graph_dfs();
+    test_graph_shortestPath();
+    test_graph_topologicalSort();
+    test_graph_isConnected();
+    test_graph_isCyclic_directed();
+    test_graph_dijkstra();
+    test_graph_removeVertex();
+    test_graph_removeEdge();
+    test_graph_kruskalMST();
+    test_graph_primMST();
+    test_graph_edges();
+    test_graph_toString();
+}

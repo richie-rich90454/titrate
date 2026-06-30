@@ -1,0 +1,129 @@
+// Test file for LineIntegral.tr
+// Exercises the public API for line and surface integrals.
+import tt::util::ArrayList;
+import tt::calculus::LineIntegral;
+import tt::lang::Double;
+
+public fn test_line_integral_constant(): void {
+    // Integral of f(x,y) = 1 along a straight path from (0,0) to (1,0) of length 1 = 1
+    let f: fn(ArrayList<double>): double = fn(p: ArrayList<double>): double { return 1.0; };
+    let path: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let p0: ArrayList<double> = new ArrayList<double>();
+    p0.add(0.0);
+    p0.add(0.0);
+    let p1: ArrayList<double> = new ArrayList<double>();
+    p1.add(1.0);
+    p1.add(0.0);
+    path.add(p0);
+    path.add(p1);
+    let result: double = LineIntegral.lineIntegral(f, path, 100);
+    if (Math.abs(result - 1.0) > 1e-4) {
+        io::println("FAIL: lineIntegral of 1 = " + Double.toString(result));
+    } else {
+        io::println("PASS: lineIntegral of constant 1 works");
+    }
+}
+
+public fn test_line_integral_x(): void {
+    // Integral of f(x,y) = x along straight path from (0,0) to (2,0) = 2
+    let f: fn(ArrayList<double>): double = fn(p: ArrayList<double>): double { return p.get(0); };
+    let path: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let p0: ArrayList<double> = new ArrayList<double>();
+    p0.add(0.0);
+    p0.add(0.0);
+    let p1: ArrayList<double> = new ArrayList<double>();
+    p1.add(2.0);
+    p1.add(0.0);
+    path.add(p0);
+    path.add(p1);
+    let result: double = LineIntegral.lineIntegral(f, path, 100);
+    if (Math.abs(result - 2.0) > 1e-3) {
+        io::println("FAIL: lineIntegral of x = " + Double.toString(result));
+    } else {
+        io::println("PASS: lineIntegral of x works");
+    }
+}
+
+public fn test_line_integral_vector(): void {
+    // Vector line integral of F = (x, y) along (0,0) to (1,1)
+    let f: fn(ArrayList<double>): ArrayList<double> = fn(p: ArrayList<double>): ArrayList<double> {
+        let r: ArrayList<double> = new ArrayList<double>();
+        r.add(p.get(0));
+        r.add(p.get(1));
+        return r;
+    };
+    let path: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let p0: ArrayList<double> = new ArrayList<double>();
+    p0.add(0.0);
+    p0.add(0.0);
+    let p1: ArrayList<double> = new ArrayList<double>();
+    p1.add(1.0);
+    p1.add(1.0);
+    path.add(p0);
+    path.add(p1);
+    let result: double = LineIntegral.lineIntegralVector(f, path, 100);
+    // Integral of x dx + y dy along path from (0,0) to (1,1) where x=t, y=t is integral of 2t dt = 1
+    if (Math.abs(result - 1.0) > 1e-3) {
+        io::println("FAIL: lineIntegralVector = " + Double.toString(result));
+    } else {
+        io::println("PASS: lineIntegralVector works");
+    }
+}
+
+public fn test_surface_integral(): void {
+    // Integral of f(x,y,z) = 1 over a unit square parametrized by (u, v, 0) -> area = 1
+    let f: fn(ArrayList<double>): double = fn(p: ArrayList<double>): double { return 1.0; };
+    let paramU: fn(double): double = fn(u: double): double { return u; };
+    let paramV: fn(double): double = fn(v: double): double { return v; };
+    let result: double = LineIntegral.surfaceIntegral(f, paramU, paramV, 0.0, 1.0, 0.0, 1.0, 50);
+    if (Math.abs(result - 1.0) > 1e-3) {
+        io::println("FAIL: surfaceIntegral = " + Double.toString(result));
+    } else {
+        io::println("PASS: surfaceIntegral works");
+    }
+}
+
+public fn test_greens_theorem(): void {
+    // Green's theorem on F = (-y, x) over unit square gives area = 1
+    // The boundary integral of -y dx + x dy around the unit square equals 2 (twice the area)
+    let f: fn(ArrayList<double>): ArrayList<double> = fn(p: ArrayList<double>): ArrayList<double> {
+        let r: ArrayList<double> = new ArrayList<double>();
+        r.add(-p.get(1));
+        r.add(p.get(0));
+        return r;
+    };
+    let boundary: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let c0: ArrayList<double> = new ArrayList<double>();
+    c0.add(0.0);
+    c0.add(0.0);
+    let c1: ArrayList<double> = new ArrayList<double>();
+    c1.add(1.0);
+    c1.add(0.0);
+    let c2: ArrayList<double> = new ArrayList<double>();
+    c2.add(1.0);
+    c2.add(1.0);
+    let c3: ArrayList<double> = new ArrayList<double>();
+    c3.add(0.0);
+    c3.add(1.0);
+    boundary.add(c0);
+    boundary.add(c1);
+    boundary.add(c2);
+    boundary.add(c3);
+    boundary.add(c0);
+    let result: double = LineIntegral.greensTheorem(f, boundary, 100);
+    // Should be 2 (curl of F = 2, area = 1)
+    if (Math.abs(result - 2.0) > 1e-2) {
+        io::println("FAIL: greensTheorem = " + Double.toString(result));
+    } else {
+        io::println("PASS: greensTheorem works");
+    }
+}
+
+public fn run_all_line_integral_tests(): void {
+    io::println("=== LineIntegral.tr Tests ===");
+    test_line_integral_constant();
+    test_line_integral_x();
+    test_line_integral_vector();
+    test_surface_integral();
+    test_greens_theorem();
+}

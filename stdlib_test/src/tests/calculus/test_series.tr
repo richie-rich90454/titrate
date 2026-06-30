@@ -1,0 +1,96 @@
+// Test file for Series.tr
+// Exercises the public API for series expansions.
+import tt::util::ArrayList;
+import tt::calculus::Series;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_taylor_series(): void {
+    // Taylor series of f(x) = x^2 at center=0 should be [0, 0, 1, 0, ...]
+    let f: fn(double): double = fn(x: double): double { return x * x; };
+    let coeffs: ArrayList<double> = Series.taylorSeries(f, 0.0, 4, 1e-4);
+    if (coeffs.size() < 3) {
+        io::println("FAIL: taylorSeries coeffs size = " + Integer.toString(coeffs.size()));
+        return;
+    }
+    // a2 should be approximately 1, others ~0
+    if (Math.abs(coeffs.get(2) - 1.0) > 1e-3) {
+        io::println("FAIL: taylorSeries a2 = " + Double.toString(coeffs.get(2)));
+    } else {
+        io::println("PASS: taylorSeries works");
+    }
+}
+
+public fn test_taylor_evaluate(): void {
+    // Evaluate polynomial 1 + 2x + 3x^2 at x=2 with center=0 -> 1 + 4 + 12 = 17
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+    coeffs.add(1.0);
+    coeffs.add(2.0);
+    coeffs.add(3.0);
+    let result: double = Series.taylorEvaluate(coeffs, 0.0, 2.0);
+    if (Math.abs(result - 17.0) > 1e-9) {
+        io::println("FAIL: taylorEvaluate = " + Double.toString(result));
+    } else {
+        io::println("PASS: taylorEvaluate works");
+    }
+}
+
+public fn test_taylor_evaluate_at_center(): void {
+    // Evaluate 1 + 2x + 3x^2 at x=0 (center=0) -> 1
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+    coeffs.add(1.0);
+    coeffs.add(2.0);
+    coeffs.add(3.0);
+    let result: double = Series.taylorEvaluate(coeffs, 0.0, 0.0);
+    if (Math.abs(result - 1.0) > 1e-9) {
+        io::println("FAIL: taylorEvaluate at center = " + Double.toString(result));
+    } else {
+        io::println("PASS: taylorEvaluate at center works");
+    }
+}
+
+public fn test_laurent_series(): void {
+    let f: fn(double): double = fn(x: double): double { return 1.0 / x; };
+    let coeffs: ArrayList<double> = Series.laurentSeries(f, 1.0, 3, 1e-4);
+    if (coeffs.size() == 0) {
+        io::println("FAIL: laurentSeries empty");
+    } else {
+        io::println("PASS: laurentSeries returns coeffs");
+    }
+}
+
+public fn test_pade_approximation(): void {
+    // Pade approximation of e^x with m=1, n=1 should be (1 + x/2)/(1 - x/2)
+    // Use Taylor coefficients of e^x = [1, 1, 1/2, 1/6, ...]
+    let coeffs: ArrayList<double> = new ArrayList<double>();
+    coeffs.add(1.0);
+    coeffs.add(1.0);
+    coeffs.add(0.5);
+    coeffs.add(1.0 / 6.0);
+    let result: ArrayList<ArrayList<double>> = Series.padeApproximation(coeffs, 1, 1);
+    if (result.size() != 2) {
+        io::println("FAIL: padeApproximation size = " + Integer.toString(result.size()));
+        return;
+    }
+    io::println("PASS: padeApproximation returns numerator and denominator");
+}
+
+public fn test_asymptotic_expansion(): void {
+    let f: fn(double): double = fn(x: double): double { return 1.0 / x; };
+    let coeffs: ArrayList<double> = Series.asymptoticExpansion(f, 10.0, 3);
+    if (coeffs.size() == 0) {
+        io::println("FAIL: asymptoticExpansion empty");
+    } else {
+        io::println("PASS: asymptoticExpansion returns coeffs");
+    }
+}
+
+public fn run_all_series_tests(): void {
+    io::println("=== Series.tr Tests ===");
+    test_taylor_series();
+    test_taylor_evaluate();
+    test_taylor_evaluate_at_center();
+    test_laurent_series();
+    test_pade_approximation();
+    test_asymptotic_expansion();
+}

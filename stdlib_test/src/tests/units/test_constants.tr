@@ -1,0 +1,230 @@
+// Test file for units/Constants.tr
+// Exercises the public API of the units/Constants module: physical constants.
+import tt::units::Constants;
+import tt::lang::Double;
+
+public fn test_BOLTZMANN_positive(): void {
+    let v: double = BOLTZMANN();
+    if (v <= 0.0) {
+        io::println("FAIL: BOLTZMANN should be positive");
+    } else {
+        io::println("PASS: BOLTZMANN returns positive value");
+    }
+}
+
+public fn test_AVOGADRO_positive(): void {
+    let v: double = AVOGADRO();
+    if (v <= 0.0) {
+        io::println("FAIL: AVOGADRO should be positive");
+    } else {
+        io::println("PASS: AVOGADRO returns positive value");
+    }
+}
+
+public fn test_GAS_CONSTANT_positive(): void {
+    let v: double = GAS_CONSTANT();
+    if (v <= 0.0) {
+        io::println("FAIL: GAS_CONSTANT should be positive");
+    } else {
+        io::println("PASS: GAS_CONSTANT returns positive value");
+    }
+}
+
+public fn test_PLANCK_positive(): void {
+    let v: double = PLANCK();
+    if (v <= 0.0) {
+        io::println("FAIL: PLANCK should be positive");
+    } else {
+        io::println("PASS: PLANCK returns positive value");
+    }
+}
+
+public fn test_SPEED_OF_LIGHT_positive(): void {
+    let v: double = SPEED_OF_LIGHT();
+    if (v <= 0.0) {
+        io::println("FAIL: SPEED_OF_LIGHT should be positive");
+    } else {
+        io::println("PASS: SPEED_OF_LIGHT returns positive value");
+    }
+}
+
+public fn test_ELEMENTARY_CHARGE_positive(): void {
+    let v: double = ELEMENTARY_CHARGE();
+    if (v <= 0.0) {
+        io::println("FAIL: ELEMENTARY_CHARGE should be positive");
+    } else {
+        io::println("PASS: ELEMENTARY_CHARGE returns positive value");
+    }
+}
+
+public fn test_COULOMB_CONSTANT_positive(): void {
+    let v: double = COULOMB_CONSTANT();
+    if (v <= 0.0) {
+        io::println("FAIL: COULOMB_CONSTANT should be positive");
+    } else {
+        io::println("PASS: COULOMB_CONSTANT returns positive value");
+    }
+}
+
+public fn test_GRAVITATIONAL_positive(): void {
+    let v: double = GRAVITATIONAL();
+    if (v <= 0.0) {
+        io::println("FAIL: GRAVITATIONAL should be positive");
+    } else {
+        io::println("PASS: GRAVITATIONAL returns positive value");
+    }
+}
+
+public fn test_PI_in_expected_range(): void {
+    let v: double = PI();
+    if (v < 3.14 || v > 3.15) {
+        io::println("FAIL: PI out of [3.14, 3.15] = " + Double.toString(v));
+    } else {
+        io::println("PASS: PI in expected range");
+    }
+}
+
+public fn test_ELECTRON_MASS_positive(): void {
+    let v: double = ELECTRON_MASS();
+    if (v <= 0.0) {
+        io::println("FAIL: ELECTRON_MASS should be positive");
+    } else {
+        io::println("PASS: ELECTRON_MASS returns positive value");
+    }
+}
+
+public fn test_PROTON_MASS_positive(): void {
+    let v: double = PROTON_MASS();
+    if (v <= 0.0) {
+        io::println("FAIL: PROTON_MASS should be positive");
+    } else {
+        io::println("PASS: PROTON_MASS returns positive value");
+    }
+}
+
+public fn test_NEUTRON_MASS_positive(): void {
+    let v: double = NEUTRON_MASS();
+    if (v <= 0.0) {
+        io::println("FAIL: NEUTRON_MASS should be positive");
+    } else {
+        io::println("PASS: NEUTRON_MASS returns positive value");
+    }
+}
+
+public fn test_ATOMIC_MASS_UNIT_positive(): void {
+    let v: double = ATOMIC_MASS_UNIT();
+    if (v <= 0.0) {
+        io::println("FAIL: ATOMIC_MASS_UNIT should be positive");
+    } else {
+        io::println("PASS: ATOMIC_MASS_UNIT returns positive value");
+    }
+}
+
+public fn test_RYDBERG_positive(): void {
+    let v: double = RYDBERG();
+    if (v <= 0.0) {
+        io::println("FAIL: RYDBERG should be positive");
+    } else {
+        io::println("PASS: RYDBERG returns positive value");
+    }
+}
+
+public fn test_BOHR_RADIUS_positive(): void {
+    let v: double = BOHR_RADIUS();
+    if (v <= 0.0) {
+        io::println("FAIL: BOHR_RADIUS should be positive");
+    } else {
+        io::println("PASS: BOHR_RADIUS returns positive value");
+    }
+}
+
+public fn test_FINE_STRUCTURE_positive(): void {
+    let v: double = FINE_STRUCTURE();
+    if (v <= 0.0) {
+        io::println("FAIL: FINE_STRUCTURE should be positive");
+    } else {
+        io::println("PASS: FINE_STRUCTURE returns positive value");
+    }
+}
+
+public fn test_STEFAN_BOLTZMANN_positive(): void {
+    let v: double = STEFAN_BOLTZMANN();
+    if (v <= 0.0) {
+        io::println("FAIL: STEFAN_BOLTZMANN should be positive");
+    } else {
+        io::println("PASS: STEFAN_BOLTZMANN returns positive value");
+    }
+}
+
+public fn test_WIEN_DISPLACEMENT_positive(): void {
+    let v: double = WIEN_DISPLACEMENT();
+    if (v <= 0.0) {
+        io::println("FAIL: WIEN_DISPLACEMENT should be positive");
+    } else {
+        io::println("PASS: WIEN_DISPLACEMENT returns positive value");
+    }
+}
+
+public fn test_PERMEABILITY_VACUUM_positive(): void {
+    let v: double = PERMEABILITY_VACUUM();
+    if (v <= 0.0) {
+        io::println("FAIL: PERMEABILITY_VACUUM should be positive");
+    } else {
+        io::println("PASS: PERMEABILITY_VACUUM returns positive value");
+    }
+}
+
+public fn test_PERMITTIVITY_VACUUM_positive(): void {
+    let v: double = PERMITTIVITY_VACUUM();
+    if (v <= 0.0) {
+        io::println("FAIL: PERMITTIVITY_VACUUM should be positive");
+    } else {
+        io::println("PASS: PERMITTIVITY_VACUUM returns positive value");
+    }
+}
+
+public fn test_MOLAR_GAS_VOLUME_positive(): void {
+    let v: double = MOLAR_GAS_VOLUME();
+    if (v <= 0.0) {
+        io::println("FAIL: MOLAR_GAS_VOLUME should be positive");
+    } else {
+        io::println("PASS: MOLAR_GAS_VOLUME returns positive value");
+    }
+}
+
+public fn test_constants_are_deterministic(): void {
+    // Each call should return the same value
+    let v1: double = BOLTZMANN();
+    let v2: double = BOLTZMANN();
+    if (v1 != v2) {
+        io::println("FAIL: BOLTZMANN should return same value on each call");
+    } else {
+        io::println("PASS: Constants are deterministic");
+    }
+}
+
+public fn run_all_constants_tests(): void {
+    io::println("=== units/Constants.tr Tests ===");
+    test_BOLTZMANN_positive();
+    test_AVOGADRO_positive();
+    test_GAS_CONSTANT_positive();
+    test_PLANCK_positive();
+    test_SPEED_OF_LIGHT_positive();
+    test_ELEMENTARY_CHARGE_positive();
+    test_COULOMB_CONSTANT_positive();
+    test_GRAVITATIONAL_positive();
+    test_PI_in_expected_range();
+    test_ELECTRON_MASS_positive();
+    test_PROTON_MASS_positive();
+    test_NEUTRON_MASS_positive();
+    test_ATOMIC_MASS_UNIT_positive();
+    test_RYDBERG_positive();
+    test_BOHR_RADIUS_positive();
+    test_FINE_STRUCTURE_positive();
+    test_STEFAN_BOLTZMANN_positive();
+    test_WIEN_DISPLACEMENT_positive();
+    test_PERMEABILITY_VACUUM_positive();
+    test_PERMITTIVITY_VACUUM_positive();
+    test_MOLAR_GAS_VOLUME_positive();
+    test_constants_are_deterministic();
+}

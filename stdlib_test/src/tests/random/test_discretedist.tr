@@ -1,0 +1,155 @@
+// Test file for random/DiscreteDist.tr
+// Exercises the public API of the DiscreteDist module: discrete
+// probability distribution sampling functions.
+import tt::random::DiscreteDist;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_poissonSample_nonneg_small_lambda(): void {
+    let v: int = poissonSample(3.0);
+    if (v < 0) {
+        io::println("FAIL: poissonSample(3.0) returned negative");
+    } else {
+        io::println("PASS: poissonSample small lambda returns non-negative");
+    }
+}
+
+public fn test_poissonSample_nonneg_large_lambda(): void {
+    // Cover the normal-approximation branch (lambda > 30)
+    let v: int = poissonSample(50.0);
+    if (v < 0) {
+        io::println("FAIL: poissonSample(50.0) returned negative");
+    } else {
+        io::println("PASS: poissonSample large lambda returns non-negative");
+    }
+}
+
+public fn test_poissonSample_zero_lambda(): void {
+    let v: int = poissonSample(0.0);
+    if (v != 0) {
+        io::println("FAIL: poissonSample(0.0) should be 0, got " + Integer.toString(v));
+    } else {
+        io::println("PASS: poissonSample(0.0) returns 0");
+    }
+}
+
+public fn test_geometricSample_at_least_one(): void {
+    let v: int = geometricSample(0.5);
+    if (v < 1) {
+        io::println("FAIL: geometricSample(0.5) returned < 1");
+    } else {
+        io::println("PASS: geometricSample returns at least 1");
+    }
+}
+
+public fn test_negativeBinomialSample_nonneg(): void {
+    let v: int = negativeBinomialSample(5, 0.5);
+    if (v < 0) {
+        io::println("FAIL: negativeBinomialSample returned negative");
+    } else {
+        io::println("PASS: negativeBinomialSample returns non-negative");
+    }
+}
+
+public fn test_hypergeometricSample_in_range(): void {
+    // pop=20, successes=7, draws=5 -> result must be in [0, 5]
+    let v: int = hypergeometricSample(20, 7, 5);
+    if (v < 0 || v > 5) {
+        io::println("FAIL: hypergeometricSample out of range = " + Integer.toString(v));
+    } else {
+        io::println("PASS: hypergeometricSample in [0, draws]");
+    }
+}
+
+public fn test_hypergeometricSample_no_successes(): void {
+    // If successes=0, count must always be 0
+    let v: int = hypergeometricSample(20, 0, 5);
+    if (v != 0) {
+        io::println("FAIL: hypergeometricSample with 0 successes returned " + Integer.toString(v));
+    } else {
+        io::println("PASS: hypergeometricSample with 0 successes returns 0");
+    }
+}
+
+public fn test_categoricalSample_single(): void {
+    let probs: ArrayList<double> = new ArrayList<double>();
+    probs.add(1.0);
+    let v: int = categoricalSample(probs);
+    if (v != 0) {
+        io::println("FAIL: categoricalSample single category returned " + Integer.toString(v));
+    } else {
+        io::println("PASS: categoricalSample single category returns 0");
+    }
+}
+
+public fn test_categoricalSample_empty(): void {
+    let probs: ArrayList<double> = new ArrayList<double>();
+    let v: int = categoricalSample(probs);
+    if (v != -1) {
+        io::println("FAIL: categoricalSample empty returned " + Integer.toString(v));
+    } else {
+        io::println("PASS: categoricalSample empty returns -1");
+    }
+}
+
+public fn test_categoricalSample_multi(): void {
+    let probs: ArrayList<double> = new ArrayList<double>();
+    probs.add(0.5); probs.add(0.3); probs.add(0.2);
+    let v: int = categoricalSample(probs);
+    if (v < 0 || v > 2) {
+        io::println("FAIL: categoricalSample multi returned " + Integer.toString(v));
+    } else {
+        io::println("PASS: categoricalSample multi in range");
+    }
+}
+
+public fn test_multinomialSample_sums_to_n(): void {
+    let probs: ArrayList<double> = new ArrayList<double>();
+    probs.add(0.2); probs.add(0.5); probs.add(0.3);
+    let result: ArrayList<int> = multinomialSample(100, probs);
+    if (result.size() != 3) {
+        io::println("FAIL: multinomialSample size = " + Integer.toString(result.size()));
+    } else {
+        let sum: int = result.get(0) + result.get(1) + result.get(2);
+        if (sum != 100) {
+            io::println("FAIL: multinomialSample sum = " + Integer.toString(sum));
+        } else {
+            io::println("PASS: multinomialSample sums to n");
+        }
+    }
+}
+
+public fn test_zipfSample_in_range(): void {
+    let v: int = zipfSample(10, 2.0);
+    if (v < 1 || v > 10) {
+        io::println("FAIL: zipfSample out of range = " + Integer.toString(v));
+    } else {
+        io::println("PASS: zipfSample in [1, n]");
+    }
+}
+
+public fn test_logSeriesSample_positive(): void {
+    let v: int = logSeriesSample(0.5);
+    if (v < 1) {
+        io::println("FAIL: logSeriesSample returned < 1");
+    } else {
+        io::println("PASS: logSeriesSample returns positive");
+    }
+}
+
+public fn run_all_discretedist_tests(): void {
+    io::println("=== DiscreteDist.tr Tests ===");
+    test_poissonSample_nonneg_small_lambda();
+    test_poissonSample_nonneg_large_lambda();
+    test_poissonSample_zero_lambda();
+    test_geometricSample_at_least_one();
+    test_negativeBinomialSample_nonneg();
+    test_hypergeometricSample_in_range();
+    test_hypergeometricSample_no_successes();
+    test_categoricalSample_single();
+    test_categoricalSample_empty();
+    test_categoricalSample_multi();
+    test_multinomialSample_sums_to_n();
+    test_zipfSample_in_range();
+    test_logSeriesSample_positive();
+}

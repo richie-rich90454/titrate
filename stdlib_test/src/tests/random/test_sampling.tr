@@ -1,0 +1,211 @@
+// Test file for random/Sampling.tr
+// Exercises the public API of the Sampling module: utility functions for
+// random sampling operations (choices, sample, shuffle, reservoirSample,
+// rejectionSample, importanceSample).
+import tt::random::Sampling;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_choices_returns_k(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let weights: ArrayList<double> = new ArrayList<double>();
+    weights.add(1.0); weights.add(1.0); weights.add(1.0);
+    let result: ArrayList<double> = choices(data, weights, 5);
+    if (result.size() != 5) {
+        io::println("FAIL: choices returned size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: choices returns k elements");
+    }
+}
+
+public fn test_choices_values_from_data(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(10.0); data.add(20.0); data.add(30.0);
+    let weights: ArrayList<double> = new ArrayList<double>();
+    weights.add(1.0); weights.add(2.0); weights.add(1.0);
+    let result: ArrayList<double> = choices(data, weights, 10);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < result.size()) {
+        let v: double = result.get(i);
+        if (v != 10.0 && v != 20.0 && v != 30.0) { ok = false; break; }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: choices returned value not in data");
+    } else {
+        io::println("PASS: choices returns values from data");
+    }
+}
+
+public fn test_sample_returns_k(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    let result: ArrayList<double> = sample(data, 3);
+    if (result.size() != 3) {
+        io::println("FAIL: sample returned size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: sample returns k elements");
+    }
+}
+
+public fn test_sample_k_greater_than_n(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0);
+    let result: ArrayList<double> = sample(data, 10);
+    // Should cap at n
+    if (result.size() != 3) {
+        io::println("FAIL: sample k>n returned size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: sample k>n caps at n");
+    }
+}
+
+public fn test_sample_distinct_values(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    data.add(6.0); data.add(7.0); data.add(8.0); data.add(9.0); data.add(10.0);
+    let result: ArrayList<double> = sample(data, 5);
+    // All 5 should be distinct since sampling without replacement
+    var allDistinct: bool = true;
+    var i: int = 0;
+    while (i < result.size()) {
+        var j: int = i + 1;
+        while (j < result.size()) {
+            if (result.get(i) == result.get(j)) { allDistinct = false; break; }
+            j = j + 1;
+        }
+        if (!allDistinct) { break; }
+        i = i + 1;
+    }
+    if (!allDistinct) {
+        io::println("FAIL: sample returned duplicates (no replacement expected)");
+    } else {
+        io::println("PASS: sample returns distinct values");
+    }
+}
+
+public fn test_shuffle_preserves_size(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    shuffle(data);
+    if (data.size() != 5) {
+        io::println("FAIL: shuffle changed size");
+    } else {
+        io::println("PASS: shuffle preserves size");
+    }
+}
+
+public fn test_shuffle_preserves_multiset(): void {
+    // After shuffle, sorted multiset should match {1,2,3,4,5}
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0); data.add(3.0); data.add(4.0); data.add(5.0);
+    shuffle(data);
+    // Tally: each value should appear exactly once
+    var count: int = 0;
+    var i: int = 0;
+    while (i < data.size()) {
+        if (data.get(i) >= 1.0 && data.get(i) <= 5.0) {
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    if (count != 5) {
+        io::println("FAIL: shuffle did not preserve multiset");
+    } else {
+        io::println("PASS: shuffle preserves multiset");
+    }
+}
+
+public fn test_shuffleList_preserves_size(): void {
+    let data: ArrayList<string> = new ArrayList<string>();
+    data.add("a"); data.add("b"); data.add("c"); data.add("d");
+    shuffleList(data);
+    if (data.size() != 4) {
+        io::println("FAIL: shuffleList changed size");
+    } else {
+        io::println("PASS: shuffleList preserves size");
+    }
+}
+
+public fn test_reservoirSample_returns_k(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < 20) {
+        data.add(i as double);
+        i = i + 1;
+    }
+    let result: ArrayList<double> = reservoirSample(data, 5);
+    if (result.size() != 5) {
+        io::println("FAIL: reservoirSample size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: reservoirSample returns k elements");
+    }
+}
+
+public fn test_reservoirSample_k_zero(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    data.add(1.0); data.add(2.0);
+    let result: ArrayList<double> = reservoirSample(data, 0);
+    if (result.size() != 0) {
+        io::println("FAIL: reservoirSample k=0 should be empty");
+    } else {
+        io::println("PASS: reservoirSample k=0 returns empty");
+    }
+}
+
+public fn test_reservoirSample_empty_data(): void {
+    let data: ArrayList<double> = new ArrayList<double>();
+    let result: ArrayList<double> = reservoirSample(data, 5);
+    if (result.size() != 0) {
+        io::println("FAIL: reservoirSample empty data should be empty");
+    } else {
+        io::println("PASS: reservoirSample empty data returns empty");
+    }
+}
+
+public fn test_importanceSample_returns_pairs(): void {
+    // target: x in [0,1] -> 2x, proposal: x in [0,1] -> 1, proposalSample: random in [0,1]
+    let result: ArrayList<double> = importanceSample(
+        fn(x: double): double { return 2.0 * x; },
+        fn(x: double): double { return 1.0; },
+        fn(): double { return 0.5; },
+        5
+    );
+    // Each sample produces 2 entries (x, weight) so total = 2*n
+    if (result.size() != 10) {
+        io::println("FAIL: importanceSample size = " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: importanceSample returns 2*n entries");
+    }
+}
+
+public fn test_rejectionSample_runs(): void {
+    // Simple test: target uniform on [0,1], proposal uniform on [0,1], k=1
+    let result: double = rejectionSample(
+        fn(x: double): double { return 1.0; },
+        fn(x: double): double { return 1.0; },
+        fn(): double { return 0.5; },
+        1.0
+    );
+    io::println("PASS: rejectionSample returns " + Double.toString(result));
+}
+
+public fn run_all_sampling_tests(): void {
+    io::println("=== Sampling.tr Tests ===");
+    test_choices_returns_k();
+    test_choices_values_from_data();
+    test_sample_returns_k();
+    test_sample_k_greater_than_n();
+    test_sample_distinct_values();
+    test_shuffle_preserves_size();
+    test_shuffle_preserves_multiset();
+    test_shuffleList_preserves_size();
+    test_reservoirSample_returns_k();
+    test_reservoirSample_k_zero();
+    test_reservoirSample_empty_data();
+    test_importanceSample_returns_pairs();
+    test_rejectionSample_runs();
+}

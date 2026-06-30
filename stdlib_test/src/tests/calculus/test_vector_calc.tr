@@ -1,0 +1,163 @@
+// Test file for VectorCalc.tr
+// Exercises the public API for vector calculus operations.
+import tt::util::ArrayList;
+import tt::calculus::VectorCalc;
+import tt::lang::Double;
+
+public fn test_gradient(): void {
+    // Gradient of f(x,y) = x^2 + y^2 at (3, 4) = (6, 8)
+    let f: fn(ArrayList<double>): double = fn(p: ArrayList<double>): double { return p.get(0) * p.get(0) + p.get(1) * p.get(1); };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(3.0);
+    point.add(4.0);
+    let grad: ArrayList<double> = VectorCalc.gradient(f, point, 1e-4);
+    if (grad.size() != 2) {
+        io::println("FAIL: gradient size");
+        return;
+    }
+    if (Math.abs(grad.get(0) - 6.0) > 1e-3 || Math.abs(grad.get(1) - 8.0) > 1e-3) {
+        io::println("FAIL: gradient = (" + Double.toString(grad.get(0)) + ", " + Double.toString(grad.get(1)) + ")");
+    } else {
+        io::println("PASS: gradient works");
+    }
+}
+
+public fn test_divergence(): void {
+    // Divergence of F = (x, y) at (1, 2) = 1 + 1 = 2
+    let f: fn(ArrayList<double>): ArrayList<double> = fn(p: ArrayList<double>): ArrayList<double> {
+        let r: ArrayList<double> = new ArrayList<double>();
+        r.add(p.get(0));
+        r.add(p.get(1));
+        return r;
+    };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(1.0);
+    point.add(2.0);
+    let div: double = VectorCalc.divergence(f, point, 1e-4);
+    if (Math.abs(div - 2.0) > 1e-3) {
+        io::println("FAIL: divergence = " + Double.toString(div));
+    } else {
+        io::println("PASS: divergence works");
+    }
+}
+
+public fn test_curl2d(): void {
+    // curl of F = (-y, x) in 2D = dF2/dx - dF1/dy = 1 - (-1) = 2
+    let f: fn(ArrayList<double>): ArrayList<double> = fn(p: ArrayList<double>): ArrayList<double> {
+        let r: ArrayList<double> = new ArrayList<double>();
+        r.add(-p.get(1));
+        r.add(p.get(0));
+        return r;
+    };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(1.0);
+    point.add(1.0);
+    let c: double = VectorCalc.curl2d(f, point, 1e-4);
+    if (Math.abs(c - 2.0) > 1e-3) {
+        io::println("FAIL: curl2d = " + Double.toString(c));
+    } else {
+        io::println("PASS: curl2d works");
+    }
+}
+
+public fn test_curl3d(): void {
+    // curl of F = (0, 0, x+y) at (1,1,0) should be (∂Fz/∂y - ∂Fy/∂z, ∂Fx/∂z - ∂Fz/∂x, ∂Fy/∂x - ∂Fx/∂y)
+    // = (1 - 0, 0 - 1, 0 - 0) = (1, -1, 0)
+    let f: fn(ArrayList<double>): ArrayList<double> = fn(p: ArrayList<double>): ArrayList<double> {
+        let r: ArrayList<double> = new ArrayList<double>();
+        r.add(0.0);
+        r.add(0.0);
+        r.add(p.get(0) + p.get(1));
+        return r;
+    };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(1.0);
+    point.add(1.0);
+    point.add(0.0);
+    let c: ArrayList<double> = VectorCalc.curl3d(f, point, 1e-4);
+    if (c.size() != 3) {
+        io::println("FAIL: curl3d size");
+        return;
+    }
+    io::println("PASS: curl3d returns 3D vector");
+}
+
+public fn test_laplacian(): void {
+    // Laplacian of f(x,y) = x^2 + y^2 at any point = 4
+    let f: fn(ArrayList<double>): double = fn(p: ArrayList<double>): double { return p.get(0) * p.get(0) + p.get(1) * p.get(1); };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(1.0);
+    point.add(1.0);
+    let lap: double = VectorCalc.laplacian(f, point, 1e-4);
+    if (Math.abs(lap - 4.0) > 1e-2) {
+        io::println("FAIL: laplacian = " + Double.toString(lap));
+    } else {
+        io::println("PASS: laplacian works");
+    }
+}
+
+public fn test_hessian(): void {
+    // Hessian of f(x,y) = x^2 + y^2 = [[2, 0], [0, 2]]
+    let f: fn(ArrayList<double>): double = fn(p: ArrayList<double>): double { return p.get(0) * p.get(0) + p.get(1) * p.get(1); };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(1.0);
+    point.add(1.0);
+    let h: ArrayList<ArrayList<double>> = VectorCalc.hessian(f, point, 1e-4);
+    if (h.size() != 2 || h.get(0).size() != 2) {
+        io::println("FAIL: hessian dimensions");
+        return;
+    }
+    if (Math.abs(h.get(0).get(0) - 2.0) > 1e-2 || Math.abs(h.get(1).get(1) - 2.0) > 1e-2) {
+        io::println("FAIL: hessian diagonal values");
+    } else {
+        io::println("PASS: hessian works");
+    }
+}
+
+public fn test_jacobian(): void {
+    // Jacobian of F = (x, y) at (1, 2) = identity
+    let f: fn(ArrayList<double>): ArrayList<double> = fn(p: ArrayList<double>): ArrayList<double> {
+        let r: ArrayList<double> = new ArrayList<double>();
+        r.add(p.get(0));
+        r.add(p.get(1));
+        return r;
+    };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(1.0);
+    point.add(2.0);
+    let j: ArrayList<ArrayList<double>> = VectorCalc.jacobian(f, point, 1e-4);
+    if (j.size() != 2 || j.get(0).size() != 2) {
+        io::println("FAIL: jacobian dimensions");
+        return;
+    }
+    io::println("PASS: jacobian works");
+}
+
+public fn test_directional_derivative(): void {
+    // Directional derivative of f(x,y) = x^2 + y^2 at (1,0) in direction (1,0) = 2
+    let f: fn(ArrayList<double>): double = fn(p: ArrayList<double>): double { return p.get(0) * p.get(0) + p.get(1) * p.get(1); };
+    let point: ArrayList<double> = new ArrayList<double>();
+    point.add(1.0);
+    point.add(0.0);
+    let dir: ArrayList<double> = new ArrayList<double>();
+    dir.add(1.0);
+    dir.add(0.0);
+    let d: double = VectorCalc.directionalDerivative(f, point, dir, 1e-4);
+    if (Math.abs(d - 2.0) > 1e-3) {
+        io::println("FAIL: directionalDerivative = " + Double.toString(d));
+    } else {
+        io::println("PASS: directionalDerivative works");
+    }
+}
+
+public fn run_all_vector_calc_tests(): void {
+    io::println("=== VectorCalc.tr Tests ===");
+    test_gradient();
+    test_divergence();
+    test_curl2d();
+    test_curl3d();
+    test_laplacian();
+    test_hessian();
+    test_jacobian();
+    test_directional_derivative();
+}

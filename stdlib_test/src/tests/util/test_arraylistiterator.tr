@@ -1,0 +1,157 @@
+// Test file for ArrayListIterator.tr
+// Exercises the public API of the ArrayListIterator class.
+import tt::util::ArrayListIterator;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_iterator_hasNext_empty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let it: ArrayListIterator<int> = new ArrayListIterator<int>(list);
+    if (it.hasNext()) {
+        io::println("FAIL: ArrayListIterator.hasNext on empty list");
+    } else {
+        io::println("PASS: ArrayListIterator.hasNext empty list");
+    }
+}
+
+public fn test_iterator_hasNext_nonempty(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    let it: ArrayListIterator<int> = new ArrayListIterator<int>(list);
+    if (!it.hasNext()) {
+        io::println("FAIL: ArrayListIterator.hasNext on non-empty list");
+    } else {
+        io::println("PASS: ArrayListIterator.hasNext non-empty list");
+    }
+}
+
+public fn test_iterator_next(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(10);
+    list.add(20);
+    list.add(30);
+    let it: ArrayListIterator<int> = new ArrayListIterator<int>(list);
+    let a: int = it.next();
+    let b: int = it.next();
+    let c: int = it.next();
+    if (a != 10 || b != 20 || c != 30) {
+        io::println("FAIL: ArrayListIterator.next order");
+    } else {
+        io::println("PASS: ArrayListIterator.next returns elements in order");
+    }
+}
+
+public fn test_iterator_next_advances_index(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    let it: ArrayListIterator<int> = new ArrayListIterator<int>(list);
+    it.next();
+    if (!it.hasNext()) {
+        io::println("FAIL: ArrayListIterator hasNext after one next");
+    } else {
+        it.next();
+        if (it.hasNext()) {
+            io::println("FAIL: ArrayListIterator hasNext should be false after consuming all");
+        } else {
+            io::println("PASS: ArrayListIterator next advances index correctly");
+        }
+    }
+}
+
+public fn test_iterator_reset(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    let it: ArrayListIterator<int> = new ArrayListIterator<int>(list);
+    it.next();
+    it.next();
+    it.reset();
+    if (!it.hasNext()) {
+        io::println("FAIL: ArrayListIterator.reset did not reset");
+    } else {
+        let v: int = it.next();
+        if (v != 1) {
+            io::println("FAIL: ArrayListIterator.reset first element = " + Integer.toString(v));
+        } else {
+            io::println("PASS: ArrayListIterator.reset works");
+        }
+    }
+}
+
+public fn test_iterator_forEachRemaining(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(1);
+    list.add(2);
+    list.add(3);
+    let it: ArrayListIterator<int> = new ArrayListIterator<int>(list);
+    it.next(); // skip first
+    let collected: ArrayList<int> = new ArrayList<int>();
+    it.forEachRemaining(fn(x: int): void { collected.add(x); });
+    if (collected.size() != 2 || collected.get(0) != 2 || collected.get(1) != 3) {
+        io::println("FAIL: ArrayListIterator.forEachRemaining");
+    } else {
+        io::println("PASS: ArrayListIterator.forEachRemaining works");
+    }
+}
+
+public fn test_iterator_with_strings(): void {
+    let list: ArrayList<string> = new ArrayList<string>();
+    list.add("a");
+    list.add("b");
+    let it: ArrayListIterator<string> = new ArrayListIterator<string>(list);
+    let s: string = it.next();
+    if (s != "a") {
+        io::println("FAIL: ArrayListIterator with strings");
+    } else {
+        io::println("PASS: ArrayListIterator works with strings");
+    }
+}
+
+public fn test_iterator_full_traversal(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    let i: int = 0;
+    while (i < 5) {
+        list.add(i * 10);
+        i = i + 1;
+    }
+    let it: ArrayListIterator<int> = new ArrayListIterator<int>(list);
+    let total: int = 0;
+    while (it.hasNext()) {
+        total = total + it.next();
+    }
+    if (total != 100) {
+        io::println("FAIL: ArrayListIterator full traversal total = " + Integer.toString(total));
+    } else {
+        io::println("PASS: ArrayListIterator full traversal works");
+    }
+}
+
+public fn test_iterator_reset_allows_retraversal(): void {
+    let list: ArrayList<int> = new ArrayList<int>();
+    list.add(5);
+    list.add(10);
+    let it: ArrayListIterator<int> = new ArrayListIterator<int>(list);
+    let first: int = it.next();
+    it.reset();
+    let firstAgain: int = it.next();
+    if (first != 5 || firstAgain != 5) {
+        io::println("FAIL: ArrayListIterator reset re-traversal");
+    } else {
+        io::println("PASS: ArrayListIterator reset allows re-traversal");
+    }
+}
+
+public fn run_all_arraylistiterator_tests(): void {
+    io::println("=== ArrayListIterator.tr Tests ===");
+    test_iterator_hasNext_empty();
+    test_iterator_hasNext_nonempty();
+    test_iterator_next();
+    test_iterator_next_advances_index();
+    test_iterator_reset();
+    test_iterator_forEachRemaining();
+    test_iterator_with_strings();
+    test_iterator_full_traversal();
+    test_iterator_reset_allows_retraversal();
+}

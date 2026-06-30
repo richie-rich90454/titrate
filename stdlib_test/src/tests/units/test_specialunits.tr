@@ -1,0 +1,234 @@
+// Test file for units/SpecialUnits.tr
+// Exercises the public API of the units/SpecialUnits module: CurrencyUnit,
+// astronomical conversions, and Planck unit conversions.
+import tt::units::SpecialUnits;
+import tt::lang::Double;
+
+public fn test_currencyUnit_init(): void {
+    let c: CurrencyUnit = new CurrencyUnit(100.0, "USD");
+    if (c.amount != 100.0) {
+        io::println("FAIL: CurrencyUnit amount");
+    } else if (c.currency != "USD") {
+        io::println("FAIL: CurrencyUnit currency");
+    } else {
+        io::println("PASS: CurrencyUnit init works");
+    }
+}
+
+public fn test_currencyUnit_convertTo(): void {
+    let c: CurrencyUnit = new CurrencyUnit(100.0, "USD");
+    let converted: CurrencyUnit = c.convertTo("EUR", 0.85);
+    if (converted.amount != 85.0) {
+        io::println("FAIL: CurrencyUnit.convertTo amount = " + Double.toString(converted.amount));
+    } else if (converted.currency != "EUR") {
+        io::println("FAIL: CurrencyUnit.convertTo currency");
+    } else {
+        io::println("PASS: CurrencyUnit.convertTo works");
+    }
+}
+
+public fn test_currencyUnit_add(): void {
+    let a: CurrencyUnit = new CurrencyUnit(100.0, "USD");
+    let b: CurrencyUnit = new CurrencyUnit(50.0, "EUR");
+    let result: CurrencyUnit = a.add(b, 1.1);
+    // 100 + 50*1.1 = 155
+    if (result.amount != 155.0) {
+        io::println("FAIL: CurrencyUnit.add = " + Double.toString(result.amount));
+    } else if (result.currency != "USD") {
+        io::println("FAIL: CurrencyUnit.add currency");
+    } else {
+        io::println("PASS: CurrencyUnit.add works");
+    }
+}
+
+public fn test_currencyUnit_subtract(): void {
+    let a: CurrencyUnit = new CurrencyUnit(100.0, "USD");
+    let b: CurrencyUnit = new CurrencyUnit(50.0, "EUR");
+    let result: CurrencyUnit = a.subtract(b, 1.1);
+    // 100 - 50*1.1 = 45
+    if (result.amount != 45.0) {
+        io::println("FAIL: CurrencyUnit.subtract = " + Double.toString(result.amount));
+    } else {
+        io::println("PASS: CurrencyUnit.subtract works");
+    }
+}
+
+public fn test_astronomicalUnit_value(): void {
+    let v: double = astronomicalUnit();
+    if (v != 149597870.7) {
+        io::println("FAIL: astronomicalUnit = " + Double.toString(v));
+    } else {
+        io::println("PASS: astronomicalUnit returns expected value");
+    }
+}
+
+public fn test_auToKm(): void {
+    let km: double = auToKm(1.0);
+    if (km != 149597870.7) {
+        io::println("FAIL: auToKm(1) = " + Double.toString(km));
+    } else {
+        io::println("PASS: auToKm works");
+    }
+}
+
+public fn test_auToKm_multiple(): void {
+    let km: double = auToKm(2.0);
+    if (km != 299195741.4) {
+        io::println("FAIL: auToKm(2) = " + Double.toString(km));
+    } else {
+        io::println("PASS: auToKm scales correctly");
+    }
+}
+
+public fn test_kmToAu(): void {
+    let au: double = kmToAu(149597870.7);
+    if (Math.abs(au - 1.0) > 1e-9) {
+        io::println("FAIL: kmToAu(149597870.7) = " + Double.toString(au));
+    } else {
+        io::println("PASS: kmToAu works");
+    }
+}
+
+public fn test_au_km_round_trip(): void {
+    let original: double = 5.0;
+    let roundTrip: double = kmToAu(auToKm(original));
+    if (Math.abs(roundTrip - original) > 1e-9) {
+        io::println("FAIL: AU/KM round trip not identity");
+    } else {
+        io::println("PASS: AU/KM round trip preserves value");
+    }
+}
+
+public fn test_lightYearToKm(): void {
+    let km: double = lightYearToKm(1.0);
+    if (km != 9460730472580.8) {
+        io::println("FAIL: lightYearToKm(1) = " + Double.toString(km));
+    } else {
+        io::println("PASS: lightYearToKm works");
+    }
+}
+
+public fn test_kmToLightYear(): void {
+    let ly: double = kmToLightYear(9460730472580.8);
+    if (Math.abs(ly - 1.0) > 1e-9) {
+        io::println("FAIL: kmToLightYear");
+    } else {
+        io::println("PASS: kmToLightYear works");
+    }
+}
+
+public fn test_parsecToKm(): void {
+    let km: double = parsecToKm(1.0);
+    if (km != 30856775814913.673) {
+        io::println("FAIL: parsecToKm(1) = " + Double.toString(km));
+    } else {
+        io::println("PASS: parsecToKm works");
+    }
+}
+
+public fn test_kmToParsec(): void {
+    let pc: double = kmToParsec(30856775814913.673);
+    if (Math.abs(pc - 1.0) > 1e-9) {
+        io::println("FAIL: kmToParsec");
+    } else {
+        io::println("PASS: kmToParsec works");
+    }
+}
+
+public fn test_toPlanckUnits_length(): void {
+    // Planck length = 1.616255e-35 m, so 1m / planck = ~6.187e34
+    let p: double = toPlanckUnits(1.0, "length");
+    if (p <= 0.0) {
+        io::println("FAIL: toPlanckUnits length should be positive");
+    } else {
+        io::println("PASS: toPlanckUnits length works");
+    }
+}
+
+public fn test_toPlanckUnits_mass(): void {
+    let p: double = toPlanckUnits(1.0, "mass");
+    if (p <= 0.0) {
+        io::println("FAIL: toPlanckUnits mass should be positive");
+    } else {
+        io::println("PASS: toPlanckUnits mass works");
+    }
+}
+
+public fn test_toPlanckUnits_time(): void {
+    let p: double = toPlanckUnits(1.0, "time");
+    if (p <= 0.0) {
+        io::println("FAIL: toPlanckUnits time should be positive");
+    } else {
+        io::println("PASS: toPlanckUnits time works");
+    }
+}
+
+public fn test_toPlanckUnits_temperature(): void {
+    let p: double = toPlanckUnits(1.0, "temperature");
+    if (p <= 0.0) {
+        io::println("FAIL: toPlanckUnits temperature should be positive");
+    } else {
+        io::println("PASS: toPlanckUnits temperature works");
+    }
+}
+
+public fn test_toPlanckUnits_charge(): void {
+    let p: double = toPlanckUnits(1.0, "charge");
+    if (p <= 0.0) {
+        io::println("FAIL: toPlanckUnits charge should be positive");
+    } else {
+        io::println("PASS: toPlanckUnits charge works");
+    }
+}
+
+public fn test_toPlanckUnits_energy(): void {
+    let p: double = toPlanckUnits(1.0, "energy");
+    if (p <= 0.0) {
+        io::println("FAIL: toPlanckUnits energy should be positive");
+    } else {
+        io::println("PASS: toPlanckUnits energy works");
+    }
+}
+
+public fn test_toPlanckUnits_unknown_returns_zero(): void {
+    let p: double = toPlanckUnits(1.0, "unknown");
+    if (p != 0.0) {
+        io::println("FAIL: toPlanckUnits unknown should return 0");
+    } else {
+        io::println("PASS: toPlanckUnits unknown returns 0");
+    }
+}
+
+public fn test_toPlanckUnits_zero_value(): void {
+    let p: double = toPlanckUnits(0.0, "length");
+    if (p != 0.0) {
+        io::println("FAIL: toPlanckUnits(0, length) should be 0");
+    } else {
+        io::println("PASS: toPlanckUnits zero value returns 0");
+    }
+}
+
+public fn run_all_specialunits_tests(): void {
+    io::println("=== units/SpecialUnits.tr Tests ===");
+    test_currencyUnit_init();
+    test_currencyUnit_convertTo();
+    test_currencyUnit_add();
+    test_currencyUnit_subtract();
+    test_astronomicalUnit_value();
+    test_auToKm();
+    test_auToKm_multiple();
+    test_kmToAu();
+    test_au_km_round_trip();
+    test_lightYearToKm();
+    test_kmToLightYear();
+    test_parsecToKm();
+    test_kmToParsec();
+    test_toPlanckUnits_length();
+    test_toPlanckUnits_mass();
+    test_toPlanckUnits_time();
+    test_toPlanckUnits_temperature();
+    test_toPlanckUnits_charge();
+    test_toPlanckUnits_energy();
+    test_toPlanckUnits_unknown_returns_zero();
+    test_toPlanckUnits_zero_value();
+}

@@ -1,0 +1,179 @@
+// Test file for sim/Simulation.tr
+// Exercises the public API of the Simulation module: SimEvent class,
+// Simulation class with scheduling, stepping, running, pausing, and stopping.
+import tt::sim::Simulation;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_simEvent_init(): void {
+    let e: SimEvent = new SimEvent(5.0, "arrival", "data1", 0);
+    if (e.time != 5.0) {
+        io::println("FAIL: SimEvent time not set");
+    } else if (e.eventType != "arrival") {
+        io::println("FAIL: SimEvent eventType not set");
+    } else if (e.data != "data1") {
+        io::println("FAIL: SimEvent data not set");
+    } else {
+        io::println("PASS: SimEvent init works");
+    }
+}
+
+public fn test_simulation_init(): void {
+    let s: Simulation = new Simulation(100.0);
+    if (s.currentTime != 0.0) {
+        io::println("FAIL: Simulation currentTime should be 0 at init");
+    } else if (s.endTime != 100.0) {
+        io::println("FAIL: Simulation endTime not set");
+    } else if (s.running) {
+        io::println("FAIL: Simulation running should be false at init");
+    } else if (s.eventCount != 0) {
+        io::println("FAIL: Simulation eventCount should be 0 at init");
+    } else {
+        io::println("PASS: Simulation init works");
+    }
+}
+
+public fn test_simulation_scheduleAt(): void {
+    let s: Simulation = new Simulation(100.0);
+    s.scheduleAt(10.0, "arrival", "d1");
+    if (!s.hasEvents()) {
+        io::println("FAIL: Simulation scheduleAt should add event");
+    } else if (s.eventQueue.size() != 1) {
+        io::println("FAIL: Simulation scheduleAt queue size = " + Integer.toString(s.eventQueue.size()));
+    } else {
+        io::println("PASS: Simulation scheduleAt works");
+    }
+}
+
+public fn test_simulation_scheduleDelay(): void {
+    let s: Simulation = new Simulation(100.0);
+    s.scheduleDelay(5.0, "tick", "d1");
+    if (!s.hasEvents()) {
+        io::println("FAIL: Simulation scheduleDelay should add event");
+    } else {
+        let e: SimEvent = s.eventQueue.get(0);
+        if (e.time != 5.0) {
+            io::println("FAIL: Simulation scheduleDelay event time = " + Double.toString(e.time));
+        } else {
+            io::println("PASS: Simulation scheduleDelay works");
+        }
+    }
+}
+
+public fn test_simulation_schedule_orders_by_time(): void {
+    let s: Simulation = new Simulation(100.0);
+    s.scheduleAt(20.0, "late", "d1");
+    s.scheduleAt(5.0, "early", "d2");
+    s.scheduleAt(10.0, "mid", "d3");
+    let first: SimEvent = s.eventQueue.get(0);
+    let last: SimEvent = s.eventQueue.get(2);
+    if (first.time != 5.0) {
+        io::println("FAIL: Simulation schedule first event time = " + Double.toString(first.time));
+    } else if (last.time != 20.0) {
+        io::println("FAIL: Simulation schedule last event time = " + Double.toString(last.time));
+    } else {
+        io::println("PASS: Simulation schedule orders events by time");
+    }
+}
+
+public fn test_simulation_step(): void {
+    let s: Simulation = new Simulation(100.0);
+    s.scheduleAt(5.0, "arrival", "d1");
+    s.scheduleAt(10.0, "departure", "d2");
+    let e: SimEvent = s.step();
+    if (e == null) {
+        io::println("FAIL: Simulation step returned null with events queued");
+    } else if (e.time != 5.0) {
+        io::println("FAIL: Simulation step did not return earliest event");
+    } else if (s.currentTime != 5.0) {
+        io::println("FAIL: Simulation step did not advance currentTime");
+    } else if (s.eventCount != 1) {
+        io::println("FAIL: Simulation step did not increment eventCount");
+    } else {
+        io::println("PASS: Simulation step works");
+    }
+}
+
+public fn test_simulation_step_empty(): void {
+    let s: Simulation = new Simulation(100.0);
+    let e: SimEvent = s.step();
+    if (e != null) {
+        io::println("FAIL: Simulation step on empty should return null");
+    } else {
+        io::println("PASS: Simulation step on empty returns null");
+    }
+}
+
+public fn test_simulation_run(): void {
+    let s: Simulation = new Simulation(100.0);
+    s.scheduleAt(1.0, "a", "d1");
+    s.scheduleAt(2.0, "b", "d2");
+    s.scheduleAt(3.0, "c", "d3");
+    s.run();
+    if (s.eventCount != 3) {
+        io::println("FAIL: Simulation run eventCount = " + Integer.toString(s.eventCount));
+    } else if (s.hasEvents()) {
+        io::println("FAIL: Simulation run should empty queue");
+    } else if (s.running) {
+        io::println("FAIL: Simulation run should set running to false at end");
+    } else {
+        io::println("PASS: Simulation run processes all events");
+    }
+}
+
+public fn test_simulation_pause(): void {
+    let s: Simulation = new Simulation(100.0);
+    s.scheduleAt(1.0, "a", "d1");
+    s.scheduleAt(2.0, "b", "d2");
+    s.scheduleAt(3.0, "c", "d3");
+    s.pause();
+    s.run();
+    if (s.eventCount != 0) {
+        io::println("FAIL: Simulation pause should prevent run from processing events");
+    } else {
+        io::println("PASS: Simulation pause prevents run");
+    }
+}
+
+public fn test_simulation_stop(): void {
+    let s: Simulation = new Simulation(100.0);
+    s.scheduleAt(1.0, "a", "d1");
+    s.scheduleAt(2.0, "b", "d2");
+    s.stop();
+    s.run();
+    if (s.eventCount != 0) {
+        io::println("FAIL: Simulation stop should prevent run");
+    } else {
+        io::println("PASS: Simulation stop prevents run");
+    }
+}
+
+public fn test_simulation_hasEvents(): void {
+    let s: Simulation = new Simulation(100.0);
+    if (s.hasEvents()) {
+        io::println("FAIL: Simulation hasEvents should be false when empty");
+    } else {
+        s.scheduleAt(1.0, "a", "d1");
+        if (!s.hasEvents()) {
+            io::println("FAIL: Simulation hasEvents should be true after schedule");
+        } else {
+            io::println("PASS: Simulation hasEvents works");
+        }
+    }
+}
+
+public fn run_all_simulation_tests(): void {
+    io::println("=== Simulation.tr Tests ===");
+    test_simEvent_init();
+    test_simulation_init();
+    test_simulation_scheduleAt();
+    test_simulation_scheduleDelay();
+    test_simulation_schedule_orders_by_time();
+    test_simulation_step();
+    test_simulation_step_empty();
+    test_simulation_run();
+    test_simulation_pause();
+    test_simulation_stop();
+    test_simulation_hasEvents();
+}

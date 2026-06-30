@@ -1,0 +1,149 @@
+// Test file for sim/Process.tr
+// Exercises the public API of the SimProcess class: action management,
+// state transitions, waiting, and lifecycle.
+import tt::sim::Process;
+import tt::util::ArrayList;
+import tt::lang::Integer;
+
+public fn test_process_init(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    if (p.id != 1) {
+        io::println("FAIL: SimProcess id not set");
+    } else if (p.name != "worker") {
+        io::println("FAIL: SimProcess name not set");
+    } else if (p.state != "ready") {
+        io::println("FAIL: SimProcess state should be 'ready' at init");
+    } else {
+        io::println("PASS: SimProcess init works");
+    }
+}
+
+public fn test_process_addAction_nextAction(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    p.addAction("step1");
+    p.addAction("step2");
+    let a1: string = p.nextAction();
+    let a2: string = p.nextAction();
+    if (a1 != "step1" || a2 != "step2") {
+        io::println("FAIL: SimProcess nextAction sequence wrong");
+    } else {
+        io::println("PASS: SimProcess addAction/nextAction work");
+    }
+}
+
+public fn test_process_nextAction_beyond_end(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    p.addAction("only");
+    p.nextAction();
+    let a: string = p.nextAction();
+    if (a != "") {
+        io::println("FAIL: SimProcess nextAction beyond end should return empty");
+    } else if (p.state != "done") {
+        io::println("FAIL: SimProcess state should be 'done' after actions exhausted");
+    } else {
+        io::println("PASS: SimProcess nextAction beyond end sets done state");
+    }
+}
+
+public fn test_process_wait(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    let initialTime: double = p.nextTime;
+    p.wait(5.0);
+    if (p.state != "waiting") {
+        io::println("FAIL: SimProcess wait should set state to 'waiting'");
+    } else if (p.nextTime != initialTime + 5.0) {
+        io::println("FAIL: SimProcess wait did not advance nextTime");
+    } else {
+        io::println("PASS: SimProcess wait works");
+    }
+}
+
+public fn test_process_isDone_after_actions(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    p.addAction("a");
+    p.nextAction();
+    if (!p.isDone()) {
+        io::println("FAIL: SimProcess isDone should be true after actions exhausted");
+    } else {
+        io::println("PASS: SimProcess isDone true after actions exhausted");
+    }
+}
+
+public fn test_process_isDone_initially_false(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    p.addAction("a");
+    if (p.isDone()) {
+        io::println("FAIL: SimProcess isDone should be false initially");
+    } else {
+        io::println("PASS: SimProcess isDone false initially");
+    }
+}
+
+public fn test_process_activate(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    p.suspend();
+    p.activate();
+    if (p.state != "ready") {
+        io::println("FAIL: SimProcess activate should set state to 'ready'");
+    } else {
+        io::println("PASS: SimProcess activate works");
+    }
+}
+
+public fn test_process_suspend(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    p.suspend();
+    if (p.state != "suspended") {
+        io::println("FAIL: SimProcess suspend should set state to 'suspended'");
+    } else {
+        io::println("PASS: SimProcess suspend works");
+    }
+}
+
+public fn test_process_interrupt_waiting(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    p.wait(5.0);
+    p.interrupt();
+    if (p.state != "interrupted") {
+        io::println("FAIL: SimProcess interrupt on waiting should set state to 'interrupted'");
+    } else {
+        io::println("PASS: SimProcess interrupt on waiting works");
+    }
+}
+
+public fn test_process_interrupt_suspended(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    p.suspend();
+    p.interrupt();
+    if (p.state != "interrupted") {
+        io::println("FAIL: SimProcess interrupt on suspended should set state to 'interrupted'");
+    } else {
+        io::println("PASS: SimProcess interrupt on suspended works");
+    }
+}
+
+public fn test_process_interrupt_ready_no_change(): void {
+    let p: SimProcess = new SimProcess(1, "worker");
+    // Initially 'ready', interrupt should not change state
+    p.interrupt();
+    if (p.state != "ready") {
+        io::println("FAIL: SimProcess interrupt on ready should not change state");
+    } else {
+        io::println("PASS: SimProcess interrupt on ready does nothing");
+    }
+}
+
+public fn run_all_process_tests(): void {
+    io::println("=== Process.tr Tests ===");
+    test_process_init();
+    test_process_addAction_nextAction();
+    test_process_nextAction_beyond_end();
+    test_process_wait();
+    test_process_isDone_after_actions();
+    test_process_isDone_initially_false();
+    test_process_activate();
+    test_process_suspend();
+    test_process_interrupt_waiting();
+    test_process_interrupt_suspended();
+    test_process_interrupt_ready_no_change();
+}

@@ -1,0 +1,264 @@
+// Test file for statistics/Survival.tr
+// Exercises the public API of the Survival module: kaplanMeier, logRankTest,
+// hazardFunction, survivalFunction, medianSurvival, and coxRegression.
+import tt::statistics::Survival;
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::lang::Integer;
+import tt::lang::Double;
+
+public fn test_kaplanMeier_basic(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0); times.add(3.0); times.add(4.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(true); events.add(true); events.add(true);
+    let result: ArrayList<ArrayList<double>> = kaplanMeier(times, events);
+    if (result.size() != 2) {
+        io::println("FAIL: kaplanMeier should return [times, survival]");
+    } else if (result.get(0).size() != 4) {
+        io::println("FAIL: kaplanMeier should have 4 distinct event times");
+    } else {
+        io::println("PASS: kaplanMeier returns survival curve");
+    }
+}
+
+public fn test_kaplanMeier_with_censoring(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0); times.add(3.0); times.add(4.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(false); events.add(true); events.add(false);
+    let result: ArrayList<ArrayList<double>> = kaplanMeier(times, events);
+    if (result.size() != 2) {
+        io::println("FAIL: kaplanMeier with censoring should return [times, survival]");
+    } else if (result.get(0).size() != 2) {
+        // Only 2 events occurred; censored observations don't add to curve
+        io::println("FAIL: kaplanMeier should have 2 entries for 2 events, got " + Integer.toString(result.get(0).size()));
+    } else {
+        io::println("PASS: kaplanMeier with censoring works");
+    }
+}
+
+public fn test_kaplanMeier_empty(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    let result: ArrayList<ArrayList<double>> = kaplanMeier(times, events);
+    if (result.size() != 2) {
+        io::println("FAIL: kaplanMeier on empty should still return 2 arrays");
+    } else if (result.get(0).size() != 0) {
+        io::println("FAIL: kaplanMeier on empty should return empty arrays");
+    } else {
+        io::println("PASS: kaplanMeier on empty returns [empty, empty]");
+    }
+}
+
+public fn test_kaplanMeier_survival_decreasing(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0); times.add(3.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(true); events.add(true);
+    let result: ArrayList<ArrayList<double>> = kaplanMeier(times, events);
+    if (result.get(1).size() >= 2) {
+        let s0: double = result.get(1).get(0);
+        let s1: double = result.get(1).get(1);
+        if (s1 >= s0) {
+            io::println("FAIL: kaplanMeier survival should decrease over time");
+        } else {
+            io::println("PASS: kaplanMeier survival decreases over time");
+        }
+    } else {
+        io::println("FAIL: kaplanMeier not enough points to test monotonicity");
+    }
+}
+
+public fn test_survivalFunction_alias(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(true);
+    let result: ArrayList<ArrayList<double>> = survivalFunction(times, events);
+    if (result.size() != 2) {
+        io::println("FAIL: survivalFunction should return [times, survival]");
+    } else {
+        io::println("PASS: survivalFunction works");
+    }
+}
+
+public fn test_hazardFunction_basic(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0); times.add(3.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(true); events.add(true);
+    let result: ArrayList<double> = hazardFunction(times, events);
+    if (result.size() != 3) {
+        io::println("FAIL: hazardFunction should have 3 entries, got " + Integer.toString(result.size()));
+    } else {
+        io::println("PASS: hazardFunction returns cumulative hazards");
+    }
+}
+
+public fn test_hazardFunction_empty(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    let result: ArrayList<double> = hazardFunction(times, events);
+    if (result.size() != 0) {
+        io::println("FAIL: hazardFunction on empty should return empty");
+    } else {
+        io::println("PASS: hazardFunction on empty returns empty");
+    }
+}
+
+public fn test_hazardFunction_nonneg(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0); times.add(3.0); times.add(4.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(false); events.add(true); events.add(true);
+    let result: ArrayList<double> = hazardFunction(times, events);
+    var ok: bool = true;
+    var i: int = 0;
+    while (i < result.size()) {
+        if (result.get(i) < 0.0) { ok = false; break; }
+        i = i + 1;
+    }
+    if (!ok) {
+        io::println("FAIL: hazardFunction has negative value");
+    } else {
+        io::println("PASS: hazardFunction values non-negative");
+    }
+}
+
+public fn test_medianSurvival_basic(): void {
+    // With 4 events at times 1,2,3,4 survival drops below 0.5 at time 3
+    // S(1) = 0.75, S(2) = 0.5, S(3) = 0.25 -> median at time 2 (S <= 0.5)
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0); times.add(3.0); times.add(4.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(true); events.add(true); events.add(true);
+    let m: double = medianSurvival(times, events);
+    if (m <= 0.0) {
+        io::println("FAIL: medianSurvival should be positive");
+    } else {
+        io::println("PASS: medianSurvival returns " + Double.toString(m));
+    }
+}
+
+public fn test_medianSurvival_never_reaches_half(): void {
+    // Only 1 event out of 4: survival never drops to 0.5
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0); times.add(3.0); times.add(4.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(false); events.add(false); events.add(false);
+    let m: double = medianSurvival(times, events);
+    if (m != -1.0) {
+        io::println("FAIL: medianSurvival should return -1.0 when survival > 0.5");
+    } else {
+        io::println("PASS: medianSurvival returns -1.0 when survival never drops to 0.5");
+    }
+}
+
+public fn test_logRankTest_returns_map(): void {
+    let g1Times: ArrayList<double> = new ArrayList<double>();
+    g1Times.add(1.0); g1Times.add(2.0); g1Times.add(3.0);
+    let g1Events: ArrayList<bool> = new ArrayList<bool>();
+    g1Events.add(true); g1Events.add(true); g1Events.add(true);
+    let g2Times: ArrayList<double> = new ArrayList<double>();
+    g2Times.add(2.0); g2Times.add(3.0); g2Times.add(4.0);
+    let g2Events: ArrayList<bool> = new ArrayList<bool>();
+    g2Events.add(true); g2Events.add(true); g2Events.add(true);
+    let result: HashMap<string, double> = logRankTest(g1Times, g1Events, g2Times, g2Events);
+    if (result == null) {
+        io::println("FAIL: logRankTest returned null");
+    } else if (!result.containsKey("chiSquared") || !result.containsKey("pValue")) {
+        io::println("FAIL: logRankTest missing chiSquared or pValue");
+    } else {
+        io::println("PASS: logRankTest returns map with chiSquared and pValue");
+    }
+}
+
+public fn test_logRankTest_pValue_in_range(): void {
+    let g1Times: ArrayList<double> = new ArrayList<double>();
+    g1Times.add(1.0); g1Times.add(2.0); g1Times.add(3.0);
+    let g1Events: ArrayList<bool> = new ArrayList<bool>();
+    g1Events.add(true); g1Events.add(true); g1Events.add(true);
+    let g2Times: ArrayList<double> = new ArrayList<double>();
+    g2Times.add(2.0); g2Times.add(3.0); g2Times.add(4.0);
+    let g2Events: ArrayList<bool> = new ArrayList<bool>();
+    g2Events.add(true); g2Events.add(true); g2Events.add(true);
+    let result: HashMap<string, double> = logRankTest(g1Times, g1Events, g2Times, g2Events);
+    let p: double = result.get("pValue");
+    if (p < 0.0 || p > 1.0) {
+        io::println("FAIL: logRankTest p-value out of [0,1]");
+    } else {
+        io::println("PASS: logRankTest p-value in [0,1]");
+    }
+}
+
+public fn test_logRankTest_empty_returns_default(): void {
+    let g1Times: ArrayList<double> = new ArrayList<double>();
+    let g1Events: ArrayList<bool> = new ArrayList<bool>();
+    let g2Times: ArrayList<double> = new ArrayList<double>();
+    g2Times.add(1.0);
+    let g2Events: ArrayList<bool> = new ArrayList<bool>();
+    g2Events.add(true);
+    let result: HashMap<string, double> = logRankTest(g1Times, g1Events, g2Times, g2Events);
+    let chi: double = result.get("chiSquared");
+    let p: double = result.get("pValue");
+    if (chi != 0.0 || p != 1.0) {
+        io::println("FAIL: logRankTest on empty group should return chiSq=0, p=1");
+    } else {
+        io::println("PASS: logRankTest on empty group returns default");
+    }
+}
+
+public fn test_coxRegression_returns_map(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    times.add(1.0); times.add(2.0); times.add(3.0); times.add(4.0); times.add(5.0);
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    events.add(true); events.add(true); events.add(true); events.add(true); events.add(true);
+    let covariates: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let cov: ArrayList<double> = new ArrayList<double>();
+    cov.add(0.5); cov.add(1.0); cov.add(1.5); cov.add(2.0); cov.add(2.5);
+    covariates.add(cov);
+    let result: HashMap<string, double> = coxRegression(times, events, covariates);
+    if (result == null) {
+        io::println("FAIL: coxRegression returned null");
+    } else if (!result.containsKey("beta") || !result.containsKey("pValue")) {
+        io::println("FAIL: coxRegression missing beta or pValue");
+    } else {
+        io::println("PASS: coxRegression returns map with beta and pValue");
+    }
+}
+
+public fn test_coxRegression_empty(): void {
+    let times: ArrayList<double> = new ArrayList<double>();
+    let events: ArrayList<bool> = new ArrayList<bool>();
+    let covariates: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let cov: ArrayList<double> = new ArrayList<double>();
+    covariates.add(cov);
+    let result: HashMap<string, double> = coxRegression(times, events, covariates);
+    let beta: double = result.get("beta");
+    let expBeta: double = result.get("expBeta");
+    if (beta != 0.0 || expBeta != 1.0) {
+        io::println("FAIL: coxRegression on empty should return beta=0, expBeta=1");
+    } else {
+        io::println("PASS: coxRegression on empty returns defaults");
+    }
+}
+
+public fn run_all_survival_tests(): void {
+    io::println("=== Survival.tr Tests ===");
+    test_kaplanMeier_basic();
+    test_kaplanMeier_with_censoring();
+    test_kaplanMeier_empty();
+    test_kaplanMeier_survival_decreasing();
+    test_survivalFunction_alias();
+    test_hazardFunction_basic();
+    test_hazardFunction_empty();
+    test_hazardFunction_nonneg();
+    test_medianSurvival_basic();
+    test_medianSurvival_never_reaches_half();
+    test_logRankTest_returns_map();
+    test_logRankTest_pValue_in_range();
+    test_logRankTest_empty_returns_default();
+    test_coxRegression_returns_map();
+    test_coxRegression_empty();
+}
