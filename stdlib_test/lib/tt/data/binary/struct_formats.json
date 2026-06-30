@@ -1,0 +1,20 @@
+{
+  "_meta": {"source": "Python struct module / C format specifiers", "version": "1.0", "description": "Binary struct format character to byte size and type mappings"},
+  "formats": {
+    "b": {"size": 1, "type": "signed", "name": "int8"},
+    "B": {"size": 1, "type": "unsigned", "name": "uint8"},
+    "h": {"size": 2, "type": "signed", "name": "int16"},
+    "H": {"size": 2, "type": "unsigned", "name": "uint16"},
+    "i": {"size": 4, "type": "signed", "name": "int32"},
+    "I": {"size": 4, "type": "unsigned", "name": "uint32"},
+    "l": {"size": 4, "type": "signed", "name": "long"},
+    "L": {"size": 4, "type": "unsigned", "name": "ulong"},
+    "q": {"size": 8, "type": "signed", "name": "int64"},
+    "Q": {"size": 8, "type": "unsigned", "name": "uint64"},
+    "f": {"size": 4, "type": "float", "name": "float32"},
+    "d": {"size": 8, "type": "float", "name": "float64"},
+    "?": {"size": 1, "type": "bool", "name": "bool"},
+    "x": {"size": 1, "type": "pad", "name": "padding"},
+    "s": {"size": -1, "type": "string", "name": "string"}
+  }
+}
