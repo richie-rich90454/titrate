@@ -1,0 +1,61 @@
+// DNS resolver utilities.
+import tt::util::HashMap;
+import tt::util::ArrayList;
+
+public class DnsRecord {
+    public string name;
+    public string recordType;
+    public string value;
+    public int ttl;
+
+    public fn init(name: string, recordType: string, value: string, ttl: int) {
+        this.name = name;
+        this.recordType = recordType;
+        this.value = value;
+        this.ttl = ttl;
+    }
+
+    public fn toString(): string {
+        return "DnsRecord{name=" + this.name + ", type=" + this.recordType + ", value=" + this.value + ", ttl=" + Integer.toString(this.ttl) + "}";
+    }
+}
+
+// DNS lookup for various record types (A, AAAA, MX, NS, TXT).
+public fn dnsLookup(hostname: string, recordType: string): ArrayList<DnsRecord> {
+    return Dns_lookup(hostname, recordType);
+}
+
+// Lookup MX (mail exchange) records for a domain.
+public fn lookupMX(domain: string): ArrayList<DnsRecord> {
+    return dnsLookup(domain, "MX");
+}
+
+// Reverse DNS lookup: IP address to hostname.
+public fn reverseDns(ip: string): string {
+    return Dns_reverseLookup(ip);
+}
+
+public class DnsCache {
+    public HashMap<string, ArrayList<DnsRecord>> cache;
+    public int defaultTtl;
+
+    public fn init(defaultTtl: int) {
+        this.cache = new HashMap<string, ArrayList<DnsRecord>>();
+        this.defaultTtl = defaultTtl;
+    }
+
+    public fn lookup(hostname: string, recordType: string): ArrayList<DnsRecord> {
+        let key: string = recordType + ":" + hostname;
+        let cached: ArrayList<DnsRecord> = this.cache.get(key);
+        if (cached != null) {
+            return cached;
+        }
+        let records: ArrayList<DnsRecord> = dnsLookup(hostname, recordType);
+        this.cache.put(key, records);
+        return records;
+    }
+
+    public fn flush(): void {
+        this.cache = new HashMap<string, ArrayList<DnsRecord>>();
+    }
+}
