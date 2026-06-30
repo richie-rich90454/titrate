@@ -431,7 +431,10 @@ impl Compiler {
     }
 
     /// Compile a module's program (second pass: function bodies and methods).
-    pub(super) fn compile_module_program(&mut self, program: &ast::Program) -> Result<(), String> {
+    ///
+    /// `module_name` is the dotted module name (e.g. "tt.algo.Graph") used to
+    /// construct exact mangled names for deterministic function/class lookup.
+    pub(super) fn compile_module_program(&mut self, program: &ast::Program, module_name: &str) -> Result<(), String> {
         for decl in &program.declarations {
             match decl {
                 ast::Declaration::Function(fn_decl) => {
@@ -439,11 +442,9 @@ impl Compiler {
                         continue;
                     }
                     // Compile ALL functions (public and private) in the module.
-                    // Find the mangled name in function_map.
-                    if let Some(fn_idx) = self.function_map.iter()
-                        .find(|(k, _)| k.ends_with(&format!(".{}", fn_decl.name)))
-                        .map(|(_, &v)| v)
-                    {
+                    // Use the exact mangled name for deterministic lookup.
+                    let mangled = format!("{}.{}", module_name, fn_decl.name);
+                    if let Some(&fn_idx) = self.function_map.get(&mangled) {
                         let saved_function = self.current_function;
                         let saved_locals = std::mem::take(&mut self.locals);
                         let saved_local_count = self.local_count;
@@ -473,11 +474,9 @@ impl Compiler {
                 }
                 ast::Declaration::Class(class_decl) => {
                     if class_decl.type_params.is_empty() {
-                        // Find the mangled class name.
-                        if let Some((_mangled, class_idx)) = self.class_map.iter()
-                            .find(|(k, _)| k.ends_with(&format!(".{}", class_decl.name)))
-                            .map(|(k, &v)| (k.clone(), v))
-                        {
+                        // Use the exact mangled class name for deterministic lookup.
+                        let mangled_class = format!("{}.{}", module_name, class_decl.name);
+                        if let Some(&class_idx) = self.class_map.get(&mangled_class) {
                             let class_idx_usize = class_idx as usize;
 
                             // Set current_class so that constructor delegation
@@ -524,22 +523,19 @@ impl Compiler {
                                         // "<mangled_class>.<init>" and the
                                         // corresponding arity during
                                         // register_module_declarations.
-                                        let mangled_class_name = self
-                                            .class_map.iter()
-                                            .find(|(_, &v)| v == class_idx)
-                                            .map(|(k, _)| k.clone());
-                                        let ctor_fn_idx = if let Some(ref cname) = mangled_class_name {
-                                            let ctor_pattern = format!("{}.<init>", cname);
-                                            let ctor_arity = ctor_decl.params.len();
-                                            self.functions.iter().enumerate()
-                                                .find(|(_, f)| f.name == ctor_pattern && f.arity == ctor_arity)
-                                                .map(|(i, _)| i as u16)
-                                        } else {
-                                            None
-                                        }.or_else(|| {
-                                            self.classes.get(class_idx_usize)
-                                                .and_then(|c| c.constructor)
-                                        });
+                                        let ctor_pattern = format!("{}.<init>", mangled_class);
+                                        let ctor_arity = ctor_decl.params.len();
+                                        let ctor_fn_idx = self
+                                            .functions
+                                            .iter()
+                                            .enumerate()
+                                            .find(|(_, f)| f.name == ctor_pattern && f.arity == ctor_arity)
+                                            .map(|(i, _)| i as u16)
+                                            .or_else(|| {
+                                                self.classes
+                                                    .get(class_idx_usize)
+                                                    .and_then(|c| c.constructor)
+                                            });
                                         if let Some(fn_idx) = ctor_fn_idx {
                                             self.compile_method_body(
                                                 fn_idx as usize,

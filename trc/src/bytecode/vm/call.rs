@@ -11,7 +11,8 @@ use std::rc::Rc;
 impl Vm {
     pub(super) fn call_function(&mut self, func_idx: u16, arg_count: u8) -> Result<(), String> {
         if self.frames.len() >= self.max_call_depth {
-            return Err("Stack overflow: maximum call depth exceeded".to_string());
+            let name = self.functions.get(func_idx as usize).map(|f| f.name.as_str()).unwrap_or("?");
+            return Err(format!("Stack overflow: maximum call depth exceeded calling {}", name));
         }
 
         let fi = func_idx as usize;

@@ -396,7 +396,7 @@ impl Compiler {
             if self.modules[module_idx].compiled {
                 continue;
             }
-            let (prog_opt, _module_name) = {
+            let (prog_opt, module_name) = {
                 let m = &self.modules[module_idx];
                 (m.program.clone(), m.name.clone())
             };
@@ -405,7 +405,7 @@ impl Compiler {
                 // types and functions from its dependencies (e.g. Pair, ArrayList).
                 self.register_imported_symbols(prog)?;
                 // Compile the module's declarations.
-                self.compile_module_program(prog)?;
+                self.compile_module_program(prog, &module_name)?;
             }
             self.modules[module_idx].compiled = true;
         }

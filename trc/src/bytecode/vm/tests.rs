@@ -3563,7 +3563,7 @@ mod tests {
 
         let result = vm.run();
         match result {
-            Err(msg) => assert_eq!(msg, "Stack overflow: maximum call depth exceeded",
+            Err(msg) => assert!(msg.starts_with("Stack overflow: maximum call depth exceeded"),
                 "Expected stack overflow error, got: {}", msg),
             Ok(()) => panic!("Expected stack overflow error but execution succeeded"),
         }
