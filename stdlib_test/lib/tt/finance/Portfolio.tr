@@ -1,0 +1,449 @@
+// Portfolio optimization: Markowitz, Black-Litterman, risk parity, Sharpe ratio.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// ==================== Private Helpers ====================
+
+fn meanVec(data: ArrayList<ArrayList<double>>): ArrayList<double> {
+    let n: int = data.size();
+    let result: ArrayList<double> = new ArrayList<double>();
+    if (n == 0) {
+        return result;
+    }
+    let k: int = data.get(0).size();
+    var j: int = 0;
+    while (j < k) {
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < n) {
+            sum = sum + data.get(i).get(j);
+            i = i + 1;
+        }
+        result.add(sum / (n as double));
+        j = j + 1;
+    }
+    return result;
+}
+
+fn covMatrix(data: ArrayList<ArrayList<double>>): ArrayList<ArrayList<double>> {
+    let n: int = data.size();
+    if (n == 0) {
+        return new ArrayList<ArrayList<double>>();
+    }
+    let k: int = data.get(0).size();
+    let means: ArrayList<double> = meanVec(data);
+    let cov: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < k) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < k) {
+            var sum: double = 0.0;
+            var m: int = 0;
+            while (m < n) {
+                sum = sum + (data.get(m).get(i) - means.get(i)) * (data.get(m).get(j) - means.get(j));
+                m = m + 1;
+            }
+            row.add(sum / ((n as double) - 1.0));
+            j = j + 1;
+        }
+        cov.add(row);
+        i = i + 1;
+    }
+    return cov;
+}
+
+fn matVecMul(mat: ArrayList<ArrayList<double>>, vec: ArrayList<double>): ArrayList<double> {
+    let n: int = mat.size();
+    let result: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        var sum: double = 0.0;
+        let row: ArrayList<double> = mat.get(i);
+        var j: int = 0;
+        while (j < row.size()) {
+            sum = sum + row.get(j) * vec.get(j);
+            j = j + 1;
+        }
+        result.add(sum);
+        i = i + 1;
+    }
+    return result;
+}
+
+fn dotProduct(a: ArrayList<double>, b: ArrayList<double>): double {
+    var sum: double = 0.0;
+    let n: int = Math.min(a.size(), b.size());
+    var i: int = 0;
+    while (i < n) {
+        sum = sum + a.get(i) * b.get(i);
+        i = i + 1;
+    }
+    return sum;
+}
+
+// Solve linear system Ax = b using Gaussian elimination with partial pivoting
+fn solveLinear(mat: ArrayList<ArrayList<double>>, b: ArrayList<double>): ArrayList<double> {
+    let n: int = mat.size();
+    if (n == 0) {
+        return new ArrayList<double>();
+    }
+    // Create augmented matrix
+    let aug: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            row.add(mat.get(i).get(j));
+            j = j + 1;
+        }
+        row.add(b.get(i));
+        aug.add(row);
+        i = i + 1;
+    }
+
+    // Forward elimination with partial pivoting
+    var col: int = 0;
+    while (col < n) {
+        // Find pivot
+        var maxVal: double = Math.abs(aug.get(col).get(col));
+        var maxRow: int = col;
+        var row: int = col + 1;
+        while (row < n) {
+            let val: double = Math.abs(aug.get(row).get(col));
+            if (val > maxVal) {
+                maxVal = val;
+                maxRow = row;
+            }
+            row = row + 1;
+        }
+        // Swap rows
+        if (maxRow != col) {
+            let tmp: ArrayList<double> = aug.get(col);
+            aug.set(col, aug.get(maxRow));
+            aug.set(maxRow, tmp);
+        }
+        // Eliminate below
+        var elimRow: int = col + 1;
+        while (elimRow < n) {
+            let factor: double = aug.get(elimRow).get(col) / aug.get(col).get(col);
+            var j: int = col;
+            while (j <= n) {
+                aug.get(elimRow).set(j, aug.get(elimRow).get(j) - factor * aug.get(col).get(j));
+                j = j + 1;
+            }
+            elimRow = elimRow + 1;
+        }
+        col = col + 1;
+    }
+
+    // Back substitution
+    let x: ArrayList<double> = new ArrayList<double>();
+    var ii: int = 0;
+    while (ii < n) {
+        x.add(0.0);
+        ii = ii + 1;
+    }
+    var rr: int = n - 1;
+    while (rr >= 0) {
+        var sum: double = aug.get(rr).get(n);
+        var cc: int = rr + 1;
+        while (cc < n) {
+            sum = sum - aug.get(rr).get(cc) * x.get(cc);
+            cc = cc + 1;
+        }
+        if (Math.abs(aug.get(rr).get(rr)) < 1e-12) {
+            x.set(rr, 0.0);
+        } else {
+            x.set(rr, sum / aug.get(rr).get(rr));
+        }
+        rr = rr - 1;
+    }
+    return x;
+}
+
+// ==================== Mean-Variance Optimization (Markowitz) ====================
+
+public fn meanVarianceOptimize(returns: ArrayList<ArrayList<double>>, targetReturn: double): ArrayList<double> {
+    let n: int = returns.size();
+    if (n == 0) {
+        return new ArrayList<double>();
+    }
+    let k: int = returns.get(0).size();
+    if (k == 0) {
+        return new ArrayList<double>();
+    }
+
+    let means: ArrayList<double> = meanVec(returns);
+    let cov: ArrayList<ArrayList<double>> = covMatrix(returns);
+
+    // Build the KKT system for minimum variance with target return constraint:
+    // [ 2C  -mu ] [ w ]   [ 0 ]
+    // [ mu'  0  ] [ l ] = [ r ]
+    // where C = covariance matrix, mu = mean vector, r = target return
+    // System size: (k+1) x (k+1)
+    let size: int = k + 1;
+    let mat: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let rhs: ArrayList<double> = new ArrayList<double>();
+
+    var i: int = 0;
+    while (i < k) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < k) {
+            row.add(2.0 * cov.get(i).get(j));
+            j = j + 1;
+        }
+        row.add(-means.get(i));
+        mat.add(row);
+        rhs.add(0.0);
+        i = i + 1;
+    }
+    // Last row: sum of weights * mean = target return
+    let lastRow: ArrayList<double> = new ArrayList<double>();
+    var jj: int = 0;
+    while (jj < k) {
+        lastRow.add(means.get(jj));
+        jj = jj + 1;
+    }
+    lastRow.add(0.0);
+    mat.add(lastRow);
+    rhs.add(targetReturn);
+
+    let solution: ArrayList<double> = solveLinear(mat, rhs);
+
+    // Extract weights (first k elements)
+    let weights: ArrayList<double> = new ArrayList<double>();
+    var ii: int = 0;
+    while (ii < k) {
+        weights.add(solution.get(ii));
+        ii = ii + 1;
+    }
+    return weights;
+}
+
+// ==================== Efficient Frontier ====================
+
+public fn efficientFrontier(returns: ArrayList<ArrayList<double>>, nPoints: int): ArrayList<ArrayList<double>> {
+    let result: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let n: int = returns.size();
+    if (n == 0 || nPoints <= 0) {
+        return result;
+    }
+    let k: int = returns.get(0).size();
+    if (k == 0) {
+        return result;
+    }
+
+    let means: ArrayList<double> = meanVec(returns);
+    let cov: ArrayList<ArrayList<double>> = covMatrix(returns);
+
+    // Find min and max feasible returns
+    var minRet: double = means.get(0);
+    var maxRet: double = means.get(0);
+    var i: int = 1;
+    while (i < k) {
+        if (means.get(i) < minRet) {
+            minRet = means.get(i);
+        }
+        if (means.get(i) > maxRet) {
+            maxRet = means.get(i);
+        }
+        i = i + 1;
+    }
+
+    let step: double = (maxRet - minRet) / ((nPoints - 1) as double);
+    var p: int = 0;
+    while (p < nPoints) {
+        let targetRet: double = minRet + (p as double) * step;
+        let weights: ArrayList<double> = meanVarianceOptimize(returns, targetRet);
+        // Compute portfolio return and variance
+        let portRet: double = dotProduct(means, weights);
+        let wCov: ArrayList<double> = matVecMul(cov, weights);
+        let portVar: double = dotProduct(weights, wCov);
+        let portVol: double = MathAdvanced.sqrt(Math.abs(portVar));
+        let point: ArrayList<double> = new ArrayList<double>();
+        point.add(portVol);
+        point.add(portRet);
+        result.add(point);
+        p = p + 1;
+    }
+    return result;
+}
+
+// ==================== Black-Litterman Model ====================
+
+public fn blackLitterman(marketWeights: ArrayList<double>, covMatrix: ArrayList<ArrayList<double>>, views: ArrayList<double>, viewMatrix: ArrayList<ArrayList<double>>, tau: double): ArrayList<double> {
+    let n: int = marketWeights.size();
+    if (n == 0) {
+        return new ArrayList<double>();
+    }
+
+    // Implied equilibrium returns: pi = delta * Sigma * w_mkt
+    // We use delta = 1 (risk aversion coefficient absorbed into tau)
+    let impliedReturns: ArrayList<double> = matVecMul(covMatrix, marketWeights);
+
+    // Number of views
+    let numViews: int = views.size();
+    if (numViews == 0) {
+        return impliedReturns;
+    }
+
+    // Black-Litterman: mu_BL = [(tau*Sigma)^-1 + P' * Omega^-1 * P]^-1 * [(tau*Sigma)^-1 * pi + P' * Omega^-1 * Q]
+    // Simplified: assume Omega = identity (diagonal, equal confidence)
+    // Build the system matrix: (tau*Sigma)^-1 + P'*P
+    // Instead of inverting, solve the linear system directly
+
+    // Build A = (1/tau) * Sigma^-1 + P' * P
+    // Build b = (1/tau) * Sigma^-1 * pi + P' * Q
+    // Since Sigma^-1 is hard to compute, use the equivalent form:
+    // [tau*Sigma  -P'] [ mu ]   [ tau*Sigma*pi ]
+    // [-P          I  ] [ y  ] = [ Q            ]
+    // This avoids matrix inversion
+
+    // Build augmented system of size (n + numViews)
+    let totalSize: int = n + numViews;
+    let mat: ArrayList<ArrayList<double>> = new ArrayList<ArrayList<double>>();
+    let rhs: ArrayList<double> = new ArrayList<double>();
+
+    // Top-left block: tau * Sigma
+    var i: int = 0;
+    while (i < n) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            row.add(tau * covMatrix.get(i).get(j));
+            j = j + 1;
+        }
+        // Top-right block: -P'
+        var v: int = 0;
+        while (v < numViews) {
+            if (v < viewMatrix.size() && i < viewMatrix.get(v).size()) {
+                row.add(-viewMatrix.get(v).get(i));
+            } else {
+                row.add(0.0);
+            }
+            v = v + 1;
+        }
+        mat.add(row);
+        // RHS: tau * Sigma * pi (which is tau * covMatrix * impliedReturns)
+        let tauSigmaPi: ArrayList<double> = matVecMul(covMatrix, impliedReturns);
+        rhs.add(tau * tauSigmaPi.get(i));
+        i = i + 1;
+    }
+
+    // Bottom-left block: -P
+    var v: int = 0;
+    while (v < numViews) {
+        let row: ArrayList<double> = new ArrayList<double>();
+        var j: int = 0;
+        while (j < n) {
+            if (v < viewMatrix.size() && j < viewMatrix.get(v).size()) {
+                row.add(-viewMatrix.get(v).get(j));
+            } else {
+                row.add(0.0);
+            }
+            j = j + 1;
+        }
+        // Bottom-right block: I (identity)
+        var vv: int = 0;
+        while (vv < numViews) {
+            row.add(vv == v ? 1.0 : 0.0);
+            vv = vv + 1;
+        }
+        mat.add(row);
+        rhs.add(views.get(v));
+        v = v + 1;
+    }
+
+    let solution: ArrayList<double> = solveLinear(mat, rhs);
+
+    // Extract the first n elements as the BL expected returns
+    let blReturns: ArrayList<double> = new ArrayList<double>();
+    var ii: int = 0;
+    while (ii < n) {
+        blReturns.add(solution.get(ii));
+        ii = ii + 1;
+    }
+    return blReturns;
+}
+
+// ==================== Risk Parity Portfolio ====================
+
+public fn riskParity(covMatrix: ArrayList<ArrayList<double>>): ArrayList<double> {
+    let n: int = covMatrix.size();
+    if (n == 0) {
+        return new ArrayList<double>();
+    }
+
+    // Initialize with equal weights
+    let weights: ArrayList<double> = new ArrayList<double>();
+    var i: int = 0;
+    while (i < n) {
+        weights.add(1.0 / (n as double));
+        i = i + 1;
+    }
+
+    // Iterative risk parity using Spinu's algorithm
+    const MAX_ITER: int = 1000;
+    const TOLERANCE: double = 1e-8;
+    var iter: int = 0;
+    while (iter < MAX_ITER) {
+        // Compute marginal risk contributions
+        let sigmaW: ArrayList<double> = matVecMul(covMatrix, weights);
+        let portVar: double = dotProduct(weights, sigmaW);
+
+        // Compute new weights proportional to 1 / (sigma_i * w_i)
+        let newWeights: ArrayList<double> = new ArrayList<double>();
+        var sum: double = 0.0;
+        var j: int = 0;
+        while (j < n) {
+            let marginalRisk: double = sigmaW.get(j);
+            if (marginalRisk <= 0.0) {
+                marginalRisk = 1e-10;
+            }
+            let w: double = 1.0 / marginalRisk;
+            newWeights.add(w);
+            sum = sum + w;
+            j = j + 1;
+        }
+
+        // Normalize
+        var maxDiff: double = 0.0;
+        var k: int = 0;
+        while (k < n) {
+            let nw: double = newWeights.get(k) / sum;
+            let diff: double = Math.abs(nw - weights.get(k));
+            if (diff > maxDiff) {
+                maxDiff = diff;
+            }
+            weights.set(k, nw);
+            k = k + 1;
+        }
+
+        if (maxDiff < TOLERANCE) {
+            break;
+        }
+        iter = iter + 1;
+    }
+    return weights;
+}
+
+// ==================== Sharpe Ratio ====================
+
+public fn sharpeRatio(portReturn: double, riskFreeRate: double, portVol: double): double {
+    if (portVol == 0.0) {
+        return 0.0;
+    }
+    return (portReturn - riskFreeRate) / portVol;
+}
+
+// ==================== Portfolio Variance ====================
+
+public fn portfolioVariance(weights: ArrayList<double>, covMatrix: ArrayList<ArrayList<double>>): double {
+    let sigmaW: ArrayList<double> = matVecMul(covMatrix, weights);
+    return dotProduct(weights, sigmaW);
+}
