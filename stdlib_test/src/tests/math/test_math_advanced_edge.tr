@@ -1,0 +1,137 @@
+// Edge case tests for MathAdvanced.tr
+// Exercises boundary conditions: zero/one inputs, identity exponents, and negatives.
+import tt::math::MathAdvanced;
+import tt::math::Math;
+import tt::lang::Double;
+
+fn absDiff(a: double, b: double): double {
+    let d: double = a - b;
+    if (d < 0.0) { return -d; }
+    return d;
+}
+
+// sqrt of 0 and 1 — both boundary inputs that should return the input unchanged.
+public fn test_mathadvanced_edge_sqrt_zero_one(): void {
+    let s0: double = MathAdvanced.sqrt(0.0);
+    if (s0 == 0.0 && !(s0 < 0.0)) {
+        io::println("PASS: sqrt(0) = 0.0");
+    } else {
+        io::println("FAIL: sqrt(0) expected 0.0, got " + Double.toString(s0));
+    }
+
+    let s1: double = MathAdvanced.sqrt(1.0);
+    if (absDiff(s1, 1.0) < 1e-15) {
+        io::println("PASS: sqrt(1) = 1.0");
+    } else {
+        io::println("FAIL: sqrt(1) expected 1.0, got " + Double.toString(s1));
+    }
+}
+
+// pow with 0 exponent: any (nonzero) base to the 0 should be 1.
+public fn test_mathadvanced_edge_pow_zero_exp(): void {
+    let r1: double = MathAdvanced.pow(5.0, 0.0);
+    if (r1 == 1.0) {
+        io::println("PASS: pow(5, 0) = 1.0");
+    } else {
+        io::println("FAIL: pow(5, 0) expected 1.0, got " + Double.toString(r1));
+    }
+
+    let r2: double = MathAdvanced.pow(1234.5, 0.0);
+    if (r2 == 1.0) {
+        io::println("PASS: pow(1234.5, 0) = 1.0");
+    } else {
+        io::println("FAIL: pow(1234.5, 0) expected 1.0, got " + Double.toString(r2));
+    }
+
+    let r3: double = MathAdvanced.pow(-7.0, 0.0);
+    if (r3 == 1.0) {
+        io::println("PASS: pow(-7, 0) = 1.0");
+    } else {
+        io::println("FAIL: pow(-7, 0) expected 1.0, got " + Double.toString(r3));
+    }
+}
+
+// pow with base 0: 0^positive should be 0; 0^0 conventionally 1.
+public fn test_mathadvanced_edge_pow_zero_base(): void {
+    let r1: double = MathAdvanced.pow(0.0, 5.0);
+    if (r1 == 0.0) {
+        io::println("PASS: pow(0, 5) = 0.0");
+    } else {
+        io::println("FAIL: pow(0, 5) expected 0.0, got " + Double.toString(r1));
+    }
+
+    let r2: double = MathAdvanced.pow(0.0, 0.0);
+    if (r2 == 1.0) {
+        io::println("PASS: pow(0, 0) = 1.0");
+    } else {
+        io::println("FAIL: pow(0, 0) expected 1.0, got " + Double.toString(r2));
+    }
+}
+
+// log of 1: ln(1) = log2(1) = log10(1) = 0.
+public fn test_mathadvanced_edge_log_of_one(): void {
+    let ln1: double = MathAdvanced.ln(1.0);
+    if (absDiff(ln1, 0.0) < 1e-15) {
+        io::println("PASS: ln(1) = 0.0");
+    } else {
+        io::println("FAIL: ln(1) expected 0.0, got " + Double.toString(ln1));
+    }
+
+    let log2_1: double = MathAdvanced.log2(1.0);
+    if (absDiff(log2_1, 0.0) < 1e-15) {
+        io::println("PASS: log2(1) = 0.0");
+    } else {
+        io::println("FAIL: log2(1) expected 0.0, got " + Double.toString(log2_1));
+    }
+
+    let log10_1: double = MathAdvanced.log10(1.0);
+    if (absDiff(log10_1, 0.0) < 1e-15) {
+        io::println("PASS: log10(1) = 0.0");
+    } else {
+        io::println("FAIL: log10(1) expected 0.0, got " + Double.toString(log10_1));
+    }
+}
+
+// exp of 0: e^0 = 1.
+public fn test_mathadvanced_edge_exp_zero(): void {
+    let e0: double = MathAdvanced.exp(0.0);
+    if (absDiff(e0, 1.0) < 1e-15) {
+        io::println("PASS: exp(0) = 1.0");
+    } else {
+        io::println("FAIL: exp(0) expected 1.0, got " + Double.toString(e0));
+    }
+
+    // Round-trip: ln(exp(0)) = 0
+    let roundTrip: double = MathAdvanced.ln(MathAdvanced.exp(0.0));
+    if (absDiff(roundTrip, 0.0) < 1e-12) {
+        io::println("PASS: ln(exp(0)) = 0.0 round-trip");
+    } else {
+        io::println("FAIL: ln(exp(0)) expected 0.0, got " + Double.toString(roundTrip));
+    }
+}
+
+// cbrt of negative: cbrt(-x) = -cbrt(x). Unlike sqrt, cbrt is defined for negatives.
+public fn test_mathadvanced_edge_cbrt_negative(): void {
+    let r1: double = MathAdvanced.cbrt(-8.0);
+    if (absDiff(r1, -2.0) < 1e-12) {
+        io::println("PASS: cbrt(-8) = -2.0");
+    } else {
+        io::println("FAIL: cbrt(-8) expected -2.0, got " + Double.toString(r1));
+    }
+
+    let r2: double = MathAdvanced.cbrt(-1.0);
+    if (absDiff(r2, -1.0) < 1e-15) {
+        io::println("PASS: cbrt(-1) = -1.0");
+    } else {
+        io::println("FAIL: cbrt(-1) expected -1.0, got " + Double.toString(r2));
+    }
+
+    // Odd-function property: cbrt(-x) == -cbrt(x)
+    let pos: double = MathAdvanced.cbrt(27.0);
+    let neg: double = MathAdvanced.cbrt(-27.0);
+    if (absDiff(neg, -pos) < 1e-12) {
+        io::println("PASS: cbrt(-x) = -cbrt(x) odd-function property");
+    } else {
+        io::println("FAIL: cbrt odd-function property failed: " + Double.toString(neg) + " vs " + Double.toString(-pos));
+    }
+}
