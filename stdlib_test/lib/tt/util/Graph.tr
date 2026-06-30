@@ -1,0 +1,595 @@
+// Graph data structure with adjacency list representation.
+import tt::util::ArrayList;
+import tt::util::HashMap;
+import tt::util::Queue;
+import tt::util::Stack;
+import tt::util::Set;
+
+public class Graph<V> {
+    private HashMap<V, ArrayList<V>> adj;
+    private HashMap<string, double> weights;
+    private bool directed;
+    private int _edgeCount;
+
+    public fn Graph() {
+        this.adj = new HashMap<V, ArrayList<V>>();
+        this.weights = new HashMap<string, double>();
+        this.directed = false;
+        this._edgeCount = 0;
+    }
+
+    public fn Graph(directed: bool) {
+        this.adj = new HashMap<V, ArrayList<V>>();
+        this.weights = new HashMap<string, double>();
+        this.directed = directed;
+        this._edgeCount = 0;
+    }
+
+    public fn addVertex(vertex: V): void {
+        if (!this.adj.containsKey(vertex)) {
+            this.adj.put(vertex, new ArrayList<V>());
+        }
+    }
+
+    public fn addEdge(from: V, to: V): void {
+        this.addEdge(from, to, 1.0);
+    }
+
+    public fn addEdge(from: V, to: V, weight: double): void {
+        this.addVertex(from);
+        this.addVertex(to);
+        let fromList: ArrayList<V> = this.adj.get(from);
+        if (!this._containsNeighbor(fromList, to)) {
+            fromList.add(to);
+            this.weights.put(this._edgeKey(from, to), weight);
+            this._edgeCount = this._edgeCount + 1;
+        }
+        if (!this.directed) {
+            let toList: ArrayList<V> = this.adj.get(to);
+            if (!this._containsNeighbor(toList, from)) {
+                toList.add(from);
+                this.weights.put(this._edgeKey(to, from), weight);
+            }
+        }
+    }
+
+    public fn removeVertex(vertex: V): void {
+        if (!this.adj.containsKey(vertex)) {
+            return;
+        }
+        // Remove all edges pointing to this vertex
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let i: int = 0;
+        while (i < allVertices.size()) {
+            let v: V = allVertices.get(i);
+            if (v != vertex) {
+                let neighbors: ArrayList<V> = this.adj.get(v);
+                this._removeNeighbor(neighbors, vertex);
+            }
+            i = i + 1;
+        }
+        // Count edges being removed from this vertex's list
+        let removed: ArrayList<V> = this.adj.get(vertex);
+        this._edgeCount = this._edgeCount - removed.size();
+        this.adj.remove(vertex);
+    }
+
+    public fn removeEdge(from: V, to: V): void {
+        if (this.adj.containsKey(from)) {
+            let fromList: ArrayList<V> = this.adj.get(from);
+            if (this._removeNeighbor(fromList, to)) {
+                this._edgeCount = this._edgeCount - 1;
+            }
+        }
+        if (!this.directed) {
+            if (this.adj.containsKey(to)) {
+                let toList: ArrayList<V> = this.adj.get(to);
+                this._removeNeighbor(toList, from);
+            }
+        }
+    }
+
+    public fn neighbors(vertex: V): ArrayList<V> {
+        if (!this.adj.containsKey(vertex)) {
+            return new ArrayList<V>();
+        }
+        return this.adj.get(vertex);
+    }
+
+    // Return the degree (number of outgoing edges) of a vertex.
+    public fn degree(vertex: V): int {
+        if (!this.adj.containsKey(vertex)) {
+            return 0;
+        }
+        return this.adj.get(vertex).size();
+    }
+
+    public fn hasVertex(vertex: V): bool {
+        return this.adj.containsKey(vertex);
+    }
+
+    public fn hasEdge(from: V, to: V): bool {
+        if (!this.adj.containsKey(from)) {
+            return false;
+        }
+        let fromList: ArrayList<V> = this.adj.get(from);
+        return this._containsNeighbor(fromList, to);
+    }
+
+    public fn vertices(): ArrayList<V> {
+        return this.adj.keys();
+    }
+
+    public fn edges(): ArrayList<(V, V)> {
+        let result: ArrayList<(V, V)> = new ArrayList<(V, V)>();
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let seen: Set<string> = new Set<string>();
+        let i: int = 0;
+        while (i < allVertices.size()) {
+            let from: V = allVertices.get(i);
+            let nbrs: ArrayList<V> = this.adj.get(from);
+            let j: int = 0;
+            while (j < nbrs.size()) {
+                let to: V = nbrs.get(j);
+                let key: string = this._edgeKey(from, to);
+                let revKey: string = this._edgeKey(to, from);
+                if (!seen.contains(key)) {
+                    result.add((from, to));
+                    seen.add(key);
+                    if (!this.directed) {
+                        seen.add(revKey);
+                    }
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn bfs(start: V): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        if (!this.adj.containsKey(start)) {
+            return result;
+        }
+        let visited: Set<V> = new Set<V>();
+        let queue: Queue<V> = new Queue<V>();
+        visited.add(start);
+        queue.enqueue(start);
+        while (!queue.isEmpty()) {
+            let current: V = queue.dequeue();
+            result.add(current);
+            let nbrs: ArrayList<V> = this.adj.get(current);
+            let i: int = 0;
+            while (i < nbrs.size()) {
+                let neighbor: V = nbrs.get(i);
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    queue.enqueue(neighbor);
+                }
+                i = i + 1;
+            }
+        }
+        return result;
+    }
+
+    public fn dfs(start: V): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        if (!this.adj.containsKey(start)) {
+            return result;
+        }
+        let visited: Set<V> = new Set<V>();
+        let stack: Stack<V> = new Stack<V>();
+        stack.push(start);
+        while (!stack.isEmpty()) {
+            let current: V = stack.pop();
+            if (visited.contains(current)) {
+                continue;
+            }
+            visited.add(current);
+            result.add(current);
+            let nbrs: ArrayList<V> = this.adj.get(current);
+            let i: int = nbrs.size() - 1;
+            while (i >= 0) {
+                let neighbor: V = nbrs.get(i);
+                if (!visited.contains(neighbor)) {
+                    stack.push(neighbor);
+                }
+                i = i - 1;
+            }
+        }
+        return result;
+    }
+
+    private fn _containsNeighbor(list: ArrayList<V>, target: V): bool {
+        let i: int = 0;
+        while (i < list.size()) {
+            if (list.get(i) == target) {
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    private fn _removeNeighbor(list: ArrayList<V>, target: V): bool {
+        let i: int = 0;
+        while (i < list.size()) {
+            if (list.get(i) == target) {
+                list.remove(i);
+                return true;
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    private fn _edgeKey(from: V, to: V): string {
+        return toString(from) + "->" + toString(to);
+    }
+
+    public fn topologicalSort(): ArrayList<V> {
+        let result: ArrayList<V> = new ArrayList<V>();
+        let inDegree: HashMap<V, int> = new HashMap<V, int>();
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let i: int = 0;
+        while (i < allVertices.size()) {
+            let v: V = allVertices.get(i);
+            inDegree.put(v, 0);
+            i = i + 1;
+        }
+        i = 0;
+        while (i < allVertices.size()) {
+            let v: V = allVertices.get(i);
+            let nbrs: ArrayList<V> = this.adj.get(v);
+            let j: int = 0;
+            while (j < nbrs.size()) {
+                let neighbor: V = nbrs.get(j);
+                inDegree.put(neighbor, inDegree.get(neighbor) + 1);
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        let queue: Queue<V> = new Queue<V>();
+        i = 0;
+        while (i < allVertices.size()) {
+            let v: V = allVertices.get(i);
+            if (inDegree.get(v) == 0) {
+                queue.enqueue(v);
+            }
+            i = i + 1;
+        }
+        while (!queue.isEmpty()) {
+            let current: V = queue.dequeue();
+            result.add(current);
+            let nbrs: ArrayList<V> = this.adj.get(current);
+            let j: int = 0;
+            while (j < nbrs.size()) {
+                let neighbor: V = nbrs.get(j);
+                inDegree.put(neighbor, inDegree.get(neighbor) - 1);
+                if (inDegree.get(neighbor) == 0) {
+                    queue.enqueue(neighbor);
+                }
+                j = j + 1;
+            }
+        }
+        return result;
+    }
+
+    public fn shortestPath(from: V, to: V): ArrayList<V> {
+        if (!this.adj.containsKey(from) || !this.adj.containsKey(to)) {
+            return new ArrayList<V>();
+        }
+        let prev: HashMap<V, V> = new HashMap<V, V>();
+        let visited: Set<V> = new Set<V>();
+        let queue: Queue<V> = new Queue<V>();
+        visited.add(from);
+        queue.enqueue(from);
+        while (!queue.isEmpty()) {
+            let current: V = queue.dequeue();
+            if (current == to) {
+                break;
+            }
+            let nbrs: ArrayList<V> = this.adj.get(current);
+            let j: int = 0;
+            while (j < nbrs.size()) {
+                let neighbor: V = nbrs.get(j);
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    prev.put(neighbor, current);
+                    queue.enqueue(neighbor);
+                }
+                j = j + 1;
+            }
+        }
+        if (!prev.containsKey(to) && from != to) {
+            return new ArrayList<V>();
+        }
+        let path: ArrayList<V> = new ArrayList<V>();
+        let node: V = to;
+        while (node != null) {
+            path.add(0, node);
+            if (node == from) {
+                break;
+            }
+            node = prev.get(node);
+        }
+        return path;
+    }
+
+    public fn dijkstra(start: V): HashMap<V, double> {
+        let dist: HashMap<V, double> = new HashMap<V, double>();
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let i: int = 0;
+        while (i < allVertices.size()) {
+            dist.put(allVertices.get(i), 999999999.0);
+            i = i + 1;
+        }
+        dist.put(start, 0.0);
+        let visited: Set<V> = new Set<V>();
+        let n: int = allVertices.size();
+        i = 0;
+        while (i < n) {
+            let u: V = null;
+            let minDist: double = 999999999.0;
+            let j: int = 0;
+            while (j < allVertices.size()) {
+                let v: V = allVertices.get(j);
+                if (!visited.contains(v) && dist.get(v) < minDist) {
+                    minDist = dist.get(v);
+                    u = v;
+                }
+                j = j + 1;
+            }
+            if (u == null) {
+                break;
+            }
+            visited.add(u);
+            let nbrs: ArrayList<V> = this.adj.get(u);
+            j = 0;
+            while (j < nbrs.size()) {
+                let neighbor: V = nbrs.get(j);
+                let w: double = this.weights.get(this._edgeKey(u, neighbor));
+                let alt: double = dist.get(u) + w;
+                if (alt < dist.get(neighbor)) {
+                    dist.put(neighbor, alt);
+                }
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+        return dist;
+    }
+
+    public fn isConnected(): bool {
+        let allVertices: ArrayList<V> = this.adj.keys();
+        if (allVertices.size() == 0) {
+            return true;
+        }
+        let traversal: ArrayList<V> = this.bfs(allVertices.get(0));
+        return traversal.size() == allVertices.size();
+    }
+
+    public fn isCyclic(): bool {
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let visited: Set<V> = new Set<V>();
+        let recStack: Set<V> = new Set<V>();
+        let i: int = 0;
+        while (i < allVertices.size()) {
+            let v: V = allVertices.get(i);
+            if (!visited.contains(v)) {
+                if (this._isCyclicDFS(v, visited, recStack)) {
+                    return true;
+                }
+            }
+            i = i + 1;
+        }
+        return false;
+    }
+
+    private fn _isCyclicDFS(node: V, visited: Set<V>, recStack: Set<V>): bool {
+        visited.add(node);
+        recStack.add(node);
+        let nbrs: ArrayList<V> = this.adj.get(node);
+        let i: int = 0;
+        while (i < nbrs.size()) {
+            let neighbor: V = nbrs.get(i);
+            if (!visited.contains(neighbor)) {
+                if (this._isCyclicDFS(neighbor, visited, recStack)) {
+                    return true;
+                }
+            } else if (recStack.contains(neighbor)) {
+                return true;
+            }
+            i = i + 1;
+        }
+        recStack.remove(node);
+        return false;
+    }
+
+    // Kruskal's minimum spanning tree algorithm using union-find.
+    // Returns (total weight, list of MST edges).
+    public fn kruskalMST(): (double, ArrayList<(V, V)>) {
+        let mstEdges: ArrayList<(V, V)> = new ArrayList<(V, V)>();
+        let totalWeight: double = 0.0;
+        let allEdges: ArrayList<(V, V)> = this.edges();
+        if (allEdges.size() == 0) {
+            return (totalWeight, mstEdges);
+        }
+        // Build parallel arrays so we can sort edges by weight.
+        let fromList: ArrayList<V> = new ArrayList<V>();
+        let toList: ArrayList<V> = new ArrayList<V>();
+        let weightList: ArrayList<double> = new ArrayList<double>();
+        let i: int = 0;
+        while (i < allEdges.size()) {
+            let (from: V, to: V) = allEdges.get(i);
+            fromList.add(from);
+            toList.add(to);
+            weightList.add(this.weights.get(this._edgeKey(from, to)));
+            i = i + 1;
+        }
+        // Selection sort edges by weight (ascending).
+        let n: int = fromList.size();
+        i = 0;
+        while (i < n - 1) {
+            let minIdx: int = i;
+            let j: int = i + 1;
+            while (j < n) {
+                if (weightList.get(j) < weightList.get(minIdx)) {
+                    minIdx = j;
+                }
+                j = j + 1;
+            }
+            if (minIdx != i) {
+                let tmpFrom: V = fromList.get(i);
+                let tmpTo: V = toList.get(i);
+                let tmpW: double = weightList.get(i);
+                fromList.set(i, fromList.get(minIdx));
+                toList.set(i, toList.get(minIdx));
+                weightList.set(i, weightList.get(minIdx));
+                fromList.set(minIdx, tmpFrom);
+                toList.set(minIdx, tmpTo);
+                weightList.set(minIdx, tmpW);
+            }
+            i = i + 1;
+        }
+        // Union-find initialization: each vertex is its own parent.
+        let parent: HashMap<V, V> = new HashMap<V, V>();
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let k: int = 0;
+        while (k < allVertices.size()) {
+            parent.put(allVertices.get(k), allVertices.get(k));
+            k = k + 1;
+        }
+        // Kruskal main loop: add edge if it connects two distinct components.
+        i = 0;
+        while (i < n) {
+            let from: V = fromList.get(i);
+            let to: V = toList.get(i);
+            let rootFrom: V = this._ufFind(parent, from);
+            let rootTo: V = this._ufFind(parent, to);
+            if (rootFrom != rootTo) {
+                mstEdges.add((from, to));
+                totalWeight = totalWeight + weightList.get(i);
+                parent.put(rootFrom, rootTo);
+            }
+            i = i + 1;
+        }
+        return (totalWeight, mstEdges);
+    }
+
+    // Prim's minimum spanning tree algorithm starting from startVertex.
+    // Returns (total weight, list of MST edges).
+    public fn primMST(startVertex: V): (double, ArrayList<(V, V)>) {
+        let mstEdges: ArrayList<(V, V)> = new ArrayList<(V, V)>();
+        let totalWeight: double = 0.0;
+        if (!this.adj.containsKey(startVertex)) {
+            return (totalWeight, mstEdges);
+        }
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let visited: Set<V> = new Set<V>();
+        visited.add(startVertex);
+        // bestWeight[v] = cheapest edge weight connecting v to the visited set.
+        let bestWeight: HashMap<V, double> = new HashMap<V, double>();
+        // bestFrom[v] = the visited endpoint of that cheapest edge.
+        let bestFrom: HashMap<V, V> = new HashMap<V, V>();
+        let i: int = 0;
+        while (i < allVertices.size()) {
+            let v: V = allVertices.get(i);
+            if (v != startVertex) {
+                bestWeight.put(v, 999999999.0);
+                bestFrom.put(v, null);
+            }
+            i = i + 1;
+        }
+        // Seed with edges leaving the start vertex.
+        let nbrs: ArrayList<V> = this.adj.get(startVertex);
+        let j: int = 0;
+        while (j < nbrs.size()) {
+            let neighbor: V = nbrs.get(j);
+            let w: double = this.weights.get(this._edgeKey(startVertex, neighbor));
+            bestWeight.put(neighbor, w);
+            bestFrom.put(neighbor, startVertex);
+            j = j + 1;
+        }
+        // Add vertices one at a time, picking the cheapest crossing edge.
+        let vertexCount: int = allVertices.size();
+        let added: int = 0;
+        while (added < vertexCount - 1) {
+            let u: V = null;
+            let minW: double = 999999999.0;
+            i = 0;
+            while (i < allVertices.size()) {
+                let v: V = allVertices.get(i);
+                if (!visited.contains(v) && bestWeight.get(v) < minW) {
+                    minW = bestWeight.get(v);
+                    u = v;
+                }
+                i = i + 1;
+            }
+            if (u == null) {
+                break; // graph is disconnected
+            }
+            visited.add(u);
+            let from: V = bestFrom.get(u);
+            if (from != null) {
+                mstEdges.add((from, u));
+                totalWeight = totalWeight + minW;
+            }
+            added = added + 1;
+            // Relax edges leaving u.
+            let uNbrs: ArrayList<V> = this.adj.get(u);
+            j = 0;
+            while (j < uNbrs.size()) {
+                let neighbor: V = uNbrs.get(j);
+                if (!visited.contains(neighbor)) {
+                    let w: double = this.weights.get(this._edgeKey(u, neighbor));
+                    if (w < bestWeight.get(neighbor)) {
+                        bestWeight.put(neighbor, w);
+                        bestFrom.put(neighbor, u);
+                    }
+                }
+                j = j + 1;
+            }
+        }
+        return (totalWeight, mstEdges);
+    }
+
+    // Union-find: find root of v with path compression.
+    private fn _ufFind(parent: HashMap<V, V>, v: V): V {
+        let root: V = v;
+        while (parent.get(root) != root) {
+            root = parent.get(root);
+        }
+        // Path compression: point each node on the path directly at root.
+        let node: V = v;
+        while (parent.get(node) != root) {
+            let next: V = parent.get(node);
+            parent.put(node, root);
+            node = next;
+        }
+        return root;
+    }
+
+    public fn toString(): string {
+        let s: string = "Graph({";
+        let allVertices: ArrayList<V> = this.adj.keys();
+        let i: int = 0;
+        while (i < allVertices.size()) {
+            if (i > 0) { s = s + ", "; }
+            let v: V = allVertices.get(i);
+            s = s + v + ": [";
+            let nbrs: ArrayList<V> = this.adj.get(v);
+            let j: int = 0;
+            while (j < nbrs.size()) {
+                if (j > 0) { s = s + ", "; }
+                s = s + nbrs.get(j);
+                j = j + 1;
+            }
+            s = s + "]";
+            i = i + 1;
+        }
+        s = s + "})";
+        return s;
+    }
+}
