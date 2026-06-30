@@ -1,0 +1,385 @@
+// Quaternion provides a unit-quaternion representation for 3D rotation.
+import tt::math::vec::Vec3;
+import tt::math::transform::Mat4;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+import tt::lang::Double;
+
+public class Quaternion {
+    public double w;
+    public double x;
+    public double y;
+    public double z;
+
+    public fn init(w: double, x: double, y: double, z: double) {
+        this.w = w;
+        this.x = x;
+        this.y = y;
+        this.z = z;
+    }
+
+    // ---- Core operations ----
+
+    // Hamilton product: this * q
+    public fn multiply(q: Quaternion): Quaternion {
+        return new Quaternion(
+            this.w * q.w - this.x * q.x - this.y * q.y - this.z * q.z,
+            this.w * q.x + this.x * q.w + this.y * q.z - this.z * q.y,
+            this.w * q.y - this.x * q.z + this.y * q.w + this.z * q.x,
+            this.w * q.z + this.x * q.y - this.y * q.x + this.z * q.w
+        );
+    }
+
+    // Conjugate: (w, -x, -y, -z)
+    public fn conjugate(): Quaternion {
+        return new Quaternion(this.w, -this.x, -this.y, -this.z);
+    }
+
+    // Inverse: conjugate / norm^2
+    public fn inverse(): Quaternion {
+        let n2: double = this.w * this.w + this.x * this.x + this.y * this.y + this.z * this.z;
+        if (n2 == 0.0) {
+            return new Quaternion(0.0, 0.0, 0.0, 0.0);
+        }
+        let inv: double = 1.0 / n2;
+        return new Quaternion(this.w * inv, -this.x * inv, -this.y * inv, -this.z * inv);
+    }
+
+    // Norm (magnitude): sqrt(w*w + x*x + y*y + z*z)
+    public fn norm(): double {
+        return MathAdvanced.sqrt(this.w * this.w + this.x * this.x + this.y * this.y + this.z * this.z);
+    }
+
+    // Normalize to unit quaternion
+    public fn normalize(): Quaternion {
+        let n: double = this.norm();
+        if (n == 0.0) {
+            return new Quaternion(1.0, 0.0, 0.0, 0.0);
+        }
+        let inv: double = 1.0 / n;
+        return new Quaternion(this.w * inv, this.x * inv, this.y * inv, this.z * inv);
+    }
+
+    // Dot product with another quaternion
+    public fn dot(q: Quaternion): double {
+        return this.w * q.w + this.x * q.x + this.y * q.y + this.z * q.z;
+    }
+
+    // ---- Rotation ----
+
+    // Rotate a vector: q * v * q^-1
+    public fn rotateVector(v: Vec3): Vec3 {
+        let qv: Quaternion = new Quaternion(0.0, v.x, v.y, v.z);
+        let result: Quaternion = this.multiply(qv).multiply(this.inverse());
+        return new Vec3(result.x, result.y, result.z);
+    }
+
+    // Convert to 4x4 rotation matrix
+    public fn toMat4(): Mat4 {
+        let q: Quaternion = this.normalize();
+        let ww: double = q.w * q.w;
+        let xx: double = q.x * q.x;
+        let yy: double = q.y * q.y;
+        let zz: double = q.z * q.z;
+        let wx: double = q.w * q.x;
+        let wy: double = q.w * q.y;
+        let wz: double = q.w * q.z;
+        let xy: double = q.x * q.y;
+        let xz: double = q.x * q.z;
+        let yz: double = q.y * q.z;
+
+        let m: Mat4 = mat4Identity();
+        m.set(0, 0, ww + xx - yy - zz);
+        m.set(0, 1, 2.0 * (xy - wz));
+        m.set(0, 2, 2.0 * (xz + wy));
+        m.set(0, 3, 0.0);
+        m.set(1, 0, 2.0 * (xy + wz));
+        m.set(1, 1, ww - xx + yy - zz);
+        m.set(1, 2, 2.0 * (yz - wx));
+        m.set(1, 3, 0.0);
+        m.set(2, 0, 2.0 * (xz - wy));
+        m.set(2, 1, 2.0 * (yz + wx));
+        m.set(2, 2, ww - xx - yy + zz);
+        m.set(2, 3, 0.0);
+        m.set(3, 0, 0.0);
+        m.set(3, 1, 0.0);
+        m.set(3, 2, 0.0);
+        m.set(3, 3, 1.0);
+        return m;
+    }
+
+    // Convert to Euler angles (roll, pitch, yaw) in radians
+    public fn toEuler(): Vec3 {
+        // Roll (x-axis rotation)
+        let sinrCosp: double = 2.0 * (this.w * this.x + this.y * this.z);
+        let cosrCosp: double = 1.0 - 2.0 * (this.x * this.x + this.y * this.y);
+        let roll: double = MathTrig.atan2(sinrCosp, cosrCosp);
+
+        // Pitch (y-axis rotation) — clamp to [-1, 1] for asin
+        let sinp: double = 2.0 * (this.w * this.y - this.z * this.x);
+        let sinpClamped: double = Math.clamp(sinp, -1.0, 1.0);
+        let pitch: double = MathTrig.asin(sinpClamped);
+
+        // Yaw (z-axis rotation)
+        let sinyCosp: double = 2.0 * (this.w * this.z + this.x * this.y);
+        let cosyCosp: double = 1.0 - 2.0 * (this.y * this.y + this.z * this.z);
+        let yaw: double = MathTrig.atan2(sinyCosp, cosyCosp);
+
+        return new Vec3(roll, pitch, yaw);
+    }
+
+    // ---- Interpolation ----
+
+    // Normalized linear interpolation
+    public fn lerp(q: Quaternion, t: double): Quaternion {
+        let result: Quaternion = new Quaternion(
+            this.w + t * (q.w - this.w),
+            this.x + t * (q.x - this.x),
+            this.y + t * (q.y - this.y),
+            this.z + t * (q.z - this.z)
+        );
+        return result.normalize();
+    }
+
+    // Spherical linear interpolation
+    public fn slerp(q: Quaternion, t: double): Quaternion {
+        let dot: double = this.dot(q);
+
+        // If the dot is negative, negate one quaternion to take the shorter path
+        let q2: Quaternion = q;
+        let d: double = dot;
+        if (d < 0.0) {
+            q2 = new Quaternion(-q.w, -q.x, -q.y, -q.z);
+            d = -d;
+        }
+
+        // If the quaternions are very close, use nlerp to avoid division by zero
+        if (d > 0.9995) {
+            return this.lerp(q2, t);
+        }
+
+        let theta0: double = MathTrig.acos(d);
+        let theta: double = theta0 * t;
+        let sinTheta: double = MathTrig.sin(theta);
+        let sinTheta0: double = MathTrig.sin(theta0);
+
+        let s0: double = MathTrig.cos(theta) - d * sinTheta / sinTheta0;
+        let s1: double = sinTheta / sinTheta0;
+
+        return new Quaternion(
+            s0 * this.w + s1 * q2.w,
+            s0 * this.x + s1 * q2.x,
+            s0 * this.y + s1 * q2.y,
+            s0 * this.z + s1 * q2.z
+        );
+    }
+
+    // ---- Properties ----
+
+    // Rotation angle in radians
+    public fn angle(): double {
+        let n: double = this.norm();
+        if (n == 0.0) {
+            return 0.0;
+        }
+        let wClamped: double = Math.clamp(this.w / n, -1.0, 1.0);
+        return 2.0 * MathTrig.acos(wClamped);
+    }
+
+    // Rotation axis
+    public fn axis(): Vec3 {
+        let sinHalfAngle: double = MathAdvanced.sqrt(1.0 - this.w * this.w);
+        if (sinHalfAngle < 1e-12) {
+            return new Vec3(1.0, 0.0, 0.0);
+        }
+        let inv: double = 1.0 / sinHalfAngle;
+        return new Vec3(this.x * inv, this.y * inv, this.z * inv);
+    }
+
+    // ---- Comparison and string ----
+
+    // Approximate equality
+    public fn equals(q: Quaternion): bool {
+        var dw: double = this.w - q.w;
+        var dx: double = this.x - q.x;
+        var dy: double = this.y - q.y;
+        var dz: double = this.z - q.z;
+        if (dw < 0.0) { dw = -dw; }
+        if (dx < 0.0) { dx = -dx; }
+        if (dy < 0.0) { dy = -dy; }
+        if (dz < 0.0) { dz = -dz; }
+        return dw < 1e-12 && dx < 1e-12 && dy < 1e-12 && dz < 1e-12;
+    }
+
+    public fn toString(): string {
+        return "Quaternion(" + Double.toString(this.w) + ", " + Double.toString(this.x) + ", " + Double.toString(this.y) + ", " + Double.toString(this.z) + ")";
+    }
+}
+
+// ---- Factory functions ----
+
+// Identity quaternion (no rotation)
+public fn quatIdentity(): Quaternion {
+    return new Quaternion(1.0, 0.0, 0.0, 0.0);
+}
+
+// Quaternion from axis-angle representation
+public fn quatFromAxisAngle(axis: Vec3, angle: double): Quaternion {
+    let halfAngle: double = angle * 0.5;
+    let s: double = MathTrig.sin(halfAngle);
+    let n: Vec3 = axis.normalize();
+    return new Quaternion(
+        MathTrig.cos(halfAngle),
+        n.x * s,
+        n.y * s,
+        n.z * s
+    );
+}
+
+// Quaternion from Euler angles (pitch, yaw, roll) in radians
+public fn quatFromEuler(pitch: double, yaw: double, roll: double): Quaternion {
+    let halfPitch: double = pitch * 0.5;
+    let halfYaw: double = yaw * 0.5;
+    let halfRoll: double = roll * 0.5;
+
+    let cp: double = MathTrig.cos(halfPitch);
+    let sp: double = MathTrig.sin(halfPitch);
+    let cy: double = MathTrig.cos(halfYaw);
+    let sy: double = MathTrig.sin(halfYaw);
+    let cr: double = MathTrig.cos(halfRoll);
+    let sr: double = MathTrig.sin(halfRoll);
+
+    return new Quaternion(
+        cr * cp * cy + sr * sp * sy,
+        sr * cp * cy - cr * sp * sy,
+        cr * sp * cy + sr * cp * sy,
+        cr * cp * sy - sr * sp * cy
+    );
+}
+
+// Quaternion from a 4x4 rotation matrix
+public fn quatFromMat4(m: Mat4): Quaternion {
+    let trace: double = m.get(0, 0) + m.get(1, 1) + m.get(2, 2);
+
+    if (trace > 0.0) {
+        let s: double = MathAdvanced.sqrt(trace + 1.0) * 2.0;
+        return new Quaternion(
+            0.25 * s,
+            (m.get(2, 1) - m.get(1, 2)) / s,
+            (m.get(0, 2) - m.get(2, 0)) / s,
+            (m.get(1, 0) - m.get(0, 1)) / s
+        );
+    }
+
+    if (m.get(0, 0) > m.get(1, 1) && m.get(0, 0) > m.get(2, 2)) {
+        let s: double = MathAdvanced.sqrt(1.0 + m.get(0, 0) - m.get(1, 1) - m.get(2, 2)) * 2.0;
+        return new Quaternion(
+            (m.get(2, 1) - m.get(1, 2)) / s,
+            0.25 * s,
+            (m.get(0, 1) + m.get(1, 0)) / s,
+            (m.get(0, 2) + m.get(2, 0)) / s
+        );
+    }
+
+    if (m.get(1, 1) > m.get(2, 2)) {
+        let s: double = MathAdvanced.sqrt(1.0 + m.get(1, 1) - m.get(0, 0) - m.get(2, 2)) * 2.0;
+        return new Quaternion(
+            (m.get(0, 2) - m.get(2, 0)) / s,
+            (m.get(0, 1) + m.get(1, 0)) / s,
+            0.25 * s,
+            (m.get(1, 2) + m.get(2, 1)) / s
+        );
+    }
+
+    let s: double = MathAdvanced.sqrt(1.0 + m.get(2, 2) - m.get(0, 0) - m.get(1, 1)) * 2.0;
+    return new Quaternion(
+        (m.get(1, 0) - m.get(0, 1)) / s,
+        (m.get(0, 2) + m.get(2, 0)) / s,
+        (m.get(1, 2) + m.get(2, 1)) / s,
+        0.25 * s
+    );
+}
+
+// Shortest rotation that rotates vector 'from' onto vector 'to'
+public fn quatFromToRotation(from: Vec3, to: Vec3): Quaternion {
+    let f: Vec3 = from.normalize();
+    let t: Vec3 = to.normalize();
+    let d: double = f.dot(t);
+
+    // If vectors are nearly identical, return identity
+    if (d > 0.999999) {
+        return quatIdentity();
+    }
+
+    // If vectors are nearly opposite, pick a perpendicular axis
+    if (d < -0.999999) {
+        // Find an axis not aligned with 'from'
+        let axis: Vec3 = new Vec3(1.0, 0.0, 0.0);
+        if (Math.fabs(f.x) > 0.9) {
+            axis = new Vec3(0.0, 1.0, 0.0);
+        }
+        let cross: Vec3 = f.cross(axis).normalize();
+        return quatFromAxisAngle(cross, Math.PI());
+    }
+
+    let cross: Vec3 = f.cross(t);
+    let s: double = MathAdvanced.sqrt((1.0 + d) * 2.0);
+    let invS: double = 1.0 / s;
+    return new Quaternion(
+        s * 0.5,
+        cross.x * invS,
+        cross.y * invS,
+        cross.z * invS
+    ).normalize();
+}
+
+// Look rotation: creates a quaternion that rotates forward to the given direction
+public fn quatLookRotation(forward: Vec3, up: Vec3): Quaternion {
+    let f: Vec3 = forward.normalize();
+    let u: Vec3 = up.normalize();
+
+    let right: Vec3 = u.cross(f).normalize();
+    let correctedUp: Vec3 = f.cross(right);
+
+    // Build a 3x3 rotation matrix from the basis vectors, then convert to quaternion
+    let trace: double = right.x + correctedUp.y + f.z;
+
+    if (trace > 0.0) {
+        let s: double = MathAdvanced.sqrt(trace + 1.0) * 2.0;
+        return new Quaternion(
+            0.25 * s,
+            (correctedUp.z - f.y) / s,
+            (f.x - right.z) / s,
+            (right.y - correctedUp.x) / s
+        );
+    }
+
+    if (right.x > correctedUp.y && right.x > f.z) {
+        let s: double = MathAdvanced.sqrt(1.0 + right.x - correctedUp.y - f.z) * 2.0;
+        return new Quaternion(
+            (correctedUp.z - f.y) / s,
+            0.25 * s,
+            (right.y + correctedUp.x) / s,
+            (f.x + right.z) / s
+        );
+    }
+
+    if (correctedUp.y > f.z) {
+        let s: double = MathAdvanced.sqrt(1.0 + correctedUp.y - right.x - f.z) * 2.0;
+        return new Quaternion(
+            (f.x - right.z) / s,
+            (right.y + correctedUp.x) / s,
+            0.25 * s,
+            (correctedUp.z + f.y) / s
+        );
+    }
+
+    let s: double = MathAdvanced.sqrt(1.0 + f.z - right.x - correctedUp.y) * 2.0;
+    return new Quaternion(
+        (right.y - correctedUp.x) / s,
+        (f.x + right.z) / s,
+        (correctedUp.z + f.y) / s,
+        0.25 * s
+    );
+}
