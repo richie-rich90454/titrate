@@ -1,0 +1,111 @@
+// Edge case tests for Deque.tr
+// Tests boundary conditions, empty inputs, and error conditions.
+import tt::util::Deque;
+import tt::lang::Variant;
+import tt::lang::Integer;
+
+// Test empty deque operations: size, isEmpty, clear.
+public fn test_deque_edge_empty_operations(): void {
+    let d: Deque = new Deque();
+    if (d.size() != 0) {
+        io::println("FAIL: Deque empty size = " + Integer.toString(d.size()));
+    } else if (!d.isEmpty()) {
+        io::println("FAIL: Deque empty not isEmpty");
+    } else {
+        io::println("PASS: Deque empty size/isEmpty");
+    }
+    d.clear();
+    if (d.size() != 0 || !d.isEmpty()) {
+        io::println("FAIL: Deque clear on empty");
+    } else {
+        io::println("PASS: Deque clear on empty");
+    }
+}
+
+// Test popLeft/popRight on empty deque throws (error condition).
+public fn test_deque_edge_pop_empty_throws(): void {
+    let d: Deque = new Deque();
+    let caughtLeft: bool = false;
+    try {
+        d.popLeft();
+    } catch (e: string) {
+        caughtLeft = true;
+    }
+    let caughtRight: bool = false;
+    try {
+        d.popRight();
+    } catch (e: string) {
+        caughtRight = true;
+    }
+    if (!caughtLeft || !caughtRight) {
+        io::println("FAIL: Deque pop empty did not throw");
+    } else {
+        io::println("PASS: Deque pop on empty throws");
+    }
+}
+
+// Test single element add/remove from both ends.
+public fn test_deque_edge_single_element(): void {
+    let d: Deque = new Deque();
+    d.pushRight(1 as Variant);
+    if (d.size() != 1 || d.peekLeft() != 1 || d.peekRight() != 1) {
+        io::println("FAIL: Deque single element peek");
+    } else {
+        io::println("PASS: Deque single element left/right peek");
+    }
+    let v: Variant = d.popLeft();
+    if (v != 1 || !d.isEmpty()) {
+        io::println("FAIL: Deque single popLeft");
+    } else {
+        io::println("PASS: Deque single element popLeft");
+    }
+}
+
+// Test alternating push/pop from both ends preserves order.
+public fn test_deque_edge_alternating_push_pop(): void {
+    let d: Deque = new Deque();
+    d.pushLeft(2 as Variant);
+    d.pushRight(3 as Variant);
+    d.pushLeft(1 as Variant);
+    d.pushRight(4 as Variant);
+    // Expected order front-to-back: [1, 2, 3, 4]
+    let a: Variant = d.popLeft();
+    let b: Variant = d.popLeft();
+    let c: Variant = d.popLeft();
+    let dd: Variant = d.popLeft();
+    if (a != 1 || b != 2 || c != 3 || dd != 4) {
+        io::println("FAIL: Deque alternating push/pop order");
+    } else {
+        io::println("PASS: Deque alternating push/pop order");
+    }
+}
+
+// Test size tracking after mixed operations and clear.
+public fn test_deque_edge_size_tracking(): void {
+    let d: Deque = new Deque();
+    d.pushRight(1 as Variant);
+    d.pushRight(2 as Variant);
+    d.popLeft();
+    d.pushLeft(0 as Variant);
+    d.popRight();
+    if (d.size() != 1) {
+        io::println("FAIL: Deque size tracking = " + Integer.toString(d.size()));
+    } else {
+        io::println("PASS: Deque size tracking after mixed ops");
+    }
+    d.clear();
+    if (d.size() != 0) {
+        io::println("FAIL: Deque size after clear = " + Integer.toString(d.size()));
+    } else {
+        io::println("PASS: Deque size after clear");
+    }
+}
+
+public fn run_all_deque_edge_tests(): void {
+    io::println("=== Deque.tr Edge Tests ===");
+    test_deque_edge_empty_operations();
+    test_deque_edge_pop_empty_throws();
+    test_deque_edge_single_element();
+    test_deque_edge_alternating_push_pop();
+    test_deque_edge_size_tracking();
+}
