@@ -1,0 +1,461 @@
+// SpatialIndex.tr — KD-Tree, nearest neighbor search, range query
+import tt::util::ArrayList;
+import tt::math::MathAdvanced;
+import tt::math::Math;
+
+public class PointKD {
+    public ArrayList<double> coords;
+
+    public fn init(dim: int) {
+        this.coords = new ArrayList<double>();
+        var i: int = 0;
+        while (i < dim) {
+            this.coords.add(0.0);
+            i = i + 1;
+        }
+    }
+
+    public fn distanceTo(other: PointKD): double {
+        var sum: double = 0.0;
+        var i: int = 0;
+        while (i < this.coords.size() && i < other.coords.size()) {
+            let d: double = this.coords.get(i) - other.coords.get(i);
+            sum = sum + d * d;
+            i = i + 1;
+        }
+        return MathAdvanced.sqrt(sum);
+    }
+}
+
+class _KDNode {
+    public PointKD point;
+    public int index;
+    public _KDNode left;
+    public _KDNode right;
+
+    public fn init(p: PointKD, idx: int) {
+        this.point = p;
+        this.index = idx;
+        this.left = null;
+        this.right = null;
+    }
+}
+
+public class KDTree {
+    public _KDNode root;
+    public int dimensions;
+
+    public fn init(dim: int) {
+        this.root = null;
+        this.dimensions = dim;
+    }
+
+    public fn insert(point: PointKD, index: int): void {
+        this.root = _insertRec(this.root, point, index, 0);
+    }
+
+    fn _insertRec(node: _KDNode, point: PointKD, index: int, depth: int): _KDNode {
+        if (node == null) { return new _KDNode(point, index); }
+        let axis: int = depth % this.dimensions;
+        if (point.coords.get(axis) < node.point.coords.get(axis)) {
+            node.left = _insertRec(node.left, point, index, depth + 1);
+        } else {
+            node.right = _insertRec(node.right, point, index, depth + 1);
+        }
+        return node;
+    }
+
+    public fn nearestNeighbor(query: PointKD): int {
+        let result: ArrayList<int> = new ArrayList<int>();
+        result.add(-1);
+        let bestDist: ArrayList<double> = new ArrayList<double>();
+        bestDist.add(1e30);
+        _nnSearch(this.root, query, 0, result, bestDist);
+        return result.get(0);
+    }
+
+    fn _nnSearch(node: _KDNode, query: PointKD, depth: int, best: ArrayList<int>, bestDist: ArrayList<double>): void {
+        if (node == null) { return; }
+        let dist: double = query.distanceTo(node.point);
+        if (dist < bestDist.get(0)) {
+            bestDist.set(0, dist);
+            best.set(0, node.index);
+        }
+        let axis: int = depth % this.dimensions;
+        let diff: double = query.coords.get(axis) - node.point.coords.get(axis);
+        let near: _KDNode = node.left;
+        let far: _KDNode = node.right;
+        if (diff >= 0.0) {
+            near = node.right;
+            far = node.left;
+        }
+        _nnSearch(near, query, depth + 1, best, bestDist);
+        if (Math.abs(diff) < bestDist.get(0)) {
+            _nnSearch(far, query, depth + 1, best, bestDist);
+        }
+    }
+
+    // Axis-aligned range query: find all points within [min, max] bounding box
+    public fn rangeQuery(min: ArrayList<double>, max: ArrayList<double>): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        _rangeQueryRec(this.root, min, max, 0, result);
+        return result;
+    }
+
+    fn _rangeQueryRec(node: _KDNode, min: ArrayList<double>, max: ArrayList<double>, depth: int, result: ArrayList<int>): void {
+        if (node == null) { return; }
+        // Check if point is within bounding box
+        var inside: bool = true;
+        var i: int = 0;
+        while (i < this.dimensions && i < node.point.coords.size() && i < min.size() && i < max.size()) {
+            if (node.point.coords.get(i) < min.get(i) || node.point.coords.get(i) > max.get(i)) {
+                inside = false;
+                break;
+            }
+            i = i + 1;
+        }
+        if (inside) {
+            result.add(node.index);
+        }
+        let axis: int = depth % this.dimensions;
+        if (axis < min.size() && axis < max.size()) {
+            if (node.point.coords.get(axis) >= min.get(axis)) {
+                _rangeQueryRec(node.left, min, max, depth + 1, result);
+            }
+            if (node.point.coords.get(axis) <= max.get(axis)) {
+                _rangeQueryRec(node.right, min, max, depth + 1, result);
+            }
+        }
+    }
+
+    public fn rangeSearch(query: PointKD, radius: double): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        _rangeSearch(this.root, query, radius, 0, result);
+        return result;
+    }
+
+    fn _rangeSearch(node: _KDNode, query: PointKD, radius: double, depth: int, result: ArrayList<int>): void {
+        if (node == null) { return; }
+        let dist: double = query.distanceTo(node.point);
+        if (dist <= radius) {
+            result.add(node.index);
+        }
+        let axis: int = depth % this.dimensions;
+        let diff: double = query.coords.get(axis) - node.point.coords.get(axis);
+        if (diff <= radius) {
+            _rangeSearch(node.left, query, radius, depth + 1, result);
+        }
+        if (diff >= -radius) {
+            _rangeSearch(node.right, query, radius, depth + 1, result);
+        }
+    }
+}
+
+// Axis-aligned bounding box for 2D R-tree
+public class BoundingBox {
+    public double minX;
+    public double minY;
+    public double maxX;
+    public double maxY;
+
+    public fn init(minX: double, minY: double, maxX: double, maxY: double) {
+        this.minX = minX;
+        this.minY = minY;
+        this.maxX = maxX;
+        this.maxY = maxY;
+    }
+
+    public fn contains(x: double, y: double): bool {
+        return x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY;
+    }
+
+    public fn intersects(other: BoundingBox): bool {
+        return !(this.maxX < other.minX || this.minX > other.maxX || this.maxY < other.minY || this.minY > other.maxY);
+    }
+
+    public fn center(): PointKD {
+        let p: PointKD = new PointKD(2);
+        p.coords.set(0, (this.minX + this.maxX) / 2.0);
+        p.coords.set(1, (this.minY + this.maxY) / 2.0);
+        return p;
+    }
+}
+
+class _RTreeNode {
+    public BoundingBox box;
+    public int index;
+    public ArrayList<_RTreeNode> children;
+    public bool leaf;
+
+    public fn init() {
+        this.box = null;
+        this.index = -1;
+        this.children = new ArrayList<_RTreeNode>();
+        this.leaf = true;
+    }
+}
+
+// R-tree for spatial indexing of rectangles
+public class RTree {
+    public _RTreeNode root;
+    public int maxEntries;
+
+    public fn init(maxEntries: int) {
+        this.root = new _RTreeNode();
+        this.maxEntries = maxEntries;
+    }
+
+    public fn insert(box: BoundingBox, index: int): void {
+        _insertRec(this.root, box, index);
+    }
+
+    fn _insertRec(node: _RTreeNode, box: BoundingBox, index: int): void {
+        if (node.leaf) {
+            let child: _RTreeNode = new _RTreeNode();
+            child.box = box;
+            child.index = index;
+            child.leaf = true;
+            node.children.add(child);
+            return;
+        }
+        // Find best child to insert into (smallest expansion)
+        var bestIdx: int = 0;
+        var bestExpansion: double = 1e30;
+        var i: int = 0;
+        while (i < node.children.size()) {
+            let child: _RTreeNode = node.children.get(i);
+            let curArea: double = (child.box.maxX - child.box.minX) * (child.box.maxY - child.box.minY);
+            let newMinX: double = Math.min(child.box.minX, box.minX);
+            let newMinY: double = Math.min(child.box.minY, box.minY);
+            let newMaxX: double = Math.max(child.box.maxX, box.maxX);
+            let newMaxY: double = Math.max(child.box.maxY, box.maxY);
+            let newArea: double = (newMaxX - newMinX) * (newMaxY - newMinY);
+            let expansion: double = newArea - curArea;
+            if (expansion < bestExpansion) {
+                bestExpansion = expansion;
+                bestIdx = i;
+            }
+            i = i + 1;
+        }
+        _insertRec(node.children.get(bestIdx), box, index);
+    }
+
+    // Range query: find all indices whose bounding boxes intersect the query box
+    public fn search(query: BoundingBox): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        _searchRec(this.root, query, result);
+        return result;
+    }
+
+    fn _searchRec(node: _RTreeNode, query: BoundingBox, result: ArrayList<int>): void {
+        if (node == null) { return; }
+        var i: int = 0;
+        while (i < node.children.size()) {
+            let child: _RTreeNode = node.children.get(i);
+            if (child.box.intersects(query)) {
+                if (child.leaf && child.index >= 0) {
+                    result.add(child.index);
+                } else {
+                    _searchRec(child, query, result);
+                }
+            }
+            i = i + 1;
+        }
+    }
+
+    // Nearest neighbor query (brute-force traversal)
+    public fn nearest(query: PointKD): int {
+        let result: ArrayList<int> = new ArrayList<int>();
+        result.add(-1);
+        let bestDist: ArrayList<double> = new ArrayList<double>();
+        bestDist.add(1e30);
+        _nearestRec(this.root, query, result, bestDist);
+        return result.get(0);
+    }
+
+    fn _nearestRec(node: _RTreeNode, query: PointKD, result: ArrayList<int>, bestDist: ArrayList<double>): void {
+        if (node == null) { return; }
+        var i: int = 0;
+        while (i < node.children.size()) {
+            let child: _RTreeNode = node.children.get(i);
+            if (child.leaf && child.index >= 0) {
+                let center: PointKD = child.box.center();
+                let dx: double = center.coords.get(0) - query.coords.get(0);
+                let dy: double = center.coords.get(1) - query.coords.get(1);
+                let dist: double = MathAdvanced.sqrt(dx * dx + dy * dy);
+                if (dist < bestDist.get(0)) {
+                    bestDist.set(0, dist);
+                    result.set(0, child.index);
+                }
+            } else {
+                _nearestRec(child, query, result, bestDist);
+            }
+            i = i + 1;
+        }
+    }
+}
+
+// 3D bounding box for BVH
+public class BoundingBox3D {
+    public double minX;
+    public double minY;
+    public double minZ;
+    public double maxX;
+    public double maxY;
+    public double maxZ;
+
+    public fn init(minX: double, minY: double, minZ: double, maxX: double, maxY: double, maxZ: double) {
+        this.minX = minX;
+        this.minY = minY;
+        this.minZ = minZ;
+        this.maxX = maxX;
+        this.maxY = maxY;
+        this.maxZ = maxZ;
+    }
+
+    public fn contains(x: double, y: double, z: double): bool {
+        return x >= this.minX && x <= this.maxX && y >= this.minY && y <= this.maxY && z >= this.minZ && z <= this.maxZ;
+    }
+
+    public fn intersects(other: BoundingBox3D): bool {
+        return !(this.maxX < other.minX || this.minX > other.maxX || this.maxY < other.minY || this.minY > other.maxY || this.maxZ < other.minZ || this.minZ > other.maxZ);
+    }
+
+    public fn center(): PointKD {
+        let p: PointKD = new PointKD(3);
+        p.coords.set(0, (this.minX + this.maxX) / 2.0);
+        p.coords.set(1, (this.minY + this.maxY) / 2.0);
+        p.coords.set(2, (this.minZ + this.maxZ) / 2.0);
+        return p;
+    }
+}
+
+class _BVHNode {
+    public BoundingBox3D box;
+    public int index;
+    public _BVHNode left;
+    public _BVHNode right;
+
+    public fn init() {
+        this.box = null;
+        this.index = -1;
+        this.left = null;
+        this.right = null;
+    }
+}
+
+// BVH — Bounding Volume Hierarchy for 3D objects
+public class BVH {
+    public _BVHNode root;
+
+    public fn init() {
+        this.root = null;
+    }
+
+    public fn insert(box: BoundingBox3D, index: int): void {
+        this.root = _insertRec(this.root, box, index);
+    }
+
+    fn _insertRec(node: _BVHNode, box: BoundingBox3D, index: int): _BVHNode {
+        if (node == null) {
+            let leaf: _BVHNode = new _BVHNode();
+            leaf.box = box;
+            leaf.index = index;
+            return leaf;
+        }
+        if (node.index >= 0) {
+            // Convert leaf to internal node
+            let oldLeaf: _BVHNode = new _BVHNode();
+            oldLeaf.box = node.box;
+            oldLeaf.index = node.index;
+            let newLeaf: _BVHNode = new _BVHNode();
+            newLeaf.box = box;
+            newLeaf.index = index;
+            node.index = -1;
+            node.left = oldLeaf;
+            node.right = newLeaf;
+            node.box = _mergeBox(oldLeaf.box, newLeaf.box);
+            return node;
+        }
+        // Internal node: choose child with smaller resulting surface area
+        let leftBox: BoundingBox3D = _mergeBox(node.left.box, box);
+        let rightBox: BoundingBox3D = _mergeBox(node.right.box, box);
+        let leftArea: double = _surfaceArea(leftBox);
+        let rightArea: double = _surfaceArea(rightBox);
+        if (leftArea <= rightArea) {
+            node.left = _insertRec(node.left, box, index);
+        } else {
+            node.right = _insertRec(node.right, box, index);
+        }
+        node.box = _mergeBox(node.left.box, node.right.box);
+        return node;
+    }
+
+    fn _mergeBox(a: BoundingBox3D, b: BoundingBox3D): BoundingBox3D {
+        return new BoundingBox3D(
+            Math.min(a.minX, b.minX),
+            Math.min(a.minY, b.minY),
+            Math.min(a.minZ, b.minZ),
+            Math.max(a.maxX, b.maxX),
+            Math.max(a.maxY, b.maxY),
+            Math.max(a.maxZ, b.maxZ)
+        );
+    }
+
+    fn _surfaceArea(box: BoundingBox3D): double {
+        let dx: double = box.maxX - box.minX;
+        let dy: double = box.maxY - box.minY;
+        let dz: double = box.maxZ - box.minZ;
+        return 2.0 * (dx * dy + dy * dz + dz * dx);
+    }
+
+    // Range query: find all indices whose bounding boxes intersect the query box
+    public fn search(query: BoundingBox3D): ArrayList<int> {
+        let result: ArrayList<int> = new ArrayList<int>();
+        _searchRec(this.root, query, result);
+        return result;
+    }
+
+    fn _searchRec(node: _BVHNode, query: BoundingBox3D, result: ArrayList<int>): void {
+        if (node == null) { return; }
+        if (!node.box.intersects(query)) { return; }
+        if (node.index >= 0) {
+            result.add(node.index);
+            return;
+        }
+        _searchRec(node.left, query, result);
+        _searchRec(node.right, query, result);
+    }
+
+    // Nearest neighbor query
+    public fn nearest(query: PointKD): int {
+        let result: ArrayList<int> = new ArrayList<int>();
+        result.add(-1);
+        let bestDist: ArrayList<double> = new ArrayList<double>();
+        bestDist.add(1e30);
+        _nearestRec(this.root, query, result, bestDist);
+        return result.get(0);
+    }
+
+    fn _nearestRec(node: _BVHNode, query: PointKD, result: ArrayList<int>, bestDist: ArrayList<double>): void {
+        if (node == null) { return; }
+        if (node.index >= 0) {
+            let center: PointKD = node.box.center();
+            var sum: double = 0.0;
+            var i: int = 0;
+            while (i < query.coords.size() && i < center.coords.size()) {
+                let d: double = center.coords.get(i) - query.coords.get(i);
+                sum = sum + d * d;
+                i = i + 1;
+            }
+            let dist: double = MathAdvanced.sqrt(sum);
+            if (dist < bestDist.get(0)) {
+                bestDist.set(0, dist);
+                result.set(0, node.index);
+            }
+            return;
+        }
+        _nearestRec(node.left, query, result, bestDist);
+        _nearestRec(node.right, query, result, bestDist);
+    }
+}
