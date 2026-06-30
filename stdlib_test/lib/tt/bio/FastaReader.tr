@@ -1,0 +1,108 @@
+// FastaReader.tr — FASTA format file reader
+import tt::util::ArrayList;
+import tt::io::File;
+import tt::lang::String;
+import tt::lang::Integer;
+
+public class FastaRecord {
+    public string header;
+    public string sequence;
+
+    public fn init(h: string, s: string) {
+        this.header = h;
+        this.sequence = s;
+    }
+
+    public fn id(): string {
+        let spaceIdx: int = String.indexOf(this.header, " ");
+        if (spaceIdx > 0) {
+            return String.substring(this.header, 0, spaceIdx);
+        }
+        return this.header;
+    }
+
+    public fn description(): string {
+        let spaceIdx: int = String.indexOf(this.header, " ");
+        if (spaceIdx > 0 && spaceIdx + 1 < String.length(this.header)) {
+            return String.substring(this.header, spaceIdx + 1, String.length(this.header));
+        }
+        return "";
+    }
+}
+
+public fn readFasta(path: string): ArrayList<FastaRecord> {
+    let records: ArrayList<FastaRecord> = new ArrayList<FastaRecord>();
+    let content: string = File_readText(path);
+    if (String.length(content) == 0) { return records; }
+
+    let lines: ArrayList<string> = String.split(content, "\n");
+    var currentHeader: string = "";
+    var currentSeq: string = "";
+    var inSequence: bool = false;
+    var i: int = 0;
+    while (i < lines.size()) {
+        let line: string = lines.get(i);
+        // Strip carriage return
+        let stripped: string = _stripCR(line);
+        if (String.length(stripped) == 0) {
+            i = i + 1;
+            continue;
+        }
+        if (String.charAt(stripped, 0) == ">" || String.charAt(stripped, 0) == ";") {
+            if (String.length(currentHeader) > 0) {
+                if (String.length(currentSeq) == 0) {
+                    records.add(new FastaRecord(currentHeader, ""));
+                } else {
+                    records.add(new FastaRecord(currentHeader, currentSeq));
+                }
+            }
+            let headerText: string = String.substring(stripped, 1, String.length(stripped));
+            if (String.length(headerText) == 0) {
+                currentHeader = "unknown_" + Integer.toString(i);
+            } else {
+                currentHeader = headerText;
+            }
+            currentSeq = "";
+            inSequence = true;
+        } else {
+            if (!inSequence) {
+                i = i + 1;
+                continue;
+            }
+            let cleaned: string = _validateSequence(stripped);
+            currentSeq = currentSeq + cleaned;
+        }
+        i = i + 1;
+    }
+    if (String.length(currentHeader) > 0) {
+        records.add(new FastaRecord(currentHeader, currentSeq));
+    }
+    return records;
+}
+
+fn _validateSequence(seq: string): string {
+    let result: string = "";
+    var i: int = 0;
+    while (i < String.length(seq)) {
+        let ch: string = String.charAt(seq, i);
+        if (_isValidSeqChar(ch)) {
+            result = result + ch;
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+fn _isValidSeqChar(ch: string): bool {
+    if (ch >= "A" && ch <= "Z") { return true; }
+    if (ch >= "a" && ch <= "z") { return true; }
+    if (ch == "-" || ch == "*" || ch == ".") { return true; }
+    return false;
+}
+
+fn _stripCR(s: string): string {
+    if (String.length(s) > 0 && String.charAt(s, String.length(s) - 1) == "\r") {
+        return String.substring(s, 0, String.length(s) - 1);
+    }
+    return s;
+}
