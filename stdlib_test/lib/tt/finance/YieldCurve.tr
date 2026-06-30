@@ -1,0 +1,194 @@
+// Yield curve models: Nelson-Siegel, Svensson, cubic spline interpolation, bootstrap, forward rates.
+import tt::util::ArrayList;
+import tt::util::Pair;
+import tt::math::Math;
+import tt::math::MathAdvanced;
+
+// ==================== Nelson-Siegel Model ====================
+
+public fn nelsonSiegel(tau: double, beta0: double, beta1: double, beta2: double): double {
+    if (tau <= 0.0) {
+        return beta0 + beta1;
+    }
+    let tOverTau: double = tau;  // tau is the maturity parameter
+    let expTerm: double = MathAdvanced.exp(-tOverTau);
+    return beta0 + beta1 * expTerm + beta2 * ((1.0 - expTerm) / tOverTau - expTerm);
+}
+
+// ==================== Svensson Model ====================
+
+public fn svensson(tau1: double, tau2: double, beta0: double, beta1: double, beta2: double, beta3: double): double {
+    if (tau1 <= 0.0 || tau2 <= 0.0) {
+        return beta0 + beta1;
+    }
+    let expTerm1: double = MathAdvanced.exp(-tau1);
+    let expTerm2: double = MathAdvanced.exp(-tau2);
+    let term1: double = beta0 + beta1 * expTerm1;
+    let term2: double = beta2 * ((1.0 - expTerm1) / tau1 - expTerm1);
+    let term3: double = beta3 * ((1.0 - expTerm2) / tau2 - expTerm2);
+    return term1 + term2 + term3;
+}
+
+// ==================== Cubic Spline Interpolation ====================
+
+public fn cubicSplineInterpolate(yields: ArrayList<Pair<double, double>>, t: double): double {
+    let n: int = yields.size();
+    if (n == 0) {
+        return 0.0;
+    }
+    if (n == 1) {
+        return yields.get(0).second;
+    }
+
+    // Sort by maturity (selection sort)
+    let sorted: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    var i: int = 0;
+    while (i < n) {
+        sorted.add(yields.get(i));
+        i = i + 1;
+    }
+    var a: int = 0;
+    while (a < n - 1) {
+        var minIdx: int = a;
+        var b: int = a + 1;
+        while (b < n) {
+            if (sorted.get(b).first < sorted.get(minIdx).first) {
+                minIdx = b;
+            }
+            b = b + 1;
+        }
+        if (minIdx != a) {
+            let tmp: Pair<double, double> = sorted.get(a);
+            sorted.set(a, sorted.get(minIdx));
+            sorted.set(minIdx, tmp);
+        }
+        a = a + 1;
+    }
+
+    // Extrapolate if out of range
+    if (t <= sorted.get(0).first) {
+        return sorted.get(0).second;
+    }
+    if (t >= sorted.get(n - 1).first) {
+        return sorted.get(n - 1).second;
+    }
+
+    // Find the interval
+    var idx: int = 0;
+    while (idx < n - 1) {
+        if (t >= sorted.get(idx).first && t <= sorted.get(idx + 1).first) {
+            break;
+        }
+        idx = idx + 1;
+    }
+
+    // Simple cubic Hermite interpolation between adjacent points
+    let x0: double = sorted.get(idx).first;
+    let x1: double = sorted.get(idx + 1).first;
+    let y0: double = sorted.get(idx).second;
+    let y1: double = sorted.get(idx + 1).second;
+    let h: double = x1 - x0;
+    if (h == 0.0) {
+        return y0;
+    }
+
+    // Estimate slopes using finite differences
+    let m0: double = idx > 0 ? (sorted.get(idx + 1).second - sorted.get(idx - 1).second) / (sorted.get(idx + 1).first - sorted.get(idx - 1).first) : (y1 - y0) / h;
+    let m1: double = idx < n - 2 ? (sorted.get(idx + 2).second - sorted.get(idx).second) / (sorted.get(idx + 2).first - sorted.get(idx).first) : (y1 - y0) / h;
+
+    // Hermite basis functions
+    let s: double = (t - x0) / h;
+    let s2: double = s * s;
+    let s3: double = s2 * s;
+    let h00: double = 2.0 * s3 - 3.0 * s2 + 1.0;
+    let h10: double = s3 - 2.0 * s2 + s;
+    let h01: double = -2.0 * s3 + 3.0 * s2;
+    let h11: double = s3 - s2;
+
+    return h00 * y0 + h10 * h * m0 + h01 * y1 + h11 * h * m1;
+}
+
+// ==================== Bootstrap Zero-Coupon Yield Curve ====================
+
+public fn bootstrapYieldCurve(bonds: ArrayList<Pair<double, double>>): ArrayList<Pair<double, double>> {
+    let n: int = bonds.size();
+    let result: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    if (n == 0) {
+        return result;
+    }
+
+    // Sort bonds by maturity
+    let sorted: ArrayList<Pair<double, double>> = new ArrayList<Pair<double, double>>();
+    var i: int = 0;
+    while (i < n) {
+        sorted.add(bonds.get(i));
+        i = i + 1;
+    }
+    var a: int = 0;
+    while (a < n - 1) {
+        var minIdx: int = a;
+        var b: int = a + 1;
+        while (b < n) {
+            if (sorted.get(b).first < sorted.get(minIdx).first) {
+                minIdx = b;
+            }
+            b = b + 1;
+        }
+        if (minIdx != a) {
+            let tmp: Pair<double, double> = sorted.get(a);
+            sorted.set(a, sorted.get(minIdx));
+            sorted.set(minIdx, tmp);
+        }
+        a = a + 1;
+    }
+
+    // Bootstrap: for each bond, extract the zero-coupon rate
+    // bonds[i] = (maturity, yield_to_maturity) for par bonds
+    // For a par bond: 1 = c * sum(df_j) + df_n, where c = ytm (par yield)
+    // df_n = (1 - ytm * sum(df_j for j < n)) / (1 + ytm)
+    let discountFactors: ArrayList<double> = new ArrayList<double>();
+    var j: int = 0;
+    while (j < n) {
+        let maturity: double = sorted.get(j).first;
+        let ytm: double = sorted.get(j).second;
+
+        // Sum of known discount factors
+        var sumDF: double = 0.0;
+        var k: int = 0;
+        while (k < j) {
+            sumDF = sumDF + discountFactors.get(k);
+            k = k + 1;
+        }
+
+        // Compute discount factor for this maturity
+        let df: double = (1.0 - ytm * sumDF) / (1.0 + ytm);
+        discountFactors.add(df);
+
+        // Convert discount factor to zero-coupon rate (continuously compounded)
+        if (maturity > 0.0 && df > 0.0) {
+            let zcRate: double = -MathAdvanced.ln(df) / maturity;
+            result.add(new Pair<double, double>(maturity, zcRate));
+        } else {
+            result.add(new Pair<double, double>(maturity, ytm));
+        }
+        j = j + 1;
+    }
+    return result;
+}
+
+// ==================== Forward Rate from Spot Rates ====================
+
+public fn forwardRate(spot1: double, spot2: double, t1: double, t2: double): double {
+    if (t2 <= t1 || t1 <= 0.0) {
+        return 0.0;
+    }
+    // Forward rate from continuously compounded spot rates
+    // f = (spot2 * t2 - spot1 * t1) / (t2 - t1)
+    return (spot2 * t2 - spot1 * t1) / (t2 - t1);
+}
+
+// ==================== Discount Factor ====================
+
+public fn discountFactor(rate: double, t: double): double {
+    return MathAdvanced.exp(-rate * t);
+}
