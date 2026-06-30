@@ -1,0 +1,19 @@
+// Asynchronous task execution.
+import tt::concurrent::Future;
+import tt::concurrent::ThreadPoolExecutor;
+
+// Global thread pool for async tasks.
+var _pool: ThreadPoolExecutor = null;
+
+fn _ensurePool(): ThreadPoolExecutor {
+    if (_pool == null) {
+        _pool = new ThreadPoolExecutor(4);
+    }
+    return _pool;
+}
+
+// Submit an asynchronous task to the global thread pool and return a Future.
+public fn async<T>(task: fn(): T): Future<T> {
+    let pool: ThreadPoolExecutor = _ensurePool();
+    return pool.submitCallable(task);
+}
