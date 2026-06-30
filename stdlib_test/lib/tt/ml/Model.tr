@@ -1,0 +1,188 @@
+// Model.tr — Sequential model with forward/backward pass and training loop
+import tt::util::ArrayList;
+import tt::ml::Layer;
+import tt::ml::Loss;
+import tt::ml::Optimizer;
+
+public class SequentialModel {
+    public ArrayList<DenseLayer> layers;
+    public ArrayList<DropoutLayer> dropoutLayers;
+    public ArrayList<ArrayList<double>> activations;
+
+    public fn init() {
+        this.layers = new ArrayList<DenseLayer>();
+        this.dropoutLayers = new ArrayList<DropoutLayer>();
+        this.activations = new ArrayList<ArrayList<double>>();
+    }
+
+    public fn add(layer: DenseLayer): void {
+        this.layers.add(layer);
+    }
+
+    public fn addDropout(rate: double): void {
+        this.dropoutLayers.add(new DropoutLayer(rate));
+    }
+
+    public fn forward(input: ArrayList<double>): ArrayList<double> {
+        this.activations = new ArrayList<ArrayList<double>>();
+        let current: ArrayList<double> = input;
+        this.activations.add(current);
+        var i: int = 0;
+        while (i < this.layers.size()) {
+            let output: ArrayList<double> = this.layers.get(i).forward(current);
+            this.activations.add(output);
+            // Apply dropout if present
+            if (i < this.dropoutLayers.size()) {
+                let dropped: ArrayList<double> = this.dropoutLayers.get(i).forward(output);
+                current = dropped;
+            } else {
+                current = output;
+            }
+            i = i + 1;
+        }
+        return current;
+    }
+
+    public fn predict(input: ArrayList<double>): ArrayList<double> {
+        // Set all dropout layers to eval mode
+        var i: int = 0;
+        while (i < this.dropoutLayers.size()) {
+            this.dropoutLayers.get(i).training = false;
+            i = i + 1;
+        }
+        let result: ArrayList<double> = this.forward(input);
+        // Reset to training mode
+        i = 0;
+        while (i < this.dropoutLayers.size()) {
+            this.dropoutLayers.get(i).training = true;
+            i = i + 1;
+        }
+        return result;
+    }
+
+    public fn train(input: ArrayList<double>, target: ArrayList<double>, optimizer: SGDOptimizer): double {
+        let output: ArrayList<double> = this.forward(input);
+        let loss: double = mseLoss(output, target);
+        let grad: ArrayList<double> = mseGradient(output, target);
+        // Backpropagation through layers (simplified)
+        var i: int = this.layers.size() - 1;
+        while (i >= 0) {
+            let layer: DenseLayer = this.layers.get(i);
+            let prevActivation: ArrayList<double> = this.activations.get(i);
+            var j: int = 0;
+            while (j < layer.outputSize) {
+                var k: int = 0;
+                while (k < layer.inputSize) {
+                    layer.weightGrads.get(j).set(k, grad.get(j) * prevActivation.get(k));
+                    k = k + 1;
+                }
+                layer.biasGrads.set(j, grad.get(j));
+                j = j + 1;
+            }
+            // Compute gradient for previous layer
+            let newGrad: ArrayList<double> = new ArrayList<double>();
+            k = 0;
+            while (k < layer.inputSize) {
+                var sum: double = 0.0;
+                j = 0;
+                while (j < layer.outputSize) {
+                    sum = sum + grad.get(j) * layer.weights.get(j).get(k);
+                    j = j + 1;
+                }
+                newGrad.add(sum);
+                k = k + 1;
+            }
+            grad = newGrad;
+            i = i - 1;
+        }
+        // Update weights
+        i = 0;
+        while (i < this.layers.size()) {
+            optimizer.step(this.layers.get(i).weights, this.layers.get(i).weightGrads);
+            i = i + 1;
+        }
+        return loss;
+    }
+
+    public fn evaluate(data: ArrayList<Tensor>, labels: ArrayList<Tensor>): double {
+        var correct: int = 0;
+        var total: int = 0;
+        var i: int = 0;
+        while (i < data.size()) {
+            let input: ArrayList<double> = new ArrayList<double>();
+            var j: int = 0;
+            while (j < data.get(i).data.size()) {
+                input.add(data.get(i).data.get(j));
+                j = j + 1;
+            }
+            let output: ArrayList<double> = this.predict(input);
+            let label: ArrayList<double> = new ArrayList<double>();
+            j = 0;
+            while (j < labels.get(i).data.size()) {
+                label.add(labels.get(i).data.get(j));
+                j = j + 1;
+            }
+            // Find predicted and actual max indices
+            var predIdx: int = 0;
+            var predMax: double = output.get(0);
+            var labelIdx: int = 0;
+            var labelMax: double = label.get(0);
+            j = 1;
+            while (j < output.size()) {
+                if (output.get(j) > predMax) { predMax = output.get(j); predIdx = j; }
+                j = j + 1;
+            }
+            j = 1;
+            while (j < label.size()) {
+                if (label.get(j) > labelMax) { labelMax = label.get(j); labelIdx = j; }
+                j = j + 1;
+            }
+            if (predIdx == labelIdx) { correct = correct + 1; }
+            total = total + 1;
+            i = i + 1;
+        }
+        if (total == 0) { return 0.0; }
+        return correct as double / total as double;
+    }
+
+    public fn trainAdam(input: ArrayList<double>, target: ArrayList<double>, optimizer: AdamOptimizer): double {
+        let output: ArrayList<double> = this.forward(input);
+        let loss: double = mseLoss(output, target);
+        let grad: ArrayList<double> = mseGradient(output, target);
+        var i: int = this.layers.size() - 1;
+        while (i >= 0) {
+            let layer: DenseLayer = this.layers.get(i);
+            let prevActivation: ArrayList<double> = this.activations.get(i);
+            var j: int = 0;
+            while (j < layer.outputSize) {
+                var k: int = 0;
+                while (k < layer.inputSize) {
+                    layer.weightGrads.get(j).set(k, grad.get(j) * prevActivation.get(k));
+                    k = k + 1;
+                }
+                layer.biasGrads.set(j, grad.get(j));
+                j = j + 1;
+            }
+            let newGrad: ArrayList<double> = new ArrayList<double>();
+            var k2: int = 0;
+            while (k2 < layer.inputSize) {
+                var sum: double = 0.0;
+                j = 0;
+                while (j < layer.outputSize) {
+                    sum = sum + grad.get(j) * layer.weights.get(j).get(k2);
+                    j = j + 1;
+                }
+                newGrad.add(sum);
+                k2 = k2 + 1;
+            }
+            grad = newGrad;
+            i = i - 1;
+        }
+        i = 0;
+        while (i < this.layers.size()) {
+            optimizer.step(this.layers.get(i).weights, this.layers.get(i).weightGrads);
+            i = i + 1;
+        }
+        return loss;
+    }
+}
