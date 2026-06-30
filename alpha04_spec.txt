@@ -1,0 +1,243 @@
+================================================================================
+          TITRATE ALPHA 0.4 – LLVM NATIVE BACKEND SPECIFICATION (v2.1)
+================================================================================
+
+This document incorporates the project state as of 2026‑06‑21 (1310 commits,
+439 .tr files, 108 .rs files, 353 native functions, 0 compiler warnings,
+all previously known stubs resolved).  It describes the integration of an
+LLVM‑based native code generator that makes no changes to the existing
+standard library and passes all 634 tests.  Additionally, it mandates a
+comprehensive standard library test-coverage expansion phase, bringing
+coverage to 100% and adding 300+ commits on top of the LLVM work.
+
+================================================================================
+1. CURRENT PROJECT STATE (FULLY DETAILED)
+================================================================================
+
+- Compiler front‑end (Rust): lexer, parser, AST, semantic analyzer (type
+  checking, ownership/borrow/region analysis).  Zero warnings.
+- Bytecode compiler & stack‑based VM: fully functional.
+- Standard library (lib/tt/): 419 .tr files covering the entire standard
+  library, plus a rich scientific stack (ndarray, linalg, chemistry,
+  physics, ML, finance, etc.).  All modules are written in Titrate and
+  use @native annotations to call native functions.
+- Native functions (trc/src/bytecode/vm/natives/): 353 unique functions
+  implemented across 27 Rust modules.  These use **real** Rust crates
+  for all previously‑stubbed functionality:
+    • SSL/TLS via `native-tls`
+    • SQLite via `rusqlite` (bundled)
+    • Mmap via `memmap2`
+    • Zlib/Gzip via `flate2`
+    • Zip archives via `zip`
+    • Threading (synchronous execution) – closures run inline
+    • Signal handling via `extern "C"` functions
+  All dependencies are already part of the workspace (Cargo.toml).
+- Tests: 634 tests passing (574 compiler/VM unit + 60 integration/mega).
+- Tools: pipette, assay, Vitepress documentation (151 .md pages).
+
+No native machine‑code generation exists yet.
+
+================================================================================
+2. ALPHA 0.4 GOAL
+================================================================================
+
+Add an LLVM‑based AOT backend that can compile any existing Titrate program
+(including the entire 419‑file standard library) to native executables,
+without modifying any .tr source files.  The backend must (do this with around 300 commits):
+
+- Accept the same typed AST as the bytecode compiler.
+- Generate native object files using LLVM 15 (via the `inkwell` crate).
+- Link against the existing Rust native functions (compiled into a static
+  library that exposes C‑ABI wrappers).
+- Pass all 634 tests when run with the native backend.
+- Achieve at least 3× speedup on the water simulation mega test compared
+  to the bytecode VM.
+
+**Additionally, Alpha 0.4 must deliver 100% test coverage for the entire
+standard library.**  This coverage expansion will be implemented on top
+of the LLVM backend, using the same tooling, and will result in at least
+300 additional commits.
+
+The bytecode VM and tree‑walking interpreter remain unchanged and functional.
+
+================================================================================
+3. LLVM BACKEND ARCHITECTURE
+================================================================================
+
+3.1 Integration Point
+- A new Rust module `trc/src/codegen/llvm/` will be created.
+- The compiler driver selects the backend via a command‑line flag
+  (`--native` or `--release`).  Default remains the bytecode VM.
+
+3.2 Type Mapping (Titrate → LLVM)
+| Titrate Type | LLVM Type |
+|--------------|-----------|
+| void         | void      |
+| bool         | i1        |
+| byte         | i8        |
+| short        | i16       |
+| int          | i32       |
+| long         | i64       |
+| vast         | i128      |
+| uvast        | u128      |
+| float        | f32       |
+| double       | f64       |
+| half         | half      |
+| quad         | fp128     |
+| char         | i32       |
+| string       | { i64, i8* }   (length + UTF‑8 pointer) |
+| size         | i64       |
+| Owned<T>     | T*        (heap pointer; drop flag managed) |
+| &T / &mut T  | T*        (bare pointer) |
+| array<T>     | { i64, T* }   (length + elements pointer) |
+| Class        | { vtable*, field0, field1, … } |
+| Interface    | { object*, vtable* }   (fat pointer) |
+| Enum         | { i32 tag, [max‑variant‑bytes] } |
+| Tuple        | anonymous LLVM struct |
+
+3.3 Ownership & Memory Management in LLVM IR
+- **Owned<T> drop flag**: For each local Owned<T>, an `i1` alloca is
+  created.  On move, the source drop flag is set to false.  At scope
+  exit, if the drop flag is true, the destructor (if any) and `free()`
+  are called.
+- **Borrows**: `&T` / `&mut T` are raw pointers with no drop logic.
+- **Regions**: Lowered to `alloca` + `lifetime.start`/`lifetime.end`.
+  Escape analysis already prevents pointers from leaving the region.
+- **`unsafe`**: Emits raw IR; `malloc`/`free` from libc.
+
+3.4 Virtual Dispatch
+- Vtable globals for each class; virtual calls load function pointer
+  from vtable via GEP.  Interfaces use fat pointers.
+
+3.5 String Interpolation
+- Already desugared by the parser into `Binary(Add)` chains.  The LLVM
+  backend uses a runtime function `titrate_string_concat` (provided by
+  the native support library).
+
+================================================================================
+4. BRIDGING THE @native CALLS – EXACT MECHANISM
+================================================================================
+
+Since **all** native functions now use real Rust crates and have no stubs,
+we can create a single static library `libtitrate_native.a` that wraps
+the existing `trc/src/bytecode/vm/natives/` functions with C ABI.
+
+4.1 Creating the Native Support Library
+   - Add a new crate `titrate_native` (or modify the VM’s `natives`
+     module) to expose `#[no_mangle] pub extern "C"` functions for every
+     native name used by the standard library (e.g. `titrate_File_readLine`,
+     `titrate_Math_sin`, …).
+   - The wrapper converts between C‑compatible types (pointers, integers)
+     and the internal `Value` types.  For most numeric/string operations,
+     the conversion is simple (e.g., a Titrate string is a length+pointer
+     struct, which can be passed as two C parameters).
+   - The crate is compiled to a static library and installed alongside
+     the compiler.
+
+4.2 LLVM Backend Calls
+   - The LLVM backend maintains a mapping table from @native names to
+     the corresponding C function signatures.  When an `@native("X")`
+     is encountered, the backend emits a direct call to `titrate_X`.
+   - The linker (invoked by `pipette build --native`) links against
+     `libtitrate_native.a` and all system libraries (libc, OpenSSL, etc.).
+
+4.3 Guaranteed Behavioural Equivalence
+   - The exact same Rust functions that run in the bytecode VM are
+     invoked from native code, ensuring identical results for all
+     standard library calls.
+
+================================================================================
+5. COMPILATION PIPELINE
+================================================================================
+
+The `trc` binary gains a `--native` flag.  When invoked:
+1. Lex, parse, analyze the source (identical to bytecode path).
+2. Run the LLVM backend to produce `.o` files.
+3. Call the system linker to produce the final executable, linking with:
+   - `libtitrate_native.a`
+   - The C runtime (`libc`, `libm`, etc.)
+   - Optional system libraries (e.g. `-lssl`, `-lcrypto`)
+
+`pipette build --native` automates the entire process, reading linker
+flags from `Titrate.toml`.
+
+================================================================================
+6. IMPLEMENTATION PHASES (14 WEEKS + 6 WEEKS FOR TEST COVERAGE)
+================================================================================
+
+Phase 0 – LLVM Hello World (1 week)
+- Add `inkwell` to dependencies; verify LLVM 15.
+- Implement minimal codegen for `public void main() { io::println("Hi"); }`.
+- Link with a hand‑written C stub for `puts`; produce a running binary.
+
+Phase 1 – Core Language Codegen (3 weeks)
+- Codegen for all primitive types, arithmetic, comparisons, variables,
+  assignment, control flow (`if`/`while`/`for`/`switch`), functions.
+- Ownership: drop flags, moves, borrows, regions.
+- Micro‑tests for each construct, comparing output against bytecode VM.
+
+Phase 2 – OOP, Enums, Pattern Matching (2 weeks)
+- Vtables, virtual dispatch, interface fat pointers.
+- Enum layout (tag + union) and `switch` pattern matching.
+- Test with existing class‑based programs (Shape/Circle) and enum examples.
+
+Phase 3 – Native Library Bridge & Standard Library Compilation (3 weeks)
+- Build the `titrate_native` crate with C‑ABI wrappers for **all** 353
+  native functions.
+- Implement the @native → LLVM call mapping.
+- Compile the full standard library natively; run the stdlib integration
+  tests (53 tests) and the mega tests.  Fix any incompatibilities.
+
+Phase 4 – Performance & Mega Tests (2 weeks)
+- Profile the water simulation; add SIMD metadata to array loops.
+- Verify the native version is ≥3× faster than bytecode.
+- Run all 634 tests with `--native` flag; ensure no regressions.
+
+Phase 5 – Documentation & Blog (3 weeks)
+- Write Vitepress tutorials (Why Native, Building Native Binaries,
+  Ownership on LLVM, Wrapping C Libraries, Native MD Simulation).
+- Publish 5 blog posts on the documentation site.
+
+Phase 6 – Standard Library Test Coverage Expansion (6 weeks)
+- **Goal:** Achieve 100% statement/line coverage for the entire standard
+  library (419 .tr files).  This is a major quality milestone that will
+  solidify confidence in the language and the LLVM backend.
+- **Methodology:**
+    * Use the existing `assay` test framework and `pipette test` to write
+      unit tests for every public function and method in `lib/tt/`.
+    * Target every module: from `lang/String.tr` and `util/ArrayList.tr`
+      to `math/ndarray/NDArrayMath.tr` and `chem/RHFMatrix.tr`.
+    * Write tests that exercise normal paths, edge cases, error conditions,
+      and interactions with native functions.  For modules that depend on
+      external data files (e.g., `DataFile.tr`), include test data in
+      `stdlib_test/` or in the module’s own test directory.
+    * Integrate coverage tooling (e.g., `kcov` or source‑based coverage
+      via `-Z instrument-coverage` for Rust) to measure progress.
+- **Commit cadence:** At least 300 commits are expected.  Each commit
+  adds or refines tests for a specific module or set of related functions.
+  Commit messages will follow the established human‑like style (e.g.,
+  "test: cover all branches in String.replace", "test: add edge cases
+  for ArrayList.sort with duplicates").
+- **Quality gates:**
+    * All new tests must pass with both the bytecode VM and the LLVM
+      native backend.
+    * Coverage must be verified to reach 100% (or as close as practically
+      possible, with documented exceptions for unreachable code).
+    * The existing 634 tests must continue to pass without regression.
+- **Deliverable:** A standard library that is fully tested, a coverage
+  report demonstrating 100% coverage, and at least 300 commits added
+  to the repository.
+
+================================================================================
+7. TESTING STRATEGY (UPDATED)
+================================================================================
+
+- For each LLVM feature, write a small Titrate program and a Rust
+  integration test that compiles it with the LLVM backend and runs it,
+  asserting the output matches the bytecode VM.
+- After Phase 3, run the full test suite with `cargo test -- --native`
+  (or equivalent).  The 634 tests must pass.
+- The water simulation mega test (`mega_test_03`) must execute natively
+  and produce identical output.
+- After Phase 6, the standard library test suite will be extensive enough
+  to catch regressions across all platforms and backends.
