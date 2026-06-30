@@ -1,0 +1,142 @@
+// Black-Scholes option pricing model: pricing, implied volatility, and Greeks.
+import tt::math::Math;
+import tt::math::MathAdvanced;
+import tt::math::MathTrig;
+
+// ==================== Private Helpers ====================
+
+fn normalCDF(x: double): double {
+    return 0.5 * (1.0 + Math.erf(x / MathAdvanced.sqrt(2.0)));
+}
+
+fn normalPDF(x: double): double {
+    return MathAdvanced.exp(-0.5 * x * x) / MathAdvanced.sqrt(2.0 * Math.PI());
+}
+
+fn d1(s: double, k: double, t: double, r: double, sigma: double): double {
+    return (MathAdvanced.ln(s / k) + (r + 0.5 * sigma * sigma) * t) / (sigma * MathAdvanced.sqrt(t));
+}
+
+fn d2(s: double, k: double, t: double, r: double, sigma: double): double {
+    return d1(s, k, t, r, sigma) - sigma * MathAdvanced.sqrt(t);
+}
+
+// ==================== Call Option Price ====================
+
+public fn callPrice(s: double, k: double, t: double, r: double, sigma: double): double {
+    if (t <= 0.0) {
+        return Math.max(s - k, 0.0);
+    }
+    let d1Val: double = d1(s, k, t, r, sigma);
+    let d2Val: double = d2(s, k, t, r, sigma);
+    return s * normalCDF(d1Val) - k * MathAdvanced.exp(-r * t) * normalCDF(d2Val);
+}
+
+// ==================== Put Option Price ====================
+
+public fn putPrice(s: double, k: double, t: double, r: double, sigma: double): double {
+    if (t <= 0.0) {
+        return Math.max(k - s, 0.0);
+    }
+    let d1Val: double = d1(s, k, t, r, sigma);
+    let d2Val: double = d2(s, k, t, r, sigma);
+    return k * MathAdvanced.exp(-r * t) * normalCDF(-d2Val) - s * normalCDF(-d1Val);
+}
+
+// ==================== Implied Volatility (Newton's Method) ====================
+
+public fn impliedVolatility(marketPrice: double, s: double, k: double, t: double, r: double, isCall: bool): double {
+    // Initial guess
+    var sigma: double = 0.3;
+    const MAX_ITER: int = 100;
+    const PRECISION: double = 1e-8;
+    var i: int = 0;
+    while (i < MAX_ITER) {
+        let modelPrice: double = isCall ? callPrice(s, k, t, r, sigma) : putPrice(s, k, t, r, sigma);
+        let diff: double = modelPrice - marketPrice;
+        if (Math.abs(diff) < PRECISION) {
+            return sigma;
+        }
+        let v: double = vega(s, k, t, r, sigma);
+        if (Math.abs(v) < 1e-12) {
+            return sigma;
+        }
+        sigma = sigma - diff / v;
+        if (sigma <= 0.0) {
+            sigma = 0.001;
+        }
+        i = i + 1;
+    }
+    return sigma;
+}
+
+// ==================== Delta ====================
+
+public fn delta(s: double, k: double, t: double, r: double, sigma: double, isCall: bool): double {
+    if (t <= 0.0) {
+        if (isCall) {
+            return s > k ? 1.0 : 0.0;
+        } else {
+            return s < k ? -1.0 : 0.0;
+        }
+    }
+    let d1Val: double = d1(s, k, t, r, sigma);
+    if (isCall) {
+        return normalCDF(d1Val);
+    } else {
+        return normalCDF(d1Val) - 1.0;
+    }
+}
+
+// ==================== Gamma ====================
+
+public fn gamma(s: double, k: double, t: double, r: double, sigma: double): double {
+    if (t <= 0.0) {
+        return 0.0;
+    }
+    let d1Val: double = d1(s, k, t, r, sigma);
+    return normalPDF(d1Val) / (s * sigma * MathAdvanced.sqrt(t));
+}
+
+// ==================== Theta ====================
+
+public fn theta(s: double, k: double, t: double, r: double, sigma: double, isCall: bool): double {
+    if (t <= 0.0) {
+        return 0.0;
+    }
+    let d1Val: double = d1(s, k, t, r, sigma);
+    let d2Val: double = d2(s, k, t, r, sigma);
+    let sqrtT: double = MathAdvanced.sqrt(t);
+    let term1: double = -(s * normalPDF(d1Val) * sigma) / (2.0 * sqrtT);
+    if (isCall) {
+        let term2: double = -r * k * MathAdvanced.exp(-r * t) * normalCDF(d2Val);
+        return (term1 + term2) / 365.0;
+    } else {
+        let term2: double = r * k * MathAdvanced.exp(-r * t) * normalCDF(-d2Val);
+        return (term1 - term2) / 365.0;
+    }
+}
+
+// ==================== Vega ====================
+
+public fn vega(s: double, k: double, t: double, r: double, sigma: double): double {
+    if (t <= 0.0) {
+        return 0.0;
+    }
+    let d1Val: double = d1(s, k, t, r, sigma);
+    return s * MathAdvanced.sqrt(t) * normalPDF(d1Val) / 100.0;
+}
+
+// ==================== Rho ====================
+
+public fn rho(s: double, k: double, t: double, r: double, sigma: double, isCall: bool): double {
+    if (t <= 0.0) {
+        return 0.0;
+    }
+    let d2Val: double = d2(s, k, t, r, sigma);
+    if (isCall) {
+        return k * t * MathAdvanced.exp(-r * t) * normalCDF(d2Val) / 100.0;
+    } else {
+        return -k * t * MathAdvanced.exp(-r * t) * normalCDF(-d2Val) / 100.0;
+    }
+}
