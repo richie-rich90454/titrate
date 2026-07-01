@@ -2,6 +2,7 @@
 // Exercises the public API for 3D triangles.
 import tt::math::geometry3d::Triangle;
 import tt::lang::Double;
+import tt::math::MathAdvanced;
 
 public fn test_triangle_creation(): void {
     let t: Triangle = new Triangle(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0);
@@ -27,7 +28,7 @@ public fn test_triangle_normal(): void {
         io::println("FAIL: normal size");
         return;
     }
-    let mag: double = Math.sqrt(n.get(0) * n.get(0) + n.get(1) * n.get(1) + n.get(2) * n.get(2));
+    let mag: double = MathAdvanced.sqrt(n.get(0) * n.get(0) + n.get(1) * n.get(1) + n.get(2) * n.get(2));
     if (Math.abs(mag - 1.0) > 1e-6) {
         io::println("FAIL: normal not unit length");
     } else {
