@@ -99,6 +99,32 @@ pub fn bench_compare_native(project_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Benchmark an arbitrary program both natively and via the bytecode VM.
+///
+/// Unlike [`bench_compare_native`], which only iterates `*_bench.tr` files
+/// in `src/`, this entry point accepts any `.tr` program path. It locates the
+/// enclosing Titrate project (for module resolution) and delegates to
+/// [`bench_native_vs_bytecode`] to reuse the existing timing logic.
+///
+/// Prints a comparison table with the bytecode time, native time, and the
+/// speedup ratio (bytecode / native).
+pub fn bench_native_vs_bytecode_path(path: &Path) -> Result<(), String> {
+    let project_dir = project::find_project().ok_or_else(|| {
+        "No Titrate.toml found in current or parent directories".to_string()
+    })?;
+
+    let rel = path
+        .strip_prefix(&project_dir)
+        .unwrap_or(path)
+        .display()
+        .to_string();
+    println!("=== Native vs Bytecode Benchmark ===");
+    println!("Program:        {}", rel);
+    println!();
+
+    bench_native_vs_bytecode(path, &project_dir)
+}
+
 /// Benchmark a single program both natively and via the bytecode VM.
 ///
 /// Compiles the program with `--native --release`, runs the resulting binary
