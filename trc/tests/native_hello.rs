@@ -163,3 +163,59 @@ public fn main(): void {
 
     let _ = std::fs::remove_file(&obj_path);
 }
+
+#[test]
+#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
+fn emit_ir_flag_writes_ll_file() {
+    let trc = trc_binary().expect(
+        "trc binary not found; run `cargo build -p trc` first",
+    );
+
+    let hello_src = workspace_root().join("examples").join("hello.tr");
+    assert!(
+        hello_src.is_file(),
+        "examples/hello.tr not found at {}",
+        hello_src.display()
+    );
+
+    // Invoke `trc --native --emit-ir examples/hello.tr`. This should produce
+    // both the native executable and the `.ll` IR file beside the source.
+    let compile_output = Command::new(&trc)
+        .arg("--native")
+        .arg("--emit-ir")
+        .arg(hello_src.to_str().unwrap())
+        .output()
+        .expect("failed to invoke trc");
+
+    assert!(
+        compile_output.status.success(),
+        "trc --native --emit-ir failed.\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&compile_output.stdout),
+        String::from_utf8_lossy(&compile_output.stderr),
+    );
+
+    // The `.ll` file is derived from the source stem: examples/hello.ll.
+    let ll_path = hello_src.with_file_name("hello.ll");
+    assert!(
+        ll_path.is_file(),
+        "LLVM IR file was not produced at {}",
+        ll_path.display()
+    );
+
+    let ir = std::fs::read_to_string(&ll_path)
+        .expect("failed to read the .ll file");
+    assert!(
+        ir.contains("define"),
+        "expected LLVM IR to contain 'define', got:\n{}",
+        ir
+    );
+
+    // Clean up the produced artifacts so the test is idempotent.
+    let _ = std::fs::remove_file(&ll_path);
+    let native_exe = if cfg!(windows) {
+        hello_src.with_file_name("hello_native.exe")
+    } else {
+        hello_src.with_file_name("hello_native")
+    };
+    let _ = std::fs::remove_file(&native_exe);
+}
