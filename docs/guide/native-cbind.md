@@ -163,7 +163,7 @@ titrate_native/
 The direct helpers are the functions the codegen calls directly
 (bypassing the generic bridge):
 
-- `titrate_println(len, ptr)` — write a string + newline to stdout.
+- `titrate_println(len, ptr)` — write a string + newline to process stdout via `io::stdout().write_all(...)` and `io::stdout().flush()`. There is no captured or buffered stdout; bytes are flushed to the process's real stdout handle immediately.
 - `titrate_string_concat(a_len, a_ptr, b_len, b_ptr, out_len)` —
   concatenate two strings into a fresh buffer.
 - `titrate_malloc(size)` — allocate `size` bytes, return `i8*`.
