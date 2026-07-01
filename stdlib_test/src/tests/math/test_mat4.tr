@@ -3,6 +3,7 @@ import tt::math::vec::Vec3;
 import tt::math::vec::Vec4;
 import tt::math::MathTrig;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 fn absDiff(a: double, b: double): double {
     let d: double = a - b;
@@ -212,7 +213,7 @@ fn test_transformDirection_normalized(): void {
     let v: Vec3 = new Vec3(1.0, 0.0, 0.0);
     let r: Vec3 = m.transformDirection(v);
     // Direction is normalized, so scaling should be undone
-    let len: double = Math.sqrt(r.x * r.x + r.y * r.y + r.z * r.z);
+    let len: double = MathAdvanced.sqrt(r.x * r.x + r.y * r.y + r.z * r.z);
     if (approxEq(len, 1.0, 1e-9)) {
         io::println("PASS test_transformDirection_normalized: result is unit length");
     } else {
