@@ -1,7 +1,0 @@
-public fn parse(s: string): uvast {
-    return Long_parseLong(s);
-}
-
-public fn toString(value: uvast): string {
-    return value.toString();
-}
