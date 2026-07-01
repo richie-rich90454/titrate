@@ -14,8 +14,6 @@ struct Args {
     native: bool,
     release: bool,
     /// Emit LLVM IR to a `.ll` file beside the source (`<stem>.ll`).
-    /// Wired up in a follow-up commit; parsed here so the flag is recognised.
-    #[allow(dead_code)]
     emit_ir: bool,
 }
 
@@ -110,6 +108,7 @@ fn run_native(
     typed_ast: &trc::ast::Program,
     source_path: &str,
     release: bool,
+    emit_ir: bool,
 ) -> Result<(), String> {
     use trc::codegen::llvm;
 
@@ -139,8 +138,17 @@ fn run_native(
     let obj_name = format!("{}_native.o", stem);
     let obj_path = dir.join(&obj_name);
 
-    // 1. Lower to LLVM IR and emit the object file.
-    llvm::compile(typed_ast, &obj_path, release)?;
+    // 1. Lower to LLVM IR and emit the object file. When --emit-ir is set,
+    //    the IR is also written to `<stem>.ll` here (before the linker runs).
+    let ir_path = dir.join(format!("{}.ll", stem));
+    if emit_ir {
+        // Single codegen pass: object file + IR. The IR is written before
+        // the linker is invoked, so a link failure still leaves the .ll file.
+        llvm::compile_with_ir(typed_ast, &obj_path, &ir_path, release)?;
+        println!("LLVM IR written to {}", ir_path.display());
+    } else {
+        llvm::compile(typed_ast, &obj_path, release)?;
+    }
 
     // 2. Locate the titrate_native static library.
     let native_lib_dir = find_native_lib_dir(release).ok_or_else(|| {
@@ -156,6 +164,31 @@ fn run_native(
     let _ = fs::remove_file(&obj_path);
 
     println!("Native binary written to {}", exe_path.display());
+    Ok(())
+}
+
+/// Emit LLVM IR only: lower the typed AST to LLVM IR and write it to a
+/// `<stem>.ll` file beside the source. No object file is produced and the
+/// linker is never invoked. This is the `--emit-ir` (without `--native`) path.
+fn run_emit_ir(
+    typed_ast: &trc::ast::Program,
+    source_path: &str,
+) -> Result<(), String> {
+    use trc::codegen::llvm;
+
+    let source = PathBuf::from(source_path);
+    let stem = source
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or("invalid source file name")?;
+    let dir = source
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let ir_path = dir.join(format!("{}.ll", stem));
+
+    llvm::compile_ir(typed_ast, &ir_path)?;
+    println!("LLVM IR written to {}", ir_path.display());
     Ok(())
 }
 
@@ -206,8 +239,17 @@ fn main() {
         }
     };
 
+    // --emit-ir without --native: write the .ll file and exit (no object, no linker).
+    if parsed.emit_ir && !parsed.native {
+        if let Err(e) = run_emit_ir(&typed_ast, &path) {
+            eprintln!("Native backend error: {}", e);
+            process::exit(1);
+        }
+        return;
+    }
+
     if parsed.native {
-        if let Err(e) = run_native(&typed_ast, &path, parsed.release) {
+        if let Err(e) = run_native(&typed_ast, &path, parsed.release, parsed.emit_ir) {
             eprintln!("Native backend error: {}", e);
             process::exit(1);
         }

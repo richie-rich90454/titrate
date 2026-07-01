@@ -3520,6 +3520,58 @@ pub fn compile_to_ir_text(program: &Program) -> Result<String, String> {
     backend.compile_program_to_ir_text(program)
 }
 
+/// Compile a typed Titrate program and write the LLVM IR to a `.ll` file.
+///
+/// This runs the same codegen pipeline as [`compile`] (including module
+/// verification) but writes the IR text to `ir_path` instead of an object
+/// file. Useful for inspecting the generated IR. The IR is written via
+/// inkwell's `Module::print_to_file`.
+///
+/// `program` is the typed AST produced by `analyzer::analyze`.
+pub fn compile_ir(program: &Program, ir_path: &Path) -> Result<(), String> {
+    let context = Context::create();
+    let mut backend = LlvmBackend::new(&context, "titrate_main");
+    // Run the full codegen pipeline (declare natives, compile all decls,
+    // find main, and verify the module). The returned IR string is not needed
+    // here; the IR is written via inkwell's `print_to_file` below.
+    backend.compile_program_to_ir_text(program)?;
+    backend
+        .module
+        .print_to_file(ir_path)
+        .map_err(|e| format!("failed to write LLVM IR to {}: {}", ir_path.display(), e))?;
+    Ok(())
+}
+
+/// Compile a typed Titrate program to a native object file AND write the
+/// LLVM IR to a `.ll` file in a single codegen pass.
+///
+/// Equivalent to calling [`compile`] (object file) and [`compile_ir`] (IR
+/// file) but only runs the codegen pipeline once: after the object file is
+/// written, the already-populated module is dumped to `ir_path` via inkwell's
+/// `Module::print_to_file`.
+///
+/// `program` is the typed AST produced by `analyzer::analyze`.
+/// `object_path` is where the `.o` / `.obj` file will be written.
+/// `ir_path` is where the `.ll` IR file will be written.
+/// If `release` is true, LLVM optimizations are enabled.
+pub fn compile_with_ir(
+    program: &Program,
+    object_path: &Path,
+    ir_path: &Path,
+    release: bool,
+) -> Result<(), String> {
+    let context = Context::create();
+    let mut backend = LlvmBackend::new(&context, "titrate_main");
+    // 1. Lower to LLVM IR, verify, and write the object file.
+    backend.compile_program(program, object_path, release)?;
+    // 2. The module is now fully populated; dump it to the .ll file.
+    backend
+        .module
+        .print_to_file(ir_path)
+        .map_err(|e| format!("failed to write LLVM IR to {}: {}", ir_path.display(), e))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
