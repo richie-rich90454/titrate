@@ -143,21 +143,35 @@ fn main() {
             }
         }
         "bench" => {
-            let project_dir = match pipette::project::find_project() {
-                Some(dir) => dir,
-                None => {
-                    eprintln!("Error: No Titrate.toml found in current or parent directories");
+            if args.len() > 2 && args[2] == "--native-vs-bytecode" {
+                if args.len() < 4 {
+                    eprintln!("Error: --native-vs-bytecode requires a path argument");
                     process::exit(1);
                 }
-            };
-            if args.len() > 2 && args[2] == "--compare-native" {
-                if let Err(e) = pipette::bench_compare_native(&project_dir) {
+                let path = std::path::PathBuf::from(&args[3]);
+                if let Err(e) = pipette::bench_native_vs_bytecode_path(&path) {
                     eprintln!("Benchmarks failed: {}", e);
                     process::exit(1);
                 }
-            } else if let Err(e) = pipette::bench(&project_dir) {
-                eprintln!("Benchmarks failed: {}", e);
-                process::exit(1);
+            } else {
+                let project_dir = match pipette::project::find_project() {
+                    Some(dir) => dir,
+                    None => {
+                        eprintln!(
+                            "Error: No Titrate.toml found in current or parent directories"
+                        );
+                        process::exit(1);
+                    }
+                };
+                if args.len() > 2 && args[2] == "--compare-native" {
+                    if let Err(e) = pipette::bench_compare_native(&project_dir) {
+                        eprintln!("Benchmarks failed: {}", e);
+                        process::exit(1);
+                    }
+                } else if let Err(e) = pipette::bench(&project_dir) {
+                    eprintln!("Benchmarks failed: {}", e);
+                    process::exit(1);
+                }
             }
         }
         "outdated" => {
@@ -239,7 +253,7 @@ fn print_usage() {
     eprintln!("  build          Compile the project [--release for optimized build]");
     eprintln!("  run            Build and run the project");
     eprintln!("  test           Run tests");
-    eprintln!("  bench          Run benchmark files [--compare-native for native vs bytecode]");
+    eprintln!("  bench          Run benchmark files [--compare-native | --native-vs-bytecode <path>]");
     eprintln!("  coverage       Run tests and collect coverage [--native for native builds]");
     eprintln!("  doc            Generate API documentation");
     eprintln!("  watch          Watch for changes and rebuild");
