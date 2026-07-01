@@ -6,6 +6,7 @@ import tt::lang::String;
 import tt::lang::Integer;
 import tt::lang::Double;
 import tt::math::Math;
+import tt::math::MathAdvanced;
 
 fn approxEq(a: double, b: double, tol: double): bool {
     let d: double = a - b;
@@ -160,7 +161,7 @@ public fn test_tfidfVectorizer_transform_normalized(): void {
         norm = norm + result.get(i) * result.get(i);
         i = i + 1;
     }
-    norm = Math.sqrt(norm);
+    norm = MathAdvanced.sqrt(norm);
     if (approxEq(norm, 1.0, 1e-6) || approxEq(norm, 0.0, 1e-9)) {
         io::println("PASS: TfidfVectorizer transform normalized works");
     } else {
