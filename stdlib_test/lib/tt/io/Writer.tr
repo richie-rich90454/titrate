@@ -1,7 +1,0 @@
-// Writer interface for writing text streams.
-interface Writer {
-    fn write(text: string): void;
-    fn writeLine(text: string): void;
-    fn flush(): void;
-    fn close(): void;
-}
