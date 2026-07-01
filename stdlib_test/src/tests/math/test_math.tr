@@ -2,6 +2,7 @@
 // Exercises the public API of the Math module: constants, utilities,
 // number-theoretic helpers, classification, and interpolation functions.
 import tt::math::Math;
+import tt::math::MathAdvanced;
 import tt::util::ArrayList;
 import tt::util::Pair;
 import tt::lang::Integer;
@@ -275,7 +276,7 @@ public fn test_math_lerp_midpoint_hypot(): void {
     } else {
         io::println("PASS: Math.midpoint(0,10) = 5.0");
     }
-    if (Math.hypot(3.0, 4.0) != 5.0) {
+    if (MathAdvanced.hypot(3.0, 4.0) != 5.0) {
         io::println("FAIL: Math.hypot(3,4)");
     } else {
         io::println("PASS: Math.hypot(3,4) = 5.0");
