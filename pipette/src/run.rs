@@ -58,3 +58,37 @@ pub fn run(project_dir: &Path, native: bool) -> Result<(), String> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_run_flags_detects_native() {
+        let args = vec!["--native".to_string()];
+        assert!(parse_run_flags(&args));
+    }
+
+    #[test]
+    fn parse_run_flags_empty() {
+        let args: Vec<String> = vec![];
+        assert!(!parse_run_flags(&args));
+    }
+
+    #[test]
+    fn parse_run_flags_release_is_not_native() {
+        // --release is accepted by `run` but does not request native execution.
+        let args = vec!["--release".to_string()];
+        assert!(!parse_run_flags(&args));
+    }
+
+    #[test]
+    fn parse_run_flags_native_among_other_args() {
+        let args = vec![
+            "--foo".to_string(),
+            "--native".to_string(),
+            "bar".to_string(),
+        ];
+        assert!(parse_run_flags(&args));
+    }
+}

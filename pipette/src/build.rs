@@ -203,3 +203,59 @@ fn find_in_path() -> Option<PathBuf> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_build_flags_detects_native() {
+        let args = vec!["--native".to_string()];
+        let (native, release) = parse_build_flags(&args);
+        assert!(native);
+        assert!(!release);
+    }
+
+    #[test]
+    fn parse_build_flags_detects_release() {
+        let args = vec!["--release".to_string()];
+        let (native, release) = parse_build_flags(&args);
+        assert!(!native);
+        assert!(release);
+    }
+
+    #[test]
+    fn parse_build_flags_detects_both() {
+        let args = vec!["--release".to_string(), "--native".to_string()];
+        let (native, release) = parse_build_flags(&args);
+        assert!(native);
+        assert!(release);
+    }
+
+    #[test]
+    fn parse_build_flags_empty() {
+        let args: Vec<String> = vec![];
+        let (native, release) = parse_build_flags(&args);
+        assert!(!native);
+        assert!(!release);
+    }
+
+    #[test]
+    fn parse_build_flags_ignores_unknown_flags() {
+        let args = vec!["--verbose".to_string(), "positional".to_string()];
+        let (native, release) = parse_build_flags(&args);
+        assert!(!native);
+        assert!(!release);
+    }
+
+    #[test]
+    fn parse_build_flags_native_anywhere_in_args() {
+        let args = vec![
+            "--release".to_string(),
+            "positional".to_string(),
+            "--native".to_string(),
+        ];
+        let (native, _) = parse_build_flags(&args);
+        assert!(native);
+    }
+}
