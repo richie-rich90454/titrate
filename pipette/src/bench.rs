@@ -291,3 +291,126 @@ fn run_bench_file(bench_file: &Path, project_dir: &Path) -> Result<(), String> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
+    use super::bench_native_vs_bytecode_path;
+
+    /// Minimal Titrate program: a tight loop that sums squares, mirroring the
+    /// `SUM_SQUARES_SOURCE` used in `trc/tests/native_bench.rs`. It has no
+    /// imports, so it compiles even when the project has no `lib/`.
+    const BENCH_PATH_TEST_SOURCE: &str = r#"
+public fn sumSquares(n: int): int {
+    var sum: int = 0;
+    var i: int = 0;
+    while (i < n) {
+        sum = sum + i * i;
+        i = i + 1;
+    }
+    return sum;
+}
+
+public fn main(): void {
+    let result: int = sumSquares(1000);
+    io::println(result);
+}
+"#;
+
+    /// RAII guard that restores the process working directory on drop, so the
+    /// test never leaks a cwd change even if it panics.
+    struct CwdGuard {
+        prev: PathBuf,
+    }
+
+    impl CwdGuard {
+        fn enter(new: &Path) -> Self {
+            let prev =
+                env::current_dir().expect("could not read current working directory");
+            env::set_current_dir(new)
+                .unwrap_or_else(|e| panic!("failed to change to {}: {}", new.display(), e));
+            CwdGuard { prev }
+        }
+    }
+
+    impl Drop for CwdGuard {
+        fn drop(&mut self) {
+            let _ = env::set_current_dir(&self.prev);
+        }
+    }
+
+    /// Verifies that `bench_native_vs_bytecode_path` is wired with the
+    /// expected signature and dispatches an arbitrary program path through
+    /// both the bytecode VM (in-process) and the native LLVM backend
+    /// (`trc --native --release`, subprocess).
+    ///
+    /// The test is `#[ignore]`'d because a full run requires:
+    ///   1. LLVM development files (LLVM-C.lib) for the native backend.
+    ///   2. A working system linker.
+    ///   3. The `titrate_native` static library built
+    ///      (`cargo build -p titrate_native`).
+    ///   4. The `trc` binary present in `target/{debug,release}/`.
+    ///
+    /// Run with:
+    ///   cargo test -p pipette --lib bench -- --ignored --nocapture
+    #[test]
+    #[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
+    fn bench_native_vs_bytecode_path_dispatches_arbitrary_program() {
+        // Locate the workspace root via CARGO_MANIFEST_DIR (pipette's own dir).
+        let manifest_dir = PathBuf::from(
+            env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR should be set by cargo"),
+        );
+        let workspace_root = manifest_dir
+            .parent()
+            .expect("pipette should be nested inside the workspace")
+            .to_path_buf();
+
+        // Create a throwaway Titrate project under target/ (gitignored) so
+        // that both `find_project()` (Titrate.toml) and `find_trc_binary()`
+        // (walks up to find target/{debug,release}/trc) succeed when the cwd
+        // is set to it.
+        let temp_project = workspace_root
+            .join("target")
+            .join(format!("tmp_bench_path_test_{}", std::process::id()));
+
+        // Remove any stale temp project from a previous run.
+        let _ = fs::remove_dir_all(&temp_project);
+        fs::create_dir_all(temp_project.join("src"))
+            .expect("failed to create temp project src/");
+
+        // Minimal valid Titrate.toml so `find_project()` identifies the dir.
+        fs::write(
+            temp_project.join("Titrate.toml"),
+            "[package]\nname = \"bench_path_test\"\nversion = \"0.0.0\"\nentry = \"src/sum_squares.tr\"\n",
+        )
+        .expect("failed to write Titrate.toml");
+
+        let program_path = temp_project.join("src").join("sum_squares.tr");
+        fs::write(&program_path, BENCH_PATH_TEST_SOURCE)
+            .expect("failed to write temp .tr program");
+
+        // `bench_native_vs_bytecode_path` discovers both the project and the
+        // `trc` binary from `std::env::current_dir()`, so run it from the temp
+        // project and restore the previous cwd afterwards.
+        let result = {
+            let _guard = CwdGuard::enter(&temp_project);
+            bench_native_vs_bytecode_path(&program_path)
+            // `_guard` drops here, restoring the cwd even on panic.
+        };
+
+        // The cwd has been restored; safe to remove the temp project.
+        let _ = fs::remove_dir_all(&temp_project);
+
+        // With LLVM dev files and a built `trc` present, the dispatch should
+        // complete successfully through both backends. The assertion verifies
+        // the function signature/dispatch path end-to-end.
+        assert!(
+            result.is_ok(),
+            "bench_native_vs_bytecode_path dispatch failed: {:?}",
+            result.err()
+        );
+    }
+}
