@@ -1,7 +1,0 @@
-public fn parse(s: string): vast {
-    return Long_parseLong(s);
-}
-
-public fn toString(value: vast): string {
-    return value.toString();
-}
