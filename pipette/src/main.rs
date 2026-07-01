@@ -39,18 +39,32 @@ fn main() {
                     process::exit(1);
                 }
             };
-            let profile = if args.len() > 2 && args[2] == "--release" {
-                pipette::BuildProfile::Release
-            } else {
-                pipette::BuildProfile::Debug
-            };
-            match pipette::build_with_profile(&project_dir, profile) {
-                Ok(output) => {
-                    println!("Build succeeded: {}", output.display());
+            let (native, release) =
+                pipette::build::parse_build_flags(args.get(2..).unwrap_or(&[]));
+            if native {
+                match pipette::build_native(&project_dir) {
+                    Ok(output) => {
+                        println!("Build succeeded: {}", output.display());
+                    }
+                    Err(e) => {
+                        eprintln!("Build failed: {}", e);
+                        process::exit(1);
+                    }
                 }
-                Err(e) => {
-                    eprintln!("Build failed: {}", e);
-                    process::exit(1);
+            } else {
+                let profile = if release {
+                    pipette::BuildProfile::Release
+                } else {
+                    pipette::BuildProfile::Debug
+                };
+                match pipette::build_with_profile(&project_dir, profile) {
+                    Ok(output) => {
+                        println!("Build succeeded: {}", output.display());
+                    }
+                    Err(e) => {
+                        eprintln!("Build failed: {}", e);
+                        process::exit(1);
+                    }
                 }
             }
         }
@@ -62,7 +76,8 @@ fn main() {
                     process::exit(1);
                 }
             };
-            if let Err(e) = pipette::run(&project_dir) {
+            let native = pipette::run::parse_run_flags(args.get(2..).unwrap_or(&[]));
+            if let Err(e) = pipette::run(&project_dir, native) {
                 eprintln!("Run failed: {}", e);
                 process::exit(1);
             }
@@ -250,8 +265,8 @@ fn print_usage() {
     eprintln!();
     eprintln!("Commands:");
     eprintln!("  new <name>     Create a new project");
-    eprintln!("  build          Compile the project [--release for optimized build]");
-    eprintln!("  run            Build and run the project");
+    eprintln!("  build          Compile the project [--release for optimized build] [--native for native binary]");
+    eprintln!("  run            Build and run the project [--native to build & run a native binary]");
     eprintln!("  test           Run tests");
     eprintln!("  bench          Run benchmark files [--compare-native | --native-vs-bytecode <path>]");
     eprintln!("  coverage       Run tests and collect coverage [--native for native builds]");

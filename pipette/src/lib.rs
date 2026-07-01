@@ -18,7 +18,7 @@ pub mod serialize;
 pub mod coverage;
 
 // Re-export public API so that main.rs can use `pipette::build`, etc.
-pub use build::{build, build_with_profile};
+pub use build::{build, build_native, build_with_profile};
 pub use run::run;
 pub use test_runner::test;
 pub use doc::doc;

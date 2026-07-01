@@ -69,3 +69,22 @@ pub fn build_with_profile(project_dir: &Path, profile: BuildProfile) -> Result<P
 
     Ok(output_path)
 }
+
+/// Parse the flags that may follow the `build` subcommand.
+///
+/// Returns `(native, release)` indicating whether each flag was present.
+pub fn parse_build_flags(args: &[String]) -> (bool, bool) {
+    let native = args.iter().any(|a| a == "--native");
+    let release = args.iter().any(|a| a == "--release");
+    (native, release)
+}
+
+/// Build the project to a native executable by invoking `trc --native`.
+///
+/// Drives the LLVM backend via the `trc` binary (located on `PATH` or under
+/// the workspace `target/` directory) and places the resulting executable at
+/// `build/native/<package_name>[.exe]`.
+pub fn build_native(_project_dir: &Path) -> Result<PathBuf, String> {
+    // Implemented in a follow-up commit.
+    Err("--native build is not yet implemented".to_string())
+}

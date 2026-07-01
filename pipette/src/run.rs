@@ -6,8 +6,24 @@ use trc::bytecode::Vm;
 use crate::build::build;
 use crate::serialize::deserialize_compiled_program;
 
+/// Parse the flags that may follow the `run` subcommand.
+///
+/// Returns `true` when `--native` was requested.
+pub fn parse_run_flags(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--native")
+}
+
 /// Build the project and then execute it.
-pub fn run(project_dir: &Path) -> Result<(), String> {
+///
+/// When `native` is `true`, the project is compiled to a native executable
+/// (via `trc --native`) and spawned as a child process. Otherwise the
+/// bytecode VM is used.
+pub fn run(project_dir: &Path, native: bool) -> Result<(), String> {
+    if native {
+        // Implemented in a follow-up commit.
+        return Err("--native run is not yet implemented".to_string());
+    }
+
     build(project_dir)?;
 
     // Load and execute
