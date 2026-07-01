@@ -105,11 +105,26 @@ pub fn build_native(project_dir: &Path) -> Result<PathBuf, String> {
     // `trc --native --release <entry>` lowers to LLVM IR, links with
     // libtitrate_native, and writes `<stem>_native[.exe]` beside the source.
     // stdio is inherited (the default) so compile errors stream to the user.
-    let status = Command::new(&trc_path)
-        .arg("--native")
+    let mut cmd = Command::new(&trc_path);
+    cmd.arg("--native")
         .arg("--release")
         .arg(entry)
-        .current_dir(project_dir)
+        .current_dir(project_dir);
+
+    // Forward the project's `[native]` link_libs/link_args to `trc` via env
+    // vars so they reach the system linker. `trc` also reads Titrate.toml
+    // directly (its CWD is the project dir), so these env vars act as an
+    // explicit fallback for when `trc` cannot locate the manifest.
+    if let Some(native) = cfg.native.as_ref() {
+        if !native.link_libs.is_empty() {
+            cmd.env("TITRATE_LINK_LIBS", native.link_libs.join(","));
+        }
+        if !native.link_args.is_empty() {
+            cmd.env("TITRATE_LINK_ARGS", native.link_args.join(","));
+        }
+    }
+
+    let status = cmd
         .status()
         .map_err(|e| format!("Failed to invoke trc '{}': {}", trc_path.display(), e))?;
     if !status.success() {
