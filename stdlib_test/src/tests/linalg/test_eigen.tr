@@ -5,6 +5,7 @@ import tt::util::Pair;
 import tt::linalg::Eigen;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::MathAdvanced;
 
 public fn test_eigenvalues_2x2(): void {
     // Diagonal matrix [[5, 0], [0, 3]] has eigenvalues 5 and 3
@@ -70,7 +71,7 @@ public fn test_power_iteration(): void {
         return;
     }
     // Vector should be normalized (magnitude ~1)
-    let mag: double = Math.sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1));
+    let mag: double = MathAdvanced.sqrt(v.get(0) * v.get(0) + v.get(1) * v.get(1));
     if (Math.abs(mag - 1.0) > 1e-6) {
         io::println("FAIL: powerIteration vector magnitude = " + Double.toString(mag));
     } else {
