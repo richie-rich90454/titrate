@@ -46,6 +46,7 @@ impl std::fmt::Display for Dependency {
 pub struct Config {
     pub package: PackageInfo,
     pub dependencies: HashMap<String, Dependency>,
+    pub native: Option<NativeConfig>,
 }
 
 /// Package metadata from the `[package]` section.
@@ -54,6 +55,16 @@ pub struct PackageInfo {
     pub name: String,
     pub version: String,
     pub entry: String,
+}
+
+/// Native build configuration from the `[native]` section.
+///
+/// Both fields are optional within the section: if `[native]` is present
+/// but a field is omitted, that field defaults to an empty `Vec`.
+#[derive(Debug, Clone)]
+pub struct NativeConfig {
+    pub link_libs: Vec<String>,
+    pub link_args: Vec<String>,
 }
 
 impl Default for Config {
@@ -65,6 +76,7 @@ impl Default for Config {
                 entry: "src/main.tr".to_string(),
             },
             dependencies: HashMap::new(),
+            native: None,
         }
     }
 }
