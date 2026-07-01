@@ -7,6 +7,7 @@ description = "C-ABI native runtime bridge for the Titrate LLVM backend"
 [lib]
 name = "titrate_native"
 path = "src/lib.rs"
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 trc = { path = "../trc" }
