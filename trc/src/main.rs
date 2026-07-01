@@ -13,11 +13,16 @@ struct Args {
     file: Option<String>,
     native: bool,
     release: bool,
+    /// Emit LLVM IR to a `.ll` file beside the source (`<stem>.ll`).
+    /// Wired up in a follow-up commit; parsed here so the flag is recognised.
+    #[allow(dead_code)]
+    emit_ir: bool,
 }
 
 /// Parse the command-line arguments. Recognised flags:
 ///   --native   – emit a native executable via the LLVM backend
 ///   --release  – enable LLVM optimizations (implies --native-style output)
+///   --emit-ir  – write the LLVM IR to a `.ll` file beside the source
 /// Any other argument that does not start with `--` is treated as the input
 /// `.tr` file path.
 fn parse_args(args: &[String]) -> Args {
@@ -25,11 +30,13 @@ fn parse_args(args: &[String]) -> Args {
         file: None,
         native: false,
         release: false,
+        emit_ir: false,
     };
     for arg in args.iter().skip(1) {
         match arg.as_str() {
             "--native" => parsed.native = true,
             "--release" => parsed.release = true,
+            "--emit-ir" => parsed.emit_ir = true,
             s if s.starts_with("--") => {
                 eprintln!("warning: unknown flag '{}'", s);
             }
@@ -159,7 +166,7 @@ fn main() {
     let path = match parsed.file {
         Some(p) => p,
         None => {
-            eprintln!("Usage: trc <file.tr> [--native] [--release]");
+            eprintln!("Usage: trc <file.tr> [--native] [--release] [--emit-ir]");
             process::exit(1);
         }
     };
