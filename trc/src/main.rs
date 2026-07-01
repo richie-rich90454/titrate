@@ -101,6 +101,125 @@ fn has_native_lib(dir: &PathBuf) -> bool {
     dir.join("libtitrate_native.a").is_file()
 }
 
+/// Load extra link libraries and raw linker flags for the native build.
+///
+/// Looks up the `[native]` section of a `Titrate.toml` found by walking up
+/// from the current directory. If no manifest is present (or it has no
+/// `[native]` section), falls back to the `TITRATE_LINK_LIBS` and
+/// `TITRATE_LINK_ARGS` environment variables (comma-separated), which
+/// `pipette build --native` sets when it invokes `trc`.
+fn load_native_link_flags() -> (Vec<String>, Vec<String>) {
+    if let Some(flags) = load_native_from_toml() {
+        return flags;
+    }
+    load_native_from_env()
+}
+
+/// Read `[native]` from the nearest `Titrate.toml` ancestor of the CWD.
+fn load_native_from_toml() -> Option<(Vec<String>, Vec<String>)> {
+    let toml_path = find_titrate_toml()?;
+    let contents = fs::read_to_string(&toml_path).ok()?;
+    parse_native_section(&contents)
+}
+
+/// Walk up from the current directory looking for `Titrate.toml`.
+fn find_titrate_toml() -> Option<PathBuf> {
+    let mut dir = env::current_dir().ok()?;
+    loop {
+        let candidate = dir.join("Titrate.toml");
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
+}
+
+/// Parse only the `[native]` section of a `Titrate.toml` manifest.
+///
+/// Returns `Some((link_libs, link_args))` when a `[native]` section is
+/// present (fields default to empty arrays if omitted within the section),
+/// or `None` when the section is absent.
+fn parse_native_section(contents: &str) -> Option<(Vec<String>, Vec<String>)> {
+    let mut in_native = false;
+    let mut found_section = false;
+    let mut link_libs = Vec::new();
+    let mut link_args = Vec::new();
+    for line in contents.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if trimmed.starts_with('[') && trimmed.ends_with(']') {
+            in_native = trimmed[1..trimmed.len() - 1].trim() == "native";
+            if in_native {
+                found_section = true;
+            }
+            continue;
+        }
+        if in_native {
+            if let Some(eq_pos) = trimmed.find('=') {
+                let key = trimmed[..eq_pos].trim();
+                let value = trimmed[eq_pos + 1..].trim();
+                match key {
+                    "link_libs" => link_libs = parse_string_array(value),
+                    "link_args" => link_args = parse_string_array(value),
+                    _ => {}
+                }
+            }
+        }
+    }
+    if found_section {
+        Some((link_libs, link_args))
+    } else {
+        None
+    }
+}
+
+/// Parse a TOML array of strings (e.g. `["ssl", "crypto"]`) into a `Vec<String>`.
+fn parse_string_array(value: &str) -> Vec<String> {
+    let trimmed = value.trim();
+    if !(trimmed.starts_with('[') && trimmed.ends_with(']')) {
+        return Vec::new();
+    }
+    let inner = &trimmed[1..trimmed.len() - 1];
+    if inner.trim().is_empty() {
+        return Vec::new();
+    }
+    inner
+        .split(',')
+        .map(|s| s.trim())
+        .map(|s| {
+            if s.starts_with('"') && s.ends_with('"') && s.len() >= 2 {
+                s[1..s.len() - 1].to_string()
+            } else {
+                s.to_string()
+            }
+        })
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Fall back to env vars when no `Titrate.toml` `[native]` section is found.
+fn load_native_from_env() -> (Vec<String>, Vec<String>) {
+    let libs = parse_csv_env("TITRATE_LINK_LIBS");
+    let args = parse_csv_env("TITRATE_LINK_ARGS");
+    (libs, args)
+}
+
+fn parse_csv_env(name: &str) -> Vec<String> {
+    env::var(name)
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .map(|x| x.trim().to_string())
+                .filter(|x| !x.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Run the native (LLVM) backend: compile the typed AST to an object file,
 /// link it with `libtitrate_native`, and write the final executable next to
 /// the source file.
@@ -157,10 +276,17 @@ fn run_native(
             .to_string()
     })?;
 
-    // 3. Link.
-    // (Link flags from Titrate.toml [native] are wired up in a later change;
-    // for now pass empty slices so existing native builds are unchanged.)
-    llvm::linker::link(&obj_path, &exe_path, &native_lib_dir, &[], &[])?;
+    // 3. Link. Pull any extra link libs/args from the [native] section of a
+    //    nearby Titrate.toml (or the TITRATE_LINK_LIBS/TITRATE_LINK_ARGS env
+    //    vars set by `pipette build --native` when no manifest is found).
+    let (extra_link_libs, extra_link_args) = load_native_link_flags();
+    llvm::linker::link(
+        &obj_path,
+        &exe_path,
+        &native_lib_dir,
+        &extra_link_libs,
+        &extra_link_args,
+    )?;
 
     // 4. Clean up the intermediate object file.
     let _ = fs::remove_file(&obj_path);
