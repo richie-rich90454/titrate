@@ -158,7 +158,9 @@ fn run_native(
     })?;
 
     // 3. Link.
-    llvm::linker::link(&obj_path, &exe_path, &native_lib_dir)?;
+    // (Link flags from Titrate.toml [native] are wired up in a later change;
+    // for now pass empty slices so existing native builds are unchanged.)
+    llvm::linker::link(&obj_path, &exe_path, &native_lib_dir, &[], &[])?;
 
     // 4. Clean up the intermediate object file.
     let _ = fs::remove_file(&obj_path);
