@@ -7,6 +7,7 @@ import tt::math::pde::PDE::NeumannBC;
 import tt::math::pde::PDE::RobinBC;
 import tt::lang::Integer;
 import tt::lang::Double;
+import tt::math::MathTrig;
 
 public fn test_dirichlet_bc(): void {
     let bc: DirichletBC = new DirichletBC(5.0);
@@ -29,7 +30,7 @@ public fn test_heat_equation_1d(): void {
     var i: int = 0;
     while (i <= 10) {
         let x: double = i as double / 10.0;
-        initial.add(Math.sin(3.14159265358979 * x));
+        initial.add(MathTrig.sin(3.14159265358979 * x));
         i = i + 1;
     }
     let result: ArrayList<ArrayList<double>> = PDE.heatEquation1D(initial, 0.01, 0.01, 10);
@@ -45,7 +46,7 @@ public fn test_heat_equation_1d_implicit(): void {
     var i: int = 0;
     while (i <= 10) {
         let x: double = i as double / 10.0;
-        initial.add(Math.sin(3.14159265358979 * x));
+        initial.add(MathTrig.sin(3.14159265358979 * x));
         i = i + 1;
     }
     let result: ArrayList<ArrayList<double>> = PDE.heatEquation1DImplicit(initial, 0.01, 0.01, 10);
@@ -62,7 +63,7 @@ public fn test_wave_equation_1d(): void {
     var i: int = 0;
     while (i <= 10) {
         let x: double = i as double / 10.0;
-        initial.add(Math.sin(3.14159265358979 * x));
+        initial.add(MathTrig.sin(3.14159265358979 * x));
         i = i + 1;
     }
     let initialVel: ArrayList<double> = new ArrayList<double>();
