@@ -15,9 +15,12 @@ The native backend needs three things the bytecode VM does not:
 2. **A system linker** — `link.exe` (MSVC) on Windows, `clang`/`gcc`/
    `ld` on Linux, or `ld64`/`clang` on macOS. The `lld` linker from
    the LLVM project also works on every platform.
-3. **The `titrate_native` static library** — built automatically as part
-   of the workspace. You do not need to install it separately; `cargo
-   build` produces it.
+3. **The `titrate_native` static library** — run `cargo build -p titrate_native` to produce it. This
+   yields the static library (`libtitrate_native.a` on Unix,
+   `titrate_native.lib` on Windows) in `target/debug/`. The
+   `crate-type = ["staticlib", "rlib"]` declaration in
+   `titrate_native/Cargo.toml` ensures both the static library and the
+   in-tree `rlib` are produced.
 
 You can verify LLVM is installed and visible by running:
 
