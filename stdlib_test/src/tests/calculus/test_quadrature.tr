@@ -3,6 +3,7 @@
 import tt::util::ArrayList;
 import tt::calculus::Quadrature;
 import tt::lang::Double;
+import tt::math::MathTrig;
 
 public fn test_trapezoidal_constant(): void {
     // Integral of 1 from 0 to 1 = 1
@@ -39,7 +40,7 @@ public fn test_gauss_legendre(): void {
 
 public fn test_simpson_adaptive(): void {
     // Integral of sin(x) from 0 to pi = 2
-    let f: fn(double): double = fn(x: double): double { return Math.sin(x); };
+    let f: fn(double): double = fn(x: double): double { return MathTrig.sin(x); };
     let result: double = Quadrature.simpsonAdaptive(f, 0.0, 3.14159265358979, 1e-8);
     if (Math.abs(result - 2.0) > 1e-4) {
         io::println("FAIL: simpsonAdaptive of sin = " + Double.toString(result));
