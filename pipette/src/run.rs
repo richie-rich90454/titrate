@@ -1,9 +1,10 @@
 use std::fs;
 use std::path::Path;
+use std::process::{Command, Stdio};
 
 use trc::bytecode::Vm;
 
-use crate::build::build;
+use crate::build::{build, build_native};
 use crate::serialize::deserialize_compiled_program;
 
 /// Parse the flags that may follow the `run` subcommand.
@@ -20,8 +21,23 @@ pub fn parse_run_flags(args: &[String]) -> bool {
 /// bytecode VM is used.
 pub fn run(project_dir: &Path, native: bool) -> Result<(), String> {
     if native {
-        // Implemented in a follow-up commit.
-        return Err("--native run is not yet implemented".to_string());
+        // Build the native executable, then spawn it with inherited stdio
+        // and forward the child's exit code.
+        let exe = build_native(project_dir)?;
+        let status = Command::new(&exe)
+            .current_dir(project_dir)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .status()
+            .map_err(|e| {
+                format!(
+                    "Failed to spawn native executable '{}': {}",
+                    exe.display(),
+                    e
+                )
+            })?;
+        std::process::exit(status.code().unwrap_or(1));
     }
 
     build(project_dir)?;
