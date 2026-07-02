@@ -24,11 +24,11 @@ features:
   - icon:
       src: /icons/compat.svg
     title: LLVM Native Backend
-    details: Compile to standalone native executables via LLVM. Release-mode builds run 3–6× faster than the bytecode VM for compute-bound workloads. One flag, one binary.
+    details: Compile to standalone native executables via LLVM. Release-mode builds run three to six times faster than the bytecode VM for compute-bound workloads. One flag, one binary.
   - icon:
       src: /icons/shield.svg
     title: Ownership and Regions
-    details: Move semantics, borrowing, and region-based allocation -- memory safety without garbage collection or manual free.
+    details: Move semantics, borrowing and region-based allocation -- memory safety without garbage collection or manual free.
   - icon:
       src: /icons/generics.svg
     title: Zero-Cost Generics
@@ -48,7 +48,7 @@ features:
   - icon:
       src: /icons/operator.svg
     title: Operator Overloading
-    details: Define natural syntax for your types with `fn operator+`, `fn operator*`, and more. Build expressive DSLs for math, physics, and data.
+    details: Define natural syntax for your types with `fn operator+`, `fn operator*` and more. Build expressive DSLs for math, physics and data.
   - icon:
       src: /icons/library.svg
     title: Rich Standard Library
@@ -327,7 +327,7 @@ pipette run
 
 **Solution**: Reduce recursion depth or use iterative algorithms instead. The bytecode VM has a limited stack size. For deep recursion compile with `--native --release` which uses native stack limits.
 
-## See It In Action
+## See It in Action
 
 ### Molecular Dynamics Simulation
 
@@ -440,19 +440,19 @@ Titrate's monomorphizing compiler generates specialized code for each generic ty
 
 ### Memory Safety Without Garbage Collection
 
-Ownership semantics, move checking, and region-based allocation give you memory safety guarantees without the pause times and overhead of a garbage collector. When a value goes out of scope, it is cleaned up immediately.
+Ownership semantics, move checking and region-based allocation give you memory safety guarantees without the pause times and overhead of a garbage collector. When a value goes out of scope, the compiler cleans it up immediately.
 
 ### Clean, Modern Syntax
 
-Inspired by Rust and Python, Titrate uses `name: Type` parameter order, `fn` declarations, and lowercase `string` from the start. But it also supports C-family sugar forms (`int x = 5`, `++i`, `ClassName(params)`) so developers from C, C++, and ECMAScript feel at home immediately.
+Inspired by Rust and Python, Titrate uses `name: Type` parameter order, `fn` declarations and lowercase `string` from the start. But it also supports C-family sugar forms (`int x = 5`, `++i`, `ClassName(params)`) so developers from C, C++ and ECMAScript feel at home immediately.
 
-### Scientific Computing Built In
+### Scientific Computing Built in
 
-Chemistry simulations (Atom, Molecule, ForceField, MD, RHF), bioinformatics (Sequence, Alignment, PhyloTree), physics (Particle, ForceField, NBodySimulator), machine learning (Tensor, Model, Optimizer), signal processing (FFT2, Filter, Wavelet), image processing, audio processing, computational geometry, NLP, HFT, and discrete-event simulation are all part of the standard library -- not third-party packages.
+Chemistry simulations (Atom, Molecule, ForceField, MD, RHF), bioinformatics (Sequence, Alignment, PhyloTree), physics (Particle, ForceField, NBodySimulator), machine learning (Tensor, Model, Optimizer), signal processing (FFT2, Filter, Wavelet), image processing, audio processing, computational geometry, NLP, HFT and discrete-event simulation are all part of the standard library -- not third-party packages.
 
 ### Comprehensive Standard Library
 
-Collections (ArrayList, HashMap, HashSet, Vec), I/O (File, BufferedReader), serialization (JSON, CSV, XML), networking (TCP, HTTP), cryptography (SHA-256, HMAC, Base64), and more -- all included out of the box.
+Collections (ArrayList, HashMap, HashSet, Vec), I/O (File, BufferedReader), serialization (JSON, CSV, XML), networking (TCP, HTTP), cryptography (SHA-256, HMAC, Base64) and more -- all included out of the box.
 
 ## Comparison
 
