@@ -1,8 +1,16 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useData } from 'vitepress'
 
 const { isDark } = useData()
+
+// Props
+const props = defineProps({
+  lazy: {
+    type: Boolean,
+    default: false
+  }
+})
 
 // Example snippets demonstrating different Titrate features
 const examples = [
@@ -242,6 +250,11 @@ const customCode = ref('')
 const isCustomMode = ref(false)
 const showOutput = ref(true)
 
+// Lazy loading state
+const isVisible = ref(false)
+const playgroundRef = ref(null)
+let observer = null
+
 // Computed properties
 const currentOutput = computed(() => {
   if (isCustomMode.value) {
@@ -297,6 +310,10 @@ function resetCode() {
 
 // Syntax highlighting (simple token-based approach for documentation)
 const highlightedCode = computed(() => {
+  // Only compute syntax highlighting when visible or when lazy loading is disabled
+  if (props.lazy && !isVisible.value) {
+    return ''
+  }
   return highlightTitrate(code.value, isDark.value)
 })
 
@@ -378,12 +395,56 @@ function highlightTitrate(source, isDark) {
 onMounted(() => {
   // Initialize with first example
   code.value = examples[0].code
+
+  // Setup IntersectionObserver for lazy loading
+  if (props.lazy && playgroundRef.value) {
+    observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            isVisible.value = true
+            // Disconnect observer after first visibility
+            observer.disconnect()
+          }
+        })
+      },
+      {
+        root: null,
+        rootMargin: '50px', // Start loading 50px before visible
+        threshold: 0.1
+      }
+    )
+    observer.observe(playgroundRef.value)
+  } else {
+    // If lazy loading is disabled, mark as visible immediately
+    isVisible.value = true
+  }
+})
+
+onBeforeUnmount(() => {
+  // Cleanup observer
+  if (observer) {
+    observer.disconnect()
+  }
 })
 </script>
 
 <template>
-  <div class="code-playground" role="region" aria-label="Interactive code playground">
-    <!-- Header with example selector -->
+  <div 
+    ref="playgroundRef" 
+    class="code-playground" 
+    role="region" 
+    aria-label="Interactive code playground"
+  >
+    <!-- Loading placeholder when lazy and not yet visible -->
+    <div v-if="lazy && !isVisible" class="loading-placeholder" aria-label="Loading playground...">
+      <div class="loading-spinner"></div>
+      <p class="loading-text">Loading playground...</p>
+    </div>
+
+    <!-- Main content - only render when visible or when lazy loading is disabled -->
+    <div v-if="!lazy || isVisible">
+      <!-- Header with example selector -->
     <div class="playground-header">
       <div class="example-selector">
         <label for="example-select">Example:</label>
@@ -493,6 +554,7 @@ onMounted(() => {
         </ul>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -504,10 +566,42 @@ onMounted(() => {
   background: var(--vp-c-bg-soft);
   overflow: hidden;
   transition: border-color var(--titrate-duration-normal) var(--titrate-ease);
+  min-height: 200px; /* Minimum height to prevent layout shift during loading */
 }
 
 .code-playground:hover {
   border-color: var(--vp-c-brand-1);
+}
+
+/* Loading placeholder */
+.loading-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--vp-c-divider);
+  border-top-color: var(--vp-c-brand-1);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: 0.9em;
+  color: var(--vp-c-text-2);
+  margin: 0;
 }
 
 /* Header */
