@@ -188,6 +188,115 @@ for (i in 0..10) {
 }
 ```
 
+## Next Steps
+
+After running your first program, continue learning Titrate with these guides. Each section builds on the previous one, taking you from basic syntax to advanced systems programming.
+
+### Recommended Learning Path
+
+Follow this sequence to build a solid foundation:
+
+1. **Variables** — Learn `let`, `var` and `const` declarations with type inference. [Variables Guide →](/guide/variables)
+
+2. **Functions** — Define functions with `name: Type` parameters, write generic functions, and understand recursion. [Functions Guide →](/guide/functions)
+
+3. **Control Flow** — Master `if`/`else`, `while`, `for` loops, and `break`/`continue` for fine-grained control. [Control Flow Guide →](/guide/control-flow)
+
+4. **Classes** — Create classes with fields and methods, use inheritance with `extends`, and implement interfaces. [Classes Guide →](/guide/classes)
+
+5. **Generics** — Write type-safe reusable code with zero runtime overhead through monomorphization. [Generics Guide →](/guide/generics)
+
+6. **Error Handling** — Handle failures explicitly with `Result<T, E>` and the `?` propagation operator. [Error Handling Guide →](/guide/error-handling)
+
+7. **Ownership** — Understand memory safety without garbage collection using `Owned<T>`, borrows and regions. [Ownership Guide →](/guide/ownership)
+
+8. **Native Compilation** — Compile to standalone executables with LLVM for maximum performance. [Native Backend Guide →](/guide/native-intro)
+
+## Learning Path Overview
+
+Titrate's learning curve progresses through three distinct phases. Each phase introduces new concepts while reinforcing previous skills.
+
+### Phase 1: Basics — Core Syntax and Building Blocks
+
+Learn the fundamentals every Titrate program needs:
+
+| Skill | Description | Guide |
+|-------|-------------|-------|
+| **Variables** | Declare mutable bindings with `let` and `var`, compile-time constants with `const`, and understand type inference. | [Variables](/guide/variables) |
+| **Functions** | Define functions with `fn`, use `name: Type` parameter order, specify return types, and write recursive functions. | [Functions](/guide/functions) |
+| **Control Flow** | Branch with `if`/`else`/`else if`, loop with `while` and `for`, and control iteration with `break` and `continue`. | [Control Flow](/guide/control-flow) |
+
+After completing Phase 1, you can write standalone programs that process data, make decisions, and loop over collections.
+
+### Phase 2: Intermediate — Data Structures and Safety
+
+Build larger programs with structured data and explicit error handling:
+
+| Skill | Description | Guide |
+|-------|-------------|-------|
+| **Classes** | Bundle data and behavior, define constructors with `fn init()`, inherit with `extends`, and implement interfaces. | [Classes](/guide/classes) |
+| **Interfaces** | Define contracts with interface methods, implement multiple interfaces, and write polymorphic code. | [Interfaces](/guide/interfaces) |
+| **Enums** | Model domain data with algebraic data types, use enum variants with payloads, and pattern match on values. | [Enums](/guide/enums) |
+| **Generics** | Write reusable code with type parameters, apply interface constraints, and understand monomorphization. | [Generics](/guide/generics) |
+| **Error Handling** | Use `Result<T, E>` for explicit error handling, propagate errors with `?`, and convert between error types. | [Error Handling](/guide/error-handling) |
+| **Modules** | Organize code across files, use `import` with `::` syntax, and control visibility with `public`/`private`. | [Modules](/guide/modules) |
+
+After completing Phase 2, you can build multi-file projects with custom data types, safe error handling, and reusable generic components.
+
+### Phase 3: Advanced — Systems Programming and Performance
+
+Master low-level memory management and native compilation:
+
+| Skill | Description | Guide |
+|-------|-------------|-------|
+| **Ownership** | Track data ownership with `Owned<T>`, borrow with `&` and `&mut`, and use regions for batch allocation. | [Ownership](/guide/ownership) |
+| **Unsafe Code** | Suspend safety checks in `unsafe` blocks, interface with C libraries, and implement low-level data structures. | [Ownership](/guide/ownership#unsafe-blocks) |
+| **Native Compilation** | Compile to LLVM IR, generate standalone executables, and optimize for compute-bound workloads. | [Native Backend](/guide/native-intro) |
+| **Closures** | Write anonymous functions with `fn(x): T => expr`, capture variables by reference, and pass functions as arguments. | [Closures](/guide/closures) |
+| **Operator Overloading** | Define custom behavior for `+`, `-`, `*` and other operators with `fn operator<op>` syntax. | [Operator Overloading](/guide/operator-overloading) |
+| **Iterators** | Implement `Iterable<T>` and `Iterator<T>`, use custom iterators in `for-in` loops, and chain iterator operations. | [Iterators](/guide/iterators) |
+
+After completing Phase 3, you can write high-performance systems code, manage memory without garbage collection, and compile native executables for production deployment.
+
+### Skill Progression Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              PHASE 1: BASICS                                │
+│                                                                             │
+│   Variables ──▶ Functions ──▶ Control Flow                                 │
+│   (let/var)     (fn name)      (if/while/for)                               │
+│                                                                             │
+│   Skills: Declare values, define logic, branch and loop                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           PHASE 2: INTERMEDIATE                            │
+│                                                                             │
+│   Classes ──▶ Interfaces ──▶ Enums ──▶ Generics ──▶ Error Handling         │
+│   (fn init)   (implements)   (ADTs)    (<T>)        (Result<T,E>)           │
+│                                                                             │
+│   Skills: Structure data, enforce contracts, handle failures explicitly    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            PHASE 3: ADVANCED                                │
+│                                                                             │
+│   Ownership ──▶ Unsafe Code ──▶ Native Compilation                         │
+│   (Owned<T>)    (unsafe {})     (--native)                                  │
+│                                                                             │
+│   Skills: Manage memory safely, bypass checks when needed, compile to exe  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### How Long Does Each Phase Take?
+
+Most developers reach basic proficiency in Phase 1 after one to two days of practice. Phase 2 typically requires three to five days, depending on prior experience with object-oriented programming and generics. Phase 3 concepts—especially ownership—may take one to two weeks to internalize fully, particularly for developers coming from garbage-collected languages.
+
+The guides include "Try It Yourself" exercises for hands-on practice. Working through these exercises accelerates learning and reveals common pitfalls early.
+
 ## Getting Started
 
 Follow these steps to install Titrate and run your first program.
