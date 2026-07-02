@@ -504,7 +504,7 @@ let pi: double = 3.14159;            // ASCII identifiers (recommended)
 
 ## Tokenization Examples
 
-### Variable Declaration
+### Variable declaration
 
 ```titrate
 let message: string = "hello";
@@ -520,7 +520,7 @@ let message: string = "hello";
 | `StringLiteral("hello")` | `"hello"` |
 | `Semicolon` | `;` |
 
-### Function Definition
+### Function definition
 
 ```titrate
 public fn add(a: int, b: int): int {
@@ -552,7 +552,7 @@ public fn add(a: int, b: int): int {
 | `Semicolon` | `;` |
 | `RightBrace` | `}` |
 
-### Import Statement
+### Import statement
 
 ```titrate
 import tt::math::Math;
@@ -568,7 +568,7 @@ import tt::math::Math;
 | `Identifier("Math")` | `Math` |
 | `Semicolon` | `;` |
 
-### Class with Constructor
+### Class with constructor
 
 ```titrate
 public class Point {

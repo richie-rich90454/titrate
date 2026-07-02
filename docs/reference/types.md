@@ -42,9 +42,9 @@ let pair: (int, string) = (1, "hello");
 let triple: (double, bool, char) = (3.14, true, 'x');
 ```
 
-A single-element tuple requires a trailing comma: `(int,)`. The empty tuple `()` is the **unit type** (see below).
+A single-element tuple requires a trailing comma: `(int,)`. The empty tuple `()` is the unit type (see below).
 
-Tuple elements are accessed by zero-based index with dot notation:
+Tuple elements are accessed by zero-based index with dot notation.
 
 ```titrate
 let point: (double, double, double) = (1.0, 2.0, 3.0);
@@ -78,7 +78,7 @@ let result = apply(5, fn(n: int): int => n * 2);  // 10
 
 ## Unit Type
 
-The unit type `()` has exactly one value, also written `()`. It represents the absence of a meaningful return value. Functions declared with `: void` implicitly return unit:
+The unit type `()` has exactly one value, also written `()`. It represents the absence of a meaningful return value. Functions declared with `: void` implicitly return unit.
 
 ```titrate
 fn doNothing(): void {

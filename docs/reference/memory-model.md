@@ -1,14 +1,14 @@
 # Memory Model
 
-Titrate's memory model combines the safety of ownership-based resource management with the ergonomics of a high-level language. Understanding how memory is allocated, tracked, and freed is essential for writing efficient and correct Titrate programs.
+Titrate's memory model combines ownership safety with high-level ergonomics. Understanding how memory is allocated, tracked and freed is essential for writing efficient and correct Titrate programs.
 
 ## Stack vs Heap
 
-Titrate distinguishes between two primary memory regions: the **stack** and the **heap**. Each has different performance characteristics and lifetime semantics.
+Titrate distinguishes between two primary memory regions: the stack and the heap. Each has different performance characteristics and lifetime semantics.
 
 ### Stack Allocation
 
-Local variables of fixed-size, value types are allocated on the stack by default. Stack allocation is extremely fast — it consists of simply moving the stack pointer — and memory is reclaimed automatically when the variable's scope ends.
+Local variables of fixed-size, value types are allocated on the stack by default. Stack allocation is extremely fast. It consists of simply moving the stack pointer. Memory is reclaimed automatically when the variable's scope ends.
 
 ```
 ┌─────────────────────────────┐
@@ -42,7 +42,7 @@ public fn compute(): int {
 
 ### Heap Allocation
 
-Heap allocation is used for dynamically-sized data or data that must outlive the current scope. In Titrate, heap allocation occurs when you use `new` to create an object. The `Owned<T>` type can be used to wrap heap-allocated values and enforce single-owner semantics, though `new` itself always returns an unwrapped value.
+Use heap allocation for dynamically-sized data or data that must outlive the current scope. In Titrate, heap allocation occurs when you use `new` to create an object. The `Owned<T>` type can wrap heap-allocated values and enforce single-owner semantics, though `new` itself always returns an unwrapped value.
 
 ```
 ┌─────────────────────────────┐
@@ -64,7 +64,7 @@ public fn makePoint(): Point {
 
 ## Value Types vs Reference Types
 
-Titrate's type system distinguishes between **value types** and **reference types**, which determines how assignment and parameter passing behave.
+Titrate's type system distinguishes between value types and reference types, which determines how assignment and parameter passing behave.
 
 ### Value Types
 
@@ -147,13 +147,13 @@ public fn processData(d: Owned<Data>): void {
 
 Titrate enforces four core ownership rules at compile time:
 
-1. **Each `Owned<T>` value has exactly one owner.** There is never ambiguity about who is responsible for freeing memory.
+1. Each `Owned<T>` value has exactly one owner. There is never ambiguity about who is responsible for freeing memory.
 
-2. **When the owner goes out of scope, the value is dropped.** The compiler automatically inserts drop calls at the end of each scope. No manual `free` is needed.
+2. When the owner goes out of scope, the value is dropped. The compiler automatically inserts drop calls at the end of each scope. No manual `free` is needed.
 
-3. **Assignment transfers ownership (move semantics).** Unlike garbage-collected languages where assignment creates another reference, Titrate moves ownership to the new variable.
+3. Assignment transfers ownership (move semantics). Unlike garbage-collected languages where assignment creates another reference, Titrate moves ownership to the new variable.
 
-4. **After a move, the source variable cannot be used.** This prevents use-after-free bugs and dangling references.
+4. After a move, the source variable cannot be used. This prevents use-after-free bugs and dangling references.
 
 ```titrate
 public fn ownershipDemo(): void {
@@ -228,7 +228,7 @@ public fn borrowScoping(): void {
 
 ## Region-Based Allocation
 
-A `region` block creates a scoped allocation arena. All memory allocated within a region is freed in bulk when the region exits. This provides deterministic, high-performance memory management without the overhead of individual deallocations.
+A `region` block creates a scoped allocation arena. The region frees all allocated memory in bulk when it exits. This provides deterministic, high-performance memory management without the overhead of individual deallocations.
 
 ### How Regions Work
 
@@ -254,10 +254,10 @@ region r {
 
 ### When to Use Regions
 
-- **Batch processing**: When you need many temporary objects that share a lifetime
-- **Game loops**: Per-frame allocations that are all freed at frame end
-- **Parsing**: Intermediate data structures that become irrelevant after parsing
-- **Performance-critical code**: Avoiding per-object deallocation overhead
+- Batch processing: When you need many temporary objects that share a lifetime
+- Game loops: Per-frame allocations that are all freed at frame end
+- Parsing: Intermediate data structures that become irrelevant after parsing
+- Performance-critical code: Avoiding per-object deallocation overhead
 
 ### Region vs Owned
 
@@ -271,17 +271,17 @@ region r {
 
 ## Garbage Collection
 
-Titrate does **not** use a garbage collector. Instead, it relies on:
+Titrate does not use a garbage collector. Instead, it relies on:
 
-1. **Stack allocation** for value types — freed automatically on scope exit
-2. **Ownership** for heap allocation — deterministic deallocation when the owner drops
-3. **Regions** for batch allocation — bulk deallocation when the region ends
+1. Stack allocation for value types — freed automatically on scope exit
+2. Ownership for heap allocation — deterministic deallocation when the owner drops
+3. Regions for batch allocation — bulk deallocation when the region ends
 
 This design provides:
-- **No pause times** — there is no stop-the-world GC cycle
-- **Deterministic cleanup** — you know exactly when memory is freed
-- **Lower memory overhead** — no GC metadata or write barriers
-- **Predictable performance** — no allocation spikes from GC promotion
+- No pause times — there is no stop-the-world GC cycle
+- Deterministic cleanup — you know exactly when memory is freed
+- Lower memory overhead — no GC metadata or write barriers
+- Predictable performance — no allocation spikes from GC promotion
 
 ### Why No GC?
 
@@ -292,9 +292,9 @@ Garbage collectors trade runtime overhead for developer convenience. Titrate's o
 ### Object Layout
 
 Every heap-allocated class instance in Titrate is stored with three key pieces of metadata:
-- **class_name** — identifies the class (e.g. "Point", "ArrayList")
-- **fields** — a map of field names to their values
-- **vtable** — a map of method names to function indices
+- class_name — identifies the class (e.g. "Point", "ArrayList")
+- fields — a map of field names to their values
+- vtable — a map of method names to function indices
 
 ```
 ┌──────────────────────────────┐
@@ -428,27 +428,27 @@ unsafe {
 
 ### When to Use `unsafe`
 
-- **FFI bindings**: Calling C library functions that work with raw pointers
-- **Performance kernels**: Tight loops where borrow-checker overhead matters
-- **Self-referential structures**: Data structures the borrow checker cannot verify
-- **Interfacing with the VM**: Direct memory access for native extensions
+- FFI bindings: Calling C library functions that work with raw pointers
+- Performance kernels: Tight loops where borrow-checker overhead matters
+- Self-referential structures: Data structures the borrow checker cannot verify
+- Interfacing with the VM: Direct memory access for native extensions
 
 ### Safety Guarantees
 
-Inside an `unsafe` block, the following checks are disabled:
+Inside an `unsafe` block, four checks are disabled:
 - Borrow rules (multiple mutable borrows allowed)
 - Move-after-use checks
 - Null dereference checks
 - Bounds checks on raw pointer access
 
-**You are responsible for upholding safety invariants manually.** Incorrect `unsafe` code can cause segmentation faults, data corruption, and undefined behavior.
+You are responsible for upholding safety invariants manually. Incorrect `unsafe` code can cause segmentation faults, data corruption and undefined behavior.
 
 ### Best Practices
 
-1. **Minimize `unsafe` scope** — keep blocks as small as possible
-2. **Document invariants** — explain why the `unsafe` code is correct
-3. **Wrap in safe API** — expose only safe functions to callers
-4. **Test thoroughly** — `unsafe` code needs extra scrutiny
+1. Minimize `unsafe` scope — keep blocks as small as possible
+2. Document invariants — explain why the `unsafe` code is correct
+3. Wrap in safe API — expose only safe functions to callers
+4. Test thoroughly — `unsafe` code needs extra scrutiny
 
 ```titrate
 // Good: small unsafe block, wrapped in safe function
@@ -465,18 +465,18 @@ public fn readByte(address: long): byte {
 
 | Operation | Stack | Heap |
 |-----------|-------|------|
-| Allocation | ~1 instruction | Multiple instructions |
-| Deallocation | ~1 instruction | Requires drop or region exit |
+| Allocation | ~one instruction | Multiple instructions |
+| Deallocation | ~one instruction | Requires drop or region exit |
 | Cache locality | Excellent | May cause cache misses |
 | Fragmentation | None | Possible |
 
 ### Optimization Tips
 
-1. **Prefer value types** when data is small and has a known lifetime
-2. **Use regions** for batch allocations with the same lifetime
-3. **Avoid unnecessary `new`** — stack-allocate when possible
-4. **Reuse objects** instead of creating new ones in hot loops
-5. **Pre-size collections** — pass initial capacity to `ArrayList` and `HashMap` when the size is known
+1. Prefer value types when data is small and has a known lifetime
+2. Use regions for batch allocations with the same lifetime
+3. Avoid unnecessary `new` — stack-allocate when possible
+4. Reuse objects instead of creating new ones in hot loops
+5. Pre-size collections — pass initial capacity to `ArrayList` and `HashMap` when the size is known
 
 ```titrate
 // Good: pre-sized collection

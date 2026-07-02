@@ -74,7 +74,7 @@ let_decl     ::= 'let' IDENTIFIER (':' type)? ('=' expr)? ';'
              | 'let' '(' IDENTIFIER (',' IDENTIFIER)+ ')' '=' expr ';'   // tuple destructuring
 const_decl   ::= 'const' IDENTIFIER ':' type '=' expr ';'
 
-> **Note:** Parentheses around the condition/iterator in `if`, `while`, and `for` are **required** by the language spec. The parser also accepts the unparenthesized form, but the parenthesized form is the **recommended and preferred style**. Always write `if (expr)`, `while (expr)`, and `for (item in list)`.
+> Note: Parentheses around the condition/iterator in `if`, `while` and `for` are required by the language spec. The parser also accepts the unparenthesized form, but the parenthesized form is the recommended and preferred style. Always write `if (expr)`, `while (expr)` and `for (item in list)`.
 return_stmt  ::= 'return' expr? ';'
 break_stmt   ::= 'break' ';'
 continue_stmt ::= 'continue' ';'
