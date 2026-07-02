@@ -18,11 +18,55 @@
   --titrate-neutral-5: #999;
   --titrate-neutral-6: #666;
 
+  /* Chemistry-inspired gradient patterns */
+  --titrate-gradient-hero: linear-gradient(135deg,
+    rgba(233, 69, 96, 0.03) 0%,
+    rgba(0, 120, 212, 0.02) 50%,
+    rgba(16, 124, 16, 0.02) 100%);
+  --titrate-gradient-reaction: linear-gradient(135deg,
+    #e94560 0%,
+    #ff6b81 50%,
+    #f39c12 100%);
+  --titrate-gradient-molecular: radial-gradient(circle at 20% 50%,
+    rgba(233, 69, 96, 0.08) 0%,
+    transparent 50%),
+    radial-gradient(circle at 80% 80%,
+    rgba(0, 120, 212, 0.05) 0%,
+    transparent 40%),
+    radial-gradient(circle at 40% 20%,
+    rgba(135, 100, 184, 0.06) 0%,
+    transparent 45%);
+  --titrate-gradient-bond: linear-gradient(90deg,
+    rgba(233, 69, 96, 0.15) 0%,
+    rgba(0, 120, 212, 0.15) 100%);
+  --titrate-gradient-crystal: linear-gradient(180deg,
+    rgba(233, 69, 96, 0.04) 0%,
+    transparent 60%);
+
+  /* Enhanced accent palette - Secondary colors */
+  --titrate-secondary-teal: #00a8a8;
+  --titrate-secondary-amber: #f59f00;
+  --titrate-secondary-violet: #9775fa;
+  --titrate-secondary-cyan: #22b8cf;
+
+  /* Tertiary accent colors for visual hierarchy */
+  --titrate-tertiary-rose: #f783ac;
+  --titrate-tertiary-sky: #74c0fc;
+  --titrate-tertiary-lime: #a9e34b;
+  --titrate-tertiary-indigo: #748ffc;
+
   /* Fluent accent colors */
   --titrate-accent-blue: #0078d4;
   --titrate-accent-green: #107c10;
   --titrate-accent-orange: #ca5010;
   --titrate-accent-purple: #8764b8;
+
+  /* Interactive state colors */
+  --titrate-interactive-hover: rgba(233, 69, 96, 0.12);
+  --titrate-interactive-active: rgba(233, 69, 96, 0.18);
+  --titrate-interactive-focus: rgba(0, 120, 212, 0.25);
+  --titrate-interactive-focus-ring: 0 0 0 2px rgba(0, 120, 212, 0.35);
+  --titrate-interactive-disabled: rgba(150, 150, 150, 0.4);
 
   /* Fluent depth — subtle, not glowy */
   --titrate-shadow-2: 0 1px 2px rgba(0, 0, 0, 0.10);
@@ -58,10 +102,54 @@
   --titrate-neutral-5: #888;
   --titrate-neutral-6: #aaa;
 
+  /* Chemistry-inspired gradient patterns - Dark mode */
+  --titrate-gradient-hero: linear-gradient(135deg,
+    rgba(255, 107, 129, 0.05) 0%,
+    rgba(78, 168, 222, 0.03) 50%,
+    rgba(108, 203, 95, 0.03) 100%);
+  --titrate-gradient-reaction: linear-gradient(135deg,
+    #ff6b81 0%,
+    #e94560 50%,
+    #f59f00 100%);
+  --titrate-gradient-molecular: radial-gradient(circle at 20% 50%,
+    rgba(255, 107, 129, 0.12) 0%,
+    transparent 50%),
+    radial-gradient(circle at 80% 80%,
+    rgba(78, 168, 222, 0.08) 0%,
+    transparent 40%),
+    radial-gradient(circle at 40% 20%,
+    rgba(177, 151, 247, 0.10) 0%,
+    transparent 45%);
+  --titrate-gradient-bond: linear-gradient(90deg,
+    rgba(255, 107, 129, 0.20) 0%,
+    rgba(78, 168, 222, 0.20) 100%);
+  --titrate-gradient-crystal: linear-gradient(180deg,
+    rgba(255, 107, 129, 0.06) 0%,
+    transparent 60%);
+
+  /* Enhanced accent palette - Secondary colors - Dark mode */
+  --titrate-secondary-teal: #00d4d4;
+  --titrate-secondary-amber: #ffc078;
+  --titrate-secondary-violet: #b197f7;
+  --titrate-secondary-cyan: #66d9e8;
+
+  /* Tertiary accent colors - Dark mode */
+  --titrate-tertiary-rose: #faa2c1;
+  --titrate-tertiary-sky: #a5d8ff;
+  --titrate-tertiary-lime: #c0eb75;
+  --titrate-tertiary-indigo: #91a7ff;
+
   --titrate-accent-blue: #4ea8de;
   --titrate-accent-green: #6ccb5f;
   --titrate-accent-orange: #f59f00;
   --titrate-accent-purple: #b197f7;
+
+  /* Interactive state colors - Dark mode */
+  --titrate-interactive-hover: rgba(255, 107, 129, 0.15);
+  --titrate-interactive-active: rgba(255, 107, 129, 0.22);
+  --titrate-interactive-focus: rgba(78, 168, 222, 0.30);
+  --titrate-interactive-focus-ring: 0 0 0 2px rgba(78, 168, 222, 0.40);
+  --titrate-interactive-disabled: rgba(120, 120, 120, 0.5);
 
   --titrate-shadow-2: 0 1px 2px rgba(0, 0, 0, 0.28);
   --titrate-shadow-4: 0 2px 4px rgba(0, 0, 0, 0.24);
@@ -90,6 +178,10 @@
 .VPHero .name {
   color: var(--vp-c-brand-1);
   font-weight: 700;
+  background: var(--titrate-gradient-reaction);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .VPHero .text {
@@ -102,6 +194,17 @@
   line-height: 1.6;
 }
 
+/* Hero background with molecular gradient pattern */
+.VPHero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--titrate-gradient-molecular);
+  pointer-events: none;
+  opacity: 0.6;
+  z-index: -1;
+}
+
 /* Hero action buttons — Fluent style: flat, clean */
 .VPHero .actions .action-button {
   transition: all var(--titrate-duration-normal) var(--titrate-ease);
@@ -112,19 +215,33 @@
 .VPHero .actions .action-button.brand:hover {
   transform: translateY(-1px);
   box-shadow: var(--titrate-shadow-8);
+  background: var(--titrate-interactive-hover);
+}
+
+.VPHero .actions .action-button.brand:active {
+  background: var(--titrate-interactive-active);
+  transform: translateY(0);
 }
 
 .VPHero .actions .action-button.alt:hover {
   transform: translateY(-1px);
+  background: var(--titrate-interactive-hover);
+}
+
+.VPHero .actions .action-button:focus-visible {
+  outline: var(--titrate-interactive-focus-ring);
 }
 
 /* ===== Feature Cards — Fluent card style ===== */
 .VPFeature {
   transition: box-shadow var(--titrate-duration-normal) var(--titrate-ease),
-              border-color var(--titrate-duration-normal) var(--titrate-ease);
+              border-color var(--titrate-duration-normal) var(--titrate-ease),
+              background var(--titrate-duration-normal) var(--titrate-ease);
   border: 1px solid var(--vp-c-divider);
   border-radius: var(--titrate-radius-lg);
   box-shadow: var(--titrate-shadow-card);
+  position: relative;
+  background: var(--titrate-gradient-hero);
 }
 
 .VPFeature .title {
@@ -135,6 +252,12 @@
 .VPFeature:hover {
   border-color: var(--vp-c-brand-1);
   box-shadow: var(--titrate-shadow-8);
+  background: var(--titrate-interactive-hover);
+}
+
+.VPFeature:focus-visible {
+  outline: var(--titrate-interactive-focus-ring);
+  border-color: var(--titrate-secondary-cyan);
 }
 
 .VPFeature .icon {
