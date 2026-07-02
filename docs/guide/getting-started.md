@@ -4,19 +4,97 @@ Welcome to Titrate! If you've ever wished for a language that combines the safet
 
 Whether you're coming from Java, Python, Rust, or somewhere else entirely, this guide will walk you through everything you need to get up and running. Let's dive in!
 
-## Installation
+## Choose Your Path
 
-Build the compiler from source using Cargo:
+**Two paths are available depending on your setup:**
+
+- **Fast Path (2-3 minutes)** — If you already have Rust, LLVM, and Git installed, skip to [Fast Path for Experienced Developers](#fast-path-for-experienced-developers).
+- **Complete Installation (15-30 minutes)** — If you're setting up from scratch, follow the [Complete Installation for Newcomers](#complete-installation-for-newcomers) section below.
+
+## Fast Path for Experienced Developers
+
+If you have Rust 1.70+, LLVM development files, and Git installed, you can build and run your first program in 2-3 minutes:
+
+```bash
+# Clone and build (1-2 minutes)
+git clone https://github.com/richie-rich90454/titrate.git
+cd titrate
+cargo build --release
+
+# Create and run your first program (1 minute)
+echo 'public fn main(): void { io::println("Hello, Titrate!"); }' > hello.tr
+trc hello.tr
+```
+
+Expected output: `Hello, Titrate!`
+
+**Time estimate:** 2-3 minutes total. The release build takes 1-2 minutes. Creating and running hello.tr takes under 1 minute.
+
+::: tip Already have a pre-built binary?
+If you have access to a pre-built `trc` binary, you can skip the build step entirely and run hello.tr in under 1 minute.
+:::
+
+Skip to [Your First Program](#your-first-program) for a detailed walkthrough.
+
+## Complete Installation for Newcomers
+
+If you're starting from scratch, follow these steps to install all prerequisites and build the compiler.
+
+### Prerequisites
+
+Before building Titrate, ensure you have these tools installed:
+
+1. **Rust and Cargo** — Install Rust 1.70 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
+
+2. **LLVM development files** — Required for the native backend. Install via your system package manager:
+   - Ubuntu/Debian: `sudo apt install llvm-dev libclang-dev`
+   - macOS: `brew install llvm`
+   - Windows: Download from [llvm.org](https://llvm.org/) or use Visual Studio installer
+
+3. **Git** — Clone the repository with `git clone https://github.com/richie-rich90454/titrate.git`.
+
+::: warning Windows Users
+LLVM installation on Windows requires downloading the LLVM installer from llvm.org or using the Visual Studio installer. Ensure you select the "LLVM development tools" option during installation.
+:::
+
+### Build Steps
+
+1. **Clone the repository:**
+
+```bash
+git clone https://github.com/richie-rich90454/titrate.git
+cd titrate
+```
+
+**Time:** 1-3 minutes depending on network speed.
+
+2. **Build the compiler in release mode:**
 
 ```bash
 cargo build --release
 ```
 
-The compiler binary is `trc`. Once the build completes, you'll find it in `target/release/trc`. You can add it to your `PATH` or invoke it directly.
+**Time:** 5-10 minutes on first build. The release build compiles all compiler components with optimizations.
 
-::: tip
-Make sure you have [Rust and Cargo installed](https://rustup.rs/) before building. Titrate's compiler is written in Rust, so you'll need the Rust toolchain.
-:::
+The compiler binary `trc` is created in `target/release/`. You can add it to your PATH:
+
+```bash
+# Linux/macOS
+export PATH="$PWD/target/release:$PATH"
+
+# Windows PowerShell
+$env:Path += ";$PWD\target\release"
+```
+
+3. **Verify the build:**
+
+```bash
+trc --version
+```
+
+You should see output like `trc 0.1.0` or similar.
+
+**Total time for complete installation:** 15-30 minutes depending on your system and network speed.
 
 ## Your First Program
 
@@ -89,3 +167,35 @@ By the end of this guide, you'll be comfortable with the core building blocks of
 - [Generics](./generics) — type parameters, constraints, and monomorphization
 - [Modules](./modules) — multi-file projects and imports
 - [File I/O](./file-io) — reading and writing files
+
+## Troubleshooting
+
+### Build Fails with LLVM Link Error
+
+**Problem**: The build fails with errors like `LLVM not found` or linking errors.
+
+**Solution**: Install LLVM development packages. On Ubuntu run `sudo apt install llvm-dev libclang-dev`. On macOS run `brew install llvm`. Ensure the LLVM version is 15 or later.
+
+### Compiler Fails to Find Standard Library
+
+**Problem**: Running `trc hello.tr` shows errors about missing imports or undefined modules.
+
+**Solution**: Ensure the `lib/tt` directory exists in the Titrate repository. The standard library must be present for imports to work. Run `cargo test --test stdlib_test` to verify the standard library works correctly.
+
+### Native Compilation Produces No Output
+
+**Problem**: The `--native` flag compiles but produces no executable file.
+
+**Solution**: Check that LLVM development files are installed. The native backend requires `libclang` and LLVM libraries. Run `llvm-config --version` to verify LLVM is available.
+
+### Program Runs but Output Is Missing
+
+**Problem**: The program executes but nothing prints to the console.
+
+**Solution**: Verify your program calls `io::println` or another output function. Check that the `main` function is marked `public`. Use `public fn main(): void` as the entry point.
+
+### Stack Overflow or Memory Error
+
+**Problem**: The program crashes with a stack overflow or memory allocation error.
+
+**Solution**: Reduce recursion depth or use iterative algorithms instead. The bytecode VM has a limited stack size. For deep recursion compile with `--native --release` which uses native stack limits.

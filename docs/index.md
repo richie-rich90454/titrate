@@ -40,7 +40,7 @@ features:
   - icon:
       src: /icons/flask.svg
     title: Scientific Computing
-    details: Bioinformatics, physics simulation, materials science, signal processing, image/audio processing, ML, computational geometry, and more -- all in the standard library.
+    details: Bioinformatics, physics simulation, materials science, signal processing, image/audio processing, ML, computational geometry and more -- all in the standard library.
   - icon:
       src: /icons/result.svg
     title: Result-Based Error Handling
@@ -109,15 +109,21 @@ Each release adds capabilities without breaking existing code. The roadmap prior
 
 ## Quick Start
 
-Build and run in three steps:
+::: tip Time Estimates
+- **Experienced developers** (Rust+LLVM+Git installed): **2-3 minutes**
+- **Complete newcomers** (first-time setup): **15-30 minutes**
+:::
+
+Build and run your first program:
 
 ```bash
+# If you have prerequisites installed
 cargo build --release
 echo 'public fn main(): void { io::println("Hello!"); }' > hello.tr
 trc hello.tr
 ```
 
-See the [Getting Started guide](#getting-started) below for detailed instructions.
+**For complete installation instructions, prerequisites, and time estimates, see the [Getting Started Guide](/guide/getting-started).**
 
 ## Language at a Glance
 
@@ -198,11 +204,11 @@ Follow this sequence to build a solid foundation:
 
 1. **Variables** — Learn `let`, `var` and `const` declarations with type inference. [Variables Guide →](/guide/variables)
 
-2. **Functions** — Define functions with `name: Type` parameters, write generic functions, and understand recursion. [Functions Guide →](/guide/functions)
+2. **Functions** — Define functions with `name: Type` parameters, write generic functions and understand recursion. [Functions Guide →](/guide/functions)
 
-3. **Control Flow** — Master `if`/`else`, `while`, `for` loops, and `break`/`continue` for fine-grained control. [Control Flow Guide →](/guide/control-flow)
+3. **Control Flow** — Master `if`/`else`, `while`, `for` loops and `break`/`continue` for fine-grained control. [Control Flow Guide →](/guide/control-flow)
 
-4. **Classes** — Create classes with fields and methods, use inheritance with `extends`, and implement interfaces. [Classes Guide →](/guide/classes)
+4. **Classes** — Create classes with fields and methods, use inheritance with `extends` and implement interfaces. [Classes Guide →](/guide/classes)
 
 5. **Generics** — Write type-safe reusable code with zero runtime overhead through monomorphization. [Generics Guide →](/guide/generics)
 
@@ -222,11 +228,11 @@ Learn the fundamentals every Titrate program needs:
 
 | Skill | Description | Guide |
 |-------|-------------|-------|
-| **Variables** | Declare mutable bindings with `let` and `var`, compile-time constants with `const`, and understand type inference. | [Variables](/guide/variables) |
-| **Functions** | Define functions with `fn`, use `name: Type` parameter order, specify return types, and write recursive functions. | [Functions](/guide/functions) |
-| **Control Flow** | Branch with `if`/`else`/`else if`, loop with `while` and `for`, and control iteration with `break` and `continue`. | [Control Flow](/guide/control-flow) |
+| **Variables** | Declare mutable bindings with `let` and `var`, compile-time constants with `const` and understand type inference. | [Variables](/guide/variables) |
+| **Functions** | Define functions with `fn`, use `name: Type` parameter order, specify return types and write recursive functions. | [Functions](/guide/functions) |
+| **Control Flow** | Branch with `if`/`else`/`else if`, loop with `while` and `for` and control iteration with `break` and `continue`. | [Control Flow](/guide/control-flow) |
 
-After completing Phase 1, you can write standalone programs that process data, make decisions, and loop over collections.
+After completing Phase 1, you can write standalone programs that process data, make decisions and loop over collections.
 
 ### Phase 2: Intermediate — Data Structures and Safety
 
@@ -234,14 +240,14 @@ Build larger programs with structured data and explicit error handling:
 
 | Skill | Description | Guide |
 |-------|-------------|-------|
-| **Classes** | Bundle data and behavior, define constructors with `fn init()`, inherit with `extends`, and implement interfaces. | [Classes](/guide/classes) |
-| **Interfaces** | Define contracts with interface methods, implement multiple interfaces, and write polymorphic code. | [Interfaces](/guide/interfaces) |
-| **Enums** | Model domain data with algebraic data types, use enum variants with payloads, and pattern match on values. | [Enums](/guide/enums) |
-| **Generics** | Write reusable code with type parameters, apply interface constraints, and understand monomorphization. | [Generics](/guide/generics) |
-| **Error Handling** | Use `Result<T, E>` for explicit error handling, propagate errors with `?`, and convert between error types. | [Error Handling](/guide/error-handling) |
-| **Modules** | Organize code across files, use `import` with `::` syntax, and control visibility with `public`/`private`. | [Modules](/guide/modules) |
+| **Classes** | Bundle data and behavior, define constructors with `fn init()`, inherit with `extends` and implement interfaces. | [Classes](/guide/classes) |
+| **Interfaces** | Define contracts with interface methods, implement multiple interfaces and write polymorphic code. | [Interfaces](/guide/interfaces) |
+| **Enums** | Model domain data with algebraic data types, use enum variants with payloads and pattern match on values. | [Enums](/guide/enums) |
+| **Generics** | Write reusable code with type parameters, apply interface constraints and understand monomorphization. | [Generics](/guide/generics) |
+| **Error Handling** | Use `Result<T, E>` for explicit error handling, propagate errors with `?` and convert between error types. | [Error Handling](/guide/error-handling) |
+| **Modules** | Organize code across files, use `import` with `::` syntax and control visibility with `public`/`private`. | [Modules](/guide/modules) |
 
-After completing Phase 2, you can build multi-file projects with custom data types, safe error handling, and reusable generic components.
+After completing Phase 2, you can build multi-file projects with custom data types, safe error handling and reusable generic components.
 
 ### Phase 3: Advanced — Systems Programming and Performance
 
@@ -249,14 +255,14 @@ Master low-level memory management and native compilation:
 
 | Skill | Description | Guide |
 |-------|-------------|-------|
-| **Ownership** | Track data ownership with `Owned<T>`, borrow with `&` and `&mut`, and use regions for batch allocation. | [Ownership](/guide/ownership) |
-| **Unsafe Code** | Suspend safety checks in `unsafe` blocks, interface with C libraries, and implement low-level data structures. | [Ownership](/guide/ownership#unsafe-blocks) |
-| **Native Compilation** | Compile to LLVM IR, generate standalone executables, and optimize for compute-bound workloads. | [Native Backend](/guide/native-intro) |
-| **Closures** | Write anonymous functions with `fn(x): T => expr`, capture variables by reference, and pass functions as arguments. | [Closures](/guide/closures) |
+| **Ownership** | Track data ownership with `Owned<T>`, borrow with `&` and `&mut` and use regions for batch allocation. | [Ownership](/guide/ownership) |
+| **Unsafe Code** | Suspend safety checks in `unsafe` blocks, interface with C libraries and implement low-level data structures. | [Ownership](/guide/ownership#unsafe-blocks) |
+| **Native Compilation** | Compile to LLVM IR, generate standalone executables and optimize for compute-bound workloads. | [Native Backend](/guide/native-intro) |
+| **Closures** | Write anonymous functions with `fn(x): T => expr`, capture variables by reference and pass functions as arguments. | [Closures](/guide/closures) |
 | **Operator Overloading** | Define custom behavior for `+`, `-`, `*` and other operators with `fn operator<op>` syntax. | [Operator Overloading](/guide/operator-overloading) |
-| **Iterators** | Implement `Iterable<T>` and `Iterator<T>`, use custom iterators in `for-in` loops, and chain iterator operations. | [Iterators](/guide/iterators) |
+| **Iterators** | Implement `Iterable<T>` and `Iterator<T>`, use custom iterators in `for-in` loops and chain iterator operations. | [Iterators](/guide/iterators) |
 
-After completing Phase 3, you can write high-performance systems code, manage memory without garbage collection, and compile native executables for production deployment.
+After completing Phase 3, you can write high-performance systems code, manage memory without garbage collection and compile native executables for production deployment.
 
 ### Skill Progression Diagram
 
@@ -299,112 +305,40 @@ The guides include "Try It Yourself" exercises for hands-on practice. Working th
 
 ## Getting Started
 
-Follow these steps to install Titrate and run your first program.
+::: tip Comprehensive Guide Available
+This section provides a quick overview. For complete installation instructions, prerequisites, troubleshooting and detailed walkthroughs, see the [Getting Started Guide](/guide/getting-started).
+:::
 
-### Installation
+### Quick Overview
 
-#### Prerequisites
+**Prerequisites:**
+- Rust 1.70+ ([rustup.rs](https://rustup.rs/))
+- LLVM development files (system package manager)
+- Git
 
-Before you install Titrate ensure you have these tools:
-
-One. **Rust** — Install Rust 1.70 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
-
-Two. **LLVM development files** — Required for the native backend. Install via your system package manager:
-   - Ubuntu/Debian: `sudo apt install llvm-dev libclang-dev`
-   - macOS: `brew install llvm`
-   - Windows: Download from [llvm.org](https://llvm.org/) or use the Visual Studio installer
-
-Three. **Git** — Clone the repository with `git clone https://github.com/richie-rich90454/titrate.git`.
-
-#### Build Steps
-
-One. Clone the repository:
+**Build and run:**
 
 ```bash
 git clone https://github.com/richie-rich90454/titrate.git
 cd titrate
-```
-
-Two. Build the compiler in release mode:
-
-```bash
 cargo build --release
-```
 
-This creates the `trc` compiler binary in `target/release/`.
+# Create hello.tr
+echo 'public fn main(): void { io::println("Hello, Titrate!"); }' > hello.tr
 
-Three. Verify the build succeeded:
-
-```bash
-./target/release/trc --version
-```
-
-You should see output like `trc 0.1.0` or similar.
-
-Four. Add `trc` to your PATH for convenience:
-
-```bash
-# Linux/macOS
-export PATH="$PWD/target/release:$PATH"
-
-# Windows PowerShell
-$env:Path += ";$PWD\target\release"
-```
-
-### Your First Program
-
-Create a simple hello world program and run it.
-
-#### Create the File
-
-Create a file named `hello.tr` with this content:
-
-```titrate
-public fn main(): void {
-    io::println("Hello, Titrate!");
-}
-```
-
-This program defines a `main` function that prints a greeting to the console.
-
-#### Run with the Bytecode VM
-
-Execute your program with the bytecode VM:
-
-```bash
+# Run with bytecode VM
 trc hello.tr
-```
 
-Expected output:
-
-```
-Hello, Titrate!
-```
-
-#### Compile to Native Executable
-
-For compute-bound workloads compile to a standalone native executable. Release-mode native builds run three to six times faster than the bytecode VM:
-
-```bash
+# Or compile to native executable (3-6x faster)
 trc --native --release hello.tr
 ./hello
 ```
 
-::: tip Native Backend
-Titrate ships with an LLVM native backend that compiles `.tr` programs to standalone executables. Use `--native --release` for simulations, numerical kernels and signal processing. See the [native backend guides](/guide/native-intro) for details.
-:::
-
-#### Use the Build Tool
-
-Titrate includes `pipette` a build tool for project management:
-
-```bash
-pipette new myproject
-cd myproject
-pipette run
-```
-
 ### Troubleshooting
+
+::: info Detailed Troubleshooting
+For comprehensive troubleshooting steps, error explanations, and solutions, see the [Getting Started Guide](/guide/getting-started#troubleshooting).
+:::
 
 #### Build Fails with LLVM Link Error
 
