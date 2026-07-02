@@ -3241,6 +3241,18 @@ body,
 
 .VPLocalSearchBox .search-result:hover {
   background: var(--titrate-interactive-hover);
+  transform: translateX(2px);
+}
+
+.VPLocalSearchBox .search-result:active {
+  transform: translateX(0);
+  background: var(--titrate-interactive-active);
+}
+
+.VPLocalSearchBox .search-result:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: -2px;
+  background: var(--titrate-interactive-hover);
 }
 
 .VPLocalSearchBox .search-result.selected {
