@@ -2,6 +2,9 @@
    Titrate Documentation Theme — Fluent Design System
    ============================================================ */
 
+/* ===== Typography — Google Fonts Import ===== */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 /* ===== Brand Colors ===== */
 :root {
   --vp-c-brand-1: #e94560;
@@ -86,87 +89,131 @@
   --titrate-radius-sm: 4px;
   --titrate-radius-md: 6px;
   --titrate-radius-lg: 8px;
+
+  /* Spacing scale (8px base unit) */
+  --titrate-space-xs: 4px;
+  --titrate-space-sm: 8px;
+  --titrate-space-md: 16px;
+  --titrate-space-lg: 24px;
+  --titrate-space-xl: 32px;
+}
+
+/* Smooth dark/light mode transition */
+html {
+  transition: background-color 0.25s ease;
+}
+
+body,
+.VPNav,
+.VPSidebar,
+.VPDoc,
+.vp-doc,
+.VPHero,
+.VPFeature {
+  transition: background-color 0.25s ease,
+              color 0.25s ease,
+              border-color 0.25s ease;
 }
 
 .dark {
-  --vp-c-brand-1: #ff6b81;
-  --vp-c-brand-2: #e94560;
-  --vp-c-brand-3: #d63851;
-  --vp-c-brand-soft: rgba(255, 107, 129, 0.10);
-  --vp-c-brand-mute: rgba(255, 107, 129, 0.06);
+  --vp-c-brand-1: #ff7b8f;
+  --vp-c-brand-2: #ff6b81;
+  --vp-c-brand-3: #e94560;
+  --vp-c-brand-soft: rgba(255, 123, 143, 0.12);
+  --vp-c-brand-mute: rgba(255, 123, 143, 0.08);
 
-  --titrate-neutral-1: #2d2d2d;
-  --titrate-neutral-2: #333;
-  --titrate-neutral-3: #3d3d3d;
-  --titrate-neutral-4: #4d4d4d;
-  --titrate-neutral-5: #888;
-  --titrate-neutral-6: #aaa;
+  /* WCAG AA compliant neutral palette - improved contrast */
+  --titrate-neutral-1: #1a1a1a;
+  --titrate-neutral-2: #242424;
+  --titrate-neutral-3: #2e2e2e;
+  --titrate-neutral-4: #404040;
+  --titrate-neutral-5: #9a9a9a;
+  --titrate-neutral-6: #d4d4d4;
 
   /* Chemistry-inspired gradient patterns - Dark mode */
   --titrate-gradient-hero: linear-gradient(135deg,
-    rgba(255, 107, 129, 0.05) 0%,
-    rgba(78, 168, 222, 0.03) 50%,
-    rgba(108, 203, 95, 0.03) 100%);
+    rgba(255, 123, 143, 0.06) 0%,
+    rgba(100, 180, 230, 0.04) 50%,
+    rgba(130, 215, 115, 0.04) 100%);
   --titrate-gradient-reaction: linear-gradient(135deg,
-    #ff6b81 0%,
-    #e94560 50%,
-    #f59f00 100%);
+    #ff7b8f 0%,
+    #ff6b81 50%,
+    #ffb84d 100%);
   --titrate-gradient-molecular: radial-gradient(circle at 20% 50%,
-    rgba(255, 107, 129, 0.12) 0%,
+    rgba(255, 123, 143, 0.14) 0%,
     transparent 50%),
     radial-gradient(circle at 80% 80%,
-    rgba(78, 168, 222, 0.08) 0%,
+    rgba(100, 180, 230, 0.10) 0%,
     transparent 40%),
     radial-gradient(circle at 40% 20%,
-    rgba(177, 151, 247, 0.10) 0%,
+    rgba(190, 165, 255, 0.12) 0%,
     transparent 45%);
   --titrate-gradient-bond: linear-gradient(90deg,
-    rgba(255, 107, 129, 0.20) 0%,
-    rgba(78, 168, 222, 0.20) 100%);
+    rgba(255, 123, 143, 0.22) 0%,
+    rgba(100, 180, 230, 0.22) 100%);
   --titrate-gradient-crystal: linear-gradient(180deg,
-    rgba(255, 107, 129, 0.06) 0%,
+    rgba(255, 123, 143, 0.08) 0%,
     transparent 60%);
 
-  /* Enhanced accent palette - Secondary colors - Dark mode */
-  --titrate-secondary-teal: #00d4d4;
-  --titrate-secondary-amber: #ffc078;
-  --titrate-secondary-violet: #b197f7;
-  --titrate-secondary-cyan: #66d9e8;
+  /* Enhanced accent palette - Secondary colors - Dark mode (WCAG AA compliant) */
+  --titrate-secondary-teal: #00e5e5;
+  --titrate-secondary-amber: #ffd499;
+  --titrate-secondary-violet: #c4a7ff;
+  --titrate-secondary-cyan: #7ee3f2;
 
-  /* Tertiary accent colors - Dark mode */
-  --titrate-tertiary-rose: #faa2c1;
-  --titrate-tertiary-sky: #a5d8ff;
-  --titrate-tertiary-lime: #c0eb75;
-  --titrate-tertiary-indigo: #91a7ff;
+  /* Tertiary accent colors - Dark mode (WCAG AA compliant) */
+  --titrate-tertiary-rose: #ffb3c8;
+  --titrate-tertiary-sky: #b3daff;
+  --titrate-tertiary-lime: #d4f090;
+  --titrate-tertiary-indigo: #a5b8ff;
 
-  --titrate-accent-blue: #4ea8de;
-  --titrate-accent-green: #6ccb5f;
-  --titrate-accent-orange: #f59f00;
-  --titrate-accent-purple: #b197f7;
+  --titrate-accent-blue: #64b4e6;
+  --titrate-accent-green: #82d97a;
+  --titrate-accent-orange: #ffb84d;
+  --titrate-accent-purple: #c4a7ff;
 
   /* Interactive state colors - Dark mode */
-  --titrate-interactive-hover: rgba(255, 107, 129, 0.15);
-  --titrate-interactive-active: rgba(255, 107, 129, 0.22);
-  --titrate-interactive-focus: rgba(78, 168, 222, 0.30);
-  --titrate-interactive-focus-ring: 0 0 0 2px rgba(78, 168, 222, 0.40);
-  --titrate-interactive-disabled: rgba(120, 120, 120, 0.5);
+  --titrate-interactive-hover: rgba(255, 123, 143, 0.18);
+  --titrate-interactive-active: rgba(255, 123, 143, 0.26);
+  --titrate-interactive-focus: rgba(100, 180, 230, 0.35);
+  --titrate-interactive-focus-ring: 0 0 0 2px rgba(100, 180, 230, 0.45);
+  --titrate-interactive-disabled: rgba(140, 140, 140, 0.55);
 
-  --titrate-shadow-2: 0 1px 2px rgba(0, 0, 0, 0.28);
-  --titrate-shadow-4: 0 2px 4px rgba(0, 0, 0, 0.24);
-  --titrate-shadow-8: 0 4px 8px rgba(0, 0, 0, 0.22);
-  --titrate-shadow-16: 0 8px 16px rgba(0, 0, 0, 0.22);
-  --titrate-shadow-card: 0 1.6px 3.6px rgba(0, 0, 0, 0.18), 0 0.3px 0.9px rgba(0, 0, 0, 0.12);
+  --titrate-shadow-2: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --titrate-shadow-4: 0 2px 4px rgba(0, 0, 0, 0.32);
+  --titrate-shadow-8: 0 4px 8px rgba(0, 0, 0, 0.30);
+  --titrate-shadow-16: 0 8px 16px rgba(0, 0, 0, 0.28);
+  --titrate-shadow-card: 0 1.6px 3.6px rgba(0, 0, 0, 0.25), 0 0.3px 0.9px rgba(0, 0, 0, 0.18);
+
+  /* Syntax highlighting colors for dark mode - WCAG AA compliant */
+  --titrate-code-bg: #1e1e1e;
+  --titrate-code-kw: #ff99bb;
+  --titrate-code-str: #a8e6a3;
+  --titrate-code-num: #ffa86d;
+  --titrate-code-comment: #7a8599;
+  --titrate-code-fn: #82d4ff;
+  --titrate-code-type: #f0b4f0;
+  --titrate-code-op: #d4d4d4;
+  --titrate-code-var: #f8f8f8;
+  --titrate-code-punct: #9a9a9a;
 }
 
 /* ===== Typography — Fluent: Segoe UI first ===== */
 :root {
   --vp-font-family-base: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
   --vp-font-family-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
+  --titrate-font-family-display: 'Space Grotesk', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* ===== Page Transition — Subtle, not flashy ===== */
+/* ===== Body Text — Optimized for readability ===== */
 .vp-doc {
+  line-height: 1.7;
   animation: titrate-page-in 0.2s var(--titrate-ease-decelerate);
+}
+
+.vp-doc p {
+  margin-bottom: 1.25em;
+  line-height: 1.7;
 }
 
 @keyframes titrate-page-in {
@@ -178,6 +225,7 @@
 .VPHero .name {
   color: var(--vp-c-brand-1);
   font-weight: 700;
+  font-family: var(--titrate-font-family-display);
   background: var(--titrate-gradient-reaction);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -247,6 +295,7 @@
 .VPFeature .title {
   font-weight: 600;
   font-size: 0.95em;
+  font-family: var(--titrate-font-family-display);
 }
 
 .VPFeature:hover {
@@ -284,6 +333,7 @@
   margin: 16px 0;
   box-shadow: var(--titrate-shadow-2);
   border: 1px solid var(--vp-c-divider);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .vp-doc div[class*='language-'] code {
@@ -543,6 +593,7 @@
   margin-top: 1.5em;
   font-weight: 700;
   line-height: 1.25;
+  font-family: var(--titrate-font-family-display);
 }
 
 .vp-doc h1::after {
@@ -801,23 +852,111 @@
 
 /* ===== Dark Mode Adjustments ===== */
 .dark .vp-doc .custom-block.tip {
-  background: rgba(78, 168, 222, 0.06);
+  background: rgba(100, 180, 230, 0.08);
+  border-left-color: #64b4e6;
 }
 
 .dark .vp-doc .custom-block.warning {
-  background: rgba(245, 159, 0, 0.06);
+  background: rgba(255, 184, 77, 0.08);
+  border-left-color: #ffb84d;
 }
 
 .dark .vp-doc .custom-block.danger {
-  background: rgba(233, 69, 96, 0.06);
+  background: rgba(255, 123, 143, 0.08);
+  border-left-color: #ff7b8f;
 }
 
 .dark .vp-doc .custom-block.info {
-  background: rgba(151, 117, 250, 0.06);
+  background: rgba(196, 167, 255, 0.08);
+  border-left-color: #c4a7ff;
 }
 
 .dark .vp-doc .ecosystem-item:hover {
   box-shadow: var(--titrate-shadow-4);
+}
+
+/* Dark mode code block syntax highlighting */
+.dark .vp-doc div[class*='language-'] {
+  background: var(--titrate-code-bg);
+}
+
+.dark .vp-doc div[class*='language-'] code {
+  color: var(--titrate-code-var);
+}
+
+/* Syntax highlighting for keywords */
+.dark .vp-doc .token.keyword,
+.dark .vp-doc .token.tag,
+.dark .vp-doc .token.builtin {
+  color: var(--titrate-code-kw);
+}
+
+/* Syntax highlighting for strings */
+.dark .vp-doc .token.string,
+.dark .vp-doc .token.attr-value,
+.dark .vp-doc .token.template-string {
+  color: var(--titrate-code-str);
+}
+
+/* Syntax highlighting for numbers */
+.dark .vp-doc .token.number {
+  color: var(--titrate-code-num);
+}
+
+/* Syntax highlighting for comments */
+.dark .vp-doc .token.comment,
+.dark .vp-doc .token.cdata {
+  color: var(--titrate-code-comment);
+  font-style: italic;
+}
+
+/* Syntax highlighting for functions */
+.dark .vp-doc .token.function,
+.dark .vp-doc .token.method {
+  color: var(--titrate-code-fn);
+}
+
+/* Syntax highlighting for types */
+.dark .vp-doc .token.class-name,
+.dark .vp-doc .token.type {
+  color: var(--titrate-code-type);
+}
+
+/* Syntax highlighting for operators */
+.dark .vp-doc .token.operator {
+  color: var(--titrate-code-op);
+}
+
+/* Syntax highlighting for punctuation */
+.dark .vp-doc .token.punctuation {
+  color: var(--titrate-code-punct);
+}
+
+/* Dark mode inline code */
+.dark .vp-doc :not(pre) > code {
+  background: rgba(255, 123, 143, 0.12);
+  color: #ff99bb;
+}
+
+/* Dark mode badge colors - enhanced contrast */
+.dark .vp-doc .badge-blue {
+  background: rgba(100, 180, 230, 0.15);
+  color: #64b4e6;
+}
+
+.dark .vp-doc .badge-green {
+  background: rgba(130, 217, 122, 0.15);
+  color: #82d97a;
+}
+
+.dark .vp-doc .badge-orange {
+  background: rgba(255, 184, 77, 0.15);
+  color: #ffb84d;
+}
+
+.dark .vp-doc .badge-purple {
+  background: rgba(196, 167, 255, 0.15);
+  color: #c4a7ff;
 }
 
 /* ===== Responsive ===== */
