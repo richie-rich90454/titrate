@@ -3431,3 +3431,59 @@ body,
     top: 45%;
   }
 }
+
+/* ===== Global Focus States for Accessibility ===== */
+/* Ensure all interactive elements have visible focus rings */
+
+/* Button focus states */
+button:focus-visible,
+.vp-doc a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+}
+
+/* Link focus states in content */
+.vp-doc a:focus-visible {
+  outline-offset: 1px;
+  border-radius: var(--titrate-radius-sm);
+  background: var(--vp-c-brand-soft);
+}
+
+/* Dark mode focus states */
+.dark button:focus-visible,
+.dark .vp-doc a:focus-visible,
+.dark [role="button"]:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  box-shadow: 0 0 0 4px rgba(100, 180, 230, 0.20);
+}
+
+/* Remove default focus outline and use custom styles */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+}
+
+/* Table row focus for keyboard navigation */
+.vp-doc table tr:focus-within td {
+  background: var(--titrate-interactive-hover);
+}
+
+/* Ensure focus ring is visible on all interactive elements */
+.VPNav .VPNavBarMenu .VPLink:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: -2px;
+}
+
+/* Breadcrumb link focus */
+.vp-doc .breadcrumb-link:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 1px;
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
