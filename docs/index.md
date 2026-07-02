@@ -281,52 +281,450 @@ Collections (ArrayList, HashMap, HashSet, Vec), I/O (File, BufferedReader), seri
 
 How does Titrate compare to other systems languages for common tasks?
 
-| Feature | Titrate | C | Rust | Python |
-|---------|:-------:|:---:|:----:|:------:|
-| Memory safety | Yes | No | Yes | Yes |
-| No garbage collector | Yes | Yes | Yes | No |
-| Zero-cost generics | Yes | No | Yes | No |
-| Simple syntax | Yes | No | No | Yes |
-| Scientific computing stdlib | Yes | No | No | Yes |
-| Result-based error handling | Yes | No | Yes | No |
-| Operator overloading | Yes | No | Yes | Yes |
-| Fast compile times | Yes | Yes | No | Yes |
-| C-family sugar forms | Yes | Yes | No | No |
+<div class="comparison-grid">
+
+<div class="comparison-card">
+  <div class="comparison-header">
+    <span class="lang-name titrate-lang">Titrate</span>
+  </div>
+  <div class="comparison-features">
+    <div class="feature-row"><span class="feature-name">Memory safety</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">No garbage collector</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Zero-cost generics</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Simple syntax</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Scientific computing stdlib</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Result-based error handling</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Operator overloading</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Fast compile times</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">C-family sugar forms</span><span class="check">✓</span></div>
+  </div>
+</div>
+
+<div class="comparison-card">
+  <div class="comparison-header">
+    <span class="lang-name">C</span>
+  </div>
+  <div class="comparison-features">
+    <div class="feature-row"><span class="feature-name">Memory safety</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">No garbage collector</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Zero-cost generics</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Simple syntax</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Scientific computing stdlib</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Result-based error handling</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Operator overloading</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Fast compile times</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">C-family sugar forms</span><span class="check">✓</span></div>
+  </div>
+</div>
+
+<div class="comparison-card">
+  <div class="comparison-header">
+    <span class="lang-name">Rust</span>
+  </div>
+  <div class="comparison-features">
+    <div class="feature-row"><span class="feature-name">Memory safety</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">No garbage collector</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Zero-cost generics</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Simple syntax</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Scientific computing stdlib</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Result-based error handling</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Operator overloading</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Fast compile times</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">C-family sugar forms</span><span class="cross">✗</span></div>
+  </div>
+</div>
+
+<div class="comparison-card">
+  <div class="comparison-header">
+    <span class="lang-name">Python</span>
+  </div>
+  <div class="comparison-features">
+    <div class="feature-row"><span class="feature-name">Memory safety</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">No garbage collector</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Zero-cost generics</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Simple syntax</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Scientific computing stdlib</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Result-based error handling</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Operator overloading</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Fast compile times</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">C-family sugar forms</span><span class="cross">✗</span></div>
+  </div>
+</div>
+
+</div>
 
 ## Standard Library Ecosystem
 
 Titrate ships with a comprehensive standard library organized into intuitive modules:
 
-| Module | Key Types | Description |
-|--------|-----------|-------------|
-| `tt::util` | ArrayList, HashMap, HashSet, Vec, Stack, Queue | Core collections with generic support |
-| `tt::io` | File, BufferedReader, FileWriter, Path | File I/O and filesystem operations |
-| `tt::json` | JsonValue, Json, JsonPath, JsonSchema, Json5 | JSON parsing, serialization, querying, validation |
-| `tt::xml` | XmlNode, Xml, XPath, XmlBuilder, XmlSchema | XML parsing, XPath, schema validation, C14N |
-| `tt::math` | Math, MathAdvanced, MathTrig, Special | Mathematical functions, constants, special functions |
-| `tt::math::linalg` | Matrix, MatrixDecomp, SparseMatrix | Linear algebra and matrix operations |
-| `tt::math::ndarray` | NDArray, NDArrayReduce, NDArrayMath | N-dimensional arrays and reductions |
-| `tt::chem` | Atom, Molecule, ForceField, MD, RHF | Computational chemistry toolkit |
-| `tt::bio` | Sequence, Alignment, PhyloTree, CodonTable | Bioinformatics and sequence analysis |
-| `tt::physics` | Particle, ForceField, NBodySimulator, RigidBody | Physics simulation |
-| `tt::materials` | CrystalStructure, XRayDiffraction, Elasticity | Materials science |
-| `tt::sigproc` | FFT2, Filter, Wavelet, Spectrogram | Signal processing |
-| `tt::image` | Image, Kernel, Morphology, Threshold | Image processing |
-| `tt::audio` | AudioBuffer, Pitch, Mfcc | Audio processing |
-| `tt::ml` | Tensor, Layer, Optimizer, Model | Machine learning |
-| `tt::geom` | ConvexHull, Delaunay, SpatialIndex | Computational geometry |
-| `tt::nlp` | Tokenizer, Stemmer, Classifier | Natural language processing |
-| `tt::hft` | FixParser, OrderRouter, RiskManager, Backtest | High-frequency trading |
-| `tt::sim` | Simulation, Resource, Process, Monitor | Discrete-event simulation |
-| `tt::finance` | BlackScholes, Portfolio, YieldCurve | Quantitative finance |
-| `tt::crypto2` | AES, RSA, ECDSA, KDF | Advanced cryptography |
-| `tt::net` | TcpClient, TcpServer, HttpClient | Networking primitives |
-| `tt::crypto` | SHA256, HMAC, Hash | Cryptographic hash functions |
-| `tt::encoding` | Base64, Hex, Url | Encoding and decoding utilities |
-| `tt::argparse` | ArgumentParser | CLI argument parsing |
-| `tt::csv` | CsvReader, CsvWriter | CSV file handling |
-| `tt::random` | Random, Prng, Sampling | Random number generation and distributions |
-| `tt::statistics` | Statistics, Bootstrap, TimeSeries | Statistical analysis and inference |
+::: ecosystem-showcase
+
+<!-- Core Collections -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-core">Core</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">📦</span>
+<h4 class="ecosystem-card-title">tt::util</h4>
+</div>
+<p class="ecosystem-card-types">ArrayList, HashMap, HashSet, Vec, Stack, Queue</p>
+<code class="ecosystem-card-code">let list = new ArrayList&lt;int&gt;();
+list.add(42);</code>
+<a class="ecosystem-card-link" href="/stdlib/util/ArrayList"></a>
+</div>
+
+<!-- I/O -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-core">Core</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">📄</span>
+<h4 class="ecosystem-card-title">tt::io</h4>
+</div>
+<p class="ecosystem-card-types">File, BufferedReader, FileWriter, Path</p>
+<code class="ecosystem-card-code">let f = File.open("data.txt");
+let content = f.readAll();</code>
+<a class="ecosystem-card-link" href="/stdlib/io/File"></a>
+</div>
+
+<!-- JSON -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-data">Data</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">📋</span>
+<h4 class="ecosystem-card-title">tt::json</h4>
+</div>
+<p class="ecosystem-card-types">JsonValue, Json, JsonPath, JsonSchema</p>
+<code class="ecosystem-card-code">let obj = Json.parse(text);
+let v = obj.get("key");</code>
+<a class="ecosystem-card-link" href="/stdlib/json/Json"></a>
+</div>
+
+<!-- XML -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-data">Data</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🏷️</span>
+<h4 class="ecosystem-card-title">tt::xml</h4>
+</div>
+<p class="ecosystem-card-types">XmlNode, Xml, XPath, XmlBuilder</p>
+<code class="ecosystem-card-code">let doc = Xml.parse(xmlStr);
+let nodes = XPath.select(doc, "//item");</code>
+<a class="ecosystem-card-link" href="/stdlib/xml/Xml"></a>
+</div>
+
+<!-- Math -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🔢</span>
+<h4 class="ecosystem-card-title">tt::math</h4>
+</div>
+<p class="ecosystem-card-types">Math, MathAdvanced, MathTrig, Special</p>
+<code class="ecosystem-card-code">let x = MathAdvanced.sqrt(2.0);
+let y = MathTrig.sin(Math.PI()/4);</code>
+<a class="ecosystem-card-link" href="/stdlib/math/Math"></a>
+</div>
+
+<!-- Linear Algebra -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">📐</span>
+<h4 class="ecosystem-card-title">tt::math::linalg</h4>
+</div>
+<p class="ecosystem-card-types">Matrix, MatrixDecomp, SparseMatrix</p>
+<code class="ecosystem-card-code">let m = Matrix.fromArray(data);
+let det = MatrixDecomp.det(m);</code>
+<a class="ecosystem-card-link" href="/stdlib/math/linalg/Matrix"></a>
+</div>
+
+<!-- NDArray -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">📊</span>
+<h4 class="ecosystem-card-title">tt::math::ndarray</h4>
+</div>
+<p class="ecosystem-card-types">NDArray, NDArrayReduce, NDArrayMath</p>
+<code class="ecosystem-card-code">let arr = NDArray.zeros(3, 4);
+let mean = NDArrayReduce.mean(arr);</code>
+<a class="ecosystem-card-link" href="/stdlib/math/ndarray/NDArray"></a>
+</div>
+
+<!-- Chemistry -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🧪</span>
+<h4 class="ecosystem-card-title">tt::chem</h4>
+</div>
+<p class="ecosystem-card-types">Atom, Molecule, ForceField, MD, RHF</p>
+<code class="ecosystem-card-code">let mol = new Molecule("water");
+mol.addAtom(Atom.oxygen(0, 0, 0));</code>
+<a class="ecosystem-card-link" href="/stdlib/chem/Molecule"></a>
+</div>
+
+<!-- Bioinformatics -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🧬</span>
+<h4 class="ecosystem-card-title">tt::bio</h4>
+</div>
+<p class="ecosystem-card-types">Sequence, Alignment, PhyloTree, CodonTable</p>
+<code class="ecosystem-card-code">let seq = Sequence.fromDNA("ATGC");
+let aligned = Alignment.align(a, b);</code>
+<a class="ecosystem-card-link" href="/stdlib/bio/Sequence"></a>
+</div>
+
+<!-- Physics -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">⚡</span>
+<h4 class="ecosystem-card-title">tt::physics</h4>
+</div>
+<p class="ecosystem-card-types">Particle, ForceField, NBodySimulator, RigidBody</p>
+<code class="ecosystem-card-code">let sim = new NBodySimulator();
+sim.addParticle(p, mass, pos);</code>
+<a class="ecosystem-card-link" href="/stdlib/physics/NBodySimulator"></a>
+</div>
+
+<!-- Materials -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">💎</span>
+<h4 class="ecosystem-card-title">tt::materials</h4>
+</div>
+<p class="ecosystem-card-types">CrystalStructure, XRayDiffraction, Elasticity</p>
+<code class="ecosystem-card-code">let crystal = CrystalStructure.load("cif");
+let pattern = XRayDiffraction.simulate(crystal);</code>
+<a class="ecosystem-card-link" href="/stdlib/materials/CrystalStructure"></a>
+</div>
+
+<!-- Signal Processing -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">📈</span>
+<h4 class="ecosystem-card-title">tt::sigproc</h4>
+</div>
+<p class="ecosystem-card-types">FFT2, Filter, Wavelet, Spectrogram</p>
+<code class="ecosystem-card-code">let spectrum = FFT2.transform(signal);
+let filtered = Filter.lowpass(spectrum, cutoff);</code>
+<a class="ecosystem-card-link" href="/stdlib/sigproc/FFT2"></a>
+</div>
+
+<!-- Image Processing -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-special">Special</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🖼️</span>
+<h4 class="ecosystem-card-title">tt::image</h4>
+</div>
+<p class="ecosystem-card-types">Image, Kernel, Morphology, Threshold</p>
+<code class="ecosystem-card-code">let img = Image.load("photo.png");
+let edges = Kernel.apply(img, sobel);</code>
+<a class="ecosystem-card-link" href="/stdlib/image/Image"></a>
+</div>
+
+<!-- Audio Processing -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-special">Special</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🎵</span>
+<h4 class="ecosystem-card-title">tt::audio</h4>
+</div>
+<p class="ecosystem-card-types">AudioBuffer, Pitch, Mfcc</p>
+<code class="ecosystem-card-code">let audio = AudioBuffer.load("song.wav");
+let pitch = Pitch.detect(audio);</code>
+<a class="ecosystem-card-link" href="/stdlib/audio/AudioBuffer"></a>
+</div>
+
+<!-- Machine Learning -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🤖</span>
+<h4 class="ecosystem-card-title">tt::ml</h4>
+</div>
+<p class="ecosystem-card-types">Tensor, Layer, Optimizer, Model</p>
+<code class="ecosystem-card-code">let model = Model.sequential([
+  Layer.dense(128, "relu")
+]);</code>
+<a class="ecosystem-card-link" href="/stdlib/ml/Model"></a>
+</div>
+
+<!-- Computational Geometry -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🔺</span>
+<h4 class="ecosystem-card-title">tt::geom</h4>
+</div>
+<p class="ecosystem-card-types">ConvexHull, Delaunay, SpatialIndex</p>
+<code class="ecosystem-card-code">let hull = ConvexHull.compute(points);
+let mesh = Delaunay.triangulate(hull);</code>
+<a class="ecosystem-card-link" href="/stdlib/geom/ConvexHull"></a>
+</div>
+
+<!-- NLP -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-special">Special</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">💬</span>
+<h4 class="ecosystem-card-title">tt::nlp</h4>
+</div>
+<p class="ecosystem-card-types">Tokenizer, Stemmer, Classifier</p>
+<code class="ecosystem-card-code">let tokens = Tokenizer.tokenize(text);
+let stems = Stemmer.stemAll(tokens);</code>
+<a class="ecosystem-card-link" href="/stdlib/nlp/Tokenizer"></a>
+</div>
+
+<!-- High-Frequency Trading -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-special">Special</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">💹</span>
+<h4 class="ecosystem-card-title">tt::hft</h4>
+</div>
+<p class="ecosystem-card-types">FixParser, OrderRouter, RiskManager, Backtest</p>
+<code class="ecosystem-card-code">let order = FixParser.parse(msg);
+Backtest.run(strategy, data);</code>
+<a class="ecosystem-card-link" href="/stdlib/hft/Backtest"></a>
+</div>
+
+<!-- Discrete-Event Simulation -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">⏱️</span>
+<h4 class="ecosystem-card-title">tt::sim</h4>
+</div>
+<p class="ecosystem-card-types">Simulation, Resource, Process, Monitor</p>
+<code class="ecosystem-card-code">let sim = new Simulation();
+sim.addProcess(myProcess);</code>
+<a class="ecosystem-card-link" href="/stdlib/sim/Simulation"></a>
+</div>
+
+<!-- Quantitative Finance -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-special">Special</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">💰</span>
+<h4 class="ecosystem-card-title">tt::finance</h4>
+</div>
+<p class="ecosystem-card-types">BlackScholes, Portfolio, YieldCurve</p>
+<code class="ecosystem-card-code">let price = BlackScholes.call(
+  S, K, T, r, sigma);</code>
+<a class="ecosystem-card-link" href="/stdlib/finance/BlackScholes"></a>
+</div>
+
+<!-- Advanced Cryptography -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-core">Core</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🔐</span>
+<h4 class="ecosystem-card-title">tt::crypto2</h4>
+</div>
+<p class="ecosystem-card-types">AES, RSA, ECDSA, KDF</p>
+<code class="ecosystem-card-code">let cipher = AES.encrypt(key, data);
+let sig = ECDSA.sign(privKey, msg);</code>
+<a class="ecosystem-card-link" href="/stdlib/crypto2/AES"></a>
+</div>
+
+<!-- Networking -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-core">Core</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🌐</span>
+<h4 class="ecosystem-card-title">tt::net</h4>
+</div>
+<p class="ecosystem-card-types">TcpClient, TcpServer, HttpClient</p>
+<code class="ecosystem-card-code">let client = new HttpClient();
+let resp = client.get(url);</code>
+<a class="ecosystem-card-link" href="/stdlib/net/HttpClient"></a>
+</div>
+
+<!-- Hash Functions -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-core">Core</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🔒</span>
+<h4 class="ecosystem-card-title">tt::crypto</h4>
+</div>
+<p class="ecosystem-card-types">SHA256, HMAC, Hash</p>
+<code class="ecosystem-card-code">let hash = SHA256.hash(data);
+let mac = HMAC.compute(key, msg);</code>
+<a class="ecosystem-card-link" href="/stdlib/crypto/SHA256"></a>
+</div>
+
+<!-- Encoding -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-core">Core</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🔡</span>
+<h4 class="ecosystem-card-title">tt::encoding</h4>
+</div>
+<p class="ecosystem-card-types">Base64, Hex, Url</p>
+<code class="ecosystem-card-code">let enc = Base64.encode(data);
+let dec = Hex.decode("0x1A2B");</code>
+<a class="ecosystem-card-link" href="/stdlib/encoding/Base64"></a>
+</div>
+
+<!-- Argument Parsing -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-core">Core</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">⚙️</span>
+<h4 class="ecosystem-card-title">tt::argparse</h4>
+</div>
+<p class="ecosystem-card-types">ArgumentParser</p>
+<code class="ecosystem-card-code">let parser = new ArgumentParser();
+parser.addArg("--input", "file");</code>
+<a class="ecosystem-card-link" href="/stdlib/argparse/ArgumentParser"></a>
+</div>
+
+<!-- CSV -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-data">Data</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">📊</span>
+<h4 class="ecosystem-card-title">tt::csv</h4>
+</div>
+<p class="ecosystem-card-types">CsvReader, CsvWriter</p>
+<code class="ecosystem-card-code">let reader = CsvReader.open("data.csv");
+let row = reader.next();</code>
+<a class="ecosystem-card-link" href="/stdlib/csv/CsvReader"></a>
+</div>
+
+<!-- Random -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-core">Core</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">🎲</span>
+<h4 class="ecosystem-card-title">tt::random</h4>
+</div>
+<p class="ecosystem-card-types">Random, Prng, Sampling</p>
+<code class="ecosystem-card-code">let rng = new Random();
+let n = rng.nextInt(0, 100);</code>
+<a class="ecosystem-card-link" href="/stdlib/random/Random"></a>
+</div>
+
+<!-- Statistics -->
+<div class="ecosystem-card">
+<span class="ecosystem-badge ecosystem-badge-science">Science</span>
+<div class="ecosystem-card-header">
+<span class="ecosystem-card-icon">📉</span>
+<h4 class="ecosystem-card-title">tt::statistics</h4>
+</div>
+<p class="ecosystem-card-types">Statistics, Bootstrap, TimeSeries</p>
+<code class="ecosystem-card-code">let stats = Statistics.fromData(data);
+let ci = Bootstrap.confidenceInterval(95);</code>
+<a class="ecosystem-card-link" href="/stdlib/statistics/Statistics"></a>
+</div>
+
+:::
 
 ## Community and Contributing
 
