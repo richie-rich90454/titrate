@@ -84,8 +84,8 @@ numerical kernels, signal processing — release-mode native builds run
 ## Language at a Glance
 
 ```titrate
-// Variables -- let for immutable, var for mutable
-let name: string = "Titrate";
+// Variables -- let for mutable with inference, var for mutable with explicit type
+let name = "Titrate";
 var count: int = 0;
 
 // Functions with name: Type parameter order
