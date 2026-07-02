@@ -80,6 +80,7 @@ export default defineConfig({
           items: [
             { text: 'Introduction', link: '/guide/getting-started' },
             { text: 'FAQ', link: '/guide/faq' },
+            { text: 'Glossary', link: '/guide/glossary' },
           ],
         },
         {

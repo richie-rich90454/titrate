@@ -160,13 +160,136 @@ By the end of this guide, you'll be comfortable with the core building blocks of
 
 ## What's Next?
 
+After running your first program, continue learning Titrate with these guides. Each section builds on the previous one, taking you from basic syntax to advanced systems programming.
+
+### Progressive Learning Path
+
+Titrate's learning curve progresses through three distinct phases. Each phase introduces new concepts while reinforcing previous skills.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              PHASE 1: BASICS                                │
+│                                                                             │
+│   Variables ──▶ Functions ──▶ Control Flow ──▶ Strings & Literals          │
+│   (let/var)     (fn name)      (if/while/for)   (raw strings)               │
+│                                                                             │
+│   Skills: Declare values, define logic, branch and loop                    │
+│   Time: 1-2 days                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           PHASE 2: INTERMEDIATE                            │
+│                                                                             │
+│   Classes ──▶ Interfaces ──▶ Enums ──▶ Generics ──▶ Error Handling         │
+│   (fn init)   (implements)   (ADTs)    (<T>)        (Result<T,E>)           │
+│                                                                             │
+│   Skills: Structure data, enforce contracts, handle failures explicitly    │
+│   Time: 3-5 days                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            PHASE 3: ADVANCED                                │
+│                                                                             │
+│   Pattern    ──▶ Closures ──▶ Operator ──▶ Iterators ──▶ Ownership         │
+│   Matching      (fn()=>)     Overloading  (for-in)      (Owned<T>)          │
+│                                                                             │
+│   Skills: Match patterns, capture closures, overload operators, iterate    │
+│   Time: 1-2 weeks                                                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          PHASE 4: SPECIALIZATION                           │
+│                                                                             │
+│   Modules ──▶ Native Backend ─▶ Domain-Specific Libraries                 │
+│   (import)    (--native)        (bio/ml/physics/hft)                        │
+│                                                                             │
+│   Skills: Organize projects, compile to native, use domain libraries       │
+│   Time: ongoing                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Recommended Learning Sequence
+
+Follow this sequence to build a solid foundation:
+
+**Phase 1 — Basics (1-2 days):**
+
+1. **[Variables](./variables)** — Learn `let`, `var` and `const` declarations with type inference. Understand how Titrate infers types and when to specify them explicitly.
+
+2. **[Functions](./functions)** — Define functions with `name: Type` parameters, write generic functions and understand recursion. Master the canonical `fn` syntax.
+
+3. **[Control Flow](./control-flow)** — Master `if`/`else`, `while`, `for` loops and `break`/`continue` for fine-grained control. Learn how Titrate's control flow differs from C and Python.
+
+4. **[Strings & Literals](./raw-strings)** — Understand string escapes, raw strings, numeric literals and character literals. Learn how to write clean string constants.
+
+**Phase 2 — Intermediate (3-5 days):**
+
+5. **[Classes](./classes)** — Create classes with fields and methods, use constructors with `fn init()`, and understand the difference between Titrate and Java class syntax.
+
+6. **[Interfaces](./interfaces)** — Define contracts with interface methods, implement multiple interfaces and write polymorphic code.
+
+7. **[Enums](./enums)** — Model domain data with algebraic data types, use enum variants with payloads and understand pattern matching.
+
+8. **[Generics](./generics)** — Write type-safe reusable code with zero runtime overhead through [monomorphization](./glossary#monomorphization). Learn when generics beat `Variant`.
+
+9. **[Error Handling](./error-handling)** — Handle failures explicitly with `Result<T, E>` and the `?` propagation operator. Understand why Titrate avoids exceptions.
+
+**Phase 3 — Advanced (1-2 weeks):**
+
+10. **[Pattern Matching](./pattern-matching)** — Match on enum variants, extract payload data and write exhaustive `switch` statements. Learn how pattern matching catches bugs at compile time.
+
+11. **[Closures](./closures)** — Write anonymous functions with `fn(x): T => expr`, capture variables by reference and pass functions as arguments.
+
+12. **[Operator Overloading](./operator-overloading)** — Define natural syntax for your types with `fn operator+`, `fn operator*` and more. Build expressive DSLs for math and physics.
+
+13. **[Iterators](./iterators)** — Implement `Iterable<T>` and `Iterator<T>`, use custom iterators in `for-in` loops and chain iterator operations.
+
+14. **[Ownership](./ownership)** — Understand memory safety without garbage collection using [Owned<T>](./glossary#owned), borrows and [regions](./glossary#region). Learn how ownership differs from Rust.
+
+**Phase 4 — Specialization (ongoing):**
+
+15. **[Modules](./modules)** — Organize code across files, use `import` with `::` syntax and control visibility with `public`/`private`. Build multi-file projects.
+
+16. **[Native Backend](./native-intro)** — Compile to standalone executables with LLVM for maximum performance. Learn when to use bytecode vs. native compilation.
+
+17. **Domain-Specific Guides** — Apply Titrate to your field:
+    - [Scientific Computing](./scientific-computing) — Math, statistics, linear algebra
+    - [Bioinformatics](./bio-guide) — Sequence analysis, alignments, phylogenetics
+    - [Physics Simulation](./physics-guide) — Particle systems, force fields, rigid bodies
+    - [Machine Learning](./ml-guide) — Neural networks, training, optimization
+    - [HFT Development](./hft-guide) — FIX parsing, backtesting, risk management
+    - [Scientific Simulation](./simulation-guide) — Discrete-event modeling, resource scheduling
+
+### How Long Does Each Phase Take?
+
+Most developers reach basic proficiency in Phase 1 after one to two days of practice. Phase 2 typically requires three to five days, depending on prior experience with object-oriented programming and generics. Phase 3 concepts—especially ownership—may take one to two weeks to internalize fully, particularly for developers coming from garbage-collected languages.
+
+The guides include "Try It Yourself" exercises for hands-on practice. Working through these exercises accelerates learning and reveals common pitfalls early.
+
+### Quick Reference Links
+
+Core guides in recommended order:
+
 - [Variables](./variables) — `let`, `var`, and `const` declarations
 - [Functions](./functions) — defining and calling functions, including generic functions
+- [Control Flow](./control-flow) — `if`, `while`, `for`, `break`, `continue`
+- [Strings & Literals](./raw-strings) — raw strings, escapes, numeric literals
 - [Classes](./classes) — object-oriented programming, inheritance, and interfaces
+- [Interfaces](./interfaces) — contracts, polymorphism, multiple inheritance
 - [Enums](./enums) — algebraic data types and pattern matching
 - [Generics](./generics) — type parameters, constraints, and monomorphization
+- [Error Handling](./error-handling) — `Result<T, E>` and `?` operator
+- [Pattern Matching](./pattern-matching) — exhaustive `switch`, payload extraction
+- [Closures](./closures) — anonymous functions, captures, higher-order functions
+- [Operator Overloading](./operator-overloading) — custom `+`, `-`, `*` behavior
+- [Iterators](./iterators) — `for-in`, `Iterable<T>`, custom iterators
+- [Ownership](./ownership) — memory safety, `Owned<T>`, borrows, regions
 - [Modules](./modules) — multi-file projects and imports
 - [File I/O](./file-io) — reading and writing files
+- [Glossary](./glossary) — Titrate terminology and concepts
 
 ## Troubleshooting
 
