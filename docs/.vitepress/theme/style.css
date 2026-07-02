@@ -1817,6 +1817,19 @@ body,
     font-size: 1rem !important;
   }
 
+  /* Hide molecule/atom decorative elements on tablet */
+  .VPHero .image::before,
+  .VPHero .image::after,
+  .VPHero .container::before,
+  .VPHero .container::after {
+    display: none;
+  }
+
+  .titrate-hero-molecule,
+  .titrate-hero-atom {
+    display: none;
+  }
+
   .vp-doc h1::after {
     width: 36px;
   }
@@ -1880,6 +1893,8 @@ body,
     line-height: 1.6;
   }
 
+  /* Chemistry decorations already hidden via 768px breakpoint cascade */
+
   .vp-doc table {
     font-size: 0.85em;
   }
@@ -1888,6 +1903,187 @@ body,
   .vp-doc table th {
     padding: 8px 10px;
   }
+}
+
+/* ===== Chemistry-Themed Hero Decorative Elements ===== */
+/* Floating molecule decorations positioned around the hero */
+.titrate-hero-molecule {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.15;
+  animation: titrate-molecule-float 12s ease-in-out infinite;
+  z-index: 0;
+}
+
+.titrate-hero-molecule img {
+  width: 120px;
+  height: 120px;
+}
+
+/* Molecule positions and animation delays */
+.titrate-hero-molecule.molecule-left {
+  left: 5%;
+  top: 20%;
+  animation-delay: 0s;
+}
+
+.titrate-hero-molecule.molecule-right {
+  right: 8%;
+  top: 30%;
+  animation-delay: -3s;
+}
+
+.titrate-hero-molecule.molecule-bottom-left {
+  left: 10%;
+  bottom: 15%;
+  animation-delay: -6s;
+}
+
+.titrate-hero-molecule.molecule-bottom-right {
+  right: 5%;
+  bottom: 25%;
+  animation-delay: -9s;
+}
+
+/* Atom decoration - smaller, more subtle */
+.titrate-hero-atom {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.12;
+  animation: titrate-atom-orbit 15s linear infinite;
+  z-index: 0;
+}
+
+.titrate-hero-atom img {
+  width: 80px;
+  height: 80px;
+}
+
+.titrate-hero-atom.atom-top-right {
+  right: 20%;
+  top: 10%;
+  animation-delay: -2s;
+}
+
+.titrate-hero-atom.atom-center-left {
+  left: 15%;
+  top: 50%;
+  animation-delay: -7s;
+}
+
+/* Floating animation for molecules - subtle vertical movement with slight rotation */
+@keyframes titrate-molecule-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0.15;
+  }
+  25% {
+    transform: translateY(-15px) rotate(3deg);
+    opacity: 0.18;
+  }
+  50% {
+    transform: translateY(-8px) rotate(-2deg);
+    opacity: 0.16;
+  }
+  75% {
+    transform: translateY(-20px) rotate(2deg);
+    opacity: 0.17;
+  }
+}
+
+/* Orbit-style animation for atoms - gentle rotation */
+@keyframes titrate-atom-orbit {
+  0% {
+    transform: rotate(0deg) translateY(0);
+    opacity: 0.12;
+  }
+  25% {
+    transform: rotate(90deg) translateY(-10px);
+    opacity: 0.14;
+  }
+  50% {
+    transform: rotate(180deg) translateY(0);
+    opacity: 0.12;
+  }
+  75% {
+    transform: rotate(270deg) translateY(10px);
+    opacity: 0.14;
+  }
+  100% {
+    transform: rotate(360deg) translateY(0);
+    opacity: 0.12;
+  }
+}
+
+/* Hero image container for decorations - positioned within hero */
+.VPHero .image {
+  position: relative;
+}
+
+.VPHero .image::before {
+  content: '';
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  left: -20%;
+  top: 10%;
+  background-image: url('/icons/molecule.svg');
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.12;
+  animation: titrate-molecule-float 12s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.VPHero .image::after {
+  content: '';
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  right: -15%;
+  bottom: 20%;
+  background-image: url('/icons/atom.svg');
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.10;
+  animation: titrate-atom-orbit 15s linear infinite;
+  animation-delay: -4s;
+  pointer-events: none;
+}
+
+/* Additional molecule decorations injected via CSS on hero container */
+.VPHero .container::before {
+  content: '';
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  left: 3%;
+  top: 40%;
+  background-image: url('/icons/atom.svg');
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.08;
+  animation: titrate-atom-orbit 18s linear infinite;
+  animation-delay: -8s;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.VPHero .container::after {
+  content: '';
+  position: absolute;
+  width: 70px;
+  height: 70px;
+  right: 2%;
+  bottom: 30%;
+  background-image: url('/icons/molecule.svg');
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.10;
+  animation: titrate-molecule-float 14s ease-in-out infinite;
+  animation-delay: -5s;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* ===== Dark Mode Hero Adjustments ===== */
