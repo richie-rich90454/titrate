@@ -112,10 +112,14 @@ public class Box<T> {
 }
 
 // Result-based error handling -- no exceptions
-fn parse(s: string): Result<int, string> {
-    let n: Result<int, string> = Integer.parseInt(s);
-    if (n.isOk()) { return ok(n.unwrap() * 2); }
-    return err("not a number");
+fn parseAndDouble(s: string): Result<int, string> {
+    // Integer.parseInt returns int; check for parse failure
+    let n: int = Integer.parseInt(s);
+    // Simple check: if result is 0 but input is not "0", assume failure
+    if (n == 0 && s != "0") {
+        return err("not a number");
+    }
+    return ok(n * 2);
 }
 
 // Closures that capture by reference
@@ -154,22 +158,24 @@ for (i in 0..10) {
 import tt::chem::Atom;
 import tt::chem::Molecule;
 import tt::chem::ForceField;
-import tt::chem::MD;
+import tt::chem::MDSimulation;
+import tt::chem::VerletIntegrator;
 
 public fn main(): void {
-    let water: Molecule = new Molecule();
-    water.addAtom(new Atom("O", 0.0, 0.0, 0.0));
-    water.addAtom(new Atom("H", 0.9572, 0.0, 0.0));
-    water.addAtom(new Atom("H", -0.2399, 0.9270, 0.0));
+    let water: Molecule = new Molecule("water");
+    water.addAtom(Atom.oxygen(0.0, 0.0, 0.0));
+    water.addAtom(Atom.hydrogen(0.9572, 0.0, 0.0));
+    water.addAtom(Atom.hydrogen(-0.2399, 0.9270, 0.0));
 
     let ff: ForceField = new ForceField();
     ff.addBondTerm(0, 1, 450.0, 0.9572);
     ff.addAngleTerm(1, 0, 2, 55.0, 104.52);
 
-    let md: MD = new MD(water, ff, new Integrator(1.0));
+    let integrator: VerletIntegrator = new VerletIntegrator(1.0, "berendsen", 300.0);
+    let md: MDSimulation = new MDSimulation(water, ff, integrator);
     md.run(1000);
 
-    io::println("Energy: " + Double.toString(ff.energy(water)));
+    io::println("Energy: " + Double.toString(ff.totalEnergy(water)));
 }
 ```
 
@@ -179,18 +185,20 @@ public fn main(): void {
 import tt::json::Json;
 import tt::json::JsonValue;
 import tt::net::HttpClient;
+import tt::lang::Integer;
 
 public fn fetchUser(id: int): Result<JsonValue, string> {
     let client: HttpClient = new HttpClient();
     let url: string = "https://api.example.com/users/" + Integer.toString(id);
-    let response: Result<string, string> = client.get(url);
+    let response: HttpResponse = client.get(url);
 
-    if (response.isOk()) {
-        let parsed: Result<JsonValue, string> = Json.parse(response.unwrap());
-        if (parsed.isOk()) { return ok(parsed.unwrap()); }
+    if (response.getStatusCode() == 200) {
+        let body: string = response.getBody();
+        let parsed: JsonValue = Json.parse(body);
+        if (!parsed.isNull()) { return ok(parsed); }
         return err("Failed to parse JSON");
     }
-    return err("HTTP request failed: " + response.unwrapErr());
+    return err("HTTP request failed with status: " + Integer.toString(response.getStatusCode()));
 }
 ```
 
@@ -198,18 +206,19 @@ public fn fetchUser(id: int): Result<JsonValue, string> {
 
 ```titrate
 import tt::math::ndarray::NDArray;
-import tt::math::Math;
+import tt::math::ndarray::NDArrayReduce;
+import tt::math::ndarray::NDArrayMath;
 
 public fn normalize(data: NDArray<double>): NDArray<double> {
-    let mean: double = data.mean();
-    let std: double = data.std();
-    return (data - mean) / std;
+    let mean: double = NDArrayReduce.mean(data);
+    let std: double = NDArrayReduce.stddev(data);
+    return NDArrayMath.map(data, fn(x: double): double => (x - mean) / std);
 }
 
 public fn correlation(x: NDArray<double>, y: NDArray<double>): double {
     let nx: NDArray<double> = normalize(x);
     let ny: NDArray<double> = normalize(y);
-    return nx.dot(ny) / (nx.size() as double);
+    return NDArrayMath.dot(nx, ny) / (nx.size() as double);
 }
 ```
 
