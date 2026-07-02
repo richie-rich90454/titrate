@@ -253,13 +253,15 @@ body,
 
 /* ===== Body Text �?Optimized for readability ===== */
 .vp-doc {
-  line-height: 1.7;
+  line-height: 1.6; /* Apple HIG recommended */
   animation: titrate-page-in 0.2s var(--titrate-ease-decelerate);
+  font-size: var(--titrate-type-body);
+  font-weight: var(--titrate-weight-regular);
 }
 
 .vp-doc p {
-  margin-bottom: 1.25em;
-  line-height: 1.7;
+  margin-bottom: 1.5em; /* Increased whitespace */
+  line-height: 1.6;
 }
 
 @keyframes titrate-page-in {
@@ -277,9 +279,9 @@ body,
 /* Hero name �?large, distinctive, with animated gradient */
 .VPHero .name {
   color: var(--vp-c-brand-1);
-  font-weight: 700;
+  font-weight: var(--titrate-weight-bold);
   font-family: var(--titrate-font-family-display);
-  font-size: 4rem;
+  font-size: var(--titrate-type-display);
   letter-spacing: -0.03em;
   background: linear-gradient(135deg,
     var(--vp-c-brand-1) 0%,
@@ -291,7 +293,7 @@ body,
   -webkit-text-fill-color: transparent;
   background-clip: text;
   animation: titrate-gradient-flow 8s ease infinite;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem; /* Increased whitespace */
 }
 
 /* Gradient animation for hero title */
@@ -304,20 +306,21 @@ body,
 /* Hero text �?larger, more impactful */
 .VPHero .text {
   color: var(--vp-c-text-1);
-  font-weight: 600;
-  font-size: 2.2rem;
+  font-weight: var(--titrate-weight-semibold);
+  font-size: var(--titrate-type-headline);
   letter-spacing: -0.02em;
-  line-height: 1.3;
+  line-height: 1.2;
   font-family: var(--titrate-font-family-display);
 }
 
 /* Hero tagline �?improved readability */
 .VPHero .tagline {
-  opacity: 0.85;
-  line-height: 1.7;
-  font-size: 1.15rem;
+  opacity: 0.9;
+  line-height: 1.6;
+  font-size: 1.125rem; /* Slightly larger than base body */
   max-width: 640px;
-  margin-top: 0.75rem;
+  margin-top: 1rem; /* Increased whitespace */
+  font-weight: var(--titrate-weight-regular);
 }
 
 /* Hero background with animated molecular gradient pattern */
@@ -414,51 +417,156 @@ body,
 
 /* Hero action buttons �?Fluent style: flat, clean */
 .VPHero .actions .action-button {
-  transition: all var(--titrate-duration-normal) var(--titrate-ease);
-  border-radius: var(--titrate-radius-sm);
+  transition: all var(--titrate-duration-normal) var(--titrate-ease),
+              box-shadow var(--titrate-duration-normal) var(--titrate-ease-decelerate);
+  /* Fluent corner radius: buttons use corner-sm (8px) */
+  border-radius: var(--titrate-corner-sm);
   font-weight: 600;
+  box-shadow: var(--elevation-2);
 }
 
 .VPHero .actions .action-button.brand:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--titrate-shadow-8);
+  transform: translateY(-3px);
+  /* Hover elevation: elevation-4 (floating) */
+  box-shadow: var(--elevation-4);
   background: var(--titrate-interactive-hover);
 }
 
 .VPHero .actions .action-button.brand:active {
   background: var(--titrate-interactive-active);
-  transform: translateY(0);
+  transform: translateY(0) scale(0.96);
+  box-shadow: var(--elevation-1);
 }
 
 .VPHero .actions .action-button.alt:hover {
-  transform: translateY(-1px);
+  transform: translateY(-3px);
+  box-shadow: var(--elevation-3);
   background: var(--titrate-interactive-hover);
+}
+
+.VPHero .actions .action-button.alt:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: var(--elevation-1);
+  background: var(--titrate-interactive-active);
 }
 
 .VPHero .actions .action-button:focus-visible {
   outline: var(--titrate-interactive-focus-ring);
 }
 
-/* ===== Feature Cards �?Fluent card style ===== */
+/* ===== Material Design Ripple Effects ===== */
+/* Ripple container setup - position: relative required */
+.VPHero .actions .action-button,
+.VPFeature,
+.vp-doc .community-link,
+.vp-doc .ecosystem-item,
+.VPDocFooter .pager-link,
+.VPSidebar .VPSidebarItem .link,
+.VPDocAsideOutline .outline-link {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ripple effect animation */
+@keyframes titrate-ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Ripple pseudo-element for buttons */
+.VPHero .actions .action-button::after,
+.VPFeature::after,
+.vp-doc .community-link::after,
+.vp-doc .ecosystem-item::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--vp-c-brand-1) 0%, transparent 70%);
+  transform: scale(0);
+  opacity: 0;
+  pointer-events: none;
+  transition: none;
+}
+
+/* Activate ripple on click */
+.VPHero .actions .action-button:active::after,
+.VPFeature:active::after,
+.vp-doc .community-link:active::after,
+.vp-doc .ecosystem-item:active::after {
+  animation: titrate-ripple 0.45s var(--titrate-ease-accelerate);
+}
+
+/* Ripple for sidebar links - subtle */
+.VPSidebar .VPSidebarItem .link::after,
+.VPDocAsideOutline .outline-link::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--vp-c-brand-1);
+  transform: scale(0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.VPSidebar .VPSidebarItem .link:active::after,
+.VPDocAsideOutline .outline-link:active::after {
+  animation: titrate-ripple 0.30s var(--titrate-ease-accelerate);
+}
+
+/* Dark mode ripple adjustments */
+.dark .VPHero .actions .action-button::after,
+.dark .VPFeature::after,
+.dark .vp-doc .community-link::after,
+.dark .vp-doc .ecosystem-item::after {
+  background: radial-gradient(circle, #ff7b8f 0%, transparent 70%);
+}
+
+.dark .VPSidebar .VPSidebarItem .link::after,
+.dark .VPDocAsideOutline .outline-link::after {
+  background: #ff7b8f;
+}
+
+/* ===== Feature Cards - Apple HIG: No chrome, content-first ===== */
 .VPFeature {
   transition: box-shadow var(--titrate-duration-normal) var(--titrate-ease),
-              border-color var(--titrate-duration-normal) var(--titrate-ease),
-              background var(--titrate-duration-normal) var(--titrate-ease);
-  border: 1px solid var(--vp-c-divider);
-  border-radius: var(--titrate-radius-lg);
-  box-shadow: var(--titrate-shadow-card);
+              background var(--titrate-duration-normal) var(--titrate-ease),
+              transform var(--titrate-duration-normal) var(--titrate-ease-decelerate);
+  /* Remove borders - use shadows for depth */
+  border: none;
+  /* Fluent corner radius: cards use corner-md (12px) */
+  border-radius: var(--titrate-corner-md);
+  /* Material Design Elevation: cards use elevation-2 */
+  box-shadow: var(--elevation-2);
   position: relative;
   background: var(--titrate-gradient-hero);
+  /* Increase whitespace for content focus */
+  padding: 1.5rem;
 }
 
 .VPFeature .title {
-  font-weight: 600;
-  font-size: 0.95em;
+  font-weight: var(--titrate-weight-semibold);
+  font-size: var(--titrate-type-body);
   font-family: var(--titrate-font-family-display);
+  letter-spacing: -0.01em;
 }
 
 .VPFeature:hover {
-  border-color: var(--vp-c-brand-1);
+  /* No border change - only shadow elevation */
+  /* Hover elevation: elevation-4 (floating) */
   box-shadow: var(--elevation-4);
   background: var(--titrate-interactive-hover);
   transform: translateY(-4px);
@@ -466,6 +574,7 @@ body,
 
 .VPFeature:active {
   transform: translateY(0) scale(0.96);
+  /* Active state: elevation-1 (subtle) */
   box-shadow: var(--elevation-1);
   background: var(--titrate-interactive-active);
 }
@@ -498,10 +607,10 @@ body,
 /* ===== Code Blocks �?Clean, no glow ===== */
 .vp-doc div[class*='language-'] {
   border-radius: var(--titrate-radius-lg);
-  margin: 16px 0;
-  box-shadow: var(--titrate-shadow-2);
-  border: 1px solid var(--vp-c-divider);
-  transition: background-color 0.25s ease, border-color 0.25s ease;
+  margin: 24px 0; /* Increased whitespace */
+  box-shadow: var(--titrate-shadow-4); /* Subtle shadow, no border */
+  border: none;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .vp-doc div[class*='language-'] code {
@@ -562,10 +671,11 @@ body,
 /* ===== Custom Containers �?Fluent info bar style ===== */
 .vp-doc .custom-block {
   border-radius: var(--titrate-radius-md);
-  margin: 16px 0;
-  padding: 12px 16px 12px 16px;
-  border: 1px solid var(--vp-c-divider);
+  margin: 24px 0; /* Increased whitespace */
+  padding: 16px 20px 16px 20px; /* More padding */
+  border: none; /* Remove borders */
   position: relative;
+  box-shadow: var(--titrate-shadow-2);
 }
 
 .vp-doc .custom-block.tip {
@@ -599,8 +709,9 @@ body,
   overflow: hidden;
   border-collapse: separate;
   border-spacing: 0;
-  margin: 16px 0;
-  border: 1px solid var(--vp-c-divider);
+  margin: 24px 0; /* Increased whitespace */
+  border: none; /* Remove outer border */
+  box-shadow: var(--titrate-shadow-2);
 }
 
 .vp-doc table th {
@@ -635,7 +746,14 @@ body,
   border-bottom: none;
 }
 
-/* ===== Sidebar �?Fluent nav ===== */
+/* ===== Sidebar - Apple HIG: Less prominent, defer to content ===== */
+.VPSidebar {
+  /* Subtle background - defer to content */
+  background: rgba(250, 250, 250, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
 .VPSidebar .VPSidebarItem.level-0 .link:hover,
 .VPSidebar .VPSidebarItem.level-0 .link.active {
   color: var(--vp-c-brand-1);
@@ -3549,4 +3667,56 @@ button:focus-visible,
   outline-offset: 1px;
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-1);
+}
+
+/* ===== Fluent Acrylic Effects for Dropdowns/Flyouts ===== */
+/* Apply acrylic/glass effects to VitePress flyout menus */
+.VPNavBarMenuGroup .items,
+.VPNavBarTranslations .items,
+.VPFlyout .items,
+.VPMenu .items {
+  /* Fluent acrylic: semi-transparent with blur and saturation */
+  background: rgba(250, 250, 250, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  /* Fluent corner radius: dropdowns use corner-md (12px) */
+  border-radius: var(--titrate-corner-md);
+  /* Fluent shadow depth: floating elements use shadow-xl (16px offset) */
+  box-shadow: var(--titrate-shadow-xl);
+  border: 1px solid rgba(209, 209, 209, 0.5);
+}
+
+/* Dark mode acrylic for dropdowns */
+.dark .VPNavBarMenuGroup .items,
+.dark .VPNavBarTranslations .items,
+.dark .VPFlyout .items,
+.dark .VPMenu .items {
+  background: rgba(36, 36, 36, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-color: rgba(64, 64, 64, 0.5);
+}
+
+/* Individual dropdown items */
+.VPNavBarMenuGroup .items .link,
+.VPNavBarTranslations .items .link,
+.VPFlyout .items .link,
+.VPMenu .items .link {
+  transition: background-color var(--titrate-duration-fast) var(--titrate-ease);
+  border-radius: var(--titrate-corner-xs);
+}
+
+.VPNavBarMenuGroup .items .link:hover,
+.VPNavBarTranslations .items .link:hover,
+.VPFlyout .items .link:hover,
+.VPMenu .items .link:hover {
+  background: var(--titrate-interactive-hover);
+}
+
+/* Apply corner-sm (8px) to all button-style elements globally */
+.vp-doc button,
+.vp-doc .vp-button,
+button[class*="button"],
+[class*="btn"] {
+  border-radius: var(--titrate-corner-sm);
 }
