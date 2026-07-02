@@ -416,11 +416,20 @@ body,
   border-color: var(--vp-c-brand-1);
   box-shadow: var(--titrate-shadow-8);
   background: var(--titrate-interactive-hover);
+  transform: translateY(-2px);
+}
+
+.VPFeature:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--titrate-shadow-2);
+  background: var(--titrate-interactive-active);
 }
 
 .VPFeature:focus-visible {
-  outline: var(--titrate-interactive-focus-ring);
-  border-color: var(--titrate-secondary-cyan);
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  border-color: var(--titrate-accent-blue);
 }
 
 .VPFeature .icon {
@@ -1017,16 +1026,30 @@ body,
   font-weight: 600;
 }
 
-/* ===== Links �?Underline on hover ===== */
+/* ===== Links �?Animated underline on hover ===== */
 .vp-doc a {
+  position: relative;
   text-decoration: none;
   transition: color var(--titrate-duration-fast) var(--titrate-ease);
 }
 
+.vp-doc a::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: var(--vp-c-brand-1);
+  transition: width var(--titrate-duration-normal) var(--titrate-ease);
+}
+
 .vp-doc a:hover {
   color: var(--vp-c-brand-1);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+}
+
+.vp-doc a:hover::after {
+  width: 100%;
 }
 
 /* ===== Page Navigation ===== */
@@ -1088,6 +1111,14 @@ body,
   background: var(--titrate-interactive-hover);
   text-decoration: none;
   transform: translateX(2px);
+}
+
+/* Focus state for outline links */
+.VPDocAsideOutline .outline-link:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: -2px;
+  background: var(--titrate-interactive-hover);
+  border-radius: var(--titrate-radius-sm);
 }
 
 /* Nested outline levels */
@@ -1302,6 +1333,20 @@ body,
 .vp-doc .ecosystem-item:hover {
   border-color: var(--vp-c-brand-1);
   box-shadow: var(--titrate-shadow-4);
+  transform: translateY(-1px);
+}
+
+.vp-doc .ecosystem-item:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--titrate-shadow-2);
+  background: var(--titrate-interactive-active);
+}
+
+.vp-doc .ecosystem-item:focus-within {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  border-color: var(--titrate-accent-blue);
 }
 
 .vp-doc .ecosystem-item strong {
@@ -1335,6 +1380,19 @@ body,
   box-shadow: var(--titrate-shadow-8);
   transform: translateY(-2px);
   background: var(--titrate-interactive-hover);
+}
+
+.vp-doc .ecosystem-card:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--titrate-shadow-2);
+  background: var(--titrate-interactive-active);
+}
+
+.vp-doc .ecosystem-card:focus-within {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  border-color: var(--titrate-accent-blue);
 }
 
 .vp-doc .ecosystem-card-header {
@@ -2980,13 +3038,16 @@ body,
 }
 
 .VPNavBarSearch > button:focus {
-  outline: var(--titrate-interactive-focus-ring);
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
   border-color: var(--vp-c-brand-1);
 }
 
 .VPNavBarSearch > button:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.98);
   box-shadow: var(--titrate-shadow-2);
+  background: var(--titrate-interactive-active);
 }
 
 /* Search icon enhancement */
