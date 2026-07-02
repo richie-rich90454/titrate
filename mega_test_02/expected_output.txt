@@ -126,7 +126,7 @@ dog: 3
 quick: 2
 lazy: 3
 
-=== C-Style For Loop ===
+=== While Loop (was C-style for) ===
 i = 0
 i = 1
 i = 2
