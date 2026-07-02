@@ -382,42 +382,49 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="code-playground">
+  <div class="code-playground" role="region" aria-label="Interactive code playground">
     <!-- Header with example selector -->
     <div class="playground-header">
       <div class="example-selector">
         <label for="example-select">Example:</label>
-        <select 
-          id="example-select" 
+        <select
+          id="example-select"
           v-model="selectedExample"
           @change="selectExample(selectedExample)"
           class="example-dropdown"
+          aria-label="Select a code example"
         >
           <option v-for="example in examples" :key="example.id" :value="example.id">
             {{ example.name }}
           </option>
         </select>
       </div>
-      
+
       <div class="mode-controls">
-        <button 
+        <button
           @click="toggleCustomMode"
           :class="['mode-btn', { active: isCustomMode }]"
           title="Toggle custom editing mode"
+          aria-label="Toggle custom editing mode"
+          :aria-pressed="isCustomMode"
         >
           {{ isCustomMode ? 'Custom Mode' : 'Edit Example' }}
         </button>
-        <button 
+        <button
           @click="resetCode"
           class="reset-btn"
           title="Reset to original example"
+          aria-label="Reset code to original example"
         >
           Reset
         </button>
-        <button 
+        <button
           @click="showOutput = !showOutput"
           :class="['output-toggle', { active: showOutput }]"
           title="Toggle output panel"
+          aria-label="Toggle output panel visibility"
+          :aria-pressed="showOutput"
+          :aria-expanded="showOutput"
         >
           {{ showOutput ? 'Hide Output' : 'Show Output' }}
         </button>
@@ -435,12 +442,14 @@ onMounted(() => {
         
         <!-- Editable textarea -->
         <div class="code-editor">
-          <textarea 
+          <textarea
             v-model="code"
             @input="updateCode($event.target.value)"
             class="code-input"
             spellcheck="false"
             placeholder="Enter Titrate code here..."
+            aria-label="Code editor - enter Titrate code"
+            aria-describedby="code-editor-description"
           ></textarea>
           
           <!-- Syntax highlighted overlay -->
@@ -449,12 +458,15 @@ onMounted(() => {
         
         <!-- Example description -->
         <div v-if="currentExample && !isCustomMode" class="example-info">
-          <p class="example-description">{{ currentExample.name }} example demonstrates basic Titrate syntax.</p>
+          <p id="code-editor-description" class="example-description">{{ currentExample.name }} example demonstrates basic Titrate syntax.</p>
+        </div>
+        <div v-else class="example-info">
+          <p id="code-editor-description" class="example-description">Edit the code to experiment with Titrate syntax.</p>
         </div>
       </div>
       
       <!-- Output panel -->
-      <div v-if="showOutput" class="output-panel">
+      <div v-if="showOutput" class="output-panel" role="region" aria-label="Code output">
         <div class="panel-header">
           <span class="panel-title">Output</span>
           <span class="output-badge">Mock Result</span>
@@ -566,6 +578,14 @@ onMounted(() => {
 .output-toggle:hover {
   border-color: var(--vp-c-brand-1);
   color: var(--vp-c-brand-1);
+}
+
+.mode-btn:focus-visible,
+.reset-btn:focus-visible,
+.output-toggle:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  border-color: var(--titrate-accent-blue);
 }
 
 .mode-btn.active,

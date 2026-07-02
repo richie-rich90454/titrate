@@ -32,7 +32,12 @@ const breadcrumbs = computed(() => {
 </script>
 
 <template>
-  <div v-if="breadcrumbs.length > 1" class="breadcrumb-container">
+  <nav
+    v-if="breadcrumbs.length > 1"
+    class="breadcrumb-container"
+    role="navigation"
+    aria-label="Breadcrumb"
+  >
     <template v-for="(item, index) in breadcrumbs" :key="index">
       <a
         v-if="item.link"
@@ -44,6 +49,7 @@ const breadcrumbs = computed(() => {
       <span
         v-else
         class="breadcrumb-current"
+        aria-current="page"
       >
         {{ item.text }}
       </span>
@@ -52,7 +58,7 @@ const breadcrumbs = computed(() => {
         class="breadcrumb-separator"
       />
     </template>
-  </div>
+  </nav>
 </template>
 
 <style scoped>
@@ -88,6 +94,12 @@ const breadcrumbs = computed(() => {
   color: var(--vp-c-brand-1);
   background: var(--vp-c-brand-soft);
   text-decoration: none;
+}
+
+.breadcrumb-link:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  border-radius: var(--titrate-radius-sm);
 }
 
 .breadcrumb-current {
