@@ -222,35 +222,148 @@ body,
 }
 
 /* ===== Home Page — Hero ===== */
+/* Hero container with enhanced styling */
+.VPHero {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Hero name — large, distinctive, with animated gradient */
 .VPHero .name {
   color: var(--vp-c-brand-1);
   font-weight: 700;
   font-family: var(--titrate-font-family-display);
-  background: var(--titrate-gradient-reaction);
+  font-size: 4rem;
+  letter-spacing: -0.03em;
+  background: linear-gradient(135deg,
+    var(--vp-c-brand-1) 0%,
+    var(--titrate-secondary-amber) 40%,
+    var(--titrate-accent-purple) 70%,
+    var(--vp-c-brand-1) 100%);
+  background-size: 300% 300%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: titrate-gradient-flow 8s ease infinite;
+  margin-bottom: 0.5rem;
 }
 
+/* Gradient animation for hero title */
+@keyframes titrate-gradient-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Hero text — larger, more impactful */
 .VPHero .text {
   color: var(--vp-c-text-1);
   font-weight: 600;
+  font-size: 2.2rem;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  font-family: var(--titrate-font-family-display);
 }
 
+/* Hero tagline — improved readability */
 .VPHero .tagline {
-  opacity: 0.8;
-  line-height: 1.6;
+  opacity: 0.85;
+  line-height: 1.7;
+  font-size: 1.15rem;
+  max-width: 640px;
+  margin-top: 0.75rem;
 }
 
-/* Hero background with molecular gradient pattern */
+/* Hero background with animated molecular gradient pattern */
 .VPHero::before {
   content: '';
   position: absolute;
   inset: 0;
   background: var(--titrate-gradient-molecular);
   pointer-events: none;
-  opacity: 0.6;
+  opacity: 0.7;
   z-index: -1;
+  animation: titrate-molecular-pulse 12s ease-in-out infinite;
+}
+
+/* Molecular pattern pulse animation */
+@keyframes titrate-molecular-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.02); }
+}
+
+/* Animated gradient mesh overlay */
+.VPHero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(233, 69, 96, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 75% 20%, rgba(0, 120, 212, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 60% at 50% 80%, rgba(135, 100, 184, 0.06) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: -1;
+  animation: titrate-mesh-drift 20s linear infinite;
+}
+
+/* Mesh drift animation */
+@keyframes titrate-mesh-drift {
+  0% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(10px) translateY(-5px); }
+  50% { transform: translateX(-5px) translateY(10px); }
+  75% { transform: translateX(-10px) translateY(-5px); }
+  100% { transform: translateX(0) translateY(0); }
+}
+
+/* Decorative molecule-like particles */
+.titrate-hero-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: titrate-particle-float 15s ease-in-out infinite;
+}
+
+.titrate-hero-particle::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.6;
+  animation: titrate-particle-pulse 4s ease-in-out infinite;
+}
+
+/* Particle floating animation */
+@keyframes titrate-particle-float {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(20px, -30px) rotate(90deg); }
+  50% { transform: translate(-10px, 20px) rotate(180deg); }
+  75% { transform: translate(30px, 10px) rotate(270deg); }
+}
+
+/* Particle pulse animation */
+@keyframes titrate-particle-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.2); opacity: 0.8; }
+}
+
+/* Bond lines between particles */
+.titrate-hero-bond {
+  position: absolute;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(233, 69, 96, 0.2) 20%,
+    rgba(0, 120, 212, 0.2) 80%,
+    transparent 100%);
+  animation: titrate-bond-shimmer 8s ease-in-out infinite;
+}
+
+@keyframes titrate-bond-shimmer {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
 }
 
 /* Hero action buttons — Fluent style: flat, clean */
@@ -495,6 +608,147 @@ body,
 .VPSidebar .VPSidebarItem.level-2 > .link .text {
   font-size: 0.82em;
   opacity: 0.85;
+}
+
+/* ===== Sidebar Animations & Enhanced Indicators ===== */
+
+/* 10.1: Smooth collapse/expand animations */
+.VPSidebar .VPSidebarItem .items {
+  overflow: hidden;
+  transition: max-height var(--titrate-duration-normal) var(--titrate-ease),
+              opacity var(--titrate-duration-normal) var(--titrate-ease);
+}
+
+.VPSidebar .VPSidebarItem.collapsed .items {
+  max-height: 0;
+  opacity: 0;
+}
+
+.VPSidebar .VPSidebarItem:not(.collapsed) .items {
+  max-height: 1000px;
+  opacity: 1;
+}
+
+/* Caret rotation animation */
+.VPSidebar .VPSidebarItem .caret {
+  transition: transform var(--titrate-duration-normal) var(--titrate-ease);
+}
+
+.VPSidebar .VPSidebarItem.collapsed .caret {
+  transform: rotate(-90deg);
+}
+
+.VPSidebar .VPSidebarItem:not(.collapsed) .caret {
+  transform: rotate(0deg);
+}
+
+/* 10.2: Improved active section indicators with gradient accent */
+.VPSidebar .VPSidebarItem.is-active > .link {
+  background: linear-gradient(90deg,
+    rgba(233, 69, 96, 0.08) 0%,
+    transparent 100%);
+}
+
+.VPSidebar .VPSidebarItem.is-active > .link::before {
+  width: 3px;
+  background: var(--titrate-gradient-reaction);
+  top: 4px;
+  bottom: 4px;
+  box-shadow: 0 0 4px rgba(233, 69, 96, 0.3);
+}
+
+/* Active link text prominence */
+.VPSidebar .VPSidebarItem.is-active > .link .text {
+  font-weight: 600;
+  color: var(--vp-c-brand-1);
+}
+
+/* Hover state for sidebar links with subtle transition */
+.VPSidebar .VPSidebarItem .link {
+  transition: background-color var(--titrate-duration-normal) var(--titrate-ease),
+              color var(--titrate-duration-fast) var(--titrate-ease);
+  border-radius: 0 var(--titrate-radius-sm) var(--titrate-radius-sm) 0;
+  margin-left: 8px;
+}
+
+.VPSidebar .VPSidebarItem .link:hover {
+  background: var(--titrate-interactive-hover);
+}
+
+/* 10.3: Section group headers styling */
+.VPSidebar .VPSidebarItem.level-0 > .item {
+  position: relative;
+}
+
+.VPSidebar .VPSidebarItem.level-0 > .item::before {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    var(--vp-c-divider) 0%,
+    transparent 100%);
+}
+
+.VPSidebar .VPSidebarItem.level-0:first-child > .item::before {
+  display: none;
+}
+
+/* Group header text styling */
+.VPSidebar .VPSidebarItem.level-0.is-group > .link .text {
+  font-weight: 700;
+  font-size: 0.78em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-2);
+  padding: 8px 0;
+  margin-left: 4px;
+}
+
+/* Collapsible group header with indicator */
+.VPSidebar .VPSidebarItem.level-0.is-group > .link {
+  padding-left: 12px;
+  border-radius: var(--titrate-radius-sm);
+  background: transparent;
+}
+
+.VPSidebar .VPSidebarItem.level-0.is-group > .link:hover {
+  background: var(--titrate-interactive-hover);
+}
+
+/* Group header indicator dot */
+.VPSidebar .VPSidebarItem.level-0.is-group > .link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--vp-c-brand-1);
+  opacity: 0.6;
+  transition: opacity var(--titrate-duration-fast) var(--titrate-ease),
+              transform var(--titrate-duration-fast) var(--titrate-ease);
+}
+
+.VPSidebar .VPSidebarItem.level-0.is-group > .link:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) scale(1.2);
+}
+
+/* Dark mode adjustments for sidebar */
+.dark .VPSidebar .VPSidebarItem.is-active > .link {
+  background: linear-gradient(90deg,
+    rgba(255, 123, 143, 0.12) 0%,
+    transparent 100%);
+}
+
+.dark .VPSidebar .VPSidebarItem.is-active > .link::before {
+  background: linear-gradient(135deg, #ff7b8f 0%, #ff6b81 50%, #ffb84d 100%);
+  box-shadow: 0 0 4px rgba(255, 123, 143, 0.4);
 }
 
 /* ===== Navigation — Fluent top bar ===== */
@@ -768,6 +1022,179 @@ body,
   display: block;
   margin-bottom: 0.2rem;
   color: var(--vp-c-brand-1);
+}
+
+/* ===== Ecosystem Showcase Cards ===== */
+.vp-doc .ecosystem-showcase {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.vp-doc .ecosystem-card {
+  position: relative;
+  padding: 1.25rem;
+  border-radius: var(--titrate-radius-lg);
+  border: 1px solid var(--vp-c-divider);
+  background: var(--titrate-gradient-hero);
+  transition: all var(--titrate-duration-normal) var(--titrate-ease);
+  display: flex;
+  flex-direction: column;
+  min-height: 160px;
+}
+
+.vp-doc .ecosystem-card:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: var(--titrate-shadow-8);
+  transform: translateY(-2px);
+  background: var(--titrate-interactive-hover);
+}
+
+.vp-doc .ecosystem-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.vp-doc .ecosystem-card-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.vp-doc .ecosystem-card-title {
+  font-weight: 600;
+  font-size: 0.95em;
+  color: var(--vp-c-brand-1);
+  font-family: var(--titrate-font-family-display);
+  margin: 0;
+}
+
+.vp-doc .ecosystem-card-types {
+  font-size: 0.75em;
+  color: var(--vp-c-text-2);
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.vp-doc .ecosystem-card-code {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.7em;
+  padding: 0.5rem;
+  background: var(--vp-c-brand-mute);
+  border-radius: var(--titrate-radius-sm);
+  margin-top: auto;
+  color: var(--vp-c-text-1);
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.5;
+}
+
+.vp-doc .ecosystem-card-link {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+.vp-doc .ecosystem-card-link a {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
+  color: transparent;
+}
+
+/* Ecosystem category badges */
+.vp-doc .ecosystem-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: var(--titrate-radius-sm);
+  font-size: 0.65em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.5rem;
+}
+
+.vp-doc .ecosystem-badge-core {
+  background: rgba(0, 120, 212, 0.12);
+  color: var(--titrate-accent-blue);
+}
+
+.vp-doc .ecosystem-badge-data {
+  background: rgba(16, 124, 16, 0.12);
+  color: var(--titrate-accent-green);
+}
+
+.vp-doc .ecosystem-badge-science {
+  background: rgba(135, 100, 184, 0.12);
+  color: var(--titrate-accent-purple);
+}
+
+.vp-doc .ecosystem-badge-special {
+  background: rgba(202, 80, 16, 0.12);
+  color: var(--titrate-accent-orange);
+}
+
+/* Dark mode badge colors */
+.dark .vp-doc .ecosystem-badge-core {
+  background: rgba(100, 180, 230, 0.18);
+  color: #64b4e6;
+}
+
+.dark .vp-doc .ecosystem-badge-data {
+  background: rgba(130, 217, 122, 0.18);
+  color: #82d97a;
+}
+
+.dark .vp-doc .ecosystem-badge-science {
+  background: rgba(196, 167, 255, 0.18);
+  color: #c4a7ff;
+}
+
+.dark .vp-doc .ecosystem-badge-special {
+  background: rgba(255, 184, 77, 0.18);
+  color: #ffb84d;
+}
+
+/* Responsive ecosystem showcase */
+@media (max-width: 1024px) {
+  .vp-doc .ecosystem-showcase {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .vp-doc .ecosystem-showcase {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .vp-doc .ecosystem-card {
+    min-height: 140px;
+    padding: 1rem;
+  }
+
+  .vp-doc .ecosystem-card-code {
+    font-size: 0.65em;
+  }
+}
+
+@media (max-width: 480px) {
+  .vp-doc .ecosystem-showcase {
+    grid-template-columns: 1fr;
+  }
+
+  .vp-doc .ecosystem-card {
+    min-height: 120px;
+  }
 }
 
 /* Blockquote — Clean, no decorative quotes */
