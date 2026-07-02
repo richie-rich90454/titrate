@@ -119,7 +119,7 @@ switch (expr) {
 Notice how `Add(Literal(a), Literal(b))` matches an `Add` whose *both* sides are `Literal` values — and extracts the numbers from each. This is much more precise than checking the outer variant and then manually inspecting the inner values.
 
 ::: tip
-Nested patterns are powerful, but don't overdo it. If a pattern becomes deeply nested (3+ levels), consider extracting the inner matching into a helper function for readability.
+Nested patterns are powerful, but don't overdo it. If a pattern becomes deeply nested (three or more levels), consider extracting the inner matching into a helper function for readability.
 :::
 
 ## Block Bodies in Cases

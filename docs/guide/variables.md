@@ -28,7 +28,7 @@ Use `var` when you want to be explicit about the type. This is useful when the t
 var counter: int = 0;
 counter = counter + 1;
 counter = counter + 1;
-// counter is now 2
+// counter is now two
 ```
 
 ```titrate

@@ -32,7 +32,7 @@ Instantiate with concrete types:
 let intBox = new Box<int>(42);
 let strBox = new Box<string>("hello");
 
-io::println(Integer.toString(intBox.get()));  // 42
+io::println(Integer.toString(intBox.get()));  // 42 (forty-two)
 io::println(strBox.get());             // hello
 ```
 
@@ -253,7 +253,7 @@ let map = new HashMap<string, int>();
 map.put("one", 1);
 map.put("two", 2);
 
-io::println(Integer.toString(map.get("one")));  // 1
+io::println(Integer.toString(map.get("one")));  // one
 ```
 
 ::: tip

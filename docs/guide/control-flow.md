@@ -79,7 +79,7 @@ while (String.length(input) > 0) {
 ```
 
 ::: tip Try It Yourself
-Write a `while` loop that computes the sum of numbers from 1 to 100. Hint: use a `var` for the sum and another for the counter.
+Write a `while` loop that computes the sum of numbers from one to 100. Hint: Use a `var` for the sum and another for the counter.
 :::
 
 ## for

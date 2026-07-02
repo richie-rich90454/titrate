@@ -31,7 +31,7 @@ Both have the same type — `Result<int, string>` — but they carry different i
 ```titrate
 if (good.isOk()) {
     let value: int = good.unwrap();
-    io::println(Integer.toString(value));  // 42
+    io::println(Integer.toString(value));  // 42 (forty-two)
 }
 
 if (bad.isErr()) {
@@ -127,7 +127,7 @@ fn getWithDefault(result: Result<int, string>, default: int): int {
     return default;
 }
 
-let value: int = getWithDefault(err("not found"), 0);  // 0
+let value: int = getWithDefault(err("not found"), 0);  // zero
 ```
 
 ### Converting Between Error Types

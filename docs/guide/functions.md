@@ -126,7 +126,7 @@ fn factorial(n: int): int {
 }
 
 public fn main(): void {
-    io::println(Integer.toString(factorial(5)));  // 120
+    io::println(Integer.toString(factorial(5)));  // 120 (five factorial)
 }
 ```
 
