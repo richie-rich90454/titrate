@@ -44,15 +44,15 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::Instant;
 
-use trc::lexer;
-use trc::parser;
 use trc::analyzer;
 use trc::bytecode::{Compiler, Vm};
+use trc::lexer;
+use trc::parser;
 
 /// Locate the workspace root by walking up from CARGO_MANIFEST_DIR.
 fn workspace_root() -> PathBuf {
-    let manifest = env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR should be set by cargo");
+    let manifest =
+        env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR should be set by cargo");
     PathBuf::from(manifest)
         .parent()
         .map(|p| p.to_path_buf())
@@ -114,9 +114,8 @@ fn run_bytecode(source: &str) -> Result<std::time::Duration, String> {
 /// Compile a source string to a native binary using `trc --native --release`,
 /// run it, and return the wall-clock elapsed time.
 fn run_native(source: &str) -> Result<std::time::Duration, String> {
-    let trc = trc_binary().ok_or_else(|| {
-        "trc binary not found; run `cargo build -p trc` first".to_string()
-    })?;
+    let trc = trc_binary()
+        .ok_or_else(|| "trc binary not found; run `cargo build -p trc` first".to_string())?;
 
     // Write the source to a temp file.
     let temp_dir = env::temp_dir();
@@ -180,12 +179,11 @@ fn run_native(source: &str) -> Result<std::time::Duration, String> {
 #[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn native_is_faster_than_bytecode_for_sum_squares() {
     // Run the bytecode version.
-    let bytecode_time = run_bytecode(SUM_SQUARES_SOURCE)
-        .expect("bytecode execution should succeed");
+    let bytecode_time =
+        run_bytecode(SUM_SQUARES_SOURCE).expect("bytecode execution should succeed");
 
     // Run the native version.
-    let native_time = run_native(SUM_SQUARES_SOURCE)
-        .expect("native execution should succeed");
+    let native_time = run_native(SUM_SQUARES_SOURCE).expect("native execution should succeed");
 
     // Report the results.
     eprintln!("--- Benchmark: sum_squares(10000) ---");
@@ -294,12 +292,11 @@ public fn main(): void {
 #[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
 fn native_water_box_benchmark() {
     // Run the bytecode version.
-    let bytecode_time = run_bytecode(WATER_BOX_BENCH_SOURCE)
-        .expect("bytecode execution should succeed");
+    let bytecode_time =
+        run_bytecode(WATER_BOX_BENCH_SOURCE).expect("bytecode execution should succeed");
 
     // Run the native version.
-    let native_time = run_native(WATER_BOX_BENCH_SOURCE)
-        .expect("native execution should succeed");
+    let native_time = run_native(WATER_BOX_BENCH_SOURCE).expect("native execution should succeed");
 
     // Report the results.
     eprintln!("--- Benchmark: water-box LJ energy (24 atoms) ---");
@@ -346,4 +343,151 @@ fn bytecode_water_box_benchmark_produces_finite_energy() {
         !output.is_empty(),
         "expected non-empty output from water-box benchmark",
     );
+}
+
+/// Benchmark the real `mega_test_03` workload to verify the native backend
+/// delivers a 3× speedup over the bytecode VM.
+///
+/// This test:
+/// 1. Compiles `mega_test_03/src/main.tr` with `trc --native --release` and
+///    times the run (the compile step is not timed).
+/// 2. Runs the same source via the bytecode VM (`trc mega_test_03/src/main.tr`
+///    without `--native`) and times it (this is the typical user invocation,
+///    which includes the parse/compile/run pipeline of the bytecode VM).
+/// 3. Computes `speedup = bytecode_time / native_time`.
+/// 4. Asserts `speedup >= 3.0`.
+///
+/// To reduce variance, each binary is run 3 times and the median elapsed time
+/// is used for the speedup calculation. The median is preferred over the mean
+/// because it is robust to single outliers (e.g. an OS scheduling hiccup on one
+/// of the runs).
+///
+/// The working directory for the compile step, the native run, and the
+/// bytecode run is set to `mega_test_03/src` so that relative data file reads
+/// (forcefield.tr imports, etc.) succeed.
+///
+/// # Why the existing `WATER_BOX_BENCH_SOURCE` test is insufficient
+///
+/// The existing `native_water_box_benchmark` test asserts only
+/// `speedup >= 1.5x` and uses a hand-rolled rewrite of the LJ pair energy
+/// computation that uses only primitives (no `ArrayList`, no classes, no
+/// imports). This rewrite:
+/// - Does not exercise the real `ArrayList`-based data structures used in
+///   `mega_test_03/src/forcefield.tr`.
+/// - Bypasses the method dispatch, field access, and TitrateValue bridge
+///   marshalling overheads that dominate the real workload.
+/// - Asserts a much weaker `1.5x` lower bound, which can be satisfied even
+///   when the real workload shows no speedup at all.
+///
+/// This test, by contrast, runs the actual `mega_test_03` source files
+/// end-to-end and asserts the documented `3x` target.
+#[test]
+#[ignore = "requires LLVM dev files, a system linker, and titrate_native built"]
+fn mega_test_03_native_speedup() {
+    let trc = trc_binary().expect("trc binary not found; run `cargo build -p trc` first");
+
+    let root = workspace_root();
+    let src_dir = root.join("mega_test_03").join("src");
+    let main_tr = src_dir.join("main.tr");
+    assert!(
+        main_tr.is_file(),
+        "mega_test_03/src/main.tr not found at {}",
+        main_tr.display(),
+    );
+
+    // The native binary is produced beside main.tr as `main_native(.exe)`.
+    let native_exe = if cfg!(windows) {
+        src_dir.join("main_native.exe")
+    } else {
+        src_dir.join("main_native")
+    };
+
+    // --- Compile native (not timed) ---
+    // The compile step produces the native binary; only the run is timed so
+    // the speedup reflects execution performance, not codegen overhead.
+    let compile_out = Command::new(&trc)
+        .arg("--native")
+        .arg("--release")
+        .arg(main_tr.to_str().unwrap())
+        .current_dir(&src_dir)
+        .output()
+        .expect("failed to invoke trc --native --release");
+    assert!(
+        compile_out.status.success(),
+        "trc --native --release failed.\nstdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&compile_out.stdout),
+        String::from_utf8_lossy(&compile_out.stderr),
+    );
+    assert!(
+        native_exe.is_file(),
+        "native binary was not produced at {}",
+        native_exe.display(),
+    );
+
+    // --- Run native 3 times, take median ---
+    let mut native_times: Vec<std::time::Duration> = Vec::new();
+    for _ in 0..3 {
+        let start = Instant::now();
+        let run_out = Command::new(&native_exe)
+            .current_dir(&src_dir)
+            .output()
+            .expect("failed to run the native binary");
+        let elapsed = start.elapsed();
+        assert!(
+            run_out.status.success(),
+            "native binary exited with status {:?}\nstdout: {}\nstderr: {}",
+            run_out.status.code(),
+            String::from_utf8_lossy(&run_out.stdout),
+            String::from_utf8_lossy(&run_out.stderr),
+        );
+        native_times.push(elapsed);
+    }
+    native_times.sort();
+    let native_median = native_times[native_times.len() / 2];
+
+    // --- Run bytecode VM 3 times, take median ---
+    // We invoke `trc mega_test_03/src/main.tr` (no --native). This runs the
+    // program through the in-process bytecode VM. The working directory is
+    // set to src_dir so relative data file reads succeed.
+    let mut bytecode_times: Vec<std::time::Duration> = Vec::new();
+    for _ in 0..3 {
+        let start = Instant::now();
+        let run_out = Command::new(&trc)
+            .arg(main_tr.to_str().unwrap())
+            .current_dir(&src_dir)
+            .output()
+            .expect("failed to invoke trc for bytecode VM run");
+        let elapsed = start.elapsed();
+        assert!(
+            run_out.status.success(),
+            "bytecode VM exited with status {:?}\nstdout: {}\nstderr: {}",
+            run_out.status.code(),
+            String::from_utf8_lossy(&run_out.stdout),
+            String::from_utf8_lossy(&run_out.stderr),
+        );
+        bytecode_times.push(elapsed);
+    }
+    bytecode_times.sort();
+    let bytecode_median = bytecode_times[bytecode_times.len() / 2];
+
+    // --- Compute speedup ---
+    let speedup = bytecode_median.as_secs_f64() / native_median.as_secs_f64();
+
+    eprintln!("--- Benchmark: mega_test_03 real workload (3 runs, median) ---");
+    eprintln!("  native runs:     {:?}", native_times);
+    eprintln!("  bytecode runs:   {:?}", bytecode_times);
+    eprintln!("  native median:   {:?}", native_median);
+    eprintln!("  bytecode median: {:?}", bytecode_median);
+    eprintln!("  speedup:         {:.2}x", speedup);
+
+    assert!(
+        speedup >= 3.0,
+        "expected >=3x speedup, got {}x (native={:?}, bytecode={:?})",
+        speedup,
+        native_median,
+        bytecode_median,
+    );
+
+    // Clean up the produced binary so the test is idempotent.
+    let _ = std::fs::remove_file(&native_exe);
 }
