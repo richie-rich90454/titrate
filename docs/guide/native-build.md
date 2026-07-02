@@ -163,13 +163,24 @@ C libraries that your `@native`-annotated functions call into. See
 
 ## Inspecting the Generated IR
 
-To see the LLVM IR for a program without linking:
+The `--emit-ir` flag writes the LLVM IR for a program to a `.ll` file
+beside the source. With `--native`, the IR is written before the linker
+is invoked; without `--native`, only the `.ll` file is written and the
+compiler exits without linking.
+
+```bash
+# Emit IR and continue to a native executable
+trc --native --emit-ir examples/hello.tr
+```
+
+This writes the IR to `examples/hello.ll`. For an optimized IR dump,
+add `--release`:
 
 ```bash
 trc --native --release --emit-ir program.tr
 ```
 
-This writes the optimized IR to `program.ll`. Look for:
+Look for:
 
 - `define internal ... @distance(...)` with `alwaysinline` — confirms
   inlining hints are applied.
