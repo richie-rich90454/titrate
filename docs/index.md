@@ -94,7 +94,7 @@ public fn greet(name: string): void {
 }
 
 // Classes with fn init() constructors
-class Point {
+public class Point {
     public double x;
     public double y;
 
@@ -105,8 +105,9 @@ class Point {
 }
 
 // Generics with monomorphization -- zero runtime overhead
-class Box<T> {
+public class Box<T> {
     public T value;
+
     public fn init(value: T) { this.value = value; }
 }
 
@@ -125,10 +126,16 @@ numbers.forEach(fn(n: int): void {
 });
 
 // Operator overloading
-class Vec2 {
+public class Vec2 {
     public double x;
     public double y;
-    fn operator+(other: Vec2): Vec2 {
+
+    public fn init(x: double, y: double) {
+        this.x = x;
+        this.y = y;
+    }
+
+    public fn operator+(other: Vec2): Vec2 {
         return new Vec2(this.x + other.x, this.y + other.y);
     }
 }
@@ -209,7 +216,7 @@ public fn correlation(x: NDArray<double>, y: NDArray<double>): double {
 ### Custom Collection with Generics
 
 ```titrate
-class RingBuffer<T> implements Iterable<T> {
+public class RingBuffer<T> implements Iterable<T> {
     private ArrayList<T> data;
     private int head;
     private int count;
@@ -220,12 +227,12 @@ class RingBuffer<T> implements Iterable<T> {
         this.count = 0;
     }
 
-    fn push(item: T): void {
+    public fn push(item: T): void {
         this.data.add(item);
         this.count = this.count + 1;
     }
 
-    fn iterator(): Iterator<T> {
+    public fn iterator(): Iterator<T> {
         return new RingBufferIterator<T>(this);
     }
 }
