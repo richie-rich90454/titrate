@@ -984,6 +984,13 @@ body,
   -webkit-backdrop-filter: blur(16px);
 }
 
+/* Dark mode navigation with blur */
+.dark .VPNav.has-sidebar {
+  background: rgba(26, 26, 26, 0.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 /* ===== Breadcrumb Navigation ===== */
 /* Breadcrumb styling for content pages */
 .vp-doc .breadcrumb-container {
@@ -1216,6 +1223,15 @@ body,
   margin-top: 1.5em;
   font-weight: var(--titrate-weight-medium);
   line-height: 1.4;
+}
+
+/* Caption-style text */
+.vp-doc small,
+.vp-doc .caption {
+  font-size: var(--titrate-type-caption);
+  font-weight: var(--titrate-weight-regular);
+  color: var(--vp-c-text-2);
+  letter-spacing: 0.01em;
 }
 
 /* ===== Links �?Animated underline on hover ===== */
