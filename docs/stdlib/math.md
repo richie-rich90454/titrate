@@ -83,7 +83,7 @@ Multi-dimensional array with generic element type. Supports indexing, reshaping,
 **Shape operations:**
 - `reshape(newShape: ArrayList<int>): NDArray<T>` — reshape (shares data)
 - `transpose(): NDArray<T>` — reverse axis order
-- `flatten(): NDArray<T>` — collapse to 1D (shares data)
+- `flatten(): NDArray<T>` — collapse to one-dimensional (shares data)
 - `squeeze(): NDArray<T>` — remove size-1 dimensions
 - `expandDims(): NDArray<T>` — add a dimension
 - `broadcastTo(targetShape: ArrayList<int>): NDArray<T>` — broadcast

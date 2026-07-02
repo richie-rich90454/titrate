@@ -133,7 +133,7 @@ let inside = s.contains(new Vec3(1.0, 0.0, 0.0));  // true
 
 ## Frustum
 
-A 6-plane view frustum for frustum culling in 3D rendering.
+A six-plane view frustum for frustum culling in 3D rendering.
 
 - `fn init(left: Plane, right: Plane, top: Plane, bottom: Plane, near: Plane, far: Plane)` — create from 6 planes
 - `containsPoint(point: Vec3): bool` — check if point is inside

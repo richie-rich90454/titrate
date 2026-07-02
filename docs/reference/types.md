@@ -181,11 +181,11 @@ let data: JsonValue = DataFile.load("chem/periodic_table.json");
 let meta: JsonValue = DataFile.meta("chem/periodic_table.json");
 ```
 
-All data files include a `_meta` object with source, version, and description. No `.tr` file should contain more than 5 literal reference values.
+All data files include a `_meta` object with source, version, and description. No `.tr` file should contain more than five literal reference values.
 
 ## Extended Tuple Types
 
-Beyond 2-element tuples, Titrate supports `Tuple3`, `Tuple4`, and `Tuple5`:
+Beyond two-element tuples, Titrate supports `Tuple3`, `Tuple4`, and `Tuple5`:
 
 ```titrate
 let t3 = new Tuple3(1, "hello", 3.14);

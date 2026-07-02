@@ -172,9 +172,9 @@ io::println("Version: " + meta.get("version").asString());
 
 ## 5-Literal Rule
 
-No `.tr` source file shall contain more than **5 literal numeric or string values** used as reference data. When a module needs lookup tables, constant maps, or enumerated data sets, the data must be externalized to a file under `lib/tt/data/` and loaded via `DataFile`.
+No `.tr` source file shall contain more than **five literal numeric or string values** used as reference data. When a module needs lookup tables, constant maps, or enumerated data sets, the data must be externalized to a file under `lib/tt/data/` and loaded via `DataFile`.
 
-**Violations of the 5-literal rule:**
+**Violations of the five-literal rule:**
 
 ```titrate
 // WRONG — too many literal reference values in source code

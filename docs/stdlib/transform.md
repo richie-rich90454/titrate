@@ -17,7 +17,7 @@ A 4×4 transformation matrix using column-major storage (OpenGL convention). Sup
 - `get(row: int, col: int): double` — element access (row-major indexing into column-major storage)
 - `set(row: int, col: int, val: double): void` — set an element
 - `multiply(other: Mat4): Mat4` — matrix multiplication (`this * other`)
-- `multiplyVec4(v: Vec4): Vec4` — multiply by a 4-component vector
+- `multiplyVec4(v: Vec4): Vec4` — multiply by a four-component vector
 - `transpose(): Mat4` — transpose
 - `determinant(): double` — determinant
 - `inverse(): Mat4` — inverse via the cofactor method

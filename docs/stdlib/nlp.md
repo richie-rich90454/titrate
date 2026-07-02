@@ -158,7 +158,7 @@ String distance and phonetic similarity metrics for comparing text.
 - `jaro(a: string, b: string): double` — Jaro similarity in [0, 1]
 
 **Phonetic algorithms:**
-- `soundex(word: string): string` — Soundex phonetic code (4-character code)
+- `soundex(word: string): string` — Soundex phonetic code (four-character code)
 - `metaphone(word: string): string` — Metaphone phonetic key
 - `doubleMetaphone(word: string): (string, string)` — Double Metaphone (primary and alternate keys)
 

@@ -65,11 +65,11 @@ A heterogeneous quadruple of values.
 
 ## Top-level Functions
 
-- `fn makeTuple2<A, B>(a: A, b: B): Tuple2<A, B>` — create a 2-tuple without explicit type parameters
-- `fn makeTuple3<A, B, C>(a: A, b: B, c: C): Tuple3<A, B, C>` — create a 3-tuple without explicit type parameters
-- `fn makeTuple4<A, B, C, D>(a: A, b: B, c: C, d: D): Tuple4<A, B, C, D>` — create a 4-tuple without explicit type parameters
-- `fn tupleCat2<A, B, C, D>(t1: Tuple2<A, B>, t2: Tuple2<C, D>): Tuple4<A, B, C, D>` — concatenate two 2-tuples into a 4-tuple
-- `fn tupleCat23<A, B, C, D>(t1: Tuple2<A, B>, t2: Tuple3<C, D, Variant>): Tuple4<A, B, C, D>` — concatenate a 2-tuple and a 3-tuple into a 4-tuple (truncating to 4 elements)
+- `fn makeTuple2<A, B>(a: A, b: B): Tuple2<A, B>` — create a two-tuple without explicit type parameters
+- `fn makeTuple3<A, B, C>(a: A, b: B, c: C): Tuple3<A, B, C>` — create a three-tuple without explicit type parameters
+- `fn makeTuple4<A, B, C, D>(a: A, b: B, c: C, d: D): Tuple4<A, B, C, D>` — create a four-tuple without explicit type parameters
+- `fn tupleCat2<A, B, C, D>(t1: Tuple2<A, B>, t2: Tuple2<C, D>): Tuple4<A, B, C, D>` — concatenate two two-tuples into a four-tuple
+- `fn tupleCat23<A, B, C, D>(t1: Tuple2<A, B>, t2: Tuple3<C, D, Variant>): Tuple4<A, B, C, D>` — concatenate a two-tuple and a three-tuple into a four-tuple (truncating to four elements)
 
 ```titrate
 import tt.lang.Tuple;

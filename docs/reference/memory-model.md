@@ -377,7 +377,7 @@ Arrays (`ArrayList<T>`) are heap-allocated class instances with a contiguous bac
 ### Resizing Strategy
 
 When the buffer is full and a new element is added:
-1. A new buffer of **2× the current capacity** is allocated
+1. A new buffer of **twice the current capacity** is allocated
 2. All existing elements are copied to the new buffer
 3. The old buffer is freed
 4. The new element is inserted

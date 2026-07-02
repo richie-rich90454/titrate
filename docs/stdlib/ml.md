@@ -39,7 +39,7 @@ N-dimensional tensor with automatic differentiation (autograd) support. Tracks c
 - `ndim(): int` — number of dimensions
 - `size(): int` — total number of elements
 - `reshape(newShape: ArrayList<int>): Tensor` — reshape (shares data when possible)
-- `flatten(): Tensor` — collapse to 1D
+- `flatten(): Tensor` — collapse to one-dimensional
 
 **Operations:**
 - `add(other: Tensor): Tensor` — element-wise addition

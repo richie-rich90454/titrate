@@ -251,7 +251,7 @@ let kelly: double = kellyCriterion(0.55, 1.5, 1.0);  // ≈ 0.183
 ## FactorModel
 
 - `FactorModel.capm(returns: ArrayList<double>, marketReturns: ArrayList<double>, riskFreeRate: double): HashMap<string, double>` — CAPM alpha/beta
-- `FactorModel.famaFrench3(returns: ArrayList<double>, market: ArrayList<double>, smb: ArrayList<double>, hml: ArrayList<double>): HashMap<string, double>` — Fama-French 3-factor
-- `FactorModel.famaFrench5(returns: ArrayList<double>, market: ArrayList<double>, smb: ArrayList<double>, hml: ArrayList<double>, rmw: ArrayList<double>, cma: ArrayList<double>): HashMap<string, double>` — Fama-French 5-factor
+- `FactorModel.famaFrench3(returns: ArrayList<double>, market: ArrayList<double>, smb: ArrayList<double>, hml: ArrayList<double>): HashMap<string, double>` — Fama-French three-factor
+- `FactorModel.famaFrench5(returns: ArrayList<double>, market: ArrayList<double>, smb: ArrayList<double>, hml: ArrayList<double>, rmw: ArrayList<double>, cma: ArrayList<double>): HashMap<string, double>` — Fama-French five-factor
 - `FactorModel.factorExposure(returns: ArrayList<double>, factors: ArrayList<ArrayList<double>>): ArrayList<double>` — factor exposure
 - `FactorModel.alphaEstimate(returns: ArrayList<double>, factorReturns: ArrayList<ArrayList<double>>): double` — alpha estimate

@@ -4002,3 +4002,431 @@ button[class*="button"],
     }
   }
 }
+
+/* ===== Developer Experience Enhancements (Tasks 29-33) ===== */
+
+/* ===== Task 29: Keyboard Shortcuts ===== */
+/* VitePress default shortcuts: / for search, Esc to close */
+/* Custom: Arrow keys for navigation, Home/End for scroll */
+/* No additional CSS needed - handled in JavaScript */
+
+/* ===== Task 30: Enhanced Code Block Copying ===== */
+
+/* Toast notification container */
+.titrate-toast-container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+/* Toast notification */
+.titrate-toast {
+  padding: 12px 20px;
+  background: var(--vp-c-brand-soft);
+  border: 1px solid var(--vp-c-brand-1);
+  border-radius: var(--titrate-corner-sm);
+  color: var(--vp-c-brand-1);
+  font-weight: 600;
+  font-size: 0.85em;
+  box-shadow: var(--titrate-shadow-md);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity var(--titrate-duration-normal) var(--titrate-ease),
+              transform var(--titrate-duration-normal) var(--titrate-ease);
+  pointer-events: auto;
+}
+
+.titrate-toast.titrate-toast-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.titrate-toast.titrate-toast-success {
+  background: rgba(109, 217, 109, 0.12);
+  border-color: var(--titrate-accent-green);
+  color: var(--titrate-accent-green);
+}
+
+.titrate-toast.titrate-toast-error {
+  background: rgba(233, 69, 96, 0.12);
+  border-color: var(--vp-c-brand-1);
+  color: var(--vp-c-brand-1);
+}
+
+/* Dark mode toast */
+.dark .titrate-toast.titrate-toast-success {
+  background: rgba(109, 217, 109, 0.18);
+  border-color: #6dd96d;
+  color: #6dd96d;
+}
+
+.dark .titrate-toast.titrate-toast-error {
+  background: rgba(255, 107, 129, 0.18);
+  border-color: #ff6b81;
+  color: #ff6b81;
+}
+
+/* Code block focus indicator */
+.titrate-code-focused {
+  outline: 2px solid var(--titrate-accent-teal);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
+}
+
+/* Code block copied feedback */
+.titrate-code-copied {
+  animation: titrate-copy-pulse 0.5s ease;
+}
+
+@keyframes titrate-copy-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); box-shadow: 0 0 12px rgba(109, 217, 109, 0.4); }
+  100% { transform: scale(1); }
+}
+
+.dark .titrate-code-copied {
+  animation: titrate-copy-pulse-dark 0.5s ease;
+}
+
+@keyframes titrate-copy-pulse-dark {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.02); box-shadow: 0 0 12px rgba(109, 217, 109, 0.5); }
+  100% { transform: scale(1); }
+}
+
+/* ===== Task 31: Enhanced Search with Section Filtering ===== */
+
+/* Search filter container */
+.titrate-search-filter {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--titrate-neutral-2);
+  border-bottom: 1px solid var(--titrate-neutral-4);
+  flex-wrap: wrap;
+}
+
+.dark .titrate-search-filter {
+  background: var(--titrate-neutral-3);
+  border-bottom-color: var(--titrate-neutral-4);
+}
+
+/* Search filter tabs */
+.titrate-search-filter-tab {
+  padding: 6px 12px;
+  border: 1px solid var(--titrate-neutral-4);
+  border-radius: var(--titrate-corner-xs);
+  background: transparent;
+  color: var(--titrate-neutral-6);
+  font-size: 0.8em;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--titrate-duration-fast) var(--titrate-ease);
+}
+
+.titrate-search-filter-tab:hover {
+  background: var(--titrate-interactive-hover);
+  transform: translateY(-1px);
+}
+
+.titrate-search-filter-tab.active {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-1);
+  box-shadow: var(--titrate-shadow-sm);
+}
+
+.dark .titrate-search-filter-tab {
+  color: var(--titrate-neutral-5);
+}
+
+.dark .titrate-search-filter-tab:hover {
+  background: var(--titrate-interactive-hover);
+}
+
+.dark .titrate-search-filter-tab.active {
+  background: rgba(255, 107, 129, 0.18);
+  color: #ff6b81;
+  border-color: #ff6b81;
+}
+
+/* Search result category badges */
+.titrate-search-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid;
+  border-radius: var(--titrate-corner-xs);
+  font-size: 0.65em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-right: 6px;
+  text-transform: uppercase;
+}
+
+.titrate-search-badge-guide {
+  background: rgba(233, 69, 96, 0.12);
+  border-color: #e94560;
+  color: #e94560;
+}
+
+.titrate-search-badge-reference {
+  background: rgba(0, 168, 168, 0.12);
+  border-color: #00a8a8;
+  color: #00a8a8;
+}
+
+.titrate-search-badge-stdlib {
+  background: rgba(16, 124, 16, 0.12);
+  border-color: #10b981;
+  color: #10b981;
+}
+
+.titrate-search-badge-blog {
+  background: rgba(245, 158, 0, 0.12);
+  border-color: #f59f00;
+  color: #f59f00;
+}
+
+.dark .titrate-search-badge-guide {
+  background: rgba(255, 107, 129, 0.18);
+  border-color: #ff6b81;
+  color: #ff6b81;
+}
+
+.dark .titrate-search-badge-reference {
+  background: rgba(0, 215, 215, 0.18);
+  border-color: #00d7d7;
+  color: #00d7d7;
+}
+
+.dark .titrate-search-badge-stdlib {
+  background: rgba(109, 217, 109, 0.18);
+  border-color: #6dd96d;
+  color: #6dd96d;
+}
+
+.dark .titrate-search-badge-blog {
+  background: rgba(255, 160, 64, 0.18);
+  border-color: #ffa040;
+  color: #ffa040;
+}
+
+/* ===== Task 32: Scroll Progress Indicator ===== */
+
+/* Progress bar at top of page */
+.titrate-scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: var(--titrate-gradient-reaction);
+  width: 0%;
+  z-index: 1000;
+  transition: width 0.1s linear;
+  box-shadow: 0 0 4px rgba(233, 69, 96, 0.5);
+}
+
+.dark .titrate-scroll-progress {
+  box-shadow: 0 0 4px rgba(255, 107, 129, 0.6);
+}
+
+/* Current section indicator */
+.titrate-section-indicator {
+  position: fixed;
+  bottom: 60px;
+  right: 20px;
+  padding: 8px 12px;
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: var(--titrate-corner-sm);
+  color: var(--vp-c-text-1);
+  font-size: 0.75em;
+  font-weight: 600;
+  box-shadow: var(--titrate-shadow-md);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity var(--titrate-duration-normal) var(--titrate-ease),
+              transform var(--titrate-duration-normal) var(--titrate-ease);
+  pointer-events: none;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titrate-section-indicator.titrate-section-indicator-visible {
+  opacity: 0.9;
+  transform: translateY(0);
+}
+
+.dark .titrate-section-indicator {
+  background: var(--titrate-neutral-3);
+  border-color: var(--titrate-neutral-4);
+}
+
+/* ===== Task 33: Code Block Line Numbers Toggle ===== */
+
+/* Toggle button container in nav bar */
+.titrate-line-numbers-toggle-container {
+  display: flex;
+  align-items: center;
+  margin-left: 12px;
+}
+
+/* Toggle button */
+.titrate-line-numbers-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--titrate-neutral-2);
+  border: 1px solid var(--titrate-neutral-4);
+  border-radius: var(--titrate-corner-xs);
+  color: var(--titrate-neutral-6);
+  font-size: 0.75em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--titrate-duration-fast) var(--titrate-ease);
+}
+
+.titrate-line-numbers-toggle:hover {
+  background: var(--titrate-interactive-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--titrate-shadow-sm);
+}
+
+.titrate-line-numbers-toggle:focus-visible {
+  outline: 2px solid var(--titrate-accent-teal);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
+}
+
+.titrate-line-numbers-toggle:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.dark .titrate-line-numbers-toggle {
+  background: var(--titrate-neutral-3);
+  border-color: var(--titrate-neutral-4);
+  color: var(--titrate-neutral-5);
+}
+
+.dark .titrate-line-numbers-toggle:hover {
+  background: var(--titrate-interactive-hover);
+}
+
+/* Toggle icon */
+.titrate-line-numbers-icon {
+  display: flex;
+  align-items: center;
+}
+
+.titrate-line-numbers-icon svg {
+  opacity: 0.7;
+}
+
+.titrate-line-numbers-toggle:hover .titrate-line-numbers-icon svg {
+  opacity: 1;
+}
+
+/* Toggle label */
+.titrate-line-numbers-label {
+  color: var(--titrate-neutral-6);
+}
+
+.dark .titrate-line-numbers-label {
+  color: var(--titrate-neutral-5);
+}
+
+/* Line numbers visibility control */
+/* When hidden, remove line numbers display */
+.titrate-line-numbers-hidden .vp-doc div[class*='language-'] .line-numbers-mode .line-numbers {
+  display: none !important;
+}
+
+.titrate-line-numbers-hidden .vp-doc div[class*='language-'] .line-numbers-mode .line-number {
+  display: none !important;
+}
+
+/* VitePress line numbers wrapper adjustment */
+.titrate-line-numbers-hidden .vp-doc div[class*='language-'] code .line {
+  padding-left: 0 !important;
+}
+
+/* Hide VitePress default line numbers when toggle is off */
+.titrate-line-numbers-hidden .vp-doc div[class*='language-'] pre code .highlighted-line {
+  margin-left: 0 !important;
+}
+
+/* Mobile adjustments for toggle button */
+@media (max-width: 768px) {
+  .titrate-line-numbers-toggle-container {
+    margin-left: 8px;
+  }
+
+  .titrate-line-numbers-toggle {
+    padding: 3px 6px;
+    font-size: 0.70em;
+  }
+
+  .titrate-line-numbers-label {
+    display: none;
+  }
+
+  .titrate-line-numbers-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .titrate-line-numbers-toggle-container {
+    display: none;
+  }
+}
+
+/* Mobile adjustments for toast */
+@media (max-width: 768px) {
+  .titrate-toast-container {
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+  }
+
+  .titrate-toast {
+    padding: 10px 16px;
+    font-size: 0.80em;
+  }
+}
+
+/* Mobile adjustments for section indicator */
+@media (max-width: 768px) {
+  .titrate-section-indicator {
+    bottom: 50px;
+    right: 12px;
+    padding: 6px 10px;
+    font-size: 0.70em;
+    max-width: 150px;
+  }
+}
+
+@media (max-width: 480px) {
+  .titrate-section-indicator {
+    display: none;
+  }
+}
+
+/* Print styles - hide all enhancements */
+@media print {
+  .titrate-scroll-progress,
+  .titrate-section-indicator,
+  .titrate-toast-container,
+  .titrate-line-numbers-toggle-container {
+    display: none !important;
+  }
+}
