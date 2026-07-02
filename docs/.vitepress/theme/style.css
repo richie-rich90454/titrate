@@ -3346,13 +3346,26 @@ body,
   border: none;
   cursor: pointer;
   opacity: 0.6;
-  transition: opacity var(--titrate-duration-fast) var(--titrate-ease);
+  transition: opacity var(--titrate-duration-fast) var(--titrate-ease),
+              transform var(--titrate-duration-fast) var(--titrate-ease);
   color: var(--titrate-neutral-5);
 }
 
 .VPLocalSearchBox .close-button:hover {
   opacity: 1;
   color: var(--vp-c-brand-1);
+  transform: scale(1.1);
+}
+
+.VPLocalSearchBox .close-button:active {
+  transform: scale(0.95);
+}
+
+.VPLocalSearchBox .close-button:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  opacity: 1;
 }
 
 /* Mobile search adjustments */
