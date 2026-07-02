@@ -291,11 +291,12 @@ Titrate ships with a comprehensive standard library organized into intuitive mod
 | Module | Key Types | Description |
 |--------|-----------|-------------|
 | `tt::util` | ArrayList, HashMap, HashSet, Vec, Stack, Queue | Core collections with generic support |
-| `tt::io` | File, BufferedReader, BufferedWriter, Path | File I/O and filesystem operations |
+| `tt::io` | File, BufferedReader, FileWriter, Path | File I/O and filesystem operations |
 | `tt::json` | JsonValue, Json, JsonPath, JsonSchema, Json5 | JSON parsing, serialization, querying, validation |
 | `tt::xml` | XmlNode, Xml, XPath, XmlBuilder, XmlSchema | XML parsing, XPath, schema validation, C14N |
-| `tt::math` | Math, Random, Statistics, Special | Mathematical functions, distributions, special functions |
-| `tt::math::ndarray` | NDArray, Matrix | N-dimensional arrays and linear algebra |
+| `tt::math` | Math, MathAdvanced, MathTrig, Special | Mathematical functions, constants, special functions |
+| `tt::math::linalg` | Matrix, MatrixDecomp, SparseMatrix | Linear algebra and matrix operations |
+| `tt::math::ndarray` | NDArray, NDArrayReduce, NDArrayMath | N-dimensional arrays and reductions |
 | `tt::chem` | Atom, Molecule, ForceField, MD, RHF | Computational chemistry toolkit |
 | `tt::bio` | Sequence, Alignment, PhyloTree, CodonTable | Bioinformatics and sequence analysis |
 | `tt::physics` | Particle, ForceField, NBodySimulator, RigidBody | Physics simulation |
@@ -311,9 +312,12 @@ Titrate ships with a comprehensive standard library organized into intuitive mod
 | `tt::finance` | BlackScholes, Portfolio, YieldCurve | Quantitative finance |
 | `tt::crypto2` | AES, RSA, ECDSA, KDF | Advanced cryptography |
 | `tt::net` | TcpClient, TcpServer, HttpClient | Networking primitives |
-| `tt::crypto` | SHA256, HMAC, Base64 | Cryptographic primitives |
+| `tt::crypto` | SHA256, HMAC, Hash | Cryptographic hash functions |
+| `tt::encoding` | Base64, Hex, Url | Encoding and decoding utilities |
 | `tt::argparse` | ArgumentParser | CLI argument parsing |
 | `tt::csv` | CsvReader, CsvWriter | CSV file handling |
+| `tt::random` | Random, Prng, Sampling | Random number generation and distributions |
+| `tt::statistics` | Statistics, Bootstrap, TimeSeries | Statistical analysis and inference |
 
 ## Community and Contributing
 
