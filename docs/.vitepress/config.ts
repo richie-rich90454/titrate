@@ -9,6 +9,10 @@ export default defineConfig({
   cleanUrls: true,
 
   head: [
+    // Font preloading for critical display font (Space Grotesk)
+    // Preload stylesheet to start font fetch early, then stylesheet applies it
+    ['link', { rel: 'preload', as: 'style', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap' }],
+    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap' }],
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/titrate/favicon.svg' }],
     ['meta', { name: 'theme-color', content: '#e94560' }],
     ['meta', { name: 'og:type', content: 'website' }],

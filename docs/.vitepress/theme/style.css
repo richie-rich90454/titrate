@@ -71,24 +71,46 @@
   --titrate-interactive-focus-ring: 0 0 0 2px rgba(0, 168, 168, 0.35);
   --titrate-interactive-disabled: rgba(150, 150, 150, 0.4);
 
-  /* Fluent depth �?subtle, not glowy */
-  --titrate-shadow-2: 0 1px 2px rgba(0, 0, 0, 0.10);
-  --titrate-shadow-4: 0 2px 4px rgba(0, 0, 0, 0.08);
-  --titrate-shadow-8: 0 4px 8px rgba(0, 0, 0, 0.08);
-  --titrate-shadow-16: 0 8px 16px rgba(0, 0, 0, 0.08);
-  --titrate-shadow-card: 0 1.6px 3.6px rgba(0, 0, 0, 0.06), 0 0.3px 0.9px rgba(0, 0, 0, 0.04);
+  /* Fluent depth - systematic shadow scale (2px, 4px, 8px, 16px offsets) */
+  --titrate-shadow-sm: 0 2px 2px rgba(0, 0, 0, 0.10);
+  --titrate-shadow-md: 0 4px 4px rgba(0, 0, 0, 0.08);
+  --titrate-shadow-lg: 0 8px 8px rgba(0, 0, 0, 0.08);
+  --titrate-shadow-xl: 0 16px 16px rgba(0, 0, 0, 0.08);
+  --titrate-shadow-card: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
 
-  /* Fluent motion */
-  --titrate-ease: cubic-bezier(0.33, 0, 0.67, 1);
-  --titrate-ease-decelerate: cubic-bezier(0, 0, 0.33, 1);
-  --titrate-duration-fast: 0.1s;
-  --titrate-duration-normal: 0.25s;
-  --titrate-duration-slow: 0.4s;
+  /* Legacy aliases for backwards compatibility */
+  --titrate-shadow-2: var(--titrate-shadow-sm);
+  --titrate-shadow-4: var(--titrate-shadow-md);
+  --titrate-shadow-8: var(--titrate-shadow-lg);
+  --titrate-shadow-16: var(--titrate-shadow-xl);
 
-  /* Fluent corner radius */
-  --titrate-radius-sm: 4px;
-  --titrate-radius-md: 6px;
-  --titrate-radius-lg: 8px;
+  /* Material Design Elevation System (0-5 levels) */
+  --elevation-0: none;
+  --elevation-1: 0px 1px 3px rgba(0, 0, 0, 0.12), 0px 2px 1px rgba(0, 0, 0, 0.10), 0px 1px 1px rgba(0, 0, 0, 0.14);
+  --elevation-2: 0px 3px 6px rgba(0, 0, 0, 0.16), 0px 3px 6px rgba(0, 0, 0, 0.12), 0px 2px 4px rgba(0, 0, 0, 0.14);
+  --elevation-3: 0px 8px 10px rgba(0, 0, 0, 0.14), 0px 6px 10px rgba(0, 0, 0, 0.12), 0px 5px 5px rgba(0, 0, 0, 0.16);
+  --elevation-4: 0px 14px 14px rgba(0, 0, 0, 0.14), 0px 10px 10px rgba(0, 0, 0, 0.12), 0px 8px 8px rgba(0, 0, 0, 0.16);
+  --elevation-5: 0px 19px 19px rgba(0, 0, 0, 0.14), 0px 15px 15px rgba(0, 0, 0, 0.12), 0px 10px 10px rgba(0, 0, 0, 0.16);
+
+  /* Material Design Motion - Spring-based easing curves */
+  --titrate-ease: cubic-bezier(0.2, 0.0, 0, 1.0);           /* Material standard curve */
+  --titrate-ease-decelerate: cubic-bezier(0.4, 0.0, 0.2, 1); /* Material deceleration */
+  --titrate-ease-accelerate: cubic-bezier(0.0, 0.0, 0.2, 1); /* Material acceleration */
+  --titrate-ease-sharp: cubic-bezier(0.4, 0.0, 0.6, 1);      /* Material sharp curve */
+  --titrate-duration-fast: 0.15s;
+  --titrate-duration-normal: 0.30s;
+  --titrate-duration-slow: 0.45s;
+
+  /* Fluent corner radius - systematic scale (4px, 8px, 12px, 16px) */
+  --titrate-corner-xs: 4px;
+  --titrate-corner-sm: 8px;
+  --titrate-corner-md: 12px;
+  --titrate-corner-lg: 16px;
+
+  /* Legacy aliases for backwards compatibility */
+  --titrate-radius-sm: var(--titrate-corner-xs);
+  --titrate-radius-md: var(--titrate-corner-sm);
+  --titrate-radius-lg: var(--titrate-corner-md);
 
   /* Spacing scale (8px base unit) */
   --titrate-space-xs: 4px;
@@ -187,6 +209,14 @@ body,
   --titrate-shadow-16: 0 8px 16px rgba(0, 0, 0, 0.28);
   --titrate-shadow-card: 0 1.6px 3.6px rgba(0, 0, 0, 0.25), 0 0.3px 0.9px rgba(0, 0, 0, 0.18);
 
+  /* Material Design Elevation System - Dark mode (stronger shadows for depth perception) */
+  --elevation-0: none;
+  --elevation-1: 0px 1px 3px rgba(0, 0, 0, 0.45), 0px 2px 1px rgba(0, 0, 0, 0.38), 0px 1px 1px rgba(0, 0, 0, 0.42);
+  --elevation-2: 0px 3px 6px rgba(0, 0, 0, 0.48), 0px 3px 6px rgba(0, 0, 0, 0.40), 0px 2px 4px rgba(0, 0, 0, 0.44);
+  --elevation-3: 0px 8px 10px rgba(0, 0, 0, 0.50), 0px 6px 10px rgba(0, 0, 0, 0.42), 0px 5px 5px rgba(0, 0, 0, 0.52);
+  --elevation-4: 0px 14px 14px rgba(0, 0, 0, 0.52), 0px 10px 10px rgba(0, 0, 0, 0.44), 0px 8px 8px rgba(0, 0, 0, 0.54);
+  --elevation-5: 0px 19px 19px rgba(0, 0, 0, 0.54), 0px 15px 15px rgba(0, 0, 0, 0.46), 0px 10px 10px rgba(0, 0, 0, 0.56);
+
   /* Syntax highlighting colors for dark mode - WCAG AA compliant */
   --titrate-code-bg: #1e1e1e;
   --titrate-code-kw: #ff99bb;
@@ -200,11 +230,25 @@ body,
   --titrate-code-punct: #9a9a9a;
 }
 
-/* ===== Typography �?Fluent: Segoe UI first ===== */
+/* ===== Typography - Apple HIG Typography Scale ===== */
 :root {
-  --vp-font-family-base: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
-  --vp-font-family-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
-  --titrate-font-family-display: 'Space Grotesk', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  --vp-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --vp-font-family-mono: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
+  --titrate-font-family-display: 'SF Pro Display', 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /* Apple HIG Typography Scale */
+  --titrate-type-display: 4rem;      /* Large titles, hero text */
+  --titrate-type-headline: 2rem;     /* Section headers */
+  --titrate-type-title: 1.5rem;      /* Subsection headers */
+  --titrate-type-body: 1rem;         /* Body text */
+  --titrate-type-caption: 0.75rem;   /* Small text, captions */
+
+  /* Font weights per Apple HIG */
+  --titrate-weight-light: 300;
+  --titrate-weight-regular: 400;
+  --titrate-weight-medium: 500;
+  --titrate-weight-semibold: 600;
+  --titrate-weight-bold: 700;
 }
 
 /* ===== Body Text �?Optimized for readability ===== */
@@ -415,14 +459,14 @@ body,
 
 .VPFeature:hover {
   border-color: var(--vp-c-brand-1);
-  box-shadow: var(--titrate-shadow-8);
+  box-shadow: var(--elevation-4);
   background: var(--titrate-interactive-hover);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
 }
 
 .VPFeature:active {
-  transform: translateY(0) scale(0.98);
-  box-shadow: var(--titrate-shadow-2);
+  transform: translateY(0) scale(0.96);
+  box-shadow: var(--elevation-1);
   background: var(--titrate-interactive-active);
 }
 
@@ -430,7 +474,7 @@ body,
   outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
   box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
-  border-color: var(--titrate-accent-teal);
+  /* No border change - focus via outline only */
 }
 
 .VPFeature .icon {
@@ -771,6 +815,13 @@ body,
 }
 
 /* Dark mode adjustments for sidebar */
+.dark .VPSidebar {
+  /* Semi-transparent background with blur */
+  background: rgba(26, 26, 26, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
 .dark .VPSidebar .VPSidebarItem.is-active > .link {
   background: linear-gradient(90deg,
     rgba(255, 123, 143, 0.12) 0%,
@@ -1273,14 +1324,15 @@ body,
   color: var(--vp-c-brand-1);
 }
 
-/* ===== Landing Page Sections ===== */
+/* ===== Landing Page Sections ?Apple HIG: More whitespace ===== */
 
 .vp-doc .landing-section {
-  padding: 2.5rem 0;
+  padding: 3rem 0; /* Increased whitespace */
 }
 
 .vp-doc .landing-section + .landing-section {
-  border-top: 1px solid var(--vp-c-divider);
+  border-top: none; /* Remove border */
+  margin-top: 2rem; /* Use spacing instead */
 }
 
 /* Code showcase */
@@ -1356,28 +1408,29 @@ body,
   color: var(--vp-c-brand-1);
 }
 
-/* ===== Ecosystem Showcase Cards ===== */
+/* ===== Ecosystem Showcase Cards ?Apple HIG: No borders ===== */
 .vp-doc .ecosystem-showcase {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  margin: 1.5rem 0;
+  gap: 1.5rem; /* Increased whitespace */
+  margin: 2rem 0; /* Increased whitespace */
 }
 
 .vp-doc .ecosystem-card {
   position: relative;
-  padding: 1.25rem;
+  padding: 1.5rem; /* Increased padding */
   border-radius: var(--titrate-radius-lg);
-  border: 1px solid var(--vp-c-divider);
+  border: none; /* Remove border */
   background: var(--titrate-gradient-hero);
   transition: all var(--titrate-duration-normal) var(--titrate-ease);
   display: flex;
   flex-direction: column;
   min-height: 160px;
+  box-shadow: var(--titrate-shadow-card); /* Subtle shadow instead */
 }
 
 .vp-doc .ecosystem-card:hover {
-  border-color: var(--vp-c-brand-1);
+  /* No border change */
   box-shadow: var(--titrate-shadow-8);
   transform: translateY(-2px);
   background: var(--titrate-interactive-hover);
@@ -3116,26 +3169,29 @@ body,
   z-index: 100;
 }
 
+/* Acrylic/Glass effects for modal overlays - Fluent Design */
 .VPLocalSearchBox > .backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
+  /* Fluent acrylic: semi-transparent with blur and saturation */
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
   animation: titrate-search-backdrop-in 0.2s var(--titrate-ease-decelerate);
 }
 
 @keyframes titrate-search-backdrop-in {
   from {
     opacity: 0;
-    backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px) saturate(100%);
   }
   to {
     opacity: 1;
-    backdrop-filter: blur(4px);
+    backdrop-filter: blur(20px) saturate(180%);
   }
 }
 
-/* Search modal container */
+/* Search modal container - Fluent acrylic/glass effect */
 .VPLocalSearchBox > .shell {
   position: absolute;
   top: 50%;
@@ -3145,14 +3201,18 @@ body,
   width: 90%;
   max-height: 80vh;
 
-  /* Better rounded corners */
-  border-radius: var(--titrate-radius-lg);
+  /* Fluent corner radius: modals use corner-lg (16px) */
+  border-radius: var(--titrate-corner-lg);
   overflow: hidden;
 
-  /* Improved shadows and border */
-  background: var(--titrate-neutral-1);
-  border: 1px solid var(--titrate-neutral-4);
-  box-shadow: var(--titrate-shadow-16);
+  /* Fluent acrylic: semi-transparent background with subtle blur */
+  background: rgba(250, 250, 250, 0.92);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+
+  /* Fluent shadow depth: modals use shadow-lg (8px offset) */
+  border: 1px solid rgba(209, 209, 209, 0.6);
+  box-shadow: var(--titrate-shadow-lg);
 
   /* Smooth entrance animation */
   animation: titrate-search-modal-in 0.25s var(--titrate-ease-decelerate);
@@ -3169,11 +3229,13 @@ body,
   }
 }
 
-/* Dark mode modal */
+/* Dark mode modal - Fluent acrylic with dark colors */
 .dark .VPLocalSearchBox > .shell {
-  background: var(--titrate-neutral-2);
-  border-color: var(--titrate-neutral-4);
-  box-shadow: var(--titrate-shadow-16);
+  background: rgba(36, 36, 36, 0.92);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  border-color: rgba(64, 64, 64, 0.6);
+  box-shadow: var(--titrate-shadow-lg);
 }
 
 /* Search input in modal */
