@@ -528,7 +528,136 @@ How does Titrate compare to other systems languages for common tasks?
   </div>
 </div>
 
+<div class="comparison-card">
+  <div class="comparison-header">
+    <span class="lang-name">Julia</span>
+  </div>
+  <div class="comparison-features">
+    <div class="feature-row"><span class="feature-name">Memory safety</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">No garbage collector</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Zero-cost generics</span><span class="partial">~</span></div>
+    <div class="feature-row"><span class="feature-name">Simple syntax</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Scientific computing stdlib</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Result-based error handling</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">Operator overloading</span><span class="check">✓</span></div>
+    <div class="feature-row"><span class="feature-name">Fast compile times</span><span class="cross">✗</span></div>
+    <div class="feature-row"><span class="feature-name">C-family sugar forms</span><span class="cross">✗</span></div>
+  </div>
 </div>
+
+</div>
+
+### Detailed Comparison
+
+**C** remains the foundation of systems programming. It offers unmatched control over memory and hardware. But manual memory management invites bugs. Buffer overflows, use-after-free errors and null pointer crashes plague C projects. Generic programming requires macros or void pointers with runtime casts. Titrate provides similar low-level control through ownership semantics and unsafe blocks but makes safe code the default.
+
+**Rust** pioneered the ownership model that Titrate adopts. Rust achieves memory safety without garbage collection through its borrow checker. The borrow checker enforces strict rules at compile time. Titrate uses a similar ownership system but with simpler syntax and faster compilation. Rust compile times often reach minutes for large projects. Titrate compiles in seconds. Rust requires learning lifetime annotations and complex trait syntax. Titrate uses straightforward `name: Type` declarations.
+
+**Python** dominates scientific computing for its simplicity and library ecosystem. NumPy, SciPy and Pandas handle numerical work well. But Python runs 10 to 100 times slower than compiled languages. The garbage collector introduces unpredictable pauses. Error handling relies on exceptions rather than explicit Result types. Titrate matches Python's expressiveness with operator overloading and closures but compiles to native code. Titrate's standard library includes chemistry, physics and bioinformatics modules comparable to Python's scientific stack.
+
+**Julia** targets scientific computing with JIT compilation. It approaches C performance for numerical kernels. But Julia suffers from JIT warmup delays on first execution. The garbage collector still runs. Compile times grow with package complexity. Julia uses multiple dispatch rather than traditional object-oriented methods. Titrate uses familiar class-based design with zero-cost generics through monomorphization. No warmup, no GC pauses, predictable performance from the first call.
+
+### Why Choose Titrate
+
+Titrate occupies a unique position among systems languages. Here is what sets it apart from competitors.
+
+**Against C**: Titrate delivers memory safety by default. No buffer overflows, no use-after-free bugs. The ownership system cleans up values when they leave scope. Write safe code naturally, drop into unsafe blocks only when needed. C requires manual discipline for every allocation. Titrate makes safety automatic.
+
+**Against Rust**: Titrate compiles in seconds, not minutes. The syntax stays simple without lifetime annotations or complex trait bounds. Generics work through straightforward type parameters. C-family developers recognize the sugar forms immediately. Rust demands months of study to master. Titrate feels familiar from day one.
+
+**Against Python**: Titrate runs at native speed from the start. No interpreter overhead, no JIT warmup. The standard library includes scientific modules without external dependencies. Result types make error handling explicit and compile-time checked. Python hides errors until runtime. Titrate catches them during compilation.
+
+**Against Julia**: Titrate avoids JIT warmup entirely. The first call runs as fast as the millionth. No garbage collector pauses interrupt simulations. Class-based design matches most developers' mental model. Julia's multiple dispatch requires relearning object-oriented patterns. Titrate keeps the familiar class and interface structure.
+
+**The unique advantage**: Titrate combines the four things scientific developers need most. Native performance through LLVM. Memory safety without GC pauses. Zero-cost generics through monomorphization. Scientific libraries in the standard distribution. No other language delivers all four.
+
+### Code Comparison: Molecular Dynamics Force Calculation
+
+The same Lennard-Jones force calculation in four languages shows how Titrate balances performance and clarity.
+
+**Titrate**
+
+```titrate
+import tt::chem::Atom;
+import tt::math::MathAdvanced;
+
+public fn ljForce(a: Atom, b: Atom): double {
+    let dx: double = b.x - a.x;
+    let dy: double = b.y - a.y;
+    let dz: double = b.z - a.z;
+    let r2: double = dx * dx + dy * dy + dz * dz;
+    let r6: double = MathAdvanced.pow(r2, 3.0);
+    let r12: double = r6 * r6;
+    let eps: double = a.eps;
+    let sig: double = a.sig;
+    let sig6: double = MathAdvanced.pow(sig, 6.0);
+    let sig12: double = sig6 * sig6;
+    let force: double = 24.0 * eps * (2.0 * sig12 / r12 - sig6 / r6) / r2;
+    return force;
+}
+```
+
+**C**
+
+```c
+double lj_force(Atom* a, Atom* b) {
+    double dx = b->x - a->x;
+    double dy = b->y - a->y;
+    double dz = b->z - a->z;
+    double r2 = dx*dx + dy*dy + dz*dz;
+    double r6 = r2 * r2 * r2;
+    double r12 = r6 * r6;
+    double eps = a->eps;
+    double sig = a->sig;
+    double sig6 = sig * sig * sig * sig * sig * sig;
+    double sig12 = sig6 * sig6;
+    double force = 24.0 * eps * (2.0 * sig12 / r12 - sig6 / r6) / r2;
+    return force;
+}
+```
+
+Titrate matches C's arithmetic clarity. Both compute the same formula line by line. Titrate adds type safety and automatic cleanup. C leaves the programmer responsible for pointer validity.
+
+**Rust**
+
+```rust
+fn lj_force(a: &Atom, b: &Atom) -> f64 {
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    let dz = b.z - a.z;
+    let r2 = dx * dx + dy * dy + dz * dz;
+    let r6 = r2.powi(3);
+    let r12 = r6 * r6;
+    let eps = a.eps;
+    let sig = a.sig;
+    let sig6 = sig.powi(6);
+    let sig12 = sig6 * sig6;
+    let force = 24.0 * eps * (2.0 * sig12 / r12 - sig6 / r6) / r2;
+    force
+}
+```
+
+Rust requires lifetime annotations in function signatures. The borrow checker validates references at compile time. Titrate achieves equivalent safety without the annotation burden.
+
+**Python**
+
+```python
+def lj_force(a, b):
+    dx = b.x - a.x
+    dy = b.y - a.y
+    dz = b.z - a.z
+    r2 = dx*dx + dy*dy + dz*dz
+    r6 = r2 ** 3
+    r12 = r6 * r6
+    eps = a.eps
+    sig = a.sig
+    sig6 = sig ** 6
+    sig12 = sig6 * sig6
+    force = 24.0 * eps * (2.0 * sig12 / r12 - sig6 / r6) / r2
+    return force
+```
+
+Python reads cleanly but runs through an interpreter. The first call suffers compilation overhead in NumPy-accelerated versions. Titrate executes native machine code immediately.
 
 ## Standard Library Ecosystem
 
