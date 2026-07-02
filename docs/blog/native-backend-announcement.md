@@ -13,8 +13,7 @@ standalone native executables. For compute-bound workloads, the
 results are dramatic: **3–6× faster** than the bytecode VM, with a
 single self-contained binary as the output.
 
-This post covers what we built, why we built it, how it works at a
-high level, and what's coming next.
+This post covers what we built, why we built it, how it works at a high level and what's coming next.
 
 ## What We Built
 

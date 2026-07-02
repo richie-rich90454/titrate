@@ -1,6 +1,6 @@
 # Generics
 
-Ever written the same function twice, just for different types? That's exactly the problem generics solve. Instead of writing `printInt`, `printString`, and `printDouble`, you write one `print<T>` that works for any type. Generics let you write flexible, reusable code without sacrificing type safety — the compiler still catches type errors, but your code works across types.
+Ever written the same function twice, just for different types? That's exactly the problem generics solve. Instead of writing `printInt`, `printString` and `printDouble`, you write one `print<T>` that works for any type. Generics let you write flexible, reusable code without sacrificing type safety — the compiler still catches type errors, but your code works across types.
 
 Titrate supports generics for both classes and functions, with interface constraints and compile-time monomorphization.
 

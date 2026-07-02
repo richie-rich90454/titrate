@@ -201,7 +201,7 @@ switch status {
 For a deeper dive into pattern matching, see the [Pattern Matching](./pattern-matching) guide.
 
 ::: tip Try It Yourself
-1. Define an enum `Transport` with variants `Car(int)`, `Bicycle`, and `Train(string)`. The `Car` variant holds the number of doors, and `Train` holds the line name.
+1. Define an enum `Transport` with variants `Car(int)`, `Bicycle` and `Train(string)`. The `Car` variant holds the number of doors and `Train` holds the line name.
 2. Write a function `describe(transport: Transport): string` that uses `switch` to return a description for each variant.
 3. Try creating a `JsonValue` enum that can represent `Null`, `Bool(bool)`, `Number(double)`, and `Str(string)`, then write a function that prints each variant.
 :::

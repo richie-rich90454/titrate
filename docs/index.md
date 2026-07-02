@@ -337,7 +337,7 @@ trc --native --release hello.tr
 ### Troubleshooting
 
 ::: info Detailed Troubleshooting
-For comprehensive troubleshooting steps, error explanations, and solutions, see the [Getting Started Guide](/guide/getting-started#troubleshooting).
+For comprehensive troubleshooting steps, error explanations and solutions, see the [Getting Started Guide](/guide/getting-started#troubleshooting).
 :::
 
 #### Build Fails with LLVM Link Error

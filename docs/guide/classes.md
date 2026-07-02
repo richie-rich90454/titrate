@@ -1,10 +1,10 @@
 # Classes
 
-Classes are Titrate's way of bundling data and behavior together. If you've used classes in other languages, you'll feel right at home — but Titrate has its own style. No `static` keyword, and constructors are typically called `fn init()`. Once you get the hang of it, it's a clean and consistent way to write object-oriented code.
+Classes are Titrate's way of bundling data and behavior together. If you've used classes in other languages, you'll feel right at home — but Titrate has its own style. No `static` keyword and constructors are typically called `fn init()`. Once you get the hang of it, it's a clean and consistent way to write object-oriented code.
 
 ## Defining a Class
 
-A class bundles fields (data) and methods (behavior) into a single unit. Fields need an access modifier (`public` or `private`), and constructors are defined with `fn init()`:
+A class bundles fields (data) and methods (behavior) into a single unit. Fields need an access modifier (`public` or `private`) and constructors are defined with `fn init()`:
 
 ```titrate
 class Circle {
@@ -28,7 +28,7 @@ A few things to notice:
 
 ### Try It Yourself
 
-Create a `Rectangle` class with `width` and `height` fields, a constructor, and an `area()` method. Then use it:
+Create a `Rectangle` class with `width` and `height` fields, a constructor and an `area()` method. Then use it:
 
 ```titrate
 class Rectangle {

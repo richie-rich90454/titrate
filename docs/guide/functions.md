@@ -1,6 +1,6 @@
 # Functions
 
-Functions are the building blocks of any Titrate program. Whether you're writing a quick utility or a complex algorithm, functions let you encapsulate logic, give it a name, and reuse it throughout your code. Titrate's function syntax is clean and consistent — parameters use `name: Type` order, and return types come after the parameters with `: ReturnType`.
+Functions are the building blocks of any Titrate program. Whether you're writing a quick utility or a complex algorithm, functions let you encapsulate logic, give it a name and reuse it throughout your code. Titrate's function syntax is clean and consistent — parameters use `name: Type` order, and return types come after the parameters with `: ReturnType`.
 
 ## Canonical Form
 

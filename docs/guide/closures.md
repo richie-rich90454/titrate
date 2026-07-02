@@ -1,6 +1,6 @@
 # Closures
 
-Closures are anonymous functions that can capture variables from their enclosing scope. Think of them as lightweight, inline functions you can pass around like values. They're perfect for callbacks, transformations, and any time you want to customize behavior without defining a whole named function.
+Closures are anonymous functions that can capture variables from their enclosing scope. Think of them as lightweight, inline functions you can pass around like values. They're perfect for callbacks, transformations and any time you want to customize behavior without defining a whole named function.
 
 If you've used lambdas in Java, arrow functions in JavaScript, or closures in Rust, you'll find Titrate's closures familiar — with a few differences worth knowing about.
 
@@ -41,7 +41,7 @@ let greet = fn(name: string): string {
 ```
 
 ::: tip
-If you find yourself writing a block-form closure that's more than a few lines, consider extracting it into a named function. Named functions are easier to test, reuse, and document.
+If you find yourself writing a block-form closure that's more than a few lines, consider extracting it into a named function. Named functions are easier to test, reuse and document.
 :::
 
 ## Basic Usage
@@ -361,12 +361,12 @@ When should you use a closure, and when should you write a named function? Here'
 
 - **The logic is short and used once.** A one-line transformation like `fn(x: int): int => x * 2` doesn't need a name.
 - **You need to capture variables from the enclosing scope.** Closures can "see" variables around them; named functions can't.
-- **You're passing behavior as an argument.** Callbacks, predicates, and transformers are natural closure territory.
+- **You're passing behavior as an argument.** Callbacks, predicates and transformers are natural closure territory.
 
 ### Use a Named Function When:
 
 - **The logic is reused in multiple places.** A named function is easier to call from anywhere.
-- **The body is more than a few lines.** Named functions are easier to read, test, and debug.
+- **The body is more than a few lines.** Named functions are easier to read, test and debug.
 - **You want to document the behavior.** A good function name is worth a thousand comments.
 
 ```titrate

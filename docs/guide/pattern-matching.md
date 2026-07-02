@@ -1,6 +1,6 @@
 # Pattern Matching
 
-Pattern matching is one of the most satisfying features in Titrate. Instead of writing chains of `if`/`else` checks and type casts, you describe the shape of the data you expect — and the compiler makes sure you've covered every case. It's like a supercharged `switch` statement that can inspect, destructure, and extract data all at once.
+Pattern matching is one of the most satisfying features in Titrate. Instead of writing chains of `if`/`else` checks and type casts, you describe the shape of the data you expect — and the compiler makes sure you've covered every case. It's like a supercharged `switch` statement that can inspect, destructure and extract data all at once.
 
 If you've used pattern matching in Rust, Swift, or ML-family languages, you'll find Titrate's approach familiar. If not, you're about to discover a tool that will change how you think about branching logic.
 

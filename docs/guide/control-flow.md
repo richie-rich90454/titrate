@@ -53,7 +53,7 @@ if (isWeekend) {
 ```
 
 ::: tip
-When nesting gets deep (more than 2-3 levels), consider restructuring your code — perhaps using early returns, helper functions, or pattern matching on enums instead. Flat code is easier to understand than deeply nested code.
+When nesting gets deep (more than two or three levels), consider restructuring your code — perhaps using early returns, helper functions, or pattern matching on enums instead. Flat code is easier to understand than deeply nested code.
 :::
 
 ## while
@@ -109,7 +109,7 @@ for (i in 0..10) {
 ```
 
 ::: tip
-Prefer `for` over `while` when you're iterating over a collection. It's more concise, less error-prone (no off-by-one bugs), and clearly communicates your intent.
+Prefer `for` over `while` when you're iterating over a collection. It's more concise, less error-prone (no off-by-one bugs) and clearly communicates your intent.
 :::
 
 ::: tip Try It Yourself

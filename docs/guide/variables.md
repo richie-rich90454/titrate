@@ -1,6 +1,6 @@
 # Variables
 
-Variables are the building blocks of any program — they're how you store data, pass information around, and keep track of state. Titrate gives you three distinct ways to declare a variable, and each one communicates something different to the compiler (and to anyone reading your code).
+Variables are the building blocks of any program — they're how you store data, pass information around and keep track of state. Titrate gives you three distinct ways to declare a variable, and each one communicates something different to the compiler (and to anyone reading your code).
 
 Why three forms? Each one communicates something different to the compiler. `let` keeps code concise with type inference, `var` makes types explicit, and `const` tells the compiler to compute the value at compile time as an immutable binding. This makes your code easier to understand and helps the compiler catch mistakes early.
 
