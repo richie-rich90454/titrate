@@ -24,51 +24,51 @@
   /* Chemistry-inspired gradient patterns */
   --titrate-gradient-hero: linear-gradient(135deg,
     rgba(233, 69, 96, 0.03) 0%,
-    rgba(0, 120, 212, 0.02) 50%,
+    rgba(0, 168, 168, 0.02) 50%,
     rgba(16, 124, 16, 0.02) 100%);
   --titrate-gradient-reaction: linear-gradient(135deg,
     #e94560 0%,
-    #ff6b81 50%,
-    #f39c12 100%);
+    #f59f00 50%,
+    #00a8a8 100%);
   --titrate-gradient-molecular: radial-gradient(circle at 20% 50%,
     rgba(233, 69, 96, 0.08) 0%,
     transparent 50%),
     radial-gradient(circle at 80% 80%,
-    rgba(0, 120, 212, 0.05) 0%,
+    rgba(0, 168, 168, 0.05) 0%,
     transparent 40%),
     radial-gradient(circle at 40% 20%,
-    rgba(135, 100, 184, 0.06) 0%,
+    rgba(245, 158, 0, 0.06) 0%,
     transparent 45%);
   --titrate-gradient-bond: linear-gradient(90deg,
     rgba(233, 69, 96, 0.15) 0%,
-    rgba(0, 120, 212, 0.15) 100%);
+    rgba(0, 168, 168, 0.15) 100%);
   --titrate-gradient-crystal: linear-gradient(180deg,
     rgba(233, 69, 96, 0.04) 0%,
     transparent 60%);
 
-  /* Enhanced accent palette - Secondary colors */
-  --titrate-secondary-teal: #00a8a8;
-  --titrate-secondary-amber: #f59f00;
-  --titrate-secondary-violet: #9775fa;
-  --titrate-secondary-cyan: #22b8cf;
+  /* Chemistry-inspired accent palette - Secondary colors */
+  --titrate-secondary-teal: #00a8a8;      /* Molecules/solutions */
+  --titrate-secondary-amber: #f59f00;     /* Energy/reaction */
+  --titrate-secondary-emerald: #10b981;   /* Growth/synthesis */
+  --titrate-secondary-rose: #f43f5e;      /* Reaction intensity */
 
   /* Tertiary accent colors for visual hierarchy */
   --titrate-tertiary-rose: #f783ac;
-  --titrate-tertiary-sky: #74c0fc;
+  --titrate-tertiary-teal-light: #5eead4;
   --titrate-tertiary-lime: #a9e34b;
-  --titrate-tertiary-indigo: #748ffc;
+  --titrate-tertiary-emerald: #34d399;
 
-  /* Fluent accent colors */
-  --titrate-accent-blue: #0078d4;
-  --titrate-accent-green: #107c10;
-  --titrate-accent-orange: #ca5010;
-  --titrate-accent-purple: #8764b8;
+  /* Chemistry accent colors - replacing generic blues/purples */
+  --titrate-accent-teal: #00a8a8;         /* Primary science accent */
+  --titrate-accent-green: #107c10;        /* Natural/synthesis */
+  --titrate-accent-orange: #ca5010;       /* Thermal/reaction */
+  --titrate-accent-emerald: #059669;      /* Balance/stability */
 
   /* Interactive state colors */
   --titrate-interactive-hover: rgba(233, 69, 96, 0.12);
   --titrate-interactive-active: rgba(233, 69, 96, 0.18);
-  --titrate-interactive-focus: rgba(0, 120, 212, 0.25);
-  --titrate-interactive-focus-ring: 0 0 0 2px rgba(0, 120, 212, 0.35);
+  --titrate-interactive-focus: rgba(0, 168, 168, 0.25);
+  --titrate-interactive-focus-ring: 0 0 0 2px rgba(0, 168, 168, 0.35);
   --titrate-interactive-disabled: rgba(150, 150, 150, 0.4);
 
   /* Fluent depth �?subtle, not glowy */
@@ -134,50 +134,51 @@ body,
   /* Chemistry-inspired gradient patterns - Dark mode */
   --titrate-gradient-hero: linear-gradient(135deg,
     rgba(255, 123, 143, 0.06) 0%,
-    rgba(100, 180, 230, 0.04) 50%,
+    rgba(0, 230, 230, 0.04) 50%,
     rgba(130, 215, 115, 0.04) 100%);
   --titrate-gradient-reaction: linear-gradient(135deg,
     #ff7b8f 0%,
-    #ff6b81 50%,
-    #ffb84d 100%);
+    #ffd499 50%,
+    #00e5e5 100%);
   --titrate-gradient-molecular: radial-gradient(circle at 20% 50%,
     rgba(255, 123, 143, 0.14) 0%,
     transparent 50%),
     radial-gradient(circle at 80% 80%,
-    rgba(100, 180, 230, 0.10) 0%,
+    rgba(0, 230, 230, 0.10) 0%,
     transparent 40%),
     radial-gradient(circle at 40% 20%,
-    rgba(190, 165, 255, 0.12) 0%,
+    rgba(255, 212, 153, 0.12) 0%,
     transparent 45%);
   --titrate-gradient-bond: linear-gradient(90deg,
     rgba(255, 123, 143, 0.22) 0%,
-    rgba(100, 180, 230, 0.22) 100%);
+    rgba(0, 230, 230, 0.22) 100%);
   --titrate-gradient-crystal: linear-gradient(180deg,
     rgba(255, 123, 143, 0.08) 0%,
     transparent 60%);
 
-  /* Enhanced accent palette - Secondary colors - Dark mode (WCAG AA compliant) */
-  --titrate-secondary-teal: #00e5e5;
-  --titrate-secondary-amber: #ffd499;
-  --titrate-secondary-violet: #c4a7ff;
-  --titrate-secondary-cyan: #7ee3f2;
+  /* Chemistry accent palette - Secondary colors - Dark mode (WCAG AA compliant) */
+  --titrate-secondary-teal: #00e5e5;       /* Molecules/solutions - perceptually uniform */
+  --titrate-secondary-amber: #ffd499;      /* Energy/reaction - warm tone preserved */
+  --titrate-secondary-emerald: #34d399;    /* Growth/synthesis - balanced green */
+  --titrate-secondary-rose: #fb7185;       /* Reaction intensity - warm rose */
 
   /* Tertiary accent colors - Dark mode (WCAG AA compliant) */
   --titrate-tertiary-rose: #ffb3c8;
-  --titrate-tertiary-sky: #b3daff;
+  --titrate-tertiary-teal-light: #99f6e4;
   --titrate-tertiary-lime: #d4f090;
-  --titrate-tertiary-indigo: #a5b8ff;
+  --titrate-tertiary-emerald: #6ee7b7;
 
-  --titrate-accent-blue: #64b4e6;
-  --titrate-accent-green: #82d97a;
-  --titrate-accent-orange: #ffb84d;
-  --titrate-accent-purple: #c4a7ff;
+  /* Chemistry accent colors - Dark mode */
+  --titrate-accent-teal: #00e5e5;          /* Primary science accent - perceptually uniform */
+  --titrate-accent-green: #82d97a;         /* Natural/synthesis */
+  --titrate-accent-orange: #ffb84d;        /* Thermal/reaction */
+  --titrate-accent-emerald: #6ee7b7;       /* Balance/stability */
 
   /* Interactive state colors - Dark mode */
   --titrate-interactive-hover: rgba(255, 123, 143, 0.18);
   --titrate-interactive-active: rgba(255, 123, 143, 0.26);
-  --titrate-interactive-focus: rgba(100, 180, 230, 0.35);
-  --titrate-interactive-focus-ring: 0 0 0 2px rgba(100, 180, 230, 0.45);
+  --titrate-interactive-focus: rgba(0, 230, 230, 0.35);
+  --titrate-interactive-focus-ring: 0 0 0 2px rgba(0, 230, 230, 0.45);
   --titrate-interactive-disabled: rgba(140, 140, 140, 0.55);
 
   --titrate-shadow-2: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -239,7 +240,7 @@ body,
   background: linear-gradient(135deg,
     var(--vp-c-brand-1) 0%,
     var(--titrate-secondary-amber) 40%,
-    var(--titrate-accent-purple) 70%,
+    var(--titrate-accent-teal) 70%,
     var(--vp-c-brand-1) 100%);
   background-size: 300% 300%;
   -webkit-background-clip: text;
@@ -300,8 +301,8 @@ body,
   inset: 0;
   background:
     radial-gradient(ellipse 80% 50% at 20% 40%, rgba(233, 69, 96, 0.12) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 75% 20%, rgba(0, 120, 212, 0.08) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 60% at 50% 80%, rgba(135, 100, 184, 0.06) 0%, transparent 55%);
+    radial-gradient(ellipse 60% 40% at 75% 20%, rgba(0, 168, 168, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 60% at 50% 80%, rgba(245, 158, 0, 0.06) 0%, transparent 55%);
   pointer-events: none;
   z-index: -1;
   animation: titrate-mesh-drift 20s linear infinite;
@@ -357,7 +358,7 @@ body,
   background: linear-gradient(90deg,
     transparent 0%,
     rgba(233, 69, 96, 0.2) 20%,
-    rgba(0, 120, 212, 0.2) 80%,
+    rgba(0, 168, 168, 0.2) 80%,
     transparent 100%);
   animation: titrate-bond-shimmer 8s ease-in-out infinite;
 }
@@ -426,10 +427,10 @@ body,
 }
 
 .VPFeature:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
-  border-color: var(--titrate-accent-blue);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
+  border-color: var(--titrate-accent-teal);
 }
 
 .VPFeature .icon {
@@ -495,9 +496,9 @@ body,
 }
 
 .vp-doc div[class*='language-'] > button.copy:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
 }
 
 .vp-doc div[class*='language-'] > button.copy.copied {
@@ -524,8 +525,8 @@ body,
 }
 
 .vp-doc .custom-block.tip {
-  border-left: 3px solid var(--titrate-accent-blue);
-  background: rgba(0, 120, 212, 0.04);
+  border-left: 3px solid var(--titrate-accent-teal);
+  background: rgba(0, 168, 168, 0.04);
 }
 
 .vp-doc .custom-block.warning {
@@ -539,8 +540,8 @@ body,
 }
 
 .vp-doc .custom-block.info {
-  border-left: 3px solid var(--titrate-accent-purple);
-  background: rgba(135, 100, 184, 0.04);
+  border-left: 3px solid var(--titrate-accent-emerald);
+  background: rgba(5, 150, 105, 0.04);
 }
 
 .vp-doc .custom-block .custom-block-title {
@@ -699,7 +700,7 @@ body,
 
 /* Focus state for sidebar links */
 .VPSidebar .VPSidebarItem .link:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: -2px;
   border-radius: var(--titrate-radius-sm);
   background: var(--titrate-interactive-hover);
@@ -933,9 +934,9 @@ body,
   color: var(--vp-c-brand-1);
 }
 
-.vp-doc .badge-blue {
-  background: rgba(0, 120, 212, 0.10);
-  color: var(--titrate-accent-blue);
+.vp-doc .badge-teal {
+  background: rgba(0, 168, 168, 0.10);
+  color: var(--titrate-accent-teal);
 }
 
 .vp-doc .badge-green {
@@ -948,14 +949,14 @@ body,
   color: var(--titrate-accent-orange);
 }
 
-.vp-doc .badge-purple {
-  background: rgba(135, 100, 184, 0.10);
-  color: var(--titrate-accent-purple);
+.vp-doc .badge-emerald {
+  background: rgba(5, 150, 105, 0.10);
+  color: var(--titrate-accent-emerald);
 }
 
 .vp-doc .badge-info {
-  background: rgba(0, 120, 212, 0.10);
-  color: var(--titrate-accent-blue);
+  background: rgba(5, 150, 105, 0.10);
+  color: var(--titrate-accent-emerald);
 }
 
 .vp-doc .badge-success {
@@ -1072,10 +1073,10 @@ body,
 }
 
 .VPDocFooter .pager-link:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
-  border-color: var(--titrate-accent-blue);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
+  border-color: var(--titrate-accent-teal);
 }
 
 /* ===== Outline (On This Page) ===== */
@@ -1115,7 +1116,7 @@ body,
 
 /* Focus state for outline links */
 .VPDocAsideOutline .outline-link:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: -2px;
   background: var(--titrate-interactive-hover);
   border-radius: var(--titrate-radius-sm);
@@ -1242,7 +1243,7 @@ body,
   border-color: #ff7b8f;
 }
 
-/* ===== Scrollbar �?Minimal ===== */
+/* ===== Scrollbar ?Minimal ===== */
 :root {
   scrollbar-width: thin;
   scrollbar-color: var(--titrate-neutral-4) transparent;
@@ -1343,10 +1344,10 @@ body,
 }
 
 .vp-doc .ecosystem-item:focus-within {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
-  border-color: var(--titrate-accent-blue);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
+  border-color: var(--titrate-accent-teal);
 }
 
 .vp-doc .ecosystem-item strong {
@@ -1389,10 +1390,10 @@ body,
 }
 
 .vp-doc .ecosystem-card:focus-within {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
-  border-color: var(--titrate-accent-blue);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
+  border-color: var(--titrate-accent-teal);
 }
 
 .vp-doc .ecosystem-card-header {
@@ -1469,8 +1470,8 @@ body,
 }
 
 .vp-doc .ecosystem-badge-core {
-  background: rgba(0, 120, 212, 0.12);
-  color: var(--titrate-accent-blue);
+  background: rgba(0, 168, 168, 0.12);
+  color: var(--titrate-accent-teal);
 }
 
 .vp-doc .ecosystem-badge-data {
@@ -1479,8 +1480,8 @@ body,
 }
 
 .vp-doc .ecosystem-badge-science {
-  background: rgba(135, 100, 184, 0.12);
-  color: var(--titrate-accent-purple);
+  background: rgba(5, 150, 105, 0.12);
+  color: var(--titrate-accent-emerald);
 }
 
 .vp-doc .ecosystem-badge-special {
@@ -1490,8 +1491,8 @@ body,
 
 /* Dark mode badge colors */
 .dark .vp-doc .ecosystem-badge-core {
-  background: rgba(100, 180, 230, 0.18);
-  color: #64b4e6;
+  background: rgba(0, 230, 230, 0.18);
+  color: #00e5e5;
 }
 
 .dark .vp-doc .ecosystem-badge-data {
@@ -1500,8 +1501,8 @@ body,
 }
 
 .dark .vp-doc .ecosystem-badge-science {
-  background: rgba(196, 167, 255, 0.18);
-  color: #c4a7ff;
+  background: rgba(110, 231, 183, 0.18);
+  color: #6ee7b7;
 }
 
 .dark .vp-doc .ecosystem-badge-special {
@@ -1601,10 +1602,10 @@ body,
 }
 
 .vp-doc .community-link:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
-  border-color: var(--titrate-accent-blue);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
+  border-color: var(--titrate-accent-teal);
 }
 
 /* ===== Lists ===== */
@@ -1639,21 +1640,21 @@ body,
 /* Dark mode callout blocks with enhanced gradients and icons */
 .dark .vp-doc .custom-block.tip {
   background: linear-gradient(135deg,
-    rgba(100, 180, 230, 0.12) 0%,
-    rgba(100, 180, 230, 0.04) 100%);
-  border-left-color: #64b4e6;
+    rgba(0, 230, 230, 0.12) 0%,
+    rgba(0, 230, 230, 0.04) 100%);
+  border-left-color: #00e5e5;
 }
 
 .dark .vp-doc .custom-block.tip::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364b4e6'%3E%3Cpath d='M9 21h6v-2H9v2zm3-18C7.95 3 4 6.95 4 12c0 2.55 1.19 4.83 3.04 6.27L7 20h10l.96-1.73C19.81 16.83 21 14.55 21 12c0-5.05-3.95-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z'/%3E%3Cpath d='M12 6v6l4 2' stroke='%2364b4e6' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300e5e5'%3E%3Cpath d='M9 21h6v-2H9v2zm3-18C7.95 3 4 6.95 4 12c0 2.55 1.19 4.83 3.04 6.27L7 20h10l.96-1.73C19.81 16.83 21 14.55 21 12c0-5.05-3.95-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z'/%3E%3Cpath d='M12 6v6l4 2' stroke='%2300e5e5' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
 }
 
 .dark .vp-doc .custom-block.tip::after {
-  background: linear-gradient(90deg, #64b4e6 0%, transparent 50%);
+  background: linear-gradient(90deg, #00e5e5 0%, transparent 50%);
 }
 
 .dark .vp-doc .custom-block.tip .custom-block-title::after {
-  background: #64b4e6;
+  background: #00e5e5;
 }
 
 .dark .vp-doc .custom-block.warning {
@@ -1696,21 +1697,21 @@ body,
 
 .dark .vp-doc .custom-block.info {
   background: linear-gradient(135deg,
-    rgba(196, 167, 255, 0.12) 0%,
-    rgba(196, 167, 255, 0.04) 100%);
-  border-left-color: #c4a7ff;
+    rgba(110, 231, 183, 0.12) 0%,
+    rgba(110, 231, 183, 0.04) 100%);
+  border-left-color: #6ee7b7;
 }
 
 .dark .vp-doc .custom-block.info::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c4a7ff'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236ee7b7'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z'/%3E%3C/svg%3E");
 }
 
 .dark .vp-doc .custom-block.info::after {
-  background: linear-gradient(90deg, #c4a7ff 0%, transparent 50%);
+  background: linear-gradient(90deg, #6ee7b7 0%, transparent 50%);
 }
 
 .dark .vp-doc .custom-block.info .custom-block-title::after {
-  background: #c4a7ff;
+  background: #6ee7b7;
 }
 
 .dark .vp-doc .ecosystem-item:hover {
@@ -1726,8 +1727,8 @@ body,
 .dark .vp-doc div[class*='language-']::before {
   background: linear-gradient(135deg,
     rgba(255, 123, 143, 0.12) 0%,
-    rgba(100, 180, 230, 0.08) 50%,
-    rgba(190, 165, 255, 0.06) 100%);
+    rgba(0, 230, 230, 0.08) 50%,
+    rgba(255, 212, 153, 0.06) 100%);
   border-bottom-color: rgba(255, 255, 255, 0.08);
 }
 
@@ -1735,7 +1736,7 @@ body,
 .dark .vp-doc div[class*='language-'] > span.lang {
   background: linear-gradient(135deg,
     rgba(255, 123, 143, 0.15) 0%,
-    rgba(100, 180, 230, 0.10) 100%);
+    rgba(0, 230, 230, 0.10) 100%);
   border-color: rgba(255, 123, 143, 0.25);
 }
 
@@ -1749,9 +1750,9 @@ body,
 .dark .vp-doc div[class*='language-js'] > span.lang,
 .dark .vp-doc div[class*='language-typescript'] > span.lang,
 .dark .vp-doc div[class*='language-ts'] > span.lang {
-  background: linear-gradient(135deg, rgba(100, 180, 230, 0.18) 0%, rgba(100, 180, 230, 0.12) 100%);
-  color: #64b4e6;
-  border-color: rgba(100, 180, 230, 0.35);
+  background: linear-gradient(135deg, rgba(0, 230, 230, 0.18) 0%, rgba(0, 230, 230, 0.12) 100%);
+  color: #00e5e5;
+  border-color: rgba(0, 230, 230, 0.35);
 }
 
 .dark .vp-doc div[class*='language-rust'] > span.lang,
@@ -1763,9 +1764,9 @@ body,
 
 .dark .vp-doc div[class*='language-python'] > span.lang,
 .dark .vp-doc div[class*='language-py'] > span.lang {
-  background: linear-gradient(135deg, rgba(196, 167, 255, 0.18) 0%, rgba(196, 167, 255, 0.12) 100%);
-  color: #c4a7ff;
-  border-color: rgba(196, 167, 255, 0.35);
+  background: linear-gradient(135deg, rgba(110, 231, 183, 0.18) 0%, rgba(110, 231, 183, 0.12) 100%);
+  color: #6ee7b7;
+  border-color: rgba(110, 231, 183, 0.35);
 }
 
 .dark .vp-doc div[class*='language-bash'] > span.lang,
@@ -1845,10 +1846,10 @@ body,
 
 .dark .vp-doc div[class*='language-'] .info-line {
   background: linear-gradient(90deg,
-    rgba(100, 180, 230, 0.18) 0%,
-    rgba(100, 180, 230, 0.10) 50%,
+    rgba(0, 230, 230, 0.18) 0%,
+    rgba(0, 230, 230, 0.10) 50%,
     transparent 100%);
-  border-left-color: #64b4e6;
+  border-left-color: #00e5e5;
 }
 
 .dark .vp-doc div[class*='language-'] code {
@@ -1910,9 +1911,9 @@ body,
 }
 
 /* Dark mode badge colors - enhanced contrast */
-.dark .vp-doc .badge-blue {
-  background: rgba(100, 180, 230, 0.15);
-  color: #64b4e6;
+.dark .vp-doc .badge-teal {
+  background: rgba(0, 230, 230, 0.15);
+  color: #00e5e5;
 }
 
 .dark .vp-doc .badge-green {
@@ -1925,9 +1926,9 @@ body,
   color: #ffb84d;
 }
 
-.dark .vp-doc .badge-purple {
-  background: rgba(196, 167, 255, 0.15);
-  color: #c4a7ff;
+.dark .vp-doc .badge-emerald {
+  background: rgba(110, 231, 183, 0.15);
+  color: #6ee7b7;
 }
 
 /* Dark mode breadcrumb styles */
@@ -2255,7 +2256,7 @@ body,
   background: linear-gradient(135deg,
     #ff7b8f 0%,
     #ffd499 40%,
-    #c4a7ff 70%,
+    #00e5e5 70%,
     #ff7b8f 100%);
   background-size: 300% 300%;
   -webkit-background-clip: text;
@@ -2266,15 +2267,15 @@ body,
 .dark .VPHero::before {
   background:
     radial-gradient(circle at 20% 50%, rgba(255, 123, 143, 0.18) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(100, 180, 230, 0.14) 0%, transparent 40%),
-    radial-gradient(circle at 40% 20%, rgba(190, 165, 255, 0.16) 0%, transparent 45%);
+    radial-gradient(circle at 80% 80%, rgba(0, 230, 230, 0.14) 0%, transparent 40%),
+    radial-gradient(circle at 40% 20%, rgba(255, 212, 153, 0.16) 0%, transparent 45%);
 }
 
 .dark .VPHero::after {
   background:
     radial-gradient(ellipse 80% 50% at 20% 40%, rgba(255, 123, 143, 0.18) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 75% 20%, rgba(100, 180, 230, 0.12) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 60% at 50% 80%, rgba(190, 165, 255, 0.10) 0%, transparent 55%);
+    radial-gradient(ellipse 60% 40% at 75% 20%, rgba(0, 230, 230, 0.12) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 60% at 50% 80%, rgba(255, 212, 153, 0.10) 0%, transparent 55%);
 }
 
 .dark .titrate-hero-code {
@@ -3038,9 +3039,9 @@ body,
 }
 
 .VPNavBarSearch > button:focus {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
   border-color: var(--vp-c-brand-1);
 }
 
@@ -3250,7 +3251,7 @@ body,
 }
 
 .VPLocalSearchBox .search-result:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: -2px;
   background: var(--titrate-interactive-hover);
 }
@@ -3374,9 +3375,9 @@ body,
 }
 
 .VPLocalSearchBox .close-button:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
   opacity: 1;
 }
 
@@ -3439,9 +3440,9 @@ body,
 button:focus-visible,
 .vp-doc a:focus-visible,
 [role="button"]:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  box-shadow: 0 0 0 4px rgba(0, 168, 168, 0.15);
 }
 
 /* Link focus states in content */
@@ -3455,8 +3456,8 @@ button:focus-visible,
 .dark button:focus-visible,
 .dark .vp-doc a:focus-visible,
 .dark [role="button"]:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
-  box-shadow: 0 0 0 4px rgba(100, 180, 230, 0.20);
+  outline: 2px solid var(--titrate-accent-teal);
+  box-shadow: 0 0 0 4px rgba(0, 230, 230, 0.20);
 }
 
 /* Remove default focus outline and use custom styles */
@@ -3465,7 +3466,7 @@ button:focus-visible,
 }
 
 :focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 2px;
 }
 
@@ -3476,13 +3477,13 @@ button:focus-visible,
 
 /* Ensure focus ring is visible on all interactive elements */
 .VPNav .VPNavBarMenu .VPLink:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: -2px;
 }
 
 /* Breadcrumb link focus */
 .vp-doc .breadcrumb-link:focus-visible {
-  outline: 2px solid var(--titrate-accent-blue);
+  outline: 2px solid var(--titrate-accent-teal);
   outline-offset: 1px;
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-1);
