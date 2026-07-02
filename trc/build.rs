@@ -39,16 +39,9 @@ fn main() {
         println!("cargo:rustc-link-search=native={}", libdir.display());
 
         // Link the combined C API library. On Windows this is an import
-        // library for LLVM-C.dll; on Unix it would be libLLVM-C.so.
-        if cfg!(windows) {
-            println!("cargo:rustc-link-lib=dylib=LLVM-C");
-        } else if cfg!(target_os = "macos") {
-            println!("cargo:rustc-link-lib=dylib=LLVM-C");
-        } else {
-            // On Linux the combined library may be named LLVM-C or not
-            // present at all; fall back to the standard shared library.
-            println!("cargo:rustc-link-lib=dylib=LLVM-C");
-        }
+        // library for LLVM-C.dll; on Unix it is libLLVM-C.so / libLLVM-C.dylib.
+        // All three platforms use the same library name.
+        println!("cargo:rustc-link-lib=dylib=LLVM-C");
     } else {
         // No LLVM found – emit a cfg so the codegen module can fall back to a
         // text-based IR backend that only needs clang/llc at link time.
