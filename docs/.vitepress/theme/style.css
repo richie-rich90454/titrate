@@ -1,8 +1,8 @@
 /* ============================================================
-   Titrate Documentation Theme — Fluent Design System
+   Titrate Documentation Theme �?Fluent Design System
    ============================================================ */
 
-/* ===== Typography — Google Fonts Import ===== */
+/* ===== Typography �?Google Fonts Import ===== */
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 /* ===== Brand Colors ===== */
@@ -71,7 +71,7 @@
   --titrate-interactive-focus-ring: 0 0 0 2px rgba(0, 120, 212, 0.35);
   --titrate-interactive-disabled: rgba(150, 150, 150, 0.4);
 
-  /* Fluent depth — subtle, not glowy */
+  /* Fluent depth �?subtle, not glowy */
   --titrate-shadow-2: 0 1px 2px rgba(0, 0, 0, 0.10);
   --titrate-shadow-4: 0 2px 4px rgba(0, 0, 0, 0.08);
   --titrate-shadow-8: 0 4px 8px rgba(0, 0, 0, 0.08);
@@ -100,6 +100,7 @@
 
 /* Smooth dark/light mode transition */
 html {
+  scroll-behavior: smooth;
   transition: background-color 0.25s ease;
 }
 
@@ -198,14 +199,14 @@ body,
   --titrate-code-punct: #9a9a9a;
 }
 
-/* ===== Typography — Fluent: Segoe UI first ===== */
+/* ===== Typography �?Fluent: Segoe UI first ===== */
 :root {
   --vp-font-family-base: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, 'Helvetica Neue', sans-serif;
   --vp-font-family-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
   --titrate-font-family-display: 'Space Grotesk', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* ===== Body Text — Optimized for readability ===== */
+/* ===== Body Text �?Optimized for readability ===== */
 .vp-doc {
   line-height: 1.7;
   animation: titrate-page-in 0.2s var(--titrate-ease-decelerate);
@@ -221,14 +222,14 @@ body,
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ===== Home Page — Hero ===== */
+/* ===== Home Page �?Hero ===== */
 /* Hero container with enhanced styling */
 .VPHero {
   position: relative;
   overflow: hidden;
 }
 
-/* Hero name — large, distinctive, with animated gradient */
+/* Hero name �?large, distinctive, with animated gradient */
 .VPHero .name {
   color: var(--vp-c-brand-1);
   font-weight: 700;
@@ -255,7 +256,7 @@ body,
   100% { background-position: 0% 50%; }
 }
 
-/* Hero text — larger, more impactful */
+/* Hero text �?larger, more impactful */
 .VPHero .text {
   color: var(--vp-c-text-1);
   font-weight: 600;
@@ -265,7 +266,7 @@ body,
   font-family: var(--titrate-font-family-display);
 }
 
-/* Hero tagline — improved readability */
+/* Hero tagline �?improved readability */
 .VPHero .tagline {
   opacity: 0.85;
   line-height: 1.7;
@@ -366,7 +367,7 @@ body,
   50% { opacity: 0.6; }
 }
 
-/* Hero action buttons — Fluent style: flat, clean */
+/* Hero action buttons �?Fluent style: flat, clean */
 .VPHero .actions .action-button {
   transition: all var(--titrate-duration-normal) var(--titrate-ease);
   border-radius: var(--titrate-radius-sm);
@@ -393,7 +394,7 @@ body,
   outline: var(--titrate-interactive-focus-ring);
 }
 
-/* ===== Feature Cards — Fluent card style ===== */
+/* ===== Feature Cards �?Fluent card style ===== */
 .VPFeature {
   transition: box-shadow var(--titrate-duration-normal) var(--titrate-ease),
               border-color var(--titrate-duration-normal) var(--titrate-ease),
@@ -440,7 +441,7 @@ body,
   transform: scale(1.05);
 }
 
-/* ===== Code Blocks — Clean, no glow ===== */
+/* ===== Code Blocks �?Clean, no glow ===== */
 .vp-doc div[class*='language-'] {
   border-radius: var(--titrate-radius-lg);
   margin: 16px 0;
@@ -476,6 +477,18 @@ body,
 .vp-doc div[class*='language-'] > button.copy:hover {
   background: var(--vp-c-brand-soft);
   color: var(--vp-c-brand-1);
+  transform: scale(1.05);
+}
+
+.vp-doc div[class*='language-'] > button.copy:active {
+  transform: scale(0.95);
+  background: var(--titrate-interactive-active);
+}
+
+.vp-doc div[class*='language-'] > button.copy:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
 }
 
 .vp-doc div[class*='language-'] > button.copy.copied {
@@ -492,7 +505,7 @@ body,
   font-family: var(--vp-font-family-mono);
 }
 
-/* ===== Custom Containers — Fluent info bar style ===== */
+/* ===== Custom Containers �?Fluent info bar style ===== */
 .vp-doc .custom-block {
   border-radius: var(--titrate-radius-md);
   margin: 16px 0;
@@ -526,7 +539,7 @@ body,
   font-size: 0.9em;
 }
 
-/* ===== Tables — Fluent style ===== */
+/* ===== Tables �?Fluent style ===== */
 .vp-doc table {
   border-radius: var(--titrate-radius-md);
   overflow: hidden;
@@ -568,7 +581,7 @@ body,
   border-bottom: none;
 }
 
-/* ===== Sidebar — Fluent nav ===== */
+/* ===== Sidebar �?Fluent nav ===== */
 .VPSidebar .VPSidebarItem.level-0 .link:hover,
 .VPSidebar .VPSidebarItem.level-0 .link.active {
   color: var(--vp-c-brand-1);
@@ -579,7 +592,7 @@ body,
   border-left-color: var(--vp-c-brand-1);
 }
 
-/* Active sidebar indicator — thin bar, no glow */
+/* Active sidebar indicator �?thin bar, no glow */
 .VPSidebar .VPSidebarItem.is-active > .link {
   position: relative;
 }
@@ -675,6 +688,14 @@ body,
   background: var(--titrate-interactive-hover);
 }
 
+/* Focus state for sidebar links */
+.VPSidebar .VPSidebarItem .link:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: -2px;
+  border-radius: var(--titrate-radius-sm);
+  background: var(--titrate-interactive-hover);
+}
+
 /* 10.3: Section group headers styling */
 .VPSidebar .VPSidebarItem.level-0 > .item {
   position: relative;
@@ -751,7 +772,7 @@ body,
   box-shadow: 0 0 4px rgba(255, 123, 143, 0.4);
 }
 
-/* ===== Navigation — Fluent top bar ===== */
+/* ===== Navigation �?Fluent top bar ===== */
 .VPNav .VPNavBar .title {
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -887,7 +908,7 @@ body,
   50% { opacity: 0.5; }
 }
 
-/* ===== Badges — Fluent pill style ===== */
+/* ===== Badges �?Fluent pill style ===== */
 .vp-doc .badge {
   display: inline-block;
   padding: 2px 8px;
@@ -958,7 +979,7 @@ body,
   color: var(--titrate-accent-orange);
 }
 
-/* ===== Headings — Clean, no decoration ===== */
+/* ===== Headings �?Clean, no decoration ===== */
 .vp-doc h1 {
   letter-spacing: -0.02em;
   margin-top: 1.5em;
@@ -996,7 +1017,7 @@ body,
   font-weight: 600;
 }
 
-/* ===== Links — Underline on hover ===== */
+/* ===== Links �?Underline on hover ===== */
 .vp-doc a {
   text-decoration: none;
   transition: color var(--titrate-duration-fast) var(--titrate-ease);
@@ -1018,6 +1039,20 @@ body,
 .VPDocFooter .pager-link:hover {
   border-color: var(--vp-c-brand-1);
   box-shadow: var(--titrate-shadow-4);
+  transform: translateY(-1px);
+}
+
+.VPDocFooter .pager-link:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--titrate-shadow-2);
+  background: var(--titrate-interactive-active);
+}
+
+.VPDocFooter .pager-link:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  border-color: var(--titrate-accent-blue);
 }
 
 /* ===== Outline (On This Page) ===== */
@@ -1176,7 +1211,7 @@ body,
   border-color: #ff7b8f;
 }
 
-/* ===== Scrollbar — Minimal ===== */
+/* ===== Scrollbar �?Minimal ===== */
 :root {
   scrollbar-width: thin;
   scrollbar-color: var(--titrate-neutral-4) transparent;
@@ -1448,7 +1483,7 @@ body,
   }
 }
 
-/* Blockquote — Clean, no decorative quotes */
+/* Blockquote �?Clean, no decorative quotes */
 .vp-doc blockquote {
   border-left: 3px solid var(--vp-c-brand-1);
   border-radius: 0 var(--titrate-radius-md) var(--titrate-radius-md) 0;
@@ -1498,6 +1533,20 @@ body,
   color: var(--vp-c-brand-1);
   box-shadow: var(--titrate-shadow-4);
   text-decoration: none;
+  transform: translateY(-1px);
+}
+
+.vp-doc .community-link:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--titrate-shadow-2);
+  background: var(--titrate-interactive-active);
+}
+
+.vp-doc .community-link:focus-visible {
+  outline: 2px solid var(--titrate-accent-blue);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 120, 212, 0.15);
+  border-color: var(--titrate-accent-blue);
 }
 
 /* ===== Lists ===== */
@@ -1529,24 +1578,81 @@ body,
 }
 
 /* ===== Dark Mode Adjustments ===== */
+/* Dark mode callout blocks with enhanced gradients and icons */
 .dark .vp-doc .custom-block.tip {
-  background: rgba(100, 180, 230, 0.08);
+  background: linear-gradient(135deg,
+    rgba(100, 180, 230, 0.12) 0%,
+    rgba(100, 180, 230, 0.04) 100%);
   border-left-color: #64b4e6;
 }
 
+.dark .vp-doc .custom-block.tip::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2364b4e6'%3E%3Cpath d='M9 21h6v-2H9v2zm3-18C7.95 3 4 6.95 4 12c0 2.55 1.19 4.83 3.04 6.27L7 20h10l.96-1.73C19.81 16.83 21 14.55 21 12c0-5.05-3.95-9-9-9zm0 16c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z'/%3E%3Cpath d='M12 6v6l4 2' stroke='%2364b4e6' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+}
+
+.dark .vp-doc .custom-block.tip::after {
+  background: linear-gradient(90deg, #64b4e6 0%, transparent 50%);
+}
+
+.dark .vp-doc .custom-block.tip .custom-block-title::after {
+  background: #64b4e6;
+}
+
 .dark .vp-doc .custom-block.warning {
-  background: rgba(255, 184, 77, 0.08);
+  background: linear-gradient(135deg,
+    rgba(255, 184, 77, 0.12) 0%,
+    rgba(255, 184, 77, 0.04) 100%);
   border-left-color: #ffb84d;
 }
 
+.dark .vp-doc .custom-block.warning::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffb84d'%3E%3Cpath d='M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z'/%3E%3C/svg%3E");
+}
+
+.dark .vp-doc .custom-block.warning::after {
+  background: linear-gradient(90deg, #ffb84d 0%, transparent 50%);
+}
+
+.dark .vp-doc .custom-block.warning .custom-block-title::after {
+  background: #ffb84d;
+}
+
 .dark .vp-doc .custom-block.danger {
-  background: rgba(255, 123, 143, 0.08);
+  background: linear-gradient(135deg,
+    rgba(255, 123, 143, 0.12) 0%,
+    rgba(255, 123, 143, 0.04) 100%);
   border-left-color: #ff7b8f;
 }
 
+.dark .vp-doc .custom-block.danger::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ff7b8f'%3E%3Cpath d='M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z'/%3E%3C/svg%3E");
+}
+
+.dark .vp-doc .custom-block.danger::after {
+  background: linear-gradient(90deg, #ff7b8f 0%, transparent 50%);
+}
+
+.dark .vp-doc .custom-block.danger .custom-block-title::after {
+  background: #ff7b8f;
+}
+
 .dark .vp-doc .custom-block.info {
-  background: rgba(196, 167, 255, 0.08);
+  background: linear-gradient(135deg,
+    rgba(196, 167, 255, 0.12) 0%,
+    rgba(196, 167, 255, 0.04) 100%);
   border-left-color: #c4a7ff;
+}
+
+.dark .vp-doc .custom-block.info::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23c4a7ff'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z'/%3E%3C/svg%3E");
+}
+
+.dark .vp-doc .custom-block.info::after {
+  background: linear-gradient(90deg, #c4a7ff 0%, transparent 50%);
+}
+
+.dark .vp-doc .custom-block.info .custom-block-title::after {
+  background: #c4a7ff;
 }
 
 .dark .vp-doc .ecosystem-item:hover {
@@ -2126,6 +2232,699 @@ body,
   background: #ff7b8f;
 }
 
+/* ===== Comprehensive Responsive Design System ===== */
+
+/* ===== Touch Interaction Optimization ===== */
+/* Minimum 44px tap targets for touch devices */
+@media (pointer: coarse) {
+  /* Increase tap targets for interactive elements */
+  .VPHero .actions .action-button {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 10px 16px;
+  }
+
+  .VPFeature {
+    min-height: 44px;
+  }
+
+  .VPFeature .icon {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 10px;
+  }
+
+  .vp-doc .community-link {
+    min-height: 44px;
+    padding: 12px 16px;
+  }
+
+  .vp-doc .breadcrumb-link,
+  .vp-doc .breadcrumb-current {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  .VPSidebar .VPSidebarItem .link {
+    min-height: 44px;
+    padding: 12px 16px;
+  }
+
+  .VPNavBarSearch > button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .VPDocAsideOutline .outline-link {
+    min-height: 44px;
+    padding: 12px 16px;
+  }
+
+  /* Reduce hover effects on touch devices */
+  .VPHero .actions .action-button.brand:hover,
+  .VPHero .actions .action-button.alt:hover {
+    transform: none;
+  }
+
+  .VPFeature:hover {
+    transform: none;
+    box-shadow: var(--titrate-shadow-card);
+  }
+
+  .vp-doc .ecosystem-card:hover {
+    transform: none;
+  }
+
+  .VPDocAsideOutline .outline-link:hover {
+    transform: none;
+  }
+
+  /* Add touch-friendly spacing */
+  .vp-doc .landing-section {
+    padding: 3rem 0;
+  }
+
+  .vp-doc .ecosystem-grid {
+    gap: 1rem;
+  }
+
+  .vp-doc .ecosystem-item {
+    padding: 1.25rem;
+  }
+
+  /* Code block copy button - larger touch target */
+  .vp-doc div[class*='language-'] > button.copy {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+  }
+}
+
+/* ===== 1024px Breakpoint - Tablet Landscape ===== */
+@media (max-width: 1024px) {
+  /* Hero section - adjust for smaller screens */
+  .VPHero .name {
+    font-size: 3.5rem;
+  }
+
+  .VPHero .text {
+    font-size: 1.8rem;
+  }
+
+  .VPHero .tagline {
+    font-size: 1.05rem;
+    max-width: 540px;
+  }
+
+  /* Feature cards - maintain good spacing */
+  .VPFeature {
+    margin-bottom: 1rem;
+  }
+
+  /* Comparison table - optimize for tablet */
+  .vp-doc .comparison-table {
+    font-size: 0.9em;
+  }
+
+  .vp-doc .comparison-table td,
+  .vp-doc .comparison-table th {
+    padding: 12px 14px;
+  }
+
+  /* Sidebar - improve spacing */
+  .VPSidebar .VPSidebarItem.level-0 > .link .text {
+    font-size: 0.85em;
+  }
+
+  .VPSidebar .VPSidebarItem.level-1 > .link .text {
+    font-size: 0.82em;
+  }
+
+  /* Outline - adjust for medium screens */
+  .VPDocAsideOutline {
+    padding: 0.5rem 0;
+  }
+
+  .VPDocAsideOutline .outline-link {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.80em;
+  }
+
+  /* Search - maintain prominence */
+  .VPNavBarSearch > button {
+    min-height: 34px;
+    padding: 5px 10px;
+  }
+
+  /* Code blocks - maintain readability */
+  .vp-doc div[class*='language-'] {
+    margin: 14px 0;
+  }
+
+  .vp-doc div[class*='language-'] code {
+    font-size: 0.82em;
+    line-height: 1.6;
+  }
+}
+
+/* ===== 768px Breakpoint - Tablet Portrait ===== */
+@media (max-width: 768px) {
+  /* Hero section - significant adjustments */
+  .VPHero .name {
+    font-size: 2.5rem;
+    letter-spacing: -0.02em;
+  }
+
+  .VPHero .text {
+    font-size: 1.3rem;
+    line-height: 1.4;
+  }
+
+  .VPHero .tagline {
+    font-size: 1rem;
+    line-height: 1.6;
+    max-width: 480px;
+  }
+
+  /* Hide molecule/atom decorative elements on tablet */
+  .VPHero::before,
+  .VPHero::after,
+  .VPHero .image::before,
+  .VPHero .image::after,
+  .VPHero .container::before,
+  .VPHero .container::after {
+    display: none;
+  }
+
+  .titrate-hero-molecule,
+  .titrate-hero-atom,
+  .titrate-hero-particle,
+  .titrate-hero-bond {
+    display: none;
+  }
+
+  /* Hero actions - touch-friendly spacing */
+  .VPHero .actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .VPHero .actions .action-button {
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
+  }
+
+  /* Feature cards - stack vertically */
+  .VPFeatures .container .items {
+    flex-direction: column;
+  }
+
+  .VPFeature {
+    margin-bottom: 0.75rem;
+    padding: 1rem;
+  }
+
+  /* Ecosystem grid - 1 column */
+  .vp-doc .ecosystem-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  /* Comparison table - scrollable */
+  .vp-doc .comparison-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-size: 0.85em;
+  }
+
+  .vp-doc .comparison-table th,
+  .vp-doc .comparison-table td {
+    padding: 10px 12px;
+    min-width: 80px;
+  }
+
+  /* Community links - stack vertically */
+  .vp-doc .community-links {
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .vp-doc .community-link {
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* Breadcrumb - simplified */
+  .vp-doc .breadcrumb-container {
+    justify-content: center;
+    font-size: 0.8em;
+    padding: 0.375rem 0 0.5rem 0;
+  }
+
+  .vp-doc .breadcrumb-link {
+    display: none;
+  }
+
+  .vp-doc .breadcrumb-current {
+    display: block;
+    padding: 0.25rem 0.75rem;
+    background: var(--vp-c-brand-soft);
+  }
+
+  .vp-doc .breadcrumb-separator {
+    display: none;
+  }
+
+  .VPDoc .content-container::before {
+    height: 1px;
+    opacity: 0.4;
+  }
+
+  .vp-doc h1::after {
+    width: 36px;
+  }
+
+  .vp-doc h2:first-of-type::before {
+    width: 6px;
+    height: 6px;
+    margin-right: 0.375rem;
+  }
+
+  /* Hide nav breadcrumb indicators on tablet */
+  .VPNav .VPNavBarMenu .VPLink::after {
+    display: none;
+  }
+
+  /* Sidebar - touch-friendly */
+  .VPSidebar .VPSidebarItem .link {
+    min-height: 40px;
+    padding: 10px 14px;
+  }
+
+  .VPSidebar .VPSidebarItem.is-active .caret::before {
+    width: 4px;
+    height: 4px;
+  }
+
+  /* Search - mobile adjustments */
+  .VPNavBarSearch > button {
+    min-height: 32px;
+    padding: 4px 8px;
+    font-size: 0.8em;
+  }
+
+  .VPNavBarSearch > button .shortcut {
+    display: none;
+  }
+
+  /* Search modal - larger on tablet */
+  .VPLocalSearchBox > .shell {
+    max-width: 95%;
+    max-height: 85vh;
+    border-radius: var(--titrate-radius-md);
+  }
+
+  .VPLocalSearchBox .search-input {
+    padding: 10px 12px;
+    font-size: 0.95em;
+  }
+
+  .VPLocalSearchBox .search-result {
+    padding: 8px 12px;
+    min-height: 40px;
+  }
+
+  .VPLocalSearchBox .search-footer {
+    padding: 10px 12px;
+  }
+
+  /* Outline - simplified */
+  .VPDocAsideOutline {
+    padding: 0.5rem 0;
+  }
+
+  .VPDocAsideOutline .outline-link {
+    padding: 0.5rem 0.625rem;
+    font-size: 0.78em;
+    min-height: 40px;
+  }
+
+  .VPDocAsideOutline .outline-link.nested {
+    padding-left: 1rem;
+    font-size: 0.75em;
+  }
+
+  /* Code blocks - touch-friendly */
+  .vp-doc div[class*='language-'] {
+    margin: 12px 0;
+  }
+
+  .vp-doc div[class*='language-'] code {
+    font-size: 0.80em;
+    line-height: 1.6;
+  }
+
+  .vp-doc div[class*='language-'] > button.copy {
+    right: 4px;
+    top: 4px;
+    padding: 6px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  /* Tables - scrollable */
+  .vp-doc table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-size: 0.85em;
+  }
+
+  .vp-doc table td,
+  .vp-doc table th {
+    padding: 8px 10px;
+    min-width: 60px;
+  }
+
+  /* Custom blocks - tighter spacing */
+  .vp-doc .custom-block {
+    padding: 10px 12px 10px 12px;
+    margin: 12px 0;
+  }
+
+  /* Landing sections - adjust padding */
+  .vp-doc .landing-section {
+    padding: 2rem 0;
+  }
+
+  /* Headings - adjust sizes */
+  .vp-doc h1 {
+    font-size: 1.75em;
+    margin-top: 1.25em;
+  }
+
+  .vp-doc h2 {
+    font-size: 1.4em;
+    margin-top: 1.75em;
+  }
+
+  .vp-doc h3 {
+    font-size: 1.15em;
+    margin-top: 1.25em;
+  }
+}
+
+/* ===== 480px Breakpoint - Mobile ===== */
+@media (max-width: 480px) {
+  /* Hero section - compact mobile */
+  .VPHero .name {
+    font-size: 2rem;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.25rem;
+  }
+
+  .VPHero .text {
+    font-size: 1.1rem;
+    line-height: 1.35;
+  }
+
+  .VPHero .tagline {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    max-width: 320px;
+    margin-top: 0.5rem;
+  }
+
+  /* Hero actions - compact */
+  .VPHero .actions .action-button {
+    max-width: 260px;
+    padding: 8px 12px;
+    font-size: 0.9em;
+  }
+
+  /* Feature cards - minimal padding */
+  .VPFeature {
+    padding: 0.875rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .VPFeature .icon img {
+    width: 20px;
+    height: 20px;
+  }
+
+  .VPFeature .title {
+    font-size: 0.9em;
+  }
+
+  /* Comparison table - minimal */
+  .vp-doc .comparison-table {
+    font-size: 0.75em;
+  }
+
+  .vp-doc .comparison-table th,
+  .vp-doc .comparison-table td {
+    padding: 6px 8px;
+    min-width: 60px;
+  }
+
+  /* Community links - compact */
+  .vp-doc .community-link {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.85em;
+  }
+
+  /* Breadcrumb - very simple */
+  .vp-doc .breadcrumb-container {
+    font-size: 0.75em;
+    padding: 0.25rem 0 0.375rem 0;
+  }
+
+  .vp-doc .breadcrumb-current {
+    padding: 0.125rem 0.5rem;
+  }
+
+  /* Sidebar - compact */
+  .VPSidebar .VPSidebarItem .link {
+    min-height: 36px;
+    padding: 8px 12px;
+  }
+
+  .VPSidebar .VPSidebarItem.level-0 > .link .text {
+    font-size: 0.80em;
+  }
+
+  .VPSidebar .VPSidebarItem.level-1 > .link .text {
+    font-size: 0.78em;
+  }
+
+  .VPSidebar .VPSidebarItem.level-2 > .link .text {
+    font-size: 0.75em;
+  }
+
+  /* Search - icon only */
+  .VPNavBarSearch > button {
+    min-width: 36px;
+    min-height: 36px;
+    padding: 4px 6px;
+    margin: 0 4px;
+  }
+
+  .VPNavBarSearch > button .placeholder {
+    display: none;
+  }
+
+  /* Search modal - full height on mobile */
+  .VPLocalSearchBox > .shell {
+    max-height: 90vh;
+    top: 45%;
+    border-radius: var(--titrate-radius-sm);
+  }
+
+  .VPLocalSearchBox .search-input {
+    padding: 8px 10px;
+    font-size: 0.90em;
+  }
+
+  .VPLocalSearchBox .search-result {
+    padding: 6px 10px;
+    min-height: 36px;
+    font-size: 0.85em;
+  }
+
+  .VPLocalSearchBox .search-result .title {
+    font-size: 0.85em;
+  }
+
+  .VPLocalSearchBox .search-result .excerpt {
+    font-size: 0.80em;
+  }
+
+  .VPLocalSearchBox .search-footer {
+    padding: 8px 10px;
+    font-size: 0.70em;
+  }
+
+  .VPLocalSearchBox .search-footer kbd {
+    padding: 1px 4px;
+    font-size: 0.80em;
+  }
+
+  /* Outline - very compact */
+  .VPDocAsideOutline .outline-link {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75em;
+    min-height: 36px;
+    margin: 0.125rem 0;
+  }
+
+  .VPDocAsideOutline .outline-link.nested {
+    padding-left: 0.75rem;
+    font-size: 0.72em;
+  }
+
+  .VPDocAsideOutline .outline-title {
+    font-size: 0.80em;
+    padding: 0.375rem 0.5rem;
+  }
+
+  /* Code blocks - compact */
+  .vp-doc div[class*='language-'] {
+    margin: 10px 0;
+    border-radius: var(--titrate-radius-md);
+  }
+
+  .vp-doc div[class*='language-'] code {
+    font-size: 0.75em;
+    line-height: 1.5;
+  }
+
+  .vp-doc div[class*='language-'] > span.lang {
+    font-size: 0.65em;
+    padding: 1px 4px;
+  }
+
+  .vp-doc div[class*='language-'] > button.copy {
+    right: 2px;
+    top: 2px;
+    padding: 4px;
+    min-width: 32px;
+    min-height: 32px;
+  }
+
+  /* Inline code - compact */
+  .vp-doc :not(pre) > code {
+    padding: 1px 4px;
+    font-size: 0.80em;
+  }
+
+  /* Tables - minimal */
+  .vp-doc table {
+    font-size: 0.80em;
+  }
+
+  .vp-doc table td,
+  .vp-doc table th {
+    padding: 6px 8px;
+  }
+
+  /* Custom blocks - minimal */
+  .vp-doc .custom-block {
+    padding: 8px 10px 8px 10px;
+    margin: 10px 0;
+    border-radius: var(--titrate-radius-sm);
+  }
+
+  .vp-doc .custom-block .custom-block-title {
+    font-size: 0.85em;
+  }
+
+  /* Landing sections - minimal padding */
+  .vp-doc .landing-section {
+    padding: 1.5rem 0;
+  }
+
+  /* Headings - compact */
+  .vp-doc h1 {
+    font-size: 1.5em;
+    margin-top: 1em;
+    letter-spacing: -0.01em;
+  }
+
+  .vp-doc h1::after {
+    width: 32px;
+    height: 2px;
+    margin-top: 0.3em;
+  }
+
+  .vp-doc h2 {
+    font-size: 1.25em;
+    margin-top: 1.5em;
+    padding-bottom: 0.25em;
+  }
+
+  .vp-doc h3 {
+    font-size: 1.05em;
+    margin-top: 1em;
+  }
+
+  .vp-doc h4 {
+    font-size: 0.95em;
+    margin-top: 0.875em;
+  }
+
+  /* Blockquote - compact */
+  .vp-doc blockquote {
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+  }
+
+  .vp-doc blockquote p {
+    font-size: 0.95em;
+    line-height: 1.6;
+  }
+
+  .vp-doc blockquote cite {
+    font-size: 0.80em;
+    margin-top: 0.375rem;
+  }
+
+  /* Lists - compact */
+  .vp-doc ul, .vp-doc ol {
+    padding-left: 1em;
+  }
+
+  .vp-doc li {
+    margin: 0.2em 0;
+    line-height: 1.55;
+  }
+
+  /* Paragraphs - compact */
+  .vp-doc p {
+    margin-bottom: 1em;
+    line-height: 1.6;
+  }
+
+  /* Badges - compact */
+  .vp-doc .badge {
+    padding: 1px 6px;
+    font-size: 0.68em;
+  }
+
+  /* Horizontal rule - compact */
+  .vp-doc hr {
+    margin: 2rem 0;
+  }
+
+  /* Page navigation - compact */
+  .VPDocFooter .pager-link {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85em;
+  }
+}
+
 /* ===== Print Styles ===== */
 @media print {
   .VPNav,
@@ -2142,7 +2941,7 @@ body,
   }
 }
 
-/* ===== Search Bar — Enhanced Prominence ===== */
+/* ===== Search Bar �?Enhanced Prominence ===== */
 
 /* 1. Search button size/contrast enhancement */
 .VPNavBarSearch {
