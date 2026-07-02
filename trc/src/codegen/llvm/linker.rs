@@ -373,6 +373,38 @@ mod tests {
         );
     }
 
+    /// B.3.5: a `[native]` section with `link_libs = ["m"]` must cause the
+    /// linker invocation to include `-lm`. Exercises the gcc/clang-style arg
+    /// builder used by both the Unix `cc` driver and the Windows
+    /// `clang`/`gcc` driver.
+    #[test]
+    fn gcc_style_args_render_extra_lib_as_l_flag() {
+        let obj = Path::new("a.o");
+        let exe = Path::new("out");
+        let lib_dir = Path::new("/x/lib");
+        let extra_libs = vec!["m".to_string()];
+        let args = build_gcc_style_args(obj, exe, lib_dir, &extra_libs, &[], &["titrate_native"]);
+        // The user-supplied "m" must render as "-lm".
+        assert!(
+            args.iter().any(|a| a == "-lm"),
+            "expected -lm in args: {:?}",
+            args
+        );
+        // Sanity: it should appear after the built-in -ltitrate_native.
+        let native_idx = args
+            .iter()
+            .position(|a| a == "-ltitrate_native")
+            .expect("built-in -ltitrate_native present");
+        let extra_m_idx = args
+            .iter()
+            .rposition(|a| a == "-lm")
+            .expect("extra -lm present");
+        assert!(
+            extra_m_idx > native_idx,
+            "extra -lm should follow -ltitrate_native"
+        );
+    }
+
     #[cfg(windows)]
     #[test]
     fn link_exe_args_render_extra_libs_as_dot_lib() {
@@ -383,5 +415,22 @@ mod tests {
         let args = build_link_exe_args(obj, exe, lib_dir, &extra_libs, &[]);
         assert!(args.iter().any(|a| a == "ws2_32.lib"));
         assert!(args.iter().any(|a| a == "titrate_native.lib"));
+    }
+
+    /// B.3.5 (Windows/MSVC): `[native] link_libs = ["m"]` becomes `m.lib`
+    /// when the linker driver is MSVC `link.exe`.
+    #[cfg(windows)]
+    #[test]
+    fn link_exe_args_render_native_m_as_dot_lib() {
+        let obj = Path::new("a.obj");
+        let exe = Path::new("out.exe");
+        let lib_dir = Path::new("C:\\lib");
+        let extra_libs = vec!["m".to_string()];
+        let args = build_link_exe_args(obj, exe, lib_dir, &extra_libs, &[]);
+        assert!(
+            args.iter().any(|a| a == "m.lib"),
+            "expected m.lib in args: {:?}",
+            args
+        );
     }
 }
