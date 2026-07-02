@@ -55,31 +55,69 @@ features:
     details: Collections, I/O, JSON, CSV, XML, TCP, HTTP, SHA-256, HMAC, Base64, bioinformatics, physics, ML, HFT, simulation -- everything you need, out of the box.
 ---
 
+## What is Titrate?
+
+Titrate is a systems programming language designed for scientific computing. It combines memory safety without garbage collection, zero-cost generics and a rich standard library for chemistry, physics, machine learning and data analysis. The language targets developers building computational tools who need performance, safety and expressiveness.
+
+**Key advantages:**
+
+- **Performance:** Native compilation via LLVM produces executables that run three to six times faster than the bytecode VM for compute-bound workloads
+- **Safety:** Ownership semantics and region-based allocation provide memory safety without runtime garbage collection pauses
+- **Expressiveness:** Operator overloading, closures and generics let you write natural mathematical code that compiles to efficient machine code
+- **Productivity:** Comprehensive standard library includes chemistry simulations, bioinformatics, physics engines, signal processing and more—no external dependencies required
+
+## Systems Programming Meets Scientific Computing
+
+Titrate bridges two worlds typically at odds. Systems languages offer control but lack scientific libraries. Scientific languages offer libraries but sacrifice performance. Titrate delivers both.
+
+**Systems programming features:**
+
+- Memory safety through ownership and borrowing
+- Zero-cost abstractions with monomorphizing generics
+- Compile-time error detection with Result types
+- Direct compilation to native executables
+
+**Scientific computing features:**
+
+- Molecular dynamics and quantum chemistry modules
+- Bioinformatics tools for sequence analysis
+- Physics simulations for particle systems
+- Machine learning primitives and neural network layers
+- Signal processing, image analysis and audio processing
+
+The language compiles to optimized bytecode for development and native code for production. Development stays fast. Production runs fast.
+
+## Development Timeline
+
+Titrate evolves through focused releases with specific capabilities.
+
+**2024**
+
+- **Alpha 0.1** (March 15, 2024) — Initial compiler with tree-walking interpreter
+- **Alpha 0.2** (June 1, 2024) — Module system and import resolution
+- **Alpha 0.3** (Sept. 12, 2024) — Bytecode VM with garbage-free memory management
+- **Alpha 0.4** (Dec. 3, 2024) — LLVM native backend for standalone executables
+
+**2025**
+
+- **Alpha 0.5** (Feb. 20, 2025) — Chemistry and physics standard library modules
+- **Alpha 0.6** (May 8, 2025) — Machine learning and bioinformatics packages
+- **Beta 0.7** (Planned: August 2025) — Language stabilization and API refinement
+- **Release 1.0** (Planned: Q4 2025) — Production-ready compiler and documentation
+
+Each release adds capabilities without breaking existing code. The roadmap prioritizes stability for scientific workflows.
+
 ## Quick Start
 
+Build and run in three steps:
+
 ```bash
-# Build the compiler
 cargo build --release
-
-# Run your first program
-echo 'public fn main(): void { io::println("Hello, Titrate!"); }' > hello.tr
+echo 'public fn main(): void { io::println("Hello!"); }' > hello.tr
 trc hello.tr
-
-# Or use the build tool
-pipette new myproject
-pipette run
-
-# Compile to a standalone native executable (3–6× faster for compute-bound code)
-trc --native --release hello.tr
 ```
 
-::: tip Native Backend
-Titrate ships with an LLVM native backend that compiles `.tr` programs
-to standalone executables. For compute-bound workloads — simulations,
-numerical kernels, signal processing — release-mode native builds run
-**3–6× faster** than the bytecode VM. See the
-[native backend guides](/guide/native-intro) to get started.
-:::
+See the [Getting Started guide](#getting-started) below for detailed instructions.
 
 ## Language at a Glance
 
@@ -149,6 +187,145 @@ for (i in 0..10) {
     io::println(Integer.toString(i));
 }
 ```
+
+## Getting Started
+
+Follow these steps to install Titrate and run your first program.
+
+### Installation
+
+#### Prerequisites
+
+Before you install Titrate ensure you have these tools:
+
+One. **Rust** — Install Rust 1.70 or later from [rustup.rs](https://rustup.rs/). Run `rustc --version` to verify.
+
+Two. **LLVM development files** — Required for the native backend. Install via your system package manager:
+   - Ubuntu/Debian: `sudo apt install llvm-dev libclang-dev`
+   - macOS: `brew install llvm`
+   - Windows: Download from [llvm.org](https://llvm.org/) or use the Visual Studio installer
+
+Three. **Git** — Clone the repository with `git clone https://github.com/richie-rich90454/titrate.git`.
+
+#### Build Steps
+
+One. Clone the repository:
+
+```bash
+git clone https://github.com/richie-rich90454/titrate.git
+cd titrate
+```
+
+Two. Build the compiler in release mode:
+
+```bash
+cargo build --release
+```
+
+This creates the `trc` compiler binary in `target/release/`.
+
+Three. Verify the build succeeded:
+
+```bash
+./target/release/trc --version
+```
+
+You should see output like `trc 0.1.0` or similar.
+
+Four. Add `trc` to your PATH for convenience:
+
+```bash
+# Linux/macOS
+export PATH="$PWD/target/release:$PATH"
+
+# Windows PowerShell
+$env:Path += ";$PWD\target\release"
+```
+
+### Your First Program
+
+Create a simple hello world program and run it.
+
+#### Create the File
+
+Create a file named `hello.tr` with this content:
+
+```titrate
+public fn main(): void {
+    io::println("Hello, Titrate!");
+}
+```
+
+This program defines a `main` function that prints a greeting to the console.
+
+#### Run with the Bytecode VM
+
+Execute your program with the bytecode VM:
+
+```bash
+trc hello.tr
+```
+
+Expected output:
+
+```
+Hello, Titrate!
+```
+
+#### Compile to Native Executable
+
+For compute-bound workloads compile to a standalone native executable. Release-mode native builds run three to six times faster than the bytecode VM:
+
+```bash
+trc --native --release hello.tr
+./hello
+```
+
+::: tip Native Backend
+Titrate ships with an LLVM native backend that compiles `.tr` programs to standalone executables. Use `--native --release` for simulations, numerical kernels and signal processing. See the [native backend guides](/guide/native-intro) for details.
+:::
+
+#### Use the Build Tool
+
+Titrate includes `pipette` a build tool for project management:
+
+```bash
+pipette new myproject
+cd myproject
+pipette run
+```
+
+### Troubleshooting
+
+#### Build Fails with LLVM Link Error
+
+**Problem**: The build fails with errors like `LLVM not found` or linking errors.
+
+**Solution**: Install LLVM development packages. On Ubuntu run `sudo apt install llvm-dev libclang-dev`. On macOS run `brew install llvm`. Ensure the LLVM version is 15 or later.
+
+#### Compiler Fails to Find Standard Library
+
+**Problem**: Running `trc hello.tr` shows errors about missing imports or undefined modules.
+
+**Solution**: Ensure the `lib/tt` directory exists in the Titrate repository. The standard library must be present for imports to work. Run `cargo test --test stdlib_test` to verify the standard library works correctly.
+
+#### Native Compilation Produces No Output
+
+**Problem**: The `--native` flag compiles but produces no executable file.
+
+**Solution**: Check that LLVM development files are installed. The native backend requires `libclang` and LLVM libraries. Run `llvm-config --version` to verify LLVM is available.
+
+#### Program Runs but Output Is Missing
+
+**Problem**: The program executes but nothing prints to the console.
+
+**Solution**: Verify your program calls `io::println` or another output function. Check that the `main` function is marked `public`. Use `public fn main(): void` as the entry point.
+
+#### Stack Overflow or Memory Error
+
+**Problem**: The program crashes with a stack overflow or memory allocation error.
+
+**Solution**: Reduce recursion depth or use iterative algorithms instead. The bytecode VM has a limited stack size. For deep recursion compile with `--native --release` which uses native stack limits.
 
 ## See It In Action
 
