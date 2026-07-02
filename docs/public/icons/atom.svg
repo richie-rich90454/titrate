@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Atom orbital structure -->
+  <!-- Three elliptical orbits at different angles -->
+  <ellipse cx="24" cy="24" rx="18" ry="6" transform="rotate(0 24 24)" stroke-width="1.5"/>
+  <ellipse cx="24" cy="24" rx="18" ry="6" transform="rotate(60 24 24)" stroke-width="1.5"/>
+  <ellipse cx="24" cy="24" rx="18" ry="6" transform="rotate(-60 24 24)" stroke-width="1.5"/>
+
+  <!-- Nucleus (proton cluster) -->
+  <circle cx="24" cy="24" r="4" fill="currentColor"/>
+  <circle cx="22" cy="22" r="1.5" fill="currentColor" opacity="0.8"/>
+  <circle cx="26" cy="22" r="1.5" fill="currentColor" opacity="0.8"/>
+  <circle cx="24" cy="26" r="1.5" fill="currentColor" opacity="0.8"/>
+
+  <!-- Electron dots on orbits -->
+  <circle cx="42" cy="24" r="1.8" fill="currentColor"/>
+  <circle cx="6" cy="24" r="1.8" fill="currentColor"/>
+  <circle cx="33.6" cy="9.6" r="1.8" fill="currentColor" transform="rotate(60 24 24)"/>
+  <circle cx="14.4" cy="38.4" r="1.8" fill="currentColor" transform="rotate(60 24 24)"/>
+  <circle cx="14.4" cy="9.6" r="1.8" fill="currentColor" transform="rotate(-60 24 24)"/>
+  <circle cx="33.6" cy="38.4" r="1.8" fill="currentColor" transform="rotate(-60 24 24)"/>
+</svg>
