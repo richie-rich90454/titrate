@@ -1020,26 +1020,160 @@ body,
   box-shadow: var(--titrate-shadow-4);
 }
 
-/* ===== Outline ===== */
-.VPDocAsideOutline .outline-link {
-  transition: color var(--titrate-duration-fast) var(--titrate-ease);
+/* ===== Outline (On This Page) ===== */
+/* 12.1: Improved outline link styling and spacing */
+.VPDocAsideOutline {
+  padding: 0.75rem 0;
 }
 
+.VPDocAsideOutline .outline-title {
+  font-size: 0.85em;
+  font-weight: 700;
+  color: var(--vp-c-text-1);
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  font-family: var(--titrate-font-family-display);
+}
+
+.VPDocAsideOutline .outline-link {
+  position: relative;
+  display: block;
+  padding: 0.5rem 0.75rem;
+  margin: 0.25rem 0;
+  line-height: 1.4;
+  font-size: 0.82em;
+  color: var(--vp-c-text-2);
+  border-radius: var(--titrate-radius-sm);
+  transition: all var(--titrate-duration-normal) var(--titrate-ease);
+}
+
+/* Hover effects */
+.VPDocAsideOutline .outline-link:hover {
+  color: var(--vp-c-brand-1);
+  background: var(--titrate-interactive-hover);
+  text-decoration: none;
+  transform: translateX(2px);
+}
+
+/* Nested outline levels */
+.VPDocAsideOutline .outline-link.nested {
+  padding-left: 1.25rem;
+  font-size: 0.78em;
+  opacity: 0.85;
+}
+
+.VPDocAsideOutline .outline-link.nested:hover {
+  opacity: 1;
+}
+
+/* 12.2: Scroll-spy visual feedback - Active link prominence */
 .VPDocAsideOutline .outline-link.active {
   color: var(--vp-c-brand-1);
   font-weight: 600;
+  background: linear-gradient(90deg,
+    rgba(233, 69, 96, 0.10) 0%,
+    transparent 100%);
+  box-shadow: inset 2px 0 0 var(--vp-c-brand-1);
+  padding-left: 0.875rem;
+  transform: translateX(0);
 }
 
+/* Active link indicator with smooth animation */
 .VPDocAsideOutline .outline-link.active::before {
   content: '';
   position: absolute;
-  left: -12px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--titrate-gradient-reaction);
+  transition: all var(--titrate-duration-normal) var(--titrate-ease);
+  animation: titrate-outline-indicator 0.3s ease-out;
+}
+
+@keyframes titrate-outline-indicator {
+  from {
+    opacity: 0;
+    transform: scaleY(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+/* Active nested link */
+.VPDocAsideOutline .outline-link.nested.active {
+  background: linear-gradient(90deg,
+    rgba(233, 69, 96, 0.08) 0%,
+    transparent 100%);
+  padding-left: 1.375rem;
+}
+
+.VPDocAsideOutline .outline-link.nested.active::before {
+  left: 0.5rem;
   width: 2px;
-  height: 14px;
-  border-radius: 1px;
-  background: var(--vp-c-brand-1);
+}
+
+/* 12.3: Ensure outline visibility on wider screens */
+@media (min-width: 1440px) {
+  .VPDocAsideOutline {
+    max-width: 280px;
+    padding: 1rem 0;
+  }
+
+  .VPDocAsideOutline .outline-link {
+    padding: 0.625rem 1rem;
+    margin: 0.375rem 0;
+    font-size: 0.85em;
+  }
+
+  .VPDocAsideOutline .outline-link.nested {
+    padding-left: 1.5rem;
+    font-size: 0.80em;
+  }
+
+  .VPDocAsideOutline .outline-link.active::before {
+    top: 8px;
+    bottom: 8px;
+    width: 4px;
+  }
+}
+
+/* Improved contrast for outline container */
+.VPDocAsideOutline .outline-box {
+  background: var(--vp-c-bg-soft);
+  border-radius: var(--titrate-radius-md);
+  padding: 0.5rem;
+  border: 1px solid var(--vp-c-divider);
+  transition: all var(--titrate-duration-normal) var(--titrate-ease);
+}
+
+.VPDocAsideOutline .outline-box:hover {
+  border-color: var(--vp-c-brand-1);
+  box-shadow: var(--titrate-shadow-4);
+}
+
+/* Dark mode outline adjustments */
+.dark .VPDocAsideOutline .outline-link.active {
+  background: linear-gradient(90deg,
+    rgba(255, 123, 143, 0.14) 0%,
+    transparent 100%);
+  box-shadow: inset 2px 0 0 #ff7b8f;
+}
+
+.dark .VPDocAsideOutline .outline-link.active::before {
+  background: linear-gradient(135deg, #ff7b8f 0%, #ff6b81 50%, #ffb84d 100%);
+}
+
+.dark .VPDocAsideOutline .outline-box {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--titrate-neutral-4);
+}
+
+.dark .VPDocAsideOutline .outline-box:hover {
+  border-color: #ff7b8f;
 }
 
 /* ===== Scrollbar — Minimal ===== */
@@ -1680,5 +1814,410 @@ body,
   .vp-doc .ecosystem-item,
   .vp-doc .community-link {
     break-inside: avoid;
+  }
+}
+
+/* ===== Search Bar — Enhanced Prominence ===== */
+
+/* 1. Search button size/contrast enhancement */
+.VPNavBarSearch {
+  display: flex;
+  align-items: center;
+}
+
+.VPNavBarSearch > button {
+  /* Larger button height (32px minimum) */
+  min-height: 36px;
+  padding: 6px 12px;
+  margin: 0 8px;
+
+  /* Increased contrast with background */
+  background: var(--titrate-neutral-2);
+  border: 1px solid var(--titrate-neutral-4);
+
+  /* Subtle border and background */
+  border-radius: var(--titrate-radius-md);
+  box-shadow: var(--titrate-shadow-2);
+
+  /* Smooth transitions */
+  transition: all var(--titrate-duration-normal) var(--titrate-ease);
+
+  /* Better text styling */
+  font-size: 0.875em;
+  font-weight: 500;
+  color: var(--vp-c-text-1);
+}
+
+.VPNavBarSearch > button:hover {
+  background: var(--titrate-neutral-3);
+  border-color: var(--titrate-neutral-5);
+  box-shadow: var(--titrate-shadow-4);
+  transform: translateY(-1px);
+}
+
+.VPNavBarSearch > button:focus {
+  outline: var(--titrate-interactive-focus-ring);
+  border-color: var(--vp-c-brand-1);
+}
+
+.VPNavBarSearch > button:active {
+  transform: translateY(0);
+  box-shadow: var(--titrate-shadow-2);
+}
+
+/* Search icon enhancement */
+.VPNavBarSearch > button .search-icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  opacity: 0.7;
+  transition: opacity var(--titrate-duration-fast) var(--titrate-ease);
+}
+
+.VPNavBarSearch > button:hover .search-icon {
+  opacity: 1;
+  color: var(--vp-c-brand-1);
+}
+
+/* 2. Search placeholder text styling */
+.VPNavBarSearch > button .placeholder {
+  color: var(--titrate-neutral-6);
+  font-size: 0.85em;
+  font-weight: 500;
+  opacity: 0.8;
+  letter-spacing: 0.01em;
+}
+
+/* Keyboard shortcut indicator styling */
+.VPNavBarSearch > button .shortcut {
+  font-size: 0.75em;
+  color: var(--titrate-neutral-5);
+  opacity: 0.65;
+  padding: 2px 4px;
+  border-radius: var(--titrate-radius-sm);
+  background: var(--titrate-neutral-3);
+  margin-left: 8px;
+  font-weight: 600;
+  font-family: var(--vp-font-family-mono);
+}
+
+/* Dark mode search button */
+.dark .VPNavBarSearch > button {
+  background: var(--titrate-neutral-2);
+  border-color: var(--titrate-neutral-4);
+  box-shadow: var(--titrate-shadow-2);
+}
+
+.dark .VPNavBarSearch > button:hover {
+  background: var(--titrate-neutral-3);
+  border-color: var(--titrate-neutral-5);
+}
+
+.dark .VPNavBarSearch > button .placeholder {
+  color: var(--titrate-neutral-5);
+}
+
+.dark .VPNavBarSearch > button .shortcut {
+  background: var(--titrate-neutral-3);
+  color: var(--titrate-neutral-5);
+}
+
+/* 3. Search Modal Enhancement */
+/* Modal backdrop */
+.VPLocalSearchBox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+.VPLocalSearchBox > .backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  animation: titrate-search-backdrop-in 0.2s var(--titrate-ease-decelerate);
+}
+
+@keyframes titrate-search-backdrop-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* Search modal container */
+.VPLocalSearchBox > .shell {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 560px;
+  width: 90%;
+  max-height: 80vh;
+
+  /* Better rounded corners */
+  border-radius: var(--titrate-radius-lg);
+  overflow: hidden;
+
+  /* Improved shadows and border */
+  background: var(--titrate-neutral-1);
+  border: 1px solid var(--titrate-neutral-4);
+  box-shadow: var(--titrate-shadow-16);
+
+  /* Smooth entrance animation */
+  animation: titrate-search-modal-in 0.25s var(--titrate-ease-decelerate);
+}
+
+@keyframes titrate-search-modal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Dark mode modal */
+.dark .VPLocalSearchBox > .shell {
+  background: var(--titrate-neutral-2);
+  border-color: var(--titrate-neutral-4);
+  box-shadow: var(--titrate-shadow-16);
+}
+
+/* Search input in modal */
+.VPLocalSearchBox .search-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 1em;
+  border: none;
+  background: transparent;
+  color: var(--vp-c-text-1);
+  outline: none;
+  font-family: var(--vp-font-family-base);
+}
+
+.VPLocalSearchBox .search-input::placeholder {
+  color: var(--titrate-neutral-5);
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+/* Search input wrapper with accent border */
+.VPLocalSearchBox .search-input-wrapper {
+  position: relative;
+  border-bottom: 2px solid var(--titrate-neutral-4);
+  transition: border-color var(--titrate-duration-fast) var(--titrate-ease);
+}
+
+.VPLocalSearchBox .search-input-wrapper:focus-within {
+  border-bottom-color: var(--vp-c-brand-1);
+}
+
+.VPLocalSearchBox .search-input-wrapper::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--titrate-gradient-reaction);
+  opacity: 0;
+  transition: opacity var(--titrate-duration-normal) var(--titrate-ease);
+}
+
+.VPLocalSearchBox .search-input-wrapper:focus-within::after {
+  opacity: 1;
+}
+
+/* Search results container */
+.VPLocalSearchBox .search-results {
+  padding: 8px 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Individual search result items */
+.VPLocalSearchBox .search-result {
+  display: block;
+  padding: 10px 16px;
+  margin: 0;
+  border-radius: 0;
+  color: var(--vp-c-text-1);
+  transition: background-color var(--titrate-duration-fast) var(--titrate-ease);
+  cursor: pointer;
+  border: none;
+}
+
+.VPLocalSearchBox .search-result:hover {
+  background: var(--titrate-interactive-hover);
+}
+
+.VPLocalSearchBox .search-result.selected {
+  background: var(--vp-c-brand-soft);
+  border-left: 3px solid var(--vp-c-brand-1);
+}
+
+/* Search result title */
+.VPLocalSearchBox .search-result .title {
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--vp-c-text-1);
+  margin-bottom: 4px;
+  display: block;
+}
+
+/* Search result excerpt/text */
+.VPLocalSearchBox .search-result .excerpt {
+  font-size: 0.85em;
+  color: var(--titrate-neutral-6);
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+/* Highlight matched text */
+.VPLocalSearchBox .search-result mark {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+  padding: 1px 3px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+/* Dark mode search results */
+.dark .VPLocalSearchBox .search-input::placeholder {
+  color: var(--titrate-neutral-5);
+}
+
+.dark .VPLocalSearchBox .search-result:hover {
+  background: var(--titrate-interactive-hover);
+}
+
+.dark .VPLocalSearchBox .search-result.selected {
+  background: var(--vp-c-brand-soft);
+  border-left-color: var(--vp-c-brand-1);
+}
+
+.dark .VPLocalSearchBox .search-result mark {
+  background: var(--vp-c-brand-soft);
+  color: var(--vp-c-brand-1);
+}
+
+/* No results message */
+.VPLocalSearchBox .no-results {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--titrate-neutral-5);
+  font-size: 0.9em;
+}
+
+/* Search footer with keyboard hints */
+.VPLocalSearchBox .search-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--titrate-neutral-4);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75em;
+  color: var(--titrate-neutral-5);
+  background: var(--titrate-neutral-2);
+}
+
+.VPLocalSearchBox .search-footer kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 0.85em;
+  font-family: var(--vp-font-family-mono);
+  background: var(--titrate-neutral-3);
+  border: 1px solid var(--titrate-neutral-4);
+  border-radius: var(--titrate-radius-sm);
+  box-shadow: var(--titrate-shadow-2);
+  margin: 0 2px;
+}
+
+/* Dark mode footer */
+.dark .VPLocalSearchBox .search-footer {
+  background: var(--titrate-neutral-3);
+  border-top-color: var(--titrate-neutral-4);
+}
+
+.dark .VPLocalSearchBox .search-footer kbd {
+  background: var(--titrate-neutral-4);
+  border-color: var(--titrate-neutral-5);
+}
+
+/* Close button in search modal */
+.VPLocalSearchBox .close-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--titrate-duration-fast) var(--titrate-ease);
+  color: var(--titrate-neutral-5);
+}
+
+.VPLocalSearchBox .close-button:hover {
+  opacity: 1;
+  color: var(--vp-c-brand-1);
+}
+
+/* Mobile search adjustments */
+@media (max-width: 768px) {
+  .VPNavBarSearch > button {
+    min-height: 32px;
+    padding: 4px 8px;
+    font-size: 0.8em;
+  }
+
+  .VPNavBarSearch > button .shortcut {
+    display: none;
+  }
+
+  .VPLocalSearchBox > .shell {
+    max-width: 95%;
+    max-height: 85vh;
+    border-radius: var(--titrate-radius-md);
+  }
+
+  .VPLocalSearchBox .search-input {
+    padding: 10px 12px;
+    font-size: 0.95em;
+  }
+
+  .VPLocalSearchBox .search-result {
+    padding: 8px 12px;
+  }
+
+  .VPLocalSearchBox .search-footer {
+    padding: 10px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .VPNavBarSearch > button {
+    min-width: 36px;
+    padding: 4px 6px;
+  }
+
+  .VPNavBarSearch > button .placeholder {
+    display: none;
+  }
+
+  .VPNavBarSearch > button .search-icon {
+    margin-right: 0;
+  }
+
+  .VPLocalSearchBox > .shell {
+    max-height: 90vh;
+    top: 45%;
   }
 }
