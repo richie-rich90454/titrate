@@ -247,7 +247,7 @@ Follow this sequence to build a solid foundation:
 
 13. **[Iterators](./iterators)** — Implement `Iterable<T>` and `Iterator<T>`, use custom iterators in `for-in` loops and chain iterator operations.
 
-14. **[Ownership](./ownership)** — Understand memory safety without garbage collection using [Owned<T>](./glossary#owned), borrows and [regions](./glossary#region). Learn how ownership differs from Rust.
+14. **[Ownership](./ownership)** — Understand memory safety without garbage collection using `Owned<T>` ([glossary](./glossary#owned)), borrows and `regions` ([glossary](./glossary#region)). Learn how ownership differs from Rust.
 
 **Phase 4 — Specialization (ongoing):**
 

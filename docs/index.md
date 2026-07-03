@@ -501,7 +501,7 @@ Collections (ArrayList, HashMap, HashSet, Vec), I/O (File, BufferedReader), seri
 
 Titrate excels in domains where performance, safety, and domain-specific libraries matter:
 
-**Bioinformatics** — Process DNA/RNA sequences, compute alignments, build phylogenetic trees. The `tt::bio` module provides `Sequence`, `Alignment`, `CodonTable`, and `PhyloTree` classes. See the [Bioinformatics Guide](/guide/bio-guide) or try the [Sequence library](/stdlib/bio/Sequence).
+**Bioinformatics** — Process DNA/RNA sequences, compute alignments, build phylogenetic trees. The `tt::bio` module provides `Sequence`, `Alignment`, `CodonTable`, and `PhyloTree` classes. See the [Bioinformatics Guide](/guide/bio-guide) or try the [Sequence library](/stdlib/bio).
 
 ```titrate
 import tt::bio::Sequence;
@@ -511,7 +511,7 @@ let complement = dna.complement();  // TACGCTATGCAT
 let protein = dna.translate();      // MR...
 ```
 
-**Physics Simulation** — Model particle systems, rigid bodies, force fields. The `tt::physics` module includes `Particle`, `ForceField`, `NBodySimulator`, `RigidBody`, and `WaveFunction`. See the [Physics Guide](/guide/physics-guide) or explore [NBodySimulator](/stdlib/physics/NBodySimulator).
+**Physics Simulation** — Model particle systems, rigid bodies, force fields. The `tt::physics` module includes `Particle`, `ForceField`, `NBodySimulator`, `RigidBody`, and `WaveFunction`. See the [Physics Guide](/guide/physics-guide) or explore [NBodySimulator](/stdlib/physics).
 
 ```titrate
 import tt::physics::NBodySimulator;
@@ -522,7 +522,7 @@ sim.addParticle(p2, mass2, pos2);
 sim.run(1000);  // 1000 time steps
 ```
 
-**Machine Learning** — Build neural networks, train models, optimize parameters. The `tt::ml` module provides `Tensor`, `Layer`, `Model`, `Optimizer`, and `Loss`. See the [ML Guide](/guide/ml-guide) or try [Model](/stdlib/ml/Model).
+**Machine Learning** — Build neural networks, train models, optimize parameters. The `tt::ml` module provides `Tensor`, `Layer`, `Model`, `Optimizer`, and `Loss`. See the [ML Guide](/guide/ml-guide) or explore the [ML module](/stdlib/ml).
 
 ```titrate
 import tt::ml::Model;
@@ -537,7 +537,7 @@ model.compile("adam", 0.001);
 model.fit(data, labels, 100);
 ```
 
-**High-Frequency Trading** — Parse FIX messages, route orders, manage risk, run backtests. The `tt::hft` module includes `FixParser`, `OrderRouter`, `RiskManager`, and `Backtest`. See the [HFT Guide](/guide/hft-guide) or explore [Backtest](/stdlib/hft/Backtest).
+**High-Frequency Trading** — Parse FIX messages, route orders, manage risk, run backtests. The `tt::hft` module includes `FixParser`, `OrderRouter`, `RiskManager`, and `Backtest`. See the [HFT Guide](/guide/hft-guide) or explore [Backtest](/stdlib/hft).
 
 ```titrate
 import tt::hft::Backtest;
@@ -893,7 +893,7 @@ mol.addAtom(Atom.oxygen(0, 0, 0));</code>
 <p class="ecosystem-card-types">Sequence, Alignment, PhyloTree, CodonTable</p>
 <code class="ecosystem-card-code">let seq = Sequence.fromDNA("ATGC");
 let aligned = Alignment.align(a, b);</code>
-<a class="ecosystem-card-link" href="/stdlib/bio/Sequence"></a>
+<a class="ecosystem-card-link" href="/stdlib/bio"></a>
 </div>
 
 <!-- Physics -->
@@ -906,7 +906,7 @@ let aligned = Alignment.align(a, b);</code>
 <p class="ecosystem-card-types">Particle, ForceField, NBodySimulator, RigidBody</p>
 <code class="ecosystem-card-code">let sim = new NBodySimulator();
 sim.addParticle(p, mass, pos);</code>
-<a class="ecosystem-card-link" href="/stdlib/physics/NBodySimulator"></a>
+<a class="ecosystem-card-link" href="/stdlib/physics"></a>
 </div>
 
 <!-- Materials -->
@@ -972,7 +972,7 @@ let pitch = Pitch.detect(audio);</code>
 <code class="ecosystem-card-code">let model = Model.sequential([
   Layer.dense(128, "relu")
 ]);</code>
-<a class="ecosystem-card-link" href="/stdlib/ml/Model"></a>
+<a class="ecosystem-card-link" href="/stdlib/ml"></a>
 </div>
 
 <!-- Computational Geometry -->
@@ -1011,7 +1011,7 @@ let stems = Stemmer.stemAll(tokens);</code>
 <p class="ecosystem-card-types">FixParser, OrderRouter, RiskManager, Backtest</p>
 <code class="ecosystem-card-code">let order = FixParser.parse(msg);
 Backtest.run(strategy, data);</code>
-<a class="ecosystem-card-link" href="/stdlib/hft/Backtest"></a>
+<a class="ecosystem-card-link" href="/stdlib/hft"></a>
 </div>
 
 <!-- Discrete-Event Simulation -->
