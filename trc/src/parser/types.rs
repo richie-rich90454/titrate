@@ -88,7 +88,7 @@ impl Parser {
             let id_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
             match id_tok {
                 lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected type name, found {}", id_tok)),
+                _ => return Err(self.err(format!("Expected type name, found {}", id_tok))),
             }
         };
 

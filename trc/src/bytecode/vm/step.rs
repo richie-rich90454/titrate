@@ -846,7 +846,10 @@ impl Vm {
             }
             OpCode::RET => {
                 let return_value = self.pop();
-                let frame = self.frames.pop().expect("No frame to return from");
+                let frame = match self.frames.pop() {
+                    Some(f) => f,
+                    None => return Err("RET: no frame to return from".to_string()),
+                };
                 // If returning from a constructor, the result is the instance ("this")
                 let result = if self.functions[frame.function_index as usize].is_constructor {
                     self.stack[frame.base].clone()
@@ -1098,13 +1101,10 @@ impl Vm {
                 let index = self.pop();
                 let array = self.pop();
                 let value = self.pop();
-                match (&array, &index) {
-                    (Value::Array { .. }, Value::Int(i)) => {
+                match (array, &index) {
+                    (Value::Array { elements }, Value::Int(i)) => {
                         let idx = *i as usize;
-                        let mut elements = match array {
-                            Value::Array { elements } => elements,
-                            _ => unreachable!(),
-                        };
+                        let mut elements = elements;
                         if idx < elements.len() {
                             elements[idx] = value.clone();
                             self.push(Value::Array { elements });
@@ -1112,12 +1112,9 @@ impl Vm {
                             return Err(format!("Array index out of bounds: {}", idx));
                         }
                     }
-                    (Value::Array { .. }, Value::Long(i)) => {
+                    (Value::Array { elements }, Value::Long(i)) => {
                         let idx = *i as usize;
-                        let mut elements = match array {
-                            Value::Array { elements } => elements,
-                            _ => unreachable!(),
-                        };
+                        let mut elements = elements;
                         if idx < elements.len() {
                             elements[idx] = value.clone();
                             self.push(Value::Array { elements });
@@ -1125,7 +1122,7 @@ impl Vm {
                             return Err(format!("Array index out of bounds: {}", idx));
                         }
                     }
-                    _ => {
+                    (array, index) => {
                         return Err(format!(
                             "ARRAY_SET: invalid index type on array: {:?}[{:?}]",
                             array, index
@@ -1247,7 +1244,10 @@ impl Vm {
                 match &val {
                     Value::ResultErr(_) => {
                         // Propagate: return from the current function with the Err
-                        let frame = self.frames.pop().expect("No frame to return from");
+                        let frame = match self.frames.pop() {
+                            Some(f) => f,
+                            None => return Err("UNWRAP_OR_PROPAGATE: no frame to return from".to_string()),
+                        };
                         if self.frames.is_empty() {
                             self.push(val);
                         } else {

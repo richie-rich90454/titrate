@@ -321,7 +321,7 @@ impl Parser {
             let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
             let var_name = match name_tok {
                 lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected identifier after 'while let', found {}", name_tok)),
+                _ => return Err(self.err(format!("Expected identifier after 'while let', found {}", name_tok))),
             };
             self.expect(&lexer::Token::Equals)?;
             let expr = if self.match_token(&lexer::Token::LeftParen) {
@@ -361,7 +361,7 @@ impl Parser {
         // Expect 'while'
         let while_tok = self.expect(&lexer::Token::While)?;
         if !matches!(while_tok, lexer::Token::While) {
-            return Err(format!("Expected 'while' after do block, found {}", while_tok));
+            return Err(self.err(format!("Expected 'while' after do block, found {}", while_tok)));
         }
 
         // Parse condition: while (expr)
@@ -392,13 +392,13 @@ impl Parser {
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let var = match name_tok {
             lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected loop variable, found {}", name_tok)),
+            _ => return Err(self.err(format!("Expected loop variable, found {}", name_tok))),
         };
         // Expect 'in' as an identifier
         let in_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         match &in_tok {
             lexer::Token::Identifier(s) if s == "in" => {}
-            _ => return Err(format!("Expected 'in' in for loop, found {}", in_tok)),
+            _ => return Err(self.err(format!("Expected 'in' in for loop, found {}", in_tok))),
         }
         let iterable = self.parse_expression()?;
         if has_parens {
@@ -551,11 +551,7 @@ impl Parser {
                 let body = self.parse_case_body()?;
                 default = Some(body);
             } else {
-                let (line, col) = self.span_here();
-                return Err(format!(
-                    "Expected 'case' or 'default' in switch at {}:{}, found {}",
-                    line, col, self.peek()
-                ));
+                return Err(self.err(format!("Expected 'case' or 'default' in switch, found {}", self.peek())));
             }
         }
 
@@ -588,7 +584,7 @@ impl Parser {
             let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
             let name = match name_tok {
                 lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected identifier after 'with let', found {}", name_tok)),
+                _ => return Err(self.err(format!("Expected identifier after 'with let', found {}", name_tok))),
             };
             let typ = if self.match_token(&lexer::Token::Colon) {
                 Some(self.parse_type()?)
@@ -627,7 +623,7 @@ impl Parser {
             let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
             let catch_var = match name_tok {
                 lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected identifier in catch, found {}", name_tok)),
+                _ => return Err(self.err(format!("Expected identifier in catch, found {}", name_tok))),
             };
             let catch_var_type = if self.match_token(&lexer::Token::Colon) {
                 Some(self.parse_type()?)
@@ -660,7 +656,7 @@ impl Parser {
                 span,
             })
         } else {
-            Err("Expected 'catch' or 'finally' after try block".to_string())
+            Err(self.err("Expected 'catch' or 'finally' after try block"))
         }
     }
 }

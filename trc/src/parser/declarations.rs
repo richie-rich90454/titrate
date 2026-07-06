@@ -117,11 +117,7 @@ impl Parser {
                 self.parse_sugar_decl(access)
             }
             _ => {
-                let (line, col) = self.span_here();
-                Err(format!(
-                    "Expected declaration at {}:{}, found {}",
-                    line, col, self.peek()
-                ))
+                Err(self.err(format!("Expected declaration, found {}", self.peek())))
             }
         }
     }
@@ -140,7 +136,7 @@ impl Parser {
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected identifier, found {}", name_tok)),
+            _ => return Err(self.err(format!("Expected identifier, found {}", name_tok))),
         };
 
         // If next is '(' it's a sugar function; otherwise it's a typed var decl
@@ -499,7 +495,7 @@ impl Parser {
                 self.advance();
                 n
             }
-            None => return Err(format!("Expected field name, found {}", self.peek())),
+            None => return Err(self.err(format!("Expected field name, found {}", self.peek()))),
         };
         self.expect(&lexer::Token::Colon)?;
         let typ = self.parse_type()?;
@@ -530,7 +526,7 @@ impl Parser {
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected interface name, found {}", name_tok)),
+            _ => return Err(self.err(format!("Expected interface name, found {}", name_tok))),
         };
 
         let type_params = self.parse_type_params()?;
@@ -603,7 +599,7 @@ impl Parser {
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected enum name, found {}", name_tok)),
+            _ => return Err(self.err(format!("Expected enum name, found {}", name_tok))),
         };
 
         let type_params = self.parse_type_params()?;
@@ -628,7 +624,7 @@ impl Parser {
         let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
         let name = match name_tok {
             lexer::Token::Identifier(s) => s,
-            _ => return Err(format!("Expected variant name, found {}", name_tok)),
+            _ => return Err(self.err(format!("Expected variant name, found {}", name_tok))),
         };
 
         let fields = if self.match_token(&lexer::Token::LeftParen) {
@@ -661,7 +657,7 @@ impl Parser {
                 let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
                 let name = match name_tok {
                     lexer::Token::Identifier(s) => s,
-                    _ => return Err(format!("Expected field name, found {}", name_tok)),
+                    _ => return Err(self.err(format!("Expected field name, found {}", name_tok))),
                 };
                 self.expect(&lexer::Token::Colon)?;
                 let typ = self.parse_type()?;

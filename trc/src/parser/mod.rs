@@ -50,7 +50,7 @@ impl Parser {
         if tokens_match(&current, expected) {
             Ok(self.advance())
         } else {
-            Err(format!("Expected {}, found {}", expected, current))
+            Err(self.err(format!("Expected {}, found {}", expected, current)))
         }
     }
 
@@ -94,7 +94,7 @@ impl Parser {
                 );
                 Ok(())
             }
-            _ => Err(format!("Expected >, found {}", token)),
+            _ => Err(self.err(format!("Expected >, found {}", token))),
         }
     }
 
@@ -107,10 +107,10 @@ impl Parser {
         match tok {
             lexer::Token::Identifier(s) => Ok(s),
             t if is_type_keyword(&t) => type_keyword_name(&t)
-                .ok_or_else(|| format!("Expected name, found {}", t)),
+                .ok_or_else(|| self.err(format!("Expected name, found {}", t))),
             // `where` can be used as a function name (e.g. `fn where(...)`)
             lexer::Token::Where => Ok("where".to_string()),
-            _ => Err(format!("Expected name, found {}", tok)),
+            _ => Err(self.err(format!("Expected name, found {}", tok))),
         }
     }
 
@@ -186,6 +186,14 @@ impl Parser {
         }
     }
 
+    /// Build an error message annotated with the current line:column.
+    /// Centralises the `"<msg> at L:C"` format so parser errors consistently
+    /// carry source location for the diagnostic renderer.
+    pub(super) fn err(&self, msg: impl Into<String>) -> String {
+        let (line, col) = self.span_here();
+        format!("{} at {}:{}", msg.into(), line, col)
+    }
+
     /// Create an ast::Span from the current position.
     pub(super) fn make_span(&self) -> ast::Span {
         let (line, col) = self.span_here();
@@ -203,7 +211,7 @@ impl Parser {
                 let tok = self.expect(&lexer::Token::Identifier(String::new()))?;
                 let name = match tok {
                     lexer::Token::Identifier(s) => s,
-                    _ => return Err(format!("Expected type parameter name, found {}", tok)),
+                    _ => return Err(self.err(format!("Expected type parameter name, found {}", tok))),
                 };
                 // Optional constraint: `T: Display`
                 let constraint = if self.match_token(&lexer::Token::Colon) {
@@ -233,7 +241,7 @@ impl Parser {
                 let tok = self.expect(&lexer::Token::Identifier(String::new()))?;
                 let name = match tok {
                     lexer::Token::Identifier(s) => s,
-                    _ => return Err(format!("Expected type parameter name in where clause, found {}", tok)),
+                    _ => return Err(self.err(format!("Expected type parameter name in where clause, found {}", tok))),
                 };
                 self.expect(&lexer::Token::Colon)?;
                 let constraint = self.parse_type()?;

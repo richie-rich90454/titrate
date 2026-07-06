@@ -7,6 +7,7 @@ use trc::lexer;
 use trc::parser;
 use trc::analyzer;
 use trc::bytecode;
+use trc::errors;
 
 /// Parsed command-line arguments.
 struct Args {
@@ -318,6 +319,50 @@ fn run_emit_ir(
     llvm::compile_ir(typed_ast, &ir_path)?;
     println!("LLVM IR written to {}", ir_path.display());
     Ok(())
+}
+
+/// Render a lexer or parser error in the canonical `error[E0XXX]: <message>`
+/// format with source location and caret.
+///
+/// `message` may carry a trailing ` at L:C` suffix (produced by the parser's
+/// `err()` helper or the lexer's `at {}:{}` format); the suffix is stripped
+/// before rendering and the location is used to build the `-->` and caret
+/// lines.
+fn report_error(code: &str, message: &str, file: &str, source: &str) {
+    let (clean_msg, line_opt, col_opt) = match errors::parse_location_suffix(message) {
+        Some((l, c)) => (errors::strip_location_suffix(message), Some(l), Some(c)),
+        None => (message.to_string(), None, None),
+    };
+    let source_line = line_opt.and_then(|l| source.lines().nth(l.saturating_sub(1)));
+    let rendered = errors::render_error(code, &clean_msg, file, line_opt, col_opt, source_line, 1);
+    eprint!("{}", rendered);
+}
+
+/// Render a semantic (analyzer) error in the canonical format.
+///
+/// Semantic errors are returned as strings by `analyzer::analyze`; each string
+/// is the `Display` output of a `CompileError`, which may include one or more
+/// `\n  help: <suggestion>` lines. This function splits the primary message
+/// from the suggestions, classifies it into a stable code, and renders the
+/// full diagnostic.
+fn report_semantic_error(err: &str, file: &str, source: &str) {
+    let mut parts = err.splitn(2, "\n  help: ");
+    let message = parts.next().unwrap_or(err);
+    let suggestions: Vec<&str> = match parts.next() {
+        Some(rest) => rest.split("\n  help: ").collect(),
+        None => Vec::new(),
+    };
+    let code = errors::classify_semantic_error(message);
+    let (clean_msg, line_opt, col_opt) = match errors::parse_location_suffix(message) {
+        Some((l, c)) => (errors::strip_location_suffix(message), Some(l), Some(c)),
+        None => (message.to_string(), None, None),
+    };
+    let source_line = line_opt.and_then(|l| source.lines().nth(l.saturating_sub(1)));
+    let mut rendered = errors::render_error(code, &clean_msg, file, line_opt, col_opt, source_line, 1);
+    for s in &suggestions {
+        rendered.push_str(&format!("  help: {}\n", s));
+    }
+    eprint!("{}", rendered);
 }
 
 fn main() {

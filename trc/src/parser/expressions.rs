@@ -390,7 +390,7 @@ impl Parser {
             let name_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
             let name = match name_tok {
                 lexer::Token::Identifier(s) => s,
-                _ => return Err(format!("Expected parameter name, found {}", name_tok)),
+                _ => return Err(self.err(format!("Expected parameter name, found {}", name_tok))),
             };
             let typ = if self.match_token(&lexer::Token::Colon) {
                 self.parse_type()?
@@ -688,11 +688,7 @@ impl Parser {
                 Ok(ast::Expr::Identifier(name, span))
             }
             _ => {
-                let (line, col) = self.span_here();
-                Err(format!(
-                    "Expected expression at {}:{}, found {}",
-                    line, col, self.peek()
-                ))
+                Err(self.err(format!("Expected expression, found {}", self.peek())))
             }
         }
     }
@@ -737,16 +733,10 @@ impl Parser {
                     }
                 }
                 if depth != 0 {
-                    return Err(format!(
-                        "String interpolation: unterminated ${{ in \"{}\"",
-                        s
-                    ));
+                    return Err(format!("String interpolation: unterminated ${{ in \"{}\" at {}:{}", s, span.line, span.column));
                 }
                 if expr_str.trim().is_empty() {
-                    return Err(format!(
-                        "String interpolation: empty expression in \"{}\"",
-                        s
-                    ));
+                    return Err(format!("String interpolation: empty expression in \"{}\" at {}:{}", s, span.line, span.column));
                 }
                 parts.push(Part::Expression(expr_str));
             } else {

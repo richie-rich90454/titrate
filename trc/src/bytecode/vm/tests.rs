@@ -3632,5 +3632,296 @@ mod tests {
             Ok(()) => panic!("Expected stack overflow error but execution succeeded"),
         }
     }
+
+    // -- C.1: opcode Value variant coverage & structured error tests -----------
+
+    #[test]
+    fn test_array_set_with_int_index() {
+        let mut chunk = Chunk::new();
+        // Stack order for ARRAY_SET: [value, array, index]
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&99i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&20i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&30i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::ARRAY_NEW, 1);
+        chunk.write_u16(3, 1);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&1i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::ARRAY_SET, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        vm.run().unwrap();
+        match vm.stack.last() {
+            Some(Value::Array { elements }) => {
+                assert_eq!(elements.len(), 3);
+                assert_eq!(elements[1], Value::Int(99));
+            }
+            other => panic!("Expected Array, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_array_set_with_long_index() {
+        let mut chunk = Chunk::new();
+        // Stack order for ARRAY_SET: [value, array, index]
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&77i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&20i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::ARRAY_NEW, 1);
+        chunk.write_u16(2, 1);
+        chunk.write_opcode(OpCode::PUSH_I64, 1);
+        chunk.code.extend_from_slice(&0i64.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 8]);
+        chunk.write_opcode(OpCode::ARRAY_SET, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        vm.run().unwrap();
+        match vm.stack.last() {
+            Some(Value::Array { elements }) => {
+                assert_eq!(elements.len(), 2);
+                assert_eq!(elements[0], Value::Int(77));
+            }
+            other => panic!("Expected Array, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_array_set_invalid_index_type() {
+        let mut chunk = Chunk::new();
+        // Stack order for ARRAY_SET: [value, array, index]
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::ARRAY_NEW, 1);
+        chunk.write_u16(1, 1);
+        chunk.write_opcode(OpCode::PUSH_NULL, 1);
+        chunk.write_opcode(OpCode::ARRAY_SET, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "ARRAY_SET with Null index should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("ARRAY_SET"), "Error should mention ARRAY_SET, got: {}", err);
+    }
+
+    #[test]
+    fn test_array_set_out_of_bounds() {
+        let mut chunk = Chunk::new();
+        // Stack order for ARRAY_SET: [value, array, index]
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&99i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::ARRAY_NEW, 1);
+        chunk.write_u16(1, 1);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&5i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::ARRAY_SET, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "ARRAY_SET out of bounds should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("out of bounds"), "Error should mention out of bounds, got: {}", err);
+    }
+
+    #[test]
+    fn test_add_i32_type_mismatch() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_NULL, 1);
+        chunk.write_opcode(OpCode::ADD_I32, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "ADD_I32 with Null should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("ADD_I32"), "Error should mention ADD_I32, got: {}", err);
+    }
+
+    #[test]
+    fn test_add_f64_type_mismatch() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_F64, 1);
+        chunk.code.extend_from_slice(&1.5f64.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 8]);
+        chunk.write_opcode(OpCode::PUSH_BOOL, 1);
+        chunk.write_u8(1, 1);
+        chunk.write_opcode(OpCode::ADD_F64, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "ADD_F64 with Bool should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("ADD_F64"), "Error should mention ADD_F64, got: {}", err);
+    }
+
+    #[test]
+    fn test_lt_f64_type_mismatch() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_F64, 1);
+        chunk.code.extend_from_slice(&1.5f64.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 8]);
+        chunk.write_opcode(OpCode::PUSH_STRING, 1);
+        chunk.write_u16(0, 1);
+        chunk.strings.push("hello".to_string());
+        chunk.write_opcode(OpCode::LT_F64, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "LT_F64 with String should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("LT_F64"), "Error should mention LT_F64, got: {}", err);
+    }
+
+    #[test]
+    fn test_div_i32_by_zero() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&10i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&0i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::DIV_I32, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "DIV_I32 by zero should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("Division by zero"), "Error should mention division by zero, got: {}", err);
+    }
+
+    #[test]
+    fn test_deref_non_ref() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::DEREF, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "DEREF on non-Ref should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("DEREF"), "Error should mention DEREF, got: {}", err);
+    }
+
+    #[test]
+    fn test_unbox_non_owned() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::UNBOX_VALUE, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "UNBOX_VALUE on non-Owned should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("UNBOX_VALUE"), "Error should mention UNBOX_VALUE, got: {}", err);
+    }
+
+    #[test]
+    fn test_array_len_on_non_array() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::ARRAY_LEN, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "ARRAY_LEN on non-Array should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("ARRAY_LEN"), "Error should mention ARRAY_LEN, got: {}", err);
+    }
+
+    #[test]
+    fn test_unwrap_or_propagate_on_non_result() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::UNWRAP_OR_PROPAGATE, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "UNWRAP_OR_PROPAGATE on non-Result should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("UNWRAP_OR_PROPAGATE"), "Error should mention UNWRAP_OR_PROPAGATE, got: {}", err);
+    }
+
+    #[test]
+    fn test_eq_string_type_mismatch() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_STRING, 1);
+        chunk.write_u16(0, 1);
+        chunk.strings.push("hello".to_string());
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::EQ_STRING, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "EQ_STRING with Int should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("EQ_STRING"), "Error should mention EQ_STRING, got: {}", err);
+    }
+
+    #[test]
+    fn test_neg_i32_type_mismatch() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_NULL, 1);
+        chunk.write_opcode(OpCode::NEG_I32, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "NEG_I32 on Null should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("NEG_I32"), "Error should mention NEG_I32, got: {}", err);
+    }
+
+    #[test]
+    fn test_str_concat_type_mismatch() {
+        let mut chunk = Chunk::new();
+        chunk.write_opcode(OpCode::PUSH_STRING, 1);
+        chunk.write_u16(0, 1);
+        chunk.strings.push("hello".to_string());
+        chunk.write_opcode(OpCode::PUSH_I32, 1);
+        chunk.code.extend_from_slice(&42i32.to_be_bytes());
+        chunk.source_lines.extend_from_slice(&[1; 4]);
+        chunk.write_opcode(OpCode::STR_CONCAT, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        let result = vm.run();
+        assert!(result.is_err(), "STR_CONCAT with Int should error");
+        let err = result.unwrap_err();
+        assert!(err.contains("STR_CONCAT"), "Error should mention STR_CONCAT, got: {}", err);
+    }
 }
 

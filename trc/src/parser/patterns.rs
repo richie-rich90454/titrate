@@ -76,7 +76,7 @@ impl Parser {
                             match b {
                                 lexer::Token::Identifier(ref s) if s == "_" => bindings.push("_".to_string()),
                                 lexer::Token::Identifier(s) => bindings.push(s),
-                                _ => return Err(format!("Expected binding name, found {}", b)),
+                                _ => return Err(self.err(format!("Expected binding name, found {}", b))),
                             }
                             if !self.match_token(&lexer::Token::Comma) {
                                 break;
@@ -93,7 +93,7 @@ impl Parser {
                 let tok = self.advance();
                 let name = match tok {
                     lexer::Token::Identifier(s) => s,
-                    _ => return Err("Expected identifier".to_string()),
+                    _ => return Err(self.err("Expected identifier")),
                 };
                 if self.match_token(&lexer::Token::LeftParen) {
                     let mut bindings = Vec::new();
@@ -102,7 +102,7 @@ impl Parser {
                             let b = self.expect(&lexer::Token::Identifier(String::new()))?;
                             match b {
                                 lexer::Token::Identifier(s) => bindings.push(s),
-                                _ => return Err(format!("Expected binding name, found {}", b)),
+                                _ => return Err(self.err(format!("Expected binding name, found {}", b))),
                             }
                             if !self.match_token(&lexer::Token::Comma) {
                                 break;
@@ -119,11 +119,7 @@ impl Parser {
                 }
             }
             _ => {
-                let (line, col) = self.span_here();
-                Err(format!(
-                    "Expected pattern at {}:{}, found {}",
-                    line, col, self.peek()
-                ))
+                Err(self.err(format!("Expected pattern, found {}", self.peek())))
             }
         }
     }
