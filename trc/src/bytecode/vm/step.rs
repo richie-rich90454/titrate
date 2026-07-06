@@ -604,6 +604,11 @@ impl Vm {
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) < y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x < &(*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) < y)),
+                    (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) < (*y as i64))),
+                    (Value::Bool(x), Value::Int(y)) => self.push(Value::Bool((*x as i64) < (*y as i64))),
+                    (Value::Int(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) < (*y as i64))),
+                    (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) < *y)),
+                    (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x < (*y as i64))),
                     _ => return Err(format!("LT_I64: type mismatch {:?} < {:?}", a, b)),
                 }
             }
@@ -644,6 +649,11 @@ impl Vm {
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) <= y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x <= &(*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) <= y)),
+                    (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) <= (*y as i64))),
+                    (Value::Bool(x), Value::Int(y)) => self.push(Value::Bool((*x as i64) <= (*y as i64))),
+                    (Value::Int(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) <= (*y as i64))),
+                    (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) <= *y)),
+                    (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x <= (*y as i64))),
                     _ => return Err(format!("LE_I64: type mismatch {:?} <= {:?}", a, b)),
                 }
             }
@@ -684,6 +694,11 @@ impl Vm {
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) > y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x > &(*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) > y)),
+                    (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) > (*y as i64))),
+                    (Value::Bool(x), Value::Int(y)) => self.push(Value::Bool((*x as i64) > (*y as i64))),
+                    (Value::Int(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) > (*y as i64))),
+                    (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) > *y)),
+                    (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x > (*y as i64))),
                     _ => return Err(format!("GT_I64: type mismatch {:?} > {:?}", a, b)),
                 }
             }
@@ -724,6 +739,11 @@ impl Vm {
                     (Value::Long(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) >= y)),
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Bool(x >= &(*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Bool(&(*x as f64) >= y)),
+                    (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) >= (*y as i64))),
+                    (Value::Bool(x), Value::Int(y)) => self.push(Value::Bool((*x as i64) >= (*y as i64))),
+                    (Value::Int(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) >= (*y as i64))),
+                    (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) >= *y)),
+                    (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x >= (*y as i64))),
                     _ => return Err(format!("GE_I64: type mismatch {:?} >= {:?}", a, b)),
                 }
             }

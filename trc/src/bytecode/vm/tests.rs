@@ -195,6 +195,70 @@ mod tests {
         assert_eq!(vm.stack.last(), Some(&Value::Bool(true)));
     }
 
+    // -- helpers: push_value / run_i64_compare ---------------------------------
+
+    fn push_value(chunk: &mut Chunk, v: &Value) {
+        match v {
+            Value::Bool(b) => {
+                chunk.write_opcode(OpCode::PUSH_BOOL, 1);
+                chunk.write_u8(if *b { 1 } else { 0 }, 1);
+            }
+            Value::Int(i) => {
+                chunk.write_opcode(OpCode::PUSH_I32, 1);
+                chunk.code.extend_from_slice(&i.to_be_bytes());
+                chunk.source_lines.extend_from_slice(&[1; 4]);
+            }
+            Value::Long(l) => {
+                chunk.write_opcode(OpCode::PUSH_I64, 1);
+                chunk.code.extend_from_slice(&l.to_be_bytes());
+                chunk.source_lines.extend_from_slice(&[1; 8]);
+            }
+            _ => panic!("push_value: unsupported test value {:?}", v),
+        }
+    }
+
+    fn run_i64_compare(a: Value, b: Value, op: OpCode) -> Value {
+        let mut chunk = Chunk::new();
+        push_value(&mut chunk, &a);
+        push_value(&mut chunk, &b);
+        chunk.write_opcode(op, 1);
+        chunk.write_opcode(OpCode::RET, 1);
+        let mut vm = vm_with_chunk(chunk);
+        vm.run().unwrap();
+        vm.stack.last().unwrap().clone()
+    }
+
+    // -- test_vm_i64_comparison_bool (Value::Bool in LT/GT/LE/GE_I64) ---------
+
+    #[test]
+    fn test_vm_i64_comparison_bool() {
+        // LT_I64 with Bool operands (bool coerced to i64: false=0, true=1)
+        assert_eq!(run_i64_compare(Value::Bool(false), Value::Bool(true), OpCode::LT_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Bool(true), Value::Bool(false), OpCode::LT_I64), Value::Bool(false));
+        assert_eq!(run_i64_compare(Value::Bool(false), Value::Int(5), OpCode::LT_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Int(5), Value::Bool(true), OpCode::LT_I64), Value::Bool(false));
+        assert_eq!(run_i64_compare(Value::Bool(true), Value::Int(1), OpCode::LT_I64), Value::Bool(false));
+        assert_eq!(run_i64_compare(Value::Bool(false), Value::Long(100), OpCode::LT_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Long(100), Value::Bool(false), OpCode::LT_I64), Value::Bool(false));
+        // GT_I64 with Bool operands
+        assert_eq!(run_i64_compare(Value::Bool(true), Value::Bool(false), OpCode::GT_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Bool(false), Value::Bool(true), OpCode::GT_I64), Value::Bool(false));
+        assert_eq!(run_i64_compare(Value::Bool(true), Value::Int(0), OpCode::GT_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Int(0), Value::Bool(true), OpCode::GT_I64), Value::Bool(false));
+        assert_eq!(run_i64_compare(Value::Long(100), Value::Bool(true), OpCode::GT_I64), Value::Bool(true));
+        // LE_I64 with Bool operands
+        assert_eq!(run_i64_compare(Value::Bool(true), Value::Bool(true), OpCode::LE_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Bool(false), Value::Bool(true), OpCode::LE_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Bool(true), Value::Int(0), OpCode::LE_I64), Value::Bool(false));
+        assert_eq!(run_i64_compare(Value::Int(1), Value::Bool(true), OpCode::LE_I64), Value::Bool(true));
+        // GE_I64 with Bool operands
+        assert_eq!(run_i64_compare(Value::Bool(true), Value::Bool(true), OpCode::GE_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Bool(false), Value::Bool(true), OpCode::GE_I64), Value::Bool(false));
+        assert_eq!(run_i64_compare(Value::Bool(true), Value::Int(1), OpCode::GE_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Int(2), Value::Bool(true), OpCode::GE_I64), Value::Bool(true));
+        assert_eq!(run_i64_compare(Value::Bool(false), Value::Long(0), OpCode::GE_I64), Value::Bool(true));
+    }
+
     // -- 4. test_vm_jumps ------------------------------------------------------
 
     #[test]
