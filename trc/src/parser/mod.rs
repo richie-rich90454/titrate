@@ -16,11 +16,47 @@ use crate::{ast, lexer};
 pub(crate) struct Parser {
     pub(super) tokens: Vec<lexer::SpannedToken>,
     pub(super) pos: usize,
+    pub(super) depth: usize,
 }
+
+/// Maximum recursion depth for the recursive descent parser.
+///
+/// This limit prevents stack overflows on pathologically deep input (e.g.
+/// 10 000 nested parentheses). A legitimate program never approaches this
+/// depth — typical code has fewer than 10 levels of expression nesting.
+/// When exceeded, the parser returns a structured error instead of
+/// crashing the process with STATUS_STACK_OVERFLOW.
+const MAX_RECURSION_DEPTH: usize = 256;
 
 impl Parser {
     pub(super) fn new(tokens: Vec<lexer::SpannedToken>) -> Self {
-        Parser { tokens, pos: 0 }
+        Parser { tokens, pos: 0, depth: 0 }
+    }
+
+    /// Increment the recursion depth counter and enforce the maximum limit.
+    ///
+    /// Call this at the entry of every recursive parsing function
+    /// (`parse_expression`, `parse_stmt`).  When the limit is exceeded, an
+    /// `Err` is returned so the parser unwinds cleanly instead of
+    /// overflowing the stack.
+    pub(super) fn enter_recursion(&mut self) -> Result<(), String> {
+        if self.depth >= MAX_RECURSION_DEPTH {
+            let (line, col) = self.span_here();
+            return Err(format!(
+                "Maximum recursion depth {} exceeded at {}:{}",
+                MAX_RECURSION_DEPTH, line, col
+            ));
+        }
+        self.depth += 1;
+        Ok(())
+    }
+
+    /// Decrement the recursion depth counter.
+    ///
+    /// Always call this in a matching pair with `enter_recursion`, after the
+    /// recursive work completes (whether it succeeded or failed).
+    pub(super) fn leave_recursion(&mut self) {
+        self.depth -= 1;
     }
 
     /// Return a reference to the current token, or Eof if past the end.

@@ -6,6 +6,13 @@ use super::*;
 
 impl Parser {
     pub(super) fn parse_type(&mut self) -> Result<ast::Type, String> {
+        self.enter_recursion()?;
+        let result = self.parse_type_inner();
+        self.leave_recursion();
+        result
+    }
+
+    fn parse_type_inner(&mut self) -> Result<ast::Type, String> {
         // Check for &mut T or &T reference types
         if self.match_token(&lexer::Token::RefMut) {
             let inner = self.parse_type()?;

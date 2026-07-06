@@ -126,6 +126,13 @@ impl Parser {
 
 impl Parser {
     pub(super) fn parse_stmt(&mut self) -> Result<ast::Stmt, String> {
+        self.enter_recursion()?;
+        let result = self.parse_stmt_inner();
+        self.leave_recursion();
+        result
+    }
+
+    fn parse_stmt_inner(&mut self) -> Result<ast::Stmt, String> {
         match self.peek().clone() {
             lexer::Token::LeftBrace => {
                 let block = self.parse_block()?;

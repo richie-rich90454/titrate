@@ -6,7 +6,10 @@ use super::*;
 
 impl Parser {
     pub(super) fn parse_expression(&mut self) -> Result<ast::Expr, String> {
-        self.parse_assignment()
+        self.enter_recursion()?;
+        let result = self.parse_assignment();
+        self.leave_recursion();
+        result
     }
 
     fn parse_assignment(&mut self) -> Result<ast::Expr, String> {
@@ -14,12 +17,16 @@ impl Parser {
 
         if self.match_token(&lexer::Token::Equals) {
             let span = self.make_span();
-            let value = self.parse_assignment()?; // right-associative
+            self.enter_recursion()?;
+            let value = self.parse_assignment()?;
+            self.leave_recursion();
             // The left side must be an lvalue — we check at the AST level
             Ok(ast::Expr::Assign(Box::new(expr), Box::new(value), span))
         } else if let Some(op) = self.match_compound_assignment() {
             let span = self.make_span();
-            let value = self.parse_assignment()?; // right-associative
+            self.enter_recursion()?;
+            let value = self.parse_assignment()?;
+            self.leave_recursion();
             // Desugar: x += y  →  x = x + y
             let lhs_clone = expr.clone();
             let binary = ast::Expr::Binary(Box::new(lhs_clone), op, Box::new(value), span);
@@ -36,9 +43,13 @@ impl Parser {
 
         if self.match_token(&lexer::Token::Question) {
             let span = self.make_span();
-            let then_expr = self.parse_ternary()?; // right-associative
+            self.enter_recursion()?;
+            let then_expr = self.parse_ternary()?;
+            self.leave_recursion();
             self.expect(&lexer::Token::Colon)?;
-            let else_expr = self.parse_ternary()?; // right-associative
+            self.enter_recursion()?;
+            let else_expr = self.parse_ternary()?;
+            self.leave_recursion();
             Ok(ast::Expr::Ternary {
                 condition: Box::new(expr),
                 then_expr: Box::new(then_expr),
@@ -217,62 +228,84 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Result<ast::Expr, String> {
-        // Prefix increment/decrement: ++x desugars to x = x + 1
-        if self.match_token(&lexer::Token::PlusPlus) {
-            let span = self.make_span();
-            let expr = self.parse_unary()?;
-            // Desugar ++x to x = x + 1
-            let one = ast::Expr::Literal(ast::Literal::Int(1), span);
-            let increment = ast::Expr::Binary(Box::new(expr.clone()), ast::Operator::Add, Box::new(one), span);
-            return Ok(ast::Expr::Assign(Box::new(expr), Box::new(increment), span));
+        // Collect prefix operators iteratively to avoid deep recursion on
+        // inputs like `!!!!...!!!!x`. Each operator would otherwise add a
+        // stack frame, causing STATUS_STACK_OVERFLOW on pathologically long
+        // prefix chains.
+        enum PrefixOp {
+            Increment,
+            Decrement,
+            Not,
+            Neg,
+            BitNot,
+            Deref,
+            RefImmutable,
+            RefMutable,
         }
-        if self.match_token(&lexer::Token::MinusMinus) {
-            let span = self.make_span();
-            let expr = self.parse_unary()?;
-            // Desugar --x to x = x - 1
-            let one = ast::Expr::Literal(ast::Literal::Int(1), span);
-            let decrement = ast::Expr::Binary(Box::new(expr.clone()), ast::Operator::Sub, Box::new(one), span);
-            return Ok(ast::Expr::Assign(Box::new(expr), Box::new(decrement), span));
-        }
-        if self.match_token(&lexer::Token::Not) {
-            let span = self.make_span();
-            let expr = self.parse_unary()?;
-            return Ok(ast::Expr::Unary(ast::UnOp::Not, Box::new(expr), span));
-        }
-        if self.match_token(&lexer::Token::Minus) {
-            let span = self.make_span();
-            let expr = self.parse_unary()?;
-            return Ok(ast::Expr::Unary(ast::UnOp::Neg, Box::new(expr), span));
-        }
-        if self.match_token(&lexer::Token::Tilde) {
-            let span = self.make_span();
-            let expr = self.parse_unary()?;
-            return Ok(ast::Expr::Unary(ast::UnOp::BitNot, Box::new(expr), span));
-        }
-        if self.match_token(&lexer::Token::Star) {
-            // *expr — dereference (OwnedDeref or raw pointer deref)
-            let span = self.make_span();
-            let expr = self.parse_unary()?;
-            return Ok(ast::Expr::OwnedDeref(Box::new(expr), span));
-        }
-        if self.match_token(&lexer::Token::Ampersand) {
-            // &expr or &mut expr
-            let span = self.make_span();
-            if self.match_token(&lexer::Token::RefMut) {
-                // This shouldn't happen since &mut is lexed as RefMut, but handle just in case
-                let expr = self.parse_unary()?;
-                return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Mutable, span));
+        let mut ops: Vec<(PrefixOp, ast::Span)> = Vec::new();
+        loop {
+            if self.match_token(&lexer::Token::PlusPlus) {
+                ops.push((PrefixOp::Increment, self.make_span()));
+            } else if self.match_token(&lexer::Token::MinusMinus) {
+                ops.push((PrefixOp::Decrement, self.make_span()));
+            } else if self.match_token(&lexer::Token::Not) {
+                ops.push((PrefixOp::Not, self.make_span()));
+            } else if self.match_token(&lexer::Token::Minus) {
+                ops.push((PrefixOp::Neg, self.make_span()));
+            } else if self.match_token(&lexer::Token::Tilde) {
+                ops.push((PrefixOp::BitNot, self.make_span()));
+            } else if self.match_token(&lexer::Token::Star) {
+                ops.push((PrefixOp::Deref, self.make_span()));
+            } else if self.match_token(&lexer::Token::Ampersand) {
+                if self.match_token(&lexer::Token::RefMut) {
+                    ops.push((PrefixOp::RefMutable, self.make_span()));
+                } else {
+                    ops.push((PrefixOp::RefImmutable, self.make_span()));
+                }
+            } else if self.match_token(&lexer::Token::RefMut) {
+                ops.push((PrefixOp::RefMutable, self.make_span()));
+            } else {
+                break;
             }
-            let expr = self.parse_unary()?;
-            return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Immutable, span));
         }
-        if self.match_token(&lexer::Token::RefMut) {
-            // &mut expr
-            let span = self.make_span();
-            let expr = self.parse_unary()?;
-            return Ok(ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Mutable, span));
+        // Parse the operand (postfix/primary expression).
+        let mut expr = self.parse_postfix()?;
+        // Apply prefix operators in reverse order (rightmost first).
+        for (op, span) in ops.into_iter().rev() {
+            expr = match op {
+                PrefixOp::Increment => {
+                    let one = ast::Expr::Literal(ast::Literal::Int(1), span);
+                    let increment = ast::Expr::Binary(
+                        Box::new(expr.clone()),
+                        ast::Operator::Add,
+                        Box::new(one),
+                        span,
+                    );
+                    ast::Expr::Assign(Box::new(expr), Box::new(increment), span)
+                }
+                PrefixOp::Decrement => {
+                    let one = ast::Expr::Literal(ast::Literal::Int(1), span);
+                    let decrement = ast::Expr::Binary(
+                        Box::new(expr.clone()),
+                        ast::Operator::Sub,
+                        Box::new(one),
+                        span,
+                    );
+                    ast::Expr::Assign(Box::new(expr), Box::new(decrement), span)
+                }
+                PrefixOp::Not => ast::Expr::Unary(ast::UnOp::Not, Box::new(expr), span),
+                PrefixOp::Neg => ast::Expr::Unary(ast::UnOp::Neg, Box::new(expr), span),
+                PrefixOp::BitNot => ast::Expr::Unary(ast::UnOp::BitNot, Box::new(expr), span),
+                PrefixOp::Deref => ast::Expr::OwnedDeref(Box::new(expr), span),
+                PrefixOp::RefImmutable => {
+                    ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Immutable, span)
+                }
+                PrefixOp::RefMutable => {
+                    ast::Expr::RefExpr(Box::new(expr), ast::RefKind::Mutable, span)
+                }
+            };
         }
-        self.parse_postfix()
+        Ok(expr)
     }
 
     // Heuristic for desugar: richie-rich90454's magic
