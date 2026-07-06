@@ -35,5 +35,8 @@ inkwell = { version = "0.9", default-features = false, features = ["llvm22-1-no-
 # directly via build.rs instead of going through llvm-config.
 llvm-sys = { version = "221", features = ["disable-alltargets-init"] }
 
+[dev-dependencies]
+inkwell = { version = "0.9", default-features = false, features = ["llvm22-1-no-llvm-linking", "target-x86"] }
+
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
