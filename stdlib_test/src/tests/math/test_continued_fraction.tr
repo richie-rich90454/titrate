@@ -3,12 +3,11 @@
 import tt::util::ArrayList;
 import tt::util::Pair;
 import tt::math::ContinuedFraction;
-import tt::math::ContinuedFraction::ContinuedFraction as CF;
 import tt::lang::Integer;
 import tt::lang::Double;
 
 public fn test_continued_fraction_creation(): void {
-    let cf: CF = new CF();
+    let cf: ContinuedFraction = new ContinuedFraction();
     cf.terms.add(1);
     cf.terms.add(2);
     cf.terms.add(3);
@@ -23,7 +22,7 @@ public fn test_continued_fraction_creation(): void {
 
 public fn test_from_double(): void {
     // 0.5 = 1/2 -> continued fraction [0; 2]
-    let cf: CF = ContinuedFraction.fromDouble(0.5, 10);
+    let cf: ContinuedFraction = ContinuedFraction.fromDouble(0.5, 10);
     if (cf.terms.size() < 2) {
         io::println("FAIL: fromDouble terms size = " + Integer.toString(cf.terms.size()));
         return;
@@ -33,7 +32,7 @@ public fn test_from_double(): void {
 
 public fn test_from_rational(): void {
     // 22/7 -> continued fraction [3; 7]
-    let cf: CF = ContinuedFraction.fromRational(22, 7);
+    let cf: ContinuedFraction = ContinuedFraction.fromRational(22, 7);
     if (cf.terms.size() < 2) {
         io::println("FAIL: fromRational terms size = " + Integer.toString(cf.terms.size()));
         return;
@@ -66,7 +65,7 @@ public fn test_best_rational_approximation_int(): void {
 
 public fn test_golden_ratio(): void {
     // Golden ratio continued fraction is [1; 1, 1, 1, ...]
-    let cf: CF = ContinuedFraction.goldenRatio(5);
+    let cf: ContinuedFraction = ContinuedFraction.goldenRatio(5);
     if (cf.terms.size() != 5) {
         io::println("FAIL: goldenRatio terms size = " + Integer.toString(cf.terms.size()));
         return;
@@ -86,7 +85,7 @@ public fn test_golden_ratio(): void {
 
 public fn test_sqrt_continued(): void {
     // sqrt(2) continued fraction is [1; 2, 2, 2, ...]
-    let cf: CF = ContinuedFraction.sqrtContinued(2.0, 5);
+    let cf: ContinuedFraction = ContinuedFraction.sqrtContinued(2.0, 5);
     if (cf.terms.size() < 2) {
         io::println("FAIL: sqrtContinued terms size = " + Integer.toString(cf.terms.size()));
         return;
@@ -99,7 +98,7 @@ public fn test_sqrt_continued(): void {
 }
 
 public fn test_pi_continued(): void {
-    let cf: CF = ContinuedFraction.piContinued(5);
+    let cf: ContinuedFraction = ContinuedFraction.piContinued(5);
     if (cf.terms.size() == 0) {
         io::println("FAIL: piContinued empty");
     } else {
@@ -109,7 +108,7 @@ public fn test_pi_continued(): void {
 
 public fn test_e_continued(): void {
     // e continued fraction is [2; 1, 2, 1, 1, 4, 1, 1, 6, ...]
-    let cf: CF = ContinuedFraction.eContinued(5);
+    let cf: ContinuedFraction = ContinuedFraction.eContinued(5);
     if (cf.terms.size() == 0) {
         io::println("FAIL: eContinued empty");
     } else if (cf.terms.get(0) != 2) {
@@ -120,7 +119,7 @@ public fn test_e_continued(): void {
 }
 
 public fn test_continued_fraction_convergents(): void {
-    let cf: CF = new CF();
+    let cf: ContinuedFraction = new ContinuedFraction();
     cf.terms.add(1);
     cf.terms.add(2);
     cf.terms.add(3);
@@ -133,7 +132,7 @@ public fn test_continued_fraction_convergents(): void {
 }
 
 public fn test_continued_fraction_to_string(): void {
-    let cf: CF = new CF();
+    let cf: ContinuedFraction = new ContinuedFraction();
     cf.terms.add(1);
     cf.terms.add(2);
     let s: string = cf.toString();
