@@ -90,3 +90,23 @@ pub extern "C" fn LLVM_InitializeNativeDisassembler() -> i32 {
     unsafe { LLVMInitializeX86Disassembler() };
     0
 }
+
+/// Initialize the X86 target directly. This bypasses the `#[no_mangle]`
+/// `LLVM_InitializeNativeTarget` indirection (which inkwell calls via
+/// llvm-sys) because that symbol resolution can fail when the inkwell
+/// feature version (e.g. `llvm22-1`) does not exactly match the installed
+/// LLVM version (e.g. 23.0.0). Calling the individual
+/// `LLVMInitializeX86*` functions directly avoids the version-coupled FFI
+/// path and works as long as the X86 target is linked into `LLVM-C.dll`.
+pub fn initialize_x86() {
+    // SAFETY: these are plain initialisation functions with no preconditions
+    // and no meaningful return value. They are idempotent and thread-safe by
+    // LLVM contract. Calling them more than once is a no-op.
+    unsafe {
+        LLVMInitializeX86TargetInfo();
+        LLVMInitializeX86Target();
+        LLVMInitializeX86TargetMC();
+        LLVMInitializeX86AsmPrinter();
+        LLVMInitializeX86AsmParser();
+    }
+}

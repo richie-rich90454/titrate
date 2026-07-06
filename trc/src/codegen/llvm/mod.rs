@@ -37,7 +37,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::{Linkage, Module};
 use inkwell::targets::{
-    CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetMachine,
+    CodeModel, FileType, RelocMode, Target, TargetMachine,
 };
 use inkwell::types::{BasicType, BasicTypeEnum};
 use inkwell::values::{
@@ -1052,6 +1052,14 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_signed_int_to_float failed: {:?}", e))?;
             return Ok(result.into());
         }
+        // float -> int (explicit `as` cast, e.g. `3.14 as int`)
+        if v.is_float_value() && target_ty.is_int_type() {
+            let from = v.into_float_value();
+            let to_ty = target_ty.into_int_type();
+            let result = self.builder.build_float_to_signed_int(from, to_ty, "cast.ftoi")
+                .map_err(|e| format!("build_float_to_signed_int failed: {:?}", e))?;
+            return Ok(result.into());
+        }
         // If types don't match but we can't cast, just return as-is and hope.
         Ok(v)
     }
@@ -1363,6 +1371,19 @@ impl<'ctx> LlvmBackend<'ctx> {
                 "codegen: no interface vtable for '{}' as '{}'",
                 class_name, type_name
             ));
+        }
+        // Numeric cast (int -> float, float -> int, int -> int, float -> float).
+        // This handles expressions like `(i / 4) as double` where the operand
+        // is a primitive numeric value, not a pointer.
+        if llvm_types::is_numeric(ty) {
+            let obj_val = self.compile_expr(obj)?;
+            // If the operand is a pointer, fall through to the class-cast path
+            // below (a numeric `as` cast on a pointer would be a type error
+            // elsewhere, but we keep the existing pointer-handling behavior).
+            if !obj_val.is_pointer_value() {
+                let target_ty = llvm_types::llvm_type(self.context, ty)?;
+                return self.cast_value_to_type(obj_val, target_ty);
+            }
         }
         // Simple class cast: identity.
         let obj_val = self.compile_expr(obj)?;
@@ -3459,9 +3480,14 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Write the module to an object file using the native target.
     fn write_object(&self, path: &Path, release: bool) -> Result<(), String> {
-        let init_config = InitializationConfig::default();
-        Target::initialize_native(&init_config)
-            .map_err(|e| format!("failed to initialize native target: {}", e))?;
+        // Initialize the X86 target directly via the individual
+        // LLVMInitializeX86* functions. This avoids relying on the
+        // #[no_mangle] LLVM_InitializeNativeTarget symbol (called by
+        // inkwell's Target::initialize_native), which may not resolve
+        // correctly when the inkwell feature version and the installed
+        // LLVM version differ. The X86 target is always available because
+        // the `target-x86` inkwell feature is enabled.
+        target_wrappers::initialize_x86();
 
         let triple = TargetMachine::get_default_triple();
         let target = Target::from_triple(&triple)
