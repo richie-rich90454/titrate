@@ -217,6 +217,12 @@ pub(crate) fn native_signal_register(args: &[Value]) -> Result<Value, String> {
     // SIG_ERR is defined as ((_sig_func)-1), i.e. all-ones pointer.
     const SIG_ERR: usize = usize::MAX;
 
+    // SAFETY: `signal` is an extern "C" function from the C standard library.
+    // `signum` is an i32 obtained from a Titrate Int/Long value, and
+    // `signal_handler` is an `extern "C" fn(i32)` stored in a static and used
+    // only as an async-signal-safe flag-setter. The call matches the POSIX
+    // `signal(2)` contract: it installs the handler atomically and returns the
+    // previous handler (or SIG_ERR on failure, which we check below).
     let prev = unsafe { signal(signum, signal_handler) };
     if prev == SIG_ERR {
         return Err(format!(
@@ -236,6 +242,10 @@ pub(crate) fn native_signal_raise(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Signal_raise: expected a signal number".to_string()),
     };
 
+    // SAFETY: `raise` is an extern "C" function from the C standard library.
+    // `signum` is an i32 derived from a Titrate Int/Long value. The call
+    // satisfies the POSIX `raise(2)` contract — it sends the signal to the
+    // calling process and returns 0 on success, non-zero on error (checked).
     let rc = unsafe { raise(signum) };
     if rc != 0 {
         return Err(format!("Signal_raise: failed to raise signal {}", signum));
@@ -409,6 +419,11 @@ pub(crate) fn native_os_kill(args: &[Value]) -> Result<Value, String> {
     #[cfg(unix)]
     {
         // Use libc::kill directly (libc is already a dependency)
+        // SAFETY: `libc::kill` is FFI to POSIX `kill(2)`. `pid` is an i64 cast
+        // to `libc::pid_t` and `_sig` is an i64 cast to `libc::c_int`; both
+        // originate from Titrate Int/Long values. The contract requires only
+        // valid integer arguments, which we provide. The return value is
+        // checked for errors below.
         let ret = unsafe { libc::kill(pid as libc::pid_t, _sig as libc::c_int) };
         if ret == 0 {
             Ok(Value::Void)
@@ -449,6 +464,10 @@ pub(crate) fn native_os_umask(args: &[Value]) -> Result<Value, String> {
 
     #[cfg(unix)]
     {
+        // SAFETY: `libc::umask` is FFI to POSIX `umask(2)`. `mask` is a u32
+        // cast to `libc::mode_t`, derived from a Titrate Int/Long value. The
+        // contract requires only a valid mode_t argument, which we provide.
+        // The previous mask is returned and stored as a Long.
         let old_mask = unsafe { libc::umask(mask as libc::mode_t) };
         Ok(Value::Long(old_mask as i64))
     }
@@ -459,6 +478,10 @@ pub(crate) fn native_os_umask(args: &[Value]) -> Result<Value, String> {
         extern "C" {
             fn _umask(mode: i32) -> i32;
         }
+        // SAFETY: `_umask` is the MSVCRT `_umask` function declared above as
+        // `extern "C"`. `mask` is an i32 derived from a Titrate Int/Long
+        // value. The function takes a single int and returns the previous
+        // mask; the contract is satisfied.
         let old = unsafe { _umask(mask as i32) };
         Ok(Value::Long(old as i64))
     }
@@ -532,6 +555,8 @@ pub(crate) fn native_os_getppid(_args: &[Value]) -> Result<Value, String> {
     #[cfg(unix)]
     {
         // On Unix, get the parent process ID via libc
+        // SAFETY: `libc::getppid` is FFI to POSIX `getppid(2)`. It takes no
+        // arguments and has no preconditions; the call is always sound.
         let ppid = unsafe { libc::getppid() };
         Ok(Value::Int(ppid as i32))
     }
@@ -563,29 +588,52 @@ pub(crate) fn native_os_getppid(_args: &[Value]) -> Result<Value, String> {
             fn GetCurrentProcessId() -> u32;
         }
 
+        // SAFETY: `CreateToolhelp32Snapshot` is a Windows API FFI declared
+        // above as `extern "system"`. `TH32CS_SNAPPROCESS` is a constant
+        // (0x2) and the pid argument is 0 (current process), both valid per
+        // MSDN. The returned handle is checked against INVALID_HANDLE_VALUE
+        // before use and closed via `CloseHandle` at the end of the block.
         let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) };
         if snapshot == INVALID_HANDLE_VALUE {
             return Ok(Value::Int(0));
         }
 
+        // SAFETY: `ProcessEntry32W` is a `#[repr(C)]` struct of integer
+        // fields only (u32, usize, i32, [u16; 260]). All-zero bit patterns
+        // are valid for every field. `dw_size` is immediately overwritten
+        // with the actual struct size before the struct is passed to any API.
         let mut entry: ProcessEntry32W = unsafe { std::mem::zeroed() };
         entry.dw_size = std::mem::size_of::<ProcessEntry32W>() as u32;
 
+        // SAFETY: `GetCurrentProcessId` is a Windows API FFI declared above
+        // as `extern "system"`. It takes no arguments and has no
+        // preconditions; the call is always sound and returns the current
+        // process's PID.
         let my_pid = unsafe { GetCurrentProcessId() };
         let mut ppid: i32 = 0;
 
+        // SAFETY: `Process32FirstW` is a Windows API FFI. `snapshot` was
+        // returned by `CreateToolhelp32Snapshot` and checked against
+        // INVALID_HANDLE_VALUE; `entry` is a valid `*mut ProcessEntry32W`
+        // with `dw_size` set to the struct size, as required by MSDN.
         if unsafe { Process32FirstW(snapshot, &mut entry) } != 0 {
             loop {
                 if entry.th32_process_id == my_pid {
                     ppid = entry.th32_parent_process_id as i32;
                     break;
                 }
+                // SAFETY: Same as `Process32FirstW` — `snapshot` is a valid
+                // handle and `entry` is a properly initialized pointer to a
+                // `ProcessEntry32W` struct.
                 if unsafe { Process32NextW(snapshot, &mut entry) } == 0 {
                     break;
                 }
             }
         }
 
+        // SAFETY: `CloseHandle` is a Windows API FFI. `snapshot` is a valid
+        // handle returned by `CreateToolhelp32Snapshot` and not yet closed;
+        // after this call it is no longer used, matching the MSDN contract.
         unsafe { CloseHandle(snapshot) };
         Ok(Value::Int(ppid))
     }
@@ -598,10 +646,19 @@ pub(crate) fn native_os_strerror(args: &[Value]) -> Result<Value, String> {
     };
     #[cfg(unix)]
     {
+        // SAFETY: `libc::strerror` is FFI to POSIX `strerror(3)`. `code` is
+        // an i32 derived from a Titrate Int value, cast to `libc::c_int`. The
+        // function returns a pointer to a thread-local or static string; we
+        // only read it via `CStr::from_ptr` below and never free it. The null
+        // pointer is checked before dereferencing.
         let ptr = unsafe { libc::strerror(code as libc::c_int) };
         if ptr.is_null() {
             Ok(Value::String(Rc::new(format!("error {}", code))))
         } else {
+            // SAFETY: `ptr` was returned by `libc::strerror` and checked for
+            // null above. `strerror` returns a valid NUL-terminated C string
+            // that remains valid for the duration of this call, so
+            // `CStr::from_ptr` can safely borrow it without copying.
             let msg = unsafe { std::ffi::CStr::from_ptr(ptr) }
                 .to_string_lossy()
                 .to_string();
@@ -749,6 +806,10 @@ pub(crate) fn native_os_access(args: &[Value]) -> Result<Value, String> {
             4 => libc::R_OK,
             _ => libc::F_OK,
         };
+        // SAFETY: `libc::access` is FFI to POSIX `access(2)`. `c_path` is a
+        // valid NUL-terminated `CString` (construction checked above) and
+        // `c_mode` is one of the constants F_OK/X_OK/W_OK/R_OK. The contract
+        // is satisfied; the return value indicates success/failure.
         let ret = unsafe { libc::access(c_path.as_ptr(), c_mode) };
         Ok(Value::Bool(ret == 0))
     }
@@ -834,6 +895,11 @@ pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
     {
         let c_path = std::ffi::CString::new(path)
             .map_err(|e| format!("Fs_totalSpace: invalid path: {}", e))?;
+        // SAFETY: `libc::statvfs` is a POD struct of integer fields for which
+        // an all-zero bit pattern is valid, so `std::mem::zeroed()` is sound.
+        // `c_path` is a valid NUL-terminated `CString` and `&mut statvfs_buf`
+        // is a valid `*mut libc::statvfs`. The POSIX `statvfs(2)` contract is
+        // satisfied; the return value is checked for errors below.
         let mut statvfs_buf: libc::statvfs = unsafe { std::mem::zeroed() };
         let ret = unsafe { libc::statvfs(c_path.as_ptr(), &mut statvfs_buf) };
         if ret != 0 {
@@ -865,6 +931,11 @@ pub(crate) fn native_fs_total_space(args: &[Value]) -> Result<Value, String> {
         let mut total_bytes: u64 = 0;
         let mut total_free_bytes: u64 = 0;
 
+        // SAFETY: `GetDiskFreeSpaceExW` is a Windows API FFI declared above
+        // as `extern "system"`. `wide` is a NUL-terminated UTF-16 path
+        // constructed via `OsStrExt::encode_wide` + trailing 0; the three
+        // out-pointers are valid `&mut u64` locals. The contract per MSDN is
+        // satisfied; the return value is checked (0 = failure).
         let ret = unsafe {
             GetDiskFreeSpaceExW(
                 wide.as_ptr(),
@@ -893,6 +964,11 @@ pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
     {
         let c_path = std::ffi::CString::new(path)
             .map_err(|e| format!("Fs_freeSpace: invalid path: {}", e))?;
+        // SAFETY: `libc::statvfs` is a POD struct of integer fields for which
+        // an all-zero bit pattern is valid, so `std::mem::zeroed()` is sound.
+        // `c_path` is a valid NUL-terminated `CString` and `&mut statvfs_buf`
+        // is a valid `*mut libc::statvfs`. The POSIX `statvfs(2)` contract is
+        // satisfied; the return value is checked for errors below.
         let mut statvfs_buf: libc::statvfs = unsafe { std::mem::zeroed() };
         let ret = unsafe { libc::statvfs(c_path.as_ptr(), &mut statvfs_buf) };
         if ret != 0 {
@@ -924,6 +1000,11 @@ pub(crate) fn native_fs_free_space(args: &[Value]) -> Result<Value, String> {
         let mut total_bytes: u64 = 0;
         let mut total_free_bytes: u64 = 0;
 
+        // SAFETY: `GetDiskFreeSpaceExW` is a Windows API FFI declared above
+        // as `extern "system"`. `wide` is a NUL-terminated UTF-16 path
+        // constructed via `OsStrExt::encode_wide` + trailing 0; the three
+        // out-pointers are valid `&mut u64` locals. The contract per MSDN is
+        // satisfied; the return value is checked (0 = failure).
         let ret = unsafe {
             GetDiskFreeSpaceExW(
                 wide.as_ptr(),

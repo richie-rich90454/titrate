@@ -342,6 +342,16 @@ impl TryFrom<u8> for OpCode {
     fn try_from(value: u8) -> Result<Self, Self::Error> {
         // Validate that the value falls within the defined opcode range.
         match value {
+            // SAFETY: `OpCode` is declared `#[repr(u8)]` and has exactly 130 unit
+            // variants with explicit discriminants 0 (PUSH_I8) through 129
+            // (USHR_I64). The match arm guard above constrains `value` to the
+            // inclusive range 0..=129, so every possible byte value reaching the
+            // transmute corresponds to a valid enum discriminant. Because the
+            // representation is `u8` and the enum carries no payload, the bit
+            // pattern of `value` is identical to the in-memory representation of
+            // the corresponding `OpCode` variant; the transmute therefore
+            // produces a valid discriminant and does not invoke undefined
+            // behavior. Values outside 0..=129 are rejected via `Err`.
             0..=129 => Ok(unsafe { std::mem::transmute::<u8, OpCode>(value) }),
             _ => Err(value),
         }
