@@ -1,6 +1,5 @@
 import tt::util::ArrayList;
 import tt::math::ndarray::NDArray;
-import tt::math::ndarray::NDArray as ND;
 
 fn absDiff(a: double, b: double): double {
     let d: double = a - b;

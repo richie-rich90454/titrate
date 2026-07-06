@@ -3,6 +3,7 @@
 // info, working directory, directory listing/creation/removal, file status,
 // path separators, scandir, walk, and related helpers.
 import tt::sys::Os;
+import tt::sys::Os::DirEntry;
 import tt::io::File;
 import tt::util::ArrayList;
 import tt::util::HashMap;
@@ -269,7 +270,7 @@ public fn test_os_scandir(): void {
     let f: File = new File(dir + "/x.txt");
     f.write("x");
     f.close();
-    let entries: ArrayList<Os.DirEntry> = Os.scandir(dir);
+    let entries: ArrayList<DirEntry> = Os.scandir(dir);
     if (entries.size() != 1) {
         io::println("FAIL: Os.scandir size=" + Integer.toString(entries.size()));
     } else {

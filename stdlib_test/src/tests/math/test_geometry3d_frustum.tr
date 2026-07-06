@@ -1,14 +1,14 @@
 // Test file for geometry3d/Frustum.tr
 // Exercises the public API for 3D view frustum.
 import tt::math::geometry3d::Frustum;
-import tt::math::geometry3d::Frustum as FrustumObj;
 import tt::math::geometry3d::AABB;
+import tt::math::geometry3d::Plane;
 import tt::lang::Double;
 
 public fn test_frustum_creation(): void {
     // Build frustum from 6 planes (near, far, left, right, top, bottom)
     // Simple symmetric frustum
-    let planes: ArrayList<Frustum::Plane> = new ArrayList<Frustum::Plane>();
+    let planes: ArrayList<Plane> = new ArrayList<Plane>();
     io::println("PASS: Frustum creation placeholder");
 }
 

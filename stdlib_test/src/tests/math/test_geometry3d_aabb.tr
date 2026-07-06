@@ -1,7 +1,6 @@
 // Test file for geometry3d/AABB.tr
 // Exercises the public API for 3D axis-aligned bounding boxes.
 import tt::math::geometry3d::AABB;
-import tt::math::geometry3d::AABB as AABBBox;
 import tt::lang::Double;
 
 public fn test_aabb_creation(): void {

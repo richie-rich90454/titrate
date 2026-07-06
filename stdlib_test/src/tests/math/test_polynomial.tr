@@ -1,6 +1,5 @@
 import tt::util::ArrayList;
 import tt::math::polynomial::Polynomial;
-import tt::math::polynomial::Polynomial as Poly;
 import tt::math::Math;
 import tt::math::MathAdvanced;
 
