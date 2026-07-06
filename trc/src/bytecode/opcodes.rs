@@ -272,7 +272,7 @@ impl OpCode {
             Self::STORE_UPVALUE => 1,
 
             // Objects
-            Self::NEW             => 2, // u16 class index
+            Self::NEW             => 3, // u16 class index + u8 arg count
             Self::INVOKE_VIRTUAL  => 3, // u16 method name + u8 arg count
             Self::GET_FIELD       => 2, // u16 field name
             Self::SET_FIELD       => 2,
