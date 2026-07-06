@@ -2,13 +2,15 @@
 // Exercises the public API of the pipe module: PipeReader, PipeWriter,
 // createPipe, and NamedPipe (platform-aware).
 import tt::io::Pipe;
+import tt::io::Pipe::PipeReader;
+import tt::io::Pipe::PipeWriter;
 import tt::util::Pair;
 import tt::lang::Integer;
 
 public fn test_pipe_writer_to_reader(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let reader: Pipe.PipeReader = pair.first();
-    let writer: Pipe.PipeWriter = pair.second();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let reader: PipeReader = pair.first();
+    let writer: PipeWriter = pair.second();
     writer.write("hello pipe");
     let data: string = reader.read();
     if (data != "hello pipe") {
@@ -20,9 +22,9 @@ public fn test_pipe_writer_to_reader(): void {
 }
 
 public fn test_pipe_writeLine_readLine(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let reader: Pipe.PipeReader = pair.first();
-    let writer: Pipe.PipeWriter = pair.second();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let reader: PipeReader = pair.first();
+    let writer: PipeWriter = pair.second();
     writer.writeLine("line one");
     writer.writeLine("line two");
     let l1: string = reader.readLine();
@@ -36,9 +38,9 @@ public fn test_pipe_writeLine_readLine(): void {
 }
 
 public fn test_pipe_isDataAvailable(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let reader: Pipe.PipeReader = pair.first();
-    let writer: Pipe.PipeWriter = pair.second();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let reader: PipeReader = pair.first();
+    let writer: PipeWriter = pair.second();
     if (reader.isDataAvailable()) {
         io::println("FAIL: Pipe isDataAvailable true when empty");
     } else {
@@ -54,9 +56,9 @@ public fn test_pipe_isDataAvailable(): void {
 }
 
 public fn test_pipe_available(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let reader: Pipe.PipeReader = pair.first();
-    let writer: Pipe.PipeWriter = pair.second();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let reader: PipeReader = pair.first();
+    let writer: PipeWriter = pair.second();
     writer.write("a");
     writer.write("b");
     if (reader.available() != 2) {
@@ -68,9 +70,9 @@ public fn test_pipe_available(): void {
 }
 
 public fn test_pipe_readAll(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let reader: Pipe.PipeReader = pair.first();
-    let writer: Pipe.PipeWriter = pair.second();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let reader: PipeReader = pair.first();
+    let writer: PipeWriter = pair.second();
     writer.write("chunk1");
     writer.write("chunk2");
     let all: string = reader.readAll();
@@ -83,8 +85,8 @@ public fn test_pipe_readAll(): void {
 }
 
 public fn test_pipe_read_empty(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let reader: Pipe.PipeReader = pair.first();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let reader: PipeReader = pair.first();
     let data: string = reader.read();
     if (data != "") {
         io::println("FAIL: Pipe read on empty = '" + data + "'");
@@ -95,9 +97,9 @@ public fn test_pipe_read_empty(): void {
 }
 
 public fn test_pipe_close_isClosed(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let reader: Pipe.PipeReader = pair.first();
-    let writer: Pipe.PipeWriter = pair.second();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let reader: PipeReader = pair.first();
+    let writer: PipeWriter = pair.second();
     if (reader.isClosed() || writer.isClosed()) {
         io::println("FAIL: Pipe isClosed true before close");
     } else {
@@ -112,9 +114,9 @@ public fn test_pipe_close_isClosed(): void {
 }
 
 public fn test_pipe_getReader(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let writer: Pipe.PipeWriter = pair.second();
-    let reader: Pipe.PipeReader = writer.getReader();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let writer: PipeWriter = pair.second();
+    let reader: PipeReader = writer.getReader();
     writer.write("via getReader");
     let data: string = reader.read();
     if (data != "via getReader") {
@@ -126,9 +128,9 @@ public fn test_pipe_getReader(): void {
 }
 
 public fn test_pipe_write_after_close(): void {
-    let pair: Pair<Pipe.PipeReader, Pipe.PipeWriter> = Pipe.createPipe();
-    let reader: Pipe.PipeReader = pair.first();
-    let writer: Pipe.PipeWriter = pair.second();
+    let pair: Pair<PipeReader, PipeWriter> = Pipe.createPipe();
+    let reader: PipeReader = pair.first();
+    let writer: PipeWriter = pair.second();
     writer.close();
     // Writing after close should be a no-op (not throw).
     writer.write("ignored");
