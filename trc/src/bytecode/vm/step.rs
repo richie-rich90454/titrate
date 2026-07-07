@@ -3,7 +3,7 @@
 
 use super::super::frame::Frame;
 use super::super::opcodes::{OpCode, CastTarget, TypeTag};
-use super::super::value::Value;
+use super::super::value::{Value, values_eq};
 use super::Vm;
 use std::char;
 use std::rc::Rc;
@@ -488,8 +488,20 @@ impl Vm {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x == y)),
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(x == y)),
                     (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool(x == y)),
-                    (Value::Null, Value::String(_)) | (Value::String(_), Value::Null) => self.push(Value::Bool(false)),
                     (Value::Null, Value::Null) => self.push(Value::Bool(true)),
+                    (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(false)),
+                    (Value::ClassInstance { fields: f1, .. }, Value::ClassInstance { fields: f2, .. }) => {
+                        self.push(Value::Bool(Rc::ptr_eq(f1, f2)))
+                    }
+                    (Value::EnumInstance { .. }, Value::EnumInstance { .. }) => {
+                        self.push(Value::Bool(false))
+                    }
+                    (Value::Array { elements: e1 }, Value::Array { elements: e2 }) => {
+                        self.push(Value::Bool(e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))))
+                    }
+                    (Value::Tuple { elements: e1 }, Value::Tuple { elements: e2 }) => {
+                        self.push(Value::Bool(e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))))
+                    }
                     _ => return Err(format!("EQ_I64: type mismatch {:?} == {:?}", a, b)),
                 }
             }
@@ -558,8 +570,20 @@ impl Vm {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x != y)),
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(x != y)),
                     (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool(x != y)),
-                    (Value::Null, Value::String(_)) | (Value::String(_), Value::Null) => self.push(Value::Bool(true)),
                     (Value::Null, Value::Null) => self.push(Value::Bool(false)),
+                    (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(true)),
+                    (Value::ClassInstance { fields: f1, .. }, Value::ClassInstance { fields: f2, .. }) => {
+                        self.push(Value::Bool(!Rc::ptr_eq(f1, f2)))
+                    }
+                    (Value::EnumInstance { .. }, Value::EnumInstance { .. }) => {
+                        self.push(Value::Bool(true))
+                    }
+                    (Value::Array { elements: e1 }, Value::Array { elements: e2 }) => {
+                        self.push(Value::Bool(!(e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y)))))
+                    }
+                    (Value::Tuple { elements: e1 }, Value::Tuple { elements: e2 }) => {
+                        self.push(Value::Bool(!(e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y)))))
+                    }
                     _ => return Err(format!("NE_I64: type mismatch {:?} != {:?}", a, b)),
                 }
             }
