@@ -301,8 +301,8 @@ impl Vm {
             ("String" | "string", "charAt") => {
                 let index = self.pop();
                 let val = self.pop();
-                match (&val, &index) {
-                    (Value::String(s), Value::Int(i)) => {
+                match (&val, &index.to_i64()) {
+                    (Value::String(s), Some(i)) => {
                         let idx = *i as usize;
                         if idx < s.chars().count() {
                             self.push(Value::Char(s.chars().nth(idx).unwrap()));
@@ -326,11 +326,13 @@ impl Vm {
                 let end = self.pop();
                 let start = self.pop();
                 let val = self.pop();
-                match (&val, &start, &end) {
-                    (Value::String(s), Value::Int(si), Value::Int(ei)) => {
+                let s_idx_opt = start.to_i64();
+                let e_idx_opt = end.to_i64();
+                match (&val, &s_idx_opt, &e_idx_opt) {
+                    (Value::String(s), Some(si), Some(ei)) => {
                         let s_idx = *si as usize;
                         let e_idx = *ei as usize;
-                        let substring: String = s.chars().skip(s_idx).take(e_idx - s_idx).collect();
+                        let substring: String = s.chars().skip(s_idx).take(e_idx.saturating_sub(s_idx)).collect();
                         self.push(Value::String(Rc::new(substring)));
                     }
                     _ => {
