@@ -268,19 +268,21 @@ fn stdlib_runtest_all() {
         );
 
         if !compile_failures.is_empty() {
-            msg.push_str("\n--- COMPILE/RUN ERRORS (first 20) ---\n");
-            for (path, e) in compile_failures.iter().take(20) {
+            msg.push_str("\n--- COMPILE/RUN ERRORS (all) ---\n");
+            for (path, e) in compile_failures.iter().take(500) {
                 msg.push_str(&format!("\n[{}]\n{}\n", path.display(), e));
             }
         }
 
         if !test_failures.is_empty() {
-            msg.push_str("\n--- TEST FAILURES (FAIL: lines, first 20) ---\n");
-            for (path, e) in test_failures.iter().take(20) {
+            msg.push_str("\n--- TEST FAILURES (FAIL: lines, all) ---\n");
+            for (path, e) in test_failures.iter().take(500) {
                 msg.push_str(&format!("\n[{}]\n{}\n", path.display(), e));
             }
         }
 
+        // Write full error report to a file for analysis, then panic.
+        let _ = std::fs::write("stdlib_failures_detail.txt", &msg);
         panic!("{}", msg);
     }
 }
