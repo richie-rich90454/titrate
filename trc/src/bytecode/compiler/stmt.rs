@@ -271,7 +271,7 @@ impl Compiler {
     pub(super) fn compile_var_decl(&mut self, var_decl: &ast::VarDecl) -> Result<(), String> {
         let line = var_decl.span.line;
         // If this is a registered global, use STORE_GLOBAL.
-        if let Some(&global_idx) = self.global_map.get(&var_decl.name) {
+        if let Some(global_idx) = self.lookup_global(&var_decl.name) {
             if let Some(ref init) = var_decl.init {
                 self.compile_expr(init)?;
             } else {

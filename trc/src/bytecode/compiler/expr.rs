@@ -176,7 +176,7 @@ impl Compiler {
         }
 
         // Check module-level globals.
-        if let Some(&global_idx) = self.global_map.get(name) {
+        if let Some(global_idx) = self.lookup_global(name) {
             self.emit_opcode(OpCode::LOAD_GLOBAL, line);
             self.emit_u16(global_idx, line);
             return Ok(());
@@ -774,7 +774,7 @@ impl Compiler {
                     self.emit_opcode(OpCode::DUP, line);
                     self.emit_opcode(OpCode::STORE_LOCAL, line);
                     self.emit_u8(slot, line);
-                } else if let Some(&global_idx) = self.global_map.get(name) {
+                } else if let Some(global_idx) = self.lookup_global(name) {
                     self.emit_opcode(OpCode::DUP, line);
                     self.emit_opcode(OpCode::STORE_GLOBAL, line);
                     self.emit_u16(global_idx, line);

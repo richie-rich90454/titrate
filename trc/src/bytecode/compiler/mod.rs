@@ -186,6 +186,8 @@ pub struct Compiler {
     pub(super) globals: Vec<String>,
     /// Map from global variable name → index in globals.
     pub(super) global_map: HashMap<String, u16>,
+    /// Current module being compiled (used for mangled global lookups).
+    pub(super) current_module: String,
 }
 
 impl Compiler {
@@ -233,6 +235,7 @@ impl Compiler {
             closure_counter: 0,
             globals: Vec::new(),
             global_map: HashMap::new(),
+            current_module: "<main>".to_string(),
         }
     }
 
@@ -240,7 +243,20 @@ impl Compiler {
     // Main entry point
     // -----------------------------------------------------------------------
 
+    /// Look up a global variable by name, trying the mangled (module-qualified)
+    /// name first, then the short name.  Returns the global slot index.
+    pub(super) fn lookup_global(&self, name: &str) -> Option<u16> {
+        if !self.current_module.is_empty() && self.current_module != "<main>" {
+            let mangled = format!("{}.{}", self.current_module, name);
+            if let Some(&idx) = self.global_map.get(&mangled) {
+                return Some(idx);
+            }
+        }
+        self.global_map.get(name).copied()
+    }
+
     pub fn compile(&mut self, program: &ast::Program) -> Result<CompiledProgram, String> {
+        self.current_module = "<main>".to_string();
         // First pass: register all classes, enums, and functions (names and arities).
         for decl in &program.declarations {
             match decl {
@@ -434,6 +450,7 @@ impl Compiler {
         }
 
         // Step 5: Now compile the root program.
+        self.current_module = "<main>".to_string();
         // First pass: register all classes, enums, and functions.
         for decl in &program.declarations {
             match decl {

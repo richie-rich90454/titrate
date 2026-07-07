@@ -425,19 +425,22 @@ impl Compiler {
                     });
                 }
                 ast::Declaration::VarDecl(var_decl) => {
-                    // Register module-level variables as globals.
-                    if !self.global_map.contains_key(&var_decl.name) {
+                    // Register module-level variables as globals with mangled names
+                    // to avoid collisions between modules with same-named variables.
+                    let mangled = format!("{}.{}", module_name, var_decl.name);
+                    if !self.global_map.contains_key(&mangled) {
                         let idx = self.globals.len() as u16;
-                        self.globals.push(var_decl.name.clone());
-                        self.global_map.insert(var_decl.name.clone(), idx);
+                        self.globals.push(mangled.clone());
+                        self.global_map.insert(mangled, idx);
                     }
                 }
                 ast::Declaration::ConstDecl(const_decl) => {
-                    // Register module-level constants as globals.
-                    if !self.global_map.contains_key(&const_decl.name) {
+                    // Register module-level constants as globals with mangled names.
+                    let mangled = format!("{}.{}", module_name, const_decl.name);
+                    if !self.global_map.contains_key(&mangled) {
                         let idx = self.globals.len() as u16;
-                        self.globals.push(const_decl.name.clone());
-                        self.global_map.insert(const_decl.name.clone(), idx);
+                        self.globals.push(mangled.clone());
+                        self.global_map.insert(mangled, idx);
                     }
                 }
                 _ => {}
@@ -451,6 +454,8 @@ impl Compiler {
     /// `module_name` is the dotted module name (e.g. "tt.algo.Graph") used to
     /// construct exact mangled names for deterministic function/class lookup.
     pub(super) fn compile_module_program(&mut self, program: &ast::Program, module_name: &str) -> Result<(), String> {
+        let saved_current_module = self.current_module.clone();
+        self.current_module = module_name.to_string();
         for decl in &program.declarations {
             match decl {
                 ast::Declaration::Function(fn_decl) => {
@@ -570,7 +575,8 @@ impl Compiler {
                 }
                 ast::Declaration::VarDecl(var_decl) => {
                     // Compile the initializer into function 0 (main chunk) using STORE_GLOBAL.
-                    if let Some(global_idx) = self.global_map.get(&var_decl.name).copied() {
+                    let mangled = format!("{}.{}", module_name, var_decl.name);
+                    if let Some(global_idx) = self.global_map.get(&mangled).copied() {
                         let saved_fn = self.current_function;
                         let saved_locals = std::mem::take(&mut self.locals);
                         let saved_local_count = self.local_count;
@@ -595,7 +601,8 @@ impl Compiler {
                 }
                 ast::Declaration::ConstDecl(const_decl) => {
                     // Compile the initializer into function 0 (main chunk) using STORE_GLOBAL.
-                    if let Some(global_idx) = self.global_map.get(&const_decl.name).copied() {
+                    let mangled = format!("{}.{}", module_name, const_decl.name);
+                    if let Some(global_idx) = self.global_map.get(&mangled).copied() {
                         let saved_fn = self.current_function;
                         let saved_locals = std::mem::take(&mut self.locals);
                         let saved_local_count = self.local_count;
@@ -621,6 +628,7 @@ impl Compiler {
                 _ => {}
             }
         }
+        self.current_module = saved_current_module;
         Ok(())
     }
 
