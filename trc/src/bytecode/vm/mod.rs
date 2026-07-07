@@ -54,6 +54,8 @@ pub struct Vm {
     pub(super) thread_spawn_idx: u16,
     /// Step counter for debugging infinite loops
     pub(super) step_count: u64,
+    /// Module-level global variables
+    pub(super) globals: Vec<Value>,
 }
 
 impl Vm {
@@ -77,6 +79,7 @@ impl Vm {
             max_call_depth: 10000,
             thread_spawn_idx: 0xFFFF,
             step_count: 0,
+            globals: Vec::new(),
         };
 
         // Register built-in native functions
@@ -495,6 +498,8 @@ impl Vm {
         self.functions = program.functions;
         self.classes = program.classes;
         self.enums = program.enums;
+        // Initialize global variable slots with Null.
+        self.globals = vec![Value::Null; program.global_count];
         // Register any native functions that the compiler discovered we need.
         for name in &program.native_names {
             if !self.native_names.contains_key(name) {

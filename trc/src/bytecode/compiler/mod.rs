@@ -30,6 +30,8 @@ pub struct CompiledProgram {
     pub enums: Vec<EnumDef>,
     /// Ordered list of native function names the VM must resolve at startup.
     pub native_names: Vec<String>,
+    /// Number of module-level global variable slots.
+    pub global_count: usize,
 }
 
 // ---------------------------------------------------------------------------
@@ -180,6 +182,10 @@ pub struct Compiler {
     pub(super) processing: HashSet<String>,
     /// Counter for generating unique closure names.
     pub(super) closure_counter: usize,
+    /// Module-level global variable names (indexed by slot).
+    pub(super) globals: Vec<String>,
+    /// Map from global variable name → index in globals.
+    pub(super) global_map: HashMap<String, u16>,
 }
 
 impl Compiler {
@@ -225,6 +231,8 @@ impl Compiler {
             resolver: resolver::ModuleResolver::new(),
             processing: HashSet::new(),
             closure_counter: 0,
+            globals: Vec::new(),
+            global_map: HashMap::new(),
         }
     }
 
@@ -239,6 +247,20 @@ impl Compiler {
                 ast::Declaration::Class(class_decl) => self.register_class(class_decl)?,
                 ast::Declaration::Enum(enum_decl) => self.register_enum(enum_decl),
                 ast::Declaration::Function(fn_decl) => self.register_function(fn_decl),
+                ast::Declaration::VarDecl(var_decl) => {
+                    if !self.global_map.contains_key(&var_decl.name) {
+                        let idx = self.globals.len() as u16;
+                        self.globals.push(var_decl.name.clone());
+                        self.global_map.insert(var_decl.name.clone(), idx);
+                    }
+                }
+                ast::Declaration::ConstDecl(const_decl) => {
+                    if !self.global_map.contains_key(&const_decl.name) {
+                        let idx = self.globals.len() as u16;
+                        self.globals.push(const_decl.name.clone());
+                        self.global_map.insert(const_decl.name.clone(), idx);
+                    }
+                }
                 _ => {}
             }
         }
@@ -296,6 +318,7 @@ impl Compiler {
             classes: std::mem::take(&mut self.classes),
             enums: std::mem::take(&mut self.enums),
             native_names: std::mem::take(&mut self.native_names),
+            global_count: self.globals.len(),
         })
     }
 
@@ -419,6 +442,20 @@ impl Compiler {
                 ast::Declaration::Function(fn_decl) => {
                     self.register_function(fn_decl);
                 }
+                ast::Declaration::VarDecl(var_decl) => {
+                    if !self.global_map.contains_key(&var_decl.name) {
+                        let idx = self.globals.len() as u16;
+                        self.globals.push(var_decl.name.clone());
+                        self.global_map.insert(var_decl.name.clone(), idx);
+                    }
+                }
+                ast::Declaration::ConstDecl(const_decl) => {
+                    if !self.global_map.contains_key(&const_decl.name) {
+                        let idx = self.globals.len() as u16;
+                        self.globals.push(const_decl.name.clone());
+                        self.global_map.insert(const_decl.name.clone(), idx);
+                    }
+                }
                 _ => {}
             }
         }
@@ -470,6 +507,7 @@ impl Compiler {
             classes: std::mem::take(&mut self.classes),
             enums: std::mem::take(&mut self.enums),
             native_names: std::mem::take(&mut self.native_names),
+            global_count: self.globals.len(),
         })
     }
 }

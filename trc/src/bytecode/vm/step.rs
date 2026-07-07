@@ -1061,6 +1061,23 @@ impl Vm {
                 }
                 self.stack[idx] = val;
             }
+            OpCode::LOAD_GLOBAL => {
+                let idx = self.read_u16() as usize;
+                if idx < self.globals.len() {
+                    self.push(self.globals[idx].clone());
+                } else {
+                    return Err(format!("LOAD_GLOBAL: index {} out of bounds (globals count {})", idx, self.globals.len()));
+                }
+            }
+            OpCode::STORE_GLOBAL => {
+                let idx = self.read_u16() as usize;
+                let val = self.stack.pop().unwrap_or(Value::Null);
+                if idx < self.globals.len() {
+                    self.globals[idx] = val;
+                } else {
+                    return Err(format!("STORE_GLOBAL: index {} out of bounds (globals count {})", idx, self.globals.len()));
+                }
+            }
             OpCode::LOAD_UPVALUE => {
                 let slot = self.read_u8() as usize;
                 let upvalues = self.current_frame().upvalues.clone();

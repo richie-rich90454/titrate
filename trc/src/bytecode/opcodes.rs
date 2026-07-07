@@ -240,6 +240,10 @@ pub enum OpCode {
     // -- Unsigned right shift -------------------------------------------------
     USHR_I32 = 128, // unsigned (logical) right shift, i32
     USHR_I64 = 129, // unsigned (logical) right shift, i64
+
+    // -- Module-level globals -------------------------------------------------
+    LOAD_GLOBAL  = 130, // u16 global index
+    STORE_GLOBAL = 131, // u16 global index
 }
 
 impl OpCode {
@@ -270,6 +274,8 @@ impl OpCode {
             Self::STORE_LOCAL   => 1,
             Self::LOAD_UPVALUE  => 1,
             Self::STORE_UPVALUE => 1,
+            Self::LOAD_GLOBAL   => 2, // u16 global index
+            Self::STORE_GLOBAL  => 2, // u16 global index
 
             // Objects
             Self::NEW             => 3, // u16 class index + u8 arg count

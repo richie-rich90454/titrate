@@ -175,6 +175,13 @@ impl Compiler {
             return Ok(());
         }
 
+        // Check module-level globals.
+        if let Some(&global_idx) = self.global_map.get(name) {
+            self.emit_opcode(OpCode::LOAD_GLOBAL, line);
+            self.emit_u16(global_idx, line);
+            return Ok(());
+        }
+
         // Check if it's a known function.
         if let Some(&fn_idx) = self.function_map.get(name) {
             self.emit_opcode(OpCode::PUSH_VOID, line); // placeholder – function refs not yet in value
@@ -767,6 +774,10 @@ impl Compiler {
                     self.emit_opcode(OpCode::DUP, line);
                     self.emit_opcode(OpCode::STORE_LOCAL, line);
                     self.emit_u8(slot, line);
+                } else if let Some(&global_idx) = self.global_map.get(name) {
+                    self.emit_opcode(OpCode::DUP, line);
+                    self.emit_opcode(OpCode::STORE_GLOBAL, line);
+                    self.emit_u16(global_idx, line);
                 } else {
                     return Err(format!("Cannot assign to undefined variable '{}'", name));
                 }

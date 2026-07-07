@@ -104,6 +104,9 @@ pub fn serialize_compiled_program(program: &CompiledProgram) -> Vec<u8> {
         write_str(&mut buf, name);
     }
 
+    // Global count
+    write_u32(&mut buf, program.global_count as u32);
+
     buf
 }
 
@@ -295,6 +298,7 @@ pub fn deserialize_compiled_program(data: &[u8]) -> Result<CompiledProgram, Stri
         classes,
         enums,
         native_names,
+        global_count: read_u32_at(data, &mut pos)? as usize,
     })
 }
 

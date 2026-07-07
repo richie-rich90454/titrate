@@ -424,6 +424,22 @@ impl Compiler {
                         variants,
                     });
                 }
+                ast::Declaration::VarDecl(var_decl) => {
+                    // Register module-level variables as globals.
+                    if !self.global_map.contains_key(&var_decl.name) {
+                        let idx = self.globals.len() as u16;
+                        self.globals.push(var_decl.name.clone());
+                        self.global_map.insert(var_decl.name.clone(), idx);
+                    }
+                }
+                ast::Declaration::ConstDecl(const_decl) => {
+                    // Register module-level constants as globals.
+                    if !self.global_map.contains_key(&const_decl.name) {
+                        let idx = self.globals.len() as u16;
+                        self.globals.push(const_decl.name.clone());
+                        self.global_map.insert(const_decl.name.clone(), idx);
+                    }
+                }
                 _ => {}
             }
         }
@@ -550,6 +566,56 @@ impl Compiler {
 
                             self.current_class = saved_class;
                         }
+                    }
+                }
+                ast::Declaration::VarDecl(var_decl) => {
+                    // Compile the initializer into function 0 (main chunk) using STORE_GLOBAL.
+                    if let Some(global_idx) = self.global_map.get(&var_decl.name).copied() {
+                        let saved_fn = self.current_function;
+                        let saved_locals = std::mem::take(&mut self.locals);
+                        let saved_local_count = self.local_count;
+                        let saved_scope_depth = self.scope_depth;
+                        self.current_function = 0;
+                        self.locals.clear();
+                        self.local_count = 0;
+                        self.scope_depth = 0;
+                        let line = var_decl.span.line;
+                        if let Some(ref init) = var_decl.init {
+                            self.compile_expr(init)?;
+                        } else {
+                            self.emit_opcode(super::OpCode::PUSH_NULL, line);
+                        }
+                        self.emit_opcode(super::OpCode::STORE_GLOBAL, line);
+                        self.emit_u16(global_idx, line);
+                        self.current_function = saved_fn;
+                        self.locals = saved_locals;
+                        self.local_count = saved_local_count;
+                        self.scope_depth = saved_scope_depth;
+                    }
+                }
+                ast::Declaration::ConstDecl(const_decl) => {
+                    // Compile the initializer into function 0 (main chunk) using STORE_GLOBAL.
+                    if let Some(global_idx) = self.global_map.get(&const_decl.name).copied() {
+                        let saved_fn = self.current_function;
+                        let saved_locals = std::mem::take(&mut self.locals);
+                        let saved_local_count = self.local_count;
+                        let saved_scope_depth = self.scope_depth;
+                        self.current_function = 0;
+                        self.locals.clear();
+                        self.local_count = 0;
+                        self.scope_depth = 0;
+                        let line = const_decl.span.line;
+                        if let Some(ref init) = const_decl.init {
+                            self.compile_expr(init)?;
+                        } else {
+                            self.emit_opcode(super::OpCode::PUSH_NULL, line);
+                        }
+                        self.emit_opcode(super::OpCode::STORE_GLOBAL, line);
+                        self.emit_u16(global_idx, line);
+                        self.current_function = saved_fn;
+                        self.locals = saved_locals;
+                        self.local_count = saved_local_count;
+                        self.scope_depth = saved_scope_depth;
                     }
                 }
                 _ => {}

@@ -270,6 +270,17 @@ impl Compiler {
 
     pub(super) fn compile_var_decl(&mut self, var_decl: &ast::VarDecl) -> Result<(), String> {
         let line = var_decl.span.line;
+        // If this is a registered global, use STORE_GLOBAL.
+        if let Some(&global_idx) = self.global_map.get(&var_decl.name) {
+            if let Some(ref init) = var_decl.init {
+                self.compile_expr(init)?;
+            } else {
+                self.emit_opcode(OpCode::PUSH_NULL, line);
+            }
+            self.emit_opcode(OpCode::STORE_GLOBAL, line);
+            self.emit_u16(global_idx, line);
+            return Ok(());
+        }
         if let Some(ref init) = var_decl.init {
             self.compile_expr(init)?;
         } else {
