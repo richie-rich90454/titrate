@@ -464,6 +464,170 @@ impl Vm {
                     _ => return Err(format!("String.split: expected (String, String) or (String, Char)")),
                 }
             }
+            // String::indexOf
+            ("String" | "string", "indexOf") => {
+                let sub = self.pop();
+                let val = self.pop();
+                match (&val, &sub) {
+                    (Value::String(s), Value::String(needle)) => {
+                        match s.find(needle.as_str()) {
+                            Some(byte_pos) => {
+                                let char_pos = s[..byte_pos].chars().count() as i32;
+                                self.push(Value::Int(char_pos));
+                            }
+                            None => self.push(Value::Int(-1)),
+                        }
+                    }
+                    (Value::String(s), Value::Char(needle)) => {
+                        match s.find(*needle) {
+                            Some(byte_pos) => {
+                                let char_pos = s[..byte_pos].chars().count() as i32;
+                                self.push(Value::Int(char_pos));
+                            }
+                            None => self.push(Value::Int(-1)),
+                        }
+                    }
+                    _ => return Err(format!(
+                        "String.indexOf: expected (String, String) or (String, Char), got ({:?}, {:?})",
+                        val, sub
+                    )),
+                }
+            }
+            // String::lastIndexOf
+            ("String" | "string", "lastIndexOf") => {
+                let sub = self.pop();
+                let val = self.pop();
+                match (&val, &sub) {
+                    (Value::String(s), Value::String(needle)) => {
+                        match s.rfind(needle.as_str()) {
+                            Some(byte_pos) => {
+                                let char_pos = s[..byte_pos].chars().count() as i32;
+                                self.push(Value::Int(char_pos));
+                            }
+                            None => self.push(Value::Int(-1)),
+                        }
+                    }
+                    (Value::String(s), Value::Char(needle)) => {
+                        match s.rfind(*needle) {
+                            Some(byte_pos) => {
+                                let char_pos = s[..byte_pos].chars().count() as i32;
+                                self.push(Value::Int(char_pos));
+                            }
+                            None => self.push(Value::Int(-1)),
+                        }
+                    }
+                    _ => return Err(format!(
+                        "String.lastIndexOf: expected (String, String) or (String, Char), got ({:?}, {:?})",
+                        val, sub
+                    )),
+                }
+            }
+            // String::contains
+            ("String" | "string", "contains") => {
+                let sub = self.pop();
+                let val = self.pop();
+                match (&val, &sub) {
+                    (Value::String(s), Value::String(needle)) => {
+                        self.push(Value::Bool(s.contains(needle.as_str())));
+                    }
+                    (Value::String(s), Value::Char(needle)) => {
+                        self.push(Value::Bool(s.contains(*needle)));
+                    }
+                    _ => return Err(format!(
+                        "String.contains: expected (String, String) or (String, Char), got ({:?}, {:?})",
+                        val, sub
+                    )),
+                }
+            }
+            // String::toUpperCase
+            ("String" | "string", "toUpperCase") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => self.push(Value::String(Rc::new(s.to_uppercase()))),
+                    _ => return Err(format!("String.toUpperCase: expected String, got {:?}", val)),
+                }
+            }
+            // String::toLowerCase
+            ("String" | "string", "toLowerCase") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => self.push(Value::String(Rc::new(s.to_lowercase()))),
+                    _ => return Err(format!("String.toLowerCase: expected String, got {:?}", val)),
+                }
+            }
+            // String::trim
+            ("String" | "string", "trim") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => self.push(Value::String(Rc::new(s.trim().to_string()))),
+                    _ => return Err(format!("String.trim: expected String, got {:?}", val)),
+                }
+            }
+            // String::startsWith
+            ("String" | "string", "startsWith") => {
+                let prefix = self.pop();
+                let val = self.pop();
+                match (&val, &prefix) {
+                    (Value::String(s), Value::String(p)) => {
+                        self.push(Value::Bool(s.starts_with(p.as_str())));
+                    }
+                    _ => return Err(format!(
+                        "String.startsWith: expected (String, String), got ({:?}, {:?})",
+                        val, prefix
+                    )),
+                }
+            }
+            // String::endsWith
+            ("String" | "string", "endsWith") => {
+                let suffix = self.pop();
+                let val = self.pop();
+                match (&val, &suffix) {
+                    (Value::String(s), Value::String(suf)) => {
+                        self.push(Value::Bool(s.ends_with(suf.as_str())));
+                    }
+                    _ => return Err(format!(
+                        "String.endsWith: expected (String, String), got ({:?}, {:?})",
+                        val, suffix
+                    )),
+                }
+            }
+            // String::replace
+            ("String" | "string", "replace") => {
+                let replacement = self.pop();
+                let target = self.pop();
+                let val = self.pop();
+                match (&val, &target, &replacement) {
+                    (Value::String(s), Value::String(t), Value::String(r)) => {
+                        self.push(Value::String(Rc::new(s.replace(t.as_str(), r.as_str()))));
+                    }
+                    _ => return Err(format!(
+                        "String.replace: expected (String, String, String), got ({:?}, {:?}, {:?})",
+                        val, target, replacement
+                    )),
+                }
+            }
+            // String::isEmpty
+            ("String" | "string", "isEmpty") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => self.push(Value::Bool(s.is_empty())),
+                    _ => return Err(format!("String.isEmpty: expected String, got {:?}", val)),
+                }
+            }
+            // String::concat
+            ("String" | "string", "concat") => {
+                let b = self.pop();
+                let a = self.pop();
+                match (&a, &b) {
+                    (Value::String(x), Value::String(y)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", x, y))));
+                    }
+                    _ => return Err(format!(
+                        "String.concat: expected (String, String), got ({:?}, {:?})",
+                        a, b
+                    )),
+                }
+            }
             // Default: look up user-defined static method in class table
             _ => {
                 // Try to find the class and its static method
