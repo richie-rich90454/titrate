@@ -2,7 +2,7 @@
 // Precision in every step – richie-rich90454, 2026
 
 use super::super::frame::Frame;
-use super::super::value::Value;
+use super::super::value::{Value, values_eq};
 use super::Vm;
 use std::collections::HashMap;
 use std::io::Write;
@@ -452,6 +452,150 @@ impl Vm {
                         ))
                     }
                 }
+            }
+            Value::Array { elements } => {
+                // Handle Array methods (size, get, contains, isEmpty, indexOf, toString)
+                let elements = elements.clone();
+                let result = match method_name.as_str() {
+                    "size" | "length" | "count" => Value::Int(elements.len() as i32),
+                    "isEmpty" => Value::Bool(elements.is_empty()),
+                    "get" => {
+                        if arg_count < 1 {
+                            return Err("Array.get requires 1 argument".to_string());
+                        }
+                        let idx_val = self.stack.last().cloned().unwrap_or(Value::Void);
+                        let idx = match idx_val {
+                            Value::Int(i) => i as usize,
+                            Value::Long(i) => i as usize,
+                            _ => return Err("Array.get: index must be an integer".to_string()),
+                        };
+                        if idx < elements.len() {
+                            elements[idx].clone()
+                        } else {
+                            return Err(format!("Array index out of bounds: {}", idx));
+                        }
+                    }
+                    "contains" => {
+                        if arg_count < 1 {
+                            return Err("Array.contains requires 1 argument".to_string());
+                        }
+                        let item = self.stack.last().cloned().unwrap_or(Value::Void);
+                        Value::Bool(elements.iter().any(|e| values_eq(e, &item)))
+                    }
+                    "indexOf" => {
+                        if arg_count < 1 {
+                            return Err("Array.indexOf requires 1 argument".to_string());
+                        }
+                        let item = self.stack.last().cloned().unwrap_or(Value::Void);
+                        let mut found = -1i32;
+                        for (i, e) in elements.iter().enumerate() {
+                            if values_eq(e, &item) {
+                                found = i as i32;
+                                break;
+                            }
+                        }
+                        Value::Int(found)
+                    }
+                    "toString" => {
+                        let items: Vec<String> = elements.iter().map(|v| v.display_string()).collect();
+                        Value::String(Rc::new(format!("[{}]", items.join(", "))))
+                    }
+                    _ => {
+                        return Err(format!(
+                            "INVOKE_VIRTUAL: cannot invoke '{}' on Array",
+                            method_name
+                        ))
+                    }
+                };
+                self.stack.drain(receiver_idx..);
+                self.push(result);
+            }
+            Value::Tuple { elements } => {
+                let elements = elements.clone();
+                let result = match method_name.as_str() {
+                    "size" | "length" => Value::Int(elements.len() as i32),
+                    "toString" => {
+                        let items: Vec<String> = elements.iter().map(|v| v.display_string()).collect();
+                        Value::String(Rc::new(format!("({})", items.join(", "))))
+                    }
+                    _ => {
+                        return Err(format!(
+                            "INVOKE_VIRTUAL: cannot invoke '{}' on Tuple",
+                            method_name
+                        ))
+                    }
+                };
+                self.stack.drain(receiver_idx..);
+                self.push(result);
+            }
+            // Primitive type methods
+            Value::Long(_) | Value::Int(_) | Value::Byte(_) | Value::Short(_)
+            | Value::Double(_) | Value::Float(_) | Value::Half(_) | Value::Quad(_)
+            | Value::Vast(_) | Value::Uvast(_) | Value::Bool(_) | Value::Char(_) => {
+                let result = match method_name.as_str() {
+                    "toString" => Value::String(Rc::new(receiver.display_string())),
+                    "toDouble" => match &receiver {
+                        Value::Long(v) => Value::Double(*v as f64),
+                        Value::Int(v) => Value::Double(*v as f64),
+                        Value::Byte(v) => Value::Double(*v as f64),
+                        Value::Short(v) => Value::Double(*v as f64),
+                        Value::Double(v) => Value::Double(*v),
+                        Value::Float(v) => Value::Double(*v as f64),
+                        Value::Half(v) => Value::Double(*v as f64),
+                        Value::Quad(v) => Value::Double(*v),
+                        Value::Bool(v) => Value::Double(if *v { 1.0 } else { 0.0 }),
+                        Value::Char(v) => Value::Double(*v as u32 as f64),
+                        Value::Vast(v) => Value::Double(*v as f64),
+                        Value::Uvast(v) => Value::Double(*v as f64),
+                        _ => Value::Double(0.0),
+                    },
+                    "toInt" => match &receiver {
+                        Value::Long(v) => Value::Int(*v as i32),
+                        Value::Int(v) => Value::Int(*v),
+                        Value::Byte(v) => Value::Int(*v as i32),
+                        Value::Short(v) => Value::Int(*v as i32),
+                        Value::Double(v) => Value::Int(*v as i32),
+                        Value::Float(v) => Value::Int(*v as i32),
+                        Value::Bool(v) => Value::Int(if *v { 1 } else { 0 }),
+                        Value::Char(v) => Value::Int(*v as u32 as i32),
+                        Value::Vast(v) => Value::Int(*v as i32),
+                        Value::Uvast(v) => Value::Int(*v as i32),
+                        _ => Value::Int(0),
+                    },
+                    "toLong" => match &receiver {
+                        Value::Long(v) => Value::Long(*v),
+                        Value::Int(v) => Value::Long(*v as i64),
+                        Value::Byte(v) => Value::Long(*v as i64),
+                        Value::Short(v) => Value::Long(*v as i64),
+                        Value::Double(v) => Value::Long(*v as i64),
+                        Value::Float(v) => Value::Long(*v as i64),
+                        Value::Bool(v) => Value::Long(if *v { 1 } else { 0 }),
+                        Value::Char(v) => Value::Long(*v as u32 as i64),
+                        Value::Vast(v) => Value::Long(*v as i64),
+                        Value::Uvast(v) => Value::Long(*v as i64),
+                        _ => Value::Long(0),
+                    },
+                    "toChar" => match &receiver {
+                        Value::Int(v) => Value::Char(char::from_u32(*v as u32).unwrap_or('\0')),
+                        Value::Long(v) => Value::Char(char::from_u32(*v as u32).unwrap_or('\0')),
+                        Value::Char(v) => Value::Char(*v),
+                        _ => Value::Char('\0'),
+                    },
+                    _ => {
+                        return Err(format!(
+                            "INVOKE_VIRTUAL: cannot invoke '{}' on {:?}",
+                            method_name, receiver
+                        ))
+                    }
+                };
+                self.stack.drain(receiver_idx..);
+                self.push(result);
+            }
+            Value::Null => {
+                return Err(format!(
+                    "INVOKE_VIRTUAL: cannot invoke '{}' on null",
+                    method_name
+                ))
             }
             _ => {
                 return Err(format!(

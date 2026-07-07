@@ -284,6 +284,281 @@ impl Vm {
                     _ => self.push(Value::Long(default)),
                 }
             }
+            // Integer::min / Integer::max
+            ("Integer" | "int", "min") => {
+                let b = self.pop();
+                let a = self.pop();
+                let av = a.to_i64().unwrap_or(0);
+                let bv = b.to_i64().unwrap_or(0);
+                self.push(Value::Int(av.min(bv) as i32));
+            }
+            ("Integer" | "int", "max") => {
+                let b = self.pop();
+                let a = self.pop();
+                let av = a.to_i64().unwrap_or(0);
+                let bv = b.to_i64().unwrap_or(0);
+                self.push(Value::Int(av.max(bv) as i32));
+            }
+            // Integer::sum
+            ("Integer" | "int", "sum") => {
+                let b = self.pop();
+                let a = self.pop();
+                let av = a.to_i64().unwrap_or(0);
+                let bv = b.to_i64().unwrap_or(0);
+                self.push(Value::Int((av + bv) as i32));
+            }
+            // Long::parse
+            ("Long" | "long", "parse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<i64>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Long(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid long: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Long.parse: expected String, got {:?}", val)),
+                }
+            }
+            // Short::parse
+            ("Short" | "short", "parse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<i16>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Short(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid short: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Short.parse: expected String, got {:?}", val)),
+                }
+            }
+            // Byte::parse
+            ("Byte" | "byte", "parse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<i8>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Byte(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid byte: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Byte.parse: expected String, got {:?}", val)),
+                }
+            }
+            // Float::parse
+            ("Float" | "float", "parse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<f32>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Float(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid float: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Float.parse: expected String, got {:?}", val)),
+                }
+            }
+            // Half::parse
+            ("Half" | "half", "parse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<f32>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Half(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid half: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Half.parse: expected String, got {:?}", val)),
+                }
+            }
+            // Quad::parse
+            ("Quad" | "quad", "parse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<f64>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Quad(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid quad: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Quad.parse: expected String, got {:?}", val)),
+                }
+            }
+            // Vast::parse
+            ("Vast" | "vast", "parse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<i128>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Vast(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid vast: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Vast.parse: expected String, got {:?}", val)),
+                }
+            }
+            // Uvast::parse
+            ("Uvast" | "uvast", "parse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<u128>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Uvast(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid uvast: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Uvast.parse: expected String, got {:?}", val)),
+                }
+            }
+            // Boolean::parseBoolean
+            ("Boolean" | "bool", "parseBoolean") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => {
+                        let b = matches!(s.trim().to_lowercase().as_str(), "true" | "1" | "yes" | "on");
+                        self.push(Value::Bool(b));
+                    }
+                    Value::Bool(b) => self.push(Value::Bool(*b)),
+                    Value::Int(i) => self.push(Value::Bool(*i != 0)),
+                    Value::Long(i) => self.push(Value::Bool(*i != 0)),
+                    _ => self.push(Value::Bool(false)),
+                }
+            }
+            // Double::parseDouble
+            ("Double" | "double", "parseDouble") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => match s.trim().parse::<f64>() {
+                        Ok(n) => self.push(Value::ResultOk(Box::new(Value::Double(n)))),
+                        Err(_) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                            format!("Invalid double: {}", s),
+                        ))))),
+                    },
+                    _ => return Err(format!("Double.parseDouble: expected String, got {:?}", val)),
+                }
+            }
+            // Double::NaN, Double::POSITIVE_INFINITY, Double::NEGATIVE_INFINITY
+            ("Double" | "double", "NaN") => {
+                let _ = self.pop(); // pop any args
+                self.push(Value::Double(f64::NAN));
+            }
+            ("Double" | "double", "POSITIVE_INFINITY") => {
+                let _ = self.pop();
+                self.push(Value::Double(f64::INFINITY));
+            }
+            ("Double" | "double", "NEGATIVE_INFINITY") => {
+                let _ = self.pop();
+                self.push(Value::Double(f64::NEG_INFINITY));
+            }
+            // Double::isNaN
+            ("Double" | "double", "isNaN") => {
+                let val = self.pop();
+                match &val {
+                    Value::Double(d) => self.push(Value::Bool(d.is_nan())),
+                    Value::Float(d) => self.push(Value::Bool(d.is_nan())),
+                    Value::Half(d) => self.push(Value::Bool(d.is_nan())),
+                    Value::Quad(d) => self.push(Value::Bool(d.is_nan())),
+                    _ => self.push(Value::Bool(false)),
+                }
+            }
+            // Double::isInfinite
+            ("Double" | "double", "isInfinite") => {
+                let val = self.pop();
+                match &val {
+                    Value::Double(d) => self.push(Value::Bool(d.is_infinite())),
+                    Value::Float(d) => self.push(Value::Bool(d.is_infinite())),
+                    Value::Half(d) => self.push(Value::Bool(d.is_infinite())),
+                    Value::Quad(d) => self.push(Value::Bool(d.is_infinite())),
+                    _ => self.push(Value::Bool(false)),
+                }
+            }
+            // Double::isFinite
+            ("Double" | "double", "isFinite") => {
+                let val = self.pop();
+                match &val {
+                    Value::Double(d) => self.push(Value::Bool(d.is_finite())),
+                    Value::Float(d) => self.push(Value::Bool(d.is_finite())),
+                    Value::Half(d) => self.push(Value::Bool(d.is_finite())),
+                    Value::Quad(d) => self.push(Value::Bool(d.is_finite())),
+                    _ => self.push(Value::Bool(false)),
+                }
+            }
+            // Double::compare
+            ("Double" | "double", "compare") => {
+                let b = self.pop();
+                let a = self.pop();
+                let av = a.to_f64().unwrap_or(0.0);
+                let bv = b.to_f64().unwrap_or(0.0);
+                if av < bv {
+                    self.push(Value::Int(-1));
+                } else if av > bv {
+                    self.push(Value::Int(1));
+                } else {
+                    self.push(Value::Int(0));
+                }
+            }
+            // String::reverse
+            ("String" | "string", "reverse") => {
+                let val = self.pop();
+                match &val {
+                    Value::String(s) => {
+                        let reversed: String = s.chars().rev().collect();
+                        self.push(Value::String(Rc::new(reversed)));
+                    }
+                    _ => return Err(format!("String.reverse: expected String, got {:?}", val)),
+                }
+            }
+            // System::currentTimeMillis
+            ("System", "currentTimeMillis") => {
+                let _ = self.pop();
+                let millis = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as i64)
+                    .unwrap_or(0);
+                self.push(Value::Long(millis));
+            }
+            // System::nanoTime
+            ("System", "nanoTime") => {
+                let _ = self.pop();
+                let nanos = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos() as i64)
+                    .unwrap_or(0);
+                self.push(Value::Long(nanos));
+            }
+            // File::readText / File::writeText
+            ("File", "readText") => {
+                let path = self.pop();
+                match &path {
+                    Value::String(p) => {
+                        let resolved = self.resolve_path(p);
+                        match std::fs::read_to_string(&resolved) {
+                            Ok(content) => self.push(Value::ResultOk(Box::new(Value::String(Rc::new(content))))),
+                            Err(e) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                                format!("Failed to read file '{}': {}", p, e),
+                            ))))),
+                        }
+                    }
+                    _ => return Err(format!("File.readText: expected String, got {:?}", path)),
+                }
+            }
+            ("File", "writeText") => {
+                let content = self.pop();
+                let path = self.pop();
+                match (&path, &content) {
+                    (Value::String(p), Value::String(c)) => {
+                        let resolved = self.resolve_path(p);
+                        match std::fs::write(&resolved, c.as_bytes()) {
+                            Ok(()) => self.push(Value::ResultOk(Box::new(Value::Void))),
+                            Err(e) => self.push(Value::ResultErr(Box::new(Value::String(Rc::new(
+                                format!("Failed to write file '{}': {}", p, e),
+                            ))))),
+                        }
+                    }
+                    _ => return Err(format!("File.writeText: expected (String, String), got ({:?}, {:?})", path, content)),
+                }
+            }
             // String::length
             ("String" | "string", "length") => {
                 let val = self.pop();
@@ -309,6 +584,21 @@ impl Vm {
                         } else {
                             return Err(format!(
                                 "String.charAt: index {} out of bounds",
+                                idx
+                            ));
+                        }
+                    }
+                    (Value::Char(c), Some(0)) => {
+                        self.push(Value::Char(*c));
+                    }
+                    (Value::Char(c), Some(i)) => {
+                        let s: String = c.to_string();
+                        let idx = *i as usize;
+                        if idx < s.chars().count() {
+                            self.push(Value::Char(s.chars().nth(idx).unwrap()));
+                        } else {
+                            return Err(format!(
+                                "String.charAt: index {} out of bounds for char",
                                 idx
                             ));
                         }
@@ -453,13 +743,25 @@ impl Vm {
                         let parts: Vec<Value> = str_val.split(d.as_str())
                             .map(|part| Value::String(Rc::new(part.to_string())))
                             .collect();
-                        self.push(Value::Array { elements: parts });
+                        let mut al_fields = HashMap::new();
+                        al_fields.insert("_elements".to_string(), Value::Array { elements: parts });
+                        self.push(Value::ClassInstance {
+                            class_name: "ArrayList".to_string(),
+                            fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                            vtable: HashMap::new(),
+                        });
                     }
                     (Value::String(str_val), Value::Char(d)) => {
                         let parts: Vec<Value> = str_val.split(*d)
                             .map(|part| Value::String(Rc::new(part.to_string())))
                             .collect();
-                        self.push(Value::Array { elements: parts });
+                        let mut al_fields = HashMap::new();
+                        al_fields.insert("_elements".to_string(), Value::Array { elements: parts });
+                        self.push(Value::ClassInstance {
+                            class_name: "ArrayList".to_string(),
+                            fields: Rc::new(std::cell::RefCell::new(al_fields)),
+                            vtable: HashMap::new(),
+                        });
                     }
                     _ => return Err(format!("String.split: expected (String, String) or (String, Char)")),
                 }
