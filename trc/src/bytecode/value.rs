@@ -269,3 +269,36 @@ impl Value {
         }
     }
 }
+
+/// Structural equality for `Value` — used by `EQ_I64`/`NE_I64` for Array/Tuple
+/// element comparisons. Reference types (ClassInstance) use pointer equality;
+/// primitives use value equality.
+pub fn values_eq(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Null, Value::Null) => true,
+        (Value::Null, _) | (_, Value::Null) => false,
+        (Value::Bool(x), Value::Bool(y)) => x == y,
+        (Value::Byte(x), Value::Byte(y)) => x == y,
+        (Value::Short(x), Value::Short(y)) => x == y,
+        (Value::Int(x), Value::Int(y)) => x == y,
+        (Value::Long(x), Value::Long(y)) => x == y,
+        (Value::Vast(x), Value::Vast(y)) => x == y,
+        (Value::Uvast(x), Value::Uvast(y)) => x == y,
+        (Value::Float(x), Value::Float(y)) => x.to_bits() == y.to_bits(),
+        (Value::Double(x), Value::Double(y)) => x.to_bits() == y.to_bits(),
+        (Value::Half(x), Value::Half(y)) => x.to_bits() == y.to_bits(),
+        (Value::Quad(x), Value::Quad(y)) => x.to_bits() == y.to_bits(),
+        (Value::Char(x), Value::Char(y)) => x == y,
+        (Value::String(x), Value::String(y)) => x == y,
+        (Value::ClassInstance { fields: f1, .. }, Value::ClassInstance { fields: f2, .. }) => {
+            Rc::ptr_eq(f1, f2)
+        }
+        (Value::Array { elements: e1 }, Value::Array { elements: e2 }) => {
+            e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))
+        }
+        (Value::Tuple { elements: e1 }, Value::Tuple { elements: e2 }) => {
+            e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))
+        }
+        _ => false,
+    }
+}
