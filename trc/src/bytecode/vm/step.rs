@@ -116,6 +116,24 @@ impl Vm {
                     (Value::Double(x), Value::Int(y)) => self.push(Value::Double(x + (*y as f64))),
                     (Value::Int(x), Value::Double(y)) => self.push(Value::Double((*x as f64) + y)),
                     (Value::Float(x), Value::Float(y)) => self.push(Value::Float(x + y)),
+                    (Value::String(x), Value::String(y)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", x, y))))
+                    }
+                    (Value::String(x), Value::Char(y)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", x, y))))
+                    }
+                    (Value::Char(x), Value::String(y)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", x, y))))
+                    }
+                    (Value::Char(x), Value::Char(y)) => {
+                        self.push(Value::String(Rc::new(format!("{}{}", x, y))))
+                    }
+                    (Value::Byte(x), Value::Byte(y)) => self.push(Value::Byte(x.wrapping_add(*y))),
+                    (Value::Short(x), Value::Short(y)) => self.push(Value::Short(x.wrapping_add(*y))),
+                    (Value::Byte(x), Value::Int(y)) => self.push(Value::Int((*x as i32).wrapping_add(*y))),
+                    (Value::Int(x), Value::Byte(y)) => self.push(Value::Int(x.wrapping_add(*y as i32))),
+                    (Value::Short(x), Value::Int(y)) => self.push(Value::Int((*x as i32).wrapping_add(*y))),
+                    (Value::Int(x), Value::Short(y)) => self.push(Value::Int(x.wrapping_add(*y as i32))),
                     _ => return Err(format!("ADD_I64: type mismatch {:?} + {:?}", a, b)),
                 }
             }
@@ -302,6 +320,36 @@ impl Vm {
                     (Value::Long(x), Value::Long(y)) => {
                         self.push(Value::Long(x.wrapping_rem(*y)));
                     }
+                    (Value::Int(_), Value::Int(0)) => {
+                        return Err("Remainder division by zero (int)".to_string());
+                    }
+                    (Value::Int(x), Value::Int(y)) => {
+                        self.push(Value::Int(x.wrapping_rem(*y)));
+                    }
+                    (Value::Int(x), Value::Long(y)) => {
+                        if *y == 0 {
+                            return Err("Remainder division by zero (int % long)".to_string());
+                        }
+                        self.push(Value::Long((*x as i64).wrapping_rem(*y)));
+                    }
+                    (Value::Long(x), Value::Int(y)) => {
+                        if *y == 0 {
+                            return Err("Remainder division by zero (long % int)".to_string());
+                        }
+                        self.push(Value::Long(x.wrapping_rem(*y as i64)));
+                    }
+                    (Value::Byte(_), Value::Byte(0)) | (Value::Byte(_), Value::Int(0)) | (Value::Byte(_), Value::Long(0)) => {
+                        return Err("Remainder division by zero (byte)".to_string());
+                    }
+                    (Value::Byte(x), Value::Byte(y)) => self.push(Value::Byte(x.wrapping_rem(*y))),
+                    (Value::Byte(x), Value::Int(y)) => self.push(Value::Byte(x.wrapping_rem(*y as i8))),
+                    (Value::Byte(x), Value::Long(y)) => self.push(Value::Long((*x as i64).wrapping_rem(*y))),
+                    (Value::Short(_), Value::Short(0)) | (Value::Short(_), Value::Int(0)) | (Value::Short(_), Value::Long(0)) => {
+                        return Err("Remainder division by zero (short)".to_string());
+                    }
+                    (Value::Short(x), Value::Short(y)) => self.push(Value::Short(x.wrapping_rem(*y))),
+                    (Value::Short(x), Value::Int(y)) => self.push(Value::Short(x.wrapping_rem(*y as i16))),
+                    (Value::Short(x), Value::Long(y)) => self.push(Value::Long((*x as i64).wrapping_rem(*y))),
                     _ => return Err(format!("MOD_I64: type mismatch {:?} % {:?}", a, b)),
                 }
             }
@@ -332,6 +380,11 @@ impl Vm {
                 let a = self.pop();
                 match a {
                     Value::Long(x) => self.push(Value::Long(x.wrapping_neg())),
+                    Value::Int(x) => self.push(Value::Int(x.wrapping_neg())),
+                    Value::Double(x) => self.push(Value::Double(-x)),
+                    Value::Float(x) => self.push(Value::Float(-x)),
+                    Value::Byte(x) => self.push(Value::Byte(x.wrapping_neg())),
+                    Value::Short(x) => self.push(Value::Short(x.wrapping_neg())),
                     _ => return Err(format!("NEG_I64: type mismatch {:?}", a)),
                 }
             }
@@ -396,7 +449,18 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::Long(x), Value::Long(y)) => self.push(Value::Long(x ^ y)),
-                    _ => return Err(format!("BITXOR_I64: type mismatch {:?}", a)),
+                    (Value::Int(x), Value::Int(y)) => self.push(Value::Int(x ^ y)),
+                    (Value::Int(x), Value::Long(y)) => self.push(Value::Long((*x as i64) ^ y)),
+                    (Value::Long(x), Value::Int(y)) => self.push(Value::Long(x ^ (*y as i64))),
+                    (Value::Byte(x), Value::Byte(y)) => self.push(Value::Byte(x ^ y)),
+                    (Value::Short(x), Value::Short(y)) => self.push(Value::Short(x ^ y)),
+                    (Value::Char(x), Value::Char(y)) => self.push(Value::Char(char::from_u32((*x as u32) ^ (*y as u32)).unwrap_or(*x))),
+                    (Value::Char(x), Value::Int(y)) => self.push(Value::Int((*x as u32 as i32) ^ y)),
+                    (Value::Int(x), Value::Char(y)) => self.push(Value::Int(x ^ (*y as u32 as i32))),
+                    (Value::Char(x), Value::Long(y)) => self.push(Value::Long((*x as u32 as i64) ^ y)),
+                    (Value::Long(x), Value::Char(y)) => self.push(Value::Long(x ^ (*y as u32 as i64))),
+                    (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool(x ^ y)),
+                    _ => return Err(format!("BITXOR_I64: type mismatch {:?} ^ {:?}", a, b)),
                 }
             }
             OpCode::SHL_I32 => {
@@ -488,6 +552,7 @@ impl Vm {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x == y)),
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(x == y)),
                     (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool(x == y)),
+                    (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(x == y)),
                     (Value::Null, Value::Null) => self.push(Value::Bool(true)),
                     (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(false)),
                     (Value::ClassInstance { fields: f1, .. }, Value::ClassInstance { fields: f2, .. }) => {
@@ -502,6 +567,19 @@ impl Vm {
                     (Value::Tuple { elements: e1 }, Value::Tuple { elements: e2 }) => {
                         self.push(Value::Bool(e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y))))
                     }
+                    // Cross-type comparisons: different types are never equal.
+                    (Value::Bool(_), _) | (_, Value::Bool(_)) => self.push(Value::Bool(false)),
+                    (Value::EnumInstance { .. }, _) | (_, Value::EnumInstance { .. }) => self.push(Value::Bool(false)),
+                    (Value::ClassInstance { .. }, _) | (_, Value::ClassInstance { .. }) => self.push(Value::Bool(false)),
+                    (Value::Array { .. }, _) | (_, Value::Array { .. }) => self.push(Value::Bool(false)),
+                    (Value::Tuple { .. }, _) | (_, Value::Tuple { .. }) => self.push(Value::Bool(false)),
+                    (Value::Char(x), Value::String(y)) => {
+                        self.push(Value::Bool(y.chars().count() == 1 && y.chars().next() == Some(*x)))
+                    }
+                    (Value::String(x), Value::Char(y)) => {
+                        self.push(Value::Bool(x.chars().count() == 1 && x.chars().next() == Some(*y)))
+                    }
+                    (Value::Char(_), _) | (_, Value::Char(_)) => self.push(Value::Bool(false)),
                     _ => return Err(format!("EQ_I64: type mismatch {:?} == {:?}", a, b)),
                 }
             }
@@ -546,6 +624,13 @@ impl Vm {
                 let a = self.pop();
                 match (&a, &b) {
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(x == y)),
+                    (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(x == y)),
+                    (Value::String(x), Value::Char(y)) => {
+                        self.push(Value::Bool(x.chars().count() == 1 && x.chars().next() == Some(*y)))
+                    }
+                    (Value::Char(x), Value::String(y)) => {
+                        self.push(Value::Bool(y.chars().count() == 1 && y.chars().next() == Some(*x)))
+                    }
                     (Value::Null, Value::String(_)) | (Value::String(_), Value::Null) => self.push(Value::Bool(false)),
                     (Value::Null, Value::Null) => self.push(Value::Bool(true)),
                     _ => return Err(format!("EQ_STRING: type mismatch {:?}", a)),
@@ -570,6 +655,7 @@ impl Vm {
                     (Value::Double(x), Value::Double(y)) => self.push(Value::Bool(x != y)),
                     (Value::String(x), Value::String(y)) => self.push(Value::Bool(x != y)),
                     (Value::Bool(x), Value::Bool(y)) => self.push(Value::Bool(x != y)),
+                    (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(x != y)),
                     (Value::Null, Value::Null) => self.push(Value::Bool(false)),
                     (Value::Null, _) | (_, Value::Null) => self.push(Value::Bool(true)),
                     (Value::ClassInstance { fields: f1, .. }, Value::ClassInstance { fields: f2, .. }) => {
@@ -584,6 +670,19 @@ impl Vm {
                     (Value::Tuple { elements: e1 }, Value::Tuple { elements: e2 }) => {
                         self.push(Value::Bool(!(e1.len() == e2.len() && e1.iter().zip(e2.iter()).all(|(x, y)| values_eq(x, y)))))
                     }
+                    // Cross-type comparisons: different types are always not-equal.
+                    (Value::Bool(_), _) | (_, Value::Bool(_)) => self.push(Value::Bool(true)),
+                    (Value::EnumInstance { .. }, _) | (_, Value::EnumInstance { .. }) => self.push(Value::Bool(true)),
+                    (Value::ClassInstance { .. }, _) | (_, Value::ClassInstance { .. }) => self.push(Value::Bool(true)),
+                    (Value::Array { .. }, _) | (_, Value::Array { .. }) => self.push(Value::Bool(true)),
+                    (Value::Tuple { .. }, _) | (_, Value::Tuple { .. }) => self.push(Value::Bool(true)),
+                    (Value::Char(x), Value::String(y)) => {
+                        self.push(Value::Bool(!(y.chars().count() == 1 && y.chars().next() == Some(*x))))
+                    }
+                    (Value::String(x), Value::Char(y)) => {
+                        self.push(Value::Bool(!(x.chars().count() == 1 && x.chars().next() == Some(*y))))
+                    }
+                    (Value::Char(_), _) | (_, Value::Char(_)) => self.push(Value::Bool(true)),
                     _ => return Err(format!("NE_I64: type mismatch {:?} != {:?}", a, b)),
                 }
             }
@@ -633,6 +732,16 @@ impl Vm {
                     (Value::Int(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) < (*y as i64))),
                     (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) < *y)),
                     (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x < (*y as i64))),
+                    (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x < *y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(&**x < &**y)),
+                    (Value::Char(x), Value::String(y)) => {
+                        let xs: String = x.to_string();
+                        self.push(Value::Bool(&xs < &**y));
+                    }
+                    (Value::String(x), Value::Char(y)) => {
+                        let ys: String = y.to_string();
+                        self.push(Value::Bool(&**x < &ys));
+                    }
                     _ => return Err(format!("LT_I64: type mismatch {:?} < {:?}", a, b)),
                 }
             }
@@ -678,6 +787,16 @@ impl Vm {
                     (Value::Int(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) <= (*y as i64))),
                     (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) <= *y)),
                     (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x <= (*y as i64))),
+                    (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x <= *y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(&**x <= &**y)),
+                    (Value::Char(x), Value::String(y)) => {
+                        let xs: String = x.to_string();
+                        self.push(Value::Bool(&xs <= &**y));
+                    }
+                    (Value::String(x), Value::Char(y)) => {
+                        let ys: String = y.to_string();
+                        self.push(Value::Bool(&**x <= &ys));
+                    }
                     _ => return Err(format!("LE_I64: type mismatch {:?} <= {:?}", a, b)),
                 }
             }
@@ -723,6 +842,16 @@ impl Vm {
                     (Value::Int(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) > (*y as i64))),
                     (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) > *y)),
                     (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x > (*y as i64))),
+                    (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x > *y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(&**x > &**y)),
+                    (Value::Char(x), Value::String(y)) => {
+                        let xs: String = x.to_string();
+                        self.push(Value::Bool(&xs > &**y));
+                    }
+                    (Value::String(x), Value::Char(y)) => {
+                        let ys: String = y.to_string();
+                        self.push(Value::Bool(&**x > &ys));
+                    }
                     _ => return Err(format!("GT_I64: type mismatch {:?} > {:?}", a, b)),
                 }
             }
@@ -768,6 +897,16 @@ impl Vm {
                     (Value::Int(x), Value::Bool(y)) => self.push(Value::Bool((*x as i64) >= (*y as i64))),
                     (Value::Bool(x), Value::Long(y)) => self.push(Value::Bool((*x as i64) >= *y)),
                     (Value::Long(x), Value::Bool(y)) => self.push(Value::Bool(*x >= (*y as i64))),
+                    (Value::Char(x), Value::Char(y)) => self.push(Value::Bool(*x >= *y)),
+                    (Value::String(x), Value::String(y)) => self.push(Value::Bool(&**x >= &**y)),
+                    (Value::Char(x), Value::String(y)) => {
+                        let xs: String = x.to_string();
+                        self.push(Value::Bool(&xs >= &**y));
+                    }
+                    (Value::String(x), Value::Char(y)) => {
+                        let ys: String = y.to_string();
+                        self.push(Value::Bool(&**x >= &ys));
+                    }
                     _ => return Err(format!("GE_I64: type mismatch {:?} >= {:?}", a, b)),
                 }
             }
