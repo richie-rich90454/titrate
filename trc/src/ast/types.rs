@@ -89,6 +89,13 @@ impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Type::Named { name, params } => {
+                // Special case: the parser stores function types (fn(T): R) as
+                // Type::simple("fn"), discarding the parameter and return type
+                // info. Emit `fn()` so the type re-parses correctly. `fn` is a
+                // keyword and cannot be a user-defined type name, so this is safe.
+                if name == "fn" && params.is_empty() {
+                    return write!(f, "fn()");
+                }
                 write!(f, "{}", name)?;
                 if !params.is_empty() {
                     write!(f, "<")?;
