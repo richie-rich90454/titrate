@@ -1284,6 +1284,42 @@ impl Vm {
                     return Ok(());
                 }
 
+                // Fallback: search the function table by mangled name.
+                // Module-level functions like String.toString are compiled with
+                // mangled names such as "tt.lang.String.toString".  When the
+                // compiler emits a STATIC_CALL with class_name="String" and
+                // method_name="toString", we search for a function whose name
+                // ends with ".String.toString".  When class_name is empty
+                // (bare calls like quickSort()), search by method_name suffix.
+                let suffix = if class_name.is_empty() {
+                    format!(".{}", method_name)
+                } else {
+                    format!(".{}.{}", class_name, method_name)
+                };
+                let exact = format!("tt.lang.{}.{}", class_name, method_name);
+                let mut found_idx: Option<u16> = None;
+                // Prefer exact tt.lang match first.
+                for (i, f) in self.functions.iter().enumerate() {
+                    if f.name == exact {
+                        found_idx = Some(i as u16);
+                        break;
+                    }
+                }
+                // Then fall back to suffix matching.
+                if found_idx.is_none() {
+                    for (i, f) in self.functions.iter().enumerate() {
+                        if f.name.ends_with(&suffix) {
+                            found_idx = Some(i as u16);
+                            break;
+                        }
+                    }
+                }
+                if let Some(func_idx) = found_idx {
+                    let base = self.stack.len() - arg_count as usize;
+                    self.frames.push(Frame::new(func_idx, base));
+                    return Ok(());
+                }
+
                 return Err(format!(
                     "Unknown static call: {}.{}",
                     class_name, method_name
