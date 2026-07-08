@@ -93,10 +93,33 @@ impl Parser {
             "Result".to_string()
         } else {
             let id_tok = self.expect(&lexer::Token::Identifier(String::new()))?;
-            match id_tok {
+            let mut name = match id_tok {
                 lexer::Token::Identifier(s) => s,
                 _ => return Err(self.err(format!("Expected type name, found {}", id_tok))),
+            };
+            // Handle qualified names: Module.ClassName or Module::ClassName
+            loop {
+                if self.match_token(&lexer::Token::Dot) {
+                    let next = self.expect(&lexer::Token::Identifier(String::new()))?;
+                    if let lexer::Token::Identifier(s) = next {
+                        name.push('.');
+                        name.push_str(&s);
+                    } else {
+                        return Err(self.err(format!("Expected identifier after '.', found {}", next)));
+                    }
+                } else if self.match_token(&lexer::Token::ColonColon) {
+                    let next = self.expect(&lexer::Token::Identifier(String::new()))?;
+                    if let lexer::Token::Identifier(s) = next {
+                        name.push_str("::");
+                        name.push_str(&s);
+                    } else {
+                        return Err(self.err(format!("Expected identifier after '::', found {}", next)));
+                    }
+                } else {
+                    break;
+                }
             }
+            name
         };
 
         // Check for generic parameters <Type, Type, ...>
