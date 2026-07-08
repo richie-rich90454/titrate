@@ -18,6 +18,10 @@ public class StringBuilder {
         return result;
     }
 
+    public fn toString(): string {
+        return this.build();
+    }
+
     public fn insert(index: int, s: string): void {
         this.parts.add(index, s);
     }
