@@ -2,6 +2,7 @@
 import tt::util::HashMap;
 import tt::util::ArrayList;
 import tt::lang::Variant;
+import tt::util::StringBuilder;
 
 public class CookieJar {
     public ArrayList<HashMap<string, string>> cookies;

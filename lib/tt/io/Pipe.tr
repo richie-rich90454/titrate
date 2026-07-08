@@ -1,6 +1,7 @@
 // Pipe I/O for inter-task communication.
 import tt::util::ArrayList;
 import tt::util::Pair;
+import tt::util::StringBuilder;
 
 public class PipeReader {
     private ArrayList<string> buffer;

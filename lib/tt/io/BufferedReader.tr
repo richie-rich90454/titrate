@@ -2,6 +2,7 @@
 import tt::io::Reader;
 import tt::io::File;
 import tt::util::ArrayList;
+import tt::util::StringBuilder;
 
 public class BufferedReader implements Reader {
     private File file;

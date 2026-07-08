@@ -1,5 +1,6 @@
 // Red-black tree based sorted set with O(log n) operations.
 import tt::util::ArrayList;
+import tt::util::TreeMap;
 
 public class TreeSet<E> {
     private TreeMap<E, int> map;

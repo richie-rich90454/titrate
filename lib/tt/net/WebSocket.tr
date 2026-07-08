@@ -1,5 +1,6 @@
 // WebSocket protocol support.
 import tt::util::ArrayList;
+import tt::util::StringBuilder;
 
 public class WebSocketFrame {
     public int opcode;

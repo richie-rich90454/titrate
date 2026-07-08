@@ -1,6 +1,7 @@
 // URL builder and parsing utilities.
 import tt::util::HashMap;
 import tt::util::ArrayList;
+import tt::util::StringBuilder;
 
 public class Url {
     public string scheme;

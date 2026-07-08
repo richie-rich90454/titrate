@@ -2,6 +2,7 @@
 import tt::util::ArrayList;
 import tt::lang::String;
 import tt::lang::Integer;
+import tt::audio::AudioBuffer;
 
 public class WavInfo {
     public int sampleRate;

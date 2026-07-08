@@ -1,4 +1,5 @@
 // TCP server operations backed by VM built-ins.
+import tt::net::TcpClient;
 public class TcpServer {
     private long handle;
 

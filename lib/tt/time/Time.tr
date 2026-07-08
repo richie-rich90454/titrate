@@ -1,6 +1,7 @@
 // Time utility class for common time operations.
 import tt::time::DateTime;
 import tt::time::Duration;
+import tt::time::Stopwatch;
 
 public fn now(): DateTime {
     return DateTime.now();
