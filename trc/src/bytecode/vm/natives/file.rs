@@ -184,6 +184,17 @@ pub(crate) fn native_file_close(args: &[Value]) -> Result<Value, String> {
             *file_opt = None;
             Ok(Value::Void)
         }
+        // File class passes a string path; since path-based file operations
+        // do not maintain persistent handles, close is a no-op.
+        Value::String(_) => Ok(Value::Void),
+        // ClassInstance may have a FileHandle field named "handle"
+        Value::ClassInstance { fields, .. } => {
+            if let Some(Value::FileHandle(file_rc)) = fields.borrow().get("handle") {
+                let mut file_opt = file_rc.borrow_mut();
+                *file_opt = None;
+            }
+            Ok(Value::Void)
+        }
         _ => Err("File_close: expected FileHandle argument".to_string()),
     }
 }
