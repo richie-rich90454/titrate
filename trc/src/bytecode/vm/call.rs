@@ -29,6 +29,20 @@ impl Vm {
                 let insert_pos = self.stack.len() - 1;
                 self.stack.insert(insert_pos, Value::String(Rc::new("variant".to_string())));
             } else {
+                // Try to find an overload with matching arity.
+                // The compiler may register multiple functions with the same
+                // name but different arities (overloading). Search the function
+                // table for a function with the same name but matching arity.
+                let mut found: Option<u16> = None;
+                for (i, f) in self.functions.iter().enumerate() {
+                    if f.name == fname.as_str() && f.arity == arg_count as usize {
+                        found = Some(i as u16);
+                        break;
+                    }
+                }
+                if let Some(alt_idx) = found {
+                    return self.call_function(alt_idx, arg_count);
+                }
                 return Err(format!(
                     "CALL: function {} expects {} args, got {}",
                     fname, arity, arg_count
