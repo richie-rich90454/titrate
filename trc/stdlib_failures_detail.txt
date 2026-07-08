@@ -1,30 +1,18 @@
-stdlib_runtest: 349/444 files failed (333 compile/run errors, 16 with FAIL lines)
+stdlib_runtest: 284/445 files failed (239 compile/run errors, 45 with FAIL lines)
 
 --- COMPILE/RUN ERRORS (all) ---
-
-[../stdlib_test/src/tests\algo\test_graph.tr]
-vm: CALL: function <main> expects 0 args, got 1
 
 [../stdlib_test/src/tests\algo\test_graphflow.tr]
 vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=35
 
-[../stdlib_test/src/tests\algo\test_setalgo.tr]
-vm: LT_I64: type mismatch Ok(1d) < Ok(3d)
-
-[../stdlib_test/src/tests\algo\test_stringalgo.tr]
-vm: ADD_I32: type mismatch 0L + 104
-
 [../stdlib_test/src/tests\algorithms\test_algorithms.tr]
-vm: CALL: function <main> expects 0 args, got 1
-
-[../stdlib_test/src/tests\argparse\test_argument_parser.tr]
-vm: NE_I64: type mismatch 0b != "==SUPPRESS=="
+vm: Unknown static call: .quickSort
 
 [../stdlib_test/src/tests\assay\test_assay.tr]
-compiler: Cannot assign to undefined variable 'counter'
+vm: Unknown static call: String.toString
 
 [../stdlib_test/src/tests\assay\test_testrunner.tr]
-compiler: Cannot assign to undefined variable 'counter'
+vm: No method 'fn' on class 'tt.assay.Assay.TestCase'
 
 [../stdlib_test/src/tests\assert\test_assert.tr]
 vm: CALL: function tt.assert.Assert.assertTrue expects 2 args, got 1
@@ -33,171 +21,121 @@ vm: CALL: function tt.assert.Assert.assertTrue expects 2 args, got 1
 timeout after 30s
 
 [../stdlib_test/src/tests\audio\test_pitch.tr]
-vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=58
+vm: VM exceeded 10 million steps (infinite loop detected). frames=5, stack_len=18
 
 [../stdlib_test/src/tests\audio\test_wavreader.tr]
-compiler: Unknown class 'AudioBuffer' in new expression
+vm: File_readBytes: expected 2 arguments (path, count)
 
 [../stdlib_test/src/tests\audio\test_wavwriter.tr]
-vm: BITAND_I64: type mismatch 0
+vm: File_writeBytes: expected String hexData
 
 [../stdlib_test/src/tests\binary\test_struct.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: String.charAt: index 0 out of bounds
 
 [../stdlib_test/src/tests\binary\test_struct_ext.tr]
-vm: Unknown static call: StructExt.pack
+vm: Unknown static call: StructExt.unpack
 
 [../stdlib_test/src/tests\bio\test_alignment.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 22b
-
-[../stdlib_test/src/tests\bio\test_codon_table.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 19b
-
-[../stdlib_test/src/tests\bio\test_fasta_reader.tr]
-vm: String.length: expected String, got Err("Failed to read file 'nonexistent_file.fasta': 系统找不到指定的文件。 (os error 2)")
-
-[../stdlib_test/src/tests\bio\test_fasta_writer.tr]
-vm: String.length: expected String, got Ok(">seq1
-ACGTACGT
-")
+vm: CALL: function tt.bio.Alignment.smithWatermanAffine expects 6 args, got 5
 
 [../stdlib_test/src/tests\bio\test_phylo_tree.tr]
 vm: Unknown static call: .collectLeaves
-
-[../stdlib_test/src/tests\bio\test_restriction_enzyme.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 18b
-
-[../stdlib_test/src/tests\bio\test_sequence.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 22b
 
 [../stdlib_test/src/tests\calculus\test_calculus.tr]
 vm: CALL: function tt.calculus.Calculus.derivative expects 2 args, got 3
 
 [../stdlib_test/src/tests\calculus\test_line_integral.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on 0.01d
 
 [../stdlib_test/src/tests\calculus\test_quadrature.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: CALL_CLOSURE: expected closure on stack, got 0d
 
 [../stdlib_test/src/tests\calculus\test_series.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: No method 'size' on class 'tt.util.Pair.Pair__ArrayList__double__ArrayList__double'
 
 [../stdlib_test/src/tests\calculus\test_symbolic.tr]
 compiler: Cannot resolve module 'tt.calculus.Symbolic.Expr' – searched in .., ..\lib
 
-[../stdlib_test/src/tests\calculus\test_vector_calc.tr]
-vm: CALL: function <main> expects 0 args, got 1
-
 [../stdlib_test/src/tests\chem\test_atom.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 12b
+timeout after 30s
 
 [../stdlib_test/src/tests\chem\test_bond.tr]
 vm: No method 'computeAngle' on class 'tt.chem.Bond.Bond'
-
-[../stdlib_test/src/tests\chem\test_electrochemistry.tr]
-vm: MUL_I64: type mismatch 2d * 20b
-
-[../stdlib_test/src/tests\chem\test_forcefield.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 24b
-
-[../stdlib_test/src/tests\chem\test_forcefield_nonbonded.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 24b
-
-[../stdlib_test/src/tests\chem\test_integrator.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 24b
 
 [../stdlib_test/src/tests\chem\test_md.tr]
 compiler: Cannot resolve module 'tt.chem.VerletIntegrator' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\chem\test_molecule.tr]
-vm: ADD_I64: type mismatch 2L + Ok(2L)
+timeout after 30s
 
 [../stdlib_test/src/tests\chem\test_periodic_table.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
-
-[../stdlib_test/src/tests\chem\test_reaction_balancer.tr]
-vm: LT_I64: type mismatch Ok(2L) < 0L
+timeout after 30s
 
 [../stdlib_test/src/tests\chem\test_rhf.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 22b
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\chem\test_rhf_diag.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 22b
-
-[../stdlib_test/src/tests\chem\test_rhf_integrals.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 22b
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\chem\test_rhf_matrix.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 22b
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\chem\test_thermochemistry.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 20b
+timeout after 30s
 
 [../stdlib_test/src/tests\compression\test_lz4.tr]
-vm: Unknown static call: Lz4.compress
+vm: Unknown static call: Lz4.frameCompress
 
 [../stdlib_test/src/tests\compression\test_tar.tr]
-vm: Unknown static call: Tar.build
+vm: Unknown static call: Tar.parse
 
 [../stdlib_test/src/tests\compression\test_zipfile.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: No method 'isOk' on string
 
 [../stdlib_test/src/tests\compression\test_zlib.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: No method 'isOk' on string
 
 [../stdlib_test/src/tests\compression\test_zstd.tr]
-vm: Unknown static call: Zstd.compress
+vm: Unknown static call: Zstd.compressBound
 
 [../stdlib_test/src/tests\concurrent\test_actor.tr]
-compiler: Cannot assign to undefined variable 'captured'
+vm: No method 'handler' on class 'tt.concurrent.Actor.Actor'
 
 [../stdlib_test/src/tests\concurrent\test_async.tr]
-vm: CALL: function <main> expects 0 args, got 1
+timeout after 30s
 
 [../stdlib_test/src/tests\concurrent\test_barrier.tr]
 compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\concurrent\test_channel.tr]
-vm: CALL: function tt.lang.Variant.of expects 2 args, got 1
+vm: No method '_onCloseCallback' on class 'tt.concurrent.Channel.BufferedChannel'
 
 [../stdlib_test/src/tests\concurrent\test_circuitbreaker.tr]
-vm: Stack overflow: maximum call depth exceeded calling <main>
-
-[../stdlib_test/src/tests\concurrent\test_future.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: SET_FIELD: cannot set field 'lastFailureTime' on 1783473002616L
 
 [../stdlib_test/src/tests\concurrent\test_latch.tr]
 compiler: Cannot resolve module 'tt.concurrent.AtomicInt' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\concurrent\test_lockfreequeue.tr]
-vm: CALL: function tt.lang.Variant.of expects 2 args, got 1
-
-[../stdlib_test/src/tests\concurrent\test_onceflag.tr]
-compiler: Cannot assign to undefined variable 'ran'
+vm: No method 'asInt' on class 'tt.lang.Variant.Variant'
 
 [../stdlib_test/src/tests\concurrent\test_ratelimiter.tr]
 vm: GET_FIELD: cannot get field 'lastRefill' on null
 
 [../stdlib_test/src/tests\concurrent\test_retry.tr]
-compiler: Cannot assign to undefined variable 'counter'
-
-[../stdlib_test/src/tests\concurrent\test_thread.tr]
-compiler: Cannot assign to undefined variable 'ran'
+vm: CALL: function tt.concurrent.Retry.exponentialBackoff expects 3 args, got 4
 
 [../stdlib_test/src/tests\concurrent\test_threadlocal.tr]
-compiler: Cannot assign to undefined variable 'calls'
+vm: No method 'initialValue' on class 'tt.concurrent.ThreadLocal.ThreadLocal__int'
 
 [../stdlib_test/src/tests\concurrent\test_threadpoolexecutor.tr]
-compiler: Cannot assign to undefined variable 'ran'
+timeout after 30s
 
 [../stdlib_test/src/tests\concurrent\test_threadpoolext.tr]
-compiler: Cannot assign to undefined variable 'ran'
-
-[../stdlib_test/src/tests\config\test_configparser.tr]
-vm: NE_I64: type mismatch Ok(42L) != 42L
+vm: No method 'task' on class 'tt.concurrent.ThreadPoolExt.ScheduledTask'
 
 [../stdlib_test/src/tests\config\test_toml.tr]
-vm: Cannot cast "Titrate" to long
+vm: No method 'of' on string
 
 [../stdlib_test/src/tests\contextlib\test_contextlib.tr]
 parser: Expected ;, found . at 17:23
@@ -206,7 +144,7 @@ parser: Expected ;, found . at 17:23
 vm: INVOKE_VIRTUAL: cannot invoke 'shallowCopy' on null
 
 [../stdlib_test/src/tests\crypto\test_cryptoext.tr]
-vm: BITOR_I64: type mismatch 0L
+vm: Unknown static call: CryptoExt.ed25519Sign
 
 [../stdlib_test/src/tests\crypto\test_hash.tr]
 vm: CALL: function tt.crypto.Hmac.md5 expects 2 args, got 1
@@ -215,139 +153,103 @@ vm: CALL: function tt.crypto.Hmac.md5 expects 2 args, got 1
 vm: INVOKE_VIRTUAL: cannot invoke 'hashBytes' on null
 
 [../stdlib_test/src/tests\crypto\test_secrets.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: INVOKE_VIRTUAL: cannot invoke 'decode' on null
 
 [../stdlib_test/src/tests\crypto2\test_aes.tr]
-vm: Unknown static call: Random.nextInt
+vm: Unknown static call: AES.encrypt
 
 [../stdlib_test/src/tests\crypto2\test_ecdsa.tr]
-vm: MOD_I64: type mismatch 1d % 17d
+vm: CALL: function tt.crypto2.ECDSA.ecScalarMul expects 3 args, got 2
 
 [../stdlib_test/src/tests\crypto2\test_kdf.tr]
-vm: Unknown static call: Hmac.compute
-
-[../stdlib_test/src/tests\crypto2\test_rsa.tr]
-vm: MOD_I64: type mismatch 65d % 3233d
+vm: No method 'size' on string
 
 [../stdlib_test/src/tests\csv\test_csv_reader.tr]
-vm: VM exceeded 10 million steps (infinite loop detected). frames=1664557, stack_len=8322775
+vm: VM exceeded 10 million steps (infinite loop detected). frames=1664557, stack_len=8322767
 
 [../stdlib_test/src/tests\csv\test_csv_writer.tr]
 vm: VM exceeded 10 million steps (infinite loop detected). frames=1666071, stack_len=8330336
 
 [../stdlib_test/src/tests\dataclass\test_dataclass.tr]
-compiler: Unknown class 'StringBuilder' in new expression
-
-[../stdlib_test/src/tests\db\test_sqlite.tr]
-vm: Cannot cast "alice" to long
+vm: Cannot cast tt.dataclass.Dataclass.DataclassInfo(name: "Point", fields: ArrayList__string(_elements: ["x", "y"]), defaults: ArrayList__Variant(_elements: [null, null])) to long
 
 [../stdlib_test/src/tests\db\test_sqliteext.tr]
 vm: Sqlite_execute: invalid connection handle
 
 [../stdlib_test/src/tests\decimal\test_decimal.tr]
-vm: String.length: expected String, got null
-
-[../stdlib_test/src/tests\decimal\test_decimal_context.tr]
-vm: NE_I64: type mismatch 0b != "ceiling"
+vm: String.indexOf: expected (String, String) or (String, Char), got (null, ".")
 
 [../stdlib_test/src/tests\decimal\test_decimal_ext.tr]
-vm: String.length: expected String, got null
-
-[../stdlib_test/src/tests\encoding\test_base64.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: String.indexOf: expected (String, String) or (String, Char), got (null, ".")
 
 [../stdlib_test/src/tests\encoding\test_base64_edge.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
-
-[../stdlib_test/src/tests\encoding\test_codecs.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: Base64_decode: Invalid symbol 33, offset 0.
 
 [../stdlib_test/src/tests\encoding\test_url.tr]
 parser: Expected ;, found . at 142:16
 
 [../stdlib_test/src/tests\file\test_directory.tr]
-vm: File_write: expected (FileHandle, String)
+vm: File_close: expected FileHandle argument
 
 [../stdlib_test/src/tests\file\test_fileutils.tr]
 parser: Expected ;, found . at 177:24
 
-[../stdlib_test/src/tests\file\test_fnmatch.tr]
-vm: String.toUpperCase: expected String, got 'h'
-
 [../stdlib_test/src/tests\file\test_glob.tr]
-vm: File_write: expected (FileHandle, String)
+vm: File_close: expected FileHandle argument
 
 [../stdlib_test/src/tests\file\test_path.tr]
-vm: NE_I64: type mismatch Ok("read me") != "read me"
+vm: Fs_size: 系统找不到指定的文件。 (os error 2)
 
 [../stdlib_test/src/tests\finance\test_blackscholes.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'get' on 18b
+vm: CALL: function tt.math.Math.gamma expects 1 args, got 5
 
 [../stdlib_test/src/tests\functools\test_functools.tr]
-vm: Unknown ArrayList method 'reduce'
-
-[../stdlib_test/src/tests\geom\test_convexhull.tr]
-vm: Unknown ArrayList method 'removeAt'
+vm: forEach: expected a closure
 
 [../stdlib_test/src/tests\geom\test_delaunay.tr]
-vm: Unknown ArrayList method 'abs'
+vm: LT_F64: type mismatch ArrayList(_elements: [tt.geom.Delaunay.Point2D(x: 0d, y: 0d), tt.geom.Delaunay.Point2D(y: 0d, x: 1d), tt.geom.Delaunay.Point2D(y: 1d, x: 0.5d), tt.geom.Delaunay.Point2D(x: -1000000d, y: -1000000d), tt.geom.Delaunay.Point2D(x: 1000000d, y: -1000000d), tt.geom.Delaunay.Point2D(x: 0d, y: 1000000d)])
 
 [../stdlib_test/src/tests\geom\test_spatialindex.tr]
 vm: Unknown static call: .insertRec
 
 [../stdlib_test/src/tests\heapq\test_heapq.tr]
-vm: Unknown ArrayList method 'heapify'
-
-[../stdlib_test/src/tests\hft\test_fixparser.tr]
-vm: GT_I64: type mismatch Ok(35L) > Ok(49L)
+vm: Unknown ArrayList method 'heappush'
 
 [../stdlib_test/src/tests\hft\test_riskmanager.tr]
 vm: No method 'abs' on class 'tt.hft.RiskManager.RiskManager'
 
 [../stdlib_test/src/tests\html\test_html.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'keys' on 16b
-
-[../stdlib_test/src/tests\i18n\test_locale.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'size' on 16b
+timeout after 30s
 
 [../stdlib_test/src/tests\image\test_kernel.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'exp' on 5L
 
 [../stdlib_test/src/tests\io\test_asyncfile.tr]
-compiler: Cannot assign to undefined variable 'called'
+vm: Unknown static call: File.append
 
 [../stdlib_test/src/tests\io\test_bufferedreader.tr]
-compiler: Unknown class 'StringBuilder' in new expression
+vm: File_close: expected FileHandle argument
 
 [../stdlib_test/src/tests\io\test_file.tr]
-vm: File_write: expected (FileHandle, String)
+vm: No method 'isErr' on string
 
 [../stdlib_test/src/tests\io\test_filelock.tr]
-compiler: Cannot assign to undefined variable 'executed'
+vm: Unknown static call: File.tryLock
 
 [../stdlib_test/src/tests\io\test_filereader.tr]
-vm: File_write: expected (FileHandle, String)
+vm: File_close: expected FileHandle argument
 
 [../stdlib_test/src/tests\io\test_filewatcher.tr]
 vm: Dir_list: 系统找不到指定的路径。 (os error 3)
 
 [../stdlib_test/src/tests\io\test_filewriter.tr]
-vm: File_write: expected (FileHandle, String)
-
-[../stdlib_test/src/tests\io\test_format.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
-
-[../stdlib_test/src/tests\io\test_format_edge.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: File_close: expected FileHandle argument
 
 [../stdlib_test/src/tests\io\test_io.tr]
 worker thread panicked
 
 [../stdlib_test/src/tests\io\test_mmap.tr]
-vm: File_write: expected (FileHandle, String)
-
-[../stdlib_test/src/tests\io\test_mmapext.tr]
-vm: File_write: expected (FileHandle, String)
+vm: File_close: expected FileHandle argument
 
 [../stdlib_test/src/tests\io\test_pipe.tr]
 parser: Expected ;, found . at 146:17
@@ -355,122 +257,80 @@ parser: Expected ;, found . at 146:17
 [../stdlib_test/src/tests\io\test_tempfile.tr]
 parser: Expected ;, found . at 10:21
 
-[../stdlib_test/src/tests\itertools\test_itertools.tr]
-vm: Unknown ArrayList method 'combinations'
+[../stdlib_test/src/tests\io\test_writer.tr]
+compiler: Cannot resolve function 'toString' at line 46
 
-[../stdlib_test/src/tests\itertools\test_itertoolsseq.tr]
-vm: CALL: function <main> expects 0 args, got 1
+[../stdlib_test/src/tests\itertools\test_itertools.tr]
+vm: Unknown ArrayList method 'combinationsWithReplacement'
 
 [../stdlib_test/src/tests\json\test_json.tr]
 vm: No method 'isObject' on Result
 
-[../stdlib_test/src/tests\json\test_json5.tr]
-vm: NE_F64: type mismatch Ok(42d)
-
 [../stdlib_test/src/tests\json\test_json_binary.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'floor' on 42d
 
-[../stdlib_test/src/tests\json\test_json_parser.tr]
-vm: NE_F64: type mismatch Ok(42.5d)
-
 [../stdlib_test/src/tests\json\test_json_patch.tr]
-vm: LT_I64: type mismatch Ok(1L) < 0L
+vm: ArrayList.get requires an integer index
 
 [../stdlib_test/src/tests\json\test_json_path.tr]
-vm: LT_I64: type mismatch Ok(1L) < 0L
-
-[../stdlib_test/src/tests\json\test_json_streaming_parser.tr]
-vm: NE_F64: type mismatch Ok(42.5d)
+vm: ArrayList.get requires an integer index
 
 [../stdlib_test/src/tests\json\test_json_value.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: Unknown static call: .singletonMap
 
 [../stdlib_test/src/tests\lang\test_assay_ext.tr]
-compiler: Cannot assign to undefined variable 'called'
-
-[../stdlib_test/src/tests\lang\test_assert_ext.tr]
-vm: Cannot cast null to long
+vm: No method 'setupFn' on class 'tt.lang.AssayExt.TestFixture'
 
 [../stdlib_test/src/tests\lang\test_boolean.tr]
-vm: Unknown static call: Boolean.logicalAnd
+vm: Unknown static call: Boolean.logicalNot
 
 [../stdlib_test/src/tests\lang\test_byte.tr]
-vm: NE_I64: type mismatch Ok(0b) != 0L
-
-[../stdlib_test/src/tests\lang\test_character.tr]
-vm: Cannot cast "0" to int
-
-[../stdlib_test/src/tests\lang\test_character_ext.tr]
-vm: Cannot cast "0" to int
+vm: NE_I64: type mismatch 0b != 0L
 
 [../stdlib_test/src/tests\lang\test_contextlib.tr]
-compiler: Cannot assign to undefined variable 'exited'
+vm: No method 'enterFn' on class 'tt.lang.Contextlib.ContextManager'
 
 [../stdlib_test/src/tests\lang\test_copy_ext.tr]
 vm: Cannot cast ArrayList__Variant(_elements: [1L, 2L, 3L]) to long
 
-[../stdlib_test/src/tests\lang\test_dataclass_ext.tr]
-vm: CALL: function <main> expects 0 args, got 1
-
-[../stdlib_test/src/tests\lang\test_datafile.tr]
-vm: String.length: expected String, got 15b
-
 [../stdlib_test/src/tests\lang\test_double.tr]
 worker thread panicked
-
-[../stdlib_test/src/tests\lang\test_double_edge.tr]
-vm: Unknown static call: Double.parseOr
 
 [../stdlib_test/src/tests\lang\test_double_ext.tr]
 worker thread panicked
 
-[../stdlib_test/src/tests\lang\test_enum.tr]
-vm: ADD_I64: type mismatch 0b + 1L
-
-[../stdlib_test/src/tests\lang\test_enum_ext.tr]
-vm: ADD_I64: type mismatch 0b + 1L
-
 [../stdlib_test/src/tests\lang\test_error_code.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: GET_FIELD: cannot get field 'NO_ERROR' on null
 
 [../stdlib_test/src/tests\lang\test_float.tr]
-vm: SUB_I64: type mismatch Ok(3.14f) - 3.14d
+vm: Unknown static call: Float.NaN
 
 [../stdlib_test/src/tests\lang\test_functools_lang.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: No method '_fn' on class 'tt.lang.Functools.PartialFn'
 
 [../stdlib_test/src/tests\lang\test_half.tr]
-vm: NE_F64: type mismatch Ok(1.5h)
+vm: NE_I64: type mismatch 3.25h != 3.25d
 
 [../stdlib_test/src/tests\lang\test_integer.tr]
-vm: NE_I64: type mismatch Ok(42L) != 42L
+vm: Unknown static call: Integer.compare
 
 [../stdlib_test/src/tests\lang\test_integer_edge.tr]
-vm: NE_I64: type mismatch Ok(7L) != 7L
-
-[../stdlib_test/src/tests\lang\test_integer_ext.tr]
-vm: String.toLowerCase: expected String, got '4'
+vm: Division by zero (long)
 
 [../stdlib_test/src/tests\lang\test_iterable.tr]
-vm: Unknown ArrayList method 'iterator'
+vm: No method 'hasNext' on class 'Iterator'
 
 [../stdlib_test/src/tests\lang\test_iterator.tr]
-compiler: Cannot assign to undefined variable 'sum'
+vm: No method 'hasNext' on class 'Iterator'
 
 [../stdlib_test/src/tests\lang\test_itertools_lang.tr]
-vm: CALL: function <main> expects 0 args, got 2
+vm: No method 'getSecond' on class 'tt.util.Pair.Pair__Variant__Variant'
 
 [../stdlib_test/src/tests\lang\test_logger_ext.tr]
 compiler: Cannot resolve module 'tt.net.SmtpClient' – searched in .., ..\lib
 
-[../stdlib_test/src/tests\lang\test_long.tr]
-vm: NE_I64: type mismatch Ok(42L) != 42L
-
-[../stdlib_test/src/tests\lang\test_long_ext.tr]
-vm: ADD_I32: type mismatch 0L + 1
-
 [../stdlib_test/src/tests\lang\test_numeric_limits.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+worker thread panicked
 
 [../stdlib_test/src/tests\lang\test_optional.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'empty' on null
@@ -479,13 +339,10 @@ vm: INVOKE_VIRTUAL: cannot invoke 'empty' on null
 vm: INVOKE_VIRTUAL: cannot invoke 'empty' on null
 
 [../stdlib_test/src/tests\lang\test_optional_ext.tr]
-vm: CALL: function tt.lang.Variant.of expects 2 args, got 1
+vm: No method 'isPresent' on class 'tt.lang.Variant.Variant'
 
 [../stdlib_test/src/tests\lang\test_parseerror.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'InvalidFormat' on null
-
-[../stdlib_test/src/tests\lang\test_quad.tr]
-vm: NE_F64: type mismatch Ok(42q)
 
 [../stdlib_test/src/tests\lang\test_result.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'ok' on null
@@ -497,46 +354,37 @@ vm: INVOKE_VIRTUAL: cannot invoke 'ok' on null
 vm: INVOKE_VIRTUAL: cannot invoke 'ok' on null
 
 [../stdlib_test/src/tests\lang\test_short.tr]
-vm: NE_I64: type mismatch Ok(42s) != 42L
+vm: NE_I64: type mismatch 42s != 42L
 
 [../stdlib_test/src/tests\lang\test_string.tr]
 vm: Unknown static call: String.toString
 
 [../stdlib_test/src/tests\lang\test_string_edge.tr]
-vm: Unknown static call: String.isBlank
+vm: Unknown static call: String.repeat
 
 [../stdlib_test/src/tests\lang\test_string_ext.tr]
-vm: Unknown static call: String.rfind
-
-[../stdlib_test/src/tests\lang\test_string_utils.tr]
-vm: String.toLowerCase: expected String, got 'W'
+vm: No method 'size' on string
 
 [../stdlib_test/src/tests\lang\test_subprocess_lang.tr]
-vm: Unknown static call: Subprocess.runFull
+vm: GET_FIELD: cannot get field 'pid' on null
 
 [../stdlib_test/src/tests\lang\test_tuple.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'makeTuple2' on null
 
-[../stdlib_test/src/tests\lang\test_tuple_ext.tr]
-vm: Cannot cast "hi" to long
-
 [../stdlib_test/src/tests\lang\test_uvast.tr]
-vm: NE_I64: type mismatch Ok(42U) != 42L
+vm: NE_I64: type mismatch 42U != 42L
 
 [../stdlib_test/src/tests\lang\test_variant.tr]
-vm: Cannot cast "hello" to long
-
-[../stdlib_test/src/tests\lang\test_variant_ext.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: Cannot cast tt.lang.Variant.Variant(_typeTag: "int", _value: 42L) to long
 
 [../stdlib_test/src/tests\lang\test_vast.tr]
-vm: NE_I64: type mismatch Ok(42V) != 42L
+vm: NE_I64: type mismatch 42V != 42L
 
 [../stdlib_test/src/tests\lang\test_vast_ext.tr]
-vm: Cannot cast "0" to int
+timeout after 30s
 
 [../stdlib_test/src/tests\lang\test_weakref.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'clear' on 0b
+vm: No method 'add' on class 'tt.lang.WeakRef.WeakRef__int'
 
 [../stdlib_test/src/tests\linalg\test_cholesky.tr]
 vm: SUB_I64: type mismatch ArrayList__double(_elements: [4d, 2d]) - 0d
@@ -554,10 +402,7 @@ compiler: Cannot resolve module 'tt.math.linalg.CSRMatrix' – searched in .., .
 vm: MUL_I64: type mismatch ArrayList__double(_elements: [1d, 2d]) * ArrayList__double(_elements: [1d, 2d])
 
 [../stdlib_test/src/tests\logging\test_logger.tr]
-vm: CALL: function <main> expects 0 args, got 1
-
-[../stdlib_test/src/tests\materials\test_crystal_structure.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'get' on 20b
+compiler: Cannot resolve function 'println' at line 141
 
 [../stdlib_test/src/tests\materials\test_elasticity.tr]
 vm: No method 'abs' on class 'tt.materials.Elasticity.StressTensor'
@@ -605,10 +450,7 @@ compiler: Cannot resolve module 'tt.math.interpolation.Interpolation.CubicSpline
 compiler: Cannot resolve module 'tt.math.IntervalArithmetic.Interval' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\math\test_math.tr]
-vm: NE_F64: type mismatch -1L
-
-[../stdlib_test/src/tests\math\test_math_edge.tr]
-vm: EQ_F64: type mismatch 0L
+vm: CALL: function tt.math.Math.isclose expects 4 args, got 2
 
 [../stdlib_test/src/tests\math\test_math_trig.tr]
 vm: CALL: function absDiff expects 2 args, got 1
@@ -632,10 +474,10 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_analysis.tr]
-vm: CALL: function <main> expects 0 args, got 2
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_broadcast.tr]
-vm: Unknown ArrayList method 'max'
+vm: GT_F64: type mismatch ArrayList(_elements: [5d])
 
 [../stdlib_test/src/tests\math\test_ndarray_cumulative.tr]
 vm: CALL: function tt.math.ndarray.Cumulative.gradient1d expects 2 args, got 1
@@ -650,34 +492,28 @@ vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_indexing.tr]
-vm: Unknown ArrayList method 'abs'
+vm: GT_F64: type mismatch ArrayList(_elements: [1d, 2d, 3d, 4d, 5d])
 
 [../stdlib_test/src/tests\math\test_ndarray_manip.tr]
-vm: CALL: function <main> expects 0 args, got 2
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_manipulation.tr]
-vm: Unknown ArrayList method 'abs'
+vm: GT_F64: type mismatch ArrayList(_elements: [1d, 2d, 3d])
 
 [../stdlib_test/src/tests\math\test_ndarray_math.tr]
-vm: CALL: function <main> expects 0 args, got 2
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_reduce.tr]
-vm: CALL: function <main> expects 0 args, got 2
-
-[../stdlib_test/src/tests\math\test_ndarray_rolling.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_shape.tr]
-vm: CALL: function <main> expects 0 args, got 2
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_slice.tr]
-vm: CALL: function <main> expects 0 args, got 2
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_ndarray_sort.tr]
-vm: CALL: function <main> expects 0 args, got 2
-
-[../stdlib_test/src/tests\math\test_number_theory.tr]
-vm: Unknown HashMap method 'getOrDefault'
+vm: INVOKE_VIRTUAL: cannot invoke 'size' on null
 
 [../stdlib_test/src/tests\math\test_optimization.tr]
 compiler: Cannot resolve module 'tt.math.optimization.Optimization.OptResult' – searched in .., ..\lib
@@ -688,29 +524,20 @@ compiler: Cannot resolve module 'tt.math.pde.PDE.DirichletBC' – searched in ..
 [../stdlib_test/src/tests\math\test_polynomial.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'evalAt' on null
 
-[../stdlib_test/src/tests\math\test_sequence.tr]
-vm: CALL: function <main> expects 0 args, got 1
-
-[../stdlib_test/src/tests\math\test_special.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'get' on 16b
-
-[../stdlib_test/src/tests\math\test_transform_math.tr]
-vm: SUB_I64: type mismatch 0d - null
-
 [../stdlib_test/src/tests\ml\test_layer.tr]
-vm: Unknown static call: Random.nextDouble
+vm: INVOKE_VIRTUAL: cannot invoke 'add' on 0L
 
 [../stdlib_test/src/tests\ml\test_model.tr]
-vm: Unknown static call: Random.nextDouble
+vm: INVOKE_VIRTUAL: cannot invoke 'add' on 0L
 
 [../stdlib_test/src/tests\net\test_httputil.tr]
-compiler: Unknown class 'StringBuilder' in new expression
+compiler: Cannot resolve function 'parseUrl' at line 28
 
 [../stdlib_test/src/tests\net\test_ipaddress.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: CALL: function tt.lang.DataFile.validate expects 2 args, got 1
 
 [../stdlib_test/src/tests\net\test_socket.tr]
-vm: NE_I64: type mismatch 0b != 2L
+vm: Socket_close: invalid handle
 
 [../stdlib_test/src/tests\net\test_ssl.tr]
 vm: Ssl_recv: invalid connection handle
@@ -719,25 +546,19 @@ vm: Ssl_recv: invalid connection handle
 vm: Net_close: expected Socket or Listener argument
 
 [../stdlib_test/src/tests\net\test_tcpserver.tr]
-compiler: Unknown class 'TcpClient' in new expression
+vm: Net_setTimeout: expected Socket or Listener argument
 
 [../stdlib_test/src/tests\net\test_udpsocket.tr]
 vm: UdpSocket_close: invalid handle
 
 [../stdlib_test/src/tests\net\test_urlbuilder.tr]
-compiler: Unknown class 'StringBuilder' in new expression
+vm: No method 'toString' on class 'tt.util.StringBuilder.StringBuilder'
 
 [../stdlib_test/src/tests\net\test_websocket.tr]
-compiler: Unknown class 'StringBuilder' in new expression
-
-[../stdlib_test/src/tests\nlp\test_classifier.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 18b
-
-[../stdlib_test/src/tests\nlp\test_distance.tr]
-vm: String.length: expected String, got 'R'
+vm: No method 'toString' on class 'tt.util.StringBuilder.StringBuilder'
 
 [../stdlib_test/src/tests\nlp\test_tokenizer.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 18b
+worker thread panicked
 
 [../stdlib_test/src/tests\operator\test_operator.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'eq' on null
@@ -745,32 +566,26 @@ vm: INVOKE_VIRTUAL: cannot invoke 'eq' on null
 [../stdlib_test/src/tests\physics\test_nbody_simulator.tr]
 compiler: Parser error in module '..\lib\tt\physics\NBodySimulator.tr': Expected expression, found if at 265:33
 
-[../stdlib_test/src/tests\physics\test_unit_system.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'keys' on 18b
-
-[../stdlib_test/src/tests\physics\test_wavefunction.tr]
-vm: MUL_F64: type mismatch 2d * null
-
 [../stdlib_test/src/tests\pprint\test_pprint.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: CALL: function tt.pprint.Pprint.pformat__Variant expects 3 args, got 1
 
 [../stdlib_test/src/tests\random\test_continuousdist.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'nextGaussian' on 20b
+vm: ARRAY_GET: invalid index type on array: -5755886454915530492L[0L]
 
 [../stdlib_test/src/tests\random\test_discretedist.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'nextDouble' on 20b
+vm: ARRAY_GET: invalid index type on array: 3126678583768582838L[0L]
 
 [../stdlib_test/src/tests\random\test_prng.tr]
-vm: SHR_I64: type mismatch null
+vm: BITXOR_I64: type mismatch null ^ 0L
 
 [../stdlib_test/src/tests\random\test_quasirandom.tr]
-vm: MOD_F64: type mismatch 1L % 2d
+vm: ARRAY_GET: invalid index type on array: 4693298141029747729L[0L]
 
 [../stdlib_test/src/tests\random\test_random.tr]
-vm: Random_nextLong: expected 2 arguments (state0, state1)
+vm: ARRAY_GET: invalid index type on array: 7219751966552378154L[0L]
 
 [../stdlib_test/src/tests\random\test_sampling.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'nextDouble' on 20b
+vm: ARRAY_GET: invalid index type on array: 8244100201581349920L[0L]
 
 [../stdlib_test/src/tests\regex\test_match.tr]
 vm: ArrayList index out of bounds: 1
@@ -779,112 +594,61 @@ vm: ArrayList index out of bounds: 1
 worker thread panicked
 
 [../stdlib_test/src/tests\regex\test_regex_ext.tr]
-vm: Unknown static call: Regex.findNamedCapture
-
-[../stdlib_test/src/tests\regex\test_regex_iterator.tr]
-vm: ADD_I64: type mismatch Ok(3L) + 0L
+vm: Unknown static call: Regex.findAllNamedCaptures
 
 [../stdlib_test/src/tests\secrets\test_secrets.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: INVOKE_VIRTUAL: cannot invoke 'decode' on null
 
 [../stdlib_test/src/tests\sigproc\test_fft2.tr]
-vm: SHR_I64: type mismatch 4
+vm: INVOKE_VIRTUAL: cannot invoke 'fftfreq' on null
 
 [../stdlib_test/src/tests\sigproc\test_spectrogram.tr]
-vm: VM exceeded 10 million steps (infinite loop detected). frames=6, stack_len=84
+vm: VM exceeded 10 million steps (infinite loop detected). frames=6, stack_len=44
 
 [../stdlib_test/src/tests\sim\test_resource.tr]
-vm: Unknown ArrayList method 'removeAt'
-
-[../stdlib_test/src/tests\sim\test_simulation.tr]
-vm: NE_F64: type mismatch null
+vm: No method 'abs' on class 'tt.sim.Resource.SimResource'
 
 [../stdlib_test/src/tests\statistics\test_bootstrap.tr]
-vm: Random_nextLong: expected 2 arguments (state0, state1)
-
-[../stdlib_test/src/tests\statistics\test_kde.tr]
-vm: MUL_F64: type mismatch 1d * 4L
+vm: ARRAY_GET: invalid index type on array: -3209179413538051318L[0L]
 
 [../stdlib_test/src/tests\statistics\test_mcmc.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: CALL_CLOSURE: expected closure on stack, got void
 
 [../stdlib_test/src/tests\statistics\test_statistics.tr]
-vm: MUL_F64: type mismatch 1d * 4L
-
-[../stdlib_test/src/tests\statistics\test_survival.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'get' on 18b
-
-[../stdlib_test/src/tests\statistics\test_timeseries.tr]
-vm: Unknown ArrayList method 'clear'
+vm: CALL: function tt.statistics.Statistics.fmean expects 2 args, got 1
 
 [../stdlib_test/src/tests\subprocess\test_subprocess.tr]
 vm: Subprocess_run: failed to execute 'echo hello': program not found
 
-[../stdlib_test/src/tests\sys\test_atexit.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'clear' on 0b
-
-[../stdlib_test/src/tests\sys\test_gc.tr]
-vm: LT_I64: type mismatch 1b < 1L
-
 [../stdlib_test/src/tests\sys\test_os.tr]
 compiler: Cannot resolve module 'tt.sys.Os.DirEntry' – searched in .., ..\lib
-
-[../stdlib_test/src/tests\sys\test_platform.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
 
 [../stdlib_test/src/tests\sys\test_selectors.tr]
 parser: Expected ;, found . at 14:23
 
 [../stdlib_test/src/tests\sys\test_signal.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: NE_I64: type mismatch Err("Invalid integer: Ok(2)") != 2L
 
 [../stdlib_test/src/tests\sys\test_sys.tr]
-vm: LT_I64: type mismatch Ok(16L) < 1L
+vm: Subprocess_exec: failed to execute 'echo titrate_test': program not found
 
 [../stdlib_test/src/tests\sys\test_warnings.tr]
 vm: GET_FIELD: cannot get field 'WARNING' on null
 
-[../stdlib_test/src/tests\tempfile\test_tempfile.tr]
-vm: NE_I64: type mismatch Ok("hello world") != "hello world"
-
 [../stdlib_test/src/tests\text\test_difflib.tr]
 parser: Expected ;, found . at 174:20
-
-[../stdlib_test/src/tests\text\test_unicodedata.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 17b
 
 [../stdlib_test/src/tests\textwrap\test_textwrap.tr]
 vm: No method 'size' on string
 
-[../stdlib_test/src/tests\time\test_business_calendar.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 12b
-
-[../stdlib_test/src/tests\time\test_cron.tr]
-vm: LT_I64: type mismatch Ok(0L) < 0L
-
-[../stdlib_test/src/tests\time\test_date_range.tr]
-vm: LT_I64: type mismatch 1970L < Ok(2024L)
-
-[../stdlib_test/src/tests\time\test_datetime.tr]
-vm: LT_I64: type mismatch 1970L < Ok(1970L)
-
-[../stdlib_test/src/tests\time\test_datetime_edge.tr]
-vm: LT_I64: type mismatch 1970L < Ok(2024L)
-
 [../stdlib_test/src/tests\time\test_scheduler.tr]
-compiler: Unknown class 'Stopwatch' in new expression
-
-[../stdlib_test/src/tests\time\test_time.tr]
-timeout after 30s
+vm: No method 'action' on class 'tt.time.Scheduler.ScheduledEvent'
 
 [../stdlib_test/src/tests\time\test_zone_info.tr]
-vm: MUL_F64: type mismatch 0d * 60L
+vm: No method 'name' on class 'tt.time.DateTime.TimeZone'
 
 [../stdlib_test/src/tests\units\test_base.tr]
 vm: MUL_I64: type mismatch 3d * tt.units.Base.Meter(value: 4d)
-
-[../stdlib_test/src/tests\units\test_constants.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
 
 [../stdlib_test/src/tests\units\test_derived.tr]
 vm: DIV_I64: type mismatch 100d / tt.units.Base.Second(value: 10d)
@@ -892,29 +656,20 @@ vm: DIV_I64: type mismatch 100d / tt.units.Base.Second(value: 10d)
 [../stdlib_test/src/tests\units\test_specialunits.tr]
 vm: INVOKE_VIRTUAL: cannot invoke 'abs' on 1d
 
-[../stdlib_test/src/tests\units\test_unitconverter.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
-
 [../stdlib_test/src/tests\util\test_array.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: ArrayList index out of bounds: 5
 
 [../stdlib_test/src/tests\util\test_arraylist.tr]
-vm: Unknown ArrayList method 'pop'
+vm: Unknown ArrayList method 'lastIndexOf'
 
 [../stdlib_test/src/tests\util\test_arraylist_edge.tr]
-vm: Unknown ArrayList method 'isEmpty'
-
-[../stdlib_test/src/tests\util\test_arraylistiterator.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: ArrayList index out of bounds: 0
 
 [../stdlib_test/src/tests\util\test_defaultdict.tr]
 vm: No method 'factory' on class 'tt.util.defaultdict.defaultdict__string__int'
 
-[../stdlib_test/src/tests\util\test_forwardlist.tr]
-vm: LT_I64: type mismatch null < 0L
-
 [../stdlib_test/src/tests\util\test_frozenset.tr]
-vm: Cannot cast tt.util.FrozenSet.FrozenSet__string(_map: HashMap__string__bool(_keys: ["b", "a"], _values: [true, true])) to long
+vm: Cannot cast tt.util.FrozenSet.FrozenSet__string(_map: HashMap__string__bool(_values: [true, true], _keys: ["b", "a"])) to long
 
 [../stdlib_test/src/tests\util\test_graph_generic.tr]
 timeout after 30s
@@ -922,29 +677,11 @@ timeout after 30s
 [../stdlib_test/src/tests\util\test_graph_util.tr]
 timeout after 30s
 
-[../stdlib_test/src/tests\util\test_graphutil.tr]
-vm: Unknown static call: String.compareTo
-
 [../stdlib_test/src/tests\util\test_hashmap.tr]
-vm: Unknown HashMap method 'isEmpty'
-
-[../stdlib_test/src/tests\util\test_hashmap_edge.tr]
-vm: Unknown HashMap method 'isEmpty'
-
-[../stdlib_test/src/tests\util\test_hashset.tr]
-vm: Unknown HashMap method 'clear'
-
-[../stdlib_test/src/tests\util\test_hashset_edge.tr]
-vm: Unknown HashMap method 'clear'
-
-[../stdlib_test/src/tests\util\test_linkedlist.tr]
-vm: CALL: function <main> expects 0 args, got 2
+vm: Unknown HashMap method 'putIfAbsent'
 
 [../stdlib_test/src/tests\util\test_ordereddict.tr]
 vm: TUPLE_GET: expected tuple, found "a"
-
-[../stdlib_test/src/tests\util\test_pair.tr]
-vm: CALL: function <main> expects 0 args, got 2
 
 [../stdlib_test/src/tests\util\test_priorityqueue.tr]
 vm: No method '_comparator' on class 'tt.util.PriorityQueue.PriorityQueue__int'
@@ -955,9 +692,6 @@ vm: No method 'first' on class 'tt.util.Pair.Pair__double__Variant'
 [../stdlib_test/src/tests\util\test_queue_edge.tr]
 vm: ArrayList index out of bounds: 0
 
-[../stdlib_test/src/tests\util\test_set.tr]
-vm: CALL: function <main> expects 0 args, got 1
-
 [../stdlib_test/src/tests\util\test_stack_edge.tr]
 vm: ArrayList index out of bounds: 18446744073709551615
 
@@ -965,19 +699,7 @@ vm: ArrayList index out of bounds: 18446744073709551615
 vm: No method 'comparator' on class 'tt.util.TreeMap.TreeMap__int__string'
 
 [../stdlib_test/src/tests\util\test_treeset.tr]
-compiler: Unknown class 'TreeMap' in new expression
-
-[../stdlib_test/src/tests\util\test_userdict.tr]
-vm: Unknown HashMap method 'isEmpty'
-
-[../stdlib_test/src/tests\util\test_userlist.tr]
-vm: Unknown ArrayList method 'isEmpty'
-
-[../stdlib_test/src/tests\util\test_userstring.tr]
-vm: Unknown static call: String.count
-
-[../stdlib_test/src/tests\util\test_vec.tr]
-vm: CALL: function <main> expects 0 args, got 1
+vm: No method 'comparator' on class 'tt.util.TreeMap.TreeMap__int__int'
 
 [../stdlib_test/src/tests\uuid\test_uuid.tr]
 compiler: Cannot resolve module 'tt.lang.Time' – searched in .., ..\lib
@@ -985,17 +707,11 @@ compiler: Cannot resolve module 'tt.lang.Time' – searched in .., ..\lib
 [../stdlib_test/src/tests\xml\test_xml.tr]
 compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
 
-[../stdlib_test/src/tests\xml\test_xml_streaming_parser.tr]
-vm: CALL: function <main> expects 0 args, got 1
-
 [../stdlib_test/src/tests\xml\test_xmlcanonicalizer.tr]
 compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
 
 [../stdlib_test/src/tests\xml\test_xmlnamespace.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'declare' on 1b
-
-[../stdlib_test/src/tests\xml\test_xmlnode.tr]
-vm: INVOKE_VIRTUAL: cannot invoke 'containsKey' on 16b
+vm: CALL: function tt.util.HashMap.setDefault expects 3 args, got 1
 
 [../stdlib_test/src/tests\xml\test_xmlschema.tr]
 compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..\lib
@@ -1005,10 +721,38 @@ compiler: Cannot resolve module 'tt.xml.ValidationResult' – searched in .., ..
 
 --- TEST FAILURES (FAIL: lines, all) ---
 
+[../stdlib_test/src/tests\algo\test_stringalgo.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: lcpArray size wrong
+
+[../stdlib_test/src/tests\argparse\test_argument_parser.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: argumentParser parseArgs default
+FAIL: argumentParser parseArgs with value
+FAIL: argumentParser parseArgs flag
+FAIL: SUPPRESS constant
+
+[../stdlib_test/src/tests\bio\test_codon_table.tr]
+7 FAIL line(s) (showing up to 5):
+FAIL: lookup('ATG') returned unknown
+FAIL: lookupSingleLetter('ATG') returned unknown
+FAIL: isStartCodon('ATG') expected true
+FAIL: isStopCodon('TAA') expected true
+FAIL: getStartCodons empty
+
+[../stdlib_test/src/tests\bio\test_sequence.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Sequence.complement expected 'TGCA' got 'ACGT'
+FAIL: Sequence.reverseComplement expected 'ACGT' got 'TGCA'
+
 [../stdlib_test/src/tests\bisect\test_bisect.tr]
 2 FAIL line(s) (showing up to 5):
 FAIL: Bisect.insortLeft values wrong
 FAIL: Bisect.insortRight values wrong
+
+[../stdlib_test/src/tests\chem\test_reaction_balancer.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: isRedox H2+O2->H2O expected true
 
 [../stdlib_test/src/tests\compression\test_gzip.tr]
 1 FAIL line(s) (showing up to 5):
@@ -1022,6 +766,37 @@ FAIL: Event.waitFor should return true when signaled
 1 FAIL line(s) (showing up to 5):
 FAIL: Mutex.tryLock should fail on locked mutex
 
+[../stdlib_test/src/tests\concurrent\test_onceflag.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: OnceFlag.callOnce did not invoke fn
+FAIL: OnceFlag ran 0 times, expected 1
+FAIL: OnceFlag instances not independent, total = 0
+FAIL: OnceFlag second callOnce overwrote, v = 0
+
+[../stdlib_test/src/tests\concurrent\test_thread.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: Thread.start did not run task
+FAIL: Thread.start ran task 0 times
+FAIL: Thread.join v=0
+FAIL: Thread closure captured = 10
+
+[../stdlib_test/src/tests\crypto2\test_rsa.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: isProbablyPrime returned false for a small prime
+
+[../stdlib_test/src/tests\decimal\test_decimal_context.tr]
+7 FAIL line(s) (showing up to 5):
+FAIL: string rounding constants (basic)
+FAIL: integer rounding constants (basic)
+FAIL: integer rounding constants not distinct
+FAIL: DecimalContext.getRoundingMode = null
+FAIL: DecimalContext.withPrecision
+
+[../stdlib_test/src/tests\encoding\test_base64.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Base64.decodeBase32 returned      , expected hello
+FAIL: Base32 roundtrip failed:        
+
 [../stdlib_test/src/tests\file\test_path_edge.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: path join with empty returned 'base\'
@@ -1030,13 +805,72 @@ FAIL: path join with empty returned 'base\'
 1 FAIL line(s) (showing up to 5):
 FAIL: ITM call should be > OTM call
 
+[../stdlib_test/src/tests\i18n\test_locale.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Locale.dateFormat default wrong: MM/dd/yyyy
+FAIL: Locale.timeFormat default wrong: h:mm a
+
 [../stdlib_test/src/tests\image\test_threshold.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: otsuThreshold not between modes = 20
 
+[../stdlib_test/src/tests\io\test_format.tr]
+7 FAIL line(s) (showing up to 5):
+FAIL: format %.2f = '3.14159'
+FAIL: format %x = '255'
+FAIL: format %X = '255'
+FAIL: format %o = '8'
+FAIL: format %b = '5'
+
+[../stdlib_test/src/tests\io\test_mmapext.tr]
+8 FAIL line(s) (showing up to 5):
+FAIL: MmapExt size = 0
+FAIL: MmapExt read size
+FAIL: MmapExt read slice = ''
+FAIL: MmapExt read offset = ''
+FAIL: MmapExt read beyond end = ''
+
+[../stdlib_test/src/tests\itertools\test_itertoolsseq.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: dropWhile size = 3
+
 [../stdlib_test/src/tests\lang\test_abc.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: isAbstract helper false on __abstract__bar
+
+[../stdlib_test/src/tests\lang\test_assert_ext.tr]
+11 FAIL line(s) (showing up to 5):
+FAIL: AssertExt.assertEqual pass threw
+FAIL: AssertExt.assertNotEqual pass threw
+FAIL: AssertExt.assertTrue pass threw
+FAIL: AssertExt.assertFalse pass threw
+FAIL: AssertExt.assertAlmostEqualTolerance pass threw
+
+[../stdlib_test/src/tests\lang\test_character.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Character.getNumericValue('5')
+FAIL: Character.getNumericValue('A')
+
+[../stdlib_test/src/tests\lang\test_character_ext.tr]
+4 FAIL line(s) (showing up to 5):
+FAIL: CharacterExt.toUpperCase
+FAIL: CharacterExt.toLowerCase
+FAIL: CharacterExt.getNumericValue(5)
+FAIL: CharacterExt.getNumericValue(A)
+
+[../stdlib_test/src/tests\lang\test_dataclass_ext.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: frozen helper fields size
+
+[../stdlib_test/src/tests\lang\test_integer_ext.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: IntegerExt.parseUnsignedInt(123) = 5451
+FAIL: IntegerExt.rotateRight(2,1)
+
+[../stdlib_test/src/tests\lang\test_long_ext.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: LongExt.numberOfLeadingZeros(0L)
+FAIL: LongExt.numberOfTrailingZeros(0L)
 
 [../stdlib_test/src/tests\math\test_bit.tr]
 2 FAIL line(s) (showing up to 5):
@@ -1047,6 +881,11 @@ FAIL: Bit.rotl/rotr inverse
 1 FAIL line(s) (showing up to 5):
 FAIL: Combinatorics.partitionNumber(5)
 
+[../stdlib_test/src/tests\physics\test_wavefunction.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: evolve NaN
+FAIL: expectationP NaN
+
 [../stdlib_test/src/tests\sigproc\test_filter.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: butterworthLowpass order 2 a size expected 3
@@ -1056,9 +895,36 @@ FAIL: butterworthLowpass order 2 a size expected 3
 FAIL: haarTransform constant signal has non-zero detail
 FAIL: inverseHaar does not reconstruct haarTransform
 
+[../stdlib_test/src/tests\sim\test_simulation.tr]
+5 FAIL line(s) (showing up to 5):
+FAIL: SimEvent time not set
+FAIL: Simulation scheduleDelay event time = null
+FAIL: Simulation schedule first event time = null
+FAIL: Simulation step did not return earliest event
+FAIL: Simulation stop should prevent run
+
+[../stdlib_test/src/tests\text\test_unicodedata.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: Unicodedata.category(space) returned Po, expected Zs
+FAIL: Unicodedata.isSpace(space) should be true
+
+[../stdlib_test/src/tests\time\test_date_range.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: periodAdd(1M) returned 2024-02-14, expected 2024-02-15
+FAIL: periodAdd(1y) returned 2025-01-09, expected 2025-01-15
+
 [../stdlib_test/src/tests\time\test_duration.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: Duration.initWithNanos toNanos=2000500
+
+[../stdlib_test/src/tests\time\test_time.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Time.perfCounter returned 0
+
+[../stdlib_test/src/tests\units\test_unitconverter.tr]
+2 FAIL line(s) (showing up to 5):
+FAIL: convert basic v=1000
+FAIL: convert unknown unit
 
 [../stdlib_test/src/tests\util\test_chainmap.tr]
 2 FAIL line(s) (showing up to 5):
@@ -1070,6 +936,22 @@ FAIL: ChainMap pop did not remove front map
 FAIL: Deque.insert
 FAIL: Deque.extendLeft size=4
 
+[../stdlib_test/src/tests\util\test_forwardlist.tr]
+8 FAIL line(s) (showing up to 5):
+FAIL: ForwardList popFront = null
+FAIL: ForwardList front = null
+FAIL: ForwardList contains
+FAIL: ForwardList insertAfter
+FAIL: ForwardList removeAfter
+
+[../stdlib_test/src/tests\util\test_graphutil.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: GraphUtil shortestPath endpoints
+
 [../stdlib_test/src/tests\util\test_stringbuilder.tr]
 1 FAIL line(s) (showing up to 5):
 FAIL: StringBuilder.insert
+
+[../stdlib_test/src/tests\util\test_vec.tr]
+1 FAIL line(s) (showing up to 5):
+FAIL: Vec.insert
