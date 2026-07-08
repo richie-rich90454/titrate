@@ -258,7 +258,7 @@ impl Vm {
             Value::String(s) => {
                 // Handle string methods
                 match method_name.as_str() {
-                    "length" => {
+                    "length" | "size" => {
                         self.stack.drain(receiver_idx..);
                         self.push(Value::Int(s.chars().count() as i32));
                     }
