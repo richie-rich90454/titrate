@@ -997,7 +997,12 @@ impl Vm {
                         self.push(Value::Bool(!(x.chars().count() == 1 && x.chars().next() == Some(*y))))
                     }
                     (Value::Char(_), _) | (_, Value::Char(_)) => self.push(Value::Bool(true)),
-                    _ => return Err(format!("NE_I64: type mismatch {:?} != {:?}", a, b)),
+                    _ => {
+                        match (a.to_i64(), b.to_i64()) {
+                            (Some(x), Some(y)) => self.push(Value::Bool(x != y)),
+                            _ => return Err(format!("NE_I64: type mismatch {:?} != {:?}", a, b)),
+                        }
+                    }
                 }
             }
             OpCode::NE_F32 => {
